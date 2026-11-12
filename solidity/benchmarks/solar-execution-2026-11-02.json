@@ -1,0 +1,2407 @@
+{
+  "sourceCommit": "efb4689a9394f26c9c604127b68c955999fe3a85",
+  "ciRun": "https://github.com/hyperlane-xyz/hyperlane-monorepo/actions/runs/41526196058",
+  "executionLinux": {
+    "affinity": "cpu 0",
+    "counter_error": null,
+    "engine": "evm2 interpreter 9b037449c846515624ff6afde739f2b764851446",
+    "iterations": 5000,
+    "measurements": [
+      {
+        "gas_per_tx": 176703,
+        "name": "solc:runtime.dispatch.1",
+        "samples": [
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 191553.7706,
+            "instructions_per_tx": 456000.7718,
+            "thread_cpu_ns_per_tx": 43872.5492,
+            "wall_ns_per_tx": 43876.8952
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193016.185,
+            "instructions_per_tx": 456000.4744,
+            "thread_cpu_ns_per_tx": 46063.7762,
+            "wall_ns_per_tx": 46073.1348
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193066.572,
+            "instructions_per_tx": 456000.6598,
+            "thread_cpu_ns_per_tx": 47343.8638,
+            "wall_ns_per_tx": 47360.0188
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 192868.9152,
+            "instructions_per_tx": 456001.2222,
+            "thread_cpu_ns_per_tx": 43446.2472,
+            "wall_ns_per_tx": 43449.0894
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 192909.8452,
+            "instructions_per_tx": 456000.7726,
+            "thread_cpu_ns_per_tx": 43769.4172,
+            "wall_ns_per_tx": 43769.392
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193270.6436,
+            "instructions_per_tx": 456274.6138,
+            "thread_cpu_ns_per_tx": 45158.6506,
+            "wall_ns_per_tx": 45160.078
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193171.783,
+            "instructions_per_tx": 456274.9122,
+            "thread_cpu_ns_per_tx": 46175.5864,
+            "wall_ns_per_tx": 46182.4556
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193060.7262,
+            "instructions_per_tx": 456275.1908,
+            "thread_cpu_ns_per_tx": 47769.1296,
+            "wall_ns_per_tx": 47769.0358
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 192988.7032,
+            "instructions_per_tx": 456274.9992,
+            "thread_cpu_ns_per_tx": 47947.2256,
+            "wall_ns_per_tx": 47952.508
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193014.9382,
+            "instructions_per_tx": 456007.275,
+            "thread_cpu_ns_per_tx": 47640.1738,
+            "wall_ns_per_tx": 47644.4444
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 192928.8026,
+            "instructions_per_tx": 456007.4326,
+            "thread_cpu_ns_per_tx": 47340.8698,
+            "wall_ns_per_tx": 47343.7916
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193062.812,
+            "instructions_per_tx": 456007.8576,
+            "thread_cpu_ns_per_tx": 47285.1098,
+            "wall_ns_per_tx": 47294.6214
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193175.0234,
+            "instructions_per_tx": 456007.5526,
+            "thread_cpu_ns_per_tx": 46690.662,
+            "wall_ns_per_tx": 46693.1428
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193857.7606,
+            "instructions_per_tx": 456007.743,
+            "thread_cpu_ns_per_tx": 46775.52,
+            "wall_ns_per_tx": 46775.4248
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 193875.5758,
+            "instructions_per_tx": 456008.2092,
+            "thread_cpu_ns_per_tx": 46914.584,
+            "wall_ns_per_tx": 46921.151
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 112581,
+        "name": "solc:runtime.process.1",
+        "samples": [
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 466166.0024,
+            "instructions_per_tx": 1803957.4692,
+            "thread_cpu_ns_per_tx": 116110.9332,
+            "wall_ns_per_tx": 116116.7164
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467640.323,
+            "instructions_per_tx": 1803957.5202,
+            "thread_cpu_ns_per_tx": 112183.5188,
+            "wall_ns_per_tx": 112191.174
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467756.2038,
+            "instructions_per_tx": 1803957.4232,
+            "thread_cpu_ns_per_tx": 110202.0596,
+            "wall_ns_per_tx": 110208.5648
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467766.4884,
+            "instructions_per_tx": 1803957.2508,
+            "thread_cpu_ns_per_tx": 106545.877,
+            "wall_ns_per_tx": 106560.344
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467706.4022,
+            "instructions_per_tx": 1803957.4016,
+            "thread_cpu_ns_per_tx": 106350.339,
+            "wall_ns_per_tx": 106362.2272
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467902.8352,
+            "instructions_per_tx": 1803957.5146,
+            "thread_cpu_ns_per_tx": 109467.9918,
+            "wall_ns_per_tx": 109482.8978
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 468431.0488,
+            "instructions_per_tx": 1803957.699,
+            "thread_cpu_ns_per_tx": 108861.044,
+            "wall_ns_per_tx": 108874.633
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467661.048,
+            "instructions_per_tx": 1803957.5816,
+            "thread_cpu_ns_per_tx": 117960.6746,
+            "wall_ns_per_tx": 117982.3344
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467548.1566,
+            "instructions_per_tx": 1803960.2988,
+            "thread_cpu_ns_per_tx": 114579.164,
+            "wall_ns_per_tx": 114592.1076
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467538.2682,
+            "instructions_per_tx": 1803960.6086,
+            "thread_cpu_ns_per_tx": 115798.6394,
+            "wall_ns_per_tx": 116014.5534
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467583.325,
+            "instructions_per_tx": 1803960.7172,
+            "thread_cpu_ns_per_tx": 113622.0462,
+            "wall_ns_per_tx": 113646.0802
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 467526.337,
+            "instructions_per_tx": 1803960.6862,
+            "thread_cpu_ns_per_tx": 114596.46,
+            "wall_ns_per_tx": 114606.5418
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 468015.9504,
+            "instructions_per_tx": 1803960.2312,
+            "thread_cpu_ns_per_tx": 112671.5766,
+            "wall_ns_per_tx": 112685.1548
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 468380.936,
+            "instructions_per_tx": 1803960.3836,
+            "thread_cpu_ns_per_tx": 112209.0108,
+            "wall_ns_per_tx": 112218.5584
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 468466.2768,
+            "instructions_per_tx": 1803960.4562,
+            "thread_cpu_ns_per_tx": 112566.4468,
+            "wall_ns_per_tx": 112577.341
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 174235,
+        "name": "solar-routers:runtime.dispatch.1",
+        "samples": [
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174166.5048,
+            "instructions_per_tx": 428763.3434,
+            "thread_cpu_ns_per_tx": 43848.5992,
+            "wall_ns_per_tx": 43850.9112
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174128.4166,
+            "instructions_per_tx": 428762.2942,
+            "thread_cpu_ns_per_tx": 40022.9146,
+            "wall_ns_per_tx": 40026.6468
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174117.8842,
+            "instructions_per_tx": 428763.1376,
+            "thread_cpu_ns_per_tx": 40633.3944,
+            "wall_ns_per_tx": 40638.836
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 173678.2024,
+            "instructions_per_tx": 428763.0966,
+            "thread_cpu_ns_per_tx": 40308.0326,
+            "wall_ns_per_tx": 40307.9076
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174192.5452,
+            "instructions_per_tx": 428762.6024,
+            "thread_cpu_ns_per_tx": 40227.1786,
+            "wall_ns_per_tx": 40239.829
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174446.4688,
+            "instructions_per_tx": 429036.9398,
+            "thread_cpu_ns_per_tx": 40697.8744,
+            "wall_ns_per_tx": 40707.9416
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174397.445,
+            "instructions_per_tx": 429037.183,
+            "thread_cpu_ns_per_tx": 41970.6998,
+            "wall_ns_per_tx": 41974.4752
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174188.6434,
+            "instructions_per_tx": 429037.5308,
+            "thread_cpu_ns_per_tx": 44617.1928,
+            "wall_ns_per_tx": 44617.1792
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174246.5718,
+            "instructions_per_tx": 428921.9358,
+            "thread_cpu_ns_per_tx": 42613.8616,
+            "wall_ns_per_tx": 42613.8542
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174253.2858,
+            "instructions_per_tx": 428770.5428,
+            "thread_cpu_ns_per_tx": 43190.3374,
+            "wall_ns_per_tx": 43190.2238
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174243.2612,
+            "instructions_per_tx": 428769.8258,
+            "thread_cpu_ns_per_tx": 42403.9296,
+            "wall_ns_per_tx": 42407.6006
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174270.6498,
+            "instructions_per_tx": 428769.3868,
+            "thread_cpu_ns_per_tx": 42640.6136,
+            "wall_ns_per_tx": 42644.0308
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174201.0806,
+            "instructions_per_tx": 428770.1124,
+            "thread_cpu_ns_per_tx": 42059.5978,
+            "wall_ns_per_tx": 42071.3162
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174992.1664,
+            "instructions_per_tx": 428769.55,
+            "thread_cpu_ns_per_tx": 41951.192,
+            "wall_ns_per_tx": 41962.7478
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174823.8296,
+            "instructions_per_tx": 428769.8374,
+            "thread_cpu_ns_per_tx": 42035.3998,
+            "wall_ns_per_tx": 42035.284
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 110745,
+        "name": "solar-routers:runtime.process.1",
+        "samples": [
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 457822.6322,
+            "instructions_per_tx": 1784621.8628,
+            "thread_cpu_ns_per_tx": 107451.7406,
+            "wall_ns_per_tx": 107453.4442
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456966.4488,
+            "instructions_per_tx": 1784621.1686,
+            "thread_cpu_ns_per_tx": 109457.8,
+            "wall_ns_per_tx": 109465.3356
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 457080.1444,
+            "instructions_per_tx": 1784621.6508,
+            "thread_cpu_ns_per_tx": 108130.9884,
+            "wall_ns_per_tx": 108138.9074
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456463.175,
+            "instructions_per_tx": 1784621.412,
+            "thread_cpu_ns_per_tx": 106416.171,
+            "wall_ns_per_tx": 106429.8486
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456574.0394,
+            "instructions_per_tx": 1784621.31,
+            "thread_cpu_ns_per_tx": 107226.1628,
+            "wall_ns_per_tx": 107230.6786
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 457073.3484,
+            "instructions_per_tx": 1784621.6888,
+            "thread_cpu_ns_per_tx": 104051.778,
+            "wall_ns_per_tx": 104060.826
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 457166.355,
+            "instructions_per_tx": 1784621.473,
+            "thread_cpu_ns_per_tx": 111387.5132,
+            "wall_ns_per_tx": 111404.4868
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456926.8784,
+            "instructions_per_tx": 1784621.4322,
+            "thread_cpu_ns_per_tx": 117320.6808,
+            "wall_ns_per_tx": 117335.8672
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456781.6026,
+            "instructions_per_tx": 1784624.591,
+            "thread_cpu_ns_per_tx": 111273.1732,
+            "wall_ns_per_tx": 111289.5066
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456897.2726,
+            "instructions_per_tx": 1784624.4144,
+            "thread_cpu_ns_per_tx": 112324.5788,
+            "wall_ns_per_tx": 112340.8824
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456705.5314,
+            "instructions_per_tx": 1784624.4782,
+            "thread_cpu_ns_per_tx": 110967.0934,
+            "wall_ns_per_tx": 110980.7286
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456538.725,
+            "instructions_per_tx": 1784624.3786,
+            "thread_cpu_ns_per_tx": 111259.2672,
+            "wall_ns_per_tx": 111274.847
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 456915.2488,
+            "instructions_per_tx": 1784624.338,
+            "thread_cpu_ns_per_tx": 109399.19,
+            "wall_ns_per_tx": 109404.5564
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 458018.1894,
+            "instructions_per_tx": 1784624.4174,
+            "thread_cpu_ns_per_tx": 110063.4956,
+            "wall_ns_per_tx": 110065.5992
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 457589.427,
+            "instructions_per_tx": 1784624.449,
+            "thread_cpu_ns_per_tx": 109903.6056,
+            "wall_ns_per_tx": 109917.943
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 174235,
+        "name": "solar-routers-and-ism:runtime.dispatch.1",
+        "samples": [
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174682.5198,
+            "instructions_per_tx": 428787.4978,
+            "thread_cpu_ns_per_tx": 39604.5248,
+            "wall_ns_per_tx": 39611.2384
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174346.6278,
+            "instructions_per_tx": 428788.03,
+            "thread_cpu_ns_per_tx": 45052.8686,
+            "wall_ns_per_tx": 45056.943
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174278.164,
+            "instructions_per_tx": 428787.4904,
+            "thread_cpu_ns_per_tx": 41946.3178,
+            "wall_ns_per_tx": 41946.278
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174048.4436,
+            "instructions_per_tx": 428787.8784,
+            "thread_cpu_ns_per_tx": 40882.7762,
+            "wall_ns_per_tx": 40927.7964
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174424.3106,
+            "instructions_per_tx": 428791.6412,
+            "thread_cpu_ns_per_tx": 41525.16,
+            "wall_ns_per_tx": 41532.1328
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174678.4482,
+            "instructions_per_tx": 429062.2154,
+            "thread_cpu_ns_per_tx": 40899.8622,
+            "wall_ns_per_tx": 40902.9918
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174651.4764,
+            "instructions_per_tx": 429061.543,
+            "thread_cpu_ns_per_tx": 44187.123,
+            "wall_ns_per_tx": 44194.4146
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174608.7282,
+            "instructions_per_tx": 429061.5822,
+            "thread_cpu_ns_per_tx": 44252.765,
+            "wall_ns_per_tx": 44261.2466
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174572.973,
+            "instructions_per_tx": 428946.2826,
+            "thread_cpu_ns_per_tx": 43217.3952,
+            "wall_ns_per_tx": 43224.245
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174574.1456,
+            "instructions_per_tx": 428794.9874,
+            "thread_cpu_ns_per_tx": 42811.2216,
+            "wall_ns_per_tx": 42813.2372
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174433.9954,
+            "instructions_per_tx": 428794.339,
+            "thread_cpu_ns_per_tx": 42480.5376,
+            "wall_ns_per_tx": 42490.1606
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174426.3546,
+            "instructions_per_tx": 428794.964,
+            "thread_cpu_ns_per_tx": 42585.1516,
+            "wall_ns_per_tx": 42589.9088
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 174510.9376,
+            "instructions_per_tx": 428794.7712,
+            "thread_cpu_ns_per_tx": 42480.3316,
+            "wall_ns_per_tx": 42485.8806
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 175221.8956,
+            "instructions_per_tx": 428794.2166,
+            "thread_cpu_ns_per_tx": 42533.2258,
+            "wall_ns_per_tx": 42536.877
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 175110.6408,
+            "instructions_per_tx": 428794.5404,
+            "thread_cpu_ns_per_tx": 42228.5778,
+            "wall_ns_per_tx": 42236.0304
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 106165,
+        "name": "solar-routers-and-ism:runtime.process.1",
+        "samples": [
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434574.6974,
+            "instructions_per_tx": 1733444.4144,
+            "thread_cpu_ns_per_tx": 101168.897,
+            "wall_ns_per_tx": 101173.844
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 435267.5792,
+            "instructions_per_tx": 1733444.4514,
+            "thread_cpu_ns_per_tx": 101223.727,
+            "wall_ns_per_tx": 101234.2862
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 435188.8716,
+            "instructions_per_tx": 1733444.3678,
+            "thread_cpu_ns_per_tx": 107400.7508,
+            "wall_ns_per_tx": 107413.9584
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 433762.801,
+            "instructions_per_tx": 1733444.599,
+            "thread_cpu_ns_per_tx": 100365.3614,
+            "wall_ns_per_tx": 100375.4308
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434524.7712,
+            "instructions_per_tx": 1733444.3948,
+            "thread_cpu_ns_per_tx": 100550.6352,
+            "wall_ns_per_tx": 100555.5506
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434586.4304,
+            "instructions_per_tx": 1733444.67,
+            "thread_cpu_ns_per_tx": 100698.9432,
+            "wall_ns_per_tx": 100710.959
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434508.421,
+            "instructions_per_tx": 1733444.652,
+            "thread_cpu_ns_per_tx": 107098.117,
+            "wall_ns_per_tx": 107108.9086
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434403.3318,
+            "instructions_per_tx": 1733444.3784,
+            "thread_cpu_ns_per_tx": 108800.8082,
+            "wall_ns_per_tx": 108815.535
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434393.5084,
+            "instructions_per_tx": 1733447.2058,
+            "thread_cpu_ns_per_tx": 108159.7004,
+            "wall_ns_per_tx": 108169.648
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434378.3436,
+            "instructions_per_tx": 1733447.7124,
+            "thread_cpu_ns_per_tx": 106087.4532,
+            "wall_ns_per_tx": 106096.4872
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434463.9698,
+            "instructions_per_tx": 1733447.5104,
+            "thread_cpu_ns_per_tx": 107048.2708,
+            "wall_ns_per_tx": 107055.285
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434549.198,
+            "instructions_per_tx": 1733447.5778,
+            "thread_cpu_ns_per_tx": 107219.0646,
+            "wall_ns_per_tx": 107225.1212
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 434615.2904,
+            "instructions_per_tx": 1733447.24,
+            "thread_cpu_ns_per_tx": 106170.2652,
+            "wall_ns_per_tx": 106190.5678
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 435161.9184,
+            "instructions_per_tx": 1733447.4378,
+            "thread_cpu_ns_per_tx": 104607.8136,
+            "wall_ns_per_tx": 104620.9112
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 435169.9148,
+            "instructions_per_tx": 1733447.7812,
+            "thread_cpu_ns_per_tx": 105437.9274,
+            "wall_ns_per_tx": 105447.1216
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 164520,
+        "name": "solar-core-and-routers:runtime.dispatch.1",
+        "samples": [
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112551.3286,
+            "instructions_per_tx": 326609.639,
+            "thread_cpu_ns_per_tx": 26237.914,
+            "wall_ns_per_tx": 26237.8626
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112200.247,
+            "instructions_per_tx": 326609.7076,
+            "thread_cpu_ns_per_tx": 26093.862,
+            "wall_ns_per_tx": 26093.7224
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112379.7666,
+            "instructions_per_tx": 326610.1056,
+            "thread_cpu_ns_per_tx": 27687.2152,
+            "wall_ns_per_tx": 27689.0428
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112418.6596,
+            "instructions_per_tx": 326609.8808,
+            "thread_cpu_ns_per_tx": 26640.8758,
+            "wall_ns_per_tx": 26645.2574
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112569.7224,
+            "instructions_per_tx": 326616.6504,
+            "thread_cpu_ns_per_tx": 25758.4382,
+            "wall_ns_per_tx": 25763.8736
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112725.3598,
+            "instructions_per_tx": 326883.078,
+            "thread_cpu_ns_per_tx": 25662.3062,
+            "wall_ns_per_tx": 25670.3896
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112513.2376,
+            "instructions_per_tx": 326883.7572,
+            "thread_cpu_ns_per_tx": 27226.9296,
+            "wall_ns_per_tx": 27230.7418
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112526.9938,
+            "instructions_per_tx": 326882.7478,
+            "thread_cpu_ns_per_tx": 28126.9552,
+            "wall_ns_per_tx": 28130.0372
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112529.1718,
+            "instructions_per_tx": 326768.5148,
+            "thread_cpu_ns_per_tx": 28361.4552,
+            "wall_ns_per_tx": 28365.1256
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112152.8988,
+            "instructions_per_tx": 326616.8696,
+            "thread_cpu_ns_per_tx": 28294.987,
+            "wall_ns_per_tx": 28298.4692
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112428.184,
+            "instructions_per_tx": 326616.7216,
+            "thread_cpu_ns_per_tx": 27383.0716,
+            "wall_ns_per_tx": 27385.2232
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112324.3646,
+            "instructions_per_tx": 326615.927,
+            "thread_cpu_ns_per_tx": 27635.6214,
+            "wall_ns_per_tx": 27639.5414
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112736.6136,
+            "instructions_per_tx": 326616.6402,
+            "thread_cpu_ns_per_tx": 26951.4716,
+            "wall_ns_per_tx": 26952.6864
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112595.8772,
+            "instructions_per_tx": 326616.4812,
+            "thread_cpu_ns_per_tx": 26471.0498,
+            "wall_ns_per_tx": 26476.6418
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 112558.2546,
+            "instructions_per_tx": 326616.8126,
+            "thread_cpu_ns_per_tx": 27347.2016,
+            "wall_ns_per_tx": 27350.1898
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 103046,
+        "name": "solar-core-and-routers:runtime.process.1",
+        "samples": [
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 403503.4296,
+            "instructions_per_tx": 1698590.3068,
+            "thread_cpu_ns_per_tx": 93092.6382,
+            "wall_ns_per_tx": 93098.339
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 402792.3772,
+            "instructions_per_tx": 1698590.5018,
+            "thread_cpu_ns_per_tx": 93548.488,
+            "wall_ns_per_tx": 93555.9658
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 403128.4248,
+            "instructions_per_tx": 1698590.4578,
+            "thread_cpu_ns_per_tx": 94597.7876,
+            "wall_ns_per_tx": 94601.1954
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401547.9042,
+            "instructions_per_tx": 1698590.361,
+            "thread_cpu_ns_per_tx": 94073.9918,
+            "wall_ns_per_tx": 94211.7828
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401963.438,
+            "instructions_per_tx": 1698590.4534,
+            "thread_cpu_ns_per_tx": 91089.855,
+            "wall_ns_per_tx": 91099.2852
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401482.8242,
+            "instructions_per_tx": 1698590.436,
+            "thread_cpu_ns_per_tx": 92731.0322,
+            "wall_ns_per_tx": 92739.7914
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401817.8786,
+            "instructions_per_tx": 1698590.3354,
+            "thread_cpu_ns_per_tx": 98476.368,
+            "wall_ns_per_tx": 98482.0698
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401108.7588,
+            "instructions_per_tx": 1698590.7684,
+            "thread_cpu_ns_per_tx": 99290.8138,
+            "wall_ns_per_tx": 99310.331
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401757.7416,
+            "instructions_per_tx": 1698593.6416,
+            "thread_cpu_ns_per_tx": 102235.9146,
+            "wall_ns_per_tx": 102256.7814
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401351.1206,
+            "instructions_per_tx": 1698593.363,
+            "thread_cpu_ns_per_tx": 100567.7054,
+            "wall_ns_per_tx": 100577.855
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 402338.2326,
+            "instructions_per_tx": 1698593.2942,
+            "thread_cpu_ns_per_tx": 98705.754,
+            "wall_ns_per_tx": 98716.929
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401468.4872,
+            "instructions_per_tx": 1698593.3586,
+            "thread_cpu_ns_per_tx": 98219.9602,
+            "wall_ns_per_tx": 98225.5184
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 402002.7446,
+            "instructions_per_tx": 1698593.2842,
+            "thread_cpu_ns_per_tx": 96784.5348,
+            "wall_ns_per_tx": 96795.1024
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 401899.6318,
+            "instructions_per_tx": 1698593.4222,
+            "thread_cpu_ns_per_tx": 95247.9334,
+            "wall_ns_per_tx": 95256.286
+          },
+          {
+            "counter_running_ratio": 1.0,
+            "cycles_per_tx": 402402.24,
+            "instructions_per_tx": 1698593.438,
+            "thread_cpu_ns_per_tx": 97955.5222,
+            "wall_ns_per_tx": 97964.255
+          }
+        ]
+      }
+    ],
+    "method": "Fixed prestate; EIP-1559 Cancun transact/discard; 100 correctness/warm-up replays per fixture. Timed loop includes transaction validation, interpretation, precompiles and journal cleanup. Excludes JSON/RPC, state import, persistent commit, block production, JIT, transaction signature recovery and consensus. Alternating forward/reverse fixture order.",
+    "rounds": 15
+  },
+  "executionMac": {
+    "affinity": "not available on this host",
+    "counter_error": "Linux perf_event hardware counters required; wall/thread CPU time are measured separately",
+    "engine": "evm2 interpreter 9b037449c846515624ff6afde739f2b764851446",
+    "iterations": 2000,
+    "measurements": [
+      {
+        "gas_per_tx": 176703,
+        "name": "solc:runtime.dispatch.1",
+        "samples": [
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 34218.875,
+            "wall_ns_per_tx": 34218.5
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 33324.125,
+            "wall_ns_per_tx": 33322.6045
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 32814.8125,
+            "wall_ns_per_tx": 32814.625
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 33929.5835,
+            "wall_ns_per_tx": 33939.9375
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 33187.75,
+            "wall_ns_per_tx": 33189.396
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 33223.646,
+            "wall_ns_per_tx": 33223.5
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 32630.25,
+            "wall_ns_per_tx": 32630.083
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 33717.9585,
+            "wall_ns_per_tx": 33722.3955
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 33367.8125,
+            "wall_ns_per_tx": 33367.667
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 33197.9375,
+            "wall_ns_per_tx": 33197.75
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 32785.146,
+            "wall_ns_per_tx": 32792.875
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 112581,
+        "name": "solc:runtime.process.1",
+        "samples": [
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 81341.979,
+            "wall_ns_per_tx": 81345.292
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 81547.9585,
+            "wall_ns_per_tx": 81553.6045
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 80882.1045,
+            "wall_ns_per_tx": 80881.854
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 81046.7915,
+            "wall_ns_per_tx": 81046.5625
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 82369.7085,
+            "wall_ns_per_tx": 82399.771
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 81037.0415,
+            "wall_ns_per_tx": 81035.4375
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 84257.0625,
+            "wall_ns_per_tx": 85750.6875
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 81267.396,
+            "wall_ns_per_tx": 81267.146
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 81483.479,
+            "wall_ns_per_tx": 81514.4165
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 81557.479,
+            "wall_ns_per_tx": 81557.2915
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 81451.104,
+            "wall_ns_per_tx": 81451.146
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 174235,
+        "name": "solar-routers:runtime.dispatch.1",
+        "samples": [
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30043.8955,
+            "wall_ns_per_tx": 30043.646
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30095.9795,
+            "wall_ns_per_tx": 30095.729
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30325.8335,
+            "wall_ns_per_tx": 30327.0835
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30151.229,
+            "wall_ns_per_tx": 30154.583
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30909.5205,
+            "wall_ns_per_tx": 31037.8125
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 29543.8545,
+            "wall_ns_per_tx": 29543.625
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 38602.958,
+            "wall_ns_per_tx": 43114.854
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30154.5835,
+            "wall_ns_per_tx": 30156.271
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30032.958,
+            "wall_ns_per_tx": 30032.771
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 29711.8955,
+            "wall_ns_per_tx": 29711.7085
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30048.271,
+            "wall_ns_per_tx": 30050.1455
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 110745,
+        "name": "solar-routers:runtime.process.1",
+        "samples": [
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 82826.5835,
+            "wall_ns_per_tx": 82893.375
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 79132.625,
+            "wall_ns_per_tx": 79132.375
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 79251.5,
+            "wall_ns_per_tx": 79251.0415
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 79312.8335,
+            "wall_ns_per_tx": 79312.6875
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 79611.0625,
+            "wall_ns_per_tx": 79620.896
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 79375.4165,
+            "wall_ns_per_tx": 79381.1875
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 88702.229,
+            "wall_ns_per_tx": 90021.6875
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 78825.25,
+            "wall_ns_per_tx": 78824.979
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 79829.5415,
+            "wall_ns_per_tx": 79845.1875
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 78996.125,
+            "wall_ns_per_tx": 79012.7915
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 80969.146,
+            "wall_ns_per_tx": 81081.25
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 174235,
+        "name": "solar-routers-and-ism:runtime.dispatch.1",
+        "samples": [
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30330.625,
+            "wall_ns_per_tx": 30347.021
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30313.375,
+            "wall_ns_per_tx": 30313.125
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 29716.479,
+            "wall_ns_per_tx": 29716.3125
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 29937.208,
+            "wall_ns_per_tx": 29936.979
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30186.125,
+            "wall_ns_per_tx": 30195.979
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30052.3545,
+            "wall_ns_per_tx": 30052.1875
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30055.583,
+            "wall_ns_per_tx": 30055.417
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30071.4375,
+            "wall_ns_per_tx": 30075.229
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30595.646,
+            "wall_ns_per_tx": 30594.0625
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 29774.021,
+            "wall_ns_per_tx": 29773.8125
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 30589.3125,
+            "wall_ns_per_tx": 30608.604
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 106165,
+        "name": "solar-routers-and-ism:runtime.process.1",
+        "samples": [
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 78698.0625,
+            "wall_ns_per_tx": 78779.271
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 76355.0625,
+            "wall_ns_per_tx": 76356.8335
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 76098.896,
+            "wall_ns_per_tx": 76113.167
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 75607.9165,
+            "wall_ns_per_tx": 75614.1455
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 76722.2085,
+            "wall_ns_per_tx": 76737.2915
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 75674.271,
+            "wall_ns_per_tx": 75680.271
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 76148.6665,
+            "wall_ns_per_tx": 76148.4375
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 75369.2085,
+            "wall_ns_per_tx": 75367.646
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 75436.4375,
+            "wall_ns_per_tx": 75438.1665
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 75831.7915,
+            "wall_ns_per_tx": 75831.5415
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 75937.6665,
+            "wall_ns_per_tx": 75937.4585
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 164520,
+        "name": "solar-core-and-routers:runtime.dispatch.1",
+        "samples": [
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 21655.6665,
+            "wall_ns_per_tx": 21739.146
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18791.146,
+            "wall_ns_per_tx": 18790.917
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18925.5415,
+            "wall_ns_per_tx": 18925.2915
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18562.4585,
+            "wall_ns_per_tx": 18562.292
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 19348.8335,
+            "wall_ns_per_tx": 19361.3335
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18830.8125,
+            "wall_ns_per_tx": 18830.6875
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18769.521,
+            "wall_ns_per_tx": 18769.4375
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18478.4585,
+            "wall_ns_per_tx": 18478.3335
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18569.0,
+            "wall_ns_per_tx": 18568.75
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18423.8545,
+            "wall_ns_per_tx": 18423.771
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 18889.625,
+            "wall_ns_per_tx": 18889.3955
+          }
+        ]
+      },
+      {
+        "gas_per_tx": 103046,
+        "name": "solar-core-and-routers:runtime.process.1",
+        "samples": [
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 72790.4375,
+            "wall_ns_per_tx": 72799.083
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 71719.4585,
+            "wall_ns_per_tx": 71734.979
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 70823.708,
+            "wall_ns_per_tx": 70823.479
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 72846.6665,
+            "wall_ns_per_tx": 72945.6875
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 75137.25,
+            "wall_ns_per_tx": 75308.9375
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 70929.4375,
+            "wall_ns_per_tx": 70929.083
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 70858.9375,
+            "wall_ns_per_tx": 70857.396
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 70661.0415,
+            "wall_ns_per_tx": 70660.792
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 71239.7915,
+            "wall_ns_per_tx": 71238.25
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 71033.229,
+            "wall_ns_per_tx": 71031.625
+          },
+          {
+            "counter_running_ratio": null,
+            "cycles_per_tx": null,
+            "instructions_per_tx": null,
+            "thread_cpu_ns_per_tx": 71115.729,
+            "wall_ns_per_tx": 71115.5415
+          }
+        ]
+      }
+    ],
+    "method": "Fixed prestate; EIP-1559 Cancun transact/discard; 100 correctness/warm-up replays per fixture. Timed loop includes transaction validation, interpretation, precompiles and journal cleanup. Excludes JSON/RPC, state import, persistent commit, block production, JIT, transaction signature recovery and consensus. Alternating forward/reverse fixture order.",
+    "rounds": 11
+  },
+  "serialPairLinux": {
+    "engine": "evm2 interpreter 9b037449c846515624ff6afde739f2b764851446",
+    "rounds": 15,
+    "iterations": 5000,
+    "affinity": "cpu 0",
+    "counter_error": null,
+    "cases": {
+      "solc": {
+        "gas": 289284,
+        "metrics": {
+          "cycles_per_tx": {
+            "median": 660656.5079999999,
+            "min": 657719.773,
+            "max": 662341.8526
+          },
+          "instructions_per_tx": {
+            "median": 2259968.1266,
+            "min": 2259957.9946,
+            "max": 2260235.298
+          },
+          "thread_cpu_ns_per_tx": {
+            "median": 159362.23859999998,
+            "min": 149992.1242,
+            "max": 165729.8042
+          },
+          "wall_ns_per_tx": {
+            "median": 159378.2976,
+            "min": 150009.43339999998,
+            "max": 165751.3702
+          }
+        },
+        "serial_pair_equivalent_per_cpu_second": 6275.012253749805,
+        "reductions": {
+          "cycles_per_tx": 0.0,
+          "instructions_per_tx": 0.0,
+          "thread_cpu_ns_per_tx": 0.0,
+          "wall_ns_per_tx": 0.0
+        },
+        "execution_capacity_increase_pct": 0.0
+      },
+      "solar-routers": {
+        "gas": 284980,
+        "metrics": {
+          "cycles_per_tx": {
+            "median": 631116.3293999999,
+            "min": 630141.3774,
+            "max": 633010.3558
+          },
+          "instructions_per_tx": {
+            "median": 2213394.2864,
+            "min": 2213383.4628,
+            "max": 2213658.963
+          },
+          "thread_cpu_ns_per_tx": {
+            "median": 151939.0054,
+            "min": 144749.65240000002,
+            "max": 161937.8736
+          },
+          "wall_ns_per_tx": {
+            "median": 151953.227,
+            "min": 144768.7676,
+            "max": 161953.0464
+          }
+        },
+        "serial_pair_equivalent_per_cpu_second": 6581.588429958223,
+        "reductions": {
+          "cycles_per_tx": 4.471336956844141,
+          "instructions_per_tx": 2.0608184536685448,
+          "thread_cpu_ns_per_tx": 4.658087929244226,
+          "wall_ns_per_tx": 4.658771433633369
+        },
+        "execution_capacity_increase_pct": 4.885666574200154
+      },
+      "solar-routers-and-ism": {
+        "gas": 280400,
+        "metrics": {
+          "cycles_per_tx": {
+            "median": 609126.228,
+            "min": 607811.2446,
+            "max": 610383.814
+          },
+          "instructions_per_tx": {
+            "median": 2162242.0112,
+            "min": 2162231.8581999997,
+            "max": 2162506.8854
+          },
+          "thread_cpu_ns_per_tx": {
+            "median": 148650.5968,
+            "min": 140773.4218,
+            "max": 153053.57319999998
+          },
+          "wall_ns_per_tx": {
+            "median": 148676.4484,
+            "min": 140785.0824,
+            "max": 153076.7816
+          }
+        },
+        "serial_pair_equivalent_per_cpu_second": 6727.184562504225,
+        "reductions": {
+          "cycles_per_tx": 7.7998595905756085,
+          "instructions_per_tx": 4.324225383966973,
+          "thread_cpu_ns_per_tx": 6.721568355277851,
+          "wall_ns_per_tx": 6.714746838907127
+        },
+        "execution_capacity_increase_pct": 7.205919135603489
+      },
+      "solar-core-and-routers": {
+        "gas": 267566,
+        "metrics": {
+          "cycles_per_tx": {
+            "median": 514495.50899999996,
+            "min": 513504.0194,
+            "max": 516054.7582
+          },
+          "instructions_per_tx": {
+            "median": 2025209.9244000001,
+            "min": 2025199.9457999999,
+            "max": 2025474.0926
+          },
+          "thread_cpu_ns_per_tx": {
+            "median": 123736.0064,
+            "min": 116848.2932,
+            "max": 130597.3698
+          },
+          "wall_ns_per_tx": {
+            "median": 123747.78880000001,
+            "min": 116863.1588,
+            "max": 130621.907
+          }
+        },
+        "serial_pair_equivalent_per_cpu_second": 8081.721958661824,
+        "reductions": {
+          "cycles_per_tx": 22.123599363680224,
+          "instructions_per_tx": 10.387677571062959,
+          "thread_cpu_ns_per_tx": 22.35550436099357,
+          "wall_ns_per_tx": 22.355935115723046
+        },
+        "execution_capacity_increase_pct": 28.792130307512487
+      }
+    }
+  },
+  "serialPairMac": {
+    "engine": "evm2 interpreter 9b037449c846515624ff6afde739f2b764851446",
+    "rounds": 11,
+    "iterations": 2000,
+    "affinity": "not available on this host",
+    "counter_error": "Linux perf_event hardware counters required; wall/thread CPU time are measured separately",
+    "cases": {
+      "solc": {
+        "gas": 289284,
+        "metrics": {
+          "thread_cpu_ns_per_tx": {
+            "median": 114872.0835,
+            "min": 113696.917,
+            "max": 116887.3125
+          },
+          "wall_ns_per_tx": {
+            "median": 114882.08350000001,
+            "min": 113696.479,
+            "max": 118380.7705
+          }
+        },
+        "serial_pair_equivalent_per_cpu_second": 8705.3352697307,
+        "reductions": {
+          "thread_cpu_ns_per_tx": 0.0,
+          "wall_ns_per_tx": 0.0
+        },
+        "execution_capacity_increase_pct": 0.0
+      },
+      "solar-routers": {
+        "gas": 284980,
+        "metrics": {
+          "thread_cpu_ns_per_tx": {
+            "median": 109577.33350000001,
+            "min": 108708.0205,
+            "max": 127305.187
+          },
+          "wall_ns_per_tx": {
+            "median": 109578.125,
+            "min": 108724.5,
+            "max": 133136.5415
+          }
+        },
+        "serial_pair_equivalent_per_cpu_second": 9125.974944444144,
+        "reductions": {
+          "thread_cpu_ns_per_tx": 4.6092573919406465,
+          "wall_ns_per_tx": 4.616871785755872
+        },
+        "execution_capacity_increase_pct": 4.831975583709558
+      },
+      "solar-routers-and-ism": {
+        "gas": 280400,
+        "metrics": {
+          "thread_cpu_ns_per_tx": {
+            "median": 106032.08350000001,
+            "min": 105440.646,
+            "max": 109028.6875
+          },
+          "wall_ns_per_tx": {
+            "median": 106032.229,
+            "min": 105442.875,
+            "max": 109126.29199999999
+          }
+        },
+        "serial_pair_equivalent_per_cpu_second": 9431.107708074038,
+        "reductions": {
+          "thread_cpu_ns_per_tx": 7.6955163784419245,
+          "wall_ns_per_tx": 7.703424442158557
+        },
+        "execution_capacity_increase_pct": 8.33709921393746
+      },
+      "solar-core-and-routers": {
+        "gas": 267566,
+        "metrics": {
+          "thread_cpu_ns_per_tx": {
+            "median": 89808.7915,
+            "min": 89139.5,
+            "max": 94486.08350000001
+          },
+          "wall_ns_per_tx": {
+            "median": 89807.0,
+            "min": 89139.1255,
+            "max": 94670.27100000001
+          }
+        },
+        "serial_pair_equivalent_per_cpu_second": 11134.767357380595,
+        "reductions": {
+          "thread_cpu_ns_per_tx": 21.81843598231592,
+          "wall_ns_per_tx": 21.826800782212487
+        },
+        "execution_capacity_increase_pct": 27.907392563009804
+      }
+    }
+  },
+  "incrementalLinux": {
+    "method": "Comment-only invalidations in a temporary contracts-only project copy with the same remappings/dependencies/profiles. No checkout files modified. Clean initial compilation and a stabilization pass excluded from incremental medians. Alternating variant order. Native Forge compilation, not package exports.",
+    "runs": 5,
+    "cases": {
+      "leaf-hook": {
+        "path": "contracts/hooks/MerkleTreeHook.sol",
+        "solc": [
+          {
+            "ms": 418.3654239999996,
+            "compiles": [4]
+          },
+          {
+            "ms": 426.6785729999974,
+            "compiles": [4]
+          },
+          {
+            "ms": 404.8570389999986,
+            "compiles": [4]
+          },
+          {
+            "ms": 420.43115599999874,
+            "compiles": [4]
+          },
+          {
+            "ms": 406.5595710000016,
+            "compiles": [4]
+          }
+        ],
+        "solar": [
+          {
+            "ms": 128.56590300000244,
+            "compiles": [4]
+          },
+          {
+            "ms": 131.57309600000008,
+            "compiles": [4]
+          },
+          {
+            "ms": 125.58128799999758,
+            "compiles": [4]
+          },
+          {
+            "ms": 125.1591690000023,
+            "compiles": [4]
+          },
+          {
+            "ms": 126.49035899999944,
+            "compiles": [4]
+          }
+        ]
+      },
+      "shared-router": {
+        "path": "contracts/client/Router.sol",
+        "solc": [
+          {
+            "ms": 8598.577103,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 8759.822438999996,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 8996.066021999999,
+            "compiles": [9, 43]
+          },
+          {
+            "ms": 8634.028456,
+            "compiles": [9, 43]
+          },
+          {
+            "ms": 8732.872249999993,
+            "compiles": [43, 9]
+          }
+        ],
+        "solar": [
+          {
+            "ms": 388.64853100000255,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 388.93213099999775,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 385.7626090000049,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 387.3705210000044,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 397.3287740000087,
+            "compiles": [43, 9]
+          }
+        ]
+      }
+    }
+  },
+  "incrementalMac": {
+    "method": "Comment-only invalidations in a temporary contracts-only project copy with the same remappings/dependencies/profiles. No checkout files modified. Clean initial compilation and a stabilization pass excluded from incremental medians. Alternating variant order. Native Forge compilation, not package exports.",
+    "runs": 5,
+    "cases": {
+      "leaf-hook": {
+        "path": "contracts/hooks/MerkleTreeHook.sol",
+        "solc": [
+          {
+            "ms": 505.8076250000013,
+            "compiles": [4]
+          },
+          {
+            "ms": 462.7028750000027,
+            "compiles": [4]
+          },
+          {
+            "ms": 464.494666999999,
+            "compiles": [4]
+          },
+          {
+            "ms": 463.36237500000425,
+            "compiles": [4]
+          },
+          {
+            "ms": 485.62766700000066,
+            "compiles": [4]
+          }
+        ],
+        "solar": [
+          {
+            "ms": 250.5547910000023,
+            "compiles": [4]
+          },
+          {
+            "ms": 227.66845900000044,
+            "compiles": [4]
+          },
+          {
+            "ms": 236.35974999999598,
+            "compiles": [4]
+          },
+          {
+            "ms": 221.9885839999988,
+            "compiles": [4]
+          },
+          {
+            "ms": 250.13845800000126,
+            "compiles": [4]
+          }
+        ]
+      },
+      "shared-router": {
+        "path": "contracts/client/Router.sol",
+        "solc": [
+          {
+            "ms": 7643.906959,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 7749.264541999997,
+            "compiles": [9, 43]
+          },
+          {
+            "ms": 7832.633582999995,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 7753.152709000002,
+            "compiles": [9, 43]
+          },
+          {
+            "ms": 7629.079417000001,
+            "compiles": [43, 9]
+          }
+        ],
+        "solar": [
+          {
+            "ms": 502.4649999999965,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 495.25104199999623,
+            "compiles": [9, 43]
+          },
+          {
+            "ms": 567.2869589999973,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 493.71837499999674,
+            "compiles": [43, 9]
+          },
+          {
+            "ms": 522.6495410000061,
+            "compiles": [43, 9]
+          }
+        ]
+      }
+    }
+  },
+  "blockCapacity": {
+    "solc": {
+      "gasBudget": 5000000,
+      "transactionGasLimit": 300000,
+      "requested": 512,
+      "blocks": [
+        {
+          "transactions": 30,
+          "gasUsed": 4856492,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4778363,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4807624,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4785660,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4810057,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4783228,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4790524,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4785660,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4812489,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4780795,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4790524,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4785660,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4792957,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4783228,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4790524,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4785660,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4814922,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 2,
+          "gasUsed": 316774,
+          "gasLimit": 5000000
+        }
+      ],
+      "method": "Actual source transfer transactions in mined local Anvil blocks; last block conservatively excluded because it may be partial. No consensus/block interval/TPS claim."
+    },
+    "solar-routers": {
+      "gasBudget": 5000000,
+      "transactionGasLimit": 300000,
+      "requested": 512,
+      "blocks": [
+        {
+          "transactions": 30,
+          "gasUsed": 4782452,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4704323,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4733584,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4711620,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4736017,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4709188,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4716484,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4711620,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4738449,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4706755,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4716484,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4711620,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4718917,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4709188,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4716484,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4711620,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4740882,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 2,
+          "gasUsed": 311838,
+          "gasLimit": 5000000
+        }
+      ],
+      "method": "Actual source transfer transactions in mined local Anvil blocks; last block conservatively excluded because it may be partial. No consensus/block interval/TPS claim."
+    },
+    "solar-routers-and-ism": {
+      "gasBudget": 5000000,
+      "transactionGasLimit": 300000,
+      "requested": 512,
+      "blocks": [
+        {
+          "transactions": 30,
+          "gasUsed": 4782452,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4704323,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4733584,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4711620,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4736017,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4709188,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4716484,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4711620,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4738449,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4706755,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4716484,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4711620,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4718917,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4709188,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4716484,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4711620,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 30,
+          "gasUsed": 4740882,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 2,
+          "gasUsed": 311838,
+          "gasLimit": 5000000
+        }
+      ],
+      "method": "Actual source transfer transactions in mined local Anvil blocks; last block conservatively excluded because it may be partial. No consensus/block interval/TPS claim."
+    },
+    "solar-core-and-routers": {
+      "gasBudget": 5000000,
+      "transactionGasLimit": 300000,
+      "requested": 512,
+      "blocks": [
+        {
+          "transactions": 32,
+          "gasUsed": 4783747,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4734666,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4715347,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4736878,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4715347,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4717566,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4715347,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4739129,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4715347,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4717566,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4715347,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4719778,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4715347,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4717566,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4715347,
+          "gasLimit": 5000000
+        },
+        {
+          "transactions": 32,
+          "gasUsed": 4741342,
+          "gasLimit": 5000000
+        }
+      ],
+      "method": "Actual source transfer transactions in mined local Anvil blocks; last block conservatively excluded because it may be partial. No consensus/block interval/TPS claim."
+    }
+  },
+  "hostLinux": {
+    "architecture": "x86_64",
+    "vcpus": 8,
+    "model": "AMD EPYC 9R45 96-Core Processor",
+    "hypervisor": "KVM",
+    "affinity": "cpu 0"
+  },
+  "hostMac": {
+    "model": "Apple M3 Pro",
+    "logicalCpus": 11,
+    "ramGiB": 36,
+    "os": "macOS 27.0.1"
+  }
+}
