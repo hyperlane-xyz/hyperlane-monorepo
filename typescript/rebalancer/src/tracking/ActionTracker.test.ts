@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { type Logger, pino } from 'pino';
 import Sinon from 'sinon';
+import { Registry } from 'prom-client';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
@@ -23,6 +24,7 @@ import type {
   ITokenBridgeStatusAdapter,
   MCRStatusPollContext,
 } from '../interfaces/ITokenBridgeStatusAdapter.js';
+import { registerActionMetrics } from '../metrics/ActionMetrics.js';
 import {
   ID_A,
   ID_B,
@@ -1508,6 +1510,73 @@ describe('ActionTracker', () => {
       expect((await rebalanceIntentStore.get(intent.id))?.status).to.equal(
         'in_progress',
       );
+      expect(
+        (await denylistTracker.getInProgressActions(false)).map((a) => a.id),
+      ).to.include(action.id);
+    });
+
+    it('omits denylisted messages from alerts while retaining reservations and restores alerts when unignored', async () => {
+      const tracker = await createDenylistTracker();
+      await tracker.initialize();
+      await rebalanceActionStore.update(ID_A, {
+        createdAt: Date.now() - 7 * 60 * 60 * 1_000,
+        externalExecutionRef: {
+          provider: TokenBridgeStatusAdapterType.HyperlaneMessage,
+          kind: TokenBridgeStatusAdapterType.HyperlaneMessage,
+          data: { messageId: ID_A },
+        },
+      });
+      const registry = new Registry();
+      registerActionMetrics(registry, 'TEST/route', () =>
+        tracker.getInProgressActions(false),
+      );
+      const readMetrics = async () => {
+        const metrics = await registry.getMetricsAsJSON();
+        const age = metrics.find((m) =>
+          m.name.endsWith('oldest_inflight_action_age_seconds'),
+        );
+        const count = metrics.find((m) => m.name.endsWith('inflight_actions'));
+        assert(age && count, 'Expected action age/count metrics');
+        return {
+          age: Math.max(...age.values.map((v) => v.value)),
+          count: count.values.reduce((sum, v) => sum + v.value, 0),
+        };
+      };
+      expect((await readMetrics()).age).to.be.greaterThan(6 * 60 * 60);
+      const warn = Sinon.spy(testLogger, 'warn');
+      const info = Sinon.spy(testLogger, 'info');
+      try {
+        writeDenylist([ID_A]);
+        await tracker.syncRebalanceActions();
+        expect(
+          info.calledWithMatch(
+            Sinon.match({ ignoredInProgress: 1 }),
+            'Actions synced',
+          ),
+        ).to.be.true;
+        expect(await tracker.getInProgressActions()).to.have.lengthOf(3);
+        expect((await rebalanceActionStore.get(ID_A))?.status).to.equal(
+          'in_progress',
+        );
+        const ignored = await readMetrics();
+        expect(ignored.count).to.equal(2);
+        expect(ignored.age).to.be.lessThan(60);
+        await tracker.logStoreContents();
+        expect(warn.calledWithMatch(Sinon.match({ actionId: ID_A }))).to.be
+          .false;
+
+        writeDenylist([]);
+        await tracker.syncRebalanceActions();
+        const restored = await readMetrics();
+        expect(restored.count).to.equal(3);
+        expect(restored.age).to.be.greaterThan(6 * 60 * 60);
+        await tracker.logStoreContents();
+        expect(warn.calledWithMatch(Sinon.match({ actionId: ID_A }))).to.be
+          .true;
+      } finally {
+        warn.restore();
+        info.restore();
+      }
     });
 
     it('stops counting a tracked rebalance message once it is denylisted without changing its status', async () => {
@@ -1590,6 +1659,10 @@ describe('ActionTracker', () => {
       expect(
         (await rebalanceIntentStore.get('expired-intent'))?.status,
       ).to.equal('in_progress');
+      expect(await activeIntentMessageIds(tracker)).to.have.members([
+        ID_B,
+        ID_C,
+      ]);
     });
 
     it('keeps ignoring a denylisted rebalance message pushed off the Explorer page', async () => {

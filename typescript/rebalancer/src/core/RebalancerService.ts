@@ -196,7 +196,7 @@ export class RebalancerService {
 
     const actionTracker = this.actionTracker;
     this.metrics?.observeInFlightActions(() =>
-      actionTracker.getInProgressActions(),
+      actionTracker.getInProgressActions(false),
     );
 
     // Create rebalancers (both movableCollateral and inventory if configured)

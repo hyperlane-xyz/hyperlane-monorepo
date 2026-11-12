@@ -57,7 +57,7 @@ export interface BridgeQuote<R = unknown> {
   tool: string; // Bridge/DEX tool used (e.g., 'stargate', 'across')
   fromAmount: bigint; // Amount being sent (input required)
   toAmount: bigint; // Expected amount to receive
-  toAmountMin: bigint; // Minimum amount to receive (after slippage)
+  toAmountMin: bigint; // Conservative execution minimum, including the adapter's loss/slippage budget
   executionDuration: number; // Estimated execution time in seconds
   gasCosts: bigint; // Sum of gas costs for the bridge operation
   feeCosts: bigint; // Sum of non-included fee costs (protocol fees, etc.)

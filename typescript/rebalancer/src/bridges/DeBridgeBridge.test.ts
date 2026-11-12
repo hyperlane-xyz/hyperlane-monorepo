@@ -127,9 +127,11 @@ const BSC_TO_TRON_PARAMS: BridgeQuoteParams = {
 };
 
 describe('DeBridgeBridge constructor', () => {
-  it('ignores duplicate chain IDs for disabled metadata', () => {
+  it('ignores disabled metadata sharing a chain ID with enabled metadata', () => {
+    const enabledMetadata = BRIDGE_CONFIG.chainMetadata?.bsc;
+    assert(enabledMetadata, 'Expected BSC chain metadata');
     const disabledMetadata = {
-      ...BRIDGE_CONFIG.chainMetadata!.bsc,
+      ...enabledMetadata,
       chainId: 41455,
       availability: {
         status: ChainStatus.Disabled,
@@ -144,6 +146,12 @@ describe('DeBridgeBridge constructor', () => {
             ...BRIDGE_CONFIG,
             chainMetadata: {
               ...BRIDGE_CONFIG.chainMetadata,
+              enabled: {
+                ...enabledMetadata,
+                name: 'enabled',
+                chainId: 41455,
+                domainId: 41455,
+              },
               disabledA: {
                 ...disabledMetadata,
                 name: 'disabledA',
