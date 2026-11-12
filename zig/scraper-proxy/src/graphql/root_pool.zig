@@ -23,7 +23,11 @@ pub const Job = struct {
 pub const RootPool = struct {
     max_threads: u32,
     idle_ms: u64 = 10_000,
-    stack_size: usize = 1024 * 1024,
+    /// A root field runs the same recursion (argument coercion, SQL build) as
+    /// the request thread. Worst case at the TS-emulating depth guards
+    /// (stack_test.zig "stack high-water"): 2.5 MiB ReleaseFast, 8.9 MiB
+    /// Debug (`_not` variables x2396); sized at 2x or more.
+    stack_size: usize = if (@import("builtin").mode == .Debug) 20 * 1024 * 1024 else 8 * 1024 * 1024,
     mutex: std.Thread.Mutex = .{},
     work: std.Thread.Condition = .{},
     exited: std.Thread.Condition = .{},

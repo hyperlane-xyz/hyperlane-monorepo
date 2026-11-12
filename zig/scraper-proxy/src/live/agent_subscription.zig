@@ -342,21 +342,32 @@ fn copyRequest(a: Allocator, request: protocol.StreamRequest) Allocator.Error!pr
     return copy;
 }
 
-/// Deep copy of a row value.
+/// Deep copy of a row value. Iterative (an explicit stack in the arena):
+/// database JSON can nest as deep as its size allows.
 pub fn clone(a: Allocator, value: Value) Allocator.Error!Value {
-    return switch (value) {
-        .null, .bool, .number => value,
-        .raw => |text| .{ .raw = try a.dupe(u8, text) },
-        .string => |text| .{ .string = try a.dupe(u8, text) },
-        .array => |items| blk: {
-            const out = try a.alloc(Value, items.len);
-            for (items, out) |item, *dest| dest.* = try clone(a, item);
-            break :blk .{ .array = out };
-        },
-        .object => |members| blk: {
-            const out = try a.alloc(json.Member, members.len);
-            for (members, out) |member, *dest| dest.* = .{ .key = try a.dupe(u8, member.key), .value = try clone(a, member.value) };
-            break :blk .{ .object = out };
-        },
-    };
+    const Work = struct { source: Value, dest: *Value };
+    var root: Value = undefined;
+    var stack: std.ArrayList(Work) = .empty;
+    try stack.append(a, .{ .source = value, .dest = &root });
+    while (stack.pop()) |work| {
+        work.dest.* = switch (work.source) {
+            .null, .bool, .number => work.source,
+            .raw => |text| .{ .raw = try a.dupe(u8, text) },
+            .string => |text| .{ .string = try a.dupe(u8, text) },
+            .array => |items| blk: {
+                const out = try a.alloc(Value, items.len);
+                for (items, out) |item, *dest| try stack.append(a, .{ .source = item, .dest = dest });
+                break :blk .{ .array = out };
+            },
+            .object => |members| blk: {
+                const out = try a.alloc(json.Member, members.len);
+                for (members, out) |member, *dest| {
+                    dest.key = try a.dupe(u8, member.key);
+                    try stack.append(a, .{ .source = member.value, .dest = &dest.value });
+                }
+                break :blk .{ .object = out };
+            },
+        };
+    }
+    return root;
 }

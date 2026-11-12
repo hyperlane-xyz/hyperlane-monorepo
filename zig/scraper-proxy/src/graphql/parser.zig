@@ -12,6 +12,49 @@ pub const Error = lexer_mod.Error;
 
 pub const Options = struct { max_tokens: ?u32 = null };
 
+/// graphql-js parses recursively, so TS answers a deeply nested document with
+/// V8's `RangeError: Maximum call stack size exceeded` (mercurius: 400, no
+/// location). The parser reproduces it with a nesting budget: every nested
+/// construct open on the current path costs a share of one stack, and
+/// entering the one that reaches `limit` fails like V8 does.
+///
+/// Calibrated against a cold TS process (Node 26.12.1, a fresh process per
+/// request, ~3 KiB environment; bench/experiments/stack-depth/
+/// ts-thresholds.mjs, exact binary search with 3 repeats at T-1/T; results
+/// in ts-thresholds.json). V8 budgets the main-thread stack shared with the
+/// environment, so TS's depths move with its size (env-size.mjs, nested
+/// lists: 1719 at 1 KiB, 1714 at 3 KiB, 1684 at 19 KiB, 1596 at 67 KiB).
+/// First
+/// depth TS rejects, in a one-field query `{ domain(...) { id } }`:
+///   lists `[[...1...]]` 1714; objects below `_eq` 1361 (n + 2 objects on the
+///   path); selection sets `{ a { a ... b } }` 1667 (n + 1 sets); inline
+///   fragments `... on query_root {` 1643 (n fragments + n + 1 sets); list
+///   type references: no overflow up to 4980 (the token limit), not budgeted.
+/// Shares are solved from the pure shapes; the one-stack total is shared by
+/// selections and values. Validation against mixed shapes not used for the
+/// fit (model / TS): `_and` inline (object+list per level) 758/758, `_not`
+/// inline 1361 / 1360-1361 (TS varies), object:list 2:1 488/488, 1:2
+/// `{a: [[` 526/527, `[[{a:` 526/526, list under 600 selections 1097/1097,
+/// under 1200 selections 480/480. `limit` sits just below 1 so the mixed
+/// shapes TS rejects one level earlier are matched; the only remaining
+/// difference is `{a: [[` at 526 (rejected here, TS accepts) and the `_not`
+/// level where TS itself varies. A warm TS (after V8's JIT) accepts deeper
+/// input; DEVIATIONS.md records that band.
+pub const stack_budget = struct {
+    pub const list_depth = 1714;
+    pub const object_depth = 1361;
+    pub const selection_depth = 1667;
+    pub const inline_fragment_depth = 1643;
+
+    const selection: f64 = 1.0 / @as(f64, selection_depth + 1);
+    const list: f64 = (1.0 - selection) / @as(f64, list_depth);
+    const object: f64 = (1.0 - selection) / @as(f64, object_depth + 2);
+    const inline_fragment: f64 = (1.0 - @as(f64, inline_fragment_depth + 1) * selection) / @as(f64, inline_fragment_depth);
+    pub const limit: f64 = 1.0 - 0.00035;
+};
+
+const Nesting = enum { selection, list, object, inline_fragment };
+
 pub fn parse(arena: std.mem.Allocator, source: []const u8, options: Options, diag: *Diagnostic) Error!*ast.Document {
     var p: Parser = .{ .lx = Lexer.init(arena, source, diag), .arena = arena, .options = options };
     return p.parseDocument();
@@ -22,6 +65,28 @@ const Parser = struct {
     arena: std.mem.Allocator,
     options: Options,
     token_count: u32 = 0,
+    /// Constructs open on the current recursion path (`stack_budget`).
+    nesting: std.EnumArray(Nesting, u32) = .initFill(0),
+
+    /// Enters a nested construct; fails like V8's stack overflow when the
+    /// path would exceed one TS stack (`stack_budget`).
+    fn enter(self: *Parser, kind: Nesting) Error!void {
+        const n = self.nesting.getPtr(kind);
+        n.* += 1;
+        const b = stack_budget;
+        const cost = @as(f64, @floatFromInt(self.nesting.get(.selection))) * b.selection +
+            @as(f64, @floatFromInt(self.nesting.get(.list))) * b.list +
+            @as(f64, @floatFromInt(self.nesting.get(.object))) * b.object +
+            @as(f64, @floatFromInt(self.nesting.get(.inline_fragment))) * b.inline_fragment;
+        if (cost >= b.limit) {
+            self.lx.diag.* = .{ .message = "Maximum call stack size exceeded", .offset = self.cur().start, .stack_overflow = true };
+            return error.SyntaxError;
+        }
+    }
+
+    fn leave(self: *Parser, kind: Nesting) void {
+        self.nesting.getPtr(kind).* -= 1;
+    }
 
     fn create(self: *Parser, comptime T: type, value: T) Error!*T {
         const ptr = try self.arena.create(T);
@@ -209,6 +274,8 @@ const Parser = struct {
     }
 
     fn parseSelectionSet(self: *Parser) Error!*ast.SelectionSet {
+        try self.enter(.selection);
+        defer self.leave(.selection);
         const start = self.cur().start;
         var list: std.ArrayList(ast.Selection) = .empty;
         _ = try self.expectToken(.brace_l);
@@ -274,6 +341,8 @@ const Parser = struct {
         }
         const type_condition = if (has_type_condition) try self.parseName() else null;
         const directives = try self.parseDirectives(false);
+        try self.enter(.inline_fragment);
+        defer self.leave(.inline_fragment);
         return .{ .inline_fragment = try self.create(ast.InlineFragment, .{
             .loc = start,
             .type_condition = type_condition,
@@ -309,6 +378,8 @@ const Parser = struct {
         const token = self.cur();
         const data: ast.Value.Data = switch (token.kind) {
             .bracket_l => {
+                try self.enter(.list);
+                defer self.leave(.list);
                 var list: std.ArrayList(*ast.Value) = .empty;
                 _ = try self.expectToken(.bracket_l);
                 while (!try self.expectOptionalToken(.bracket_r)) {
@@ -317,6 +388,8 @@ const Parser = struct {
                 return self.create(ast.Value, .{ .loc = token.start, .data = .{ .list = list.items } });
             },
             .brace_l => {
+                try self.enter(.object);
+                defer self.leave(.object);
                 var fields: std.ArrayList(ast.ObjectField) = .empty;
                 _ = try self.expectToken(.brace_l);
                 while (!try self.expectOptionalToken(.brace_r)) {

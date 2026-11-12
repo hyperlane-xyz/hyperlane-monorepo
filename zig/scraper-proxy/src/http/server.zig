@@ -75,8 +75,9 @@ pub const Options = struct {
     /// (`core.blocking.grace_ns`; 0: hand off at once). Tuned by sweeping
     /// patched builds; not configurable at runtime (TS env surface).
     handoff_grace_us: u32 = 0,
-    /// Poller thread stack (virtual; touched pages only).
-    thread_stack_bytes: usize = 8 * 1024 * 1024,
+    /// Poller thread stack (virtual; touched pages only). Debug 20 MiB,
+    /// release 8 MiB: see `loop.poller_stack_bytes`.
+    thread_stack_bytes: usize = loop_mod.poller_stack_bytes,
     kernel_backlog: u31 = 511,
 };
 

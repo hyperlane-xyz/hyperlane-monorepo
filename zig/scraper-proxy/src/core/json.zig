@@ -92,6 +92,15 @@ pub const ObjectBuilder = struct {
 
 /// `JSON.stringify(value)`.
 pub fn stringify(w: *Writer, value: Value) Writer.Error!void {
+    return stringifyAt(w, value, 0);
+}
+
+/// Containers deeper than this are written by `stringifyDeep` (an explicit
+/// stack on the heap), so client- or database-supplied nesting never costs
+/// more than this many recursive frames.
+const recursion_limit = 128;
+
+fn stringifyAt(w: *Writer, value: Value, depth: usize) Writer.Error!void {
     switch (value) {
         .null => try w.writeAll("null"),
         .bool => |b| try w.writeAll(if (b) "true" else "false"),
@@ -99,14 +108,174 @@ pub fn stringify(w: *Writer, value: Value) Writer.Error!void {
         .raw => |r| try w.writeAll(r),
         .string => |s| try writeString(w, s),
         .array => |items| {
+            if (depth >= recursion_limit) return stringifyDeep(w, value);
             try w.writeByte('[');
             for (items, 0..) |item, i| {
                 if (i > 0) try w.writeByte(',');
-                try stringify(w, item);
+                try stringifyAt(w, item, depth + 1);
             }
             try w.writeByte(']');
         },
-        .object => |members| try writeObject(w, members),
+        .object => |members| {
+            if (depth >= recursion_limit) return stringifyDeep(w, value);
+            try writeObject(w, members, depth);
+        },
+    }
+}
+
+/// Object member order of `JSON.stringify`: array-index keys ascending, then
+/// the rest in insertion order. Iterates without allocating.
+const MemberOrder = struct {
+    members: []const Member,
+    has_index: bool,
+    /// Index phase: last index key written.
+    previous: ?u32 = null,
+    in_index_phase: bool,
+    next: usize = 0,
+
+    fn init(members: []const Member) MemberOrder {
+        var has_index = false;
+        for (members) |member| {
+            if (arrayIndex(member.key) != null) {
+                has_index = true;
+                break;
+            }
+        }
+        return .{ .members = members, .has_index = has_index, .in_index_phase = has_index };
+    }
+
+    fn nextMember(self: *MemberOrder) ?*const Member {
+        if (self.in_index_phase) {
+            var selected: ?usize = null;
+            var smallest: u32 = std.math.maxInt(u32);
+            for (self.members, 0..) |member, i| {
+                const index = arrayIndex(member.key) orelse continue;
+                if ((self.previous == null or index > self.previous.?) and index < smallest) {
+                    smallest = index;
+                    selected = i;
+                }
+            }
+            if (selected) |i| {
+                self.previous = smallest;
+                return &self.members[i];
+            }
+            self.in_index_phase = false;
+        }
+        while (self.next < self.members.len) {
+            const member = &self.members[self.next];
+            self.next += 1;
+            if (self.has_index and arrayIndex(member.key) != null) continue;
+            return member;
+        }
+        return null;
+    }
+};
+
+fn writeObject(w: *Writer, members: []const Member, depth: usize) Writer.Error!void {
+    try w.writeByte('{');
+    var order = MemberOrder.init(members);
+    var first = true;
+    while (order.nextMember()) |member| {
+        if (!first) try w.writeByte(',');
+        first = false;
+        try writeString(w, member.key);
+        try w.writeByte(':');
+        try stringifyAt(w, member.value, depth + 1);
+    }
+    try w.writeByte('}');
+}
+
+/// `stringify` with an explicit stack (deep values).
+fn stringifyDeep(w: *Writer, value: Value) Writer.Error!void {
+    const Frame = union(enum) {
+        array: struct { items: []const Value, next: usize = 0 },
+        object: struct { order: MemberOrder, first: bool = true },
+    };
+    const gpa = std.heap.c_allocator;
+    var stack: std.ArrayList(Frame) = .empty;
+    defer stack.deinit(gpa);
+    var v = value;
+    while (true) {
+        // Open `v` (containers push a frame), or write it.
+        switch (v) {
+            .array => |items| {
+                try w.writeByte('[');
+                stack.append(gpa, .{ .array = .{ .items = items } }) catch return error.WriteFailed;
+            },
+            .object => |members| {
+                try w.writeByte('{');
+                stack.append(gpa, .{ .object = .{ .order = MemberOrder.init(members) } }) catch return error.WriteFailed;
+            },
+            else => try stringifyAt(w, v, 0),
+        }
+        // Find the next value to write, closing finished containers.
+        while (true) {
+            if (stack.items.len == 0) return;
+            switch (stack.items[stack.items.len - 1]) {
+                .array => |*f| {
+                    if (f.next < f.items.len) {
+                        if (f.next > 0) try w.writeByte(',');
+                        v = f.items[f.next];
+                        f.next += 1;
+                        break;
+                    }
+                    try w.writeByte(']');
+                },
+                .object => |*f| {
+                    if (f.order.nextMember()) |member| {
+                        if (!f.first) try w.writeByte(',');
+                        f.first = false;
+                        try writeString(w, member.key);
+                        try w.writeByte(':');
+                        v = member.value;
+                        break;
+                    }
+                    try w.writeByte('}');
+                },
+            }
+            _ = stack.pop();
+        }
+    }
+}
+
+/// Nesting depth of `value` (a scalar is 0, `[]`/`{}` are 1), counted
+/// iteratively; stops counting at `limit` (returns `limit`). For bounding
+/// recursive walks over client-supplied values.
+pub fn depthAtLeast(a: Allocator, value: Value, limit: usize) Allocator.Error!usize {
+    const Frame = struct { items: []const Value = &.{}, members: []const Member = &.{}, next: usize = 0 };
+    var stack: std.ArrayList(Frame) = .empty;
+    defer stack.deinit(a);
+    var max: usize = 0;
+    var v = value;
+    while (true) {
+        switch (v) {
+            .array => |items| {
+                try stack.append(a, .{ .items = items });
+                max = @max(max, stack.items.len);
+            },
+            .object => |members| {
+                try stack.append(a, .{ .members = members });
+                max = @max(max, stack.items.len);
+            },
+            else => {},
+        }
+        if (max >= limit) return limit;
+        // Next child in depth-first order.
+        while (true) {
+            if (stack.items.len == 0) return max;
+            const top = &stack.items[stack.items.len - 1];
+            if (top.next < top.items.len) {
+                v = top.items[top.next];
+                top.next += 1;
+                break;
+            }
+            if (top.next < top.members.len) {
+                v = top.members[top.next].value;
+                top.next += 1;
+                break;
+            }
+            _ = stack.pop();
+        }
     }
 }
 
@@ -115,50 +284,6 @@ pub fn stringifyAlloc(a: Allocator, value: Value) Allocator.Error![]u8 {
     errdefer out.deinit();
     stringify(&out.writer, value) catch return error.OutOfMemory;
     return out.toOwnedSlice();
-}
-
-fn writeObject(w: *Writer, members: []const Member) Writer.Error!void {
-    try w.writeByte('{');
-    var has_index = false;
-    for (members) |member| {
-        if (arrayIndex(member.key) != null) {
-            has_index = true;
-            break;
-        }
-    }
-    var first = true;
-    if (has_index) {
-        // Array-index keys enumerate numerically first. Selection keeps this
-        // allocation-free; index keys are rare (parsed jsonb only).
-        var previous: ?u32 = null;
-        while (true) {
-            var selected: ?usize = null;
-            var smallest: u32 = std.math.maxInt(u32);
-            for (members, 0..) |member, i| {
-                const index = arrayIndex(member.key) orelse continue;
-                if ((previous == null or index > previous.?) and index < smallest) {
-                    smallest = index;
-                    selected = i;
-                }
-            }
-            const i = selected orelse break;
-            if (!first) try w.writeByte(',');
-            first = false;
-            try writeString(w, members[i].key);
-            try w.writeByte(':');
-            try stringify(w, members[i].value);
-            previous = smallest;
-        }
-    }
-    for (members) |member| {
-        if (has_index and arrayIndex(member.key) != null) continue;
-        if (!first) try w.writeByte(',');
-        first = false;
-        try writeString(w, member.key);
-        try w.writeByte(':');
-        try stringify(w, member.value);
-    }
-    try w.writeByte('}');
 }
 
 /// ECMAScript array index: canonical decimal u32 below 2^32-1.
@@ -373,9 +498,9 @@ pub const ParseOptions = struct {
     /// Fastify's JSON body parser: reject `__proto__` keys and `constructor`
     /// objects holding a `prototype` key.
     secure: bool = false,
-    /// Recursion bound; V8 overflows its stack far above this for JSON input
-    /// that fits in the HTTP body limit only at extreme nesting.
-    max_depth: usize = 4096,
+    /// Nesting bound (null: none). The parser is iterative, like V8's
+    /// JSON.parse, so depth costs heap, not stack.
+    max_depth: ?usize = null,
     /// Strip a leading U+FEFF (secure-json-parse does; JSON.parse does not).
     strip_bom: bool = false,
 };
@@ -386,7 +511,7 @@ pub fn parse(a: Allocator, text: []const u8, options: ParseOptions) ParseError!V
     var p: Parser = .{ .a = a, .s = text, .options = options };
     if (options.strip_bom and std.mem.startsWith(u8, text, "\xef\xbb\xbf")) p.i = 3;
     p.skipWs();
-    const value = try p.value(0);
+    const value = try p.document();
     p.skipWs();
     if (p.i != p.s.len) return error.SyntaxError;
     return value;
@@ -405,19 +530,128 @@ const Parser = struct {
         };
     }
 
-    fn value(p: *Parser, depth: usize) ParseError!Value {
-        if (depth > p.options.max_depth) return error.SyntaxError;
+    /// A scalar at `p.i`, or null when a container starts there.
+    fn scalar(p: *Parser) ParseError!?Value {
         if (p.i >= p.s.len) return error.SyntaxError;
-        switch (p.s[p.i]) {
-            '{' => return p.object(depth),
-            '[' => return p.array(depth),
-            '"' => return .{ .string = try p.str() },
-            't' => return p.literal("true", .{ .bool = true }),
-            'f' => return p.literal("false", .{ .bool = false }),
-            'n' => return p.literal("null", .null),
-            '-', '0'...'9' => return .{ .number = try p.num() },
-            else => return error.SyntaxError,
+        return switch (p.s[p.i]) {
+            '{', '[' => null,
+            '"' => .{ .string = try p.str() },
+            't' => try p.literal("true", .{ .bool = true }),
+            'f' => try p.literal("false", .{ .bool = false }),
+            'n' => try p.literal("null", .null),
+            '-', '0'...'9' => .{ .number = try p.num() },
+            else => error.SyntaxError,
+        };
+    }
+
+    const Frame = union(enum) {
+        array: std.ArrayList(Value),
+        object: struct {
+            members: std.ArrayList(Member) = .empty,
+            /// Duplicate detection beyond `small` members.
+            index: std.StringHashMapUnmanaged(usize) = .empty,
+            /// Key of the member whose value is being parsed.
+            key: []const u8 = "",
+        },
+    };
+
+    /// One JSON value. Iterative (an explicit stack of open containers), so
+    /// nesting depth costs heap rather than call stack, as with V8's
+    /// non-recursive JSON.parse.
+    fn document(p: *Parser) ParseError!Value {
+        var stack: std.ArrayList(Frame) = .empty;
+        defer {
+            for (stack.items) |*f| switch (f.*) {
+                .array => |*items| items.deinit(p.a),
+                .object => |*o| {
+                    o.members.deinit(p.a);
+                    o.index.deinit(p.a);
+                },
+            };
+            stack.deinit(p.a);
         }
+        // Parse a value; when it is a scalar or a closed container, attach it
+        // to the innermost open container (or return it at the top).
+        value: while (true) {
+            var v: Value = undefined;
+            if (try p.scalar()) |sv| {
+                v = sv;
+            } else {
+                if (p.options.max_depth) |max| if (stack.items.len >= max) return error.SyntaxError;
+                const open = p.s[p.i];
+                p.i += 1;
+                p.skipWs();
+                if (open == '[') {
+                    if (p.i < p.s.len and p.s[p.i] == ']') {
+                        p.i += 1;
+                        v = .{ .array = &.{} };
+                    } else {
+                        try stack.append(p.a, .{ .array = .empty });
+                        continue :value;
+                    }
+                } else {
+                    if (p.i < p.s.len and p.s[p.i] == '}') {
+                        p.i += 1;
+                        v = .{ .object = &.{} };
+                    } else {
+                        try stack.append(p.a, .{ .object = .{} });
+                        try p.objectKey(&stack.items[stack.items.len - 1].object.key);
+                        continue :value;
+                    }
+                }
+            }
+            // Attach `v`, closing every container that ends right after it.
+            while (true) {
+                if (stack.items.len == 0) return v;
+                const top = &stack.items[stack.items.len - 1];
+                switch (top.*) {
+                    .array => |*items| {
+                        try items.append(p.a, v);
+                        p.skipWs();
+                        if (p.i >= p.s.len) return error.SyntaxError;
+                        if (p.s[p.i] == ',') {
+                            p.i += 1;
+                            p.skipWs();
+                            continue :value;
+                        }
+                        if (p.s[p.i] != ']') return error.SyntaxError;
+                        p.i += 1;
+                        v = .{ .array = try items.toOwnedSlice(p.a) };
+                    },
+                    .object => |*o| {
+                        if (p.options.secure) {
+                            if (std.mem.eql(u8, o.key, "__proto__")) return error.SyntaxError;
+                            if (std.mem.eql(u8, o.key, "constructor") and v == .object and v.get("prototype") != null)
+                                return error.SyntaxError;
+                        }
+                        try p.addMember(&o.members, &o.index, o.key, v);
+                        p.skipWs();
+                        if (p.i >= p.s.len) return error.SyntaxError;
+                        if (p.s[p.i] == ',') {
+                            p.i += 1;
+                            try p.objectKey(&o.key);
+                            continue :value;
+                        }
+                        if (p.s[p.i] != '}') return error.SyntaxError;
+                        p.i += 1;
+                        o.index.deinit(p.a);
+                        v = .{ .object = try o.members.toOwnedSlice(p.a) };
+                    },
+                }
+                _ = stack.pop();
+            }
+        }
+    }
+
+    /// `"key"` `:` before a member value (whitespace skipped around).
+    fn objectKey(p: *Parser, key: *[]const u8) ParseError!void {
+        p.skipWs();
+        if (p.i >= p.s.len or p.s[p.i] != '"') return error.SyntaxError;
+        key.* = try p.str();
+        p.skipWs();
+        if (p.i >= p.s.len or p.s[p.i] != ':') return error.SyntaxError;
+        p.i += 1;
+        p.skipWs();
     }
 
     fn literal(p: *Parser, word: []const u8, v: Value) ParseError!Value {
@@ -561,73 +795,6 @@ const Parser = struct {
         }
         p.i = i + 1;
         return p.a.realloc(out, o);
-    }
-
-    fn array(p: *Parser, depth: usize) ParseError!Value {
-        p.i += 1;
-        var items: std.ArrayList(Value) = .empty;
-        errdefer items.deinit(p.a);
-        p.skipWs();
-        if (p.i < p.s.len and p.s[p.i] == ']') {
-            p.i += 1;
-            return .{ .array = try items.toOwnedSlice(p.a) };
-        }
-        while (true) {
-            p.skipWs();
-            try items.append(p.a, try p.value(depth + 1));
-            p.skipWs();
-            if (p.i >= p.s.len) return error.SyntaxError;
-            if (p.s[p.i] == ',') {
-                p.i += 1;
-                continue;
-            }
-            if (p.s[p.i] == ']') {
-                p.i += 1;
-                return .{ .array = try items.toOwnedSlice(p.a) };
-            }
-            return error.SyntaxError;
-        }
-    }
-
-    fn object(p: *Parser, depth: usize) ParseError!Value {
-        p.i += 1;
-        var members: std.ArrayList(Member) = .empty;
-        errdefer members.deinit(p.a);
-        // Duplicate detection: linear for small objects, hashed beyond.
-        var index: std.StringHashMapUnmanaged(usize) = .empty;
-        defer index.deinit(p.a);
-        p.skipWs();
-        if (p.i < p.s.len and p.s[p.i] == '}') {
-            p.i += 1;
-            return .{ .object = try members.toOwnedSlice(p.a) };
-        }
-        while (true) {
-            p.skipWs();
-            if (p.i >= p.s.len or p.s[p.i] != '"') return error.SyntaxError;
-            const key = try p.str();
-            p.skipWs();
-            if (p.i >= p.s.len or p.s[p.i] != ':') return error.SyntaxError;
-            p.i += 1;
-            p.skipWs();
-            const v = try p.value(depth + 1);
-            if (p.options.secure) {
-                if (std.mem.eql(u8, key, "__proto__")) return error.SyntaxError;
-                if (std.mem.eql(u8, key, "constructor") and v == .object and v.get("prototype") != null)
-                    return error.SyntaxError;
-            }
-            try p.addMember(&members, &index, key, v);
-            p.skipWs();
-            if (p.i >= p.s.len) return error.SyntaxError;
-            if (p.s[p.i] == ',') {
-                p.i += 1;
-                continue;
-            }
-            if (p.s[p.i] == '}') {
-                p.i += 1;
-                return .{ .object = try members.toOwnedSlice(p.a) };
-            }
-            return error.SyntaxError;
-        }
     }
 
     fn addMember(p: *Parser, members: *std.ArrayList(Member), index: *std.StringHashMapUnmanaged(usize), key: []const u8, v: Value) ParseError!void {
@@ -879,6 +1046,64 @@ test "parse decodes escapes at block boundaries and rejects bad strings" {
     for ([_][]const u8{ "\"abc\\\"", "\"\\", "\"a\\n\x01\"", "\"\\\x0a\"", "\"\\x\"", "\"0123456789abcdef0123\\n0123456789abcdef", "\"\\u12\"" }) |bad| {
         try testing.expectError(error.SyntaxError, parse(a, bad, .{}));
     }
+}
+
+test "parse handles deep nesting without recursion (V8 JSON.parse is iterative)" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const depth = 200_000;
+    var text: std.ArrayList(u8) = .empty;
+    for (0..depth) |i| try text.appendSlice(a, if (i % 2 == 0) "[" else "{\"k\":");
+    try text.append(a, '1');
+    var i: usize = depth;
+    while (i > 0) {
+        i -= 1;
+        try text.append(a, if (i % 2 == 0) ']' else '}');
+    }
+    var v = try parse(a, text.items, .{ .secure = true });
+    var levels: usize = 0;
+    while (true) : (levels += 1) switch (v) {
+        .array => |items| v = items[0],
+        .object => |members| v = members[0].value,
+        else => break,
+    };
+    try testing.expectEqual(@as(usize, depth), levels);
+    try testing.expectError(error.SyntaxError, parse(a, text.items[0 .. text.items.len - 1], .{}));
+    try testing.expectError(error.SyntaxError, parse(a, "[[1]", .{}));
+    try testing.expectError(error.SyntaxError, parse(a, "[1]]", .{}));
+    try testing.expectError(error.SyntaxError, parse(a, "[[[1]]]", .{ .max_depth = 2 }));
+    _ = try parse(a, "[[1]]", .{ .max_depth = 2 });
+}
+
+test "stringify writes deep values without deep recursion, same bytes" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Mixed nesting with index-ordered keys at every level, deeper than the
+    // recursion limit (the deep path must match the recursive one).
+    const depth = 50_000;
+    var text: std.ArrayList(u8) = .empty;
+    for (0..depth) |i| try text.appendSlice(a, if (i % 3 == 0) "[0," else "{\"b\":1,\"2\":2,\"x\":");
+    try text.appendSlice(a, "\"\\u0001\"");
+    var i: usize = depth;
+    while (i > 0) {
+        i -= 1;
+        try text.appendSlice(a, if (i % 3 == 0) "]" else ",\"10\":3}");
+    }
+    const v = try parse(a, text.items, .{});
+    const out = try stringifyAlloc(a, v);
+    // Expected: index keys first ("2", "10"), then "b", "x".
+    var want: std.ArrayList(u8) = .empty;
+    for (0..depth) |j| try want.appendSlice(a, if (j % 3 == 0) "[0," else "{\"2\":2,\"10\":3,\"b\":1,\"x\":");
+    try want.appendSlice(a, "\"\\u0001\"");
+    i = depth;
+    while (i > 0) {
+        i -= 1;
+        try want.appendSlice(a, if (i % 3 == 0) "]" else "}");
+    }
+    try testing.expectEqualStrings(want.items, out);
+    try testing.expectEqualStrings("[[],{},[{}],{\"a\":[]}]", try stringifyAlloc(a, try parse(a, "[[],{},[{}],{\"a\":[]}]", .{})));
 }
 
 test "parse keeps first position for duplicates in large objects" {

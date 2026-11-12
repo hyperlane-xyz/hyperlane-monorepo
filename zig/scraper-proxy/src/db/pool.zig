@@ -15,6 +15,8 @@ const root = @import("root.zig");
 const pq = @import("pq.zig");
 
 const Value = core.json.Value;
+/// `-Dpool-hold-stats=true` (bench diagnostics): record checkout hold times.
+pub const hold_stats = @import("db_options").pool_hold_stats;
 const Scheduler = core.scheduler.Scheduler;
 const Error = root.Error;
 const Failure = root.Failure;
@@ -37,6 +39,26 @@ pub const Options = struct {
 };
 
 pub const Stats = struct { total: u32, idle: u32, waiting: u32 };
+
+/// Checkout-to-release times, cumulative (`hold_stats` builds only).
+pub const HoldHistogram = struct {
+    /// Upper bounds in microseconds; the last bucket is everything above.
+    pub const bounds_us = [_]u64{ 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 50_000 };
+    counts: [bounds_us.len + 1]std.atomic.Value(u64) = @splat(.init(0)),
+
+    fn record(self: *HoldHistogram, held_ns: i128) void {
+        const us: u64 = @intCast(@max(0, @divTrunc(held_ns, 1000)));
+        var i: usize = 0;
+        while (i < bounds_us.len and us >= bounds_us[i]) i += 1;
+        _ = self.counts[i].fetchAdd(1, .monotonic);
+    }
+
+    /// `<50us=N <100us=N ... >=50000us=N`.
+    pub fn format(self: *const HoldHistogram, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        for (bounds_us, 0..) |b, i| try w.print("<{d}us={d} ", .{ b, self.counts[i].load(.monotonic) });
+        try w.print(">={d}us={d}", .{ bounds_us[bounds_us.len - 1], self.counts[bounds_us.len].load(.monotonic) });
+    }
+};
 
 const Idle = struct { conn: pq.Conn, since_ms: i64 };
 
@@ -64,6 +86,8 @@ pub const Pool = struct {
     /// Scheduler-driven reaper: the pending one-shot timer (under `mutex`).
     timers: ?*Scheduler = null,
     reap_timer: u64 = 0,
+    /// How long checkouts were held (`hold_stats` builds only).
+    hold: HoldHistogram = .{},
     /// Disables named statements for this pool behind a transaction pooler.
     reuse_guard: pq.ReuseGuard = .{},
     /// Signalled whenever `total` drops (for `deinit` draining).
@@ -176,7 +200,10 @@ pub const Pool = struct {
                 .conn => |c| {
                     var conn = c;
                     var idle_failure: Failure = .{};
-                    if (conn.checkIdle(arena, &idle_failure)) return conn;
+                    if (conn.checkIdle(arena, &idle_failure)) {
+                        if (hold_stats) conn.checked_out_ns = std.time.nanoTimestamp();
+                        return conn;
+                    }
                     if (self.options.on_idle_error) |hook| hook.func(hook.ctx, idle_failure.message);
                     self.discard(&conn);
                 },
@@ -203,6 +230,7 @@ pub const Pool = struct {
                         self.discard(&conn);
                         return error.PoolClosed;
                     }
+                    if (hold_stats) conn.checked_out_ns = std.time.nanoTimestamp();
                     return conn;
                 },
             }
@@ -290,6 +318,7 @@ pub const Pool = struct {
 
     pub fn release(self: *Pool, conn_in: pq.Conn) void {
         var conn = conn_in;
+        if (hold_stats and conn.checked_out_ns != 0) self.hold.record(std.time.nanoTimestamp() - conn.checked_out_ns);
         if (!conn.ok()) return self.discard(&conn);
         self.mutex.lock();
         if (self.closed) {

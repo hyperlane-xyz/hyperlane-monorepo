@@ -393,7 +393,12 @@ pub const GraphqlRoute = struct {
 
         // preHandler: response cache.
         if (validated == .ok) {
-            if (try self.response_cache.prepare(a, self.schema, validated.ok)) |prepared| {
+            const prepared_or_overflow = self.response_cache.prepare(a, self.schema, validated.ok) catch |err| switch (err) {
+                error.OutOfMemory => return error.OutOfMemory,
+                // graphql.ts preHandler throws (V8 RangeError in the cache key).
+                error.StackOverflow => return self.sendThrown(req, reply, &.{.{ .message = values.stack_overflow_message }}),
+            };
+            if (prepared_or_overflow) |prepared| {
                 if (self.response_cache.readShared(prepared)) |hit| {
                     // Zero-copy: the stored body is written directly and released in on_done.
                     st.hit = hit;
@@ -530,7 +535,9 @@ pub const GraphqlRoute = struct {
         const doc = parser.parse(ea, entry.source, .{ .max_tokens = validation_rule.max_graphql_tokens }, &diag) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             error.SyntaxError => {
-                const syntax: GqlError = .{ .message = try a.dupe(u8, diag.message), .locations = try a.dupe(ast.SourceLocation, &.{ast.location(query, diag.offset)}), .status = 400 };
+                // A (emulated) V8 stack overflow is a RangeError: no location.
+                const locations: []const ast.SourceLocation = if (diag.stack_overflow) &.{} else try a.dupe(ast.SourceLocation, &.{ast.location(query, diag.offset)});
+                const syntax: GqlError = .{ .message = try a.dupe(u8, diag.message), .locations = locations, .status = 400 };
                 const token_limit = std.fmt.comptimePrint("Syntax Error: Document contains more that {d} tokens. Parsing aborted.", .{validation_rule.max_graphql_tokens});
                 if (!std.mem.eql(u8, diag.message, token_limit)) {
                     // mercurius retries the source as a JSON AST; graphql-js

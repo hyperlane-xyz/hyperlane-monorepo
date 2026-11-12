@@ -187,14 +187,26 @@ pub const Listener = struct {
         self.deliver();
         while (true) {
             if (self.isStopped()) return null;
+            // TLS without the exact OpenSSL check: waits are capped so input
+            // a bounded drain left inside OpenSSL is read within 50 ms.
+            const wait_until = self.conn.inputDeadline(next_health);
+            const capped = wait_until != null and (next_health == null or wait_until.? < next_health.?);
             var timeout: i32 = -1;
-            if (next_health) |t| timeout = @intCast(@max(0, @min(t - pq.nowMs(), std.math.maxInt(i32))));
+            if (wait_until) |t| timeout = @intCast(@max(0, @min(t - pq.nowMs(), std.math.maxInt(i32))));
             var fds = [_]std.posix.pollfd{
                 .{ .fd = self.conn.socket(), .events = std.posix.POLL.IN, .revents = 0 },
                 .{ .fd = self.stop_pipe[0], .events = std.posix.POLL.IN, .revents = 0 },
             };
             const n = std.posix.poll(&fds, timeout) catch return "poll failed";
             if (self.isStopped()) return null;
+            if (n == 0 and capped) {
+                self.conn.consume() catch {
+                    self.deliver();
+                    return "Connection terminated unexpectedly";
+                };
+                self.deliver();
+                continue;
+            }
             if (n == 0) {
                 var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
                 defer arena.deinit();

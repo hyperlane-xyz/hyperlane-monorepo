@@ -38,6 +38,27 @@ pub const VariablesResult = union(enum) {
 
 const max_variable_errors = 50;
 
+/// graphql-js `coerceInputValue` recurses, so TS answers deeply nested
+/// variables with V8's RangeError, which `getVariableValues` catches and
+/// returns as its last error (mercurius: 400 "Maximum call stack size
+/// exceeded", no location). Same nesting-budget emulation as
+/// `parser.stack_budget`, calibrated against a cold TS process
+/// (bench/experiments/stack-depth/ts-thresholds.mjs; first depth TS rejects,
+/// deterministic over 3 repeats): `{"_not": ... {"id": {"_eq": 1}}}` 2397
+/// levels (n + 2 objects); `{"_and": [ ... ]}` 626 levels (n + 2 objects,
+/// n lists); the same `_and` on an @cached query (response-cache prepare
+/// coerces first) 626.
+pub const coerce_budget = struct {
+    pub const not_depth = 2397;
+    pub const and_depth = 626;
+
+    const object: f64 = 1.0 / @as(f64, not_depth + 2);
+    const list: f64 = (1.0 - @as(f64, and_depth + 2) * object) / @as(f64, and_depth);
+    const limit: f64 = 1.0 - 0.00035;
+};
+
+pub const stack_overflow_message = "Maximum call stack size exceeded";
+
 /// `getVariableValues(schema, varDefs, inputs, { maxErrors: 50 })`.
 pub fn getVariableValues(a: Allocator, schema: *const Schema, var_defs: []const ast.VariableDefinition, inputs: ?Value) Allocator.Error!VariablesResult {
     var errors: std.ArrayList(CoercionError) = .empty;
@@ -70,6 +91,11 @@ pub fn getVariableValues(a: Allocator, schema: *const Schema, var_defs: []const 
         var ctx: CoerceCtx = .{ .a = a, .var_name = name, .var_def = vd, .errors = &errors };
         const result = ctx.coerce(value, var_type, &.{}) catch |err| switch (err) {
             error.TooManyErrors => break,
+            error.StackOverflow => {
+                // graphql-js: the caught RangeError ends coercion, appended last.
+                try errors.append(a, .{ .message = stack_overflow_message });
+                break;
+            },
             error.OutOfMemory => return error.OutOfMemory,
         };
         if (result) |v| try putMember(a, &coerced, name, v);
@@ -108,8 +134,17 @@ const CoerceCtx = struct {
     var_name: []const u8,
     var_def: *const ast.VariableDefinition,
     errors: *std.ArrayList(CoercionError),
+    /// Input objects / lists open on the current path (`coerce_budget`).
+    objects: u32 = 0,
+    lists: u32 = 0,
 
-    const Err = error{ OutOfMemory, TooManyErrors };
+    const Err = error{ OutOfMemory, TooManyErrors, StackOverflow };
+
+    fn checkBudget(self: *CoerceCtx) Err!void {
+        const b = coerce_budget;
+        const cost = @as(f64, @floatFromInt(self.objects)) * b.object + @as(f64, @floatFromInt(self.lists)) * b.list;
+        if (cost >= b.limit) return error.StackOverflow;
+    }
 
     fn fail(self: *CoerceCtx, path: []const PathItem, invalid: Value, message: []const u8) Err!void {
         var prefix: std.ArrayList(u8) = .empty;
@@ -145,6 +180,9 @@ const CoerceCtx = struct {
             .list => |item_type| {
                 if (input == .null) return Value.null;
                 if (input == .array) {
+                    self.lists += 1;
+                    defer self.lists -= 1;
+                    try self.checkBudget();
                     const out = try a.alloc(Value, input.array.len);
                     for (input.array, 0..) |item, i| {
                         // `Array.from` keeps undefined slots (serialized as null).
@@ -174,6 +212,9 @@ const CoerceCtx = struct {
             try self.fail(path, input, try std.fmt.allocPrint(a, "Expected type \"{s}\" to be an object.", .{named.name}));
             return null;
         }
+        self.objects += 1;
+        defer self.objects -= 1;
+        try self.checkBudget();
         var out: std.ArrayList(Member) = .empty;
         for (named.input_fields) |field| {
             const field_value = lookup(input.object, field.name) orelse {

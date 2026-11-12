@@ -639,6 +639,38 @@ test "bounds near-limit uploads and recovers capacity after cancellation and par
     for (0..51) |_| try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, "{ domain(limit: 1) { id } }")).status);
 }
 
+test "the deepest admitted request runs on a real poller stack" {
+    // `_not` through variables is the deepest request the guards admit
+    // (not_depth - 1 levels, see values.coerce_budget). stack_test measures it
+    // on a private thread; this runs it where production does, on an
+    // http.Server poller (loop.poller_stack_bytes). One level more must
+    // answer, not crash.
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const limit = @import("values.zig").coerce_budget.not_depth;
+    for ([_]usize{ limit - 1, limit }) |levels| {
+        var w: std.Io.Writer.Allocating = .init(a);
+        try w.writer.writeAll("{\"query\":\"query ($w: domain_bool_exp) { domain(where: $w) { id } }\",\"variables\":{\"w\":");
+        for (0..levels) |_| try w.writer.writeAll("{\"_not\":");
+        try w.writer.writeAll("{\"id\":{\"_eq\":1}}");
+        for (0..levels) |_| try w.writer.writeByte('}');
+        try w.writer.writeAll("}}");
+        const resp = try app.post(a, w.written());
+        if (levels < limit) {
+            // Coerced in full, then refused by the resolver's own depth rule.
+            try expectJson(resp, 200, "{\"data\":null,\"errors\":[{\"message\":\"where exceeds maximum depth of 8\",\"locations\":[{\"line\":1,\"column\":31}],\"path\":[\"domain\"]}]}");
+        } else {
+            // TS's variable-coercion overflow: 400, message only.
+            try expectJson(resp, 400, "{\"data\":null,\"errors\":[{\"message\":\"Maximum call stack size exceeded\"}]}");
+        }
+    }
+    try expectJson(try app.postQuery(a, "{ domain(limit: 1) { id } }"), 200, "{\"data\":{\"domain\":[]}}");
+}
+
 // ---- scraperdb/schema.test.ts execution cases ----
 
 test "accepts literal and variable null optional arguments" {
