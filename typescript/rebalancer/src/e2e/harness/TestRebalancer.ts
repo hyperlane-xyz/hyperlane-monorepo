@@ -369,6 +369,7 @@ export class TestRebalancerBuilder {
       registry,
       this.logger,
       undefined,
+      undefined,
       warpCoreConfig,
     );
 

@@ -40,6 +40,7 @@ export enum ExternalBridgeType {
   LiFi = 'lifi',
   DeBridge = 'debridge',
   LayerZero = 'layerzero',
+  SwapsXyz = 'swapsxyz',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -147,10 +148,18 @@ export const LayerZeroBridgeConfigSchema = z.object({
   maxTronNativeValueSun: z.coerce.bigint().nonnegative().optional(),
 });
 
+export const SwapsXyzBridgeConfigSchema = z.object({
+  apiUrl: z.string().url().startsWith('https://').optional(),
+  defaultSlippage: z.number().positive().max(0.1).optional(),
+  maxQuoteLossBps: z.number().int().min(0).max(10_000).default(50),
+  maxEvmNativeFeeWei: z.coerce.bigint().nonnegative().optional(),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
   debridge: DeBridgeBridgeConfigSchema.optional(),
   layerzero: LayerZeroBridgeConfigSchema.optional(),
+  swapsxyz: SwapsXyzBridgeConfigSchema.optional(),
 });
 
 export const PendingTransferMiddlewareType = {
@@ -491,7 +500,9 @@ export const RebalancerConfigSchema = z
             (externalBridge === ExternalBridgeType.DeBridge &&
               config.externalBridges?.debridge !== undefined) ||
             (externalBridge === ExternalBridgeType.LayerZero &&
-              config.externalBridges?.layerzero !== undefined);
+              config.externalBridges?.layerzero !== undefined) ||
+            (externalBridge === ExternalBridgeType.SwapsXyz &&
+              config.externalBridges?.swapsxyz !== undefined);
           if (!isConfigured) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,

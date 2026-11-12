@@ -1,0 +1,907 @@
+import {
+  type ChainMap,
+  type ChainMetadata,
+  submitEvmLikeTransaction,
+} from '@hyperlane-xyz/sdk';
+import {
+  ProtocolType,
+  TransactionSubmission,
+  assert,
+  ensure0x,
+  isEVMLike,
+  sleep,
+} from '@hyperlane-xyz/utils';
+import { BigNumber, Contract, Wallet, providers, utils } from 'ethers';
+import type { Logger } from 'pino';
+
+import { ExternalBridgeType } from '../config/types.js';
+import type {
+  BridgeExecutionOptions,
+  BridgeQuote,
+  BridgeQuoteParams,
+  BridgeTransferResult,
+  BridgeTransferStatus,
+  IExternalBridge,
+} from '../interfaces/IExternalBridge.js';
+import { minimumOutputForLoss } from '../utils/quoteBudget.js';
+
+import {
+  approveErc20IfNeeded,
+  type Erc20ContractFactory,
+} from './erc20Approve.js';
+import {
+  SwapsXyzClient,
+  SwapsXyzRequestError,
+  isEvmTx,
+  isSwapsXyzNotFoundError,
+  isSwapsXyzDeferredError,
+  isSwapsXyzTerminalError,
+  type SwapsXyzActionRequest,
+  type SwapsXyzActionResponse,
+  type SwapsXyzStatusResponse,
+} from './SwapsXyzClient.js';
+
+const NATIVE_TOKEN_ADDRESS = '0x0000000000000000000000000000000000000000';
+const DEFAULT_SLIPPAGE = 0.005;
+const REVERSE_QUOTE_ATTEMPTS = 4;
+const REVERSE_QUOTE_HEADROOM_BPS = 30n;
+const BPS_DENOMINATOR = 10_000n;
+const ERC20_DECIMALS_ABI = ['function decimals() view returns (uint8)'];
+const REGISTER_TX_RETRY_DELAY_MS = 2_000;
+const MAX_REGISTRATION_ATTEMPTS = 3;
+const MAX_TRANSACTION_AGE_MS = 30_000;
+const MAX_PREPARATION_ATTEMPTS = 3;
+const DEFAULT_MAX_EVM_NATIVE_FEE_WEI = 10_000_000_000_000_000n;
+
+export interface SwapsXyzBridgeConfig {
+  apiKey: string;
+  apiUrl?: string;
+  defaultSlippage?: number;
+  maxQuoteLossBps?: number;
+  maxEvmNativeFeeWei?: bigint;
+  chainMetadata?: ChainMap<ChainMetadata>;
+  evmProviderFactory?: (rpcUrl: string) => providers.Provider;
+  registerTxRetryDelayMs?: number;
+  erc20ContractFactory?: Erc20ContractFactory;
+}
+
+export interface SwapsXyzBridgeRoute {
+  // Telemetry only. execute() always re-quotes before signing.
+  actionResponse: SwapsXyzActionResponse;
+}
+
+function ceilDiv(numerator: bigint, denominator: bigint): bigint {
+  return (numerator + denominator - 1n) / denominator;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function transactionValue(tx: unknown, context: string): bigint {
+  assert(isRecord(tx), `${context} transaction is missing`);
+  const value = tx.value;
+  assert(
+    value === undefined || typeof value === 'string',
+    `${context} transaction value is invalid`,
+  );
+  return value === undefined || value === '' ? 0n : BigInt(value);
+}
+
+export class SwapsXyzBridge implements IExternalBridge {
+  readonly externalBridgeId = ExternalBridgeType.SwapsXyz;
+  readonly logger: Logger;
+
+  private readonly client: SwapsXyzClient;
+  private readonly config: SwapsXyzBridgeConfig;
+  private readonly chainMetadataByChainId = new Map<number, ChainMetadata>();
+  private readonly tokenDecimalsCache = new Map<string, Promise<number>>();
+  private readonly evmProviderFactory: (rpcUrl: string) => providers.Provider;
+  private readonly registerTxRetryDelayMs: number;
+  // Prevent source-account races when movements share a source in one cycle.
+  private _executeLock: Promise<void> = Promise.resolve();
+
+  constructor(
+    config: SwapsXyzBridgeConfig,
+    logger: Logger,
+    client?: SwapsXyzClient,
+  ) {
+    this.config = config;
+    assert(
+      config.maxQuoteLossBps === undefined ||
+        (Number.isInteger(config.maxQuoteLossBps) &&
+          config.maxQuoteLossBps >= 0 &&
+          config.maxQuoteLossBps <= Number(BPS_DENOMINATOR)),
+      'maxQuoteLossBps must be an integer between 0 and 10000',
+    );
+    this.logger = logger;
+    this.getSlippageBps(); // Validate the bridge-level default at construction.
+    this.client =
+      client ??
+      new SwapsXyzClient(
+        {
+          apiKey: config.apiKey,
+          apiUrl: config.apiUrl,
+        },
+        logger,
+      );
+    this.evmProviderFactory =
+      config.evmProviderFactory ??
+      ((rpcUrl) => new providers.StaticJsonRpcProvider(rpcUrl));
+    this.registerTxRetryDelayMs =
+      config.registerTxRetryDelayMs ?? REGISTER_TX_RETRY_DELAY_MS;
+
+    if (config.chainMetadata) {
+      for (const metadata of Object.values(config.chainMetadata)) {
+        if (metadata.chainId !== undefined && isEVMLike(metadata.protocol)) {
+          this.chainMetadataByChainId.set(Number(metadata.chainId), metadata);
+        }
+      }
+    }
+  }
+
+  getNativeTokenAddress(): string {
+    return NATIVE_TOKEN_ADDRESS;
+  }
+
+  async quote(
+    params: BridgeQuoteParams,
+  ): Promise<BridgeQuote<SwapsXyzBridgeRoute>> {
+    this.validateQuoteParams(params);
+
+    try {
+      const response = await this.client.getAction(
+        this.buildActionRequest(params),
+      );
+      return this.toBridgeQuote(params, response);
+    } catch (error) {
+      if (
+        params.toAmount !== undefined &&
+        error instanceof SwapsXyzRequestError &&
+        error.code === 'UNSUPPORTED_SWAP_DIRECTION'
+      ) {
+        return this.quoteExactOutWithForwardFallback(params);
+      }
+      throw error;
+    }
+  }
+
+  execute(
+    quote: BridgeQuote,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
+  ): Promise<BridgeTransferResult> {
+    const execution = this._executeLock.then(() =>
+      new TransactionSubmission(options).run((observers) =>
+        this.executeUnlocked(quote, privateKeys, { ...options, ...observers }),
+      ),
+    );
+    this._executeLock = execution.then(
+      () => undefined,
+      () => undefined,
+    );
+    return execution;
+  }
+
+  async getStatus(
+    txHash: string,
+    fromChain: number,
+    toChain: number,
+    transferId?: string,
+  ): Promise<BridgeTransferStatus> {
+    let response: SwapsXyzStatusResponse | undefined;
+    let statusError: unknown;
+    const statusRequest = {
+      txHash,
+      chainId: fromChain,
+      ...(transferId === undefined ? {} : { txId: transferId }),
+    };
+    try {
+      response = await this.client.getStatus(statusRequest);
+    } catch (error) {
+      statusError = error;
+    }
+
+    // registerTxs is idempotent. Retrying it here heals transient registration
+    // outages without re-broadcasting the source transaction.
+    if (
+      transferId !== undefined &&
+      (response?.status.toLowerCase() === 'not yet created' ||
+        isSwapsXyzNotFoundError(statusError)) &&
+      (await this.registerTransaction(transferId, txHash))
+    ) {
+      try {
+        response = await this.client.getStatus(statusRequest);
+      } catch (error) {
+        statusError = error;
+        response = undefined;
+      }
+    }
+
+    if (response === undefined) {
+      if (isSwapsXyzNotFoundError(statusError)) {
+        return { status: 'not_found' };
+      }
+      this.logger.warn(
+        {
+          txHash,
+          transferId,
+          error:
+            statusError instanceof Error ? statusError.message : statusError,
+        },
+        'Failed to get swaps.xyz status',
+      );
+      throw statusError instanceof Error
+        ? statusError
+        : new Error('Failed to get swaps.xyz status');
+    }
+    return this.toBridgeTransferStatus(
+      response,
+      txHash,
+      fromChain,
+      toChain,
+      transferId,
+    );
+  }
+
+  private toBridgeTransferStatus(
+    response: SwapsXyzStatusResponse,
+    txHash: string,
+    fromChain: number,
+    toChain: number,
+    transferId?: string,
+  ): BridgeTransferStatus {
+    const protocol = this.chainMetadataByChainId.get(fromChain)?.protocol;
+    const normalizeHash = (hash: string) =>
+      protocol !== undefined && isEVMLike(protocol)
+        ? hash.replace(/^0x/i, '').toLowerCase()
+        : hash;
+    if (
+      (transferId !== undefined && response.txId !== transferId) ||
+      (response.srcTxHash != null &&
+        normalizeHash(response.srcTxHash) !== normalizeHash(txHash))
+    ) {
+      this.logger.warn(
+        {
+          txHash,
+          transferId,
+          responseTransferId: response.txId,
+          responseSourceHash: response.srcTxHash,
+        },
+        'swaps.xyz status transfer identity mismatch',
+      );
+      return { status: 'not_found' };
+    }
+    // The API's chainId param is advisory: a hash registered on a different
+    // chain is still returned. Such an entry is not our transfer.
+    if (response.srcChainId !== null && response.srcChainId !== fromChain) {
+      this.logger.warn(
+        { txHash, fromChain, responseSrcChainId: response.srcChainId },
+        'swaps.xyz status srcChainId does not match requested chain',
+      );
+      return { status: 'not_found' };
+    }
+    if (response.dstChainId !== null && response.dstChainId !== toChain) {
+      this.logger.warn(
+        { txHash, toChain, responseDstChainId: response.dstChainId },
+        'swaps.xyz status dstChainId does not match requested chain',
+      );
+      return { status: 'not_found' };
+    }
+    const rawStatus = response.status;
+
+    switch (rawStatus.toLowerCase()) {
+      case 'success':
+      case 'completed':
+        if (
+          response.srcChainId === null ||
+          response.dstChainId === null ||
+          (transferId === undefined && !response.srcTxHash) ||
+          !response.dstTxHash
+        ) {
+          this.logger.warn(
+            {
+              txHash,
+              responseSrcChainId: response.srcChainId,
+              responseDstChainId: response.dstChainId,
+            },
+            'swaps.xyz completed status is missing route identity',
+          );
+          return { status: 'pending', substatus: rawStatus };
+        }
+        return {
+          status: 'complete',
+          receivingTxHash: response.dstTxHash,
+          receivedAmount: BigInt(
+            response.actionResponse?.amountOut.amount ?? '0',
+          ),
+        };
+      case 'failed':
+        return {
+          status: 'failed',
+          error: 'swaps.xyz reported transfer failed',
+        };
+      case 'refunded':
+        return { status: 'failed', error: 'refunded' };
+      case 'requires refund':
+        return {
+          status: 'failed',
+          error: 'requires refund (claim via swaps.xyz)',
+        };
+      case 'expired':
+        return { status: 'failed', error: 'swaps.xyz transfer expired' };
+      default:
+        return { status: 'pending', substatus: rawStatus };
+    }
+  }
+
+  private validateQuoteParams(params: BridgeQuoteParams): void {
+    if (params.fromAmount !== undefined && params.toAmount !== undefined) {
+      throw new Error(
+        'Cannot specify both fromAmount and toAmount - provide exactly one',
+      );
+    }
+    if (params.fromAmount === undefined && params.toAmount === undefined) {
+      throw new Error('Must specify either fromAmount or toAmount');
+    }
+    assert(
+      params.fromAmount === undefined || params.fromAmount > 0n,
+      'fromAmount must be positive',
+    );
+    assert(
+      params.toAmount === undefined || params.toAmount > 0n,
+      'toAmount must be positive',
+    );
+  }
+
+  private buildActionRequest(params: BridgeQuoteParams): SwapsXyzActionRequest {
+    const amount = params.fromAmount ?? params.toAmount;
+    assert(amount !== undefined, 'Must specify either fromAmount or toAmount');
+    return {
+      actionType: 'swap-action',
+      sender: params.fromAddress,
+      recipient: params.toAddress ?? params.fromAddress,
+      srcChainId: params.fromChain,
+      dstChainId: params.toChain,
+      srcToken: params.fromToken,
+      dstToken: params.toToken,
+      slippage: this.getSlippageBps(params.slippage),
+      amount: amount.toString(),
+      swapDirection:
+        params.fromAmount !== undefined
+          ? 'exact-amount-in'
+          : 'exact-amount-out',
+    };
+  }
+
+  private getSlippageBps(slippage?: number): number {
+    const fraction =
+      slippage ?? this.config.defaultSlippage ?? DEFAULT_SLIPPAGE;
+    assert(
+      Number.isFinite(fraction) && fraction >= 0 && fraction <= 1,
+      'swaps.xyz slippage must be between 0 and 1',
+    );
+    return Math.round(fraction * 10_000);
+  }
+
+  private async quoteExactOutWithForwardFallback(
+    params: BridgeQuoteParams,
+  ): Promise<BridgeQuote<SwapsXyzBridgeRoute>> {
+    const toAmount = params.toAmount;
+    assert(toAmount !== undefined, 'Reverse quote requires toAmount');
+    const slippageBps = this.getSlippageBps(params.slippage);
+    const [sourceDecimals, destinationDecimals] = await Promise.all([
+      this.getTokenDecimals(params.fromChain, params.fromToken),
+      this.getTokenDecimals(params.toChain, params.toToken),
+    ]);
+    let fromAmount = ceilDiv(
+      toAmount * 10n ** BigInt(sourceDecimals),
+      10n ** BigInt(destinationDecimals),
+    );
+    fromAmount =
+      (fromAmount *
+        (BPS_DENOMINATOR + BigInt(slippageBps) + REVERSE_QUOTE_HEADROOM_BPS)) /
+      BPS_DENOMINATOR;
+
+    let lastAmountOutMin = 0n;
+    for (let attempt = 1; attempt <= REVERSE_QUOTE_ATTEMPTS; attempt++) {
+      const forwardParams: BridgeQuoteParams = {
+        ...params,
+        fromAmount,
+        toAmount: undefined,
+      };
+      const response = await this.client.getAction(
+        this.buildActionRequest(forwardParams),
+      );
+      lastAmountOutMin = BigInt(response.amountOutMin.amount);
+      this.logger.debug(
+        {
+          attempt,
+          fromAmount: fromAmount.toString(),
+          amountOutMin: lastAmountOutMin.toString(),
+          requestedToAmount: toAmount.toString(),
+        },
+        'swaps.xyz reverse quote forward fallback attempt',
+      );
+      if (lastAmountOutMin >= toAmount) {
+        const quote = await this.toBridgeQuote(forwardParams, response);
+        // This executable request is exact input, but retains the original target.
+        return {
+          ...quote,
+          toAmountMin:
+            quote.toAmountMin > toAmount ? quote.toAmountMin : toAmount,
+        };
+      }
+      assert(
+        lastAmountOutMin > 0n,
+        'SwapsXyzBridge reverse quote fallback returned zero amountOutMin',
+      );
+      fromAmount = ceilDiv(fromAmount * toAmount, lastAmountOutMin) + 1n;
+    }
+
+    throw new Error(
+      `SwapsXyzBridge reverse quote fallback exhausted after ${REVERSE_QUOTE_ATTEMPTS} attempts; last amountOutMin ${lastAmountOutMin.toString()} was short of requested ${toAmount.toString()}`,
+    );
+  }
+
+  private getTokenDecimals(chainId: number, token: string): Promise<number> {
+    const cacheKey = `${chainId}:${token}`;
+    const cached = this.tokenDecimalsCache.get(cacheKey);
+    if (cached) return cached;
+
+    const decimals = this.fetchTokenDecimals(chainId, token);
+    this.tokenDecimalsCache.set(cacheKey, decimals);
+    void decimals.catch(() => {
+      if (this.tokenDecimalsCache.get(cacheKey) === decimals) {
+        this.tokenDecimalsCache.delete(cacheKey);
+      }
+    });
+    return decimals;
+  }
+
+  private async fetchTokenDecimals(
+    chainId: number,
+    token: string,
+  ): Promise<number> {
+    const metadata = this.chainMetadataByChainId.get(chainId);
+    assert(
+      metadata,
+      `SwapsXyzBridge: no chain metadata configured for chainId ${chainId}`,
+    );
+    if (token.toLowerCase() === NATIVE_TOKEN_ADDRESS) {
+      const decimals = metadata.nativeToken?.decimals;
+      assert(
+        decimals !== undefined,
+        `Missing native token decimals for ${metadata.name}`,
+      );
+      return decimals;
+    }
+    assert(
+      isEVMLike(metadata.protocol),
+      `SwapsXyzBridge: unsupported token decimals protocol ${metadata.protocol}`,
+    );
+    const rpcUrl = metadata.rpcUrls[0]?.http;
+    assert(
+      rpcUrl,
+      `SwapsXyzBridge: no RPC URL configured for chainId ${chainId}`,
+    );
+    const provider = this.evmProviderFactory(rpcUrl);
+    const tokenContract = new Contract(token, ERC20_DECIMALS_ABI, provider);
+    return Number(await tokenContract.decimals());
+  }
+
+  private async toBridgeQuote(
+    params: BridgeQuoteParams,
+    response: SwapsXyzActionResponse,
+  ): Promise<BridgeQuote<SwapsXyzBridgeRoute>> {
+    let feeCosts = 0n;
+    for (const fee of [
+      response.protocolFee,
+      response.applicationFee,
+      response.bridgeFee,
+    ]) {
+      if (fee?.amount) feeCosts += BigInt(fee.amount);
+    }
+
+    const fromAmount = BigInt(
+      (response.amountInMax ?? response.amountIn).amount,
+    );
+    await this.validateQuoteLoss(
+      params,
+      response,
+      fromAmount,
+      BigInt(response.amountOut.amount),
+    );
+
+    return {
+      id: response.txId,
+      tool: response.bridgeIds?.join('+') || 'swapsxyz',
+      fromAmount,
+      toAmount: BigInt(response.amountOut.amount),
+      toAmountMin: await this.executionMinimum(params, response),
+      executionDuration: response.estimatedTxTime ?? 0,
+      gasCosts: 0n,
+      feeCosts,
+      route: { actionResponse: response },
+      requestParams: params,
+    };
+  }
+
+  private async executionMinimum(
+    params: BridgeQuoteParams,
+    response: SwapsXyzActionResponse,
+  ): Promise<bigint> {
+    let expectedFloor: bigint;
+    if (params.toAmount !== undefined) {
+      expectedFloor = params.toAmount;
+    } else {
+      const maxLoss = this.config.maxQuoteLossBps;
+      // No economic drift budget was configured for this exact-input request.
+      if (maxLoss === undefined) return BigInt(response.amountOutMin.amount);
+      assert(params.fromAmount !== undefined, 'Missing exact-input amount');
+      const [sourceDecimals, destinationDecimals] = await Promise.all([
+        this.getTokenDecimals(params.fromChain, params.fromToken),
+        this.getTokenDecimals(params.toChain, params.toToken),
+      ]);
+      expectedFloor = minimumOutputForLoss(
+        params.fromAmount,
+        sourceDecimals,
+        destinationDecimals,
+        maxLoss,
+      );
+    }
+    const minimum =
+      (expectedFloor *
+        (BPS_DENOMINATOR - BigInt(this.getSlippageBps(params.slippage)))) /
+      BPS_DENOMINATOR;
+    return minimum > 0n ? minimum : 1n;
+  }
+
+  private async executeUnlocked(
+    quote: BridgeQuote,
+    privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
+  ): Promise<BridgeTransferResult> {
+    this.validateQuoteParams(quote.requestParams);
+    const { fromChain, toChain } = quote.requestParams;
+    const metadata = this.chainMetadataByChainId.get(fromChain);
+    assert(
+      metadata,
+      `SwapsXyzBridge.execute: no chain metadata configured for chainId ${fromChain}`,
+    );
+    const rpcUrl = metadata.rpcUrls[0]?.http;
+    assert(
+      rpcUrl,
+      `SwapsXyzBridge.execute: no RPC URL configured for chainId ${fromChain}`,
+    );
+    const privateKey = privateKeys[ProtocolType.Ethereum];
+    assert(
+      privateKey,
+      'SwapsXyzBridge.execute requires an Ethereum (EVM) private key',
+    );
+
+    const provider = this.evmProviderFactory(rpcUrl);
+    const signer = new Wallet(ensure0x(privateKey), provider);
+    assert(
+      this.addressesEqual(
+        await signer.getAddress(),
+        quote.requestParams.fromAddress,
+        fromChain,
+      ),
+      'SwapsXyzBridge.execute signer does not match quote fromAddress',
+    );
+
+    for (let attempt = 0; attempt < MAX_PREPARATION_ATTEMPTS; attempt++) {
+      const { response: fresh, preparedAt } = await this.prepare(quote);
+      assert(isEvmTx(fresh.tx), 'SwapsXyzBridge.execute requires an EVM tx');
+      if (fresh.requiresTokenApproval) {
+        await approveErc20IfNeeded(
+          signer,
+          quote.requestParams.fromToken,
+          fresh.tx.to,
+          BigInt((fresh.amountInMax ?? fresh.amountIn).amount),
+          this.logger,
+          {
+            contractFactory: this.config.erc20ContractFactory,
+            onApproval: options?.onApproval,
+          },
+        );
+      }
+
+      if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) continue;
+      await this.validatePreparedEvmOrder(quote, fresh);
+      if (Date.now() - preparedAt >= MAX_TRANSACTION_AGE_MS) continue;
+      const transaction = {
+        to: fresh.tx.to,
+        data: fresh.tx.data,
+        value: fresh.tx.value ? BigNumber.from(fresh.tx.value) : undefined,
+      };
+      await signer.estimateGas(transaction);
+      await options?.onTransferId?.(fresh.txId);
+      const txResponse = await submitEvmLikeTransaction(
+        signer,
+        transaction,
+        options,
+      );
+      // Source-action tracking takes priority over waiting here: once a
+      // source transaction is broadcast, receipt/status failures must not cause
+      // the planner to send the same movement again.
+      void this.registerIfRequired(fresh, txResponse.hash);
+      return {
+        txHash: txResponse.hash,
+        fromChain,
+        toChain,
+        transferId: fresh.txId,
+      };
+    }
+    throw new Error(
+      'swaps.xyz transaction expired repeatedly during preparation',
+    );
+  }
+
+  /** Validate a fresh unsigned EVM payload without keys, approvals or signing. */
+  async prepare(
+    quote: BridgeQuote,
+  ): Promise<{ response: SwapsXyzActionResponse; preparedAt: number }> {
+    this.validateQuoteParams(quote.requestParams);
+    let preparedAt = Date.now();
+    const response = await this.client.getAction(
+      this.buildActionRequest(quote.requestParams),
+      (startedAt) => {
+        preparedAt = startedAt;
+      },
+    );
+    await this.validatePreparedEvmOrder(quote, response);
+    await this.validateQuoteLoss(
+      quote.requestParams,
+      response,
+      BigInt((response.amountInMax ?? response.amountIn).amount),
+      BigInt(response.amountOut.amount),
+    );
+    assert(
+      Date.now() - preparedAt < MAX_TRANSACTION_AGE_MS,
+      'swaps.xyz transaction expired during preparation',
+    );
+    return { response, preparedAt };
+  }
+
+  private async validatePreparedEvmOrder(
+    quote: BridgeQuote,
+    fresh: SwapsXyzActionResponse,
+  ): Promise<void> {
+    assert(isEvmTx(fresh.tx), 'SwapsXyzBridge.execute requires an EVM tx');
+    this.validateActionResponse(fresh, quote, 'evm');
+  }
+
+  private validateActionResponse(
+    response: SwapsXyzActionResponse,
+    quote: BridgeQuote,
+    expectedVmId: 'evm',
+  ): void {
+    const params = quote.requestParams;
+    assert(
+      response.vmId === undefined || response.vmId === expectedVmId,
+      `SwapsXyzBridge.execute vmId ${response.vmId} does not match ${expectedVmId}`,
+    );
+    if (response.tx.chainId !== undefined) {
+      assert(
+        response.tx.chainId === params.fromChain,
+        `SwapsXyzBridge.execute tx chainId ${response.tx.chainId} does not match requested ${params.fromChain}`,
+      );
+    }
+    if (response.amountIn.chainId !== undefined) {
+      assert(
+        response.amountIn.chainId === params.fromChain,
+        `SwapsXyzBridge.execute amountIn chainId ${response.amountIn.chainId} does not match requested ${params.fromChain}`,
+      );
+    }
+    if (response.amountOut.chainId !== undefined) {
+      assert(
+        response.amountOut.chainId === params.toChain,
+        `SwapsXyzBridge.execute amountOut chainId ${response.amountOut.chainId} does not match requested ${params.toChain}`,
+      );
+    }
+    if (response.amountIn.address !== undefined) {
+      assert(
+        this.addressesEqual(
+          response.amountIn.address,
+          params.fromToken,
+          params.fromChain,
+        ),
+        `SwapsXyzBridge.execute amountIn token ${response.amountIn.address} does not match requested ${params.fromToken}`,
+      );
+    }
+    if (response.amountOut.address !== undefined) {
+      assert(
+        this.addressesEqual(
+          response.amountOut.address,
+          params.toToken,
+          params.toChain,
+        ),
+        `SwapsXyzBridge.execute amountOut token ${response.amountOut.address} does not match requested ${params.toToken}`,
+      );
+    }
+    const tx = response.tx;
+    assert(isEvmTx(tx), 'SwapsXyzBridge.execute EVM transaction is invalid');
+    assert(
+      utils.isAddress(tx.to),
+      `SwapsXyzBridge.execute transaction target ${tx.to} is invalid`,
+    );
+    assert(
+      /^0x(?:[0-9a-fA-F]{2})*$/.test(tx.data),
+      'SwapsXyzBridge.execute transaction calldata is invalid',
+    );
+    const freshFromAmount = BigInt(
+      (response.amountInMax ?? response.amountIn).amount,
+    );
+    assert(
+      freshFromAmount <= quote.fromAmount,
+      `SwapsXyzBridge.execute fresh input ${freshFromAmount} exceeds accepted input cap ${quote.fromAmount}`,
+    );
+    const freshToAmountMin = BigInt(response.amountOutMin.amount);
+    assert(
+      freshToAmountMin >= quote.toAmountMin,
+      `SwapsXyzBridge.execute fresh minimum output ${freshToAmountMin} is below accepted minimum ${quote.toAmountMin}`,
+    );
+    const freshValue = transactionValue(
+      response.tx,
+      'SwapsXyzBridge.execute fresh',
+    );
+    const nativePrincipal = this.addressesEqual(
+      params.fromToken,
+      NATIVE_TOKEN_ADDRESS,
+      params.fromChain,
+    )
+      ? freshFromAmount
+      : 0n;
+    const minimumNativePrincipal = this.addressesEqual(
+      params.fromToken,
+      NATIVE_TOKEN_ADDRESS,
+      params.fromChain,
+    )
+      ? BigInt(response.amountIn.amount)
+      : 0n;
+    assert(
+      freshValue >= minimumNativePrincipal,
+      'SwapsXyzBridge.execute transaction value is below the native token input',
+    );
+    const nativeFee =
+      freshValue > nativePrincipal ? freshValue - nativePrincipal : 0n;
+    const maxNativeFee =
+      this.config.maxEvmNativeFeeWei ?? DEFAULT_MAX_EVM_NATIVE_FEE_WEI;
+    assert(
+      nativeFee <= maxNativeFee,
+      `SwapsXyzBridge.execute native fee ${nativeFee} exceeds configured maximum ${maxNativeFee}`,
+    );
+  }
+
+  private async validateQuoteLoss(
+    params: BridgeQuoteParams,
+    response: SwapsXyzActionResponse,
+    fromAmount: bigint,
+    toAmount: bigint,
+  ): Promise<void> {
+    const amountIn = BigInt(response.amountIn.amount);
+    const maximumInput = BigInt(
+      (response.amountInMax ?? response.amountIn).amount,
+    );
+    const minimumOutput = BigInt(response.amountOutMin.amount);
+    const expectedOutput = BigInt(response.amountOut.amount);
+    assert(
+      amountIn > 0n && maximumInput >= amountIn,
+      'swaps.xyz invalid input amount bounds',
+    );
+    if (params.fromAmount !== undefined) {
+      assert(
+        amountIn === params.fromAmount && maximumInput === params.fromAmount,
+        'swaps.xyz exact input does not match the requested amount',
+      );
+    }
+    if (params.toAmount !== undefined) {
+      assert(
+        expectedOutput >= params.toAmount,
+        'swaps.xyz expected output is below the requested amount',
+      );
+    }
+    const slippageFloor =
+      (expectedOutput *
+        (BPS_DENOMINATOR - BigInt(this.getSlippageBps(params.slippage)))) /
+      BPS_DENOMINATOR;
+    assert(
+      minimumOutput > 0n &&
+        minimumOutput <= expectedOutput &&
+        minimumOutput >= slippageFloor,
+      'swaps.xyz minimum output exceeds the requested slippage',
+    );
+    const maxQuoteLossBps = this.config.maxQuoteLossBps;
+    if (maxQuoteLossBps === undefined) return;
+
+    const [sourceDecimals, destinationDecimals] = await Promise.all([
+      this.getTokenDecimals(params.fromChain, params.fromToken),
+      this.getTokenDecimals(params.toChain, params.toToken),
+    ]);
+    assert(
+      sourceDecimals <= 255 && destinationDecimals <= 255,
+      'swaps.xyz quote token decimals must be at most 255',
+    );
+    for (const amount of [response.amountIn, response.amountInMax]) {
+      assert(
+        amount?.decimals === undefined || amount.decimals === sourceDecimals,
+        'swaps.xyz source token decimals do not match chain data',
+      );
+    }
+    for (const amount of [response.amountOut, response.amountOutMin]) {
+      assert(
+        amount.decimals === undefined ||
+          amount.decimals === destinationDecimals,
+        'swaps.xyz destination token decimals do not match chain data',
+      );
+    }
+    const commonDecimals = Math.max(sourceDecimals, destinationDecimals);
+    const normalizedFromAmount =
+      fromAmount * 10n ** BigInt(commonDecimals - sourceDecimals);
+    const normalizedToAmount =
+      toAmount * 10n ** BigInt(commonDecimals - destinationDecimals);
+    const lossBps =
+      normalizedToAmount >= normalizedFromAmount
+        ? 0n
+        : ceilDiv(
+            (normalizedFromAmount - normalizedToAmount) * BPS_DENOMINATOR,
+            normalizedFromAmount,
+          );
+    assert(
+      lossBps <= BigInt(maxQuoteLossBps),
+      `swaps.xyz quote loss ${lossBps} bps exceeds configured maximum ${maxQuoteLossBps} bps`,
+    );
+  }
+
+  private addressesEqual(
+    left: string,
+    right: string,
+    _chainId: number,
+  ): boolean {
+    if (left.startsWith('0x') && right.startsWith('0x')) {
+      return left.toLowerCase() === right.toLowerCase();
+    }
+    return left === right;
+  }
+
+  private async registerIfRequired(
+    response: SwapsXyzActionResponse,
+    txHash: string,
+  ): Promise<void> {
+    if (response.requiresRegisterTransaction !== true) return;
+    await this.registerTransaction(response.txId, txHash);
+  }
+
+  private async registerTransaction(
+    txId: string,
+    txHash: string,
+  ): Promise<boolean> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const results = await this.client.registerTxs([{ txId, txHash }]);
+        const failed = results.find((result) => !result.success);
+        if (failed) {
+          throw new Error(
+            `swaps.xyz registerTxs failed: ${failed.error ?? 'unknown error'}`,
+          );
+        }
+        return true;
+      } catch (error) {
+        if (
+          isSwapsXyzTerminalError(error) ||
+          isSwapsXyzDeferredError(error) ||
+          attempt >= MAX_REGISTRATION_ATTEMPTS - 1
+        ) {
+          this.logger.error(
+            { txId, txHash, error },
+            'Failed to register swaps.xyz transaction',
+          );
+          return false;
+        }
+        await sleep(this.registerTxRetryDelayMs * 2 ** attempt);
+      }
+    }
+  }
+}

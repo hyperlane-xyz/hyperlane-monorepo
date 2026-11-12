@@ -145,6 +145,7 @@ async function createFactory(
     createMockRegistry(),
     testLogger,
     undefined,
+    undefined,
     warpCoreConfig,
   );
 }
