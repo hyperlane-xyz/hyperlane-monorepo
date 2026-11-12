@@ -279,7 +279,6 @@ fn checkpoint_collections_are_distinct_and_bound_to_message() {
             root: H256::repeat_byte(2),
             signers: vec![checkpoint_signer(1, Some("s3://validator-1"))],
         });
-        observer.report();
     }
     let first = receiver.try_recv().expect("first collection");
     let second = receiver.try_recv().expect("second collection");
@@ -299,6 +298,59 @@ fn checkpoint_collections_are_distinct_and_bound_to_message() {
             .len(),
         1
     );
+}
+
+#[tokio::test]
+async fn signature_progress_is_published_before_quorum_in_the_existing_format() {
+    let (reporter, mut receiver) = reporter(3);
+    let observer = reporter.checkpoint_observer_for_node(
+        &HyperlaneMessage::default(),
+        Some(H256::zero()),
+        2,
+        Some("root"),
+    );
+    let states = state::ActivityState::new(None);
+    observer.observe(CheckpointObservation::Fetching { index: 12 });
+    for collected in [1, 2] {
+        let before = Utc::now().timestamp_millis();
+        observer.observe(CheckpointObservation::Signature {
+            index: 12,
+            root: H256::repeat_byte(2),
+            signers: (1..=collected)
+                .map(|validator| {
+                    checkpoint_signer(validator, Some("https://validator/checkpoint.json"))
+                })
+                .collect(),
+        });
+        // The collection is still alive and has not called report().
+        let progress = receiver
+            .try_recv()
+            .expect("signature arrival must enqueue progress");
+        assert!(progress.observed_at >= before);
+        assert!(progress.observed_at <= Utc::now().timestamp_millis());
+        let observed_at = progress.observed_at;
+        let serialized = serde_json::to_value(&progress).unwrap();
+        assert_eq!(serialized["activity"]["type"], "checkpoint");
+        assert_eq!(
+            serialized["activity"]["collection_id"],
+            observer.collection_id
+        );
+        assert!(serialized["activity"]["summary"]
+            .get("reported_signers")
+            .is_none());
+        let updates = states.project(&[progress]).await.unwrap();
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].observed_at, observed_at);
+        let (StoredActivity::Snapshot { state } | StoredActivity::SnapshotUpdate { state }) =
+            &updates[0].activity;
+        assert_eq!(state["modules"][0]["signatures"]["collected"], collected);
+        assert_eq!(state["modules"][0]["signatures"]["index"], 12);
+    }
+    // Final reporting keeps the complete summary, and projection deduplicates it.
+    observer.report();
+    let final_summary = receiver.try_recv().expect("final collection summary");
+    assert!(states.project(&[final_summary]).await.unwrap().is_empty());
+    assert_eq!(reporter.metrics.dropped.get(), 0);
 }
 
 // Requires an empty disposable database and a superuser test login, to exercise
@@ -428,7 +480,7 @@ fn chain_error_codes_exclude_external_details() {
 }
 
 #[test]
-fn checkpoint_range_walk_emits_one_bounded_summary() {
+fn checkpoint_range_walk_emits_bounded_progress_and_final_summary() {
     let (reporter, mut receiver) = reporter(1);
     let observer = reporter.checkpoint_observer(&HyperlaneMessage::default(), None, 2);
     for index in (0..10_000).rev() {
@@ -443,6 +495,10 @@ fn checkpoint_range_walk_emits_one_bounded_summary() {
             index: Some(index),
             reason: CheckpointUnavailableReason::Missing,
         });
+        if index == 9_999 {
+            let progress = receiver.try_recv().expect("first signature progress");
+            assert!(matches!(progress.activity, Activity::Checkpoint { .. }));
+        }
     }
     assert!(receiver.try_recv().is_err());
     observer.report();
@@ -459,6 +515,7 @@ fn checkpoint_range_walk_emits_one_bounded_summary() {
         1
     );
     assert!(serde_json::to_vec(&event).expect("serialize event").len() < 1_024);
+    assert_eq!(reporter.metrics.dropped.get(), 0);
     observer.report(); // Already drained: no duplicate.
     assert!(receiver.try_recv().is_err());
 }
@@ -479,6 +536,7 @@ fn checkpoint_summary_never_combines_roots_or_indices() {
     }
     assert_eq!(observer.summary.lock().collected, 2);
     assert_eq!(observer.summary.lock().root, Some(H256::repeat_byte(1)));
+    receiver.try_recv().expect("signature progress");
     observer.observe(CheckpointObservation::Fetching { index: 11 });
     observer.observe(CheckpointObservation::Unavailable {
         validator: H256::repeat_byte(1),
@@ -617,7 +675,7 @@ fn abandoned_checkpoint_collection_does_not_publish_on_drop() {
 
 #[test]
 fn checkpoint_summary_tracks_signers_for_the_selected_root() {
-    let (reporter, mut receiver) = reporter(1);
+    let (reporter, mut receiver) = reporter(3);
     let observer = reporter.checkpoint_observer(&HyperlaneMessage::default(), None, 3);
     observer.observe(CheckpointObservation::Fetching { index: 12 });
     for (root, signers) in [
@@ -636,6 +694,11 @@ fn checkpoint_summary_tracks_signers_for_the_selected_root() {
             root: H256::repeat_byte(root),
             signers,
         });
+    }
+    for collected in [1, 2] {
+        let progress = serde_json::to_value(receiver.try_recv().expect("signature progress"))
+            .expect("serialize progress");
+        assert_eq!(progress["activity"]["summary"]["collected"], collected);
     }
     observer.report();
     let json = serde_json::to_value(receiver.try_recv().expect("checkpoint event"))
@@ -721,6 +784,7 @@ fn checkpoint_summary_separates_discovery_failures_in_both_completion_orders() {
             observer.observe(discovery_failure());
         }
 
+        receiver.try_recv().expect("signature progress");
         observer.report();
         let json = serde_json::to_value(receiver.try_recv().expect("checkpoint event"))
             .expect("serialize event");

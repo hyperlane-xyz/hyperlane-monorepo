@@ -163,16 +163,19 @@ impl ActivityState {
             } else {
                 Ok(())
             };
-            // Initial discovery is accumulated into one whole-tree snapshot. Afterwards,
-            // checkpoint/verification changes can animate progress without replaying configuration.
+            // Publish the first verified signatures immediately, even while the
+            // initial metadata build is still waiting for quorum.
             let root_result = matches!(event.activity, Activity::Metadata { .. })
                 && event.node_id.as_ref().is_some_and(|id| !id.contains('/'));
             let meaningful = (delivered && state.published_snapshot.is_none())
                 || root_result
                 || match &event.activity {
-                    Activity::Checkpoint { .. }
-                    | Activity::IsmVerification { .. }
-                    | Activity::OffchainRead { .. } => state.published_snapshot.is_some(),
+                    Activity::Checkpoint { summary, .. } => {
+                        summary.collected > 0 || state.published_snapshot.is_some()
+                    }
+                    Activity::IsmVerification { .. } | Activity::OffchainRead { .. } => {
+                        state.published_snapshot.is_some()
+                    }
                     Activity::Retry {
                         reason: Some(_), ..
                     }
@@ -823,21 +826,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn initial_discovery_is_one_whole_tree_row_and_unchanged_retries_only_add_retry_rows() {
+    async fn signatures_publish_before_metadata_finishes_and_unchanged_retries_only_add_retry_rows()
+    {
         let states = ActivityState::new(None);
-        assert!(
-            project(&states, &[module("root"), checkpoint("first", 10, 1)])
-                .await
-                .is_empty()
-        );
-        let first = project(
+        assert!(project(&states, &[module("root")]).await.is_empty());
+        let first = project(&states, &[checkpoint("first", 10, 1)]).await;
+        assert_eq!(first.len(), 1);
+        assert!(is_full_snapshot(&first));
+        assert_eq!(snapshot(&first)["modules"][0]["signatures"]["collected"], 1);
+        project(
             &states,
             &[metadata("root", Some("Awaiting validator signatures"))],
         )
         .await;
-        assert_eq!(first.len(), 1);
-        assert!(is_full_snapshot(&first));
-        assert_eq!(snapshot(&first)["modules"][0]["signatures"]["collected"], 1);
         for count in 1..=5 {
             let updates = project(
                 &states,
@@ -866,7 +867,7 @@ mod tests {
             assert_eq!(updates.len(), 1);
             assert!(!is_full_snapshot(&updates));
             assert_eq!(snapshot(&updates)["retry"]["count"], count);
-            assert_eq!(snapshot(&updates)["modules"], json!([]));
+            assert_eq!(snapshot(&updates)["modules"][0]["node_id"], "root");
             assert_eq!(snapshot(&updates)["removed_modules"], json!([]));
         }
         assert_eq!(project(&states, &[checkpoint("new", 10, 2)]).await.len(), 1);
@@ -948,7 +949,9 @@ mod tests {
             ],
         )
         .await;
-        assert!(is_full_snapshot(&first));
+        assert_eq!(first.len(), 2);
+        assert!(matches!(first[0].activity, StoredActivity::Snapshot { .. }));
+        assert!(!is_full_snapshot(&first));
 
         let update = project(&states, &[checkpoint("second", 10, 2)]).await;
         assert!(!is_full_snapshot(&update));
