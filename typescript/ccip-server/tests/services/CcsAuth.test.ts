@@ -71,6 +71,9 @@ async function headers(
 const defaultIcaRouters: ReadonlyMap<number, IcaRouters> = new Map([
   [1, { interchainAccountRouter: '0x' + '0a'.repeat(20) }],
 ]);
+const defaultOriginMailboxes: ReadonlyMap<number, string> = new Map([
+  [1, '0x' + '0c'.repeat(20)],
+]);
 
 /** Distinct, deterministic account per derivation input. */
 function fakeAccount(config: AccountConfig): string {
@@ -97,6 +100,7 @@ async function server(
     multiProvider: MultiProvider;
     icaApp: InterchainAccount;
     trustedIcaRouters: ReadonlyMap<number, IcaRouters>;
+    originMailboxes: ReadonlyMap<number, string>;
   },
   { calldataLookupEnabled = true }: { calldataLookupEnabled?: boolean } = {},
 ) {
@@ -113,6 +117,7 @@ async function server(
     authorizedSigners,
     dependencies?.trustedIcaRouters ?? defaultIcaRouters,
     calldataLookupEnabled,
+    dependencies?.originMailboxes ?? defaultOriginMailboxes,
   );
   service.registerRoutes(app, '/callCommitments');
   return app;
@@ -468,10 +473,12 @@ describe('CCS authenticated reveal recovery integration', () => {
     trustRouters = true,
     registeredWithDispatchedRouters = false,
     commitOwner = wallet.address,
+    originV3Only = false,
   }: {
     trustRouters?: boolean;
     registeredWithDispatchedRouters?: boolean;
     commitOwner?: string;
+    originV3Only?: boolean;
   } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
@@ -530,9 +537,9 @@ describe('CCS authenticated reveal recovery integration', () => {
     const receipt = sinon
       .stub(originProvider, 'getTransactionReceipt')
       .resolves(receiptWith(logs));
-    sinon
+    const originCall = sinon
       .stub(originProvider, 'call')
-      .resolves(utils.defaultAbiCoder.encode(['address'], [mailbox]));
+      .rejects(new Error('Unexpected origin call'));
     // The dispatched router pair derives with the same model as the registry
     // candidates below, so every ICA depends on the commit's owner and salt.
     const routerInterface = InterchainAccountRouter__factory.createInterface();
@@ -569,12 +576,6 @@ describe('CCS authenticated reveal recovery integration', () => {
     multiProvider.getProvider.withArgs('base').returns(originProvider);
     multiProvider.getProvider.withArgs(42161).returns(destinationProvider);
     const icaApp = sinon.createStubInstance(InterchainAccount);
-    icaApp.getContracts.withArgs('base').returns({
-      interchainAccountRouter: InterchainAccountRouter__factory.connect(
-        originRouterV3,
-        originProvider,
-      ),
-    });
     icaApp.getAccount.callsFake(async (_destination, config) =>
       fakeAccount(config),
     );
@@ -609,10 +610,12 @@ describe('CCS authenticated reveal recovery integration', () => {
       ? new Map([
           [
             8453,
-            {
-              interchainAccountRouter: originRouter,
-              interchainAccountRouterV3: originRouterV3,
-            },
+            originV3Only
+              ? { interchainAccountRouterV3: originRouterV3 }
+              : {
+                  interchainAccountRouter: originRouter,
+                  interchainAccountRouterV3: originRouterV3,
+                },
           ],
           [
             42161,
@@ -630,6 +633,10 @@ describe('CCS authenticated reveal recovery integration', () => {
       multiProvider,
       icaApp,
       trustedIcaRouters,
+      originMailboxes: new Map([
+        [8453, mailbox],
+        [42161, '0x' + '34'.repeat(20)],
+      ]),
     });
     const data =
       CommitmentReadIsmService__factory.createInterface().encodeFunctionData(
@@ -648,6 +655,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       receipt,
       logs,
       icaApp,
+      originCall,
       destinationCall,
       record,
       updateMany,
@@ -676,6 +684,31 @@ describe('CCS authenticated reveal recovery integration', () => {
       sinon.assert.notCalled(f.updateMany);
       sinon.assert.calledOnce(f.receipt);
       sinon.assert.calledOnce(f.destinationCall);
+      sinon.assert.notCalled(f.originCall);
+    } finally {
+      await f.app.close();
+    }
+  });
+
+  it('serves a reveal from an origin whose registry lists only a V3 router, reading only its receipt from the origin chain', async () => {
+    const f = await fixture({
+      originV3Only: true,
+      registeredWithDispatchedRouters: true,
+    });
+    try {
+      const response = await f.app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: f.payload,
+      });
+      expect(response.statusCode).to.equal(200);
+      expect(response.json().data).to.equal(
+        f.dispatchedIca +
+          encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+      );
+      sinon.assert.calledOnce(f.receipt);
+      sinon.assert.notCalled(f.originCall);
+      sinon.assert.notCalled(f.updateMany);
     } finally {
       await f.app.close();
     }

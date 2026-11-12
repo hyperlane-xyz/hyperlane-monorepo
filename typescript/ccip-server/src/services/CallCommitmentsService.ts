@@ -291,6 +291,23 @@ const ICA_ROUTER_VERSIONS = [
 type IcaRouterVersion = (typeof ICA_ROUTER_VERSIONS)[number];
 export type IcaRouters = Partial<Record<IcaRouterVersion, string>>;
 
+/** Per-domain values selected from the registry addresses of known chains. */
+function registryValuesByDomain<T>(
+  addressesByChain: Record<string, Record<string, string>>,
+  multiProvider: MultiProvider,
+  select: (addresses: Record<string, string>) => T | undefined,
+): Map<number, T> {
+  const values = new Map<number, T>();
+  for (const [chain, addresses] of Object.entries(addressesByChain)) {
+    const domain = multiProvider.tryGetDomainId(chain);
+    if (isNullish(domain)) continue;
+    const value = select(addresses);
+    if (value === undefined) continue;
+    values.set(domain, value);
+  }
+  return values;
+}
+
 /**
  * The registry's ICA routers by domain and version, lowercased. Empty and
  * zero-ish router addresses are ignored, and chains without an ICA router are
@@ -300,27 +317,42 @@ export function icaRoutersByDomain(
   addressesByChain: Record<string, Record<string, string>>,
   multiProvider: MultiProvider,
 ): Map<number, IcaRouters> {
-  const routers = new Map<number, IcaRouters>();
-  for (const [chain, addresses] of Object.entries(addressesByChain)) {
-    const domain = multiProvider.tryGetDomainId(chain);
-    if (isNullish(domain)) continue;
-    const domainRouters = Object.fromEntries(
-      ICA_ROUTER_VERSIONS.flatMap((version) => {
-        const router = addresses[version];
-        if (isEmptyAddress(router)) return [];
-        return [[version, router.toLowerCase()]];
-      }),
-    );
-    if (Object.keys(domainRouters).length === 0) continue;
-    routers.set(domain, domainRouters);
-  }
-  return routers;
+  return registryValuesByDomain(
+    addressesByChain,
+    multiProvider,
+    (addresses) => {
+      const domainRouters: IcaRouters = Object.fromEntries(
+        ICA_ROUTER_VERSIONS.flatMap((version) => {
+          const router = addresses[version];
+          if (isEmptyAddress(router)) return [];
+          return [[version, router.toLowerCase()]];
+        }),
+      );
+      return Object.keys(domainRouters).length === 0
+        ? undefined
+        : domainRouters;
+    },
+  );
+}
+
+/**
+ * The registry's mailboxes by domain, lowercased. Empty and zero-ish mailbox
+ * addresses are ignored.
+ */
+export function mailboxesByDomain(
+  addressesByChain: Record<string, Record<string, string>>,
+  multiProvider: MultiProvider,
+): Map<number, string> {
+  return registryValuesByDomain(addressesByChain, multiProvider, (addresses) =>
+    isEmptyAddress(addresses.mailbox)
+      ? undefined
+      : addresses.mailbox.toLowerCase(),
+  );
 }
 
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
   private readonly auth: CcsAuth;
-  private readonly originMailboxes = new Map<string, string>();
 
   constructor(
     config: ServiceConfigWithBaseUrl,
@@ -328,12 +360,19 @@ export class CallCommitmentsService extends BaseService {
     authorizedSigners: string[],
     private readonly trustedIcaRouters: ReadonlyMap<number, IcaRouters>,
     private readonly calldataLookupEnabled: boolean,
+    private readonly originMailboxes: ReadonlyMap<number, string>,
   ) {
     super(config);
     assert(
       trustedIcaRouters.size > 0,
       'No ICA routers configured: callCommitments requires interchainAccountRouter or interchainAccountRouterV3 registry addresses',
     );
+    for (const domain of trustedIcaRouters.keys()) {
+      assert(
+        originMailboxes.has(domain),
+        `Missing mailbox address for domain ${domain}`,
+      );
+    }
     this.multiProvider = config.multiProvider;
     this.auth = new CcsAuth(config.baseUrl, authorizedSigners);
   }
@@ -362,6 +401,7 @@ export class CallCommitmentsService extends BaseService {
       env.CCS_AUTHORIZED_SIGNERS,
       icaRoutersByDomain(coreAddresses, multiProvider),
       env.CCS_CALLDATA_LOOKUP_ENABLED,
+      mailboxesByDomain(coreAddresses, multiProvider),
     );
   }
 
@@ -639,19 +679,14 @@ export class CallCommitmentsService extends BaseService {
         'Reveal was not dispatched between known ICA routers',
       );
     }
+    const mailbox = this.originMailboxes.get(reveal.origin);
+    assert(mailbox, `Missing mailbox address for domain ${reveal.origin}`);
     const commitment = commitmentFromRevealMessage(reveal.body);
     const originChain = this.multiProvider.getChainName(reveal.origin);
     const provider = this.multiProvider.getProvider(originChain);
     const receipt = await provider.getTransactionReceipt(originTxHash);
     assert(receipt, `Transaction not found: ${originTxHash}`);
 
-    let mailbox = this.originMailboxes.get(originChain);
-    if (mailbox === undefined) {
-      mailbox = await this.icaApp
-        .getContracts(originChain)
-        .interchainAccountRouter.mailbox();
-      this.originMailboxes.set(originChain, mailbox);
-    }
     const iface = Mailbox__factory.createInterface();
     const dispatchTopic = iface.getEventTopic('Dispatch');
     const dispatches = receipt.logs

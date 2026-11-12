@@ -111,12 +111,13 @@ Deploy authenticated GET clients before enabling the CCS whitelist:
 ## Local HTTP integration tests
 
 `tests/e2e/ccsAuthServer.mjs` runs the real CCS handlers behind local HTTPS, uploads
-four EVM/SVM fixtures to PostgreSQL, and checks unsigned reads and record restrictions.
-The harness constructs the service with the calldata lookup enabled. It also serves local
-JSON-RPC endpoints for an origin and a destination chain whose ICA routers are the
-service's registry routers: each EVM fixture gets an origin transaction whose mailbox
-dispatches the commitment and then its reveal, and the destination router derives the
-stored ICA. `fixtures.json` records each EVM fixture's `originTxHash`, and the harness
+five EVM/SVM fixtures to PostgreSQL, and checks unsigned reads and record restrictions.
+The harness constructs the service from local registry addresses with the calldata lookup
+enabled. It also serves local JSON-RPC endpoints for two origin chains, one of which lists
+only a V3 ICA router (`evmV3Only`), and a destination chain: each EVM fixture gets an
+origin transaction whose registry mailbox dispatches the commitment and then its reveal,
+and the destination router derives the stored ICA. Origin chains answer only receipt
+requests. `fixtures.json` records each EVM fixture's `originTxHash`, and the harness
 checks a reveal lookup with it before printing `READY`.
 It accepts only a localhost database named `ccs_e2e`. Prepare that disposable database
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing

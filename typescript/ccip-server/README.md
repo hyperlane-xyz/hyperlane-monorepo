@@ -115,7 +115,8 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
   router pair: stale config that derives a different ICA still returns 409. A
   separate ICA router deployment is only served if the registry CCS reads lists
   its routers (otherwise run its own CCS). CCS fails to start if that registry
-  lists no ICA routers.
+  lists no ICA routers, or lists a chain with ICA routers but no mailbox. Origin
+  mailboxes are read from the registry addresses.
 
 ### Wormhole VAA lookup
 

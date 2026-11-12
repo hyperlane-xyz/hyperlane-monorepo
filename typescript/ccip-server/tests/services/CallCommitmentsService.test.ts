@@ -31,6 +31,7 @@ import {
   CallCommitmentsService,
   type IcaRouters,
   icaRoutersByDomain,
+  mailboxesByDomain,
 } from '../../src/services/CallCommitmentsService.js';
 import { CommitmentAccessDeniedError } from '../../src/utils/errors.js';
 import { PrometheusMetrics } from '../../src/utils/prometheus.js';
@@ -664,6 +665,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       'getTransactionReceipt',
     );
     getTransactionReceipt.resolves({ logs });
+    const originCall = sinon
+      .stub(originProvider, 'call')
+      .rejects(new Error('Unexpected origin call'));
     const destinationCall = sinon
       .stub(destinationProvider, 'call')
       .resolves(utils.defaultAbiCoder.encode(['address'], [mockIca]));
@@ -676,18 +680,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     getChainName.withArgs(1).returns('base');
     getChainName.withArgs(2).returns('arbitrum');
     service.multiProvider = { getChainName, getProvider };
-    const mailboxRead = sinon.stub().resolves(mailbox);
-    service.originMailboxes = new Map();
+    service.originMailboxes = new Map([[1, mailbox]]);
     const getRouterAccount = sinon.stub().resolves(routerIca);
-    service.icaApp = {
-      getAccount: getRouterAccount,
-      getContracts: sinon
-        .stub()
-        .withArgs('base')
-        .returns({
-          interchainAccountRouter: { mailbox: mailboxRead },
-        }),
-    };
+    service.icaApp = { getAccount: getRouterAccount };
     service.trustedIcaRouters = new Map([
       [
         1,
@@ -710,7 +705,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       getRouterAccount,
       getTransactionReceipt,
       connect,
-      mailboxRead,
+      originCall,
     };
   }
 
@@ -758,7 +753,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       destinationRouter,
       laterBody,
     );
-    const { service, destinationCall, mailboxRead } = createService([
+    const { service, destinationCall, originCall } = createService([
       dispatchLog(committedMessage, 0),
       dispatchLog(laterCommit, 1),
       dispatchLog(revealMessage, 2),
@@ -779,7 +774,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
         await destinationCall.firstCall.args[0].data,
       );
     expect(decoded[1]).to.equal(addressToBytes32(laterOwner));
-    sinon.assert.calledOnce(mailboxRead);
+    sinon.assert.notCalled(originCall);
   });
   for (const layout of ['sequential', 'nested'] as const) {
     it(`pairs both ${layout} commit/reveal calls when their commitment hashes match`, async () => {
@@ -1149,6 +1144,61 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
 
     expect(ica).to.equal(utils.getAddress(mockIca));
     expect(connect.calledWith(destinationRouterV3)).to.be.true;
+  });
+
+  it('resolves a reveal from an origin with only a V3 router without reading the origin chain beyond the receipt', async () => {
+    const v3Commit = formatMessage(
+      3,
+      10,
+      1,
+      originRouterV3,
+      2,
+      destinationRouterV3,
+      body,
+    );
+    const v3Reveal = formatMessage(
+      3,
+      11,
+      1,
+      originRouterV3,
+      2,
+      destinationRouterV3,
+      parseMessage(revealMessage).body,
+    );
+    const { service, getRouterAccount, getTransactionReceipt, originCall } =
+      createService([dispatchLog(v3Commit, 1), dispatchLog(v3Reveal, 2)]);
+    service.trustedIcaRouters = new Map([
+      [1, { interchainAccountRouterV3: originRouterV3 }],
+      [
+        2,
+        {
+          interchainAccountRouter: destinationRouter,
+          interchainAccountRouterV3: destinationRouterV3,
+        },
+      ],
+    ]);
+
+    const result = await service.deriveIcaFromRevealMessage(
+      v3Reveal,
+      originTxHash,
+      mockLogger(),
+    );
+
+    expect(result).to.deep.equal({
+      ica: utils.getAddress(mockIca),
+      routerVersionIcas: [routerIca, routerIca],
+      failedCandidates: 0,
+    });
+    expect(
+      getRouterAccount
+        .getCalls()
+        .map((call) => [call.args[1].localRouter, call.args[1].routerOverride]),
+    ).to.deep.equal([
+      [originRouterV3, destinationRouterV3],
+      [originRouterV3, destinationRouterV3],
+    ]);
+    sinon.assert.calledOnce(getTransactionReceipt);
+    sinon.assert.notCalled(originCall);
   });
 
   it('keeps going when a router version cannot be derived, and says so', async () => {
@@ -1584,11 +1634,79 @@ describe('CalldataLookupEnabledSchema', () => {
   }
 });
 
+describe('mailboxesByDomain', () => {
+  const mailbox = '0xAbCdEf0000000000000000000000000000000004';
+
+  function multiProviderWith(domains: Record<string, number>) {
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.tryGetDomainId.callsFake((chain) =>
+      typeof chain === 'string' ? (domains[chain] ?? null) : null,
+    );
+    return multiProvider;
+  }
+
+  it('keys each registry mailbox by domain, lowercased', () => {
+    const mailboxes = mailboxesByDomain(
+      {
+        base: { mailbox, interchainAccountRouterV3: mailbox },
+        lisk: { mailbox },
+      },
+      multiProviderWith({ base: 8453, lisk: 1135 }),
+    );
+
+    expect(Array.from(mailboxes.entries())).to.deep.equal([
+      [8453, mailbox.toLowerCase()],
+      [1135, mailbox.toLowerCase()],
+    ]);
+  });
+
+  it('skips chains the multi provider does not know', () => {
+    const mailboxes = mailboxesByDomain(
+      { base: { mailbox }, unknown: { mailbox } },
+      multiProviderWith({ base: 8453 }),
+    );
+
+    expect(Array.from(mailboxes.keys())).to.deep.equal([8453]);
+  });
+
+  interface EmptyMailboxCase {
+    name: string;
+    addresses: Record<string, string>;
+  }
+
+  const emptyMailboxCases: EmptyMailboxCase[] = [
+    {
+      name: 'a missing mailbox',
+      addresses: { interchainAccountRouter: mailbox },
+    },
+    { name: 'an empty mailbox string', addresses: { mailbox: '' } },
+    {
+      name: 'a zero mailbox address',
+      addresses: { mailbox: '0x' + '00'.repeat(20) },
+    },
+  ];
+  for (const c of emptyMailboxCases) {
+    it(`ignores ${c.name}`, () => {
+      const mailboxes = mailboxesByDomain(
+        { lisk: c.addresses },
+        multiProviderWith({ lisk: 1135 }),
+      );
+
+      expect(mailboxes.size).to.equal(0);
+    });
+  }
+});
+
 describe('CallCommitmentsService constructor', () => {
   const noRouters =
     'No ICA routers configured: callCommitments requires interchainAccountRouter or interchainAccountRouterV3 registry addresses';
+  const mailbox = '0x' + '02'.repeat(20);
 
-  function construct(trustedIcaRouters: ReadonlyMap<number, IcaRouters>) {
+  /** Builds the service from registry addresses, as `create()` does. */
+  function construct(addresses: Record<string, Record<string, string>>) {
+    const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.tryGetDomainId.withArgs('base').returns(8453);
+    multiProvider.tryGetDomainId.withArgs('lisk').returns(1135);
     return new CallCommitmentsService(
       {
         serviceName: 'callCommitments',
@@ -1597,53 +1715,60 @@ describe('CallCommitmentsService constructor', () => {
       },
       sinon.createStubInstance(InterchainAccount),
       [],
-      trustedIcaRouters,
+      icaRoutersByDomain(addresses, multiProvider),
       false,
+      mailboxesByDomain(addresses, multiProvider),
     );
-  }
-
-  function registryRouters(addresses: Record<string, Record<string, string>>) {
-    const multiProvider = sinon.createStubInstance(MultiProvider);
-    multiProvider.tryGetDomainId.withArgs('base').returns(8453);
-    return icaRoutersByDomain(addresses, multiProvider);
   }
 
   interface Case {
     name: string;
-    trustedIcaRouters: () => ReadonlyMap<number, IcaRouters>;
+    addresses: Record<string, Record<string, string>>;
+    error: string;
   }
 
   const rejected: Case[] = [
-    { name: 'no routers', trustedIcaRouters: () => new Map() },
+    { name: 'no routers', addresses: {}, error: noRouters },
     {
       name: 'a registry without ICA routers',
-      trustedIcaRouters: () =>
-        registryRouters({ base: { mailbox: '0x' + '01'.repeat(20) } }),
+      addresses: { base: { mailbox } },
+      error: noRouters,
     },
     {
       name: 'a registry whose ICA router addresses are empty',
-      trustedIcaRouters: () =>
-        registryRouters({
-          base: {
-            mailbox: '0x' + '01'.repeat(20),
-            interchainAccountRouter: '',
-          },
-        }),
+      addresses: { base: { mailbox, interchainAccountRouter: '' } },
+      error: noRouters,
+    },
+    {
+      name: 'an ICA router chain without a mailbox',
+      addresses: {
+        base: { mailbox, interchainAccountRouter: '0x' + '01'.repeat(20) },
+        lisk: { interchainAccountRouterV3: '0x' + '03'.repeat(20) },
+      },
+      error: 'Missing mailbox address for domain 1135',
+    },
+    {
+      name: 'an ICA router chain with an empty mailbox',
+      addresses: {
+        lisk: {
+          mailbox: '',
+          interchainAccountRouterV3: '0x' + '03'.repeat(20),
+        },
+      },
+      error: 'Missing mailbox address for domain 1135',
     },
   ];
   for (const c of rejected) {
     it(`refuses ${c.name}`, () => {
-      expect(() => construct(c.trustedIcaRouters())).to.throw(noRouters);
+      expect(() => construct(c.addresses)).to.throw(c.error);
     });
   }
 
-  it('accepts a registry with one ICA router', () => {
+  it('accepts a registry with one ICA router and its mailbox', () => {
     expect(
-      construct(
-        registryRouters({
-          base: { interchainAccountRouterV3: '0x' + '01'.repeat(20) },
-        }),
-      ),
+      construct({
+        base: { mailbox, interchainAccountRouterV3: '0x' + '01'.repeat(20) },
+      }),
     ).to.be.instanceOf(CallCommitmentsService);
   });
 });
