@@ -33,7 +33,7 @@ pub(super) struct Worker {
     pub poll_interval: Duration,
     pub wakeup: Notify,
     pub dispatch_wakeup: Arc<Notify>,
-    pub receipt_wakeups: super::enrichment::ReceiptWakeups,
+    pub receipt_wakeup: watch::Sender<()>,
     pub wanted: AtomicU64,
     pub heads: Mutex<mpsc::Receiver<Header>>,
     pub polled_head: watch::Sender<u64>,
@@ -287,8 +287,14 @@ impl Worker {
             )
             .await
         } else {
-            Ok(false)
+            Ok((false, false))
         };
+        if ingestion
+            .as_ref()
+            .is_ok_and(|(_, wrote_events)| *wrote_events)
+        {
+            self.receipt_wakeup.send_replace(());
+        }
 
         // Count-protected sources publish only history proven by this cycle's
         // snapshot. Any failure leaves their existing confirmed frontier alone.
@@ -388,7 +394,7 @@ impl Worker {
                 ingestion_failed: ingestion.is_err(),
             });
         }
-        let more_ingestion = ingestion?;
+        let (more_ingestion, _) = ingestion?;
         let capped_head = state.confirmed.saturating_add(depth).saturating_add(10_000);
         let unproven =
             proof_gated && count_cache.proven_through.unwrap_or(state.confirmed) < state.indexed;
@@ -482,14 +488,8 @@ impl Worker {
 
     fn record_progress(&self, state: &State, counts: [u64; 4]) -> eyre::Result<()> {
         // Both HTTP and head-driven confirmations have committed before this call.
-        for (count, wakeup) in [
-            (counts[0], self.dispatch_wakeup.as_ref()),
-            (counts[1], &self.receipt_wakeups.delivery),
-            (counts[2], &self.receipt_wakeups.gas_payment),
-        ] {
-            if count > 0 {
-                wakeup.notify_one();
-            }
+        if counts[0] > 0 {
+            self.dispatch_wakeup.notify_one();
         }
         for (label, count) in [
             "raw_message_dispatch",

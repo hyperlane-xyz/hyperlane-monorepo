@@ -8,20 +8,36 @@ import Sinon, { type SinonStubbedInstance } from 'sinon';
 import {
   type ChainName,
   HyperlaneCore,
+  MultiProtocolCore,
   type MultiProvider,
   ProviderType,
   TokenStandard,
   WarpTxCategory,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { assert, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ProtocolType,
+  TransactionSubmissionError,
+} from '@hyperlane-xyz/utils';
 
-import { ExternalBridgeType } from '../config/types.js';
+import { Erc20ApprovalError } from '../bridges/erc20Approve.js';
+import {
+  DEFAULT_MOVEMENT_STALENESS_MS,
+  ExternalBridgeType,
+} from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import { createMockBridgeQuote } from '../test/lifiMocks.js';
+import { ActionTracker } from '../tracking/ActionTracker.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
-import type { RebalanceIntent } from '../tracking/types.js';
+import { InMemoryStore } from '../tracking/store/InMemoryStore.js';
+import type {
+  RebalanceAction,
+  RebalanceIntent,
+  Transfer,
+} from '../tracking/types.js';
+import { ExplorerClient } from '../utils/ExplorerClient.js';
 
 import {
   InventoryRebalancer,
@@ -82,6 +98,7 @@ describe('InventoryRebalancer E2E', () => {
       getInflightInventoryMovements: Sinon.stub(),
       getPartiallyFulfilledInventoryIntents: Sinon.stub(),
       createRebalanceAction: Sinon.stub(),
+      updateRebalanceActionExecution: Sinon.stub(),
       completeRebalanceAction: Sinon.stub(),
       failRebalanceAction: Sinon.stub(),
       logStoreContents: Sinon.stub(),
@@ -89,6 +106,17 @@ describe('InventoryRebalancer E2E', () => {
 
     // Default: No active (partial) inventory intents
     actionTracker.getPartiallyFulfilledInventoryIntents.resolves([]);
+    actionTracker.createRebalanceAction.resolves({
+      id: 'action-1',
+      status: 'in_progress',
+      type: 'inventory_movement',
+      intentId: 'intent-1',
+      origin: 1,
+      destination: 2,
+      amount: 1n,
+      createdAt: 1,
+      updatedAt: 1,
+    });
 
     bridge = {
       bridgeId: 'lifi',
@@ -242,6 +270,71 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
+  it('retains a delegated signer attempt when its error is not submission-typed', async () => {
+    inventoryRebalancer['sendInventoryTx'] = async (
+      _chain,
+      _transaction,
+      observers,
+    ) => {
+      await observers?.onSubmissionAttempt?.('locally-signed-source');
+      throw new Error('RPC response lost');
+    };
+    let error: unknown;
+    try {
+      await inventoryRebalancer['sendAndConfirmInventoryTx'](ARBITRUM_CHAIN, {
+        category: WarpTxCategory.Transfer,
+        type: ProviderType.EthersV5,
+        transaction: { to: INVENTORY_SIGNER, data: '0x' },
+      });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).to.be.instanceOf(TransactionSubmissionError);
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected a submission error',
+    );
+    expect(error.submissionState).to.equal('unknown');
+    expect(error.txHash).to.equal('locally-signed-source');
+  });
+
+  it('shares lockbox reads in a cycle and refreshes them in the next cycle', async () => {
+    const token = warpCore.tokens[0];
+    token.standard = TokenStandard.EvmHypXERC20Lockbox;
+    const wrappedAddress = Sinon.stub().resolves('0xWrapped');
+    token.getHypAdapter.returns({ getWrappedTokenAddress: wrappedAddress });
+    const resolve = () =>
+      inventoryRebalancer['resolveBridgeTokenAddress'](
+        token,
+        ExternalBridgeType.LiFi,
+      );
+    expect(await Promise.all([resolve(), resolve()])).to.deep.equal([
+      '0xWrapped',
+      '0xWrapped',
+    ]);
+    expect(wrappedAddress.callCount).to.equal(1);
+    await inventoryRebalancer.rebalance([]);
+    wrappedAddress.resolves('0xUpdated');
+    expect(await resolve()).to.equal('0xUpdated');
+    expect(wrappedAddress.callCount).to.equal(2);
+  });
+
+  it('does not retain failed lockbox reads in the cycle cache', async () => {
+    const token = warpCore.tokens[0];
+    token.standard = TokenStandard.EvmHypXERC20Lockbox;
+    const wrappedAddress = Sinon.stub().rejects(new Error('RPC unavailable'));
+    token.getHypAdapter.returns({ getWrappedTokenAddress: wrappedAddress });
+    const resolve = () =>
+      inventoryRebalancer['resolveBridgeTokenAddress'](
+        token,
+        ExternalBridgeType.LiFi,
+      );
+    await expect(resolve()).to.be.rejectedWith('RPC unavailable');
+    wrappedAddress.resolves('0xRecovered');
+    expect(await resolve()).to.equal('0xRecovered');
+    expect(wrappedAddress.callCount).to.equal(2);
+  });
+
   afterEach(() => {
     Sinon.restore();
   });
@@ -294,8 +387,299 @@ describe('InventoryRebalancer E2E', () => {
       txHash: '0xBridgeTxHash',
       fromChain: 42161,
       toChain: 1399811149,
+      transferId: 'provider-transfer-id',
     });
   }
+
+  describe('movement reservations with the real tracker', () => {
+    const intentTTL = 1_000;
+    let tracker: ActionTracker;
+    let clock: Sinon.SinonFakeTimers;
+    let intents: InMemoryStore<RebalanceIntent, RebalanceIntent['status']>;
+    let actions: InMemoryStore<RebalanceAction, RebalanceAction['status']>;
+
+    beforeEach(() => {
+      clock = Sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+      intents = new InMemoryStore();
+      actions = new InMemoryStore();
+      tracker = new ActionTracker(
+        new InMemoryStore<Transfer, Transfer['status']>(),
+        intents,
+        actions,
+        Sinon.createStubInstance(ExplorerClient),
+        Sinon.createStubInstance(MultiProtocolCore),
+        {
+          routersByDomain: {},
+          bridges: [],
+          rebalancerAddress: INVENTORY_SIGNER,
+          intentTTL,
+        },
+        testLogger,
+      );
+      inventoryRebalancer = new InventoryRebalancer(
+        config,
+        tracker,
+        { debridge: bridge },
+        warpCore,
+        multiProvider,
+        testLogger,
+      );
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: 20_000_000_000n,
+      });
+      mockSuccessfulBridge(20_000_000_000n, 20_000_000_000n);
+      bridge.getStatus.resolves({ status: 'not_found' });
+    });
+
+    afterEach(() => clock.restore());
+
+    function route(): InventoryRoute {
+      return createTestRoute({ externalBridge: ExternalBridgeType.DeBridge });
+    }
+
+    async function expectReservedAcrossRetries() {
+      const [intent] = await tracker.getActiveRebalanceIntents();
+      const [movement] = await tracker.getInProgressActions();
+      assert(intent && movement, 'Expected a reserved intent and movement');
+      for (let cycle = 0; cycle < 3; cycle++) {
+        clock.tick(DEFAULT_MOVEMENT_STALENESS_MS + intentTTL + 1);
+        await tracker.syncInventoryMovementActions({ debridge: bridge });
+        await tracker.syncRebalanceIntents();
+        const result = await inventoryRebalancer.rebalance([
+          createTestRoute({ amount: 5_000_000_000n }),
+        ]);
+        expect(result).to.deep.equal([]);
+        expect(bridge.execute.callCount).to.equal(1);
+        expect((await intents.getAll()).map((item) => item.id)).to.deep.equal([
+          intent.id,
+        ]);
+        expect((await tracker.getActiveRebalanceIntents())[0]?.id).to.equal(
+          intent.id,
+        );
+        expect((await tracker.getInProgressActions())[0]?.id).to.equal(
+          movement.id,
+        );
+        expect(
+          await tracker.getInflightInventoryMovements(movement.origin),
+        ).to.equal(movement.amount);
+      }
+      return movement.id;
+    }
+
+    for (const status of [
+      'OrderCancelled',
+      'SentOrderCancel',
+      'ClaimedOrderCancel',
+    ]) {
+      it(`keeps ${status} reserved beyond TTL without another intent or execution`, async () => {
+        bridge.getStatus.resolves({ status: 'failed', error: status });
+        await inventoryRebalancer.rebalance([route()]);
+        const actionId = await expectReservedAcrossRetries();
+        expect((await actions.get(actionId))?.lastBridgeStatus).to.equal(
+          'failed',
+        );
+      });
+    }
+
+    it('keeps repeated not_found reserved beyond movement staleness and intent TTL', async () => {
+      await inventoryRebalancer.rebalance([route()]);
+      const actionId = await expectReservedAcrossRetries();
+      expect((await actions.get(actionId))?.lastBridgeStatus).to.equal(
+        'not_found',
+      );
+    });
+
+    it('reserves an uninstrumented ambiguous send without a transaction hash', async () => {
+      bridge.execute.rejects(new Error('lost bridge response'));
+      await inventoryRebalancer.rebalance([route()]);
+      const actionId = await expectReservedAcrossRetries();
+      const action = await actions.get(actionId);
+      expect(action?.submissionState).to.equal('unknown');
+      expect(action?.txHash).to.equal(undefined);
+      expect(bridge.getStatus.called).to.equal(false);
+    });
+
+    it('records source identity before a post-submit error and never downgrades it', async () => {
+      bridge.execute.callsFake(async (_quote, _keys, options) => {
+        expect(await tracker.getInProgressActions()).to.have.lengthOf(1);
+        await options?.onTransferId?.('debridge-order');
+        await options?.onSubmitted?.('source-hash');
+        throw new TransactionSubmissionError(
+          new Error('outer wrapper lost inner submission state'),
+          'not_submitted',
+        );
+      });
+      await inventoryRebalancer.rebalance([route()]);
+      const actionId = await expectReservedAcrossRetries();
+      expect(await actions.get(actionId)).to.include({
+        txHash: 'source-hash',
+        externalBridgeTransferId: 'debridge-order',
+        submissionState: 'submitted',
+      });
+    });
+
+    it('keeps ambiguous approval identity separate from the unsubmitted primary', async () => {
+      bridge.execute.callsFake(async (_quote, _keys, options) => {
+        await options?.onApproval?.({ txHash: 'approval-hash' });
+        throw new Erc20ApprovalError(
+          new Error('approval response lost'),
+          'unknown',
+          'approval-hash',
+        );
+      });
+      await inventoryRebalancer.rebalance([route()]);
+      const actionId = await expectReservedAcrossRetries();
+      const action = await actions.get(actionId);
+      expect(action?.submissionState).to.equal('not_submitted');
+      expect(action?.txHash).to.equal(undefined);
+      expect(action?.pendingApproval?.txHash).to.equal('approval-hash');
+    });
+
+    it('retries proven pre-send failure within the same intent', async () => {
+      bridge.execute
+        .onFirstCall()
+        .rejects(
+          new TransactionSubmissionError(
+            new Error('invalid quote'),
+            'not_submitted',
+          ),
+        );
+      await inventoryRebalancer.rebalance([route()]);
+      expect(await tracker.getInProgressActions()).to.have.lengthOf(0);
+      expect((await actions.getAll())[0]?.status).to.equal('failed');
+      await inventoryRebalancer.rebalance([route()]);
+      expect(bridge.execute.callCount).to.equal(2);
+      expect(await intents.getAll()).to.have.lengthOf(1);
+      expect(await tracker.getInProgressActions()).to.have.lengthOf(1);
+    });
+
+    it('preserves completed movement inventory awaiting deposit past TTL', async () => {
+      await inventoryRebalancer.rebalance([route()]);
+      bridge.getStatus.resolves({
+        status: 'complete',
+        receivingTxHash: 'destination-hash',
+        receivedAmount: 20_000_000_000n,
+      });
+      await tracker.syncInventoryMovementActions({ debridge: bridge });
+      clock.tick(intentTTL + 1);
+      await tracker.syncRebalanceIntents();
+      expect(await tracker.getActiveRebalanceIntents()).to.have.lengthOf(1);
+      const [partial] = await tracker.getPartiallyFulfilledInventoryIntents();
+      expect(partial?.hasInflightMovement).to.equal(false);
+      expect(partial?.remaining).to.equal(route().amount);
+    });
+  });
+
+  describe('xERC20 physical execution limits', () => {
+    beforeEach(() => {
+      for (const token of warpCore.tokens) {
+        token.standard = TokenStandard.EvmHypXERC20Lockbox;
+        token.isFungibleWith = Sinon.stub().returns(false);
+      }
+      adapterStub.getBurnLimit = Sinon.stub().resolves(4_000_000_000n);
+      adapterStub.getMintLimit = Sinon.stub().resolves(3_000_000_000n);
+      adapterStub.getMintMaxLimit = Sinon.stub().resolves(10_000_000_000n);
+      adapterStub.getBurnMaxLimit = Sinon.stub().resolves(10_000_000_000n);
+      warpCore.getInterchainTransferFee = Sinon.stub().resolves({});
+      actionTracker.getActionsByType.resolves([]);
+      createTestIntent();
+    });
+
+    it('caps a deposit by physical receiver mint capacity despite ample inventory', async () => {
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(3_000_000_000n);
+      expect(
+        actionTracker.createRebalanceAction.firstCall.args[0].amount,
+      ).to.equal(3_000_000_000n);
+      expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+      expect(bridge.execute.called).to.equal(false);
+    });
+
+    it('reserves capacity for pending deposits in physical execution direction', async () => {
+      actionTracker.getActionsByType.resolves([
+        {
+          id: 'pending',
+          intentId: 'older-intent',
+          type: 'inventory_deposit',
+          status: 'in_progress',
+          origin: SOLANA_DOMAIN,
+          destination: ARBITRUM_DOMAIN,
+          amount: 1_000_000_000n,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]);
+      await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(2_000_000_000n);
+    });
+
+    it('waits for zero capacity without submitting or sourcing more inventory', async () => {
+      adapterStub.getBurnLimit.resolves(0n);
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(false);
+      expect(warpCore.getTransferRemoteTxs.called).to.equal(false);
+      expect(bridge.execute.called).to.equal(false);
+      expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+    });
+
+    it('includes same-token gas and transfer fees in the burn budget', async () => {
+      const source = warpCore.tokens[1];
+      source.isFungibleWith.returns(true);
+      adapterStub.getMintLimit.resolves(10_000_000_000n);
+      warpCore.getInterchainTransferFee.resolves({
+        igpQuote: { token: source, amount: 1_000_000_000n },
+        tokenFeeQuote: { token: source, amount: 500_000_000n },
+      });
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(2_500_000_000n);
+    });
+
+    it('quotes proportional fees at the limited amount so partial transfers remain viable', async () => {
+      const source = warpCore.tokens[1];
+      source.isFungibleWith.returns(true);
+      adapterStub.getBurnLimit.resolves(100n);
+      adapterStub.getMintLimit.resolves(1000n);
+      warpCore.getInterchainTransferFee.callsFake(
+        async ({
+          originTokenAmount,
+        }: {
+          originTokenAmount: { amount: bigint };
+        }) => ({
+          tokenFeeQuote: {
+            token: source,
+            amount: originTokenAmount.amount / 100n,
+          },
+        }),
+      );
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(99n);
+    });
+
+    it('checks capacity again before constructing the primary transaction', async () => {
+      adapterStub.getMintLimit.onFirstCall().resolves(3_000_000_000n);
+      adapterStub.getMintLimit.onSecondCall().resolves(1n);
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(false);
+      expect(warpCore.getTransferRemoteTxs.called).to.equal(false);
+      expect(actionTracker.createRebalanceAction.called).to.equal(false);
+    });
+  });
 
   describe('Basic Inventory Rebalance (Sufficient Inventory)', () => {
     // NOTE: Strategy route is arbitrum (surplus) → solana (deficit)
@@ -339,7 +723,13 @@ describe('InventoryRebalancer E2E', () => {
       expect(actionParams.intentId).to.equal('intent-1');
       expect(actionParams.type).to.equal('inventory_deposit');
       expect(actionParams.amount).to.equal(10000000000n);
-      expect(actionParams.txHash).to.equal('0xTransferRemoteTxHash');
+      expect(actionParams.txHash).to.be.undefined;
+      expect(
+        actionTracker.updateRebalanceActionExecution.calledWith(
+          'action-1',
+          Sinon.match({ txHash: '0xTransferRemoteTxHash' }),
+        ),
+      ).to.be.true;
     });
 
     it('executes transferRemote with correct parameters (swapped direction)', async () => {
@@ -413,8 +803,12 @@ describe('InventoryRebalancer E2E', () => {
       expect(sendAndConfirmStub.firstCall.args[0]).to.equal(SOLANA_CHAIN);
       expect(multiProvider.sendTransaction.called).to.be.false;
 
-      const actionParams = actionTracker.createRebalanceAction.lastCall.args[0];
-      expect(actionParams.txHash).to.equal('0xSolanaTxHash');
+      expect(
+        actionTracker.updateRebalanceActionExecution.calledWith(
+          'action-1',
+          Sinon.match({ txHash: '0xSolanaTxHash' }),
+        ),
+      ).to.be.true;
     });
 
     it('denormalizes inventory execution amounts but records canonical deposit amount', async () => {
@@ -487,7 +881,12 @@ describe('InventoryRebalancer E2E', () => {
           data: '0xTransferRemoteData',
           value: 1000000n,
         },
-        { waitConfirmations: 2 },
+        Sinon.match({
+          waitConfirmations: 2,
+          enableBlockhashResubmit: false,
+          onSubmissionAttempt: Sinon.match.func,
+          onSubmitted: Sinon.match.func,
+        }),
       ),
     ).to.be.true;
   });
@@ -740,6 +1139,13 @@ describe('InventoryRebalancer E2E', () => {
       const actionParams =
         actionTracker.createRebalanceAction.firstCall.args[0];
       expect(actionParams.type).to.equal('inventory_movement');
+      expect(actionParams.externalBridgeTransferId).to.be.undefined;
+      expect(
+        actionTracker.updateRebalanceActionExecution.calledWith(
+          'action-1',
+          Sinon.match({ externalBridgeTransferId: 'provider-transfer-id' }),
+        ),
+      ).to.be.true;
     });
 
     it('returns failure for unrelated fee-aware probe errors', async () => {
@@ -835,6 +1241,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 3000000000n,
           remaining: 7000000000n, // 7k remaining
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);
@@ -872,6 +1279,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 3000000000n,
           remaining: 7000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: true,
         },
       ]);
@@ -891,6 +1299,32 @@ describe('InventoryRebalancer E2E', () => {
       // Must NOT create a new intent
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
       // Must NOT call createRebalanceAction (proves continueIntent was never reached)
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
+    });
+
+    it('returns empty when active intent has in-flight inventory movement', async () => {
+      const existingIntent = createTestIntent({
+        id: 'inflight-movement-intent',
+        status: 'in_progress',
+        amount: 10000000000n,
+      });
+
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 0n,
+          remaining: 10000000000n,
+          hasInflightMovement: true,
+          hasInflightDeposit: false,
+        },
+      ]);
+
+      const results = await inventoryRebalancer.rebalance([
+        createTestRoute({ amount: 5000000000n }),
+      ]);
+
+      expect(results).to.have.lengthOf(0);
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
       expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
 
@@ -916,6 +1350,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 0n,
           remaining: 10000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);
@@ -959,6 +1394,7 @@ describe('InventoryRebalancer E2E', () => {
           intent: existingIntent,
           completedAmount: 0n,
           remaining: 10000000000n,
+          hasInflightMovement: false,
           hasInflightDeposit: false,
         },
       ]);
@@ -995,13 +1431,25 @@ describe('InventoryRebalancer E2E', () => {
         [SOLANA_CHAIN]: 10000000000n,
         [ARBITRUM_CHAIN]: 0n,
       });
-      multiProvider.sendTransaction.rejects(new Error('Transaction failed'));
+      multiProvider.sendTransaction.rejects(
+        new TransactionSubmissionError(
+          new Error('Transaction failed'),
+          'unknown',
+        ),
+      );
 
       const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('Transaction failed');
+      expect(
+        actionTracker.createRebalanceAction.calledBefore(
+          multiProvider.sendTransaction,
+        ),
+      ).to.be.true;
+      expect(actionTracker.updateRebalanceActionExecution.called).to.be.true;
+      expect(actionTracker.failRebalanceAction.called).to.be.false;
     });
 
     it('handles missing token for chain', async () => {
@@ -1725,13 +2173,14 @@ describe('InventoryRebalancer E2E', () => {
         [ARBITRUM_CHAIN]: BigInt(10e18),
       });
 
+      const capacity = Sinon.stub().resolves(0n);
+      inventoryRebalancer['getTransferCapacity'] = capacity;
       const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      expect((results[0] as any).reason).to.equal(
-        'completed_with_acceptable_loss',
-      );
+      expect(results[0].reason).to.equal('completed_with_acceptable_loss');
+      expect(capacity.called).to.equal(false);
 
       // Verify: Intent was completed (not left in progress)
       expect(actionTracker.completeRebalanceIntent.calledOnce).to.be.true;
@@ -1741,6 +2190,44 @@ describe('InventoryRebalancer E2E', () => {
       // Verify: No transferRemote was attempted
       expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
+  });
+
+  it('retains a meaningful remainder when transfer capacity is zero', async () => {
+    createTestIntent();
+    const capacity = Sinon.stub().resolves(0n);
+    inventoryRebalancer['getTransferCapacity'] = capacity;
+    const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+    expect(capacity.calledOnce).to.equal(true);
+    expect(results[0].success).to.equal(false);
+    expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+    expect(bridge.execute.called).to.equal(false);
+    expect(actionTracker.createRebalanceAction.called).to.equal(false);
+  });
+
+  it('prefunds the full remaining intent when only a partial deposit fits current capacity', async () => {
+    const amount = 1_000_000n;
+    createTestIntent({ amount });
+    inventoryRebalancer['getTransferCapacity'] = Sinon.stub().resolves(
+      amount / 10n,
+    );
+    inventoryRebalancer.setInventoryBalances({
+      [SOLANA_CHAIN]: 0n,
+      [ARBITRUM_CHAIN]: amount * 10n,
+    });
+    bridge.quote.resolves(
+      createMockBridgeQuote({ fromAmount: amount * 2n, toAmount: amount * 2n }),
+    );
+    bridge.execute.resolves({
+      txHash: 'source-hash',
+      fromChain: ARBITRUM_DOMAIN,
+      toChain: SOLANA_DOMAIN,
+    });
+    await inventoryRebalancer.rebalance([createTestRoute({ amount })]);
+    expect(
+      bridge.quote
+        .getCalls()
+        .some((call) => (call.args[0].toAmount ?? 0n) >= amount),
+    ).to.equal(true);
   });
 
   describe('Parallel Multi-Source Bridging', () => {
@@ -2233,6 +2720,7 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].error).to.include('LiFi API timeout');
       expect(bridge.quote.callCount).to.equal(2);
       expect(bridge.execute.called).to.be.false;
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
 
     it('preserves non-Error rejection reasons from parallel bridge execution', async () => {
@@ -2459,6 +2947,13 @@ describe('InventoryRebalancer E2E', () => {
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('All inventory movements failed');
+      expect(
+        actionTracker.createRebalanceAction.firstCall.calledBefore(
+          bridge.execute.firstCall,
+        ),
+      ).to.be.true;
+      expect(actionTracker.updateRebalanceActionExecution.called).to.be.true;
+      expect(actionTracker.failRebalanceAction.called).to.be.false;
     });
   });
 

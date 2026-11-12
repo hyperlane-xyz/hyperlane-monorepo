@@ -125,4 +125,7 @@ export const regularIcas: ChainMap<Address> = {
   // Nov 6, 2026 - Elysium (v2 router)
   // ----------------------------------------------------------
   elysium: '0x4eAF5Eef9d8a1d2d32BaA4034Cd4631BD1F597A2',
+  // Nov 10, 2026 - Aevo (v2 router, core 9.0.5)
+  // ----------------------------------------------------------
+  aevo: '0xaE2af12a7c18aAa441b290b7C40Bc3f07C8B9Ab7',
 } as const;

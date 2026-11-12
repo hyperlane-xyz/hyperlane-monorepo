@@ -392,8 +392,19 @@ To use a custom confirmation delay, provide both `confirmations` and explicit
 
 Custom-confirmation streams are live-only and reject cursors. Eligibility is the
 minimum of indexed height and chain head minus confirmations. `/agents` requires
-near-head state for every requested custom domain and does not support custom
-confirmation delays for `delivery`.
+near-head state for every requested custom domain.
+
+Set `includeZeroConfirmations: true` on any event stream to also receive live
+zero-confirmation events on the same connection. For example,
+`{ "eventType": "dispatch", "domains": [1], "confirmations": 15, "includeZeroConfirmations": true }`
+sends events with `confirmations: 0` and again at `confirmations: 15`.
+The extra stream is live-only and respects cursor address filters; normal replay
+and cursors are unchanged. At depth 0, events are sent once. Rollback frames
+identify the affected stream by `eventType` and `confirmations`.
+Provisional Merkle event envelopes also include `blockHash`.
+The extra stream is best-effort: domains without near-head state are logged and
+skipped until reconnect, without rejecting normal replay. Explicit numeric
+confirmation subscriptions still require near-head state for every requested domain.
 
 Server frame types:
 

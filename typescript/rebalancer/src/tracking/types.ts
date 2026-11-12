@@ -1,7 +1,15 @@
-import type { Address, Domain } from '@hyperlane-xyz/utils';
+import type {
+  Address,
+  Domain,
+  TransactionSubmissionState,
+} from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
-import type { BridgeTransferStatus } from '../interfaces/IExternalBridge.js';
+import type {
+  BridgeTransferStatus,
+  PendingApproval,
+} from '../interfaces/IExternalBridge.js';
+import type { MCRStatusRef } from '../interfaces/ITokenBridgeStatusAdapter.js';
 
 import type { IStore } from './store/IStore.js';
 
@@ -81,12 +89,16 @@ export interface RebalanceAction extends TrackedActionBase {
   type: ActionType; // Type of action (rebalance_message, inventory_movement, inventory_deposit)
   intentId: string; // Links to parent RebalanceIntent
   messageId?: string; // Hyperlane message ID (required for rebalance_message, inventory_deposit)
-  txHash?: string; // Origin transaction hash
+  txHash?: string; // Primary source transaction hash; never an approval hash.
+  submissionState?: TransactionSubmissionState; // Missing on older records means unknown.
+  pendingApproval?: PendingApproval;
+  finalizedSourceTxHash?: string; // Memoized finalized success for this exact primary identity.
+  destinationTxHash?: string; // Destination settlement transaction hash
+  externalExecutionRef?: MCRStatusRef; // Movable-collateral settlement cursor
   // Fields for inventory_movement (external bridge)
   externalBridgeTransferId?: string; // External bridge transfer ID (e.g., LiFi transfer ID)
   externalBridgeId?: ExternalBridgeType; // External bridge identifier (e.g., 'lifi')
-  lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed external bridge status
-  nonPendingSince?: number; // Timestamp when bridge status first became non-pending
+  lastBridgeStatus?: BridgeTransferStatus['status']; // Last observed bridge/settlement status
 }
 
 // === Type Aliases for Stores ===
@@ -113,6 +125,8 @@ export interface PartialInventoryIntent {
   completedAmount: bigint;
   /** Amount remaining to fulfill (0n when final deposit is fully in-flight). Formula: intent.amount - completedAmount - inflightAmount */
   remaining: bigint;
+  /** True when an external bridge source transaction is still settling */
+  hasInflightMovement: boolean;
   /** True when intent has in_progress inventory_deposit actions (not safe to continue, but still active) */
   hasInflightDeposit: boolean;
 }

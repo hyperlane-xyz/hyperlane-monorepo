@@ -3,12 +3,14 @@ import {
   type IToken,
   type TokenAmount,
 } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import {
   type InventoryRoute,
   type MovableCollateralRoute,
   type Route,
 } from './IStrategy.js';
+import type { MCRStatusRef } from './ITokenBridgeStatusAdapter.js';
 
 export type RebalancerType = 'movableCollateral' | 'inventory';
 
@@ -24,6 +26,7 @@ export interface ExecutionResult<R extends Route = Route> {
 
 export interface MovableCollateralExecutionResult extends ExecutionResult<MovableCollateralRoute> {
   messageId: string;
+  externalExecutionRef?: MCRStatusRef;
 }
 
 export interface InventoryExecutionResult extends ExecutionResult<InventoryRoute> {
@@ -57,4 +60,10 @@ export type PreparedTransaction = {
   >;
   route: MovableCollateralRoute & { intentId: string };
   originTokenAmount: PreparedOriginTokenAmount;
+  /** Exact collateral fee cap; zero still requires revoking any existing ERC20 allowance. */
+  collateralFeeApproval?: {
+    token: Address;
+    spender: Address;
+    amount: bigint;
+  };
 };

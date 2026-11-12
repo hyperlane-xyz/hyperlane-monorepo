@@ -3,6 +3,10 @@
     "amount": "0.04525",
     "decimals": 9
   },
+  "aevo": {
+    "amount": "0.00100025",
+    "decimals": 9
+  },
   "aleo": {
     "amount": "0.00001",
     "decimals": 1

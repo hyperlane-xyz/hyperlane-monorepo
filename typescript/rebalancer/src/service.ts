@@ -14,6 +14,7 @@ import 'zod/compile';
  * - HYP_KEY: Fallback private key for HYP_REBALANCER_KEY (optional)
  * - HYP_INVENTORY_KEY_<PROTOCOL>: Private key for inventory operations per protocol (e.g., HYP_INVENTORY_KEY_ETHEREUM, HYP_INVENTORY_KEY_SEALEVEL)
  * - COINGECKO_API_KEY: API key for CoinGecko price fetching (optional, for metrics)
+ * - SWAPSXYZ_API_KEY: API key for swaps.xyz external bridge execution and status polling (optional)
  * - HYP_INVENTORY_KEY: Backward-compatible fallback for Ethereum inventory signer (optional, use HYP_INVENTORY_KEY_ETHEREUM preferentially)
  * - CHECK_FREQUENCY: Balance check frequency in ms (default: 60000)
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
@@ -41,7 +42,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
+import { ExternalBridgeType, getStrategyChainNames } from './config/types.js';
 import { RebalancerService } from './core/RebalancerService.js';
+import { configureRebalancerSigners } from './utils/rebalancerSigners.js';
 import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
 import type { InventorySignerConfig } from './core/InventoryRebalancer.js';
 
@@ -98,6 +101,7 @@ async function main(): Promise<void> {
   const withMetrics = process.env.WITH_METRICS !== 'false';
   const monitorOnly = process.env.MONITOR_ONLY === 'true';
   const coingeckoApiKey = process.env.COINGECKO_API_KEY;
+  const swapsXyzApiKey = process.env.SWAPSXYZ_API_KEY;
 
   // Create logger (uses LOG_LEVEL environment variable for level configuration)
   const logger = await createServiceLogger({
@@ -140,13 +144,19 @@ async function main(): Promise<void> {
     // Apply RPC URL overrides from environment variables
     applyRpcUrlOverridesFromEnv(chainMetadata);
 
-    // Create MultiProvider with signer
+    // Create MultiProvider with protocol-specific signers for the shared key.
     const multiProvider = new MultiProvider(chainMetadata);
-    const rebalancerSigner = new Wallet(rebalancerPrivateKey);
-    multiProvider.setSharedSigner(rebalancerSigner);
+    const rebalancerSignerSetup = configureRebalancerSigners(
+      multiProvider,
+      getStrategyChainNames(rebalancerConfig.strategyConfig),
+      rebalancerPrivateKey,
+    );
     logger.info(
-      { rebalancerAddress: rebalancerSigner.address },
-      '✅ Initialized MultiProvider with rebalancer signer',
+      {
+        rebalancerAddress: rebalancerSignerSetup.address,
+        tronChains: rebalancerSignerSetup.tronChains,
+      },
+      '✅ Initialized MultiProvider with protocol-specific rebalancer signers',
     );
 
     // Build consolidated inventory signers with keys embedded
@@ -266,6 +276,9 @@ async function main(): Promise<void> {
         monitorOnly,
         withMetrics,
         coingeckoApiKey,
+        externalBridgeApiKeys: swapsXyzApiKey
+          ? { [ExternalBridgeType.SwapsXyz]: swapsXyzApiKey }
+          : undefined,
         logger,
         version: VERSION,
       },

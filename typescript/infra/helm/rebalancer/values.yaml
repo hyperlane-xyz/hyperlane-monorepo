@@ -1,6 +1,7 @@
 image:
   repository: ghcr.io/hyperlane-xyz/hyperlane-node-services
   tag:
+  digest:
 serviceName: rebalancer
 warpRouteId: ''
 hyperlane:
@@ -9,9 +10,12 @@ hyperlane:
   registryUri: ''
   rebalancerConfig: ''
   withMetrics: true
+  monitorOnly: false
+  swapsXyzApiKeySecret: ''
   # Used for fetching private RPC secrets
   chains: []
   inventorySignerProtocols: []
+  externalBridgeProviders: []
 nameOverride: ''
 fullnameOverride: ''
 externalSecrets:

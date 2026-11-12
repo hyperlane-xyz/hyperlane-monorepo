@@ -1,0 +1,20 @@
+{
+  "source": "Unmodified BSC to Ethereum API create-tx response captured 2026-09-15; fee and salt from that response",
+  "orderId": "0x7626a77c9a767f22f4c81dbc20e3bdc399d400418eb9258b2cb8856791f8f2cc",
+  "order": {
+    "makerOrderNonce": "1789457282496",
+    "makerSrc": "0x6056e8e8e5db30ffa9d721e3d73b3d558011fda9",
+    "giveChainId": "56",
+    "giveTokenAddress": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+    "giveAmount": "998614664118957815524",
+    "takeChainId": "1",
+    "takeTokenAddress": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "takeAmount": "997234043",
+    "receiverDst": "0x6056e8e8e5db30ffa9d721e3d73b3d558011fda9",
+    "givePatchAuthoritySrc": "0x6056e8e8e5db30ffa9d721e3d73b3d558011fda9",
+    "orderAuthorityAddressDst": "0x6056e8e8e5db30ffa9d721e3d73b3d558011fda9",
+    "allowedTakerDst": "0x555ce236c0220695b68341bc48c68d52210cc35b",
+    "allowedCancelBeneficiarySrc": "0x6056e8e8e5db30ffa9d721e3d73b3d558011fda9",
+    "externalCall": "0x"
+  }
+}

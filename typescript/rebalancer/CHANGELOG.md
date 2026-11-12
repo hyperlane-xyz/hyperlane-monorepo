@@ -1,5 +1,48 @@
 # @hyperlane-xyz/rebalancer
 
+## 29.1.0
+
+### Minor Changes
+
+- 2c32db0: The `relayerDenylist` pending transfer middleware was extended to rebalance messages, to which only `match` rules that set nothing but `messageId` apply. Denied rebalance messages are no longer recovered at startup or on later syncs, and a tracked rebalance intent whose in-progress messages are all denied stops counting as incoming collateral without any change to its status, so delivery checks and the intent TTL still apply. Broader `match` rules and `address` rules do not affect rebalance accounting, and inventory intents are unaffected. A rebalance message is meant to be denied only after its funds settled another way: an unsettled denied one is replaced by the strategy, and removing or expiring the rule makes it count again. Explorer queries made while a denylist refresh is in progress now wait for it instead of filtering with the previous rules.
+- bdeb314: An optional `pendingTransferMiddlewares` config was added to skip pending transfers that will never be delivered. The `relayerDenylist` middleware applies the relayer runtime denylist, and the `blacklistIsm` middleware applies BlacklistIsms in the destination router's ISM.
+
+### Patch Changes
+
+- aa84958: Removed batch barriers from bounded async maps, parallelized independent gas simulation and fee reads, and bounded concurrent rebalancer monitor reads to reduce polling latency. Failed maps stopped scheduling new work and drained active calls before rejecting, preserving backpressure across retries.
+
+  Failed inventory or confirmed-block supply reads prevented the monitor from emitting a partial polling cycle, avoiding fabricated zero balances or latest-state supplies in confirmed-block events.
+
+  Failed numeric Tron block lookups also prevented latest-state supply from being emitted, while intentional optional named tags remained supported.
+
+- c520224: Invariant regular expressions were reused across calls, redundant URL parsing was removed from RPC-header and explorer helpers, and independent token reads were overlapped with bounded concurrency and failure draining. URL normalization, validation, and dependent read ordering were preserved.
+- Updated dependencies [d2ea605]
+- Updated dependencies [bdeb314]
+- Updated dependencies [048d1f3]
+- Updated dependencies [f265d2f]
+- Updated dependencies [fe5dfda]
+- Updated dependencies [8b65668]
+- Updated dependencies [aa84958]
+- Updated dependencies [e48ffe7]
+- Updated dependencies [4623acb]
+- Updated dependencies [d0ec60c]
+- Updated dependencies [63fa540]
+- Updated dependencies [c520224]
+- Updated dependencies [d770c3b]
+- Updated dependencies [1baa78e]
+- Updated dependencies [6e5db5f]
+- Updated dependencies [7be44b5]
+- Updated dependencies [9ef15ff]
+- Updated dependencies [8868234]
+- Updated dependencies [02c6ef4]
+- Updated dependencies [2bc0b3e]
+- Updated dependencies [48cd574]
+  - @hyperlane-xyz/sdk@45.2.0
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/utils@45.2.0
+  - @hyperlane-xyz/metrics@1.0.6
+  - @hyperlane-xyz/provider-sdk@11.0.3
+
 ## 29.0.5
 
 ### Patch Changes

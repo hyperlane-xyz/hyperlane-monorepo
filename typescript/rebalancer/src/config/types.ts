@@ -38,7 +38,42 @@ export enum ExecutionType {
 
 export enum ExternalBridgeType {
   LiFi = 'lifi',
+  DeBridge = 'debridge',
+  LayerZero = 'layerzero',
+  SwapsXyz = 'swapsxyz',
 }
+
+export enum TokenBridgeStatusAdapterType {
+  HyperlaneMessage = 'hyperlane_message',
+  LayerZeroScan = 'lz_scan',
+}
+
+export const TokenBridgeStatusAdapterConfigSchema = z.discriminatedUnion(
+  'kind',
+  [
+    z.object({
+      kind: z.literal(TokenBridgeStatusAdapterType.HyperlaneMessage),
+    }),
+    z.object({
+      kind: z.literal(TokenBridgeStatusAdapterType.LayerZeroScan),
+      sourceEid: z.number().int().positive().max(0xffffffff),
+      destinationEid: z.number().int().positive().max(0xffffffff),
+      sourceOft: z.string().refine(isAddressEvm, 'Invalid source OFT address'),
+      destinationOft: z
+        .string()
+        .refine(isAddressEvm, 'Invalid destination OFT address'),
+      // An explicit assertion of the monitored recipient, never a wildcard.
+      destinationRecipient: z
+        .string()
+        .refine(isAddressEvm, 'Invalid destination recipient')
+        .optional(),
+    }),
+  ],
+);
+
+export type TokenBridgeStatusAdapterConfig = z.infer<
+  typeof TokenBridgeStatusAdapterConfigSchema
+>;
 
 export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
@@ -47,12 +82,14 @@ export const RebalancerMinAmountConfigSchema = z.object({
 });
 
 const RebalancerBridgeConfigSchema = z.object({
+  enabled: z.boolean().optional(),
   bridge: z
     .string()
     .regex(/0x[a-fA-F0-9]{40}/)
     .optional(),
   executionType: z.enum(ExecutionType).optional(),
   externalBridge: z.enum(ExternalBridgeType).optional(),
+  statusAdapter: TokenBridgeStatusAdapterConfigSchema.optional(),
   bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z
     .number()
@@ -66,7 +103,7 @@ export const RebalancerBaseChainConfigSchema =
     override: z
       .record(
         z.string(),
-        z.looseObject(RebalancerBridgeConfigSchema.partial().shape),
+        z.strictObject(RebalancerBridgeConfigSchema.partial().shape),
       )
       .optional(),
   });
@@ -74,16 +111,16 @@ export const RebalancerBaseChainConfigSchema =
 // Schemas for strategy-specific chain configs
 const WeightedChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   weighted: RebalancerWeightedChainConfigSchema,
-});
+}).strict();
 
 const MinAmountChainConfigSchema = RebalancerBaseChainConfigSchema.extend({
   minAmount: RebalancerMinAmountConfigSchema,
-});
+}).strict();
 
 const CollateralDeficitChainConfigSchema =
   RebalancerBaseChainConfigSchema.extend({
     buffer: z.string().or(z.number()),
-  });
+  }).strict();
 
 const WeightedStrategySchema = z.object({
   rebalanceStrategy: z.literal(RebalancerStrategyOptions.Weighted),
@@ -121,7 +158,7 @@ export const RebalancerStrategySchema = z
   .union([StrategyConfigSchema, z.array(StrategyConfigSchema).min(1)])
   .transform((val) => (Array.isArray(val) ? val : [val]));
 
-export const DEFAULT_INTENT_TTL_S = 604800; // 7 days
+export const DEFAULT_INTENT_TTL_S = 1_209_600; // 14 days
 export const DEFAULT_INTENT_TTL_MS = DEFAULT_INTENT_TTL_S * 1_000;
 
 export const DEFAULT_MOVEMENT_STALENESS_MS = 30 * 60 * 1_000; // 30 minutes
@@ -131,8 +168,66 @@ export const LiFiBridgeConfigSchema = z.object({
   defaultSlippage: z.number().optional(),
 });
 
+export const DeBridgeBridgeConfigSchema = z.object({
+  maxFeeBps: z.number().int().min(0).max(10_000).default(50),
+  maxEvmNativeValueWei: z.coerce.bigint().nonnegative().optional(),
+  maxTronNativeValueSun: z.coerce.bigint().nonnegative().optional(),
+  maxSolanaNativeSpendLamports: z.coerce.bigint().nonnegative().optional(),
+});
+
+export const LayerZeroBridgeConfigSchema = z.object({
+  warpRouteIds: z.array(z.string().min(1)).min(1),
+  maxFeeBps: z.number().int().min(0).max(10_000).default(50),
+  maxEvmNativeValueWei: z.coerce.bigint().nonnegative().optional(),
+  maxTronNativeValueSun: z.coerce.bigint().nonnegative().optional(),
+});
+
+export const DEFAULT_MAX_SOLANA_TRANSACTION_FEE_LAMPORTS = 10_000_000;
+export const DEFAULT_SOLANA_TRANSACTION_FEE_WARNING_LAMPORTS = 1_000_000;
+
+export const SwapsXyzBridgeConfigSchema = z
+  .object({
+    apiUrl: z.string().url().startsWith('https://').optional(),
+    defaultSlippage: z.number().positive().max(0.1).optional(),
+    maxQuoteLossBps: z.number().int().min(0).max(10_000).default(50),
+    maxEvmNativeFeeWei: z.coerce.bigint().nonnegative().optional(),
+    maxTronNativeFeeSun: z.coerce.bigint().nonnegative().optional(),
+    maxSolanaTransactionFeeLamports: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional(),
+    solanaTransactionFeeWarningLamports: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional(),
+    maxSolanaNativeSpendLamports: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional(),
+  })
+  .refine(
+    (config) =>
+      (config.solanaTransactionFeeWarningLamports ??
+        DEFAULT_SOLANA_TRANSACTION_FEE_WARNING_LAMPORTS) <=
+      (config.maxSolanaTransactionFeeLamports ??
+        DEFAULT_MAX_SOLANA_TRANSACTION_FEE_LAMPORTS),
+    {
+      message: 'Solana transaction fee warning must not exceed its cap',
+      path: ['solanaTransactionFeeWarningLamports'],
+    },
+  );
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
+  debridge: DeBridgeBridgeConfigSchema.optional(),
+  layerzero: LayerZeroBridgeConfigSchema.optional(),
+  swapsxyz: SwapsXyzBridgeConfigSchema.optional(),
 });
 
 export const PendingTransferMiddlewareType = {
@@ -229,10 +324,11 @@ export const RebalancerConfigSchema = z
       .positive()
       .default(DEFAULT_INTENT_TTL_S)
       .describe(
-        'Max age in seconds before in-progress intent is expired. Default 7 days.',
+        'Max age in seconds for uncommitted intents. Reserved source work never expires automatically. Default 14 days.',
       )
       .transform((val) => val * 1_000),
   })
+  .strict()
   .transform((config, ctx) => {
     // CollateralDeficitStrategy must be first in composite if it is used
     if (config.strategy.length > 1) {
@@ -453,15 +549,6 @@ export const RebalancerConfigSchema = z
           // Other protocols: accept any non-empty string (future-proof)
         }
       }
-
-      if (!config.externalBridges?.lifi?.integrator) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message:
-            'externalBridges.lifi is required when using inventory execution',
-          path: ['externalBridges', 'lifi'],
-        });
-      }
     }
 
     for (
@@ -471,37 +558,45 @@ export const RebalancerConfigSchema = z
     ) {
       const strategy = config.strategy[strategyIndex];
       for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
-        const checkLifiBridge = (
+        const checkExternalBridge = (
           externalBridge: ExternalBridgeType | undefined,
           path: (string | number)[],
         ) => {
-          if (
-            externalBridge === ExternalBridgeType.LiFi &&
-            !config.externalBridges?.lifi?.integrator
-          ) {
+          const isConfigured =
+            externalBridge === undefined ||
+            (externalBridge === ExternalBridgeType.LiFi &&
+              !!config.externalBridges?.lifi?.integrator) ||
+            (externalBridge === ExternalBridgeType.DeBridge &&
+              config.externalBridges?.debridge !== undefined) ||
+            (externalBridge === ExternalBridgeType.LayerZero &&
+              config.externalBridges?.layerzero !== undefined) ||
+            (externalBridge === ExternalBridgeType.SwapsXyz &&
+              config.externalBridges?.swapsxyz !== undefined);
+          if (!isConfigured) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`,
+              message: `Chain '${chainName}' uses externalBridge: '${externalBridge}' but externalBridges.${externalBridge} is not configured`,
               path,
             });
           }
         };
 
-        checkLifiBridge(chainConfig.externalBridge, [
-          'externalBridges',
-          'lifi',
+        checkExternalBridge(chainConfig.externalBridge, [
+          'strategy',
+          strategyIndex,
+          'chains',
+          chainName,
+          'externalBridge',
         ]);
 
         if (chainConfig.override) {
           for (const [destination, overrideConfig] of Object.entries(
             chainConfig.override,
           )) {
-            const merged = {
-              ...chainConfig,
-              ...(overrideConfig as Record<string, unknown>),
-            };
-            checkLifiBridge(
-              merged.externalBridge as ExternalBridgeType | undefined,
+            const parsedOverride =
+              RebalancerBridgeConfigSchema.partial().parse(overrideConfig);
+            checkExternalBridge(
+              parsedOverride.externalBridge ?? chainConfig.externalBridge,
               [
                 'strategy',
                 strategyIndex,

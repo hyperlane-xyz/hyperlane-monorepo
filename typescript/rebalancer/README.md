@@ -94,6 +94,18 @@ await service.executeManual({
 
 The rebalancer uses a YAML configuration file with a `warpRouteId` and `strategy` field.
 
+See [route controls](docs/route-controls.md) for disabled pairs and persistent monitor-only deployments.
+
+See [external bridge trust](docs/external-bridge-trust.md) for the accepted provider boundary and simulation follow-ups.
+
+Source actions are recorded in memory before broadcast. This prevents an
+uncertain send from being retried while the process remains running. A restart
+clears this state; no action or intent state is written to disk.
+
+Finalized source execution failures can be retried automatically. Unknown outcomes
+remain reserved; follow the [reserved-action recovery runbook](docs/recover-reserved-actions.md)
+before retrying or restarting an affected instance.
+
 ### Basic Example (Single Strategy)
 
 ```yaml
@@ -207,6 +219,7 @@ strategy:
 | `bridge`                  | `0x...` address  | Yes      | Bridge contract address for this chain                         |
 | `bridgeLockTime`          | number (seconds) | No       | Expected bridge transfer duration (used for inflight tracking) |
 | `bridgeMinAcceptedAmount` | number           | No       | Skip routes with amounts below this threshold                  |
+| `statusAdapter`           | object           | No       | Settlement tracker; defaults to `hyperlane_message`            |
 | `override`                | object           | No       | Per-destination bridge overrides (see below)                   |
 
 #### Per-Destination Overrides
@@ -224,9 +237,26 @@ strategy:
         arbitrum:
           bridge: '0xFastArbitrumBridge...'
           bridgeLockTime: 600
+          # Use for LayerZero OFT bridges that emit no Hyperlane Dispatch.
+          statusAdapter:
+            kind: lz_scan
+            sourceEid: 30101
+            destinationEid: 30110
+            sourceOft: '0xSourceOft...'
+            destinationOft: '0xDestinationOft...'
         optimism:
           bridge: '0xOptimismBridge...'
 ```
+
+`statusAdapter.kind` supports `hyperlane_message` and `lz_scan`. The default
+tracks a Hyperlane `Dispatch`; `lz_scan` extracts the exact OFT GUID and polls
+LayerZero Scan until a confirmed destination receipt contains the matching
+`OFTReceived` GUID, source EID, recipient, and amount from the source receipt.
+LayerZero EIDs and OFT contract addresses are required. Source-committed
+failures remain suppressed while the process runs rather than allowing a
+duplicate collateral move. A restart clears that in-memory suppression.
+For non-Hyperlane transfers, a restart while settlement is pending can therefore
+lose the action cursor; operators must verify source settlement before resuming.
 
 ## Architecture
 
