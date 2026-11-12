@@ -463,12 +463,14 @@ export class SwapsXyzBridge implements IExternalBridge {
           );
           return { status: 'pending', substatus: rawStatus };
         }
+        assert(
+          response.actionResponse,
+          'Completed swaps.xyz status is missing actionResponse',
+        );
         return {
           status: 'complete',
           receivingTxHash: response.dstTxHash,
-          receivedAmount: BigInt(
-            response.actionResponse?.amountOut.amount ?? '0',
-          ),
+          receivedAmount: BigInt(response.actionResponse.amountOut.amount),
         };
       case 'failed':
         return {

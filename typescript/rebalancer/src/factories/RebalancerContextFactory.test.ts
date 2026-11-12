@@ -156,8 +156,8 @@ async function createFactory(
     createMockRegistry(),
     testLogger,
     undefined,
-    externalBridgeApiKeys,
     warpCoreConfig,
+    externalBridgeApiKeys,
   );
 }
 
@@ -181,6 +181,43 @@ describe('RebalancerContextFactory', () => {
 
   afterEach(() => {
     sandbox.restore();
+  });
+
+  it('preserves the seventh positional warp config override', async () => {
+    const { multiProvider } = createMockMultiProvider([
+      { name: 'ethereum', protocol: ProtocolType.Ethereum },
+      { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+    ]);
+    const getWarpRoute = Sinon.stub().rejects(
+      new Error('The supplied warp config must bypass registry lookup'),
+    );
+    const factory = await RebalancerContextFactory.create(
+      createMockConfig(),
+      multiProvider,
+      createMockMpp(),
+      { ...createMockRegistry(), getWarpRoute },
+      testLogger,
+      undefined,
+      {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'arbitrum',
+            TEST_ADDRESSES.arbitrum,
+            TokenStandard.EvmHypCollateral,
+          ),
+        ],
+      },
+    );
+
+    expect(getWarpRoute.called).to.equal(false);
+    expect(
+      factory.getWarpCore().tokens.map((token) => token.chainName),
+    ).to.deep.equal(['ethereum', 'arbitrum']);
   });
 
   describe('external bridge initialization', () => {

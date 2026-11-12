@@ -364,7 +364,7 @@ describe('TronWallet submission boundary', () => {
       gasLimit: BigNumber.from(10),
       gasPrice: BigNumber.from(1),
     });
-    // Replace only network/signing dependencies; exercise the actual wallet send method.
+    // CAST: replace private network/signing dependencies to exercise the actual wallet send method.
     const internals = wallet as unknown as {
       txBuilder: { buildTransaction: () => Promise<TronTransaction> };
       makeUnique: (transaction: TronTransaction) => Promise<TronTransaction>;

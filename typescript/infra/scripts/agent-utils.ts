@@ -1,7 +1,7 @@
 import { checkbox, select } from '@inquirer/prompts';
 import chalk from 'chalk';
 import path from 'path';
-import yargs, { Argv } from 'yargs';
+import type { Argv } from 'yargs';
 
 import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -46,7 +46,6 @@ import { RootAgentConfig } from '../src/config/agent/agent.js';
 import {
   AgentEnvironment,
   DeployEnvironment,
-  assertEnvironment,
 } from '../src/config/deploy-environment.js';
 import { EnvironmentConfig } from '../src/config/environment.js';
 import { BalanceThresholdType } from '../src/config/funding/balances.js';
@@ -58,6 +57,16 @@ import {
   assertRole,
   filterRemoteDomainMetadata,
 } from '../src/utils/utils.js';
+
+import { getArgs, withWarpRouteId } from './cli-args.js';
+export {
+  withEnvironment,
+  getArgs,
+  withWarpRouteId,
+  withRegistryCommit,
+  withMetrics,
+  withYes,
+} from './cli-args.js';
 
 const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
 
@@ -85,23 +94,6 @@ export const REGISTRY_MODULES = [
   Modules.HOOK,
   Modules.CCIP,
 ];
-
-export function withEnvironment<T>(
-  args: Argv<T>,
-  opts?: { defaultEnv?: DeployEnvironment },
-) {
-  const chain = args
-    .describe('environment', 'deploy environment')
-    .coerce('environment', assertEnvironment)
-    .alias('e', 'environment');
-  return opts?.defaultEnv
-    ? chain.default('environment', opts.defaultEnv)
-    : chain.demandOption('environment');
-}
-
-export function getArgs() {
-  return withEnvironment(yargs(process.argv.slice(2)));
-}
 
 export function withBalanceThresholdConfig<T>(args: Argv<T>) {
   return args
@@ -217,19 +209,6 @@ export function withKnownWarpRouteId<T>(args: Argv<T>) {
     .choices('warpRouteId', Object.values(Mainnet3WarpRouteIds));
 }
 
-export function withWarpRouteId<T>(args: Argv<T>) {
-  return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
-}
-
-export function withRegistryCommit<T>(args: Argv<T>) {
-  return args
-    .describe(
-      'registryCommit',
-      'Registry version (commit, branch, or tag). If not provided, will prompt interactively.',
-    )
-    .string('registryCommit');
-}
-
 export function withWarpRouteIds<T>(args: Argv<T>) {
   return args
     .describe('warpRouteIds', 'warp route ids')
@@ -238,13 +217,6 @@ export function withWarpRouteIds<T>(args: Argv<T>) {
       Array.isArray(ids) ? ids.map(String) : [],
     )
     .alias('w', 'warpRouteIds');
-}
-
-export function withMetrics<T>(args: Argv<T>) {
-  return args
-    .describe('metrics', 'metrics')
-    .boolean('metrics')
-    .default('metrics', true);
 }
 
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {
@@ -256,14 +228,6 @@ export function withDryRun<T>(args: Argv<T>) {
     .describe('dryRun', 'Dry run')
     .boolean('dryRun')
     .default('dryRun', false);
-}
-
-export function withYes<T>(args: Argv<T>) {
-  return args
-    .describe('yes', 'Skip confirmations and use defaults')
-    .boolean('yes')
-    .alias('y', 'yes')
-    .default('yes', false);
 }
 
 export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {

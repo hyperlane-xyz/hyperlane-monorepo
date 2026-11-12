@@ -328,7 +328,6 @@ export class ActionTracker implements IActionTracker {
     let discoveredActions = 0;
     let completedActions = 0;
     let ignoredActions = 0;
-    let ignoredInProgressActions = 0;
     let requiresFreshBalances = false;
 
     const inflightMessages =
@@ -483,17 +482,15 @@ export class ActionTracker implements IActionTracker {
         completedActions++;
         requiresFreshBalances ||= typeof blockTag !== 'number';
         this.logger.debug({ id: action.id }, 'RebalanceAction completed');
-      } else if (
-        action.type === 'rebalance_message' &&
-        this.config.isIgnoredRebalanceAction?.(action.messageId)
-      ) {
-        ignoredInProgressActions++;
       }
     }
 
-    const inProgressCount = (
-      await this.rebalanceActionStore.getByStatus('in_progress')
+    const remainingActions =
+      await this.rebalanceActionStore.getByStatus('in_progress');
+    const ignoredInProgressActions = remainingActions.filter((action) =>
+      this.isIgnoredTrackedRebalanceAction(action),
     ).length;
+    const inProgressCount = remainingActions.length;
     this.logger.info(
       {
         discovered: discoveredActions,
@@ -621,8 +618,15 @@ export class ActionTracker implements IActionTracker {
     return this.rebalanceActionStore.get(id);
   }
 
-  async getInProgressActions(): Promise<RebalanceAction[]> {
-    return this.rebalanceActionStore.getByStatus('in_progress');
+  async getInProgressActions(
+    includeIgnored = true,
+  ): Promise<RebalanceAction[]> {
+    const actions = await this.rebalanceActionStore.getByStatus('in_progress');
+    return includeIgnored
+      ? actions
+      : actions.filter(
+          (action) => !this.isIgnoredTrackedRebalanceAction(action),
+        );
   }
 
   // === RebalanceAction Management ===
@@ -1149,7 +1153,10 @@ export class ActionTracker implements IActionTracker {
     // Log each action separately
     for (const a of inProgressActions) {
       const ageMs = Date.now() - a.createdAt;
-      if (ageMs > BLOCKED_ACTION_WARNING_AGE_MS) {
+      if (
+        ageMs > BLOCKED_ACTION_WARNING_AGE_MS &&
+        !this.isIgnoredTrackedRebalanceAction(a)
+      ) {
         this.logger.warn(
           {
             actionId: a.id,
@@ -1184,6 +1191,14 @@ export class ActionTracker implements IActionTracker {
   }
 
   // === Private Helpers ===
+
+  private isIgnoredTrackedRebalanceAction(action: RebalanceAction): boolean {
+    return (
+      action.type === 'rebalance_message' &&
+      action.messageId !== undefined &&
+      this.config.isIgnoredRebalanceAction?.(action.messageId) === true
+    );
+  }
 
   /**
    * Get the confirmed block tag for delivery checks.

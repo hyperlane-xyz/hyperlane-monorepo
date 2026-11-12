@@ -212,8 +212,10 @@ export interface IActionTracker {
 
   /**
    * Get all rebalance actions currently in progress.
+   * Set includeIgnored to false for diagnostics that exclude denylisted rebalance messages.
+   * Reservation and reconciliation callers must retain the default true.
    */
-  getInProgressActions(): Promise<RebalanceAction[]>;
+  getInProgressActions(includeIgnored?: boolean): Promise<RebalanceAction[]>;
 
   // === RebalanceAction Management ===
 

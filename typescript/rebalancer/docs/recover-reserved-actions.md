@@ -8,6 +8,8 @@ The rebalancer automatically releases work only when preparation proves the prim
 
 Prometheus collects `hyperlane_rebalancer_oldest_inflight_action_age_seconds` and `hyperlane_rebalancer_inflight_actions` from local action state on every scrape, independently of RPC, balance-poll and Explorer synchronization. Labels are limited to warp route, origin/destination domains, action type, and the held reason. Action IDs and hashes remain in logs only. A restart loses local action state and can clear these metrics without resolving source effects; alert silence after restart is not recovery evidence.
 
+Denylisted movable-collateral messages remain stored and reserved, but are excluded from the age/count gauges and blocked-action warnings. They remain visible in store logs and the `ignoredInProgress` synchronization count, including actions with settlement references. If the deny rule expires or is removed, they become observable again. Inventory movements and deposits retain their diagnostics even when their message is denylisted.
+
 Initial operator alert targets (separate from transaction validity and reservation expiry):
 
 ```yaml

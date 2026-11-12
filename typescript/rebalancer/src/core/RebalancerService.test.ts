@@ -1101,7 +1101,18 @@ describe('RebalancerService', () => {
 
     it('should create metrics when withMetrics is enabled', async () => {
       const metrics = Sinon.createStubInstance(Metrics);
-      const contextFactory = createMockContextFactory({ metrics });
+      const getInProgressActions = Sinon.stub<
+        Parameters<IActionTracker['getInProgressActions']>,
+        ReturnType<IActionTracker['getInProgressActions']>
+      >().resolves([]);
+      const actionTracker = {
+        ...createMockActionTracker(),
+        getInProgressActions,
+      };
+      const contextFactory = createMockContextFactory({
+        metrics,
+        actionTracker,
+      });
       const createMetricsSpy = Sinon.spy(contextFactory, 'createMetrics');
 
       sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
@@ -1129,6 +1140,9 @@ describe('RebalancerService', () => {
 
       expect(createMetricsSpy.calledOnce).to.be.true;
       expect(createMetricsSpy.firstCall.args[0]).to.equal('test-key');
+      const readActions = metrics.observeInFlightActions.firstCall.args[0];
+      await readActions();
+      expect(getInProgressActions.calledWith(false)).to.be.true;
     });
   });
 });

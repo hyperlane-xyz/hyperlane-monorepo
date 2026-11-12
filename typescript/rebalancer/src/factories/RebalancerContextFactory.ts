@@ -122,8 +122,8 @@ export class RebalancerContextFactory {
     registry: IRegistry,
     logger: Logger,
     inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
-    externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
     warpCoreConfigOverride?: WarpCoreConfig,
+    externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
       {
