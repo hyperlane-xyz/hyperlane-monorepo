@@ -96,6 +96,7 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
   reveal. Calls are resolved from the commitment dispatched alongside the
   reveal. The server checks that
 
+  - the reveal's origin is the stored commitment's origin,
   - the reveal was dispatched between ICA routers from the registry
     (`interchainAccountRouter` and `interchainAccountRouterV3`), and
   - the reveal is in the hinted transaction's mailbox events, with the

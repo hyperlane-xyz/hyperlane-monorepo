@@ -514,10 +514,11 @@ export class CallCommitmentsService extends BaseService {
         throw new CommitmentAccessDeniedError();
       }
 
-      assert(
-        origin === record.originDomain,
-        'Reveal origin does not match stored commitment',
-      );
+      if (origin !== record.originDomain) {
+        throw new CommitmentAccessDeniedError(
+          'Reveal origin does not match stored commitment',
+        );
+      }
       // Calls are resolved from the commitment dispatched alongside this
       // reveal, which must target the account the calls were registered for.
       // Without the origin transaction hash the request returns HTTP 500 and

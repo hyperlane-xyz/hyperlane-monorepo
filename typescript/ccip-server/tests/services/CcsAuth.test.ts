@@ -755,6 +755,17 @@ describe('CCS authenticated reveal recovery integration', () => {
       readsChain: true,
     },
     {
+      name: 'returns HTTP 403 for a reveal from another origin than the stored one',
+      options: {},
+      setup: (f) => {
+        f.record.originDomain = 10;
+      },
+      statusCode: 403,
+      error: 'Reveal origin does not match stored commitment',
+      readsReceipt: false,
+      readsChain: false,
+    },
+    {
       name: 'returns HTTP 403 for a reveal with no commitment dispatched before it',
       options: {},
       setup: (f) => {

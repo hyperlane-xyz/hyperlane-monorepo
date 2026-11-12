@@ -2003,7 +2003,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
   });
 
-  it('rejects an origin mismatch before reading any chain state', async () => {
+  it('denies an origin mismatch before reading any chain state', async () => {
     const service = createVerifyingService();
     service.fetchCommitmentRecord = sinon.stub().resolves({
       commitment,
@@ -2024,7 +2024,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       .catch((error: unknown) => error);
 
     expect(result)
-      .to.be.instanceOf(Error)
+      .to.be.instanceOf(CommitmentAccessDeniedError)
       .with.property(
         'message',
         'Reveal origin does not match stored commitment',
