@@ -7,12 +7,14 @@ import {
   type ChainMap,
   type ChainMetadata,
   EvmHypSyntheticAdapter,
+  EthJsonRpcBlockParameterTag,
   MultiProtocolProvider,
   Token,
   TokenStandard,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
 import {
   type MonitorEvent,
@@ -100,8 +102,9 @@ function setupTron(reorgPeriod: number | string) {
     },
   };
   const multiProvider = new MultiProtocolProvider(metadata);
-  const block = sinon.createStubInstance(providers.JsonRpcProvider);
+  const block = sinon.createStubInstance(TronJsonRpcProvider);
   block.send.resolves('0x64');
+  block.getFinalizedBlockNumber.resolves(100);
   sinon.stub(multiProvider, 'getEthersV5Provider').returns(block);
   const adapter = sinon.createStubInstance(EvmHypSyntheticAdapter);
   adapter.getBridgedSupply.resolves(5n);
@@ -275,9 +278,7 @@ describe('Monitor concurrency', () => {
 
     await monitor.start();
     expect(errors.calledOnce).to.equal(true);
-    expect(errors.firstCall.args[0].message).to.contain(
-      'Confirmed block unavailable for chain0',
-    );
+    expect(errors.firstCall.args[0].message).to.contain('block unavailable');
     expect(supplyReadOnError).to.equal(false);
     expect(blocks[0].send.calledTwice).to.equal(true);
     expect(adapters[0].getBridgedSupply.calledOnce).to.equal(true);
@@ -289,8 +290,9 @@ describe('Monitor concurrency', () => {
     expect(event?.inventoryBalances).to.deep.equal({ chain0: 10n });
   });
 
-  it('preserves optional block tags for Tron named reorg periods', async () => {
+  it('reads Tron balances using explicit native finalized state', async () => {
     const { monitor, adapter, block, token } = setupTron('finalized');
+    block.getFinalizedBlockNumber.resolves(96);
     const errors = sinon.stub();
     let event: MonitorEvent | undefined;
     monitor.on(MonitorEventType.Error, (error) => {
@@ -305,51 +307,47 @@ describe('Monitor concurrency', () => {
     await monitor.start();
     expect(errors.notCalled).to.equal(true);
     expect(block.send.notCalled).to.equal(true);
+    expect(block.getFinalizedBlockNumber.called).to.equal(false);
+    expect(block.getBlock.called).to.equal(false);
     expect(adapter.getBridgedSupply.calledOnce).to.equal(true);
     expect(adapter.getBridgedSupply.firstCall.args).to.deep.equal([
-      { blockTag: undefined },
+      { blockTag: EthJsonRpcBlockParameterTag.Finalized },
     ]);
-    expect(event?.confirmedBlockTags.tron).to.equal(undefined);
+    expect(event?.confirmedBlockTags.tron).to.equal(
+      EthJsonRpcBlockParameterTag.Finalized,
+    );
     expect(event?.tokensInfo).to.deep.equal([{ token, bridgedSupply: 5n }]);
   });
 
-  for (const failWithRpcError of [true, false]) {
-    it(`retries a numeric Tron block ${failWithRpcError ? 'RPC failure' : 'invalid response'} before emitting supply`, async () => {
-      const { monitor, adapter, block } = setupTron(20);
-      if (failWithRpcError) {
-        block.send.onFirstCall().rejects(new Error('block unavailable'));
-      } else {
-        block.send.onFirstCall().resolves(undefined);
-      }
-      const errors = sinon.stub();
-      let supplyReadOnError = false;
-      let event: MonitorEvent | undefined;
-      monitor.on(MonitorEventType.Error, (error) => {
-        errors(error);
-        supplyReadOnError = adapter.getBridgedSupply.called;
-      });
-      monitor.on(MonitorEventType.TokenInfo, (received) => {
-        event = received;
-        void monitor.stop();
-      });
-
-      await monitor.start();
-      expect(errors.calledOnce).to.equal(true);
-      expect(errors.firstCall.args[0].message).to.contain(
-        failWithRpcError
-          ? 'block unavailable'
-          : 'Invalid eth_blockNumber response',
-      );
-      expect(supplyReadOnError).to.equal(false);
-      expect(block.send.calledTwice).to.equal(true);
-      expect(adapter.getBridgedSupply.calledOnce).to.equal(true);
-      expect(adapter.getBridgedSupply.firstCall.args).to.deep.equal([
-        { blockTag: 80 },
-      ]);
-      expect(event?.confirmedBlockTags.tron).to.equal(80);
-      expect(event?.tokensInfo[0].bridgedSupply).to.equal(5n);
+  it('retries an unavailable native finalized balance without falling back to latest', async () => {
+    const { monitor, adapter, block } = setupTron(20);
+    adapter.getBridgedSupply
+      .onFirstCall()
+      .rejects(new Error('solid state unavailable'));
+    const errors = sinon.stub();
+    let event: MonitorEvent | undefined;
+    monitor.on(MonitorEventType.Error, errors);
+    monitor.on(MonitorEventType.TokenInfo, (received) => {
+      event = received;
+      void monitor.stop();
     });
-  }
+    await monitor.start();
+    expect(errors.calledOnce).to.equal(true);
+    expect(errors.firstCall.args[0].message).to.contain(
+      'solid state unavailable',
+    );
+    expect(block.send.called).to.equal(false);
+    expect(adapter.getBridgedSupply.calledTwice).to.equal(true);
+    for (const call of adapter.getBridgedSupply.getCalls()) {
+      expect(call.args).to.deep.equal([
+        { blockTag: EthJsonRpcBlockParameterTag.Finalized },
+      ]);
+    }
+    expect(event?.confirmedBlockTags.tron).to.equal(
+      EthJsonRpcBlockParameterTag.Finalized,
+    );
+    expect(event?.tokensInfo[0].bridgedSupply).to.equal(5n);
+  });
 
   it('emits inventory balances from a later cycle after an inventory failure', async () => {
     const { monitor, adapters } = setup(1, true);

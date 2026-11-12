@@ -26,7 +26,10 @@ import {
   PendingTransferMiddlewareType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
-import { TEST_ADDRESSES } from '../test/helpers.js';
+import {
+  TEST_ADDRESSES,
+  createMockSettlementProvider,
+} from '../test/helpers.js';
 import { ActionTracker } from '../tracking/ActionTracker.js';
 import { BlacklistIsmMiddleware } from '../tracking/pendingTransferMiddlewares/BlacklistIsmMiddleware.js';
 import type { IExplorerClient } from '../utils/ExplorerClient.js';
@@ -96,6 +99,12 @@ function createMockConfig(): RebalancerConfig {
 function createMockMpp() {
   const mpp = Sinon.createStubInstance(MultiProtocolProvider);
   mpp.extendChainMetadata.returnsThis();
+  const domain = (chain: string | number) =>
+    chain === 'ethereum' ? 1 : chain === 'arbitrum' ? 42161 : 2;
+  mpp.getDomainId.callsFake(domain);
+  mpp.getEthersV5Provider.callsFake((chain) =>
+    createMockSettlementProvider(domain(chain)),
+  );
   return mpp;
 }
 
@@ -156,7 +165,11 @@ async function callCreate(
   multiProvider: MultiProvider,
   warpCoreConfig: WarpCoreConfig,
 ) {
-  await createFactory(createMockConfig(), multiProvider, warpCoreConfig);
+  const config = createMockConfig();
+  for (const strategy of config.strategyConfig) {
+    for (const chain of Object.values(strategy.chains)) chain.enabled = false;
+  }
+  await createFactory(config, multiProvider, warpCoreConfig);
 }
 
 describe('RebalancerContextFactory', () => {
@@ -590,7 +603,7 @@ describe('RebalancerContextFactory', () => {
       }
 
       expect(error?.message).to.equal(
-        'No token found for configured strategy chain arbitrum in warp route USDC/paradex',
+        'Missing origin token for arbitrum -> ethereum',
       );
     });
 
