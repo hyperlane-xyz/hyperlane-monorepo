@@ -1,6 +1,6 @@
 //! Best-effort sanitized message activity. No network I/O on the delivery path.
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -417,7 +417,7 @@ impl MessageActivityReporter {
 
 // Summaries are scoped to one metadata build. Collections are limited to 50 validators;
 // only the latest attempted index is retained, so range walks cannot grow this state.
-#[derive(Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct CheckpointSummary {
     index: Option<u32>,
     root: Option<H256>,
@@ -427,6 +427,8 @@ pub struct CheckpointSummary {
     latest_indices: BTreeMap<H160, Option<u32>>,
     discovery_unavailable: BTreeMap<H256, CheckpointUnavailableReason>,
     unavailable: BTreeMap<H256, CheckpointUnavailableReason>,
+    #[serde(skip)]
+    reported_signers: BTreeSet<H256>,
 }
 
 #[derive(Debug)]
@@ -467,9 +469,16 @@ impl CheckpointObserver for ActivityCheckpointObserver {
                 }
                 // Counts belong to a single root; never combine conflicting signatures.
                 if collected > summary.collected {
+                    let mut new_signer = false;
+                    for signer in &signers {
+                        new_signer |= summary.reported_signers.insert(signer.validator);
+                    }
                     summary.root = Some(root);
                     summary.collected = collected;
                     summary.signers = signers;
+                    if new_signer {
+                        self.report_summary(summary.clone());
+                    }
                 }
             }
             CheckpointObservation::Unavailable {
@@ -497,6 +506,10 @@ impl ActivityCheckpointObserver {
         {
             return;
         }
+        self.report_summary(summary);
+    }
+
+    fn report_summary(&self, summary: CheckpointSummary) {
         self.reporter.report_scoped(
             self.message_id,
             self.origin,
@@ -515,7 +528,7 @@ impl ActivityCheckpointObserver {
 impl Drop for ActivityCheckpointObserver {
     fn drop(&mut self) {
         // Background telemetry may outlive the metadata build's first report.
-        // Flush its remaining observations, but keep abandoned collections silent.
+        // Flush remaining observations only for completed collections.
         if *self.reported.get_mut() {
             self.report();
         }
