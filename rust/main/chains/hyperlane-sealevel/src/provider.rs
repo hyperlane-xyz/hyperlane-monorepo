@@ -884,6 +884,7 @@ impl HyperlaneProvider for SealevelProvider {
         let gas_price = fee.checked_div(gas_used);
 
         let receipt = TxnReceiptInfo {
+            block_hash: None,
             gas_used,
             cumulative_gas_used: gas_used,
             effective_gas_price: gas_price,

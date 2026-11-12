@@ -43,6 +43,9 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
 /// Errors when querying for provider information.
 #[derive(Error, Debug)]
 pub enum HyperlaneProviderError {
+    /// A mined transaction receipt did not identify its block.
+    #[error("Provider did not return receipt block hash")]
+    NoReceiptBlockHash,
     /// The provider did not return the gas which was used
     #[error("Provider did not return gas used")]
     NoGasUsed,

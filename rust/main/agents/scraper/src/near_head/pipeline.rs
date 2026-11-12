@@ -70,16 +70,17 @@ pub(super) struct CountCache {
     pub(super) proven_through: Option<u64>,
 }
 
+/// Returns (more indexing work, appended events).
 pub(super) async fn ingest_cached(
     source: &dyn Source,
     store: &Store,
     state: &State,
     chunk_size: u64,
     count_cache: &mut CountCache,
-) -> Result<bool> {
+) -> Result<(bool, bool)> {
     ensure!(chunk_size > 0, "Empty indexing range");
     if state.indexed == state.head {
-        return Ok(false);
+        return Ok((false, false));
     }
     let available_head = source
         .indexing_tip()
@@ -87,7 +88,7 @@ pub(super) async fn ingest_cached(
         .unwrap_or(state.head)
         .min(state.head);
     if available_head <= state.indexed {
-        return Ok(false);
+        return Ok((false, false));
     }
     let start_counts = match count_cache
         .boundary
@@ -124,7 +125,7 @@ pub(super) async fn ingest_cached(
         verify(source, &boundary).await?;
         store.append(state, &[(boundary.clone(), vec![])]).await?;
         count_cache.boundary = Some((boundary.hash, start_counts));
-        return Ok(boundary.height < state.head);
+        return Ok((boundary.height < state.head, false));
     }
     let mut boundary = source
         .range_end(state.indexed, requested_end, available_head)
@@ -170,6 +171,7 @@ pub(super) async fn ingest_cached(
         end = boundary.height;
     }
     let events = batch.events;
+    let event_count = events.len();
     let validated_counts = match advance_sequences(&events, start_counts) {
         Ok(counts) => counts,
         Err(error) => {
@@ -240,7 +242,7 @@ pub(super) async fn ingest_cached(
     if end_counts.is_some() {
         count_cache.proven_through = Some(end);
     }
-    Ok(end < state.head)
+    Ok((end < state.head, event_count > 0))
 }
 
 pub(super) fn advance_sequences(events: &[source::Event], mut next: [u32; 4]) -> Result<[u32; 4]> {
