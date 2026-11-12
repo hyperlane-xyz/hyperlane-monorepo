@@ -27,21 +27,32 @@ const FakeSocket = struct {
     held: std.ArrayList(*Completion) = .empty,
     /// `try_send_inline` behaviour; `.busy` keeps every send on the queued path.
     inline_mode: live.Socket.InlineResult = .busy,
+    /// Offer the vectored write (frames corked per turn).
+    many: bool = true,
+    /// Vectored writes made (one per flushed cork).
+    flushes: usize = 0,
     pool: *runtime.Pool,
 
     fn socket(self: *FakeSocket) live.Socket {
-        return .{ .ptr = self, .vtable = &.{
-            .send = send,
-            .buffered_amount = bufferedAmount,
-            .is_open = isOpen,
-            .snapshot = snapshot,
-            .close = close,
-            .terminate = terminate,
-            .ping = ping,
-            .release = release,
-            .try_send_inline = trySendInline,
-        } };
+        return .{ .ptr = self, .vtable = if (self.many) &vtable_many else &vtable_single };
     }
+
+    const vtable_single: live.Socket.VTable = .{
+        .send = send,
+        .buffered_amount = bufferedAmount,
+        .is_open = isOpen,
+        .snapshot = snapshot,
+        .close = close,
+        .terminate = terminate,
+        .ping = ping,
+        .release = release,
+        .try_send_inline = trySendInline,
+    };
+    const vtable_many: live.Socket.VTable = blk: {
+        var v = vtable_single;
+        v.try_send_inline_many = trySendInlineMany;
+        break :blk v;
+    };
 
     const Completion = struct {
         job: runtime.Pool.Job = .{ .run = run },
@@ -102,8 +113,48 @@ const FakeSocket = struct {
         self.pool.submit(&completion.job);
         return true;
     }
-    fn trySendInline(ptr: *anyopaque, bytes: []const u8) live.Socket.InlineResult {
+    /// Same modes as `trySendInline`; `.partial` writes nothing inline and
+    /// queues every frame with its job.
+    fn trySendInlineMany(ptr: *anyopaque, payloads: []const []const u8, jobs: []const *live.SendJob) live.Socket.ManyResult {
         const self: *FakeSocket = @ptrCast(@alignCast(ptr));
+        switch (self.inline_mode) {
+            .partial => {
+                for (payloads, jobs) |bytes, job| _ = send(ptr, bytes, job);
+                self.mutex.lock();
+                self.flushes += 1;
+                self.mutex.unlock();
+                return .{ .written = 0 };
+            },
+            else => {},
+        }
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        switch (self.inline_mode) {
+            .written => {
+                for (payloads) |bytes| self.frames.append(a, a.dupe(u8, bytes) catch unreachable) catch unreachable;
+                self.flushes += 1;
+                return .{ .written = payloads.len };
+            },
+            .failed => {
+                self.open = false;
+                self.terminated = true;
+                return .failed;
+            },
+            .busy, .partial => return .busy,
+        }
+    }
+
+    /// `.partial` writes the frame and completes `job` like a queued send
+    /// (held while `hold` is set); `buffered` counts the frame until then.
+    fn trySendInline(ptr: *anyopaque, bytes: []const u8, job: *live.SendJob) live.Socket.InlineResult {
+        const self: *FakeSocket = @ptrCast(@alignCast(ptr));
+        switch (self.inline_mode) {
+            .partial => {
+                _ = send(ptr, bytes, job);
+                return .partial;
+            },
+            else => {},
+        }
         self.mutex.lock();
         defer self.mutex.unlock();
         switch (self.inline_mode) {
@@ -112,7 +163,7 @@ const FakeSocket = struct {
                 self.open = false;
                 self.terminated = true;
             },
-            .busy => {},
+            .busy, .partial => {},
         }
         return self.inline_mode;
     }
@@ -281,6 +332,7 @@ const Harness = struct {
         self.settle();
         self.t.pool.deinit();
         self.server.destroy();
+        self.t.loop.deinit();
         self.t.fake.deinit();
         for (self.sockets.items) |s| {
             s.deinit();
@@ -1179,4 +1231,137 @@ test "inline writes stay charged until the end of the turn: aggregate Explorer b
     const after = metricsOf(&h);
     try testing.expectEqual(@as(f64, 0), after.outboundPendingBytes);
     try testing.expectEqual(@as(f64, 1), after.connections.messages);
+}
+
+test "a partially written inline frame stays charged until its remainder is written" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.max_total_buffered_bytes = 1024;
+    try h.init(limits);
+    defer h.deinit();
+    const slow_id = "0b" ** 32;
+    const fast_id = "0c" ** 32;
+    const slow, _ = h.explorer("/messages?messageIds=" ++ slow_id, "10.0.0.1");
+    const fast, _ = h.explorer("/messages?messageIds=" ++ fast_id, "10.0.0.2");
+    try h.waitFrames(slow, 1);
+    try h.waitFrames(fast, 1);
+    h.settle();
+    // The kernel takes only part of the slow client's frame; the rest stays
+    // queued and its completion is held.
+    slow.inline_mode = .partial;
+    slow.hold = true;
+    fast.inline_mode = .written;
+    const before = core.metrics.websocket_send_failures.get(.{"buffer_limit"});
+    // ~600-byte upserts: one still-pending frame plus another exceeds 1024 bytes.
+    const body = "\",\"message_body\":\"" ++ "ff" ** 270 ++ "\"}";
+    h.db.on("FROM \"message_view\"", "[{\"msg_id\":\"\\\\x" ++ slow_id ++ body ++ ",{\"msg_id\":\"\\\\x" ++ fast_id ++ body ++ "]");
+    notifyExplorer(&h, slow_id);
+    h.t.fake.tick(100);
+    try h.waitFrames(slow, 2);
+    h.settle();
+    // TS: the write went async, so its callback (and the pendingBytes release)
+    // waits for the remainder; a later turn still sees the frame charged.
+    const frame_len: f64 = @floatFromInt(slow.frames.items[1].len);
+    try testing.expectEqual(frame_len, metricsOf(&h).outboundPendingBytes);
+    notifyExplorer(&h, fast_id);
+    h.t.fake.tick(100);
+    for (0..10_000) |_| {
+        if (fast.terminated) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    h.settle();
+    try testing.expect(fast.terminated);
+    try testing.expect(!slow.terminated);
+    try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
+    // Once the remainder is written the charge is released.
+    slow.releaseHeld(true);
+    h.settle();
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
+}
+
+const three_dispatch_rows =
+    \\[{"notification_id":"7","destination_domain":2,"id":"7","msg_body":"\\x00","msg_id":"\\xa7","nonce":4,"origin_block_hash":"\\x01","origin_block_height":"10","origin_domain":1,"origin_mailbox":"\\x0000000000000000000000000000000000000001","origin_tx_hash":"\\x02","recipient":"\\x03","sender":"\\x04","time_created":"2024-01-01T00:00:00"},
+    \\{"notification_id":"8","destination_domain":2,"id":"8","msg_body":"\\x00","msg_id":"\\xa8","nonce":5,"origin_block_hash":"\\x01","origin_block_height":"10","origin_domain":1,"origin_mailbox":"\\x0000000000000000000000000000000000000001","origin_tx_hash":"\\x02","recipient":"\\x03","sender":"\\x04","time_created":"2024-01-01T00:00:00"},
+    \\{"notification_id":"9","destination_domain":2,"id":"9","msg_body":"\\x00","msg_id":"\\xa9","nonce":6,"origin_block_hash":"\\x01","origin_block_height":"10","origin_domain":1,"origin_mailbox":"\\x0000000000000000000000000000000000000001","origin_tx_hash":"\\x02","recipient":"\\x03","sender":"\\x04","time_created":"2024-01-01T00:00:00"}]
+;
+
+fn subscribeLiveDispatch(h: *Harness) struct { *FakeSocket, *live.Peer } {
+    const s, const peer = h.agent();
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
+    h.waitFrames(s, 2) catch unreachable;
+    h.settle();
+    return .{ s, peer };
+}
+
+fn notifyThreeDispatches(h: *Harness) void {
+    h.db.on("\"confirmed_raw_message_dispatch\" AS \"event_row\" WHERE \"event_row\".\"id\" = ANY", three_dispatch_rows);
+    for ([_][]const u8{ "7", "8", "9" }) |id| {
+        var payload: [96]u8 = undefined;
+        h.listen.notify(live.EVENT_CHANNEL, std.fmt.bufPrint(&payload, "{{\"eventType\":\"dispatch\",\"id\":\"{s}\",\"domain\":1}}", .{id}) catch unreachable);
+    }
+    h.t.fake.tick(100);
+}
+
+test "frames published to a peer in one turn are written with one syscall, in order" {
+    var h: Harness = .{};
+    try h.init(defaultLimits());
+    defer h.deinit();
+    const first, _ = subscribeLiveDispatch(&h);
+    const second, _ = subscribeLiveDispatch(&h);
+    for ([_]*FakeSocket{ first, second }) |s| {
+        s.inline_mode = .written;
+        s.flushes = 0;
+    }
+    notifyThreeDispatches(&h);
+    try h.waitFrames(first, 5);
+    try h.waitFrames(second, 5);
+    h.settle();
+    for ([_]*FakeSocket{ first, second }) |s| {
+        try testing.expectEqual(@as(usize, 1), s.flushes);
+        for (s.frames.items[2..5], [_][]const u8{ "\"sequence\":\"4\"", "\"sequence\":\"5\"", "\"sequence\":\"6\"" }) |frame, needle|
+            try testing.expect(std.mem.indexOf(u8, frame, needle) != null);
+    }
+    // Fully written frames are released at the end of the turn.
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
+}
+
+test "corked frames are decided against the real bufferedAmount once their bound exceeds the limit" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    // ~390-byte frames: two corked fit the bound, a third would not if they
+    // were all still buffered.
+    limits.max_buffered_bytes = 1_000;
+    try h.init(limits);
+    defer h.deinit();
+    const s, _ = subscribeLiveDispatch(&h);
+    s.inline_mode = .written;
+    s.flushes = 0;
+    notifyThreeDispatches(&h);
+    try h.waitFrames(s, 5);
+    h.settle();
+    // ws: each frame reached the kernel, bufferedAmount stayed 0, nothing
+    // tripped: the third frame flushed the first two and was checked exactly.
+    try testing.expect(!s.terminated);
+    try testing.expectEqual(@as(usize, 1), s.flushes);
+    try testing.expectEqual(@as(usize, 5), s.count());
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
+}
+
+test "a corked frame the socket cannot take whole stays charged until written" {
+    var h: Harness = .{};
+    try h.init(defaultLimits());
+    defer h.deinit();
+    const s, _ = subscribeLiveDispatch(&h);
+    s.inline_mode = .partial;
+    s.hold = true;
+    notifyThreeDispatches(&h);
+    try h.waitFrames(s, 5);
+    h.settle();
+    var expected: f64 = 0;
+    for (s.frames.items[2..5]) |frame| expected += @floatFromInt(frame.len);
+    try testing.expectEqual(expected, metricsOf(&h).outboundPendingBytes);
+    s.releaseHeld(true);
+    h.settle();
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
+    try testing.expect(!s.terminated);
 }

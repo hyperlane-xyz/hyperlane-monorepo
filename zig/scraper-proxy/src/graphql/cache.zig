@@ -31,7 +31,28 @@ pub fn clampCacheTtl(ttl: f64) f64 {
 
 /// `max-age=${clampCacheTtl(ttl)}, public`.
 pub fn cacheControlHeader(a: Allocator, ttl: f64) ![]const u8 {
-    return std.fmt.allocPrint(a, "max-age={s}, public", .{try js.numberString(a, clampCacheTtl(ttl))});
+    const clamped = clampCacheTtl(ttl);
+    // Whole seconds (every hit, and integer @cached ttls) come from a table.
+    if (@floor(clamped) == clamped) return cache_control_values[@intFromFloat(clamped)];
+    return std.fmt.allocPrint(a, "max-age={s}, public", .{try js.numberString(a, clamped)});
+}
+
+const cache_control_values: [max_cache_ttl_seconds + 1][]const u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var table: [max_cache_ttl_seconds + 1][]const u8 = undefined;
+    for (&table, 0..) |*v, i| v.* = std.fmt.comptimePrint("max-age={d}, public", .{i});
+    break :blk table;
+};
+
+/// `query.includes('cached')`: SIMD scan for 'c', then compare.
+fn containsCached(query: []const u8) bool {
+    const needle = "cached";
+    var i: usize = 0;
+    while (std.mem.indexOfScalarPos(u8, query, i, 'c')) |at| {
+        if (std.mem.startsWith(u8, query[at..], needle)) return true;
+        i = at + 1;
+    }
+    return false;
 }
 
 pub const CacheDirective = struct { refresh: bool, ttl: f64 };
@@ -248,7 +269,7 @@ pub const ResponseCache = struct {
     pub fn prepare(self: *ResponseCache, a: Allocator, schema: *const Schema, body: Value) !?PreparedCacheRequest {
         if (body != .object) return null;
         const query = body.get("query") orelse return null;
-        if (query != .string or std.mem.indexOf(u8, query.string, "cached") == null) return null;
+        if (query != .string or !containsCached(query.string)) return null;
         const op_name_value = body.get("operationName") orelse Value.null;
         if (op_name_value != .null and op_name_value != .string) return null;
         var variables: Value = body.get("variables") orelse Value.null;
@@ -618,6 +639,10 @@ test "cache directive and header" {
     const a = arena_state.allocator();
     try std.testing.expectEqualStrings("max-age=300, public", try cacheControlHeader(a, 1000));
     try std.testing.expectEqualStrings("max-age=0, public", try cacheControlHeader(a, -5));
+    try std.testing.expectEqualStrings("max-age=2.5, public", try cacheControlHeader(a, 2.5));
+    try std.testing.expectEqualStrings("max-age=17, public", try cacheControlHeader(a, 17));
+    try std.testing.expect(containsCached("query @cached { a }") and containsCached("cached") and containsCached("ccached"));
+    try std.testing.expect(!containsCached("query @cache { a }") and !containsCached("") and !containsCached("cachec"));
     var diag: parser.Diagnostic = .{};
     const doc = try parser.parse(a, "query @cached(ttl: 3000, refresh: true) { a }", .{}, &diag);
     const d = (try cacheDirective(a, doc.definitions[0].operation, null)).?;

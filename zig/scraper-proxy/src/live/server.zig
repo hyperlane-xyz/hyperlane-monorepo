@@ -51,6 +51,9 @@ const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
 const MAX_HEAD_PUBLICATION_FAILURES = 3;
+/// Cork bounds per peer and turn (memory only; limits are decided exactly).
+const MAX_CORKED_FRAMES = 256;
+const MAX_CORKED_BYTES = 256 * 1024;
 
 const AGENT_READY_FRAME =
     \\{"confirmations":{"unit":"blocks","liveOnly":true},"eventTypes":["dispatch","delivery","gas_payment","merkle_tree_insertion","blocks"],"historicalStreaming":true,"streamCursorVersions":{"gas_payment":3},"type":"ready"}
@@ -106,14 +109,28 @@ pub const Socket = struct {
         release: *const fn (ptr: *anyopaque) void,
         /// Optional fast path: write on the caller's thread when nothing is
         /// queued (Node writes synchronously when the socket is writable).
-        try_send_inline: ?*const fn (ptr: *anyopaque, bytes: []const u8) InlineResult = null,
+        /// `job` completes only for `.partial` (once the queued remainder is
+        /// written, possibly before this returns), like a queued send; the
+        /// socket keeps the whole frame in `bufferedAmount` until then.
+        try_send_inline: ?*const fn (ptr: *anyopaque, bytes: []const u8, job: *SendJob) InlineResult = null,
+        /// Optional: write several frames with one syscall when nothing is
+        /// queued. `.written = n`: frames before `n` reached the kernel (their
+        /// jobs never complete); frames from `n` on were queued in order and
+        /// complete their jobs once written. `.busy`: nothing written, no job
+        /// touched. `.failed`: the socket failed (destroyed), no job touched.
+        try_send_inline_many: ?*const fn (ptr: *anyopaque, payloads: []const []const u8, jobs: []const *SendJob) ManyResult = null,
     };
+
+    pub const ManyResult = union(enum) { written: usize, busy, failed };
 
     pub const Snapshot = struct { open: bool, buffered: usize };
 
     pub const InlineResult = enum {
-        /// Handed to the kernel (a partial tail may still be queued in order).
+        /// The whole frame reached the kernel; `job` will not complete.
         written,
+        /// Part reached the kernel, the rest is queued; `job` completes then
+        /// (Node: the write went async and its callback waits for it).
+        partial,
         /// Queue busy or kernel buffer full: nothing written, use `send`.
         busy,
         /// The socket failed (it is now destroyed).
@@ -303,9 +320,26 @@ pub const Peer = struct {
     closed: bool = false,
     /// Domain reported by the last `ConfirmationUnavailable` failure.
     unavailable_domain: u32 = 0,
+    /// Non-awaited frames sent this turn, written with one syscall when the
+    /// turn ends or before any other operation on the socket (`flushCork`).
+    cork: Cork = .{},
 
     pub fn retain(self: *Peer) void {
         _ = self.refs.fetchAdd(1, .monotonic);
+    }
+
+    /// Socket operations flush the cork first: corked frames were sent before.
+    fn wsClose(self: *Peer, code: u16, reason: []const u8) void {
+        self.server.flushCork(self);
+        self.socket.close(code, reason);
+    }
+    fn wsTerminate(self: *Peer) void {
+        self.server.flushCork(self);
+        self.socket.terminate();
+    }
+    fn wsPing(self: *Peer) void {
+        self.server.flushCork(self);
+        self.socket.ping();
     }
 
     /// Loop mutex held.
@@ -331,14 +365,51 @@ pub const Peer = struct {
         if (self.explorer.message_ids) |ids| freeStrings(server.allocator, ids);
         if (self.explorer.ip.len > 0) server.allocator.free(self.explorer.ip);
         self.explorer.queue.deinit(server.allocator);
+        self.cork.deinit(server.allocator);
         self.socket.vtable.release(self.socket.ptr);
         server.allocator.destroy(self);
     }
 };
 
+const Cork = struct {
+    bytes: std.ArrayList(u8) = .empty,
+    frames: std.ArrayList(struct { start: usize, len: usize, job: *SendJob }) = .empty,
+    /// Upper bound of what the corked frames add to `bufferedAmount`.
+    framed: usize = 0,
+    /// Flush outcome per corked frame (true: fully written), consumed in
+    /// order by the frames' `Deferred` entries.
+    written: std.ArrayList(bool) = .empty,
+    written_head: usize = 0,
+
+    fn deinit(self: *Cork, allocator: Allocator) void {
+        std.debug.assert(self.frames.items.len == 0);
+        self.bytes.deinit(allocator);
+        self.frames.deinit(allocator);
+        self.written.deinit(allocator);
+    }
+
+    fn takeWritten(self: *Cork) bool {
+        const value = self.written.items[self.written_head];
+        self.written_head += 1;
+        if (self.written_head == self.written.items.len) {
+            self.written.clearRetainingCapacity();
+            self.written_head = 0;
+        }
+        return value;
+    }
+};
+
+/// WebSocket frame header size for a text payload of `len` bytes.
+fn frameHeaderLen(len: usize) usize {
+    return if (len < 126) 2 else if (len <= 0xffff) 4 else 10;
+}
+
 const HeadRange = struct { after: i128, through: i128, seq: u64 };
 
-const Deferred = struct { peer: *Peer, len: usize, drain: bool };
+/// A write callback Node would run after the current synchronous code.
+/// `corked`: a frame held in its peer's cork; it is released only if the
+/// flush wrote it fully (otherwise its job does, once the socket writes it).
+const Deferred = struct { peer: *Peer, len: usize, drain: bool, corked: bool = false };
 
 const CatchUpWaiter = struct {
     peer: *Peer,
@@ -388,6 +459,9 @@ pub const Server = struct {
     listener_attempt: u64 = 0,
     /// Write callbacks of frames written inline, run at the end of the turn.
     deferred: std.ArrayList(Deferred) = .empty,
+    /// Scratch for `flushCork`.
+    flush_payloads: std.ArrayList([]const u8) = .empty,
+    flush_jobs: std.ArrayList(*SendJob) = .empty,
     /// Listener callback contexts, freed in `destroy` (callbacks may race shutdown).
     listener_contexts: std.ArrayList(*ListenerContext) = .empty,
 
@@ -435,6 +509,8 @@ pub const Server = struct {
         self.head_ranges.deinit(a);
         self.head_failures.deinit(a);
         self.deferred.deinit(a);
+        self.flush_payloads.deinit(a);
+        self.flush_jobs.deinit(a);
         for (self.listener_contexts.items) |context| a.destroy(context);
         self.listener_contexts.deinit(a);
         a.destroy(self);
@@ -447,6 +523,13 @@ pub const Server = struct {
         var index: usize = 0;
         while (index < self.deferred.items.len) : (index += 1) {
             const item = self.deferred.items[index];
+            if (item.corked) {
+                // The first callback of a corked peer writes its whole cork.
+                if (item.peer.cork.frames.items.len > 0) self.flushCork(item.peer);
+                if (item.peer.cork.takeWritten()) _ = self.pending_bytes.fetchSub(item.len, .monotonic);
+                item.peer.release();
+                continue;
+            }
             _ = self.pending_bytes.fetchSub(item.len, .monotonic);
             if (item.drain) self.drainExplorerClient(item.peer);
             item.peer.release();
@@ -824,7 +907,7 @@ pub const Server = struct {
     fn accept(self: *Server, peer: *Peer) bool {
         // An upgrade that raced stop() (TS removes the 'upgrade' listener synchronously).
         if (self.stopped) {
-            peer.socket.close(1001, "Server stopping");
+            peer.wsClose(1001, "Server stopping");
             return false;
         }
         const full = if (peer.route == .agent)
@@ -835,10 +918,10 @@ pub const Server = struct {
             const route = if (peer.route == .explorer) "messages" else "agent";
             metrics.websocket_connection_rejections.inc(.{ if (full) "connection_limit" else "listener_unavailable", route }, 1);
             if (!self.listener_ready) {
-                peer.socket.close(1013, "Database event listener unavailable");
+                peer.wsClose(1013, "Database event listener unavailable");
             } else if (peer.route == .agent) {
-                peer.socket.close(1013, "Maximum agent websocket clients reached");
-            } else peer.socket.close(1013, "Maximum explorer websocket clients reached");
+                peer.wsClose(1013, "Maximum agent websocket clients reached");
+            } else peer.wsClose(1013, "Maximum explorer websocket clients reached");
             return false;
         }
         return true;
@@ -900,7 +983,7 @@ pub const Server = struct {
         if (!self.consumeMessage(client)) {
             metrics.websocket_client_message_rejections.inc(.{}, 1);
             self.sendError(peer, "Client message rate limit exceeded");
-            peer.socket.close(1008, "Client message rate limit exceeded");
+            peer.wsClose(1008, "Client message rate limit exceeded");
             return;
         }
         var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -1053,7 +1136,7 @@ pub const Server = struct {
         }
         fn close(ctx: *anyopaque, reason: []const u8) void {
             const self: *SubscriptionBinding = @ptrCast(@alignCast(ctx));
-            self.peer.socket.close(1013, reason);
+            self.peer.wsClose(1013, reason);
         }
         fn free(ctx: *anyopaque) void {
             const self: *SubscriptionBinding = @ptrCast(@alignCast(ctx));
@@ -1705,7 +1788,7 @@ pub const Server = struct {
                 _ = self.sendSerialized(peer, payload, .none);
             } else if (!(subscription.buffer(row) catch oom())) {
                 self.disconnect(peer);
-                peer.socket.close(1013, "Event catch-up buffer exceeded");
+                peer.wsClose(1013, "Event catch-up buffer exceeded");
             }
         }
     }
@@ -2018,7 +2101,7 @@ pub const Server = struct {
             }
             if (!matches) continue;
             self.disconnect(peer);
-            peer.socket.close(1013, "Event stream read failed");
+            peer.wsClose(1013, "Event stream read failed");
         }
     }
 
@@ -2049,7 +2132,7 @@ pub const Server = struct {
         defer self.allocator.free(peers);
         for (peers) |peer| {
             self.disconnect(peer);
-            peer.socket.close(code, reason);
+            peer.wsClose(code, reason);
         }
         self.clients.clearRetainingCapacity();
     }
@@ -2060,7 +2143,7 @@ pub const Server = struct {
         defer self.allocator.free(peers);
         for (peers) |peer| {
             self.disconnect(peer);
-            peer.socket.close(code, reason);
+            peer.wsClose(code, reason);
         }
         self.explorer_clients.clearRetainingCapacity();
         for (self.explorer_clients_by_ip.keys()) |ip| self.allocator.free(ip);
@@ -2095,7 +2178,7 @@ pub const Server = struct {
                     continue;
                 }
                 alive.* = false;
-                peer.socket.ping();
+                peer.wsPing();
                 _ = self.send(peer, frame);
             }
         }
@@ -2129,6 +2212,14 @@ pub const Server = struct {
     /// follows for it).
     fn sendFrame(self: *Server, peer: *Peer, bytes: []const u8, kind: SendJob.Kind) SendOutcome {
         if (peer.terminated) return .failed;
+        if (kind == .none and peer.socket.vtable.try_send_inline_many != null) {
+            if (self.corkFrame(peer, bytes)) |outcome| return outcome;
+        }
+        // Anything else goes out after the frames corked before it.
+        if (peer.cork.frames.items.len > 0) {
+            self.flushCork(peer);
+            if (peer.terminated) return .failed;
+        }
         const state = peer.socket.snapshot();
         if (!state.open) return .failed;
         if (state.buffered + bytes.len > self.limits.max_buffered_bytes or
@@ -2138,28 +2229,42 @@ pub const Server = struct {
             self.failSocket(peer, "outbound buffer limit exceeded");
             return .failed;
         }
+        // Charged and referenced before the attempt: a partial write's
+        // completion may run on another thread before the call returns.
+        _ = self.pending_bytes.fetchAdd(bytes.len, .monotonic);
+        const job = self.allocator.create(SendJob) catch oom();
+        job.* = .{ .server = self, .peer = peer, .len = bytes.len, .kind = kind };
+        peer.retain();
         if (kind != .diagnostics) if (peer.socket.vtable.try_send_inline) |try_inline| {
-            switch (try_inline(peer.socket.ptr, bytes)) {
-                .written => switch (kind) {
-                    // An awaited send resumes after its callback, which has
-                    // released the bytes by then: complete now, uncharged.
-                    .waiter => |waiter| {
-                        waiter.finish(true);
-                        return .written;
-                    },
-                    // Node fires the write callback after the current synchronous
-                    // code even for a synchronous write: keep the bytes charged
-                    // (aggregate limit decisions across a fan-out loop) and run
-                    // the callback at the end of this turn.
-                    .none, .explorer_drain => {
-                        _ = self.pending_bytes.fetchAdd(bytes.len, .monotonic);
-                        peer.retain();
-                        self.deferred.append(self.allocator, .{ .peer = peer, .len = bytes.len, .drain = kind == .explorer_drain }) catch oom();
-                        return if (kind == .explorer_drain) .queued else .written;
-                    },
-                    .diagnostics => unreachable,
+            switch (try_inline(peer.socket.ptr, bytes, job)) {
+                .written => {
+                    self.allocator.destroy(job);
+                    switch (kind) {
+                        // An awaited send resumes after its callback, which has
+                        // released the bytes by then: complete now, uncharged.
+                        .waiter => |waiter| {
+                            _ = self.pending_bytes.fetchSub(bytes.len, .monotonic);
+                            peer.release();
+                            waiter.finish(true);
+                            return .written;
+                        },
+                        // Node fires the write callback after the current synchronous
+                        // code even for a synchronous write: keep the bytes charged
+                        // (aggregate limit decisions across a fan-out loop) and run
+                        // the callback at the end of this turn.
+                        .none, .explorer_drain => {
+                            self.deferred.append(self.allocator, .{ .peer = peer, .len = bytes.len, .drain = kind == .explorer_drain }) catch oom();
+                            return if (kind == .explorer_drain) .queued else .written;
+                        },
+                        .diagnostics => unreachable,
+                    }
                 },
+                // Charged until the remainder is written, then `job` completes.
+                .partial => return .queued,
                 .failed => {
+                    _ = self.pending_bytes.fetchSub(bytes.len, .monotonic);
+                    self.allocator.destroy(job);
+                    peer.release();
                     if (kind == .waiter) kind.waiter.finish(false);
                     self.failSend(peer, "WebSocket is not open");
                     return .failed;
@@ -2167,10 +2272,6 @@ pub const Server = struct {
                 .busy => {},
             }
         };
-        _ = self.pending_bytes.fetchAdd(bytes.len, .monotonic);
-        const job = self.allocator.create(SendJob) catch oom();
-        job.* = .{ .server = self, .peer = peer, .len = bytes.len, .kind = kind };
-        peer.retain();
         if (!peer.socket.send(bytes, job)) {
             _ = self.pending_bytes.fetchSub(bytes.len, .monotonic);
             self.allocator.destroy(job);
@@ -2179,6 +2280,87 @@ pub const Server = struct {
             return .failed;
         }
         return .queued;
+    }
+
+    /// Cork a non-awaited frame (null: use the normal path). Node writes it
+    /// now and runs its callback after the current synchronous code; here the
+    /// write happens once per peer at the end of the turn (or before any other
+    /// socket operation), with every limit decision made as Node makes it:
+    /// ws's `bufferedAmount` is at most what is queued plus what is corked, so
+    /// a frame that fits under that bound passes Node's check too; one that
+    /// does not is decided on the real value after a flush.
+    fn corkFrame(self: *Server, peer: *Peer, bytes: []const u8) ?SendOutcome {
+        const state = peer.socket.snapshot();
+        if (!state.open) return .failed;
+        // Something is queued (a partial write, a pong): nothing goes inline.
+        if (state.buffered > 0) return null;
+        const cork = &peer.cork;
+        if (cork.framed + bytes.len > self.limits.max_buffered_bytes) return null;
+        if (cork.frames.items.len >= MAX_CORKED_FRAMES or cork.bytes.items.len + bytes.len > MAX_CORKED_BYTES) return null;
+        if (self.pending_bytes.load(.monotonic) + bytes.len > self.limits.max_total_buffered_bytes) {
+            metrics.websocket_send_failures.inc(.{"buffer_limit"}, 1);
+            self.failSocket(peer, "outbound buffer limit exceeded");
+            return .failed;
+        }
+        _ = self.pending_bytes.fetchAdd(bytes.len, .monotonic);
+        const job = self.allocator.create(SendJob) catch oom();
+        job.* = .{ .server = self, .peer = peer, .len = bytes.len, .kind = .none };
+        peer.retain(); // the job's
+        const offset = cork.bytes.items.len;
+        cork.bytes.appendSlice(self.allocator, bytes) catch oom();
+        cork.frames.append(self.allocator, .{ .start = offset, .len = bytes.len, .job = job }) catch oom();
+        cork.framed += bytes.len + frameHeaderLen(bytes.len);
+        peer.retain(); // the deferred callback's
+        self.deferred.append(self.allocator, .{ .peer = peer, .len = bytes.len, .drain = false, .corked = true }) catch oom();
+        return .written;
+    }
+
+    /// Write the peer's corked frames with one syscall. Fully written frames
+    /// are released by their deferred callbacks; the rest stay charged until
+    /// the socket writes them (like Node's async writes).
+    fn flushCork(self: *Server, peer: *Peer) void {
+        const cork = &peer.cork;
+        const count = cork.frames.items.len;
+        if (count == 0) return;
+        self.flush_payloads.clearRetainingCapacity();
+        self.flush_jobs.clearRetainingCapacity();
+        for (cork.frames.items) |frame| {
+            self.flush_payloads.append(self.allocator, cork.bytes.items[frame.start..][0..frame.len]) catch oom();
+            self.flush_jobs.append(self.allocator, frame.job) catch oom();
+        }
+        const payloads = self.flush_payloads.items;
+        const jobs = self.flush_jobs.items;
+        var written: usize = 0;
+        var failed = false;
+        switch (peer.socket.vtable.try_send_inline_many.?(peer.socket.ptr, payloads, jobs)) {
+            .written => |n| {
+                written = n;
+                for (jobs[0..n]) |job| {
+                    self.allocator.destroy(job);
+                    peer.release();
+                }
+            },
+            .busy => for (payloads, jobs) |bytes, job| {
+                if (!failed and peer.socket.send(bytes, job)) continue;
+                failed = true;
+                _ = self.pending_bytes.fetchSub(job.len, .monotonic);
+                self.allocator.destroy(job);
+                peer.release();
+            },
+            .failed => {
+                failed = true;
+                for (jobs) |job| {
+                    _ = self.pending_bytes.fetchSub(job.len, .monotonic);
+                    self.allocator.destroy(job);
+                    peer.release();
+                }
+            },
+        }
+        for (0..count) |index| cork.written.append(self.allocator, index < written) catch oom();
+        cork.frames.clearRetainingCapacity();
+        cork.bytes.clearRetainingCapacity();
+        cork.framed = 0;
+        if (failed) self.failSend(peer, "WebSocket is not open");
     }
 
     fn failSocket(self: *Server, peer: *Peer, reason: []const u8) void {
@@ -2198,7 +2380,7 @@ pub const Server = struct {
         if (peer.terminated) return;
         peer.terminated = true;
         self.disconnect(peer);
-        peer.socket.terminate();
+        peer.wsTerminate();
     }
 
     fn disconnect(self: *Server, peer: *Peer) void {
@@ -2239,7 +2421,7 @@ pub const Server = struct {
     fn rejectNegotiation(self: *Server, peer: *Peer, message: []const u8) void {
         self.sendError(peer, message);
         self.disconnect(peer);
-        peer.socket.close(1008, "Invalid subscription");
+        peer.wsClose(1008, "Invalid subscription");
     }
 
     fn sendError(self: *Server, peer: *Peer, message: []const u8) void {

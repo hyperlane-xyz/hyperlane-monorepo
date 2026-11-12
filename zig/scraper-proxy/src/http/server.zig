@@ -4,7 +4,8 @@
 //! Evented (`loop.zig`): sockets are non-blocking and registered
 //! edge-triggered on one epoll/kqueue set; whichever poller thread receives
 //! an event drives that connection (read, parse, hooks, write) until it would
-//! block, then parks it. Deadlines live on the slot and a tick sweeps them:
+//! block, then parks it. Deadlines live on the slot and a one-shot timer
+//! fires at the earliest one (`Loop.setDeadline`):
 //! requestTimeout (10 s from the start of a request head, or from accept for
 //! a fresh socket -> 408), keepAliveTimeout (72 s idle -> silent close).
 const std = @import("std");
@@ -59,7 +60,7 @@ pub const Options = struct {
     routes: []const Route = &.{},
     upgrade: ?UpgradeHandler = null,
     /// Fastify `requestTimeout` (Node enforces it on a 30s check interval;
-    /// here within one tick).
+    /// here at the deadline).
     request_timeout_ms: u32 = 10_000,
     /// Fastify default `keepAliveTimeout`.
     keep_alive_timeout_ms: u32 = 72_000,
@@ -141,7 +142,6 @@ pub const Server = struct {
     arenas: ?*ArenaBox = null,
     arena_count: u32 = 0,
     accept_backoff_ms: i64 = 10,
-    accept_retry_pinned: bool = false,
     last_accept_log: i64 = 0,
 
     /// Binds and listens (like `app.listen`); errors surface immediately.
@@ -163,12 +163,11 @@ pub const Server = struct {
             .active = if (@hasDecl(core, "blocking")) options.pollers else options.max_threads,
             .max_threads = options.max_threads,
             .stack_size = options.thread_stack_bytes,
-            .tick_ms = std.math.clamp(@min(options.request_timeout_ms, options.keep_alive_timeout_ms) / 10, 5, 250),
         }, .{
             .ctx = self,
             .on_event = onEvent,
             .on_posted = onPosted,
-            .on_tick = onTick,
+            .on_expired = onExpired,
             .on_thread_exit = onThreadExit,
         });
         errdefer self.loop.deinit();
@@ -260,8 +259,6 @@ pub const Server = struct {
 
     fn closeListener(self: *Server) void {
         posix.close(self.listen_fd);
-        if (self.accept_retry_pinned) self.loop.unpinTick();
-        self.accept_retry_pinned = false;
         self.loop.freeSlot(self.listener_index);
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -314,18 +311,12 @@ pub const Server = struct {
         }
     }
 
-    fn onTick(ctx: *anyopaque) void {
+    /// A deadline passed: the R holder (or a poller we hand R to) re-evaluates.
+    fn onExpired(ctx: *anyopaque, index: u32, gen: u32) void {
         const self: *Server = @ptrCast(@alignCast(ctx));
-        const now = monoMs();
-        const count = self.loop.slotCount();
-        var i: u32 = 0;
-        while (i < count) : (i += 1) {
-            const slot = self.loop.slot(i);
-            const g = slot.gen();
-            if (slot.deadline.load(.acquire) > now) continue;
-            // Expiry runs on another poller: a re-run may reach a hook.
-            if (loop_mod.claim(slot, g, loop_mod.R, loop_mod.KICK) == .claimed) self.loop.post(i, g, loop_mod.R | loop_mod.KICK);
-        }
+        // Expiry runs on another poller: a re-run may reach a hook.
+        if (loop_mod.claim(self.loop.slot(index), gen, loop_mod.R, loop_mod.KICK) == .claimed)
+            self.loop.post(index, gen, loop_mod.R | loop_mod.KICK);
     }
 
     fn onThreadExit(_: *anyopaque) void {
@@ -339,7 +330,7 @@ pub const Server = struct {
         const slot = self.loop.slot(self.listener_index);
         while (true) {
             if (self.isClosing()) return self.closeListener();
-            slot.deadline.store(loop_mod.no_deadline, .release);
+            self.loop.setDeadline(self.listener_index, loop_mod.no_deadline);
             var accepted: [16]*Connection = undefined;
             var n: usize = 0;
             var more = false;
@@ -350,23 +341,19 @@ pub const Server = struct {
                     error.WouldBlock => break,
                     error.ConnectionAborted => continue,
                     else => {
-                        // Persistent failures (EMFILE/ENFILE): retry from the
-                        // tick after a backoff up to 1 s; log at most once per second.
+                        // Persistent failures (EMFILE/ENFILE): retry from a
+                        // deadline after a backoff up to 1 s; log at most once per second.
                         const now = std.time.milliTimestamp();
                         if (now - self.last_accept_log >= 1000) {
                             log.err("accept failed: {s}", .{@errorName(e)});
                             self.last_accept_log = now;
                         }
-                        slot.deadline.store(monoMs() + self.accept_backoff_ms, .release);
+                        self.loop.setDeadline(self.listener_index, monoMs() + self.accept_backoff_ms);
                         self.accept_backoff_ms = @min(self.accept_backoff_ms * 2, 1000);
-                        if (!self.accept_retry_pinned) self.loop.pinTick();
-                        self.accept_retry_pinned = true;
                         break;
                     },
                 };
                 self.accept_backoff_ms = 10;
-                if (self.accept_retry_pinned) self.loop.unpinTick();
-                self.accept_retry_pinned = false;
                 if (self.newConnection(fd, addr)) |conn| {
                     accepted[n] = conn;
                     n += 1;
@@ -591,7 +578,11 @@ const Connection = struct {
     fn handOff(self: *Connection) void {
         if (self.park() == .gone) return;
         const pending = loop_mod.release(self.slot(), loop_mod.R, loop_mod.r_pending);
-        if (pending != 0) self.run(loop_mod.Io.fromPending(pending), pending & loop_mod.KICK != 0);
+        if (pending == 0) return;
+        // Input arrived meanwhile: another poller serves it. Running it here
+        // could block in a handler while this thread still holds the listener.
+        self.noteIo(loop_mod.Io.fromPending(pending));
+        self.server.loop.post(self.index, self.gen, loop_mod.R | (pending & loop_mod.KICK));
     }
 
     fn bind(self: *Connection, s: *Scratch) void {
@@ -654,7 +645,7 @@ const Connection = struct {
             self.server.loop.enableWrite(self.fd, self.index, self.gen) catch return self.destroy();
             self.write_armed = true;
         }
-        self.slot().deadline.store(self.deadline(), .release);
+        self.server.loop.setDeadline(self.index, self.deadline());
         return .park;
     }
 
@@ -1209,6 +1200,7 @@ const Connection = struct {
         const index = self.index;
         const gen = self.gen;
         const write_armed = self.write_armed;
+        const io: loop_mod.Io = if (self.hup) .hup else if (self.readable) .io else .none;
         var register_failed = false;
         if (!self.registered) {
             server.loop.register(self.fd, index, gen) catch {
@@ -1224,7 +1216,7 @@ const Connection = struct {
         server.cond.broadcast();
         server.mutex.unlock();
         if (register_failed) conn.terminate();
-        conn.attach(server, index, gen, write_armed);
+        conn.attach(server, index, gen, write_armed, io);
         return .gone;
     }
 

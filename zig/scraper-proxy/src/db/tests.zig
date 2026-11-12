@@ -347,7 +347,7 @@ test "libpq: reusable statements match unnamed ones, evict, and survive result t
     const a = arena_state.allocator();
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .statement_timeout_ms = 15_000 }, .max = 1 });
     defer p.deinit();
-    const reuse: pq.QueryOptions = .{ .reuse_plan = true };
+    const reuse: pq.QueryOptions = .{ .plan = .reusable };
     var failure: root.Failure = .{};
     const sql = "SELECT $1::int8 + 1 AS n, $2::text AS t, $3::bytea AS b";
     const params = [_]Value{ .{ .number = 41 }, .{ .string = "x" }, .{ .string = "\\x01" } };
@@ -425,7 +425,7 @@ test "libpq: a prepared-statement name collision disables reuse and retries unna
     _ = try p.query(a, "PREPARE sp_1 AS SELECT 1", &.{}, &failure);
     const sql = "SELECT $1::int + 1 AS n";
     for (0..4) |_| {
-        const r = try p.queryWith(a, sql, &.{.{ .number = 1 }}, .{ .reuse_plan = true }, &failure);
+        const r = try p.queryWith(a, sql, &.{.{ .number = 1 }}, .{ .plan = .reusable }, &failure);
         try testing.expectEqual(@as(f64, 2), r.rows[0].get("n").?.number);
     }
     try testing.expect(!p.reuse_guard.active());
@@ -495,6 +495,60 @@ test "libpq: socket and pool waits are bracketed by core.blocking" {
     try testing.expect(Counter.begins > before);
     try testing.expectEqual(@as(isize, 0), Counter.depth);
     p.release(again);
+}
+
+test "libpq: sessions run with jit off unless the URL options say otherwise" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var conn = try pq.Conn.connect(.{ .conninfo = url, .statement_timeout_ms = 1234 }, a, null);
+    defer conn.deinit();
+    const r = try conn.query(a, "SELECT current_setting('jit') AS jit, current_setting('statement_timeout') AS st", &.{}, null);
+    try testing.expectEqualStrings("{\"jit\":\"off\",\"st\":\"1234ms\"}", try core.json.stringifyAlloc(a, r.rows[0]));
+    const sep: []const u8 = if (std.mem.indexOfScalar(u8, url, '?') != null) "&" else "?";
+    const with_jit = try std.fmt.allocPrint(a, "{s}{s}options=-c%20jit%3Don", .{ url, sep });
+    var on = try pq.Conn.connect(.{ .conninfo = with_jit }, a, null);
+    defer on.deinit();
+    const r2 = try on.query(a, "SELECT current_setting('jit') AS jit", &.{}, null);
+    try testing.expectEqualStrings("on", r2.rows[0].get("jit").?.string);
+}
+
+test "libpq: custom statements never go generic while reusable ones may, on one session" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    var failure: root.Failure = .{};
+    const custom_sql = "SELECT $1::int + 1 AS n";
+    const reusable_sql = "SELECT $1::int + 2 AS n";
+    // Interleaved, so every execution switches plan_cache_mode.
+    for (0..12) |i| {
+        const x: f64 = @floatFromInt(i);
+        const c = try p.queryWith(a, custom_sql, &.{.{ .number = x }}, .{ .plan = .custom }, &failure);
+        try testing.expectEqual(x + 1, c.rows[0].get("n").?.number);
+        const r = try p.queryWith(a, reusable_sql, &.{.{ .number = x }}, .{ .plan = .reusable }, &failure);
+        try testing.expectEqual(x + 2, r.rows[0].get("n").?.number);
+    }
+    const stats = try p.query(a, "SELECT statement, generic_plans::int AS g, custom_plans::int AS c FROM pg_prepared_statements ORDER BY statement", &.{}, &failure);
+    try testing.expectEqual(@as(usize, 2), stats.rows.len);
+    for (stats.rows) |row| {
+        const generic = row.get("g").?.number;
+        if (std.mem.eql(u8, row.get("statement").?.string, custom_sql)) {
+            try testing.expectEqual(@as(f64, 0), generic);
+            try testing.expectEqual(@as(f64, 11), row.get("c").?.number);
+        } else try testing.expect(generic > 0);
+    }
+    // The session ends up in whichever mode the last statement needed;
+    // a failed pipeline (SET rolled back) is re-synchronised next time.
+    try testing.expectError(error.QueryFailed, p.queryWith(a, custom_sql, &.{.{ .string = "x" }}, .{ .plan = .custom }, &failure));
+    try testing.expectEqualStrings("invalid input syntax for type integer: \"x\"", failure.message);
+    const after = try p.queryWith(a, reusable_sql, &.{.{ .number = 1 }}, .{ .plan = .reusable }, &failure);
+    try testing.expectEqual(@as(f64, 3), after.rows[0].get("n").?.number);
+    const mode = try p.query(a, "SELECT current_setting('plan_cache_mode') AS m", &.{}, &failure);
+    try testing.expectEqualStrings("auto", mode.rows[0].get("m").?.string);
 }
 
 test "libpq: pool waiters are served FIFO and capped at max" {

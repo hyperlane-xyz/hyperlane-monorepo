@@ -43,6 +43,9 @@ extern "pq" fn PQsendQuery(conn: *PGconn, command: [*:0]const u8) c_int;
 extern "pq" fn PQsendQueryParams(conn: *PGconn, command: [*:0]const u8, n: c_int, types: ?[*]const c_uint, values: ?[*]const ?[*:0]const u8, lengths: ?[*]const c_int, formats: ?[*]const c_int, result_format: c_int) c_int;
 extern "pq" fn PQsendPrepare(conn: *PGconn, name: [*:0]const u8, query: [*:0]const u8, n: c_int, types: ?[*]const c_uint) c_int;
 extern "pq" fn PQsendQueryPrepared(conn: *PGconn, name: [*:0]const u8, n: c_int, values: ?[*]const ?[*:0]const u8, lengths: ?[*]const c_int, formats: ?[*]const c_int, result_format: c_int) c_int;
+extern "pq" fn PQenterPipelineMode(conn: *PGconn) c_int;
+extern "pq" fn PQexitPipelineMode(conn: *PGconn) c_int;
+extern "pq" fn PQpipelineSync(conn: *PGconn) c_int;
 extern "pq" fn PQflush(conn: *PGconn) c_int;
 extern "pq" fn PQconsumeInput(conn: *PGconn) c_int;
 extern "pq" fn PQisBusy(conn: *PGconn) c_int;
@@ -70,6 +73,7 @@ const PGRES_EMPTY_QUERY = 0;
 const PGRES_COMMAND_OK = 1;
 const PGRES_TUPLES_OK = 2;
 const PGRES_FATAL_ERROR = 7;
+const PGRES_PIPELINE_SYNC = 10;
 const PG_DIAG_SQLSTATE: c_int = 'C';
 const PG_DIAG_MESSAGE_PRIMARY: c_int = 'M';
 
@@ -88,17 +92,31 @@ pub const ConnOptions = struct {
     options: ?[]const u8 = null,
 };
 
+/// How a parameterised statement is sent and planned.
+pub const Plan = enum {
+    /// node-pg's unnamed statement: parsed and planned on every execution.
+    unnamed,
+    /// Per-connection named statement, still planned for its actual values on
+    /// every execution (`plan_cache_mode=force_custom_plan`), so the plan is
+    /// node-pg's; saves parse/analyze/rewrite and resending the SQL text.
+    custom,
+    /// Named statement PostgreSQL may switch to a generic plan after its five
+    /// custom plans (`plan_cache_mode=auto`), skipping planning. Only for
+    /// shapes whose generic plan cannot be worse (unique-key lookups, fixed
+    /// SQL); generic plans for list shapes are up to 47x slower.
+    reusable,
+};
+
 pub const QueryOptions = struct {
-    /// Run as a per-connection named prepared statement so PostgreSQL can
-    /// switch to a generic plan after its usual five custom plans
-    /// (`plan_cache_mode=auto`), skipping planning on later executions.
-    /// Only for shapes whose generic plan is known to match the custom one
-    /// (unique-key lookups, fixed SQL); everything else stays an unnamed
-    /// statement, custom-planned on every execution like node-pg.
-    reuse_plan: bool = false,
-    /// Pool-wide switch that turns `reuse_plan` off (set by `Pool`).
+    plan: Plan = .unnamed,
+    /// Pool-wide switch that turns named statements off (set by `Pool`).
     guard: ?*ReuseGuard = null,
 };
+
+/// The session's `plan_cache_mode` as far as this connection knows: set to
+/// `force_custom_plan` at startup, switched (pipelined with the execute)
+/// only when a statement needs the other mode.
+const PlanMode = enum { custom, auto, unknown };
 
 /// Turns named statements off for a whole pool once the server behaves like
 /// a transaction pooler sits in front of it (statements vanish or collide
@@ -264,8 +282,9 @@ pub const Conn = struct {
     query_timeout_ms: ?u64,
     /// Set when the connection must not be reused (timeout, transport error).
     broken: bool = false,
-    /// Named statements (`QueryOptions.reuse_plan`), allocated on first use.
+    /// Named statements (`Plan.custom`/`.reusable`), allocated on first use.
     statements: ?*Statements = null,
+    plan_mode: PlanMode = .custom,
 
     /// Connects within `connect_timeout_ms`. Failure messages follow node-pg:
     /// timeout -> "Connection terminated due to connection timeout", other
@@ -276,7 +295,14 @@ pub const Conn = struct {
         const a = scratch.allocator();
         const conninfo = try a.dupeZ(u8, opts.conninfo);
         var options: std.ArrayList(u8) = .empty;
+        // JIT compilation costs more than it saves for every proxy query: the
+        // confirmation snapshot/projection cross jit_above_cost and spend
+        // 12/52-62 ms compiling for 0.2/15 ms of execution; nothing runs
+        // slower without it (bench DB, every workload's SQL). First, so an
+        // `options` in the URL can still override it.
+        try options.appendSlice(a, "-c jit=off");
         if (existingOption(conninfo, "options")) |existing| {
+            try options.append(a, ' ');
             try options.appendSlice(a, existing);
         }
         if (opts.statement_timeout_ms) |ms| {
@@ -287,6 +313,8 @@ pub const Conn = struct {
             if (options.items.len > 0) try options.append(a, ' ');
             try options.appendSlice(a, extra);
         }
+        // Last, so it wins: named statements rely on it (`PlanMode`).
+        try options.appendSlice(a, " -c plan_cache_mode=force_custom_plan");
         const options_z = try a.dupeZ(u8, options.items);
         // node-pg never negotiates TLS unless asked (sslmode in the URL or
         // PGSSLMODE) and never uses GSSAPI encryption; libpq's "prefer"
@@ -395,9 +423,9 @@ pub const Conn = struct {
 
     pub fn queryWith(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: QueryOptions, failure: ?*Failure) Error!root.Result {
         const deadline: ?i64 = if (self.query_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
-        const reuse = opts.reuse_plan and params.len > 0 and (if (opts.guard) |g| g.active() else true);
-        const result = if (reuse)
-            self.runNamed(arena, sql, params, opts.guard, deadline, failure)
+        const named = opts.plan != .unnamed and params.len > 0 and (if (opts.guard) |g| g.active() else true);
+        const result = if (named)
+            self.runNamed(arena, sql, params, opts.plan, opts.guard, deadline, failure)
         else
             self.runUnnamed(arena, sql, params, deadline, failure);
         return result catch |e| {
@@ -419,27 +447,34 @@ pub const Conn = struct {
         return self.collect(arena, deadline, failure);
     }
 
-    /// Executes `sql` as this connection's named statement, preparing it
-    /// first (one extra round trip) when it is not cached yet. Parse and
-    /// bind errors carry the same server messages as the unnamed path.
-    fn runNamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, guard: ?*ReuseGuard, deadline: ?i64, failure: ?*Failure) Error!root.Result {
+    /// Executes `sql` as this connection's named statement. A new statement
+    /// is prepared in the same pipeline as its first execution (no extra
+    /// round trip), and so is a `plan_cache_mode` switch. Parse and bind
+    /// errors carry the same server messages as the unnamed path.
+    fn runNamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, plan: Plan, guard: ?*ReuseGuard, deadline: ?i64, failure: ?*Failure) Error!root.Result {
         const statements = self.statements orelse blk: {
             const s = try std.heap.c_allocator.create(Statements);
             s.* = .{};
             self.statements = s;
             break :blk s;
         };
+        const need: PlanMode = if (plan == .reusable) .auto else .custom;
+        const values = try textParams(arena, params);
         var evict: ?*Statements.Entry = null;
         switch (statements.decide(sql)) {
             .unnamed => return self.runUnnamed(arena, sql, params, deadline, failure),
             .prepare => |old| evict = old,
             .hit => |entry| {
                 var local: Failure = .{};
-                if (self.executeNamed(arena, entry, try textParams(arena, params), deadline, &local)) |result| {
+                var failed: Step = .execute;
+                if (self.pipeline(arena, entry, null, values, need, deadline, &local, &failed)) |result| {
                     return result;
                 } else |e| {
                     const code = serverCode(e, local);
-                    if (std.mem.eql(u8, code, RESULT_TYPE_CHANGED)) {
+                    if (e == error.QueryFailed and failed == .set) {
+                        // Housekeeping must not fail the caller's query.
+                        return self.runUnnamed(arena, sql, params, deadline, failure);
+                    } else if (std.mem.eql(u8, code, RESULT_TYPE_CHANGED)) {
                         // The relation's columns changed under the cached
                         // statement: drop it and prepare again, as an
                         // unnamed statement would.
@@ -456,27 +491,24 @@ pub const Conn = struct {
             self.deallocate(arena, old, deadline, &local) catch |e| {
                 statements.remove(old);
                 if (e != error.QueryFailed) return pass(failure, local, e);
-                // Housekeeping must not fail the caller's query.
                 return self.retryUnnamed(arena, sql, params, guard, serverCode(e, local), deadline, failure);
             };
             statements.remove(old);
         }
         const entry = try statements.add(sql);
         var local: Failure = .{};
-        self.prepare(arena, entry, sql, params.len, deadline, &local) catch |e| {
-            statements.remove(entry);
+        var failed: Step = .execute;
+        return self.pipeline(arena, entry, sql, values, need, deadline, &local, &failed) catch |e| {
+            if (e != error.QueryFailed) return pass(failure, local, e);
             const code = serverCode(e, local);
-            if (isPoolerCode(code)) return self.retryUnnamed(arena, sql, params, guard, code, deadline, failure);
-            // Parse errors carry the same server message as the unnamed path.
-            return pass(failure, local, e);
-        };
-        local = .{};
-        return self.executeNamed(arena, entry, try textParams(arena, params), deadline, &local) catch |e| {
-            const code = serverCode(e, local);
+            // Before `execute` ran, the statement was not created.
+            if (failed != .execute) statements.remove(entry);
+            if (failed == .set) return self.runUnnamed(arena, sql, params, deadline, failure);
             if (isPoolerCode(code)) {
-                statements.remove(entry);
+                if (failed == .execute) statements.remove(entry);
                 return self.retryUnnamed(arena, sql, params, guard, code, deadline, failure);
             }
+            // Parse errors carry the same server message as the unnamed path.
             return pass(failure, local, e);
         };
     }
@@ -489,15 +521,93 @@ pub const Conn = struct {
         return self.runUnnamed(arena, sql, params, deadline, failure);
     }
 
-    fn prepare(self: *Conn, arena: std.mem.Allocator, entry: *const Statements.Entry, sql: []const u8, n_params: usize, deadline: ?i64, failure: ?*Failure) Error!void {
-        const sql_z = try arena.dupeZ(u8, sql);
-        try self.flushSent(PQsendPrepare(self.pg, entry.nameZ(), sql_z, @intCast(n_params), null), arena, deadline, failure);
-        _ = try self.collect(arena, deadline, failure);
+    const Step = enum { set, prepare, execute };
+
+    /// Executes `entry`, preceded in one round trip (libpq pipeline mode) by
+    /// a `plan_cache_mode` switch if this session needs one and by its Parse
+    /// when `prepare_sql` is set. `failed` names the step of a server error.
+    fn pipeline(self: *Conn, arena: std.mem.Allocator, entry: *const Statements.Entry, prepare_sql: ?[]const u8, values: []const ?[*:0]const u8, need: PlanMode, deadline: ?i64, failure: ?*Failure, failed: *Step) Error!root.Result {
+        const switch_mode = self.plan_mode != need;
+        failed.* = .execute;
+        if (!switch_mode and prepare_sql == null) {
+            try self.flushSent(PQsendQueryPrepared(self.pg, entry.nameZ(), @intCast(values.len), values.ptr, null, null, 0), arena, deadline, failure);
+            return self.collect(arena, deadline, failure);
+        }
+        if (PQenterPipelineMode(self.pg) != 1) return self.transportFailure(arena, failure);
+        var steps: [3]Step = undefined;
+        var n: usize = 0;
+        var sent = true;
+        if (switch_mode) {
+            const set: [*:0]const u8 = if (need == .auto) "SET plan_cache_mode = auto" else "SET plan_cache_mode = force_custom_plan";
+            sent = sent and PQsendQueryParams(self.pg, set, 0, null, null, null, null, 0) == 1;
+            steps[n] = .set;
+            n += 1;
+        }
+        if (prepare_sql) |sql| {
+            const sql_z = try arena.dupeZ(u8, sql);
+            sent = sent and PQsendPrepare(self.pg, entry.nameZ(), sql_z, @intCast(values.len), null) == 1;
+            steps[n] = .prepare;
+            n += 1;
+        }
+        sent = sent and PQsendQueryPrepared(self.pg, entry.nameZ(), @intCast(values.len), values.ptr, null, null, 0) == 1;
+        steps[n] = .execute;
+        n += 1;
+        sent = sent and PQpipelineSync(self.pg) == 1;
+        try self.flushSent(@intFromBool(sent), arena, deadline, failure);
+        const result = self.collectPipeline(arena, steps[0..n], deadline, failure, failed);
+        if (result) |_| {} else |e| if (e != error.QueryFailed) return e;
+        if (PQexitPipelineMode(self.pg) != 1) return self.transportFailure(arena, failure);
+        // A failed pipeline rolls back its implicit transaction, SET included.
+        if (switch_mode) self.plan_mode = if (result) |_| need else |_| .unknown;
+        return result;
     }
 
-    fn executeNamed(self: *Conn, arena: std.mem.Allocator, entry: *const Statements.Entry, values: []const ?[*:0]const u8, deadline: ?i64, failure: ?*Failure) Error!root.Result {
-        try self.flushSent(PQsendQueryPrepared(self.pg, entry.nameZ(), @intCast(values.len), values.ptr, null, null, 0), arena, deadline, failure);
-        return self.collect(arena, deadline, failure);
+    /// `collect` for a pipeline: results of each step (each ended by a null
+    /// result) up to the sync point. Rows come from the `execute` step.
+    fn collectPipeline(self: *Conn, arena: std.mem.Allocator, steps: []const Step, deadline: ?i64, failure: ?*Failure, failed: *Step) Error!root.Result {
+        var result: root.Result = .{ .rows = &.{}, .row_count = 0 };
+        var server_error = false;
+        var index: usize = 0;
+        while (true) {
+            while (PQisBusy(self.pg) != 0) {
+                if (!waitSocket(self.socket(), std.posix.POLL.IN, deadline)) {
+                    self.broken = true;
+                    setFailure(failure, arena, "Query read timeout", null);
+                    return error.QueryTimeout;
+                }
+                if (PQconsumeInput(self.pg) == 0) return self.transportFailure(arena, failure);
+            }
+            const res = PQgetResult(self.pg) orelse {
+                index += 1;
+                // More step ends than steps, or a dead connection: give up.
+                if (index > steps.len or PQstatus(self.pg) != CONNECTION_OK) return self.transportFailure(arena, failure);
+                continue;
+            };
+            defer PQclear(res);
+            const step: Step = if (index < steps.len) steps[index] else .execute;
+            switch (PQresultStatus(res)) {
+                PGRES_PIPELINE_SYNC => break,
+                PGRES_TUPLES_OK, PGRES_COMMAND_OK, PGRES_EMPTY_QUERY => if (!server_error and step == .execute) {
+                    result = .{ .rows = try convertRows(arena, res), .row_count = rowCount(res) };
+                },
+                PGRES_FATAL_ERROR => if (!server_error) {
+                    server_error = true;
+                    failed.* = step;
+                    const message = if (PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY)) |m| std.mem.span(m) else trimMessage(std.mem.span(PQerrorMessage(self.pg)));
+                    const code = if (PQresultErrorField(res, PG_DIAG_SQLSTATE)) |c| std.mem.span(c) else null;
+                    setFailure(failure, arena, message, code);
+                },
+                // PGRES_PIPELINE_ABORTED: steps after the failed one.
+                else => {},
+            }
+        }
+        if (PQstatus(self.pg) != CONNECTION_OK) {
+            self.broken = true;
+            if (!server_error) setFailure(failure, arena, "Connection terminated unexpectedly", null);
+            return error.ConnectionFailed;
+        }
+        if (server_error) return error.QueryFailed;
+        return result;
     }
 
     fn deallocate(self: *Conn, arena: std.mem.Allocator, entry: *const Statements.Entry, deadline: ?i64, failure: ?*Failure) Error!void {
@@ -698,6 +808,7 @@ fn optionBuf() []u8 {
 
 /// poll() until `fd` is ready for `events` or the deadline passes.
 pub fn waitSocket(fd: std.posix.fd_t, events: i16, deadline: ?i64) bool {
+    var first = true;
     while (true) {
         var timeout: i32 = -1;
         if (deadline) |d| {
@@ -706,6 +817,13 @@ pub fn waitSocket(fd: std.posix.fd_t, events: i16, deadline: ?i64) bool {
             timeout = @intCast(@min(remaining, std.math.maxInt(i32)));
         }
         var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = events, .revents = 0 }};
+        if (first) {
+            first = false;
+            // Already readable/writable (e.g. the rest of a multi-packet
+            // result): no sleep, so no poller hand-off.
+            const ready = std.posix.poll(&fds, 0) catch return false;
+            if (ready > 0) return true;
+        }
         // Let an HTTP poller thread hand off its work while this one sleeps.
         core.blocking.begin();
         defer core.blocking.end();
@@ -718,4 +836,27 @@ test "trimMessage strips libpq severity prefixes" {
     try std.testing.expectEqualStrings("password authentication failed for user \"x\"", trimMessage("FATAL:  password authentication failed for user \"x\"\n"));
     try std.testing.expectEqualStrings("could not connect", trimMessage("could not connect\nsecond line\n"));
     try std.testing.expectEqualStrings("database \"x\" does not exist", trimMessage("connection to server at \"127.0.0.1\", port 5 failed: FATAL:  database \"x\" does not exist\n"));
+}
+
+test "waitSocket skips the blocking hook when the socket is already ready" {
+    const Counter = struct {
+        var begins: usize = 0;
+        fn begin(_: *anyopaque) void {
+            begins += 1;
+        }
+        fn end(_: *anyopaque) void {}
+    };
+    var dummy: u8 = 0;
+    core.blocking.hook = .{ .ctx = &dummy, .begin = Counter.begin, .end = Counter.end };
+    defer core.blocking.hook = null;
+    const fds = try std.posix.pipe();
+    defer std.posix.close(fds[0]);
+    defer std.posix.close(fds[1]);
+    // Nothing to read: sleeps (hook) until the deadline.
+    try std.testing.expect(!waitSocket(fds[0], std.posix.POLL.IN, nowMs() + 20));
+    try std.testing.expectEqual(@as(usize, 1), Counter.begins);
+    // Data already there: returns without the hook.
+    _ = try std.posix.write(fds[1], "x");
+    try std.testing.expect(waitSocket(fds[0], std.posix.POLL.IN, null));
+    try std.testing.expectEqual(@as(usize, 1), Counter.begins);
 }

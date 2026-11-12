@@ -53,6 +53,13 @@ pub const Loop = struct {
     clock: Clock = .{},
     /// Runs with the mutex held just before every release (see `endTurn`).
     turn_end: ?struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque) void } = null,
+    /// Tasks start (first take the mutex) in spawn order, as Node runs
+    /// timer callbacks and continuations in order: a later task never starts
+    /// before an earlier one (e.g. a batch drain's DB read queues behind the
+    /// reads of tasks spawned after it). Tickets are taken in pool order.
+    next_ticket: u64 = 1,
+    next_start: u64 = 1,
+    start_waiters: std.AutoHashMapUnmanaged(u64, *std.Thread.Condition) = .empty,
 
     pub fn lock(self: *Loop) void {
         self.mutex.lock();
@@ -91,8 +98,10 @@ pub const Loop = struct {
                 const closure: *@This() = @alignCast(@fieldParentPtr("job", job));
                 const loop = closure.loop;
                 const call_args = closure.args;
+                const ticket = job.ticket;
                 loop.allocator.destroy(closure);
                 loop.lock();
+                loop.awaitStart(ticket);
                 defer loop.unlock();
                 @call(.auto, func, call_args);
             }
@@ -102,7 +111,25 @@ pub const Loop = struct {
             @panic("live: out of memory spawning task");
         };
         closure.* = .{ .job = .{ .run = Closure.run }, .loop = self, .args = args };
-        self.pool.submit(&closure.job);
+        self.pool.submitOrdered(&closure.job, &self.next_ticket);
+    }
+
+    /// Mutex held (just acquired, so no turn work is pending): wait until
+    /// every task spawned before this one has started.
+    fn awaitStart(self: *Loop, ticket: u64) void {
+        if (self.next_start != ticket) {
+            var turn: std.Thread.Condition = .{};
+            self.start_waiters.put(self.allocator, ticket, &turn) catch @panic("live: out of memory ordering task");
+            while (self.next_start != ticket) turn.wait(&self.mutex);
+            _ = self.start_waiters.remove(ticket);
+        }
+        self.next_start += 1;
+        if (self.start_waiters.get(self.next_start)) |next| next.signal();
+    }
+
+    pub fn deinit(self: *Loop) void {
+        std.debug.assert(self.start_waiters.count() == 0);
+        self.start_waiters.deinit(self.allocator);
     }
 };
 
@@ -129,6 +156,8 @@ pub const Pool = struct {
 
     pub const Job = struct {
         run: *const fn (*Job) void,
+        /// Set by `submitOrdered` (start order of loop tasks).
+        ticket: u64 = 0,
     };
 
     pub fn init(allocator: std.mem.Allocator) Pool {
@@ -165,6 +194,21 @@ pub const Pool = struct {
     pub fn submit(self: *Pool, job: *Job) void {
         self.mutex.lock();
         defer self.mutex.unlock();
+        self.enqueue(job);
+    }
+
+    /// `submit`, numbering the job from `counter` under the pool mutex, so
+    /// ticket order is queue order (a worker never waits on a ticket that is
+    /// still queued behind it).
+    pub fn submitOrdered(self: *Pool, job: *Job, counter: *u64) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        job.ticket = counter.*;
+        counter.* += 1;
+        self.enqueue(job);
+    }
+
+    fn enqueue(self: *Pool, job: *Job) void {
         self.queue.append(self.allocator, job) catch @panic("live: out of memory queueing task");
         if (self.queue.items.len - self.head <= self.idle) {
             self.condition.signal();
@@ -391,7 +435,8 @@ pub const FakeScheduler = struct {
 /// Test helper: poll `check(ctx)` under the loop mutex until true (≈ the TS
 /// `until()` helper that yields to the event loop between checks).
 pub fn until(loop: *Loop, ctx: anytype, comptime check: fn (@TypeOf(ctx)) bool) !void {
-    for (0..2000) |_| {
+    // Generous: returns as soon as `check` holds; only a hang should time out.
+    for (0..20_000) |_| {
         loop.lock();
         const done = check(ctx);
         loop.unlock();

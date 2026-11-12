@@ -560,14 +560,17 @@ test "body_pending before on_request; on_write_blocked once when a response park
     try testing.expect(!h.echo.snapshot().body_pending);
     _ = try c.request(a, "POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nok\r\n0\r\n\r\n");
     try testing.expect(!h.echo.snapshot().body_pending);
+    const seen = h.echo.snapshot().on_request;
     try c.send("POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: text/plain\r\nContent-Length: 4\r\n\r\nok");
-    std.Thread.sleep(50 * std.time.ns_per_ms);
+    var waited: u32 = 0;
+    while (h.echo.snapshot().on_request == seen and waited < 400) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
     try testing.expect(h.echo.snapshot().body_pending);
     try c.send("ok");
     _ = try c.read(a, false);
     // 16 MiB the client does not read yet: the write parks once.
     try c.send("GET /graphql?big HTTP/1.1\r\nHost: a\r\n\r\n");
-    std.Thread.sleep(200 * std.time.ns_per_ms);
+    waited = 0;
+    while (h.echo.snapshot().write_blocked == 0 and waited < 400) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
     try testing.expectEqual(@as(u32, 1), h.echo.snapshot().write_blocked);
     var got: usize = 0;
     var buf: [256 * 1024]u8 = undefined;
@@ -577,6 +580,117 @@ test "body_pending before on_request; on_write_blocked once when a response park
         got += n;
     }
     try testing.expectEqual(@as(u32, 1), h.echo.snapshot().write_blocked);
+}
+
+test "blocked requests in one accept batch never hold up later accepts" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // A burst of connections whose requests block their pollers: several
+    // land in one accept batch with their data already queued.
+    const Slow = struct {
+        fn run(port: u16, status: *u16) void {
+            const addr = std.net.Address.parseIp("127.0.0.1", port) catch return;
+            const stream = std.net.tcpConnectToAddress(addr) catch return;
+            var cl: Client = .{ .fd = stream.handle };
+            defer cl.close();
+            var ar = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer ar.deinit();
+            const r = cl.request(ar.allocator(), "GET /graphql?sleep HTTP/1.1\r\nHost: a\r\n\r\n") catch return;
+            status.* = r.status;
+        }
+    };
+    var threads: [24]std.Thread = undefined;
+    var statuses = [_]u16{0} ** 24;
+    for (&threads, &statuses) |*t, *st| t.* = try std.Thread.spawn(.{}, Slow.run, .{ h.server.port(), st });
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    const t0 = std.time.milliTimestamp();
+    var c = try h.connect();
+    defer c.close();
+    const r = try c.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqual(@as(u16, 404), r.status);
+    // Each slow request sleeps 300 ms; the accept must not wait for them.
+    try testing.expect(std.time.milliTimestamp() - t0 < 150);
+    for (threads) |t| t.join();
+    for (statuses) |st| try testing.expectEqual(@as(u16, 200), st);
+}
+
+test "pollers settle back to one soon after a burst of blocked requests" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    // Blocked requests make the monitor hand off: extra pollers start.
+    const Slow = struct {
+        fn run(port: u16) void {
+            const addr = std.net.Address.parseIp("127.0.0.1", port) catch return;
+            const stream = std.net.tcpConnectToAddress(addr) catch return;
+            var cl: Client = .{ .fd = stream.handle };
+            defer cl.close();
+            var ar = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer ar.deinit();
+            _ = cl.request(ar.allocator(), "GET /graphql?sleep HTTP/1.1\r\nHost: a\r\n\r\n") catch return;
+        }
+    };
+    var threads: [8]std.Thread = undefined;
+    for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Slow.run, .{h.server.port()});
+    for (threads) |t| t.join();
+    const loop = &h.server.loop;
+    loop.mutex.lock();
+    const peak = loop.threads;
+    loop.mutex.unlock();
+    try testing.expect(peak > 1);
+    var waited: u32 = 0;
+    while (waited < 300) : (waited += 1) {
+        loop.mutex.lock();
+        const now = loop.threads;
+        loop.mutex.unlock();
+        if (now == 1 and !loop.monitor_running.load(.acquire)) break;
+        std.Thread.sleep(10 * std.time.ns_per_ms);
+    }
+    // Idle exit is 1 s (+ the 50 ms spare linger, + the monitor's 1 s quiet).
+    try testing.expect(waited < 300);
+}
+
+test "the stall monitor thread starts (pthread stack minimum on Linux)" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    // The first dispatch spawns the monitor; a spawn failure would assert
+    // (Zig asserts pthread_attr_setstacksize) or leave it stopped.
+    _ = try c.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expect(h.server.loop.monitor_running.load(.acquire));
+}
+
+test "the first unhooked stall after an idle second is handed off promptly" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var w = try h.connect();
+    defer w.close();
+    _ = try wsHandshake(&w, a, "/agents");
+    // Idle long enough for the stall monitor to exit.
+    std.Thread.sleep(1_500 * std.time.ns_per_ms);
+    // A handler blocks its poller without core.blocking (like live's loop mutex).
+    try w.send(try wsFrame(a, 0x1, "sleep-me", true, true));
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+    const t0 = std.time.milliTimestamp();
+    var c = try h.connect();
+    defer c.close();
+    const r = try c.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    const took = std.time.milliTimestamp() - t0;
+    try testing.expectEqual(@as(u16, 404), r.status);
+    // The handler sleeps 300 ms; a hand-off answers long before.
+    try testing.expect(took < 150);
 }
 
 test "late requests during close get 503" {
@@ -589,6 +703,10 @@ test "late requests during close get 503" {
     // Start a request so the connection is busy, then close the server.
     try c.send("GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n");
     _ = try c.read(arena.allocator(), false);
+    // Let the server reach its keep-alive wait first: a socket still on
+    // its way back to idle when close() begins is ended instead (as Node's
+    // close() ends idle sockets).
+    std.Thread.sleep(100 * std.time.ns_per_ms);
     h.server.closing.store(true, .release);
     const r = try c.request(arena.allocator(), "GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n");
     try testing.expectEqual(@as(u16, 503), r.status);
@@ -1030,4 +1148,88 @@ fn wsReadLarge(c: *Client, a: std.mem.Allocator) !struct { opcode: u8, payload: 
     std.mem.copyForwards(u8, c.buf[0 .. c.len - start], c.buf[start..c.len]);
     c.len -= start;
     return .{ .opcode = opcode, .payload = out };
+}
+
+// ---------------------------------------------------------------------------
+// ws.Conn.trySendInlineMany
+// ---------------------------------------------------------------------------
+
+test "trySendInlineMany: frames written together arrive in order without callbacks" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, arena_state.allocator());
+    defer conn.release();
+    var counts: [3]CompletionCount = .{ .{}, .{}, .{} };
+    const callbacks = [3]ws.SendCallback{ counts[0].cb(), counts[1].cb(), counts[2].cb() };
+    const outcome = try conn.trySendInlineMany(&.{ "one", "two" ** 100, "three" }, false, &callbacks);
+    try testing.expectEqual(ws.Conn.InlineMany{ .written = 3 }, outcome);
+    try testing.expectEqual(@as(usize, 0), conn.bufferedAmount());
+    for ([_][]const u8{ "one", "two" ** 100, "three" }) |want| {
+        const f = try wsRead(&c);
+        defer testing.allocator.free(f.payload);
+        try testing.expectEqual(@as(u8, 0x1), f.opcode);
+        try testing.expectEqualStrings(want, f.payload);
+    }
+    // Fully written frames never call back.
+    for (&counts) |*count| try testing.expectEqual(@as(u32, 0), count.ok.load(.monotonic) + count.failed.load(.monotonic));
+}
+
+test "trySendInlineMany: a partial write queues whole frames, charged in full until written" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    const big = try a.alloc(u8, 4 * 1024 * 1024);
+    for (big, 0..) |*b, i| b.* = @intCast('a' + i % 26);
+    var counts: [2]CompletionCount = .{ .{}, .{} };
+    const callbacks = [2]ws.SendCallback{ counts[0].cb(), counts[1].cb() };
+    // The client is not reading: the kernel takes only part of the first frame.
+    const outcome = try conn.trySendInlineMany(&.{ big, "after" }, false, &callbacks);
+    try testing.expectEqual(ws.Conn.InlineMany{ .written = 0 }, outcome);
+    // ws counts every unfinished frame whole (header + payload).
+    try testing.expectEqual(@as(usize, 10 + big.len + 2 + "after".len), conn.bufferedAmount());
+    // Queue busy now: nothing written, no callback.
+    var busy_counts: CompletionCount = .{};
+    const busy_callbacks = [1]ws.SendCallback{busy_counts.cb()};
+    try testing.expectEqual(ws.Conn.InlineMany.busy, try conn.trySendInlineMany(&.{"busy"}, false, &busy_callbacks));
+    const first = try wsReadLarge(&c, a);
+    try testing.expectEqualSlices(u8, big, first.payload);
+    const second = try wsRead(&c);
+    defer testing.allocator.free(second.payload);
+    try testing.expectEqualStrings("after", second.payload);
+    var waited: usize = 0;
+    while (counts[1].ok.load(.monotonic) == 0 and waited < 1000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
+    try testing.expectEqual(@as(u32, 1), counts[0].ok.load(.monotonic));
+    try testing.expectEqual(@as(u32, 1), counts[1].ok.load(.monotonic));
+    try testing.expectEqual(@as(u32, 0), busy_counts.ok.load(.monotonic) + busy_counts.failed.load(.monotonic));
+    try testing.expectEqual(@as(usize, 0), conn.bufferedAmount());
+}
+
+test "trySendInlineMany: NotOpen after close, no callbacks" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, arena_state.allocator());
+    defer conn.release();
+    conn.close(1000, "bye");
+    var counts: CompletionCount = .{};
+    const callbacks = [1]ws.SendCallback{counts.cb()};
+    try testing.expectError(error.NotOpen, conn.trySendInlineMany(&.{"late"}, false, &callbacks));
+    try testing.expectEqual(@as(u32, 0), counts.ok.load(.monotonic) + counts.failed.load(.monotonic));
 }
