@@ -270,6 +270,43 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
+  it('shares lockbox reads in a cycle and refreshes them in the next cycle', async () => {
+    const token = warpCore.tokens[0];
+    token.standard = TokenStandard.EvmHypXERC20Lockbox;
+    const wrappedAddress = Sinon.stub().resolves('0xWrapped');
+    token.getHypAdapter.returns({ getWrappedTokenAddress: wrappedAddress });
+    const resolve = () =>
+      inventoryRebalancer['resolveBridgeTokenAddress'](
+        token,
+        ExternalBridgeType.LiFi,
+      );
+    expect(await Promise.all([resolve(), resolve()])).to.deep.equal([
+      '0xWrapped',
+      '0xWrapped',
+    ]);
+    expect(wrappedAddress.callCount).to.equal(1);
+    await inventoryRebalancer.rebalance([]);
+    wrappedAddress.resolves('0xUpdated');
+    expect(await resolve()).to.equal('0xUpdated');
+    expect(wrappedAddress.callCount).to.equal(2);
+  });
+
+  it('does not retain failed lockbox reads in the cycle cache', async () => {
+    const token = warpCore.tokens[0];
+    token.standard = TokenStandard.EvmHypXERC20Lockbox;
+    const wrappedAddress = Sinon.stub().rejects(new Error('RPC unavailable'));
+    token.getHypAdapter.returns({ getWrappedTokenAddress: wrappedAddress });
+    const resolve = () =>
+      inventoryRebalancer['resolveBridgeTokenAddress'](
+        token,
+        ExternalBridgeType.LiFi,
+      );
+    await expect(resolve()).to.be.rejectedWith('RPC unavailable');
+    wrappedAddress.resolves('0xRecovered');
+    expect(await resolve()).to.equal('0xRecovered');
+    expect(wrappedAddress.callCount).to.equal(2);
+  });
+
   afterEach(() => {
     Sinon.restore();
   });
@@ -503,6 +540,116 @@ describe('InventoryRebalancer E2E', () => {
       const [partial] = await tracker.getPartiallyFulfilledInventoryIntents();
       expect(partial?.hasInflightMovement).to.equal(false);
       expect(partial?.remaining).to.equal(route().amount);
+    });
+  });
+
+  describe('xERC20 physical execution limits', () => {
+    beforeEach(() => {
+      for (const token of warpCore.tokens) {
+        token.standard = TokenStandard.EvmHypXERC20Lockbox;
+        token.isFungibleWith = Sinon.stub().returns(false);
+      }
+      adapterStub.getBurnLimit = Sinon.stub().resolves(4_000_000_000n);
+      adapterStub.getMintLimit = Sinon.stub().resolves(3_000_000_000n);
+      adapterStub.getMintMaxLimit = Sinon.stub().resolves(10_000_000_000n);
+      adapterStub.getBurnMaxLimit = Sinon.stub().resolves(10_000_000_000n);
+      warpCore.getInterchainTransferFee = Sinon.stub().resolves({});
+      actionTracker.getActionsByType.resolves([]);
+      createTestIntent();
+    });
+
+    it('caps a deposit by physical receiver mint capacity despite ample inventory', async () => {
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(3_000_000_000n);
+      expect(
+        actionTracker.createRebalanceAction.firstCall.args[0].amount,
+      ).to.equal(3_000_000_000n);
+      expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+      expect(bridge.execute.called).to.equal(false);
+    });
+
+    it('reserves capacity for pending deposits in physical execution direction', async () => {
+      actionTracker.getActionsByType.resolves([
+        {
+          id: 'pending',
+          intentId: 'older-intent',
+          type: 'inventory_deposit',
+          status: 'in_progress',
+          origin: SOLANA_DOMAIN,
+          destination: ARBITRUM_DOMAIN,
+          amount: 1_000_000_000n,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]);
+      await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(2_000_000_000n);
+    });
+
+    it('waits for zero capacity without submitting or sourcing more inventory', async () => {
+      adapterStub.getBurnLimit.resolves(0n);
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(false);
+      expect(warpCore.getTransferRemoteTxs.called).to.equal(false);
+      expect(bridge.execute.called).to.equal(false);
+      expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+    });
+
+    it('includes same-token gas and transfer fees in the burn budget', async () => {
+      const source = warpCore.tokens[1];
+      source.isFungibleWith.returns(true);
+      adapterStub.getMintLimit.resolves(10_000_000_000n);
+      warpCore.getInterchainTransferFee.resolves({
+        igpQuote: { token: source, amount: 1_000_000_000n },
+        tokenFeeQuote: { token: source, amount: 500_000_000n },
+      });
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(2_500_000_000n);
+    });
+
+    it('quotes proportional fees at the limited amount so partial transfers remain viable', async () => {
+      const source = warpCore.tokens[1];
+      source.isFungibleWith.returns(true);
+      adapterStub.getBurnLimit.resolves(100n);
+      adapterStub.getMintLimit.resolves(1000n);
+      warpCore.getInterchainTransferFee.callsFake(
+        async ({
+          originTokenAmount,
+        }: {
+          originTokenAmount: { amount: bigint };
+        }) => ({
+          tokenFeeQuote: {
+            token: source,
+            amount: originTokenAmount.amount / 100n,
+          },
+        }),
+      );
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(true);
+      expect(
+        warpCore.getTransferRemoteTxs.firstCall.args[0].originTokenAmount
+          .amount,
+      ).to.equal(99n);
+    });
+
+    it('checks capacity again before constructing the primary transaction', async () => {
+      adapterStub.getMintLimit.onFirstCall().resolves(3_000_000_000n);
+      adapterStub.getMintLimit.onSecondCall().resolves(1n);
+      const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+      expect(results[0].success).to.equal(false);
+      expect(warpCore.getTransferRemoteTxs.called).to.equal(false);
+      expect(actionTracker.createRebalanceAction.called).to.equal(false);
     });
   });
 
@@ -1945,13 +2092,14 @@ describe('InventoryRebalancer E2E', () => {
         [ARBITRUM_CHAIN]: BigInt(10e18),
       });
 
+      const capacity = Sinon.stub().resolves(0n);
+      inventoryRebalancer['getTransferCapacity'] = capacity;
       const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      expect((results[0] as any).reason).to.equal(
-        'completed_with_acceptable_loss',
-      );
+      expect(results[0].reason).to.equal('completed_with_acceptable_loss');
+      expect(capacity.called).to.equal(false);
 
       // Verify: Intent was completed (not left in progress)
       expect(actionTracker.completeRebalanceIntent.calledOnce).to.be.true;
@@ -1961,6 +2109,44 @@ describe('InventoryRebalancer E2E', () => {
       // Verify: No transferRemote was attempted
       expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
+  });
+
+  it('retains a meaningful remainder when transfer capacity is zero', async () => {
+    createTestIntent();
+    const capacity = Sinon.stub().resolves(0n);
+    inventoryRebalancer['getTransferCapacity'] = capacity;
+    const results = await inventoryRebalancer.rebalance([createTestRoute()]);
+    expect(capacity.calledOnce).to.equal(true);
+    expect(results[0].success).to.equal(false);
+    expect(actionTracker.completeRebalanceIntent.called).to.equal(false);
+    expect(bridge.execute.called).to.equal(false);
+    expect(actionTracker.createRebalanceAction.called).to.equal(false);
+  });
+
+  it('prefunds the full remaining intent when only a partial deposit fits current capacity', async () => {
+    const amount = 1_000_000n;
+    createTestIntent({ amount });
+    inventoryRebalancer['getTransferCapacity'] = Sinon.stub().resolves(
+      amount / 10n,
+    );
+    inventoryRebalancer.setInventoryBalances({
+      [SOLANA_CHAIN]: 0n,
+      [ARBITRUM_CHAIN]: amount * 10n,
+    });
+    bridge.quote.resolves(
+      createMockBridgeQuote({ fromAmount: amount * 2n, toAmount: amount * 2n }),
+    );
+    bridge.execute.resolves({
+      txHash: 'source-hash',
+      fromChain: ARBITRUM_DOMAIN,
+      toChain: SOLANA_DOMAIN,
+    });
+    await inventoryRebalancer.rebalance([createTestRoute({ amount })]);
+    expect(
+      bridge.quote
+        .getCalls()
+        .some((call) => (call.args[0].toAmount ?? 0n) >= amount),
+    ).to.equal(true);
   });
 
   describe('Parallel Multi-Source Bridging', () => {

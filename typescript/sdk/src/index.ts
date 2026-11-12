@@ -1014,6 +1014,7 @@ export {
   WarpRouteDeployConfigSchemaErrors,
   XERC20VSLimitConfig,
   XERC20Type,
+  XERC20ExtraBridgeType,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
   PredicateWrapperConfig,

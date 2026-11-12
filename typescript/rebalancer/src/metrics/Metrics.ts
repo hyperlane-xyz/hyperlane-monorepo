@@ -1,7 +1,9 @@
+import { Contract, ethers, type providers } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
   type TokenPriceGetter,
+  MANAGED_LOCKBOX_MINIMAL_ABI,
   getExtraLockboxBalance,
   getExtraLockboxInfo,
   getManagedLockBoxCollateralInfo,
@@ -15,10 +17,13 @@ import {
   type TokenAmount,
   TokenStandard,
   TokenType,
+  XERC20ExtraBridgeType,
+  type XERC20TokenExtraBridgesLimits,
   type WarpCore,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, tryFn } from '@hyperlane-xyz/utils';
+import { isMissingSelectorCallException } from '@hyperlane-xyz/sdk/utils/contract';
+import { ProtocolType, assert, tryFn } from '@hyperlane-xyz/utils';
 
 import { type IMetrics } from '../interfaces/IMetrics.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
@@ -37,6 +42,61 @@ import {
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
+
+const EXTRA_BRIDGE_IDENTITY_ABI = [
+  ...MANAGED_LOCKBOX_MINIMAL_ABI,
+  'function typeAndVersion() view returns (string)',
+  'function getToken() view returns (address)',
+];
+const CCIP_TOKEN_POOL_VERSION = /^\w*TokenPool \d+\.\d+\.\d+$/;
+
+export async function isManagedLockboxExtraBridge(
+  bridge: XERC20TokenExtraBridgesLimits,
+  provider: providers.Provider,
+): Promise<boolean> {
+  if (bridge.bridgeType !== undefined) {
+    return bridge.bridgeType === XERC20ExtraBridgeType.ManagedLockbox;
+  }
+
+  // Older registry pins list both families without a bridgeType. Only a
+  // positive identity permits lockbox reads or exclusion as a CCIP pool.
+  const contract = new Contract(
+    bridge.lockbox,
+    EXTRA_BRIDGE_IDENTITY_ABI,
+    provider,
+  );
+  let typeAndVersion: unknown;
+  try {
+    typeAndVersion = await contract['typeAndVersion']();
+  } catch (error) {
+    if (!isMissingSelectorCallException(error)) throw error;
+    const xerc20: unknown = await contract['XERC20']();
+    const erc20: unknown = await contract['ERC20']();
+    assert(
+      typeof xerc20 === 'string' &&
+        ethers.utils.isAddress(xerc20) &&
+        xerc20 !== ethers.constants.AddressZero &&
+        typeof erc20 === 'string' &&
+        ethers.utils.isAddress(erc20),
+      `Invalid managed lockbox identity for ${bridge.lockbox}`,
+    );
+    return true;
+  }
+
+  assert(
+    typeof typeAndVersion === 'string' &&
+      CCIP_TOKEN_POOL_VERSION.test(typeAndVersion),
+    `Unknown extra bridge identity for ${bridge.lockbox}`,
+  );
+  const token: unknown = await contract['getToken']();
+  assert(
+    typeof token === 'string' &&
+      ethers.utils.isAddress(token) &&
+      token !== ethers.constants.AddressZero,
+    `Invalid CCIP token pool identity for ${bridge.lockbox}`,
+  );
+  return false;
+}
 
 export class Metrics implements IMetrics {
   private readonly logger: Logger;
@@ -237,9 +297,14 @@ export class Metrics implements IMetrics {
         currentTokenDeployConfig.xERC20?.extraBridges ?? [];
 
       for (const lockbox of extraLockboxes) {
+        const isManagedLockbox = isManagedLockboxExtraBridge(
+          lockbox,
+          this.warpCore.multiProvider.getEthersV5Provider(token.chainName),
+        );
         promises.push(
           tryFn(
             async () => {
+              if (!(await isManagedLockbox)) return;
               const { limits, xERC20Address } = await getExtraLockboxInfo(
                 this.warpCore.multiProvider,
                 token,
@@ -260,6 +325,7 @@ export class Metrics implements IMetrics {
           ),
           tryFn(
             async () => {
+              if (!(await isManagedLockbox)) return;
               const balance = await getExtraLockboxBalance(
                 this.warpCore.multiProvider,
                 token,
