@@ -1,6 +1,11 @@
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use derive_new::new;
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_core::{
     rpc_clients::DEFAULT_MAX_RPC_RETRIES, total_estimated_cost, BatchResult,
     ChainCommunicationError, ChainResult, ConfirmReason, HyperlaneDomain, Mailbox,
@@ -23,9 +28,16 @@ pub(crate) struct OperationBatch {
     operations: Vec<QueueOperation>,
     #[allow(dead_code)]
     domain: HyperlaneDomain,
+    #[new(default)]
+    origin_dbs: Arc<HashMap<u32, HyperlaneRocksDB>>,
 }
 
 impl OperationBatch {
+    pub fn with_origin_databases(mut self, origins: Arc<HashMap<u32, HyperlaneRocksDB>>) -> Self {
+        self.origin_dbs = origins;
+        self
+    }
+
     #[instrument(skip_all, fields(domain=%self.domain.name(), batch_size=self.operations.len()))]
     pub async fn submit(
         self,
@@ -93,8 +105,27 @@ impl OperationBatch {
         let mut last_error = None;
         let ops = self.operations.iter().collect_vec();
         let op_ids = ops.iter().map(|op| op.id()).collect_vec();
+        let origins: Vec<(&dyn HyperlaneDb, u64)> = if self.origin_dbs.is_empty() {
+            Vec::new()
+        } else {
+            ops.iter()
+                .map(|op| {
+                    self.origin_dbs
+                        .get(&op.origin_domain_id())
+                        .map(|db| (db as &dyn HyperlaneDb, op.origin_generation()))
+                        .ok_or_else(|| {
+                            ChainCommunicationError::from_other_str("Batch origin DB is missing")
+                        })
+                })
+                .collect::<ChainResult<_>>()?
+        };
         for retry_number in 1..=max_retries {
-            match mailbox.process_batch(ops.clone()).await {
+            match HyperlaneRocksDB::with_origin_generations(
+                &origins,
+                mailbox.process_batch(ops.clone()),
+            )
+            .await?
+            {
                 Ok(res) => return Ok(res),
                 Err(err) => {
                     warn!(retries=retry_number, ?max_retries, error=?err, ids=?op_ids, "Retrying batch submission");
@@ -211,6 +242,37 @@ mod tests {
             MockPendingOperation::new(seconds_to_next_attempt, domain.clone());
         mock_pending_operation.mailbox = Some(mailbox);
         Box::new(mock_pending_operation) as Box<dyn PendingOperation>
+    }
+
+    #[tokio::test]
+    async fn classic_batch_checks_all_origin_gates_before_broadcast() {
+        let first_domain: HyperlaneDomain = KnownHyperlaneDomain::Arbitrum.into();
+        let second_domain: HyperlaneDomain = KnownHyperlaneDomain::Ethereum.into();
+        let dir = tempfile::tempdir().unwrap();
+        let raw = DB::from_path(dir.path()).unwrap();
+        let first = HyperlaneRocksDB::new(&first_domain, raw.clone());
+        let second = HyperlaneRocksDB::new(&second_domain, raw);
+        second.mark_indexed_event_conflict().unwrap();
+        let mut mailbox = MockMailboxContract::new();
+        mailbox.expect_supports_batching().return_const(true);
+        mailbox.expect_process_batch().never();
+        let mailbox: Arc<dyn Mailbox> = Arc::new(mailbox);
+        let batch = OperationBatch::new(
+            vec![
+                dummy_pending_operation(mailbox.clone(), first_domain.clone()),
+                dummy_pending_operation(mailbox.clone(), second_domain.clone()),
+            ],
+            first_domain.clone(),
+        )
+        .with_origin_databases(Arc::new(
+            [(first_domain.id(), first), (second_domain.id(), second)]
+                .into_iter()
+                .collect(),
+        ));
+        assert!(batch
+            .submit_batch_with_retry(mailbox, 2, Duration::ZERO)
+            .await
+            .is_err());
     }
 
     #[tokio::test]

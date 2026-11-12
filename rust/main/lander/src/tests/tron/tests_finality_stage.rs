@@ -131,8 +131,10 @@ async fn mock_tron_tx(
     let payload_uuid = PayloadUuid::random();
     let payload = FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
+            origin: None,
             success_criteria: None, // Set by tests as needed
         },
         data,
@@ -467,8 +469,10 @@ async fn test_tron_tx_finalized_multiple_payloads_mixed_results() {
 
     let payload1 = FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload1_uuid.clone(),
             metadata: "payload-1".to_string(),
+            origin: None,
             success_criteria: Some(success_criteria.clone()),
         },
         data: serde_json::to_vec(&(&precursor.tx, &precursor.function)).unwrap(),
@@ -481,8 +485,10 @@ async fn test_tron_tx_finalized_multiple_payloads_mixed_results() {
 
     let payload2 = FullPayload {
         details: PayloadDetails {
+            origin_generation: 0,
             uuid: payload2_uuid.clone(),
             metadata: "payload-2".to_string(),
+            origin: None,
             success_criteria: Some(success_criteria.clone()),
         },
         data: serde_json::to_vec(&(&precursor.tx, &precursor.function)).unwrap(),

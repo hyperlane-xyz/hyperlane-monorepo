@@ -28,6 +28,9 @@ pub enum DbError {
     /// A sequenced gas payment disagrees with the payment stored for its sequence.
     #[error("{0}")]
     GasPaymentSequenceConflict(Box<GasPaymentSequenceConflict>),
+    /// Indexed data conflicts with a value already consumed by the relayer.
+    #[error("{0}")]
+    ConflictingEvent(#[from] ConflictingEvent),
     /// Custom error
     #[error("{0}")]
     Other(String),
@@ -48,6 +51,11 @@ pub struct GasPaymentSequenceConflict {
     /// Block of the payment being indexed
     pub incoming_block: u64,
 }
+
+/// A replay disagrees with an event or its metadata already stored by another writer.
+#[derive(thiserror::Error, Debug)]
+#[error("Conflicting indexed {0}")]
+pub struct ConflictingEvent(pub &'static str);
 
 impl From<DbError> for ChainCommunicationError {
     fn from(value: DbError) -> Self {

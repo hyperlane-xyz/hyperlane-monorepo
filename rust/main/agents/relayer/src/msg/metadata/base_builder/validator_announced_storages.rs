@@ -54,9 +54,11 @@ pub async fn fetch_storage_locations_helper(
         let locations = &fetched_locations[fetched_index];
 
         // Store in cache
-        cache
-            .cache_call_result(origin, METHOD_NAME, &key, locations)
-            .await?;
+        if !locations.is_empty() {
+            cache
+                .cache_call_result(origin, METHOD_NAME, &key, locations)
+                .await?;
+        }
 
         // Update the placeholder in storage_locations
         storage_locations[*index] = locations.clone();

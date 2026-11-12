@@ -1,4 +1,9 @@
-use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc, time::Instant};
+use std::{
+    cmp::Reverse,
+    collections::BinaryHeap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use derive_new::new;
 use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation, ReprepareReason};
@@ -38,6 +43,8 @@ pub struct OpQueue {
     /// Operations matching this are dropped when popped.
     #[new(default)]
     denylist: Arc<RuntimeDenylist>,
+    #[new(default)]
+    last_recovery_sweep: Arc<Mutex<Option<Instant>>>,
 }
 
 impl OpQueue {
@@ -69,6 +76,29 @@ impl OpQueue {
                 .record_eviction(op.destination_domain().name(), &self.queue_metrics_label);
         }
         kept
+    }
+
+    // Release stale loaded-message guards and queue capacity even when an old
+    // operation has a long retry deadline. Receipts already being confirmed stay.
+    async fn sweep_invalidated(&self) {
+        let mut last = self.last_recovery_sweep.lock().await;
+        if last.is_some_and(|last| last.elapsed() < Duration::from_secs(5)) {
+            return;
+        }
+        *last = Some(Instant::now());
+        let mut queue = self.queue.lock().await;
+        let before = queue.len();
+        queue.retain(|Reverse(op)| {
+            if op.is_invalidated() {
+                op.decrement_metric_if_exists();
+                false
+            } else {
+                true
+            }
+        });
+        if queue.len() != before {
+            self.space_available.notify_waiters();
+        }
     }
 
     /// Push an element onto the queue and update metrics
@@ -143,6 +173,7 @@ impl OpQueue {
     }
 
     async fn pop_ready(&self, limit: usize) -> (Vec<QueueOperation>, Option<Instant>) {
+        self.sweep_invalidated().await;
         let now = Instant::now();
         let mut queue = self.queue.lock().await;
         let mut popped = Vec::with_capacity(limit.min(queue.len()));
@@ -173,10 +204,11 @@ impl OpQueue {
     pub async fn wait_for_len_below(&self, limit: usize) {
         loop {
             let notified = self.space_available.notified();
+            self.sweep_invalidated().await;
             if self.len().await < limit {
                 return;
             }
-            notified.await;
+            let _ = tokio::time::timeout(Duration::from_secs(5), notified).await;
         }
     }
 
@@ -195,20 +227,14 @@ impl OpQueue {
             }
         };
 
-        let retry_request = match deadline {
-            Some(deadline) => {
-                tokio::select! {
-                    _ = notify.notified() => None,
-                    _ = sleep_until(deadline.into()) => None,
-                    request = retry_request => request,
-                }
-            }
-            None => {
-                tokio::select! {
-                    _ = notify.notified() => None,
-                    request = retry_request => request,
-                }
-            }
+        let recovery_check = Instant::now()
+            .checked_add(Duration::from_secs(5))
+            .expect("Recovery deadline fits in Instant");
+        let deadline = deadline.map_or(recovery_check, |deadline| deadline.min(recovery_check));
+        let retry_request = tokio::select! {
+            _ = notify.notified() => None,
+            _ = sleep_until(deadline.into()) => None,
+            request = retry_request => request,
         };
         if let Some(retry_request) = retry_request {
             self.process_retry_request_batch(vec![retry_request]).await;

@@ -108,18 +108,24 @@ async fn test_reverted_payloads_dropped_multiple_payloads_mixed_criteria() {
     // Create 3 payloads: one with criteria, one without, one with criteria
     tx.payload_details = vec![
         PayloadDetails {
+            origin_generation: 0,
             uuid: PayloadUuid::random(),
             metadata: "payload-1".to_string(),
+            origin: None,
             success_criteria: Some(vec![1, 2, 3]),
         },
         PayloadDetails {
+            origin_generation: 0,
             uuid: PayloadUuid::random(),
             metadata: "payload-2".to_string(),
+            origin: None,
             success_criteria: None,
         },
         PayloadDetails {
+            origin_generation: 0,
             uuid: PayloadUuid::random(),
             metadata: "payload-3".to_string(),
+            origin: None,
             success_criteria: Some(vec![4, 5, 6]),
         },
     ];
@@ -206,18 +212,24 @@ async fn test_reverted_payloads_finalized_multiple_payloads_all_not_delivered() 
 
     tx.payload_details = vec![
         PayloadDetails {
+            origin_generation: 0,
             uuid: PayloadUuid::random(),
             metadata: "payload-1".to_string(),
+            origin: None,
             success_criteria: Some(serde_json::to_vec(&get_mapping_value_1).unwrap()),
         },
         PayloadDetails {
+            origin_generation: 0,
             uuid: PayloadUuid::random(),
             metadata: "payload-2".to_string(),
+            origin: None,
             success_criteria: None, // No criteria
         },
         PayloadDetails {
+            origin_generation: 0,
             uuid: PayloadUuid::random(),
             metadata: "payload-3".to_string(),
+            origin: None,
             success_criteria: Some(serde_json::to_vec(&get_mapping_value_2).unwrap()),
         },
     ];

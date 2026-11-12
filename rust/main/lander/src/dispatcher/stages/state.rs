@@ -1,9 +1,10 @@
 // TODO: re-enable clippy warnings
 #![allow(dead_code)]
 
+use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    Arc, OnceLock,
 };
 
 use chrono::format;
@@ -39,6 +40,7 @@ pub struct DispatcherState {
     pub(crate) payload_db: Arc<dyn PayloadDb>,
     pub(crate) tx_db: Arc<dyn TransactionDb>,
     pub(crate) adapter: Arc<dyn AdaptsChain>,
+    pub(crate) origin_dbs: Arc<OnceLock<HashMap<u32, HyperlaneRocksDB>>>,
     pub(crate) metrics: DispatcherMetrics,
     pub(crate) domain: String,
     pub(crate) building_stage_queue: BuildingStageQueue,
@@ -98,6 +100,7 @@ impl DispatcherState {
             payload_db,
             tx_db,
             adapter,
+            origin_dbs: Arc::default(),
             metrics,
             domain,
             building_stage_queue: BuildingStageQueue::new(),

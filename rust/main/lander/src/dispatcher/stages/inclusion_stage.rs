@@ -1,6 +1,7 @@
 use std::cmp::max;
 use std::collections::{HashMap, VecDeque};
 use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -8,6 +9,7 @@ use chrono::{DateTime, Utc};
 use derive_new::new;
 use eyre::{eyre, Result};
 use futures_util::{future::try_join_all, try_join, StreamExt};
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
@@ -580,6 +582,9 @@ impl InclusionStage {
         tx: Transaction,
         state: &DispatcherState,
     ) -> Result<SubmitOutcome, LanderError> {
+        // process_pending_tx counts this attempt before preflight. Preserve uncertain
+        // earlier broadcasts, including retries inside this call that returned no hash.
+        let attempted = AtomicBool::new(tx.submission_attempts > 1 || !tx.tx_hashes.is_empty());
         // Submission retries retain tx fields (e.g. gas price) set by previous
         // attempts. The retry future borrows this local mutex until it completes.
         let tx_shared = Mutex::new(tx);
@@ -590,7 +595,47 @@ impl InclusionStage {
         let deferred_reason = call_until_success_or_nonretryable_error(
             || async {
                 let mut tx_guard = tx_shared.lock().await;
-                let submit_result = with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)).await;
+                let origins = match state.origin_dbs.get() {
+                    Some(origins) => {
+                        let mut selected = Vec::<(&dyn HyperlaneDb, u64)>::new();
+                        for payload in &tx_guard.payload_details {
+                            // Legacy payloads predate provisional discovery. They must
+                            // not inherit unrelated origins' gates or generations.
+                            if let Some(origin) = payload.origin {
+                                match origins.get(&origin) {
+                                    Some(db) => selected.push((db, payload.origin_generation)),
+                                    None if attempted.load(Ordering::Relaxed) => return Ok(Some(LanderError::TxSubmissionDeferred)),
+                                    None => return Err(LanderError::TxDropped(TxDropReason::Other("Origin is no longer configured".into()))),
+                                }
+                            }
+                        }
+                        selected
+                    }
+                    None => Vec::new(),
+                };
+                if origins.iter().any(|(db, generation)| db.discovery_generation() != *generation)
+                    && !attempted.load(Ordering::Relaxed)
+                {
+                    return Err(LanderError::TxDropped(TxDropReason::Other("Origin history changed before submission".into())));
+                }
+                // Previously broadcast transactions remain tracked, but are never rebroadcast
+                // with metadata prepared against an orphaned history.
+                let submit_result = HyperlaneRocksDB::with_origin_generations(
+                    &origins,
+                    async {
+                        attempted.store(true, Ordering::Relaxed);
+                        with_rpc_operation(RpcOperation::TransactionLifecycle, state.adapter.submit(&mut tx_guard)).await
+                    },
+                ).await.unwrap_or_else(|error| {
+                    warn!(?error, "Origin recovery deferred queued transaction submission");
+                    if !attempted.load(Ordering::Relaxed)
+                        && !origins.iter().any(|(db, _)| db.origin_consistency().is_some_and(|state| state.live_block_verification_pending()))
+                    {
+                        Err(LanderError::TxDropped(TxDropReason::Other("Origin history requires recovery before submission".into())))
+                    } else {
+                        Err(LanderError::TxSubmissionDeferred)
+                    }
+                });
 
                 match submit_result {
                     Ok(()) => Ok(None),
@@ -606,8 +651,12 @@ impl InclusionStage {
             state,
         )
         .await?;
-        let submitted_tx = tx_shared.into_inner();
+        let mut submitted_tx = tx_shared.into_inner();
         if let Some(reason) = deferred_reason {
+            if !attempted.load(Ordering::Relaxed) {
+                submitted_tx.submission_attempts =
+                    submitted_tx.submission_attempts.saturating_sub(1);
+            }
             Ok(SubmitOutcome::RetryLater(submitted_tx, reason))
         } else {
             state.notify_reprocess_txs_activity();

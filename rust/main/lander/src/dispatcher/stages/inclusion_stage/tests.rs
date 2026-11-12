@@ -1570,3 +1570,153 @@ async fn mev_deferrals_keep_state_and_retry_unfinished_simulation() {
         );
     }
 }
+
+#[tokio::test(start_paused = true)]
+async fn queued_batches_and_retries_observe_every_origin_gate() {
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
+    for phase in ["queued", "verification", "retry"] {
+        let queued = phase != "retry";
+        let dir = tempfile::tempdir().unwrap();
+        let raw = DB::from_path(dir.path()).unwrap();
+        let first = HyperlaneRocksDB::new(&KnownHyperlaneDomain::Arbitrum.into(), raw.clone());
+        let second = HyperlaneRocksDB::new(&KnownHyperlaneDomain::Ethereum.into(), raw);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let submitted = calls.clone();
+        let mut adapter = MockAdapter::new();
+        adapter
+            .expect_submit()
+            .times(usize::from(!queued))
+            .returning(move |_| {
+                submitted.fetch_add(1, Ordering::SeqCst);
+                Err(LanderError::TxSubmissionError("retry".into()))
+            });
+        let (state, _) = reprocess_test_state(adapter);
+        state
+            .origin_dbs
+            .set(
+                [
+                    (first.domain().id(), first.clone()),
+                    (second.domain().id(), second.clone()),
+                ]
+                .into_iter()
+                .collect(),
+            )
+            .unwrap();
+        let mut payloads = vec![FullPayload::random().details, FullPayload::random().details];
+        payloads[0].origin = Some(HyperlaneDomain::from(KnownHyperlaneDomain::Arbitrum).id());
+        payloads[1].origin = Some(second.domain().id());
+        let mut tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+        tx.payload_details = payloads;
+        tx.submission_attempts = 1;
+        if phase == "queued" {
+            second.mark_indexed_event_conflict().unwrap();
+        } else if phase == "verification" {
+            second.set_live_block_verification_pending(true);
+        }
+        let task = tokio::spawn(async move { InclusionStage::submit_tx(tx, &state).await });
+        if !queued {
+            while calls.load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+            second.mark_indexed_event_conflict().unwrap();
+        }
+        let outcome = task.await.unwrap();
+        if phase == "queued" {
+            assert!(matches!(outcome, Err(LanderError::NonRetryableError(_))));
+        } else {
+            let Ok(SubmitOutcome::RetryLater(tx, LanderError::TxSubmissionDeferred)) = outcome
+            else {
+                panic!("expected deferred transaction");
+            };
+            assert_eq!(tx.submission_attempts, u32::from(phase == "retry"));
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), usize::from(!queued));
+    }
+}
+
+#[tokio::test]
+async fn legacy_and_removed_origins_do_not_pin_unsent_transactions() {
+    use hyperlane_base::db::{HyperlaneRocksDB, DB};
+    use hyperlane_core::KnownHyperlaneDomain;
+    for (origin, attempted) in [(None, false), (Some(0), false), (Some(0), true)] {
+        let dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &KnownHyperlaneDomain::Arbitrum.into(),
+            DB::from_path(dir.path()).unwrap(),
+        );
+        db.mark_indexed_event_conflict().unwrap();
+        let mut adapter = MockAdapter::new();
+        adapter
+            .expect_submit()
+            .times(usize::from(origin.is_none()))
+            .returning(|_| Ok(()));
+        let (state, _) = reprocess_test_state(adapter);
+        state
+            .origin_dbs
+            .set([(db.domain().id(), db)].into_iter().collect())
+            .unwrap();
+        let mut payload = FullPayload::random().details;
+        payload.origin = origin;
+        let mut tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+        tx.payload_details = vec![payload];
+        tx.submission_attempts = 1 + u32::from(attempted);
+        let outcome = InclusionStage::submit_tx(tx, &state).await;
+        match origin {
+            None => assert!(matches!(outcome, Ok(SubmitOutcome::Submitted(_)))),
+            Some(_) if attempted => assert!(matches!(
+                outcome,
+                Ok(SubmitOutcome::RetryLater(
+                    _,
+                    LanderError::TxSubmissionDeferred
+                ))
+            )),
+            Some(_) => assert!(matches!(outcome, Err(LanderError::NonRetryableError(_)))),
+        }
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn recovered_origin_drops_unsent_payloads_but_keeps_broadcast_receipts() {
+    use hyperlane_base::db::{DiscoveryCheckpoint, HyperlaneRocksDB, DB};
+    use hyperlane_core::KnownHyperlaneDomain;
+    for attempted in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &KnownHyperlaneDomain::Arbitrum.into(),
+            DB::from_path(dir.path()).unwrap(),
+        );
+        db.enable_discovery(DiscoveryCheckpoint {
+            height: 100,
+            hash: hyperlane_core::H256::from_low_u64_be(100),
+        })
+        .unwrap();
+        let mut adapter = MockAdapter::new();
+        adapter.expect_submit().never();
+        let (state, _) = reprocess_test_state(adapter);
+        state
+            .origin_dbs
+            .set([(db.domain().id(), db.clone())].into_iter().collect())
+            .unwrap();
+        let mut payload = FullPayload::random().details;
+        payload.origin = Some(db.domain().id());
+        let mut tx = dummy_tx(Vec::new(), TransactionStatus::PendingInclusion);
+        tx.payload_details = vec![payload];
+        tx.tx_hashes.clear();
+        tx.submission_attempts = 1 + u32::from(attempted);
+        db.rollback_discovery().unwrap();
+        db.finish_discovery_recovery().unwrap();
+        let result = InclusionStage::submit_tx(tx, &state).await;
+        if attempted {
+            assert!(matches!(
+                result,
+                Ok(SubmitOutcome::RetryLater(
+                    _,
+                    LanderError::TxSubmissionDeferred
+                ))
+            ));
+        } else {
+            assert!(matches!(result, Err(LanderError::NonRetryableError(_))));
+        }
+    }
+}

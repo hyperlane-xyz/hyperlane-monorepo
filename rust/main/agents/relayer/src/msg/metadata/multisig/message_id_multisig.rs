@@ -12,7 +12,7 @@ use derive_new::new;
 
 use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H160, H256};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
 use tokio::{sync::Semaphore, time::timeout};
 use tracing::{debug, warn};
 
@@ -28,8 +28,6 @@ static ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS: LazyLock<Mutex<HashMap<String, Arc
     LazyLock::new(Default::default);
 const LATEST_INDEX_TELEMETRY_PERMITS_PER_ORIGIN: usize = 4;
 const LATEST_INDEX_TELEMETRY_TIMEOUT: Duration = Duration::from_secs(30);
-// Bounds how long a probe waits for latest indices before querying every validator.
-const PROBE_LATEST_INDEX_TIMEOUT: Duration = Duration::from_secs(2);
 
 fn origin_latest_index_telemetry_permits(origin: &str) -> Arc<Semaphore> {
     ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS
@@ -103,29 +101,11 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 highest_known: None,
             },
         );
-        // The exact checkpoint index is already known. Availability probes do
-        // not need latest-index GETs; telemetry stays on the normal build path.
+        // Fetch the known checkpoint directly; latest-index telemetry never
+        // gates signature downloads.
         if !self.signature_polling {
             self.spawn_latest_index_telemetry(checkpoint_syncer, validators);
         }
-        let probe_validators;
-        let validators = if self.narrow_signature_probe {
-            probe_validators = self
-                .validators_that_may_have_signed(checkpoint_syncer, validators, leaf_index)
-                .await;
-            if probe_validators.len() < usize::from(threshold) {
-                debug!(
-                    leaf_index,
-                    candidates = probe_validators.len(),
-                    threshold,
-                    "Too few validators have reached the leaf index to probe for a quorum"
-                );
-                return Ok(None);
-            }
-            probe_validators.as_slice()
-        } else {
-            validators
-        };
         let quorum_checkpoint = checkpoint_syncer
             .fetch_checkpoint(
                 validators,
@@ -163,37 +143,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 }
 
 impl MessageIdMultisigMetadataBuilder {
-    /// Signature probes repeat for every waiting message, so skip checkpoint GETs
-    /// for validators whose shared, coalesced latest index is below the leaf.
-    /// Validators without a readable latest index are still queried. This only
-    /// narrows probes: normal builds query every validator, so a validator with
-    /// a stale latest index still contributes its signature to delivery.
-    async fn validators_that_may_have_signed(
-        &self,
-        checkpoint_syncer: &MultisigCheckpointSyncer,
-        validators: &[H256],
-        leaf_index: u32,
-    ) -> Vec<H256> {
-        let Ok(latest) = timeout(
-            PROBE_LATEST_INDEX_TIMEOUT,
-            checkpoint_syncer.latest_indices(validators),
-        )
-        .await
-        else {
-            debug!("Timed out reading latest indices for signature probe");
-            return validators.to_vec();
-        };
-        validators
-            .iter()
-            .filter(|validator| {
-                latest
-                    .get(&H160::from(**validator))
-                    .is_none_or(|latest_index| *latest_index >= leaf_index)
-            })
-            .copied()
-            .collect()
-    }
-
     /// Refresh telemetry independently of checkpoint availability, with bounded
     /// concurrency and lifetime. Busy callers leave the active refreshes running.
     fn spawn_latest_index_telemetry(
@@ -384,47 +333,57 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ready_signatures_still_require_fresh_reorg_checks() {
+    async fn collected_quorum_is_validated_without_rebuilding_the_tree() {
         use crate::test_utils::mock_ism::MockInterchainSecurityModule;
         use hyperlane_base::settings::CheckpointSyncerBuildError;
 
-        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
-        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-        let message = HyperlaneMessage::default();
-        let checkpoint = CheckpointWithMessageId {
-            checkpoint: Checkpoint {
-                mailbox_domain: message.origin,
-                merkle_tree_hook_address: H256::zero(),
-                root: H256::zero(),
-                index: 1,
-            },
-            message_id: message.id(),
-        };
-        let mut validators: Vec<_> = dummy_validators().into_iter().take(1).collect();
-        validators[0].fetch_checkpoint = Some(checkpoint);
-        let address: H160 = validators[0].public_key.parse().unwrap();
-        let clients = build_mock_checkpoint_syncs(&validators)
-            .await
-            .into_iter()
-            .map(|(address, client)| {
-                let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
-                (address, client)
-            })
-            .collect();
-        let base = Arc::new(build_mock_base_builder(origin, destination.clone()));
-        base.responses
-            .build_checkpoint_syncer
-            .lock()
-            .unwrap()
-            .extend([
-                Ok(MultisigCheckpointSyncer::new(clients, None)),
-                Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
+        for outcome in ["valid", "reorg", "excluded", "missing"] {
+            let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
+            let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+            let message = HyperlaneMessage::default();
+            let checkpoint = CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    mailbox_domain: message.origin,
+                    merkle_tree_hook_address: H256::zero(),
+                    root: H256::zero(),
+                    index: 1,
+                },
+                message_id: message.id(),
+            };
+            let mut validators: Vec<_> = dummy_validators().into_iter().take(1).collect();
+            validators[0].fetch_checkpoint = (outcome != "missing").then_some(checkpoint);
+            let address: H160 = validators[0].public_key.parse().unwrap();
+            let clients = build_mock_checkpoint_syncs(&validators)
+                .await
+                .into_iter()
+                .map(|(address, client)| {
+                    let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
+                    (address, client)
+                })
+                .collect();
+            let base = Arc::new(build_mock_base_builder(origin, destination.clone()));
+            let raw = MultisigCheckpointSyncer::new(clients, None);
+            let checked = match outcome {
+                "reorg" => Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
                     exists: true,
                     event: None,
                     content: None,
                 })),
-            ]);
-        for _ in 0..2 {
+                "excluded" => Ok(MultisigCheckpointSyncer::new(HashMap::new(), None)),
+                _ => Ok(raw.clone()),
+            };
+            base.responses
+                .build_checkpoint_syncer
+                .lock()
+                .unwrap()
+                .push_back(Ok(raw));
+            if outcome != "missing" {
+                base.responses
+                    .build_checkpoint_syncer
+                    .lock()
+                    .unwrap()
+                    .push_back(checked);
+            }
             base.responses.push_build_ism_response(
                 H256::zero(),
                 Ok(Box::new(MockInterchainSecurityModule::new(
@@ -449,24 +408,42 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push_back(Ok(Some(1)));
+            if outcome == "excluded" {
+                base.responses
+                    .get_merkle_leaf_id_by_message_id
+                    .lock()
+                    .unwrap()
+                    .push_back(Ok(Some(1)));
+            }
+            let builder = MessageMetadataBuilder::new(base.clone(), H256::zero(), &message)
+                .await
+                .unwrap();
+            let result = builder
+                .build_for_delivery(H256::zero(), &message, true)
+                .await;
+            match outcome {
+                "valid" => {
+                    result.expect("validated metadata");
+                }
+                "reorg" => assert!(matches!(result, Err(MetadataBuildError::Refused(_)))),
+                _ => assert!(matches!(
+                    result,
+                    Err(MetadataBuildError::AwaitingValidatorSignatures)
+                )),
+            }
+            assert_eq!(
+                *base.requests.checkpoint_reorg_checks.lock().unwrap(),
+                if outcome == "missing" {
+                    vec![false]
+                } else {
+                    vec![false, true]
+                }
+            );
         }
-        let builder = MessageMetadataBuilder::new(base.clone(), H256::zero(), &message)
-            .await
-            .unwrap();
-        assert!(matches!(
-            builder
-                .build_for_delivery(H256::zero(), &message, true, true)
-                .await,
-            Err(MetadataBuildError::Refused(_))
-        ));
-        assert_eq!(
-            *base.requests.checkpoint_reorg_checks.lock().unwrap(),
-            vec![false, true]
-        );
     }
 
     #[tokio::test]
-    async fn signature_probes_skip_validators_behind_the_leaf() {
+    async fn signature_fetch_ignores_stale_latest_indices() {
         let message = HyperlaneMessage::default();
         let checkpoint = CheckpointWithMessageId {
             checkpoint: Checkpoint {
@@ -507,28 +484,16 @@ mod tests {
             .get_merkle_leaf_id_by_message_id
             .lock()
             .unwrap()
-            .extend([Ok(Some(1000)), Ok(Some(1000)), Ok(Some(1000))]);
+            .extend([Ok(Some(1000)), Ok(Some(1000))]);
         let mut message_builder =
             MessageMetadataBuilder::new(Arc::new(base_builder), H256::zero(), &message)
                 .await
                 .unwrap();
 
-        // The fast-window probe only queries validators that have reached the
-        // leaf, so it cannot reach a threshold of two.
+        // A stale latest index must not hide an already published signature.
         message_builder.signature_polling = true;
-        message_builder.narrow_signature_probe = true;
         let probe = MessageIdMultisigMetadataBuilder::new(message_builder.clone());
         assert!(probe
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
-            .await
-            .unwrap()
-            .is_none());
-
-        // After the fast window, probes query every validator again, so a lagging
-        // latest index cannot hold delivery.
-        message_builder.narrow_signature_probe = false;
-        let late_probe = MessageIdMultisigMetadataBuilder::new(message_builder.clone());
-        assert!(late_probe
             .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
             .await
             .unwrap()
@@ -842,7 +807,7 @@ mod tests {
             .build_checkpoint_syncer
             .lock()
             .unwrap()
-            .push_back(Ok(multisig_syncer));
+            .extend([Ok(multisig_syncer.clone()), Ok(multisig_syncer)]);
 
         let mut mock_multisig = MockMockMultisigIsm::new();
         mock_multisig

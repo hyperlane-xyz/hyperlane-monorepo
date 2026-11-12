@@ -245,6 +245,10 @@ where
         self.sync_state.next_block.saturating_sub(1)
     }
 
+    fn is_caught_up(&self) -> bool {
+        self.sync_state.next_block > self.tip
+    }
+
     async fn update(
         &mut self,
         _: Vec<(Indexed<T>, LogMeta)>,

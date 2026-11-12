@@ -187,6 +187,29 @@ impl TypedDB {
             .collect()
     }
 
+    /// Visit sequence-keyed values without allocating the whole table or matching
+    /// other tables that extend the same prefix (e.g. insertion block metadata).
+    pub(crate) fn visit_sequence_values<V: Decode>(
+        &self,
+        prefix: impl AsRef<[u8]>,
+        mut visit: impl FnMut(V),
+    ) -> Result<()> {
+        let prefix = self.prefixed_key(prefix.as_ref(), &[]);
+        for entry in self.db.0.iterator(rocksdb::IteratorMode::From(
+            &prefix,
+            rocksdb::Direction::Forward,
+        )) {
+            let (key, value) = entry?;
+            if !key.starts_with(&prefix) {
+                break;
+            }
+            if key.len() == prefix.len().saturating_add(4) {
+                visit(V::read_from_slice(&value)?);
+            }
+        }
+        Ok(())
+    }
+
     /// Return the latest sequence number for the underlying RocksDB.
     pub fn latest_sequence_number(&self) -> u64 {
         self.db.latest_sequence_number()
@@ -264,6 +287,12 @@ impl TypedDbBatch {
             .chain(key)
             .copied()
             .collect()
+    }
+
+    /// Store an encoded key/value pair in this batch.
+    pub fn store_encodable<V: Encode>(&mut self, prefix: impl AsRef<[u8]>, key: &[u8], value: &V) {
+        self.batch
+            .store(&self.prefixed_key(prefix.as_ref(), key), &value.to_vec());
     }
 
     /// Store an encoded key/value pair in this batch.

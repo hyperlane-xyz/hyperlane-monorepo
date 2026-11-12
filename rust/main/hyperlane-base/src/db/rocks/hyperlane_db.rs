@@ -1,14 +1,17 @@
 use std::{
+    future::{poll_fn, Future},
     ops::Add,
     sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc, OnceLock,
     },
+    task::Poll,
 };
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
+use prometheus::IntGauge;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
@@ -23,13 +26,19 @@ use crate::db::{
     storage_types::{
         InterchainGasExpenditureData, InterchainGasPaymentData, PendingMessageRetryState,
     },
-    HyperlaneDb,
+    ConflictingEvent, HyperlaneDb,
 };
 
 use super::{DbError, GasPaymentSequenceConflict, TypedDB, DB};
 
 // these keys MUST not be given multiple uses in case multiple agents are
 // started with the same database and domain.
+
+const INDEXED_EVENT_CONFLICT: &str = "indexed_event_conflict_v1_";
+
+#[path = "discovery.rs"]
+mod discovery;
+pub use discovery::DiscoveryCheckpoint;
 
 const MESSAGE_ID: &str = "message_id_";
 const MESSAGE_DISPATCHED_BLOCK_NUMBER: &str = "message_dispatched_block_number_";
@@ -66,7 +75,33 @@ pub type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
-pub struct HyperlaneRocksDB(HyperlaneDomain, TypedDB, Arc<Mutex<()>>, Arc<Mutex<()>>);
+pub struct HyperlaneRocksDB(
+    HyperlaneDomain,
+    TypedDB,
+    Arc<Mutex<()>>,
+    Arc<Mutex<()>>,
+    Arc<Mutex<()>>,
+    Arc<OnceLock<IntGauge>>,
+    Arc<OriginConsistency>,
+);
+
+#[derive(Debug, Default)]
+/// Shared admission and startup verification state for cloned origin handles.
+pub struct OriginConsistency {
+    admission: RwLock<()>,
+    changed: tokio::sync::Notify,
+    verification_pending: AtomicBool,
+    discovery_changed: Arc<tokio::sync::Notify>,
+    discovery_enabled: AtomicBool,
+    discovery_generation: AtomicU64,
+}
+
+impl OriginConsistency {
+    /// Whether admission is waiting for initial RPC verification.
+    pub fn live_block_verification_pending(&self) -> bool {
+        self.verification_pending.load(Ordering::Acquire)
+    }
+}
 
 impl std::ops::Deref for HyperlaneRocksDB {
     type Target = TypedDB;
@@ -96,7 +131,110 @@ impl HyperlaneRocksDB {
             TypedDB::new(domain, db),
             Arc::new(Mutex::new(())),
             Arc::new(Mutex::new(())),
+            Arc::new(Mutex::new(())),
+            Arc::default(),
+            Arc::default(),
         )
+    }
+
+    /// Durably gate this origin before changing data its consumers may have read.
+    /// Clear `indexed_event_conflict_v1_` only after coordinated DB, queue and
+    /// prover recovery. A matching replay or restart must not clear this marker.
+    pub fn mark_indexed_event_conflict(&self) -> DbResult<()> {
+        let _admission = self.6.admission.write();
+        self.store_value_by_key(INDEXED_EVENT_CONFLICT, &false, &true)?;
+        if let Some(metric) = self.5.get() {
+            metric.set(1);
+        }
+        self.6.changed.notify_waiters();
+        Ok(())
+    }
+
+    /// Observe both persisted conflicts at startup and subsequent writes from cloned handles.
+    pub fn set_indexed_event_conflict_metric(&self, metric: IntGauge) -> DbResult<()> {
+        let required = self
+            .retrieve_value_by_key(INDEXED_EVENT_CONFLICT, &false)?
+            .unwrap_or(false);
+        self.5.get_or_init(|| metric).set(i64::from(required));
+        Ok(())
+    }
+
+    /// Hold consumers while startup verification retries; this is not a durable conflict.
+    pub fn set_live_block_verification_pending(&self, pending: bool) {
+        self.6
+            .verification_pending
+            .store(pending, Ordering::Release);
+        self.6.changed.notify_waiters();
+    }
+
+    /// Whether consumers are waiting for initial RPC verification.
+    pub fn live_block_verification_pending(&self) -> bool {
+        self.6.live_block_verification_pending()
+    }
+
+    /// Wait without polling the database while startup verification is unavailable.
+    pub async fn wait_for_live_block_verification(&self) {
+        loop {
+            let changed = self.6.changed.notified();
+            if !self.6.verification_pending.load(Ordering::Acquire) {
+                return;
+            }
+            changed.await;
+        }
+    }
+
+    /// Refuse stale prepared work, including after recovery has reopened an origin.
+    pub async fn with_origin_generations<F: Future>(
+        origins: &[(&dyn HyperlaneDb, u64)],
+        future: F,
+    ) -> DbResult<F::Output> {
+        let origins_with_generations = origins;
+        let mut origins: Vec<_> = origins.iter().map(|(db, _)| *db).collect();
+        origins.sort_unstable_by_key(|db| db.domain().id());
+        origins.dedup_by_key(|db| db.domain().id());
+        let states: Vec<_> = origins
+            .iter()
+            .filter_map(|db| db.origin_consistency())
+            .collect();
+        let mut changed: Vec<_> = states
+            .iter()
+            .map(|state| Box::pin(state.changed.notified()))
+            .collect();
+        let mut future = std::pin::pin!(future);
+        poll_fn(|cx| {
+            let _admission: Vec<_> = states.iter().map(|state| state.admission.read()).collect();
+            for (db, generation) in origins_with_generations {
+                if db.discovery_generation() != *generation {
+                    return Poll::Ready(Err(DbError::Other(
+                        "Prepared work belongs to an orphaned discovery generation".into(),
+                    )));
+                }
+                if let Err(error) = db.ensure_no_indexed_event_conflict() {
+                    return Poll::Ready(Err(error));
+                }
+            }
+            for (notification, state) in changed.iter_mut().zip(&states) {
+                // Register the submission's waker before releasing admission locks.
+                if notification.as_mut().poll(cx).is_ready() {
+                    *notification = Box::pin(state.changed.notified());
+                    let _ = notification.as_mut().poll(cx);
+                }
+            }
+            future.as_mut().poll(cx).map(Ok)
+        })
+        .await
+    }
+
+    fn check_event_consistency(&self, matches: bool, kind: &'static str) -> Result<()> {
+        if !matches {
+            if self.6.discovery_enabled.load(Ordering::Acquire) {
+                self.request_discovery_recovery()?;
+            } else {
+                self.mark_indexed_event_conflict()?;
+            }
+            return Err(ConflictingEvent(kind).into());
+        }
+        Ok(())
     }
 
     /// Get the domain this database is scoped to
@@ -136,6 +274,15 @@ impl HyperlaneRocksDB {
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
     ) -> DbResult<bool> {
+        let _guard = self.4.lock();
+        self.store_message_inner(message, dispatched_block_number)
+    }
+
+    fn store_message_inner(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<bool> {
         if let Some(stored_message) = self.retrieve_message_by_nonce(message.nonce)? {
             trace!(hyp_message=?message, "Message already stored in db");
             self.try_update_max_seen_message_nonce(message.nonce)?;
@@ -144,14 +291,15 @@ impl HyperlaneRocksDB {
                 .retrieve_dispatched_block_number_by_nonce(&message.nonce)?
                 .is_none()
             {
-                self.store_dispatched_block_number_by_nonce(
+                self.store_value_by_key(
+                    MESSAGE_DISPATCHED_BLOCK_NUMBER,
                     &message.nonce,
                     &dispatched_block_number,
                 )?;
             }
             return Ok(false);
         }
-        self.upsert_message(message, dispatched_block_number)?;
+        self.upsert_message_inner(message, dispatched_block_number)?;
         Ok(true)
     }
 
@@ -166,8 +314,20 @@ impl HyperlaneRocksDB {
         message: &HyperlaneMessage,
         dispatched_block_number: u64,
     ) -> DbResult<()> {
+        let _guard = self.4.lock();
+        self.upsert_message_inner(message, dispatched_block_number)
+    }
+
+    fn upsert_message_inner(
+        &self,
+        message: &HyperlaneMessage,
+        dispatched_block_number: u64,
+    ) -> DbResult<()> {
         let id = message.id();
         let previous = self.retrieve_message_by_nonce(message.nonce)?;
+        if previous.as_ref().is_some_and(|stored| stored != message) {
+            self.mark_indexed_event_conflict()?;
+        }
         let max_nonce = self
             .retrieve_highest_seen_message_nonce()?
             .unwrap_or_default()
@@ -436,7 +596,9 @@ impl HyperlaneRocksDB {
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
         let _guard = self.2.lock();
+        self.ensure_discovery_writable()?;
         let payment = *(indexed_payment.inner());
+        self.check_discovery_gas(payment, log_meta)?;
         let gas_payment_sequence = if let Some(sequence) = indexed_payment.sequence {
             let stored_payment = self.retrieve_gas_payment_by_sequence(&sequence)?;
             let stored_block = self.retrieve_gas_payment_block_by_sequence(&sequence)?;
@@ -489,23 +651,8 @@ impl HyperlaneRocksDB {
             None
         };
 
-        let gas_processing_successful = self.process_gas_payment_inner(payment, log_meta)?;
-        let Some(gas_payment_sequence) = gas_payment_sequence else {
-            return Ok(gas_processing_successful);
-        };
-
-        let mut batch = self.batch();
-        batch.store_keyed_encodable(
-            GAS_PAYMENT_BY_SEQUENCE,
-            &gas_payment_sequence,
-            indexed_payment.inner(),
-        );
-        batch.store_keyed_encodable(
-            GAS_PAYMENT_BLOCK_BY_SEQUENCE,
-            &gas_payment_sequence,
-            &log_meta.block_number,
-        );
-        batch.commit()?;
+        let gas_processing_successful =
+            self.process_gas_payment_inner(payment, log_meta, gas_payment_sequence)?;
 
         Ok(gas_processing_successful)
     }
@@ -519,13 +666,16 @@ impl HyperlaneRocksDB {
         log_meta: &LogMeta,
     ) -> DbResult<bool> {
         let _guard = self.2.lock();
-        self.process_gas_payment_inner(payment, log_meta)
+        self.ensure_discovery_writable()?;
+        self.check_discovery_gas(payment, log_meta)?;
+        self.process_gas_payment_inner(payment, log_meta, None)
     }
 
     fn process_gas_payment_inner(
         &self,
         payment: InterchainGasPayment,
         log_meta: &LogMeta,
+        sequence: Option<u32>,
     ) -> DbResult<bool> {
         let payment_meta = log_meta.into();
         // If the gas payment has already been processed, do nothing
@@ -550,11 +700,42 @@ impl HyperlaneRocksDB {
         let total = existing_payment.add(payment);
         let mut batch = self.batch();
         batch.store_keyed_encodable(GAS_PAYMENT_META_PROCESSED, &payment_meta, &true);
+        if self.6.discovery_enabled.load(Ordering::Acquire) {
+            batch.store_keyed_encodable(
+                discovery::GAS_FINGERPRINT,
+                &payment_meta,
+                &Self::gas_fingerprint(payment, log_meta),
+            );
+        }
         batch.store_keyed_encodable(
             GAS_PAYMENT_FOR_MESSAGE_ID,
             &gas_payment_key,
             &InterchainGasPaymentData::from(total),
         );
+        if let Some(sequence) = sequence {
+            batch.store_keyed_encodable(GAS_PAYMENT_BY_SEQUENCE, &sequence, &payment);
+            batch.store_keyed_encodable(
+                GAS_PAYMENT_BLOCK_BY_SEQUENCE,
+                &sequence,
+                &log_meta.block_number,
+            );
+        }
+        self.record_discovery(
+            &mut batch,
+            DiscoveryCheckpoint {
+                height: log_meta.block_number,
+                hash: log_meta.block_hash,
+            },
+            discovery::Event::Gas {
+                id: payment.message_id,
+                destination: payment.destination,
+                payment: payment.payment,
+                gas: payment.gas_amount,
+                tx: log_meta.transaction_id,
+                log: log_meta.log_index.as_u64(),
+                sequence,
+            },
+        )?;
         batch.commit()?;
 
         // Return true to indicate the gas payment was processed for the first time
@@ -582,6 +763,9 @@ impl HyperlaneRocksDB {
                 debug!(insertion=?insertion, "Tree insertion already stored in db");
                 return Ok(false);
             }
+            if existing != *insertion {
+                self.mark_indexed_event_conflict()?;
+            }
             self.store_tree_insertion_inner(insertion, insertion_block_number)?;
             return Ok(existing != *insertion);
         }
@@ -599,22 +783,19 @@ impl HyperlaneRocksDB {
         self.store_tree_insertion_inner(insertion, insertion_block_number)
     }
 
-    /// Store an unverified insertion only if its leaf index is absent. Returns the
-    /// existing insertion otherwise. Shares the RPC writer's lock so a concurrent
-    /// stream replay cannot overwrite a canonical insertion or its block metadata.
+    /// Store an insertion only if its leaf index is absent; return the existing
+    /// insertion otherwise, preserving its block metadata for validator recovery.
     pub fn store_tree_insertion_if_absent(
         &self,
         insertion: &MerkleTreeInsertion,
         insertion_block_number: u64,
     ) -> DbResult<Option<MerkleTreeInsertion>> {
         let _guard = self.3.lock();
-        if let Some(existing) =
-            self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?
-        {
-            return Ok(Some(existing));
+        let existing = self.retrieve_merkle_tree_insertion_by_leaf_index(&insertion.index())?;
+        if existing.is_none() {
+            self.store_tree_insertion_inner(insertion, insertion_block_number)?;
         }
-        self.store_tree_insertion_inner(insertion, insertion_block_number)?;
-        Ok(None)
+        Ok(existing)
     }
 
     fn store_tree_insertion_inner(
@@ -708,6 +889,265 @@ mod pending_index_tests {
     use crate::db::rocks::test_utils::run_test_db;
 
     #[tokio::test]
+    async fn submissions_for_one_origin_can_poll_concurrently() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let first_db = db.clone();
+            let (started, waiting) = std::sync::mpsc::channel();
+            let (release, released) = std::sync::mpsc::channel();
+            let first = std::thread::spawn(move || {
+                futures::executor::block_on(HyperlaneRocksDB::with_origin_generations(
+                    &[(&first_db, 0)],
+                    async {
+                        started.send(()).unwrap();
+                        released
+                            .recv_timeout(std::time::Duration::from_secs(5))
+                            .unwrap();
+                    },
+                ))
+                .unwrap();
+            });
+            waiting
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            HyperlaneRocksDB::with_origin_generations(&[(&db, 0)], async {
+                release.send(()).unwrap();
+            })
+            .await
+            .unwrap();
+            first.join().unwrap();
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn conflict_wakes_and_cancels_an_admitted_pending_submission() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let (started, waiting) = tokio::sync::oneshot::channel();
+            let submission_db = db.clone();
+            let submission = tokio::spawn(async move {
+                HyperlaneRocksDB::with_origin_generations(
+                    &[(&submission_db, 0), (&submission_db, 0)],
+                    async {
+                        started.send(()).unwrap();
+                        std::future::pending::<()>().await;
+                        panic!("conflicted submission resumed");
+                    },
+                )
+                .await
+            });
+            waiting.await.unwrap();
+            db.mark_indexed_event_conflict().unwrap();
+            let error = tokio::time::timeout(std::time::Duration::from_secs(1), submission)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap_err();
+            assert!(matches!(error, DbError::ConflictingEvent(_)));
+            assert!(
+                HyperlaneRocksDB::with_origin_generations(&[(&db, 0)], async {
+                    panic!("blocked submission was polled");
+                })
+                .await
+                .is_err()
+            );
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn startup_verification_gates_consumers_without_a_durable_conflict() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            db.set_live_block_verification_pending(true);
+            assert!(db.ensure_no_indexed_event_conflict().is_err());
+            let consumer_db = db.clone();
+            let mut consumer = tokio::spawn(async move {
+                consumer_db.wait_for_live_block_verification().await;
+                consumer_db.ensure_no_indexed_event_conflict()
+            });
+            assert!(
+                tokio::time::timeout(std::time::Duration::from_millis(10), &mut consumer)
+                    .await
+                    .is_err()
+            );
+            db.set_live_block_verification_pending(false);
+            consumer.await.unwrap().unwrap();
+            db.ensure_no_indexed_event_conflict().unwrap();
+        })
+        .await;
+    }
+
+    #[test]
+    fn repeated_merkle_ids_do_not_poison_or_rewind_reverse_indices() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &HyperlaneDomain::new_test_domain("origin"),
+            DB::from_path(dir.path()).unwrap(),
+        );
+        let id = H256::from_low_u64_be(1);
+        let first = MerkleTreeInsertion::new(0, id);
+        let second = MerkleTreeInsertion::new(1, id);
+        db.store_indexed_merkle(
+            &first,
+            &LogMeta {
+                block_number: 100,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.store_indexed_merkle(
+            &second,
+            &LogMeta {
+                block_number: 101,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.store_indexed_merkle(
+            &first,
+            &LogMeta {
+                block_number: 100,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        db.ensure_no_indexed_event_conflict().unwrap();
+        assert_eq!(
+            db.retrieve_merkle_leaf_index_by_message_id(&id).unwrap(),
+            Some(1)
+        );
+    }
+
+    #[tokio::test]
+    async fn indexing_repairs_admin_block_hints_and_journals_the_message() {
+        run_test_db(|raw_db| async move {
+            let db =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db.clone());
+            let metric = IntGauge::new("test_recovery", "test").unwrap();
+            db.set_indexed_event_conflict_metric(metric.clone())
+                .unwrap();
+            assert_eq!(metric.get(), 0);
+            let original = message(0, 10);
+            db.store_message(&original, 100).unwrap();
+            db.enable_discovery(DiscoveryCheckpoint {
+                height: 99,
+                hash: H256::from_low_u64_be(99),
+            })
+            .unwrap();
+            let meta = LogMeta {
+                block_number: 101,
+                block_hash: H256::from_low_u64_be(101),
+                transaction_id: H512::from_low_u64_be(1),
+                ..Default::default()
+            };
+            assert!(db
+                .store_logs(&[(Indexed::new(original.clone()), meta)])
+                .await
+                .is_ok());
+            assert_eq!(metric.get(), 0);
+            assert_eq!(
+                db.retrieve_dispatched_block_number_by_nonce(&0).unwrap(),
+                Some(101)
+            );
+            let startup = IntGauge::new("test_recovery_reopened", "test").unwrap();
+            let reopened = HyperlaneRocksDB::new(db.domain(), raw_db);
+            reopened
+                .set_indexed_event_conflict_metric(startup.clone())
+                .unwrap();
+            assert_eq!(startup.get(), 0);
+            // The formerly manual row now participates in provisional recovery.
+            db.rollback_discovery().unwrap();
+            assert!(db.retrieve_message_by_nonce(0).unwrap().is_none());
+        })
+        .await;
+    }
+
+    #[test]
+    fn manual_message_replacement_gates_already_loaded_work() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(
+            &HyperlaneDomain::new_test_domain("origin"),
+            DB::from_path(dir.path()).unwrap(),
+        );
+        db.store_message(&message(0, 10), 100).unwrap();
+        db.upsert_message(&message(0, 11), 101).unwrap();
+        assert!(db.ensure_no_indexed_event_conflict().is_err());
+    }
+
+    #[tokio::test]
+    async fn rpc_dispatch_conflicts_gate_only_the_affected_origin() {
+        run_test_db(|raw_db| async move {
+            let db =
+                HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db.clone());
+            let other = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("other"), raw_db);
+            let original = message(7, 10);
+            let conflicting = message(7, 11);
+            let meta = LogMeta {
+                block_number: 100,
+                transaction_id: H512::from_low_u64_be(1),
+                ..Default::default()
+            };
+            db.store_indexed_dispatch(&original, &meta).unwrap();
+            assert_eq!(
+                db.store_logs(&[(Indexed::new(original.clone()), meta.clone())])
+                    .await
+                    .unwrap(),
+                0
+            );
+            db.ensure_no_indexed_event_conflict().unwrap();
+            let error = db
+                .store_logs(&[(Indexed::new(conflicting.clone()), meta)])
+                .await
+                .unwrap_err();
+            assert!(error.is::<ConflictingEvent>());
+            assert_eq!(db.retrieve_message_by_nonce(7).unwrap(), Some(original));
+            assert!(db
+                .retrieve_dispatched_tx_hash_by_message_id(&conflicting.id())
+                .unwrap()
+                .is_none());
+            assert!(db.ensure_no_indexed_event_conflict().is_err());
+            other.ensure_no_indexed_event_conflict().unwrap();
+        })
+        .await;
+    }
+
+    #[test]
+    fn rpc_merkle_replacement_is_durably_gated_before_repair() {
+        let dir = tempfile::tempdir().unwrap();
+        let domain = HyperlaneDomain::new_test_domain("origin");
+        let original = MerkleTreeInsertion::new(0, H256::from_low_u64_be(1));
+        let replacement = MerkleTreeInsertion::new(0, H256::from_low_u64_be(2));
+        {
+            let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).unwrap());
+            assert!(db.process_tree_insertion(&original, 100).unwrap());
+            db.ensure_no_indexed_event_conflict().unwrap();
+            assert!(!db.process_tree_insertion(&original, 100).unwrap());
+            // Repair block metadata without treating the matching leaf as a replacement.
+            db.store_merkle_tree_insertion_block_number_by_leaf_index(&0, &99)
+                .unwrap();
+            assert!(!db.process_tree_insertion(&original, 100).unwrap());
+            db.ensure_no_indexed_event_conflict().unwrap();
+            assert!(db.process_tree_insertion(&replacement, 101).unwrap());
+            assert!(db.ensure_no_indexed_event_conflict().is_err());
+            assert_eq!(
+                db.retrieve_merkle_tree_insertion_by_leaf_index(&0).unwrap(),
+                Some(replacement)
+            );
+            assert_eq!(
+                db.retrieve_merkle_leaf_index_by_message_id(&original.message_id())
+                    .unwrap(),
+                None
+            );
+            assert!(!db.process_tree_insertion(&replacement, 101).unwrap());
+            assert!(db.ensure_no_indexed_event_conflict().is_err());
+        }
+        let db = HyperlaneRocksDB::new(&domain, DB::from_path(dir.path()).unwrap());
+        assert!(db.ensure_no_indexed_event_conflict().is_err());
+    }
+
+    #[tokio::test]
     async fn zero_dispatch_tx_id_is_never_stored() {
         run_test_db(|raw_db| async move {
             let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
@@ -799,6 +1239,110 @@ mod pending_index_tests {
             recipient: H256::zero(),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn dispatch_replay_checks_parity_after_waiting_for_rpc_writer() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            for mismatch in 0..3 {
+                let replay = message(mismatch, 10);
+                let mut canonical = replay.clone();
+                let block = if mismatch == 1 { 101 } else { 100 };
+                let tx = H512::from_low_u64_be(if mismatch == 2 { 2 } else { 1 });
+                if mismatch == 0 {
+                    canonical.destination = 11;
+                }
+                let rpc_guard = db.4.lock();
+                let writer = db.clone();
+                let (started, ready) = std::sync::mpsc::channel();
+                let task = std::thread::spawn(move || {
+                    // A stale precheck must not let the subsequent insert accept a conflict.
+                    assert!(writer
+                        .retrieve_message_by_nonce(replay.nonce)
+                        .unwrap()
+                        .is_none());
+                    started.send(()).unwrap();
+                    writer.store_indexed_dispatch(
+                        &replay,
+                        &LogMeta {
+                            block_number: 100,
+                            transaction_id: H512::from_low_u64_be(1),
+                            ..Default::default()
+                        },
+                    )
+                });
+                ready.recv().unwrap();
+                // Complete an RPC writer's critical section while the replay waits.
+                db.store_message_inner(&canonical, block).unwrap();
+                db.store_value_by_key(
+                    MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID,
+                    &canonical.id(),
+                    &tx,
+                )
+                .unwrap();
+                drop(rpc_guard);
+                let error = task
+                    .join()
+                    .unwrap()
+                    .expect_err("reject RPC/replay disagreement");
+                assert!(error.is::<ConflictingEvent>());
+                assert_eq!(
+                    db.retrieve_message_by_nonce(canonical.nonce).unwrap(),
+                    Some(canonical.clone())
+                );
+                assert_eq!(
+                    db.retrieve_dispatched_block_number_by_nonce(&canonical.nonce)
+                        .unwrap(),
+                    Some(block)
+                );
+                assert_eq!(
+                    db.retrieve_dispatched_tx_hash_by_message_id(&canonical.id())
+                        .unwrap(),
+                    Some(tx)
+                );
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn merkle_replay_checks_block_after_waiting_for_rpc_writer() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let insertion = MerkleTreeInsertion::new(0, H256::from_low_u64_be(1));
+            let rpc_guard = db.3.lock();
+            let writer = db.clone();
+            let (started, ready) = std::sync::mpsc::channel();
+            let task = std::thread::spawn(move || {
+                assert!(writer
+                    .retrieve_merkle_tree_insertion_block_number_by_leaf_index(&0)
+                    .unwrap()
+                    .is_none());
+                started.send(()).unwrap();
+                writer.store_indexed_merkle(
+                    &insertion,
+                    &LogMeta {
+                        block_number: 100,
+                        ..Default::default()
+                    },
+                )
+            });
+            ready.recv().unwrap();
+            db.store_tree_insertion_inner(&insertion, 101).unwrap();
+            drop(rpc_guard);
+            let error = task
+                .join()
+                .unwrap()
+                .expect_err("same leaf at a different block conflicts");
+            assert!(error.is::<ConflictingEvent>());
+            assert_eq!(
+                db.retrieve_merkle_tree_insertion_block_number_by_leaf_index(&0)
+                    .unwrap(),
+                Some(101)
+            );
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -1066,20 +1610,12 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         let mut stored: u32 = 0;
         for (message, meta) in messages {
-            let stored_message = self.store_message(message.inner(), meta.block_number)?;
-            if stored_message {
+            if self.store_indexed_dispatch_inner(
+                message.inner(),
+                meta,
+                self.6.discovery_enabled.load(Ordering::Acquire),
+            )? {
                 stored = stored.saturating_add(1);
-            }
-            // Sealevel's basic log metadata carries a zero transaction ID, which
-            // parity backfill and CCIP-read treat as absent. Never write it, so it cannot
-            // replace a known ID (e.g. backfilled from the scraper); a nonzero ID
-            // still replaces it. Sealevel relayer indexing is finalized, so a kept
-            // ID is never orphaned by a reorg re-index.
-            if meta.transaction_id != H512::zero() {
-                self.store_dispatched_tx_hash_by_message_id(
-                    &message.inner().id(),
-                    &meta.transaction_id,
-                )?;
             }
         }
         if stored > 0 {
@@ -1132,7 +1668,7 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
     async fn store_logs(&self, leaves: &[(Indexed<MerkleTreeInsertion>, LogMeta)]) -> Result<u32> {
         let mut insertions: u32 = 0;
         for (insertion, meta) in leaves {
-            if self.process_tree_insertion(insertion.inner(), meta.block_number)? {
+            if self.store_indexed_merkle(insertion.inner(), meta)? {
                 insertions = insertions.saturating_add(1);
             }
         }
@@ -1255,6 +1791,47 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 impl HyperlaneDb for HyperlaneRocksDB {
+    fn discovery_generation(&self) -> u64 {
+        self.6.discovery_generation.load(Ordering::Acquire)
+    }
+
+    fn discovery_message_current(&self, message: &HyperlaneMessage) -> DbResult<bool> {
+        Ok(!self.6.discovery_enabled.load(Ordering::Acquire)
+            || self.retrieve_message_id_by_nonce(&message.nonce)? == Some(message.id()))
+    }
+    fn discovery_message_provisional(&self, nonce: u32) -> DbResult<bool> {
+        Ok(
+            match (
+                self.discovery_checkpoint()?,
+                self.retrieve_dispatched_block_number_by_nonce(&nonce)?,
+            ) {
+                (Some(checkpoint), Some(height)) => height > checkpoint.height,
+                _ => false,
+            },
+        )
+    }
+    fn origin_consistency(&self) -> Option<&OriginConsistency> {
+        Some(&self.6)
+    }
+
+    fn ensure_no_indexed_event_conflict(&self) -> DbResult<()> {
+        if self.discovery_recovery_pending()? {
+            return Err(DbError::Other("Origin discovery is recovering".into()));
+        }
+        if self.6.verification_pending.load(Ordering::Acquire) {
+            return Err(DbError::Other(
+                "Origin live-block verification is pending".into(),
+            ));
+        }
+        if self
+            .retrieve_value_by_key(INDEXED_EVENT_CONFLICT, &false)?
+            .unwrap_or(false)
+        {
+            return Err(ConflictingEvent("origin requires DB/queue/prover recovery").into());
+        }
+        Ok(())
+    }
+
     fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
         self.retrieve_highest_seen_message_nonce_number()
     }
@@ -1272,6 +1849,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()> {
+        let _guard = self.4.lock();
         self.store_value_by_key(MESSAGE_ID, nonce, id)
     }
 
@@ -1280,6 +1858,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()> {
+        let _guard = self.4.lock();
         self.store_value_by_key(MESSAGE, id, message)
     }
 
@@ -1292,6 +1871,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
         nonce: &u32,
         block_number: &u64,
     ) -> DbResult<()> {
+        let _guard = self.4.lock();
         self.store_value_by_key(MESSAGE_DISPATCHED_BLOCK_NUMBER, nonce, block_number)
     }
 
@@ -1305,23 +1885,19 @@ impl HyperlaneDb for HyperlaneRocksDB {
     }
 
     fn store_message_processed(&self, message: &HyperlaneMessage) -> DbResult<()> {
-        self.store_and_delete_batch(
-            [(
-                NONCE_PROCESSED.as_bytes().to_vec(),
-                message.nonce.to_vec(),
-                true.to_vec(),
-            )],
-            [
-                (
-                    Self::pending_message_destination_prefix(message.destination),
-                    message.nonce.to_vec(),
-                ),
-                (
-                    TERMINALLY_DROPPED_MESSAGE_BY_ID.as_bytes().to_vec(),
-                    message.id().to_vec(),
-                ),
-            ],
-        )
+        let _messages = self.4.lock();
+        let mut batch = self.batch();
+        batch.store_keyed_encodable(discovery::PROCESSED_MESSAGE, &message.id(), &true);
+        // A receipt for an orphaned message must never mark its replacement nonce delivered.
+        if self.retrieve_message_id_by_nonce(&message.nonce)? == Some(message.id()) {
+            batch.store_keyed_encodable(NONCE_PROCESSED, &message.nonce, &true);
+            batch.delete_keyed(
+                Self::pending_message_destination_prefix(message.destination),
+                &message.nonce,
+            );
+        }
+        batch.delete_keyed(TERMINALLY_DROPPED_MESSAGE_BY_ID, &message.id());
+        batch.commit()
     }
 
     fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>> {
@@ -1576,6 +2152,7 @@ impl HyperlaneDb for HyperlaneRocksDB {
         message_id: &H256,
         tx_hash: &H512,
     ) -> DbResult<()> {
+        let _guard = self.4.lock();
         self.store_value_by_key(
             MESSAGE_DISPATCHED_TX_HASH_BY_MESSAGE_ID,
             message_id,

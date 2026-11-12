@@ -12,7 +12,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     HyperlaneBackwardCursorStore, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexer,
-    InterchainGasPayment, MerkleTreeInsertion, ValidatorAnnounce,
+    InterchainGasPayment, MerkleTreeInsertion, ReorgPeriod, ValidatorAnnounce,
 };
 use tokio::sync::RwLock;
 
@@ -26,6 +26,8 @@ type MerkleTreeHookSync = Arc<dyn ContractSyncer<MerkleTreeInsertion>>;
 
 pub struct Origin {
     pub database: HyperlaneRocksDB,
+    pub sync_metrics: Arc<ContractSyncMetrics>,
+    pub finality_indexer: Option<SequenceIndexer<HyperlaneMessage>>,
     pub domain: HyperlaneDomain,
     pub chain_conf: ChainConf,
     pub validator_announce: Arc<dyn ValidatorAnnounce>,
@@ -44,8 +46,6 @@ pub struct Origin {
     pub igp_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
     pub merkle_tree_hook_sync: MerkleTreeHookSync,
     pub merkle_sequence_indexer: SequenceIndexer<MerkleTreeInsertion>,
-    /// Shared contract sync metrics, so scraper-indexed progress updates the same cursor gauges.
-    pub sync_metrics: Arc<ContractSyncMetrics>,
 }
 
 impl std::fmt::Debug for Origin {
@@ -133,11 +133,29 @@ impl Factory for OriginFactory {
             res
         };
 
+        // Discovery is independent of validator and destination finality settings.
+        // EVM logs carry the canonical block identities needed for reversible storage.
+        let mut discovery_conf = chain_conf.clone();
+        let finality_indexer = if matches!(
+            chain_conf.connection,
+            hyperlane_base::settings::ChainConnectionConf::Ethereum(_)
+        ) {
+            let indexer = chain_conf
+                .build_message_indexer(&self.core_metrics, self.advanced_log_meta)
+                .await
+                .map_err(|error| {
+                    FactoryError::MessageSync(domain.to_string(), error.to_string())
+                })?;
+            discovery_conf.reorg_period = ReorgPeriod::None;
+            Some(Arc::from(indexer))
+        } else {
+            None
+        };
         let hyperlane_db = Arc::new(db.clone());
         let (message_sync, message_sequence_indexer, message_indexer) = {
             let start_entity_init = Instant::now();
             let res = self
-                .init_message_sync(&domain, chain_conf, hyperlane_db.clone())
+                .init_message_sync(&domain, &discovery_conf, hyperlane_db.clone())
                 .await?;
             self.measure(&domain, "message_sync", start_entity_init.elapsed());
             res
@@ -147,7 +165,7 @@ impl Factory for OriginFactory {
             let (igp_sync, igp_idx) = {
                 let start_entity_init = Instant::now();
                 let res = self
-                    .init_igp_sync(&domain, chain_conf, hyperlane_db.clone())
+                    .init_igp_sync(&domain, &discovery_conf, hyperlane_db.clone())
                     .await?;
                 self.measure(
                     &domain,
@@ -164,7 +182,7 @@ impl Factory for OriginFactory {
         let (merkle_tree_hook_sync, merkle_sequence_indexer) = {
             let start_entity_init = Instant::now();
             let res = self
-                .init_merkle_tree_hook_sync(&domain, chain_conf, hyperlane_db.clone())
+                .init_merkle_tree_hook_sync(&domain, &discovery_conf, hyperlane_db.clone())
                 .await?;
             self.measure(
                 &domain,
@@ -184,7 +202,9 @@ impl Factory for OriginFactory {
         };
 
         let origin = Origin {
+            sync_metrics: self.sync_metrics.clone(),
             database: db,
+            finality_indexer,
             domain,
             chain_conf: chain_conf.clone(),
             validator_announce,
@@ -197,7 +217,6 @@ impl Factory for OriginFactory {
             igp_indexer,
             merkle_tree_hook_sync,
             merkle_sequence_indexer,
-            sync_metrics: self.sync_metrics.clone(),
         };
         Ok(origin)
     }

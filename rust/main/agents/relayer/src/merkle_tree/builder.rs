@@ -70,6 +70,13 @@ pub enum MerkleTreeBuilderError {
 }
 
 impl MerkleTreeBuilder {
+    /// Discard the provisional suffix while preserving the stable proof history.
+    pub(crate) fn rewind(&mut self, count: u32) -> Result<()> {
+        self.incremental = self.prover.truncate(count.min(self.count()) as usize);
+        self.root_mismatch = self.prover.root() != self.incremental.root();
+        self.ensure_verified()?;
+        Ok(())
+    }
     pub fn new() -> Self {
         let prover = Prover::default();
         let incremental = IncrementalMerkle::default();

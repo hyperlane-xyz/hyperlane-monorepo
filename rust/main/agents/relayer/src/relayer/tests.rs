@@ -484,18 +484,17 @@ async fn test_failed_build_origin() {
     let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
 
     let db = DB::from_path(db_path).expect("Failed to initialize database");
-    let origins =
-        Relayer::build_origins(&settings, db, Arc::new(core_metrics), &critical_errors).await;
+    let origins = Relayer::build_origins(&settings, db, Arc::new(core_metrics), &critical_errors)
+        .await
+        .unwrap();
 
     assert_eq!(origins.len(), 1);
     assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
 
-    // Arbitrum chain should not have any errors because it's ChainConf exists
-    let metric = chain_metrics
-        .critical_error
-        .get_metric_with_label_values(&["arbitrum"])
-        .unwrap();
-    assert_eq!(metric.get(), 0);
+    // Construction succeeded, but live verification against the dead RPC is pending.
+    assert!(origins[&KnownHyperlaneDomain::Arbitrum.into()]
+        .database
+        .live_block_verification_pending());
 
     // Ethereum chain should error because it is missing ChainConf
     let metric = chain_metrics
@@ -813,79 +812,6 @@ async fn test_from_settings_and_run_bad_signer() {
     );
 }
 
-#[tokio::test]
-async fn gas_payment_rpc_fallback_stops_restarts_and_survives_monitor_exit() {
-    struct Running(Arc<AtomicBool>);
-    impl Drop for Running {
-        fn drop(&mut self) {
-            self.0.store(false, Ordering::SeqCst);
-        }
-    }
-    let (sender, receiver) = tokio::sync::watch::channel(false);
-    let running = Arc::new(AtomicBool::new(false));
-    let authority_observed = Arc::new(AtomicBool::new(false));
-    let (started, mut starts) = tokio::sync::mpsc::unbounded_channel();
-    let observed = running.clone();
-    let observed_authority = authority_observed.clone();
-    let task = tokio::spawn(super::run_gas_payment_fallback(
-        Some(receiver),
-        move || observed_authority.store(true, Ordering::SeqCst),
-        move || {
-            let running = observed.clone();
-            let started = started.clone();
-            async move {
-                assert!(
-                    !running.swap(true, Ordering::SeqCst),
-                    "RPC tasks must not overlap"
-                );
-                let _guard = Running(running);
-                started.send(()).expect("start notification");
-                std::future::pending::<()>().await;
-            }
-        },
-    ));
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("startup RPC")
-        .expect("started");
-    sender.send(true).expect("connected");
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while running.load(Ordering::SeqCst) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("RPC cancelled on connection");
-    assert!(authority_observed.load(Ordering::SeqCst));
-    assert!(
-        tokio::time::timeout(Duration::from_millis(20), starts.recv())
-            .await
-            .is_err(),
-        "no parallel RPC while connected"
-    );
-    sender.send(false).expect("disconnected");
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("outage RPC")
-        .expect("started");
-    sender.send(true).expect("reconnected");
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while running.load(Ordering::SeqCst) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("RPC paused again");
-    drop(sender);
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("closed monitor RPC")
-        .expect("started");
-    task.abort();
-    let _ = task.await;
-    assert!(!running.load(Ordering::SeqCst));
-}
-
 #[tokio::test(start_paused = true)]
 async fn build_chain_with_retries_recovers_from_transient_failures() {
     use std::sync::atomic::AtomicUsize;
@@ -895,8 +821,12 @@ async fn build_chain_with_retries_recovers_from_transient_failures() {
     let calls_inner = calls.clone();
     let started = tokio::time::Instant::now();
 
-    let result: Result<u32, String> =
-        Relayer::build_chain_with_retries(&domain, "origin", PROD_CHAIN_BUILD_RETRY, || {
+    let result: Result<u32, String> = Relayer::build_chain_with_retries(
+        &domain,
+        "origin",
+        PROD_CHAIN_BUILD_RETRY,
+        |_| true,
+        || {
             let calls_inner = calls_inner.clone();
             async move {
                 let attempt = calls_inner.fetch_add(1, Ordering::SeqCst) + 1;
@@ -906,8 +836,9 @@ async fn build_chain_with_retries_recovers_from_transient_failures() {
                     Ok(42)
                 }
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(result, Ok(42));
     assert_eq!(calls.load(Ordering::SeqCst), 3);
@@ -923,15 +854,20 @@ async fn build_chain_with_retries_surfaces_persistent_failure() {
     let calls_inner = calls.clone();
     let started = tokio::time::Instant::now();
 
-    let result: Result<u32, String> =
-        Relayer::build_chain_with_retries(&domain, "destination", PROD_CHAIN_BUILD_RETRY, || {
+    let result: Result<u32, String> = Relayer::build_chain_with_retries(
+        &domain,
+        "destination",
+        PROD_CHAIN_BUILD_RETRY,
+        |_| true,
+        || {
             let calls_inner = calls_inner.clone();
             async move {
                 let attempt = calls_inner.fetch_add(1, Ordering::SeqCst) + 1;
                 Err::<u32, String>(format!("failure {attempt}"))
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(result, Err("failure 5".to_string()));
     assert_eq!(calls.load(Ordering::SeqCst), 5);
@@ -944,15 +880,20 @@ async fn build_chain_with_retries_preserves_slow_first_success() {
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result =
-        Relayer::build_chain_with_retries(&domain, "origin", PROD_CHAIN_BUILD_RETRY, || {
+    let result = Relayer::build_chain_with_retries(
+        &domain,
+        "origin",
+        PROD_CHAIN_BUILD_RETRY,
+        |_| true,
+        || {
             calls += 1;
             async {
                 tokio::time::sleep(Duration::from_secs(60)).await;
                 Ok::<_, &'static str>(42)
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(result, Ok(42));
     assert_eq!(calls, 1);
@@ -974,8 +915,12 @@ async fn build_chain_with_retries_cancels_hanging_retry_after_slow_first_failure
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result =
-        Relayer::build_chain_with_retries(&domain, "destination", PROD_CHAIN_BUILD_RETRY, || {
+    let result = Relayer::build_chain_with_retries(
+        &domain,
+        "destination",
+        PROD_CHAIN_BUILD_RETRY,
+        |_| true,
+        || {
             calls += 1;
             let attempt = calls;
             let cancelled = cancelled.clone();
@@ -987,8 +932,9 @@ async fn build_chain_with_retries_cancels_hanging_retry_after_slow_first_failure
                 let _probe = DropProbe(cancelled);
                 std::future::pending().await
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(result, Err("first RPC failure"));
     assert_eq!(calls, 2);
@@ -1002,8 +948,12 @@ async fn build_chain_with_retries_preserves_latest_error_on_timeout() {
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result =
-        Relayer::build_chain_with_retries(&domain, "origin", PROD_CHAIN_BUILD_RETRY, || {
+    let result = Relayer::build_chain_with_retries(
+        &domain,
+        "origin",
+        PROD_CHAIN_BUILD_RETRY,
+        |_| true,
+        || {
             calls += 1;
             let attempt = calls;
             async move {
@@ -1019,8 +969,9 @@ async fn build_chain_with_retries_preserves_latest_error_on_timeout() {
                     }
                 }
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(result, Err("latest completed failure"));
     assert_eq!(calls, 3);
@@ -1033,8 +984,12 @@ async fn build_chain_with_retries_includes_backoff_in_budget() {
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result =
-        Relayer::build_chain_with_retries(&domain, "destination", PROD_CHAIN_BUILD_RETRY, || {
+    let result = Relayer::build_chain_with_retries(
+        &domain,
+        "destination",
+        PROD_CHAIN_BUILD_RETRY,
+        |_| true,
+        || {
             calls += 1;
             let attempt = calls;
             async move {
@@ -1044,8 +999,9 @@ async fn build_chain_with_retries_includes_backoff_in_budget() {
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 Err("retry failure")
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(result, Err("retry failure"));
     assert_eq!(calls, 2, "budget expires during backoff before third build");
@@ -1058,8 +1014,12 @@ async fn build_chain_with_retries_allows_recovery_within_budget() {
     let started = tokio::time::Instant::now();
     let mut calls = 0;
 
-    let result =
-        Relayer::build_chain_with_retries(&domain, "origin", PROD_CHAIN_BUILD_RETRY, || {
+    let result = Relayer::build_chain_with_retries(
+        &domain,
+        "origin",
+        PROD_CHAIN_BUILD_RETRY,
+        |_| true,
+        || {
             calls += 1;
             let attempt = calls;
             async move {
@@ -1069,10 +1029,165 @@ async fn build_chain_with_retries_allows_recovery_within_budget() {
                 tokio::time::sleep(Duration::from_secs(10)).await;
                 Ok(42)
             }
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(result, Ok(42));
     assert_eq!(calls, 2);
     assert_eq!(started.elapsed(), Duration::from_secs(13));
+}
+
+#[tokio::test]
+async fn live_verification_retries_outages_and_halts_on_confirmed_reorgs() {
+    use axum::{routing::post, Json, Router};
+    use ethers::types::{Block, H256 as EthersH256, U64};
+    use hyperlane_base::db::HyperlaneRocksDB;
+    use serde_json::{json, Value};
+    use std::sync::atomic::AtomicUsize;
+
+    // Persistent/transient RPC failures and a confirmed mismatch are different outcomes.
+    for (failures, mismatch) in [(usize::MAX, false), (2, false), (0, true)] {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let rpc_calls = calls.clone();
+        let recovered = Arc::new(AtomicBool::new(false));
+        let rpc_recovered = recovered.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let app = Router::new().route(
+            "/",
+            post(move |Json(request): Json<Value>| {
+                let calls = rpc_calls.clone();
+                let recovered = rpc_recovered.clone();
+                async move {
+                    if request["method"] == "eth_blockNumber" {
+                        return Json(json!({"jsonrpc":"2.0", "id":request["id"], "result":"0x64"}));
+                    }
+                    assert_eq!(request["method"], "eth_getBlockByNumber");
+                    let mut response = if calls.fetch_add(1, Ordering::SeqCst) < failures
+                        && !recovered.load(Ordering::Acquire)
+                    {
+                        json!({"error": {"code": -32602, "message": "block lookup unavailable"}})
+                    } else {
+                        json!({"result": Block::<EthersH256> {
+                            number: Some(U64::from(100)),
+                            hash: Some(EthersH256::from_low_u64_be(if mismatch { 9 } else { 8 })),
+                            ..Default::default()
+                        }})
+                    };
+                    response["jsonrpc"] = json!("2.0");
+                    response["id"] = request["id"].clone();
+                    Json(response)
+                }
+            }),
+        );
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let directory = tempfile::tempdir().unwrap();
+        let db = DB::from_path(directory.path()).unwrap();
+        let affected = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let healthy = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
+        let chains = [&affected, &healthy].map(|domain| {
+            (
+                domain.name().to_owned(),
+                generate_test_chain_conf(domain.clone(), None, &url),
+            )
+        });
+        let mailbox = chains[0].1.addresses.mailbox;
+        let affected_db = HyperlaneRocksDB::new(&affected, db.clone());
+        // Existing on-disk checkpoints must be checked even with WebSockets disabled.
+        affected_db
+            .store_value_by_key(b"scraper_websocket_live_block", &mailbox, &100u64)
+            .unwrap();
+        affected_db
+            .store_value_by_key(
+                b"scraper_websocket_live_block_hash",
+                &mailbox,
+                &H256::from_low_u64_be(8),
+            )
+            .unwrap();
+        let settings = generate_test_relayer_settings(
+            directory.path(),
+            chains.to_vec(),
+            &[affected.clone(), healthy.clone()],
+            &[],
+            27003,
+        );
+        assert!(settings.websocket_url.is_none());
+        let core_metrics = Arc::new(CoreMetrics::new("relayer", 4000, Registry::new()).unwrap());
+        let chain_metrics = generate_test_chain_metrics();
+        let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
+        let result = Relayer::build_origins(&settings, db, core_metrics, &critical_errors).await;
+        if mismatch {
+            assert!(result
+                .unwrap_err()
+                .is::<crate::scraper_websocket::RollbackRecoveryRequired>());
+            assert!(affected_db.confirmed_discovery_conflict().unwrap());
+            server.abort();
+            continue;
+        }
+        {
+            let origins = result.unwrap();
+            assert!(origins.contains_key(&healthy));
+            assert!(origins.contains_key(&affected));
+            assert_eq!(
+                origins[&affected]
+                    .database
+                    .live_block_verification_pending(),
+                failures == usize::MAX
+            );
+            assert_eq!(
+                origins[&healthy].database.live_block_verification_pending(),
+                failures == usize::MAX
+            );
+            assert!(
+                calls.load(Ordering::SeqCst) > 1,
+                "transient verification must retry"
+            );
+            assert_eq!(
+                chain_metrics
+                    .critical_error
+                    .with_label_values(&[affected.name()])
+                    .get(),
+                if failures == usize::MAX { 1 } else { 0 }
+            );
+            assert!(affected_db
+                .retrieve_value_by_key::<_, u64>(b"scraper_websocket_rollback_recovery", &mailbox)
+                .unwrap()
+                .is_none());
+            if failures == usize::MAX {
+                recovered.store(true, Ordering::Release);
+                crate::scraper_websocket::ScraperSource::from_origin(&origins[&affected])
+                    .retry_startup_verification()
+                    .await
+                    .unwrap();
+                assert!(!origins[&affected]
+                    .database
+                    .live_block_verification_pending());
+            }
+        }
+        server.abort();
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn build_chain_retries_stop_on_nonretryable_error() {
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+    let mut calls = 0;
+    let result = Relayer::build_chain_with_retries(
+        &domain,
+        "origin verification",
+        PROD_CHAIN_BUILD_RETRY,
+        |error: &&str| *error != "confirmed reorg",
+        || {
+            calls += 1;
+            std::future::ready(Err::<(), _>(if calls == 1 {
+                "temporary RPC failure"
+            } else {
+                "confirmed reorg"
+            }))
+        },
+    )
+    .await;
+    assert_eq!(result, Err("confirmed reorg"));
+    assert_eq!(calls, 2);
 }

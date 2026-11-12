@@ -53,8 +53,10 @@ mod tests {
     fn create_test_transaction() -> Transaction {
         let precursor = create_test_precursor();
         let payload_details = vec![PayloadDetails {
+            origin_generation: 0,
             uuid: hyperlane_core::identifiers::UniqueIdentifier::random(),
             metadata: "test-payload".to_string(),
+            origin: None,
             success_criteria: None,
         }];
         Transaction::new(precursor, payload_details)

@@ -47,7 +47,7 @@ pub async fn handler(
 
         match state.dbs.get(&insertion.chain) {
             Some(db) => {
-                db.store_tree_insertion(&merkle_tree_insertion, insertion.insertion_block_number)
+                db.process_tree_insertion(&merkle_tree_insertion, insertion.insertion_block_number)
                     .map_err(|err| {
                         let error_msg = "Failed to store merkle tree insertion";
                         tracing::debug!(?insertion, ?err, "{error_msg}");
@@ -237,6 +237,10 @@ mod tests {
         assert_eq!(resp_status, StatusCode::OK);
         assert_eq!(resp_body.count, body.merkle_tree_insertions.len() as u64);
 
+        for domain in &domains[..2] {
+            assert!(dbs[&domain.id()].ensure_no_indexed_event_conflict().is_ok());
+        }
+
         let body = RequestBody {
             merkle_tree_insertions: vec![
                 TreeInsertion {
@@ -260,6 +264,12 @@ mod tests {
         let resp_body: ResponseBody = parse_body_to_json(response.into_body()).await;
         assert_eq!(resp_status, StatusCode::OK);
         assert_eq!(resp_body.count, body.merkle_tree_insertions.len() as u64);
+
+        for domain in &domains[..2] {
+            assert!(dbs[&domain.id()]
+                .ensure_no_indexed_event_conflict()
+                .is_err());
+        }
 
         // check db has correct merkle tree insertions
         let actual = [

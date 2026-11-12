@@ -27,6 +27,7 @@ impl SubscribeMessage<'_> {
         self.streams
             .iter()
             .map(|stream| SubscribedStream {
+                include_zero_confirmations: stream.include_zero_confirmations,
                 confirmations: stream.confirmations,
                 cursors: stream.cursors.as_ref().map(|cursors| {
                     cursors
@@ -70,6 +71,9 @@ pub fn validate_subscription(
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeStream<'a> {
+    /// Also receive live events at zero confirmations on this subscription.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_zero_confirmations: Option<bool>,
     /// Custom live confirmation delay; omitted for canonical replay streams.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confirmations: Option<u32>,
@@ -160,13 +164,35 @@ pub enum ServerMessage<T> {
         sequence: Option<String>,
     },
     /// Provisional history was rolled back; consumers must recover before resuming.
-    Rollback,
+    #[serde(rename_all = "camelCase")]
+    Rollback {
+        /// Confirmation depth of the affected stream; zero cancels read-ahead only.
+        confirmations: Option<u32>,
+        /// Origin whose provisional history changed.
+        domain: u32,
+        /// Stream affected by the rollback.
+        event_type: String,
+        /// Last retained block; rows above it require recovery.
+        to_height: StringOrNumber,
+    },
     /// One event from a requested stream.
     Event(EventMessage<T>),
     /// The server rejected the request or stream.
     Error {
         /// Human-readable server error.
         error: String,
+    },
+    /// Live scraper progress. A head is a scheduling hint, not a finality proof.
+    #[serde(rename_all = "camelCase")]
+    Block {
+        /// Origin domain.
+        domain: u32,
+        /// Indexed block height.
+        height: StringOrNumber,
+        /// Indexed block hash.
+        hash: String,
+        /// Provider head height.
+        head_height: StringOrNumber,
     },
     /// A forwards-compatible protocol message not understood by this client.
     #[serde(other)]
@@ -177,6 +203,8 @@ pub enum ServerMessage<T> {
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SubscribedStream {
+    /// Echoed zero-confirmation opt-in; old proxies cannot silently downgrade it.
+    pub include_zero_confirmations: Option<bool>,
     /// Custom confirmation delay accepted by the server.
     pub confirmations: Option<u32>,
     /// Durable cursors accepted for this stream.
@@ -207,6 +235,10 @@ pub struct SubscribedCursor {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventMessage<T> {
+    /// Zero for read-ahead events; otherwise the requested depth or canonical replay.
+    pub confirmations: Option<u32>,
+    /// Provisional block identity, carried outside the stable event payload.
+    pub block_hash: Option<String>,
     /// Event-specific payload.
     pub data: T,
     /// Hyperlane domain identifier.
@@ -260,6 +292,8 @@ impl StringOrNumber {
 pub struct MerkleEventData {
     /// Origin block containing the insertion.
     pub block_number: StringOrNumber,
+    /// Block identity for validating provisional insertions after reconnects.
+    pub block_hash: Option<String>,
     /// Hyperlane origin domain.
     pub domain: u32,
     /// Merkle leaf index, also the stream sequence.
@@ -357,6 +391,7 @@ mod tests {
     fn custom_confirmation_acknowledgement_must_match_requested_delay() {
         let request = SubscribeMessage {
             streams: vec![SubscribeStream {
+                include_zero_confirmations: None,
                 confirmations: Some(3),
                 cursors: None,
                 domains: Some(vec![1]),
@@ -375,7 +410,7 @@ mod tests {
             serde_json::from_str::<ServerMessage<serde_json::Value>>(
                 r#"{"type":"rollback","domain":1,"eventType":"merkle_tree_insertion","toHeight":"12"}"#
             ).expect("test protocol"),
-            ServerMessage::Rollback
+            ServerMessage::Rollback { domain: 1, .. }
         ));
     }
 
@@ -383,6 +418,7 @@ mod tests {
     fn serializes_subscription_protocol() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
+                include_zero_confirmations: None,
                 confirmations: None,
                 cursors: Some(vec![StreamCursor::Sequence(SequenceCursor {
                     address: "0x1234".to_owned(),
@@ -419,6 +455,7 @@ mod tests {
     fn omits_optional_cursor_fields_for_live_streams() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
+                include_zero_confirmations: None,
                 confirmations: None,
                 cursors: None,
                 domains: Some(vec![5]),
@@ -444,6 +481,7 @@ mod tests {
     fn serializes_gas_payment_stream_cursor() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
+                include_zero_confirmations: None,
                 confirmations: None,
                 cursors: Some(vec![StreamCursor::GasPayment(GasPaymentCursor {
                     address: "0x1234".to_owned(),
@@ -581,6 +619,7 @@ mod tests {
             ServerMessage::Subscribed { streams } => assert_eq!(
                 streams,
                 vec![SubscribedStream {
+                    include_zero_confirmations: None,
                     confirmations: None,
                     cursors: None,
                     domains: Some(vec![5, 9]),
@@ -615,5 +654,43 @@ mod tests {
 
         assert_eq!(string.as_u32("sequence").expect("valid u32"), 42);
         assert_eq!(number.as_u64("sequence").expect("valid u64"), 43);
+    }
+    #[test]
+    fn deserializes_live_block_scheduling_hint() {
+        let message: ServerMessage<serde_json::Value> = serde_json::from_value(serde_json::json!({
+            "type":"block", "domain":8453, "height":"100", "headHeight":"101", "hash":"0x1234"
+        }))
+        .unwrap();
+        match message {
+            ServerMessage::Block {
+                domain,
+                height,
+                head_height,
+                ..
+            } => {
+                assert_eq!(domain, 8453);
+                assert_eq!(height.as_u64("height").unwrap(), 100);
+                assert_eq!(head_height.as_u64("head").unwrap(), 101);
+            }
+            _ => panic!("expected block scheduling hint"),
+        }
+    }
+    #[test]
+    fn zero_confirmation_opt_in_must_be_acknowledged_without_silent_downgrade() {
+        let request = SubscribeMessage {
+            message_type: "subscribe",
+            streams: vec![SubscribeStream {
+                include_zero_confirmations: Some(true),
+                confirmations: None,
+                cursors: None,
+                domains: Some(vec![1]),
+                event_type: "dispatch",
+                stream_cursor_version: None,
+            }],
+        };
+        let expected = request.confirmation();
+        let mut old_proxy = request.confirmation();
+        old_proxy[0].include_zero_confirmations = None;
+        assert!(validate_subscription(&expected, &old_proxy).is_err());
     }
 }

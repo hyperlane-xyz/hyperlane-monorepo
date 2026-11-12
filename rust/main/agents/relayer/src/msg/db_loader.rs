@@ -66,6 +66,7 @@ pub struct MessageDbLoader {
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
     metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     db: HyperlaneRocksDB,
+    discovery_generation: u64,
     // Reconcile until completion is durable and the retained WAL proves that
     // subsequent writers maintained the destination index.
     migration_iterator: Option<LegacyMessageIterator>,
@@ -75,6 +76,7 @@ pub struct MessageDbLoader {
     destination_scan_pending: bool,
     max_retries: u32,
     index_notifications: Option<Receiver<IndexingNotification>>,
+    discovery_notification: Option<Arc<tokio::sync::Notify>>,
     /// Denied messages already logged, for all destinations. Created on the
     /// first denial, so a loader that never denies anything allocates none.
     logged_denials: Option<LoggedDenials>,
@@ -479,9 +481,20 @@ impl DbLoaderExt for MessageDbLoader {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
+        self.drain_index_notifications()?;
+        self.db.ensure_no_indexed_event_conflict()?;
+        let generation = self.db.discovery_generation();
+        if self.discovery_generation != generation {
+            let highest = self.db.retrieve_highest_seen_message_nonce()?;
+            for iterator in &mut self.destination_iterators {
+                // Old operation guards retain their old sets until discarded.
+                *iterator = DestinationIndexIterator::new(iterator.destination, highest);
+            }
+            self.discovery_generation = generation;
+            self.destination_scan_pending = true;
+        }
         self.check_runtime_denylist_version();
         self.reconsider_released_messages();
-        self.drain_index_notifications()?;
         let migration_was_active = self.migration_iterator.is_some();
         self.migrate_legacy_batch().await?;
 
@@ -586,15 +599,24 @@ impl MessageDbLoader {
             metric_app_contexts,
             migration_iterator,
             migration_start_sequence,
+            discovery_generation: db.discovery_generation(),
             db,
             destination_iterators,
             next_destination: 0,
             destination_scan_pending: true,
             max_retries,
             index_notifications: None,
+            discovery_notification: None,
             logged_denials: None,
             logged_denials_ttl: LOGGED_DENIALS_TTL,
         })
+    }
+
+    pub(crate) fn set_discovery_notification(
+        &mut self,
+        notification: Option<Arc<tokio::sync::Notify>>,
+    ) {
+        self.discovery_notification = notification;
     }
 
     /// Log a denied message at info the first time this loader skips it, so
@@ -757,6 +779,14 @@ impl MessageDbLoader {
                 }
             }
         };
+        let discovery_notification = self.discovery_notification.clone();
+        let preparation_ready = async {
+            match discovery_notification {
+                Some(notification) => notification.notified().await,
+                None => std::future::pending::<()>().await,
+            }
+        };
+        let mut preparation_woke = false;
         let (disconnected, notification) = if let Some(receiver) = self.index_notifications.as_mut()
         {
             tokio::select! {
@@ -764,17 +794,22 @@ impl MessageDbLoader {
                     Some(notification) => (false, Some(notification)),
                     None => (true, None),
                 },
+                _ = preparation_ready => { preparation_woke = true; (false, None) },
                 _ = capacity_available => (false, None),
                 _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => (false, None),
             }
         } else {
             tokio::select! {
+                _ = preparation_ready => preparation_woke = true,
                 _ = capacity_available => {},
                 _ = tokio::time::sleep(FALLBACK_POLL_INTERVAL) => {},
             }
             (false, None)
         };
 
+        if preparation_woke {
+            self.request_low_range_reopens();
+        }
         if disconnected {
             self.index_notifications = None;
         }

@@ -215,3 +215,42 @@ async fn test_fetch_storage_locations_helper_with_different_domains() {
     assert!(result2.is_ok());
     assert_eq!(result2.unwrap(), vec![location2]);
 }
+
+#[tokio::test]
+async fn storage_reads_cache_announcements_but_not_absence() {
+    let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+    let cache = LocalCache::new("early-storage-tests");
+    let validators = [H256::from_low_u64_be(1), H256::from_low_u64_be(2)];
+    let mut announce = MockValidatorAnnounceMock::new();
+    announce.expect_domain().return_const(origin.clone());
+    let mut sequence = mockall::Sequence::new();
+    announce
+        .expect_get_announced_storage_locations()
+        .once()
+        .in_sequence(&mut sequence)
+        .returning(|validators| {
+            assert_eq!(validators.len(), 2);
+            Ok(vec![vec!["s3://existing/eu-central-1".into()], vec![]])
+        });
+    announce
+        .expect_get_announced_storage_locations()
+        .once()
+        .in_sequence(&mut sequence)
+        .returning(|validators| {
+            assert_eq!(validators, &[H256::from_low_u64_be(2)]);
+            Ok(vec![vec!["s3://new/eu-central-1".into()]])
+        });
+    fetch_storage_locations_helper(&validators, &cache, &announce)
+        .await
+        .unwrap();
+    let locations = fetch_storage_locations_helper(&validators, &cache, &announce)
+        .await
+        .unwrap();
+    assert_eq!(
+        locations,
+        vec![
+            vec!["s3://existing/eu-central-1"],
+            vec!["s3://new/eu-central-1"]
+        ]
+    );
+}

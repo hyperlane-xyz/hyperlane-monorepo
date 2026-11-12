@@ -18,6 +18,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 use hyperlane_base::{
     cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB, PendingMessageRetryState, SignatureRetryState},
+    SIGNATURE_POLL_INTERVAL,
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -72,7 +73,6 @@ pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
 
-const SIGNATURE_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const SIGNATURE_POLL_WINDOW: Duration = Duration::from_secs(10);
 
 /// Revert string emitted by the ICA router when the originating commit has not
@@ -122,11 +122,63 @@ pub struct MessageContext {
     pub origin_sender_check: Option<Arc<OriginSenderCheck>>,
 }
 
+impl MessageContext {
+    /// The same cached RPC read serves speculative discovery and normal preparation.
+    pub(super) async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        let domain = self.destination_mailbox.domain().name();
+        let key = "recipient_ism";
+        if let Some(ism) = self.get_from_cache(domain, key, &recipient).await {
+            return Ok(ism);
+        }
+        let ism = with_rpc_operation(
+            RpcOperation::RelayerRecipient,
+            self.destination_mailbox.recipient_ism(recipient),
+        )
+        .await?;
+        self.store_to_cache(domain, key, &recipient, &ism).await;
+        Ok(ism)
+    }
+
+    async fn get_from_cache<U: DeserializeOwned>(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+    ) -> Option<U> {
+        self.cache
+            .get_cached_call_result::<U>(domain_name, fn_key, fn_params)
+            .await
+            .map_err(|err| {
+                warn!(error=?err, ?fn_key, "Error checking cache stored result");
+                err
+            })
+            .ok()
+            .flatten()
+    }
+
+    async fn store_to_cache(
+        &self,
+        domain_name: &str,
+        fn_key: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+    ) {
+        if let Err(err) = self
+            .cache
+            .cache_call_result(domain_name, fn_key, fn_params, result)
+            .await
+        {
+            warn!(error=?err, ?fn_key, "Error caching result");
+        }
+    }
+}
+
 /// Keeps an indexed message from being loaded again while its operation is alive.
 pub(super) struct LoadedMessageGuard {
     message_id: H256,
     loaded_messages: Arc<Mutex<HashSet<H256>>>,
     db: HyperlaneRocksDB,
+    generation: u64,
     /// Hands the nonce back to the loader on release, when set.
     reconsider: Option<(u32, Arc<Mutex<Vec<u32>>>)>,
     reconsider_on_release: bool,
@@ -144,6 +196,7 @@ impl LoadedMessageGuard {
         Some(Self {
             message_id,
             loaded_messages,
+            generation: db.discovery_generation(),
             db,
             reconsider: None,
             reconsider_on_release: false,
@@ -166,7 +219,8 @@ impl LoadedMessageGuard {
     }
 
     fn mark_terminal(&self) -> hyperlane_base::db::DbResult<()> {
-        self.db.store_terminally_dropped_message(&self.message_id)
+        self.db
+            .store_terminal_discovery_message(&self.message_id, self.generation)
     }
 }
 
@@ -185,6 +239,8 @@ impl Drop for LoadedMessageGuard {
 #[derive(Serialize)]
 pub struct PendingMessage {
     pub message: HyperlaneMessage,
+    #[serde(skip_serializing)]
+    origin_generation: u64,
     #[serde(skip_serializing)]
     ctx: Arc<MessageContext>,
     status: PendingOperationStatus,
@@ -296,6 +352,7 @@ impl PendingMessage {
                 .record_pending_message(message.id(), app_context.as_deref(), first_seen);
         }
         Self {
+            origin_generation: ctx.origin_db.discovery_generation(),
             message,
             ctx,
             status,
@@ -344,6 +401,9 @@ impl PendingMessage {
     }
 
     pub(super) fn terminal_drop(&mut self) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
         if let Some(guard) = self.loaded_message_guard.as_ref() {
             if let Err(err) = guard.mark_terminal() {
                 return self
@@ -400,6 +460,12 @@ impl Eq for PendingMessage {}
 
 impl TryBatchAs<HyperlaneMessage> for PendingMessage {
     fn try_batch(&self) -> ChainResult<BatchItem<HyperlaneMessage>> {
+        self.ctx.origin_db.ensure_no_indexed_event_conflict()?;
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return Err(ChainCommunicationError::from_other_str(
+                "Prepared message was invalidated by origin recovery",
+            ));
+        }
         match self.submission_data.as_ref() {
             None => {
                 warn!("Cannot batch message without submission data, returning BatchingFailed");
@@ -466,6 +532,15 @@ impl PendingOperation for PendingMessage {
         self.message.nonce
     }
 
+    fn is_invalidated(&self) -> bool {
+        !matches!(self.status, PendingOperationStatus::Confirm(_))
+            && self.ctx.origin_db.discovery_generation() != self.origin_generation
+    }
+
+    fn origin_generation(&self) -> u64 {
+        self.origin_generation
+    }
+
     fn origin_domain_id(&self) -> u32 {
         self.message.origin
     }
@@ -502,6 +577,21 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
+        match self.ctx.origin_db.discovery_message_current(&self.message) {
+            Ok(true) => {}
+            Ok(false) => return PendingOperationResult::Drop,
+            Err(error) => {
+                return self.on_reprepare(Some(error), ReprepareReason::ErrorBuildingMetadata)
+            }
+        }
+        if let Err(error) = self.ctx.origin_db.ensure_no_indexed_event_conflict() {
+            warn!(?error, "Origin requires indexed event recovery");
+            self.set_next_attempt_after(CONFIRM_DELAY);
+            return PendingOperationResult::NotReady;
+        }
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
             return PendingOperationResult::NotReady;
@@ -795,6 +885,21 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), fields(id=?self.id(), domain=%self.destination_domain()))]
     async fn submit(&mut self) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
+        match self.ctx.origin_db.discovery_message_current(&self.message) {
+            Ok(true) => {}
+            Ok(false) => return PendingOperationResult::Drop,
+            Err(error) => {
+                return self.on_reprepare(Some(error), ReprepareReason::ErrorBuildingMetadata)
+            }
+        }
+        if let Err(error) = self.ctx.origin_db.ensure_no_indexed_event_conflict() {
+            warn!(?error, "Origin requires indexed event recovery");
+            self.set_next_attempt_after(CONFIRM_DELAY);
+            return PendingOperationResult::NotReady;
+        }
         if self.submitted {
             // this message has already been submitted, possibly not by us
             return PendingOperationResult::Success;
@@ -842,13 +947,26 @@ impl PendingOperation for PendingMessage {
         self.report_progress(Stage::Submit, Outcome::Started);
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
-        let tx_outcome = with_rpc_operation(
-            RpcOperation::TransactionLifecycle,
-            self.ctx
-                .destination_mailbox
-                .process(&self.message, &state.metadata, Some(gas_limit)),
+        let tx_outcome = HyperlaneRocksDB::with_origin_generations(
+            &[(self.ctx.origin_db.as_ref(), self.origin_generation)],
+            with_rpc_operation(
+                RpcOperation::TransactionLifecycle,
+                self.ctx.destination_mailbox.process(
+                    &self.message,
+                    &state.metadata,
+                    Some(gas_limit),
+                ),
+            ),
         )
         .await;
+        let tx_outcome = match tx_outcome {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                warn!(?error, "Origin recovery interrupted submission");
+                self.set_next_attempt_after(CONFIRM_DELAY);
+                return PendingOperationResult::NotReady;
+            }
+        };
         match tx_outcome {
             Ok(outcome) => {
                 self.set_operation_outcome(outcome, gas_limit).await;
@@ -1019,6 +1137,12 @@ impl PendingOperation for PendingMessage {
     }
 
     async fn payload(&self) -> ChainResult<Vec<u8>> {
+        self.ctx.origin_db.ensure_no_indexed_event_conflict()?;
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return Err(ChainCommunicationError::from_other_str(
+                "Prepared message was invalidated by origin recovery",
+            ));
+        }
         let mailbox = &self.ctx.destination_mailbox;
         let message = &self.message;
         let submission_data = self
@@ -1263,6 +1387,7 @@ impl PendingMessage {
         let fn_params = self.message.recipient;
         // Check cache for recipient contract status
         if let Some(is_contract) = self
+            .ctx
             .get_from_cache::<bool>(domain_name, fn_key, &fn_params)
             .await
         {
@@ -1280,7 +1405,8 @@ impl PendingMessage {
         })?;
 
         // Cache the recipient contract status
-        self.store_to_cache(domain_name, fn_key, &fn_params, &is_contract)
+        self.ctx
+            .store_to_cache(domain_name, fn_key, &fn_params, &is_contract)
             .await;
 
         Ok(is_contract)
@@ -1293,74 +1419,12 @@ impl PendingMessage {
     /// Implicit contract in this method: function name `recipient_ism` matches
     /// the name of the method `recipient_ism`.
     async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
-        let domain = self.ctx.destination_mailbox.domain().name();
-        let fn_key = "recipient_ism";
-        let fn_params = self.message.recipient;
-
-        // Check cache for recipient ISM address
-        if let Some(ism_address) = self
-            .get_from_cache::<H256>(domain, fn_key, &fn_params)
-            .await
-        {
-            return Ok(ism_address);
-        }
-
-        // Fetch the recipient ISM address
-        let ism_address = match with_rpc_operation(
-            RpcOperation::RelayerRecipient,
-            self.ctx
-                .destination_mailbox
-                .recipient_ism(self.message.recipient),
-        )
-        .await
-        {
-            Ok(ism_address) => ism_address,
-            Err(err) => {
-                return Err(self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress));
-            }
-        };
-
-        // Cache the recipient ISM address
-        self.store_to_cache(domain, fn_key, &fn_params, &ism_address)
-            .await;
-
-        Ok(ism_address)
-    }
-
-    async fn get_from_cache<U: DeserializeOwned>(
-        &self,
-        domain_name: &str,
-        fn_key: &str,
-        fn_params: &(impl Serialize + Send + Sync),
-    ) -> Option<U> {
         self.ctx
-            .cache
-            .get_cached_call_result::<U>(domain_name, fn_key, fn_params)
+            .recipient_ism(self.message.recipient)
             .await
-            .map_err(|err| {
-                warn!(error=?err, ?fn_key, "Error checking cache stored result");
-                err
-            })
-            .ok()
-            .flatten()
+            .map_err(|err| self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress))
     }
 
-    async fn store_to_cache(
-        &self,
-        domain_name: &str,
-        fn_key: &str,
-        fn_params: &(impl Serialize + Send + Sync),
-        result: &(impl Serialize + Send + Sync),
-    ) {
-        if let Err(err) = self
-            .ctx
-            .cache
-            .cache_call_result(domain_name, fn_key, fn_params, result)
-            .await
-        {
-            warn!(error=?err, ?fn_key, "Error caching result");
-        }
-    }
     /// A preflight check to see if a message could possibly meet
     /// a gas payment requirement prior to undertaking expensive operations
     /// like metadata building or gas estimation.
@@ -1467,6 +1531,26 @@ impl PendingMessage {
         err: Option<E>,
         reason: ReprepareReason,
     ) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
+        if !self.fail_fast
+            && self
+                .first_seen
+                .elapsed()
+                .is_ok_and(|elapsed| elapsed < SIGNATURE_POLL_WINDOW)
+            && matches!(
+                reason,
+                ReprepareReason::GasPaymentNotFound | ReprepareReason::CouldNotFetchMetadata
+            )
+            && self
+                .ctx
+                .origin_db
+                .discovery_message_provisional(self.message.nonce)
+                .unwrap_or(false)
+        {
+            return self.delay_reprepare(SIGNATURE_POLL_INTERVAL, reason);
+        }
         *self.submission_stage.lock() = None;
         self.inc_attempts(Some(&reason));
         self.submitted = false;
@@ -1479,6 +1563,9 @@ impl PendingMessage {
     }
 
     fn on_metadata_wait(&mut self, observation: MetadataWaitObservation) -> PendingOperationResult {
+        if self.ctx.origin_db.discovery_generation() != self.origin_generation {
+            return PendingOperationResult::Drop;
+        }
         let reason = ReprepareReason::AwaitingValidatorSignatures;
         *self.submission_stage.lock() = None;
         self.inc_attempts(Some(&reason));
@@ -1600,18 +1687,22 @@ impl PendingMessage {
         true
     }
 
-    /// Whether accelerated signature polling is still within its fast window.
-    fn in_signature_poll_window(&self, now: SystemTime) -> bool {
-        self.signature_retry.as_ref().is_some_and(|state| {
-            state.backoff_retries == 0
-                && now
-                    .duration_since(state.started_at)
-                    .is_ok_and(|elapsed| elapsed < SIGNATURE_POLL_WINDOW)
-        })
-    }
-
     /// Returns an accelerated polling delay, or `None` to consume a normal retry.
     fn signature_retry_delay(&mut self, now: SystemTime) -> Option<Duration> {
+        // Start the bounded fast window after origin maturity, not at discovery.
+        // Validators may legitimately be unable to sign for minutes before this.
+        match self
+            .ctx
+            .origin_db
+            .discovery_message_provisional(self.message.nonce)
+        {
+            Ok(true) => return Some(SIGNATURE_POLL_INTERVAL),
+            Ok(false) => {}
+            Err(error) => {
+                warn!(?error, "Could not read origin confirmation boundary");
+                return Some(Duration::from_secs(1));
+            }
+        }
         let state = self.signature_retry.get_or_insert(SignatureRetryState {
             started_at: now,
             backoff_retries: 0,
@@ -1810,12 +1901,9 @@ impl PendingMessage {
             self.status,
             PendingOperationStatus::Retry(ReprepareReason::AwaitingValidatorSignatures)
         );
-        // Probes only skip validators behind the leaf during the fast window, so
-        // a lagging latest index can delay delivery by at most that window.
-        let narrow_probe = self.in_signature_poll_window(SystemTime::now());
         let build_metadata_start = Instant::now();
         let metadata_res = message_metadata_builder
-            .build_for_delivery(ism_address, &self.message, polling, narrow_probe)
+            .build_for_delivery(ism_address, &self.message, polling)
             .await;
 
         tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
@@ -1932,7 +2020,7 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
+    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES, SIGNATURE_POLL_INTERVAL};
 
     fn unix_millis(time: SystemTime) -> u64 {
         time.duration_since(UNIX_EPOCH)
@@ -1948,6 +2036,127 @@ mod test {
         fn write_to<W: Write>(&self, writer: &mut W) -> std::io::Result<usize> {
             writer.write(self.0)
         }
+    }
+
+    #[tokio::test]
+    async fn provisional_discovery_preserves_poll_window_and_invalidates_prepared_work() {
+        use hyperlane_base::db::DiscoveryCheckpoint;
+        let dir = tempfile::tempdir().unwrap();
+        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let db = HyperlaneRocksDB::new(&origin, DB::from_path(dir.path()).unwrap());
+        let checkpoint = |height| DiscoveryCheckpoint {
+            height,
+            hash: H256::from_low_u64_be(height),
+        };
+        db.enable_discovery(checkpoint(100)).unwrap();
+        let message = HyperlaneMessage {
+            origin: origin.id(),
+            ..Default::default()
+        };
+        db.store_indexed_dispatch(
+            &message,
+            &hyperlane_core::LogMeta {
+                block_number: 101,
+                block_hash: checkpoint(101).hash,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let cache = OptionalCache::new(None);
+        let base = Arc::new(dummy_metadata_builder(&origin, &origin, &db, cache.clone()));
+        let mut ctx = dummy_message_context(base, &db, cache);
+        ctx.destination_mailbox = Arc::new(contract_test_mailbox());
+        let mut pending = PendingMessage::new(
+            message,
+            Arc::new(ctx),
+            PendingOperationStatus::FirstPrepareAttempt,
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        let now = SystemTime::now();
+        for seconds in [0, 5, 15, 180, 600] {
+            assert_eq!(
+                pending.signature_retry_delay(now + Duration::from_secs(seconds)),
+                Some(SIGNATURE_POLL_INTERVAL)
+            );
+            assert!(pending.signature_retry.is_none());
+        }
+        db.confirm_discovery(checkpoint(101), &[checkpoint(101)])
+            .unwrap();
+        assert_eq!(
+            pending.signature_retry_delay(now + Duration::from_secs(600)),
+            Some(SIGNATURE_POLL_INTERVAL)
+        );
+        db.rollback_discovery().unwrap();
+        db.finish_discovery_recovery().unwrap();
+        assert!(pending.is_invalidated());
+        assert!(matches!(
+            pending.prepare().await,
+            PendingOperationResult::Drop
+        ));
+        assert!(matches!(
+            pending.submit().await,
+            PendingOperationResult::Drop
+        ));
+        assert!(pending.try_batch().is_err());
+        assert!(pending.payload().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn indexed_event_conflict_blocks_cached_proofs_and_all_submission_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let db = HyperlaneRocksDB::new(&origin, DB::from_path(dir.path()).unwrap());
+        let cache = OptionalCache::new(None);
+        let builder = Arc::new(dummy_metadata_builder(
+            &origin,
+            &destination,
+            &db,
+            cache.clone(),
+        ));
+        let mut ctx = dummy_message_context(builder.clone(), &db, cache);
+        ctx.destination_mailbox = Arc::new(contract_test_mailbox());
+        let mut pending = PendingMessage::new(
+            HyperlaneMessage::default(),
+            Arc::new(ctx),
+            PendingOperationStatus::FirstPrepareAttempt,
+            None,
+            DEFAULT_MAX_MESSAGE_RETRIES,
+        );
+        pending.metadata = Some(Metadata::new(vec![1, 2, 3]));
+        pending.submission_data = Some(Box::new(MessageSubmissionData {
+            metadata: Metadata::new(vec![1, 2, 3]),
+            gas_limit: U256::from(100),
+        }));
+        db.mark_indexed_event_conflict().unwrap();
+        // Even cached metadata must not reach any mailbox submission path.
+        assert!(matches!(
+            pending.prepare().await,
+            PendingOperationResult::NotReady
+        ));
+        assert!(matches!(
+            pending.submit().await,
+            PendingOperationResult::NotReady
+        ));
+        assert!(pending.try_batch().is_err());
+        assert!(pending.payload().await.is_err());
+        assert!(crate::msg::metadata::BuildsBaseMetadata::get_proof(
+            builder.as_ref(),
+            0,
+            Checkpoint {
+                merkle_tree_hook_address: H256::zero(),
+                mailbox_domain: origin.id(),
+                root: H256::zero(),
+                index: 0,
+            },
+        )
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("origin requires DB/queue/prover recovery"));
+        assert_eq!(pending.num_retries, 0);
+        assert!(pending.next_attempt_after().unwrap() > Instant::now());
     }
 
     #[test]
@@ -2473,6 +2682,7 @@ mod test {
             mailbox.expect__provider().times(0);
             let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
             pending
+                .ctx
                 .store_to_cache(
                     "arbitrum",
                     "is_contract",
@@ -2570,6 +2780,7 @@ mod test {
                 .expect("store tx hash");
         }
         pending
+            .ctx
             .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
             .await;
         pending.metadata = Some(Metadata::new(vec![7; 8]));
@@ -2598,6 +2809,7 @@ mod test {
         let blocked = H256::random();
         let mut s = pending_with_origin_check(Some(blocked), blocked, 1, 0, true).await;
         s.pending
+            .ctx
             .store_to_cache(
                 "arbitrum",
                 "is_contract",
@@ -2760,6 +2972,7 @@ mod test {
                 });
             let (_dir, mut pending) = pending_with_mailbox(mailbox, max_gas);
             pending
+                .ctx
                 .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
                 .await;
             pending.metadata = Some(Metadata::new(vec![7; 1291]));
@@ -2830,6 +3043,7 @@ mod test {
             );
             Arc::get_mut(&mut pending.ctx).unwrap().metadata_builder = Arc::new(base);
             pending
+                .ctx
                 .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
                 .await;
             assert!(pending.metadata.is_none());
@@ -2863,6 +3077,46 @@ mod test {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn classic_submit_rechecks_admission_after_dry_run() {
+        let db_slot = Arc::new(std::sync::OnceLock::<HyperlaneRocksDB>::new());
+        let mark_db = db_slot.clone();
+        let mut mailbox = contract_test_mailbox();
+        mailbox
+            .expect_process_estimate_costs()
+            .once()
+            .returning(move |_, _| {
+                mark_db
+                    .get()
+                    .unwrap()
+                    .mark_indexed_event_conflict()
+                    .unwrap();
+                Ok(TxCostEstimate {
+                    gas_limit: U256::from(100),
+                    gas_price: FixedPointNumber::zero(),
+                    l2_gas_limit: None,
+                })
+            });
+        mailbox.expect_process().never();
+        let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+        let other_dir = tempfile::tempdir().unwrap();
+        let raw = DB::from_path(other_dir.path()).unwrap();
+        let db = HyperlaneRocksDB::new(pending.ctx.origin_db.domain(), raw);
+        db_slot.set(db.clone()).unwrap();
+        Arc::get_mut(&mut pending.ctx).unwrap().origin_db = Arc::new(db);
+        pending.metadata = Some(Metadata::new(vec![9; 32]));
+        pending.submission_data = Some(Box::new(MessageSubmissionData {
+            metadata: Metadata::new(vec![7; 32]),
+            gas_limit: U256::from(100),
+        }));
+        assert!(matches!(
+            pending.submit().await,
+            PendingOperationResult::NotReady
+        ));
+        assert!(pending.next_attempt_after.unwrap() > Instant::now());
+        assert_eq!(pending.num_retries, 0);
     }
 
     #[tokio::test]

@@ -238,6 +238,23 @@ async fn finish_legacy_migration(loader: &mut MessageDbLoader) {
 }
 
 #[tokio::test]
+async fn indexed_event_conflict_blocks_loading_stored_messages() {
+    test_utils::run_test_db(|raw_db| async move {
+        let origin = dummy_domain(0, "origin");
+        let destination = dummy_domain(1, "destination");
+        let db = HyperlaneRocksDB::new(&origin, raw_db);
+        add_db_entry(&db, &dummy_hyperlane_message(&destination, 0), 0);
+        let (mut loader, mut receiver) =
+            dummy_message_loader(&origin, &destination, &db, OptionalCache::new(None));
+        finish_legacy_migration(&mut loader).await;
+        db.mark_indexed_event_conflict().unwrap();
+        assert!(loader.tick().await.is_err());
+        assert!(receiver.try_recv().is_err());
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn idle_loader_does_not_reserve_shared_destination_capacity() {
     test_utils::run_test_db(|db| async move {
         let origin = dummy_domain(0, "dummy_origin_domain");
@@ -2388,4 +2405,46 @@ async fn denied_message_logs_again_after_the_ttl() {
         });
     })
     .await;
+}
+
+#[tokio::test]
+async fn discovery_wakes_loader_before_fallback_and_reopens_consumed_ranges() {
+    for with_index_notifications in [false, true] {
+        test_utils::run_test_db(|db| async move {
+            let origin = dummy_domain(0, "dummy_origin_domain");
+            let destination = dummy_domain(1, "dummy_destination_domain");
+            let db = HyperlaneRocksDB::new(&origin, db);
+            let (_sender, receiver) = mpsc::channel(1);
+            let (mut loader, mut operations) = dummy_message_loader_with_notifications(
+                &origin,
+                &destination,
+                &db,
+                OptionalCache::new(None),
+                with_index_notifications.then_some(receiver),
+            );
+            loader.set_discovery_notification(Some(db.discovery_notification()));
+            finish_legacy_migration(&mut loader).await;
+            loader.destination_iterators[0].high_nonce = Some(6);
+            loader.destination_iterators[0].low_nonce = None;
+            let mut late = dummy_hyperlane_message(&destination, 1);
+            late.origin = origin.id();
+            let notify = async {
+                sleep(Duration::from_millis(10)).await;
+                add_db_entry(&db, &late, 0);
+                db.discovery_notification().notify_waiters();
+            };
+            timeout(Duration::from_millis(250), async {
+                let (result, _) = tokio::join!(loader.tick(), notify);
+                result.unwrap();
+                loader.tick().await.unwrap();
+            })
+            .await
+            .expect("confirmation must bypass the one-second fallback");
+            assert_eq!(
+                only_operation(operations.try_recv().unwrap()).id(),
+                late.id()
+            );
+        })
+        .await;
+    }
 }

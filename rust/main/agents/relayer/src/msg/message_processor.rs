@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use futures::future::join_all;
 use futures_util::future::try_join_all;
-use futures_util::stream::{FuturesUnordered, StreamExt};
+use futures_util::stream::{self, FuturesUnordered, Stream, StreamExt};
 use maplit::hashmap;
 use num_traits::Zero;
 use prometheus::{IntCounterVec, IntGaugeVec};
@@ -120,6 +120,7 @@ pub struct MessageProcessor {
     db: Arc<dyn HyperlaneDb>,
     /// Checked before lander payloads are created; see `with_runtime_denylist`.
     lander_denylist: Arc<RuntimeDenylist>,
+    origin_dbs: Arc<HashMap<u32, HyperlaneRocksDB>>,
 }
 
 impl MessageProcessor {
@@ -165,7 +166,13 @@ impl MessageProcessor {
             payload_dispatcher_entrypoint,
             db: Arc::new(db),
             lander_denylist: Default::default(),
+            origin_dbs: Default::default(),
         }
+    }
+
+    pub fn with_origin_databases(mut self, origins: Arc<HashMap<u32, HyperlaneRocksDB>>) -> Self {
+        self.origin_dbs = origins;
+        self
     }
 
     /// Drop operations matching `denylist` from the prepare and submit
@@ -289,6 +296,7 @@ impl MessageProcessor {
                     self.confirm_queue.clone(),
                     self.max_batch_size,
                     self.metrics.clone(),
+                    self.origin_dbs.clone(),
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -418,25 +426,22 @@ async fn prepare_classic_task(
     max_submit_queue_len: Option<u32>,
     metrics: MessageProcessorMetrics,
 ) {
-    loop {
-        if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
-            // The submit queue is too long, so give some time before checking again
-            sleep(Duration::from_millis(150)).await;
-            continue;
-        }
-
-        let batch = get_batch_or_wait(&mut prepare_queue, max_batch_size).await;
-
-        process_batch(
-            domain.clone(),
-            batch,
-            &mut prepare_queue,
-            &submit_queue,
-            &confirm_queue,
-            &metrics,
-        )
-        .await;
-    }
+    let operations = ready_operations(
+        prepare_queue.clone(),
+        submit_queue.clone(),
+        max_submit_queue_len,
+    );
+    process_operations(
+        domain,
+        operations,
+        max_batch_size as usize,
+        &mut prepare_queue,
+        &submit_queue,
+        &confirm_queue,
+        &metrics,
+        None,
+    )
+    .await;
 }
 
 #[instrument(skip_all, fields(%domain))]
@@ -452,35 +457,22 @@ async fn prepare_lander_task(
     metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
 ) {
-    loop {
-        if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
-            // The submit queue is too long, so give some time before checking again
-            sleep(Duration::from_millis(150)).await;
-            continue;
-        }
-
-        let batch = get_batch_or_wait(&mut prepare_queue, max_batch_size).await;
-
-        let batch_to_process = prepare::filter_operations_for_preparation(
-            entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
-            &prepare_queue,
-            &submit_queue,
-            &confirm_queue,
-            db.clone(),
-            batch,
-        )
-        .await;
-
-        process_batch(
-            domain.clone(),
-            batch_to_process,
-            &mut prepare_queue,
-            &submit_queue,
-            &confirm_queue,
-            &metrics,
-        )
-        .await;
-    }
+    let operations = ready_operations(
+        prepare_queue.clone(),
+        submit_queue.clone(),
+        max_submit_queue_len,
+    );
+    process_operations(
+        domain,
+        operations,
+        max_batch_size as usize,
+        &mut prepare_queue,
+        &submit_queue,
+        &confirm_queue,
+        &metrics,
+        Some((entrypoint, db)),
+    )
+    .await;
 }
 
 /// Applies backpressure to the prepare queue if the submit queue is too long.
@@ -499,77 +491,123 @@ async fn apply_backpressure(submit_queue: &OpQueue, max_len: &Option<u32>) -> bo
     false
 }
 
-/// Helper method to get a batch from the queue or wait if the queue is empty.
-async fn get_batch_or_wait(queue: &mut OpQueue, batch_size: u32) -> Vec<QueueOperation> {
-    loop {
-        let (batch, next_deadline) = queue.pop_many_ready(batch_size as usize).await;
-        if !batch.is_empty() {
-            return batch;
+// The stream owns an in-progress queue pop across select! polls. Canceling a
+// standalone pop future could drop operations after removal during denylist I/O.
+fn ready_operations(
+    queue: OpQueue,
+    submit_queue: OpQueue,
+    max_submit_queue_len: Option<u32>,
+) -> impl Stream<Item = QueueOperation> {
+    stream::unfold(queue, move |mut queue| {
+        let submit_queue = submit_queue.clone();
+        async move {
+            while apply_backpressure(&submit_queue, &max_submit_queue_len).await {
+                sleep(Duration::from_millis(150)).await;
+            }
+            loop {
+                let (mut ready, deadline) = queue.pop_many_ready(1).await;
+                if let Some(op) = ready.pop() {
+                    return Some((op, queue));
+                }
+                queue.wait_for_ready(deadline).await;
+            }
         }
-        queue.wait_for_ready(next_deadline).await;
-    }
+    })
 }
 
-async fn process_batch(
+#[allow(clippy::too_many_arguments)]
+async fn process_operations(
     domain: HyperlaneDomain,
-    batch: Vec<QueueOperation>,
+    operations: impl Stream<Item = QueueOperation>,
+    concurrency: usize,
     prepare_queue: &mut OpQueue,
     submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &MessageProcessorMetrics,
+    lander: Option<(Arc<DispatcherEntrypoint>, Arc<dyn HyperlaneDb>)>,
 ) {
+    assert!(concurrency > 0, "Preparation concurrency must be positive");
+    futures::pin_mut!(operations);
+    let mut exhausted = false;
+    let mut outstanding = 0usize;
     let mut next_sequence_by_origin = HashMap::<u32, usize>::new();
+    let mut next_disposition_by_origin = HashMap::<u32, usize>::new();
+    let mut completed_by_origin = HashMap::new();
     let mut prepare_futures = FuturesUnordered::new();
 
-    for mut op in batch {
-        trace!(?op, "Preparing operation");
-        debug_assert_eq!(*op.destination_domain(), domain);
-
-        let origin = op.origin_domain_id();
-        let next_sequence = next_sequence_by_origin.entry(origin).or_default();
-        let sequence = *next_sequence;
-        *next_sequence = (*next_sequence).saturating_add(1);
-        prepare_futures.push(async move {
-            let result = op.prepare().await;
-            (origin, sequence, op, result)
-        });
-    }
-    let mut next_disposition_by_origin = HashMap::<u32, usize>::new();
-    let mut completed_by_origin =
-        HashMap::<u32, HashMap<usize, (QueueOperation, PendingOperationResult)>>::new();
-
-    while let Some((origin, sequence, op, result)) = prepare_futures.next().await {
-        // Route completed work immediately unless an earlier operation from the
-        // same origin is still preparing. Operations from other origins remain
-        // independent and can make progress in the meantime.
+    while !exhausted || outstanding > 0 {
+        let (origin, sequence, outcome) = tokio::select! {
+            op = operations.next(), if !exhausted && outstanding < concurrency => {
+                let Some(op) = op else {
+                    exhausted = true;
+                    continue;
+                };
+                debug_assert_eq!(*op.destination_domain(), domain);
+                let origin = op.origin_domain_id();
+                let next_sequence = next_sequence_by_origin.entry(origin).or_default();
+                let sequence = *next_sequence;
+                *next_sequence = next_sequence.saturating_add(1);
+                outstanding = outstanding.saturating_add(1);
+                let lander = lander.clone();
+                let prepare_queue = prepare_queue.clone();
+                let submit_queue = submit_queue.clone();
+                let confirm_queue = confirm_queue.clone();
+                prepare_futures.push(async move {
+                    // Check lander disposition per operation, without holding up
+                    // preparation of the rest of a batch.
+                    let op = if let Some((entrypoint, db)) = lander {
+                        prepare::filter_operations_for_preparation(
+                            entrypoint, &prepare_queue, &submit_queue, &confirm_queue, db, vec![op],
+                        ).await.pop()
+                    } else {
+                        Some(op)
+                    };
+                    let outcome = if let Some(mut op) = op {
+                        let result = op.prepare().await;
+                        Some((op, result))
+                    } else {
+                        None
+                    };
+                    (origin, sequence, outcome)
+                });
+                continue;
+            }
+            Some(result) = prepare_futures.next(), if !prepare_futures.is_empty() => result,
+        };
         completed_by_origin
             .entry(origin)
-            .or_default()
-            .insert(sequence, (op, result));
-
+            .or_insert_with(HashMap::new)
+            .insert(sequence, outcome);
         loop {
             let next_sequence = *next_disposition_by_origin.entry(origin).or_default();
-            let Some((op, result)) = completed_by_origin
+            let Some(outcome) = completed_by_origin
                 .get_mut(&origin)
                 .and_then(|completed| completed.remove(&next_sequence))
             else {
                 break;
             };
-
-            dispose_prepared_operation(
-                op,
-                result,
-                prepare_queue,
-                submit_queue,
-                confirm_queue,
-                metrics,
-            )
-            .await;
+            if let Some((op, result)) = outcome {
+                dispose_prepared_operation(
+                    op,
+                    result,
+                    prepare_queue,
+                    submit_queue,
+                    confirm_queue,
+                    metrics,
+                )
+                .await;
+            }
+            // Ordered results still consume capacity until disposed, keeping
+            // memory bounded when an earlier same-origin operation is slow.
+            outstanding = outstanding.saturating_sub(1);
             next_disposition_by_origin.insert(origin, next_sequence.saturating_add(1));
         }
+        if next_disposition_by_origin.get(&origin) == next_sequence_by_origin.get(&origin) {
+            next_sequence_by_origin.remove(&origin);
+            next_disposition_by_origin.remove(&origin);
+            completed_by_origin.remove(&origin);
+        }
     }
-
-    debug_assert!(completed_by_origin.values().all(HashMap::is_empty));
 }
 
 /// Routes a prepared operation and returns whether it remains unready.
@@ -627,6 +665,7 @@ async fn submit_classic_task(
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
     metrics: MessageProcessorMetrics,
+    origins: Arc<HashMap<u32, HyperlaneRocksDB>>,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -644,6 +683,7 @@ async fn submit_classic_task(
             }
             std::cmp::Ordering::Greater => {
                 OperationBatch::new(batch, domain.clone())
+                    .with_origin_databases(origins.clone())
                     .submit(&mut prepare_queue, &mut confirm_queue, &metrics)
                     .await;
             }
@@ -749,7 +789,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         .expect("Operation should contain Mailbox address")
         .address();
     let payload_uuid = PayloadUuid::random();
-    let payload = FullPayload::new(
+    let mut payload = FullPayload::new(
         payload_uuid,
         metadata,
         operation_payload,
@@ -757,6 +797,9 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         operation_success_criteria,
         mailbox,
     );
+
+    payload.details.origin = Some(op.origin_domain_id());
+    payload.details.origin_generation = op.origin_generation();
 
     // Payload construction can await RPCs, as can earlier operations in the
     // same batch. Apply the latest rules at the handoff to lander.

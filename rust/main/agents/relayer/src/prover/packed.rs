@@ -21,6 +21,10 @@ struct Level {
 }
 
 impl Level {
+    fn truncate(&mut self, len: usize) {
+        self.len = len;
+        self.chunks.truncate(len.div_ceil(HASHES_PER_CHUNK));
+    }
     fn push(&mut self, hash: H256) {
         let offset = self.len % HASHES_PER_CHUNK;
         if offset == 0 {
@@ -54,6 +58,26 @@ impl Default for PackedMerkle {
 }
 
 impl PackedMerkle {
+    pub(super) fn truncate(
+        &mut self,
+        count: usize,
+    ) -> hyperlane_core::accumulator::incremental::IncrementalMerkle {
+        assert!(count <= self.count, "Cannot grow a tree by rewinding it");
+        for (height, level) in self.levels.iter_mut().enumerate() {
+            level.truncate(count >> height);
+        }
+        self.count = count;
+        self.root = self.subtree_root(0, TREE_DEPTH, count as u64);
+        let branch = std::array::from_fn(|height| {
+            let size = count >> height;
+            if size & 1 == 1 {
+                self.levels[height].get(size.saturating_sub(1))
+            } else {
+                ZERO_HASHES[height]
+            }
+        });
+        hyperlane_core::accumulator::incremental::IncrementalMerkle { branch, count }
+    }
     pub(super) fn count(&self) -> usize {
         self.count
     }
@@ -161,6 +185,35 @@ mod tests {
     use super::*;
     use hyperlane_core::accumulator::{incremental::IncrementalMerkle, merkle::MerkleTree};
     use rand::{rngs::StdRng, Rng, SeedableRng};
+
+    #[test]
+    fn rewind_and_replace_across_chunk_boundaries() {
+        for retained in [0, 1, 2, 3, 255, 256, 257, 511, 512] {
+            let mut packed = PackedMerkle::default();
+            let mut expected = IncrementalMerkle::default();
+            for index in 0..513 {
+                packed.push(H256::from_low_u64_be(index)).unwrap();
+            }
+            for index in 0..retained {
+                expected.ingest(H256::from_low_u64_be(index));
+            }
+            let mut incremental = packed.truncate(retained as usize);
+            assert_eq!(packed.root(), expected.root());
+            assert_eq!(incremental.root(), expected.root());
+            for index in 600..900 {
+                let leaf = H256::from_low_u64_be(index);
+                packed.push(leaf).unwrap();
+                incremental.ingest(leaf);
+                expected.ingest(leaf);
+                assert_eq!(packed.root(), expected.root());
+                assert_eq!(incremental.root(), expected.root());
+                assert_eq!(
+                    packed.prove(packed.count() - 1, packed.count() - 1).root(),
+                    expected.root()
+                );
+            }
+        }
+    }
 
     #[test]
     fn historical_proofs_match_recursive_tree() {

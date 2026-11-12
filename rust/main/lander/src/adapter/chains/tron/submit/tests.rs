@@ -198,8 +198,10 @@ fn create_test_transaction() -> Transaction {
     Transaction::new(
         precursor,
         vec![PayloadDetails {
+            origin_generation: 0,
             uuid: payload_uuid.clone(),
             metadata: format!("test-payload-{}", payload_uuid),
+            origin: None,
             success_criteria: None,
         }],
     )

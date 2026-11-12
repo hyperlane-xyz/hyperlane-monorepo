@@ -771,11 +771,11 @@ impl MerkleTreeHookWebSocketSync {
                 ServerMessage::Error { error } => {
                     return Err(RejectedStream(error).into());
                 }
-                ServerMessage::Rollback => {
+                ServerMessage::Rollback { .. } => {
                     // The submitter repairs stored fork leaves after verifying checkpoint roots.
                     bail!("Scraper stream rolled back; resuming RPC indexing");
                 }
-                ServerMessage::Other => {}
+                ServerMessage::Block { .. } | ServerMessage::Other => {}
             }
         }
         Ok(())
@@ -823,6 +823,7 @@ impl MerkleTreeHookWebSocketSync {
         let after_sequence = next_sequence.checked_sub(1).map(i64::from).unwrap_or(-1);
         SubscribeMessage {
             streams: vec![SubscribeStream {
+                include_zero_confirmations: None,
                 confirmations: self.confirmations,
                 cursors: self.confirmations.is_none().then(|| {
                     vec![StreamCursor::Sequence(SequenceCursor {
@@ -1573,7 +1574,10 @@ mod tests {
 
         for sequence in 0_u32..257 {
             let event = EventMessage {
+                confirmations: None,
+                block_hash: None,
                 data: EventData {
+                    block_hash: None,
                     block_number: StringOrNumber::Number(u64::from(sequence)),
                     domain: 1,
                     leaf_index: StringOrNumber::Number(u64::from(sequence)),
@@ -1729,7 +1733,10 @@ mod tests {
         let (sync, _temp_dir) = test_sync();
         let mut next_sequence = 0;
         let row_cursor_event = EventMessage {
+            confirmations: None,
+            block_hash: None,
             data: EventData {
+                block_hash: None,
                 block_number: StringOrNumber::String("12".to_owned()),
                 domain: 1,
                 leaf_index: StringOrNumber::Number(0),
@@ -1749,7 +1756,10 @@ mod tests {
             .to_string()
             .contains("unexpectedly included a row/stream cursor"));
         let stream_cursor_event = EventMessage {
+            confirmations: None,
+            block_hash: None,
             data: EventData {
+                block_hash: None,
                 block_number: StringOrNumber::String("12".to_owned()),
                 domain: 1,
                 leaf_index: StringOrNumber::Number(0),
@@ -1769,7 +1779,10 @@ mod tests {
             .to_string()
             .contains("unexpectedly included a row/stream cursor"));
         let event = EventMessage {
+            confirmations: None,
+            block_hash: None,
             data: EventData {
+                block_hash: None,
                 block_number: StringOrNumber::String("12".to_owned()),
                 domain: 1,
                 leaf_index: StringOrNumber::Number(0),
@@ -1799,7 +1812,10 @@ mod tests {
         assert!(sync
             .process_event(
                 EventMessage {
+                    confirmations: None,
+                    block_hash: None,
                     data: EventData {
+                        block_hash: None,
                         block_number: StringOrNumber::Number(13),
                         domain: 1,
                         leaf_index: StringOrNumber::Number(0),
@@ -1827,7 +1843,10 @@ mod tests {
             Some(12)
         );
         let gap = EventMessage {
+            confirmations: None,
+            block_hash: None,
             data: EventData {
+                block_hash: None,
                 block_number: StringOrNumber::Number(13),
                 domain: 1,
                 leaf_index: StringOrNumber::Number(2),
@@ -1887,7 +1906,10 @@ mod tests {
             .store_tree_insertion(&existing, 12)
             .expect("store verified leaf");
         let event = EventMessage {
+            confirmations: None,
+            block_hash: None,
             data: EventData {
+                block_hash: None,
                 block_number: StringOrNumber::Number(13),
                 domain: 1,
                 leaf_index: StringOrNumber::Number(0),
