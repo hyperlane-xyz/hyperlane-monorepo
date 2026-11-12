@@ -69,6 +69,12 @@ pub const Options = struct {
     pollers: u32 = 1,
     /// Poller threads cap: running + blocked + parked.
     max_threads: u32 = 256,
+    /// Events per `epoll_wait`.
+    event_batch: u32 = 64,
+    /// How long a poller waits for a short DB reply before handing off
+    /// (`core.blocking.grace_ns`; 0: hand off at once). Tuned by sweeping
+    /// patched builds; not configurable at runtime (TS env surface).
+    handoff_grace_us: u32 = 0,
     /// Poller thread stack (virtual; touched pages only).
     thread_stack_bytes: usize = 8 * 1024 * 1024,
     kernel_backlog: u31 = 511,
@@ -152,6 +158,10 @@ pub const Server = struct {
         try posix.setsockopt(fd, posix.SOL.SOCKET, posix.SO.REUSEADDR, &std.mem.toBytes(@as(c_int, 1)));
         var len = address.getOsSockLen();
         try posix.bind(fd, &address.any, len);
+        // Linux accepted sockets inherit TCP_NODELAY from the listener (one
+        // setsockopt instead of one per connection); kqueue systems get it
+        // per accept.
+        if (builtin.os.tag == .linux) setNoDelay(fd);
         try posix.listen(fd, options.kernel_backlog);
         var bound: std.net.Address = undefined;
         try posix.getsockname(fd, &bound.any, &len);
@@ -162,6 +172,7 @@ pub const Server = struct {
             // Without `core.blocking` the database cannot hand off: stay elastic.
             .active = if (@hasDecl(core, "blocking")) options.pollers else options.max_threads,
             .max_threads = options.max_threads,
+            .event_batch = options.event_batch,
             .stack_size = options.thread_stack_bytes,
         }, .{
             .ctx = self,
@@ -171,6 +182,10 @@ pub const Server = struct {
             .on_thread_exit = onThreadExit,
         });
         errdefer self.loop.deinit();
+        // Process-wide: pollers wait this long for a short DB reply before
+        // handing off (the database calls `core.blocking.graceWait`).
+        if (@hasDecl(core, "blocking") and @hasDecl(core.blocking, "grace_ns"))
+            core.blocking.grace_ns = @as(u64, options.handoff_grace_us) * std.time.ns_per_us;
         const slot = try self.loop.allocSlot(.listener, self);
         self.listener_index = slot.index;
         self.listener_gen = slot.gen;
@@ -216,7 +231,24 @@ pub const Server = struct {
         while (i < count) : (i += 1) {
             const slot = self.loop.slot(i);
             const g = slot.gen();
-            if (slot.kind == .http) self.kick(i, g);
+            if (slot.kind != .http) continue;
+            switch (loop_mod.claim(slot, g, loop_mod.R, loop_mod.KICK)) {
+                .busy, .stale => {},
+                // Parked: an idle keep-alive socket ends right here (no
+                // hand-off per socket); anything else goes to a poller.
+                .claimed => {
+                    // Re-read under R: an upgrade may have turned the slot into
+                    // a WebSocket (same generation) since the check above.
+                    if (slot.kind != .http) {
+                        self.loop.post(i, g, loop_mod.R | loop_mod.KICK);
+                        continue;
+                    }
+                    const conn: *Connection = @ptrCast(@alignCast(slot.ptr.?));
+                    if (conn.phase == .idle and !conn.first and conn.pending.len == 0) {
+                        _ = conn.destroy();
+                    } else self.loop.post(i, g, loop_mod.R | loop_mod.KICK);
+                },
+            }
         }
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -372,7 +404,7 @@ pub const Server = struct {
     }
 
     fn newConnection(self: *Server, fd: posix.socket_t, addr: std.net.Address) ?*Connection {
-        setNoDelay(fd);
+        if (builtin.os.tag != .linux) setNoDelay(fd);
         if (builtin.os.tag == .macos) {
             posix.setsockopt(fd, posix.SOL.SOCKET, std.c.SO.NOSIGPIPE, &std.mem.toBytes(@as(c_int, 1))) catch {};
         }

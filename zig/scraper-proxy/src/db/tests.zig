@@ -551,6 +551,27 @@ test "libpq: custom statements never go generic while reusable ones may, on one 
     try testing.expectEqualStrings("auto", mode.rows[0].get("m").?.string);
 }
 
+test "libpq: checkout takes the most recently released idle connection (pg-pool LIFO)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 3 });
+    defer p.deinit();
+    var conns: [3]pq.Conn = undefined;
+    var pids: [3]f64 = undefined;
+    for (&conns, &pids) |*c, *pid| {
+        c.* = try p.acquire(a, null);
+        pid.* = (try c.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null)).rows[0].get("pid").?.number;
+    }
+    for (conns) |c| p.release(c);
+    // Released 0, 1, 2: a light load keeps hitting backend 2 (hot caches).
+    for (0..5) |_| {
+        const r = try p.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null);
+        try testing.expectEqual(pids[2], r.rows[0].get("pid").?.number);
+    }
+}
+
 test "libpq: pool waiters are served FIFO and capped at max" {
     const url = testUrl() orelse return error.SkipZigTest;
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 2 });

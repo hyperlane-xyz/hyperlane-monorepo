@@ -115,15 +115,16 @@ const FakeSocket = struct {
     }
     /// Same modes as `trySendInline`; `.partial` writes nothing inline and
     /// queues every frame with its job.
-    fn trySendInlineMany(ptr: *anyopaque, payloads: []const []const u8, jobs: []const *live.SendJob) live.Socket.ManyResult {
+    fn trySendInlineMany(ptr: *anyopaque, payloads: []const []const u8, jobs: []const *live.SendJob, required: usize) live.Socket.ManyResult {
         const self: *FakeSocket = @ptrCast(@alignCast(ptr));
         switch (self.inline_mode) {
-            .partial => {
-                for (payloads, jobs) |bytes, job| _ = send(ptr, bytes, job);
+            // Nothing written whole: the required frames are queued.
+            .partial, .busy => {
+                for (payloads[0..required], jobs[0..required]) |bytes, job| _ = send(ptr, bytes, job);
                 self.mutex.lock();
-                self.flushes += 1;
+                if (self.inline_mode == .partial) self.flushes += 1;
                 self.mutex.unlock();
-                return .{ .written = 0 };
+                return .{ .done = .{ .written = 0, .queued = required } };
             },
             else => {},
         }
@@ -133,14 +134,18 @@ const FakeSocket = struct {
             .written => {
                 for (payloads) |bytes| self.frames.append(a, a.dupe(u8, bytes) catch unreachable) catch unreachable;
                 self.flushes += 1;
-                return .{ .written = payloads.len };
+                return .{ .done = .{ .written = payloads.len, .queued = 0 } };
             },
             .failed => {
                 self.open = false;
                 self.terminated = true;
                 return .failed;
             },
-            .busy, .partial => return .busy,
+            .closed => {
+                self.open = false;
+                return .closed;
+            },
+            .busy, .partial => unreachable,
         }
     }
 
@@ -163,6 +168,7 @@ const FakeSocket = struct {
                 self.open = false;
                 self.terminated = true;
             },
+            .closed => self.open = false,
             .busy, .partial => {},
         }
         return self.inline_mode;
@@ -318,10 +324,14 @@ const Harness = struct {
     fn discard(_: ?*anyopaque, _: core.log.Level, _: []const u8, _: []const u8) void {}
 
     fn init(self: *Harness, limits: live.Limits) !void {
+        return self.initBatch(limits, 500);
+    }
+
+    fn initBatch(self: *Harness, limits: live.Limits, batch_size: u64) !void {
         // stdout is the test runner's IPC channel; keep pino-style lines off it.
         core.log.setSink(discard, null);
         self.t.init();
-        self.server = try live.Server.create(a, &self.t.loop, self.db.db(), self.listen.api(), .{ .limits = limits, .batch_size = 500 }, null);
+        self.server = try live.Server.create(a, &self.t.loop, self.db.db(), self.listen.api(), .{ .limits = limits, .batch_size = batch_size }, null);
         try self.server.start();
     }
 
@@ -1365,3 +1375,5 @@ test "a corked frame the socket cannot take whole stays charged until written" {
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
     try testing.expect(!s.terminated);
 }
+
+

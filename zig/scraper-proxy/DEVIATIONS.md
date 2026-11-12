@@ -211,6 +211,14 @@ rule, not the scheduling.
   terminated and `send_error` counted then); TS learns of a synchronous
   write error in the next tick's callback. Same termination, same single
   count; only the moment differs.
+- **Coalesced writes.** Frames that Node writes one `socket.write` at a
+  time within one event-loop tick (event and block frames, Explorer
+  upserts) are written per socket in one vectored write at the end of the
+  emulated tick. The WebSocket messages and their order are unchanged, and
+  so are `bufferedAmount`, `outbound_pending_bytes`, limit decisions and
+  write-callback order as seen from outside the tick (no `/metrics` read or
+  other event runs inside a tick; a randomized differential test checks this
+  against one write per frame). Only TCP segment boundaries differ.
 - **Heartbeat `serverTime`** is computed once per heartbeat sweep (TS: per
   client, within the same millisecond in practice).
 - **Upgrades after `stop()`.** TS removes its 'upgrade' listener, so Node

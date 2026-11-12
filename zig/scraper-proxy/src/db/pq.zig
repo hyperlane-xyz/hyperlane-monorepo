@@ -808,7 +808,16 @@ fn optionBuf() []u8 {
 
 /// poll() until `fd` is ready for `events` or the deadline passes.
 pub fn waitSocket(fd: std.posix.fd_t, events: i16, deadline: ?i64) bool {
-    var first = true;
+    if (deadline) |d| if (d - nowMs() <= 0) return false;
+    var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = events, .revents = 0 }};
+    // Already ready (e.g. the rest of a multi-packet result): no sleep, so
+    // no poller hand-off.
+    if ((std.posix.poll(&fds, 0) catch return false) > 0) return true;
+    // A reply within the poller's grace keeps the poller (no-op off-poller).
+    if (core.blocking.graceWait(fd, events)) return true;
+    // Let an HTTP poller thread hand off its work while this one sleeps.
+    core.blocking.begin();
+    defer core.blocking.end();
     while (true) {
         var timeout: i32 = -1;
         if (deadline) |d| {
@@ -816,17 +825,7 @@ pub fn waitSocket(fd: std.posix.fd_t, events: i16, deadline: ?i64) bool {
             if (remaining <= 0) return false;
             timeout = @intCast(@min(remaining, std.math.maxInt(i32)));
         }
-        var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = events, .revents = 0 }};
-        if (first) {
-            first = false;
-            // Already readable/writable (e.g. the rest of a multi-packet
-            // result): no sleep, so no poller hand-off.
-            const ready = std.posix.poll(&fds, 0) catch return false;
-            if (ready > 0) return true;
-        }
-        // Let an HTTP poller thread hand off its work while this one sleeps.
-        core.blocking.begin();
-        defer core.blocking.end();
+        fds[0].revents = 0;
         const n = std.posix.poll(&fds, timeout) catch return false;
         if (n > 0) return true;
     }
@@ -859,4 +858,32 @@ test "waitSocket skips the blocking hook when the socket is already ready" {
     _ = try std.posix.write(fds[1], "x");
     try std.testing.expect(waitSocket(fds[0], std.posix.POLL.IN, null));
     try std.testing.expectEqual(@as(usize, 1), Counter.begins);
+}
+
+test "waitSocket: a reply within the poller's grace skips the hand-off" {
+    const Counter = struct {
+        var begins: usize = 0;
+        fn begin(_: *anyopaque) void {
+            begins += 1;
+        }
+        fn end(_: *anyopaque) void {}
+    };
+    var dummy: u8 = 0;
+    core.blocking.hook = .{ .ctx = &dummy, .begin = Counter.begin, .end = Counter.end };
+    defer core.blocking.hook = null;
+    core.blocking.grace_ns = 200 * std.time.ns_per_ms;
+    defer core.blocking.grace_ns = 0;
+    const fds = try std.posix.pipe();
+    defer std.posix.close(fds[0]);
+    defer std.posix.close(fds[1]);
+    const Writer = struct {
+        fn run(fd: std.posix.fd_t) void {
+            std.Thread.sleep(5 * std.time.ns_per_ms);
+            _ = std.posix.write(fd, "x") catch {};
+        }
+    };
+    const t = try std.Thread.spawn(.{}, Writer.run, .{fds[1]});
+    try std.testing.expect(waitSocket(fds[0], std.posix.POLL.IN, null));
+    t.join();
+    try std.testing.expectEqual(@as(usize, 0), Counter.begins);
 }
