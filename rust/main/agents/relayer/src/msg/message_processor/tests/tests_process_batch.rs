@@ -15,7 +15,7 @@ use hyperlane_core::{
     TxOutcome, H256, U256,
 };
 
-use super::super::process_batch;
+use super::super::process_operations;
 use super::tests_common::{create_test_metrics, create_test_queue};
 
 #[derive(Debug, Default)]
@@ -257,22 +257,88 @@ async fn run_process_batch(
     super::super::OpQueue,
     super::super::MessageProcessorMetrics,
 ) {
+    let concurrency = batch.len().max(1);
+    run_preparations(destination, batch, concurrency).await
+}
+
+async fn run_preparations(
+    destination: HyperlaneDomain,
+    batch: Vec<QueueOperation>,
+    concurrency: usize,
+) -> (
+    super::super::OpQueue,
+    super::super::OpQueue,
+    super::super::OpQueue,
+    super::super::MessageProcessorMetrics,
+) {
     let mut prepare_queue = create_test_queue();
     let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
     let metrics = create_test_metrics();
 
-    process_batch(
+    process_operations(
         destination,
-        batch,
+        futures::stream::iter(batch),
+        concurrency,
         &mut prepare_queue,
         &submit_queue,
         &confirm_queue,
         &metrics,
+        None,
     )
     .await;
 
     (prepare_queue, submit_queue, confirm_queue, metrics)
+}
+
+#[tokio::test]
+async fn available_slot_admits_work_before_slow_preparation_finishes() {
+    let mut harness = TestHarness::new();
+    let slow = Arc::new(Semaphore::new(0));
+    let operations = vec![
+        harness.operation(1, 1, PendingOperationResult::Success, Some(slow.clone())),
+        harness.operation(2, 2, PendingOperationResult::Success, None),
+        harness.operation(3, 3, PendingOperationResult::Success, None),
+    ];
+    let task = tokio::spawn(run_preparations(harness.destination.clone(), operations, 2));
+    for id in [2, 3] {
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), harness.disposed_rx.recv())
+                .await
+                .expect("free slot must admit next operation")
+                .unwrap(),
+            H256::from_low_u64_be(id),
+        );
+    }
+    assert_eq!(harness.concurrency.max_active.load(Ordering::SeqCst), 2);
+    slow.add_permits(1);
+    task.await.unwrap();
+}
+
+#[tokio::test]
+async fn ordered_completed_results_still_count_toward_capacity() {
+    let mut harness = TestHarness::new();
+    let slow = Arc::new(Semaphore::new(0));
+    let operations = vec![
+        harness.operation(1, 1, PendingOperationResult::Success, Some(slow.clone())),
+        harness.operation(2, 1, PendingOperationResult::Success, None),
+        harness.operation(3, 2, PendingOperationResult::Success, None),
+    ];
+    let task = tokio::spawn(run_preparations(harness.destination.clone(), operations, 2));
+    for _ in 0..2 {
+        harness.started_rx.recv().await.unwrap();
+    }
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), harness.started_rx.recv())
+            .await
+            .is_err()
+    );
+    slow.add_permits(1);
+    assert_eq!(
+        harness.started_rx.recv().await.unwrap(),
+        H256::from_low_u64_be(3)
+    );
+    task.await.unwrap();
 }
 
 #[tokio::test]

@@ -333,47 +333,57 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ready_signatures_still_require_fresh_reorg_checks() {
+    async fn collected_quorum_is_validated_without_rebuilding_the_tree() {
         use crate::test_utils::mock_ism::MockInterchainSecurityModule;
         use hyperlane_base::settings::CheckpointSyncerBuildError;
 
-        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
-        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-        let message = HyperlaneMessage::default();
-        let checkpoint = CheckpointWithMessageId {
-            checkpoint: Checkpoint {
-                mailbox_domain: message.origin,
-                merkle_tree_hook_address: H256::zero(),
-                root: H256::zero(),
-                index: 1,
-            },
-            message_id: message.id(),
-        };
-        let mut validators: Vec<_> = dummy_validators().into_iter().take(1).collect();
-        validators[0].fetch_checkpoint = Some(checkpoint);
-        let address: H160 = validators[0].public_key.parse().unwrap();
-        let clients = build_mock_checkpoint_syncs(&validators)
-            .await
-            .into_iter()
-            .map(|(address, client)| {
-                let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
-                (address, client)
-            })
-            .collect();
-        let base = Arc::new(build_mock_base_builder(origin, destination.clone()));
-        base.responses
-            .build_checkpoint_syncer
-            .lock()
-            .unwrap()
-            .extend([
-                Ok(MultisigCheckpointSyncer::new(clients, None)),
-                Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
+        for outcome in ["valid", "reorg", "excluded", "missing"] {
+            let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
+            let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+            let message = HyperlaneMessage::default();
+            let checkpoint = CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    mailbox_domain: message.origin,
+                    merkle_tree_hook_address: H256::zero(),
+                    root: H256::zero(),
+                    index: 1,
+                },
+                message_id: message.id(),
+            };
+            let mut validators: Vec<_> = dummy_validators().into_iter().take(1).collect();
+            validators[0].fetch_checkpoint = (outcome != "missing").then_some(checkpoint);
+            let address: H160 = validators[0].public_key.parse().unwrap();
+            let clients = build_mock_checkpoint_syncs(&validators)
+                .await
+                .into_iter()
+                .map(|(address, client)| {
+                    let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
+                    (address, client)
+                })
+                .collect();
+            let base = Arc::new(build_mock_base_builder(origin, destination.clone()));
+            let raw = MultisigCheckpointSyncer::new(clients, None);
+            let checked = match outcome {
+                "reorg" => Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
                     exists: true,
                     event: None,
                     content: None,
                 })),
-            ]);
-        for _ in 0..2 {
+                "excluded" => Ok(MultisigCheckpointSyncer::new(HashMap::new(), None)),
+                _ => Ok(raw.clone()),
+            };
+            base.responses
+                .build_checkpoint_syncer
+                .lock()
+                .unwrap()
+                .push_back(Ok(raw));
+            if outcome != "missing" {
+                base.responses
+                    .build_checkpoint_syncer
+                    .lock()
+                    .unwrap()
+                    .push_back(checked);
+            }
             base.responses.push_build_ism_response(
                 H256::zero(),
                 Ok(Box::new(MockInterchainSecurityModule::new(
@@ -398,20 +408,38 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push_back(Ok(Some(1)));
-        }
-        let builder = MessageMetadataBuilder::new(base.clone(), H256::zero(), &message)
-            .await
-            .unwrap();
-        assert!(matches!(
-            builder
+            if outcome == "excluded" {
+                base.responses
+                    .get_merkle_leaf_id_by_message_id
+                    .lock()
+                    .unwrap()
+                    .push_back(Ok(Some(1)));
+            }
+            let builder = MessageMetadataBuilder::new(base.clone(), H256::zero(), &message)
+                .await
+                .unwrap();
+            let result = builder
                 .build_for_delivery(H256::zero(), &message, true)
-                .await,
-            Err(MetadataBuildError::Refused(_))
-        ));
-        assert_eq!(
-            *base.requests.checkpoint_reorg_checks.lock().unwrap(),
-            vec![false, true]
-        );
+                .await;
+            match outcome {
+                "valid" => {
+                    result.expect("validated metadata");
+                }
+                "reorg" => assert!(matches!(result, Err(MetadataBuildError::Refused(_)))),
+                _ => assert!(matches!(
+                    result,
+                    Err(MetadataBuildError::AwaitingValidatorSignatures)
+                )),
+            }
+            assert_eq!(
+                *base.requests.checkpoint_reorg_checks.lock().unwrap(),
+                if outcome == "missing" {
+                    vec![false]
+                } else {
+                    vec![false, true]
+                }
+            );
+        }
     }
 
     #[tokio::test]
@@ -779,7 +807,7 @@ mod tests {
             .build_checkpoint_syncer
             .lock()
             .unwrap()
-            .push_back(Ok(multisig_syncer));
+            .extend([Ok(multisig_syncer.clone()), Ok(multisig_syncer)]);
 
         let mut mock_multisig = MockMockMultisigIsm::new();
         mock_multisig

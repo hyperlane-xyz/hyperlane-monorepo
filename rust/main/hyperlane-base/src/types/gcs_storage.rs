@@ -300,14 +300,18 @@ impl CheckpointSyncer for GcsStorageClient {
         // too and treat it as authoritative if present — silently only
         // checking the folder-scoped path could let a legacy root-level
         // reorg flag go unseen and signing resume through an unresolved reorg.
+        let path = self.object_path(REORG_FLAG_KEY);
         if self.folder.is_some() {
-            let root_status = self.fetch_reorg_status_at(REORG_FLAG_KEY).await?;
-            if root_status.exists {
-                return Ok(root_status);
-            }
+            let (root, folder) = tokio::join!(
+                self.fetch_reorg_status_at(REORG_FLAG_KEY),
+                self.fetch_reorg_status_at(&path),
+            );
+            // Preserve the legacy root's flag/error precedence even if the
+            // folder request fails or completes first.
+            let root = root?;
+            return if root.exists { Ok(root) } else { folder };
         }
-        self.fetch_reorg_status_at(&self.object_path(REORG_FLAG_KEY))
-            .await
+        self.fetch_reorg_status_at(&path).await
     }
 }
 

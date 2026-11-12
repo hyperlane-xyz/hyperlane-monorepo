@@ -266,7 +266,7 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             message,
             &validators,
             ism_builder.as_ref().app_context.clone(),
-            !ism_builder.as_ref().signature_polling,
+            false,
         )
         .await
     {
@@ -298,22 +298,55 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
     } else {
         checkpoint_syncer
     };
-    let result = ism_builder
-        .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
-        .await;
+    let result = async {
+        let metadata = ism_builder
+            .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
+            .await
+            .map_err(|_| MetadataBuildError::CouldNotFetch)?
+            .ok_or(MetadataBuildError::AwaitingValidatorSignatures)?;
+
+        // Downloads do not wait for reorg checks. Before exposing a quorum to
+        // the ISM tree, check every validator (including non-signers) once.
+        let checked = ism_builder
+            .as_ref()
+            .base_builder()
+            .build_checkpoint_syncer(
+                message,
+                &validators,
+                ism_builder.as_ref().app_context.clone(),
+                true,
+            )
+            .await
+            .map_err(|error| match error {
+                CheckpointSyncerBuildError::ReorgFlag(event) => {
+                    MetadataBuildError::Refused(MetadataBuildRefused::Reorg(event))
+                }
+                error => MetadataBuildError::FailedToBuild(error.to_string()),
+            })?;
+        if checkpoint_syncer.has_same_clients(&checked) {
+            return Ok(metadata);
+        }
+
+        // A flag read failure, ignored flag, or changed location can remove a
+        // signer. Recollect only this multisig from the checked clients; the
+        // positive checkpoint cache retains the other signatures.
+        let checked = if let Some(observer) = &observer {
+            checked.with_observer(observer.clone())
+        } else {
+            checked
+        };
+        ism_builder
+            .fetch_metadata(&validators, threshold, message, &checked)
+            .await
+            .map_err(|_| MetadataBuildError::CouldNotFetch)?
+            .ok_or(MetadataBuildError::AwaitingValidatorSignatures)
+    }
+    .await;
     // Flush failures too; canceled children keep only progress already sent.
     if let Some(observer) = observer {
         observer.report();
     }
-    let metadata = result
-        .map_err(|_| MetadataBuildError::CouldNotFetch)?
-        .ok_or_else(|| {
-            info!(
-                hyp_message=?message, ?validators, threshold, %ism_address,
-                "Could not fetch metadata: Unable to reach quorum"
-            );
-            MetadataBuildError::AwaitingValidatorSignatures
-        })?;
+    let metadata = result?;
 
     debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
     let formatted = ism_builder

@@ -105,6 +105,18 @@ pub struct MultisigCheckpointSyncer {
 }
 
 impl MultisigCheckpointSyncer {
+    /// Whether validation retained exactly the storage clients used to collect a quorum.
+    /// A changed set requires recollection, so excluded or replaced storage cannot contribute.
+    pub fn has_same_clients(&self, other: &Self) -> bool {
+        self.checkpoint_syncers.len() == other.checkpoint_syncers.len()
+            && self.checkpoint_syncers.iter().all(|(validator, client)| {
+                other
+                    .checkpoint_syncers
+                    .get(validator)
+                    .is_some_and(|other| Arc::ptr_eq(client, other))
+            })
+    }
+
     /// Attach an observer scoped to this metadata build, not the pooled syncers.
     pub fn with_observer(mut self, observer: Arc<dyn CheckpointObserver>) -> Self {
         self.observer = Some(observer);

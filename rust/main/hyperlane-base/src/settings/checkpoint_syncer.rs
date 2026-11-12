@@ -138,7 +138,13 @@ impl CheckpointSyncerConf {
         Ok(syncer)
     }
 
-    // keep this private to force all initializations to perform the reorg check via `build_and_validate`
+    /// Construct a reader without authorizing its checkpoints for delivery.
+    /// Relayers must check `reorg_status` before using any collected quorum.
+    /// Validators must continue to use `build_and_validate`.
+    pub async fn build_for_reading(&self) -> Result<Box<dyn CheckpointSyncer>, Report> {
+        self.build(None).await
+    }
+
     async fn build(
         &self,
         latest_index_gauge: Option<IntGauge>,
