@@ -188,6 +188,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       onchainHookType = await hook.hookType();
 
       switch (onchainHookType) {
+        case OnchainHookType.UNUSED:
+          // Custom hooks can report UNUSED; preserve their deployed address.
+          derivedHookConfig = { type: HookType.UNKNOWN, address };
+          break;
         case OnchainHookType.ROUTING: {
           // DelayedFlowRouterHookIsm (a hook/ISM hybrid) also reports
           // hookType() == ROUTING — disambiguate before the plain
