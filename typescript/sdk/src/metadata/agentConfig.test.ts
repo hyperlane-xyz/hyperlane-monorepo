@@ -7,7 +7,6 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import {
   AgentChainMetadataSchema,
-  AgentSignerKeyType,
   RelayerAgentConfigSchema,
   RpcConsensusType,
   ScraperAgentConfigSchema,
@@ -570,7 +569,7 @@ describe('Agent config', () => {
   });
 });
 
-describe('ValidatorAgentConfigSchema lightweight mode', () => {
+describe('ValidatorAgentConfigSchema live indexing', () => {
   const config = {
     originChainName: 'test',
     validator: { key: `0x${'11'.repeat(32)}` },
@@ -594,7 +593,8 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
     },
   };
 
-  it('accepts normal quorum and majority for every supported protocol', () => {
+  it('accepts RPC-only and live WebSocket validators', () => {
+    expect(ValidatorAgentConfigSchema.safeParse(config).success).to.be.true;
     for (const protocol of Object.values(ProtocolType)) {
       for (const rpcConsensusType of [
         RpcConsensusType.Quorum,
@@ -602,13 +602,9 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
       ]) {
         const result = ValidatorAgentConfigSchema.safeParse({
           ...config,
-          lightweight: false,
+          websocketUrl: 'wss://scraper.example/agents',
           chains: {
-            test: {
-              ...config.chains.test,
-              protocol,
-              rpcConsensusType,
-            },
+            test: { ...config.chains.test, protocol, rpcConsensusType },
           },
         });
         expect(
@@ -619,92 +615,34 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
     }
   });
 
-  it('requires a websocket URL with either spelling', () => {
+  it('rejects removed lightweight settings, including false', () => {
     for (const flag of ['lightweight', 'leightweigt']) {
-      expect(
-        ValidatorAgentConfigSchema.safeParse({ ...config, [flag]: true })
-          .success,
-      ).to.be.false;
-      expect(
-        ValidatorAgentConfigSchema.safeParse({
-          ...config,
-          [flag]: true,
-          websocketUrl: 'wss://scraper.example/events',
-        }).success,
-      ).to.be.true;
-    }
-  });
-
-  it('rejects removed quorum settings in both modes', () => {
-    for (const lightweight of [false, true]) {
-      for (const removed of [
-        { additionalQuorumRpcUrls: [{ http: 'https://quorum.example' }] },
-        { additionalQuorumRpcUrls: [] },
-        { customAdditionalQuorumRpcUrls: 'https://quorum.example' },
-        { customAdditionalQuorumRpcUrls: '' },
-      ]) {
+      for (const value of [true, false]) {
         expect(
           ValidatorAgentConfigSchema.safeParse({
             ...config,
-            lightweight,
-            websocketUrl: 'wss://scraper.example',
-            chains: { test: { ...config.chains.test, ...removed } },
+            [flag]: value,
+            websocketUrl: 'wss://scraper.example/agents',
           }).success,
         ).to.be.false;
       }
     }
   });
 
-  it('accepts lightweight indexing for every supported protocol', () => {
-    for (const protocol of [
-      ProtocolType.Ethereum,
-      ProtocolType.Sealevel,
-      ProtocolType.Cosmos,
-      ProtocolType.CosmosNative,
-      ProtocolType.Starknet,
-      ProtocolType.Radix,
-      ProtocolType.Aleo,
-      ProtocolType.Tron,
+  it('rejects removed quorum endpoint settings', () => {
+    for (const removed of [
+      { additionalQuorumRpcUrls: [{ http: 'https://quorum.example' }] },
+      { additionalQuorumRpcUrls: [] },
+      { customAdditionalQuorumRpcUrls: 'https://quorum.example' },
+      { customAdditionalQuorumRpcUrls: '' },
     ]) {
-      const result = ValidatorAgentConfigSchema.safeParse({
-        ...config,
-        lightweight: true,
-        websocketUrl: 'wss://scraper.example/events',
-        chains: {
-          test: {
-            ...config.chains.test,
-            protocol,
-            ...(protocol === ProtocolType.Cosmos ||
-            protocol === ProtocolType.CosmosNative
-              ? {
-                  signer: {
-                    type: AgentSignerKeyType.Cosmos,
-                    prefix: 'test',
-                    key: `0x${'11'.repeat(32)}`,
-                  },
-                  canonicalAsset: 'utest',
-                  gasPrice: { denom: 'utest', amount: '0.025' },
-                  contractAddressBytes: 32,
-                }
-              : {}),
-          },
-        },
-      });
-      expect(result.success, `${protocol}: ${result.error?.message}`).to.be
-        .true;
+      expect(
+        ValidatorAgentConfigSchema.safeParse({
+          ...config,
+          chains: { test: { ...config.chains.test, ...removed } },
+        }).success,
+      ).to.be.false;
     }
-  });
-
-  it('rejects conflicting aliases and defaults to classic behavior', () => {
-    expect(ValidatorAgentConfigSchema.safeParse(config).success).to.be.true;
-    expect(
-      ValidatorAgentConfigSchema.safeParse({
-        ...config,
-        lightweight: true,
-        leightweigt: false,
-        websocketUrl: 'wss://scraper.example/events',
-      }).success,
-    ).to.be.false;
   });
 });
 

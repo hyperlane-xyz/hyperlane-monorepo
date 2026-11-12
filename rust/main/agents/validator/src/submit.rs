@@ -331,7 +331,7 @@ impl ValidatorSubmitter {
         self.metrics.backfill_complete.set(1);
     }
 
-    /// Authenticate the replay frontier before starting indexing.
+    /// Restore the authenticated consensus starting tree and its publication status.
     pub(crate) async fn restore_consensus_tree(&self) -> IncrementalMerkle {
         let restored = self.restored_snapshot_tree(u32::MAX).await;
         if restored.is_some() {
@@ -1171,7 +1171,7 @@ impl ValidatorSubmitter {
             let panic_message = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support.";
             self.persist_reorg_guard(&reorg_event).await;
 
-            // Lightweight/consensus mode uses its own endpoint verification.
+            // Checkpoint consensus uses its own endpoint verification.
             // Bound the whole report, including optional diagnostic storage writes.
             if report_rpc {
                 let report = async {
