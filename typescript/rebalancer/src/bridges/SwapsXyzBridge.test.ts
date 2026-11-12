@@ -2882,6 +2882,18 @@ describe('SwapsXyzBridge.execute Solana', () => {
 describe('SwapsXyzBridge.getStatus', () => {
   afterEach(() => sinon.restore());
 
+  it('rejects a completed status missing amount data instead of reporting zero', async () => {
+    const client = createClient();
+    sinon
+      .stub(client, 'getStatus')
+      .resolves(statusResponse('success', { actionResponse: undefined }));
+
+    const error = await captureError(
+      createBridge(client).getStatus('0xsource', 1, 8453, 'tx-1'),
+    );
+    expect(error.message).to.include('missing actionResponse');
+  });
+
   for (const response of [
     statusResponse('success', { txId: 'different-transfer' }),
     statusResponse('success', { srcTxHash: '0xdifferent-source' }),

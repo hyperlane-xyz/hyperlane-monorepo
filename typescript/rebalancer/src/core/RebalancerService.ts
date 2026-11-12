@@ -160,6 +160,7 @@ export class RebalancerService {
       this.registry,
       this.logger,
       this.inventorySignerKeysByProtocol,
+      undefined,
       this.config.externalBridgeApiKeys,
     );
 

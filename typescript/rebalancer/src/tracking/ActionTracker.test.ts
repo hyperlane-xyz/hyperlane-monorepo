@@ -2175,7 +2175,7 @@ describe('ActionTracker', () => {
   });
 
   describe('syncInventoryMovementActions', () => {
-    it('retains a failed source-committed movement beyond the intent TTL', async () => {
+    it('retains a failed or unreadable source-committed movement beyond the intent TTL', async () => {
       await rebalanceIntentStore.save({
         id: 'intent',
         status: 'in_progress',
@@ -2209,6 +2209,14 @@ describe('ActionTracker', () => {
           error: 'provider failure',
         }),
       };
+      expect(
+        await tracker.syncInventoryMovementActions({
+          [ExternalBridgeType.LiFi]: bridge,
+        }),
+      ).to.deep.equal({ completed: 0, failed: 0 });
+      bridge.getStatus.rejects(
+        new Error('Completed swaps.xyz status is missing actionResponse'),
+      );
       expect(
         await tracker.syncInventoryMovementActions({
           [ExternalBridgeType.LiFi]: bridge,
