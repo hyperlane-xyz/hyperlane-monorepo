@@ -48,6 +48,11 @@ contract OpL2NativeTokenBridge is TokenRouter {
         _MailboxClient_initialize(_hook, address(0), _owner);
     }
 
+    /// @inheritdoc TokenRouter
+    function _validateMetadata(bytes memory _metadata) internal pure override {
+        if (_metadata.length != 0) revert MetadataNotSupported();
+    }
+
     /**
      * @inheritdoc TokenRouter
      * @dev Overrides to use the L2 bridge for transferring native tokens and trigger two messages:
@@ -55,11 +60,12 @@ contract OpL2NativeTokenBridge is TokenRouter {
      * - Finalize message with the actual amount to finalize the withdrawal
      * transferRemote typically has the dispatch of the message as the 4th and final step. However, in this case we want the Hyperlane messageId to be passed via the rollup bridge.
      */
-    function transferRemote(
+    function _transferRemote(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
-    ) public payable override returns (bytes32) {
+        uint256 _amount,
+        bytes memory
+    ) internal override returns (bytes32) {
         // 1. No external fee calculation necessary
         require(
             _amount > 0,
@@ -158,7 +164,8 @@ contract OpL2NativeTokenBridge is TokenRouter {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        address /* _feeToken */
+        address /* _feeToken */,
+        bytes memory
     ) internal view override returns (uint256) {
         uint256 proveQuote = _Router_quoteDispatch(
             _destination,
@@ -218,11 +225,12 @@ abstract contract OpL1NativeTokenBridge is
         _MailboxClient_initialize(address(0), address(0), _owner);
     }
 
-    function transferRemote(
+    function _transferRemote(
         uint32,
         bytes32,
-        uint256
-    ) public payable override returns (bytes32) {
+        uint256,
+        bytes memory
+    ) internal override returns (bytes32) {
         revert("OP L1 token bridge should not send messages");
     }
 

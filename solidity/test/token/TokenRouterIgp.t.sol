@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
+import {MessageBodyFeeHook} from "./HypERC20.t.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
@@ -199,6 +200,44 @@ contract TokenRouterIgpTest is Test {
         collateralToken.transfer(ALICE, TOTAL_SUPPLY / 2);
         feeToken.transfer(ALICE, TOTAL_SUPPLY / 2);
         syntheticRouter.transfer(ALICE, TOTAL_SUPPLY / 2);
+    }
+
+    function test_metadataAwareERC20Quote_collateral() public {
+        _testMetadataAwareERC20Quote(collateralRouter);
+    }
+
+    function test_metadataAwareERC20Quote_synthetic() public {
+        _testMetadataAwareERC20Quote(syntheticRouter);
+    }
+
+    function _testMetadataAwareERC20Quote(TokenRouter router) internal {
+        MessageBodyFeeHook bodyHook = new MessageBodyFeeHook();
+        router.setHook(address(bodyHook));
+        router.setFeeHook(address(bodyHook));
+        bytes memory metadata = hex"1234567890";
+        Quote[] memory quoted = router.quoteTransferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            metadata
+        );
+        IERC20 token = IERC20(router.token());
+        uint256 beforeBalance = token.balanceOf(ALICE);
+        vm.startPrank(ALICE);
+        token.approve(address(router), TRANSFER_AMT + quoted[0].amount);
+        router.transferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            metadata
+        );
+        vm.stopPrank();
+        assertEq(token.balanceOf(address(bodyHook)), quoted[0].amount);
+        assertEq(
+            token.balanceOf(ALICE),
+            beforeBalance - TRANSFER_AMT - quoted[0].amount
+        );
+        assertEq(token.allowance(address(router), address(bodyHook)), 0);
     }
 
     // ============ Setter Tests ============

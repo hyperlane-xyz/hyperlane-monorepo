@@ -26,7 +26,7 @@ ignored_warnings_from = ['lib', 'test', 'contracts/test']
 # the two files in sync.
 [[profile.default.additional_compiler_profiles]]
 name = "size-optimized"
-optimizer_runs = 3_599
+optimizer_runs = 500
 
 [[profile.default.additional_compiler_profiles]]
 name = "layerzero-size-optimized"
@@ -34,7 +34,7 @@ optimizer_runs = 5_199
 
 [[profile.default.compilation_restrictions]]
 paths = "contracts/token/CrossCollateralRouter.sol"
-optimizer_runs = 3_599
+optimizer_runs = 500
 
 [[profile.default.compilation_restrictions]]
 paths = "contracts/hooks/layerzero/LayerZeroV2HookIsm.sol"
