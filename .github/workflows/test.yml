@@ -396,6 +396,9 @@ jobs:
         if: steps.gitleaks-install.outcome != 'skipped'
         run: pnpm -C typescript/infra test:gitleaks
 
+      - name: Staged Private Key Check Tests
+        run: node --test scripts/tests/check-staged-private-keys.test.mjs
+
       - name: Balance Tests
         if: env.BALANCE_CHANGES == 'true'
         run: pnpm -C typescript/infra test:balance
