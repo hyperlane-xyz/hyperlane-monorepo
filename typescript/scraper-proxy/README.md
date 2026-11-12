@@ -63,12 +63,12 @@ debugging but does not replace scraper state.
 
 ## Choose an interface
 
-| Interface           | Use it for                                                                   | Delivery model                      | Intended clients                  |
-| ------------------- | ---------------------------------------------------------------------------- | ----------------------------------- | --------------------------------- |
-| `GET/POST /graphql` | Historical queries, pagination, message snapshots, diagnostic history        | Request/response                    | Explorer, Nexus, services         |
-| `WS /messages`      | Enriched message updates, selected message IDs, block heads, diagnostics     | Server pushes after URL negotiation | Explorer, Nexus, public consumers |
-| `WS /agents`        | Raw protocol events, cursor replay, canonical or custom-confirmation streams | Client sends a subscription         | Internal agents and indexers      |
-| `GET /metrics`      | Request, database, WebSocket, queue, and process metrics                     | Prometheus scrape                   | Monitoring                        |
+| Interface           | Use it for                                                               | Delivery model                      | Intended clients                  |
+| ------------------- | ------------------------------------------------------------------------ | ----------------------------------- | --------------------------------- |
+| `GET/POST /graphql` | Historical queries, pagination, message snapshots, diagnostic history    | Request/response                    | Explorer, Nexus, services         |
+| `WS /messages`      | Enriched message updates, selected message IDs, block heads, diagnostics | Server pushes after URL negotiation | Explorer, Nexus, public consumers |
+| `WS /agents`        | Live protocol events at canonical or custom confirmations                | Client sends a subscription         | Internal agents and indexers      |
+| `GET /metrics`      | Request, database, WebSocket, queue, and process metrics                 | Prometheus scrape                   | Monitoring                        |
 
 ## GraphQL
 
@@ -303,12 +303,19 @@ validator read. The proxy performs no background signature reads or verification
 
 ## Agent WebSocket: `/agents`
 
-`/agents` is the private, cursor-aware protocol stream for agents and internal
-indexers. Keep it cluster-only:
+`/agents` provides live protocol events for agents and indexers. Historical
+backfills are no longer supported, removing a blocker to making this endpoint
+public. Network exposure is unchanged by this cleanup; current deployments keep
+it cluster-only:
 
 ```text
 ws://scraper-proxy.<namespace>.svc:8383/agents
 ```
+
+Agents must recover startup history and reconnect gaps through RPC before
+cutting over to live events, as in the validator and relayer indexing refactors.
+A central snapshot service is planned separately for agent bootstrap and
+historical state.
 
 On connection, the server advertises its capabilities:
 
@@ -322,40 +329,20 @@ On connection, the server advertises its capabilities:
     "merkle_tree_insertion",
     "blocks"
   ],
-  "historicalStreaming": true,
-  "confirmations": { "unit": "blocks", "liveOnly": true },
-  "streamCursorVersions": { "gas_payment": 3 }
+  "historicalStreaming": false,
+  "confirmations": { "unit": "blocks", "liveOnly": true }
 }
 ```
 
-The client then sends one subscription containing each desired event type at
-most once:
+Send one subscription containing each desired event type at most once. Omit
+`domains` for all domains, or list explicit domains:
 
 ```json
 {
   "type": "subscribe",
   "streams": [
-    {
-      "eventType": "dispatch",
-      "cursors": [
-        {
-          "domain": 1,
-          "address": "0x0000000000000000000000000000000000000001",
-          "afterSequence": "42"
-        }
-      ]
-    },
-    {
-      "eventType": "gas_payment",
-      "streamCursorVersion": 3,
-      "cursors": [
-        {
-          "domain": 1,
-          "address": "0x0000000000000000000000000000000000000002",
-          "afterStreamCursor": "100"
-        }
-      ]
-    },
+    { "eventType": "dispatch", "domains": [1, 42161] },
+    { "eventType": "gas_payment", "domains": [1, 42161] },
     { "eventType": "delivery" },
     { "eventType": "blocks", "domains": [1, 42161] }
   ]
@@ -364,21 +351,22 @@ most once:
 
 ### Available streams
 
-| `eventType`             | Data                                                                                 | Historical cursor                           |
-| ----------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `dispatch`              | Raw message dispatch, origin/destination, mailbox, sender, recipient, body, tx/block | Per mailbox `afterSequence` (message nonce) |
-| `delivery`              | Delivered message ID, destination mailbox/domain, destination transaction            | Live only                                   |
-| `gas_payment`           | Message ID, payment, gas amount, IGP, origin/destination, tx/log metadata            | Version 3 per-IGP `afterStreamCursor`       |
-| `merkle_tree_insertion` | Message ID, Merkle tree hook, leaf index, domain, block                              | Per hook `afterSequence` (leaf index)       |
-| `blocks`                | Indexed block height/hash and observed chain head                                    | Live snapshot and changes only              |
+| `eventType`             | Data                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `dispatch`              | Raw dispatch, origin/destination, mailbox, sender, recipient, body, tx/block |
+| `delivery`              | Delivered message ID, destination mailbox/domain, destination transaction    |
+| `gas_payment`           | Message ID, payment, gas amount, IGP, origin/destination, tx/log metadata    |
+| `merkle_tree_insertion` | Message ID, Merkle tree hook, leaf index, domain, block                      |
+| `blocks`                | Current indexed block snapshot followed by live changes                      |
 
-Without a cursor, event streams begin live. With cursors, the proxy replays
-history, emits `caught_up`, and then hands off to live delivery without gaps.
-Cursor values and row IDs are decimal strings.
+Every event subscription starts live, including after reconnect. Replay options
+such as `cursors`, `streamCursorVersion`, `afterSequence`, `afterStreamCursor`,
+`afterId`, and `allowReplay` are rejected, even when empty. No historical database
+scan or `caught_up` message is issued. Gas payment events retain their row ID and
+log metadata but no longer include replay cursors or legacy cursor boundaries.
 
-`allowReplay: true` permits a sequence cursor ahead of current scraper history
-to restart from the current end. Gas-payment cursors require
-`streamCursorVersion: 3`; physical database row IDs are not valid cursors.
+Deploy the validator and relayer RPC-recovery refactors before upgrading the
+proxy; older agents that request replay must be upgraded or use RPC-only indexing.
 
 To use a custom confirmation delay, provide both `confirmations` and explicit
 `domains` on a stream:
@@ -398,35 +386,35 @@ Set `includeZeroConfirmations: true` on any event stream to also receive live
 zero-confirmation events on the same connection. For example,
 `{ "eventType": "dispatch", "domains": [1], "confirmations": 15, "includeZeroConfirmations": true }`
 sends events with `confirmations: 0` and again at `confirmations: 15`.
-The extra stream is live-only and respects cursor address filters; normal replay
-and cursors are unchanged. At depth 0, events are sent once. Rollback frames
+The extra stream leaves canonical live delivery unchanged. At depth 0,
+events are sent once. Rollback frames
 identify the affected stream by `eventType` and `confirmations`.
 Provisional Merkle event envelopes also include `blockHash`.
 The extra stream is best-effort: domains without near-head state are logged and
-skipped until reconnect, without rejecting normal replay. Explicit numeric
+skipped until reconnect, without rejecting canonical live delivery. Explicit numeric
 confirmation subscriptions still require near-head state for every requested domain.
 
 Server frame types:
 
-| `type`       | Meaning                                                                         |
-| ------------ | ------------------------------------------------------------------------------- |
-| `subscribed` | Echoes the normalized accepted stream configuration                             |
-| `event`      | Protocol event with `eventType`, `domain`, `data`, and applicable cursor fields |
-| `caught_up`  | Historical cursor replay reached the advertised boundary                        |
-| `rollback`   | Custom-confirmation event range was invalidated by a reorg                      |
-| `block`      | Current indexed block snapshot or update                                        |
-| `pong`       | Response to `{ "type": "ping" }`                                                |
-| `error`      | Invalid subscription or stream failure                                          |
+| `type`       | Meaning                                                                          |
+| ------------ | -------------------------------------------------------------------------------- |
+| `subscribed` | Echoes the normalized accepted stream configuration                              |
+| `event`      | Protocol event with `eventType`, `domain`, `data`, and native sequence or row ID |
+| `rollback`   | Custom-confirmation event range was invalidated by a reorg                       |
+| `block`      | Current indexed block snapshot or update                                         |
+| `pong`       | Response to `{ "type": "ping" }`                                                 |
+| `error`      | Invalid subscription or stream failure                                           |
 
 On `rollback`, undo or reload effects above `toHeight`; replacement events
-follow. Historical replay is bounded by time and pending-event limits, so persist
-cursor progress and reconnect when necessary.
+follow. On disconnect, recover missing history through RPC before resuming
+live processing.
 
 ## Data and consistency rules
 
 - Canonical scraper rows use the scraper's configured finality.
 - Custom confirmation data is provisional and can roll back.
-- WebSocket streams provide live state and bounded replay, not a frozen export.
+- WebSocket streams provide live state only; historical bootstrap belongs to RPC
+  and the planned central snapshot service.
 - GraphQL pagination observes committed rows at query time.
 - Large integers are serialized as strings.
 - Addresses and message IDs may be normalized to PostgreSQL bytea form
@@ -444,11 +432,11 @@ Required and optional database settings:
 | `DATABASE_READ_REPLICA_URL` | Optional GraphQL read replica                       |
 | `DIAGNOSTICS_DATABASE_URL`  | Optional SELECT-only relayer diagnostics database   |
 
-Startup validates scraper stream cursor schema, read privileges, and the
-`gas_payment_stream_cursor_assign` trigger before accepting traffic. The
+Startup validates the `scraper_head` table and its read privileges before
+accepting traffic. Gas replay cursor tables and triggers are no longer required. The
 diagnostics pool opens lazily; diagnostics downtime does not block startup.
 
-See [config.ts](src/config.ts) for connection, request, replay, buffering, and
+See [config.ts](src/config.ts) for connection, request, buffering, and
 rate limits.
 
 The `hyperlane-node-services` image includes this service. The dedicated
@@ -512,6 +500,5 @@ Implementation entry points:
 | GraphQL schema and SQL projection   | [scraperdb-schema.graphql](src/graphql/scraperdb-schema.graphql), [scraperdb.service.ts](src/scraperdb/scraperdb.service.ts) |
 | WebSocket server                    | [event-websocket.ts](src/live/event-websocket.ts)                                                                            |
 | Wire validation                     | [protocol.ts](src/live/protocol.ts)                                                                                          |
-| Historical agent replay             | [agent-subscription.ts](src/live/agent-subscription.ts)                                                                      |
 | Custom confirmations and rollbacks  | [confirmation-stream.ts](src/live/confirmation-stream.ts)                                                                    |
 | Diagnostics reduction and streaming | [diagnostics](src/diagnostics)                                                                                               |

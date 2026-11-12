@@ -20,17 +20,6 @@ const ConfigSchema = z.object({
     .min(1)
     .max(5_000)
     .default(500),
-  EVENT_STREAM_HISTORY_MAX_CONCURRENT: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(10)
-    .default(2),
-  EVENT_STREAM_HISTORY_MAX_MS: z.coerce
-    .number()
-    .int()
-    .min(1_000)
-    .default(1_800_000),
   EVENT_STREAM_MAX_AGENT_CLIENTS: z.coerce
     .number()
     .int()

@@ -19,7 +19,6 @@ void it('serves current usage and limits from /metrics', async () => {
     },
   }));
   setWebSocketMetricsProvider(() => ({
-    catchUps: 2,
     connections: { agent: 3, messages: 4 },
     explorerPendingBytes: 1_024,
     explorerPendingMessages: 9,
@@ -29,31 +28,24 @@ void it('serves current usage and limits from /metrics', async () => {
     messageMaxConnectionsPerIp: 3,
     limits: {
       agentConnections: 100,
-      catchUpMs: 60_000,
       clientMessagesPerMinute: 30,
-      concurrentCatchUps: 5,
       explorerPendingBytes: 16_777_216,
       explorerPendingMessages: 2_000,
       messageConnections: 400,
       messageConnectionsPerIp: 5,
       notificationEvents: 10_000,
-      pendingEvents: 5_000,
       socketBufferedBytes: 1_024,
       totalPendingBytes: 4_096,
     },
     listenerReady: true,
-    maxCatchUpDurationMs: 3_000,
-    maxCatchUpRows: 500,
     maxClientBufferedBytes: 128,
-    maxPendingCatchUpEvents: 5,
     notificationQueue: { agent: 6, messages: 7 },
     outboundPendingBytes: 256,
-    pendingCatchUpEvents: 8,
     subscriptions: {
-      delivery: { catchingUp: 0, live: 1 },
-      dispatch: { catchingUp: 1, live: 2 },
-      gas_payment: { catchingUp: 0, live: 0 },
-      merkle_tree_insertion: { catchingUp: 1, live: 0 },
+      delivery: 1,
+      dispatch: 2,
+      gas_payment: 0,
+      merkle_tree_insertion: 0,
     },
   }));
 
@@ -68,7 +60,7 @@ void it('serves current usage and limits from /metrics', async () => {
   );
   assert.match(
     output,
-    /hyperlane_scraper_proxy_websocket_subscriptions\{event_type="dispatch",state="catching_up"\} 1/,
+    /hyperlane_scraper_proxy_websocket_subscriptions\{event_type="dispatch"\} 2/,
   );
   assert.match(
     output,
@@ -98,17 +90,6 @@ void it('serves current usage and limits from /metrics', async () => {
     assert.match(
       output,
       new RegExp(`websocket_send_failures_total\\{reason="${reason}"\\} 0`),
-    );
-  }
-  for (const outcome of [
-    'aborted',
-    'capacity_rejected',
-    'failure',
-    'success',
-  ]) {
-    assert.match(
-      output,
-      new RegExp(`websocket_catch_ups_total\\{outcome="${outcome}"\\} 0`),
     );
   }
   for (const route of ['agent', 'messages']) {

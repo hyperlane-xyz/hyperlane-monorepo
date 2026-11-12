@@ -21,50 +21,12 @@ const MAX_POOL_CLIENTS = 10;
 const STATS_INTERVAL_MS = 60_000;
 const IDLE_TIMEOUT_MS = 300_000;
 const EVENT_STREAM_SCHEMA_CHECKS = [
-  'head_exists',
-  'cursor_exists',
-  'range_index_exists',
   'scraper_head_exists',
-  'legacy_boundary_exists',
-  'cursor_trigger_exists',
-  'head_readable',
-  'cursor_readable',
+  'scraper_head_readable',
 ];
 const EVENT_STREAM_SCHEMA_QUERY = `
-  SELECT
-    to_regclass('gas_payment_stream_head') IS NOT NULL AS head_exists,
-    to_regclass('gas_payment_stream_cursor') IS NOT NULL AS cursor_exists,
-    to_regclass('gas_payment_stream_cursor_range_key') IS NOT NULL AS range_index_exists,
-    to_regclass('scraper_head') IS NOT NULL AS scraper_head_exists,
-    EXISTS (
-      SELECT 1 FROM pg_attribute
-      WHERE attrelid = to_regclass('gas_payment_stream_head')
-        AND attname = 'legacy_max_id'
-        AND NOT attisdropped
-    ) AS legacy_boundary_exists,
-    EXISTS (
-      SELECT 1 FROM pg_trigger
-      WHERE tgrelid = to_regclass('gas_payment')
-        AND tgname = 'gas_payment_stream_cursor_assign'
-        AND NOT tgisinternal
-        AND tgenabled IN ('O', 'A')
-    ) AS cursor_trigger_exists,
-    COALESCE(
-      has_table_privilege(
-        current_user,
-        to_regclass('gas_payment_stream_head'),
-        'SELECT'
-      ),
-      false
-    ) AS head_readable,
-    COALESCE(
-      has_table_privilege(
-        current_user,
-        to_regclass('gas_payment_stream_cursor'),
-        'SELECT'
-      ),
-      false
-    ) AS cursor_readable
+  SELECT to_regclass('scraper_head') IS NOT NULL AS scraper_head_exists,
+    COALESCE(has_table_privilege(current_user, to_regclass('scraper_head'), 'SELECT'), false) AS scraper_head_readable
 `;
 
 [1114, 1186].forEach((oid) =>
