@@ -127,11 +127,13 @@ export function createMockTokenAmount(amount: bigint): TokenAmount<IToken> {
 }
 
 export interface MockAdapterConfig {
+  isHypNative?: boolean;
   isRebalancer?: boolean;
   allowedDestination?: string;
   isBridgeAllowed?: boolean;
   quotes?: InterchainGasQuote[];
   populatedTx?: PopulatedTransaction;
+  wrappedTokenAddress?: string;
   throwOnQuotes?: Error;
   throwOnPopulate?: Error;
 }
@@ -147,6 +149,7 @@ export function createMockAdapter(config: MockAdapterConfig = {}) {
       data: '0x',
       value: ethers.BigNumber.from(0),
     },
+    wrappedTokenAddress = TEST_ADDRESSES.token,
     throwOnQuotes,
     throwOnPopulate,
   } = config;
@@ -161,6 +164,7 @@ export function createMockAdapter(config: MockAdapterConfig = {}) {
     populateRebalanceTx: throwOnPopulate
       ? Sinon.stub().rejects(throwOnPopulate)
       : Sinon.stub().resolves(populatedTx),
+    getWrappedTokenAddress: Sinon.stub().resolves(wrappedTokenAddress),
   };
 
   Object.setPrototypeOf(adapter, EvmMovableCollateralAdapter.prototype);
@@ -168,6 +172,7 @@ export function createMockAdapter(config: MockAdapterConfig = {}) {
 }
 
 export interface MockTokenConfig {
+  isHypNative?: boolean;
   name?: string;
   decimals?: number;
   addressOrDenom?: string;
@@ -177,6 +182,7 @@ export interface MockTokenConfig {
 
 export function createMockToken(config: MockTokenConfig = {}) {
   const {
+    isHypNative = false,
     name = 'TestToken',
     decimals = 18,
     addressOrDenom = TEST_ADDRESSES.token,
@@ -185,6 +191,7 @@ export function createMockToken(config: MockTokenConfig = {}) {
   } = config;
 
   const token = {
+    isHypNative: () => isHypNative,
     name,
     decimals,
     addressOrDenom,
@@ -231,6 +238,7 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
   };
 
   const mockSigner = {
+    _isSigner: true,
     getAddress: Sinon.stub().resolves(signerAddress),
     sendTransaction: throwOnSendTransaction
       ? Sinon.stub().rejects(throwOnSendTransaction)
@@ -377,6 +385,9 @@ export function createRebalancerTestContext(
     const adapterConfig = adapterConfigs[chain] ?? {};
     const tokenAddress = getTestAddress(chain);
     const { token, adapter } = createMockToken({
+      isHypNative:
+        adapterConfig.isHypNative ??
+        !adapterConfig.quotes?.some((quote) => quote.igpQuote.addressOrDenom),
       name: `${chain}Token`,
       addressOrDenom: tokenAddress,
       adapter: createMockAdapter(adapterConfig),

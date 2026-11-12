@@ -180,3 +180,48 @@ export async function approveErc20IfNeeded(
     options,
   );
 }
+
+/** Revoke a nonzero ERC20 allowance and wait for a bounded receipt. */
+export async function revokeErc20ApprovalIfNeeded(
+  signer: ethers.Signer,
+  token: string,
+  spender: string,
+  logger: Logger,
+  options: Pick<Erc20ApprovalOptions, 'contractFactory' | 'onApproval'> = {},
+): Promise<void> {
+  const contractFactory = options.contractFactory ?? defaultContractFactory;
+  const contract = contractFactory(token, ERC20_ABI, signer);
+  const ownerAddress = await signer.getAddress();
+  const currentAllowance: ethers.BigNumber = await contract.allowance(
+    ownerAddress,
+    spender,
+  );
+
+  if (currentAllowance.isZero()) return;
+
+  logger.info(
+    {
+      token,
+      spender,
+      currentAllowance: currentAllowance.toString(),
+    },
+    'Revoking ERC20 approval residue',
+  );
+
+  await revokeApproval(contract, spender, 'erc20 residue cleanup', options);
+}
+
+/** Queue an ERC20 revocation without relying on a potentially stale read. */
+export async function revokeErc20Approval(
+  signer: ethers.Signer,
+  token: string,
+  spender: string,
+  logger: Logger,
+  options: Pick<Erc20ApprovalOptions, 'contractFactory' | 'onApproval'> = {},
+): Promise<void> {
+  const contractFactory = options.contractFactory ?? defaultContractFactory;
+  const contract = contractFactory(token, ERC20_ABI, signer);
+
+  logger.info({ token, spender }, 'Forcing ERC20 approval revocation');
+  await revokeApproval(contract, spender, 'erc20 forced cleanup', options);
+}
