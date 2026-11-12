@@ -53,6 +53,11 @@ pub const Io = enum {
 
 pub const no_deadline: i64 = std.math.maxInt(i64);
 
+/// Pollers run whole requests. The deepest request graphql admits needs
+/// 2.5 MiB in ReleaseFast but 8.9 MiB in Debug: at least 2x that, plus
+/// margin. The reservation is virtual: only touched pages cost memory.
+pub const poller_stack_bytes: usize = if (builtin.mode == .Debug) 20 * 1024 * 1024 else 8 * 1024 * 1024;
+
 pub const Kind = enum(u8) { free, listener, http, ws };
 
 pub const Slot = struct {
@@ -206,7 +211,7 @@ pub const Options = struct {
     /// block (`blockingBegin`) hands its place to a parked or new one.
     active: u32 = 1,
     max_threads: u32 = 256,
-    stack_size: usize = 8 * 1024 * 1024,
+    stack_size: usize = poller_stack_bytes,
     /// A poller idle (or parked) this long exits while another one keeps
     /// waiting, so the count returns to one soon after load. The last poller
     /// waits without a timeout (no wake-ups at idle).
@@ -541,6 +546,11 @@ pub const Loop = struct {
     /// Re-posts the unprocessed events of `rec`'s batch (owner blocking, or
     /// the monitor on a stall) so a waiting poller handles them.
     fn stealBatch(self: *Loop, rec: *Rec) void {
+        // Nothing left in the batch (the usual case for a DB wait): no lock.
+        // A blocking or stalled owner never moves next/len, so for it the
+        // check is exact; a stale "empty" read only happens after the owner
+        // left the stalled dispatch, and the events it has then are its own.
+        if (rec.next.load(.acquire) >= rec.len.load(.acquire)) return;
         // Room first: if even that fails, leave the events with their owner
         // (they run when it resumes) rather than drop a claimed edge.
         self.mutex.lock();

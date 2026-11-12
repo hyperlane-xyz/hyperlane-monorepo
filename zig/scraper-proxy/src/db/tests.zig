@@ -572,6 +572,79 @@ test "libpq: checkout takes the most recently released idle connection (pg-pool 
     }
 }
 
+test "libpq: TLS replies and notifications never wait on bytes OpenSSL already holds (opt-in SCRAPER_PROXY_TEST_TLS_URL)" {
+    const url = std.posix.getenv("SCRAPER_PROXY_TEST_TLS_URL") orelse return error.SkipZigTest;
+    // Both input checks: the exact OpenSSL one and the bounded fallback.
+    for ([_]bool{ false, true }) |fallback| {
+        pq.forceTlsFallback(fallback);
+        defer pq.forceTlsFallback(false);
+        // libpq here loads a shared libssl, so the exact check resolves.
+        try testing.expectEqual(!fallback, pq.tlsExact());
+        try tlsRoundTrips(url);
+    }
+}
+
+fn tlsRoundTrips(url: []const u8) !void {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .query_timeout_ms = 20_000 }, .max = 1 });
+    defer p.deinit();
+    var failure: root.Failure = .{};
+    const ssl = try p.query(a, "SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()", &.{}, &failure);
+    try testing.expect(ssl.rows[0].get("ssl").?.bool);
+    // Several MB over TLS: completes in about the time of the transfer, not
+    // stalled until more TCP data or the query timeout.
+    for ([_]f64{ 2000, 8000 }) |n| {
+        const started = pq.nowMs();
+        const r = try p.query(a, "SELECT g, repeat(md5(g::text), 32) AS pad FROM generate_series(1, $1::int) g", &.{.{ .number = n }}, &failure);
+        try testing.expectEqual(@as(usize, @intFromFloat(n)), r.rows.len);
+        try testing.expect(pq.nowMs() - started < 3_000);
+    }
+    // A burst of large NOTIFY payloads arrives promptly over TLS.
+    const Counter = struct {
+        count: std.atomic.Value(usize) = .init(0),
+        fn onNotification(ctx: *anyopaque, _: []const u8, _: []const u8) void {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            _ = self.count.fetchAdd(1, .monotonic);
+        }
+        fn onDisconnect(_: *anyopaque, _: ?[]const u8) void {}
+    };
+    var counter: Counter = .{};
+    const l = try listener_mod.Listener.start(testing.allocator, .{ .conninfo = url }, &.{"tls_test"}, .{ .ctx = &counter, .on_notification = Counter.onNotification, .on_disconnect = Counter.onDisconnect }, .{}, a, &failure);
+    defer l.stop();
+    _ = try p.query(a, "SELECT pg_notify('tls_test', repeat('x', 7000) || g) FROM generate_series(1, 20) g", &.{}, &failure);
+    const started = pq.nowMs();
+    while (counter.count.load(.monotonic) < 20 and pq.nowMs() - started < 2_000) std.Thread.sleep(5 * std.time.ns_per_ms);
+    try testing.expectEqual(@as(usize, 20), counter.count.load(.monotonic));
+}
+
+test "libpq: TCP connections run with TCP_NODELAY (libpq sets it, like node-pg's noDelay)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    var conn = try pq.Conn.connect(.{ .conninfo = url }, arena_state.allocator(), null);
+    defer conn.deinit();
+    var value: c_int = 0;
+    try std.posix.getsockopt(conn.socket(), std.posix.IPPROTO.TCP, std.posix.TCP.NODELAY, std.mem.asBytes(&value));
+    try testing.expect(value != 0);
+}
+
+test "libpq: the deepest jsonb PostgreSQL returns converts and re-serializes without recursion" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    // PostgreSQL's default max_stack_depth (2 MB) caps jsonb output at about
+    // 16k levels; 15k stays below that and far above any native recursion.
+    const depth = 15_000;
+    const r = try p.query(a, "SELECT (repeat('[', $1::int) || repeat(']', $1::int))::jsonb AS j", &.{.{ .number = depth }}, null);
+    const text = try core.json.stringifyAlloc(a, r.rows[0].get("j").?);
+    try testing.expectEqual(@as(usize, depth * 2), text.len);
+}
+
 test "libpq: pool waiters are served FIFO and capped at max" {
     const url = testUrl() orelse return error.SkipZigTest;
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 2 });

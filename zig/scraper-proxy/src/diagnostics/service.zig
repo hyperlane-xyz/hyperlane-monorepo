@@ -216,23 +216,25 @@ fn stringToNumber(raw: []const u8) f64 {
     return if (negative) -value else value;
 }
 
-/// `Number(value)` for the JSON shapes node-pg returns.
+/// `Number(value)` for the JSON shapes node-pg returns. A one-element array
+/// converts like its element (Array.prototype.toString); nested ones unwrap
+/// in a loop, so depth costs no stack.
 fn toNumber(value: Value) f64 {
-    return switch (value) {
-        .number => |n| n,
-        .string => |s| stringToNumber(s),
-        .null => 0,
-        .bool => |b| if (b) 1 else 0,
-        .undefined, .object => std.math.nan(f64),
-        // Array.prototype.toString joins elements with commas.
+    var current = value;
+    while (true) switch (current) {
+        .number => |n| return n,
+        .string => |s| return stringToNumber(s),
+        .null => return 0,
+        .bool => |b| return if (b) 1 else 0,
+        .undefined, .object => return std.math.nan(f64),
         .array => |a| switch (a.items.len) {
-            0 => 0,
+            0 => return 0,
             1 => switch (a.items[0]) {
-                .null, .undefined => 0,
-                .bool => std.math.nan(f64),
-                else => |item| toNumber(item),
+                .null, .undefined => return 0,
+                .bool => return std.math.nan(f64),
+                else => |item| current = item,
             },
-            else => std.math.nan(f64),
+            else => return std.math.nan(f64),
         },
     };
 }

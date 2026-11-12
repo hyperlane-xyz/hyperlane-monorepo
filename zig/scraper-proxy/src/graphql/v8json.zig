@@ -75,70 +75,76 @@ const Scanner = struct {
         return error.Invalid;
     }
 
+    /// One JSON value; iterative (open containers on `stack`) like V8's
+    /// non-recursive JSON.parse, so nesting depth costs no call stack.
     fn value(self: *Scanner) Err!void {
-        self.ws();
-        if (self.i >= self.s.len) return self.unexpectedToken();
-        switch (self.s[self.i]) {
-            '{' => {
-                self.i += 1;
-                self.ws();
-                if (self.i < self.s.len and self.s[self.i] == '}') {
+        // '{' or '[' per open container.
+        var stack: std.ArrayList(u8) = .empty;
+        defer stack.deinit(self.a);
+        value: while (true) {
+            self.ws();
+            if (self.i >= self.s.len) return self.unexpectedToken();
+            switch (self.s[self.i]) {
+                '{' => {
                     self.i += 1;
-                    return;
-                }
-                var first = true;
-                while (true) {
                     self.ws();
-                    if (self.i >= self.s.len or self.s[self.i] != '"') {
-                        if (first) return self.atPosition("Expected property name or '}'", self.i);
-                        return self.atPosition("Expected double-quoted property name", self.i);
-                    }
-                    first = false;
-                    try self.string();
-                    self.ws();
-                    if (self.i >= self.s.len or self.s[self.i] != ':') return self.atPosition("Expected ':' after property name", self.i);
-                    self.i += 1;
-                    try self.value();
-                    self.ws();
-                    if (self.i < self.s.len and self.s[self.i] == ',') {
-                        self.i += 1;
-                        continue;
-                    }
                     if (self.i < self.s.len and self.s[self.i] == '}') {
                         self.i += 1;
-                        return;
+                    } else {
+                        try stack.append(self.a, '{');
+                        try self.memberKey(true);
+                        continue :value;
                     }
-                    return self.atPosition("Expected ',' or '}' after property value", self.i);
-                }
-            },
-            '[' => {
-                self.i += 1;
-                self.ws();
-                if (self.i < self.s.len and self.s[self.i] == ']') {
+                },
+                '[' => {
                     self.i += 1;
-                    return;
-                }
-                while (true) {
-                    try self.value();
                     self.ws();
-                    if (self.i < self.s.len and self.s[self.i] == ',') {
-                        self.i += 1;
-                        continue;
-                    }
                     if (self.i < self.s.len and self.s[self.i] == ']') {
                         self.i += 1;
-                        return;
+                    } else {
+                        try stack.append(self.a, '[');
+                        continue :value;
                     }
-                    return self.atPosition("Expected ',' or ']' after array element", self.i);
+                },
+                '"' => try self.string(),
+                't' => try self.literal("true"),
+                'f' => try self.literal("false"),
+                'n' => try self.literal("null"),
+                '-', '0'...'9' => try self.number(),
+                else => return self.unexpectedToken(),
+            }
+            // A value ended: continue or close the enclosing containers.
+            while (stack.items.len > 0) {
+                self.ws();
+                const open = stack.items[stack.items.len - 1];
+                if (self.i < self.s.len and self.s[self.i] == ',') {
+                    self.i += 1;
+                    if (open == '{') try self.memberKey(false);
+                    continue :value;
                 }
-            },
-            '"' => try self.string(),
-            't' => try self.literal("true"),
-            'f' => try self.literal("false"),
-            'n' => try self.literal("null"),
-            '-', '0'...'9' => try self.number(),
-            else => return self.unexpectedToken(),
+                const close: u8 = if (open == '{') '}' else ']';
+                if (self.i < self.s.len and self.s[self.i] == close) {
+                    self.i += 1;
+                    _ = stack.pop();
+                    continue;
+                }
+                return self.atPosition(if (open == '{') "Expected ',' or '}' after property value" else "Expected ',' or ']' after array element", self.i);
+            }
+            return;
         }
+    }
+
+    /// `"name":` of an object member (the value follows).
+    fn memberKey(self: *Scanner, first: bool) Err!void {
+        self.ws();
+        if (self.i >= self.s.len or self.s[self.i] != '"') {
+            if (first) return self.atPosition("Expected property name or '}'", self.i);
+            return self.atPosition("Expected double-quoted property name", self.i);
+        }
+        try self.string();
+        self.ws();
+        if (self.i >= self.s.len or self.s[self.i] != ':') return self.atPosition("Expected ':' after property name", self.i);
+        self.i += 1;
     }
 
     fn literal(self: *Scanner, word: []const u8) Err!void {

@@ -463,3 +463,61 @@ test "UTF-8 lossy decoding" {
     try testing.expectEqualStrings("\u{FFFD}\u{FFFD}", try p.utf8Lossy(a, "\xed\xa0\x80"[0..2]));
     try testing.expectEqualStrings("\u{FFFD}x", try p.utf8Lossy(a, "\xe2\x82x"));
 }
+
+/// `{"…": <value>}` messages where `<value>` is nested `depth` levels deep.
+fn deep(a: std.mem.Allocator, prefix: []const u8, depth: usize, open: u8, close: u8, leaf: []const u8, suffix: []const u8) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    try out.appendSlice(a, prefix);
+    try out.appendNTimes(a, open, depth);
+    try out.appendSlice(a, leaf);
+    try out.appendNTimes(a, close, depth);
+    try out.appendSlice(a, suffix);
+    return out.items;
+}
+
+/// Outcome of a client message as text (pong / subscribe count / error).
+fn outcome(raw: []const u8) ![]const u8 {
+    var f = Fixture.init();
+    defer f.deinit();
+    const message = f.parse(raw) catch |err| {
+        if (err != error.Invalid) return err;
+        return testing.allocator.dupe(u8, f.diag.message);
+    };
+    return testing.allocator.dupe(u8, switch (message) {
+        .ping => "ping",
+        .subscribe => "subscribe",
+    });
+}
+
+test "deeply nested client messages are handled like their shallow equivalents (JSON.parse has no depth limit)" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Close to /agents maxPayload (1 MiB): ~500k levels.
+    const depth = 500_000;
+    const cases = [_]struct { deep: []const u8, shallow: []const u8 }{
+        .{ .deep = try deep(a, "", depth, '[', ']', "1", ""), .shallow = "[1]" },
+        .{ .deep = try deep(a, "{\"type\":\"ping\",\"x\":", depth, '[', ']', "", "}"), .shallow = "{\"type\":\"ping\",\"x\":[]}" },
+        .{ .deep = try deep(a, "{\"type\":\"subscribe\",\"streams\":[", depth, '[', ']', "", "]}"), .shallow = "{\"type\":\"subscribe\",\"streams\":[[]]}" },
+        .{ .deep = try deep(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":", depth, '[', ']', "1", "}]}"), .shallow = "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[[1]]}]}" },
+        .{ .deep = try deep(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"cursors\":", depth, '[', ']', "", "}]}"), .shallow = "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"cursors\":[[]]}]}" },
+        .{ .deep = try deep(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"extra\":", depth / 2, '{', '}', "", "}]}"), .shallow = "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"extra\":{}}]}" },
+    };
+    for (cases) |case| {
+        // Nested objects: rebuild with keys so the JSON is valid.
+        const deep_raw = if (std.mem.indexOf(u8, case.deep, "\"extra\":{{") != null) blk: {
+            var out: std.ArrayList(u8) = .empty;
+            try out.appendSlice(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"extra\":");
+            for (0..depth / 2) |_| try out.appendSlice(a, "{\"a\":");
+            try out.appendSlice(a, "1");
+            try out.appendNTimes(a, '}', depth / 2);
+            try out.appendSlice(a, "}]}");
+            break :blk out.items;
+        } else case.deep;
+        const got = try outcome(deep_raw);
+        defer testing.allocator.free(got);
+        const want = try outcome(case.shallow);
+        defer testing.allocator.free(want);
+        try testing.expectEqualStrings(want, got);
+    }
+}

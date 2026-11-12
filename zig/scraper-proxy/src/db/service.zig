@@ -200,6 +200,7 @@ pub const DbService = struct {
             _ = timers.cancel(self.stats_timer);
             self.stats_timers = null;
         }
+        self.logHoldTimes();
         self.mutex.lock();
         self.ended = true;
         const deadline = self.clock() + close_drain_ms;
@@ -458,6 +459,12 @@ pub const DbService = struct {
             self.mutex.unlock();
         }
         const result = blk: {
+            // node-pg would overflow V8's stack formatting these (TS fails
+            // before sending; `convert.exceedsJsStack`).
+            if (convert.exceedsJsStack(arena, params) catch |e| break :blk e) {
+                failure.* = .{ .message = convert.js_stack_message };
+                break :blk error.QueryFailed;
+            }
             if (self.backend) |b| {
                 const conninfo = if (kind == .main) self.config.database_read_replica_url orelse self.config.database_url else self.config.database_url;
                 break :blk b.query(b.ctx, if (kind == .main) .main else .live, conninfo, arena, sql, params, failure);
@@ -528,6 +535,17 @@ pub const DbService = struct {
         self.mutex.unlock();
         const avg: i64 = if (s.queries > 0) jsRound(@as(f64, @floatFromInt(s.total_ms)) / @as(f64, @floatFromInt(s.queries))) else 0;
         self.logger.info("db stats queries={d} errors={d} rows={d} avgMs={d} maxMs={d} poolTotal={d} poolIdle={d} poolWaiting={d}", .{ s.queries, s.errors, s.rows, avg, s.max_ms, ps.total, ps.idle, ps.waiting });
+        self.logHoldTimes();
+    }
+
+    /// `-Dpool-hold-stats=true` builds: cumulative checkout hold times per
+    /// pool, at info (every stats interval and at close).
+    fn logHoldTimes(self: *DbService) void {
+        if (!pool_mod.hold_stats) return;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.main_pool) |p| self.logger.info("db pool hold pool=main {f}", .{&p.hold});
+        if (self.live_pool) |p| self.logger.info("db pool hold pool=live {f}", .{&p.hold});
     }
 };
 

@@ -75,6 +75,9 @@ pub const Error = error{ SyntaxError, OutOfMemory };
 pub const Diagnostic = struct {
     message: []const u8 = "",
     offset: u32 = 0,
+    /// The failure is TS's V8 stack overflow (RangeError: no location),
+    /// emulated by the parser's nesting budget (parser.zig `stack_budget`).
+    stack_overflow: bool = false,
 };
 
 pub const Lexer = struct {

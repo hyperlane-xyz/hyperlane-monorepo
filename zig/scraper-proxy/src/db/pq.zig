@@ -47,6 +47,8 @@ extern "pq" fn PQenterPipelineMode(conn: *PGconn) c_int;
 extern "pq" fn PQexitPipelineMode(conn: *PGconn) c_int;
 extern "pq" fn PQpipelineSync(conn: *PGconn) c_int;
 extern "pq" fn PQflush(conn: *PGconn) c_int;
+extern "pq" fn PQsslInUse(conn: *PGconn) c_int;
+extern "pq" fn PQsslStruct(conn: *PGconn, name: [*:0]const u8) ?*anyopaque;
 extern "pq" fn PQconsumeInput(conn: *PGconn) c_int;
 extern "pq" fn PQisBusy(conn: *PGconn) c_int;
 extern "pq" fn PQgetResult(conn: *PGconn) ?*PGresult;
@@ -265,6 +267,57 @@ fn pass(failure: ?*Failure, local: Failure, err: Error) Error {
     return err;
 }
 
+/// TLS input that `poll()` on the socket cannot see: OpenSSL may hold bytes
+/// it already decrypted but libpq has not read, and those have left the
+/// socket, so a wait could stall input that has fully arrived. libpq's own
+/// waits check `SSL_pending` (pgtls_read_pending), which it does not export,
+/// and nothing in libpq's API reports how much `PQconsumeInput` read. So the
+/// exact check calls OpenSSL's `SSL_pending` on `PQsslStruct(conn,
+/// "OpenSSL")`, looking the symbol up at run time in the libssl libpq loaded
+/// (no link-time dependency, no second copy of libssl); with a libpq whose
+/// TLS library does not export it, reads fall back to a bounded drain plus
+/// socket waits capped at 50 ms.
+const tls = struct {
+    const SslPending = *const fn (ssl: *anyopaque) callconv(.c) c_int;
+    const fallback_wait_ms = 50;
+    var pending: ?SslPending = null;
+    var once = std.once(resolve);
+    /// Test-only: behave as if `SSL_pending` were not available.
+    var force_fallback: bool = false;
+    var logged = std.atomic.Value(bool).init(false);
+
+    fn resolve() void {
+        const handle = std.c.dlopen(null, .{ .NOW = true }) orelse return;
+        const sym = std.c.dlsym(handle, "SSL_pending") orelse return;
+        pending = @ptrCast(@alignCast(sym));
+    }
+
+    fn pendingFn() ?SslPending {
+        once.call();
+        if (force_fallback) return null;
+        return pending;
+    }
+
+    /// Once, at the first TLS connection: which input check is active.
+    fn logMode() void {
+        if (logged.swap(true, .monotonic)) return;
+        if (pendingFn() != null)
+            core.log.child("DbService").debug("TLS input check: OpenSSL SSL_pending (exact)", .{})
+        else
+            core.log.child("DbService").debug("TLS input check: bounded drain + {d} ms waits (SSL_pending not found)", .{fallback_wait_ms});
+    }
+};
+
+/// Test-only switch for the TLS fallback path (`tls`).
+pub fn forceTlsFallback(on: bool) void {
+    tls.force_fallback = on;
+}
+
+/// Whether TLS reads use the exact OpenSSL check (`tls`).
+pub fn tlsExact() bool {
+    return tls.pendingFn() != null;
+}
+
 pub fn nowMs() i64 {
     return std.time.milliTimestamp();
 }
@@ -282,6 +335,8 @@ pub const Conn = struct {
     query_timeout_ms: ?u64,
     /// Set when the connection must not be reused (timeout, transport error).
     broken: bool = false,
+    /// When the pool last handed it out (`Pool.hold_histogram`).
+    checked_out_ns: i128 = 0,
     /// Named statements (`Plan.custom`/`.reusable`), allocated on first use.
     statements: ?*Statements = null,
     plan_mode: PlanMode = .custom,
@@ -362,6 +417,7 @@ pub const Conn = struct {
             state = PQconnectPoll(pg);
         }
         _ = PQsetNoticeReceiver(pg, ignoreNotice, null);
+        if (PQsslInUse(pg) != 0) tls.logMode();
         if (PQsetnonblocking(pg, 1) != 0) {
             setFailure(failure, arena, trimMessage(std.mem.span(PQerrorMessage(pg))), null);
             return error.ConnectionFailed;
@@ -570,12 +626,12 @@ pub const Conn = struct {
         var index: usize = 0;
         while (true) {
             while (PQisBusy(self.pg) != 0) {
-                if (!waitSocket(self.socket(), std.posix.POLL.IN, deadline)) {
+                if (!self.waitInput(deadline)) {
                     self.broken = true;
                     setFailure(failure, arena, "Query read timeout", null);
                     return error.QueryTimeout;
                 }
-                if (PQconsumeInput(self.pg) == 0) return self.transportFailure(arena, failure);
+                if (!self.consumeAll(.reply)) return self.transportFailure(arena, failure);
             }
             const res = PQgetResult(self.pg) orelse {
                 index += 1;
@@ -638,12 +694,12 @@ pub const Conn = struct {
         var server_error: bool = false;
         while (true) {
             while (PQisBusy(self.pg) != 0) {
-                if (!waitSocket(self.socket(), std.posix.POLL.IN, deadline)) {
+                if (!self.waitInput(deadline)) {
                     self.broken = true;
                     setFailure(failure, arena, "Query read timeout", null);
                     return error.QueryTimeout;
                 }
-                if (PQconsumeInput(self.pg) == 0) return self.transportFailure(arena, failure);
+                if (!self.consumeAll(.reply)) return self.transportFailure(arena, failure);
             }
             const res = PQgetResult(self.pg) orelse break;
             defer PQclear(res);
@@ -669,6 +725,49 @@ pub const Conn = struct {
         return result;
     }
 
+    /// `PQconsumeInput`, plus (TLS only) what OpenSSL already decrypted
+    /// (see `tls`). False on a transport error.
+    fn consumeAll(self: *Conn, mode: ConsumeMode) bool {
+        if (PQconsumeInput(self.pg) == 0) return false;
+        if (PQsslInUse(self.pg) == 0) return true;
+        if (tls.pendingFn()) |pending| {
+            // Exact: read until OpenSSL holds nothing more (each read takes at
+            // least 8 KB of a record of at most 16 KB; bounded for safety).
+            const ssl = PQsslStruct(self.pg, "OpenSSL") orelse return true;
+            var reads: usize = 0;
+            while (reads < 64 and pending(ssl) > 0) : (reads += 1) {
+                if (PQconsumeInput(self.pg) == 0) return false;
+            }
+            return true;
+        }
+        // Fallback: two more reads take what one read leaves behind; waits are
+        // also capped (`inputDeadline`) so a rarer leftover stalls ≤ 50 ms.
+        var extra: usize = 0;
+        while (extra < 2) : (extra += 1) {
+            if (mode == .reply and PQisBusy(self.pg) == 0) break;
+            if (PQconsumeInput(self.pg) == 0) return false;
+        }
+        return true;
+    }
+
+    const ConsumeMode = enum { reply, notifications };
+
+    /// Waits for more reply input; false only once `deadline` has passed.
+    fn waitInput(self: *Conn, deadline: ?i64) bool {
+        if (waitSocket(self.socket(), std.posix.POLL.IN, self.inputDeadline(deadline))) return true;
+        const d = deadline orelse return true;
+        return nowMs() < d;
+    }
+
+    /// The deadline for one socket wait for input: `deadline`, capped at
+    /// 50 ms when TLS is in use without the exact OpenSSL check (a leftover
+    /// the bounded drain missed is then picked up by the next drain).
+    pub fn inputDeadline(self: *Conn, deadline: ?i64) ?i64 {
+        if (PQsslInUse(self.pg) == 0 or tls.pendingFn() != null) return deadline;
+        const cap = nowMs() + tls.fallback_wait_ms;
+        return if (deadline) |d| @min(d, cap) else cap;
+    }
+
     fn transportFailure(self: *Conn, arena: std.mem.Allocator, failure: ?*Failure) Error {
         self.broken = true;
         setFailure(failure, arena, "Connection terminated unexpectedly", null);
@@ -678,7 +777,7 @@ pub const Conn = struct {
     /// Reads pending input and returns the next queued notification (caller
     /// frees with `freeNotify`). Returns error.ConnectionFailed on EOF.
     pub fn consume(self: *Conn) Error!void {
-        if (PQconsumeInput(self.pg) == 0 or PQstatus(self.pg) != CONNECTION_OK) {
+        if (!self.consumeAll(.notifications) or PQstatus(self.pg) != CONNECTION_OK) {
             self.broken = true;
             return error.ConnectionFailed;
         }

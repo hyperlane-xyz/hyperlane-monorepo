@@ -266,7 +266,10 @@ pub const ResponseCache = struct {
     }
 
     /// `prepare(schema, body)`: `body` is the request body / querystring object.
-    pub fn prepare(self: *ResponseCache, a: Allocator, schema: *const Schema, body: Value) !?PreparedCacheRequest {
+    /// error.StackOverflow: TS's recursive `sortObjectKeys` of the cache key
+    /// overflows V8's stack on a deep variable value (see `key_budget`); the
+    /// route answers like the error thrown from graphql.ts's preHandler.
+    pub fn prepare(self: *ResponseCache, a: Allocator, schema: *const Schema, body: Value) (Allocator.Error || error{StackOverflow})!?PreparedCacheRequest {
         if (body != .object) return null;
         const query = body.get("query") orelse return null;
         if (query != .string or !containsCached(query.string)) return null;
@@ -291,6 +294,7 @@ pub const ResponseCache = struct {
             .coerced => {},
         }
         const directive = (try cacheDirective(a, p.operation, variables)) orelse return null;
+        if (p.static_key == null and try keyOverflows(a, p, variables)) return error.StackOverflow;
         return .{
             .key = p.static_key orelse try cacheKey(a, operation_name, p, variables),
             .refresh = directive.refresh,
@@ -387,6 +391,49 @@ pub const ResponseCache = struct {
         if (used.count() == 0) p.static_key = try cacheKey(a, operation_name, p, .{ .object = &.{} });
         keep = true;
         return p;
+    }
+
+    /// TS builds the key with a recursive `sortObjectKeys({...used variables})`.
+    /// Custom scalars pass any JSON through coercion, so a deep variable value
+    /// reaches it; V8 then throws from the preHandler (mercurius answers 200
+    /// `{"data":null,"errors":[{"message":"Maximum call stack size
+    /// exceeded"}]}`). Calibrated on a cold TS process
+    /// (bench/experiments/stack-depth/ts-thresholds.mjs method): `$x: bigint!`
+    /// on an @cached query overflows here at 2734 nested arrays or 2074
+    /// nested objects (each below the wrapper object of used variables).
+    const key_budget = struct {
+        const array_depth = 2734;
+        const object_depth = 2074;
+        const object: f64 = 1.0 / @as(f64, object_depth + 1);
+        const array: f64 = (1.0 - object) / @as(f64, array_depth);
+        const limit: f64 = 1.0 - 0.00035;
+    };
+
+    /// Whether `sortObjectKeys` over the used variables would overflow TS's
+    /// stack: the costliest path (iterative walk) reaches `key_budget.limit`.
+    fn keyOverflows(a: Allocator, p: *const PreparedDocument, variables: Value) Allocator.Error!bool {
+        const Frame = struct { value: Value, cost: f64 };
+        var stack: std.ArrayList(Frame) = .empty;
+        defer stack.deinit(a);
+        for (variables.object) |m| {
+            if (p.used_variables.contains(m.key)) try stack.append(a, .{ .value = m.value, .cost = key_budget.object });
+        }
+        while (stack.pop()) |f| {
+            switch (f.value) {
+                .array => |items| {
+                    const cost = f.cost + key_budget.array;
+                    if (cost >= key_budget.limit) return true;
+                    for (items) |item| if (item == .array or item == .object) try stack.append(a, .{ .value = item, .cost = cost });
+                },
+                .object => |members| {
+                    const cost = f.cost + key_budget.object;
+                    if (cost >= key_budget.limit) return true;
+                    for (members) |m| if (m.value == .array or m.value == .object) try stack.append(a, .{ .value = m.value, .cost = cost });
+                },
+                else => {},
+            }
+        }
+        return false;
     }
 
     fn cacheKey(a: Allocator, operation_name: ?[]const u8, p: *const PreparedDocument, variables: Value) ![64]u8 {

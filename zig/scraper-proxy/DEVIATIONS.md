@@ -122,6 +122,27 @@ rule, not the scheduling.
   KnownTypeNames are reproduced; other graphql-js rules that also visit SDL
   nodes (directive/argument rules) are not. The request is rejected either
   way; the error list can differ.
+- **Stack overflow on deep nesting.** graphql-js parses and coerces
+  recursively, so TS answers deeply nested input with V8's
+  `Maximum call stack size exceeded`: a 400 with that message alone from the
+  parser or variable coercion, a field error from
+  node-pg on a deep custom-scalar parameter, and 200 with `data: null` from
+  the response-cache key of an `@cached` query. Where V8 gives up depends on
+  its stack and JIT state; the port answers the same at the depths a freshly
+  started TS process does (one shared nesting budget per stage, calibrated
+  per construct; see `parser.stack_budget`, `values.coerce_budget`,
+  `cache.zig` `key_budget`). TS's exact boundary is not fixed: V8 budgets
+  the main thread's stack, which the process environment and argv share,
+  so it moves with the size of the environment (measured for nested lists:
+  1719 levels with a 1 KiB environment, 1714 with 3 KiB, 1684 with 19 KiB,
+  1596 with 67 KiB; about 1.8 levels per KiB), and a warm TS (after JIT)
+  accepts deeper input still. The port uses the depths of a cold TS with a
+  3 KiB environment. Near the boundary TS may
+  therefore return a result where the port returns the overflow error, or
+  the reverse; well below or above it both answer the same. For one mixed
+  shape (`{a: [[` nesting) the port rejects one level earlier than the
+  measured cold TS. JSON bodies, variables and WebSocket messages have no
+  depth limit on either side.
 - **`Did you mean` lists** use graphql-js `suggestionList`, but lowercase
   folding is ASCII-only, so suggestions for non-ASCII input can differ.
 - **V8 `JSON.parse` messages** (GET `variables`/`extensions`) are emulated
@@ -181,6 +202,15 @@ rule, not the scheduling.
   switched off for the pool, with one warning, on a 42P05 or a second 26000
   within 60 s. Backend memory: at most 8 statements (about 15 MB) per
   connection.
+- **Deeply nested parameter values.** node-pg formats parameters
+  recursively, so TS fails with V8's "Maximum call stack size exceeded" once
+  a parameter (a custom-scalar variable carries any JSON) nests deep enough,
+  and no query is sent. The port formats iteratively and reproduces that
+  failure from the depths measured on a cold TS process for `*_by_pk`: 2730
+  nested arrays or 1767 nested objects (mixed nesting: a/2730 + o/1767 >= 1).
+  Other resolvers' V8 limits differ by a few levels, so their exact boundary
+  may differ slightly; the response at and beyond it is the same. Query logs
+  show parameters nested deeper than 64 levels as "…".
 - **Idle connection errors** are detected at checkout (pg-pool reacts to
   the socket event at once); the log line and replacement behaviour match.
 - **Inputs GraphQL coercion cannot produce** are handled deterministically

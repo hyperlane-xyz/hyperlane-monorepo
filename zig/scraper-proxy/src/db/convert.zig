@@ -322,6 +322,45 @@ fn putDigits(out: []u8, n: u64) void {
 // Parameters (node-pg prepareValue)
 // ---------------------------------------------------------------------------
 
+/// node-pg formats parameters recursively, so a client-chosen nesting depth
+/// (custom scalar variables pass any JSON) makes TS fail with V8's
+/// "Maximum call stack size exceeded" before any query is sent. Measured on
+/// a cold TS process (by_pk resolver): nested arrays fail from 2730 levels,
+/// nested objects from 1767; mixed nesting uses the weighted budget below.
+/// TS's base stack differs by a few frames per resolver, so for other
+/// resolvers TS's own boundary can be a few levels off these.
+/// `prepareValue` itself never recurses deeply; this reproduces TS's outcome.
+pub const js_stack_message = "Maximum call stack size exceeded";
+const js_array_depth_limit = 2730;
+const js_object_depth_limit = 1767;
+
+/// True when formatting `params` the node-pg way would exhaust V8's stack:
+/// some path has a array levels and o object levels with
+/// a/2730 + o/1767 >= 1. Iterative.
+pub fn exceedsJsStack(a: Allocator, params: []const Value) Allocator.Error!bool {
+    const budget: u64 = js_array_depth_limit * js_object_depth_limit;
+    const Item = struct { value: *const Value, cost: u64 };
+    var stack: std.ArrayList(Item) = .empty;
+    defer stack.deinit(a);
+    for (params) |*p| try stack.append(a, .{ .value = p, .cost = 0 });
+    while (stack.pop()) |item| {
+        switch (item.value.*) {
+            .array => |items| {
+                const cost = item.cost + js_object_depth_limit;
+                if (cost >= budget) return true;
+                for (items) |*child| try stack.append(a, .{ .value = child, .cost = cost });
+            },
+            .object => |members| {
+                const cost = item.cost + js_array_depth_limit;
+                if (cost >= budget) return true;
+                for (members) |*m| try stack.append(a, .{ .value = &m.value, .cost = cost });
+            },
+            else => {},
+        }
+    }
+    return false;
+}
+
 /// node-pg `prepareValue` for a JS-like value; null -> SQL NULL.
 pub fn prepareValue(a: Allocator, v: Value) Allocator.Error!?[:0]const u8 {
     return switch (v) {
@@ -347,13 +386,31 @@ pub fn prepareValue(a: Allocator, v: Value) Allocator.Error!?[:0]const u8 {
     };
 }
 
+/// node-pg `arrayString`, iterative: a client-chosen nesting depth (custom
+/// scalar variables pass any JSON) must not grow the native stack.
 fn arrayString(a: Allocator, out: *std.ArrayList(u8), items: []const Value) Allocator.Error!void {
+    const Frame = struct { items: []const Value, next: usize = 0 };
+    var stack: std.ArrayList(Frame) = .empty;
+    defer stack.deinit(a);
+    try stack.append(a, .{ .items = items });
     try out.append(a, '{');
-    for (items, 0..) |item, i| {
+    while (stack.items.len > 0) {
+        const frame = &stack.items[stack.items.len - 1];
+        if (frame.next == frame.items.len) {
+            try out.append(a, '}');
+            _ = stack.pop();
+            continue;
+        }
+        const i = frame.next;
+        frame.next += 1;
         if (i > 0) try out.append(a, ',');
+        const item = frame.items[i];
         switch (item) {
             .null => try out.appendSlice(a, "NULL"),
-            .array => |nested| try arrayString(a, out, nested),
+            .array => |nested| {
+                try out.append(a, '{');
+                try stack.append(a, .{ .items = nested });
+            },
             .object => if (try bufferBytes(a, item)) |bytes| {
                 // node-pg arrayString: unquoted `\\x<hex>` for Buffers.
                 try out.print(a, "\\\\x{x}", .{bytes});
@@ -361,7 +418,6 @@ fn arrayString(a: Allocator, out: *std.ArrayList(u8), items: []const Value) Allo
             else => try appendQuoted(a, out, item),
         }
     }
-    try out.append(a, '}');
 }
 
 fn appendQuoted(a: Allocator, out: *std.ArrayList(u8), item: Value) Allocator.Error!void {
@@ -378,6 +434,15 @@ fn appendQuoted(a: Allocator, out: *std.ArrayList(u8), item: Value) Allocator.Er
 /// over 500 UTF-16 units truncated with `… (N chars)`, arrays over 10 items
 /// summarised as `{count, sample}`.
 pub fn logValue(a: Allocator, v: Value) Allocator.Error!Value {
+    return logValueAt(a, v, 0);
+}
+
+/// Log output only: nesting deeper than this is shown as "…" so a
+/// client-chosen depth cannot grow the native stack.
+const log_depth_limit = 64;
+
+fn logValueAt(a: Allocator, v: Value, depth: usize) Allocator.Error!Value {
+    if (depth >= log_depth_limit and (v == .array or v == .object)) return .{ .string = "…" };
     switch (v) {
         .string => |s| {
             const units = utf16Len(s);
@@ -387,7 +452,7 @@ pub fn logValue(a: Allocator, v: Value) Allocator.Error!Value {
         },
         .array => |items| {
             const mapped = try a.alloc(Value, items.len);
-            for (items, mapped) |item, *m| m.* = try logValue(a, item);
+            for (items, mapped) |item, *m| m.* = try logValueAt(a, item, depth + 1);
             if (mapped.len <= 10) return .{ .array = mapped };
             const sample = try a.alloc(Value, 9);
             @memcpy(sample[0..8], mapped[0..8]);
@@ -399,7 +464,7 @@ pub fn logValue(a: Allocator, v: Value) Allocator.Error!Value {
         },
         .object => |members| {
             const out = try a.alloc(core.json.Member, members.len);
-            for (members, out) |m, *o| o.* = .{ .key = m.key, .value = try logValue(a, m.value) };
+            for (members, out) |m, *o| o.* = .{ .key = m.key, .value = try logValueAt(a, m.value, depth + 1) };
             return .{ .object = out };
         },
         else => return v,
@@ -542,4 +607,64 @@ test "isoString matches the zero-padded fmt rendering across the 4-digit range" 
     }
     try testing.expectEqualStrings("+010000-01-01T00:00:00.000Z", (try isoString(a, hi + 1)).?);
     try testing.expectEqualStrings("-000001-12-31T23:59:59.999Z", (try isoString(a, lo - 1)).?);
+}
+
+test "arrayString is iterative: client-chosen nesting cannot grow the stack" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // 100k levels: [[[...["x", null]...]]]
+    const depth = 100_000;
+    var v: Value = .{ .array = try a.dupe(Value, &.{ .{ .string = "x" }, .null }) };
+    for (0..depth - 1) |_| {
+        const inner = v;
+        v = .{ .array = try a.dupe(Value, &.{inner}) };
+    }
+    const text = (try prepareValue(a, v)).?;
+    try testing.expectEqual(@as(usize, depth * 2 + "\"x\",NULL".len), text.len);
+    try testing.expectEqualStrings("\"x\",NULL", text[depth .. depth + 8]);
+    for (text[0..depth]) |c| try testing.expectEqual(@as(u8, '{'), c);
+    for (text[depth + 8 ..]) |c| try testing.expectEqual(@as(u8, '}'), c);
+    // Logs cap nesting instead of recursing.
+    const logged = try core.json.stringifyAlloc(a, try logValue(a, v));
+    try testing.expect(std.mem.indexOf(u8, logged, "\"…\"") != null);
+}
+
+test "arrayString output is unchanged (nested, NULL, quoting, Buffers, objects)" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const v = try core.json.parse(a, "[[1,null,\"a\\\"b\"],[[\"c,d\"],[]],{\"k\":[1]},true,2.5]", .{});
+    try testing.expectEqualStrings("{{\"1\",NULL,\"a\\\"b\"},{{\"c,d\"},{}},\"{\\\"k\\\":[1]}\",\"true\",\"2.5\"}", (try prepareValue(a, v)).?);
+    const buf = try bufferValueFromBytes(a, &.{ 1, 0xab });
+    try testing.expectEqualStrings("{\\\\x01ab,NULL}", (try prepareValue(a, .{ .array = try a.dupe(Value, &.{ buf, .null }) })).?);
+}
+
+test "exceedsJsStack follows TS's measured limits" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const nested = struct {
+        fn arrays(al: Allocator, depth: usize) !Value {
+            var v: Value = .{ .number = 1 };
+            for (0..depth) |_| {
+                const inner = v;
+                v = .{ .array = try al.dupe(Value, &.{inner}) };
+            }
+            return v;
+        }
+        fn objects(al: Allocator, depth: usize) !Value {
+            var v: Value = .{ .number = 1 };
+            for (0..depth) |_| {
+                const inner = v;
+                v = .{ .object = try al.dupe(core.json.Member, &.{.{ .key = "a", .value = inner }}) };
+            }
+            return v;
+        }
+    };
+    try testing.expect(!try exceedsJsStack(a, &.{try nested.arrays(a, 2729)}));
+    try testing.expect(try exceedsJsStack(a, &.{try nested.arrays(a, 2730)}));
+    try testing.expect(!try exceedsJsStack(a, &.{try nested.objects(a, 1766)}));
+    try testing.expect(try exceedsJsStack(a, &.{try nested.objects(a, 1767)}));
+    try testing.expect(!try exceedsJsStack(a, &.{ .{ .string = "x" }, .null, try nested.arrays(a, 10) }));
 }

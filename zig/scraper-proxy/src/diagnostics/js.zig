@@ -50,7 +50,7 @@ pub const Object = struct {
 
     pub const Entry = struct { key: []const u8, value: Value };
 
-    fn find(self: *const Object, key: []const u8) ?usize {
+    pub fn find(self: *const Object, key: []const u8) ?usize {
         for (self.entries.items, 0..) |entry, i| {
             if (std.mem.eql(u8, entry.key, key)) return i;
         }
@@ -139,52 +139,77 @@ pub fn parse(arena: Allocator, text: []const u8) ParseError!Value {
 }
 
 /// Converts a `core.json.Value` (e.g. a database row) into a mutable value.
-/// Strings are borrowed; `.raw` fragments are parsed.
+/// Strings are borrowed; `.raw` fragments are parsed. Iterative (an explicit
+/// stack in the arena): database JSON can nest as deep as its size allows.
 pub fn fromCore(arena: Allocator, value: core.json.Value) ParseError!Value {
-    return switch (value) {
-        .null => .null,
-        .bool => |b| .{ .bool = b },
-        .number => |n| .{ .number = n },
-        .string => |s| .{ .string = s },
-        .raw => |text| parse(arena, text),
-        .array => |items| blk: {
-            const array = try newArray(arena, &.{});
-            try array.ensureTotalCapacity(arena, items.len);
-            for (items) |item| array.appendAssumeCapacity(try fromCore(arena, item));
-            break :blk .{ .array = array };
-        },
-        .object => |members| blk: {
-            const object = try newObject(arena);
-            try object.entries.ensureTotalCapacity(arena, members.len);
-            for (members) |member| try object.put(arena, member.key, try fromCore(arena, member.value));
-            break :blk .{ .object = object };
-        },
-    };
+    const Work = struct { source: core.json.Value, dest: *Value };
+    var root: Value = undefined;
+    var stack: std.ArrayList(Work) = .empty;
+    try stack.append(arena, .{ .source = value, .dest = &root });
+    while (stack.pop()) |work| {
+        work.dest.* = switch (work.source) {
+            .null => .null,
+            .bool => |b| .{ .bool = b },
+            .number => |n| .{ .number = n },
+            .string => |s| .{ .string = s },
+            .raw => |text| try parse(arena, text),
+            .array => |items| blk: {
+                const array = try newArray(arena, &.{});
+                try array.appendNTimes(arena, .undefined, items.len);
+                for (items, array.items) |item, *dest| try stack.append(arena, .{ .source = item, .dest = dest });
+                break :blk .{ .array = array };
+            },
+            .object => |members| blk: {
+                const object = try newObject(arena);
+                try object.entries.ensureTotalCapacity(arena, members.len);
+                // Keys first (`put` orders array-index keys), then the values
+                // into their final slots.
+                for (members) |member| try object.put(arena, member.key, .undefined);
+                for (members) |member| {
+                    const slot = object.find(member.key).?;
+                    try stack.append(arena, .{ .source = member.value, .dest = &object.entries.items[slot].value });
+                }
+                break :blk .{ .object = object };
+            },
+        };
+    }
+    return root;
 }
 
 /// Converts to `core.json.Value`, dropping `undefined` members (array holes
-/// become null, as JSON.stringify prints them).
+/// become null, as JSON.stringify prints them). Iterative.
 pub fn toCore(arena: Allocator, value: Value) Allocator.Error!core.json.Value {
-    return switch (value) {
-        .undefined, .null => .null,
-        .bool => |b| .{ .bool = b },
-        .number => |n| .{ .number = n },
-        .string => |s| .{ .string = s },
-        .array => |array| blk: {
-            const items = try arena.alloc(core.json.Value, array.items.len);
-            for (array.items, items) |item, *out| out.* = try toCore(arena, item);
-            break :blk .{ .array = items };
-        },
-        .object => |object| blk: {
-            var members: std.ArrayList(core.json.Member) = .empty;
-            try members.ensureTotalCapacity(arena, object.entries.items.len);
-            for (object.entries.items) |entry| {
-                if (entry.value == .undefined) continue;
-                members.appendAssumeCapacity(.{ .key = entry.key, .value = try toCore(arena, entry.value) });
-            }
-            break :blk .{ .object = members.items };
-        },
-    };
+    const Work = struct { source: Value, dest: *core.json.Value };
+    var root: core.json.Value = undefined;
+    var stack: std.ArrayList(Work) = .empty;
+    try stack.append(arena, .{ .source = value, .dest = &root });
+    while (stack.pop()) |work| {
+        work.dest.* = switch (work.source) {
+            .undefined, .null => .null,
+            .bool => |b| .{ .bool = b },
+            .number => |n| .{ .number = n },
+            .string => |s| .{ .string = s },
+            .array => |array| blk: {
+                const items = try arena.alloc(core.json.Value, array.items.len);
+                for (array.items, items) |item, *dest| try stack.append(arena, .{ .source = item, .dest = dest });
+                break :blk .{ .array = items };
+            },
+            .object => |object| blk: {
+                var count: usize = 0;
+                for (object.entries.items) |entry| count += @intFromBool(entry.value != .undefined);
+                const members = try arena.alloc(core.json.Member, count);
+                var index: usize = 0;
+                for (object.entries.items) |entry| {
+                    if (entry.value == .undefined) continue;
+                    members[index].key = entry.key;
+                    try stack.append(arena, .{ .source = entry.value, .dest = &members[index].value });
+                    index += 1;
+                }
+                break :blk .{ .object = members };
+            },
+        };
+    }
+    return root;
 }
 
 // ---------------------------------------------------------- serialization
@@ -196,34 +221,55 @@ pub fn stringifyAlloc(gpa: Allocator, value: Value) Allocator.Error![]u8 {
     return out.toOwnedSlice();
 }
 
-/// `JSON.stringify(value)`; `undefined` members are skipped, array holes print null.
+/// `JSON.stringify(value)`; `undefined` members are skipped, array holes print
+/// null. Iterative (an explicit stack): any depth.
 pub fn stringify(w: *std.Io.Writer, value: Value) std.Io.Writer.Error!void {
-    switch (value) {
-        .undefined, .null => try w.writeAll("null"),
-        .bool => |b| try w.writeAll(if (b) "true" else "false"),
-        .number => |n| try writeNumber(w, n),
-        .string => |s| try writeString(w, s),
-        .array => |array| {
-            try w.writeByte('[');
-            for (array.items, 0..) |item, i| {
-                if (i > 0) try w.writeByte(',');
-                try stringify(w, item);
+    const Frame = struct { value: Value, next: usize = 0, first: bool = true };
+    var stack: std.ArrayList(Frame) = .empty;
+    defer stack.deinit(std.heap.c_allocator);
+    var current: Value = value;
+    while (true) {
+        // Write `current`; containers open and push a frame.
+        switch (current) {
+            .undefined, .null => try w.writeAll("null"),
+            .bool => |b| try w.writeAll(if (b) "true" else "false"),
+            .number => |n| try writeNumber(w, n),
+            .string => |s| try writeString(w, s),
+            .array => {
+                try w.writeByte('[');
+                stack.append(std.heap.c_allocator, .{ .value = current }) catch return error.WriteFailed;
+            },
+            .object => {
+                try w.writeByte('{');
+                stack.append(std.heap.c_allocator, .{ .value = current }) catch return error.WriteFailed;
+            },
+        }
+        // Find the next value to write, closing finished containers.
+        current = while (stack.items.len > 0) {
+            const frame = &stack.items[stack.items.len - 1];
+            switch (frame.value) {
+                .array => |array| if (frame.next < array.items.len) {
+                    if (frame.next > 0) try w.writeByte(',');
+                    frame.next += 1;
+                    break array.items[frame.next - 1];
+                },
+                .object => |object| {
+                    while (frame.next < object.entries.items.len and object.entries.items[frame.next].value == .undefined) frame.next += 1;
+                    if (frame.next < object.entries.items.len) {
+                        const entry = object.entries.items[frame.next];
+                        if (!frame.first) try w.writeByte(',');
+                        frame.first = false;
+                        frame.next += 1;
+                        try writeString(w, entry.key);
+                        try w.writeByte(':');
+                        break entry.value;
+                    }
+                },
+                else => unreachable,
             }
-            try w.writeByte(']');
-        },
-        .object => |object| {
-            try w.writeByte('{');
-            var first = true;
-            for (object.entries.items) |entry| {
-                if (entry.value == .undefined) continue;
-                if (!first) try w.writeByte(',');
-                first = false;
-                try writeString(w, entry.key);
-                try w.writeByte(':');
-                try stringify(w, entry.value);
-            }
-            try w.writeByte('}');
-        },
+            try w.writeByte(if (frame.value == .array) ']' else '}');
+            _ = stack.pop();
+        } else return;
     }
 }
 
@@ -261,4 +307,38 @@ test "undefined keeps its slot but is omitted" {
     try object.put(arena, "retry", .{ .bool = true });
     try object.put(arena, "3", .{ .number = 3 });
     try std.testing.expectEqualStrings("{\"3\":3,\"a\":1,\"retry\":true,\"failure\":null}", try stringifyAlloc(arena, .{ .object = object }));
+}
+
+test "fromCore, toCore and stringify handle any nesting depth without recursion" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const depth = 300_000;
+    var text: std.ArrayList(u8) = .empty;
+    for (0..depth) |i| try text.appendSlice(arena, if (i % 2 == 0) "[" else "{\"k\":");
+    try text.appendSlice(arena, "1");
+    var i: usize = depth;
+    while (i > 0) {
+        i -= 1;
+        try text.append(arena, if (i % 2 == 0) ']' else '}');
+    }
+    const value = try parse(arena, text.items);
+    const out = try stringifyAlloc(arena, value);
+    try std.testing.expectEqualStrings(text.items, out);
+    const core_value = try toCore(arena, value);
+    const back = try fromCore(arena, core_value);
+    try std.testing.expectEqualStrings(text.items, try stringifyAlloc(arena, back));
+}
+
+test "stringify keeps key order, skips undefined members and prints holes as null" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const object = try newObject(arena);
+    try object.put(arena, "b", .{ .number = 1 });
+    try object.put(arena, "skip", .undefined);
+    try object.put(arena, "2", .{ .array = try newArray(arena, &.{ .undefined, .null, .{ .string = "x" } }) });
+    try object.put(arena, "e", .{ .object = try newObject(arena) });
+    try std.testing.expectEqualStrings("{\"2\":[null,null,\"x\"],\"b\":1,\"e\":{}}", try stringifyAlloc(arena, .{ .object = object }));
+    try std.testing.expectEqualStrings("[]", try stringifyAlloc(arena, .{ .array = try newArray(arena, &.{}) }));
 }

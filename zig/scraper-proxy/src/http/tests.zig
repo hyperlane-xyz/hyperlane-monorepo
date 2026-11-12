@@ -15,6 +15,20 @@ const posix = std.posix;
 // Test app: /metrics + an echo route standing in for /graphql
 // ---------------------------------------------------------------------------
 
+/// What a handler on a poller may use: graphql's deepest admitted request
+/// (`_not` via variables) is 8.9 MiB in Debug and 2.5 MiB in ReleaseFast.
+const stack_probe_bytes: usize = if (@import("builtin").mode == .Debug) 18 * 1024 * 1024 else 6 * 1024 * 1024;
+const deep_frame = 64 * 1024;
+
+/// Touches `deep_frame` bytes of stack per level.
+noinline fn deepStack(levels: usize, depth: usize) usize {
+    var frame: [deep_frame]u8 = undefined;
+    @memset(@as([]volatile u8, &frame), @truncate(depth));
+    if (depth + 1 >= levels) return depth + 1;
+    const r = deepStack(levels, depth + 1);
+    return r + (@as(*volatile u8, &frame[depth % deep_frame]).* & 0);
+}
+
 const Echo = struct {
     mutex: std.Thread.Mutex = .{},
     on_request: u32 = 0,
@@ -63,6 +77,10 @@ const Echo = struct {
             core.blocking.begin();
             std.Thread.sleep(300 * std.time.ns_per_ms);
             core.blocking.end();
+        }
+        if (std.mem.eql(u8, req.query, "deep")) {
+            const used = deepStack(stack_probe_bytes / deep_frame, 0);
+            return reply.sendText(if (used == stack_probe_bytes / deep_frame) "deep ok" else "deep short");
         }
         if (std.mem.eql(u8, req.query, "big")) {
             const big = req.arena.alloc(u8, 16 * 1024 * 1024) catch return;
@@ -618,6 +636,19 @@ test "body_pending before on_request; on_write_blocked once when a response park
         got += n;
     }
     try testing.expectEqual(@as(u32, 1), h.echo.snapshot().write_blocked);
+}
+
+test "a handler on a poller has the stack of graphql's deepest admitted request (2x)" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    const r = try c.request(arena.allocator(), "GET /graphql?deep HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqual(@as(u16, 200), r.status);
+    try testing.expectEqualStrings("deep ok", r.body);
 }
 
 test "blocked requests in one accept batch never hold up later accepts" {

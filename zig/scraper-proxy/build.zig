@@ -27,10 +27,15 @@ pub fn build(b: *std.Build) void {
     const pg_lib_dir = b.option([]const u8, "pg-lib-dir", "libpq library directory");
     const pg_include_dir = b.option([]const u8, "pg-include-dir", "libpq include directory");
     const test_filter = b.option([]const u8, "test-filter", "Only run tests whose name contains this text");
+    // Diagnostics only (bench): per-pool checkout hold-time histogram, logged
+    // at info. Off by default: the shipped build does no extra work.
+    const pool_hold_stats = b.option(bool, "pool-hold-stats", "Record and log DB pool checkout hold times") orelse false;
+    const db_options = b.addOptions();
+    db_options.addOption(bool, "pool_hold_stats", pool_hold_stats);
 
     // One module graph per mode (a module has a single optimize mode).
-    const exe_modules = moduleGraph(b, target, exe_optimize, pg_lib_dir, pg_include_dir, true);
-    const test_modules = if (test_optimize == exe_optimize) exe_modules else moduleGraph(b, target, test_optimize, pg_lib_dir, pg_include_dir, false);
+    const exe_modules = moduleGraph(b, target, exe_optimize, pg_lib_dir, pg_include_dir, db_options, true);
+    const test_modules = if (test_optimize == exe_optimize) exe_modules else moduleGraph(b, target, test_optimize, pg_lib_dir, pg_include_dir, db_options, false);
 
     const exe = b.addExecutable(.{ .name = "scraper-proxy", .root_module = mainModule(b, target, exe_optimize, pg_lib_dir, pg_include_dir, exe_modules) });
     b.installArtifact(exe);
@@ -62,6 +67,7 @@ fn moduleGraph(
     optimize: std.builtin.OptimizeMode,
     pg_lib_dir: ?[]const u8,
     pg_include_dir: ?[]const u8,
+    db_options: *std.Build.Step.Options,
     exported: bool,
 ) [modules.len]*std.Build.Module {
     var created: [modules.len]*std.Build.Module = undefined;
@@ -75,6 +81,7 @@ fn moduleGraph(
         const module = if (exported) b.addModule(entry.name, options) else b.createModule(options);
         linkPq(module, pg_lib_dir, pg_include_dir);
         inline for (entry.deps) |dep| module.addImport(dep, created[indexOf(dep)]);
+        if (comptime std.mem.eql(u8, entry.name, "db")) module.addOptions("db_options", db_options);
         created[i] = module;
     }
     return created;
