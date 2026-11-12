@@ -39,6 +39,7 @@ export enum ExecutionType {
 export enum ExternalBridgeType {
   LiFi = 'lifi',
   DeBridge = 'debridge',
+  LayerZero = 'layerzero',
 }
 
 export const RebalancerMinAmountConfigSchema = z.object({
@@ -139,9 +140,17 @@ export const DeBridgeBridgeConfigSchema = z.object({
   maxSolanaNativeSpendLamports: z.coerce.bigint().nonnegative().optional(),
 });
 
+export const LayerZeroBridgeConfigSchema = z.object({
+  warpRouteIds: z.array(z.string().min(1)).min(1),
+  maxFeeBps: z.number().int().min(0).max(10_000).default(50),
+  maxEvmNativeValueWei: z.coerce.bigint().nonnegative().optional(),
+  maxTronNativeValueSun: z.coerce.bigint().nonnegative().optional(),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
   debridge: DeBridgeBridgeConfigSchema.optional(),
+  layerzero: LayerZeroBridgeConfigSchema.optional(),
 });
 
 export const PendingTransferMiddlewareType = {
@@ -480,7 +489,9 @@ export const RebalancerConfigSchema = z
             (externalBridge === ExternalBridgeType.LiFi &&
               !!config.externalBridges?.lifi?.integrator) ||
             (externalBridge === ExternalBridgeType.DeBridge &&
-              config.externalBridges?.debridge !== undefined);
+              config.externalBridges?.debridge !== undefined) ||
+            (externalBridge === ExternalBridgeType.LayerZero &&
+              config.externalBridges?.layerzero !== undefined);
           if (!isConfigured) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
