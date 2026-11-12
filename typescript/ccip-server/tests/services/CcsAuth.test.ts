@@ -920,13 +920,24 @@ describe('CCS authenticated reveal recovery integration', () => {
       readsChain: true,
     },
     {
-      name: 'returns HTTP 500 when the dispatched router pair cannot derive the ICA',
+      name: 'returns HTTP 500 when the dispatched router pair cannot be read',
       options: {},
       setup: (f) => {
-        f.destinationCall.rejects(new Error('destination RPC unavailable'));
+        f.destinationCall.rejects(unavailableRpc());
       },
       statusCode: 500,
-      error: 'destination RPC unavailable',
+      error: 'missing response',
+      readsReceipt: true,
+      readsChain: true,
+    },
+    {
+      name: 'returns HTTP 403 when the chain answers that the dispatched router pair cannot derive the ICA',
+      options: {},
+      setup: (f) => {
+        f.destinationCall.rejects(missingSelector());
+      },
+      statusCode: 403,
+      error: 'Dispatched routers do not derive an ICA for the reveal',
       readsReceipt: true,
       readsChain: true,
     },

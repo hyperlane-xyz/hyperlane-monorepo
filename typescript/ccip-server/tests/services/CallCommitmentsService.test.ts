@@ -36,6 +36,7 @@ import {
   mailboxesByDomain,
 } from '../../src/services/CallCommitmentsService.js';
 import { CommitmentAccessDeniedError } from '../../src/utils/errors.js';
+import { RpcUnavailableError } from '../../src/utils/rpcErrors.js';
 import { PrometheusMetrics } from '../../src/utils/prometheus.js';
 
 function mockLogger() {
@@ -1682,20 +1683,33 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     expect(decoded[1]).to.equal(addressToBytes32(icaPayload.owner));
   });
 
-  it('fails without a denial when the dispatched router pair cannot derive the ICA', async () => {
-    const { service, destinationCall } = createService([
-      dispatchLog(committedMessage, 1),
-      dispatchLog(revealMessage, 2),
-    ]);
-    const rpcError = new Error('destination RPC unavailable');
-    destinationCall.rejects(rpcError);
+  for (const c of candidateFailureCases) {
+    it(`${c.unavailable ? 'fails without a denial' : 'denies the reveal'} when the dispatched router pair fails with ${c.name}`, async () => {
+      const { service, destinationCall } = createService([
+        dispatchLog(committedMessage, 1),
+        dispatchLog(revealMessage, 2),
+      ]);
+      const failure = c.error();
+      destinationCall.rejects(failure);
 
-    const error = await service
-      .deriveIcaFromRevealMessage(revealMessage, originTxHash, mockLogger())
-      .catch((error: unknown) => error);
+      const error = await service
+        .deriveIcaFromRevealMessage(revealMessage, originTxHash, mockLogger())
+        .catch((error: unknown) => error);
 
-    expect(error).to.equal(rpcError);
-  });
+      if (c.unavailable) {
+        expect(error)
+          .to.be.instanceOf(RpcUnavailableError)
+          .with.property('cause', failure);
+      } else {
+        expect(error)
+          .to.be.instanceOf(CommitmentAccessDeniedError)
+          .with.property(
+            'message',
+            'Dispatched routers do not derive an ICA for the reveal',
+          );
+      }
+    });
+  }
 });
 
 describe('icaRoutersByDomain', () => {

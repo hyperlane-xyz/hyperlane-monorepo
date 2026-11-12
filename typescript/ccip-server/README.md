@@ -111,7 +111,8 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
   RPC, or a candidate ICA whose chain read failed (when none of the others
   match) get HTTP 500 so the relayer retries; malformed hash strings get 400.
   A candidate the chain answers as underivable (e.g. a router without salted
-  accounts) does not match. For a destination that lists only
+  accounts) does not match, and a reveal whose dispatched routers the chain
+  answers as unable to derive the ICA gets HTTP 403. For a destination that lists only
   `interchainAccountRouterV3`, candidates are derived from that router.
   Existing records with incorrect addresses still need a one-time database
   repair for `GET /calls/:commitment`. Re-registration must identify the same

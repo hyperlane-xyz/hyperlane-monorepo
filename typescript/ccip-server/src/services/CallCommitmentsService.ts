@@ -785,9 +785,26 @@ export class CallCommitmentsService extends BaseService {
       ? [undefined]
       : [undefined, ism];
     const [ica, versionResults] = await Promise.all([
-      destinationRouter[
-        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-      ](reveal.origin, owner, reveal.sender, bytes32ToAddress(ism), userSalt),
+      // A router pair the chain answers as unable to derive the ICA (e.g. one
+      // without commit-reveal) cannot serve the reveal. A failed read is
+      // retried.
+      readOnchain(() =>
+        destinationRouter[
+          'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+        ](reveal.origin, owner, reveal.sender, bytes32ToAddress(ism), userSalt),
+      ).catch((error: unknown) => {
+        if (error instanceof RpcUnavailableError) throw error;
+        log.debug(
+          {
+            originTxHash,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          'The chain did not derive the ICA for the dispatched routers',
+        );
+        throw new CommitmentAccessDeniedError(
+          'Dispatched routers do not derive an ICA for the reveal',
+        );
+      }),
       // A version the chain answers as underivable (e.g. a pre-salt router)
       // cannot make a reveal match. A version whose read fails is counted:
       // any other match still serves, and with none the request fails so the
