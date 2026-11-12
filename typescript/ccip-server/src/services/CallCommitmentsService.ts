@@ -351,6 +351,18 @@ export function mailboxesByDomain(
   );
 }
 
+/** A reveal's paired commitment and the ICA its dispatched routers derive. */
+interface RevealDispatch {
+  ica: string;
+  origin: number;
+  destination: number;
+  originRouter: string;
+  destinationRouter: string;
+  owner: string;
+  ism: string;
+  userSalt: string;
+}
+
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
   private readonly auth: CcsAuth;
@@ -574,37 +586,42 @@ export class CallCommitmentsService extends BaseService {
         originTxHash,
         'Missing origin transaction hash for reveal message',
       );
-      const { ica, routerVersionIcas, unavailableCandidates } =
-        await this.deriveIcaFromRevealMessage(message, originTxHash, log);
-      // Records registered without router overrides store the V2-derived
-      // ICA; a candidate equal to the stored ICA admits the reveal, and the
-      // dispatched ICA is served.
-      if (
-        ![ica, ...routerVersionIcas].some((candidate) =>
-          eqAddress(candidate, record.ica),
-        )
-      ) {
-        // A candidate whose chain read failed might have matched: that is not
-        // a denial, so fail with HTTP 500 and let the relayer retry.
-        assert(
-          unavailableCandidates === 0,
-          'Could not derive every ICA candidate for the reveal',
-        );
-        log.warn(
-          {
-            commitment,
-            originTxHash,
-            storedIca: record.ica,
-            revealIca: ica,
-          },
-          'Paired commitment does not derive the stored ICA',
-        );
-        throw new CommitmentAccessDeniedError(
-          'Reveal does not belong to this commitment',
-        );
-      }
-
+      const dispatch = await this.deriveIcaFromRevealMessage(
+        message,
+        originTxHash,
+        log,
+      );
+      const { ica } = dispatch;
       if (!eqAddress(ica, record.ica)) {
+        // Records registered without router overrides store the V2-derived
+        // ICA; a router version candidate equal to the stored ICA admits the
+        // reveal, and the dispatched ICA is served.
+        const { routerVersionIcas, unavailableCandidates } =
+          await this.deriveRouterVersionIcas(dispatch, originTxHash, log);
+        if (
+          !routerVersionIcas.some((candidate) =>
+            eqAddress(candidate, record.ica),
+          )
+        ) {
+          // A candidate whose chain read failed might have matched: that is
+          // not a denial, so fail with HTTP 500 and let the relayer retry.
+          assert(
+            unavailableCandidates === 0,
+            'Could not derive every ICA candidate for the reveal',
+          );
+          log.warn(
+            {
+              commitment,
+              originTxHash,
+              storedIca: record.ica,
+              revealIca: ica,
+            },
+            'Paired commitment does not derive the stored ICA',
+          );
+          throw new CommitmentAccessDeniedError(
+            'Reveal does not belong to this commitment',
+          );
+        }
         log.info(
           { commitment, originTxHash, storedIca: record.ica, revealIca: ica },
           'Serving the dispatched ICA; the stored ICA was derived with another router version or ISM',
@@ -656,13 +673,8 @@ export class CallCommitmentsService extends BaseService {
   }
 
   /**
-   * Finds the commitment dispatched alongside a reveal and derives the ICA it
-   * targets: `ica` from the routers it was dispatched through, and
-   * `routerVersionIcas`, one per registry router version and ISM variant that
-   * could be derived, from the same owner and user salt (see
-   * `handleFetchCommitment`). `unavailableCandidates` counts those whose chain
-   * read failed; candidates the chain answered as underivable cannot match and
-   * are not counted.
+   * Finds the commitment dispatched alongside a reveal and derives `ica`, the
+   * ICA it targets through the routers it was dispatched through.
    *
    * The reveal must be in the given transaction's mailbox logs, and both of
    * its routers must be ICA routers from the registry.
@@ -671,11 +683,7 @@ export class CallCommitmentsService extends BaseService {
     message: string,
     originTxHash: string,
     log: Logger,
-  ): Promise<{
-    ica: string;
-    routerVersionIcas: string[];
-    unavailableCandidates: number;
-  }> {
+  ): Promise<RevealDispatch> {
     const reveal = parseMessage(message);
     assert(
       utils.hexDataLength(reveal.body) === 65 &&
@@ -771,72 +779,104 @@ export class CallCommitmentsService extends BaseService {
       bytes32ToAddress(reveal.recipient),
       this.multiProvider.getProvider(reveal.destination),
     );
+    // A router pair the chain answers as unable to derive the ICA (e.g. one
+    // without commit-reveal) cannot serve the reveal. A failed read is
+    // retried.
+    const ica = await readOnchain(() =>
+      destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ](reveal.origin, owner, reveal.sender, bytes32ToAddress(ism), userSalt),
+    ).catch((error: unknown) => {
+      if (error instanceof RpcUnavailableError) throw error;
+      log.debug(
+        {
+          originTxHash,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        'The chain did not derive the ICA for the dispatched routers',
+      );
+      throw new CommitmentAccessDeniedError(
+        'Dispatched routers do not derive an ICA for the reveal',
+      );
+    });
+    return {
+      ica,
+      origin: reveal.origin,
+      destination: reveal.destination,
+      originRouter: reveal.sender,
+      destinationRouter: reveal.recipient,
+      owner,
+      ism,
+      userSalt,
+    };
+  }
+
+  /**
+   * Derives the ICA of a dispatched commitment for each registry router
+   * version and ISM variant, from the same owner and user salt (see
+   * `handleFetchCommitment`). `unavailableCandidates` counts those whose chain
+   * read failed; candidates the chain answered as underivable cannot match and
+   * are not counted.
+   */
+  private async deriveRouterVersionIcas(
+    dispatch: RevealDispatch,
+    originTxHash: string,
+    log: Logger,
+  ): Promise<{ routerVersionIcas: string[]; unavailableCandidates: number }> {
     // Registrations derive their ICA with whichever router pair they were
     // given, or the default (V2) pair when none: try each pair the registry
     // has for both chains, with and without the commit's ISM since
     // registrations may not have passed one.
+    const originChain = this.multiProvider.getChainName(dispatch.origin);
     const destinationChain = this.multiProvider.getChainName(
-      reveal.destination,
+      dispatch.destination,
     );
-    const originRouters = this.trustedIcaRouters.get(reveal.origin) ?? {};
+    const originRouters = this.trustedIcaRouters.get(dispatch.origin) ?? {};
     const destinationRouters =
-      this.trustedIcaRouters.get(reveal.destination) ?? {};
-    const ismOverrides = isZeroishAddress(bytes32ToAddress(ism))
+      this.trustedIcaRouters.get(dispatch.destination) ?? {};
+    const ismOverrides = isZeroishAddress(bytes32ToAddress(dispatch.ism))
       ? [undefined]
-      : [undefined, ism];
-    const [ica, versionResults] = await Promise.all([
-      // A router pair the chain answers as unable to derive the ICA (e.g. one
-      // without commit-reveal) cannot serve the reveal. A failed read is
-      // retried.
-      readOnchain(() =>
-        destinationRouter[
-          'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-        ](reveal.origin, owner, reveal.sender, bytes32ToAddress(ism), userSalt),
-      ).catch((error: unknown) => {
-        if (error instanceof RpcUnavailableError) throw error;
-        log.debug(
-          {
-            originTxHash,
-            error: error instanceof Error ? error.message : String(error),
-          },
-          'The chain did not derive the ICA for the dispatched routers',
-        );
-        throw new CommitmentAccessDeniedError(
-          'Dispatched routers do not derive an ICA for the reveal',
-        );
-      }),
-      // A version the chain answers as underivable (e.g. a pre-salt router)
-      // cannot make a reveal match. A version whose read fails is counted:
-      // any other match still serves, and with none the request fails so the
-      // relayer retries.
-      Promise.allSettled(
-        ICA_ROUTER_VERSIONS.flatMap((version) => {
-          const localRouter = originRouters[version];
-          const routerOverride = destinationRouters[version];
-          // `getAccount`, which registrations also derive with, requires the
-          // destination's V2 router; other records store the dispatched ICA.
-          if (
-            localRouter === undefined ||
-            routerOverride === undefined ||
-            destinationRouters.interchainAccountRouter === undefined
-          ) {
-            return [];
-          }
-          return ismOverrides.map((ismOverride) =>
+      : [undefined, dispatch.ism];
+    // A version the chain answers as underivable (e.g. a pre-salt router)
+    // cannot make a reveal match. A version whose read fails is counted: any
+    // other match still serves, and with none the request fails so the
+    // relayer retries.
+    const versionResults = await Promise.allSettled(
+      ICA_ROUTER_VERSIONS.flatMap((version) => {
+        const localRouter = originRouters[version];
+        const routerOverride = destinationRouters[version];
+        // `getAccount`, which registrations also derive with, requires the
+        // destination's V2 router; other records store the dispatched ICA.
+        if (
+          localRouter === undefined ||
+          routerOverride === undefined ||
+          destinationRouters.interchainAccountRouter === undefined
+        ) {
+          return [];
+        }
+        const isDispatchedPair =
+          eqAddress(localRouter, bytes32ToAddress(dispatch.originRouter)) &&
+          eqAddress(
+            routerOverride,
+            bytes32ToAddress(dispatch.destinationRouter),
+          );
+        // The dispatched pair with the commit's ISM repeats `ica`.
+        return ismOverrides
+          .filter((ismOverride) => !isDispatchedPair || isNullish(ismOverride))
+          .map((ismOverride) =>
             readOnchain(() =>
               this.icaApp.getAccount(destinationChain, {
                 origin: originChain,
-                owner: bytes32ToAddress(owner),
-                userSalt,
+                owner: bytes32ToAddress(dispatch.owner),
+                userSalt: dispatch.userSalt,
                 localRouter,
                 routerOverride,
                 ismOverride,
               }),
             ),
           );
-        }),
-      ),
-    ]);
+      }),
+    );
     const routerVersionIcas: string[] = [];
     let unavailableCandidates = 0;
     for (const result of versionResults) {
@@ -861,7 +901,7 @@ export class CallCommitmentsService extends BaseService {
         );
       }
     }
-    return { ica, routerVersionIcas, unavailableCandidates };
+    return { routerVersionIcas, unavailableCandidates };
   }
 
   /**

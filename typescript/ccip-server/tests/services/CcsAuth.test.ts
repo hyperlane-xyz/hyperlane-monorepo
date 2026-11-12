@@ -695,6 +695,26 @@ describe('CCS authenticated reveal recovery integration', () => {
     }
   });
 
+  it('serves the dispatched ICA without deriving router version candidates when it is the stored one', async () => {
+    const f = await fixture({ registeredWithDispatchedRouters: true });
+    try {
+      const response = await f.app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: f.payload,
+      });
+      expect(response.statusCode).to.equal(200);
+      expect(response.json().data).to.equal(
+        f.dispatchedIca +
+          encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+      );
+      expect(f.icaApp.getAccount.called).to.equal(false);
+      sinon.assert.calledOnce(f.destinationCall);
+    } finally {
+      await f.app.close();
+    }
+  });
+
   it('serves a reveal from an origin whose registry lists only a V3 router, reading only its receipt from the origin chain', async () => {
     const f = await fixture({
       originV3Only: true,

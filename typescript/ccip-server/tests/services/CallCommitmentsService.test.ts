@@ -711,23 +711,35 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     };
   }
 
+  /** Derives the dispatched ICA and then every router version candidate. */
+  async function deriveAll(
+    service: ReturnType<typeof createService>['service'],
+    message: string,
+    log = mockLogger(),
+  ) {
+    const dispatch = await service.deriveIcaFromRevealMessage(
+      message,
+      originTxHash,
+      log,
+    );
+    const { routerVersionIcas, unavailableCandidates } =
+      await service.deriveRouterVersionIcas(dispatch, originTxHash, log);
+    return { ica: dispatch.ica, routerVersionIcas, unavailableCandidates };
+  }
+
   it('derives using both dispatched routers, owner, ISM, and user salt', async () => {
     const { service, destinationCall, connect } = createService([
       dispatchLog(committedMessage, 1),
       dispatchLog(revealMessage, 2),
     ]);
 
-    expect(
-      await service.deriveIcaFromRevealMessage(
-        revealMessage,
-        originTxHash,
-        mockLogger(),
-      ),
-    ).to.deep.equal({
-      ica: utils.getAddress(mockIca),
-      routerVersionIcas: [routerIca, routerIca, routerIca, routerIca],
-      unavailableCandidates: 0,
-    });
+    expect(await deriveAll(service, revealMessage, mockLogger())).to.deep.equal(
+      {
+        ica: utils.getAddress(mockIca),
+        routerVersionIcas: [routerIca, routerIca, routerIca],
+        unavailableCandidates: 0,
+      },
+    );
     expect(connect.calledWith(destinationRouter)).to.be.true;
     const decoded =
       InterchainAccountRouter__factory.createInterface().decodeFunctionData(
@@ -742,6 +754,32 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       userSalt,
     ]);
   });
+  it('derives only the dispatched ICA until router version candidates are requested', async () => {
+    const { service, destinationCall, getRouterAccount } = createService([
+      dispatchLog(committedMessage, 1),
+      dispatchLog(revealMessage, 2),
+    ]);
+
+    const dispatch = await service.deriveIcaFromRevealMessage(
+      revealMessage,
+      originTxHash,
+      mockLogger(),
+    );
+
+    expect(dispatch).to.deep.equal({
+      ica: utils.getAddress(mockIca),
+      origin: 1,
+      destination: 2,
+      originRouter: addressToBytes32(originRouter),
+      destinationRouter: addressToBytes32(destinationRouter),
+      owner: addressToBytes32(icaPayload.owner),
+      ism: addressToBytes32(ism),
+      userSalt,
+    });
+    sinon.assert.calledOnce(destinationCall);
+    sinon.assert.notCalled(getRouterAccount);
+  });
+
   it('uses the nearest earlier commitment when the same hash is dispatched twice', async () => {
     const laterOwner = '0x' + '42'.repeat(20);
     const laterBody =
@@ -760,16 +798,8 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       dispatchLog(laterCommit, 1),
       dispatchLog(revealMessage, 2),
     ]);
-    await service.deriveIcaFromRevealMessage(
-      revealMessage,
-      originTxHash,
-      mockLogger(),
-    );
-    await service.deriveIcaFromRevealMessage(
-      revealMessage,
-      originTxHash,
-      mockLogger(),
-    );
+    await deriveAll(service, revealMessage, mockLogger());
+    await deriveAll(service, revealMessage, mockLogger());
     const decoded =
       InterchainAccountRouter__factory.createInterface().decodeFunctionData(
         'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
@@ -821,16 +851,8 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
         orderedMessages.map((message, index) => dispatchLog(message, index)),
       );
 
-      await service.deriveIcaFromRevealMessage(
-        outerReveal,
-        originTxHash,
-        mockLogger(),
-      );
-      await service.deriveIcaFromRevealMessage(
-        otherReveal,
-        originTxHash,
-        mockLogger(),
-      );
+      await deriveAll(service, outerReveal, mockLogger());
+      await deriveAll(service, otherReveal, mockLogger());
 
       const iface = InterchainAccountRouter__factory.createInterface();
       const first = iface.decodeFunctionData(
@@ -851,9 +873,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       [],
     );
     getTransactionReceipt.resolves(null);
-    const error = await service
-      .deriveIcaFromRevealMessage(revealMessage, originTxHash, mockLogger())
-      .catch((error: unknown) => error);
+    const error = await deriveAll(service, revealMessage, mockLogger()).catch(
+      (error: unknown) => error,
+    );
     expect(error)
       .to.be.instanceOf(Error)
       .with.property('message', `Transaction not found: ${originTxHash}`);
@@ -866,9 +888,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     );
     const unavailable = new Error('origin RPC unavailable');
     getTransactionReceipt.rejects(unavailable);
-    const error = await service
-      .deriveIcaFromRevealMessage(revealMessage, originTxHash, mockLogger())
-      .catch((error: unknown) => error);
+    const error = await deriveAll(service, revealMessage, mockLogger()).catch(
+      (error: unknown) => error,
+    );
     expect(error).to.equal(unavailable);
     sinon.assert.notCalled(destinationCall);
   });
@@ -976,12 +998,10 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
   ] as const) {
     it(`rejects ${name} without querying a destination ICA`, async () => {
       const { service, destinationCall } = createService([...logs]);
-      const error = await service
-        .deriveIcaFromRevealMessage(revealMessage, originTxHash, mockLogger())
-        .then(
-          () => undefined,
-          (error: unknown) => error,
-        );
+      const error = await deriveAll(service, revealMessage, mockLogger()).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
 
       expect(error).to.be.instanceOf(Error);
       expect(destinationCall.called).to.be.false;
@@ -1004,9 +1024,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       dispatchLog(revealMessage, 2),
     ]);
 
-    const { routerVersionIcas } = await service.deriveIcaFromRevealMessage(
+    const { routerVersionIcas } = await deriveAll(
+      service,
       revealMessage,
-      originTxHash,
       mockLogger(),
     );
 
@@ -1028,17 +1048,14 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     ]);
   });
 
-  it('also derives each router version with the commit ISM when it has one', async () => {
-    const { service, getRouterAccount } = createService([
+  it('also derives each router version with the commit ISM when it has one, except the dispatched pair', async () => {
+    // The dispatched pair with the commit's ISM is the dispatched read.
+    const { service, getRouterAccount, destinationCall } = createService([
       dispatchLog(committedMessage, 1),
       dispatchLog(revealMessage, 2),
     ]);
 
-    await service.deriveIcaFromRevealMessage(
-      revealMessage,
-      originTxHash,
-      mockLogger(),
-    );
+    await deriveAll(service, revealMessage, mockLogger());
 
     expect(
       getRouterAccount
@@ -1046,10 +1063,10 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
         .map((call) => [call.args[1].routerOverride, call.args[1].ismOverride]),
     ).to.deep.equal([
       [destinationRouter, undefined],
-      [destinationRouter, addressToBytes32(ism)],
       [destinationRouterV3, undefined],
       [destinationRouterV3, addressToBytes32(ism)],
     ]);
+    sinon.assert.calledOnce(destinationCall);
   });
 
   interface VersionCase {
@@ -1065,10 +1082,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
         [1, { interchainAccountRouter: originRouter }],
         [2, { interchainAccountRouter: destinationRouter }],
       ]),
-      expectedPairs: [
-        [originRouter, destinationRouter],
-        [originRouter, destinationRouter],
-      ],
+      expectedPairs: [[originRouter, destinationRouter]],
     },
     {
       name: 'V3 only on the origin chain',
@@ -1082,10 +1096,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
         ],
         [2, { interchainAccountRouter: destinationRouter }],
       ]),
-      expectedPairs: [
-        [originRouter, destinationRouter],
-        [originRouter, destinationRouter],
-      ],
+      expectedPairs: [[originRouter, destinationRouter]],
     },
   ];
 
@@ -1097,11 +1108,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       ]);
       service.trustedIcaRouters = c.trustedIcaRouters;
 
-      await service.deriveIcaFromRevealMessage(
-        revealMessage,
-        originTxHash,
-        mockLogger(),
-      );
+      await deriveAll(service, revealMessage, mockLogger());
 
       expect(
         getRouterAccount
@@ -1138,11 +1145,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       dispatchLog(v3Reveal, 2),
     ]);
 
-    const { ica } = await service.deriveIcaFromRevealMessage(
-      v3Reveal,
-      originTxHash,
-      mockLogger(),
-    );
+    const { ica } = await deriveAll(service, v3Reveal, mockLogger());
 
     expect(ica).to.equal(utils.getAddress(mockIca));
     expect(connect.calledWith(destinationRouterV3)).to.be.true;
@@ -1180,25 +1183,22 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       ],
     ]);
 
-    const result = await service.deriveIcaFromRevealMessage(
-      v3Reveal,
-      originTxHash,
-      mockLogger(),
-    );
+    const result = await deriveAll(service, v3Reveal, mockLogger());
 
     expect(result).to.deep.equal({
       ica: utils.getAddress(mockIca),
-      routerVersionIcas: [routerIca, routerIca],
+      routerVersionIcas: [routerIca],
       unavailableCandidates: 0,
     });
     expect(
       getRouterAccount
         .getCalls()
-        .map((call) => [call.args[1].localRouter, call.args[1].routerOverride]),
-    ).to.deep.equal([
-      [originRouterV3, destinationRouterV3],
-      [originRouterV3, destinationRouterV3],
-    ]);
+        .map((call) => [
+          call.args[1].localRouter,
+          call.args[1].routerOverride,
+          call.args[1].ismOverride,
+        ]),
+    ).to.deep.equal([[originRouterV3, destinationRouterV3, undefined]]);
     sinon.assert.calledOnce(getTransactionReceipt);
     sinon.assert.notCalled(originCall);
   });
@@ -1252,15 +1252,11 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       getRouterAccount.onCall(1).rejects(c.error());
       const log = mockLogger();
 
-      const result = await service.deriveIcaFromRevealMessage(
-        revealMessage,
-        originTxHash,
-        log,
-      );
+      const result = await deriveAll(service, revealMessage, log);
 
       expect(result).to.deep.equal({
         ica: utils.getAddress(mockIca),
-        routerVersionIcas: [routerIca, routerIca],
+        routerVersionIcas: [routerIca],
         unavailableCandidates: c.unavailable ? 2 : 0,
       });
       expect(log.warn.callCount).to.equal(c.unavailable ? 2 : 0);
@@ -1302,11 +1298,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       [2, { interchainAccountRouterV3: destinationRouterV3 }],
     ]);
 
-    const result = await service.deriveIcaFromRevealMessage(
-      v3Reveal,
-      originTxHash,
-      mockLogger(),
-    );
+    const result = await deriveAll(service, v3Reveal, mockLogger());
 
     expect(result).to.deep.equal({
       ica: utils.getAddress(mockIca),
@@ -1334,9 +1326,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
         ...logs,
       ]);
 
-      const error = await service
-        .deriveIcaFromRevealMessage(revealMessage, originTxHash, mockLogger())
-        .catch((error: unknown) => error);
+      const error = await deriveAll(service, revealMessage, mockLogger()).catch(
+        (error: unknown) => error,
+      );
 
       expect(error)
         .to.be.instanceOf(CommitmentAccessDeniedError)
@@ -1381,14 +1373,10 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       multiProvider,
     );
 
-    const result = await service.deriveIcaFromRevealMessage(
-      lettersReveal,
-      originTxHash,
-      mockLogger(),
-    );
+    const result = await deriveAll(service, lettersReveal, mockLogger());
 
     expect(result.ica).to.equal(utils.getAddress(mockIca));
-    expect(result.routerVersionIcas).to.have.length(2);
+    expect(result.routerVersionIcas).to.have.length(1);
   });
 
   // Both routers must be ICA routers from the registry, on the chain the
@@ -1432,9 +1420,11 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
         dispatchLog(unlistedReveal, 2),
       ]);
 
-      const error = await service
-        .deriveIcaFromRevealMessage(unlistedReveal, originTxHash, mockLogger())
-        .catch((error: unknown) => error);
+      const error = await deriveAll(
+        service,
+        unlistedReveal,
+        mockLogger(),
+      ).catch((error: unknown) => error);
 
       expect(error).to.be.instanceOf(CommitmentAccessDeniedError);
       sinon.assert.notCalled(getTransactionReceipt);
@@ -1453,9 +1443,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       [2, { interchainAccountRouter: destinationRouter }],
     ]);
 
-    const error = await service
-      .deriveIcaFromRevealMessage(revealMessage, originTxHash, mockLogger())
-      .catch((error: unknown) => error);
+    const error = await deriveAll(service, revealMessage, mockLogger()).catch(
+      (error: unknown) => error,
+    );
 
     expect(error).to.be.instanceOf(CommitmentAccessDeniedError);
     sinon.assert.notCalled(getTransactionReceipt);
@@ -1502,16 +1492,12 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       dispatchLog(revealMessage, 2),
     ]);
 
-    await service.deriveIcaFromRevealMessage(
-      revealMessage,
-      originTxHash,
-      mockLogger(),
-    );
+    await deriveAll(service, revealMessage, mockLogger());
 
     const decoded = await dispatchedPairArgs(destinationCall);
     expect(decoded[1]).to.equal(addressToBytes32(pairedOwner));
     expect(decoded[4]).to.equal(userSalt);
-    expect(getRouterAccount.callCount).to.equal(4);
+    expect(getRouterAccount.callCount).to.equal(3);
     for (const call of getRouterAccount.getCalls()) {
       expect(call.args[1].owner).to.equal(utils.getAddress(pairedOwner));
       expect(call.args[1].userSalt).to.equal(userSalt);
@@ -1557,11 +1543,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       ),
     );
 
-    await service.deriveIcaFromRevealMessage(
-      outerReveal,
-      originTxHash,
-      mockLogger(),
-    );
+    await deriveAll(service, outerReveal, mockLogger());
 
     const decoded = await dispatchedPairArgs(destinationCall);
     expect(decoded[1]).to.equal(addressToBytes32(icaPayload.owner));
@@ -1576,9 +1558,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       const failure = c.error();
       destinationCall.rejects(failure);
 
-      const error = await service
-        .deriveIcaFromRevealMessage(revealMessage, originTxHash, mockLogger())
-        .catch((error: unknown) => error);
+      const error = await deriveAll(service, revealMessage, mockLogger()).catch(
+        (error: unknown) => error,
+      );
 
       if (c.unavailable) {
         expect(error)
@@ -1993,12 +1975,40 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       originDomain: 1,
       relayers: baseRelayers,
     });
-    service.deriveIcaFromRevealMessage = sinon.stub().resolves({
-      ica: mockIca,
-      routerVersionIcas: [],
-      unavailableCandidates: 0,
-    });
+    service.deriveIcaFromRevealMessage = sinon
+      .stub()
+      .resolves(dispatchWith(mockIca));
+    service.deriveRouterVersionIcas = sinon
+      .stub()
+      .resolves({ routerVersionIcas: [], unavailableCandidates: 0 });
     return Object.assign(service, overrides);
+  }
+
+  /** The reveal's dispatched routers derive `ica`. */
+  function dispatchWith(ica: string) {
+    return {
+      ica,
+      origin: 1,
+      destination: 2,
+      originRouter: addressToBytes32(validAddress),
+      destinationRouter: addressToBytes32(validAddress),
+      owner: addressToBytes32(icaPayload.owner),
+      ism: '0x' + '00'.repeat(32),
+      userSalt: '0x' + '00'.repeat(32),
+    };
+  }
+
+  /** The dispatched ICA is not the stored one, so candidates are derived. */
+  function dispatchedOtherIca(
+    routerVersionIcas: readonly string[],
+    unavailableCandidates: number,
+  ) {
+    return {
+      deriveIcaFromRevealMessage: sinon.stub().resolves(dispatchWith(otherIca)),
+      deriveRouterVersionIcas: sinon
+        .stub()
+        .resolves({ routerVersionIcas, unavailableCandidates }),
+    };
   }
 
   const servedCalls = (ica: string) =>
@@ -2091,6 +2101,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       originTxHash,
       sinon.match.object,
     );
+    sinon.assert.notCalled(service.deriveRouterVersionIcas);
     expect(result).to.equal(servedCalls(mockIca));
     sinon.assert.notCalled(updateMany);
   });
@@ -2102,13 +2113,9 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     it(`serves the dispatched ICA when the stored one ${name}`, async () => {
       // V3 routes registered without router overrides store the V2-derived
       // ICA; the reveal still has to execute on the V3 account.
-      const service = createVerifyingService({
-        deriveIcaFromRevealMessage: sinon.stub().resolves({
-          ica: otherIca,
-          routerVersionIcas,
-          unavailableCandidates: 0,
-        }),
-      });
+      const service = createVerifyingService(
+        dispatchedOtherIca(routerVersionIcas, 0),
+      );
 
       const result = await service.handleFetchCommitment(
         message,
@@ -2118,17 +2125,17 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       );
 
       expect(result).to.equal(servedCalls(otherIca));
+      sinon.assert.calledOnceWithExactly(
+        service.deriveRouterVersionIcas,
+        dispatchWith(otherIca),
+        originTxHash,
+        sinon.match.object,
+      );
     });
   }
 
   it('denies the reveal when no candidate ICA equals the stored one', async () => {
-    const service = createVerifyingService({
-      deriveIcaFromRevealMessage: sinon.stub().resolves({
-        ica: otherIca,
-        routerVersionIcas: [routerIca],
-        unavailableCandidates: 0,
-      }),
-    });
+    const service = createVerifyingService(dispatchedOtherIca([routerIca], 0));
 
     const error = await service
       .handleFetchCommitment(
@@ -2150,13 +2157,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
   it('retries instead of denying when a candidate that could have matched failed to derive', async () => {
     // e.g. the destination RPC timed out on the V2 candidate while the V3
     // dispatch differs from the stored (V2) ICA: not a denial.
-    const service = createVerifyingService({
-      deriveIcaFromRevealMessage: sinon.stub().resolves({
-        ica: otherIca,
-        routerVersionIcas: [routerIca],
-        unavailableCandidates: 1,
-      }),
-    });
+    const service = createVerifyingService(dispatchedOtherIca([routerIca], 1));
 
     const error = await service
       .handleFetchCommitment(
@@ -2180,13 +2181,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
   });
 
   it('still serves when a candidate failed to derive but another matched', async () => {
-    const service = createVerifyingService({
-      deriveIcaFromRevealMessage: sinon.stub().resolves({
-        ica: otherIca,
-        routerVersionIcas: [mockIca],
-        unavailableCandidates: 1,
-      }),
-    });
+    const service = createVerifyingService(dispatchedOtherIca([mockIca], 1));
 
     const result = await service.handleFetchCommitment(
       message,
