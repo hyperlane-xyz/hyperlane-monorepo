@@ -23,4 +23,5 @@ test {
     _ = @import("server_test.zig");
     _ = @import("notification_queue.zig");
     _ = @import("runtime_test.zig");
+    _ = @import("coalesce_test.zig");
 }

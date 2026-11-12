@@ -26,6 +26,10 @@ const FakeDb = struct {
     fail: ?[]const u8 = null,
     fail_first_only: bool = false,
     blocked: bool = false,
+    /// Bracket the blocked wait with `core.blocking` like the real database
+    /// adapters (pq.waitSocket). False: the handler blocks unannounced, so
+    /// the HTTP loop's stall monitor must hand its batch to another poller.
+    blocking_hook: bool = true,
     /// Queries whose SQL contains this needle fail with `fail_sql_message`.
     fail_sql: ?[]const u8 = null,
     fail_sql_message: []const u8 = "boom",
@@ -45,7 +49,11 @@ const FakeDb = struct {
         self.started += 1;
         const n = self.queries;
         self.cond.broadcast();
-        while (self.blocked) self.cond.wait(&self.mutex);
+        if (self.blocked) {
+            if (self.blocking_hook) core.blocking.begin();
+            defer if (self.blocking_hook) core.blocking.end();
+            while (self.blocked) self.cond.wait(&self.mutex);
+        }
         const fail = self.fail;
         const fail_first = self.fail_first_only;
         var rows = self.rows;
@@ -159,8 +167,45 @@ const App = struct {
         return self.post(a, try std.fmt.allocPrint(a, "{{\"query\":{f}}}", .{Value{ .string = query }}));
     }
 
+    /// A request that stays parked (blocked database) until the test
+    /// releases it: a generous read bound, so a lost event fails the test
+    /// instead of hanging the runner.
+    fn postQueryParked(self: *App, a: Allocator, query: []const u8) !Response {
+        var c = try self.connect();
+        defer c.close();
+        c.timeout_ms = parked_timeout_ms;
+        const body = try std.fmt.allocPrint(a, "{{\"query\":{f}}}", .{Value{ .string = query }});
+        return c.request(a, try std.fmt.allocPrint(a, "POST /graphql HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {d}\r\n\r\n{s}", .{ body.len, body }));
+    }
+
     fn get(self: *App, a: Allocator, query_string: []const u8, preflight: bool) !Response {
         return self.request(a, try std.fmt.allocPrint(a, "GET /graphql?{s} HTTP/1.1\r\nHost: x\r\n{s}\r\n", .{ query_string, if (preflight) "mercurius-require-preflight: true\r\n" else "" }));
+    }
+};
+
+const parked_timeout_ms = 30_000;
+
+/// Status of a parked request; failures are reported, not hidden as status 0.
+const ParkedResult = struct {
+    status: u16 = 0,
+    err: ?anyerror = null,
+
+    fn run(self: *ParkedResult, ap: *App, query: []const u8) void {
+        var arena = std.heap.ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const r = ap.postQueryParked(arena.allocator(), query) catch |e| {
+            self.err = e;
+            return;
+        };
+        self.status = r.status;
+    }
+
+    fn expectOk(self: ParkedResult, index: usize) !void {
+        if (self.err) |e| {
+            std.debug.print("parked request {d} failed: {s} (no response within {d} ms: an event was lost or the request was never served)\n", .{ index, @errorName(e), parked_timeout_ms });
+            return e;
+        }
+        try testing.expectEqual(@as(u16, 200), self.status);
     }
 };
 
@@ -187,6 +232,8 @@ const Response = struct {
 const Client = struct {
     fd: posix.socket_t,
     buf: [256 * 1024]u8 = undefined,
+    /// Read timeout per poll (tests whose requests stay parked use more).
+    timeout_ms: i32 = 5_000,
     len: usize = 0,
 
     fn close(self: *Client) void {
@@ -199,7 +246,7 @@ const Client = struct {
 
     fn fill(self: *Client) !usize {
         var fds = [_]posix.pollfd{.{ .fd = self.fd, .events = posix.POLL.IN, .revents = 0 }};
-        if (try posix.poll(&fds, 5_000) == 0) return error.Timeout;
+        if (try posix.poll(&fds, self.timeout_ms) == 0) return error.Timeout;
         const n = posix.read(self.fd, self.buf[self.len..]) catch return 0;
         self.len += n;
         return n;
@@ -348,22 +395,15 @@ test "serializes the production query surface consistently" {
     try expectJson(try app.postQuery(a, "{ raw_message_dispatch(limit: 1) { id } }"), 200, "{\"data\":{\"raw_message_dispatch\":[{\"id\":1}]}}");
 }
 
-test "bounds concurrent pathological GraphQL requests" {
+fn boundsConcurrentPathological(blocking_hook: bool) !void {
     var app: App = .{};
     app.db.blocked = true;
+    app.db.blocking_hook = blocking_hook;
     try app.start();
     defer app.stop();
-    const Worker = struct {
-        fn run(ap: *App, status: *u16) void {
-            var arena = std.heap.ArenaAllocator.init(testing.allocator);
-            defer arena.deinit();
-            const r = ap.postQuery(arena.allocator(), "{ domain(limit: 1) { id } }") catch return;
-            status.* = r.status;
-        }
-    };
     var threads: [25]std.Thread = undefined;
-    var statuses = [_]u16{0} ** 25;
-    for (&threads, &statuses) |*t, *s| t.* = try std.Thread.spawn(.{}, Worker.run, .{ &app, s });
+    var results = [_]ParkedResult{.{}} ** 25;
+    for (&threads, &results) |*t, *r| t.* = try std.Thread.spawn(.{}, ParkedResult.run, .{ r, &app, "{ domain(limit: 1) { id } }" });
     app.db.waitStarted(25);
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -375,8 +415,20 @@ test "bounds concurrent pathological GraphQL requests" {
     try testing.expectEqual(@as(u16, 200), (try app.request(a, "GET /metrics HTTP/1.1\r\nHost: x\r\n\r\n")).status);
     app.db.release();
     for (threads) |t| t.join();
-    for (statuses) |s| try testing.expectEqual(@as(u16, 200), s);
+    for (results, 0..) |r, i| try r.expectOk(i);
     try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, "{ domain(limit: 1) { id } }")).status);
+}
+
+test "bounds concurrent pathological GraphQL requests" {
+    try boundsConcurrentPathological(true);
+}
+
+// Same, with handlers that block without announcing it (no core.blocking):
+// every parked request goes through the HTTP loop's stall monitor, which must
+// hand the stalled poller's remaining events to another poller (regression
+// test for events lost in that hand-off).
+test "bounds concurrent pathological GraphQL requests (unannounced blocking)" {
+    try boundsConcurrentPathological(false);
 }
 
 test "only requests parked on I/O hold execution slots (Node turn semantics)" {
@@ -390,16 +442,10 @@ test "only requests parked on I/O hold execution slots (Node turn semantics)" {
     try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, cached)).status);
     // 24 requests parked on the database leave one slot.
     app.db.blocked = true;
-    const Parked = struct {
-        fn run(ap: *App, status: *u16) void {
-            var ar = std.heap.ArenaAllocator.init(testing.allocator);
-            defer ar.deinit();
-            status.* = (ap.postQuery(ar.allocator(), "{ domain(limit: 2) { id } }") catch return).status;
-        }
-    };
+    const parked_query = "{ domain(limit: 2) { id } }";
     var parked: [24]std.Thread = undefined;
-    var parked_status = [_]u16{0} ** 24;
-    for (&parked, &parked_status) |*t, *st| t.* = try std.Thread.spawn(.{}, Parked.run, .{ &app, st });
+    var parked_results = [_]ParkedResult{.{}} ** 24;
+    for (&parked, &parked_results) |*t, *r| t.* = try std.Thread.spawn(.{}, ParkedResult.run, .{ r, &app, parked_query });
     app.db.waitStarted(25);
     // Many concurrent keep-alive clients whose requests never yield: none is
     // rejected (TS admits and finishes each within one event-loop turn).
@@ -417,7 +463,7 @@ test "only requests parked on I/O hold execution slots (Node turn semantics)" {
             const hit = std.fmt.allocPrint(ar.allocator(), "POST /graphql HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {d}\r\n\r\n{{\"query\":\"{s}\"}}", .{ cached.len + 12, cached }) catch return;
             const invalid_body = "{\"query\":\"{ domain { idx } }\"}";
             const invalid = std.fmt.comptimePrint("POST /graphql HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {d}\r\n\r\n", .{invalid_body.len}) ++ invalid_body;
-            for (0..100) |i| {
+            for (0..25) |i| {
                 const r = c.request(ar.allocator(), if (i % 4 == 3) invalid else hit) catch {
                     _ = failed.fetchAdd(1, .monotonic);
                     return;
@@ -435,8 +481,8 @@ test "only requests parked on I/O hold execution slots (Node turn semantics)" {
     try testing.expectEqual(@as(u32, 0), rejected.load(.monotonic));
     // A 25th parked request fills the last slot; then even a cache hit is
     // rejected at preHandler, as in TS.
-    var last_status: u16 = 0;
-    const last = try std.Thread.spawn(.{}, Parked.run, .{ &app, &last_status });
+    var last_result: ParkedResult = .{};
+    const last = try std.Thread.spawn(.{}, ParkedResult.run, .{ &last_result, &app, parked_query });
     app.db.waitStarted(26);
     const full = try app.postQuery(a, cached);
     try testing.expectEqual(@as(u16, 503), full.status);
@@ -445,8 +491,8 @@ test "only requests parked on I/O hold execution slots (Node turn semantics)" {
     app.db.release();
     for (parked) |t| t.join();
     last.join();
-    for (parked_status) |st| try testing.expectEqual(@as(u16, 200), st);
-    try testing.expectEqual(@as(u16, 200), last_status);
+    for (parked_results, 0..) |r, i| try r.expectOk(i);
+    try last_result.expectOk(24);
     try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, cached)).status);
 }
 

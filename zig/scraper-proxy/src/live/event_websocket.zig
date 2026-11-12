@@ -116,6 +116,7 @@ pub const EventWebSocketServer = struct {
             .on_pong = onPong,
             .on_error = onError,
             .on_close = onClose,
+            .transition = onTransition,
         };
         const conn = ws_server.handleUpgrade(self.gpa, req, socket, handler) orelse return;
         const sock: live.Socket = .{ .ptr = conn, .vtable = &conn_vtable };
@@ -148,6 +149,16 @@ pub const EventWebSocketServer = struct {
         const text = core.json.toWellFormedUtf8(self.gpa, data) catch return;
         defer if (text.ptr != data.ptr) self.gpa.free(text);
         self.server.onMessage(peer, text);
+    }
+
+    /// Node processes a peer's close frame, a protocol error or EOF as an I/O
+    /// event between ticks: apply it once the current emulated tick (and the
+    /// frames it sent) is over, so every frame sent in that tick sees OPEN.
+    fn onTransition(ctx: *anyopaque, conn: *ws.Conn, event: ws.Transition) void {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        self.loop.lock();
+        defer self.loop.unlock();
+        conn.applyTransition(event);
     }
 
     fn onPong(ctx: *anyopaque, conn: *ws.Conn) void {
@@ -189,21 +200,22 @@ pub const EventWebSocketServer = struct {
     }
     fn connTrySendInline(ptr: *anyopaque, bytes: []const u8, job: *live.SendJob) live.Socket.InlineResult {
         const callbacks = [1]ws.SendCallback{.{ .ctx = job, .func = sendDone }};
-        const outcome = asConn(ptr).trySendInlineMany(&.{bytes}, false, &callbacks) catch return .failed;
-        return switch (outcome) {
-            .written => |n| if (n == 1) .written else .partial,
-            .busy => .busy,
+        const outcome = asConn(ptr).sendInlineCorked(&.{bytes}, false, &callbacks, 1) catch |err| return switch (err) {
+            error.NotOpen => .closed,
+            else => .failed,
         };
+        // Not written whole: queued (kernel full, or behind queued frames).
+        return if (outcome.written == 1) .written else .partial;
     }
-    fn connTrySendInlineMany(ptr: *anyopaque, payloads: []const []const u8, jobs: []const *live.SendJob) live.Socket.ManyResult {
+    fn connTrySendInlineMany(ptr: *anyopaque, payloads: []const []const u8, jobs: []const *live.SendJob, required: usize) live.Socket.ManyResult {
         var callbacks: [ws.Conn.max_inline_frames]ws.SendCallback = undefined;
         std.debug.assert(jobs.len <= callbacks.len);
         for (jobs, callbacks[0..jobs.len]) |job, *cb| cb.* = .{ .ctx = job, .func = sendDone };
-        const outcome = asConn(ptr).trySendInlineMany(payloads, false, callbacks[0..jobs.len]) catch return .failed;
-        return switch (outcome) {
-            .written => |n| .{ .written = n },
-            .busy => .busy,
+        const outcome = asConn(ptr).sendInlineCorked(payloads, false, callbacks[0..jobs.len], required) catch |err| return switch (err) {
+            error.NotOpen => .closed,
+            else => .failed,
         };
+        return .{ .done = .{ .written = outcome.written, .queued = outcome.queued } };
     }
     fn sendDone(ctx: *anyopaque, _: *ws.Conn, ok: bool) void {
         const job: *live.SendJob = @ptrCast(@alignCast(ctx));

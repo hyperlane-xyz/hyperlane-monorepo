@@ -6,6 +6,7 @@ const core = @import("core");
 const types = @import("types.zig");
 const server_mod = @import("server.zig");
 const ws = @import("ws.zig");
+const loop_mod = @import("loop.zig");
 
 const testing = std.testing;
 const posix = std.posix;
@@ -55,6 +56,14 @@ const Echo = struct {
         self.mutex.unlock();
         // A slow handler: input arriving meanwhile is merged into one edge.
         if (std.mem.eql(u8, req.query, "sleep")) std.Thread.sleep(300 * std.time.ns_per_ms);
+        // A wait announced like a DB wait (core.blocking): handed off at once.
+        // A short unannounced stall (caught by the monitor, not core.blocking).
+        if (std.mem.eql(u8, req.query, "stall")) std.Thread.sleep(20 * std.time.ns_per_ms);
+        if (std.mem.eql(u8, req.query, "hooked")) {
+            core.blocking.begin();
+            std.Thread.sleep(300 * std.time.ns_per_ms);
+            core.blocking.end();
+        }
         if (std.mem.eql(u8, req.query, "big")) {
             const big = req.arena.alloc(u8, 16 * 1024 * 1024) catch return;
             @memset(big, 'b');
@@ -91,6 +100,14 @@ const Echo = struct {
         }
     }
 
+    /// `on_done` runs once the kernel took the last byte, which can be after
+    /// the client already read the response: wait (bounded) for the count.
+    fn waitFinished(self: *Echo, n: u32) Echo {
+        var waited: u32 = 0;
+        while (self.snapshot().done_finished < n and waited < 400) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+        return self.snapshot();
+    }
+
     fn snapshot(self: *Echo) Echo {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -110,12 +127,18 @@ const WsEcho = struct {
     kept: ?*ws.Conn = null,
     /// Allocator for `/oom*` upgrades (allocation-failure tests).
     failing: ?std.mem.Allocator = null,
+    short_busy: bool = false,
+
+    fn ignoreSent(_: *anyopaque, _: *ws.Conn, _: bool) void {}
 
     fn onUpgrade(ctx: *anyopaque, req: *types.Request, socket: *server_mod.UpgradeSocket) void {
         const self: *WsEcho = @ptrCast(@alignCast(ctx));
         const oom = std.mem.startsWith(u8, req.path, "/oom");
         const keep = std.mem.eql(u8, req.path, "/keep");
-        if (!std.mem.eql(u8, req.path, "/agents") and !oom and !keep) return socket.destroy();
+        const greet = std.mem.eql(u8, req.path, "/greet");
+        const kill = std.mem.eql(u8, req.path, "/kill");
+        const short = std.mem.eql(u8, req.path, "/short");
+        if (!std.mem.eql(u8, req.path, "/agents") and !oom and !keep and !greet and !kill and !short) return socket.destroy();
         const gpa = if (oom) self.failing.? else testing.allocator;
         const conn = self.wss.handleUpgrade(gpa, req, socket, .{
             .ctx = self,
@@ -127,6 +150,21 @@ const WsEcho = struct {
         if (keep) {
             self.kept = conn; // released by the test
             return;
+        }
+        // A frame sent during the upgrade goes out with the 101 (one write).
+        if (greet) _ = conn.trySendInline("ready", false, null) catch {};
+        if (kill) conn.terminate();
+        if (short) {
+            // The kernel takes only part of the pending 101: nothing of the
+            // optional frame went out or was queued, so the caller falls back
+            // to `send`.
+            conn.test_send_cap = 40;
+            const cb: ws.SendCallback = .{ .ctx = self, .func = ignoreSent };
+            const r = conn.sendInlineCorked(&.{"ready"}, false, &.{cb}, 0) catch null;
+            self.mutex.lock();
+            self.short_busy = r != null and r.?.written == 0 and r.?.queued == 0;
+            self.mutex.unlock();
+            conn.send("ready", false, null) catch {};
         }
         conn.release();
     }
@@ -408,7 +446,7 @@ test "body parsing: json, text, application/graphql, chunked, errors" {
     const xml = try c4.request(a, "POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: application/xml\r\nContent-Length: 4\r\n\r\n<a/>");
     try testing.expectEqual(@as(u16, 415), xml.status);
     try testing.expectEqualStrings("{\"data\":null,\"errors\":[{\"message\":\"Unsupported Media Type\"}]}", xml.body);
-    const snap = h.echo.snapshot();
+    const snap = h.echo.waitFinished(8);
     try testing.expectEqual(@as(u32, 4), snap.handled);
     try testing.expectEqual(@as(u32, 4), snap.errors);
     try testing.expectEqual(@as(u32, 8), snap.done_finished);
@@ -466,7 +504,7 @@ test "on_request short-circuit closes the socket; aborted uploads report on_done
     try testing.expectEqualStrings("GraphQL upload capacity exceeded", r.body);
     try testing.expect(std.mem.startsWith(u8, r.head, "HTTP/1.1 503 Service Unavailable\r\nvary: Origin\r\nretry-after: 1\r\nconnection: close\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: 32\r\nDate: "));
     try testing.expect(c2.closedByPeer());
-    snap = h.echo.snapshot();
+    snap = h.echo.waitFinished(1);
     try testing.expectEqual(@as(u32, 1), snap.done_finished);
 }
 
@@ -618,6 +656,86 @@ test "blocked requests in one accept batch never hold up later accepts" {
     for (statuses) |st| try testing.expectEqual(@as(u16, 200), st);
 }
 
+test "requests behind a DB-style wait in the same batch are served promptly" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Keep-alive connections, so their next requests arrive as one batch.
+    var slow: [6]Client = undefined;
+    for (&slow) |*cl| cl.* = try h.connect();
+    defer for (&slow) |*cl| cl.close();
+    var fast = try h.connect();
+    defer fast.close();
+    for (&slow) |*cl| _ = try cl.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    _ = try fast.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    for (&slow) |*cl| try cl.send("GET /graphql?hooked HTTP/1.1\r\nHost: a\r\n\r\n");
+    const t0 = std.time.milliTimestamp();
+    const r = try fast.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqual(@as(u16, 404), r.status);
+    // Each hooked wait is 300 ms; nothing may queue behind them.
+    try testing.expect(std.time.milliTimestamp() - t0 < 100);
+    for (&slow) |*cl| try testing.expectEqual(@as(u16, 200), (try cl.read(a, false)).status);
+}
+
+test "a steal racing the end of a stalled dispatch loses and repeats nothing" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    loop_mod.test_steal_delay_ns = 30 * std.time.ns_per_ms; // the stall ends mid-steal
+    defer loop_mod.test_steal_delay_ns = 0;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Keep-alive sockets whose next requests land in one batch behind a stall.
+    var cs: [12]posix.socket_t = undefined;
+    for (&cs) |*fd| {
+        var cl = try h.connect();
+        _ = try cl.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+        fd.* = cl.fd;
+    }
+    defer for (cs) |fd| posix.close(fd);
+    for (0..5) |_| {
+        for (cs, 0..) |fd, i| {
+            const req: []const u8 = if (i == 0) "GET /graphql?stall HTTP/1.1\r\nHost: a\r\n\r\n" else "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n";
+            if (!server_mod.writeFd(fd, req)) return error.WriteFailed;
+        }
+        // Exactly one response each: none lost (a lost edge hangs the read),
+        // none run twice (an extra response would desync the next round).
+        for (cs, 0..) |fd, i| {
+            var cl: Client = .{ .fd = fd };
+            const r = try cl.read(a, false);
+            try testing.expectEqual(@as(u16, if (i == 0) 200 else 404), r.status);
+            try testing.expectEqual(@as(usize, 0), cl.len);
+        }
+    }
+}
+
+test "close() while upgrades are in flight never treats a WebSocket as HTTP" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const Upgrader = struct {
+        fn run(port: u16) void {
+            const addr = std.net.Address.parseIp("127.0.0.1", port) catch return;
+            for (0..20) |_| {
+                const stream = std.net.tcpConnectToAddress(addr) catch return;
+                defer stream.close();
+                _ = server_mod.writeFd(stream.handle, "GET /agents HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+            }
+        }
+    };
+    var threads: [8]std.Thread = undefined;
+    for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Upgrader.run, .{h.server.port()});
+    std.Thread.sleep(5 * std.time.ns_per_ms);
+    h.server.close(1_000);
+    for (threads) |t| t.join();
+    h.stop(); // a WebSocket destroyed as an HTTP Connection would corrupt memory here
+}
+
 test "pollers settle back to one soon after a burst of blocked requests" {
     var h: Harness = .{};
     try h.start(10_000);
@@ -691,6 +809,47 @@ test "the first unhooked stall after an idle second is handed off promptly" {
     try testing.expectEqual(@as(u16, 404), r.status);
     // The handler sleeps 300 ms; a hand-off answers long before.
     try testing.expect(took < 150);
+}
+
+test "close() ends idle keep-alive sockets with FIN; a request mid-head still gets 503" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Only fds: a Client carries a 256 KiB buffer.
+    var idle: [200]posix.socket_t = undefined;
+    for (&idle) |*fd| {
+        var cl = try h.connect();
+        _ = try cl.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+        fd.* = cl.fd;
+    }
+    defer for (idle) |fd| posix.close(fd);
+    var mid = try h.connect();
+    defer mid.close();
+    _ = try mid.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    try mid.send("GET /nope HTTP/1.1\r\n");
+    std.Thread.sleep(100 * std.time.ns_per_ms); // all parked
+    const Closer = struct {
+        fn run(server: *server_mod.Server) void {
+            server.close(2_000);
+        }
+    };
+    const closer = try std.Thread.spawn(.{}, Closer.run, .{h.server});
+    // Idle sockets: a clean EOF (FIN, no bytes, no reset).
+    for (idle) |fd| {
+        var buf: [16]u8 = undefined;
+        var fds = [_]posix.pollfd{.{ .fd = fd, .events = posix.POLL.IN, .revents = 0 }};
+        try testing.expect(try posix.poll(&fds, 2_000) == 1);
+        try testing.expectEqual(@as(usize, 0), try posix.read(fd, &buf));
+    }
+    // The request in progress completes with Fastify's 503 and a close.
+    try mid.send("Host: a\r\n\r\n");
+    const r = try mid.read(a, false);
+    try testing.expectEqual(@as(u16, 503), r.status);
+    try testing.expect(mid.closedByPeer());
+    closer.join();
+    h.stop();
 }
 
 test "late requests during close get 503" {
@@ -817,6 +976,349 @@ test "websocket: handshake, echo, ping/pong, server close handshake" {
     defer h.wse.mutex.unlock();
     try testing.expectEqual(@as(u16, 1008), h.wse.closes.items[0]);
     try testing.expectEqual(@as(u32, 1), h.wse.pongs);
+}
+
+test "websocket: a frame sent during the upgrade follows the 101; terminate still answers 101" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const hs = try wsHandshake(&c, a, "/greet");
+    try testing.expectEqual(@as(u16, 101), hs.status);
+    const f = try wsRead(&c);
+    defer testing.allocator.free(f.payload);
+    try testing.expectEqualStrings("ready", f.payload);
+    // `ws` writes the 101 before handlers can destroy the socket.
+    var c2 = try h.connect();
+    defer c2.close();
+    const hs2 = try wsHandshake(&c2, a, "/kill");
+    try testing.expectEqual(@as(u16, 101), hs2.status);
+    try testing.expect(c2.closedByPeer());
+}
+
+test "websocket: a short write inside the pending 101 keeps 101 then the frame in order" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const hs = try wsHandshake(&c, a, "/short");
+    try testing.expectEqualStrings("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n", hs.head);
+    const f = try wsRead(&c);
+    defer testing.allocator.free(f.payload);
+    try testing.expectEqual(@as(u8, 0x1), f.opcode);
+    try testing.expectEqualStrings("ready", f.payload);
+    h.wse.mutex.lock();
+    defer h.wse.mutex.unlock();
+    try testing.expect(h.wse.short_busy);
+}
+
+test "accepted sockets have TCP_NODELAY (inherited from the listener on Linux)" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, arena_state.allocator());
+    defer conn.release();
+    var value: c_int = 0;
+    var len: posix.socklen_t = @sizeOf(c_int);
+    try testing.expectEqual(@as(c_int, 0), std.c.getsockopt(conn.fd, posix.IPPROTO.TCP, posix.TCP.NODELAY, @ptrCast(&value), &len));
+    try testing.expect(value != 0);
+}
+
+/// An owner that applies reader-side transitions under its own "tick" lock,
+/// as live does with its loop mutex.
+const TickOwner = struct {
+    wss: ws.Server = .{ .options = .{ .max_payload = 4096, .close_timeout_ms = 300 } },
+    tick: std.Thread.Mutex = .{},
+    mutex: std.Thread.Mutex = .{},
+    events: std.ArrayList(u8) = .empty,
+    conn: ?*ws.Conn = null,
+    closed: bool = false,
+
+    fn onUpgrade(ctx: *anyopaque, req: *types.Request, socket: *server_mod.UpgradeSocket) void {
+        const self: *TickOwner = @ptrCast(@alignCast(ctx));
+        const conn = self.wss.handleUpgrade(testing.allocator, req, socket, .{
+            .ctx = self,
+            .on_message = onMessage,
+            .on_error = onError,
+            .on_close = onClose,
+            .transition = onTransition,
+        }) orelse return;
+        self.mutex.lock();
+        self.conn = conn;
+        self.mutex.unlock();
+    }
+
+    fn record(self: *TickOwner, c: u8) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.events.append(testing.allocator, c) catch {};
+    }
+
+    fn onMessage(ctx: *anyopaque, conn: *ws.Conn, data: []const u8, _: bool) void {
+        const self: *TickOwner = @ptrCast(@alignCast(ctx));
+        if (std.mem.eql(u8, data, "fail-close")) return conn.close(1000, "");
+        self.record('m');
+    }
+    fn onError(ctx: *anyopaque, _: *ws.Conn, _: []const u8) void {
+        @as(*TickOwner, @ptrCast(@alignCast(ctx))).record('e');
+    }
+    fn onClose(ctx: *anyopaque, conn: *ws.Conn, _: u16, _: []const u8) void {
+        const self: *TickOwner = @ptrCast(@alignCast(ctx));
+        self.record('c');
+        self.mutex.lock();
+        self.closed = true;
+        self.mutex.unlock();
+        conn.release();
+    }
+    fn onTransition(ctx: *anyopaque, conn: *ws.Conn, event: ws.Transition) void {
+        const self: *TickOwner = @ptrCast(@alignCast(ctx));
+        self.tick.lock(); // waits for the current "tick" to end
+        defer self.tick.unlock();
+        self.record(switch (event) {
+            .close_frame => 'F',
+            .receiver_error => 'R',
+            .eof => 'E',
+            .close_timeout => 'T',
+        });
+        conn.applyTransition(event);
+    }
+
+    fn waitClosed(self: *TickOwner) !void {
+        var waited: u32 = 0;
+        while (waited < 300) : (waited += 1) {
+            self.mutex.lock();
+            const done = self.closed;
+            self.mutex.unlock();
+            if (done) return;
+            std.Thread.sleep(10 * std.time.ns_per_ms);
+        }
+        return error.Timeout;
+    }
+
+    fn eventsEqual(self: *TickOwner, want: []const u8) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        try testing.expectEqualStrings(want, self.events.items);
+    }
+};
+
+fn tickHarness(owner: *TickOwner) !*server_mod.Server {
+    const server = try server_mod.Server.init(testing.allocator, .{ .host = "127.0.0.1", .port = 0, .upgrade = .{ .ctx = owner, .on_upgrade = TickOwner.onUpgrade } });
+    try server.start();
+    return server;
+}
+
+fn tickConnect(server: *server_mod.Server, owner: *TickOwner, a: std.mem.Allocator) !Client {
+    const addr = try std.net.Address.parseIp("127.0.0.1", server.port());
+    const stream = try std.net.tcpConnectToAddress(addr);
+    var c: Client = .{ .fd = stream.handle };
+    _ = try wsHandshake(&c, a, "/agents");
+    var waited: u32 = 0;
+    while (waited < 300) : (waited += 1) {
+        owner.mutex.lock();
+        const ready = owner.conn != null;
+        owner.mutex.unlock();
+        if (ready) return c;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    return error.Timeout;
+}
+
+test "websocket transitions: a peer close lands after the owner's tick, whose frames all go out" {
+    var owner: TickOwner = .{};
+    defer owner.events.deinit(testing.allocator);
+    const server = try tickHarness(&owner);
+    defer server.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try tickConnect(server, &owner, a);
+    defer c.close();
+    const conn = owner.conn.?;
+    // A tick is running: the client's close frame arrives meanwhile.
+    owner.tick.lock();
+    try c.send(try wsFrame(a, 0x8, &.{ 0x03, 0xe8 }, true, true));
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    // Still OPEN inside the tick: frames sent now are written, like Node's.
+    try testing.expectEqual(ws.ReadyState.open, conn.readyState());
+    try conn.send("in-tick", false, null);
+    owner.tick.unlock();
+    const f = try wsRead(&c);
+    defer testing.allocator.free(f.payload);
+    try testing.expectEqualStrings("in-tick", f.payload);
+    const echo = try wsRead(&c);
+    defer testing.allocator.free(echo.payload);
+    try testing.expectEqual(@as(u8, 0x8), echo.opcode);
+    posix.shutdown(c.fd, .send) catch {};
+    try owner.waitClosed();
+    try owner.eventsEqual("FEc");
+}
+
+test "websocket transitions: protocol errors, EOF and the close timeout go through the hook" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    {
+        // Receiver error: transition, then 'error' (outside the hook), then close.
+        var owner: TickOwner = .{};
+        defer owner.events.deinit(testing.allocator);
+        const server = try tickHarness(&owner);
+        defer server.deinit();
+        var c = try tickConnect(server, &owner, a);
+        defer c.close();
+        try c.send(try wsFrame(a, 0x1, "x", false, true)); // unmasked
+        const close = try wsRead(&c);
+        defer testing.allocator.free(close.payload);
+        try testing.expectEqual(@as(u8, 0x8), close.opcode);
+        posix.shutdown(c.fd, .send) catch {};
+        try owner.waitClosed();
+        try owner.eventsEqual("ReEc");
+    }
+    {
+        // EOF without a close frame.
+        var owner: TickOwner = .{};
+        defer owner.events.deinit(testing.allocator);
+        const server = try tickHarness(&owner);
+        defer server.deinit();
+        var c = try tickConnect(server, &owner, a);
+        c.close();
+        try owner.waitClosed();
+        try owner.eventsEqual("Ec");
+    }
+    {
+        // Our close is never answered: the close timeout terminates.
+        var owner: TickOwner = .{};
+        defer owner.events.deinit(testing.allocator);
+        const server = try tickHarness(&owner);
+        defer server.deinit();
+        var c = try tickConnect(server, &owner, a);
+        defer c.close();
+        try c.send(try wsFrame(a, 0x1, "fail-close", true, true));
+        try owner.waitClosed();
+        try owner.eventsEqual("Tc");
+    }
+}
+
+/// Many sockets, one owner "tick" lock shared by sends and the transition
+/// hook (live's loop mutex), clients closing every way at once.
+const StressOwner = struct {
+    wss: ws.Server = .{ .options = .{ .max_payload = 4096, .close_timeout_ms = 300 } },
+    tick: std.Thread.Mutex = .{},
+    mutex: std.Thread.Mutex = .{},
+    conns: std.ArrayList(*ws.Conn) = .empty,
+    closed: std.atomic.Value(u32) = .init(0),
+    stop: std.atomic.Value(bool) = .init(false),
+
+    fn onUpgrade(ctx: *anyopaque, req: *types.Request, socket: *server_mod.UpgradeSocket) void {
+        const self: *StressOwner = @ptrCast(@alignCast(ctx));
+        const conn = self.wss.handleUpgrade(testing.allocator, req, socket, .{
+            .ctx = self,
+            .on_message = onMessage,
+            .on_close = onClose,
+            .transition = onTransition,
+        }) orelse return;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.conns.append(testing.allocator, conn) catch conn.terminate();
+    }
+    fn onMessage(_: *anyopaque, _: *ws.Conn, _: []const u8, _: bool) void {}
+    fn onClose(ctx: *anyopaque, _: *ws.Conn, _: u16, _: []const u8) void {
+        _ = @as(*StressOwner, @ptrCast(@alignCast(ctx))).closed.fetchAdd(1, .monotonic);
+    }
+    fn onTransition(ctx: *anyopaque, conn: *ws.Conn, event: ws.Transition) void {
+        const self: *StressOwner = @ptrCast(@alignCast(ctx));
+        self.tick.lock();
+        defer self.tick.unlock();
+        conn.applyTransition(event);
+    }
+    fn ignore(_: *anyopaque, _: *ws.Conn, _: bool) void {}
+
+    /// Ticks: under the lock, write to every socket and sometimes close one.
+    fn run(self: *StressOwner) void {
+        var prng = std.Random.DefaultPrng.init(42);
+        const rand = prng.random();
+        const cb: ws.SendCallback = .{ .ctx = self, .func = ignore };
+        while (!self.stop.load(.acquire)) {
+            self.tick.lock();
+            self.mutex.lock();
+            const conns = self.conns.items;
+            for (conns) |conn| {
+                _ = conn.sendInlineCorked(&.{ "tick-a", "tick-b" }, false, &.{ cb, cb }, 2) catch {};
+                _ = conn.snapshot();
+                switch (rand.uintLessThan(u32, 200)) {
+                    0 => conn.close(1000, "owner"),
+                    1 => conn.terminate(),
+                    else => {},
+                }
+            }
+            self.mutex.unlock();
+            self.tick.unlock();
+            std.Thread.sleep(200 * std.time.ns_per_us);
+        }
+    }
+};
+
+test "websocket transitions: no deadlock between the owner's tick and reader transitions (stress)" {
+    var owner: StressOwner = .{};
+    const server = try server_mod.Server.init(testing.allocator, .{ .host = "127.0.0.1", .port = 0, .upgrade = .{ .ctx = &owner, .on_upgrade = StressOwner.onUpgrade } });
+    try server.start();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const n = 64;
+    var fds: [n]posix.socket_t = undefined;
+    for (&fds) |*fd| {
+        const stream = try std.net.tcpConnectToAddress(try std.net.Address.parseIp("127.0.0.1", server.port()));
+        var c: Client = .{ .fd = stream.handle };
+        _ = try wsHandshake(&c, a, "/agents");
+        fd.* = stream.handle;
+    }
+    while (true) {
+        owner.mutex.lock();
+        const ready = owner.conns.items.len;
+        owner.mutex.unlock();
+        if (ready == n) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    const ticker = try std.Thread.spawn(.{}, StressOwner.run, .{&owner});
+    std.Thread.sleep(100 * std.time.ns_per_ms);
+    // Clients end every way while ticks keep writing.
+    const close_frame = try wsFrame(a, 0x8, &.{ 0x03, 0xe8 }, true, true);
+    const garbage = try wsFrame(a, 0x1, "x", false, true); // unmasked: protocol error
+    for (fds, 0..) |fd, i| switch (i % 3) {
+        0 => _ = server_mod.writeFd(fd, close_frame),
+        1 => _ = server_mod.writeFd(fd, garbage),
+        else => {
+            posix.close(fd);
+            fds[i] = -1;
+        },
+    };
+    // Drain what the server writes and end the rest, so every socket closes.
+    std.Thread.sleep(100 * std.time.ns_per_ms);
+    for (&fds) |*fd| if (fd.* >= 0) {
+        posix.close(fd.*);
+        fd.* = -1;
+    };
+    var waited: u32 = 0;
+    while (owner.closed.load(.monotonic) < n and waited < 500) : (waited += 1) std.Thread.sleep(10 * std.time.ns_per_ms);
+    owner.stop.store(true, .release);
+    ticker.join();
+    try testing.expectEqual(@as(u32, n), owner.closed.load(.monotonic));
+    for (owner.conns.items) |conn| conn.release();
+    owner.conns.deinit(testing.allocator);
+    server.deinit();
 }
 
 test "websocket: protocol violations close like ws" {
@@ -1118,6 +1620,64 @@ test "snapshot: readyState and bufferedAmount under one lock" {
     try testing.expectEqual(ws.ReadyState.closing, conn.snapshot().ready_state);
 }
 
+test "sendInlineCorked: the frames before `required` go out or queue together, in order" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    var counts: CompletionCount = .{};
+    const cbs = [_]ws.SendCallback{ counts.cb(), counts.cb(), counts.cb() };
+    // Everything fits: written, nothing queued, no callbacks.
+    const r = try conn.sendInlineCorked(&.{ "a", "b", "c" }, false, &cbs, 3);
+    try testing.expectEqual(@as(usize, 3), r.written);
+    try testing.expectEqual(@as(usize, 0), r.queued);
+    for ([_][]const u8{ "a", "b", "c" }) |want| {
+        const f = try wsRead(&c);
+        defer testing.allocator.free(f.payload);
+        try testing.expectEqualStrings(want, f.payload);
+    }
+    // The kernel stops inside frame k: k and every later required frame are
+    // queued whole at once, so a pong (or any other frame) cannot get between.
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    var frames: [40][]const u8 = undefined;
+    for (&frames, 0..) |*f, i| f.* = try std.fmt.allocPrint(a, "{d:0>4000}", .{i});
+    var many_cbs: [40]ws.SendCallback = undefined;
+    for (&many_cbs) |*cb| cb.* = counts.cb();
+    const r2 = try conn.sendInlineCorked(&frames, false, &many_cbs, 39);
+    try testing.expect(r2.written < 39 and r2.written + r2.queued == 39);
+    try testing.expect(conn.snapshot().buffered_amount > 0);
+    // The optional last frame was left to the caller; send it the normal way.
+    try conn.send(frames[39], false, null);
+    conn.ping();
+    for (frames) |want| {
+        const f = try wsRead(&c);
+        defer testing.allocator.free(f.payload);
+        try testing.expectEqualStrings(want, f.payload);
+    }
+    const p = try wsRead(&c);
+    defer testing.allocator.free(p.payload);
+    try testing.expectEqual(@as(u8, 0x9), p.opcode);
+    var waited: usize = 0;
+    while (counts.ok.load(.monotonic) != r2.queued and waited < 1000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
+    try testing.expectEqual(@as(u32, @intCast(r2.queued)), counts.ok.load(.monotonic));
+    // Output already queued: nothing is written, the required frames queue behind it.
+    try conn.send("x" ** 600_000, false, null);
+    const r3 = try conn.sendInlineCorked(&.{ "after1", "after2" }, false, cbs[0..2], 1);
+    try testing.expectEqual(@as(usize, 0), r3.written);
+    try testing.expectEqual(@as(usize, 1), r3.queued);
+    const big = try wsReadLarge(&c, a);
+    try testing.expectEqual(@as(usize, 600_000), big.payload.len);
+    const after = try wsRead(&c);
+    defer testing.allocator.free(after.payload);
+    try testing.expectEqualStrings("after1", after.payload);
+}
+
 /// wsRead for frames larger than the client buffer.
 fn wsReadLarge(c: *Client, a: std.mem.Allocator) !struct { opcode: u8, payload: []u8 } {
     while (c.len < 10) if (try c.fill() == 0) return error.EndOfStream;
@@ -1148,88 +1708,4 @@ fn wsReadLarge(c: *Client, a: std.mem.Allocator) !struct { opcode: u8, payload: 
     std.mem.copyForwards(u8, c.buf[0 .. c.len - start], c.buf[start..c.len]);
     c.len -= start;
     return .{ .opcode = opcode, .payload = out };
-}
-
-// ---------------------------------------------------------------------------
-// ws.Conn.trySendInlineMany
-// ---------------------------------------------------------------------------
-
-test "trySendInlineMany: frames written together arrive in order without callbacks" {
-    var h: Harness = .{};
-    try h.start(10_000);
-    defer h.stop();
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    var c = try h.connect();
-    defer c.close();
-    const conn = try keptConn(&h, &c, arena_state.allocator());
-    defer conn.release();
-    var counts: [3]CompletionCount = .{ .{}, .{}, .{} };
-    const callbacks = [3]ws.SendCallback{ counts[0].cb(), counts[1].cb(), counts[2].cb() };
-    const outcome = try conn.trySendInlineMany(&.{ "one", "two" ** 100, "three" }, false, &callbacks);
-    try testing.expectEqual(ws.Conn.InlineMany{ .written = 3 }, outcome);
-    try testing.expectEqual(@as(usize, 0), conn.bufferedAmount());
-    for ([_][]const u8{ "one", "two" ** 100, "three" }) |want| {
-        const f = try wsRead(&c);
-        defer testing.allocator.free(f.payload);
-        try testing.expectEqual(@as(u8, 0x1), f.opcode);
-        try testing.expectEqualStrings(want, f.payload);
-    }
-    // Fully written frames never call back.
-    for (&counts) |*count| try testing.expectEqual(@as(u32, 0), count.ok.load(.monotonic) + count.failed.load(.monotonic));
-}
-
-test "trySendInlineMany: a partial write queues whole frames, charged in full until written" {
-    var h: Harness = .{};
-    try h.start(10_000);
-    defer h.stop();
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    const a = arena_state.allocator();
-    var c = try h.connect();
-    defer c.close();
-    const conn = try keptConn(&h, &c, a);
-    defer conn.release();
-    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
-    const big = try a.alloc(u8, 4 * 1024 * 1024);
-    for (big, 0..) |*b, i| b.* = @intCast('a' + i % 26);
-    var counts: [2]CompletionCount = .{ .{}, .{} };
-    const callbacks = [2]ws.SendCallback{ counts[0].cb(), counts[1].cb() };
-    // The client is not reading: the kernel takes only part of the first frame.
-    const outcome = try conn.trySendInlineMany(&.{ big, "after" }, false, &callbacks);
-    try testing.expectEqual(ws.Conn.InlineMany{ .written = 0 }, outcome);
-    // ws counts every unfinished frame whole (header + payload).
-    try testing.expectEqual(@as(usize, 10 + big.len + 2 + "after".len), conn.bufferedAmount());
-    // Queue busy now: nothing written, no callback.
-    var busy_counts: CompletionCount = .{};
-    const busy_callbacks = [1]ws.SendCallback{busy_counts.cb()};
-    try testing.expectEqual(ws.Conn.InlineMany.busy, try conn.trySendInlineMany(&.{"busy"}, false, &busy_callbacks));
-    const first = try wsReadLarge(&c, a);
-    try testing.expectEqualSlices(u8, big, first.payload);
-    const second = try wsRead(&c);
-    defer testing.allocator.free(second.payload);
-    try testing.expectEqualStrings("after", second.payload);
-    var waited: usize = 0;
-    while (counts[1].ok.load(.monotonic) == 0 and waited < 1000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
-    try testing.expectEqual(@as(u32, 1), counts[0].ok.load(.monotonic));
-    try testing.expectEqual(@as(u32, 1), counts[1].ok.load(.monotonic));
-    try testing.expectEqual(@as(u32, 0), busy_counts.ok.load(.monotonic) + busy_counts.failed.load(.monotonic));
-    try testing.expectEqual(@as(usize, 0), conn.bufferedAmount());
-}
-
-test "trySendInlineMany: NotOpen after close, no callbacks" {
-    var h: Harness = .{};
-    try h.start(10_000);
-    defer h.stop();
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    var c = try h.connect();
-    defer c.close();
-    const conn = try keptConn(&h, &c, arena_state.allocator());
-    defer conn.release();
-    conn.close(1000, "bye");
-    var counts: CompletionCount = .{};
-    const callbacks = [1]ws.SendCallback{counts.cb()};
-    try testing.expectError(error.NotOpen, conn.trySendInlineMany(&.{"late"}, false, &callbacks));
-    try testing.expectEqual(@as(u32, 0), counts.ok.load(.monotonic) + counts.failed.load(.monotonic));
 }

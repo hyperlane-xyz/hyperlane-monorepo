@@ -211,9 +211,33 @@ pub const Options = struct {
     /// waiting, so the count returns to one soon after load. The last poller
     /// waits without a timeout (no wake-ups at idle).
     idle_exit_ms: i32 = 1_000,
+    /// Events taken per `epoll_wait`/`kevent` (Node-style batching). A
+    /// poller that blocks or stalls hands its unprocessed ones to another.
+    event_batch: u32 = 64,
     /// A dispatch running this long without a `blockingBegin` is assumed
     /// blocked (e.g. on a mutex): the monitor hands its place to another.
     stall_us: u32 = 2_000,
+};
+
+/// Event-loop counters (relaxed atomics; logged at debug level when the loop
+/// stops) to attribute per-request overhead: waits vs events, hand-offs.
+pub const Stats = struct {
+    waits: std.atomic.Value(u64) = .init(0),
+    events: std.atomic.Value(u64) = .init(0),
+    begins: std.atomic.Value(u64) = .init(0),
+    begin_spare: std.atomic.Value(u64) = .init(0),
+    unparks: std.atomic.Value(u64) = .init(0),
+    spawns: std.atomic.Value(u64) = .init(0),
+    parks: std.atomic.Value(u64) = .init(0),
+    exits: std.atomic.Value(u64) = .init(0),
+    monitor_ticks: std.atomic.Value(u64) = .init(0),
+    monitor_starts: std.atomic.Value(u64) = .init(0),
+    stalls: std.atomic.Value(u64) = .init(0),
+    stolen: std.atomic.Value(u64) = .init(0),
+
+    fn bump(counter: *std.atomic.Value(u64), n: u64) void {
+        _ = counter.fetchAdd(n, .monotonic);
+    }
 };
 
 /// One poller's dispatch state, read by the monitor.
@@ -222,9 +246,22 @@ const Rec = struct {
     start: std.atomic.Value(i64) = .init(0),
     state: std.atomic.Value(State) = .init(.idle),
     used: bool = false,
+    /// Events harvested by one wait. The owner takes them in order with
+    /// `next.fetchAdd`; a thread that must not leave them stranded (the
+    /// owner about to block, or the monitor on a stall) takes the rest with
+    /// `next.swap(len)` and re-posts them.
+    batch: [*]Event = undefined,
+    /// Held by a stealer while it copies the batch, and by the owner while it
+    /// resets the batch for reuse: a steal never reads a reused (or, after
+    /// the owner exits, freed) buffer.
+    steal: std.Thread.Mutex = .{},
+    len: std.atomic.Value(u32) = .init(0),
+    next: std.atomic.Value(u32) = .init(0),
 
     const State = enum(u8) { idle, running, blocked, stalled };
 };
+
+const max_event_batch = 128;
 
 /// How long a surplus poller waits as a spare before parking.
 const surplus_linger_ms = 50;
@@ -232,9 +269,16 @@ const surplus_linger_ms = 50;
 const wake_udata: u64 = std.math.maxInt(u64) - 1;
 const tick_udata: u64 = std.math.maxInt(u64) - 2;
 
-const Posted = struct { index: u32, gen: u32, token: u32 };
 
-pub const Event = struct { udata: u64, readable: bool, writable: bool, hup: bool };
+pub const Event = struct {
+    udata: u64,
+    readable: bool = false,
+    writable: bool = false,
+    hup: bool = false,
+    /// Non-zero: not readiness but a slot whose `token` another thread
+    /// claimed (`post`); it runs as `on_posted`.
+    token: u32 = 0,
+};
 
 pub const Loop = struct {
     gpa: std.mem.Allocator,
@@ -258,9 +302,10 @@ pub const Loop = struct {
     park_cond: std.Thread.Condition = .{},
     recs: []Rec = &.{},
     monitor_running: std.atomic.Value(bool) = .init(false),
+    stats: Stats = .{},
     stopping: std.atomic.Value(bool) = .init(false),
-    posted: std.ArrayList(Posted) = .empty,
-    posted_spare: std.ArrayList(Posted) = .empty,
+    /// Harvested events handed on by a poller that blocked (see `Rec.batch`).
+    posted_events: std.ArrayList(Event) = .empty,
 
     /// Deadline min-heap of slot indices (keys in `Slot.armed`) and the
     /// one-shot timer armed for its top.
@@ -302,6 +347,7 @@ pub const Loop = struct {
             _ = self.active.fetchSub(1, .seq_cst);
             return e;
         };
+        t.setName("http-poller") catch {};
         t.detach();
     }
 
@@ -314,11 +360,16 @@ pub const Loop = struct {
         self.park_cond.broadcast();
         while (self.threads > 0 or self.monitor_running.load(.acquire)) self.cond.timedWait(&self.mutex, std.time.ns_per_ms) catch {};
         self.mutex.unlock();
+        const st = &self.stats;
+        core.log.child("Http").debug("loop stats waits={d} events={d} begins={d} begin_spare={d} unparks={d} spawns={d} parks={d} exits={d} monitor_starts={d} monitor_ticks={d} stalls={d} stolen={d}", .{
+            st.waits.load(.monotonic),   st.events.load(.monotonic), st.begins.load(.monotonic),        st.begin_spare.load(.monotonic),
+            st.unparks.load(.monotonic), st.spawns.load(.monotonic), st.parks.load(.monotonic),         st.exits.load(.monotonic),
+            st.monitor_starts.load(.monotonic), st.monitor_ticks.load(.monotonic), st.stalls.load(.monotonic), st.stolen.load(.monotonic),
+        });
         if (self.wake_fd >= 0) posix.close(self.wake_fd);
         if (self.tick_fd >= 0) posix.close(self.tick_fd);
         posix.close(self.fd);
-        self.posted.deinit(self.gpa);
-        self.posted_spare.deinit(self.gpa);
+        self.posted_events.deinit(self.gpa);
         self.heap.deinit(self.gpa);
         self.gpa.free(self.recs);
         self.slots.deinit(self.gpa);
@@ -424,8 +475,8 @@ pub const Loop = struct {
     /// Hands a slot whose `token` the caller claimed to a poller thread.
     pub fn post(self: *Loop, index: u32, gen: u32, token: u32) void {
         self.mutex.lock();
-        const was_empty = self.posted.items.len == 0;
-        self.posted.append(self.gpa, .{ .index = index, .gen = gen, .token = token }) catch {
+        const was_empty = self.posted_events.items.len == 0;
+        self.posted_events.append(self.gpa, .{ .udata = udataOf(index, gen), .token = token }) catch {
             self.mutex.unlock();
             // Out of memory: drive it here rather than lose the token.
             self.handler.on_posted(self.handler.ctx, index, gen, token);
@@ -449,19 +500,72 @@ pub const Loop = struct {
             var counter: u64 = 0;
             _ = posix.read(self.wake_fd, std.mem.asBytes(&counter)) catch {};
         }
-        // Take the batch (concurrent drainers each get their own list).
+        // Posted work and handed-on events join this poller's current batch
+        // now, one entry each: run from a private list (or after the batch)
+        // they would be stranded if one of them, or a later event, blocks.
+        // In the batch they stay stealable.
+        if (tls_rec) |rec| self.appendEvents(rec);
+    }
+
+    /// Appends handed-on events to `rec`'s running batch (as much as fits;
+    /// the rest re-signals the wake fd for another poller).
+    fn appendEvents(self: *Loop, rec: *Rec) void {
+        if (@atomicLoad(usize, &self.posted_events.items.len, .monotonic) == 0) return;
         self.mutex.lock();
-        var batch = self.posted;
-        self.posted = self.posted_spare;
-        self.posted_spare = .empty;
+        const len = rec.len.load(.acquire);
+        const n: u32 = @intCast(@min(self.posted_events.items.len, max_event_batch - len));
+        @memcpy(rec.batch[len .. len + n], self.posted_events.items[0..n]);
+        const rest = self.posted_events.items.len - n;
+        std.mem.copyForwards(Event, self.posted_events.items[0..rest], self.posted_events.items[n..]);
+        self.posted_events.shrinkRetainingCapacity(rest);
         self.mutex.unlock();
-        for (batch.items) |p| self.handler.on_posted(self.handler.ctx, p.index, p.gen, p.token);
-        batch.clearRetainingCapacity();
+        rec.len.store(len + n, .release);
+        if (rest > 0) self.signalWake();
+    }
+
+    /// Moves handed-on events into `rec`'s (exhausted) batch; their count.
+    fn takeEvents(self: *Loop, rec: *Rec) u32 {
+        if (@atomicLoad(usize, &self.posted_events.items.len, .monotonic) == 0) return 0;
         self.mutex.lock();
-        if (self.posted_spare.capacity == 0) {
-            self.posted_spare = batch;
-        } else batch.deinit(self.gpa);
+        defer self.mutex.unlock();
+        const n: u32 = @intCast(@min(self.posted_events.items.len, max_event_batch));
+        @memcpy(rec.batch[0..n], self.posted_events.items[0..n]);
+        const rest = self.posted_events.items.len - n;
+        std.mem.copyForwards(Event, self.posted_events.items[0..rest], self.posted_events.items[n..]);
+        self.posted_events.shrinkRetainingCapacity(rest);
+        // More than one batch left: wake another poller for them.
+        if (rest > 0) self.signalWake();
+        return n;
+    }
+
+    /// Re-posts the unprocessed events of `rec`'s batch (owner blocking, or
+    /// the monitor on a stall) so a waiting poller handles them.
+    fn stealBatch(self: *Loop, rec: *Rec) void {
+        // Room first: if even that fails, leave the events with their owner
+        // (they run when it resumes) rather than drop a claimed edge.
+        self.mutex.lock();
+        self.posted_events.ensureUnusedCapacity(self.gpa, max_event_batch) catch {
+            self.mutex.unlock();
+            log.err("cannot hand off a blocked poller's events (out of memory)", .{});
+            return;
+        };
+        var copy: [max_event_batch]Event = undefined;
+        rec.steal.lock();
+        const len = rec.len.load(.acquire);
+        const from = @min(rec.next.swap(len, .acq_rel), len);
+        if (builtin.is_test) if (test_steal_delay_ns > 0) std.Thread.sleep(test_steal_delay_ns);
+        @memcpy(copy[0 .. len - from], rec.batch[from..len]);
+        rec.steal.unlock();
+        if (len > from) Stats.bump(&self.stats.stolen, len - from);
+        var wake = false;
+        for (copy[0 .. len - from]) |ev| switch (if (ev.token != 0) 0 else ev.udata) {
+            // The wake fd is edge-triggered: re-signal instead.
+            wake_udata => wake = true,
+            else => self.posted_events.appendAssumeCapacity(ev),
+        };
+        const signal = wake or self.posted_events.items.len > 0;
         self.mutex.unlock();
+        if (signal) self.signalWake();
     }
 
     // -- deadlines --------------------------------------------------------------------
@@ -602,10 +706,11 @@ pub const Loop = struct {
     // -- pollers ----------------------------------------------------------------------
 
 
-    fn wait(self: *Loop, timeout_ms: i32) union(enum) { event: Event, timeout, interrupted } {
+    /// Waits for up to `out.len` events.
+    fn wait(self: *Loop, out: []Event, timeout_ms: i32) union(enum) { events: usize, timeout, interrupted } {
         if (is_linux) {
-            var ev: [1]linux.epoll_event = undefined;
-            const rc = linux.epoll_wait(self.fd, &ev, 1, timeout_ms);
+            var ev: [max_event_batch]linux.epoll_event = undefined;
+            const rc = linux.epoll_wait(self.fd, &ev, @intCast(out.len), timeout_ms);
             switch (linux.E.init(rc)) {
                 .SUCCESS => {},
                 .INTR => return .interrupted,
@@ -615,30 +720,37 @@ pub const Loop = struct {
                 },
             }
             if (rc == 0) return .timeout;
-            const m = ev[0].events;
-            return .{ .event = .{
-                .udata = ev[0].data.u64,
-                .readable = m & (linux.EPOLL.IN | linux.EPOLL.RDHUP | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
-                .writable = m & (linux.EPOLL.OUT | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
-                .hup = m & (linux.EPOLL.RDHUP | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
-            } };
+            for (ev[0..rc], out[0..rc]) |e, *o| {
+                const m = e.events;
+                o.* = .{
+                    .udata = e.data.u64,
+                    .readable = m & (linux.EPOLL.IN | linux.EPOLL.RDHUP | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
+                    .writable = m & (linux.EPOLL.OUT | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
+                    .hup = m & (linux.EPOLL.RDHUP | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
+                };
+            }
+            return .{ .events = rc };
         }
-        var ev: [1]posix.Kevent = undefined;
+        var ev: [max_event_batch]posix.Kevent = undefined;
         const ts: posix.timespec = .{ .sec = @divTrunc(timeout_ms, 1000), .nsec = @rem(timeout_ms, 1000) * std.time.ns_per_ms };
         var none_in: [0]posix.Kevent = .{};
-        const n = posix.kevent(self.fd, &none_in, &ev, if (timeout_ms < 0) null else &ts) catch return .interrupted;
+        const n = posix.kevent(self.fd, &none_in, ev[0..out.len], if (timeout_ms < 0) null else &ts) catch return .interrupted;
         if (n == 0) return .timeout;
-        return .{ .event = .{
-            .udata = ev[0].udata,
-            .readable = ev[0].filter == std.c.EVFILT.READ,
-            .writable = ev[0].filter == std.c.EVFILT.WRITE,
-            .hup = ev[0].flags & (std.c.EV.EOF | std.c.EV.ERROR) != 0,
-        } };
+        for (ev[0..n], out[0..n]) |e, *o| o.* = .{
+            .udata = e.udata,
+            .readable = e.filter == std.c.EVFILT.READ,
+            .writable = e.filter == std.c.EVFILT.WRITE,
+            .hup = e.flags & (std.c.EV.EOF | std.c.EV.ERROR) != 0,
+        };
+        return .{ .events = n };
     }
 
     fn worker(self: *Loop) void {
         tls_poller = self;
         tls_rec = self.claimRec();
+        if (tls_rec == null) return self.exitThread(false); // more threads than records
+        var batch: [max_event_batch]Event = undefined;
+        tls_rec.?.batch = &batch;
         if (@hasDecl(core, "blocking")) core.blocking.hook = .{ .ctx = self, .begin = hookBegin, .end = hookEnd };
         while (true) {
             if (self.isStopping()) {
@@ -652,7 +764,10 @@ pub const Loop = struct {
             const surplus = self.active.load(.seq_cst) > self.options.active;
             _ = self.idle.fetchAdd(1, .seq_cst);
             const alone = @atomicLoad(u32, &self.threads, .monotonic) <= 1;
-            const got = self.wait(if (surplus) surplus_linger_ms else if (alone) -1 else self.options.idle_exit_ms);
+            const rec = tls_rec.?;
+            const want = @max(1, @min(self.options.event_batch, max_event_batch));
+            const got = self.wait(rec.batch[0..want], if (surplus) surplus_linger_ms else if (alone) -1 else self.options.idle_exit_ms);
+            Stats.bump(&self.stats.waits, 1);
             const others = self.idle.fetchSub(1, .seq_cst) - 1;
             if (self.isStopping()) continue;
             switch (got) {
@@ -660,13 +775,34 @@ pub const Loop = struct {
                 .timeout => if (surplus) {
                     if (self.active.load(.seq_cst) > self.options.active and self.park()) return self.exitThread(true);
                 } else if (self.retire()) return self.exitThread(true),
-                .event => |ev| {
+                .events => |n| {
                     // Grow to `options.active` pollers on demand.
                     if (others == 0 and self.active.load(.seq_cst) < self.options.active) self.spawnWorker();
-                    self.dispatchTracked(ev);
+                    Stats.bump(&self.stats.events, n);
+                    var count: u32 = @intCast(n);
+                    while (count > 0) {
+                        self.runBatch(rec, count);
+                        count = self.takeEvents(rec);
+                    }
                 },
             }
         }
+    }
+
+    /// Dispatches `rec.batch[0..n]`; another thread may take the rest.
+    fn runBatch(self: *Loop, rec: *Rec, n: u32) void {
+        rec.len.store(n, .release);
+        rec.next.store(0, .release);
+        while (true) {
+            const i = rec.next.fetchAdd(1, .acq_rel);
+            // `onWake` may append handed-on events while we run.
+            if (i >= rec.len.load(.acquire)) break;
+            self.dispatchTracked(rec.batch[i]);
+        }
+        rec.steal.lock();
+        rec.len.store(0, .release);
+        rec.next.store(0, .release);
+        rec.steal.unlock();
     }
 
     /// Parks a surplus poller until a hand-off; true when it should exit
@@ -677,6 +813,7 @@ pub const Loop = struct {
         if (self.active.load(.seq_cst) <= self.options.active) return false;
         _ = self.active.fetchSub(1, .seq_cst);
         self.parked += 1;
+        Stats.bump(&self.stats.parks, 1);
         while (self.wakeups == 0) {
             if (self.isStopping()) {
                 self.parked -= 1;
@@ -704,6 +841,7 @@ pub const Loop = struct {
             _ = self.active.fetchAdd(1, .seq_cst);
             self.park_cond.signal();
             self.mutex.unlock();
+            Stats.bump(&self.stats.unparks, 1);
             return;
         }
         self.mutex.unlock();
@@ -743,10 +881,12 @@ pub const Loop = struct {
 
     fn startMonitor(self: *Loop) void {
         if (self.monitor_running.swap(true, .acq_rel)) return;
+        Stats.bump(&self.stats.monitor_starts, 1);
         const t = std.Thread.spawn(.{ .stack_size = 512 * 1024 }, monitor, .{self}) catch {
             self.monitor_running.store(false, .release);
             return;
         };
+        t.setName("http-monitor") catch {};
         t.detach();
     }
 
@@ -758,6 +898,7 @@ pub const Loop = struct {
         var quiet_ms: u64 = 0;
         while (!self.isStopping() and quiet_ms < 1_000) {
             std.Thread.sleep(std.time.ns_per_ms);
+            Stats.bump(&self.stats.monitor_ticks, 1);
             const now = monoNs();
             var busy = false;
             for (self.recs) |*r| {
@@ -766,6 +907,8 @@ pub const Loop = struct {
                 busy = true;
                 if (now - began < @as(i64, self.options.stall_us) * std.time.ns_per_us) continue;
                 if (r.state.cmpxchgStrong(.running, .stalled, .seq_cst, .seq_cst) != null) continue;
+                Stats.bump(&self.stats.stalls, 1);
+                self.stealBatch(r);
                 const left = self.active.fetchSub(1, .seq_cst) - 1;
                 if (left < self.options.active and self.idle.load(.seq_cst) == 0 and !self.isStopping()) self.handOff();
             }
@@ -778,6 +921,7 @@ pub const Loop = struct {
     }
 
     fn dispatch(self: *Loop, ev: Event) void {
+        if (ev.token != 0) return self.handler.on_posted(self.handler.ctx, @truncate(ev.udata), @truncate(ev.udata >> 32), ev.token);
         switch (ev.udata) {
             wake_udata => self.onWake(),
             tick_udata => self.onTick(),
@@ -805,6 +949,7 @@ pub const Loop = struct {
         self.threads += 1;
         self.mutex.unlock();
         _ = self.active.fetchAdd(1, .seq_cst);
+        Stats.bump(&self.stats.spawns, 1);
         const t = std.Thread.spawn(.{ .stack_size = self.options.stack_size }, worker, .{self}) catch |e| {
             log.err("poller thread spawn failed: {s}", .{@errorName(e)});
             _ = self.active.fetchSub(1, .seq_cst);
@@ -814,10 +959,12 @@ pub const Loop = struct {
             self.mutex.unlock();
             return;
         };
+        t.setName("http-poller") catch {};
         t.detach();
     }
 
     fn exitThread(self: *Loop, counted: bool) void {
+        Stats.bump(&self.stats.exits, 1);
         // A running poller (not one leaving from park) gives up its place.
         if (!counted) _ = self.active.fetchSub(1, .seq_cst);
         self.handler.on_thread_exit(self.handler.ctx);
@@ -831,6 +978,9 @@ pub const Loop = struct {
     }
 };
 
+/// Tests only: widens the window between taking a batch's tail and copying it.
+pub var test_steal_delay_ns: u64 = 0;
+
 threadlocal var tls_poller: ?*Loop = null;
 threadlocal var tls_rec: ?*Rec = null;
 threadlocal var tls_block_depth: u32 = 0;
@@ -842,11 +992,16 @@ pub fn blockingBegin() void {
     const rec = tls_rec orelse return;
     tls_block_depth += 1;
     if (tls_block_depth > 1) return;
-    // Already counted out by the monitor: nothing to hand off.
+    // Already counted out by the monitor (which took the batch too).
     if (rec.state.cmpxchgStrong(.running, .blocked, .seq_cst, .seq_cst) != null) return;
+    // Events harvested with this one must not wait for our DB reply.
+    self.stealBatch(rec);
     const left = self.active.fetchSub(1, .seq_cst) - 1;
+    Stats.bump(&self.stats.begins, 1);
     // A poller already waiting for events covers for us: no wake-up needed.
-    if (left < self.options.active and self.idle.load(.seq_cst) == 0 and !self.isStopping()) self.handOff();
+    if (self.idle.load(.seq_cst) > 0) {
+        Stats.bump(&self.stats.begin_spare, 1);
+    } else if (left < self.options.active and !self.isStopping()) self.handOff();
 }
 
 pub fn blockingEnd() void {
