@@ -3,7 +3,7 @@
 use crate::{merkle_tree::builder::MerkleTreeBuilder, relayer::origin::Origin};
 use async_trait::async_trait;
 use eyre::{bail, ensure, Context, ContextCompat, Result};
-use futures_util::{stream, StreamExt};
+use futures_util::{stream, FutureExt, StreamExt};
 use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
     cursors::Indexable,
@@ -35,7 +35,7 @@ use tokio::{
     sync::{watch, Notify, RwLock},
     time::{timeout, Instant},
 };
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use url::Url;
 
 const AUDIT_INTERVAL: Duration = Duration::from_secs(5);
@@ -441,20 +441,28 @@ impl ScraperSource {
         }
     }
 
-    async fn store(&self, event: DiscoveryEvent) -> Result<()> {
+    fn store(&self, event: DiscoveryEvent) -> Result<()> {
         let sequence = event.sequence();
         match event {
             DiscoveryEvent::Dispatch(message, meta) => {
                 if self.database.store_indexed_dispatch(&message, &meta)? {
                     if let Some(sender) = &self.broadcaster {
-                        timeout(
-                            RPC_TIMEOUT,
-                            sender.send(IndexingNotification {
-                                tx_id: meta.transaction_id,
-                                sequences: vec![Some(message.nonce)],
-                            }),
-                        )
-                        .await??;
+                        // The durable destination index also wakes DB discovery. A slow
+                        // hint subscriber must not stall every origin on this socket.
+                        if !matches!(
+                            sender
+                                .send(IndexingNotification {
+                                    tx_id: meta.transaction_id,
+                                    sequences: vec![Some(message.nonce)],
+                                })
+                                .now_or_never(),
+                            Some(Ok(()))
+                        ) {
+                            debug!(
+                                chain = self.chain,
+                                "Indexed dispatch notification deferred to DB discovery"
+                            );
+                        }
                     }
                 }
             }
@@ -686,7 +694,7 @@ impl ScraperWebSocketMonitor {
                     if !state.ready()? {
                         continue;
                     }
-                    let result = state.ingest(event, self.authority_enabled).await;
+                    let result = state.ingest(event, self.authority_enabled);
                     if let Err(error) = result {
                         self.fallback(state, error)?;
                     }
@@ -789,7 +797,7 @@ impl<'a> SourceState<'a> {
             authoritative: false,
         }
     }
-    async fn ingest(&mut self, event: EventMessage<serde_json::Value>, write: bool) -> Result<()> {
+    fn ingest(&mut self, event: EventMessage<serde_json::Value>, write: bool) -> Result<()> {
         let Some(event) = self.source.decode(event)? else {
             return Ok(());
         };
@@ -802,7 +810,7 @@ impl<'a> SourceState<'a> {
             *next = (*next).max(sequence.checked_add(1).context("Sequence overflow")?);
         }
         if write {
-            self.source.store(event).await?;
+            self.source.store(event)?;
         }
         Ok(())
     }
@@ -1375,14 +1383,12 @@ mod tests {
                 blocks,
             }
         }
-        async fn store(&self, event: EventMessage<serde_json::Value>) -> Result<()> {
-            self.source
-                .store(
-                    self.source
-                        .decode(event)?
-                        .context("Ignored fixture event")?,
-                )
-                .await
+        fn store(&self, event: EventMessage<serde_json::Value>) -> Result<()> {
+            self.source.store(
+                self.source
+                    .decode(event)?
+                    .context("Ignored fixture event")?,
+            )
         }
         fn connect(&self, url: Url) -> tokio::task::JoinHandle<Result<()>> {
             let monitor = self.monitor.clone();
@@ -1426,7 +1432,14 @@ mod tests {
     #[tokio::test]
     async fn connections_group_by_policy_and_route_each_origin() {
         let (listener, url) = listener().await;
-        let first = Fixture::new(url.clone());
+        let mut first = Fixture::new(url.clone());
+        let broadcaster = BroadcastMpscSender::new(1);
+        let mut blocked = broadcaster.get_receiver().await;
+        broadcaster
+            .send(IndexingNotification::from_tx_id(H512::zero()))
+            .await
+            .unwrap();
+        first.source.broadcaster = Some(broadcaster);
         let second = Fixture::new(url.clone());
         let third = Fixture::with_confirmations(url.clone(), Some(7), false);
         let fourth = Fixture::with_confirmations(url.clone(), None, false);
@@ -1497,6 +1510,9 @@ mod tests {
                 source.domain
             );
         }
+        // A full subscriber on the first origin cannot block ingestion for its peers.
+        assert_eq!(blocked.recv().await.unwrap().tx_id, H512::zero());
+        assert!(blocked.try_recv().is_err());
         task.abort();
         let _ = task.await;
         for source in &sources {
@@ -1779,7 +1795,6 @@ mod tests {
         let fixture = Fixture::with_confirmations(url.clone(), Some(7), false);
         assert!(fixture
             .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0)),).unwrap())
-            .await
             .is_err());
         assert!(fixture
             .source
@@ -1930,9 +1945,16 @@ mod tests {
             assert_eq!(stream["confirmations"], 0);
             assert!(stream.get("cursors").is_none());
         }
+        // The proxy exposes Merkle identity on the envelope for validator compatibility.
+        let mut merkle_frame = event(Kind::Merkle, 0, merkle(0));
+        merkle_frame["data"]
+            .as_object_mut()
+            .unwrap()
+            .remove("block_hash");
+        merkle_frame["blockHash"] = json!(format!("{:#x}", H256::from_low_u64_be(8)));
         for value in [
             event(Kind::Dispatch, 0, dispatch(0)),
-            event(Kind::Merkle, 0, merkle(0)),
+            merkle_frame,
             event(Kind::Gas, 0, gas(1)),
             event(Kind::Gas, 0, gas(1)),
         ] {
@@ -2093,7 +2115,6 @@ mod tests {
         let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap());
         fixture
             .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap())
-            .await
             .unwrap();
         let ack = acknowledge(&fixture.source);
         let source = fixture.source.clone();
@@ -2137,7 +2158,6 @@ mod tests {
         fixture.source.recover_provisional = false;
         fixture
             .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap())
-            .await
             .unwrap();
         fixture
             .source
@@ -2167,7 +2187,6 @@ mod tests {
             let fixture = Fixture::new(Url::parse("ws://localhost:1").unwrap());
             fixture
                 .store(serde_json::from_value(event(Kind::Dispatch, 0, dispatch(0))).unwrap())
-                .await
                 .unwrap();
             let checkpoint = DiscoveryCheckpoint {
                 height: 100,

@@ -599,14 +599,14 @@ impl InclusionStage {
                     Some(origins) => {
                         let mut selected = Vec::<(&dyn HyperlaneDb, u64)>::new();
                         for payload in &tx_guard.payload_details {
-                            match payload.origin {
-                                Some(origin) => match origins.get(&origin) {
+                            // Legacy payloads predate provisional discovery. They must
+                            // not inherit unrelated origins' gates or generations.
+                            if let Some(origin) = payload.origin {
+                                match origins.get(&origin) {
                                     Some(db) => selected.push((db, payload.origin_generation)),
-                                    None => return Ok(Some(LanderError::TxSubmissionDeferred)),
-                                },
-                                // Older persisted payloads have no origin. Conservatively
-                                // gate them against every configured origin until drained.
-                                None => selected.extend(origins.values().map(|db| (db as &dyn HyperlaneDb, payload.origin_generation))),
+                                    None if attempted.load(Ordering::Relaxed) => return Ok(Some(LanderError::TxSubmissionDeferred)),
+                                    None => return Err(LanderError::TxDropped(TxDropReason::Other("Origin is no longer configured".into()))),
+                                }
                             }
                         }
                         selected
@@ -628,7 +628,13 @@ impl InclusionStage {
                     },
                 ).await.unwrap_or_else(|error| {
                     warn!(?error, "Origin recovery deferred queued transaction submission");
-                    Err(LanderError::TxSubmissionDeferred)
+                    if !attempted.load(Ordering::Relaxed)
+                        && !origins.iter().any(|(db, _)| db.origin_consistency().is_some_and(|state| state.live_block_verification_pending()))
+                    {
+                        Err(LanderError::TxDropped(TxDropReason::Other("Origin history requires recovery before submission".into())))
+                    } else {
+                        Err(LanderError::TxSubmissionDeferred)
+                    }
                 });
 
                 match submit_result {
@@ -645,8 +651,12 @@ impl InclusionStage {
             state,
         )
         .await?;
-        let submitted_tx = tx_shared.into_inner();
+        let mut submitted_tx = tx_shared.into_inner();
         if let Some(reason) = deferred_reason {
+            if !attempted.load(Ordering::Relaxed) {
+                submitted_tx.submission_attempts =
+                    submitted_tx.submission_attempts.saturating_sub(1);
+            }
             Ok(SubmitOutcome::RetryLater(submitted_tx, reason))
         } else {
             state.notify_reprocess_txs_activity();

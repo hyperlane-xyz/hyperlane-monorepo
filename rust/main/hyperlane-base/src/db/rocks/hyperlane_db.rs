@@ -10,7 +10,7 @@ use std::{
 
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use prometheus::IntGauge;
 use tracing::{debug, instrument, trace};
 
@@ -88,12 +88,19 @@ pub struct HyperlaneRocksDB(
 #[derive(Debug, Default)]
 /// Shared admission and startup verification state for cloned origin handles.
 pub struct OriginConsistency {
-    admission: Mutex<()>,
+    admission: RwLock<()>,
     changed: tokio::sync::Notify,
     verification_pending: AtomicBool,
     discovery_changed: Arc<tokio::sync::Notify>,
     discovery_enabled: AtomicBool,
     discovery_generation: AtomicU64,
+}
+
+impl OriginConsistency {
+    /// Whether admission is waiting for initial RPC verification.
+    pub fn live_block_verification_pending(&self) -> bool {
+        self.verification_pending.load(Ordering::Acquire)
+    }
 }
 
 impl std::ops::Deref for HyperlaneRocksDB {
@@ -134,7 +141,7 @@ impl HyperlaneRocksDB {
     /// Clear `indexed_event_conflict_v1_` only after coordinated DB, queue and
     /// prover recovery. A matching replay or restart must not clear this marker.
     pub fn mark_indexed_event_conflict(&self) -> DbResult<()> {
-        let _admission = self.6.admission.lock();
+        let _admission = self.6.admission.write();
         self.store_value_by_key(INDEXED_EVENT_CONFLICT, &false, &true)?;
         if let Some(metric) = self.5.get() {
             metric.set(1);
@@ -162,7 +169,7 @@ impl HyperlaneRocksDB {
 
     /// Whether consumers are waiting for initial RPC verification.
     pub fn live_block_verification_pending(&self) -> bool {
-        self.6.verification_pending.load(Ordering::Acquire)
+        self.6.live_block_verification_pending()
     }
 
     /// Wait without polling the database while startup verification is unavailable.
@@ -195,7 +202,7 @@ impl HyperlaneRocksDB {
             .collect();
         let mut future = std::pin::pin!(future);
         poll_fn(|cx| {
-            let _admission: Vec<_> = states.iter().map(|state| state.admission.lock()).collect();
+            let _admission: Vec<_> = states.iter().map(|state| state.admission.read()).collect();
             for (db, generation) in origins_with_generations {
                 if db.discovery_generation() != *generation {
                     return Poll::Ready(Err(DbError::Other(
@@ -882,6 +889,38 @@ mod pending_index_tests {
     use crate::db::rocks::test_utils::run_test_db;
 
     #[tokio::test]
+    async fn submissions_for_one_origin_can_poll_concurrently() {
+        run_test_db(|raw_db| async move {
+            let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
+            let first_db = db.clone();
+            let (started, waiting) = std::sync::mpsc::channel();
+            let (release, released) = std::sync::mpsc::channel();
+            let first = std::thread::spawn(move || {
+                futures::executor::block_on(HyperlaneRocksDB::with_origin_generations(
+                    &[(&first_db, 0)],
+                    async {
+                        started.send(()).unwrap();
+                        released
+                            .recv_timeout(std::time::Duration::from_secs(5))
+                            .unwrap();
+                    },
+                ))
+                .unwrap();
+            });
+            waiting
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            HyperlaneRocksDB::with_origin_generations(&[(&db, 0)], async {
+                release.send(()).unwrap();
+            })
+            .await
+            .unwrap();
+            first.join().unwrap();
+        })
+        .await;
+    }
+
+    #[tokio::test]
     async fn conflict_wakes_and_cancels_an_admitted_pending_submission() {
         run_test_db(|raw_db| async move {
             let db = HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db);
@@ -982,7 +1021,7 @@ mod pending_index_tests {
     }
 
     #[tokio::test]
-    async fn dispatch_block_conflicts_and_manual_replacements_set_the_recovery_metric() {
+    async fn indexing_repairs_admin_block_hints_and_journals_the_message() {
         run_test_db(|raw_db| async move {
             let db =
                 HyperlaneRocksDB::new(&HyperlaneDomain::new_test_domain("origin"), raw_db.clone());
@@ -992,25 +1031,35 @@ mod pending_index_tests {
             assert_eq!(metric.get(), 0);
             let original = message(0, 10);
             db.store_message(&original, 100).unwrap();
+            db.enable_discovery(DiscoveryCheckpoint {
+                height: 99,
+                hash: H256::from_low_u64_be(99),
+            })
+            .unwrap();
             let meta = LogMeta {
                 block_number: 101,
+                block_hash: H256::from_low_u64_be(101),
+                transaction_id: H512::from_low_u64_be(1),
                 ..Default::default()
             };
             assert!(db
                 .store_logs(&[(Indexed::new(original.clone()), meta)])
                 .await
-                .is_err());
-            assert_eq!(metric.get(), 1);
+                .is_ok());
+            assert_eq!(metric.get(), 0);
             assert_eq!(
                 db.retrieve_dispatched_block_number_by_nonce(&0).unwrap(),
-                Some(100)
+                Some(101)
             );
             let startup = IntGauge::new("test_recovery_reopened", "test").unwrap();
             let reopened = HyperlaneRocksDB::new(db.domain(), raw_db);
             reopened
                 .set_indexed_event_conflict_metric(startup.clone())
                 .unwrap();
-            assert_eq!(startup.get(), 1);
+            assert_eq!(startup.get(), 0);
+            // The formerly manual row now participates in provisional recovery.
+            db.rollback_discovery().unwrap();
+            assert!(db.retrieve_message_by_nonce(0).unwrap().is_none());
         })
         .await;
     }

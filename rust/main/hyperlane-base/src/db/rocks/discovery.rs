@@ -277,7 +277,7 @@ impl HyperlaneRocksDB {
 
     /// Stop consumers before recovery. Kept durably until DB and prover recovery finish.
     pub fn request_discovery_recovery(&self) -> DbResult<()> {
-        let _admission = self.6.admission.lock();
+        let _admission = self.6.admission.write();
         self.store_value_by_key(RECOVERY, &false, &true)?;
         if let Some(metric) = self.5.get() {
             metric.set(1);
@@ -459,7 +459,7 @@ impl HyperlaneRocksDB {
 
     /// Reopen the origin only after its in-memory prover has been rewound.
     pub fn finish_discovery_recovery(&self) -> DbResult<()> {
-        let _admission = self.6.admission.lock();
+        let _admission = self.6.admission.write();
         if self.confirmed_discovery_conflict()? {
             return Err(DbError::Other(
                 "Confirmed origin history requires manual recovery".into(),
@@ -502,9 +502,15 @@ impl HyperlaneRocksDB {
             "dispatch",
             meta.block_number,
         )?;
+        // Admin-inserted messages have no indexed transaction identity. Their
+        // operator-supplied block number is a cursor hint, not evidence of a fork.
+        let previous_tx = self.retrieve_dispatched_tx_hash_by_message_id(&message.id())?;
+        let indexed = previous_tx.is_some_and(|tx| !tx.is_zero());
         self.check_discovery_consistency(
-            self.retrieve_dispatched_block_number_by_nonce(&message.nonce)?
-                .is_none_or(|old| old == meta.block_number),
+            !indexed
+                || self
+                    .retrieve_dispatched_block_number_by_nonce(&message.nonce)?
+                    .is_none_or(|old| old == meta.block_number),
             "dispatch block",
             meta.block_number,
         )?;
@@ -535,6 +541,8 @@ impl HyperlaneRocksDB {
                     &message.id(),
                 );
             }
+        }
+        if stored.is_none() || !indexed {
             self.record_discovery(
                 &mut batch,
                 DiscoveryCheckpoint {
@@ -549,9 +557,9 @@ impl HyperlaneRocksDB {
             )?;
         }
         if !meta.transaction_id.is_zero() {
-            let previous = self.retrieve_dispatched_tx_hash_by_message_id(&message.id())?;
             self.check_discovery_consistency(
-                !strict_tx || previous.is_none_or(|tx| tx.is_zero() || tx == meta.transaction_id),
+                !strict_tx
+                    || previous_tx.is_none_or(|tx| tx.is_zero() || tx == meta.transaction_id),
                 "dispatch transaction",
                 meta.block_number,
             )?;
@@ -562,6 +570,9 @@ impl HyperlaneRocksDB {
             );
         }
         batch.commit()?;
+        if stored.is_none() {
+            tracing::debug!(hyp_message = ?message, "Storing new message in db");
+        }
         self.6.discovery_changed.notify_waiters();
         Ok(stored.is_none())
     }

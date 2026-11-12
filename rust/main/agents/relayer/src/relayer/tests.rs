@@ -491,12 +491,10 @@ async fn test_failed_build_origin() {
     assert_eq!(origins.len(), 1);
     assert!(origins.contains_key(&HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)));
 
-    // Arbitrum chain should not have any errors because it's ChainConf exists
-    let metric = chain_metrics
-        .critical_error
-        .get_metric_with_label_values(&["arbitrum"])
-        .unwrap();
-    assert_eq!(metric.get(), 0);
+    // Construction succeeded, but live verification against the dead RPC is pending.
+    assert!(origins[&KnownHyperlaneDomain::Arbitrum.into()]
+        .database
+        .live_block_verification_pending());
 
     // Ethereum chain should error because it is missing ChainConf
     let metric = chain_metrics

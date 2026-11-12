@@ -48,6 +48,10 @@ Destination transactions, payload references and gas expenditure survive recover
 Already-submitted transactions remain tracked; they cannot be revoked. Old prepared
 transactions cannot be submitted or rebroadcast after recovery. Processed markers are
 bound to message IDs so a replacement at the same nonce is not skipped.
+Unsent transactions blocked by recovery are dropped for preparation again; startup
+verification only defers them. An already-broadcast transaction that becomes orphaned
+and remains unmined can still block the destination signer's nonce. Automatic
+transaction cancellation is not implemented and this case may require operator recovery.
 
 Signature polling starts immediately. The bounded fast polling window starts after
 origin maturity, so an Ethereum confirmation wait does not exhaust it. A brief bounded
