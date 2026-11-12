@@ -148,12 +148,45 @@ export const LayerZeroBridgeConfigSchema = z.object({
   maxTronNativeValueSun: z.coerce.bigint().nonnegative().optional(),
 });
 
-export const SwapsXyzBridgeConfigSchema = z.object({
-  apiUrl: z.string().url().startsWith('https://').optional(),
-  defaultSlippage: z.number().positive().max(0.1).optional(),
-  maxQuoteLossBps: z.number().int().min(0).max(10_000).default(50),
-  maxEvmNativeFeeWei: z.coerce.bigint().nonnegative().optional(),
-});
+export const DEFAULT_MAX_SOLANA_TRANSACTION_FEE_LAMPORTS = 10_000_000;
+export const DEFAULT_SOLANA_TRANSACTION_FEE_WARNING_LAMPORTS = 1_000_000;
+
+export const SwapsXyzBridgeConfigSchema = z
+  .object({
+    apiUrl: z.string().url().startsWith('https://').optional(),
+    defaultSlippage: z.number().positive().max(0.1).optional(),
+    maxQuoteLossBps: z.number().int().min(0).max(10_000).default(50),
+    maxEvmNativeFeeWei: z.coerce.bigint().nonnegative().optional(),
+    maxSolanaTransactionFeeLamports: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional(),
+    solanaTransactionFeeWarningLamports: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional(),
+    maxSolanaNativeSpendLamports: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional(),
+  })
+  .refine(
+    (config) =>
+      (config.solanaTransactionFeeWarningLamports ??
+        DEFAULT_SOLANA_TRANSACTION_FEE_WARNING_LAMPORTS) <=
+      (config.maxSolanaTransactionFeeLamports ??
+        DEFAULT_MAX_SOLANA_TRANSACTION_FEE_LAMPORTS),
+    {
+      message: 'Solana transaction fee warning must not exceed its cap',
+      path: ['solanaTransactionFeeWarningLamports'],
+    },
+  );
 
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),

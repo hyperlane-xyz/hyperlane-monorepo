@@ -20,6 +20,7 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
+  ExternalBridgeType,
   DEFAULT_INTENT_TTL_MS,
   type PendingTransferMiddlewareConfig,
   PendingTransferMiddlewareType,
@@ -137,6 +138,7 @@ async function createFactory(
   config: RebalancerConfig,
   multiProvider: MultiProvider,
   warpCoreConfig: WarpCoreConfig,
+  externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
 ) {
   return RebalancerContextFactory.create(
     config,
@@ -145,7 +147,7 @@ async function createFactory(
     createMockRegistry(),
     testLogger,
     undefined,
-    undefined,
+    externalBridgeApiKeys,
     warpCoreConfig,
   );
 }
@@ -171,6 +173,7 @@ describe('RebalancerContextFactory', () => {
   describe('external bridge initialization', () => {
     async function factoryWithBridges(
       externalBridges?: RebalancerConfig['externalBridges'],
+      externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
     ) {
       const { multiProvider } = createMockMultiProvider([
         { name: 'ethereum', protocol: ProtocolType.Ethereum },
@@ -193,8 +196,36 @@ describe('RebalancerContextFactory', () => {
             ),
           ],
         },
+        externalBridgeApiKeys,
       );
     }
+
+    it('passes independent Solana fee and spending controls to swaps.xyz', async () => {
+      const factory = await factoryWithBridges(
+        {
+          swapsxyz: {
+            maxQuoteLossBps: 50,
+            maxSolanaTransactionFeeLamports: 7_000_000,
+            solanaTransactionFeeWarningLamports: 700_000,
+            maxSolanaNativeSpendLamports: 3_000_000,
+          },
+        },
+        { [ExternalBridgeType.SwapsXyz]: 'test-api-key' },
+      );
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.swapsxyz).to.have.property(
+        'maxSolanaTransactionFeeLamports',
+        7_000_000,
+      );
+      expect(registry.swapsxyz).to.have.property(
+        'solanaTransactionFeeWarningLamports',
+        700_000,
+      );
+      expect(registry.swapsxyz).to.have.property(
+        'maxSolanaNativeSpendLamports',
+        3_000_000,
+      );
+    }).timeout(10_000);
 
     it('returns no bridges when no external bridge is configured', async () => {
       const factory = await factoryWithBridges();

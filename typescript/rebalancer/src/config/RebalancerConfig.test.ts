@@ -17,6 +17,7 @@ import {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
   type StrategyConfig,
+  SwapsXyzBridgeConfigSchema,
   getAllBridges,
 } from './types.js';
 
@@ -943,6 +944,9 @@ describe('per-chain bridge configuration', () => {
           apiUrl: 'https://api-v2.swaps.xyz/api',
           defaultSlippage: 0.005,
           maxQuoteLossBps: 50,
+          maxSolanaNativeSpendLamports: 10_000_000,
+          maxSolanaTransactionFeeLamports: 7_000_000,
+          solanaTransactionFeeWarningLamports: 700_000,
         },
       },
     };
@@ -954,6 +958,9 @@ describe('per-chain bridge configuration', () => {
       apiUrl: 'https://api-v2.swaps.xyz/api',
       defaultSlippage: 0.005,
       maxQuoteLossBps: 50,
+      maxSolanaNativeSpendLamports: 10_000_000,
+      maxSolanaTransactionFeeLamports: 7_000_000,
+      solanaTransactionFeeWarningLamports: 700_000,
     });
     expect(config.externalBridges?.lifi).to.be.undefined;
   });
@@ -985,12 +992,42 @@ describe('per-chain bridge configuration', () => {
     );
   });
 
+  it('accepts default fee policy and independently configured spending budgets', () => {
+    expect(SwapsXyzBridgeConfigSchema.safeParse({}).success).to.equal(true);
+    expect(
+      SwapsXyzBridgeConfigSchema.parse({
+        maxSolanaTransactionFeeLamports: 0,
+        solanaTransactionFeeWarningLamports: 0,
+        maxSolanaNativeSpendLamports: 10_000_000,
+      }),
+    ).to.include({
+      maxSolanaTransactionFeeLamports: 0,
+      solanaTransactionFeeWarningLamports: 0,
+      maxSolanaNativeSpendLamports: 10_000_000,
+    });
+  });
+
   for (const swapsxyz of [
     { apiUrl: 'http://api.swaps.xyz' },
     { defaultSlippage: 50 },
     { maxQuoteLossBps: -1 },
     { maxQuoteLossBps: 10_001 },
     { maxQuoteLossBps: 1.5 },
+    { maxSolanaNativeSpendLamports: -1 },
+    { maxSolanaNativeSpendLamports: 1.5 },
+    { maxSolanaNativeSpendLamports: Number.MAX_SAFE_INTEGER + 1 },
+    { maxSolanaTransactionFeeLamports: -1 },
+    { maxSolanaTransactionFeeLamports: 1.5 },
+    { maxSolanaTransactionFeeLamports: Number.MAX_SAFE_INTEGER + 1 },
+    { solanaTransactionFeeWarningLamports: -1 },
+    { solanaTransactionFeeWarningLamports: 1.5 },
+    { solanaTransactionFeeWarningLamports: Number.MAX_SAFE_INTEGER + 1 },
+    { maxSolanaTransactionFeeLamports: 999_999 },
+    { solanaTransactionFeeWarningLamports: 10_000_001 },
+    {
+      maxSolanaTransactionFeeLamports: 2_000_000,
+      solanaTransactionFeeWarningLamports: 2_000_001,
+    },
   ]) {
     it(`should reject unsafe swapsxyz config ${JSON.stringify(swapsxyz)}`, () => {
       const data: RebalancerConfigFileInput = {

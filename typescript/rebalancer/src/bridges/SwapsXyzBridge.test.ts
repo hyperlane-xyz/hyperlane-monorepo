@@ -3,7 +3,22 @@ import {
   ProtocolType,
   TransactionSubmissionError,
   assert,
+  bufferToBase58,
 } from '@hyperlane-xyz/utils';
+import { AccountLayout, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import {
+  AddressLookupTableAccount,
+  type AccountInfo,
+  Connection,
+  ComputeBudgetProgram,
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction,
+} from '@solana/web3.js';
 import { expect } from 'chai';
 import { BigNumber, Wallet, providers, utils } from 'ethers';
 import { pino } from 'pino';
@@ -23,6 +38,7 @@ import {
 } from './SwapsXyzClient.js';
 import { SwapsXyzBridge, type SwapsXyzBridgeRoute } from './SwapsXyzBridge.js';
 import type { Erc20ContractFactory } from './erc20Approve.js';
+import { collectSwapsXyzPreflight } from '../scripts/preflightSwapsXyz.js';
 
 const logger = pino({ level: 'silent' });
 const TEST_WALLET = Wallet.createRandom();
@@ -32,6 +48,16 @@ const TO_TOKEN = '0x2222222222222222222222222222222222222222';
 const SPENDER = '0xfffffffffffffffffffffffffffffffffffffff1';
 const SENDER = TEST_WALLET.address;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const SOLANA_DOMAIN = 1399811149;
+const SOLANA_KEYPAIR = Keypair.fromSeed(new Uint8Array(32).fill(7));
+const SOLANA_PRIVATE_KEY = JSON.stringify(Array.from(SOLANA_KEYPAIR.secretKey));
+const SOLANA_TOKEN = Keypair.generate().publicKey;
+const SOLANA_SOURCE_ACCOUNT = Keypair.generate().publicKey;
+const SOLANA_OTHER_TOKEN = Keypair.generate().publicKey;
+const SOLANA_OTHER_SOURCE_ACCOUNT = Keypair.generate().publicKey;
+const SOLANA_LOOKUP_TABLE_KEY = Keypair.generate().publicKey;
+const SOLANA_PROGRAM = Keypair.generate().publicKey;
+const SOLANA_BLOCKHASH = new PublicKey(new Uint8Array(32).fill(1)).toBase58();
 
 const ETHEREUM_METADATA: ChainMetadata = {
   chainId: 1,
@@ -51,6 +77,16 @@ const BASE_METADATA: ChainMetadata = {
   domainId: 8453,
   rpcUrls: [{ http: 'https://base.example.invalid' }],
   nativeToken: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+};
+
+const SOLANA_METADATA: ChainMetadata = {
+  chainId: SOLANA_DOMAIN,
+  protocol: ProtocolType.Sealevel,
+  name: 'solanamainnet',
+  displayName: 'Solana',
+  domainId: SOLANA_DOMAIN,
+  rpcUrls: [{ http: 'https://solana.example.invalid' }],
+  nativeToken: { name: 'Solana', symbol: 'SOL', decimals: 9 },
 };
 
 const CHAIN_METADATA: ChainMap<ChainMetadata> = {
@@ -164,7 +200,11 @@ function createBridge(
     defaultSlippage?: number;
     maxQuoteLossBps?: number;
     maxEvmNativeFeeWei?: bigint;
+    maxSolanaNativeSpendLamports?: number;
+    maxSolanaTransactionFeeLamports?: number;
+    solanaTransactionFeeWarningLamports?: number;
     evmProviderFactory?: (rpcUrl: string) => providers.Provider;
+    solanaConnectionFactory?: (rpcUrl: string) => Connection;
     registerTxRetryDelayMs?: number;
     erc20ContractFactory?: Erc20ContractFactory;
   } = {},
@@ -185,6 +225,12 @@ function createBridge(
             .resolves(utils.defaultAbiCoder.encode(['uint8'], [6]));
           return provider;
         }),
+      maxSolanaNativeSpendLamports: overrides.maxSolanaNativeSpendLamports,
+      maxSolanaTransactionFeeLamports:
+        overrides.maxSolanaTransactionFeeLamports,
+      solanaTransactionFeeWarningLamports:
+        overrides.solanaTransactionFeeWarningLamports,
+      solanaConnectionFactory: overrides.solanaConnectionFactory,
       registerTxRetryDelayMs: overrides.registerTxRetryDelayMs,
       erc20ContractFactory: overrides.erc20ContractFactory,
     },
@@ -311,6 +357,321 @@ function createExecuteHarness(
     estimateGasStub,
     sendTransactionStub,
     waitForTransactionStub,
+  };
+}
+
+function tokenAccountData(
+  amount: bigint,
+  overrides: {
+    mint?: PublicKey;
+    delegateOption?: 0 | 1;
+    delegate?: PublicKey;
+  } = {},
+): Buffer {
+  const data = Buffer.alloc(AccountLayout.span);
+  AccountLayout.encode(
+    {
+      mint: overrides.mint ?? SOLANA_TOKEN,
+      owner: SOLANA_KEYPAIR.publicKey,
+      amount,
+      delegateOption: overrides.delegateOption ?? 0,
+      delegate: overrides.delegate ?? PublicKey.default,
+      state: 1,
+      isNativeOption: 0,
+      isNative: 0n,
+      delegatedAmount: 0n,
+      closeAuthorityOption: 0,
+      closeAuthority: PublicKey.default,
+    },
+    data,
+  );
+  return data;
+}
+
+function accountInfo(
+  owner: PublicKey,
+  data: Buffer,
+  lamports: number,
+): AccountInfo<Buffer> {
+  return { owner, data, lamports, executable: false, rentEpoch: 0 };
+}
+
+function simulatedAccount(owner: PublicKey, data: Buffer, lamports: number) {
+  return {
+    owner: owner.toBase58(),
+    data: [data.toString('base64'), 'base64'],
+    lamports,
+    executable: false,
+    rentEpoch: 0,
+  };
+}
+
+function solanaLookupTableAccount(): AddressLookupTableAccount {
+  return new AddressLookupTableAccount({
+    key: SOLANA_LOOKUP_TABLE_KEY,
+    state: {
+      deactivationSlot: 18_446_744_073_709_551_615n,
+      lastExtendedSlot: 0,
+      lastExtendedSlotStartIndex: 0,
+      authority: undefined,
+      addresses: [SOLANA_SOURCE_ACCOUNT],
+    },
+  });
+}
+
+function serializedSolanaTransaction(
+  options: {
+    lookupTable?: AddressLookupTableAccount;
+    additionalWritable?: PublicKey;
+  } = {},
+): string {
+  const instruction = new TransactionInstruction({
+    programId: SOLANA_PROGRAM,
+    keys: [
+      {
+        pubkey: SOLANA_SOURCE_ACCOUNT,
+        isSigner: false,
+        isWritable: true,
+      },
+      ...(options.additionalWritable
+        ? [
+            {
+              pubkey: options.additionalWritable,
+              isSigner: false,
+              isWritable: true,
+            },
+          ]
+        : []),
+    ],
+    data: Buffer.from([1]),
+  });
+  const message = new TransactionMessage({
+    payerKey: SOLANA_KEYPAIR.publicKey,
+    recentBlockhash: SOLANA_BLOCKHASH,
+    instructions: [instruction],
+  }).compileToV0Message(
+    options.lookupTable === undefined ? [] : [options.lookupTable],
+  );
+  return Buffer.from(new VersionedTransaction(message).serialize()).toString(
+    'base64',
+  );
+}
+
+function serializedLegacySolanaTransaction(): string {
+  const transaction = new Transaction({
+    feePayer: SOLANA_KEYPAIR.publicKey,
+    recentBlockhash: SOLANA_BLOCKHASH,
+  }).add(
+    new TransactionInstruction({
+      programId: SOLANA_PROGRAM,
+      keys: [
+        {
+          pubkey: SOLANA_SOURCE_ACCOUNT,
+          isSigner: false,
+          isWritable: true,
+        },
+      ],
+      data: Buffer.from([1]),
+    }),
+  );
+  return transaction
+    .serialize({ requireAllSignatures: false, verifySignatures: false })
+    .toString('base64');
+}
+
+function solanaActionResponse(
+  overrides: Partial<SwapsXyzActionResponse> = {},
+): SwapsXyzActionResponse {
+  return actionResponse({
+    tx: {
+      base64Tx: serializedSolanaTransaction(),
+      payer: SOLANA_KEYPAIR.publicKey.toBase58(),
+      chainId: SOLANA_DOMAIN,
+    },
+    txId: 'solana-tx-1',
+    vmId: 'solana',
+    amountIn: {
+      chainId: SOLANA_DOMAIN,
+      address: SOLANA_TOKEN.toBase58(),
+      amount: '1000000',
+      decimals: 6,
+    },
+    amountOut: {
+      chainId: 1,
+      address: FROM_TOKEN,
+      amount: '995000',
+      decimals: 6,
+    },
+    amountOutMin: {
+      chainId: 1,
+      address: FROM_TOKEN,
+      amount: '990025',
+      decimals: 6,
+    },
+    bridgeIds: ['solana-rail'],
+    requiresRegisterTransaction: true,
+    ...overrides,
+  });
+}
+
+function solanaQuote(
+  response = solanaActionResponse(),
+  overrides: Partial<BridgeQuoteParams> = {},
+): BridgeQuote<SwapsXyzBridgeRoute> {
+  const params: BridgeQuoteParams = {
+    fromChain: SOLANA_DOMAIN,
+    toChain: 1,
+    fromToken: SOLANA_TOKEN.toBase58(),
+    toToken: FROM_TOKEN,
+    fromAmount: 1_000_000n,
+    fromAddress: SOLANA_KEYPAIR.publicKey.toBase58(),
+    toAddress: SENDER,
+    ...overrides,
+  };
+  return {
+    id: response.txId,
+    tool: 'solana-rail',
+    fromAmount: 1_000_000n,
+    toAmount: 995_000n,
+    toAmountMin: 990_025n,
+    executionDuration: 60,
+    gasCosts: 0n,
+    feeCosts: 0n,
+    route: { actionResponse: response },
+    requestParams: params,
+  };
+}
+
+function createSolanaExecuteHarness(
+  options: {
+    response?: SwapsXyzActionResponse;
+    postSourceData?: Buffer;
+    postSignerLamports?: number;
+    postSignerOwner?: PublicKey;
+    transactionFeeLamports?: number | null;
+    maxSolanaNativeSpendLamports?: number;
+    maxSolanaTransactionFeeLamports?: number;
+    solanaTransactionFeeWarningLamports?: number;
+    maxQuoteLossBps?: number;
+    lookupTable?: AddressLookupTableAccount;
+    additionalSignerToken?: {
+      address: PublicKey;
+      mint: PublicKey;
+      preAmount: bigint;
+      postAmount: bigint;
+    };
+  } = {},
+) {
+  const response = options.response ?? solanaActionResponse();
+  const client = createClient();
+  const connection = new Connection('https://solana.example.invalid');
+  sinon.stub(connection, 'getTokenSupply').resolves({
+    context: { slot: 1 },
+    value: { amount: '1000000', decimals: 6, uiAmount: 1 },
+  });
+  const getActionStub = sinon.stub(client, 'getAction').resolves(response);
+  const preAccounts = [
+    accountInfo(SystemProgram.programId, Buffer.alloc(0), 1_000_000_000),
+    accountInfo(TOKEN_PROGRAM_ID, tokenAccountData(1_000_000n), 2_039_280),
+  ];
+  const postAccounts = [
+    simulatedAccount(
+      options.postSignerOwner ?? SystemProgram.programId,
+      Buffer.alloc(0),
+      options.postSignerLamports ?? 999_995_000,
+    ),
+    simulatedAccount(
+      TOKEN_PROGRAM_ID,
+      options.postSourceData ?? tokenAccountData(0n),
+      2_039_280,
+    ),
+  ];
+  if (options.additionalSignerToken) {
+    preAccounts.push(
+      accountInfo(
+        TOKEN_PROGRAM_ID,
+        tokenAccountData(options.additionalSignerToken.preAmount, {
+          mint: options.additionalSignerToken.mint,
+        }),
+        2_039_280,
+      ),
+    );
+    postAccounts.push(
+      simulatedAccount(
+        TOKEN_PROGRAM_ID,
+        tokenAccountData(options.additionalSignerToken.postAmount, {
+          mint: options.additionalSignerToken.mint,
+        }),
+        2_039_280,
+      ),
+    );
+  }
+  const getMultipleAccountsInfoStub = sinon
+    .stub(connection, 'getMultipleAccountsInfoAndContext')
+    .resolves({ context: { slot: 1 }, value: preAccounts });
+  if (options.lookupTable) {
+    sinon.stub(connection, 'getAddressLookupTable').resolves({
+      context: { slot: 1 },
+      value: options.lookupTable,
+    });
+  }
+  sinon.stub(connection, 'getLatestBlockhash').resolves({
+    blockhash: SOLANA_BLOCKHASH,
+    lastValidBlockHeight: 100,
+  });
+  const simulateTransactionStub = sinon
+    .stub(connection, 'simulateTransaction')
+    .resolves({
+      context: { slot: 1 },
+      value: {
+        err: null,
+        logs: [],
+        accounts: postAccounts,
+        unitsConsumed: 1,
+      },
+    });
+  const getFeeForMessageStub = sinon
+    .stub(connection, 'getFeeForMessage')
+    .resolves({
+      context: { slot: 1 },
+      value:
+        options.transactionFeeLamports === undefined
+          ? 5_000
+          : options.transactionFeeLamports,
+    });
+  const sendRawTransactionStub = sinon
+    .stub(connection, 'sendRawTransaction')
+    .callsFake(async (bytes) =>
+      bufferToBase58(
+        Buffer.from(
+          VersionedTransaction.deserialize(Uint8Array.from(bytes))
+            .signatures[0],
+        ),
+      ),
+    );
+  const registerTxsStub = sinon
+    .stub(client, 'registerTxs')
+    .resolves([{ success: true, error: null }]);
+  const bridge = createBridge(client, {
+    chainMetadata: { ethereum: ETHEREUM_METADATA, solana: SOLANA_METADATA },
+    solanaConnectionFactory: () => connection,
+    maxSolanaNativeSpendLamports:
+      options.maxSolanaNativeSpendLamports ?? 10_000_000,
+    maxSolanaTransactionFeeLamports: options.maxSolanaTransactionFeeLamports,
+    solanaTransactionFeeWarningLamports:
+      options.solanaTransactionFeeWarningLamports,
+    maxQuoteLossBps: options.maxQuoteLossBps,
+    registerTxRetryDelayMs: 1,
+  });
+  return {
+    bridge,
+    connection,
+    getActionStub,
+    getMultipleAccountsInfoStub,
+    simulateTransactionStub,
+    getFeeForMessageStub,
+    sendRawTransactionStub,
+    registerTxsStub,
   };
 }
 
@@ -1456,6 +1817,471 @@ describe('SwapsXyzBridge.execute', () => {
   });
 });
 
+describe('SwapsXyzBridge.execute Solana', () => {
+  afterEach(() => sinon.restore());
+
+  for (const overrides of [
+    { maxSolanaTransactionFeeLamports: -1 },
+    { maxSolanaTransactionFeeLamports: 1.5 },
+    { maxSolanaTransactionFeeLamports: Number.MAX_SAFE_INTEGER + 1 },
+    { solanaTransactionFeeWarningLamports: -1 },
+    { solanaTransactionFeeWarningLamports: 10_000_001 },
+    { maxSolanaTransactionFeeLamports: 999_999 },
+  ]) {
+    it(`rejects invalid Solana fee configuration ${JSON.stringify(overrides)}`, () => {
+      expect(() => createBridge(createClient(), overrides)).to.throw();
+    });
+  }
+
+  it('rejects native SOL before requesting or simulating a payload', async () => {
+    const harness = createSolanaExecuteHarness();
+    const quote = solanaQuote(solanaActionResponse(), {
+      fromToken: ZERO_ADDRESS,
+    });
+    const error = await captureError(harness.bridge.quote(quote.requestParams));
+    expect(error.message).to.include('native SOL is not supported');
+    expect(harness.getActionStub.called).to.equal(false);
+    expect(harness.simulateTransactionStub.called).to.equal(false);
+  });
+
+  it('rejects API and simulation amounts that agree with each other but differ from the request', async () => {
+    const response = solanaActionResponse({ amountIn: { amount: '999999' } });
+    const harness = createSolanaExecuteHarness({
+      response,
+      postSourceData: tokenAccountData(1n),
+    });
+    const error = await captureError(
+      harness.bridge.execute(solanaQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+    expect(error.message).to.include(
+      'exact input does not match the requested amount',
+    );
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
+  it('retains the locally signed identity when the RPC returns another signature', async () => {
+    const harness = createSolanaExecuteHarness();
+    harness.sendRawTransactionStub.resolves('wrong-signature');
+    const onSubmitted = sinon.spy();
+    const error = await captureError(
+      harness.bridge.execute(
+        solanaQuote(),
+        { [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY },
+        { onSubmitted },
+      ),
+    );
+    assert(
+      error instanceof TransactionSubmissionError,
+      'Expected submission error',
+    );
+    const signed = VersionedTransaction.deserialize(
+      Uint8Array.from(harness.sendRawTransactionStub.firstCall.args[0]),
+    );
+    expect(error.submissionState).to.equal('unknown');
+    expect(error.txHash).to.equal(
+      bufferToBase58(Buffer.from(signed.signatures[0])),
+    );
+    expect(onSubmitted.called).to.equal(false);
+    expect(harness.registerTxsStub.called).to.equal(false);
+  });
+
+  it('prepares and simulates a Solana payload without signing or broadcasting', async () => {
+    const harness = createSolanaExecuteHarness();
+    const sign = sinon.spy(VersionedTransaction.prototype, 'sign');
+
+    const diagnostics = await collectSwapsXyzPreflight(
+      harness.bridge,
+      solanaQuote().requestParams,
+    );
+
+    expect(diagnostics).to.include({
+      status: 'validated',
+      transactionFeeLamports: 5_000,
+      maxSolanaTransactionFeeLamports: 10_000_000,
+      solanaTransactionFeeWarningLamports: 1_000_000,
+      maxSolanaNativeSpendLamports: 10_000_000,
+      simulatedSignerDebitLamports: '5000',
+      computeUnitsConsumed: 1,
+      accountContextSlot: 1,
+      simulationContextSlot: 1,
+    });
+    expect(diagnostics).not.to.have.property('response');
+    expect(diagnostics).not.to.have.property('transaction');
+    expect(harness.registerTxsStub.called).to.equal(false);
+    expect(harness.simulateTransactionStub.callCount).to.equal(1);
+    expect(sign.called).to.equal(false);
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
+  it('rejects a high-priority-fee payload before simulation, signing or broadcast', async () => {
+    const response = solanaActionResponse();
+    assert('base64Tx' in response.tx, 'Expected Solana fixture');
+    const transaction = VersionedTransaction.deserialize(
+      Buffer.from(response.tx.base64Tx, 'base64'),
+    );
+    const message = TransactionMessage.decompile(transaction.message);
+    message.instructions.unshift(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
+      ComputeBudgetProgram.setComputeUnitPrice({
+        microLamports: 4_499_975_000n,
+      }),
+    );
+    response.tx.base64Tx = Buffer.from(
+      new VersionedTransaction(message.compileToV0Message()).serialize(),
+    ).toString('base64');
+    const harness = createSolanaExecuteHarness({
+      response,
+      transactionFeeLamports: 900_000_000,
+      postSignerLamports: 100_000_000,
+    });
+    const sign = sinon.spy(VersionedTransaction.prototype, 'sign');
+    const onTransferId = sinon.stub();
+
+    const error = await captureError(
+      harness.bridge.execute(
+        solanaQuote(),
+        {
+          [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+        },
+        { onTransferId },
+      ),
+    );
+
+    expect(error.message).to.include(
+      'transaction fee 900000000 exceeds maximum 10000000',
+    );
+    expect(onTransferId.called).to.equal(false);
+    expect(
+      harness.getFeeForMessageStub.firstCall.args[0].recentBlockhash,
+    ).to.equal(SOLANA_BLOCKHASH);
+    expect(harness.simulateTransactionStub.called).to.equal(false);
+    expect(sign.called).to.equal(false);
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+    expect(harness.registerTxsStub.called).to.equal(false);
+  });
+
+  for (const fee of [null, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    it(`rejects invalid Solana fee ${fee} before signing`, async () => {
+      const harness = createSolanaExecuteHarness({
+        transactionFeeLamports: fee,
+      });
+      const sign = sinon.spy(VersionedTransaction.prototype, 'sign');
+
+      const error = await captureError(harness.bridge.prepare(solanaQuote()));
+
+      expect(error.message).to.include(
+        fee === null ? 'could not calculate' : 'non-negative safe integer',
+      );
+      expect(sign.called).to.equal(false);
+      expect(harness.simulateTransactionStub.called).to.equal(false);
+      expect(harness.sendRawTransactionStub.called).to.equal(false);
+    });
+  }
+
+  it('allows the exact fee ceiling with a separate native rent allowance', async () => {
+    const harness = createSolanaExecuteHarness({
+      transactionFeeLamports: 10_000_000,
+      postSignerLamports: 989_995_000,
+      maxSolanaNativeSpendLamports: 5_000,
+    });
+    const warn = sinon.spy(logger, 'warn');
+
+    await harness.bridge.execute(solanaQuote(), {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+
+    expect(harness.sendRawTransactionStub.calledOnce).to.equal(true);
+    expect(warn.calledOnce).to.equal(true);
+    expect(warn.firstCall.args[0]).to.include({
+      transactionFeeLamports: 10_000_000,
+    });
+  });
+
+  it('warns above the fee warning without blocking a fee below the ceiling', async () => {
+    const harness = createSolanaExecuteHarness({
+      transactionFeeLamports: 1_000_001,
+      postSignerLamports: 998_999_999,
+    });
+    const warn = sinon.spy(logger, 'warn');
+
+    await harness.bridge.execute(solanaQuote(), {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+
+    expect(harness.sendRawTransactionStub.calledOnce).to.equal(true);
+    expect(warn.calledOnce).to.equal(true);
+  });
+
+  it('honors a custom fee ceiling independently of the native allowance', async () => {
+    const harness = createSolanaExecuteHarness({
+      transactionFeeLamports: 700_001,
+      maxSolanaTransactionFeeLamports: 700_000,
+      solanaTransactionFeeWarningLamports: 500_000,
+      maxSolanaNativeSpendLamports: 10_000_000,
+    });
+
+    const error = await captureError(harness.bridge.prepare(solanaQuote()));
+
+    expect(error.message).to.include(
+      'transaction fee 700001 exceeds maximum 700000',
+    );
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
+  it('timestamps Solana preparation at the successful HTTP attempt', async () => {
+    const clock = sinon.useFakeTimers({ now: 1_000 });
+    const harness = createSolanaExecuteHarness();
+    harness.getActionStub.callsFake(async (_request, onAttempt) => {
+      await clock.tickAsync(31_000);
+      onAttempt?.(Date.now());
+      return solanaActionResponse();
+    });
+
+    const prepared = await harness.bridge.prepare(solanaQuote());
+
+    expect(prepared.preparedAt).to.equal(32_000);
+    expect(harness.sendRawTransactionStub.called).to.equal(false);
+  });
+
+  it('rejects a refreshed Solana quote above the configured loss cap', async () => {
+    const response = solanaActionResponse({
+      amountOut: {
+        chainId: 1,
+        address: FROM_TOKEN,
+        amount: '994999',
+        decimals: 6,
+      },
+    });
+    const harness = createSolanaExecuteHarness({
+      response,
+      maxQuoteLossBps: 50,
+    });
+
+    const error = await captureError(harness.bridge.prepare(solanaQuote()));
+
+    expect(error.message).to.include(
+      'quote loss 51 bps exceeds configured maximum 50 bps',
+    );
+    expect(harness.simulateTransactionStub.called).to.equal(false);
+  });
+
+  it('simulates, binds, broadcasts, and registers an exact-input transfer', async () => {
+    const harness = createSolanaExecuteHarness();
+
+    const result = await harness.bridge.execute(solanaQuote(), {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(result).to.deep.equal({
+      txHash: await harness.sendRawTransactionStub.firstCall.returnValue,
+      fromChain: SOLANA_DOMAIN,
+      toChain: 1,
+      transferId: 'solana-tx-1',
+    });
+    expect(harness.simulateTransactionStub.callCount).to.equal(1);
+    expect(harness.simulateTransactionStub.firstCall.args[1]).to.include({
+      minContextSlot: 1,
+      sigVerify: false,
+    });
+    expect(harness.sendRawTransactionStub.callCount).to.equal(1);
+    expect(harness.registerTxsStub.firstCall.args[0]).to.deep.equal([
+      {
+        txId: 'solana-tx-1',
+        txHash: await harness.sendRawTransactionStub.firstCall.returnValue,
+      },
+    ]);
+  });
+
+  it('supports legacy Solana transactions through the same validation', async () => {
+    const response = solanaActionResponse({
+      tx: {
+        base64Tx: serializedLegacySolanaTransaction(),
+        payer: SOLANA_KEYPAIR.publicKey.toBase58(),
+        chainId: SOLANA_DOMAIN,
+      },
+    });
+    const harness = createSolanaExecuteHarness({ response });
+
+    await harness.bridge.execute(solanaQuote(response), {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+
+    expect(harness.sendRawTransactionStub.callCount).to.equal(1);
+  });
+
+  it('resolves address lookup tables before validating effects', async () => {
+    const lookupTable = solanaLookupTableAccount();
+    const response = solanaActionResponse({
+      tx: {
+        base64Tx: serializedSolanaTransaction({ lookupTable }),
+        payer: SOLANA_KEYPAIR.publicKey.toBase58(),
+        chainId: SOLANA_DOMAIN,
+      },
+    });
+    const harness = createSolanaExecuteHarness({ response, lookupTable });
+
+    await harness.bridge.execute(solanaQuote(response), {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+
+    expect(harness.sendRawTransactionStub.callCount).to.equal(1);
+  });
+
+  it('rejects a source-token debit that does not match exact input', async () => {
+    const harness = createSolanaExecuteHarness({
+      postSourceData: tokenAccountData(1n),
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(solanaQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('does not match exact input');
+    expect(harness.sendRawTransactionStub.callCount).to.equal(0);
+  });
+
+  it('accepts a positive source-token debit below an exact-output cap', async () => {
+    const response = solanaActionResponse({
+      amountInMax: {
+        chainId: SOLANA_DOMAIN,
+        address: SOLANA_TOKEN.toBase58(),
+        amount: '1000000',
+      },
+    });
+    const harness = createSolanaExecuteHarness({
+      response,
+      postSourceData: tokenAccountData(100n),
+    });
+    const quote = solanaQuote(response, {
+      fromAmount: undefined,
+      toAmount: 995_000n,
+    });
+
+    await harness.bridge.execute(quote, {
+      [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+    });
+
+    expect(harness.sendRawTransactionStub.callCount).to.equal(1);
+  });
+
+  it('rejects source-token authority changes', async () => {
+    const harness = createSolanaExecuteHarness({
+      postSourceData: tokenAccountData(0n, {
+        delegateOption: 1,
+        delegate: Keypair.generate().publicKey,
+      }),
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(solanaQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('changes authority or state');
+    expect(harness.sendRawTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects debits from another signer-owned token', async () => {
+    const response = solanaActionResponse({
+      tx: {
+        base64Tx: serializedSolanaTransaction({
+          additionalWritable: SOLANA_OTHER_SOURCE_ACCOUNT,
+        }),
+        payer: SOLANA_KEYPAIR.publicKey.toBase58(),
+        chainId: SOLANA_DOMAIN,
+      },
+    });
+    const harness = createSolanaExecuteHarness({
+      response,
+      additionalSignerToken: {
+        address: SOLANA_OTHER_SOURCE_ACCOUNT,
+        mint: SOLANA_OTHER_TOKEN,
+        preAmount: 100n,
+        postAmount: 99n,
+      },
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(solanaQuote(response), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('debits non-source token account');
+    expect(harness.sendRawTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects changing the signer account owner', async () => {
+    const harness = createSolanaExecuteHarness({
+      postSignerOwner: SOLANA_PROGRAM,
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(solanaQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('signer account ownership or data');
+    expect(harness.sendRawTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects native spend above transaction fee plus configured cap', async () => {
+    const harness = createSolanaExecuteHarness({
+      postSignerLamports: 999_989_999,
+      maxSolanaNativeSpendLamports: 5_000,
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(solanaQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('native spend');
+    expect(harness.sendRawTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects simulation failures before broadcast', async () => {
+    const harness = createSolanaExecuteHarness();
+    harness.simulateTransactionStub.resolves({
+      context: { slot: 1 },
+      value: { err: { InstructionError: [0, 'Custom'] }, logs: [] },
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(solanaQuote(), {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('simulation failed');
+    expect(harness.sendRawTransactionStub.callCount).to.equal(0);
+  });
+
+  it('rejects a quote whose Solana signer does not match fromAddress', async () => {
+    const harness = createSolanaExecuteHarness();
+    const quote = solanaQuote(solanaActionResponse(), {
+      fromAddress: Keypair.generate().publicKey.toBase58(),
+    });
+
+    const error = await captureError(
+      harness.bridge.execute(quote, {
+        [ProtocolType.Sealevel]: SOLANA_PRIVATE_KEY,
+      }),
+    );
+
+    expect(error.message).to.include('signer does not match');
+    expect(harness.getActionStub.callCount).to.equal(0);
+  });
+});
+
 describe('SwapsXyzBridge.getStatus', () => {
   afterEach(() => sinon.restore());
 
@@ -1471,6 +2297,26 @@ describe('SwapsXyzBridge.getStatus', () => {
       ).to.deep.equal({ status: 'not_found' });
     });
   }
+
+  it('compares Solana source signatures case-sensitively', async () => {
+    const client = createClient();
+    sinon.stub(client, 'getStatus').resolves(
+      statusResponse('success', {
+        srcChainId: SOLANA_DOMAIN,
+        dstChainId: 1,
+        srcTxHash: 'AbcDef',
+      }),
+    );
+    const bridge = createBridge(client, {
+      chainMetadata: { solana: SOLANA_METADATA, ethereum: ETHEREUM_METADATA },
+    });
+    expect(
+      (await bridge.getStatus('abcdef', SOLANA_DOMAIN, 1)).status,
+    ).to.equal('not_found');
+    expect(
+      (await bridge.getStatus('AbcDef', SOLANA_DOMAIN, 1)).status,
+    ).to.equal('complete');
+  });
 
   it('requires a known transfer ID or source hash to complete', async () => {
     const client = createClient();
