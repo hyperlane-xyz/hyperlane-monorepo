@@ -28,6 +28,7 @@ import {
   assert,
   bytes32ToAddress,
   eqAddress,
+  isNullish,
   isZeroishAddress,
   parseMessage,
 } from '@hyperlane-xyz/utils';
@@ -300,7 +301,7 @@ export function icaRoutersByDomain(
   const routers = new Map<number, IcaRouters>();
   for (const [chain, addresses] of Object.entries(addressesByChain)) {
     const domain = multiProvider.tryGetDomainId(chain);
-    if (domain === null) continue;
+    if (isNullish(domain)) continue;
     const domainRouters = Object.fromEntries(
       ICA_ROUTER_VERSIONS.flatMap((version) => {
         const router = addresses[version]?.toLowerCase();
