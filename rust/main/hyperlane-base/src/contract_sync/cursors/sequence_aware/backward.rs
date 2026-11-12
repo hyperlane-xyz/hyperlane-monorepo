@@ -265,6 +265,11 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         Ok(())
     }
 
+    /// Backoff and exhausted searches are not proof that history is complete.
+    pub(super) fn is_caught_up(&self) -> bool {
+        self.current_indexing_snapshot.is_none()
+    }
+
     /// Gets the next block range to index.
     /// Only used in block mode.
     async fn get_next_block_range(
@@ -1710,6 +1715,7 @@ mod test {
             assert_eq!(cursor.sequence_gap_retries, 1);
             assert!(cursor.sequence_gap_retry_at.is_some());
             assert_eq!(cursor.get_next_range().await.unwrap(), None);
+            assert!(!cursor.is_caught_up(), "backoff is not completed history");
 
             cursor.sequence_gap_retry_at = Some(Instant::now() - Duration::from_secs(1));
             cursor.update(logs(92), range.clone()).await.unwrap();

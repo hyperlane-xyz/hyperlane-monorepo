@@ -80,6 +80,7 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     backward: BackwardSequenceAwareSyncCursor<T>,
     last_direction: SyncDirection,
     idle_sleep_duration: Duration,
+    caught_up: bool,
 }
 
 impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
@@ -139,6 +140,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             backward: backward_cursor,
             last_direction: SyncDirection::Forward,
             idle_sleep_duration,
+            caught_up: false,
         })
     }
 }
@@ -148,6 +150,7 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
     for ForwardBackwardSequenceAwareSyncCursor<T>
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+        self.caught_up = false;
         // TODO: Proper ETA for backwards sync
         let eta = Duration::from_secs(0);
         // Prioritize forward syncing over backward syncing.
@@ -160,11 +163,16 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
             self.last_direction = SyncDirection::Backward;
             return Ok((CursorAction::Query(backward_range), eta));
         }
+        self.caught_up = self.forward.caught_up && self.backward.is_caught_up();
         return Ok((CursorAction::Sleep(self.idle_sleep_duration), eta));
     }
 
     fn latest_queried_block(&self) -> u32 {
         self.forward.latest_queried_block()
+    }
+
+    fn is_caught_up(&self) -> bool {
+        self.caught_up
     }
 
     async fn update(

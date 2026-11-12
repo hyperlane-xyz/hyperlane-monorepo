@@ -143,7 +143,6 @@ export interface BaseRelayerConfig {
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
   websocketUrl?: string;
-  websocketAuthorityEnabled?: boolean;
   reorgPeriodOverrides?: ChainMap<number>;
   interval?: number;
   relayApi?: RelayApiConfig;
@@ -302,10 +301,6 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
     if (baseConfig.websocketUrl !== undefined) {
       relayerConfig.websocketUrl = baseConfig.websocketUrl;
-    }
-    if (baseConfig.websocketAuthorityEnabled !== undefined) {
-      relayerConfig.websocketAuthorityEnabled =
-        baseConfig.websocketAuthorityEnabled;
     }
     if (baseConfig.relayApi !== undefined) {
       relayerConfig.relayApiEnabled = baseConfig.relayApi.enabled;

@@ -47,6 +47,7 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     domain: HyperlaneDomain,
     /// Cursor metrics.
     metrics: Arc<CursorMetrics>,
+    pub(super) caught_up: bool,
 }
 
 impl<T> Debug for ForwardSequenceAwareSyncCursor<T> {
@@ -98,6 +99,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
             index_mode,
             domain,
             metrics,
+            caught_up: false,
         }
     }
 
@@ -111,6 +113,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
     /// If there are logs to index, returns the range of logs, either by sequence or block number
     /// depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+        self.caught_up = false;
         // Skip any already indexed logs.
         self.skip_indexed().await?;
 
@@ -129,6 +132,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareS
         let current_sequence = self.current_indexing_snapshot.sequence;
         let range = match current_sequence.cmp(&onchain_sequence_count) {
             Ordering::Equal => {
+                self.caught_up = true;
                 // We are synced up to the latest sequence so we don't need to index anything.
 
                 // We can update the current indexing snapshot to the tip.
