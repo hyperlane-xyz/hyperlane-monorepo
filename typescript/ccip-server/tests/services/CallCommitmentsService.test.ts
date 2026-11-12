@@ -2417,6 +2417,58 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       );
     sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
   });
+
+  interface LogFieldCase {
+    name: string;
+    overrides: Record<string, unknown>;
+    level: 'info' | 'warn' | 'error';
+  }
+
+  const logFieldCases: LogFieldCase[] = [
+    { name: 'served calls', overrides: {}, level: 'info' },
+    {
+      name: 'a denial',
+      overrides: {
+        deriveIcaFromRevealMessage: sinon
+          .stub()
+          .rejects(new CommitmentAccessDeniedError('not this commitment')),
+      },
+      level: 'warn',
+    },
+    {
+      name: 'an error',
+      overrides: {
+        deriveIcaFromRevealMessage: sinon
+          .stub()
+          .rejects(new Error('origin RPC unavailable')),
+      },
+      level: 'error',
+    },
+  ];
+
+  for (const c of logFieldCases) {
+    it(`logs the reveal as revealMessage, never as the log message key, for ${c.name}`, async () => {
+      const service = createVerifyingService(c.overrides);
+      const logger = mockLogger();
+      service.addLoggerServiceContext = () => logger;
+
+      await service
+        .handleFetchCommitment(message, baseRelayers[0], logger, originTxHash)
+        .catch(() => undefined);
+
+      const fields = [logger.info, logger.warn, logger.error].flatMap((stub) =>
+        stub.getCalls().map((call) => call.args[0]),
+      );
+      for (const field of fields) {
+        expect(field).not.to.have.property('message');
+      }
+      expect(
+        logger[c.level]
+          .getCalls()
+          .some((call) => call.args[0]?.revealMessage === message),
+      ).to.equal(true);
+    });
+  }
 });
 
 describe('CallCommitmentsService.handleCalldataPost', () => {

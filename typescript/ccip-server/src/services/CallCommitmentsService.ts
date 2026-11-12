@@ -534,13 +534,16 @@ export class CallCommitmentsService extends BaseService {
     originTxHash?: string,
   ) {
     const log = this.addLoggerServiceContext(logger);
-    log.info({ message, relayer }, 'Handling fetch commitment request');
+    log.info(
+      { revealMessage: message, relayer },
+      'Handling fetch commitment request',
+    );
 
     try {
       const { body, origin } = parseMessage(message);
       const commitment = commitmentFromRevealMessage(body);
       log.info(
-        { commitment, message, relayer },
+        { commitment, revealMessage: message, relayer },
         'Extracted commitment from reveal message',
       );
 
@@ -623,14 +626,19 @@ export class CallCommitmentsService extends BaseService {
     } catch (error: unknown) {
       if (error instanceof CommitmentAccessDeniedError) {
         log.warn(
-          { message, relayer, originTxHash, reason: error.message },
+          {
+            revealMessage: message,
+            relayer,
+            originTxHash,
+            reason: error.message,
+          },
           'Commitment access denied',
         );
         throw error;
       }
       log.error(
         {
-          message,
+          revealMessage: message,
           relayer,
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
