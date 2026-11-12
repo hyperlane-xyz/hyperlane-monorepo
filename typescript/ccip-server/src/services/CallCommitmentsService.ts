@@ -28,6 +28,7 @@ import {
   assert,
   bytes32ToAddress,
   eqAddress,
+  isEmptyAddress,
   isNullish,
   isZeroishAddress,
   parseMessage,
@@ -291,8 +292,9 @@ type IcaRouterVersion = (typeof ICA_ROUTER_VERSIONS)[number];
 export type IcaRouters = Partial<Record<IcaRouterVersion, string>>;
 
 /**
- * The registry's ICA routers by domain and version, lowercased. Chains without
- * an ICA router are omitted.
+ * The registry's ICA routers by domain and version, lowercased. Empty and
+ * zero-ish router addresses are ignored, and chains without an ICA router are
+ * omitted.
  */
 export function icaRoutersByDomain(
   addressesByChain: Record<string, Record<string, string>>,
@@ -304,8 +306,9 @@ export function icaRoutersByDomain(
     if (isNullish(domain)) continue;
     const domainRouters = Object.fromEntries(
       ICA_ROUTER_VERSIONS.flatMap((version) => {
-        const router = addresses[version]?.toLowerCase();
-        return router === undefined ? [] : [[version, router]];
+        const router = addresses[version];
+        if (isEmptyAddress(router)) return [];
+        return [[version, router.toLowerCase()]];
       }),
     );
     if (Object.keys(domainRouters).length === 0) continue;

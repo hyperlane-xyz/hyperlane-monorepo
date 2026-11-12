@@ -1515,6 +1515,47 @@ describe('icaRoutersByDomain', () => {
 
     expect(Array.from(routers.keys())).to.deep.equal([8453]);
   });
+
+  interface EmptyRouterCase {
+    name: string;
+    addresses: Record<string, string>;
+    expected: Array<[number, IcaRouters]>;
+  }
+
+  const emptyRouterCases: EmptyRouterCase[] = [
+    {
+      name: 'an empty router string',
+      addresses: { mailbox: v2, interchainAccountRouter: '' },
+      expected: [],
+    },
+    {
+      name: 'a zero router address',
+      addresses: {
+        mailbox: v2,
+        interchainAccountRouter: '0x' + '00'.repeat(20),
+      },
+      expected: [],
+    },
+    {
+      name: 'an empty router next to a deployed one',
+      addresses: {
+        mailbox: v2,
+        interchainAccountRouter: '',
+        interchainAccountRouterV3: v3,
+      },
+      expected: [[1135, { interchainAccountRouterV3: v3.toLowerCase() }]],
+    },
+  ];
+  for (const c of emptyRouterCases) {
+    it(`ignores ${c.name}`, () => {
+      const routers = icaRoutersByDomain(
+        { lisk: c.addresses },
+        multiProviderWith({ lisk: 1135 }),
+      );
+
+      expect(Array.from(routers.entries())).to.deep.equal(c.expected);
+    });
+  }
 });
 
 describe('CalldataLookupEnabledSchema', () => {
@@ -1578,6 +1619,16 @@ describe('CallCommitmentsService constructor', () => {
       name: 'a registry without ICA routers',
       trustedIcaRouters: () =>
         registryRouters({ base: { mailbox: '0x' + '01'.repeat(20) } }),
+    },
+    {
+      name: 'a registry whose ICA router addresses are empty',
+      trustedIcaRouters: () =>
+        registryRouters({
+          base: {
+            mailbox: '0x' + '01'.repeat(20),
+            interchainAccountRouter: '',
+          },
+        }),
     },
   ];
   for (const c of rejected) {
