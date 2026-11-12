@@ -1,4 +1,4 @@
-import { providers, utils } from 'ethers';
+import { ethers, providers, utils } from 'ethers';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
@@ -18,8 +18,10 @@ import {
   isPostCallsIca,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
+import { BlockchainError } from '@hyperlane-xyz/sdk/providers/SmartProvider/SmartProvider';
 import {
   addressToBytes32,
+  assert,
   formatMessage,
   parseMessage,
 } from '@hyperlane-xyz/utils';
@@ -724,7 +726,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     ).to.deep.equal({
       ica: utils.getAddress(mockIca),
       routerVersionIcas: [routerIca, routerIca, routerIca, routerIca],
-      failedCandidates: 0,
+      unavailableCandidates: 0,
     });
     expect(connect.calledWith(destinationRouter)).to.be.true;
     const decoded =
@@ -1187,7 +1189,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     expect(result).to.deep.equal({
       ica: utils.getAddress(mockIca),
       routerVersionIcas: [routerIca, routerIca],
-      failedCandidates: 0,
+      unavailableCandidates: 0,
     });
     expect(
       getRouterAccount
@@ -1201,29 +1203,233 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     sinon.assert.notCalled(originCall);
   });
 
-  it('keeps going when a router version cannot be derived, and says so', async () => {
-    // e.g. a pre-salt router: it cannot make a reveal match, so it must not
-    // fail one whose dispatched ICA does.
-    const { service, getRouterAccount } = createService([
-      dispatchLog(committedMessage, 1),
-      dispatchLog(revealMessage, 2),
-    ]);
-    getRouterAccount.onCall(0).rejects(new Error('pre-salt router'));
-    getRouterAccount.onCall(1).rejects(new Error('pre-salt router'));
-    const log = mockLogger();
+  /** An eth_call failure shaped as ethers and SmartProvider report it. */
+  interface CandidateFailureCase {
+    name: string;
+    error: () => unknown;
+    unavailable: boolean;
+  }
 
-    const result = await service.deriveIcaFromRevealMessage(
-      revealMessage,
-      originTxHash,
-      log,
+  const missingSelector = () =>
+    ethers.logger.makeError(
+      'call revert exception',
+      ethers.errors.CALL_EXCEPTION,
+      { data: '0x' },
     );
-
-    expect(result).to.deep.equal({
-      ica: utils.getAddress(mockIca),
-      routerVersionIcas: [routerIca, routerIca],
-      failedCandidates: 2,
+  const unavailableRpc = () =>
+    new Error('missing response', {
+      cause: ethers.logger.makeError(
+        'missing response',
+        ethers.errors.SERVER_ERROR,
+        {},
+      ),
     });
-    sinon.assert.calledTwice(log.warn);
+  const candidateFailureCases: CandidateFailureCase[] = [
+    {
+      name: 'a missing selector, e.g. a pre-salt router',
+      error: missingSelector,
+      unavailable: false,
+    },
+    {
+      name: 'a revert the chain answered',
+      error: () => new BlockchainError('execution reverted'),
+      unavailable: false,
+    },
+    {
+      name: 'a read no RPC provider answered',
+      error: unavailableRpc,
+      unavailable: true,
+    },
+  ];
+
+  for (const c of candidateFailureCases) {
+    it(`keeps going when a router version fails with ${c.name}, counting only unavailable reads`, async () => {
+      const { service, getRouterAccount } = createService([
+        dispatchLog(committedMessage, 1),
+        dispatchLog(revealMessage, 2),
+      ]);
+      getRouterAccount.onCall(0).rejects(c.error());
+      getRouterAccount.onCall(1).rejects(c.error());
+      const log = mockLogger();
+
+      const result = await service.deriveIcaFromRevealMessage(
+        revealMessage,
+        originTxHash,
+        log,
+      );
+
+      expect(result).to.deep.equal({
+        ica: utils.getAddress(mockIca),
+        routerVersionIcas: [routerIca, routerIca],
+        unavailableCandidates: c.unavailable ? 2 : 0,
+      });
+      expect(log.warn.callCount).to.equal(c.unavailable ? 2 : 0);
+      expect(log.debug.callCount).to.equal(c.unavailable ? 0 : 2);
+    });
+  }
+
+  describe('a destination whose registry lists only a V3 router', () => {
+    const v3Commit = formatMessage(
+      3,
+      10,
+      1,
+      originRouterV3,
+      2,
+      destinationRouterV3,
+      body,
+    );
+    const v3Reveal = formatMessage(
+      3,
+      11,
+      1,
+      originRouterV3,
+      2,
+      destinationRouterV3,
+      parseMessage(revealMessage).body,
+    );
+    const defaultIsm = '0x' + '37'.repeat(20);
+    const routerInterface = InterchainAccountRouter__factory.createInterface();
+    const lookup =
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)';
+
+    function createV3DestinationService(isms: () => Promise<string>) {
+      const created = createService([
+        dispatchLog(v3Commit, 1),
+        dispatchLog(v3Reveal, 2),
+      ]);
+      created.service.trustedIcaRouters = new Map([
+        [
+          1,
+          {
+            interchainAccountRouter: originRouter,
+            interchainAccountRouterV3: originRouterV3,
+          },
+        ],
+        [2, { interchainAccountRouterV3: destinationRouterV3 }],
+      ]);
+      created.destinationCall.callsFake(async (transaction) => {
+        const data = await transaction.data;
+        assert(typeof data === 'string', 'Expected call data');
+        if (data.startsWith(routerInterface.getSighash('isms'))) {
+          return isms();
+        }
+        return utils.defaultAbiCoder.encode(['address'], [mockIca]);
+      });
+      return created;
+    }
+
+    async function calls(destinationCall: sinon.SinonStub) {
+      return Promise.all(
+        destinationCall.getCalls().map(async (call) => {
+          const transaction = await call.args[0];
+          const data = await transaction.data;
+          const parsed = routerInterface.parseTransaction({ data });
+          return [
+            await transaction.to,
+            parsed.signature,
+            ...parsed.args.map((arg: unknown) => String(arg).toLowerCase()),
+          ];
+        }),
+      );
+    }
+
+    it('derives each ISM variant from the destination V3 router instead of the SDK', async () => {
+      const { service, destinationCall, getRouterAccount } =
+        createV3DestinationService(async () =>
+          utils.defaultAbiCoder.encode(
+            ['bytes32'],
+            [addressToBytes32(defaultIsm)],
+          ),
+        );
+
+      const result = await service.deriveIcaFromRevealMessage(
+        v3Reveal,
+        originTxHash,
+        mockLogger(),
+      );
+
+      expect(result).to.deep.equal({
+        ica: utils.getAddress(mockIca),
+        routerVersionIcas: [
+          utils.getAddress(mockIca),
+          utils.getAddress(mockIca),
+        ],
+        unavailableCandidates: 0,
+      });
+      sinon.assert.notCalled(getRouterAccount);
+      const owner = addressToBytes32(icaPayload.owner).toLowerCase();
+      const localRouter = addressToBytes32(originRouterV3).toLowerCase();
+      const to = utils.getAddress(destinationRouterV3);
+      expect(await calls(destinationCall)).to.have.deep.members([
+        [to, lookup, '1', owner, localRouter, ism, userSalt],
+        [to, 'isms(uint32)', '1'],
+        [to, lookup, '1', owner, localRouter, defaultIsm, userSalt],
+        [to, lookup, '1', owner, localRouter, ism, userSalt],
+      ]);
+    });
+
+    for (const c of candidateFailureCases) {
+      it(`classifies ${c.name} from the destination V3 router`, async () => {
+        const { service } = createV3DestinationService(async () => {
+          throw c.error();
+        });
+
+        const result = await service.deriveIcaFromRevealMessage(
+          v3Reveal,
+          originTxHash,
+          mockLogger(),
+        );
+
+        expect(result).to.deep.equal({
+          ica: utils.getAddress(mockIca),
+          routerVersionIcas: [utils.getAddress(mockIca)],
+          unavailableCandidates: c.unavailable ? 1 : 0,
+        });
+      });
+    }
+
+    it('derives no router version candidates when the chains share no version', async () => {
+      const mixedCommit = formatMessage(
+        3,
+        10,
+        1,
+        originRouter,
+        2,
+        destinationRouterV3,
+        body,
+      );
+      const mixedReveal = formatMessage(
+        3,
+        11,
+        1,
+        originRouter,
+        2,
+        destinationRouterV3,
+        parseMessage(revealMessage).body,
+      );
+      const { service, destinationCall, getRouterAccount } = createService([
+        dispatchLog(mixedCommit, 1),
+        dispatchLog(mixedReveal, 2),
+      ]);
+      service.trustedIcaRouters = new Map([
+        [1, { interchainAccountRouter: originRouter }],
+        [2, { interchainAccountRouterV3: destinationRouterV3 }],
+      ]);
+
+      const result = await service.deriveIcaFromRevealMessage(
+        mixedReveal,
+        originTxHash,
+        mockLogger(),
+      );
+
+      expect(result).to.deep.equal({
+        ica: utils.getAddress(mockIca),
+        routerVersionIcas: [],
+        unavailableCandidates: 0,
+      });
+      sinon.assert.calledOnce(destinationCall);
+      sinon.assert.notCalled(getRouterAccount);
+    });
   });
 
   for (const [name, logs, reason] of [
@@ -1889,9 +2095,11 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       originDomain: 1,
       relayers: baseRelayers,
     });
-    service.deriveIcaFromRevealMessage = sinon
-      .stub()
-      .resolves({ ica: mockIca, routerVersionIcas: [], failedCandidates: 0 });
+    service.deriveIcaFromRevealMessage = sinon.stub().resolves({
+      ica: mockIca,
+      routerVersionIcas: [],
+      unavailableCandidates: 0,
+    });
     return Object.assign(service, overrides);
   }
 
@@ -1997,9 +2205,11 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       // V3 routes registered without router overrides store the V2-derived
       // ICA; the reveal still has to execute on the V3 account.
       const service = createVerifyingService({
-        deriveIcaFromRevealMessage: sinon
-          .stub()
-          .resolves({ ica: otherIca, routerVersionIcas, failedCandidates: 0 }),
+        deriveIcaFromRevealMessage: sinon.stub().resolves({
+          ica: otherIca,
+          routerVersionIcas,
+          unavailableCandidates: 0,
+        }),
       });
 
       const result = await service.handleFetchCommitment(
@@ -2018,7 +2228,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       deriveIcaFromRevealMessage: sinon.stub().resolves({
         ica: otherIca,
         routerVersionIcas: [routerIca],
-        failedCandidates: 0,
+        unavailableCandidates: 0,
       }),
     });
 
@@ -2046,7 +2256,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       deriveIcaFromRevealMessage: sinon.stub().resolves({
         ica: otherIca,
         routerVersionIcas: [routerIca],
-        failedCandidates: 1,
+        unavailableCandidates: 1,
       }),
     });
 
@@ -2076,7 +2286,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       deriveIcaFromRevealMessage: sinon.stub().resolves({
         ica: otherIca,
         routerVersionIcas: [mockIca],
-        failedCandidates: 1,
+        unavailableCandidates: 1,
       }),
     });
 

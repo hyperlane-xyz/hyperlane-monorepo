@@ -108,8 +108,11 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
   The ICA of the dispatched router pair is served, which can differ from the
   stored one. Reads do not modify stored commitments. A reveal that fails these
   checks gets HTTP 403. A missing or null hash, a missing receipt, a failing
-  RPC, or a candidate ICA that could not be derived (when none of the others
+  RPC, or a candidate ICA whose chain read failed (when none of the others
   match) get HTTP 500 so the relayer retries; malformed hash strings get 400.
+  A candidate the chain answers as underivable (e.g. a router without salted
+  accounts) does not match. For a destination that lists only
+  `interchainAccountRouterV3`, candidates are derived from that router.
   Existing records with incorrect addresses still need a one-time database
   repair for `GET /calls/:commitment`. Re-registration must identify the same
   router pair: stale config that derives a different ICA still returns 409. A

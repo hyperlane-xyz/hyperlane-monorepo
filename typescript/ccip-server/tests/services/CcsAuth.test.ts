@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, Wallet, providers, utils } from 'ethers';
+import { BigNumber, Wallet, ethers, providers, utils } from 'ethers';
 import Fastify from 'fastify';
 import { pino } from 'pino';
 import sinon from 'sinon';
@@ -474,11 +474,15 @@ describe('CCS authenticated reveal recovery integration', () => {
     registeredWithDispatchedRouters = false,
     commitOwner = wallet.address,
     originV3Only = false,
+    destinationV3Only = false,
+    commitIsm = '0x' + '00'.repeat(20),
   }: {
     trustRouters?: boolean;
     registeredWithDispatchedRouters?: boolean;
     commitOwner?: string;
     originV3Only?: boolean;
+    destinationV3Only?: boolean;
+    commitIsm?: string;
   } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
@@ -497,7 +501,13 @@ describe('CCS authenticated reveal recovery integration', () => {
       destinationRouterV3,
       utils.solidityPack(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
-        [1, addressToBytes32(commitOwner), salt, salt, commitment],
+        [
+          1,
+          addressToBytes32(commitOwner),
+          utils.hexZeroPad(commitIsm, 32),
+          salt,
+          commitment,
+        ],
       ),
     );
     const message = formatMessage(
@@ -543,6 +553,9 @@ describe('CCS authenticated reveal recovery integration', () => {
     // The dispatched router pair derives with the same model as the registry
     // candidates below, so every ICA depends on the commit's owner and salt.
     const routerInterface = InterchainAccountRouter__factory.createInterface();
+    // Candidates for a destination without a V2 router read the router's ISM
+    // for the origin.
+    const destinationIsms: { error?: Error } = {};
     const destinationCall = sinon
       .stub(destinationProvider, 'call')
       .callsFake(async (transaction) => {
@@ -551,6 +564,13 @@ describe('CCS authenticated reveal recovery integration', () => {
           transaction.data,
         ]);
         assert(to && data, 'Expected a router call');
+        if (data.startsWith(routerInterface.getSighash('isms'))) {
+          if (destinationIsms.error !== undefined) throw destinationIsms.error;
+          return utils.defaultAbiCoder.encode(
+            ['bytes32'],
+            ['0x' + '00'.repeat(32)],
+          );
+        }
         const [, owner, router, ism, userSalt] =
           routerInterface.decodeFunctionData(
             'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
@@ -619,10 +639,12 @@ describe('CCS authenticated reveal recovery integration', () => {
           ],
           [
             42161,
-            {
-              interchainAccountRouter: destinationRouter,
-              interchainAccountRouterV3: destinationRouterV3,
-            },
+            destinationV3Only
+              ? { interchainAccountRouterV3: destinationRouterV3 }
+              : {
+                  interchainAccountRouter: destinationRouter,
+                  interchainAccountRouterV3: destinationRouterV3,
+                },
           ],
         ])
       : new Map([
@@ -657,6 +679,9 @@ describe('CCS authenticated reveal recovery integration', () => {
       icaApp,
       originCall,
       destinationCall,
+      destinationIsms,
+      originRouterV3,
+      destinationRouterV3,
       record,
       updateMany,
       dispatchedIca,
@@ -738,6 +763,83 @@ describe('CCS authenticated reveal recovery integration', () => {
     }
   });
 
+  const missingSelector = () =>
+    ethers.logger.makeError(
+      'call revert exception',
+      ethers.errors.CALL_EXCEPTION,
+      { data: '0x' },
+    );
+  const unavailableRpc = () =>
+    new Error('missing response', {
+      cause: ethers.logger.makeError(
+        'missing response',
+        ethers.errors.SERVER_ERROR,
+        {},
+      ),
+    });
+  const v3CommitIsm = '0x' + '35'.repeat(20);
+
+  it('serves a reveal to a destination whose registry lists only a V3 router, deriving its candidates from that router', async () => {
+    // The record was registered without an ISM, so only the candidate that
+    // reads the router's ISM for the origin matches.
+    const f = await fixture({
+      destinationV3Only: true,
+      commitIsm: v3CommitIsm,
+      registeredWithDispatchedRouters: true,
+    });
+    const servedIca = fakeAccount({
+      origin: 'base',
+      owner: wallet.address,
+      userSalt: f.salt,
+      localRouter: f.originRouterV3,
+      routerOverride: f.destinationRouterV3,
+      ismOverride: v3CommitIsm,
+    });
+    expect(servedIca).not.to.equal(f.record.ica);
+    try {
+      const response = await f.app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: f.payload,
+      });
+      expect(response.statusCode).to.equal(200);
+      expect(response.json().data).to.equal(
+        servedIca + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+      );
+      expect(f.icaApp.getAccount.called).to.equal(false);
+      sinon.assert.notCalled(f.updateMany);
+    } finally {
+      await f.app.close();
+    }
+  });
+
+  for (const [name, error] of [
+    ['the chain answers it as underivable', missingSelector],
+    ['its read is unavailable', unavailableRpc],
+  ] as const) {
+    it(`serves the dispatched ICA when another candidate matches and one fails because ${name}`, async () => {
+      const f = await fixture();
+      f.icaApp.getAccount.callsFake(async (_destination, config) => {
+        if (config.routerOverride === f.destinationRouterV3) throw error();
+        return fakeAccount(config);
+      });
+      try {
+        const response = await f.app.inject({
+          method: 'POST',
+          url: postPath,
+          payload: f.payload,
+        });
+        expect(response.statusCode).to.equal(200);
+        expect(response.json().data).to.equal(
+          f.dispatchedIca +
+            encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+        );
+      } finally {
+        await f.app.close();
+      }
+    });
+  }
+
   interface FailureCase {
     name: string;
     options: Parameters<typeof fixture>[0];
@@ -766,10 +868,51 @@ describe('CCS authenticated reveal recovery integration', () => {
       readsChain: false,
     },
     {
-      name: 'returns HTTP 500, not a denial, when a candidate ICA cannot be derived',
+      name: 'returns HTTP 500, not a denial, when a candidate ICA read is unavailable and none matches',
       options: {},
       setup: (f) => {
-        f.icaApp.getAccount.rejects(new Error('destination RPC unavailable'));
+        f.icaApp.getAccount.rejects(unavailableRpc());
+      },
+      statusCode: 500,
+      error: 'Could not derive every ICA candidate for the reveal',
+      readsReceipt: true,
+      readsChain: true,
+    },
+    {
+      name: 'returns HTTP 403 when the chain answers every failed candidate as underivable and none matches',
+      options: {},
+      setup: (f) => {
+        f.icaApp.getAccount.rejects(missingSelector());
+      },
+      statusCode: 403,
+      error: 'Reveal does not belong to this commitment',
+      readsReceipt: true,
+      readsChain: true,
+    },
+    {
+      name: 'returns HTTP 403 when a destination with only a V3 router answers its candidate as underivable',
+      options: {
+        destinationV3Only: true,
+        commitIsm: v3CommitIsm,
+        registeredWithDispatchedRouters: true,
+      },
+      setup: (f) => {
+        f.destinationIsms.error = missingSelector();
+      },
+      statusCode: 403,
+      error: 'Reveal does not belong to this commitment',
+      readsReceipt: true,
+      readsChain: true,
+    },
+    {
+      name: 'returns HTTP 500 when a destination with only a V3 router cannot be read for its candidate',
+      options: {
+        destinationV3Only: true,
+        commitIsm: v3CommitIsm,
+        registeredWithDispatchedRouters: true,
+      },
+      setup: (f) => {
+        f.destinationIsms.error = unavailableRpc();
       },
       statusCode: 500,
       error: 'Could not derive every ICA candidate for the reveal',

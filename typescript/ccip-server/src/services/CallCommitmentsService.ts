@@ -49,6 +49,7 @@ import {
 } from '../utils/prometheus.js';
 import { createRateLimitHook } from '../utils/rateLimit.js';
 import { CommitmentAccessDeniedError } from '../utils/errors.js';
+import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
 
 import {
@@ -570,7 +571,7 @@ export class CallCommitmentsService extends BaseService {
         originTxHash,
         'Missing origin transaction hash for reveal message',
       );
-      const { ica, routerVersionIcas, failedCandidates } =
+      const { ica, routerVersionIcas, unavailableCandidates } =
         await this.deriveIcaFromRevealMessage(message, originTxHash, log);
       // Records registered without router overrides store the V2-derived
       // ICA; a candidate equal to the stored ICA admits the reveal, and the
@@ -580,10 +581,10 @@ export class CallCommitmentsService extends BaseService {
           eqAddress(candidate, record.ica),
         )
       ) {
-        // A candidate that could not be derived might have matched: that is
-        // not a denial, so fail with HTTP 500 and let the relayer retry.
+        // A candidate whose chain read failed might have matched: that is not
+        // a denial, so fail with HTTP 500 and let the relayer retry.
         assert(
-          failedCandidates === 0,
+          unavailableCandidates === 0,
           'Could not derive every ICA candidate for the reveal',
         );
         log.warn(
@@ -651,7 +652,9 @@ export class CallCommitmentsService extends BaseService {
    * targets: `ica` from the routers it was dispatched through, and
    * `routerVersionIcas`, one per registry router version and ISM variant that
    * could be derived, from the same owner and user salt (see
-   * `handleFetchCommitment`). `failedCandidates` counts those that could not.
+   * `handleFetchCommitment`). `unavailableCandidates` counts those whose chain
+   * read failed; candidates the chain answered as underivable cannot match and
+   * are not counted.
    *
    * The reveal must be in the given transaction's mailbox logs, and both of
    * its routers must be ICA routers from the registry.
@@ -663,7 +666,7 @@ export class CallCommitmentsService extends BaseService {
   ): Promise<{
     ica: string;
     routerVersionIcas: string[];
-    failedCandidates: number;
+    unavailableCandidates: number;
   }> {
     const reveal = parseMessage(message);
     assert(
@@ -777,9 +780,10 @@ export class CallCommitmentsService extends BaseService {
       destinationRouter[
         'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
       ](reveal.origin, owner, reveal.sender, bytes32ToAddress(ism), userSalt),
-      // A version that cannot be derived (e.g. a pre-salt router) is counted,
-      // not fatal: it cannot make a reveal match, so any other match still
-      // serves, and with none the request fails so the relayer retries.
+      // A version the chain answers as underivable (e.g. a pre-salt router)
+      // cannot make a reveal match. A version whose read fails is counted:
+      // any other match still serves, and with none the request fails so the
+      // relayer retries.
       Promise.allSettled(
         ICA_ROUTER_VERSIONS.flatMap((version) => {
           const localRouter = originRouters[version];
@@ -788,38 +792,97 @@ export class CallCommitmentsService extends BaseService {
             return [];
           }
           return ismOverrides.map((ismOverride) =>
-            this.icaApp.getAccount(destinationChain, {
-              origin: originChain,
-              owner: bytes32ToAddress(owner),
-              userSalt,
-              localRouter,
-              routerOverride,
-              ismOverride,
-            }),
+            readOnchain(() =>
+              // `getAccount` requires the destination's V2 router even with
+              // a router override.
+              destinationRouters.interchainAccountRouter === undefined
+                ? this.deriveIcaFromRouter({
+                    destination: reveal.destination,
+                    router: routerOverride,
+                    origin: reveal.origin,
+                    owner,
+                    localRouter,
+                    ismOverride,
+                    userSalt,
+                  })
+                : this.icaApp.getAccount(destinationChain, {
+                    origin: originChain,
+                    owner: bytes32ToAddress(owner),
+                    userSalt,
+                    localRouter,
+                    routerOverride,
+                    ismOverride,
+                  }),
+            ),
           );
         }),
       ),
     ]);
     const routerVersionIcas: string[] = [];
-    let failedCandidates = 0;
+    let unavailableCandidates = 0;
     for (const result of versionResults) {
       if (result.status === 'fulfilled') {
         routerVersionIcas.push(result.value);
-      } else {
-        failedCandidates++;
+        continue;
+      }
+      const error =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason);
+      if (result.reason instanceof RpcUnavailableError) {
+        unavailableCandidates++;
         log.warn(
-          {
-            originTxHash,
-            error:
-              result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason),
-          },
-          'Could not derive the ICA for a router version',
+          { originTxHash, error },
+          'Could not read the chain to derive the ICA for a router version',
+        );
+      } else {
+        log.debug(
+          { originTxHash, error },
+          'The chain did not derive the ICA for a router version',
         );
       }
     }
-    return { ica, routerVersionIcas, failedCandidates };
+    return { ica, routerVersionIcas, unavailableCandidates };
+  }
+
+  /**
+   * Derives an ICA from a destination router directly, with the router's ISM
+   * for the origin when there is no ISM override, as `InterchainAccount`
+   * does.
+   */
+  private async deriveIcaFromRouter({
+    destination,
+    router,
+    origin,
+    owner,
+    localRouter,
+    ismOverride,
+    userSalt,
+  }: {
+    destination: number;
+    router: string;
+    origin: number;
+    owner: string;
+    localRouter: string;
+    ismOverride: string | undefined;
+    userSalt: string;
+  }): Promise<string> {
+    const destinationRouter = InterchainAccountRouter__factory.connect(
+      router,
+      this.multiProvider.getProvider(destination),
+    );
+    const rawIsm = isNullish(ismOverride)
+      ? await destinationRouter.isms(origin)
+      : ismOverride;
+    return destinationRouter[
+      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+    ](
+      origin,
+      owner,
+      addressToBytes32(localRouter),
+      bytes32ToAddress(rawIsm),
+      userSalt,
+    );
   }
 
   /**
