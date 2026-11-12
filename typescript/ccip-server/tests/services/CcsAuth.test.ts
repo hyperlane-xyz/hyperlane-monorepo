@@ -475,14 +475,12 @@ describe('CCS authenticated reveal recovery integration', () => {
     commitOwner = wallet.address,
     originV3Only = false,
     destinationV3Only = false,
-    commitIsm = '0x' + '00'.repeat(20),
   }: {
     trustRouters?: boolean;
     registeredWithDispatchedRouters?: boolean;
     commitOwner?: string;
     originV3Only?: boolean;
     destinationV3Only?: boolean;
-    commitIsm?: string;
   } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
@@ -501,13 +499,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       destinationRouterV3,
       utils.solidityPack(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
-        [
-          1,
-          addressToBytes32(commitOwner),
-          utils.hexZeroPad(commitIsm, 32),
-          salt,
-          commitment,
-        ],
+        [1, addressToBytes32(commitOwner), salt, salt, commitment],
       ),
     );
     const message = formatMessage(
@@ -553,9 +545,6 @@ describe('CCS authenticated reveal recovery integration', () => {
     // The dispatched router pair derives with the same model as the registry
     // candidates below, so every ICA depends on the commit's owner and salt.
     const routerInterface = InterchainAccountRouter__factory.createInterface();
-    // Candidates for a destination without a V2 router read the router's ISM
-    // for the origin.
-    const destinationIsms: { error?: Error } = {};
     const destinationCall = sinon
       .stub(destinationProvider, 'call')
       .callsFake(async (transaction) => {
@@ -564,13 +553,6 @@ describe('CCS authenticated reveal recovery integration', () => {
           transaction.data,
         ]);
         assert(to && data, 'Expected a router call');
-        if (data.startsWith(routerInterface.getSighash('isms'))) {
-          if (destinationIsms.error !== undefined) throw destinationIsms.error;
-          return utils.defaultAbiCoder.encode(
-            ['bytes32'],
-            ['0x' + '00'.repeat(32)],
-          );
-        }
         const [, owner, router, ism, userSalt] =
           routerInterface.decodeFunctionData(
             'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
@@ -679,8 +661,6 @@ describe('CCS authenticated reveal recovery integration', () => {
       icaApp,
       originCall,
       destinationCall,
-      destinationIsms,
-      originRouterV3,
       destinationRouterV3,
       record,
       updateMany,
@@ -777,25 +757,11 @@ describe('CCS authenticated reveal recovery integration', () => {
         {},
       ),
     });
-  const v3CommitIsm = '0x' + '35'.repeat(20);
-
-  it('serves a reveal to a destination whose registry lists only a V3 router, deriving its candidates from that router', async () => {
-    // The record was registered without an ISM, so only the candidate that
-    // reads the router's ISM for the origin matches.
+  it('serves a reveal to a destination without a V2 router from the dispatched ICA alone', async () => {
     const f = await fixture({
       destinationV3Only: true,
-      commitIsm: v3CommitIsm,
       registeredWithDispatchedRouters: true,
     });
-    const servedIca = fakeAccount({
-      origin: 'base',
-      owner: wallet.address,
-      userSalt: f.salt,
-      localRouter: f.originRouterV3,
-      routerOverride: f.destinationRouterV3,
-      ismOverride: v3CommitIsm,
-    });
-    expect(servedIca).not.to.equal(f.record.ica);
     try {
       const response = await f.app.inject({
         method: 'POST',
@@ -804,9 +770,11 @@ describe('CCS authenticated reveal recovery integration', () => {
       });
       expect(response.statusCode).to.equal(200);
       expect(response.json().data).to.equal(
-        servedIca + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+        f.dispatchedIca +
+          encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
       );
       expect(f.icaApp.getAccount.called).to.equal(false);
+      sinon.assert.calledOnce(f.destinationCall);
       sinon.assert.notCalled(f.updateMany);
     } finally {
       await f.app.close();
@@ -890,32 +858,10 @@ describe('CCS authenticated reveal recovery integration', () => {
       readsChain: true,
     },
     {
-      name: 'returns HTTP 403 when a destination with only a V3 router answers its candidate as underivable',
-      options: {
-        destinationV3Only: true,
-        commitIsm: v3CommitIsm,
-        registeredWithDispatchedRouters: true,
-      },
-      setup: (f) => {
-        f.destinationIsms.error = missingSelector();
-      },
+      name: 'returns HTTP 403 for a destination without a V2 router when the dispatched ICA is not the stored one',
+      options: { destinationV3Only: true },
       statusCode: 403,
       error: 'Reveal does not belong to this commitment',
-      readsReceipt: true,
-      readsChain: true,
-    },
-    {
-      name: 'returns HTTP 500 when a destination with only a V3 router cannot be read for its candidate',
-      options: {
-        destinationV3Only: true,
-        commitIsm: v3CommitIsm,
-        registeredWithDispatchedRouters: true,
-      },
-      setup: (f) => {
-        f.destinationIsms.error = unavailableRpc();
-      },
-      statusCode: 500,
-      error: 'Could not derive every ICA candidate for the reveal',
       readsReceipt: true,
       readsChain: true,
     },

@@ -813,31 +813,25 @@ export class CallCommitmentsService extends BaseService {
         ICA_ROUTER_VERSIONS.flatMap((version) => {
           const localRouter = originRouters[version];
           const routerOverride = destinationRouters[version];
-          if (localRouter === undefined || routerOverride === undefined) {
+          // `getAccount`, which registrations also derive with, requires the
+          // destination's V2 router; other records store the dispatched ICA.
+          if (
+            localRouter === undefined ||
+            routerOverride === undefined ||
+            destinationRouters.interchainAccountRouter === undefined
+          ) {
             return [];
           }
           return ismOverrides.map((ismOverride) =>
             readOnchain(() =>
-              // `getAccount` requires the destination's V2 router even with
-              // a router override.
-              destinationRouters.interchainAccountRouter === undefined
-                ? this.deriveIcaFromRouter({
-                    destination: reveal.destination,
-                    router: routerOverride,
-                    origin: reveal.origin,
-                    owner,
-                    localRouter,
-                    ismOverride,
-                    userSalt,
-                  })
-                : this.icaApp.getAccount(destinationChain, {
-                    origin: originChain,
-                    owner: bytes32ToAddress(owner),
-                    userSalt,
-                    localRouter,
-                    routerOverride,
-                    ismOverride,
-                  }),
+              this.icaApp.getAccount(destinationChain, {
+                origin: originChain,
+                owner: bytes32ToAddress(owner),
+                userSalt,
+                localRouter,
+                routerOverride,
+                ismOverride,
+              }),
             ),
           );
         }),
@@ -868,46 +862,6 @@ export class CallCommitmentsService extends BaseService {
       }
     }
     return { ica, routerVersionIcas, unavailableCandidates };
-  }
-
-  /**
-   * Derives an ICA from a destination router directly, with the router's ISM
-   * for the origin when there is no ISM override, as `InterchainAccount`
-   * does.
-   */
-  private async deriveIcaFromRouter({
-    destination,
-    router,
-    origin,
-    owner,
-    localRouter,
-    ismOverride,
-    userSalt,
-  }: {
-    destination: number;
-    router: string;
-    origin: number;
-    owner: string;
-    localRouter: string;
-    ismOverride: string | undefined;
-    userSalt: string;
-  }): Promise<string> {
-    const destinationRouter = InterchainAccountRouter__factory.connect(
-      router,
-      this.multiProvider.getProvider(destination),
-    );
-    const rawIsm = isNullish(ismOverride)
-      ? await destinationRouter.isms(origin)
-      : ismOverride;
-    return destinationRouter[
-      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-    ](
-      origin,
-      owner,
-      addressToBytes32(localRouter),
-      bytes32ToAddress(rawIsm),
-      userSalt,
-    );
   }
 
   /**

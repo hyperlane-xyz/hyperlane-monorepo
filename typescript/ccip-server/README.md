@@ -112,8 +112,8 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
   match) get HTTP 500 so the relayer retries; malformed hash strings get 400.
   A candidate the chain answers as underivable (e.g. a router without salted
   accounts) does not match, and a reveal whose dispatched routers the chain
-  answers as unable to derive the ICA gets HTTP 403. For a destination that lists only
-  `interchainAccountRouterV3`, candidates are derived from that router.
+  answers as unable to derive the ICA gets HTTP 403. For a destination without
+  `interchainAccountRouter`, only the dispatched routers' ICA is checked.
   Existing records with incorrect addresses still need a one-time database
   repair for `GET /calls/:commitment`. Re-registration must identify the same
   router pair: stale config that derives a different ICA still returns 409. A
