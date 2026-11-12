@@ -19,7 +19,7 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::ChainConf,
+    settings::{ChainConf, IndexSettings},
     BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
@@ -27,9 +27,9 @@ use hyperlane_base::{
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, rpc_clients::RPC_RETRY_SLEEP_DURATION,
     Announcement, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, IncrementalMerkleAtBlock, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, ValidatorAnnounceSubmission,
-    H256, U256,
+    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, IncrementalMerkleAtBlock, IndexMode,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce,
+    ValidatorAnnounceSubmission, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 use hyperlane_metric::{
@@ -760,7 +760,10 @@ impl Validator {
         startup_count: u32,
         verified_count: u32,
     ) -> eyre::Result<JoinHandle<()>> {
-        let index_settings = self.origin_chain_conf.index_settings();
+        let index_settings = Self::index_settings_for_snapshot(
+            self.origin_chain_conf.index_settings(),
+            verified_count,
+        );
         let rpc_sync = self.rpc_sync.clone();
         if let Some(websocket) = &self.websocket_sync {
             let websocket = websocket.clone();
@@ -797,6 +800,17 @@ impl Validator {
             }
             .instrument(info_span!("MerkleTreeHookSyncer")),
         ))
+    }
+
+    fn index_settings_for_snapshot(
+        mut settings: IndexSettings,
+        verified_count: u32,
+    ) -> IndexSettings {
+        // An empty verified prefix requires leaf zero, regardless of the configured floor.
+        if matches!(settings.mode, IndexMode::Sequence) && verified_count == 0 {
+            settings.from = 0;
+        }
+        settings
     }
 
     fn checkpoint_submitter(&self) -> ValidatorSubmitter {
@@ -1154,6 +1168,26 @@ mod tests {
 
     use super::*;
     use crate::test_utils::mock_merkle_tree_hook::MockMerkleTreeHook;
+
+    #[test]
+    fn sequence_indexing_without_a_snapshot_starts_at_leaf_zero() {
+        for (mode, from, verified_count, expected_from) in [
+            (IndexMode::Sequence, 1, 0, 0),
+            (IndexMode::Sequence, -1, 0, 0),
+            (IndexMode::Sequence, 1, 10, 1),
+            (IndexMode::Block, 39, 0, 39),
+        ] {
+            let settings = Validator::index_settings_for_snapshot(
+                IndexSettings {
+                    mode,
+                    from,
+                    ..Default::default()
+                },
+                verified_count,
+            );
+            assert_eq!(settings.from, expected_from);
+        }
+    }
 
     #[tokio::test(start_paused = true)]
     async fn announcement_retry_backoff_grows_and_caps() {
