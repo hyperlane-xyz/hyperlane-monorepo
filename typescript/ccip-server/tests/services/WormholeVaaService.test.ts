@@ -824,15 +824,11 @@ describe('WormholeVaaService', () => {
       endpoints: Record<string, () => Promise<Response>>,
     ): sinon.SinonStub {
       return sinon.stub(globalThis, 'fetch').callsFake(async (input) => {
-        if (typeof input !== 'string') {
-          throw new Error('Expected a string request URL');
-        }
+        assert(typeof input === 'string', 'Expected a string request URL');
         const endpoint = Object.entries(endpoints).find(([baseUrl]) =>
           input.startsWith(`${baseUrl}/`),
         );
-        if (!endpoint) {
-          throw new Error(`Unexpected request to ${input}`);
-        }
+        assert(endpoint, `Unexpected request to ${input}`);
         const [, respond] = endpoint;
         return respond();
       });
