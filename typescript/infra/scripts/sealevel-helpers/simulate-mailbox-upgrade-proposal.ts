@@ -652,7 +652,7 @@ async function executeProposalOnFork({
   multisigPda: PublicKey;
   programId: PublicKey;
   executor: PublicKey;
-}): Promise<string> {
+}): Promise<{ signature: string; computeUnitsConsumed: number }> {
   const { instruction, lookupTableAccounts } =
     await squadsInstructions.vaultTransactionExecute({
       connection,
@@ -677,7 +677,20 @@ async function executeProposalOnFork({
     computeUnits: MAX_COMPUTE_UNITS,
     waitForSlotAdvance: true,
   });
-  return receipt.signature;
+  const executedTransaction = await connection.getTransaction(
+    receipt.signature,
+    {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion:
+        metadata.maxSupportedTransactionVersion ?? 0,
+    },
+  );
+  const computeUnitsConsumed = executedTransaction?.meta?.computeUnitsConsumed;
+  assert(
+    computeUnitsConsumed !== undefined,
+    `Compute units consumed unavailable for ${receipt.signature}`,
+  );
+  return { signature: receipt.signature, computeUnitsConsumed };
 }
 
 async function main(): Promise<void> {
@@ -870,7 +883,7 @@ async function main(): Promise<void> {
       multisigPda: squadsKeys.multisigPda,
       programId: squadsKeys.programId,
     });
-    const executionSignature = await executeProposalOnFork({
+    const executionReceipt = await executeProposalOnFork({
       connection: forkConnection,
       metadata: forkMetadata,
       proposalIndex,
@@ -1022,7 +1035,8 @@ async function main(): Promise<void> {
         buffer: bufferAddress,
         dispatchSignature: dispatchReceipt.signature,
         expectedHash,
-        executionSignature,
+        executionComputeUnitsConsumed: executionReceipt.computeUnitsConsumed,
+        executionSignature: executionReceipt.signature,
         forkRpcUrl,
         inboundReplaySignature: inboundReceipt.signature,
         inboundSourceSignature: inboundReplay.sourceSignature,
