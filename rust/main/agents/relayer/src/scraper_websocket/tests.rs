@@ -313,6 +313,35 @@ async fn probe_errors_share_grace_and_ignore_previous_generations() {
 }
 
 #[tokio::test]
+async fn health_probes_do_not_advance_gas_restart_height() {
+    use hyperlane_core::{HyperlaneWatermarkedLogStore, InterchainGasPayment};
+    let (_dir, source, _) = fixture();
+    source.database.advance_observed_gas_height(99).unwrap();
+    let mut state = SourceState::new(&source);
+    state.authoritative = true;
+    state.next = [Some(2), Some(2)];
+    let generation = source.control.request(source.control.generation()).unwrap();
+    state
+        .observe_probe(
+            generation,
+            Ok(Some(RpcProbe::Health(HealthProbe {
+                counts: [2, 2],
+                observed: [2, 2],
+            }))),
+        )
+        .unwrap();
+    assert_eq!(
+        HyperlaneWatermarkedLogStore::<InterchainGasPayment>::retrieve_high_watermark(
+            &source.database
+        )
+        .await
+        .unwrap(),
+        Some(99),
+        "healthy dispatch/Merkle counts do not establish gas stream progress"
+    );
+}
+
+#[tokio::test]
 async fn rejected_live_subscription_uses_slow_reconnect() {
     use hyperlane_base::scraper_websocket::{
         stream_retry_delay, REJECTED_STREAM_RETRY_DELAY, RETRY_DELAY,
@@ -767,8 +796,8 @@ async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_re
     }
 }
 
-#[test]
-fn rpc_and_live_gas_overlap_is_not_double_credited() {
+#[tokio::test]
+async fn rpc_and_live_gas_overlap_is_not_double_credited() {
     use hyperlane_core::{GasPaymentKey, InterchainGasPayment, U256};
     let (_dir, source, _) = fixture();
     let key = GasPaymentKey {
@@ -794,6 +823,7 @@ fn rpc_and_live_gas_overlap_is_not_double_credited() {
         .process_indexed_gas_payment(payment, &meta)
         .unwrap();
     source.store(&LiveEvent::Gas(payment, meta)).unwrap();
+    assert_eq!(hyperlane_core::HyperlaneWatermarkedLogStore::<InterchainGasPayment>::retrieve_high_watermark(&source.database).await.unwrap(), Some(99));
     assert_eq!(
         source
             .database

@@ -26,7 +26,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     BackwardCursorProgress, HyperlaneBackwardCursorStore, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, MerkleTreeInsertion,
-    ReorgPeriod, SequenceAwareIndexer, H256,
+    ReorgPeriod, SequenceAwareIndexer, SequenceCoverage, H256,
 };
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use redact::Secret;
@@ -239,6 +239,18 @@ impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for MerkleTre
 
 #[async_trait]
 impl HyperlaneBackwardCursorStore<MerkleTreeInsertion> for MerkleTreeStore {
+    async fn retrieve_sequence_coverage(&self) -> Result<Option<SequenceCoverage>> {
+        HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_sequence_coverage(&self.db)
+            .await
+    }
+
+    async fn store_sequence_coverage(&self, coverage: SequenceCoverage) -> Result<()> {
+        HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::store_sequence_coverage(
+            &self.db, coverage,
+        )
+        .await
+    }
+
     async fn retrieve_backward_cursors(&self) -> Result<Vec<BackwardCursorProgress>> {
         HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_backward_cursors(&self.db)
             .await

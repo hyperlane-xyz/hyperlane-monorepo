@@ -18,7 +18,7 @@ use tracing::{debug, info, instrument, warn};
 use hyperlane_core::{
     indexed_to_sequence_indexed_array, BackwardCursorProgress, ContractSyncCursor, CursorAction,
     HyperlaneDomain, HyperlaneSequenceAwareIndexerStore, IndexMode, Indexed, LogMeta,
-    SequenceAwareIndexer, SequenceIndexed,
+    SequenceAwareIndexer, SequenceCoverage, SequenceIndexed,
 };
 
 use crate::cursors::Indexable;
@@ -47,6 +47,10 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// Durable backwards positions by missing sequence. Multiple checkpoints let
     /// newer gaps advance without discarding unfinished older scans.
     persisted_progress: BTreeMap<u32, u32>,
+    /// Already verified contiguous entries; independent of the configured floor.
+    pub(super) coverage: Option<SequenceCoverage>,
+    /// Upper end of the contiguous history being checked by this cursor.
+    coverage_last: Option<u32>,
     /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
     /// the initial log to start indexing backward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -148,6 +152,8 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             lowest_block_height_or_sequence,
             store,
             persisted_progress,
+            coverage: None,
+            coverage_last: current_sequence_count.checked_sub(1),
             current_indexing_snapshot: last_indexed_snapshot.previous_target(),
             at_lower_bound: false,
             startup_scan_from: None,
@@ -173,10 +179,26 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         self.at_lower_bound = false;
         // Skip any already indexed logs first, so a recovered gap clears its
         // retry state even while a gap backoff is still active.
-        tokio::select! {
-            res = self.skip_indexed() => res?,
-            // return early to allow the forward cursor to also make progress
-            _ = sleep(MAX_BACKWARD_SYNC_BLOCKING_TIME) => { return Ok(None); }
+        let skipped = tokio::select! {
+            res = self.skip_indexed() => { res?; true },
+            // Return early to allow the forward cursor to also make progress.
+            _ = sleep(MAX_BACKWARD_SYNC_BLOCKING_TIME) => false,
+        };
+        if let (Some(first), Some(last)) = (self.last_indexed_snapshot.sequence, self.coverage_last)
+        {
+            if first <= last {
+                let mut coverage = SequenceCoverage { first, last };
+                if let Some(previous) = self.coverage {
+                    coverage = previous.merge(coverage).unwrap_or(previous);
+                }
+                if self.coverage != Some(coverage) {
+                    self.store.store_sequence_coverage(coverage).await?;
+                    self.coverage = Some(coverage);
+                }
+            }
+        }
+        if !skipped {
+            return Ok(None);
         }
 
         self.apply_persisted_progress();
@@ -442,6 +464,15 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         while let Some(current_indexing_sequence) =
             self.current_indexing_snapshot.as_ref().map(|s| s.sequence)
         {
+            // Jump across a previously verified range, then continue below it.
+            // Reading its lower endpoint still supplies the block for floor checks.
+            let current_indexing_sequence = self
+                .coverage
+                .filter(|range| {
+                    range.first <= current_indexing_sequence
+                        && current_indexing_sequence <= range.last
+                })
+                .map_or(current_indexing_sequence, |range| range.first);
             // Require the block number as well.
             if let Some(block_number) = self
                 .get_sequence_log_block_number(current_indexing_sequence)

@@ -16,7 +16,7 @@ use hyperlane_core::{
     HyperlaneBackwardCursorStore, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
     InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
-    MerkleTreeInsertion, PendingOperationStatus, H256, H512,
+    MerkleTreeInsertion, PendingOperationStatus, SequenceCoverage, H256, H512,
 };
 
 use crate::db::{
@@ -102,6 +102,16 @@ impl HyperlaneRocksDB {
     /// Get the domain this database is scoped to
     pub fn domain(&self) -> &HyperlaneDomain {
         &self.0
+    }
+
+    /// Advance the existing gas restart block after storing a WebSocket gas event.
+    pub fn advance_observed_gas_height(&self, height: u32) -> DbResult<()> {
+        let previous: Option<u32> =
+            self.retrieve_decodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK)?;
+        if previous.is_none_or(|previous| height > previous) {
+            self.store_encodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK, &height)?;
+        }
+        Ok(())
     }
 
     fn retrieve_backward_cursor_progress(
@@ -1115,12 +1125,9 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
         &self,
         payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
     ) -> Result<u32> {
-        store_and_count_new(
-            self,
-            payments,
-            "gas payments",
-            HyperlaneRocksDB::process_indexed_gas_payment,
-        )
+        store_and_count_new(self, payments, "gas payments", |db, payment, meta| {
+            db.process_indexed_gas_payment(payment, meta)
+        })
         .await
     }
 }
@@ -1159,6 +1166,22 @@ macro_rules! impl_backward_cursor_store {
     ($event:ty, $key:expr) => {
         #[async_trait]
         impl HyperlaneBackwardCursorStore<$event> for HyperlaneRocksDB {
+            async fn retrieve_sequence_coverage(&self) -> Result<Option<SequenceCoverage>> {
+                Ok(self.retrieve_decodable(
+                    "sequence_coverage_v1_",
+                    <$event as crate::cursors::Indexable>::name(),
+                )?)
+            }
+
+            async fn store_sequence_coverage(&self, coverage: SequenceCoverage) -> Result<()> {
+                // The event's RPC cursor is the sole coverage writer.
+                Ok(self.store_encodable(
+                    "sequence_coverage_v1_",
+                    <$event as crate::cursors::Indexable>::name(),
+                    &coverage,
+                )?)
+            }
+
             async fn retrieve_backward_cursors(&self) -> Result<Vec<BackwardCursorProgress>> {
                 self.retrieve_backward_cursor_progress($key)
             }
