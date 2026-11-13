@@ -18,7 +18,9 @@ const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 // bsc (PoSA) and polygon (PoS) have a history of multi-block reorgs, so they
 // use a small non-zero reorg period instead of 1 even on the fast path.
 const FASTPATH_REORG_PRONE_REORG_PERIOD = 3;
-export const fastPathReorgPeriodOverrides: Record<string, number> = {
+// A number of blocks, or a block tag (e.g. 'safe' / 'finalized') for EVM chains
+// whose RPC fork-choice head tracks the tip closely enough to stay on the fast path.
+export const fastPathReorgPeriodOverrides: Record<string, number | string> = {
   arbitrum: FASTPATH_VALIDATOR_REORG_PERIOD,
   base: FASTPATH_VALIDATOR_REORG_PERIOD,
   bsc: FASTPATH_REORG_PRONE_REORG_PERIOD,
