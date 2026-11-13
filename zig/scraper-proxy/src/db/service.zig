@@ -104,6 +104,8 @@ pub const DbService = struct {
     /// Queries between admission and return (under `mutex`).
     in_flight: usize = 0,
     in_flight_done: std.Thread.Condition = .{},
+    /// Reads early queries' replies as they arrive (`beginLive`).
+    prefetch: Prefetcher = .{},
     /// True when `close` gave up waiting: memory must not be freed.
     leaked: bool = false,
     /// Test seam replacing the libpq pools.
@@ -136,19 +138,51 @@ pub const DbService = struct {
     /// `start()`: schema checks, warm-up (primary only), stats timer. On
     /// failure `failure.message` holds the TS error message.
     pub fn start(self: *DbService, failure: *Failure, arena: std.mem.Allocator) Error!void {
-        try self.validateEventStreamSchema(arena, failure);
+        // TS validates the schema, then warms the primary pool. The warm-up
+        // only opens connections, so it runs alongside the validation (one
+        // connect + query less on the startup path). Its outcome counts only
+        // once validation succeeded, as in TS: on a schema failure the
+        // warmed connections are just closed with the pool, unreported.
+        const warm = self.config.database_read_replica_url == null and self.backend == null;
+        var warm_up: WarmUp = .{ .service = self };
+        defer warm_up.arena.deinit();
+        const thread: ?std.Thread = if (warm) std.Thread.spawn(.{}, WarmUp.run, .{&warm_up}) catch null else null;
+        const schema = self.validateEventStreamSchema(arena, failure);
+        if (warm) {
+            if (thread) |t| t.join() else if (schema) |_| warm_up.run() else |_| {}
+        }
+        try schema;
         if (self.config.database_read_replica_url != null) {
             self.logger.info("GraphQL db role=read-replica; connections open lazily so replica health cannot gate websocket startup", .{});
-        } else if (self.backend == null) {
-            const started = self.clock();
-            try self.warmUp(arena, failure);
-            self.logger.info("warmed {d} GraphQL db connections role=primary in {d}ms", .{ MIN_POOL_CLIENTS, self.clock() - started });
+        } else if (warm) {
+            if (warm_up.err) |e| {
+                failure.message = arena.dupe(u8, warm_up.failure.message) catch "";
+                failure.code = null;
+                return e;
+            }
+            self.logger.info("warmed {d} GraphQL db connections role=primary in {d}ms", .{ MIN_POOL_CLIENTS, warm_up.elapsed_ms });
         }
         if (core.scheduler.current()) |timers| {
             self.stats_timers = timers;
             self.stats_timer = timers.every(STATS_INTERVAL_MS, self, statsTick) catch 0;
         } else self.stats_thread = std.Thread.spawn(.{}, statsLoop, .{self}) catch null;
     }
+
+    const WarmUp = struct {
+        service: *DbService,
+        arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(std.heap.c_allocator),
+        failure: Failure = .{},
+        err: ?Error = null,
+        elapsed_ms: i64 = 0,
+
+        fn run(w: *WarmUp) void {
+            const started = w.service.clock();
+            w.service.warmUp(w.arena.allocator(), &w.failure) catch |e| {
+                w.err = e;
+            };
+            w.elapsed_ms = w.service.clock() - started;
+        }
+    };
 
     /// `Promise.all(Array.from({ length: 5 }, () => pool.connect()))`: open
     /// the warm-up connections concurrently, then release them all.
@@ -201,6 +235,8 @@ pub const DbService = struct {
             self.stats_timers = null;
         }
         self.logHoldTimes();
+        // Teardown: abandoned early queries are dropped, not drained.
+        self.prefetch.discardAbandoned();
         self.mutex.lock();
         self.ended = true;
         const deadline = self.clock() + close_drain_ms;
@@ -219,6 +255,7 @@ pub const DbService = struct {
         self.live_pool = null;
         self.main_pool = null;
         self.mutex.unlock();
+        self.prefetch.stop();
         for (listeners.items) |l| self.stopListener(l);
         for (retired.items) |l| self.stopListener(l);
         listeners.deinit(self.gpa);
@@ -443,21 +480,8 @@ pub const DbService = struct {
         const started = self.clock();
         var local_failure: Failure = .{};
         const failure = failure_opt orelse &local_failure;
-        // Admission: `close` rejects new work and waits for admitted queries.
-        self.mutex.lock();
-        if (self.ended) {
-            self.mutex.unlock();
-            failure.message = "Cannot use a pool after calling end on the pool";
-            return error.PoolClosed;
-        }
-        self.in_flight += 1;
-        self.mutex.unlock();
-        defer {
-            self.mutex.lock();
-            self.in_flight -= 1;
-            if (self.in_flight == 0) self.in_flight_done.broadcast();
-            self.mutex.unlock();
-        }
+        try self.admit(failure);
+        defer self.leave();
         const result = blk: {
             // node-pg would overflow V8's stack formatting these (TS fails
             // before sending; `convert.exceedsJsStack`).
@@ -471,20 +495,422 @@ pub const DbService = struct {
             }
             const p = self.pool(kind) catch |e| break :blk e;
             break :blk p.queryWith(arena, sql, params, opts, failure);
-        } catch |e| {
-            const duration = self.clock() - started;
+        };
+        return self.report(id, role, arena, sql, params, result, self.clock() - started, failure);
+    }
+
+    /// Admission: `close` rejects new work and waits for admitted queries.
+    fn admit(self: *DbService, failure: *Failure) Error!void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.ended) {
+            failure.message = "Cannot use a pool after calling end on the pool";
+            return error.PoolClosed;
+        }
+        self.in_flight += 1;
+    }
+
+    fn leave(self: *DbService) void {
+        self.mutex.lock();
+        self.in_flight -= 1;
+        if (self.in_flight == 0) self.in_flight_done.broadcast();
+        self.mutex.unlock();
+    }
+
+    /// Metrics, stats and the failed/slow query logs for a finished query
+    /// (`id` was assigned when the query started, as in TS).
+    fn report(self: *DbService, id: u64, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, result: Error!root.Result, duration: i64, failure: *Failure) Error![]Value {
+        const ok = result catch |e| {
             self.record(role, duration, 0, true);
             const message = if (failure.message.len > 0) failure.message else @errorName(e);
             self.logger.warn("query failed id={d} role={s} durationMs={d} error={s} {f}", .{ id, role.label(), duration, message, QueryDetails{ .arena = arena, .sql = sql, .params = params } });
             return e;
         };
-        const duration = self.clock() - started;
-        self.record(role, duration, result.row_count, false);
+        self.record(role, duration, ok.row_count, false);
         if (duration >= @as(i64, @intCast(self.config.database_slow_query_ms))) {
-            self.logger.warn("slow query id={d} role={s} durationMs={d} rows={d} {f}", .{ id, role.label(), duration, result.row_count, QueryDetails{ .arena = arena, .sql = sql, .params = params } });
+            self.logger.warn("slow query id={d} role={s} durationMs={d} rows={d} {f}", .{ id, role.label(), duration, ok.row_count, QueryDetails{ .arena = arena, .sql = sql, .params = params } });
         }
-        return result.rows;
+        return ok.rows;
     }
+
+    /// A live-pool query sent ahead of its read point (`beginLive`). Its
+    /// reply is read by the service's prefetch reader as it arrives, so the
+    /// connection goes back to the pool at once whatever the caller does.
+    /// Call exactly one of `finish` or `cancel` (both free it; `close` waits).
+    /// Only `finish` counts: metrics, stats and logs see the query exactly
+    /// like `queryLive`, timed from the send to the reply's arrival (stamped
+    /// by the reader when it reads the completing bytes: an upper bound by
+    /// its wake-up latency, since it reacts to socket readiness); a
+    /// cancelled one is as if never issued.
+    /// Test-only (see `Prefetcher`).
+    pub fn failPrefetchAllocForTest(on: bool) void {
+        Prefetcher.fail_alloc_for_test = on;
+    }
+
+    pub const PendingQuery = struct {
+        service: *DbService,
+        /// Null when nothing was sent early (no idle connection, pool closed,
+        /// send error, test backend): `finish` runs `queryLive` then.
+        pending: ?pool_mod.Pool.Pending,
+        /// Caller-owned until `finish`/`cancel` (rows are converted there).
+        arena: std.mem.Allocator,
+        sql: []const u8,
+        params: []const Value,
+        /// `pq.nowMs` when sent (the reply's arrival is timed against it).
+        sent_ms: i64 = 0,
+        /// Prefetcher state, under `Prefetcher.mutex`.
+        registered: bool = false,
+        busy: bool = false,
+        abandoned: bool = false,
+        discard: bool = false,
+        /// The reader ran out of memory and gave it up: `finish` reruns it.
+        oom: bool = false,
+
+        /// Kept for callers that poll between writes; the prefetch reader
+        /// already reads replies as they arrive.
+        pub fn poll(_: *PendingQuery) void {}
+
+        /// When the complete reply arrived (`pq.nowMs`), or null if not yet
+        /// (or nothing was sent early).
+        pub fn arrivedMs(self: *PendingQuery) ?i64 {
+            const pf = &self.service.prefetch;
+            pf.mutex.lock();
+            defer pf.mutex.unlock();
+            pf.waitIdle(self);
+            const p = self.pending orelse return null;
+            return if (p.arrived_ms != 0) p.arrived_ms else null;
+        }
+
+        /// The early read failed in a way TS would not have seen at its read
+        /// point (`finish` reruns it; a caller may also `cancel` and re-query).
+        pub fn failedEarly(self: *PendingQuery) bool {
+            const pf = &self.service.prefetch;
+            pf.mutex.lock();
+            defer pf.mutex.unlock();
+            pf.waitIdle(self);
+            return self.failedEarlyLocked();
+        }
+
+        fn failedEarlyLocked(self: *const PendingQuery) bool {
+            if (self.oom) return true;
+            const p = self.pending orelse return false;
+            if (p.arrived_ms == 0) return false;
+            if (p.failed) |e| return e == error.ConnectionFailed or e == error.QueryTimeout;
+            const code = p.errorCode() orelse return false;
+            return std.mem.eql(u8, code, "57014");
+        }
+
+        fn rerunnable(e: Error, failure: Failure) bool {
+            const statement_timeout = e == error.QueryFailed and failure.code != null and std.mem.eql(u8, failure.code.?, "57014");
+            return e == error.ConnectionFailed or e == error.QueryTimeout or statement_timeout;
+        }
+
+        pub fn finish(self: *PendingQuery, failure_opt: ?*Failure) Error![]Value {
+            const s = self.service;
+            const arena = self.arena;
+            const sql = self.sql;
+            const params = self.params;
+            var local_failure: Failure = .{};
+            const failure = failure_opt orelse &local_failure;
+            if (self.pending == null) {
+                s.gpa.destroy(self);
+                return s.queryLive(arena, sql, params, failure);
+            }
+            const early_failed = s.prefetch.detach(self);
+            var p = self.pending.?;
+            const sent_ms = self.sent_ms;
+            s.gpa.destroy(self);
+            defer s.leave();
+            // A failure TS would not have seen at this, its read point
+            // (connection lost, client or statement timeout while the reply
+            // waited): run the query now; the early attempt counts nowhere.
+            if (early_failed) {
+                p.cancel();
+                return s.run(.live, .live_primary, arena, sql, params, .{}, failure);
+            }
+            // TS assigns the id when it issues the query: here.
+            const id = s.next_query_id.fetchAdd(1, .monotonic) + 1;
+            const result = p.finish(arena, failure);
+            if (result) |_| {} else |e| {
+                if (rerunnable(e, failure.*)) {
+                    failure.* = .{};
+                    return s.run(.live, .live_primary, arena, sql, params, .{}, failure);
+                }
+            }
+            return s.report(id, .live_primary, arena, sql, params, result, p.arrived_ms - sent_ms, failure);
+        }
+
+        /// Gives it up. A reply still on its way is drained by the prefetch
+        /// reader and the connection goes back to the pool (no reconnect).
+        pub fn cancel(self: *PendingQuery) void {
+            const s = self.service;
+            if (self.pending == null) {
+                s.gpa.destroy(self);
+                return;
+            }
+            if (s.prefetch.abandon(self)) return; // the reader frees it
+            self.pending.?.cancel();
+            s.gpa.destroy(self);
+            s.leave();
+        }
+    };
+
+    /// `queryLive`, split: sends now on a live-pool connection that is idle
+    /// right now (never opens, queues or overtakes a waiter) and reads it in
+    /// the background (see `PendingQuery`). With nothing idle nothing is sent
+    /// early. Returns null only when out of memory (then just query later).
+    pub fn beginLive(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value) ?*PendingQuery {
+        const early = self.gpa.create(PendingQuery) catch return null;
+        early.* = .{ .service = self, .pending = null, .arena = arena, .sql = sql, .params = params };
+        if (self.backend != null) return early;
+        // Parameters TS could not even format fail at the read point instead.
+        if (convert.exceedsJsStack(arena, params) catch true) return early;
+        var failure: Failure = .{};
+        self.admit(&failure) catch return early;
+        const p = self.pool(.live) catch {
+            self.leave();
+            return early;
+        };
+        const sent_ms = pq.nowMs();
+        early.pending = p.begin(arena, sql, params, &failure) catch |e| blk: {
+            self.logger.warn("early query send failed role=live_primary error={s}; it runs at its read point", .{if (failure.message.len > 0) failure.message else @errorName(e)});
+            break :blk null;
+        };
+        if (early.pending == null) {
+            self.leave();
+            return early;
+        }
+        early.sent_ms = sent_ms;
+        self.prefetch.register(self, early);
+        return early;
+    }
+
+    /// The prefetch reader: one thread that polls the sockets of early
+    /// queries and reads each reply as it arrives, so its connection returns
+    /// to the pool without waiting for the caller, and drains abandoned ones
+    /// (closing them only at their query timeout or at `close`). It starts on
+    /// first use and exits after `idle_exit_ms` with nothing in flight, so it
+    /// adds no idle thread. (With fiber loops this becomes the loop's
+    /// `waitFd` on the prefetch socket instead of a thread.)
+    const Prefetcher = struct {
+        mutex: std.Thread.Mutex = .{},
+        /// Broadcast when an entry stops being `busy`.
+        idle: std.Thread.Condition = .{},
+        entries: std.ArrayList(*PendingQuery) = .empty,
+        pipe: ?[2]std.posix.fd_t = null,
+        thread: ?std.Thread = null,
+        stopping: bool = false,
+        service: ?*DbService = null,
+
+        const idle_exit_ms = 1_000;
+        /// Test-only: the reader's allocations fail.
+        var fail_alloc_for_test: bool = false;
+
+        fn register(self: *Prefetcher, service: *DbService, q: *PendingQuery) void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            self.service = service;
+            if (self.thread == null) self.start() catch {
+                // No reader: the caller's `finish` reads it as before.
+                return;
+            };
+            self.entries.append(service.gpa, q) catch return;
+            q.registered = true;
+            self.wake();
+        }
+
+        /// Mutex held.
+        fn start(self: *Prefetcher) !void {
+            if (self.pipe == null) self.pipe = try std.posix.pipe2(.{ .CLOEXEC = true, .NONBLOCK = true });
+            self.thread = try std.Thread.spawn(.{}, readLoop, .{self});
+        }
+
+        fn wake(self: *Prefetcher) void {
+            if (self.pipe) |p| _ = std.posix.write(p[1], "x") catch {};
+        }
+
+        /// Mutex held.
+        fn waitIdle(self: *Prefetcher, q: *PendingQuery) void {
+            while (q.busy) self.idle.wait(&self.mutex);
+        }
+
+        /// Mutex held.
+        fn unregister(self: *Prefetcher, q: *PendingQuery) void {
+            if (!q.registered) return;
+            q.registered = false;
+            for (self.entries.items, 0..) |e, i| if (e == q) {
+                _ = self.entries.swapRemove(i);
+                return;
+            };
+        }
+
+        /// `finish`: take it back from the reader. True when the early read
+        /// already failed in a way TS would not have seen.
+        fn detach(self: *Prefetcher, q: *PendingQuery) bool {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            self.waitIdle(q);
+            self.unregister(q);
+            return q.failedEarlyLocked();
+        }
+
+        /// `cancel`: true when the reader keeps it (reply still coming) and
+        /// will drain and free it.
+        fn abandon(self: *Prefetcher, q: *PendingQuery) bool {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            self.waitIdle(q);
+            if (!q.registered) return false;
+            q.abandoned = true;
+            self.wake();
+            return true;
+        }
+
+        /// Out of memory in the reader (mutex held): give every prefetch up.
+        /// Callers' ones rerun at their read point (`oom`); abandoned ones
+        /// are closed now. Nothing waits and nothing leaks.
+        fn giveUpAll(self: *Prefetcher, s: *DbService) void {
+            while (self.entries.pop()) |q| {
+                q.registered = false;
+                q.oom = true;
+                if (!q.abandoned) continue;
+                q.pending.?.cancel();
+                s.gpa.destroy(q);
+                s.leave();
+            }
+        }
+
+        fn discardAbandoned(self: *Prefetcher) void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            for (self.entries.items) |q| if (q.abandoned) {
+                q.discard = true;
+            };
+            self.wake();
+        }
+
+        fn stop(self: *Prefetcher) void {
+            self.mutex.lock();
+            self.stopping = true;
+            self.wake();
+            const thread = self.thread;
+            self.thread = null;
+            self.mutex.unlock();
+            if (thread) |t| t.join();
+            if (self.pipe) |p| {
+                std.posix.close(p[0]);
+                std.posix.close(p[1]);
+                self.pipe = null;
+            }
+            if (self.service) |s| self.entries.deinit(s.gpa);
+            self.entries = .empty;
+        }
+
+        fn readLoop(self: *Prefetcher) void {
+            // Own allocator: after an idle exit the thread is detached and
+            // must not touch the service while unwinding.
+            const ga = std.heap.c_allocator;
+            var fds: std.ArrayList(std.posix.pollfd) = .empty;
+            var owners: std.ArrayList(*PendingQuery) = .empty;
+            defer {
+                fds.deinit(ga);
+                owners.deinit(ga);
+            }
+            var idle_since: ?i64 = null;
+            while (true) {
+                self.mutex.lock();
+                // At `close` (after in-flight queries drained) anything still
+                // registered belongs to a caller, who finishes it directly.
+                if (self.stopping) {
+                    self.mutex.unlock();
+                    return;
+                }
+                // Nothing in flight for a while: exit (`register` restarts it).
+                if (self.entries.items.len == 0) {
+                    const now_idle = pq.nowMs();
+                    const since = idle_since orelse now_idle;
+                    idle_since = since;
+                    if (now_idle - since >= idle_exit_ms) {
+                        if (self.thread) |t| t.detach();
+                        self.thread = null;
+                        self.mutex.unlock();
+                        return;
+                    }
+                } else idle_since = null;
+                const s = self.service.?;
+                fds.clearRetainingCapacity();
+                owners.clearRetainingCapacity();
+                const want = self.entries.items.len + 1;
+                if (if (fail_alloc_for_test) error.OutOfMemory else fds.ensureTotalCapacity(ga, want)) |_| {} else |_| {
+                    self.giveUpAll(s);
+                    self.mutex.unlock();
+                    continue;
+                }
+                if (owners.ensureTotalCapacity(ga, want)) |_| {} else |_| {
+                    self.giveUpAll(s);
+                    self.mutex.unlock();
+                    continue;
+                }
+                fds.appendAssumeCapacity(.{ .fd = self.pipe.?[0], .events = std.posix.POLL.IN, .revents = 0 });
+                var timeout: i32 = if (self.entries.items.len == 0) idle_exit_ms else -1;
+                const now = pq.nowMs();
+                // Client query timeout (0 = none): an abandoned query still
+                // drains until its reply or `close`.
+                const limit: i64 = @intCast(s.config.database_query_timeout_ms);
+                for (self.entries.items) |q| {
+                    const fd = q.pending.?.socket() orelse continue;
+                    const events: i16 = if (q.pending.?.wantsWrite()) std.posix.POLL.IN | std.posix.POLL.OUT else std.posix.POLL.IN;
+                    fds.appendAssumeCapacity(.{ .fd = fd, .events = events, .revents = 0 });
+                    owners.appendAssumeCapacity(q);
+                    if (q.discard) timeout = 0;
+                    // TLS without the exact check: re-poll every 50 ms.
+                    if (q.pending.?.tlsBlind()) timeout = if (timeout < 0) 50 else @min(timeout, 50);
+                    if (q.abandoned and limit > 0) {
+                        const left: i32 = @intCast(@max(0, @min(q.sent_ms + limit - now, std.math.maxInt(i32))));
+                        timeout = if (timeout < 0) left else @min(timeout, left);
+                    }
+                }
+                self.mutex.unlock();
+                _ = std.posix.poll(fds.items, timeout) catch 0;
+                if (fds.items[0].revents != 0) {
+                    var buf: [64]u8 = undefined;
+                    while ((std.posix.read(fds.items[0].fd, &buf) catch 0) > 0) {}
+                }
+                const after = pq.nowMs();
+                for (owners.items, fds.items[1..]) |q, fd| {
+                    self.mutex.lock();
+                    if (!q.registered) {
+                        self.mutex.unlock();
+                        continue;
+                    }
+                    const expired = q.abandoned and (q.discard or (limit > 0 and after >= q.sent_ms + limit));
+                    if (fd.revents == 0 and !expired and !q.pending.?.tlsBlind()) {
+                        self.mutex.unlock();
+                        continue;
+                    }
+                    q.busy = true;
+                    self.mutex.unlock();
+                    var settled: bool = undefined;
+                    if (expired) {
+                        q.pending.?.cancel();
+                        settled = true;
+                    } else settled = q.pending.?.poll();
+                    self.mutex.lock();
+                    q.busy = false;
+                    self.idle.broadcast();
+                    const free = settled and q.abandoned;
+                    if (settled and q.abandoned) self.unregister(q);
+                    if (settled and !q.abandoned) self.unregister(q);
+                    self.mutex.unlock();
+                    if (free) {
+                        q.pending.?.cancel(); // frees the stored reply
+                        s.gpa.destroy(q);
+                        s.leave();
+                    }
+                }
+            }
+        }
+    };
 
     fn record(self: *DbService, role: Role, duration: i64, rows: usize, failed: bool) void {
         self.stats_mutex.lock();

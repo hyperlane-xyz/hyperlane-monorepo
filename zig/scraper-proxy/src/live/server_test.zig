@@ -24,6 +24,9 @@ const FakeSocket = struct {
     fail_sends: bool = false,
     /// Hold send completions until `releaseHeld` (a stalled socket).
     hold: bool = false,
+    /// Complete each queued send before `send` returns (ws's poller wrote
+    /// it at once, on another thread, before the caller looked).
+    complete_in_send: bool = false,
     held: std.ArrayList(*Completion) = .empty,
     /// `try_send_inline` behaviour; `.busy` keeps every send on the queued path.
     inline_mode: live.Socket.InlineResult = .busy,
@@ -58,13 +61,22 @@ const FakeSocket = struct {
         job: runtime.Pool.Job = .{ .run = run },
         send_job: *live.SendJob,
         ok: bool,
+        /// Already reported (`complete_in_send`): only the pass ends here.
+        recorded: bool = false,
 
+        /// ws reports the frame (one flush pass each), then ends the pass.
         fn run(job: *runtime.Pool.Job) void {
             const self: *Completion = @alignCast(@fieldParentPtr("job", job));
             const send_job = self.send_job;
             const ok = self.ok;
+            const recorded = self.recorded;
             a.destroy(self);
-            send_job.complete(ok);
+            const peer = send_job.peer;
+            const server = send_job.server;
+            peer.retain();
+            if (!recorded) send_job.complete(ok);
+            server.passEnd(peer);
+            peer.releaseUnlocked();
         }
     };
 
@@ -77,7 +89,14 @@ const FakeSocket = struct {
         completion.* = .{ .send_job = job, .ok = !self.fail_sends };
         const hold = self.hold;
         if (hold) self.held.append(a, completion) catch unreachable;
+        const now = self.complete_in_send and !hold;
         self.mutex.unlock();
+        if (now) {
+            // Reported at once (the caller holds the loop mutex); the pass
+            // ends on another thread.
+            job.complete(completion.ok);
+            completion.recorded = true;
+        }
         if (!hold) self.pool.submit(&completion.job);
         return true;
     }
@@ -179,7 +198,8 @@ const FakeSocket = struct {
         return self.buffered;
     }
     fn snapshot(ptr: *anyopaque) live.Socket.Snapshot {
-        return .{ .open = isOpen(ptr), .buffered = bufferedAmount(ptr) };
+        // `buffered` is set by tests as bytes ws holds of its own (no job).
+        return .{ .open = isOpen(ptr), .buffered = bufferedAmount(ptr), .control = bufferedAmount(ptr) };
     }
     fn isOpen(ptr: *anyopaque) bool {
         const self: *FakeSocket = @ptrCast(@alignCast(ptr));
@@ -249,8 +269,60 @@ const FakeDb = struct {
     /// Called before each query, without any lock (the loop mutex is released).
     before_query: ?struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque, sql: []const u8) void } = null,
 
+    /// Split queries: `begin` runs the query at once (a snapshot), `finish`
+    /// returns that result, `cancel` drops it. Off unless `split` is set.
+    split: bool = false,
+    begun: usize = 0,
+    finished: usize = 0,
+    cancelled: usize = 0,
+
+    const Early = struct { rows: ?[]const u8, failed: bool, arena: std.mem.Allocator };
+
     fn db(self: *FakeDb) es.Db {
-        return .{ .ctx = self, .query = query };
+        if (!self.split) return .{ .ctx = self, .query = query };
+        return .{ .ctx = self, .query = query, .begin = begin, .finish = finish, .cancel = cancel };
+    }
+
+    fn match(self: *FakeDb, sql: []const u8, params: []const json.Value) ?Rule {
+        for (self.rules.items, 0..) |rule, index| {
+            if (std.mem.indexOf(u8, sql, rule.contains) == null) continue;
+            if (rule.domain) |domain| if (params.len == 0 or params[0] != .number or params[0].number != domain) continue;
+            if (!rule.persistent) _ = self.rules.orderedRemove(index);
+            return rule;
+        }
+        return null;
+    }
+
+    fn begin(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) ?*anyopaque {
+        const self: *FakeDb = @ptrCast(@alignCast(ctx));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.begun += 1;
+        self.queries.append(a, a.dupe(u8, sql) catch unreachable) catch unreachable;
+        const early = a.create(Early) catch unreachable;
+        const rule = self.match(sql, params);
+        early.* = .{ .rows = if (rule) |r| r.rows else null, .failed = if (rule) |r| r.fail else false, .arena = arena };
+        return early;
+    }
+
+    fn finish(ctx: *anyopaque, handle: *anyopaque) anyerror![]json.Value {
+        const self: *FakeDb = @ptrCast(@alignCast(ctx));
+        const early: *Early = @ptrCast(@alignCast(handle));
+        defer a.destroy(early);
+        self.mutex.lock();
+        self.finished += 1;
+        self.mutex.unlock();
+        if (early.failed) return runtime.fail("permission denied for table", .{});
+        const text = early.rows orelse return &.{};
+        return (try json.parse(early.arena, text, .{})).array;
+    }
+
+    fn cancel(ctx: *anyopaque, handle: *anyopaque) void {
+        const self: *FakeDb = @ptrCast(@alignCast(ctx));
+        self.mutex.lock();
+        self.cancelled += 1;
+        self.mutex.unlock();
+        a.destroy(@as(*Early, @ptrCast(@alignCast(handle))));
     }
 
     fn query(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) anyerror![]json.Value {
@@ -294,12 +366,14 @@ const FakeListen = struct {
     handler: ?live.ListenHandler = null,
     fail: bool = false,
     stopped: usize = 0,
+    listens: usize = 0,
 
     fn api(self: *FakeListen) live.Listen {
         return .{ .ctx = self, .listen = listen, .unlisten = unlisten };
     }
     fn listen(ctx: *anyopaque, _: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {
         const self: *FakeListen = @ptrCast(@alignCast(ctx));
+        self.listens += 1;
         if (self.fail) return error.ConnectionFailed;
         self.handler = handler;
         return self;
@@ -928,7 +1002,7 @@ test "keeps one failing frontier domain from blocking another, then disconnects 
     try h.waitFrames(two, 2);
     const frontier = "\"confirmed_delivered_message\" AS \"frontier_row\"";
     h.db.add(.{ .contains = frontier, .domain = 1, .persistent = true, .fail = true });
-    h.db.add(.{ .contains = frontier, .domain = 2, .persistent = true, .rows =
+    h.db.add(.{ .contains = frontier, .domain = 2, .persistent = true, .rows = 
         \\[{"time_created":"t","msg_id":"\\xcd","domain":2,"destination_mailbox":"\\x01","destination_tx_id":"5","sequence":"3","frontier_id":"11","frontier_height":"9"}]
     });
     h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"10\",\"previousConfirmedHeight\":\"8\"}");
@@ -1376,4 +1450,186 @@ test "a corked frame the socket cannot take whole stays charged until written" {
     try testing.expect(!s.terminated);
 }
 
+fn merkleRow(comptime leaf: []const u8, comptime message: []const u8) []const u8 {
+    return "{\"domain\":1,\"merkle_tree_hook\":\"\\\\x0000000000000000000000000000000000000001\",\"leaf_index\":" ++ leaf ++ ",\"message_id\":\"\\\\x" ++ message ++ "\",\"block_number\":5}";
+}
 
+/// Replay of leaves 0..3 in pages of two. The second page is sent ahead of
+/// its turn (when the first one arrives) and snapshots the "old" rows; the
+/// query run at its turn returns "new" rows. A head notification for
+/// `head_domain` arrives while the first page is being delivered.
+const WindowResult = struct { frames: [4][]const u8, begun: usize, cancelled: usize, finished: usize };
+
+fn replayWithNotificationInWindow(channel: []const u8, notification: []const u8) !WindowResult {
+    return replayWindow(channel, notification, .{});
+}
+
+const WindowOptions = struct {
+    /// Loop time that passes while the first page's write is held.
+    tick_ms: u64 = 0,
+    /// `EventStore.prefetch_age_ms`.
+    age_cap_ms: i64 = 60_000,
+};
+
+fn replayWindow(channel: []const u8, notification: []const u8, options: WindowOptions) !WindowResult {
+    var h: Harness = .{ .db = .{ .split = true } };
+    try h.initBatch(defaultLimits(), 2);
+    defer h.deinit();
+    h.server.store.prefetch_age_ms = options.age_cap_ms;
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.db.on("COALESCE(MIN(\"leaf_index\")", "[{\"first\":\"0\",\"last\":\"3\"}]");
+    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("0", "a0") ++ "," ++ merkleRow("1", "a1") ++ "]");
+    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("2", "01d") ++ "," ++ merkleRow("3", "01d") ++ "]"); // the early snapshot
+    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("2", "2e") ++ "," ++ merkleRow("3", "3e") ++ "]"); // read at TS's turn
+    // Hold the first replayed frame's write: the replay waits mid-page.
+    s.hold = true;
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
+    );
+    for (0..10_000) |_| {
+        if (s.heldCount() >= 2) break; // subscribed + first event
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expect(s.heldCount() >= 2);
+    h.listen.notify(channel, notification);
+    if (options.tick_ms > 0) h.t.fake.tick(@intCast(options.tick_ms));
+    s.releaseHeld(true);
+    try h.waitFrames(s, 7); // ready, subscribed, 4 events, caught_up
+    h.settle();
+    var frames: [4][]const u8 = undefined;
+    for (&frames, 2..) |*frame, index| frame.* = try a.dupe(u8, s.frame(index));
+    return .{ .frames = frames, .begun = h.db.begun, .cancelled = h.db.cancelled, .finished = h.db.finished };
+}
+
+test "a replay page read ahead is dropped when a head notification for its domain is processed first" {
+    const result = try replayWithNotificationInWindow(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"1\"}");
+    defer for (result.frames) |frame| a.free(frame);
+    // The prefetched (old) rows were discarded; the page was read again at its turn.
+    try testing.expectEqual(@as(usize, 1), result.begun);
+    try testing.expectEqual(@as(usize, 1), result.cancelled);
+    try testing.expectEqual(@as(usize, 0), result.finished);
+    try testing.expect(std.mem.indexOf(u8, result.frames[2], "\\\\x2e") != null);
+    try testing.expect(std.mem.indexOf(u8, result.frames[3], "\\\\x3e") != null);
+}
+
+test "a replay page read ahead is used when only another domain's head moved" {
+    const result = try replayWithNotificationInWindow(live.HEAD_CHANNEL, "{\"domain\":2,\"confirmedHeight\":\"1\"}");
+    defer for (result.frames) |frame| a.free(frame);
+    try testing.expectEqual(@as(usize, 1), result.begun);
+    try testing.expectEqual(@as(usize, 0), result.cancelled);
+    try testing.expectEqual(@as(usize, 1), result.finished);
+    try testing.expect(std.mem.indexOf(u8, result.frames[2], "\\\\x01d") != null);
+}
+
+test "a replay page read ahead is dropped when a row for its domain is committed first" {
+    // e.g. a backfilled row inside the replay range (TS reads after it).
+    const result = try replayWithNotificationInWindow(live.EVENT_CHANNEL, "{\"eventType\":\"merkle_tree_insertion\",\"id\":\"77\",\"domain\":1}");
+    defer for (result.frames) |frame| a.free(frame);
+    try testing.expectEqual(@as(usize, 1), result.begun);
+    try testing.expectEqual(@as(usize, 1), result.cancelled);
+    try testing.expectEqual(@as(usize, 0), result.finished);
+}
+
+test "a replay page read ahead is dropped when it was sent longer ago than the age cap" {
+    const result = try replayWindow(live.HEAD_CHANNEL, "{\"domain\":2,\"confirmedHeight\":\"1\"}", .{ .tick_ms = 60, .age_cap_ms = 50 }); // (under the 250 ms heartbeat)
+    defer for (result.frames) |frame| a.free(frame);
+    try testing.expectEqual(@as(usize, 1), result.begun);
+    try testing.expectEqual(@as(usize, 1), result.cancelled);
+    try testing.expectEqual(@as(usize, 0), result.finished);
+    try testing.expect(std.mem.indexOf(u8, result.frames[2], "\\\\x2e") != null);
+}
+
+/// `listenEarly`, then wait for the early connection (no `start` yet).
+fn initEarly(h: *Harness) !void {
+    core.log.setSink(Harness.discard, null);
+    h.t.init();
+    h.server = try live.Server.create(a, &h.t.loop, h.db.db(), h.listen.api(), .{ .limits = defaultLimits(), .batch_size = 500 }, null);
+    h.server.listenEarly();
+    for (0..10_000) |_| {
+        if (h.listen.handler != null) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expect(h.listen.handler != null);
+}
+
+fn queryCount(h: *Harness) usize {
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    return h.db.queries.items.len;
+}
+
+test "notifications on the early listener before start change nothing" {
+    var h: Harness = .{};
+    try initEarly(&h);
+    const early = h.listen.handler.?;
+    // TS is not listening yet: none of these may queue work or read rows.
+    h.listen.notify(live.EXPLORER_CHANNEL, "{\"messageId\":\"0x01\"}");
+    h.listen.notify(live.EVENT_CHANNEL, "{\"eventType\":\"dispatch\",\"id\":\"7\",\"domain\":1}");
+    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"1\"}");
+    h.t.fake.tick(1_000); // any batch timer would fire
+    h.settle();
+    try testing.expectEqual(@as(usize, 0), queryCount(&h));
+    try testing.expectEqual(@as(u64, 0), h.server.replayEpoch(1));
+    try h.server.start();
+    defer h.deinit();
+    // Adopted: the same connection, now delivering.
+    try testing.expectEqual(@as(usize, 1), h.listen.listens);
+    try testing.expectEqual(early.ctx, h.listen.handler.?.ctx);
+    const before = h.server.replayEpoch(1);
+    _, _ = h.explorer("/messages", "1.2.3.4");
+    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"1\"}");
+    try testing.expect(h.server.replayEpoch(1) != before);
+}
+
+test "an early listener lost before start is replaced by a fresh connect, silently" {
+    var h: Harness = .{};
+    try initEarly(&h);
+    h.listen.handler.?.on_disconnect(h.listen.handler.?.ctx, "terminated");
+    h.t.fake.tick(10_000); // no reconnect timer was armed
+    try testing.expectEqual(@as(usize, 1), h.listen.listens);
+    try h.server.start();
+    defer h.deinit();
+    try testing.expectEqual(@as(usize, 2), h.listen.listens);
+    try testing.expectEqual(@as(usize, 1), h.listen.stopped); // the lost one
+}
+
+test "a failed early listener is retried at start, as TS connects there" {
+    var h: Harness = .{};
+    h.listen.fail = true;
+    core.log.setSink(Harness.discard, null);
+    h.t.init();
+    h.server = try live.Server.create(a, &h.t.loop, h.db.db(), h.listen.api(), .{ .limits = defaultLimits(), .batch_size = 500 }, null);
+    h.server.listenEarly();
+    for (0..10_000) |_| {
+        if (h.listen.listens > 0) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    h.listen.fail = false;
+    try h.server.start();
+    defer h.deinit();
+    try testing.expectEqual(@as(usize, 2), h.listen.listens);
+    try testing.expect(h.listen.handler != null);
+}
+
+test "an awaited frame completed before its sender looked still resumes like an await" {
+    // The completion ran (another thread) before `sendAndWait` checked: the
+    // frames after it on the socket must not stay held.
+    var h: Harness = .{};
+    try h.initBatch(defaultLimits(), 2);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    s.complete_in_send = true;
+    h.db.on("COALESCE(MIN(\"leaf_index\")", "[{\"first\":\"0\",\"last\":\"3\"}]");
+    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("0", "a0") ++ "," ++ merkleRow("1", "a1") ++ "]");
+    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("2", "a2") ++ "," ++ merkleRow("3", "a3") ++ "]");
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]},{"eventType":"dispatch","domains":[1]}]}
+    );
+    try h.waitFrames(s, 7); // ready, subscribed, 4 events, caught_up
+    notifyThreeDispatches(&h);
+    try h.waitFrames(s, 10);
+    h.settle();
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
+}

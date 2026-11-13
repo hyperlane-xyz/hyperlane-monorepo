@@ -24,6 +24,54 @@ pub const Row = Value;
 pub const Db = struct {
     ctx: *anyopaque,
     query: *const fn (ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const Value) anyerror![]Value,
+    /// Optional split query (`DbService.beginLive`): send now, read later.
+    /// `arena` (which also receives the rows), `sql` and `params` stay alive
+    /// until `finish` or `cancel` (exactly one) and, for the rows, after it.
+    /// The database reads the reply as it arrives and frees the connection
+    /// then (`finish`/`cancel` never wait for the replay task). Null: not
+    /// sent (out of memory); the page is read at its turn.
+    begin: ?*const fn (ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const Value) ?*anyopaque = null,
+    finish: ?*const fn (ctx: *anyopaque, handle: *anyopaque) anyerror![]Value = null,
+    cancel: ?*const fn (ctx: *anyopaque, handle: *anyopaque) void = null,
+    /// Whether the query was actually sent early (an idle connection).
+    issued: ?*const fn (ctx: *anyopaque, handle: *anyopaque) bool = null,
+    /// The early read failed in a way TS would not have seen (`finish`
+    /// reruns it).
+    failed_early: ?*const fn (ctx: *anyopaque, handle: *anyopaque) bool = null,
+};
+
+/// Read-ahead outcomes at TS's read point (debug log at stop).
+pub const PrefetchStats = struct {
+    pub const Outcome = enum { used, dropped_epoch, dropped_age, dropped_mismatch, dropped_failed_early, not_issued, abandoned };
+    counts: [@typeInfo(Outcome).@"enum".fields.len]std.atomic.Value(u64) = @splat(.init(0)),
+
+    pub fn count(self: *PrefetchStats, outcome: Outcome) void {
+        _ = self.counts[@intFromEnum(outcome)].fetchAdd(1, .monotonic);
+    }
+
+    pub fn get(self: *const PrefetchStats, outcome: Outcome) u64 {
+        return self.counts[@intFromEnum(outcome)].load(.monotonic);
+    }
+};
+
+/// A replay page query sent ahead of its turn (`EventStore.prefetchReplay`).
+pub const Prefetch = struct {
+    handle: *anyopaque,
+    /// Owns the parameters and the rows (`release` after using them). On the
+    /// heap: the database keeps its allocator until `finish`/`cancel`.
+    arena: *std.heap.ArenaAllocator,
+    after: i128,
+    through: i128,
+    legacy: bool,
+    /// Loop time the query was sent (freshness is measured from here).
+    sent_ms: i64,
+    /// Dropped early (`cancelPrefetch`): its arena is gone, never used.
+    cancelled: bool = false,
+
+    pub fn release(self: *Prefetch, gpa: Allocator) void {
+        self.arena.deinit();
+        gpa.destroy(self.arena);
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -433,6 +481,12 @@ pub const HeadRow = struct { domain: u32, head: Value, indexed: Value, hash: Val
 pub const EventStore = struct {
     allocator: Allocator,
     loop: *runtime.Loop,
+    /// A page read ahead is used only if it was sent at most this long
+    /// before TS would have sent the query: a write committed after the read
+    /// whose notification has not been processed yet is a window of this
+    /// size, the same order as the notification delivery (tests raise it).
+    prefetch_age_ms: i64 = 50,
+    prefetch_stats: PrefetchStats = .{},
     db: Db,
     batch_size: u64,
     cache: std.StringArrayHashMapUnmanaged(*Provisional) = .empty,
@@ -448,6 +502,7 @@ pub const EventStore = struct {
 
     /// `await db.queryLive(...)`.
     pub fn query(self: *EventStore, arena: Allocator, text: []const u8, params: []const Value) ![]Value {
+        runtime.assertMayBlock();
         self.loop.unlock();
         defer self.loop.lock();
         return self.db.query(self.db.ctx, arena, text, params);
@@ -613,6 +668,58 @@ pub const EventStore = struct {
 
     pub fn sequenceRows(self: *EventStore, arena: Allocator, event_type: EventType, cursor: protocol.StreamCursor, after: i128, through: i128) ![]Value {
         return self.query(arena, sql.sequenceRows(event_type), &try replayValues(self, arena, cursor, after, through));
+    }
+
+    /// Send the replay page query that `sequenceRows`/`gasPaymentRows` would
+    /// send for (`after`, `through`), without waiting: same SQL, same
+    /// parameters. Null when the database cannot split queries.
+    pub fn prefetchReplay(self: *EventStore, event_type: EventType, cursor: protocol.StreamCursor, after: i128, through: i128, legacy: bool) !?Prefetch {
+        const begin = self.db.begin orelse return null;
+        const arena = try self.allocator.create(std.heap.ArenaAllocator);
+        errdefer self.allocator.destroy(arena);
+        arena.* = .init(self.allocator);
+        errdefer arena.deinit();
+        const a = arena.allocator();
+        const text = if (event_type == .gas_payment)
+            (if (legacy) comptime sql.gasPaymentRows(true) else comptime sql.gasPaymentRows(false))
+        else
+            sql.sequenceRows(event_type);
+        const params = try a.dupe(Value, &try replayValues(self, a, cursor, after, through));
+        const handle = begin(self.db.ctx, a, text, params) orelse {
+            arena.deinit();
+            self.allocator.destroy(arena);
+            return null;
+        };
+        return .{ .handle = handle, .arena = arena, .after = after, .through = through, .legacy = legacy, .sent_ms = self.loop.now() };
+    }
+
+    /// Read a prefetched page (`await` like `query`: the mutex is released).
+    /// The rows live in `prefetch.arena`.
+    pub fn finishPrefetch(self: *EventStore, prefetch: *Prefetch) ![]Value {
+        runtime.assertMayBlock();
+        self.loop.unlock();
+        defer self.loop.lock();
+        return self.db.finish.?(self.db.ctx, prefetch.handle);
+    }
+
+    /// Read what has arrived of a prefetched page without waiting.
+    pub fn prefetchIssued(self: *EventStore, prefetch: *Prefetch) bool {
+        const issued = self.db.issued orelse return true;
+        return issued(self.db.ctx, prefetch.handle);
+    }
+
+    pub fn prefetchFailedEarly(self: *EventStore, prefetch: *Prefetch) bool {
+        const failed = self.db.failed_early orelse return false;
+        return failed(self.db.ctx, prefetch.handle);
+    }
+
+    /// Drop a prefetched page (its query counts nowhere; the database drains
+    /// a reply still in flight). Idempotent; needs no loop mutex.
+    pub fn cancelPrefetch(self: *EventStore, prefetch: *Prefetch) void {
+        if (prefetch.cancelled) return;
+        prefetch.cancelled = true;
+        self.db.cancel.?(self.db.ctx, prefetch.handle);
+        prefetch.release(self.allocator);
     }
 
     pub fn sequenceBounds(self: *EventStore, event_type: EventType, cursor: protocol.StreamCursor) !struct { first: i128, last: i128 } {

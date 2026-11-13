@@ -13,6 +13,8 @@ const Allocator = std.mem.Allocator;
 const fail = runtime.fail;
 
 pub const MAX_PENDING_EVENTS = 5_000;
+/// Rows sent as one run at most (the vectored write's frame limit).
+const MAX_BATCH_FRAMES = 256;
 pub const ReplayOutcome = enum { success, aborted, failure };
 
 const CursorPosition = struct { value: ?i128 = null, legacy_max_id: ?i128 = null };
@@ -22,9 +24,17 @@ pub const Io = struct {
     active: *const fn (ctx: *anyopaque) bool,
     /// `await send(message)`.
     send: *const fn (ctx: *anyopaque, frame: []const u8) bool,
+    /// `for (frame of frames) if (!await send(frame)) return false`, written
+    /// with as few syscalls as exactness allows (optional). Returns after
+    /// the first frame it had to wait for: how many were sent (null: one
+    /// failed), so the caller checks its time budget before the rest.
+    send_all: ?*const fn (ctx: *anyopaque, frames: []const []const u8) ?usize = null,
     close: *const fn (ctx: *anyopaque, reason: []const u8) void,
     /// Called once when the subscription is freed.
     deinit: ?*const fn (ctx: *anyopaque) void = null,
+    /// Changes whenever a notification that can affect replay rows of
+    /// `domain` is processed (a prefetched page read before it is dropped).
+    epoch: ?*const fn (ctx: *anyopaque, domain: u32) u64 = null,
 };
 
 /// `eventForDelivery` result: `undefined` (skip), `false` (gap; the socket is
@@ -196,6 +206,15 @@ pub const AgentSubscription = struct {
         }
         self.positions.?.getPtr(key).?.value = after;
         var current = after;
+        // The next page, sent while this one is delivered (see IMPLEMENTATION.md
+        // "Replay prefetch"): used only if it is exactly the query TS sends
+        // next and no notification for the domain was processed meanwhile.
+        var prefetch: ?es.Prefetch = null;
+        var prefetch_epoch: u64 = 0;
+        defer if (prefetch) |*p| {
+            self.store.prefetch_stats.count(.abandoned);
+            self.store.cancelPrefetch(p);
+        };
         while (current < last) {
             if (!self.io.active(self.io.ctx)) return false;
             try self.assertCatchUpBudget();
@@ -203,21 +222,48 @@ pub const AgentSubscription = struct {
             const through = if (legacy_phase) legacy_max_id else last;
             var page = std.heap.ArenaAllocator.init(self.allocator);
             defer page.deinit();
-            const rows = if (cursor.kind == .sequence)
-                try self.store.sequenceRows(page.allocator(), self.event_type, cursor, current, through)
-            else
-                try self.store.gasPaymentRows(page.allocator(), cursor, current, through, legacy_phase);
+            // Rows read ahead live in their prefetch's arena (freed with the page).
+            var used: ?es.Prefetch = null;
+            defer if (used) |*p| p.release(self.allocator);
+            const rows = rows: {
+                if (prefetch) |*p| {
+                    defer prefetch = null;
+                    const stats = &self.store.prefetch_stats;
+                    const same_query = p.after == current and p.through == through and p.legacy == legacy_phase;
+                    const same_epoch = self.epoch(cursor.domain) == prefetch_epoch;
+                    const fresh = self.loop.now() - p.sent_ms <= self.store.prefetch_age_ms;
+                    const outcome: es.PrefetchStats.Outcome = if (!same_query) .dropped_mismatch else if (!same_epoch) .dropped_epoch else if (!fresh) .dropped_age else if (!self.store.prefetchIssued(p)) .not_issued else if (self.store.prefetchFailedEarly(p)) .dropped_failed_early else .used;
+                    stats.count(outcome);
+                    // Not issued or failed early: `finish` reads it now, as TS.
+                    if (same_query and same_epoch and fresh) {
+                        used = p.*;
+                        break :rows try self.store.finishPrefetch(&used.?);
+                    }
+                    self.store.cancelPrefetch(p);
+                }
+                break :rows if (cursor.kind == .sequence)
+                    try self.store.sequenceRows(page.allocator(), self.event_type, cursor, current, through)
+                else
+                    try self.store.gasPaymentRows(page.allocator(), cursor, current, through, legacy_phase);
+            };
             self.catch_up_rows += rows.len;
             try self.assertCatchUpBudget();
             if (rows.len == 0) {
                 if (!legacy_phase) return fail("Missing {s} {s} {d}", .{ event_name, label, current + 1 });
                 self.positions.?.getPtr(key).?.value = through;
+            } else if (rows.len >= self.store.batch_size) {
+                // A full page: the next one starts after its last row.
+                if (try es.rowCursor(page.allocator(), self.event_type, rows[rows.len - 1])) |next| {
+                    const next_legacy = gas_payment and next.value < legacy_max_id;
+                    const next_through = if (next_legacy) legacy_max_id else last;
+                    if (next.value < next_through) {
+                        prefetch_epoch = self.epoch(cursor.domain);
+                        prefetch = try self.store.prefetchReplay(self.event_type, cursor, next.value, next_through, next_legacy);
+                    }
+                }
             }
-            for (rows) |row| {
-                try self.assertCatchUpBudget();
-                if (!(try self.deliverAndWait(row)))
-                    return fail("Gap in {s} {s} after {d}", .{ event_name, label, current });
-            }
+            if (!(try self.deliverPage(rows)))
+                return fail("Gap in {s} {s} after {d}", .{ event_name, label, current });
             current = self.positions.?.getPtr(key).?.value.?;
         }
         const frame = try frames.alloc(a, CaughtUp{
@@ -261,6 +307,84 @@ pub const AgentSubscription = struct {
         }
     };
 
+    /// `for (row of rows) { assertCatchUpBudget(); if (!await deliverAndWait(row)) return false }`.
+    /// With `send_all`, consecutive deliverable rows are encoded together and
+    /// sent as one run; positions are settled for the run first (nothing
+    /// observes them before the sends complete). A row that would report a
+    /// gap, exceed the budget or fail to parse ends the run: the run is sent
+    /// first and that row then takes the per-row path, as in TS.
+    fn deliverPage(self: *AgentSubscription, rows: []const Value) !bool {
+        const send_all = self.io.send_all orelse {
+            for (rows) |row| {
+                try self.assertCatchUpBudget();
+                if (!(try self.deliverAndWait(row))) return false;
+            }
+            return true;
+        };
+        var index: usize = 0;
+        while (index < rows.len) {
+            _ = self.scratch.reset(.retain_capacity);
+            const a = self.scratch.allocator();
+            var pending: std.ArrayList(struct { row: Value, delivery: @FieldType(Delivery, "deliver") }) = .empty;
+            var next = index;
+            while (next < rows.len and pending.items.len < MAX_BATCH_FRAMES) : (next += 1) {
+                self.assertCatchUpBudget() catch break;
+                const gap = self.wouldGap(a, rows[next]) catch break;
+                if (gap) break;
+                switch (self.eventForDelivery(a, rows[next]) catch break) {
+                    .skip => {},
+                    .gap => unreachable, // `wouldGap` said no
+                    .deliver => |delivery| try pending.append(a, .{ .row = rows[next], .delivery = delivery }),
+                }
+            }
+            if (next == index) {
+                // The run ends at its first row: the per-row path decides it.
+                try self.assertCatchUpBudget();
+                if (!(try self.deliverAndWait(rows[index]))) return false;
+                index += 1;
+                continue;
+            }
+            if (pending.items.len > 0) {
+                const encoded_frames = try a.alloc([]const u8, pending.items.len);
+                // Under the loop mutex: in TS no other event runs between a
+                // row's positions and its send (releasing it would let a
+                // timer or a notification in).
+                var encoded: usize = 0;
+                const failure: ?anyerror = for (pending.items, encoded_frames) |item, *frame| {
+                    frame.* = eventFrame(a, self.event_type, item.row, item.delivery.domain, item.delivery.cursor, item.delivery.legacy_max_stream_cursor) catch |err| break err;
+                    encoded += 1;
+                } else null;
+                // Rows before an encoding failure were sent first in TS. After
+                // a write it had to wait for, the budget is checked again
+                // before the rest (TS checks it before every row).
+                var sent: usize = 0;
+                while (sent < encoded) {
+                    if (sent > 0) try self.assertCatchUpBudget();
+                    sent += send_all(self.io.ctx, encoded_frames[sent..encoded]) orelse return fail("Websocket closed during catch-up", .{});
+                }
+                if (failure) |err| return err;
+            }
+            index = next;
+        }
+        return true;
+    }
+
+    /// Whether `eventForDelivery(row)` would report a gap (no side effects).
+    fn wouldGap(self: *AgentSubscription, arena: Allocator, row: Value) !bool {
+        const domain = try es.rowDomain(row, es.domainColumn(self.event_type));
+        const key = try es.rowCursorKey(arena, self.event_type, domain, row);
+        if (!self.matches(domain, key)) return false;
+        const cursor = try es.rowCursor(arena, self.event_type, row) orelse return false;
+        const k = key orelse return false;
+        const positions = if (self.positions) |*map| map else return false;
+        const position = positions.getPtr(k) orelse return false;
+        const current = position.value orelse return false;
+        if (cursor.value <= current) return false;
+        const legacy_max = position.legacy_max_id;
+        const contiguous = self.event_type != .gas_payment or (legacy_max != null and cursor.value > legacy_max.?);
+        return contiguous and cursor.value != current + 1;
+    }
+
     fn deliverAndWait(self: *AgentSubscription, row: Value) !bool {
         _ = self.scratch.reset(.retain_capacity);
         const a = self.scratch.allocator();
@@ -268,12 +392,9 @@ pub const AgentSubscription = struct {
             .gap => return false,
             .skip => return true,
             .deliver => |delivery| {
-                // Positions are settled; encoding reads only this task's row, so
-                // it runs outside the loop mutex (concurrent catch-ups overlap).
-                self.loop.unlock();
-                const encoded = eventFrame(a, self.event_type, row, delivery.domain, delivery.cursor, delivery.legacy_max_stream_cursor);
-                self.loop.lock();
-                const frame = try encoded;
+                // Encoded under the loop mutex, like TS (no event between
+                // the row's positions and its send).
+                const frame = try eventFrame(a, self.event_type, row, delivery.domain, delivery.cursor, delivery.legacy_max_stream_cursor);
                 if (!self.io.send(self.io.ctx, frame)) return fail("Websocket closed during catch-up", .{});
                 return true;
             },
@@ -301,6 +422,11 @@ pub const AgentSubscription = struct {
             p.value = c.value;
         };
         return .{ .deliver = .{ .domain = domain, .cursor = cursor, .legacy_max_stream_cursor = legacy_max } };
+    }
+
+    fn epoch(self: *AgentSubscription, domain: u32) u64 {
+        const f = self.io.epoch orelse return 0;
+        return f(self.io.ctx, domain);
     }
 
     fn assertCatchUpBudget(self: *AgentSubscription) !void {

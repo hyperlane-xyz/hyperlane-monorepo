@@ -32,10 +32,20 @@ pub fn build(b: *std.Build) void {
     const pool_hold_stats = b.option(bool, "pool-hold-stats", "Record and log DB pool checkout hold times") orelse false;
     const db_options = b.addOptions();
     db_options.addOption(bool, "pool_hold_stats", pool_hold_stats);
+    // Diagnostics only (bench): event-loop counters logged at close (debug
+    // level). Off by default: the shipped build logs nothing TS does not.
+    const loop_stats = b.option(bool, "loop-stats", "Log HTTP event-loop counters at close") orelse false;
+    const http_options = b.addOptions();
+    http_options.addOption(bool, "loop_stats", loop_stats);
+    // Diagnostics only (bench): live loop mutex hold-time histograms and
+    // replay prefetch outcomes, logged at info. Off by default.
+    const loop_hold_stats = b.option(bool, "loop-hold-stats", "Record and log live loop mutex hold times and replay prefetch outcomes") orelse false;
+    const live_options = b.addOptions();
+    live_options.addOption(bool, "loop_hold_stats", loop_hold_stats);
 
     // One module graph per mode (a module has a single optimize mode).
-    const exe_modules = moduleGraph(b, target, exe_optimize, pg_lib_dir, pg_include_dir, db_options, true);
-    const test_modules = if (test_optimize == exe_optimize) exe_modules else moduleGraph(b, target, test_optimize, pg_lib_dir, pg_include_dir, db_options, false);
+    const exe_modules = moduleGraph(b, target, exe_optimize, pg_lib_dir, pg_include_dir, db_options, http_options, live_options, true);
+    const test_modules = if (test_optimize == exe_optimize) exe_modules else moduleGraph(b, target, test_optimize, pg_lib_dir, pg_include_dir, db_options, http_options, live_options, false);
 
     const exe = b.addExecutable(.{ .name = "scraper-proxy", .root_module = mainModule(b, target, exe_optimize, pg_lib_dir, pg_include_dir, exe_modules) });
     b.installArtifact(exe);
@@ -68,6 +78,8 @@ fn moduleGraph(
     pg_lib_dir: ?[]const u8,
     pg_include_dir: ?[]const u8,
     db_options: *std.Build.Step.Options,
+    http_options: *std.Build.Step.Options,
+    live_options: *std.Build.Step.Options,
     exported: bool,
 ) [modules.len]*std.Build.Module {
     var created: [modules.len]*std.Build.Module = undefined;
@@ -82,6 +94,8 @@ fn moduleGraph(
         linkPq(module, pg_lib_dir, pg_include_dir);
         inline for (entry.deps) |dep| module.addImport(dep, created[indexOf(dep)]);
         if (comptime std.mem.eql(u8, entry.name, "db")) module.addOptions("db_options", db_options);
+        if (comptime std.mem.eql(u8, entry.name, "http")) module.addOptions("http_options", http_options);
+        if (comptime std.mem.eql(u8, entry.name, "live")) module.addOptions("live_options", live_options);
         created[i] = module;
     }
     return created;

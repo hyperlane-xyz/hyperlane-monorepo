@@ -252,12 +252,13 @@ pub const Server = struct {
             }
         }
         self.mutex.lock();
-        defer self.mutex.unlock();
         while (self.connections > 0) {
             const remaining = deadline - std.time.milliTimestamp();
             if (remaining <= 0) break;
             self.cond.timedWait(&self.mutex, @as(u64, @intCast(remaining)) * std.time.ns_per_ms) catch {};
         }
+        self.mutex.unlock();
+        self.loop.logStats();
     }
 
     /// Waits for upgraded sockets to finish (after their owner closed them)

@@ -188,15 +188,120 @@ pub const Pool = struct {
 
     /// `pool.connect()`; pair with `release`.
     pub fn acquire(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure) Error!pq.Conn {
+        return (try self.acquireWith(arena, failure, true)).?;
+    }
+
+    /// A query sent ahead of its read point (`begin`). `poll` reads what has
+    /// arrived without waiting and, once the reply is complete, keeps the
+    /// result and returns the connection to the pool at once; `finish`
+    /// returns it (waiting for the rest if needed); `cancel` abandons it.
+    pub const Pending = struct {
+        pool: *Pool,
+        /// Null once the connection went back to the pool.
+        conn: ?pq.Conn,
+        reply: pq.RawReply = .{},
+        /// A transport failure or client timeout while reading.
+        failed: ?Error = null,
+        /// When the reply was complete (pq.nowMs; 0 while pending).
+        arrived_ms: i64 = 0,
+
+        /// Reads what has arrived without waiting; once the reply is
+        /// complete (or the connection failed) the connection goes back to
+        /// the pool. True when settled. Rows stay unconverted (any thread).
+        pub fn poll(self: *Pending) bool {
+            const conn = if (self.conn) |*c| c else return true;
+            const done = conn.pollRaw(&self.reply) catch |e| {
+                self.settle(e);
+                return true;
+            };
+            if (done) self.settle(null);
+            return done;
+        }
+
+        /// See `pq.Conn.tlsBlind`: poll it on a short timer too.
+        pub fn tlsBlind(self: *const Pending) bool {
+            return if (self.conn) |c| c.tlsBlind() else false;
+        }
+
+        /// The socket to wait on for more of the reply (null once settled).
+        pub fn socket(self: *const Pending) ?std.posix.fd_t {
+            return if (self.conn) |c| c.socket() else null;
+        }
+
+        /// Part of the query is still unsent: wait for writability too.
+        pub fn wantsWrite(self: *const Pending) bool {
+            return if (self.conn) |c| c.wantsWrite() else false;
+        }
+
+        /// Waits for the rest of the reply if needed (client timeout counted
+        /// from here) and returns the rows, converted in `arena`.
+        pub fn finish(self: *Pending, arena: std.mem.Allocator, failure: ?*Failure) Error!root.Result {
+            if (self.conn) |*conn| self.settle(if (conn.finishRaw(&self.reply)) |_| null else |e| e);
+            if (self.failed) |e| {
+                self.reply.deinit();
+                setFailed(arena, failure, e);
+                return e;
+            }
+            return self.reply.take(arena, failure);
+        }
+
+        /// Abandons it: the connection is closed if the reply is still
+        /// coming (callers that can wait use `poll` until settled instead).
+        pub fn cancel(self: *Pending) void {
+            if (self.conn) |*conn| {
+                conn.discardQuery();
+                self.pool.release(conn.*);
+                self.conn = null;
+            }
+            self.reply.deinit();
+        }
+
+        /// SQLSTATE of a server error already received (borrowed).
+        pub fn errorCode(self: *const Pending) ?[]const u8 {
+            return self.reply.errorCode();
+        }
+
+        fn settle(self: *Pending, failed: ?Error) void {
+            self.failed = failed;
+            self.arrived_ms = pq.nowMs();
+            self.pool.release(self.conn.?);
+            self.conn = null;
+        }
+
+        fn setFailed(arena: std.mem.Allocator, failure: ?*Failure, e: Error) void {
+            const f = failure orelse return;
+            f.message = arena.dupe(u8, if (e == error.QueryTimeout) "Query read timeout" else "Connection terminated unexpectedly") catch "";
+            f.code = null;
+        }
+    };
+
+    /// Sends an unnamed query on a connection that is idle right now and
+    /// returns without reading it (see `Pending`); null (nothing sent) when
+    /// no connection is idle. Never opens a connection, never queues, never
+    /// takes one ahead of a waiting request, never waits on the socket (a
+    /// message the kernel does not take at once is finished by `poll` or
+    /// `finish`; wait for writability while `wantsWrite`).
+    pub fn begin(self: *Pool, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error!?Pending {
+        var conn = try self.acquireWith(arena, failure, false) orelse return null;
+        conn.sendQuery(arena, sql, params, failure) catch |e| {
+            self.release(conn);
+            return e;
+        };
+        return .{ .pool = self, .conn = conn };
+    }
+
+    /// `acquire`, or (`wait == false`) an idle connection or null at once.
+    fn acquireWith(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure, wait: bool) Error!?pq.Conn {
         // pg-pool: a queued request's connectionTimeoutMillis timer runs from
         // the `connect()` call, also while its new client is connecting.
         const deadline: ?i64 = if (self.options.conn.connect_timeout_ms) |ms| (if (ms > 0) pq.nowMs() + @as(i64, @intCast(ms)) else null) else null;
         while (true) {
             var blocked = false;
-            const got = self.checkout(arena, failure, deadline, &blocked);
+            const got = self.checkout(arena, failure, deadline, wait, &blocked);
             // Paired with the `begin` in `checkout`, outside the pool mutex.
             if (blocked) core.blocking.end();
             switch (try got) {
+                .busy => return null,
                 .conn => |c| {
                     var conn = c;
                     var idle_failure: Failure = .{};
@@ -239,20 +344,22 @@ pub const Pool = struct {
 
     /// `open`: a slot is reserved (counted in `total`); true when it was
     /// obtained after queueing.
-    const Checkout = union(enum) { conn: pq.Conn, open: bool };
+    const Checkout = union(enum) { conn: pq.Conn, open: bool, busy };
 
     /// Sets `blocked` after `core.blocking.begin()` (caller calls `end`).
-    fn checkout(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure, deadline: ?i64, blocked: *bool) Error!Checkout {
+    fn checkout(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure, deadline: ?i64, wait: bool, blocked: *bool) Error!Checkout {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.closed) return error.PoolClosed;
         if (self.head == null) {
             if (self.idle.pop()) |i| return .{ .conn = i.conn };
+            if (!wait) return .busy;
             if (self.total < self.options.max) {
                 self.total += 1;
                 return .{ .open = false };
             }
         }
+        if (!wait) return .busy;
         var waiter: Waiter = .{};
         if (self.tail) |t| t.next = &waiter else self.head = &waiter;
         self.tail = &waiter;

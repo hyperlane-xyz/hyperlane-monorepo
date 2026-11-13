@@ -114,6 +114,8 @@ pub fn main() !void {
         try app.routes.append(gpa, g.route());
     }
     if (has_events) app.events = try Events.init(gpa, app.db, app.diagnosticsService());
+    // The LISTEN connection opens alongside db.start() (adopted by start()).
+    if (has_events) app.events.?.listenEarly();
 
     core.metrics.setDatabaseMetricsProvider(app.db.metricsProvider());
     if (has_events) core.metrics.setWebSocketMetricsProvider(app.events.?.metricsProvider());
