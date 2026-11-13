@@ -10,6 +10,8 @@ import { expect } from 'chai';
 import bs58 from 'bs58';
 
 import {
+  LOADER_V3,
+  MAX_COMPUTE_UNITS,
   assertProgramBinaryFitsCurrentCapacity,
   sanitizeSingleMailboxUpgradeReceiptForSquads,
 } from '../src/utils/mailbox-upgrade.js';
@@ -21,7 +23,6 @@ import {
 } from '../src/utils/warp-propose-squads.js';
 
 const CLOCK_SYSVAR = 'SysvarC1ock11111111111111111111111111111111';
-const LOADER_V3 = 'BPFLoaderUpgradeab1e11111111111111111111111';
 const MAILBOX = 'E588QtVUfdTiQK6K7WKySi5GmHAbkMyT4hETvQG9gAhp';
 const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111';
 const SPILL = Keypair.generate().publicKey.toBase58();
@@ -73,7 +74,7 @@ function buildReceipt({
   spill = SPILL,
   instructionCount = 1,
   waitForSlotAdvance = true,
-  computeUnits = 1_400_000,
+  computeUnits = MAX_COMPUTE_UNITS,
   loader = LOADER_V3,
   instructionData = Buffer.from([3, 0, 0, 0]),
 }: {
@@ -171,7 +172,7 @@ describe('sanitizeSingleMailboxUpgradeReceiptForSquads', () => {
 
     const plans = planReceiptProposals(sanitized, [[]]);
     expect(plans).to.have.lengthOf(1);
-    expect(plans[0].computeUnits).to.equal(1_400_000);
+    expect(plans[0].computeUnits).to.equal(MAX_COMPUTE_UNITS);
     expect(assertAuthorizedByVault(plans, UPGRADE_AUTHORITY)).to.deep.equal({
       ok: true,
     });

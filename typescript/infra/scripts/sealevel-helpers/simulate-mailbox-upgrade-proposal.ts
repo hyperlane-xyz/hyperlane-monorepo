@@ -54,7 +54,11 @@ import {
 import { getRegistryForEnvironment } from '../../src/config/chain.js';
 import { getSquadsKeys } from '../../src/config/squads.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
-import { assertMailboxUpgradeInstruction } from '../../src/utils/mailbox-upgrade.js';
+import {
+  LOADER_V3,
+  MAX_COMPUTE_UNITS,
+  assertMailboxUpgradeInstruction,
+} from '../../src/utils/mailbox-upgrade.js';
 import {
   parseReceiptFile,
   planReceiptProposals,
@@ -68,8 +72,6 @@ const logger = rootLogger.child({
 });
 
 const ADDRESS_ENCODER = getAddressEncoder();
-const LOADER_V3 = 'BPFLoaderUpgradeab1e11111111111111111111111';
-const MAX_COMPUTE_UNITS = 1_400_000;
 const PROGRAM_DATA_HEADER_SIZE = 45;
 const BUFFER_HEADER_SIZE = 37;
 const INBOX_PROCESS_DISCRIMINATOR = 1;
