@@ -566,15 +566,17 @@ async fn unavailable_boundary_is_retried_with_a_fresh_subscription() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = Url::parse(&format!("ws://{}", listener.local_addr().unwrap())).unwrap();
     let monitor = ScraperWebSocketMonitor::new(url, vec![source.clone()], &metrics).unwrap();
+    let retry_grace = Duration::from_millis(100);
     for unavailable in [true, false] {
         let session = monitor.stream(StreamTimeouts {
             progress_check: Duration::from_millis(5),
-            progress_grace: Duration::from_millis(100),
+            progress_grace: retry_grace,
             ..Default::default()
         });
         let server = async {
             let (mut socket, _) = subscribed_socket(&listener).await;
             if unavailable {
+                let sent_at = Instant::now();
                 socket
                     .send(Message::Text(
                         serde_json::json!({"type":"live_start_unavailable","domain":source.domain})
@@ -583,18 +585,21 @@ async fn unavailable_boundary_is_retried_with_a_fresh_subscription() {
                     ))
                     .await
                     .unwrap();
-                sleep_until(Instant::now() + Duration::from_millis(20)).await;
+                // Fallback advances the generation even while RPC is running.
+                while source.control.generation() == 0 {
+                    tokio::task::yield_now().await;
+                }
                 assert!(!source.control.desired());
                 assert_eq!(
                     monitor.active.with_label_values(&[&source.chain]).get(),
                     0,
                     "unavailable origin is using RPC indexing"
                 );
+                let _ = socket.next().await;
                 assert!(
-                    socket.next().now_or_never().is_none(),
+                    sent_at.elapsed() >= retry_grace,
                     "no immediate reconnect loop"
                 );
-                let _ = socket.next().await;
                 return;
             }
             socket.send(wire_boundary(&source)).await.unwrap();
