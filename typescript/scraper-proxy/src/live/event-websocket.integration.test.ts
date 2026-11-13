@@ -315,6 +315,329 @@ after(async () => {
   );
 });
 
+const liveStartRow = {
+  domain: 1,
+  height: '100',
+  hash: 'ab'.repeat(32),
+  mailbox: '11'.repeat(20),
+  merkle_tree_hook: '22'.repeat(32),
+  interchain_gas_paymaster: '33'.repeat(32),
+};
+
+void it('provides quiet-chain live starts and marks unavailable chains without scanning events', async (context) => {
+  let queries = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      queries++;
+      assert.match(sql, /JOIN scraper_checkpoint/);
+      assert.deepEqual(values, [[1, -2, 2]]);
+      return queryRows<T>([
+        liveStartRow,
+        { ...liveStartRow, domain: -2, height: '0' },
+      ]);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.equal(ready.liveStartVersion, 1);
+    const eventTypes = ['dispatch', 'gas_payment', 'merkle_tree_insertion'];
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: eventTypes.map((eventType) => ({
+          eventType,
+          domains: [1, 4294967294, 2],
+        })),
+      }),
+    );
+    await waitFor(messages, 'live_start_unavailable');
+    const starts = messages.filter(({ type }) => type === 'live_start');
+    assert.deepEqual(
+      starts,
+      [
+        { domain: 1, height: '100' },
+        { domain: 4294967294, height: '0' },
+      ].map((boundary) => ({
+        type: 'live_start',
+        ...boundary,
+        hash: `0x${liveStartRow.hash}`,
+        streams: [
+          { eventType: 'dispatch', address: `0x${liveStartRow.mailbox}` },
+          {
+            eventType: 'gas_payment',
+            address: `0x${liveStartRow.interchain_gas_paymaster}`,
+          },
+          {
+            eventType: 'merkle_tree_insertion',
+            address: `0x${liveStartRow.merkle_tree_hook}`,
+          },
+        ],
+      })),
+    );
+    assert.deepEqual(messages.at(-1), {
+      type: 'live_start_unavailable',
+      domain: 2,
+      eventTypes,
+      reason: 'No healthy live-start scraper checkpoint',
+    });
+    assert(
+      messages.indexOf(await waitFor(messages, 'subscribed')) <
+        messages.indexOf(starts[0]),
+    );
+    assert.equal(queries, 1);
+    assert(
+      !messages.some(({ type }) => type === 'event' || type === 'caught_up'),
+    );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('automatically distinguishes canonical, custom and advisory zero-confirmation boundaries', async (context) => {
+  const confirmations: unknown[] = [];
+  const ranges: unknown[][] = [];
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('LEFT JOIN LATERAL')) {
+        confirmations.push(values[1]);
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            head_height: '112',
+            indexed_height: '110',
+            confirmed_height: '100',
+            height: values[1] === 2 ? '108' : '110',
+            hash: (values[1] === 2 ? 'cd' : 'ef').repeat(32),
+          },
+        ]);
+      }
+      if (sql.includes('JOIN scraper_checkpoint'))
+        return queryRows<T>([liveStartRow]);
+      if (sql.includes('confirmation_events')) {
+        ranges.push(values);
+        return [];
+      }
+      throw new Error(`Unexpected boundary query: ${sql}`);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          {
+            eventType: 'merkle_tree_insertion',
+            domains: [1],
+            confirmations: 2,
+            includeZeroConfirmations: true,
+          },
+          { eventType: 'dispatch', domains: [1] },
+        ],
+      }),
+    );
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'live_start').length === 3,
+    );
+    const starts = messages.filter(({ type }) => type === 'live_start');
+    assert.deepEqual(
+      starts.map(({ confirmations, height, hash, streams }) => ({
+        confirmations,
+        height,
+        hash,
+        streams,
+      })),
+      [
+        {
+          confirmations: 2,
+          height: '108',
+          hash: `0x${'cd'.repeat(32)}`,
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              address: `0x${liveStartRow.merkle_tree_hook}`,
+            },
+          ],
+        },
+        {
+          confirmations: 0,
+          height: '110',
+          hash: `0x${'ef'.repeat(32)}`,
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              address: `0x${liveStartRow.merkle_tree_hook}`,
+            },
+          ],
+        },
+        {
+          confirmations: undefined,
+          height: '100',
+          hash: `0x${liveStartRow.hash}`,
+          streams: [
+            { eventType: 'dispatch', address: `0x${liveStartRow.mailbox}` },
+          ],
+        },
+      ],
+    );
+    assert.deepEqual(confirmations, [2, 0]);
+    assert.deepEqual(
+      ranges.map((values) => [values[1], values[3]]),
+      [['108', '110']],
+    );
+    assert(
+      messages.indexOf(await waitFor(messages, 'subscribed')) <
+        messages.indexOf(starts[0]),
+    );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('keeps custom streams without retained checkpoints unavailable, never canonical', async (context) => {
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
+      assert.match(sql, /LEFT JOIN LATERAL/);
+      return queryRows<T>([
+        {
+          domain: 1,
+          head_height: '120',
+          indexed_height: '110',
+          confirmed_height: '100',
+          height: null,
+        },
+      ]);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          {
+            eventType: 'merkle_tree_insertion',
+            domains: [1],
+            confirmations: 30,
+          },
+        ],
+      }),
+    );
+    const unavailable = await waitFor(messages, 'live_start_unavailable');
+    assert.equal(unavailable.confirmations, 30);
+    assert.equal(unavailable.domain, 1);
+    assert(!messages.some(({ type }) => type === 'live_start'));
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('registers live delivery before reading the boundary and resamples on reconnect', async (context) => {
+  const original = db.queryLive.bind(db);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let queries = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (!sql.includes('JOIN scraper_checkpoint'))
+        return original<T>(sql, values);
+      const height = ++queries === 1 ? '100' : '101';
+      await held;
+      return queryRows<T>([{ ...liveStartRow, height }]);
+    },
+  );
+  const sockets: WebSocket[] = [];
+  rows.set('9021', { ...row(hookA, 1), block_number: '101' });
+  try {
+    for (const height of ['100', '101']) {
+      const socket = new WebSocket(url);
+      sockets.push(socket);
+      const messages = captureMessages(socket);
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [{ eventType: 'merkle_tree_insertion', domains: [1] }],
+        }),
+      );
+      await waitFor(messages, 'subscribed');
+      if (height === '100') {
+        await waitUntil(() => queries === 1);
+        notify('scraper_event', notification('9021'));
+        await waitFor(messages, 'event');
+        assert(!messages.some(({ type }) => type === 'live_start'));
+        release();
+      }
+      const start = await waitFor(messages, 'live_start');
+      assert.equal(start.height, height);
+      if (height === '100') {
+        assert(
+          messages.indexOf(await waitFor(messages, 'event')) <
+            messages.indexOf(start),
+        );
+      }
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+    assert.equal(queries, 2);
+  } finally {
+    release();
+    rows.delete('9021');
+    sockets.forEach((socket) => socket.terminate());
+  }
+});
+
+void it('closes a failed boundary snapshot without claiming a live start', async (context) => {
+  context.mock.method(db, 'queryLive', async () => {
+    throw new Error('snapshot failed');
+  });
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [{ eventType: 'dispatch', domains: [1] }],
+      }),
+    );
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    assert(!messages.some(({ type }) => type === 'live_start'));
+    assert(messages.some(({ type }) => type === 'subscribed'));
+  } finally {
+    socket.terminate();
+  }
+});
+
 for (const route of ['agents', 'messages']) {
   void it(`${route} streams opt-in block snapshots, progress and replacement heads`, async (context) => {
     const original = db.queryLive.bind(db);
@@ -568,7 +891,10 @@ for (const available of [false, true]) {
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
-        if (sql.includes('SELECT domain, head_height'))
+        if (
+          sql.includes('SELECT domain, head_height') ||
+          sql.includes('SELECT h.domain, h.head_height')
+        )
           return queryRows<T>(
             available
               ? [
@@ -674,7 +1000,10 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
       sql: string,
       values: unknown[] = [],
     ): Promise<T[]> => {
-      if (sql.includes('SELECT domain, head_height')) {
+      if (
+        sql.includes('SELECT domain, head_height') ||
+        sql.includes('SELECT h.domain, h.head_height')
+      ) {
         snapshots++;
         if (snapshots === 2) await held;
         return queryRows<T>([
@@ -733,8 +1062,8 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
     notify('scraper_event', notification('1'));
     await waitFor(messages, 'event');
     assert.deepEqual(
-      messages.slice(0, 3).map(({ type }) => type),
-      ['ready', 'subscribed', 'event'],
+      messages.slice(0, 2).map(({ type }) => type),
+      ['ready', 'subscribed'],
     );
   } finally {
     release();
@@ -749,7 +1078,10 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
     db,
     'queryLive',
     async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
-      if (sql.includes('SELECT domain, head_height'))
+      if (
+        sql.includes('SELECT domain, head_height') ||
+        sql.includes('SELECT h.domain, h.head_height')
+      )
         return queryRows<T>([
           {
             domain: 1,
@@ -846,7 +1178,10 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
-        if (sql.includes('SELECT domain, head_height'))
+        if (
+          sql.includes('SELECT domain, head_height') ||
+          sql.includes('SELECT h.domain, h.head_height')
+        )
           return queryRows<T>([
             {
               domain: 1,
@@ -1049,7 +1384,10 @@ for (const supported of [true, false]) {
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
-        if (sql.includes('SELECT domain, head_height'))
+        if (
+          sql.includes('SELECT domain, head_height') ||
+          sql.includes('SELECT h.domain, h.head_height')
+        )
           return queryRows<T>(
             supported
               ? [

@@ -30,6 +30,7 @@ import {
   type EventNotification,
   type EventType,
   type HeadNotification,
+  type LiveStartBoundary,
   parseDatabaseDomain,
   parseClientMessage,
   parseEventNotification,
@@ -415,6 +416,7 @@ export class EventWebSocketServer {
       confirmations: { unit: 'blocks', liveOnly: true },
       eventTypes: SUBSCRIPTION_TYPES,
       historicalStreaming: true,
+      liveStartVersion: 1,
       streamCursorVersions: STREAM_CURSOR_VERSIONS,
       type: 'ready',
     });
@@ -703,7 +705,11 @@ export class EventWebSocketServer {
     streams.push(stream);
     this.confirmationStreams.set(socket, streams);
     await stream.initialize(
-      () => this.store.confirmationHeads(domains),
+      () =>
+        this.store.confirmationHeads(
+          domains,
+          eventType && !cursors ? confirmations : undefined,
+        ),
       allowUnavailable,
     );
     if (eventType && stream.canonicalDomains.length)
@@ -757,6 +763,10 @@ export class EventWebSocketServer {
     }
 
     client.subscribing = true;
+    const customStreams: {
+      request: StreamRequest;
+      stream: ConfirmationStream;
+    }[] = [];
     const eventStreams = message.streams.filter(
       (request) => request.eventType !== 'blocks',
     );
@@ -767,26 +777,32 @@ export class EventWebSocketServer {
       if (blocks) await this.subscribeBlocks(socket, blocks.domains);
       for (const request of eventStreams) {
         if (request.confirmations !== undefined && request.domains)
-          await this.createConfirmationStream(
-            socket,
-            request.confirmations,
-            request.domains,
-            request.eventType,
-            request.cursors,
-          );
+          customStreams.push({
+            request,
+            stream: await this.createConfirmationStream(
+              socket,
+              request.confirmations,
+              request.domains,
+              request.eventType,
+              request.cursors,
+            ),
+          });
         if (
           request.includeZeroConfirmations &&
           request.confirmations !== 0 &&
           request.domains
         )
-          await this.createConfirmationStream(
-            socket,
-            0,
-            request.domains,
-            request.eventType,
-            request.cursors,
-            true,
-          );
+          customStreams.push({
+            request,
+            stream: await this.createConfirmationStream(
+              socket,
+              0,
+              request.domains,
+              request.eventType,
+              request.cursors,
+              true,
+            ),
+          });
       }
     } catch (error) {
       if (error instanceof ConfirmationUnavailableError)
@@ -820,10 +836,105 @@ export class EventWebSocketServer {
     });
     this.confirmationStreams.get(socket)?.forEach((stream) => stream.start());
     this.startBlocks(socket);
+    try {
+      for (const { request, stream } of customStreams) {
+        if (request.cursors) continue;
+        for (const domain of stream.domains) {
+          if (
+            !(await this.sendLiveStart(
+              socket,
+              client,
+              domain,
+              [request.eventType],
+              stream.liveStart(domain),
+              stream.confirmations,
+            ))
+          )
+            return;
+        }
+      }
+      await this.sendLiveStarts(
+        socket,
+        client,
+        eventStreams.filter(
+          (request) => !request.cursors && request.confirmations === undefined,
+        ),
+      );
+    } catch (error) {
+      this.failSocket(socket, formatError(error));
+      return;
+    }
     await Promise.all(
       eventStreams
         .filter(({ cursors }) => cursors)
         .map((request) => this.catchUp(socket, client, request)),
+    );
+  }
+
+  private async sendLiveStarts(
+    socket: WebSocket,
+    client: Client,
+    streams: StreamRequest[],
+  ): Promise<void> {
+    if (!streams.length) return;
+    const domains = streams.every((stream) => stream.domains)
+      ? new Set(streams.flatMap((stream) => [...(stream.domains ?? [])]))
+      : undefined;
+    // Canonical subscriptions are registered before this primary DB read.
+    // Consumers must buffer from `subscribed`, not from the boundary frame.
+    const boundaries = await this.store.liveStartBoundaries(domains);
+    const requested = new Set([
+      ...boundaries.keys(),
+      ...streams.flatMap((stream) => [...(stream.domains ?? [])]),
+    ]);
+    for (const domain of requested) {
+      const eventTypes = streams
+        .filter((stream) => !stream.domains || stream.domains.has(domain))
+        .map((stream) => stream.eventType);
+      if (
+        !(await this.sendLiveStart(
+          socket,
+          client,
+          domain,
+          eventTypes,
+          boundaries.get(domain),
+        ))
+      )
+        return;
+    }
+  }
+
+  private sendLiveStart(
+    socket: WebSocket,
+    client: Client,
+    domain: number,
+    eventTypes: EventType[],
+    boundary: LiveStartBoundary | undefined,
+    confirmations?: number,
+  ): Promise<boolean> {
+    if (this.clients.get(socket) !== client) return Promise.resolve(false);
+    const policy = confirmations === undefined ? {} : { confirmations };
+    return this.sendAndWait(
+      socket,
+      boundary
+        ? {
+            type: 'live_start',
+            domain,
+            ...policy,
+            height: boundary.height,
+            hash: boundary.hash,
+            streams: eventTypes.map((eventType) => ({
+              eventType,
+              address: boundary.contracts[eventType],
+            })),
+          }
+        : {
+            type: 'live_start_unavailable',
+            domain,
+            ...policy,
+            eventTypes,
+            reason: 'No healthy live-start scraper checkpoint',
+          },
     );
   }
 
