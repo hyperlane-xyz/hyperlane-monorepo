@@ -54,6 +54,10 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// if the last indexed snapshot was sequence 100, this would be sequence 99.
     /// A None value indicates we're fully synced.
     current_indexing_snapshot: Option<TargetSnapshot>,
+    /// The configured floor was resolved and no earlier range is required.
+    at_lower_bound: bool,
+    /// At most one startup rewind is allowed for a count ahead of its block tip.
+    startup_scan_refreshed: bool,
     /// The mode of indexing to use.
     index_mode: IndexMode,
     /// The domain of the cursor.
@@ -145,6 +149,8 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             store,
             persisted_progress,
             current_indexing_snapshot: last_indexed_snapshot.previous_target(),
+            at_lower_bound: false,
+            startup_scan_refreshed: false,
             last_indexed_snapshot,
             index_mode,
             domain,
@@ -164,6 +170,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+        self.at_lower_bound = false;
         // Skip any already indexed logs first, so a recovered gap clears its
         // retry state even while a gap backoff is still active.
         tokio::select! {
@@ -185,16 +192,18 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // If `self.current_indexing_snapshot` is None, we are synced and there are no more ranges to query.
         // Otherwise, we query the next range, searching for logs prior to and including the current indexing snapshot.
 
-        match self.current_indexing_snapshot.as_ref() {
+        match self.current_indexing_snapshot.clone() {
             Some(current_indexing_snapshot) => {
                 let range = match &self.index_mode {
-                    IndexMode::Block => self.get_next_block_range(current_indexing_snapshot).await,
+                    IndexMode::Block => self.get_next_block_range(&current_indexing_snapshot).await,
                     IndexMode::Sequence => {
-                        self.get_next_sequence_range(current_indexing_snapshot)
+                        self.get_next_sequence_range(&current_indexing_snapshot)
                             .await
                     }
                 };
-                if range.is_none() && matches!(self.index_mode, IndexMode::Block) {
+                // A failed relative-floor lookup also returns no range. Only a
+                // completed scan can persist exhaustion or trigger a startup retry.
+                if self.is_caught_up() && matches!(self.index_mode, IndexMode::Block) {
                     self.persist_progress(true).await?;
                     self.refresh_empty_startup_scan().await?;
                 }
@@ -266,7 +275,16 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         Ok(())
     }
 
+    /// History is complete within the configured indexing window.
+    /// Backoff and failed floor lookups do not establish readiness.
+    pub(super) fn is_caught_up(&self) -> bool {
+        self.current_indexing_snapshot.is_none() || self.at_lower_bound
+    }
+
     async fn refresh_empty_startup_scan(&mut self) -> Result<()> {
+        if self.startup_scan_refreshed {
+            return Ok(());
+        }
         let Some(current) = self.current_indexing_snapshot.as_ref() else {
             return Ok(());
         };
@@ -289,12 +307,15 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         }
 
         // A count can briefly include an insertion beyond the reported tip (Tron).
-        // Retry the unfinished initial scan; do not restore its exhausted checkpoint.
+        // Retry once; a quiet chain must not repeatedly rescan its history window.
+        // Revoke floor readiness before changing the target, including on DB errors.
+        self.at_lower_bound = false;
         self.current_indexing_snapshot = Some(TargetSnapshot {
             sequence,
             at_block: tip,
         });
         self.persist_rewind().await?;
+        self.startup_scan_refreshed = true;
         self.last_indexed_snapshot.at_block = tip;
         self.schedule_sequence_gap_retry(sequence, HashSet::from([sequence]));
         warn!(
@@ -307,7 +328,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// Gets the next block range to index.
     /// Only used in block mode.
     async fn get_next_block_range(
-        &self,
+        &mut self,
         current_indexing_snapshot: &TargetSnapshot,
     ) -> Option<RangeInclusive<u32>> {
         let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
@@ -316,6 +337,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // When current block equals lowest block, we still need to index it
         // (e.g., when there's only one block to index at the boundary).
         if current_indexing_snapshot.at_block < lowest_block_height_or_sequence {
+            self.at_lower_bound = true;
             // If the current indexing snapshot's block height is less than the
             // lowest block height, we don't want to index anything below the lowest block height.
             info!(
@@ -339,7 +361,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// Gets the next sequence range to index.
     /// Only used in sequence mode.
     async fn get_next_sequence_range(
-        &self,
+        &mut self,
         current_indexing_snapshot: &TargetSnapshot,
     ) -> Option<RangeInclusive<u32>> {
         let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
@@ -348,6 +370,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // When current sequence equals lowest sequence, we still need to index it
         // (e.g., when there's only one message at sequence 0).
         if current_indexing_snapshot.sequence < lowest_block_height_or_sequence {
+            self.at_lower_bound = true;
             // If the current indexing snapshot's sequence is less than the lowest sequence,
             // we don't want to index anything below the lowest sequence.
             info!(
@@ -1018,7 +1041,10 @@ mod test {
                 );
                 assert_eq!(cursor.persisted_progress.get(&0), Some(&expected_tip));
                 assert_eq!(cursor.sequence_gap_retries, 1);
+                assert!(cursor.startup_scan_refreshed);
+                assert!(!cursor.is_caught_up(), "startup retry is still pending");
                 assert_eq!(cursor.get_next_range().await.unwrap(), None);
+                assert!(!cursor.is_caught_up(), "backoff is not completion");
 
                 cursor.sequence_gap_retry_at = None;
                 let range = cursor.get_next_range().await.unwrap().unwrap();
@@ -1034,6 +1060,90 @@ mod test {
                 assert_eq!(cursor.sequence_gap_retries, 0);
                 assert_eq!(cursor.get_next_range().await.unwrap(), None);
             }
+        }
+
+        #[tokio::test]
+        async fn quiet_relative_window_rewinds_once_then_stays_caught_up() {
+            let mut cursor = get_cursor().await;
+            cursor.store = Arc::new(MockHyperlaneSequenceAwareIndexerStore { logs: vec![] });
+            cursor.lowest_block_height_or_sequence = -10_000;
+            cursor.chunk_size = 10_000;
+            cursor.last_indexed_snapshot.at_block = 100_000;
+            cursor.current_indexing_snapshot.as_mut().unwrap().at_block = 100_000;
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(100),
+                tip: 100_001,
+            });
+
+            cursor.update(vec![], 90_000..=100_000).await.unwrap();
+            assert!(cursor.get_next_range().await.unwrap().is_none());
+            assert!(cursor.startup_scan_refreshed);
+            assert!(!cursor.is_caught_up(), "the one retry has not completed");
+            assert_eq!(cursor.last_indexed_snapshot.at_block, 100_001);
+            assert_eq!(cursor.sequence_gap_retries, 1);
+
+            cursor.sequence_gap_retry_at = None;
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            assert_eq!(range, 90_001..=100_001);
+            cursor.update(vec![], range).await.unwrap();
+            assert!(cursor.get_next_range().await.unwrap().is_none());
+            assert!(cursor.is_caught_up());
+            let progress = cursor.persisted_progress.clone();
+            let snapshot = cursor.current_indexing_snapshot.clone();
+
+            for tip in [100_002, 100_100, 101_000] {
+                cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                    latest_sequence_count: Some(100),
+                    tip,
+                });
+                assert!(cursor.get_next_range().await.unwrap().is_none());
+                assert!(cursor.is_caught_up());
+                assert_eq!(cursor.persisted_progress, progress);
+                assert_eq!(cursor.current_indexing_snapshot, snapshot);
+                assert_eq!(cursor.last_indexed_snapshot.at_block, 100_001);
+                assert_eq!(cursor.sequence_gap_retries, 1);
+            }
+        }
+
+        #[tokio::test]
+        async fn failed_relative_floor_lookup_preserves_scan_and_startup_retry() {
+            use crate::contract_sync::cursors::sequence_aware::tests::MockSequenceAwareIndexerMock;
+            use hyperlane_core::ChainCommunicationError;
+
+            let mut cursor = get_cursor().await;
+            cursor.store = Arc::new(MockHyperlaneSequenceAwareIndexerStore { logs: vec![] });
+            cursor.lowest_block_height_or_sequence = -100;
+            cursor.update(vec![], 951..=1000).await.unwrap();
+            let snapshot = cursor.current_indexing_snapshot.clone();
+            let progress = cursor.persisted_progress.clone();
+            let mut indexer = MockSequenceAwareIndexerMock::<MockSequencedData>::new();
+            indexer
+                .expect_latest_sequence_count_and_tip()
+                .times(1)
+                .returning(|| {
+                    Err(ChainCommunicationError::from_other_str(
+                        "floor RPC unavailable",
+                    ))
+                });
+            indexer.expect_get_finalized_block_number().never();
+            cursor.latest_sequence_querier = Arc::new(indexer);
+
+            assert!(cursor.get_next_range().await.unwrap().is_none());
+            assert_eq!(cursor.current_indexing_snapshot, snapshot);
+            assert_eq!(cursor.persisted_progress, progress);
+            assert!(!cursor.startup_scan_refreshed);
+            assert!(!cursor.is_caught_up());
+
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(100),
+                tip: 1100,
+            });
+            assert!(cursor.get_next_range().await.unwrap().is_none());
+            assert!(
+                cursor.startup_scan_refreshed,
+                "failed lookup did not consume the retry"
+            );
+            assert!(!cursor.is_caught_up());
         }
 
         #[tokio::test]
