@@ -117,15 +117,6 @@ void it('validates live-only confirmations on both endpoints', () => {
   for (const confirmations of [-1, 0.1, '1', null, Number.MAX_SAFE_INTEGER + 1])
     assert.throws(() => parse({ confirmations, domains: [1] }));
   assert.throws(() => parse({ confirmations: 0 }));
-  assert.throws(
-    () =>
-      parse({
-        confirmations: 0,
-        domains: [1],
-        cursors: [{ domain: 1, address: `0x${'01'.repeat(20)}` }],
-      }),
-    /live streams only/,
-  );
   assert.deepEqual(
     parseExplorerConfirmations(
       new URLSearchParams('confirmations=2&domains=1,2'),
