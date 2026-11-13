@@ -9,8 +9,8 @@ import { queryProgramVersionWithOwnerFallback } from '../version/version-query.j
 
 const ADDRESS_CODEC = getAddressCodec();
 
-// Merkle tree on-chain size: 32 branches * 32 bytes + 8 bytes count.
-const MERKLE_TREE_SIZE = 32 * 32 + 8;
+// Merkle tree branch on-chain size: 32 branches * 32 bytes.
+const MERKLE_TREE_BRANCH_SIZE = 32 * 32;
 
 export interface MailboxInboxData {
   localDomain: number;
@@ -23,6 +23,7 @@ export interface MailboxOutboxData {
   localDomain: number;
   outboxBumpSeed: number;
   owner: Address | null;
+  messageCount: bigint;
   maxProtocolFee: bigint;
   protocolFee: {
     fee: bigint;
@@ -53,8 +54,8 @@ export function decodeMailboxOutboxAccount(
     const hasOwner = cursor.readU8() === 1;
     const owner = hasOwner ? cursor.readWithDecoder(ADDRESS_CODEC) : null;
 
-    // Skip the MerkleTree (1032 bytes)
-    cursor.readBytes(MERKLE_TREE_SIZE);
+    cursor.readBytes(MERKLE_TREE_BRANCH_SIZE);
+    const messageCount = cursor.readU64LE();
 
     const maxProtocolFee = cursor.readU64LE();
     const fee = cursor.readU64LE();
@@ -64,6 +65,7 @@ export function decodeMailboxOutboxAccount(
       localDomain,
       outboxBumpSeed,
       owner,
+      messageCount,
       maxProtocolFee,
       protocolFee: { fee, beneficiary },
     };

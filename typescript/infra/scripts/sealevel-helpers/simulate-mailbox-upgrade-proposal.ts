@@ -38,6 +38,7 @@ import {
   SealevelMailboxReader,
   convertLegacySolanaTransaction,
   createRpc,
+  decodeMailboxOutboxAccount,
   deriveMailboxDispatchedMessagePda,
   deriveMailboxInboxPda,
   deriveMailboxOutboxPda,
@@ -875,6 +876,8 @@ async function main(): Promise<void> {
     );
     const inboxHashBefore = sha256(inboxBefore.data);
     const outboxHashBefore = sha256(outboxBefore.data);
+    const outboxDataBefore = decodeMailboxOutboxAccount(outboxBefore.data);
+    assert(outboxDataBefore, 'Mailbox outbox data missing before upgrade');
 
     const executor = await approveProposalOnFork({
       connection: forkConnection,
@@ -1007,9 +1010,17 @@ async function main(): Promise<void> {
       'Smoke-test dispatched-message PDA was not created',
     );
     assert(outboxAfterDispatch, 'Mailbox outbox missing after smoke dispatch');
+    const outboxDataAfterDispatch = decodeMailboxOutboxAccount(
+      outboxAfterDispatch.data,
+    );
     assert(
-      sha256(outboxAfterDispatch.data) !== outboxHashBefore,
-      'Mailbox outbox did not change after smoke dispatch',
+      outboxDataAfterDispatch,
+      'Mailbox outbox data missing after dispatch',
+    );
+    assert(
+      outboxDataAfterDispatch.messageCount ===
+        outboxDataBefore.messageCount + 1n,
+      `Mailbox outbox count changed from ${outboxDataBefore.messageCount} to ${outboxDataAfterDispatch.messageCount}`,
     );
     const finalRead = await reader.read(mailbox);
     assert(
@@ -1041,6 +1052,9 @@ async function main(): Promise<void> {
         inboundReplaySignature: inboundReceipt.signature,
         inboundSourceSignature: inboundReplay.sourceSignature,
         mailbox,
+        outboxMessageCountAfter:
+          outboxDataAfterDispatch.messageCount.toString(),
+        outboxMessageCountBefore: outboxDataBefore.messageCount.toString(),
         proposalIndex: proposalIndex.toString(),
         proposalPda: proposalAddresses.proposalPda.toBase58(),
         spill: spillAddress,
