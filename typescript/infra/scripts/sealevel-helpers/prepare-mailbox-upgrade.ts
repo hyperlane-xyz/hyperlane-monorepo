@@ -15,6 +15,7 @@
  *     --chain solanamainnet \
  *     --mailbox <MAILBOX_PROGRAM_ADDRESS> \
  *     --upgradeAuthority <SQUADS_VAULT_ADDRESS> \
+ *     --out <SQUADS_RECEIPT_PATH> \
  *     --yes
  */
 import { existsSync } from 'fs';
@@ -71,6 +72,7 @@ async function main(): Promise<void> {
     })
     .option('out', {
       type: 'string',
+      demandOption: true,
       description: 'Squads-compatible output receipt file',
     })
     .option('keyEnv', {
@@ -133,9 +135,7 @@ async function main(): Promise<void> {
     ).length,
   });
 
-  const outputPath = path.resolve(
-    argv.out ?? `transactions/${chain}-file-${Date.now()}-receipts.json`,
-  );
+  const outputPath = path.resolve(argv.out);
   assert(
     !existsSync(outputPath),
     `Output already exists at ${outputPath}; refusing to prepare another buffer`,
