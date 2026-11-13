@@ -1,3 +1,11 @@
+## [4.0.0] - 2026-11-13
+
+* feat(validator)!: remove lightweight mode and WebSocket replay (#10038)
+* feat: support fractional polling intervals (#9972)
+* fix(diagnostics): preserve snapshot progress and retry recovery (#9984)
+* fix: enforce priority fee caps across EVM chains (#9938)
+* perf: remove hot-path serialization with bounded concurrency (#9958)
+
 ## [3.0.0] - 2026-10-23
 
 * chore: remove unused Fuel integration (#9723)

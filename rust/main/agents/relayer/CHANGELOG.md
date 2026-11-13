@@ -1,3 +1,24 @@
+## [4.0.0] - 2026-11-13
+
+* feat(infra): enable runtime denylists for mainnet and testnet (#9957)
+* feat(relayer): expose checkpoint signer locations (#9988)
+* feat(relayer): match runtime denylist address rules on origin tx signers (#9952)
+* feat(relayer): persist message diagnostics in PostgreSQL (#9969)
+* feat(relayer): runtime denylist polled from a URL (#9945)
+* feat(relayer): stream deduplicated ISM diagnostics snapshots (#9981)
+* feat(validator)!: remove lightweight mode and WebSocket replay (#10038)
+* fix(diagnostics): preserve snapshot progress and retry recovery (#9984)
+* fix(relayer): expose exact checkpoint URLs (#9989)
+* fix(relayer): harden static blacklists (#9946)
+* fix(relayer): isolate validator storage failures in signature discovery (#10021)
+* fix(relayer): persist indexing coverage across restarts (#10049)
+* fix(relayer): report signatures when collected (#10036)
+* perf(relayer): batch Merkle root checks during replay (#10000)
+* perf(relayer): reuse probe offchain reads in the delivery build (#10023)
+* perf(relayer): speed up validator signature discovery (#10016)
+* perf: narrow reads and overlap independent RPC calls (#9959)
+* refactor(relayer): remove websocket backfills ahead of public agent streaming (#10039)
+
 ## [3.0.0] - 2026-10-23
 
 * chore(infra): deploy relayer WebSocket indexing (#9580)

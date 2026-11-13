@@ -1,3 +1,7 @@
+## [4.0.0] - 2026-11-13
+
+* fix: enforce priority fee caps across EVM chains (#9938)
+
 ## [3.0.0] - 2026-10-23
 
 * chore: remove august 2026 deprecated chains (#9248)

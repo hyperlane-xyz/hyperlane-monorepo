@@ -1,3 +1,12 @@
+## [4.0.0] - 2026-11-13
+
+* feat(infra): deploy Tempo core, V3 routers, and agents (#9914)
+* feat(validator)!: remove lightweight mode and WebSocket replay (#10038)
+* feat(validator): use reorg periods for scraper confirmations (#9910)
+* feat: support fractional polling intervals (#9972)
+* fix(validator): verify new WebSocket insertions immediately (#10007)
+* refactor(validator): simplify websocket-driven checkpoint verification (#10018)
+
 ## [3.0.0] - 2026-10-23
 
 * chore(infra): deploy relayer WebSocket indexing (#9580)
