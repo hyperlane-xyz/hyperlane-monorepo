@@ -40,7 +40,11 @@ import {
 import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { getRegistryForEnvironment } from '../../src/config/chain.js';
-import { sanitizeSingleMailboxUpgradeReceiptForSquads } from '../../src/utils/mailbox-upgrade.js';
+import {
+  assertProgramBinaryFitsCurrentCapacity,
+  deriveProgramDataAddress,
+  sanitizeSingleMailboxUpgradeReceiptForSquads,
+} from '../../src/utils/mailbox-upgrade.js';
 import { getArgs } from '../agent-utils.js';
 
 const logger = rootLogger.child({ module: 'prepare-mailbox-upgrade' });
@@ -116,6 +120,25 @@ async function main(): Promise<void> {
     `Mailbox upgrade authority is ${upgradeAuthority}, expected ${expectedUpgradeAuthority}`,
   );
 
+  let currentProgramDataCapacity: number | undefined;
+  if (argv.singleSquadsTransaction) {
+    const programDataAddress = address(deriveProgramDataAddress(mailbox));
+    const programDataAccount = await rpc
+      .getAccountInfo(programDataAddress, { encoding: 'base64' })
+      .send();
+    assert(
+      programDataAccount.value,
+      `Mailbox ProgramData account ${programDataAddress} was not found`,
+    );
+    currentProgramDataCapacity = assertProgramBinaryFitsCurrentCapacity({
+      programBinarySize: HYPERLANE_SVM_PROGRAM_BYTES.mailbox.length,
+      programDataAccountSize: Buffer.from(
+        programDataAccount.value.data[0],
+        'base64',
+      ).length,
+    });
+  }
+
   const outputPath = path.resolve(
     argv.out ??
       (argv.singleSquadsTransaction
@@ -131,6 +154,7 @@ async function main(): Promise<void> {
     {
       chain,
       currentVersion: current.config.contractVersion ?? 'legacy',
+      currentProgramDataCapacity,
       domainId: current.deployed.domainId,
       environment,
       mailbox,

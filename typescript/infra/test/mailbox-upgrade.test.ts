@@ -9,7 +9,10 @@ import {
 import { expect } from 'chai';
 import bs58 from 'bs58';
 
-import { sanitizeSingleMailboxUpgradeReceiptForSquads } from '../src/utils/mailbox-upgrade.js';
+import {
+  assertProgramBinaryFitsCurrentCapacity,
+  sanitizeSingleMailboxUpgradeReceiptForSquads,
+} from '../src/utils/mailbox-upgrade.js';
 import {
   type PrintableSvmTransaction,
   assertAuthorizedByVault,
@@ -23,6 +26,26 @@ const MAILBOX = 'E588QtVUfdTiQK6K7WKySi5GmHAbkMyT4hETvQG9gAhp';
 const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111';
 const SPILL = Keypair.generate().publicKey.toBase58();
 const UPGRADE_AUTHORITY = '3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa';
+
+describe('assertProgramBinaryFitsCurrentCapacity', () => {
+  it('accepts a binary that exactly fits the current capacity', () => {
+    expect(
+      assertProgramBinaryFitsCurrentCapacity({
+        programBinarySize: 100,
+        programDataAccountSize: 145,
+      }),
+    ).to.equal(100);
+  });
+
+  it('rejects a binary that requires a ProgramData extension', () => {
+    expect(() =>
+      assertProgramBinaryFitsCurrentCapacity({
+        programBinarySize: 101,
+        programDataAccountSize: 145,
+      }),
+    ).to.throw('an Extend transaction is required');
+  });
+});
 
 function programDataAddress(program: string): string {
   const [programData] = PublicKey.findProgramAddressSync(

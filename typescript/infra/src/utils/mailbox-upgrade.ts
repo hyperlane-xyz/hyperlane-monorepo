@@ -12,6 +12,7 @@ import {
 const CLOCK_SYSVAR = 'SysvarC1ock11111111111111111111111111111111';
 const LOADER_V3 = 'BPFLoaderUpgradeab1e11111111111111111111111';
 const MAX_COMPUTE_UNITS = 1_400_000;
+const PROGRAM_DATA_HEADER_SIZE = 45;
 const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111';
 const UPGRADE_DATA = '03000000';
 
@@ -20,12 +21,31 @@ type ExpectedAccount = {
   role: AccountRole;
 };
 
-function deriveProgramDataAddress(program: string): string {
+export function deriveProgramDataAddress(program: string): string {
   const [programData] = PublicKey.findProgramAddressSync(
     [new PublicKey(program).toBuffer()],
     new PublicKey(LOADER_V3),
   );
   return programData.toBase58();
+}
+
+export function assertProgramBinaryFitsCurrentCapacity({
+  programBinarySize,
+  programDataAccountSize,
+}: {
+  programBinarySize: number;
+  programDataAccountSize: number;
+}): number {
+  assert(
+    programDataAccountSize >= PROGRAM_DATA_HEADER_SIZE,
+    `Invalid ProgramData account size ${programDataAccountSize}`,
+  );
+  const currentCapacity = programDataAccountSize - PROGRAM_DATA_HEADER_SIZE;
+  assert(
+    programBinarySize <= currentCapacity,
+    `Single-transaction mailbox upgrade requires the ${programBinarySize}-byte binary to fit the current ${currentCapacity}-byte ProgramData capacity; an Extend transaction is required`,
+  );
+  return currentCapacity;
 }
 
 /**
