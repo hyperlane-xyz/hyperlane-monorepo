@@ -277,6 +277,18 @@ describe('RebalancerContextFactory', () => {
       );
     }).timeout(10_000);
 
+    it('initializes Relay without requiring an API key', async () => {
+      const factory = await factoryWithBridges({
+        relay: { defaultSlippage: 0.001, maxQuoteLossBps: 100 },
+      });
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.relay?.externalBridgeId).to.equal(
+        ExternalBridgeType.Relay,
+      );
+      expect(registry.relay).to.have.property('maxQuoteLossBps', 100);
+      expect(registry.relay).to.have.property('defaultSlippage', 0.001);
+    });
+
     it('returns no bridges when no external bridge is configured', async () => {
       const factory = await factoryWithBridges();
       expect(await factory['buildExternalBridgeRegistry']()).to.deep.equal({});

@@ -102,6 +102,7 @@ async function main(): Promise<void> {
   const monitorOnly = process.env.MONITOR_ONLY === 'true';
   const coingeckoApiKey = process.env.COINGECKO_API_KEY;
   const swapsXyzApiKey = process.env.SWAPSXYZ_API_KEY;
+  const relayApiKey = process.env.RELAY_API_KEY;
 
   // Create logger (uses LOG_LEVEL environment variable for level configuration)
   const logger = await createServiceLogger({
@@ -276,9 +277,12 @@ async function main(): Promise<void> {
         monitorOnly,
         withMetrics,
         coingeckoApiKey,
-        externalBridgeApiKeys: swapsXyzApiKey
-          ? { [ExternalBridgeType.SwapsXyz]: swapsXyzApiKey }
-          : undefined,
+        externalBridgeApiKeys: {
+          ...(swapsXyzApiKey
+            ? { [ExternalBridgeType.SwapsXyz]: swapsXyzApiKey }
+            : {}),
+          ...(relayApiKey ? { [ExternalBridgeType.Relay]: relayApiKey } : {}),
+        },
         logger,
         version: VERSION,
       },
