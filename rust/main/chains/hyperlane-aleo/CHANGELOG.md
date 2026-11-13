@@ -1,3 +1,7 @@
+## [4.0.0] - 2026-11-13
+
+* perf: narrow reads and overlap independent RPC calls (#9959)
+
 ## [3.0.0] - 2026-10-23
 
 * feat(aleo): expose delegated prover phase metrics (#9541)

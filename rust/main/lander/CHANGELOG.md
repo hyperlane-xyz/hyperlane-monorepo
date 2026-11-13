@@ -1,3 +1,12 @@
+## [4.0.0] - 2026-11-13
+
+* fix(katana): use network fee estimates for relayers (#9939)
+* fix(lander): preserve inclusion during finality RPC failures (#9994)
+* fix(lander): remove p100 fee fallback and cap Ethereum priority fees (#9935)
+* fix: enforce priority fee caps across EVM chains (#9938)
+* perf: narrow reads and overlap independent RPC calls (#9959)
+* perf: remove hot-path serialization with bounded concurrency (#9958)
+
 ## [3.0.0] - 2026-10-23
 
 * chore: remove unused Fuel integration (#9723)

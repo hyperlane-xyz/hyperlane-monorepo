@@ -1,3 +1,7 @@
+## [4.0.0] - 2026-11-13
+
+* perf: narrow reads and overlap independent RPC calls (#9959)
+
 ## [3.0.0] - 2026-10-23
 
 * ci: parallelize sealevel e2e and rust tests, cache Solana downloads (#9734)

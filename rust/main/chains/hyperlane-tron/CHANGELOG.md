@@ -1,3 +1,7 @@
+## [4.0.0] - 2026-11-13
+
+* perf: remove hot-path serialization with bounded concurrency (#9958)
+
 ## [3.0.0] - 2026-10-23
 
 * feat(validators)!: migrate signing and checkpoint storage to GCP (#9160)
