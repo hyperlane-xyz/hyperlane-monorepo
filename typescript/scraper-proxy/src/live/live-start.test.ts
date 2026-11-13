@@ -106,9 +106,20 @@ void it(
       await db.query(
         "UPDATE scraper_checkpoint SET hash=decode('ab','hex') WHERE domain=1 AND height=100",
       );
-      await assert.rejects(
-        store.liveStartBoundaries(new Set([1])),
-        /Invalid live-start scraper checkpoint hash/,
+      const corrupt = await store.liveStartBoundaries(new Set([1, 5]));
+      assert.equal(corrupt.has(1), false);
+      assert.equal(corrupt.get(5)?.height, '0');
+      assert.equal(
+        (await store.confirmationHeads(new Set([1, 5]), 20)).get(1)?.liveStart,
+        undefined,
+      );
+      await db.query(
+        "UPDATE scraper_head SET mailbox=decode('aa','hex') WHERE domain=5",
+      );
+      assert.equal((await store.liveStartBoundaries(new Set([5]))).size, 0);
+      assert.equal(
+        (await store.confirmationHeads(new Set([5]), 0)).get(5)?.liveStart,
+        undefined,
       );
     } finally {
       await db.end();

@@ -427,7 +427,9 @@ contract addresses. The proxy DB role needs SELECT access to both tables.
 Custom streams (e.g. `"confirmations": 2`) receive a boundary per event type and
 domain with `"confirmations": 2` on the frame. Its height is the latest retained
 checkpoint at or below `min(indexed_height, head_height - 2)`, using the same
-primary SQL snapshot that initializes that stream. It never substitutes the
+primary SQL snapshot that initializes that stream. Streams with the same
+confirmation count and domain set share that snapshot; setup rollbacks force a
+fresh read. It never substitutes the
 canonical confirmation policy. Sparse checkpoints can place the boundary below
 the numeric target; live reading then covers the interval above that boundary.
 With `includeZeroConfirmations`, the requested and additional zero-confirmation
@@ -463,10 +465,11 @@ boundary. Heights and hashes use each adapter's native units (including Solana
 slots and Radix state versions); heights are decimal strings and addresses can
 be 20 or 32 bytes.
 
-A domain without a healthy retained checkpoint receives
+A domain without a healthy, valid retained checkpoint receives
 `{"type":"live_start_unavailable","domain":1,"eventTypes":["dispatch"],"reason":"No healthy live-start scraper checkpoint"}`.
 Custom unavailable frames also carry `confirmations`. Keep RPC indexing for that
-stream. A snapshot query failure closes the socket.
+stream. A malformed checkpoint or contract identity affects only that domain;
+other domains stay connected. A database query failure closes the socket.
 Reconnects require a fresh boundary and RPC gap recovery; never reuse the prior
 connection's marker. A missing marker, disconnect, or failed verification must
 not authorize takeover. Existing clients must ignore unknown frame types.

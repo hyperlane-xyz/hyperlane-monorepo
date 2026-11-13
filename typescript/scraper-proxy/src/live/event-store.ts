@@ -638,23 +638,27 @@ const LIVE_START_COLUMNS = `encode(c.hash, 'hex') AS hash,
   encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster`;
 
 function liveStartBoundary(row: Row): LiveStartBoundary | undefined {
-  if (row.height === undefined || row.height === null) return undefined;
+  const hash = parseOptionalBlockHash(row.hash);
   if (
+    !hash ||
+    typeof row.height !== 'string' ||
+    !/^\d+$/.test(row.height) ||
     typeof row.mailbox !== 'string' ||
     typeof row.merkle_tree_hook !== 'string' ||
     typeof row.interchain_gas_paymaster !== 'string'
   )
-    throw new Error('Invalid live-start scraper contract identities');
-  const hash = parseOptionalBlockHash(row.hash);
-  if (!hash) throw new Error('Invalid live-start scraper checkpoint hash');
-  return {
-    height: parseId(row.height).toString(),
-    hash,
-    contracts: {
-      dispatch: displayAddress(row.mailbox),
-      delivery: displayAddress(row.mailbox),
-      merkle_tree_insertion: displayAddress(row.merkle_tree_hook),
-      gas_payment: displayAddress(row.interchain_gas_paymaster),
-    },
+    return undefined;
+  const contracts = {
+    dispatch: displayAddress(row.mailbox),
+    delivery: displayAddress(row.mailbox),
+    merkle_tree_insertion: displayAddress(row.merkle_tree_hook),
+    gas_payment: displayAddress(row.interchain_gas_paymaster),
   };
+  if (
+    Object.values(contracts).some(
+      (address) => !/^0x(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(address),
+    )
+  )
+    return undefined;
+  return { height: parseId(row.height).toString(), hash, contracts };
 }

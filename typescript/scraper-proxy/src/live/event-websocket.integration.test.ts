@@ -324,7 +324,7 @@ const liveStartRow = {
   interchain_gas_paymaster: '33'.repeat(32),
 };
 
-void it('provides quiet-chain live starts and marks unavailable chains without scanning events', async (context) => {
+void it('provides quiet-chain live starts and isolates malformed checkpoints without scanning events', async (context) => {
   let queries = 0;
   context.mock.method(
     db,
@@ -339,6 +339,7 @@ void it('provides quiet-chain live starts and marks unavailable chains without s
       return queryRows<T>([
         liveStartRow,
         { ...liveStartRow, domain: -2, height: '0' },
+        { ...liveStartRow, domain: 2, hash: 'ab' },
       ]);
     },
   );
@@ -509,6 +510,84 @@ void it('automatically distinguishes canonical, custom and advisory zero-confirm
     await waitUntil(() => socket.readyState === WebSocket.CLOSED);
   }
 });
+
+for (const rollback of [false, true]) {
+  void it(`shares a custom snapshot across all event types${rollback ? ' and refreshes it after a setup rollback' : ''}`, async (context) => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let queries = 0;
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
+        assert.match(sql, /LEFT JOIN LATERAL/);
+        const first = ++queries === 1;
+        if (first) await held;
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            height: rollback && !first ? '99' : '100',
+            head_height: rollback && !first ? '101' : '102',
+            indexed_height: rollback && !first ? '99' : '100',
+            confirmed_height: '90',
+            hash: (rollback && !first ? 'cd' : 'ab').repeat(32),
+          },
+        ]);
+      },
+    );
+    const socket = new WebSocket(url);
+    const messages = captureMessages(socket);
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            'dispatch',
+            'delivery',
+            'gas_payment',
+            'merkle_tree_insertion',
+          ].map((eventType) => ({ eventType, domains: [1], confirmations: 2 })),
+        }),
+      );
+      await waitUntil(() => queries === 1);
+      if (rollback)
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            domain: 1,
+            confirmedHeight: '90',
+            previousConfirmedHeight: '90',
+            indexedHeight: '99',
+            previousIndexedHeight: '100',
+            headHeight: '101',
+          }),
+        );
+      await new Promise((resolve) => setImmediate(resolve));
+      release();
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'live_start').length === 4,
+      );
+      assert.equal(queries, rollback ? 2 : 1);
+      const starts = messages.filter(({ type }) => type === 'live_start');
+      assert(
+        starts.every(
+          ({ height, hash, confirmations }) =>
+            height === (rollback ? '99' : '100') &&
+            hash === `0x${(rollback ? 'cd' : 'ab').repeat(32)}` &&
+            confirmations === 2,
+        ),
+      );
+      assert.equal(socket.readyState, WebSocket.OPEN);
+    } finally {
+      release();
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+}
 
 void it('keeps custom streams without retained checkpoints unavailable, never canonical', async (context) => {
   context.mock.method(
@@ -1034,7 +1113,7 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
             domains: [1],
             includeZeroConfirmations: true,
           },
-          { eventType: 'gas_payment', confirmations: 0, domains: [1] },
+          { eventType: 'gas_payment', confirmations: 1, domains: [1] },
         ],
       }),
     );
