@@ -111,6 +111,77 @@ async fn progress(source: &ScraperSource, kinds: &[Kind], complete: bool) {
     }
 }
 
+#[tokio::test(start_paused = true)]
+async fn probe_errors_share_grace_and_ignore_previous_generations() {
+    let (_dir, source, _) = fixture();
+    let mut state = SourceState::new(&source);
+    state.authoritative = true;
+    state.next = [Some(2), Some(2)];
+    let generation = source.control.request(source.control.generation()).unwrap();
+    let failed = || Err(eyre::eyre!("RPC unavailable"));
+    assert!(state.observe_probe(generation, failed()).is_ok());
+    tokio::time::advance(Duration::from_secs(301)).await;
+    assert!(state.observe_probe(generation, failed()).is_err());
+
+    // A successful up-to-date probe resets the grace period.
+    state
+        .observe_probe(
+            generation,
+            Ok(Some(HealthProbe {
+                counts: [2, 2],
+                observed: [2, 2],
+            })),
+        )
+        .unwrap();
+    assert!(state.observe_probe(generation, failed()).is_ok());
+    tokio::time::advance(Duration::from_secs(301)).await;
+    source.control.resume();
+    let current = source.control.request(source.control.generation()).unwrap();
+    assert!(state.observe_probe(generation, failed()).is_ok());
+    assert!(state.observe_probe(current, failed()).is_err());
+}
+
+#[tokio::test]
+async fn rejected_live_subscription_uses_slow_reconnect() {
+    use hyperlane_base::scraper_websocket::{
+        stream_retry_delay, REJECTED_STREAM_RETRY_DELAY, RETRY_DELAY,
+    };
+    let (_dir, source, metrics) = fixture();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = Url::parse(&format!("ws://{}", listener.local_addr().unwrap())).unwrap();
+    let monitor = ScraperWebSocketMonitor::new(url, vec![source.clone()], &metrics).unwrap();
+    let server = async {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut socket = accept_async(stream).await.unwrap();
+        socket
+            .send(Message::Text(r#"{"type":"ready"}"#.into()))
+            .await
+            .unwrap();
+        socket.next().await.unwrap().unwrap();
+        socket
+            .send(Message::Text(
+                r#"{"type":"error","error":"Subscription rejected"}"#.into(),
+            ))
+            .await
+            .unwrap();
+    };
+    let (result, ()) = timeout(Duration::from_secs(5), async {
+        tokio::join!(monitor.stream(StreamTimeouts::default()), server)
+    })
+    .await
+    .unwrap();
+    assert!(result
+        .as_ref()
+        .unwrap_err()
+        .downcast_ref::<RejectedStream>()
+        .is_some());
+    assert_eq!(
+        stream_retry_delay(&result, RETRY_DELAY),
+        REJECTED_STREAM_RETRY_DELAY + RETRY_DELAY
+    );
+    assert!(!source.control.desired());
+}
+
 #[tokio::test]
 async fn overlap_requires_complete_rpc_history_including_gas() {
     let (_dir, source, _) = fixture();

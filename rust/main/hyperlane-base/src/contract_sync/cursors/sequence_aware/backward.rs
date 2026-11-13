@@ -54,6 +54,8 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// if the last indexed snapshot was sequence 100, this would be sequence 99.
     /// A None value indicates we're fully synced.
     current_indexing_snapshot: Option<TargetSnapshot>,
+    /// The configured floor was resolved and no earlier range is required.
+    at_lower_bound: bool,
     /// The mode of indexing to use.
     index_mode: IndexMode,
     /// The domain of the cursor.
@@ -145,6 +147,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             store,
             persisted_progress,
             current_indexing_snapshot: last_indexed_snapshot.previous_target(),
+            at_lower_bound: false,
             last_indexed_snapshot,
             index_mode,
             domain,
@@ -164,6 +167,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+        self.at_lower_bound = false;
         // Skip any already indexed logs first, so a recovered gap clears its
         // retry state even while a gap backoff is still active.
         tokio::select! {
@@ -185,12 +189,12 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // If `self.current_indexing_snapshot` is None, we are synced and there are no more ranges to query.
         // Otherwise, we query the next range, searching for logs prior to and including the current indexing snapshot.
 
-        match self.current_indexing_snapshot.as_ref() {
+        match self.current_indexing_snapshot.clone() {
             Some(current_indexing_snapshot) => {
                 let range = match &self.index_mode {
-                    IndexMode::Block => self.get_next_block_range(current_indexing_snapshot).await,
+                    IndexMode::Block => self.get_next_block_range(&current_indexing_snapshot).await,
                     IndexMode::Sequence => {
-                        self.get_next_sequence_range(current_indexing_snapshot)
+                        self.get_next_sequence_range(&current_indexing_snapshot)
                             .await
                     }
                 };
@@ -265,15 +269,16 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         Ok(())
     }
 
-    /// Backoff and exhausted searches are not proof that history is complete.
+    /// History is complete within the configured indexing window.
+    /// Backoff and failed floor lookups do not establish readiness.
     pub(super) fn is_caught_up(&self) -> bool {
-        self.current_indexing_snapshot.is_none()
+        self.current_indexing_snapshot.is_none() || self.at_lower_bound
     }
 
     /// Gets the next block range to index.
     /// Only used in block mode.
     async fn get_next_block_range(
-        &self,
+        &mut self,
         current_indexing_snapshot: &TargetSnapshot,
     ) -> Option<RangeInclusive<u32>> {
         let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
@@ -282,6 +287,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // When current block equals lowest block, we still need to index it
         // (e.g., when there's only one block to index at the boundary).
         if current_indexing_snapshot.at_block < lowest_block_height_or_sequence {
+            self.at_lower_bound = true;
             // If the current indexing snapshot's block height is less than the
             // lowest block height, we don't want to index anything below the lowest block height.
             info!(
@@ -305,7 +311,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// Gets the next sequence range to index.
     /// Only used in sequence mode.
     async fn get_next_sequence_range(
-        &self,
+        &mut self,
         current_indexing_snapshot: &TargetSnapshot,
     ) -> Option<RangeInclusive<u32>> {
         let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
@@ -314,6 +320,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // When current sequence equals lowest sequence, we still need to index it
         // (e.g., when there's only one message at sequence 0).
         if current_indexing_snapshot.sequence < lowest_block_height_or_sequence {
+            self.at_lower_bound = true;
             // If the current indexing snapshot's sequence is less than the lowest sequence,
             // we don't want to index anything below the lowest sequence.
             info!(
@@ -2333,6 +2340,7 @@ mod test {
             // (current - chunk_size, current)
             // since cursor does not reach the lowest sequence at this round
             let range = cursor.get_next_range().await.unwrap().unwrap();
+            assert!(!cursor.is_caught_up());
             let expected_range = expected_current_snapshot
                 .at_block
                 .saturating_sub(chunk_size)
@@ -2355,6 +2363,10 @@ mod test {
             // indexing because we've reached the block relative height of 3000 (4000 - 1000)
             let range = cursor.get_next_range().await.unwrap();
             assert_eq!(range, None);
+            assert!(
+                cursor.is_caught_up(),
+                "configured history window is complete"
+            );
         }
 
         #[tracing_test::traced_test]
@@ -2412,6 +2424,7 @@ mod test {
             // (current - chunk_size, current)
             // since cursor does not reach the lowest sequence at this round
             let range = cursor.get_next_range().await.unwrap().unwrap();
+            assert!(!cursor.is_caught_up());
             let expected_range = expected_current_snapshot
                 .sequence
                 .saturating_sub(chunk_size)
@@ -2433,6 +2446,18 @@ mod test {
             // We were able to find all sequences >= 2000, so we should stop indexing now
             let range = cursor.get_next_range().await.unwrap();
             assert_eq!(range, None);
+            assert!(
+                cursor.is_caught_up(),
+                "configured history window is complete"
+            );
+
+            // An unavailable relative floor must not preserve old readiness.
+            cursor.latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: None,
+                tip: latest_tip,
+            });
+            assert!(cursor.get_next_range().await.unwrap().is_none());
+            assert!(!cursor.is_caught_up());
         }
     }
 }

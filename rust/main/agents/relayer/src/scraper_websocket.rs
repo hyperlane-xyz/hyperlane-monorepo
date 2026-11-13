@@ -12,8 +12,8 @@ use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
     db::HyperlaneRocksDB,
     scraper_websocket::{
-        ScraperSession, ServerMessage, SessionEvent, StreamHealth, StreamTimeouts,
-        SubscribeMessage, SubscribeStream,
+        reconnect_after, RejectedStream, ScraperSession, ServerMessage, SessionEvent, StreamHealth,
+        StreamTimeouts, SubscribeMessage, SubscribeStream,
     },
     settings::SequenceIndexer,
     ContractSyncMetrics, CoreMetrics,
@@ -105,7 +105,6 @@ impl ScraperSource {
 struct HealthProbe {
     counts: [u32; 2],
     observed: [u32; 2],
-    generation: u64,
 }
 
 pub(crate) struct ScraperWebSocketMonitor {
@@ -147,16 +146,13 @@ impl ScraperWebSocketMonitor {
     }
     pub(crate) async fn run(self) {
         loop {
-            if let Err(error) = self
+            let result = self
                 .stream(StreamTimeouts {
                     progress_check: HANDOFF_POLL,
                     ..Default::default()
                 })
-                .await
-            {
-                warn!(?error, "Scraper connection unavailable; using RPC indexing");
-            }
-            tokio::time::sleep(hyperlane_base::scraper_websocket::RETRY_DELAY).await;
+                .await;
+            reconnect_after(result, hyperlane_base::scraper_websocket::RETRY_DELAY).await;
         }
     }
     fn subscription(&self) -> SubscribeMessage<'static> {
@@ -204,7 +200,7 @@ impl ScraperWebSocketMonitor {
             .map(|s| (s.domain, SourceState::new(s)))
             .collect();
         let mut session =
-            ScraperSession::<(u32, Result<Option<HealthProbe>>), (u64, bool)>::connect(
+            ScraperSession::<(u32, u64, Result<Option<HealthProbe>>), (u64, bool)>::connect(
                 &self.url, timeouts,
             )
             .await?;
@@ -238,17 +234,11 @@ impl ScraperWebSocketMonitor {
                                 .await
                                 .context("RPC health probe timed out")
                                 .and_then(|r| r)
-                                .map(|counts| {
-                                    Some(HealthProbe {
-                                        counts,
-                                        observed,
-                                        generation,
-                                    })
-                                })
+                                .map(|counts| Some(HealthProbe { counts, observed }))
                         } else {
                             Ok(None)
                         };
-                        (source.domain, result)
+                        (source.domain, generation, result)
                     })
                     .buffer_unordered(8)
                     .boxed()
@@ -280,28 +270,9 @@ impl ScraperWebSocketMonitor {
                         self.fallback(state, error);
                     }
                 }
-                SessionEvent::Progress((domain, result)) => {
+                SessionEvent::Progress((domain, generation, result)) => {
                     let state = states.get_mut(&domain).context("Unexpected probe domain")?;
-                    let result = result.and_then(|counts| {
-                        if let Some(probe) = counts {
-                            if state.authoritative && state.source.control.current(probe.generation)
-                            {
-                                for (i, count) in probe.counts.into_iter().enumerate() {
-                                    if count < probe.observed[i] {
-                                        ensure!(
-                                            state.health[i].observe_probe_failure(),
-                                            "Live scraper remained ahead of canonical count"
-                                        );
-                                    } else {
-                                        state.health[i].observe(
-                                            count,
-                                            state.next[i].unwrap_or(0),
-                                            false,
-                                        )?;
-                                    }
-                                }
-                            }
-                        }
+                    let result = state.observe_probe(generation, result).and_then(|()| {
                         if !state.authoritative && !state.source.control.desired() {
                             state.overlap_ready()
                         } else {
@@ -360,7 +331,7 @@ impl ScraperWebSocketMonitor {
                     bail!("Scraper rolled back; restoring RPC indexing")
                 }
                 SessionEvent::Message(ServerMessage::Error { error }) => {
-                    bail!("Scraper rejected live stream: {error}")
+                    return Err(RejectedStream(error).into());
                 }
                 // No cursors were requested, so replay markers cannot authorize a handoff.
                 SessionEvent::Message(ServerMessage::CaughtUp { .. } | ServerMessage::Other) => {}
@@ -392,6 +363,45 @@ impl<'a> SourceState<'a> {
             authoritative: false,
             health: [StreamHealth::default(), StreamHealth::default()],
         }
+    }
+    fn observe_probe(
+        &mut self,
+        generation: u64,
+        result: Result<Option<HealthProbe>>,
+    ) -> Result<()> {
+        if !self.authoritative || !self.source.control.current(generation) {
+            return Ok(());
+        }
+        let probe = match result {
+            Ok(Some(probe)) => probe,
+            Ok(None) => return Ok(()),
+            Err(error) => {
+                if self
+                    .health
+                    .iter_mut()
+                    .all(StreamHealth::observe_probe_failure)
+                {
+                    warn!(
+                        chain = self.source.chain,
+                        ?error,
+                        "RPC probe failed; retaining live indexing during grace period"
+                    );
+                    return Ok(());
+                }
+                return Err(error).context("RPC probe failures exceeded grace period");
+            }
+        };
+        for (i, count) in probe.counts.into_iter().enumerate() {
+            if count < probe.observed[i] {
+                ensure!(
+                    self.health[i].observe_probe_failure(),
+                    "Live scraper remained ahead of canonical count"
+                );
+            } else {
+                self.health[i].observe(count, self.next[i].unwrap_or(0), false)?;
+            }
+        }
+        Ok(())
     }
     fn ingest(&mut self, event: LiveEvent) -> Result<()> {
         if let Some((kind, sequence)) = event.sequence() {
