@@ -41,6 +41,16 @@ export const validatorChainConfig = (
 ): ValidatorBaseChainConfigMap => {
   const validatorsConfig = validatorBaseConfigsFn(environment, context);
   return {
+    aleotestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('aleotestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+        },
+        'aleotestnet',
+      ),
+    },
     arbitrumsepolia: {
       interval: 5,
       reorgPeriod: validatorReorgPeriod(context, 'arbitrumsepolia'),
@@ -76,16 +86,15 @@ export const validatorChainConfig = (
         'bsctestnet',
       ),
     },
-    sepolia: {
+    hyperliquidevmtestnet: {
       interval: 5,
-      reorgPeriod: validatorReorgPeriod(context, 'sepolia'),
+      reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
-          [Contexts.FastPath]: [AW_FASTPAH_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [],
         },
-        'sepolia',
+        'hyperliquidevmtestnet',
       ),
     },
     optimismsepolia: {
@@ -110,15 +119,26 @@ export const validatorChainConfig = (
         'polygonamoy',
       ),
     },
-    solanatestnet: {
+    seismictestnet: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('solanatestnet'),
+      reorgPeriod: getReorgPeriod('seismictestnet'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [],
         },
-        'solanatestnet',
+        'seismictestnet',
+      ),
+    },
+    sepolia: {
+      interval: 5,
+      reorgPeriod: validatorReorgPeriod(context, 'sepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: [AW_VALIDATOR],
+          [Contexts.ReleaseCandidate]: [AW_RC_VALIDATOR],
+          [Contexts.FastPath]: [AW_FASTPAH_VALIDATOR],
+        },
+        'sepolia',
       ),
     },
     solanadevnet: {
@@ -132,15 +152,15 @@ export const validatorChainConfig = (
         'solanadevnet',
       ),
     },
-    hyperliquidevmtestnet: {
+    solanatestnet: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
+      reorgPeriod: getReorgPeriod('solanatestnet'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
           [Contexts.ReleaseCandidate]: [],
         },
-        'hyperliquidevmtestnet',
+        'solanatestnet',
       ),
     },
     somniatestnet: {
@@ -153,16 +173,6 @@ export const validatorChainConfig = (
         'somniatestnet',
       ),
     },
-    aleotestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('aleotestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'aleotestnet',
-      ),
-    },
     tronshasta: {
       interval: 5,
       reorgPeriod: getReorgPeriod('tronshasta'),
@@ -171,16 +181,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'tronshasta',
-      ),
-    },
-    seismictestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('seismictestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'seismictestnet',
       ),
     },
   };
