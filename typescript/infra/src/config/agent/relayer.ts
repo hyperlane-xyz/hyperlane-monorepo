@@ -143,7 +143,8 @@ export interface BaseRelayerConfig {
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
   websocketUrl?: string;
-  reorgPeriodOverrides?: ChainMap<number>;
+  // A number of blocks, or a block tag (e.g. 'safe' / 'finalized') for EVM chains.
+  reorgPeriodOverrides?: ChainMap<number | string>;
   interval?: number;
   relayApi?: RelayApiConfig;
 }
