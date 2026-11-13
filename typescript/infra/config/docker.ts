@@ -57,7 +57,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   keyFunder: '3c19f58-20261110-174232',
   warpMonitor: '957cb09-20261021-152528',
   rebalancer: '957cb09-20261021-152528',
-  scraperProxy: '2b8057e-20261113-114046',
+  scraperProxy: '63228b2-20261113-153726',
   feeQuoting: '12d899d-20260325-184337',
 };
 
@@ -72,5 +72,5 @@ export const testnetDockerTags: BaseDockerTags = {
   scraper: '729708c-20261113-131312',
   // standalone services
   keyFunder: '957cb09-20261021-152528',
-  scraperProxy: '2b8057e-20261113-114046',
+  scraperProxy: '63228b2-20261113-153726',
 };
