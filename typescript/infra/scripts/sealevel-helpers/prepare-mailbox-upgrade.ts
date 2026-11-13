@@ -18,6 +18,7 @@
  *     --out <SQUADS_RECEIPT_PATH> \
  *     --yes
  */
+import { createHash } from 'crypto';
 import { writeFileSync } from 'fs';
 import path from 'path';
 
@@ -104,6 +105,10 @@ async function main(): Promise<void> {
   const rpcUrl = metadata.rpcUrls[0]?.http;
   assert(rpcUrl, `No RPC URL configured for ${chain}`);
   const rpc = createRpc(rpcUrl);
+  const programBinary = HYPERLANE_SVM_PROGRAM_BYTES.mailbox;
+  const programBinarySha256 = createHash('sha256')
+    .update(programBinary)
+    .digest('hex');
 
   const current = await new SealevelMailboxReader(rpc).read(mailbox);
   assert(
@@ -131,7 +136,7 @@ async function main(): Promise<void> {
     `Mailbox ProgramData account ${programDataAddress} was not found`,
   );
   const currentProgramDataCapacity = assertProgramBinaryFitsCurrentCapacity({
-    programBinarySize: HYPERLANE_SVM_PROGRAM_BYTES.mailbox.length,
+    programBinarySize: programBinary.length,
     programDataAccountSize: Buffer.from(
       programDataAccount.value.data[0],
       'base64',
@@ -149,6 +154,8 @@ async function main(): Promise<void> {
       environment,
       mailbox,
       outputPath,
+      programBinarySha256,
+      programBinarySize: programBinary.length,
       targetVersion: TARGET_VERSION,
       upgradeAuthority,
     },
@@ -169,7 +176,7 @@ async function main(): Promise<void> {
   const writer = new SealevelMailboxWriter(
     {
       domainId: metadata.domainId,
-      program: { programBytes: HYPERLANE_SVM_PROGRAM_BYTES.mailbox },
+      program: { programBytes: programBinary },
     },
     rpc,
     signer,
@@ -183,7 +190,8 @@ async function main(): Promise<void> {
     bufferPayer: signer.signer.address,
     targetVersion: TARGET_VERSION,
     upgradeAuthority,
-    programBinarySize: HYPERLANE_SVM_PROGRAM_BYTES.mailbox.length,
+    programBinarySha256,
+    programBinarySize: programBinary.length,
     currentProgramDataCapacity,
     createdAt: new Date().toISOString(),
     recovery:
@@ -247,6 +255,8 @@ async function main(): Promise<void> {
   logger.info(
     {
       outputPath,
+      programBinarySha256,
+      programBinarySize: programBinary.length,
       transactionCount: outputTransactions.length,
       upgradeAuthority,
     },
