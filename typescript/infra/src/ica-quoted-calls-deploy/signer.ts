@@ -1,9 +1,12 @@
 import { BigNumber, Wallet, constants, utils } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, assert, objMerge } from '@hyperlane-xyz/utils';
-
-import { describeError } from '../aggregation-hook-upgrade/redact.js';
+import {
+  Address,
+  assert,
+  objMerge,
+  redactErrorMessage,
+} from '@hyperlane-xyz/utils';
 
 const GAS_AMOUNT_REGEX = /^\d+(\.\d{1,9})?$/;
 
@@ -43,7 +46,7 @@ export function describeIcaError(
   error: unknown,
   redact: (text: string) => string,
 ): string {
-  return redact(describeError(error));
+  return redact(redactErrorMessage(error));
 }
 
 export interface PriorityFeeProvider {

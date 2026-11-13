@@ -5,6 +5,7 @@ import {
   assert,
   concurrentMap,
   eqAddress,
+  redactErrorMessage,
 } from '@hyperlane-xyz/utils';
 
 import { Modules } from '../../scripts/agent-utils.js';
@@ -27,7 +28,6 @@ import {
 import { buildProdTargets, buildShadowTargets, planChain } from './plan.js';
 import { isStandardEvm } from './protocol.js';
 import { createEvmChainReader } from './reader.js';
-import { describeError } from './redact.js';
 import { RegistryAddressUpdate, buildRegistryAddresses } from './registry.js';
 import {
   ChainOutcome,
@@ -173,7 +173,7 @@ async function runChain(
       await ctx.persist.writeVerificationInputs(module, { [chain]: inputs });
     } catch (error: unknown) {
       logger.error(
-        `[${chain}] failed to persist ${module} verification inputs: ${describeError(error)}`,
+        `[${chain}] failed to persist ${module} verification inputs: ${redactErrorMessage(error)}`,
       );
       const file = await ctx.persist.writeVerificationRecovery(
         module,
@@ -416,7 +416,7 @@ export async function runUpgrade(
     try {
       return await runChain(ctx, chain);
     } catch (error: unknown) {
-      const detail = describeError(error);
+      const detail = redactErrorMessage(error);
       ctx.logger.error(`[${chain}] ${detail}`);
       const failed: ChainResult = {
         chain,

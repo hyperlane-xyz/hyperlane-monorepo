@@ -203,3 +203,46 @@ export async function createServiceLogger(options: {
   // For local development, create a child logger with module info
   return rootLogger.child({ module: module ?? service });
 }
+
+export const REDACTED_URL = '<redacted-url>';
+export const REDACTED_HOST = '<redacted-host>';
+
+// ethers embeds the RPC url and the resolved hostname in provider error
+// messages (e.g. `url="https://host/<api key>"`, `"hostname":"host"`), and RPC
+// urls can carry credentials.
+const URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`<>)\]}]+/gi;
+const JSON_HOSTNAME_PATTERN = /("hostname"\s*:\s*")[^"]*"/gi;
+const ASSIGNED_HOSTNAME_PATTERN = /(\bhostname=)[^\s,)}]+/gi;
+
+export function redactSecrets(text: string): string {
+  return text
+    .replace(URL_PATTERN, REDACTED_URL)
+    .replace(JSON_HOSTNAME_PATTERN, `$1${REDACTED_HOST}"`)
+    .replace(ASSIGNED_HOSTNAME_PATTERN, `$1${REDACTED_HOST}`);
+}
+
+export function redactErrorMessage(error: unknown): string {
+  if (error instanceof Error) return redactSecrets(error.message);
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof error.message === 'string'
+  ) {
+    return redactSecrets(error.message);
+  }
+  return redactSecrets(String(error));
+}
+
+/**
+ * Redacts the error message inside the stack. The frames, whose `file://`
+ * locations match the url pattern, are kept when the stack contains the
+ * message; otherwise the whole stack is redacted.
+ */
+export function redactErrorStack(error: unknown): string | undefined {
+  if (!(error instanceof Error) || error.stack === undefined) return undefined;
+  const { message, stack } = error;
+  if (message === '') return stack;
+  if (!stack.includes(message)) return redactSecrets(stack);
+  return stack.split(message).join(redactSecrets(message));
+}

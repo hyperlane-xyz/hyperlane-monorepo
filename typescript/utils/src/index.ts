@@ -134,12 +134,17 @@ export { canonizeId, evmId } from './ids.js';
 export {
   LogFormat,
   LogLevel,
+  REDACTED_HOST,
+  REDACTED_URL,
   configureRootLogger,
   createHyperlanePinoLogger,
   ethersBigNumberSerializer,
   getLogFormat,
   getLogLevel,
   getRootLogger,
+  redactErrorMessage,
+  redactErrorStack,
+  redactSecrets,
   rootLogger,
   setRootLogger,
 } from './logging.js';
