@@ -303,19 +303,15 @@ validator read. The proxy performs no background signature reads or verification
 
 ## Agent WebSocket: `/agents`
 
-`/agents` provides live protocol events for agents and indexers. Historical
-backfills are no longer supported, removing a blocker to making this endpoint
-public. Network exposure is unchanged by this cleanup; current deployments keep
-it cluster-only:
+`/agents` provides live protocol events for agents and indexers. The endpoint is
+cluster-only:
 
 ```text
 ws://scraper-proxy.<namespace>.svc:8383/agents
 ```
 
 Agents must recover startup history and reconnect gaps through RPC before
-cutting over to live events, as in the validator and relayer indexing refactors.
-A central snapshot service is planned separately for agent bootstrap and
-historical state.
+cutting over to live events.
 
 On connection, the server advertises its capabilities:
 
@@ -335,7 +331,8 @@ On connection, the server advertises its capabilities:
 ```
 
 Send one subscription containing each desired event type at most once. Omit
-`domains` for all domains, or list explicit domains:
+`domains` for all domains, or list explicit domains. Client frames are limited to
+64 KiB:
 
 ```json
 {
@@ -363,10 +360,24 @@ Every event subscription starts live, including after reconnect. Replay options
 such as `cursors`, `streamCursorVersion`, `afterSequence`, `afterStreamCursor`,
 `afterId`, and `allowReplay` are rejected, even when empty. No historical database
 scan or `caught_up` message is issued. Gas payment events retain their row ID and
-log metadata but no longer include replay cursors or legacy cursor boundaries.
+log metadata, without replay cursors or legacy cursor boundaries.
 
-Deploy the validator and relayer RPC-recovery refactors before upgrading the
-proxy; older agents that request replay must be upgraded or use RPC-only indexing.
+Live start is independent per event type and can fall in the middle of a block
+range or page sequence. A `subscribed` acknowledgement is not a shared block
+boundary or a completeness guarantee. Canonical head ranges publish delivery,
+gas payments, dispatches, then Merkle insertions; a new subscriber can receive
+dispatch/Merkle events after the same range's gas payments have already passed.
+The legacy per-row notification path also provides no cross-type boundary.
+
+Buffer live events while recovering through RPC. Before takeover, complete RPC
+coverage for every required event type, including gas payments, through at least
+the maximum height of the first live range. Do not use the first dispatch or
+Merkle event's block as that upper bound: it can be below the end of the range.
+The event stream does not advertise a range-completion marker; obtain a fresh
+canonical height after subscribing and recover through that height (and any
+higher observed initial range). Deduplicate the overlap using native event
+identities. Gas payments have no contiguous sequence, so dispatch/Merkle sequence
+agreement alone cannot establish gas completeness.
 
 To use a custom confirmation delay, provide both `confirmations` and explicit
 `domains` on a stream:
@@ -378,9 +389,9 @@ To use a custom confirmation delay, provide both `confirmations` and explicit
 }
 ```
 
-Custom-confirmation streams are live-only and reject cursors. Eligibility is the
-minimum of indexed height and chain head minus confirmations. `/agents` requires
-near-head state for every requested custom domain.
+Custom-confirmation eligibility is the minimum of indexed height and chain head
+minus confirmations. `/agents` requires near-head state for every requested
+custom domain.
 
 Set `includeZeroConfirmations: true` on any event stream to also receive live
 zero-confirmation events on the same connection. For example,
@@ -413,8 +424,7 @@ live processing.
 
 - Canonical scraper rows use the scraper's configured finality.
 - Custom confirmation data is provisional and can roll back.
-- WebSocket streams provide live state only; historical bootstrap belongs to RPC
-  and the planned central snapshot service.
+- WebSocket streams provide live state only; recover historical state through RPC.
 - GraphQL pagination observes committed rows at query time.
 - Large integers are serialized as strings.
 - Addresses and message IDs may be normalized to PostgreSQL bytea form

@@ -67,7 +67,7 @@ const HEAD_PUBLICATION_ORDER = [
 ] as const satisfies readonly EventType[];
 
 const AGENT_PATH = '/agents';
-const MAX_AGENT_MESSAGE_BYTES = 1_048_576;
+const MAX_AGENT_MESSAGE_BYTES = 65_536;
 const MESSAGE_PATH = '/messages';
 const EVENT_CHANNEL = 'scraper_event';
 const EXPLORER_CHANNEL = 'scraper_explorer_event';

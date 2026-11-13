@@ -1134,7 +1134,7 @@ for (const supported of [true, false]) {
   });
 }
 
-void it('normalizes legacy signed domains on the agent wire', async () => {
+void it('normalizes signed domains and excludes events outside subscribed domains', async () => {
   const signedDomain = -846_819_108;
   const unsignedDomain = 3_448_148_188;
   const ids = {
@@ -1145,8 +1145,21 @@ void it('normalizes legacy signed domains on the agent wire', async () => {
   } as const;
   const socket = new WebSocket(url);
   const messages = captureMessages(socket);
+  const excluded = new WebSocket(url);
+  const excludedMessages = captureMessages(excluded);
 
   try {
+    await waitFor(excludedMessages, 'ready');
+    excluded.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: Object.keys(ids).map((eventType) => ({
+          eventType,
+          domains: [1],
+        })),
+      }),
+    );
+    await waitFor(excludedMessages, 'subscribed');
     await waitFor(messages, 'ready');
     socket.send(
       JSON.stringify({
@@ -1233,13 +1246,21 @@ void it('normalizes legacy signed domains on the agent wire', async () => {
       },
     );
     assert.equal(event('merkle_tree_insertion').domain, unsignedDomain);
+    excluded.send(JSON.stringify({ type: 'ping' }));
+    await waitFor(excludedMessages, 'pong');
+    assert(!excludedMessages.some(({ type }) => type === 'event'));
   } finally {
     deliveryRows.delete(ids.delivery);
     dispatchRows.delete(ids.dispatch);
     gasPaymentRows.delete(ids.gas_payment);
     rows.delete(ids.merkle_tree_insertion);
     socket.close();
-    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    excluded.close();
+    await waitUntil(() =>
+      [socket, excluded].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
+    );
   }
 });
 
@@ -1302,6 +1323,12 @@ void it('accepts fleet-sized agent subscriptions without raising the Explorer pa
       explorer.once('close', resolve),
     );
     assert.equal(code, 1009);
+
+    const agentClosed = new Promise<number>((resolve) =>
+      agent.once('close', resolve),
+    );
+    agent.send('x'.repeat(65_537));
+    assert.equal(await agentClosed, 1009);
   } finally {
     agent.close();
     explorer.close();
