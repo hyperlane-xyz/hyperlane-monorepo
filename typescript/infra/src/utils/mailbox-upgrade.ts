@@ -1,7 +1,10 @@
+import { writeFileSync } from 'fs';
+
 import { AccountRole } from '@solana/kit';
 import { PublicKey } from '@solana/web3.js';
 
 import { assert, eqAddressSol } from '@hyperlane-xyz/utils';
+import { ensureDirectoryExists } from '@hyperlane-xyz/utils/fs';
 
 import {
   type PrintableSvmInstruction,
@@ -21,6 +24,22 @@ type ExpectedAccount = {
   address: string | null;
   role: AccountRole;
 };
+
+export function reserveMailboxUpgradeOutput(
+  outputPath: string,
+  reservation: object,
+): void {
+  ensureDirectoryExists(outputPath);
+  try {
+    writeFileSync(outputPath, `${JSON.stringify(reservation, null, 2)}\n`, {
+      flag: 'wx',
+    });
+  } catch (error: unknown) {
+    throw new Error(
+      `Unable to reserve output path ${outputPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
 
 export function deriveProgramDataAddress(program: string): string {
   const [programData] = PublicKey.findProgramAddressSync(

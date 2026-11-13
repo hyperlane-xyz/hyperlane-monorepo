@@ -1,3 +1,7 @@
+import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import path from 'path';
+
 import { AccountRole } from '@solana/kit';
 import {
   Keypair,
@@ -13,6 +17,7 @@ import {
   LOADER_V3,
   MAX_COMPUTE_UNITS,
   assertProgramBinaryFitsCurrentCapacity,
+  reserveMailboxUpgradeOutput,
   sanitizeSingleMailboxUpgradeReceiptForSquads,
 } from '../src/utils/mailbox-upgrade.js';
 import {
@@ -27,6 +32,32 @@ const MAILBOX = 'E588QtVUfdTiQK6K7WKySi5GmHAbkMyT4hETvQG9gAhp';
 const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111';
 const SPILL = Keypair.generate().publicKey.toBase58();
 const UPGRADE_AUTHORITY = '3oocunLfAgATEqoRyW7A5zirsQuHJh6YjD4kReiVVKLa';
+
+describe('reserveMailboxUpgradeOutput', () => {
+  let temporaryDirectory: string | undefined;
+
+  afterEach(() => {
+    if (temporaryDirectory) {
+      rmSync(temporaryDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to overwrite an existing reservation', () => {
+    temporaryDirectory = mkdtempSync(
+      path.join(tmpdir(), 'mailbox-upgrade-reservation-'),
+    );
+    const outputPath = path.join(temporaryDirectory, 'nested', 'receipt.json');
+    const reservation = { status: 'preparing' };
+
+    reserveMailboxUpgradeOutput(outputPath, reservation);
+    expect(() =>
+      reserveMailboxUpgradeOutput(outputPath, { status: 'rerun' }),
+    ).to.throw(`Unable to reserve output path ${outputPath}`);
+    expect(JSON.parse(readFileSync(outputPath, 'utf8'))).to.deep.equal(
+      reservation,
+    );
+  });
+});
 
 describe('assertProgramBinaryFitsCurrentCapacity', () => {
   it('accepts a binary that exactly fits the current capacity', () => {

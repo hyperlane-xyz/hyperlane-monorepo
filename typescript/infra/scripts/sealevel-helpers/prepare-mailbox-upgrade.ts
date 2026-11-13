@@ -19,7 +19,6 @@
  *     --yes
  */
 import { createHash } from 'crypto';
-import { writeFileSync } from 'fs';
 import path from 'path';
 
 import { address } from '@solana/kit';
@@ -39,15 +38,13 @@ import {
   eqAddressSol,
   rootLogger,
 } from '@hyperlane-xyz/utils';
-import {
-  ensureDirectoryExists,
-  writeYamlOrJson,
-} from '@hyperlane-xyz/utils/fs';
+import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { getRegistryForEnvironment } from '../../src/config/chain.js';
 import {
   assertProgramBinaryFitsCurrentCapacity,
   deriveProgramDataAddress,
+  reserveMailboxUpgradeOutput,
   sanitizeSingleMailboxUpgradeReceiptForSquads,
 } from '../../src/utils/mailbox-upgrade.js';
 import { getArgs } from '../agent-utils.js';
@@ -196,16 +193,7 @@ async function main(): Promise<void> {
     recovery:
       'Preparation did not finish. Inspect the buffer payer transaction history before removing this reservation and retrying.',
   };
-  ensureDirectoryExists(outputPath);
-  try {
-    writeFileSync(outputPath, `${JSON.stringify(reservation, null, 2)}\n`, {
-      flag: 'wx',
-    });
-  } catch (error: unknown) {
-    throw new Error(
-      `Unable to reserve output path ${outputPath}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+  reserveMailboxUpgradeOutput(outputPath, reservation);
 
   const authorityTransactions = await writer.update({
     ...current,
