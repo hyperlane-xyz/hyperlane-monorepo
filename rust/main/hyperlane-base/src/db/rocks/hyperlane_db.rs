@@ -66,13 +66,7 @@ pub type DbResult<T> = std::result::Result<T, DbError>;
 
 /// DB handle for storing data tied to a specific Mailbox.
 #[derive(Debug, Clone)]
-pub struct HyperlaneRocksDB(
-    HyperlaneDomain,
-    TypedDB,
-    Arc<Mutex<()>>,
-    Arc<Mutex<()>>,
-    Arc<Mutex<()>>,
-);
+pub struct HyperlaneRocksDB(HyperlaneDomain, TypedDB, Arc<Mutex<()>>, Arc<Mutex<()>>);
 
 impl std::ops::Deref for HyperlaneRocksDB {
     type Target = TypedDB;
@@ -102,7 +96,6 @@ impl HyperlaneRocksDB {
             TypedDB::new(domain, db),
             Arc::new(Mutex::new(())),
             Arc::new(Mutex::new(())),
-            Arc::new(Mutex::new(())),
         )
     }
 
@@ -111,34 +104,7 @@ impl HyperlaneRocksDB {
         &self.0
     }
 
-    /// Extend coverage only after storing the entry and its block metadata.
-    pub fn extend_sequence_coverage<T: crate::cursors::Indexable>(
-        &self,
-        sequence: u32,
-    ) -> DbResult<()> {
-        self.merge_sequence_coverage(
-            T::name(),
-            SequenceCoverage {
-                first: sequence,
-                last: sequence,
-            },
-        )
-    }
-
-    fn merge_sequence_coverage(&self, key: &str, coverage: SequenceCoverage) -> DbResult<()> {
-        let _guard = self.4.lock();
-        let previous: Option<SequenceCoverage> =
-            self.retrieve_decodable("sequence_coverage_v1_", key)?;
-        let coverage = previous.map_or(coverage, |previous| {
-            previous.merge(coverage).unwrap_or(previous)
-        });
-        if previous != Some(coverage) {
-            self.store_encodable("sequence_coverage_v1_", key, &coverage)?;
-        }
-        Ok(())
-    }
-
-    /// Save an observed restart height while gas RPC indexing is paused.
+    /// Advance the existing gas restart block after storing a WebSocket gas event.
     pub fn advance_observed_gas_height(&self, height: u32) -> DbResult<()> {
         let previous: Option<u32> =
             self.retrieve_decodable("", LATEST_INDEXED_GAS_PAYMENT_BLOCK)?;
@@ -1125,7 +1091,6 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneRocksDB {
                     &meta.transaction_id,
                 )?;
             }
-            self.extend_sequence_coverage::<HyperlaneMessage>(message.inner().nonce)?;
         }
         if stored > 0 {
             debug!(messages = stored, "Wrote new messages to database");
@@ -1161,11 +1126,7 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
         payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
     ) -> Result<u32> {
         store_and_count_new(self, payments, "gas payments", |db, payment, meta| {
-            let stored = db.process_indexed_gas_payment(payment, meta)?;
-            if let Some(sequence) = payment.sequence {
-                db.extend_sequence_coverage::<InterchainGasPayment>(sequence)?;
-            }
-            Ok(stored)
+            db.process_indexed_gas_payment(payment, meta)
         })
         .await
     }
@@ -1181,7 +1142,6 @@ impl HyperlaneLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
             if self.process_tree_insertion(insertion.inner(), meta.block_number)? {
                 insertions = insertions.saturating_add(1);
             }
-            self.extend_sequence_coverage::<MerkleTreeInsertion>(insertion.inner().index())?;
         }
         Ok(insertions)
     }
@@ -1214,9 +1174,11 @@ macro_rules! impl_backward_cursor_store {
             }
 
             async fn store_sequence_coverage(&self, coverage: SequenceCoverage) -> Result<()> {
-                Ok(self.merge_sequence_coverage(
+                // The event's RPC cursor is the sole coverage writer.
+                Ok(self.store_encodable(
+                    "sequence_coverage_v1_",
                     <$event as crate::cursors::Indexable>::name(),
-                    coverage,
+                    &coverage,
                 )?)
             }
 

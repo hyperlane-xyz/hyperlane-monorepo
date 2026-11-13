@@ -103,19 +103,16 @@ impl ScraperSource {
     }
     // Gas payments have no portable on-chain sequence count, so these probes
     // cannot detect a gas-only stream stall after cutover.
-    async fn counts(&self) -> Result<([u32; 2], u32)> {
+    async fn counts(&self) -> Result<[u32; 2]> {
         let (dispatch, merkle) = tokio::try_join!(
             self.freshness_indexer.latest_sequence_count_and_tip(),
             self.merkle_freshness_indexer
                 .latest_sequence_count_and_tip(),
         )?;
-        Ok((
-            [
-                dispatch.0.context("Missing mailbox count")?,
-                merkle.0.context("Missing Merkle count")?,
-            ],
-            dispatch.1.min(merkle.1),
-        ))
+        Ok([
+            dispatch.0.context("Missing mailbox count")?,
+            merkle.0.context("Missing Merkle count")?,
+        ])
     }
 }
 
@@ -131,7 +128,6 @@ enum RpcProbe {
 }
 
 struct HealthProbe {
-    height: u32,
     counts: [u32; 2],
     observed: [u32; 2],
 }
@@ -260,12 +256,8 @@ impl ScraperWebSocketMonitor {
                                     .await
                                     .context("RPC health probe timed out")
                                     .and_then(|r| r)
-                                    .map(|(counts, height)| {
-                                        Some(RpcProbe::Health(HealthProbe {
-                                            height,
-                                            counts,
-                                            observed,
-                                        }))
+                                    .map(|counts| {
+                                        Some(RpcProbe::Health(HealthProbe { counts, observed }))
                                     })
                             } else {
                                 Ok(None)
@@ -507,10 +499,6 @@ impl<'a> SourceState<'a> {
                 return Err(error).context("RPC probe failures exceeded grace period");
             }
         };
-        let fresh =
-            probe.counts.iter().enumerate().all(|(i, count)| {
-                *count >= probe.observed[i] && *count <= self.next[i].unwrap_or(0)
-            });
         for (i, count) in probe.counts.into_iter().enumerate() {
             if count < probe.observed[i] {
                 ensure!(
@@ -520,15 +508,6 @@ impl<'a> SourceState<'a> {
             } else {
                 self.health[i].observe(count, self.next[i].unwrap_or(0))?;
             }
-        }
-        if fresh && self.source.gas_indexing {
-            // Reuse the existing confirmed RPC probe as an observed restart point.
-            // Policy: healthy WebSocket progress past a confirmed block marks it
-            // covered for restart, just like an RPC scan. This deliberately does
-            // not prove receipt of every gas event (there is no gas sequence).
-            self.source
-                .database
-                .advance_observed_gas_height(probe.height.saturating_sub(1))?;
         }
         Ok(())
     }

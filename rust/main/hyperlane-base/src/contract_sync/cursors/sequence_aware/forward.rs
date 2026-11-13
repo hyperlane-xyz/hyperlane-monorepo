@@ -624,6 +624,19 @@ pub(crate) mod test {
         hyperlane_core::HyperlaneBackwardCursorStore<T>
         for MockHyperlaneSequenceAwareIndexerStore<T>
     {
+        async fn retrieve_sequence_coverage(
+            &self,
+        ) -> eyre::Result<Option<hyperlane_core::SequenceCoverage>> {
+            Ok(None)
+        }
+
+        async fn store_sequence_coverage(
+            &self,
+            _coverage: hyperlane_core::SequenceCoverage,
+        ) -> eyre::Result<()> {
+            Ok(())
+        }
+
         async fn retrieve_backward_cursors(
             &self,
         ) -> eyre::Result<Vec<hyperlane_core::BackwardCursorProgress>> {

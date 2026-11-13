@@ -110,15 +110,11 @@ impl Decode for SequenceCoverage {
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait HyperlaneBackwardCursorStore<T>: Send + Sync + Debug {
-    /// Retrieves verified local history. Stores without persistence may omit it.
-    async fn retrieve_sequence_coverage(&self) -> Result<Option<SequenceCoverage>> {
-        Ok(None)
-    }
+    /// Retrieves the cursor's verified contiguous local history.
+    async fn retrieve_sequence_coverage(&self) -> Result<Option<SequenceCoverage>>;
 
     /// Saves coverage only after every entry and its block metadata were verified.
-    async fn store_sequence_coverage(&self, _coverage: SequenceCoverage) -> Result<()> {
-        Ok(())
-    }
+    async fn store_sequence_coverage(&self, coverage: SequenceCoverage) -> Result<()>;
 
     /// Retrieves all durable backwards cursor positions.
     async fn retrieve_backward_cursors(&self) -> Result<Vec<BackwardCursorProgress>>;

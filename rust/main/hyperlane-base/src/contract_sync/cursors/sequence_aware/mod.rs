@@ -232,6 +232,8 @@ mod tests {
 
         #[async_trait::async_trait]
         impl<T: Indexable + Send + Sync> HyperlaneBackwardCursorStore<T> for Db<T> {
+            async fn retrieve_sequence_coverage(&self) -> eyre::Result<Option<hyperlane_core::SequenceCoverage>>;
+            async fn store_sequence_coverage(&self, coverage: hyperlane_core::SequenceCoverage) -> eyre::Result<()>;
             async fn retrieve_backward_cursors(&self) -> eyre::Result<Vec<BackwardCursorProgress>>;
             async fn store_backward_cursor(&self, progress: BackwardCursorProgress) -> eyre::Result<()>;
             async fn reset_backward_cursor(&self, progress: BackwardCursorProgress) -> eyre::Result<()>;
@@ -322,6 +324,10 @@ mod tests {
 
         let latest_sequence_querier = Arc::new(sequencer);
         let mut store = MockDb::new();
+        store
+            .expect_retrieve_sequence_coverage()
+            .once()
+            .returning(|| Ok(None));
 
         store.expect_retrieve_by_sequence().returning(|_| Ok(None));
         store
@@ -385,6 +391,17 @@ mod tests {
                 .returning(move || Ok((Some(count), 1000)));
             let mut store = MockDb::<H256>::new();
             store
+                .expect_retrieve_sequence_coverage()
+                .once()
+                .return_once(move || Ok(Some(SequenceCoverage { first, last: 98 })));
+            store
+                .expect_store_sequence_coverage()
+                .times(usize::from(missing != Some(100)))
+                .returning(move |coverage| {
+                    assert_eq!(coverage, SequenceCoverage { first, last: 99 });
+                    Ok(())
+                });
+            store
                 .expect_retrieve_backward_cursors()
                 .returning(|| Ok(vec![]));
             store
@@ -412,7 +429,6 @@ mod tests {
             )
             .await
             .unwrap();
-            cursor.backward.coverage = Some(SequenceCoverage { first, last: 98 });
             assert_eq!(cursor.backward.get_next_range().await.unwrap(), expected);
         }
     }
@@ -430,6 +446,10 @@ mod tests {
             block: 500,
         };
         let mut store = MockDb::new();
+        store
+            .expect_retrieve_sequence_coverage()
+            .once()
+            .returning(|| Ok(None));
         store.expect_retrieve_by_sequence().returning(|_| Ok(None));
         store
             .expect_retrieve_backward_cursors()

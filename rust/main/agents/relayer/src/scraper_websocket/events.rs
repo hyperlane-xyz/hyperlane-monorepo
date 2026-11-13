@@ -244,8 +244,6 @@ impl ScraperSource {
         match event {
             LiveEvent::Dispatch(message, block, tx) => {
                 let inserted = self.database.store_message(message, *block)?;
-                self.database
-                    .extend_sequence_coverage::<HyperlaneMessage>(message.nonce)?;
                 if *tx != H512::zero() {
                     self.database
                         .store_dispatched_tx_hash_by_message_id(&message.id(), tx)?;
@@ -270,19 +268,14 @@ impl ScraperSource {
             }
             LiveEvent::Merkle(insertion, block) => {
                 self.database.process_tree_insertion(insertion, *block)?;
-                self.database
-                    .extend_sequence_coverage::<MerkleTreeInsertion>(insertion.index())?;
             }
             LiveEvent::Gas(payment, meta) => {
                 self.database.process_indexed_gas_payment(*payment, meta)?;
-                // Replay the observed block and its predecessor after reconnect.
+                // Resume from observed gas progress, never from an independent RPC tip.
+                // Replay the observed block and its predecessor; this does not prove gas completeness.
                 let height = u32::try_from(meta.block_number).context("Gas height exceeds u32")?;
                 self.database
                     .advance_observed_gas_height(height.saturating_sub(1))?;
-                if let Some(sequence) = payment.sequence {
-                    self.database
-                        .extend_sequence_coverage::<InterchainGasPayment>(sequence)?;
-                }
             }
         }
         if let Some((kind, sequence)) = event.sequence() {

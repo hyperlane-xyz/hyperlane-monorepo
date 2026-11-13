@@ -133,7 +133,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn coverage_survives_restart_and_never_bridges_a_gap() {
+    async fn cursor_coverage_survives_restart_and_is_event_specific() {
         use hyperlane_core::{HyperlaneWatermarkedLogStore, SequenceCoverage};
         let dir = TempDir::new().unwrap();
         let path = dir.path().to_str().unwrap().to_owned();
@@ -159,8 +159,14 @@ mod test {
                 HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_sequence_coverage(&db)
                     .await
                     .unwrap(),
-                Some(SequenceCoverage { first: 0, last: 1 })
+                None
             );
+            HyperlaneBackwardCursorStore::<HyperlaneMessage>::store_sequence_coverage(
+                &db,
+                SequenceCoverage { first: 0, last: 1 },
+            )
+            .await
+            .unwrap();
             db.advance_observed_gas_height(150).unwrap();
             db.advance_observed_gas_height(140).unwrap();
         }
@@ -176,19 +182,6 @@ mod test {
                 .await
                 .unwrap(),
             Some(150)
-        );
-        db.store_logs(&[entry(2), entry(3)]).await.unwrap();
-        HyperlaneBackwardCursorStore::<HyperlaneMessage>::store_sequence_coverage(
-            &db,
-            SequenceCoverage { first: 0, last: 1 },
-        )
-        .await
-        .unwrap();
-        assert_eq!(
-            HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_sequence_coverage(&db)
-                .await
-                .unwrap(),
-            Some(SequenceCoverage { first: 0, last: 3 })
         );
         assert_eq!(
             HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_sequence_coverage(&db)
