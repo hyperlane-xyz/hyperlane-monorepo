@@ -324,7 +324,7 @@ On connection, the server advertises its capabilities:
   ],
   "historicalStreaming": true,
   "liveStartVersion": 1,
-  "confirmations": { "unit": "blocks", "liveOnly": true },
+  "confirmations": { "unit": "blocks", "liveOnly": true, "byDomain": true },
   "streamCursorVersions": { "gas_payment": 3 }
 }
 ```
@@ -483,6 +483,57 @@ Cursor values and row IDs are decimal strings.
 `allowReplay: true` permits a sequence cursor ahead of current scraper history
 to restart from the current end. Gas-payment cursors require
 `streamCursorVersion: 3`; physical database row IDs are not valid cursors.
+
+### Per-domain confirmations
+
+Set `confirmationsByDomain` on the subscription to apply a confirmation count to
+all requested event types for a domain. Check `ready.confirmations.byDomain` for
+server support:
+
+```json
+{
+  "type": "subscribe",
+  "confirmationsByDomain": {
+    "1": 12,
+    "1399811149": 32
+  },
+  "streams": [
+    {
+      "eventType": "dispatch",
+      "domains": [1, 56, 1399811149],
+      "confirmations": 2
+    },
+    { "eventType": "delivery", "domains": [1, 56, 1399811149] },
+    { "eventType": "gas_payment", "domains": [1, 56, 1399811149] },
+    { "eventType": "merkle_tree_insertion", "domains": [1, 56, 1399811149] }
+  ]
+}
+```
+
+For each event type and domain, the effective policy is:
+
+1. `confirmationsByDomain[domain]`, when supplied (including `0`).
+2. The legacy stream's `confirmations`, when supplied.
+3. The scraper's configured canonical confirmation/finality policy.
+
+In this example, Ethereum uses 12 confirmations and Solana uses 32 slots for all
+four event types. Domain 56 uses 2 confirmations for dispatch and its configured
+canonical policy for the other event types. Legacy per-event confirmations remain
+supported during agent migration.
+
+The map requires explicit domains on event streams; its keys do not subscribe to
+additional domains. Counts must be nonnegative safe integers and keys must be
+uint32 domain IDs. Streams with an overridden domain cannot request replay cursors.
+`blocks` subscriptions still report raw indexed heads and ignore this map.
+The `subscribed` response echoes the map alongside the original streams.
+
+Domains sharing a count are grouped into the existing custom readers. Matching
+confirmation/domain groups share their initial database snapshot across event
+types. Canonical publication excludes overridden domains; the same event is not
+also emitted at the configured default. Handoff boundaries and rollback frames
+retain the effective numeric confirmation count.
+
+### Legacy per-event confirmations
 
 To use a custom confirmation delay, provide both `confirmations` and explicit
 `domains` on a stream:
