@@ -62,6 +62,7 @@ import {
   assertMailboxUpgradeInstruction,
 } from '../../src/utils/mailbox-upgrade.js';
 import {
+  assertSimpleReceipt,
   parseReceiptFile,
   planReceiptProposals,
   resolveWireAddressLookupTables,
@@ -764,6 +765,10 @@ async function main(): Promise<void> {
     parsed.txs.length === 1,
     `Expected one receipt tx, got ${parsed.txs.length}`,
   );
+  const complexity = assertSimpleReceipt(parsed.txs);
+  if (!complexity.ok) {
+    throw new Error(complexity.reason);
+  }
   const receipt = parsed.txs[0];
   assert(receipt, 'Missing receipt transaction');
   assert(
