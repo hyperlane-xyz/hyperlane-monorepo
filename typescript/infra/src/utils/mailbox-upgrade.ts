@@ -18,7 +18,7 @@ const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111';
 const UPGRADE_DATA = '03000000';
 
 type ExpectedAccount = {
-  address: string;
+  address: string | null;
   role: AccountRole;
 };
 
@@ -83,7 +83,8 @@ export function assertMailboxUpgradeInstruction({
       role: AccountRole.WRITABLE,
     },
     { address: mailbox, role: AccountRole.WRITABLE },
-    { address: instruction.accounts[2].address, role: AccountRole.WRITABLE },
+    // Buffer identity comes from the receipt; the simulator verifies its bytes.
+    { address: null, role: AccountRole.WRITABLE },
     { address: spillAddress, role: AccountRole.WRITABLE },
     { address: RENT_SYSVAR, role: AccountRole.READONLY },
     { address: CLOCK_SYSVAR, role: AccountRole.READONLY },
@@ -92,10 +93,12 @@ export function assertMailboxUpgradeInstruction({
 
   instruction.accounts.forEach((account, index) => {
     const expected = expectedAccounts[index];
-    assert(
-      eqAddressSol(account.address, expected.address),
-      `Unexpected loader Upgrade account ${index}: ${account.address}, expected ${expected.address}`,
-    );
+    if (expected.address !== null) {
+      assert(
+        eqAddressSol(account.address, expected.address),
+        `Unexpected loader Upgrade account ${index}: ${account.address}, expected ${expected.address}`,
+      );
+    }
     assert(
       account.role === expected.role,
       `Unexpected loader Upgrade role for account ${index}: ${account.role}, expected ${expected.role}`,
