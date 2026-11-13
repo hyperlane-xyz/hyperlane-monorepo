@@ -40,6 +40,10 @@ keep their signing format if their signer is whitelisted, but a reveal is only s
 with `origin_tx_hash`, and its calls are resolved from the commitment dispatched
 alongside it (see the ccip-server README).
 
+The reveal lookup derives the account from the commit's owner and user salt. A contract
+that commits on a user's behalf must therefore derive the commit's user salt from its own
+caller (`msg.sender`).
+
 ## General calldata lookup
 
 This route is disabled by default while the Sealevel reveal flow is redesigned; set
