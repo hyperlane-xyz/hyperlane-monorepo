@@ -18,7 +18,7 @@ use hyperlane_base::{
     settings::SequenceIndexer,
     ContractSyncMetrics, CoreMetrics,
 };
-use hyperlane_core::{HyperlaneMessage, MerkleTreeInsertion, H256};
+use hyperlane_core::{HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, H256};
 use prometheus::IntGaugeVec;
 use rpc::Authority;
 pub(crate) use rpc::{AuthorityCommand, RpcRecovery, ScraperAuthorityReceiver};
@@ -69,7 +69,7 @@ pub(crate) struct ScraperSource {
     freshness_indexer: SequenceIndexer<HyperlaneMessage>,
     merkle_freshness_indexer: SequenceIndexer<MerkleTreeInsertion>,
     sync_metrics: Arc<ContractSyncMetrics>,
-    gas_enabled: bool,
+    gas_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
     control: Arc<Authority>,
 }
 impl ScraperSource {
@@ -85,7 +85,7 @@ impl ScraperSource {
             freshness_indexer: origin.message_sequence_indexer.clone(),
             merkle_freshness_indexer: origin.merkle_sequence_indexer.clone(),
             sync_metrics: origin.sync_metrics.clone(),
-            gas_enabled: origin.interchain_gas_payment_sync.is_some(),
+            gas_indexer: origin.igp_indexer.clone(),
             control: Arc::new(Authority::new(origin.domain.id())),
         }
     }
@@ -100,6 +100,11 @@ impl ScraperSource {
             merkle.0.context("Missing Merkle count")?,
         ])
     }
+}
+
+enum RpcProbe {
+    GasBoundary(u32),
+    Health(HealthProbe),
 }
 
 struct HealthProbe {
@@ -164,7 +169,7 @@ impl ScraperWebSocketMonitor {
                     let mut domains: Vec<_> = self
                         .sources
                         .values()
-                        .filter(|s| kind != Kind::Gas || s.gas_enabled)
+                        .filter(|s| kind != Kind::Gas || s.gas_indexer.is_some())
                         .map(|s| s.domain)
                         .collect();
                     domains.sort_unstable();
@@ -200,15 +205,15 @@ impl ScraperWebSocketMonitor {
             .map(|s| (s.domain, SourceState::new(s)))
             .collect();
         let mut session =
-            ScraperSession::<(u32, u64, Result<Option<HealthProbe>>), (u64, bool)>::connect(
+            ScraperSession::<(u32, u64, Result<Option<RpcProbe>>), (u64, bool)>::connect(
                 &self.url, timeouts,
             )
             .await?;
         let mut subscribed = false;
         while let Some(event) = session
             .next::<serde_json::Value>(subscribed, || {
-                // Handoff checks only read local RPC progress. Established streams also
-                // get periodic canonical-count probes, without polling RPC every second.
+                // Sample the gas boundary once after subscription (and each fallback).
+                // Then handoff uses local progress; established streams get health probes.
                 let probes: Vec<_> = states
                     .values_mut()
                     .map(|state| {
@@ -219,22 +224,36 @@ impl ScraperWebSocketMonitor {
                         if probe {
                             state.last_probe = Some(Instant::now());
                         }
+                        let gas = state
+                            .source
+                            .gas_indexer
+                            .clone()
+                            .filter(|_| !state.authoritative && state.gas_boundary.is_none());
                         (
                             state.source.clone(),
                             probe,
+                            gas,
                             state.next.map(|n| n.unwrap_or(0)),
                             state.source.control.generation(),
                         )
                     })
                     .collect();
                 stream::iter(probes)
-                    .map(|(source, probe, observed, generation)| async move {
-                        let result = if probe {
+                    .map(|(source, probe, gas, observed, generation)| async move {
+                        let result = if let Some(indexer) = gas {
+                            timeout(RPC_TIMEOUT, indexer.get_finalized_block_number())
+                                .await
+                                .context("RPC gas boundary read timed out")
+                                .and_then(|r| r.map_err(Into::into))
+                                .map(|block| Some(RpcProbe::GasBoundary(block)))
+                        } else if probe {
                             timeout(RPC_TIMEOUT, source.counts())
                                 .await
                                 .context("RPC health probe timed out")
                                 .and_then(|r| r)
-                                .map(|counts| Some(HealthProbe { counts, observed }))
+                                .map(|counts| {
+                                    Some(RpcProbe::Health(HealthProbe { counts, observed }))
+                                })
                         } else {
                             Ok(None)
                         };
@@ -345,6 +364,8 @@ struct SourceState<'a> {
     source: &'a ScraperSource,
     started: Instant,
     last_probe: Option<Instant>,
+    // Fixed canonical height sampled after the live subscription starts.
+    gas_boundary: Option<u32>,
     next: [Option<u32>; 2],
     pending: VecDeque<LiveEvent>,
     bytes: usize,
@@ -357,6 +378,7 @@ impl<'a> SourceState<'a> {
             source,
             started: Instant::now(),
             last_probe: None,
+            gas_boundary: None,
             next: [None, None],
             pending: VecDeque::new(),
             bytes: 0,
@@ -364,16 +386,30 @@ impl<'a> SourceState<'a> {
             health: [StreamHealth::default(), StreamHealth::default()],
         }
     }
-    fn observe_probe(
-        &mut self,
-        generation: u64,
-        result: Result<Option<HealthProbe>>,
-    ) -> Result<()> {
-        if !self.authoritative || !self.source.control.current(generation) {
+    fn observe_probe(&mut self, generation: u64, result: Result<Option<RpcProbe>>) -> Result<()> {
+        if self.source.control.generation() != generation {
+            return Ok(());
+        }
+        if !self.authoritative {
+            match result {
+                Ok(Some(RpcProbe::GasBoundary(block))) => {
+                    self.gas_boundary.get_or_insert(block);
+                }
+                Err(error) => warn!(
+                    chain = self.source.chain,
+                    ?error,
+                    "Gas boundary unavailable; retaining RPC indexing"
+                ),
+                _ => {}
+            }
+            return Ok(());
+        }
+        if !self.source.control.current(generation) {
             return Ok(());
         }
         let probe = match result {
-            Ok(Some(probe)) => probe,
+            Ok(Some(RpcProbe::Health(probe))) => probe,
+            Ok(Some(RpcProbe::GasBoundary(_))) => return Ok(()),
             Ok(None) => return Ok(()),
             Err(error) => {
                 if self
@@ -454,10 +490,13 @@ impl<'a> SourceState<'a> {
             return Ok(false);
         }
         let block = dispatch.block().max(merkle.block());
+        if self.source.gas_indexer.is_some() && self.gas_boundary.is_none() {
+            return Ok(false);
+        }
         Ok(self
             .source
             .control
-            .history_ready(self.started, block, self.source.gas_enabled))
+            .history_ready(self.started, block, self.gas_boundary))
     }
     fn finish_handoff(&mut self) -> Result<()> {
         // RPC is joined before socket writes begin. Recheck the fixed overlap;

@@ -100,7 +100,10 @@ impl LiveEvent {
                 Ok(Some(Self::Merkle(insertion, block)))
             }
             "gas_payment" => {
-                ensure!(source.gas_enabled, "Unexpected gas payment stream");
+                ensure!(
+                    source.gas_indexer.is_some(),
+                    "Unexpected gas payment stream"
+                );
                 let data: GasData = serde_json::from_value(event.data)?;
                 if parse_address(&data.interchain_gas_paymaster)? != source.interchain_gas_paymaster
                 {

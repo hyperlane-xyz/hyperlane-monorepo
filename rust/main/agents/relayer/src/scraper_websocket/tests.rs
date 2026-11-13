@@ -8,12 +8,16 @@ use hyperlane_core::{
     SequenceAwareIndexer,
 };
 use prometheus::Registry;
-use std::{fmt::Debug, ops::RangeInclusive};
+use std::{
+    fmt::Debug,
+    ops::RangeInclusive,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-#[derive(Debug)]
-struct CountIndexer;
+#[derive(Debug, Default)]
+struct CountIndexer(AtomicUsize);
 #[async_trait]
 impl<T: Send + Sync + Debug + 'static> Indexer<T> for CountIndexer {
     async fn fetch_logs_in_range(
@@ -23,6 +27,7 @@ impl<T: Send + Sync + Debug + 'static> Indexer<T> for CountIndexer {
         unreachable!()
     }
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.0.fetch_add(1, Ordering::Relaxed);
         Ok(100)
     }
 }
@@ -47,10 +52,10 @@ fn fixture() -> (tempfile::TempDir, ScraperSource, CoreMetrics) {
         interchain_gas_paymaster: H256::from_low_u64_be(3),
         database: db,
         broadcaster: None,
-        freshness_indexer: Arc::new(CountIndexer),
-        merkle_freshness_indexer: Arc::new(CountIndexer),
+        freshness_indexer: Arc::new(CountIndexer::default()),
+        merkle_freshness_indexer: Arc::new(CountIndexer::default()),
         sync_metrics: Arc::new(ContractSyncMetrics::new(&metrics)),
-        gas_enabled: true,
+        gas_indexer: Some(Arc::new(CountIndexer::default())),
         control: Arc::new(Authority::new(8453)),
     };
     (dir, source, metrics)
@@ -77,14 +82,14 @@ fn merkle(index: u32) -> LiveEvent {
     LiveEvent::Merkle(MerkleTreeInsertion::new(index, message.id()), 100)
 }
 #[derive(Debug)]
-struct CompleteCursor(bool);
+struct CompleteCursor(bool, u32);
 #[async_trait]
 impl ContractSyncCursor<HyperlaneMessage> for CompleteCursor {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         Ok((CursorAction::Sleep(Duration::ZERO), Duration::ZERO))
     }
     fn latest_queried_block(&self) -> u32 {
-        100
+        self.1
     }
     fn is_caught_up(&self) -> bool {
         self.0
@@ -92,17 +97,21 @@ impl ContractSyncCursor<HyperlaneMessage> for CompleteCursor {
     async fn update(
         &mut self,
         _: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
-        _: RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
     ) -> Result<()> {
         self.0 = true;
+        self.1 = *range.end();
         Ok(())
     }
 }
 async fn progress(source: &ScraperSource, kinds: &[Kind], complete: bool) {
+    progress_at(source, kinds, complete, 100).await;
+}
+async fn progress_at(source: &ScraperSource, kinds: &[Kind], complete: bool, block: u32) {
     let receiver = source.control.receiver();
     for kind in kinds {
         RpcRecovery::track(
-            Box::new(CompleteCursor(complete)),
+            Box::new(CompleteCursor(complete, block)),
             Some(receiver.recovery(*kind)),
         )
         .next_action()
@@ -127,10 +136,10 @@ async fn probe_errors_share_grace_and_ignore_previous_generations() {
     state
         .observe_probe(
             generation,
-            Ok(Some(HealthProbe {
+            Ok(Some(RpcProbe::Health(HealthProbe {
                 counts: [2, 2],
                 observed: [2, 2],
-            })),
+            }))),
         )
         .unwrap();
     assert!(state.observe_probe(generation, failed()).is_ok());
@@ -186,6 +195,12 @@ async fn rejected_live_subscription_uses_slow_reconnect() {
 async fn overlap_requires_complete_rpc_history_including_gas() {
     let (_dir, source, _) = fixture();
     let mut state = SourceState::new(&source);
+    state
+        .observe_probe(
+            source.control.generation(),
+            Ok(Some(RpcProbe::GasBoundary(100))),
+        )
+        .unwrap();
     for event in [dispatch(7), merkle(7)] {
         state.ingest(event).unwrap();
     }
@@ -205,16 +220,90 @@ async fn overlap_requires_complete_rpc_history_including_gas() {
 }
 
 #[tokio::test]
+async fn gas_recovery_covers_subscription_height_even_without_buffered_gas() {
+    let (_dir, source, _) = fixture();
+    let mut state = SourceState::new(&source);
+    for mut event in [dispatch(7), merkle(7)] {
+        match &mut event {
+            LiveEvent::Dispatch(_, block, _) | LiveEvent::Merkle(_, block) => *block = 101,
+            _ => unreachable!(),
+        }
+        source.store(&event).unwrap();
+        state.ingest(event).unwrap();
+    }
+    // Every RPC cursor reported caught up at 105, but the initial proxy range
+    // extended through 110 and its gas phase preceded our subscription.
+    progress_at(&source, &Kind::ALL, true, 105).await;
+    assert!(
+        !state.overlap_ready().unwrap(),
+        "must first sample the boundary"
+    );
+    state
+        .observe_probe(
+            source.control.generation(),
+            Err(eyre::eyre!("RPC unavailable")),
+        )
+        .unwrap();
+    assert!(!state.overlap_ready().unwrap());
+    state
+        .observe_probe(
+            source.control.generation(),
+            Ok(Some(RpcProbe::GasBoundary(110))),
+        )
+        .unwrap();
+    assert!(
+        !state.overlap_ready().unwrap(),
+        "gas through 105 leaves a gap"
+    );
+
+    // An empty successful scan still proves block coverage. No gas event is
+    // required in the buffer, and dispatch/Merkle need only cover their anchors.
+    let mut gas = RpcRecovery::track(
+        Box::new(CompleteCursor(false, 105)),
+        Some(source.control.receiver().recovery(Kind::Gas)),
+    );
+    gas.update(vec![], 106..=110).await.unwrap();
+    assert!(state.overlap_ready().unwrap());
+    state
+        .observe_probe(
+            source.control.generation(),
+            Ok(Some(RpcProbe::GasBoundary(120))),
+        )
+        .unwrap();
+    assert!(
+        state.overlap_ready().unwrap(),
+        "the sampled boundary stays fixed"
+    );
+
+    let old_generation = source.control.generation();
+    source.control.resume();
+    let mut recovered = SourceState::new(&source);
+    recovered
+        .observe_probe(old_generation, Ok(Some(RpcProbe::GasBoundary(110))))
+        .unwrap();
+    assert!(
+        recovered.gas_boundary.is_none(),
+        "fallback needs a new sample"
+    );
+}
+
+#[tokio::test]
 async fn completed_gas_query_records_recovery_before_the_next_poll() {
     let (_dir, source, _) = fixture();
     let mut state = SourceState::new(&source);
+    state
+        .observe_probe(
+            source.control.generation(),
+            Ok(Some(RpcProbe::GasBoundary(100))),
+        )
+        .unwrap();
     for event in [dispatch(7), merkle(7)] {
         source.store(&event).unwrap();
         state.ingest(event).unwrap();
     }
     progress(&source, &[Kind::Dispatch, Kind::Merkle], true).await;
     let mut gas = RpcRecovery::track(
-        Box::new(CompleteCursor(false)),
+        Box::new(CompleteCursor(false, 100)),
         Some(source.control.receiver().recovery(Kind::Gas)),
     );
     gas.next_action().await.unwrap();
@@ -228,6 +317,12 @@ async fn old_rpc_progress_and_stale_pause_ack_cannot_authorize_reconnect() {
     let (_dir, source, _) = fixture();
     progress(&source, &Kind::ALL, true).await;
     let mut state = SourceState::new(&source);
+    state
+        .observe_probe(
+            source.control.generation(),
+            Ok(Some(RpcProbe::GasBoundary(100))),
+        )
+        .unwrap();
     for event in [dispatch(1), merkle(1)] {
         source.store(&event).unwrap();
         state.ingest(event).unwrap();
@@ -314,16 +409,18 @@ fn wire_event(event: &LiveEvent, source: &ScraperSource) -> serde_json::Value {
 
 #[tokio::test]
 async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_replay() {
-    let (_dir, source, metrics) = fixture();
+    let (_dir, mut source, metrics) = fixture();
+    let gas_indexer = Arc::new(CountIndexer::default());
+    source.gas_indexer = Some(gas_indexer.clone());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = Url::parse(&format!("ws://{}", listener.local_addr().unwrap())).unwrap();
     let mut other = source.clone();
     other.domain = 1;
     other.chain = "other".into();
-    other.gas_enabled = false;
+    other.gas_indexer = None;
     other.control = Arc::new(Authority::new(other.domain));
     let monitor = ScraperWebSocketMonitor::new(url, vec![source.clone(), other], &metrics).unwrap();
-    for first in [20, 30] {
+    for (connection, first) in [20, 30].into_iter().enumerate() {
         let session = monitor.stream(StreamTimeouts {
             progress_check: Duration::from_millis(5),
             ..Default::default()
@@ -340,6 +437,11 @@ async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_re
             let request = socket.next().await.unwrap().unwrap();
             let request: serde_json::Value =
                 serde_json::from_str(request.to_text().unwrap()).unwrap();
+            assert_eq!(
+                gas_indexer.0.load(Ordering::Relaxed),
+                connection,
+                "do not sample the gas boundary before subscribing"
+            );
             let streams = request["streams"].as_array().unwrap();
             assert_eq!(streams.len(), 3);
             for stream in streams {
@@ -421,6 +523,11 @@ async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_re
             })
             .await
             .unwrap();
+            assert_eq!(
+                gas_indexer.0.load(Ordering::Relaxed),
+                connection + 1,
+                "sample once per connection, without chasing the head"
+            );
             socket.close(None).await.unwrap();
         };
         let (result, ()) = timeout(Duration::from_secs(5), async {

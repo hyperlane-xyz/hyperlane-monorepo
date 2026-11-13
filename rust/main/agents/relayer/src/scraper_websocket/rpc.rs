@@ -79,13 +79,24 @@ impl Authority {
         let command = self.command.borrow();
         command.desired && command.generation == generation
     }
-    pub(super) fn history_ready(&self, since: Instant, block: u64, gas: bool) -> bool {
+    pub(super) fn history_ready(
+        &self,
+        since: Instant,
+        block: u64,
+        gas_boundary: Option<u32>,
+    ) -> bool {
         let progress = self.ack.recovery.lock().expect("RPC recovery lock");
         Kind::ALL
             .into_iter()
-            .filter(|kind| gas || *kind != Kind::Gas)
+            .filter(|kind| gas_boundary.is_some() || *kind != Kind::Gas)
             .all(|kind| {
-                progress[kind.index()].is_some_and(|p| p.at >= since && u64::from(p.block) >= block)
+                let required = if kind == Kind::Gas {
+                    block.max(u64::from(gas_boundary.unwrap_or_default()))
+                } else {
+                    block
+                };
+                progress[kind.index()]
+                    .is_some_and(|p| p.at >= since && u64::from(p.block) >= required)
             })
     }
     pub(super) fn resume(&self) {
