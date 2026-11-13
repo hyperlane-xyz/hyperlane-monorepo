@@ -15,7 +15,6 @@
  *     --chain solanamainnet \
  *     --mailbox <MAILBOX_PROGRAM_ADDRESS> \
  *     --upgradeAuthority <SQUADS_VAULT_ADDRESS> \
- *     --singleSquadsTransaction \
  *     --yes
  */
 import { existsSync } from 'fs';
@@ -79,12 +78,6 @@ async function main(): Promise<void> {
       default: 'SVM_PRIVATE_KEY',
       description: 'Environment variable containing the buffer payer key',
     })
-    .option('singleSquadsTransaction', {
-      type: 'boolean',
-      default: false,
-      description:
-        'Require one standalone Upgrade transaction and remove its slot barrier for the generic Squads proposer',
-    })
     .option('yes', {
       type: 'boolean',
       default: false,
@@ -124,30 +117,24 @@ async function main(): Promise<void> {
     `Mailbox owner ${current.config.owner} differs from upgrade authority ${upgradeAuthority}; refusing to let the mailbox writer transfer upgrade authority`,
   );
 
-  let currentProgramDataCapacity: number | undefined;
-  if (argv.singleSquadsTransaction) {
-    const programDataAddress = address(deriveProgramDataAddress(mailbox));
-    const programDataAccount = await rpc
-      .getAccountInfo(programDataAddress, { encoding: 'base64' })
-      .send();
-    assert(
-      programDataAccount.value,
-      `Mailbox ProgramData account ${programDataAddress} was not found`,
-    );
-    currentProgramDataCapacity = assertProgramBinaryFitsCurrentCapacity({
-      programBinarySize: HYPERLANE_SVM_PROGRAM_BYTES.mailbox.length,
-      programDataAccountSize: Buffer.from(
-        programDataAccount.value.data[0],
-        'base64',
-      ).length,
-    });
-  }
+  const programDataAddress = address(deriveProgramDataAddress(mailbox));
+  const programDataAccount = await rpc
+    .getAccountInfo(programDataAddress, { encoding: 'base64' })
+    .send();
+  assert(
+    programDataAccount.value,
+    `Mailbox ProgramData account ${programDataAddress} was not found`,
+  );
+  const currentProgramDataCapacity = assertProgramBinaryFitsCurrentCapacity({
+    programBinarySize: HYPERLANE_SVM_PROGRAM_BYTES.mailbox.length,
+    programDataAccountSize: Buffer.from(
+      programDataAccount.value.data[0],
+      'base64',
+    ).length,
+  });
 
   const outputPath = path.resolve(
-    argv.out ??
-      (argv.singleSquadsTransaction
-        ? `transactions/${chain}-file-${Date.now()}-receipts.json`
-        : `transactions/${chain}-mailbox-${mailbox}-upgrade-${TARGET_VERSION}-receipts.json`),
+    argv.out ?? `transactions/${chain}-file-${Date.now()}-receipts.json`,
   );
   assert(
     !existsSync(outputPath),
@@ -213,14 +200,12 @@ async function main(): Promise<void> {
       signer.transactionToPrintableJson(transaction),
     ),
   );
-  const outputTransactions = argv.singleSquadsTransaction
-    ? sanitizeSingleMailboxUpgradeReceiptForSquads({
-        transactions: printableTransactions,
-        mailbox,
-        upgradeAuthority,
-        spillAddress: signer.signer.address,
-      })
-    : printableTransactions;
+  const outputTransactions = sanitizeSingleMailboxUpgradeReceiptForSquads({
+    transactions: printableTransactions,
+    mailbox,
+    upgradeAuthority,
+    spillAddress: signer.signer.address,
+  });
   writeYamlOrJson(outputPath, outputTransactions, 'json');
 
   logger.info(
