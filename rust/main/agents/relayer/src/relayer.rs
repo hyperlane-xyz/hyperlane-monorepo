@@ -1319,7 +1319,9 @@ impl Relayer {
             .expect("spawning tokio task from Builder is infallible"))
     }
 
-    async fn rpc_sync_task<T: Send + Sync + Debug + 'static>(
+    async fn rpc_sync_task<
+        T: hyperlane_base::cursors::Indexable + Send + Sync + Debug + 'static,
+    >(
         origin: &HyperlaneDomain,
         index_settings: IndexSettings,
         contract_sync: Arc<dyn ContractSyncer<T>>,
@@ -1352,7 +1354,11 @@ impl Relayer {
                 }
             }
         };
-        let cursor = RpcRecovery::track(cursor, recovery);
+        let cursor = RpcRecovery::track(
+            cursor,
+            recovery,
+            T::indexing_cursor(origin.domain_protocol()),
+        );
         contract_sync
             .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
             .await;

@@ -1,7 +1,7 @@
 use super::*;
 use async_trait::async_trait;
 use futures_util::{FutureExt, SinkExt};
-use hyperlane_base::db::DB;
+use hyperlane_base::{cursors::CursorType, db::DB};
 use hyperlane_core::H512;
 use hyperlane_core::{
     ChainResult, ContractSyncCursor, CursorAction, HyperlaneDomain, Indexed, Indexer, LogMeta,
@@ -164,7 +164,6 @@ impl ContractSyncCursor<HyperlaneMessage> for CompleteCursor {
         _: Vec<(Indexed<HyperlaneMessage>, LogMeta)>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
-        self.0 = true;
         self.1 = *range.end();
         Ok(())
     }
@@ -187,6 +186,7 @@ async fn progress_at(source: &ScraperSource, kinds: &[Kind], complete: bool, blo
                     .unwrap_or(0),
             )),
             Some(receiver.recovery(*kind)),
+            CursorType::SequenceAware,
         )
         .next_action()
         .await
@@ -194,9 +194,94 @@ async fn progress_at(source: &ScraperSource, kinds: &[Kind], complete: bool, blo
     }
 }
 
+#[tokio::test]
+async fn completed_block_gas_progress_does_not_wait_for_a_moving_tip() {
+    for cursor_type in [CursorType::RateLimited, CursorType::SequenceAware] {
+        let (_dir, source, _) = fixture();
+        let mut state = SourceState::new(&source);
+        accept_verified(&mut state, 100);
+        progress(&source, &[Kind::Dispatch, Kind::Merkle], true).await;
+        let block_gas = matches!(cursor_type, CursorType::RateLimited);
+        let mut cursor = RpcRecovery::track(
+            Box::new(CompleteCursor(false, 100, 0)),
+            Some(source.control.receiver().recovery(Kind::Gas)),
+            cursor_type,
+        );
+        cursor.next_action().await.unwrap();
+        assert!(
+            state.handoff_sequences().is_none(),
+            "a planned range is not completed history"
+        );
+        cursor.update(vec![], 90..=99).await.unwrap();
+        assert!(
+            state.handoff_sequences().is_none(),
+            "completed range must reach the boundary"
+        );
+        cursor.update(vec![], 100..=100).await.unwrap();
+        assert_eq!(
+            state.handoff_sequences().is_some(),
+            block_gas,
+            "sequence gas cursors still require backward history completion"
+        );
+    }
+}
+
+#[test]
+fn fallback_isolates_one_origin_and_invalidates_its_pending_cutover() {
+    let (_dir, source, metrics) = fixture();
+    let mut other = source.clone();
+    other.domain = 1;
+    other.chain = "other".into();
+    other.control = Arc::new(Authority::new(1));
+    let monitor = ScraperWebSocketMonitor::new(
+        Url::parse("ws://localhost").unwrap(),
+        vec![source.clone(), other.clone()],
+        &metrics,
+    )
+    .unwrap();
+    let mut states = HashMap::from([
+        (source.domain, SourceState::new(&source)),
+        (other.domain, SourceState::new(&other)),
+    ]);
+    let failed_generation = source.control.request(source.control.generation()).unwrap();
+    let healthy_generation = other.control.request(other.control.generation()).unwrap();
+    for origin in [&source, &other] {
+        monitor.authority.with_label_values(&[&origin.chain]).set(1);
+    }
+    monitor.fallback(&mut states, source.domain, "local failure");
+    assert!(!states.contains_key(&source.domain));
+    assert!(!source.control.current(failed_generation));
+    assert!(states.contains_key(&other.domain));
+    assert!(other.control.current(healthy_generation));
+    assert_eq!(
+        monitor.authority.with_label_values(&[&source.chain]).get(),
+        0
+    );
+    assert_eq!(
+        monitor.authority.with_label_values(&[&other.chain]).get(),
+        1
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn probe_errors_share_grace_and_ignore_previous_generations() {
     let (_dir, source, _) = fixture();
+    let mut recovering = SourceState::new(&source);
+    let generation = source.control.generation();
+    assert!(recovering
+        .observe_probe(generation, Err(eyre::eyre!("unavailable")))
+        .is_ok());
+    tokio::time::advance(Duration::from_secs(301)).await;
+    assert!(recovering
+        .observe_probe(generation, Err(eyre::eyre!("unavailable")))
+        .is_err());
+    recovering
+        .observe_probe(generation, Ok(Some(RpcProbe::BoundaryVerified)))
+        .unwrap();
+    assert!(
+        recovering.health[0].observe_probe_failure(),
+        "verification clears old failure grace"
+    );
     let mut state = SourceState::new(&source);
     state.authoritative = true;
     state.next = [Some(2), Some(2)];
@@ -341,6 +426,7 @@ async fn boundary_cutover_preserves_configured_floor_sequence_without_local_even
         RpcRecovery::track(
             Box::new(CompleteCursor(true, 100, 700)),
             Some(source.control.receiver().recovery(kind)),
+            CursorType::SequenceAware,
         )
         .next_action()
         .await
@@ -403,6 +489,14 @@ fn gaps_conflicts_and_full_buffers_require_rpc_recovery() {
         .retrieve_message_by_nonce(0)
         .unwrap()
         .is_none());
+    let mut oversized = SourceState::new(&source);
+    let LiveEvent::Dispatch(mut message, block, tx) = dispatch(0) else {
+        unreachable!()
+    };
+    message.body = vec![0; MAX_HANDOFF_BYTES + 1];
+    assert!(oversized
+        .ingest(LiveEvent::Dispatch(message, block, tx))
+        .is_err());
 }
 
 #[test]
@@ -430,6 +524,100 @@ fn wire_event(event: &LiveEvent, source: &ScraperSource) -> serde_json::Value {
     serde_json::json!({"type": "event", "domain": source.domain, "eventType": kind.label(), "sequence": sequence.to_string(), "data": data})
 }
 
+async fn subscribed_socket(
+    listener: &TcpListener,
+) -> (
+    tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>,
+    serde_json::Value,
+) {
+    let (stream, _) = listener.accept().await.unwrap();
+    let mut socket = accept_async(stream).await.unwrap();
+    socket
+        .send(Message::Text(
+            serde_json::json!({"type":"ready"}).to_string().into(),
+        ))
+        .await
+        .unwrap();
+    let request = socket.next().await.unwrap().unwrap();
+    let request: serde_json::Value = serde_json::from_str(request.to_text().unwrap()).unwrap();
+    socket
+        .send(Message::Text(
+            serde_json::json!({"type":"subscribed", "streams":request["streams"]})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .unwrap();
+    (socket, request)
+}
+
+fn wire_boundary(source: &ScraperSource) -> Message {
+    let marker = boundary(source, 100);
+    Message::Text(serde_json::json!({"type":"live_start", "domain":marker.domain,"height":marker.height,"hash":marker.hash,
+        "streams":marker.streams.iter().map(|s| serde_json::json!({"eventType":s.event_type,"address":s.address})).collect::<Vec<_>>()}).to_string().into())
+}
+
+#[tokio::test]
+async fn unavailable_boundary_is_retried_with_a_fresh_subscription() {
+    let (_dir, source, metrics) = fixture();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = Url::parse(&format!("ws://{}", listener.local_addr().unwrap())).unwrap();
+    let monitor = ScraperWebSocketMonitor::new(url, vec![source.clone()], &metrics).unwrap();
+    for unavailable in [true, false] {
+        let session = monitor.stream(StreamTimeouts {
+            progress_check: Duration::from_millis(5),
+            progress_grace: Duration::from_millis(100),
+            ..Default::default()
+        });
+        let server = async {
+            let (mut socket, _) = subscribed_socket(&listener).await;
+            if unavailable {
+                socket
+                    .send(Message::Text(
+                        serde_json::json!({"type":"live_start_unavailable","domain":source.domain})
+                            .to_string()
+                            .into(),
+                    ))
+                    .await
+                    .unwrap();
+                sleep_until(Instant::now() + Duration::from_millis(20)).await;
+                assert!(!source.control.desired());
+                assert_eq!(
+                    monitor.active.with_label_values(&[&source.chain]).get(),
+                    1,
+                    "no immediate reconnect loop"
+                );
+                let _ = socket.next().await;
+                return;
+            }
+            socket.send(wire_boundary(&source)).await.unwrap();
+            progress(&source, &Kind::ALL, true).await;
+            let mut receiver = source.control.receiver();
+            loop {
+                let command = receiver.borrow_and_update();
+                if command.desired {
+                    receiver.mark_paused(source.domain, command.generation);
+                    break;
+                }
+                receiver.changed().await.unwrap();
+            }
+            while monitor.authority.with_label_values(&[&source.chain]).get() != 1 {
+                tokio::task::yield_now().await;
+            }
+            socket.close(None).await.unwrap();
+        };
+        let (result, ()) = timeout(Duration::from_secs(3), async {
+            tokio::join!(session, server)
+        })
+        .await
+        .unwrap();
+        if unavailable {
+            assert!(result.is_ok());
+        }
+        assert!(!source.control.desired());
+    }
+}
+
 #[tokio::test]
 async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_replay() {
     let (_dir, source, metrics) = fixture();
@@ -447,17 +635,7 @@ async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_re
             ..Default::default()
         });
         let server = async {
-            let (stream, _) = listener.accept().await.unwrap();
-            let mut socket = accept_async(stream).await.unwrap();
-            socket
-                .send(Message::Text(
-                    serde_json::json!({"type":"ready"}).to_string().into(),
-                ))
-                .await
-                .unwrap();
-            let request = socket.next().await.unwrap().unwrap();
-            let request: serde_json::Value =
-                serde_json::from_str(request.to_text().unwrap()).unwrap();
+            let (mut socket, request) = subscribed_socket(&listener).await;
             let streams = request["streams"].as_array().unwrap();
             assert_eq!(streams.len(), 3);
             for stream in streams {
@@ -471,24 +649,27 @@ async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_re
                 };
                 assert_eq!(stream["domains"], domains);
             }
-            socket
-                .send(Message::Text(
-                    serde_json::json!({"type":"subscribed", "streams": request["streams"]})
-                        .to_string()
-                        .into(),
-                ))
-                .await
-                .unwrap();
-            socket
-                .send(Message::Text(
-                    serde_json::json!({"type":"live_start_unavailable","domain":1})
-                        .to_string()
-                        .into(),
-                ))
-                .await
-                .unwrap();
-            // An unavailable origin stays on RPC and must not poison the shared
-            // socket, even if live events continue to arrive for that origin.
+            if first == 20 {
+                socket
+                    .send(Message::Text(
+                        serde_json::json!({"type":"live_start_unavailable","domain":1})
+                            .to_string()
+                            .into(),
+                    ))
+                    .await
+                    .unwrap();
+            } else {
+                let mut invalid = wire_boundary(&source);
+                if let Message::Text(text) = &mut invalid {
+                    let mut marker: serde_json::Value = serde_json::from_str(text).unwrap();
+                    marker["domain"] = 1.into();
+                    marker["streams"][0]["address"] = format!("{:#x}", H256::zero()).into();
+                    *text = marker.to_string().into();
+                }
+                socket.send(invalid).await.unwrap();
+            }
+            // Unavailable boundaries and contract mismatches stay isolated even
+            // if the failed origin continues sending events.
             socket
                 .send(Message::Text(
                     serde_json::json!({"type":"event","domain":1,"eventType":"dispatch","data":{}})
@@ -497,8 +678,7 @@ async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_re
                 ))
                 .await
                 .unwrap();
-            let marker = boundary(&source, 100);
-            socket.send(Message::Text(serde_json::json!({"type":"live_start", "domain":marker.domain,"height":marker.height,"hash":marker.hash,"streams":marker.streams.iter().map(|s| serde_json::json!({"eventType":s.event_type,"address":s.address})).collect::<Vec<_>>()}).to_string().into())).await.unwrap();
+            socket.send(wire_boundary(&source)).await.unwrap();
             for event in [
                 dispatch(first),
                 merkle(first),

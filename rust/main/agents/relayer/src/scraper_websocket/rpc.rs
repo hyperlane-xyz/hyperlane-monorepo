@@ -2,6 +2,7 @@
 use super::Kind;
 use async_trait::async_trait;
 use eyre::Result;
+use hyperlane_base::cursors::CursorType;
 use hyperlane_core::{ContractSyncCursor, CursorAction, Indexed, LogMeta};
 use std::{
     fmt::Debug,
@@ -177,9 +178,15 @@ impl RpcRecovery {
     pub(crate) fn track<T: Send + Sync + Debug + 'static>(
         cursor: Box<dyn ContractSyncCursor<T>>,
         recovery: Option<Self>,
+        cursor_type: CursorType,
     ) -> Box<dyn ContractSyncCursor<T>> {
         match recovery {
-            Some(recovery) => Box::new(RecoveryCursor { cursor, recovery }),
+            Some(recovery) => Box::new(RecoveryCursor {
+                block_gas: recovery.kind == Kind::Gas
+                    && matches!(cursor_type, CursorType::RateLimited),
+                cursor,
+                recovery,
+            }),
             None => cursor,
         }
     }
@@ -189,10 +196,13 @@ impl RpcRecovery {
 struct RecoveryCursor<T> {
     cursor: Box<dyn ContractSyncCursor<T>>,
     recovery: RpcRecovery,
+    block_gas: bool,
 }
 impl<T: Send + Sync + Debug + 'static> RecoveryCursor<T> {
-    fn record_progress(&self) {
-        if self.cursor.is_caught_up() {
+    fn record_progress(&self, completed_range: bool) {
+        // Block gas scans only need to reach the fixed boundary. Sequence cursors
+        // must still complete backward history before reporting recovery.
+        if self.cursor.is_caught_up() || (self.block_gas && completed_range) {
             self.recovery.progress.lock().expect("RPC recovery lock")[self.recovery.kind.index()] =
                 Some(RpcProgress {
                     at: Instant::now(),
@@ -206,7 +216,7 @@ impl<T: Send + Sync + Debug + 'static> RecoveryCursor<T> {
 impl<T: Send + Sync + Debug + 'static> ContractSyncCursor<T> for RecoveryCursor<T> {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         let action = self.cursor.next_action().await?;
-        self.record_progress();
+        self.record_progress(false);
         Ok(action)
     }
     fn latest_queried_block(&self) -> u32 {
@@ -221,7 +231,7 @@ impl<T: Send + Sync + Debug + 'static> ContractSyncCursor<T> for RecoveryCursor<
         range: RangeInclusive<u32>,
     ) -> Result<()> {
         self.cursor.update(logs, range).await?;
-        self.record_progress();
+        self.record_progress(true);
         Ok(())
     }
 }

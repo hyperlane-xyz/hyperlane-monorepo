@@ -28,7 +28,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::time::{timeout, Instant};
+use tokio::time::{sleep_until, timeout, Instant};
 use tracing::{info, warn};
 use url::Url;
 
@@ -216,22 +216,23 @@ impl ScraperWebSocketMonitor {
             )
             .await?;
         let mut subscribed = false;
-        while let Some(event) = session
-            .next::<serde_json::Value>(subscribed, || {
+        let mut boundary_retry = None;
+        loop {
+            let next = session.next::<serde_json::Value>(subscribed, || {
                 // Verify each connection-scoped boundary once; keep health probes after cutover.
                 let probes: Vec<_> = states
                     .values_mut()
                     .map(|state| {
-                        let probe = state.authoritative
-                            && state
-                                .last_probe
-                                .is_none_or(|at| at.elapsed() >= HEALTH_POLL);
-                        if probe {
-                            state.last_probe = Some(Instant::now());
-                        }
+                        let due = state
+                            .last_probe
+                            .is_none_or(|at| at.elapsed() >= HEALTH_POLL);
+                        let probe = state.authoritative && due;
                         let boundary = state
                             .boundary
-                            .filter(|_| !state.authoritative && !state.boundary_verified);
+                            .filter(|_| !state.authoritative && !state.boundary_verified && due);
+                        if probe || boundary.is_some() {
+                            state.last_probe = Some(Instant::now());
+                        }
                         (
                             state.source.clone(),
                             probe,
@@ -266,9 +267,17 @@ impl ScraperWebSocketMonitor {
                     )
                     .buffer_unordered(8)
                     .boxed()
-            })
-            .await?
-        {
+            });
+            let event = tokio::select! {
+            event = next => event?,
+            _ = sleep_until(boundary_retry.unwrap_or_else(Instant::now)), if boundary_retry.is_some() => {
+                info!("Refreshing unavailable live-start checkpoints with a new subscription");
+                return Ok(());
+            }
+            };
+            let Some(event) = event else {
+                return Ok(());
+            };
             match event {
                 SessionEvent::Message(ServerMessage::Ready { .. }) => {
                     session.subscribe(self.subscription()).await?;
@@ -282,20 +291,31 @@ impl ScraperWebSocketMonitor {
                 }
                 SessionEvent::Message(ServerMessage::LiveStart(boundary)) => {
                     ensure!(subscribed, "Boundary before subscription acknowledgement");
-                    let state = states
-                        .get_mut(&boundary.domain)
-                        .context("Unexpected boundary domain")?;
-                    state.accept_boundary(boundary)?;
+                    let domain = boundary.domain;
+                    ensure!(
+                        self.sources.contains_key(&domain),
+                        "Unexpected boundary domain"
+                    );
+                    let Some(state) = states.get_mut(&domain) else {
+                        continue;
+                    };
+                    if let Err(error) = state.accept_boundary(boundary) {
+                        self.fallback(&mut states, domain, error);
+                    }
                 }
                 SessionEvent::Message(ServerMessage::LiveStartUnavailable { domain }) => {
-                    let state = states
-                        .remove(&domain)
-                        .context("Unexpected unavailable domain")?;
-                    ensure!(state.boundary.is_none(), "Boundary became unavailable");
-                    info!(
-                        chain = state.source.chain,
-                        "Live-start checkpoint unavailable; retaining RPC indexing"
+                    ensure!(
+                        self.sources.contains_key(&domain),
+                        "Unexpected unavailable domain"
                     );
+                    self.fallback(&mut states, domain, "Live-start checkpoint unavailable");
+                    // The proxy only sends boundaries at subscription time. Keep
+                    // healthy origins live until a bounded shared refresh is due.
+                    boundary_retry.get_or_insert_with(|| {
+                        Instant::now()
+                            .checked_add(timeouts.progress_grace)
+                            .expect("bounded boundary retry")
+                    });
                 }
                 SessionEvent::Message(ServerMessage::Event(event)) => {
                     ensure!(subscribed, "Event before subscription acknowledgement");
@@ -306,15 +326,24 @@ impl ScraperWebSocketMonitor {
                     let Some(state) = states.get_mut(&event.domain) else {
                         continue;
                     };
-                    if let Some(event) = LiveEvent::decode(event, state.source)? {
-                        state.ingest(event)?;
+                    let domain = event.domain;
+                    let result =
+                        LiveEvent::decode(event, state.source).and_then(|event| match event {
+                            Some(event) => state.ingest(event),
+                            None => Ok(()),
+                        });
+                    if let Err(error) = result {
+                        self.fallback(&mut states, domain, error);
                     }
                 }
                 SessionEvent::Progress((domain, generation, result)) => {
                     let Some(state) = states.get_mut(&domain) else {
                         continue;
                     };
-                    state.observe_probe(generation, result)?;
+                    if let Err(error) = state.observe_probe(generation, result) {
+                        self.fallback(&mut states, domain, error);
+                        continue;
+                    }
                     if !state.authoritative
                         && !state.source.control.desired()
                         && state.handoff_sequences().is_some()
@@ -344,8 +373,15 @@ impl ScraperWebSocketMonitor {
                     if !state.source.control.current(generation) {
                         continue;
                     }
-                    ensure!(paused, "RPC pause timed out");
-                    state.finish_handoff()?;
+                    let result = if paused {
+                        state.finish_handoff()
+                    } else {
+                        Err(eyre::eyre!("RPC pause timed out"))
+                    };
+                    if let Err(error) = result {
+                        self.fallback(&mut states, domain, error);
+                        continue;
+                    }
                     self.authority
                         .with_label_values(&[&state.source.chain])
                         .set(1);
@@ -364,7 +400,25 @@ impl ScraperWebSocketMonitor {
                 SessionEvent::Message(ServerMessage::CaughtUp { .. } | ServerMessage::Other) => {}
             }
         }
-        Ok(())
+    }
+
+    fn fallback(
+        &self,
+        states: &mut HashMap<u32, SourceState<'_>>,
+        domain: u32,
+        error: impl std::fmt::Debug,
+    ) {
+        if let Some(state) = states.remove(&domain) {
+            state.source.control.resume();
+            self.authority
+                .with_label_values(&[&state.source.chain])
+                .set(0);
+            warn!(
+                chain = state.source.chain,
+                ?error,
+                "Scraper origin failed; retaining RPC indexing"
+            );
+        }
     }
 }
 
@@ -403,12 +457,21 @@ impl<'a> SourceState<'a> {
             match result {
                 Ok(Some(RpcProbe::BoundaryVerified)) => {
                     self.boundary_verified = true;
+                    for health in &mut self.health {
+                        health.reset();
+                    }
                 }
-                Err(error) => warn!(
-                    chain = self.source.chain,
-                    ?error,
-                    "Live-start checkpoint not verified; retaining RPC indexing"
-                ),
+                Err(error) => {
+                    if !self.health[0].observe_probe_failure() {
+                        return Err(error)
+                            .context("Live-start verification failures exceeded grace period");
+                    }
+                    warn!(
+                        chain = self.source.chain,
+                        ?error,
+                        "Live-start checkpoint not verified; retaining RPC indexing"
+                    );
+                }
                 _ => {}
             }
             return Ok(());
