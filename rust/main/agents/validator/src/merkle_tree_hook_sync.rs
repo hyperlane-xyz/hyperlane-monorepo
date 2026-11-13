@@ -505,7 +505,7 @@ impl MerkleTreeHookWebSocketSync {
                         socket.start_cutover(self.domain, boundary_probe(dependencies, accepted));
                     }
                     ServerMessage::LiveStartUnavailable { domain } => {
-                        bail!("Live-start boundary unavailable for domain {domain}; retaining RPC indexing");
+                        bail!(RejectedStream(format!("Live-start boundary unavailable for domain {domain}; retaining RPC indexing")));
                     }
                     ServerMessage::Event(event) => {
                         let Some((insertion, block_number)) = self.decode_event(event)? else {
