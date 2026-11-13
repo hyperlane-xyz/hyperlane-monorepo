@@ -323,6 +323,7 @@ On connection, the server advertises its capabilities:
     "blocks"
   ],
   "historicalStreaming": true,
+  "liveStartVersion": 1,
   "confirmations": { "unit": "blocks", "liveOnly": true },
   "streamCursorVersions": { "gas_payment": 3 }
 }
@@ -371,6 +372,109 @@ most once:
 | `gas_payment`           | Message ID, payment, gas amount, IGP, origin/destination, tx/log metadata            | Version 3 per-IGP `afterStreamCursor`       |
 | `merkle_tree_insertion` | Message ID, Merkle tree hook, leaf index, domain, block                              | Per hook `afterSequence` (leaf index)       |
 | `blocks`                | Indexed block height/hash and observed chain head                                    | Live snapshot and changes only              |
+
+### Live-start boundary
+
+Live agent event subscriptions automatically receive handoff boundaries; there
+is no opt-in flag. Check `liveStartVersion: 1` in `ready` for server support.
+Replay streams with cursors and blocks-only subscriptions do not receive them.
+This applies to `/agents`, not the Explorer `/messages` endpoint.
+A validator can request only Merkle insertions; a relayer requests all three:
+
+```json
+{
+  "type": "subscribe",
+  "streams": [
+    { "eventType": "dispatch", "domains": [1] },
+    { "eventType": "merkle_tree_insertion", "domains": [1] },
+    { "eventType": "gas_payment", "domains": [1] }
+  ]
+}
+```
+
+After `subscribed`, canonical streams receive one boundary for each requested
+domain, including quiet chains with no events. Unscoped subscriptions receive
+boundaries for available domains:
+
+```json
+{
+  "type": "live_start",
+  "domain": 1,
+  "height": "100",
+  "hash": "<checkpoint hash as 0x-prefixed 32-byte hex>",
+  "streams": [
+    {
+      "eventType": "dispatch",
+      "address": "0x1111111111111111111111111111111111111111"
+    },
+    {
+      "eventType": "merkle_tree_insertion",
+      "address": "0x2222222222222222222222222222222222222222"
+    },
+    {
+      "eventType": "gas_payment",
+      "address": "0x3333333333333333333333333333333333333333"
+    }
+  ]
+}
+```
+
+For canonical streams, the proxy registers **all requested event streams before
+reading the boundary** from the primary database. One SQL snapshot joins the healthy, non-halted
+`scraper_head.confirmed_height` to its retained `scraper_checkpoint` hash and
+contract addresses. The proxy DB role needs SELECT access to both tables.
+
+Custom streams (e.g. `"confirmations": 2`) receive a boundary per event type and
+domain with `"confirmations": 2` on the frame. Its height is the latest retained
+checkpoint at or below `min(indexed_height, head_height - 2)`, using the same
+primary SQL snapshot that initializes that stream. Streams with the same
+confirmation count and domain set share that snapshot; setup rollbacks force a
+fresh read. It never substitutes the
+canonical confirmation policy. Sparse checkpoints can place the boundary below
+the numeric target; live reading then covers the interval above that boundary.
+With `includeZeroConfirmations`, the requested and additional zero-confirmation
+streams get separate markers; the latter has `"confirmations": 0`. No historical replay is
+requested or performed.
+
+If the requested frontier is older than retained checkpoints, the boundary is
+unavailable. A rollback during initialization retries the snapshot; a rollback
+after initialization invalidates that boundary. A missing boundary never grants
+permission to switch to WebSocket authority.
+
+**Consumer handoff contract:**
+
+1. Buffer live events from `subscribed` onward, including events arriving before
+   `live_start` while its database read is in flight.
+2. Verify the returned contract addresses and boundary hash against independent
+   RPC. Complete RPC history through **at least** that boundary for every required
+   event type, respecting the consumer's confirmation policy and indexing window.
+3. Stop and join the RPC indexers, then drain the buffered live events with overlap
+   deduplication and sequence checks. No new dispatch or insertion is required.
+4. For custom streams, match the marker's confirmation count as well as domain
+   and event type. Handle rollback frames throughout recovery and live operation;
+   invalidate the affected handoff and recover through RPC before trusting a new
+   boundary. This marker does not replace independent validator root, block-hash,
+   or confirmation checks.
+
+The boundary means RPC must cover through `height`, while the registered stream
+covers subsequent events above it under that stream's confirmation policy. It is
+**not** a promise that events at or below that height have already been sent; late
+overlap events are allowed.
+Do not interpret the highest event nonce or the existing `block` feed as this
+boundary. Heights and hashes use each adapter's native units (including Solana
+slots and Radix state versions); heights are decimal strings and addresses can
+be 20 or 32 bytes.
+
+A domain without a healthy, valid retained checkpoint receives
+`{"type":"live_start_unavailable","domain":1,"eventTypes":["dispatch"],"reason":"No healthy live-start scraper checkpoint"}`.
+Custom unavailable frames also carry `confirmations`. Keep RPC indexing for that
+stream. A malformed checkpoint or contract identity affects only that domain;
+other domains stay connected. A database query failure closes the socket.
+Reconnects require a fresh boundary and RPC gap recovery; never reuse the prior
+connection's marker. A missing marker, disconnect, or failed verification must
+not authorize takeover. Existing clients must ignore unknown frame types.
+
+### Replay and custom confirmations
 
 Without a cursor, event streams begin live. With cursors, the proxy replays
 history, emits `caught_up`, and then hands off to live delivery without gaps.
