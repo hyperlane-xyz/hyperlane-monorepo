@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { ethers, providers } from 'ethers';
 
 import { HyperlaneCore, MultiProvider, snapshot } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { ExternalBridgeType } from '../config/types.js';
 
@@ -179,6 +180,115 @@ describe('Erc20 Inventory WeightedStrategy E2E', function () {
         'Uninvolved router balance should remain unchanged',
       ).to.be.true;
     }
+  });
+
+  it('replenishes from a preferred neutral source and a second provider before depositing', async function () {
+    const preferredInventory = ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.div(4);
+    const context = await new TestRebalancerBuilder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(weightedStrategyConfig)
+      .withExecutionMode('execute')
+      .withErc20InventoryConfig({
+        inventorySignerKey: ANVIL_USER_PRIVATE_KEY,
+        erc20DeployedAddresses,
+      })
+      .withMockExternalBridge(mockBridge)
+      .withMockExternalBridge(mockBridge, ExternalBridgeType.DeBridge)
+      .withInventoryRoutes({
+        anvil2: {
+          anvil3: { externalBridge: ExternalBridgeType.DeBridge, priority: 1 },
+        },
+      })
+      .withInventorySignerBalances({
+        anvil1: ERC20_WEIGHTED_EXPECTED_DEFICIT_1000USDC.mul(3),
+        anvil2: preferredInventory,
+        anvil3: ethers.constants.Zero,
+      })
+      .withBalances('ERC20_INVENTORY_WEIGHTED_IMBALANCED')
+      .build();
+    const before = await getErc20RouterBalances(
+      localProviders,
+      erc20DeployedAddresses,
+    );
+
+    await executeCycle(context);
+    const intents = await context.tracker.getActiveRebalanceIntents();
+    expect(intents.length).to.equal(1);
+    const [intent] = intents;
+    assert(intent, 'Expected inventory intent');
+    expect(intent.origin).to.equal(DOMAIN_IDS.anvil1);
+    expect(intent.destination).to.equal(DOMAIN_IDS.anvil3);
+    expect(intent.externalBridge).to.equal(ExternalBridgeType.LiFi);
+    const actions = await context.tracker.getActionsForIntent(intent.id);
+    expect(actions.length).to.equal(2);
+    const preferred = actions.find(
+      (action) => action.origin === DOMAIN_IDS.anvil2,
+    );
+    const remainder = actions.find(
+      (action) => action.origin === DOMAIN_IDS.anvil1,
+    );
+    assert(preferred && remainder, 'Expected both physical funding sources');
+    expect(preferred).to.include({
+      type: 'inventory_movement',
+      destination: DOMAIN_IDS.anvil3,
+      externalBridgeId: ExternalBridgeType.DeBridge,
+      amount: preferredInventory.toBigInt(),
+      status: 'in_progress',
+    });
+    expect(remainder).to.include({
+      type: 'inventory_movement',
+      destination: DOMAIN_IDS.anvil3,
+      externalBridgeId: ExternalBridgeType.LiFi,
+      status: 'in_progress',
+    });
+    expect(remainder.amount < intent.amount).to.equal(true);
+
+    await context.tracker.syncInventoryMovementActions({
+      [ExternalBridgeType.LiFi]: mockBridge,
+      [ExternalBridgeType.DeBridge]: mockBridge,
+    });
+    const afterFunding = await context.tracker.getActionsForIntent(intent.id);
+    expect(afterFunding.length).to.equal(2);
+    expect(
+      afterFunding.every((action) => action.status === 'complete'),
+    ).to.equal(true);
+    const partial =
+      await context.tracker.getPartiallyFulfilledInventoryIntents();
+    expect(partial.length).to.equal(1);
+    expect(partial[0].completedAmount).to.equal(0n);
+    expect(partial[0].remaining).to.equal(intent.amount);
+
+    await executeCycle(context);
+    await relayInProgressInventoryDeposits(
+      context,
+      localProviders,
+      multiProvider,
+      hyperlaneCore,
+    );
+    const finalActions = await context.tracker.getActionsForIntent(intent.id);
+    expect(finalActions.length).to.equal(3);
+    const deposit = finalActions.find(
+      (action) => action.type === 'inventory_deposit',
+    );
+    assert(deposit, 'Expected collateral deposit after physical funding');
+    expect(deposit).to.include({
+      origin: DOMAIN_IDS.anvil3,
+      destination: DOMAIN_IDS.anvil1,
+      amount: intent.amount,
+      status: 'complete',
+    });
+    expect(
+      (await context.tracker.getRebalanceIntent(intent.id))?.status,
+    ).to.equal('complete');
+    const after = await getErc20RouterBalances(
+      localProviders,
+      erc20DeployedAddresses,
+    );
+    expect(after.anvil3.gt(before.anvil3)).to.equal(true);
+    expect(after.anvil1.lt(before.anvil1)).to.equal(true);
+    expect(after.anvil2.eq(before.anvil2)).to.equal(true);
   });
 
   it('handles partial deposit, then bridge, then final deposit', async function () {

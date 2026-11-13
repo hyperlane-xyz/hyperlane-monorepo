@@ -1,4 +1,5 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { ethers, type providers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
@@ -30,11 +31,15 @@ import {
   TEST_ADDRESSES,
   createMockSettlementProvider,
 } from '../test/helpers.js';
-import { ActionTracker } from '../tracking/ActionTracker.js';
 import { BlacklistIsmMiddleware } from '../tracking/pendingTransferMiddlewares/BlacklistIsmMiddleware.js';
 import type { IExplorerClient } from '../utils/ExplorerClient.js';
 
+import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
+import { ActionTracker } from '../tracking/ActionTracker.js';
+
 import { RebalancerContextFactory } from './RebalancerContextFactory.js';
+
+chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -218,6 +223,93 @@ describe('RebalancerContextFactory', () => {
     expect(
       factory.getWarpCore().tokens.map((token) => token.chainName),
     ).to.deep.equal(['ethereum', 'arbitrum']);
+  });
+
+  describe('physical inventory route endpoints', () => {
+    async function factoryForPolicy(
+      includeNeutralToken: boolean,
+      standard = TokenStandard.EvmHypCollateral,
+    ) {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+        { name: 'optimism', protocol: ProtocolType.Ethereum },
+      ]);
+      const config: RebalancerConfig = {
+        ...createMockConfig(),
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: 'test-key',
+          },
+        },
+        inventoryRoutes: { optimism: { arbitrum: { priority: 1 } } },
+      };
+      config.strategyConfig[0].chains.arbitrum.executionType =
+        ExecutionType.Inventory;
+      const mpp = createMockMpp();
+      mpp.getChainMetadata.callsFake((chain) => ({
+        name: String(chain),
+        chainId: 1,
+        domainId: 1,
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [],
+      }));
+      const factory = await RebalancerContextFactory.create(
+        config,
+        multiProvider,
+        mpp,
+        createMockRegistry(),
+        testLogger,
+        undefined,
+        {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            createToken(
+              'arbitrum',
+              TEST_ADDRESSES.arbitrum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            ...(includeNeutralToken
+              ? [createToken('optimism', TEST_ADDRESSES.polygon, standard)]
+              : []),
+          ],
+        },
+      );
+      return factory['createInventoryRebalancerAndConfig'](
+        Sinon.createStubInstance(ActionTracker),
+        {},
+      );
+    }
+
+    it('monitors a configured neutral inventory source outside the strategy', async () => {
+      const result = await factoryForPolicy(true);
+      assert(result, 'Expected inventory components');
+      expect(result.inventoryConfig.chains).to.include('optimism');
+      assert(
+        result.inventoryRebalancer instanceof InventoryRebalancer,
+        'Expected inventory rebalancer',
+      );
+      expect(
+        result.inventoryRebalancer['config'].inventoryRoutes,
+      ).to.deep.equal({ optimism: { arbitrum: { priority: 1 } } });
+    });
+
+    it('rejects a physical endpoint missing from the warp route', async () => {
+      await expect(factoryForPolicy(false)).to.be.rejectedWith(
+        'No token found for inventory-relevant chain optimism',
+      );
+    });
+
+    it('rejects synthetic tokens on inventory-only endpoints', async () => {
+      await expect(
+        factoryForPolicy(true, TokenStandard.EvmHypSynthetic),
+      ).to.be.rejectedWith('synthetic token on chain "optimism"');
+    });
   });
 
   describe('external bridge initialization', () => {

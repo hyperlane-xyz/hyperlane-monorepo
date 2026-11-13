@@ -27,7 +27,10 @@ import {
   isEVMLike,
 } from '@hyperlane-xyz/utils';
 
-import type { ExternalBridgeType } from '../config/types.js';
+import type {
+  ExternalBridgeType,
+  InventoryRoutesConfig,
+} from '../config/types.js';
 import { Erc20ApprovalError } from '../bridges/erc20Approve.js';
 import type {
   ExternalBridgeRegistry,
@@ -178,6 +181,8 @@ export interface InventoryRebalancerConfig {
   inventorySigners: Partial<Record<ProtocolType, InventorySignerConfig>>;
   /** Chains configured for inventory-based rebalancing (for validation) */
   inventoryChains: ChainName[];
+  /** Optional rules for actual inventory source-to-destination movements. */
+  inventoryRoutes?: InventoryRoutesConfig;
 }
 
 /**
@@ -919,24 +924,36 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       chain: ChainName;
       maxSourceInput: bigint;
       maxTargetOutput: bigint;
+      externalBridge: ExternalBridgeType;
+      priority: number;
     }> = [];
 
     for (const source of allSources) {
+      const policy = this.resolveInventoryRoute(
+        source.chain,
+        destination,
+        route.externalBridge,
+      );
+      if (!policy.enabled) continue;
       const capacity = await this.calculateBridgeCapacity(
         source.chain,
         destination,
         source.availableAmount,
-        route.externalBridge,
+        policy.externalBridge,
       );
 
       if (capacity.maxTargetOutput > 0n) {
-        viableSources.push({ chain: source.chain, ...capacity });
+        viableSources.push({ chain: source.chain, ...capacity, ...policy });
       }
     }
 
-    // Sort by destination output descending.
+    // Prefer configured inventory sources, then preserve output-capacity ordering.
     viableSources.sort((a, b) =>
-      a.maxTargetOutput > b.maxTargetOutput ? -1 : 1,
+      a.priority !== b.priority
+        ? b.priority - a.priority
+        : a.maxTargetOutput > b.maxTargetOutput
+          ? -1
+          : 1,
     );
 
     if (viableSources.length === 0) {
@@ -971,6 +988,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       maxSourceInput: bigint;
       targetOutput: bigint;
       quoteMode: BridgeQuoteMode;
+      externalBridge: ExternalBridgeType;
     }> = [];
     let totalPlanned = 0n;
 
@@ -990,6 +1008,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         maxSourceInput: source.maxSourceInput,
         targetOutput,
         quoteMode,
+        externalBridge: source.externalBridge,
       });
       totalPlanned += targetOutput;
     }
@@ -999,11 +1018,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         targetChain: destination,
         viableSources: viableSources.map((s) => ({
           chain: s.chain,
+          externalBridge: s.externalBridge,
+          priority: s.priority,
           maxSourceInput: s.maxSourceInput.toString(),
           maxTargetOutput: s.maxTargetOutput.toString(),
         })),
         bridgePlans: bridgePlans.map((p) => ({
           chain: p.chain,
+          externalBridge: p.externalBridge,
           maxSourceInput: p.maxSourceInput.toString(),
           targetOutput: p.targetOutput.toString(),
           quoteMode: p.quoteMode,
@@ -1026,7 +1048,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           plan.maxSourceInput,
           plan.quoteMode,
           intent,
-          route.externalBridge,
+          plan.externalBridge,
         ),
       ),
     );
@@ -1484,6 +1506,40 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     return undefined;
   }
 
+  private resolveInventoryRoute(
+    source: ChainName,
+    destination: ChainName,
+    defaultBridge: ExternalBridgeType,
+  ) {
+    const policy = this.config.inventoryRoutes?.[source]?.[destination];
+    return {
+      enabled: policy?.enabled ?? true,
+      externalBridge: policy?.externalBridge ?? defaultBridge,
+      priority: policy?.priority ?? 0,
+    };
+  }
+
+  private assertInventoryRouteEnabled(
+    source: ChainName,
+    destination: ChainName,
+    defaultBridge: ExternalBridgeType,
+    selectedBridge: ExternalBridgeType,
+  ): void {
+    const policy = this.resolveInventoryRoute(
+      source,
+      destination,
+      defaultBridge,
+    );
+    assert(
+      policy.enabled,
+      `Inventory movement '${source}' to '${destination}' is disabled`,
+    );
+    assert(
+      policy.externalBridge === selectedBridge,
+      `Inventory movement provider changed for '${source}' to '${destination}'`,
+    );
+  }
+
   /**
    * Select all source chains with available inventory for bridging.
    * Returns sources sorted by available amount (highest first).
@@ -1692,6 +1748,16 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     try {
+      assert(
+        intent.externalBridge,
+        'Inventory intent has no default external bridge',
+      );
+      this.assertInventoryRouteEnabled(
+        sourceChain,
+        targetChain,
+        intent.externalBridge,
+        externalBridgeType,
+      );
       // Get chain IDs for the external bridge (not domain IDs).
       const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
       const targetChainId = Number(this.multiProvider.getChainId(targetChain));
@@ -1828,6 +1894,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       assert(
         privateKeys[sourceProtocol],
         `Missing inventory signer key for protocol ${sourceProtocol} (chain ${sourceChain})`,
+      );
+      this.assertInventoryRouteEnabled(
+        sourceChain,
+        targetChain,
+        intent.externalBridge,
+        externalBridgeType,
       );
       // Reserve source-local input before execution; fulfillment only advances
       // from canonical inventory_deposit amounts after transferRemote.
