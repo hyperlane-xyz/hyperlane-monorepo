@@ -25,6 +25,7 @@ import {
   assert,
   bytes32ToAddress,
   formatMessage,
+  isNullish,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -475,12 +476,14 @@ describe('CCS authenticated reveal recovery integration', () => {
     commitOwner = wallet.address,
     originV3Only = false,
     destinationV3Only = false,
+    commitIsm = '0x' + '00'.repeat(20),
   }: {
     trustRouters?: boolean;
     registeredWithDispatchedRouters?: boolean;
     commitOwner?: string;
     originV3Only?: boolean;
     destinationV3Only?: boolean;
+    commitIsm?: string;
   } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
@@ -499,7 +502,13 @@ describe('CCS authenticated reveal recovery integration', () => {
       destinationRouterV3,
       utils.solidityPack(
         ['uint8', 'bytes32', 'bytes32', 'bytes32', 'bytes32'],
-        [1, addressToBytes32(commitOwner), salt, salt, commitment],
+        [
+          1,
+          addressToBytes32(commitOwner),
+          utils.hexZeroPad(commitIsm, 32),
+          salt,
+          commitment,
+        ],
       ),
     );
     const message = formatMessage(
@@ -596,6 +605,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       userSalt: salt,
       localRouter: originRouterV3,
       routerOverride: destinationRouterV3,
+      ismOverride: isZeroishAddress(commitIsm) ? undefined : commitIsm,
     });
     const record = {
       commitment,
@@ -661,6 +671,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       icaApp,
       originCall,
       destinationCall,
+      destinationRouter,
       destinationRouterV3,
       record,
       updateMany,
@@ -806,9 +817,11 @@ describe('CCS authenticated reveal recovery integration', () => {
     ['its read is unavailable', unavailableRpc],
   ] as const) {
     it(`serves the dispatched ICA when another candidate matches and one fails because ${name}`, async () => {
-      const f = await fixture();
+      // The V2 pair with the commit's ISM fails; the V2 pair with the
+      // enrolled ISM derives the stored ICA.
+      const f = await fixture({ commitIsm: '0x' + '35'.repeat(20) });
       f.icaApp.getAccount.callsFake(async (_destination, config) => {
-        if (config.routerOverride === f.destinationRouterV3) throw error();
+        if (!isNullish(config.ismOverride)) throw error();
         return fakeAccount(config);
       });
       try {
@@ -822,6 +835,18 @@ describe('CCS authenticated reveal recovery integration', () => {
           f.dispatchedIca +
             encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
         );
+        expect(
+          f.icaApp.getAccount
+            .getCalls()
+            .map((call) => [
+              call.args[1].routerOverride,
+              call.args[1].ismOverride,
+            ]),
+        ).to.deep.equal([
+          [f.destinationRouter, undefined],
+          [f.destinationRouter, utils.hexZeroPad('0x' + '35'.repeat(20), 32)],
+          [f.destinationRouterV3, undefined],
+        ]);
       } finally {
         await f.app.close();
       }

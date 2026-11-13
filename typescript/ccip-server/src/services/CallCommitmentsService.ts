@@ -834,7 +834,8 @@ export class CallCommitmentsService extends BaseService {
     const originRouters = this.trustedIcaRouters.get(dispatch.origin) ?? {};
     const destinationRouters =
       this.trustedIcaRouters.get(dispatch.destination) ?? {};
-    const ismOverrides = isZeroishAddress(bytes32ToAddress(dispatch.ism))
+    const zeroCommitIsm = isZeroishAddress(bytes32ToAddress(dispatch.ism));
+    const ismOverrides = zeroCommitIsm
       ? [undefined]
       : [undefined, dispatch.ism];
     // A version the chain answers as underivable (e.g. a pre-salt router)
@@ -860,7 +861,10 @@ export class CallCommitmentsService extends BaseService {
             routerOverride,
             bytes32ToAddress(dispatch.destinationRouter),
           );
-        // The dispatched pair with the commit's ISM repeats `ica`.
+        // On the dispatched pair, the commit's ISM repeats `ica`. Registry ICA
+        // routers enroll no ISM, so with a zero commit ISM the enrolled-ISM
+        // variant repeats it too.
+        if (isDispatchedPair && zeroCommitIsm) return [];
         return ismOverrides
           .filter((ismOverride) => !isDispatchedPair || isNullish(ismOverride))
           .map((ismOverride) =>

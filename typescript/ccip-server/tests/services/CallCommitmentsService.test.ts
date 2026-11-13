@@ -1008,7 +1008,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     });
   }
 
-  it('derives the ICA for each router version without an ISM override when the commit has none', async () => {
+  it('derives the ICA for each router version but the dispatched pair, without an ISM override, when the commit has none', async () => {
+    // With a zero commit ISM, the dispatched pair's enrolled-ISM candidate is
+    // the dispatched read.
     const zeroIsmBody = body.slice(0, 68) + '00'.repeat(32) + body.slice(132);
     const zeroIsmCommit = formatMessage(
       3,
@@ -1030,7 +1032,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       mockLogger(),
     );
 
-    expect(routerVersionIcas).to.deep.equal([routerIca, routerIca]);
+    expect(routerVersionIcas).to.deep.equal([routerIca]);
     const expectedConfig = (
       localRouter: string,
       routerOverride: string,
@@ -1043,7 +1045,6 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       ismOverride: undefined,
     });
     expect(getRouterAccount.getCalls().map((call) => call.args)).to.deep.equal([
-      ['arbitrum', expectedConfig(originRouter, destinationRouter)],
       ['arbitrum', expectedConfig(originRouterV3, destinationRouterV3)],
     ]);
   });
@@ -1060,11 +1061,15 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     expect(
       getRouterAccount
         .getCalls()
-        .map((call) => [call.args[1].routerOverride, call.args[1].ismOverride]),
+        .map((call) => [
+          call.args[1].localRouter,
+          call.args[1].routerOverride,
+          call.args[1].ismOverride,
+        ]),
     ).to.deep.equal([
-      [destinationRouter, undefined],
-      [destinationRouterV3, undefined],
-      [destinationRouterV3, addressToBytes32(ism)],
+      [originRouter, destinationRouter, undefined],
+      [originRouterV3, destinationRouterV3, undefined],
+      [originRouterV3, destinationRouterV3, addressToBytes32(ism)],
     ]);
     sinon.assert.calledOnce(destinationCall);
   });
