@@ -750,6 +750,10 @@ async function main(): Promise<void> {
   const receipt = parsed.txs[0];
   assert(receipt, 'Missing receipt transaction');
   assert(
+    receipt.instructions.length === 1,
+    `Expected exactly one mailbox upgrade instruction, got ${receipt.instructions.length}`,
+  );
+  assert(
     receipt.computeUnits === MAX_COMPUTE_UNITS,
     `Expected ${MAX_COMPUTE_UNITS} compute units`,
   );
