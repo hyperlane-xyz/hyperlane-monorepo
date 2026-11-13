@@ -16,8 +16,13 @@ use std::{
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-#[derive(Debug, Default)]
-struct CountIndexer(AtomicUsize);
+#[derive(Debug)]
+struct CountIndexer(AtomicUsize, Option<u32>);
+impl Default for CountIndexer {
+    fn default() -> Self {
+        Self(AtomicUsize::new(0), Some(2))
+    }
+}
 #[async_trait]
 impl<T: Send + Sync + Debug + 'static> Indexer<T> for CountIndexer {
     async fn fetch_logs_in_range(
@@ -27,14 +32,14 @@ impl<T: Send + Sync + Debug + 'static> Indexer<T> for CountIndexer {
         unreachable!()
     }
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.0.fetch_add(1, Ordering::Relaxed);
-        Ok(100)
+        panic!("Sealevel does not support a block-height watermark")
     }
 }
 #[async_trait]
 impl<T: Send + Sync + Debug + 'static> SequenceAwareIndexer<T> for CountIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        Ok((Some(2), 100))
+        self.0.fetch_add(1, Ordering::Relaxed);
+        Ok((self.1, 100))
     }
 }
 fn fixture() -> (tempfile::TempDir, ScraperSource, CoreMetrics) {
@@ -409,8 +414,16 @@ fn wire_event(event: &LiveEvent, source: &ScraperSource) -> serde_json::Value {
 
 #[tokio::test]
 async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_replay() {
+    // Block-indexed gas has no count; sequence-indexed gas (including Sealevel)
+    // exposes a count and tip without supporting a block-height watermark.
+    for gas_count in [None, Some(2)] {
+        socket_cutover_with_gas_count(gas_count).await;
+    }
+}
+
+async fn socket_cutover_with_gas_count(gas_count: Option<u32>) {
     let (_dir, mut source, metrics) = fixture();
-    let gas_indexer = Arc::new(CountIndexer::default());
+    let gas_indexer = Arc::new(CountIndexer(AtomicUsize::new(0), gas_count));
     source.gas_indexer = Some(gas_indexer.clone());
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = Url::parse(&format!("ws://{}", listener.local_addr().unwrap())).unwrap();

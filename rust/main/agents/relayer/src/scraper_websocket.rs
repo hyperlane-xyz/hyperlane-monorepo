@@ -18,7 +18,7 @@ use hyperlane_base::{
     settings::SequenceIndexer,
     ContractSyncMetrics, CoreMetrics,
 };
-use hyperlane_core::{HyperlaneMessage, Indexer, InterchainGasPayment, MerkleTreeInsertion, H256};
+use hyperlane_core::{HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, H256};
 use prometheus::IntGaugeVec;
 use rpc::Authority;
 pub(crate) use rpc::{AuthorityCommand, RpcRecovery, ScraperAuthorityReceiver};
@@ -69,7 +69,7 @@ pub(crate) struct ScraperSource {
     freshness_indexer: SequenceIndexer<HyperlaneMessage>,
     merkle_freshness_indexer: SequenceIndexer<MerkleTreeInsertion>,
     sync_metrics: Arc<ContractSyncMetrics>,
-    gas_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
+    gas_indexer: Option<SequenceIndexer<InterchainGasPayment>>,
     control: Arc<Authority>,
 }
 impl ScraperSource {
@@ -241,11 +241,11 @@ impl ScraperWebSocketMonitor {
                 stream::iter(probes)
                     .map(|(source, probe, gas, observed, generation)| async move {
                         let result = if let Some(indexer) = gas {
-                            timeout(RPC_TIMEOUT, indexer.get_finalized_block_number())
+                            timeout(RPC_TIMEOUT, indexer.latest_sequence_count_and_tip())
                                 .await
                                 .context("RPC gas boundary read timed out")
                                 .and_then(|r| r.map_err(Into::into))
-                                .map(|block| Some(RpcProbe::GasBoundary(block)))
+                                .map(|(_, tip)| Some(RpcProbe::GasBoundary(tip)))
                         } else if probe {
                             timeout(RPC_TIMEOUT, source.counts())
                                 .await
@@ -364,7 +364,7 @@ struct SourceState<'a> {
     source: &'a ScraperSource,
     started: Instant,
     last_probe: Option<Instant>,
-    // Fixed canonical height sampled after the live subscription starts.
+    // Fixed canonical tip (height, slot, or state version) sampled after subscription.
     gas_boundary: Option<u32>,
     next: [Option<u32>; 2],
     pending: VecDeque<LiveEvent>,
