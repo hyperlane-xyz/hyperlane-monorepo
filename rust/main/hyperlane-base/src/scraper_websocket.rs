@@ -159,6 +159,13 @@ pub enum ServerMessage<T> {
         /// Last available sequence, encoded as a decimal string.
         sequence: Option<String>,
     },
+    /// Live stream recovery boundary for this connection.
+    LiveStart(LiveStartBoundary),
+    /// No safe checkpoint is available; retain RPC indexing for this domain.
+    LiveStartUnavailable {
+        /// Origin whose checkpoint is unavailable.
+        domain: u32,
+    },
     /// Provisional history was rolled back; consumers must recover before resuming.
     Rollback,
     /// One event from a requested stream.
@@ -171,6 +178,32 @@ pub enum ServerMessage<T> {
     /// A forwards-compatible protocol message not understood by this client.
     #[serde(other)]
     Other,
+}
+
+/// A connection-scoped RPC recovery target, in the chain's native height units.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveStartBoundary {
+    /// Origin domain.
+    pub domain: u32,
+    /// Decimal native height, slot, or state version.
+    pub height: String,
+    /// Checkpoint block hash.
+    pub hash: String,
+    /// Custom confirmation count, absent for the canonical stream.
+    pub confirmations: Option<u32>,
+    /// Event types and contract identities covered by the boundary.
+    pub streams: Vec<LiveStartStream>,
+}
+
+/// One event type covered by a live-start checkpoint.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveStartStream {
+    /// Event type requested by the agent.
+    pub event_type: String,
+    /// Contract address in 20- or 32-byte hexadecimal form.
+    pub address: String,
 }
 
 /// One stream echoed by scraper-proxy after subscription.

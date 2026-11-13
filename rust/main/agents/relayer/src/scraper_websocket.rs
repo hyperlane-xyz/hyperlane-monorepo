@@ -2588,7 +2588,9 @@ impl ScraperWebSocketMonitor {
                 ServerMessage::Rollback => {
                     bail!("Canonical scraper stream unexpectedly rolled back");
                 }
-                ServerMessage::Other => {}
+                ServerMessage::LiveStart(_)
+                | ServerMessage::LiveStartUnavailable { .. }
+                | ServerMessage::Other => {}
             }
         }
         Ok(())

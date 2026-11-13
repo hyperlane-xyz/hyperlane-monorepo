@@ -130,7 +130,7 @@ async fn new_websocket_insertions_verify_and_sign_before_the_poll_interval() {
         let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
         let wake = Arc::new(Notify::new());
         let reads = Arc::new(AtomicUsize::new(0));
-        let mut submitter = lightweight_test_submitter(available.clone(), signed.clone())
+        let mut submitter = consensus_test_submitter(available.clone(), signed.clone())
             .with_checkpoint_wake(Some(wake.clone()));
         submitter.interval = Duration::from_secs(5);
         let checkpoint_reads = submitter.metrics.checkpoint_reads.clone();
@@ -140,7 +140,7 @@ async fn new_websocket_insertions_verify_and_sign_before_the_poll_interval() {
         for _ in 0..endpoints {
             let indexed = available.clone();
             let observed = reads.clone();
-            let checkpoints = lightweight_checkpoints(5);
+            let checkpoints = consensus_checkpoints(5);
             let mut hook = MockMerkleTreeHook::new();
             hook.expect_domain().return_const(dummy_domain(0, "test"));
             hook.expect_address().return_const(H256::zero());
@@ -154,7 +154,7 @@ async fn new_websocket_insertions_verify_and_sign_before_the_poll_interval() {
         let task = match consensus {
             Some(policy) => {
                 let reader = Arc::new(CheckpointReader::new(policy, hooks).unwrap());
-                tokio::spawn(start_lightweight_submitter(submitter, reader))
+                tokio::spawn(start_consensus_submitter(submitter, reader))
             }
             None => {
                 submitter.merkle_tree_hook = hooks.pop().unwrap();
@@ -200,12 +200,12 @@ async fn websocket_insertion_received_during_rpc_wakes_the_next_round() {
         let available = Arc::new(AtomicUsize::new(1));
         let wake = Arc::new(Notify::new());
         let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let mut submitter = lightweight_test_submitter(available.clone(), signed.clone())
+        let mut submitter = consensus_test_submitter(available.clone(), signed.clone())
             .with_checkpoint_wake(Some(wake.clone()));
         submitter.interval = Duration::from_secs(5);
         let reads = Arc::new(AtomicUsize::new(0));
         let observed = reads.clone();
-        let checkpoints = lightweight_checkpoints(2);
+        let checkpoints = consensus_checkpoints(2);
         let mut hook = MockMerkleTreeHook::new();
         hook.expect_domain().return_const(dummy_domain(0, "test"));
         hook.expect_address().return_const(H256::zero());
@@ -223,7 +223,7 @@ async fn websocket_insertion_received_during_rpc_wakes_the_next_round() {
             let reader = Arc::new(
                 CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)]).unwrap(),
             );
-            tokio::spawn(start_lightweight_submitter(submitter, reader))
+            tokio::spawn(start_consensus_submitter(submitter, reader))
         } else {
             submitter.merkle_tree_hook = Arc::new(hook);
             tokio::spawn(submitter.checkpoint_submitter(IncrementalMerkle::default()))
@@ -252,16 +252,15 @@ async fn stale_rpc_checkpoint_retries_back_off_and_reset_after_progress() {
     ] {
         let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
         let wake = Arc::new(Notify::new());
-        let mut submitter =
-            lightweight_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone())
-                .with_checkpoint_wake(Some(wake.clone()));
+        let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone())
+            .with_checkpoint_wake(Some(wake.clone()));
         submitter.interval = interval;
         let checkpoint_reads = submitter.metrics.checkpoint_reads.clone();
         let reads = Arc::new(AtomicUsize::new(0));
         let observed = reads.clone();
         let rpc_index = Arc::new(AtomicUsize::new(0));
         let frontier = rpc_index.clone();
-        let checkpoints = lightweight_checkpoints(3);
+        let checkpoints = consensus_checkpoints(3);
         let mut hook = MockMerkleTreeHook::new();
         hook.expect_domain().return_const(dummy_domain(0, "test"));
         hook.expect_address().return_const(H256::zero());
@@ -274,7 +273,7 @@ async fn stale_rpc_checkpoint_retries_back_off_and_reset_after_progress() {
                 CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)])
                     .expect("test fixture"),
             );
-            tokio::spawn(start_lightweight_submitter(submitter, reader))
+            tokio::spawn(start_consensus_submitter(submitter, reader))
         } else {
             submitter.merkle_tree_hook = Arc::new(hook);
             tokio::spawn(submitter.checkpoint_submitter(IncrementalMerkle::default()))
@@ -343,7 +342,7 @@ async fn immediate_websocket_verification_preserves_agreement_and_failure_backof
         let wake = Arc::new(Notify::new());
         let reads = Arc::new(AtomicUsize::new(0));
         let recovered = Arc::new(AtomicBool::new(false));
-        let mut submitter = lightweight_test_submitter(available.clone(), signed.clone())
+        let mut submitter = consensus_test_submitter(available.clone(), signed.clone())
             .with_checkpoint_wake(Some(wake.clone()));
         submitter.interval = Duration::from_secs(5);
         let checkpoint_reads = submitter.metrics.checkpoint_reads.clone();
@@ -352,7 +351,7 @@ async fn immediate_websocket_verification_preserves_agreement_and_failure_backof
             let observed = reads.clone();
             let recovered = recovered.clone();
             let indexed = available.clone();
-            let checkpoints = lightweight_checkpoints(3);
+            let checkpoints = consensus_checkpoints(3);
             let mut hook = MockMerkleTreeHook::new();
             hook.expect_latest_checkpoint().returning(move |period| {
                 assert_eq!(period, &ReorgPeriod::from_blocks(1));
@@ -381,7 +380,7 @@ async fn immediate_websocket_verification_preserves_agreement_and_failure_backof
             hooks.push(Arc::new(hook));
         }
         let reader = Arc::new(CheckpointReader::new(CheckpointConsensus::Majority, hooks).unwrap());
-        let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+        let task = tokio::spawn(start_consensus_submitter(submitter, reader));
         let started = tokio::time::Instant::now();
         for _ in 0..100 {
             tokio::task::yield_now().await;
@@ -2615,8 +2614,6 @@ async fn assert_backfill_rebuilds_tree(snapshot: Result<Option<MerkleTreeSnapsho
 async fn normal_backfill_replays_skipped_history_after_snapshot_loss() {
     use hyperlane_base::db::{HyperlaneRocksDB, DB};
 
-    use crate::merkle_tree_hook_sync::MerkleTreeHookWebSocketSync;
-
     for corrupt in [false, true] {
         let (domain, insertions, _, target, mut snapshot) = three_leaf_snapshot_fixture();
         let directory = tempfile::tempdir().expect("test database");
@@ -2624,19 +2621,8 @@ async fn normal_backfill_replays_skipped_history_after_snapshot_loss() {
             &domain,
             DB::from_path(directory.path()).expect("test database"),
         );
-        let websocket = MerkleTreeHookWebSocketSync::new(
-            db.clone(),
-            domain.id(),
-            H256::zero(),
-            "ws://localhost:8080".parse().expect("test URL"),
-            IntGauge::new("websocket", "test").expect("test gauge"),
-            IntGauge::new("fallback", "test").expect("test gauge"),
-            Arc::new(Notify::new()),
-        );
-        // A previous lightweight run skipped the prefix covered by its snapshot.
-        assert_eq!(websocket.next_sequence_after_snapshot(2).unwrap(), 2);
+        // A previous consensus run skipped the prefix covered by its snapshot.
         db.store_tree_insertion(&insertions[2], 1).unwrap();
-        assert_eq!(websocket.next_sequence_after_snapshot(2).unwrap(), 3);
 
         snapshot.root = H256::repeat_byte(0xff);
         let mut syncer = MockCheckpointSyncer::new();
@@ -2676,14 +2662,12 @@ async fn normal_backfill_replays_skipped_history_after_snapshot_loss() {
             .restored_snapshot_tree(target.index)
             .await
             .unwrap_or_default();
-        let replay_from = websocket
-            .next_sequence_after_snapshot(tree.count() as u32)
-            .unwrap();
+        let replay_from = tree.count();
         assert_eq!(
             replay_from, 0,
             "must ignore the old cursor after snapshot loss"
         );
-        for insertion in &insertions[replay_from as usize..2] {
+        for insertion in &insertions[replay_from..2] {
             db.store_tree_insertion(insertion, 1).unwrap();
         }
         submitter.backfill_checkpoint_submitter(target, tree).await;
@@ -3158,7 +3142,7 @@ async fn sequence_recovery_only_fetches_the_unverified_prefix() {
     );
 }
 
-fn lightweight_checkpoints(count: u32) -> Vec<CheckpointAtBlock> {
+fn consensus_checkpoints(count: u32) -> Vec<CheckpointAtBlock> {
     let mut tree = IncrementalMerkle::default();
     (0..count)
         .map(|index| {
@@ -3176,7 +3160,7 @@ fn lightweight_checkpoints(count: u32) -> Vec<CheckpointAtBlock> {
         .collect()
 }
 
-fn lightweight_test_submitter(
+fn consensus_test_submitter(
     available: Arc<AtomicUsize>,
     signed: Arc<std::sync::Mutex<Vec<u32>>>,
 ) -> ValidatorSubmitter {
@@ -3211,7 +3195,7 @@ fn lightweight_test_submitter(
 }
 
 #[test]
-fn lightweight_large_replay_retains_only_sampled_frontiers() {
+fn consensus_large_replay_retains_only_sampled_frontiers() {
     let started = Instant::now();
     let mut tree = CheckpointTree::new(IncrementalMerkle::default());
     let indices = BTreeSet::from([0, 500_000, 999_999]);
@@ -3238,13 +3222,13 @@ fn lightweight_large_replay_retains_only_sampled_frontiers() {
 }
 
 #[tokio::test]
-async fn lightweight_tree_progress_tracks_unverified_replay_and_live_updates() {
+async fn consensus_tree_progress_tracks_unverified_replay_and_live_updates() {
     let available = Arc::new(AtomicUsize::new(3));
-    let submitter = lightweight_test_submitter(
+    let submitter = consensus_test_submitter(
         available.clone(),
         Arc::new(std::sync::Mutex::new(Vec::new())),
     );
-    let checkpoints = lightweight_checkpoints(6);
+    let checkpoints = consensus_checkpoints(6);
     let mut tree = CheckpointTree::new(IncrementalMerkle::default());
     assert_eq!(submitter.metrics.merkle_tree_leaf_count.get(), 0);
     assert!(matches!(
@@ -3288,13 +3272,13 @@ async fn lightweight_tree_progress_tracks_unverified_replay_and_live_updates() {
 #[tokio::test]
 async fn merkle_reconstruction_exposes_progress_before_completion() {
     let count = 513;
-    let checkpoints = lightweight_checkpoints(count);
+    let checkpoints = consensus_checkpoints(count);
     let target = checkpoints.last().expect("checkpoint fixture");
-    let submitter = lightweight_test_submitter(
+    let submitter = consensus_test_submitter(
         Arc::new(AtomicUsize::new(count as usize)),
         Arc::new(std::sync::Mutex::new(Vec::new())),
     );
-    for (lightweight, historical) in [(false, false), (true, false), (false, true)] {
+    for (consensus, historical) in [(false, false), (true, false), (false, true)] {
         let mut submitter = submitter.clone();
         submitter.metrics.merkle_tree_leaf_count.set(0);
         let progress = if historical {
@@ -3306,7 +3290,7 @@ async fn merkle_reconstruction_exposes_progress_before_completion() {
         let ((), ()) = tokio::join!(
             biased;
             async {
-                if lightweight {
+                if consensus {
                     let mut tree = CheckpointTree::new(IncrementalMerkle::default());
                     assert!(matches!(
                         submitter.verify_checkpoint_batch(&mut tree, &[Some(target.clone())]).await,
@@ -3336,14 +3320,14 @@ async fn merkle_reconstruction_exposes_progress_before_completion() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_different_indices_sign_through_two_thirds_supported_prefix() {
+async fn consensus_different_indices_sign_through_two_thirds_supported_prefix() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(5)), signed.clone());
-    let checkpoints = lightweight_checkpoints(5);
+    let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(5)), signed.clone());
+    let checkpoints = consensus_checkpoints(5);
     let mut tree = IncrementalMerkle::default();
     // Deliberately unordered providers and duplicate indices.
     submitter
-        .submit_lightweight_batch(
+        .submit_consensus_batch(
             &mut tree,
             vec![
                 checkpoints[3].clone(),
@@ -3356,7 +3340,7 @@ async fn lightweight_different_indices_sign_through_two_thirds_supported_prefix(
     assert_eq!(tree.count(), 1);
     assert_eq!(*signed.lock().unwrap(), vec![0]);
     submitter
-        .submit_lightweight_batch(
+        .submit_consensus_batch(
             &mut tree,
             vec![
                 checkpoints[4].clone(),
@@ -3370,9 +3354,9 @@ async fn lightweight_different_indices_sign_through_two_thirds_supported_prefix(
 }
 
 #[tokio::test]
-async fn lightweight_minority_cannot_veto_but_split_cannot_authorize_signing() {
+async fn consensus_minority_cannot_veto_but_split_cannot_authorize_signing() {
     for mismatch in ["root", "domain", "hook"] {
-        let checkpoints = lightweight_checkpoints(5);
+        let checkpoints = consensus_checkpoints(5);
         let mut bad = checkpoints[4].clone();
         match mismatch {
             "root" => bad.checkpoint.root = H256::zero(),
@@ -3382,9 +3366,9 @@ async fn lightweight_minority_cannot_veto_but_split_cannot_authorize_signing() {
         for minority in [
             Some(bad.clone()),
             None,
-            Some(lightweight_checkpoints(10).pop().expect("ahead checkpoint")),
+            Some(consensus_checkpoints(10).pop().expect("ahead checkpoint")),
         ] {
-            let submitter = lightweight_test_submitter(
+            let submitter = consensus_test_submitter(
                 Arc::new(AtomicUsize::new(5)),
                 Arc::new(std::sync::Mutex::new(Vec::new())),
             );
@@ -3409,10 +3393,10 @@ async fn lightweight_minority_cannot_veto_but_split_cannot_authorize_signing() {
         }
 
         let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(5)), signed.clone());
+        let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(5)), signed.clone());
         let mut tree = IncrementalMerkle::default();
         submitter
-            .submit_lightweight_batch(
+            .submit_consensus_batch(
                 &mut tree,
                 vec![
                     checkpoints[3].clone(),
@@ -3429,12 +3413,12 @@ async fn lightweight_minority_cannot_veto_but_split_cannot_authorize_signing() {
 }
 
 #[tokio::test]
-async fn lightweight_failed_endpoints_do_not_reduce_threshold() {
-    let submitter = lightweight_test_submitter(
+async fn consensus_failed_endpoints_do_not_reduce_threshold() {
+    let submitter = consensus_test_submitter(
         Arc::new(AtomicUsize::new(5)),
         Arc::new(std::sync::Mutex::new(Vec::new())),
     );
-    let checkpoints = lightweight_checkpoints(5);
+    let checkpoints = consensus_checkpoints(5);
     let mut tree = CheckpointTree::new(IncrementalMerkle::default());
     assert!(matches!(
         submitter
@@ -3469,12 +3453,12 @@ async fn lightweight_failed_endpoints_do_not_reduce_threshold() {
 }
 
 #[tokio::test]
-async fn lightweight_lagging_minority_does_not_block_progress() {
-    let submitter = lightweight_test_submitter(
+async fn consensus_lagging_minority_does_not_block_progress() {
+    let submitter = consensus_test_submitter(
         Arc::new(AtomicUsize::new(5)),
         Arc::new(std::sync::Mutex::new(Vec::new())),
     );
-    let checkpoints = lightweight_checkpoints(5);
+    let checkpoints = consensus_checkpoints(5);
     let mut tree = CheckpointTree::new(IncrementalMerkle::default());
     submitter
         .verify_checkpoint_batch(&mut tree, &[Some(checkpoints[2].clone())])
@@ -3497,17 +3481,17 @@ async fn lightweight_lagging_minority_does_not_block_progress() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_provider_behind_signed_frontier_pauses_then_recovers() {
+async fn consensus_provider_behind_signed_frontier_pauses_then_recovers() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(5)), signed.clone());
-    let checkpoints = lightweight_checkpoints(5);
+    let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(5)), signed.clone());
+    let checkpoints = consensus_checkpoints(5);
     let mut tree = IncrementalMerkle::default();
     submitter
-        .submit_lightweight_batch(&mut tree, vec![checkpoints[2].clone()])
+        .submit_consensus_batch(&mut tree, vec![checkpoints[2].clone()])
         .await;
     let before = signed.lock().unwrap().clone();
     submitter
-        .submit_lightweight_batch(
+        .submit_consensus_batch(
             &mut tree,
             vec![checkpoints[0].clone(), checkpoints[4].clone()],
         )
@@ -3516,7 +3500,7 @@ async fn lightweight_provider_behind_signed_frontier_pauses_then_recovers() {
     assert_eq!(*signed.lock().unwrap(), before);
     assert!(submitter.readiness.snapshot().signing_blocked);
     submitter
-        .submit_lightweight_batch(
+        .submit_consensus_batch(
             &mut tree,
             vec![checkpoints[3].clone(), checkpoints[4].clone()],
         )
@@ -3527,18 +3511,18 @@ async fn lightweight_provider_behind_signed_frontier_pauses_then_recovers() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_waits_for_websocket_to_reach_every_captured_checkpoint() {
+async fn consensus_waits_for_websocket_to_reach_every_captured_checkpoint() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let available = Arc::new(AtomicUsize::new(1));
     let wake = Arc::new(Notify::new());
-    let submitter = lightweight_test_submitter(available.clone(), signed.clone())
+    let submitter = consensus_test_submitter(available.clone(), signed.clone())
         .with_checkpoint_wake(Some(wake.clone()));
-    let checkpoints = lightweight_checkpoints(3);
+    let checkpoints = consensus_checkpoints(3);
     let readiness = submitter.readiness.clone();
     let task = tokio::spawn(async move {
         let mut tree = IncrementalMerkle::default();
         submitter
-            .submit_lightweight_batch(
+            .submit_consensus_batch(
                 &mut tree,
                 vec![checkpoints[0].clone(), checkpoints[2].clone()],
             )
@@ -3558,10 +3542,10 @@ async fn lightweight_waits_for_websocket_to_reach_every_captured_checkpoint() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_batches_insertions_with_one_checkpoint_read_and_no_idle_rpc_reads() {
+async fn consensus_batches_insertions_with_one_checkpoint_read_and_no_idle_rpc_reads() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
-    let checkpoint = lightweight_checkpoints(3).pop().unwrap();
+    let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
+    let checkpoint = consensus_checkpoints(3).pop().unwrap();
     let mut hook = MockMerkleTreeHook::new();
     hook.expect_latest_checkpoint()
         .once()
@@ -3570,7 +3554,7 @@ async fn lightweight_batches_insertions_with_one_checkpoint_read_and_no_idle_rpc
         CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)])
             .expect("endpoint"),
     );
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     for _ in 0..10 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -3585,9 +3569,9 @@ async fn lightweight_batches_insertions_with_one_checkpoint_read_and_no_idle_rpc
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_empty_chain_waits_without_any_rpc_calls() {
+async fn consensus_empty_chain_waits_without_any_rpc_calls() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(0)), signed.clone());
+    let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(0)), signed.clone());
     let reader = Arc::new(
         CheckpointReader::new(
             CheckpointConsensus::Majority,
@@ -3595,7 +3579,7 @@ async fn lightweight_empty_chain_waits_without_any_rpc_calls() {
         )
         .expect("endpoint"),
     );
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     for _ in 0..5 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -3607,7 +3591,7 @@ async fn lightweight_empty_chain_waits_without_any_rpc_calls() {
 }
 
 impl ValidatorSubmitter {
-    async fn submit_lightweight_batch(
+    async fn submit_consensus_batch(
         &self,
         signed_tree: &mut IncrementalMerkle,
         checkpoints: Vec<CheckpointAtBlock>,
@@ -3637,12 +3621,12 @@ impl ValidatorSubmitter {
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_refresh_replaces_a_conflicting_checkpoint_even_when_rpc_advances() {
+async fn consensus_refresh_replaces_a_conflicting_checkpoint_even_when_rpc_advances() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
+    let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
     let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = Vec::new();
     for endpoint in 0..3 {
-        let checkpoints = lightweight_checkpoints(11);
+        let checkpoints = consensus_checkpoints(11);
         let mut calls = 0_u32;
         let mut hook = MockMerkleTreeHook::new();
         hook.expect_latest_checkpoint().returning(move |_| {
@@ -3663,7 +3647,7 @@ async fn lightweight_refresh_replaces_a_conflicting_checkpoint_even_when_rpc_adv
     }
     let reader =
         Arc::new(CheckpointReader::new(CheckpointConsensus::Majority, hooks).expect("endpoints"));
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     for _ in 0..5 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -3683,10 +3667,10 @@ async fn lightweight_refresh_replaces_a_conflicting_checkpoint_even_when_rpc_adv
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_refreshes_ahead_checkpoint_when_websocket_progress_stalls() {
+async fn consensus_refreshes_ahead_checkpoint_when_websocket_progress_stalls() {
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), signed.clone());
-    let checkpoints = lightweight_checkpoints(3);
+    let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(1)), signed.clone());
+    let checkpoints = consensus_checkpoints(3);
     let reads = Arc::new(AtomicUsize::new(0));
     let calls = reads.clone();
     let mut hook = MockMerkleTreeHook::new();
@@ -3703,7 +3687,7 @@ async fn lightweight_refreshes_ahead_checkpoint_when_websocket_progress_stalls()
     let reader = Arc::new(
         CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)]).unwrap(),
     );
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     for _ in 0..5 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -3722,8 +3706,8 @@ async fn lightweight_refreshes_ahead_checkpoint_when_websocket_progress_stalls()
 }
 
 #[tokio::test]
-async fn lightweight_reconstructs_unsampled_indices_without_retaining_history() {
-    let mut submitter = lightweight_test_submitter(
+async fn consensus_reconstructs_unsampled_indices_without_retaining_history() {
+    let mut submitter = consensus_test_submitter(
         Arc::new(AtomicUsize::new(5)),
         Arc::new(std::sync::Mutex::new(Vec::new())),
     );
@@ -3740,7 +3724,7 @@ async fn lightweight_reconstructs_unsampled_indices_without_retaining_history() 
             });
     }
     submitter.db = Arc::new(db);
-    let checkpoints = lightweight_checkpoints(5);
+    let checkpoints = consensus_checkpoints(5);
     let mut tree = CheckpointTree::new(IncrementalMerkle::default());
     for (slow_index, expected_queue) in [(0, 1), (0, 0), (2, 2), (4, 2)] {
         let batch = submitter
@@ -3763,7 +3747,7 @@ async fn lightweight_reconstructs_unsampled_indices_without_retaining_history() 
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_restores_signed_snapshot_without_republishing_history() {
+async fn consensus_restores_signed_snapshot_without_republishing_history() {
     let (domain, insertions, checkpoint_at_snapshot, target, snapshot) =
         three_leaf_snapshot_fixture();
     let signer: Signers = ethers::signers::LocalWallet::new(&mut rand::thread_rng()).into();
@@ -3816,7 +3800,7 @@ async fn lightweight_restores_signed_snapshot_without_republishing_history() {
     let reader = Arc::new(
         CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)]).unwrap(),
     );
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     for _ in 0..10 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -3828,10 +3812,10 @@ async fn lightweight_restores_signed_snapshot_without_republishing_history() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_live_signing_continues_while_history_uploads_retry() {
+async fn consensus_live_signing_continues_while_history_uploads_retry() {
     let available = Arc::new(AtomicUsize::new(3));
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let mut submitter = lightweight_test_submitter(available.clone(), signed.clone());
+    let mut submitter = consensus_test_submitter(available.clone(), signed.clone());
     let history_ready = Arc::new(AtomicBool::new(false));
     let ready = history_ready.clone();
     let observed = signed.clone();
@@ -3865,7 +3849,7 @@ async fn lightweight_live_signing_continues_while_history_uploads_retry() {
             Ok(())
         });
     submitter.checkpoint_syncer = Arc::new(syncer);
-    let checkpoints = lightweight_checkpoints(4);
+    let checkpoints = consensus_checkpoints(4);
     let indexed = available.clone();
     let mut hook = MockMerkleTreeHook::new();
     hook.expect_latest_checkpoint()
@@ -3874,7 +3858,7 @@ async fn lightweight_live_signing_continues_while_history_uploads_retry() {
     let reader = Arc::new(
         CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)]).unwrap(),
     );
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     for _ in 0..10 {
         tokio::time::advance(Duration::from_secs(1)).await;
         tokio::task::yield_now().await;
@@ -3905,10 +3889,10 @@ async fn lightweight_live_signing_continues_while_history_uploads_retry() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_later_history_stalls_do_not_block_live_signing_or_skip_snapshots() {
+async fn consensus_later_history_stalls_do_not_block_live_signing_or_skip_snapshots() {
     let available = Arc::new(AtomicUsize::new(1));
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let mut submitter = lightweight_test_submitter(available.clone(), signed.clone());
+    let mut submitter = consensus_test_submitter(available.clone(), signed.clone());
     let metrics = submitter.metrics.clone();
     let history_ready = Arc::new(AtomicBool::new(false));
     let durable = Arc::new(std::sync::Mutex::new(std::collections::BTreeMap::<
@@ -3960,7 +3944,7 @@ async fn lightweight_later_history_stalls_do_not_block_live_signing_or_skip_snap
             Ok(())
         });
     submitter.checkpoint_syncer = Arc::new(syncer);
-    let checkpoints = lightweight_checkpoints(6);
+    let checkpoints = consensus_checkpoints(6);
     let indexed = available.clone();
     let mut hook = MockMerkleTreeHook::new();
     hook.expect_latest_checkpoint()
@@ -3969,7 +3953,7 @@ async fn lightweight_later_history_stalls_do_not_block_live_signing_or_skip_snap
     let reader = Arc::new(
         CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)]).unwrap(),
     );
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     // Complete the first batch, then stall history in the second while two more arrive.
     for count in [1, 3, 4, 6] {
         available.store(count, Ordering::SeqCst);
@@ -4002,11 +3986,11 @@ async fn lightweight_later_history_stalls_do_not_block_live_signing_or_skip_snap
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_refreshes_ahead_checkpoint_during_continuous_websocket_progress() {
+async fn consensus_refreshes_ahead_checkpoint_during_continuous_websocket_progress() {
     let available = Arc::new(AtomicUsize::new(1));
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(available.clone(), signed.clone());
-    let checkpoints = lightweight_checkpoints(1001);
+    let submitter = consensus_test_submitter(available.clone(), signed.clone());
+    let checkpoints = consensus_checkpoints(1001);
     let reads = Arc::new(AtomicUsize::new(0));
     let calls = reads.clone();
     let indexed = available.clone();
@@ -4022,7 +4006,7 @@ async fn lightweight_refreshes_ahead_checkpoint_during_continuous_websocket_prog
     let reader = Arc::new(
         CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)]).unwrap(),
     );
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     tokio::task::yield_now().await;
     for count in 2..=51 {
         // Progress every second must not extend the captured sample's lifetime.
@@ -4044,11 +4028,11 @@ async fn lightweight_refreshes_ahead_checkpoint_during_continuous_websocket_prog
 }
 
 #[tokio::test(start_paused = true)]
-async fn lightweight_refresh_preserves_reachable_targets_during_slow_replay() {
+async fn consensus_refresh_preserves_reachable_targets_during_slow_replay() {
     let available = Arc::new(AtomicUsize::new(1));
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(available.clone(), signed.clone());
-    let checkpoints = lightweight_checkpoints(200);
+    let submitter = consensus_test_submitter(available.clone(), signed.clone());
+    let checkpoints = consensus_checkpoints(200);
     let indexed = available.clone();
     let reads = Arc::new(AtomicUsize::new(0));
     let calls = reads.clone();
@@ -4061,7 +4045,7 @@ async fn lightweight_refresh_preserves_reachable_targets_during_slow_replay() {
     let reader = Arc::new(
         CheckpointReader::new(CheckpointConsensus::Majority, vec![Arc::new(hook)]).unwrap(),
     );
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     tokio::task::yield_now().await;
     for count in 2..=61 {
         available.store(count, Ordering::SeqCst);
@@ -4082,7 +4066,7 @@ async fn lightweight_refresh_preserves_reachable_targets_during_slow_replay() {
 }
 
 // Mirror production startup: authenticate once, then pass that same tree to signing.
-async fn start_lightweight_submitter(submitter: ValidatorSubmitter, reader: Arc<CheckpointReader>) {
+async fn start_consensus_submitter(submitter: ValidatorSubmitter, reader: Arc<CheckpointReader>) {
     let tree = submitter.restore_consensus_tree().await;
     submitter.consensus_checkpoint_submitter(reader, tree).await;
 }
@@ -4093,12 +4077,12 @@ async fn consensus_votes_at_each_leaf_index_without_historical_rpc_queries() {
         (CheckpointConsensus::Quorum, 4),
         (CheckpointConsensus::Majority, 1),
     ] {
-        let mut submitter = lightweight_test_submitter(
+        let mut submitter = consensus_test_submitter(
             Arc::new(AtomicUsize::new(6)),
             Arc::new(std::sync::Mutex::new(Vec::new())),
         );
         submitter.checkpoint_consensus = policy;
-        let checkpoints = lightweight_checkpoints(6);
+        let checkpoints = consensus_checkpoints(6);
         let samples: Vec<_> = [0, 1, 4, 5]
             .map(|index| {
                 let mut checkpoint = checkpoints[index].clone();
@@ -4121,12 +4105,12 @@ async fn consensus_votes_at_each_leaf_index_without_historical_rpc_queries() {
 async fn quorum_allows_half_but_majority_blocks_split_or_failed_pool() {
     for policy in [CheckpointConsensus::Quorum, CheckpointConsensus::Majority] {
         for failures in [false, true] {
-            let mut submitter = lightweight_test_submitter(
+            let mut submitter = consensus_test_submitter(
                 Arc::new(AtomicUsize::new(3)),
                 Arc::new(std::sync::Mutex::new(Vec::new())),
             );
             submitter.checkpoint_consensus = policy;
-            let checkpoints = lightweight_checkpoints(3);
+            let checkpoints = consensus_checkpoints(3);
             let mut conflicting = checkpoints[2].clone();
             conflicting.checkpoint.root = H256::from_low_u64_be(999);
             let minority = if failures { None } else { Some(conflicting) };
@@ -4187,11 +4171,11 @@ async fn normal_consensus_recovery_requires_votes_before_repairing_or_signing() 
             }
             let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
             let mut submitter =
-                lightweight_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
+                consensus_test_submitter(Arc::new(AtomicUsize::new(3)), signed.clone());
             submitter.db = Arc::new(recovery.db.clone());
             submitter = submitter.with_rpc_recovery(recovery);
             submitter.checkpoint_consensus = policy;
-            let checkpoints = lightweight_checkpoints(3);
+            let checkpoints = consensus_checkpoints(3);
             let samples: Vec<_> = (0..4)
                 .map(|i| {
                     let mut checkpoint = checkpoints[if i == 0 { 1 } else { 2 }].clone();
@@ -4268,7 +4252,7 @@ async fn rpc_indexed_insertions_wake_the_same_idle_verifier() {
     let indexed = available.clone();
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
-    let checkpoints = lightweight_checkpoints(2);
+    let checkpoints = consensus_checkpoints(2);
     let mut hook = MockMerkleTreeHook::new();
     hook.expect_latest_checkpoint().returning(move |_| {
         observed.fetch_add(1, Ordering::SeqCst);
@@ -4281,10 +4265,10 @@ async fn rpc_indexed_insertions_wake_the_same_idle_verifier() {
     let (recovery, _directory) = rpc_recovery_fixture(MockRecoveryIndexer::new());
     let wake = Arc::new(Notify::new());
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let submitter = lightweight_test_submitter(available.clone(), signed.clone())
+    let submitter = consensus_test_submitter(available.clone(), signed.clone())
         .with_rpc_recovery(recovery)
         .with_checkpoint_wake(Some(wake.clone()));
-    let task = tokio::spawn(start_lightweight_submitter(submitter, reader));
+    let task = tokio::spawn(start_consensus_submitter(submitter, reader));
     for _ in 0..200 {
         tokio::task::yield_now().await;
     }
@@ -4316,7 +4300,7 @@ async fn healthy_websocket_idle_audit_detects_same_count_consensus_reorg() {
     for policy in [CheckpointConsensus::Quorum, CheckpointConsensus::Majority] {
         let mut committed = IncrementalMerkle::default();
         committed.ingest(H256::from_low_u64_be(1));
-        let mut conflicting = lightweight_checkpoints(1).pop().unwrap();
+        let mut conflicting = consensus_checkpoints(1).pop().unwrap();
         conflicting.checkpoint.root = H256::from_low_u64_be(999);
         let hooks = (0..3)
             .map(|_| {
@@ -4339,8 +4323,7 @@ async fn healthy_websocket_idle_audit_detects_same_count_consensus_reorg() {
                 observed.store(true, Ordering::SeqCst);
                 Ok(())
             });
-        let mut submitter =
-            lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
+        let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
         submitter.checkpoint_syncer = Arc::new(syncer);
         let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
         submitter = submitter.with_rpc_recovery(recovery);
@@ -4358,8 +4341,8 @@ async fn healthy_websocket_idle_audit_detects_same_count_consensus_reorg() {
 
 #[tokio::test]
 async fn minority_conflict_at_committed_index_does_not_report_reorg() {
-    let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
-    let canonical = lightweight_checkpoints(1).pop().unwrap();
+    let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
+    let canonical = consensus_checkpoints(1).pop().unwrap();
     let mut conflicting = canonical.clone();
     conflicting.checkpoint.root = H256::from_low_u64_be(999);
     let mut committed = IncrementalMerkle::default();
@@ -4378,8 +4361,7 @@ async fn minority_conflict_at_committed_index_does_not_report_reorg() {
 
 #[tokio::test]
 async fn consensus_does_not_replay_minority_tail_on_consecutive_advances() {
-    let mut submitter =
-        lightweight_test_submitter(Arc::new(AtomicUsize::new(1000)), Arc::default());
+    let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(1000)), Arc::default());
     let reads = Arc::new(AtomicUsize::new(0));
     let observed = reads.clone();
     let mut db = MockDb::new();
@@ -4392,7 +4374,7 @@ async fn consensus_does_not_replay_minority_tail_on_consecutive_advances() {
             )))
         });
     submitter.db = Arc::new(db);
-    let checkpoints = lightweight_checkpoints(1000);
+    let checkpoints = consensus_checkpoints(1000);
     let mut committed = IncrementalMerkle::default();
     for index in 0..100 {
         committed.ingest(H256::from_low_u64_be(index + 1));
@@ -4464,10 +4446,10 @@ async fn invented_minority_index_cannot_veto_canonical_prefix_recovery() {
             )
             .unwrap();
     }
-    let mut submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(3)), Arc::default());
+    let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(3)), Arc::default());
     submitter.db = Arc::new(recovery.db.clone());
     submitter = submitter.with_rpc_recovery(recovery);
-    let checkpoints = lightweight_checkpoints(3);
+    let checkpoints = consensus_checkpoints(3);
     let mut invented = checkpoints[2].clone();
     invented.checkpoint.root = H256::from_low_u64_be(555);
     let samples = [
@@ -4548,7 +4530,7 @@ async fn recovery_resumes_completed_ranges_after_resample_timeout() {
     });
     recovery.from_block = None;
     recovery.index_settings.chunk_size = 1000;
-    let mut target = lightweight_checkpoints(1).pop().unwrap();
+    let mut target = consensus_checkpoints(1).pop().unwrap();
     target.block_height = None;
     let mut progress = RecoveryProgress::default();
     assert!(tokio::time::timeout(
@@ -4610,7 +4592,7 @@ impl MerkleTreeHook for DelayedCheckpointHook {
 #[tokio::test(start_paused = true)]
 async fn consensus_signs_before_stalled_minority_but_waits_for_deciding_vote() {
     for conflicting in [false, true] {
-        let checkpoint = lightweight_checkpoints(1).pop().unwrap();
+        let checkpoint = consensus_checkpoints(1).pop().unwrap();
         let hooks = (0..3)
             .map(|i| {
                 let mut checkpoint = checkpoint.clone();
@@ -4629,7 +4611,7 @@ async fn consensus_signs_before_stalled_minority_but_waits_for_deciding_vote() {
             .collect();
         let reader = Arc::new(CheckpointReader::new(CheckpointConsensus::Majority, hooks).unwrap());
         let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), signed.clone());
+        let submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(1)), signed.clone());
         let task = tokio::spawn(
             submitter.consensus_checkpoint_submitter(reader, IncrementalMerkle::default()),
         );
@@ -4689,7 +4671,7 @@ impl MerkleTreeHook for ReplayTriggeredCheckpointHook {
 #[tokio::test(start_paused = true)]
 async fn consensus_loop_consumes_ready_and_mid_replay_votes_before_minority_tail() {
     for during_replay in [false, true] {
-        let checkpoints = lightweight_checkpoints(1000);
+        let checkpoints = consensus_checkpoints(1000);
         let frontier = Arc::new(AtomicUsize::new(100));
         let ready = Arc::new(Notify::new());
         let mut hooks: Vec<Arc<dyn MerkleTreeHook>> = Vec::new();
@@ -4732,7 +4714,7 @@ async fn consensus_loop_consumes_ready_and_mid_replay_votes_before_minority_tail
             });
         let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
         let mut submitter =
-            lightweight_test_submitter(Arc::new(AtomicUsize::new(1000)), signed.clone());
+            consensus_test_submitter(Arc::new(AtomicUsize::new(1000)), signed.clone());
         submitter.db = Arc::new(db);
         // Exercise normal-mode polling without the lightmode idle insertion probe.
         let (recovery, _dir) = rpc_recovery_fixture(MockRecoveryIndexer::new());
@@ -4780,9 +4762,9 @@ async fn single_checkpoint_websocket_skips_idle_reads_and_verifies_pending_inser
     let available = Arc::new(AtomicUsize::new(1));
     let signed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let wake = Arc::new(Notify::new());
-    let mut submitter = lightweight_test_submitter(available.clone(), signed.clone())
+    let mut submitter = consensus_test_submitter(available.clone(), signed.clone())
         .with_checkpoint_wake(Some(wake.clone()));
-    let checkpoints = lightweight_checkpoints(2);
+    let checkpoints = consensus_checkpoints(2);
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
     let mut hook = MockMerkleTreeHook::new();
@@ -4822,7 +4804,7 @@ async fn single_checkpoint_websocket_skips_idle_reads_and_verifies_pending_inser
 
 #[tokio::test(start_paused = true)]
 async fn healthy_websocket_idle_audit_detects_same_count_single_provider_reorg() {
-    let mut submitter = lightweight_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
+    let mut submitter = consensus_test_submitter(Arc::new(AtomicUsize::new(1)), Arc::default());
     let mut reporter = MockReorgReporter::new();
     reporter
         .expect_report_with_reorg_period()
@@ -4831,7 +4813,7 @@ async fn healthy_websocket_idle_audit_detects_same_count_single_provider_reorg()
     submitter.reorg_reporter = Some(Arc::new(reporter));
     let mut committed = IncrementalMerkle::default();
     committed.ingest(H256::from_low_u64_be(1));
-    let mut conflicting = lightweight_checkpoints(1).pop().unwrap();
+    let mut conflicting = consensus_checkpoints(1).pop().unwrap();
     conflicting.checkpoint.root = H256::from_low_u64_be(999);
     let mut hook = MockMerkleTreeHook::new();
     hook.expect_domain().return_const(dummy_domain(0, "test"));
