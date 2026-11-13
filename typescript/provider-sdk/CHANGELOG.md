@@ -1,5 +1,12 @@
 # @hyperlane-xyz/provider-sdk
 
+## 11.0.4
+
+### Patch Changes
+
+- Updated dependencies [f32ac07]
+  - @hyperlane-xyz/utils@46.0.0
+
 ## 11.0.3
 
 ### Patch Changes

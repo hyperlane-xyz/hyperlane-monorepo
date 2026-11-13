@@ -1,5 +1,96 @@
 # @hyperlane-xyz/rebalancer
 
+## 29.2.0
+
+### Minor Changes
+
+- e40bf51: The deBridge DLN inventory adapter was added for Ethereum, BSC, Arbitrum, Tron, and Solana. API responses were bound to the requested route and a configurable basis-point limit before exact token approvals and simulated execution. Disabled registry metadata was excluded from external bridge chain maps.
+- 311b28c: Movable-collateral routes gained configurable settlement adapters. LayerZero OFT transfers were tracked by their exact GUID and confirmed against the finalized destination receipt, recipient, and amount, while source-committed failures remained suppressed for the running process and existing routes retained Hyperlane message delivery by default.
+- 46781ac: Config-driven route exclusions were added so unsupported chain pairs are not proposed for execution.
+- 584d09a: Source-started rebalance actions were recorded in memory before broadcast to suppress duplicate execution within a running process.
+- e41a746: The LayerZero inventory bridge was added using registry-resolved TokenBridgeOft adapters, exact approvals, and bounded token and native fees. Disabled and unsupported chain metadata was ignored when constructing LayerZero chain maps.
+- 8237f59: The swaps.xyz executor was changed to validate provider-agnostic response bounds and simulate arbitrary provider payloads without requiring provider-specific calldata decoding. Pending status variants were accepted without weakening route-identity checks, and refreshed exact-output quotes were bounded by the configured quote-loss limit.
+- 866134f: Unsigned swaps.xyz Solana preparation was shared by monitor-only checks and live execution, including refreshed quote-loss validation.
+- f7976c2: Unsigned swaps.xyz Tron preparation was shared by monitor-only checks and live execution, including refreshed quote loss validation.
+- 8237f59: An EVM and Tron swaps.xyz external bridge was added with strict response, quote-loss, signer, transaction, and settlement-status validation.
+- 866134f: Solana-source swaps.xyz execution was added with simulated wallet effects bound to the accepted quote.
+
+### Patch Changes
+
+- 584d09a: Recorded primary and approval submission identities at broadcast boundaries. Released only proven unsubmitted work, reconciled pending approvals at finality, and retained source-committed failures across intent TTL expiry. Disabled automatic Solana blockhash re-signing for inventory execution.
+- 584d09a: Deferred execution until a fresh monitor snapshot after tracker settlement changes. Prevented inventory movements from being duplicated when delivery completed after the cycle balance sample, and deferred execution when tracker synchronization failed.
+- 8237f59: Allowed refreshed swaps quotes within the original loss and slippage budgets while preserving reserved inputs and exact-output targets. Preserved rate-limit cooldowns across requests without increasing registration retries, and measured payload freshness from the successful request attempt.
+- 8237f59: Bounded swaps.xyz response bodies and registration retries, preserving terminal HTTP errors and recovering registration only for explicitly missing transfers.
+- d61a29e: Completed uneconomic inventory remainders before capacity checks and documented full-intent prefunding so temporary limits do not leave dust blocking later work.
+- 46781ac: Collateral deficit allocation was restricted to enabled routes while retaining transfer-origin preference. Unknown top-level runtime configuration fields were rejected at startup.
+- 866134f: Fixed unsigned swaps.xyz preflight invocation through symlinked paths so the script reports validation results instead of silently exiting.
+- e40bf51: Unsigned order preparation, generic native-value limits, simulation, and bounded refresh after stale approvals were added. Matching finalized source and destination order evidence was required before declaring settlement, including Tron solidified blocks.
+- e40bf51: Bound deBridge settlement to the accepted destination, validated quote decimals against chain data, and kept request deadlines active through response bodies. Preserved signed Solana identities and exposed supported native asset handling.
+- 46781ac: Denylisted movable-collateral messages were excluded from stuck-action gauges and warnings while their source reservations were retained. Synchronization counts were corrected for ignored messages with settlement references.
+- 46781ac: Fixed constrained route allocation so disabled pairs no longer strand feasible rebalances. Rejected misspelled chain and destination controls instead of silently enabling routes.
+- d61a29e: The xERC20 extra-bridge type was made explicit, and legacy entries were identified on-chain, so CCIP token pools were excluded from managed-lockbox metrics without hiding RPC failures.
+- 584d09a: Required the complete chain finality policy before releasing failed source transactions or settled approvals, including Tron solidification and the conservative default when reorg metadata was missing.
+- 584d09a: Preserved observed inventory submission identities through delegated signer errors so confirmation failures could not be misclassified as unsubmitted.
+- e41a746: LayerZero inventory settlement was bound to the accepted recipient, source OFT event, and confirmed destination receipt so unverified deliveries remained reserved. Preparation failures were classified before submission, and Tron addresses were normalized for token and signer checks.
+- 866134f: Bounded swaps.xyz Solana transaction fees independently from native account spending and added unsigned fee sampling so operators can validate the limits while the service remains monitor-only.
+- 584d09a: Exposed reserved-action ages and reasons independently of external synchronization, preserved outage diagnostics after draining concurrent work, and avoided repeated RPC reads for finalized successful source transactions.
+- d61a29e: Reused lockbox token resolution during each inventory rebalance cycle and refreshed it on subsequent cycles. Failed reads were evicted to permit recovery.
+- f7976c2: Updated Tron broadcast regression coverage to exercise composed submission observers and preserve source transaction identity.
+- 311b28c: OFT settlement reused the shared receipt verifier and was bounded by the exact collateral snapshot. Named finality was resolved once, failed snapshot reads deferred execution, and effective OFT routes were validated after destination overrides to prevent incompatible endpoint configurations from starting.
+- e41a746: Required solidified Tron source and destination receipts before completing OFT settlements, in addition to configured confirmation and snapshot bounds.
+
+  Restricted inventory OFT quoting to routes with equal local token decimals so unsupported conversions failed before funds were submitted.
+
+- 6f1ef9b: Applied each movable-collateral fee allowance to a single transaction and reconciled its receipt and residue before advancing that origin. Kept origins with ambiguous submissions or cleanup reserved across cycles while allowing independent origins to proceed.
+- 311b28c: Validated every enabled movable-collateral settlement family before approvals or source submission, rejecting missing OFT adapters and ambiguous RPC results instead of discovering untrackable transfers after sending.
+- 46781ac: The positional warp config override was preserved when external bridge API keys were added. Completed swaps.xyz responses without amount data were rejected instead of reporting zero, with source reservations retained for subsequent reconciliation.
+- e40bf51: Added error diagnostics for unresolved inventory submissions and status failures while preserving their reservations, and removed unused status-expiry bookkeeping.
+- 584d09a: Indexed Explorer recovery by message and source transaction per batch, preserving chain identity and case-sensitive Solana signatures. Kept distinct messages dispatched by the same transaction separate.
+- 699732b: LayerZero settlement recipients were made explicit assertions of the monitored collateral address and the router’s allowed destination, preserving exact receipt binding.
+- 6f1ef9b: The movable-collateral rebalancer was updated to approve exact collateral-token bridge fees and revoke unused allowance after each transaction, retaining unresolved submissions and cleanup before advancing the origin.
+- 584d09a: Rebalancing was deferred until a fresh balance sample after user transfers or newly discovered actions completed against moving block tags during synchronization. Numeric snapshots remained usable after delivery at the same block. Delivery lookup failures were propagated so incomplete synchronization could not authorize execution.
+- c317ae7: Tron strategy chains were configured with a Tron signer so movable-collateral transactions can be broadcast through their configured RPC endpoint.
+- 584d09a: The default in-memory rebalance intent TTL was increased to two weeks, and active bridge settlement now blocks duplicate inventory intents.
+- d61a29e: Added xERC20 and VS xERC20 lockbox collateral support, including wrapped token resolution for external bridge inventory transfers.
+- 584d09a: Preserved source transaction recovery before denylist accounting exclusions, preventing settled rebalance messages from retaining duplicate collateral credit while keeping unsettled inventory reservations.
+- 584d09a: Preserved observed submission state, recovered finalized source failures without repeating uncertain transfers, and isolated unavailable inventory snapshots from movable collateral execution. Added reserved-action age diagnostics and recovery instructions for memory-only tracking.
+- e40bf51: Inventory movements were reserved before bridge submission and retained across ambiguous sends, cancellation statuses, and tracking expiry to prevent duplicate transfers. Proven pre-send failures remained retryable, and approval identities were tracked separately from primary transfers.
+- f32ac07: Recorded source transaction identities before confirmation and kept uncertain execution reserved. LiFi authorization paths were restricted to observed transactions, and unsupported multi-transaction signing was rejected.
+
+  Standardized exact ERC20 allowances and separated approval identities from primary transfers. Receipt waits preserved transaction replacement handling and returned typed timeouts; reverted approval receipts were rejected.
+
+- 6f1ef9b: Required configured confirmation depth and chain finality before allowance cleanup, including Tron solid-block checks, through a reusable receipt-finality policy.
+- e41a746: Preserved the default 32-block Tron receipt depth when finalized balance reads replaced unsupported historical queries, and rejected invalid receipt confirmation counts.
+- e41a746: Reported when a verified solid Tron receipt was already reflected in finalized balances while settlement still awaited configured confirmations. Propagated unavailable settlement verification so callers deferred stale balance decisions without releasing reservations.
+- e40bf51: Bounded deBridge quote refreshes by the original economic budget and preserved settlement intent in transfer identities without accumulating process-local expectations. Measured payload freshness from the successful HTTP attempt.
+- e41a746: Bounded LayerZero Scan response bodies independently of fetch cancellation so stalled settlement lookups remained pending without blocking later reconciliation.
+- 584d09a: Separated pre-broadcast and post-broadcast E2E failure injection. Verified retry for proven unsubmitted work and settlement of an exposed source transaction without duplicating the movement.
+- 8237f59: Rejected swaps.xyz exact-output quotes and refreshed payloads whose expected output fell below the requested target while preserving the accepted slippage allowance.
+- 8237f59: Added unsigned swaps.xyz EVM preparation and refreshed stale payloads after approvals within the original input and output limits. Revalidated payload deadlines before submission without retrying exposed source transactions.
+- 8237f59: Bound swaps.xyz quote refreshes to reserved input, validated decimals and requested slippage independently, and required matching transfer identities before settlement. Classified preparation failures and checked native principal funding.
+- 866134f: Bound Solana swap debits and broadcast signatures to the requested transfer, and rejected unsupported native SOL routes before preparation.
+- f7976c2: Used the Tron RPC provider for swap token metadata so configured headers were retained. Checked native principal funding and accepted valid exact-output transfers below their reserved maximum.
+- e40bf51: Bounded deBridge HTTP requests through body consumption independently of fetch cancellation, preventing stalled responses from blocking reconciliation.
+- 311b28c: Read Tron balances and message delivery from explicit native solidified state instead of unsupported numeric historical queries. Deferred strategy decisions after moving-state settlement changes, incomplete adapter reads, or balance-visible OFT receipts awaiting depth; retained pending evidence until verified completion.
+- 311b28c: Bounded Tron collateral snapshots by the solidified head as well as configured block depth, keeping balance and settlement checks on the same confirmed boundary.
+- e41a746: Rejected ambiguous enabled OFT chain metadata instead of silently selecting the last duplicate chain ID.
+- d61a29e: Bounded inventory deposits by current xERC20 burn and mint capacity, token fees, and pending deposits while preserving actual collateral balances for allocation.
+- 6f1ef9b: Revoked residual ERC20 collateral allowances before zero-fee rebalances so later fee increases cannot consume an old approval.
+- Updated dependencies [5ad5b80]
+- Updated dependencies [e40bf51]
+- Updated dependencies [d61a29e]
+- Updated dependencies [f32ac07]
+- Updated dependencies [8509874]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [d5e4e91]
+  - @hyperlane-xyz/sdk@46.0.0
+  - @hyperlane-xyz/tron-sdk@26.1.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/metrics@1.0.7
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+
 ## 29.1.0
 
 ### Minor Changes

@@ -1,5 +1,22 @@
 # @hyperlane-xyz/scraper-proxy
 
+## 0.2.0
+
+### Minor Changes
+
+- 63228b2: Removed historical agent WebSocket backfills, replay cursors, catch-up frames and metrics, and the subscription metric's state label. Limited agent frames to 64 KiB and documented per-type, mid-range live starts and the required RPC overlap.
+
+  Required deployment of the validator and relayer RPC-recovery refactors (#10038 and #10039), or explicit RPC-only configuration for older agents, before the proxy upgrade. Accepted the metrics compatibility break; the single affected dashboard will be updated separately. Kept public endpoint exposure and the central snapshot service as separate follow-ups.
+
+### Patch Changes
+
+- ac8d097: Added optional live zero-confirmation updates alongside normal event subscriptions for every event type. Included provisional Merkle block hashes for reconnect and reorg validation.
+
+  Kept normal subscriptions available when advisory zero-confirmation updates lacked near-head state for a requested domain.
+
+- Updated dependencies [f32ac07]
+  - @hyperlane-xyz/utils@46.0.0
+
 ## 0.1.3
 
 ### Patch Changes

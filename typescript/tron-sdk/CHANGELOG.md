@@ -1,5 +1,25 @@
 # @hyperlane-xyz/tron-sdk
 
+## 26.1.0
+
+### Minor Changes
+
+- f32ac07: Added transaction submission observers and typed failures that retained known identities across delegated sends, ambiguous broadcast responses, and later failures.
+
+  Solana sends were limited to one signed identity per invocation. Automatic blockhash resubmission was disabled by default, and the deprecated `enableBlockhashResubmit: true` setting was rejected before signing; callers using that setting must remove it or set it to `false`. Unresolved sends retained their original signature rather than risking duplicate execution with a fresh blockhash.
+
+  Tron receipt waits gained per-call deadlines covering requests, retries, confirmation checks, and receipt construction. Timed-out HTTP requests were cancelled without changing other waits or shared transport settings.
+
+### Patch Changes
+
+- e40bf51: Unsigned order preparation, generic native-value limits, simulation, and bounded refresh after stale approvals were added. Matching finalized source and destination order evidence was required before declaring settlement, including Tron solidified blocks.
+- e40bf51: Preserved an empty JSON object when querying the Tron solidified head so native API proxies accepted finality reads without falling back to unconfirmed state.
+- e40bf51: Routed explicit finalized contract reads through Tron solidified state and rejected malformed or failed VM results, allowing confirmed balance reads without unsupported historical JSON-RPC calls or unconfirmed fallbacks.
+- Updated dependencies [f32ac07]
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+
 ## 26.0.3
 
 ### Patch Changes
