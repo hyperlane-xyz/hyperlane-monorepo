@@ -18,7 +18,7 @@
  *     --out <SQUADS_RECEIPT_PATH> \
  *     --yes
  */
-import { existsSync } from 'fs';
+import { writeFileSync } from 'fs';
 import path from 'path';
 
 import { address } from '@solana/kit';
@@ -37,7 +37,10 @@ import {
   eqAddressSol,
   rootLogger,
 } from '@hyperlane-xyz/utils';
-import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
+import {
+  ensureDirectoryExists,
+  writeYamlOrJson,
+} from '@hyperlane-xyz/utils/fs';
 
 import { getRegistryForEnvironment } from '../../src/config/chain.js';
 import {
@@ -136,10 +139,6 @@ async function main(): Promise<void> {
   });
 
   const outputPath = path.resolve(argv.out);
-  assert(
-    !existsSync(outputPath),
-    `Output already exists at ${outputPath}; refusing to prepare another buffer`,
-  );
 
   logger.info(
     {
@@ -175,6 +174,32 @@ async function main(): Promise<void> {
     rpc,
     signer,
   );
+  const reservation = {
+    status: 'preparing',
+    chain,
+    environment,
+    mailbox,
+    outputPath,
+    bufferPayer: signer.signer.address,
+    targetVersion: TARGET_VERSION,
+    upgradeAuthority,
+    programBinarySize: HYPERLANE_SVM_PROGRAM_BYTES.mailbox.length,
+    currentProgramDataCapacity,
+    createdAt: new Date().toISOString(),
+    recovery:
+      'Preparation did not finish. Inspect the buffer payer transaction history before removing this reservation and retrying.',
+  };
+  ensureDirectoryExists(outputPath);
+  try {
+    writeFileSync(outputPath, `${JSON.stringify(reservation, null, 2)}\n`, {
+      flag: 'wx',
+    });
+  } catch (error: unknown) {
+    throw new Error(
+      `Unable to reserve output path ${outputPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
   const authorityTransactions = await writer.update({
     ...current,
     config: {
@@ -199,6 +224,17 @@ async function main(): Promise<void> {
     authorityTransactions.map((transaction) =>
       signer.transactionToPrintableJson(transaction),
     ),
+  );
+  writeYamlOrJson(
+    outputPath,
+    {
+      ...reservation,
+      status: 'buffer-prepared',
+      authorityTransactions: printableTransactions,
+      recovery:
+        'The buffer was prepared. If final receipt generation fails, retain this file and use these authority transactions to recover.',
+    },
+    'json',
   );
   const outputTransactions = sanitizeSingleMailboxUpgradeReceiptForSquads({
     transactions: printableTransactions,
