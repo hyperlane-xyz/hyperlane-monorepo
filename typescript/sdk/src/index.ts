@@ -1014,6 +1014,7 @@ export {
   WarpRouteDeployConfigSchemaErrors,
   XERC20VSLimitConfig,
   XERC20Type,
+  XERC20ExtraBridgeType,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
   PredicateWrapperConfig,
@@ -1262,3 +1263,4 @@ export {
   LayerZeroV2UlnConfigSchema,
   findAsymmetricLayerZeroV2Routes,
 } from './layerzero/types.js';
+export { submitEvmLikeTransaction } from './signers/evm/transaction.js';

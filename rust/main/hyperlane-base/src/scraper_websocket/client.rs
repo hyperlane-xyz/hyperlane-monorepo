@@ -153,18 +153,21 @@ impl StreamHealth {
         }
     }
 
-    /// Whether this stream may use WebSocket indexing after a canonical probe.
-    /// Startup requires equality; an active stream gets bounded lag tolerance.
-    /// A rollback ahead of canonical state or expired lag requires RPC fallback.
-    pub fn observe(&mut self, count: u32, next: u32, authoritative: bool) -> Result<bool> {
-        check_stream_lag(
-            &mut self.lag_started_at,
-            count,
-            next,
-            self.grace,
-            authoritative,
-        )?;
-        Ok(authoritative || count == next)
+    /// Reject sustained lag without letting incoming live events reset the timer.
+    pub fn observe(&mut self, count: u32, next: u32) -> Result<()> {
+        if count <= next {
+            self.reset();
+            return Ok(());
+        }
+        if self
+            .lag_started_at
+            .get_or_insert_with(Instant::now)
+            .elapsed()
+            >= self.grace
+        {
+            bail!("Scraper WebSocket is stale: next sequence {next}, on-chain count {count}");
+        }
+        Ok(())
     }
 
     /// A failed canonical probe proves neither lag nor progress: tolerate it like
@@ -176,56 +179,13 @@ impl StreamHealth {
             < self.grace
     }
 
-    /// Reset on reconnect, loss of readiness, or the first completed replay.
+    /// Clear lag after a verified boundary or successful catch-up.
     pub fn reset(&mut self) {
         self.lag_started_at = None;
     }
-
-    /// Replay progress extends catch-up time. Live progress never hides lag.
-    pub fn record_progress(&mut self, caught_up: bool) {
-        if !caught_up {
-            self.reset();
-        }
-    }
 }
 
-/// Reject rollback or sustained lag, preserving the timer across live events.
-fn check_stream_lag(
-    lag_started_at: &mut Option<Instant>,
-    onchain_count: u32,
-    next_sequence: u32,
-    progress_grace: Duration,
-    require_canonical_cursor: bool,
-) -> Result<()> {
-    if require_canonical_cursor && next_sequence > onchain_count {
-        bail!(
-            "Scraper WebSocket cursor rolled ahead of canonical count: next sequence {next_sequence}, on-chain count {onchain_count}"
-        );
-    }
-    if onchain_count <= next_sequence {
-        *lag_started_at = None;
-        return Ok(());
-    }
-    let lag_started_at = lag_started_at.get_or_insert_with(Instant::now);
-    if lag_started_at.elapsed() >= progress_grace {
-        bail!(
-            "Scraper WebSocket is stale: next sequence {next_sequence}, on-chain count {onchain_count}"
-        );
-    }
-    Ok(())
-}
-
-/// Require an exact canonical count before replacing RPC indexing.
-pub fn validate_cutover_freshness(onchain_count: u32, next_sequence: u32) -> Result<bool> {
-    if next_sequence > onchain_count {
-        bail!(
-            "WebSocket cursor is ahead of canonical count: next sequence {next_sequence}, on-chain count {onchain_count}"
-        );
-    }
-    Ok(next_sequence == onchain_count)
-}
-
-/// A single scraper connection. Callers own durable cursors and RPC indexers.
+/// A single scraper connection. Callers own live cursors and RPC indexers.
 /// The read deadline survives cancellation of `recv` in an agent's select loop.
 pub struct ScraperWebSocket {
     socket: WebSocketStream<MaybeTlsStream<TcpStream>>,
@@ -253,7 +213,7 @@ impl ScraperWebSocket {
         self.deadline.deadline()
     }
 
-    /// Send the agent's cursor subscription after receiving `Ready`.
+    /// Send the agent's live subscription after receiving `Ready`.
     pub async fn subscribe(&mut self, subscription: String) -> Result<()> {
         self.socket
             .send(Message::Text(subscription.into()))
@@ -283,13 +243,14 @@ impl ScraperWebSocket {
                     let message =
                         serde_json::from_str(&text).context("Parsing scraper WebSocket message")?;
                     match &message {
-                        ServerMessage::Ready { .. } => self.state = self.state.receive_ready()?,
+                        ServerMessage::Ready => self.state = self.state.receive_ready()?,
                         ServerMessage::Subscribed { .. } => {
                             self.state = self.state.receive_subscribed()?
                         }
                         ServerMessage::Event(_) => self.state.require_subscribed("event")?,
-                        ServerMessage::CaughtUp { .. } => {
-                            self.state.require_subscribed("caught-up marker")?
+                        ServerMessage::LiveStart(_)
+                        | ServerMessage::LiveStartUnavailable { .. } => {
+                            self.state.require_subscribed("live-start boundary")?
                         }
                         ServerMessage::Rollback => self.state.require_subscribed("rollback")?,
                         ServerMessage::Error { .. } | ServerMessage::Other => {}
@@ -325,7 +286,7 @@ pub(super) mod tests {
         assert_eq!(awaiting_subscribed, SubscriptionState::AwaitingSubscribed);
         assert!(awaiting_subscribed.receive_ready().is_err());
         assert!(awaiting_subscribed
-            .require_subscribed("caught-up marker")
+            .require_subscribed("live-start boundary")
             .is_err());
 
         let subscribed = awaiting_subscribed
@@ -337,23 +298,6 @@ pub(super) mod tests {
             .expect("data allowed");
         assert!(subscribed.receive_ready().is_err());
         assert!(subscribed.receive_subscribed().is_err());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn backfill_progress_resets_lag_timer() {
-        let grace = Duration::from_secs(10);
-        let mut lag_started_at = None;
-
-        check_stream_lag(&mut lag_started_at, 100, 1, grace, false).expect("initial lag");
-        tokio::time::advance(Duration::from_secs(6)).await;
-        lag_started_at = None;
-        check_stream_lag(&mut lag_started_at, 102, 2, grace, false)
-            .expect("first backfill progress");
-        tokio::time::advance(Duration::from_secs(6)).await;
-        lag_started_at = None;
-
-        check_stream_lag(&mut lag_started_at, 104, 3, grace, false)
-            .expect("continuous backfill remains healthy beyond one grace period");
     }
 
     #[test]
@@ -399,7 +343,7 @@ pub(super) mod tests {
             .expect("ready");
         assert!(matches!(
             client.recv::<serde_json::Value>().await.expect("receive"),
-            Some(ServerMessage::Ready { .. })
+            Some(ServerMessage::Ready)
         ));
         let pong = timeout(Duration::from_secs(30), server.next())
             .await
@@ -468,7 +412,7 @@ pub(super) mod tests {
                 .await
                 .expect("resume deadline")
                 .expect("fragmented ready"),
-            Some(ServerMessage::Ready { .. })
+            Some(ServerMessage::Ready)
         ));
         assert_eq!(
             timeout(Duration::from_secs(30), server.next())
@@ -517,30 +461,13 @@ pub(super) mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn live_lag_expires_despite_progress_and_catchup_resets_it() {
-        let mut lag = None;
-        check_stream_lag(&mut lag, 10, 9, PROGRESS_GRACE_PERIOD, true).expect("grace");
+    async fn live_lag_expires_and_catchup_resets_it() {
+        let mut health = StreamHealth::default();
+        health.observe(10, 9).expect("grace");
         tokio::time::advance(PROGRESS_GRACE_PERIOD).await;
-        // Live progress does not reset lag.
-        assert!(check_stream_lag(&mut lag, 12, 11, PROGRESS_GRACE_PERIOD, true).is_err());
-        check_stream_lag(&mut lag, 12, 12, PROGRESS_GRACE_PERIOD, true).expect("recovered");
-        assert!(lag.is_none());
-        assert!(check_stream_lag(&mut lag, 11, 12, PROGRESS_GRACE_PERIOD, true).is_err());
-    }
-    #[tokio::test(start_paused = true)]
-    async fn live_stream_still_fails_when_lag_grows() {
-        let grace = Duration::from_secs(10);
-        let mut health = StreamHealth::new(grace);
-
-        health.observe(100, 1, false).expect("initial lag");
-        tokio::time::advance(Duration::from_secs(5)).await;
-        health.record_progress(true);
-        health
-            .observe(102, 2, false)
-            .expect("progress within grace");
-        tokio::time::advance(Duration::from_secs(5)).await;
-
-        assert!(health.observe(104, 3, false).is_err());
+        assert!(health.observe(12, 11).is_err());
+        health.observe(12, 12).expect("caught up");
+        assert!(health.lag_started_at.is_none());
     }
 
     #[tokio::test(start_paused = true)]
@@ -548,13 +475,13 @@ pub(super) mod tests {
         let grace = Duration::from_secs(10);
         let mut health = StreamHealth::new(grace);
 
-        health.observe(100, 99, true).expect("lag starts the timer");
+        health.observe(100, 99).expect("lag starts the timer");
         tokio::time::advance(Duration::from_secs(5)).await;
         assert!(health.observe_probe_failure());
         tokio::time::advance(Duration::from_secs(5)).await;
         assert!(!health.observe_probe_failure());
 
-        health.observe(100, 100, true).expect("caught up resets");
+        health.observe(100, 100).expect("caught up resets");
         assert!(health.observe_probe_failure());
     }
 }

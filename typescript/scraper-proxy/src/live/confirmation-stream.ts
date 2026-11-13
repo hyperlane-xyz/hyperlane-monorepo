@@ -1,4 +1,4 @@
-import type { HeadNotification } from './protocol.js';
+import type { HeadNotification, LiveStartBoundary } from './protocol.js';
 
 // Height, source, row ID. Source distinguishes Explorer's three event tables.
 export type Position = readonly [bigint, number, bigint];
@@ -15,6 +15,7 @@ export type ConfirmationHead = {
   head: bigint;
   indexed: bigint;
   confirmed: bigint;
+  liveStart?: LiveStartBoundary;
 };
 export class ConfirmationUnavailableError extends Error {
   constructor(domain: number) {
@@ -22,6 +23,7 @@ export class ConfirmationUnavailableError extends Error {
   }
 }
 type DomainState = {
+  liveStart?: LiveStartBoundary;
   position: Position;
   target: bigint;
   through: bigint;
@@ -85,16 +87,22 @@ export class ConfirmationStream {
           if (allowCanonical) continue;
           throw new ConfirmationUnavailableError(domain);
         }
-        const height = confirmationHeight(head, this.confirmations);
+        const target = confirmationHeight(head, this.confirmations);
+        const height = head.liveStart ? BigInt(head.liveStart.height) : target;
         this.confirmed.set(domain, head.confirmed);
         this.states.set(domain, {
           position: endOfHeight(height),
-          target: height,
+          target,
+          liveStart: head.liveStart,
           through: height,
         });
       }
       return;
     }
+  }
+
+  liveStart(domain: number): LiveStartBoundary | undefined {
+    return this.states.get(domain)?.liveStart;
   }
 
   get customDomains(): number[] {
@@ -148,6 +156,8 @@ export class ConfirmationStream {
     }
     if (rollback) {
       this.revision++;
+      // Never authorize handoff using a snapshot from before a rollback.
+      state.liveStart = undefined;
       // through is reserved BEFORE reading/sending a range. It covers partial
       // pages, events without a public height, and pending send callbacks.
       const exposedRollback = this.started && state.through > to;

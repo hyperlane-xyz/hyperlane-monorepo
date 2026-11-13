@@ -322,7 +322,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.extend(
     rpcConsensusType: z
       .enum(RpcConsensusType)
       .describe(
-        'RPC consensus policy. Validators default to majority for ceil(2N/3), with optional quorum for ceil(N/2) matching checkpoint histories across protocols. Majority is validator-only. Lightweight validators always require ceil(2N/3).',
+        'RPC consensus policy. Validators default to majority for ceil(2N/3), with optional quorum for ceil(N/2) matching checkpoint histories across protocols. Majority is validator-only.',
       )
       .optional(),
     fallbackHedgeDelayMillis: ZNzUint.optional().describe(
@@ -740,13 +740,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     )
     .optional()
     .describe(
-      'Scraper-proxy WebSocket URL used for shared dispatch, Merkle, and gas-payment indexing.',
-    ),
-  websocketAuthorityEnabled: z
-    .boolean()
-    .optional()
-    .describe(
-      'Whether a healthy scraper-proxy stream may replace direct RPC indexing. Defaults to false.',
+      'Preferred live source for dispatch, Merkle, and gas-payment indexing. RPC fills history and handles fallback.',
     ),
   relayApiEnabled: z
     .boolean()
@@ -786,15 +780,6 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
       'Relay API allowed CORS origins, comma-separated. Defaults to https://nexus.hyperlane.xyz.',
     ),
 }).superRefine((config, ctx) => {
-  if (config.websocketAuthorityEnabled && !config.websocketUrl) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['websocketUrl'],
-      message:
-        'websocketUrl is required when websocketAuthorityEnabled is true',
-    });
-  }
-
   // Mirror the Rust relayer gate: the current IGP event does not expose the
   // token address, so exact non-native `feeToken` enforcement is rejected.
   const { policies, parseError } = gasPaymentEnforcementPolicies(
@@ -922,13 +907,15 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       `Maximum number of checkpoints signed concurrently. Defaults to 50; maximum ${MAX_SIGN_CONCURRENCY}.`,
     ),
+  // Reject obsolete settings instead of silently changing an operator's indexing policy.
   lightweight: z
-    .boolean()
+    .never()
     .optional()
-    .describe(
-      'Uses trusted websocket indexing and requires at least two thirds of configured state-read endpoints to match local roots. Signs through the highest index supported by that majority, independently of rpcConsensusType. Disables RPC indexing fallback; insufficient agreement pauses signing.',
-    ),
-  leightweigt: z.boolean().optional().describe('Alias for lightweight.'),
+    .describe('Removed: RPC indexing is required.'),
+  leightweigt: z
+    .never()
+    .optional()
+    .describe('Removed: RPC indexing is required.'),
   websocketUrl: z
     .url()
     .refine((url) => WEBSOCKET_URL_PREFIX_REGEX.test(url), {
@@ -936,27 +923,8 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     })
     .optional()
     .describe(
-      'Merkle tree insertion source for replay and live events. RPC indexing fallback is disabled in lightweight mode.',
+      'Live Merkle tree insertion source. RPC indexes history and recovers gaps, then pauses once an overlapping insertion matches.',
     ),
-}).superRefine((config, ctx) => {
-  if (
-    config.lightweight !== undefined &&
-    config.leightweigt !== undefined &&
-    config.lightweight !== config.leightweigt
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['lightweight'],
-      message: 'lightweight and leightweigt must agree when both are set',
-    });
-  }
-  if ((config.lightweight ?? config.leightweigt) && !config.websocketUrl) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['websocketUrl'],
-      message: 'websocketUrl is required in lightweight mode',
-    });
-  }
 });
 
 export type ValidatorConfig = z.infer<typeof ValidatorAgentConfigSchema>;

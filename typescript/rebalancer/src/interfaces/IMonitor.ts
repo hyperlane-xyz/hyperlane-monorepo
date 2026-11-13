@@ -1,6 +1,6 @@
 import {
-  type ChainMap,
   EthJsonRpcBlockParameterTag,
+  type ChainMap,
   type Token,
 } from '@hyperlane-xyz/sdk';
 
@@ -20,9 +20,10 @@ export enum MonitorEventType {
   Start = 'Start',
 }
 
+/** EVM uses an exact height; Tron explicitly reads moving solidified state. */
 export type ConfirmedBlockTag =
   | number
-  | EthJsonRpcBlockParameterTag
+  | EthJsonRpcBlockParameterTag.Finalized
   | undefined;
 
 export type ConfirmedBlockTags = ChainMap<ConfirmedBlockTag>;
@@ -33,6 +34,7 @@ export type MonitorEvent = {
     bridgedSupply?: bigint;
   }[];
   confirmedBlockTags: ConfirmedBlockTags;
+  /** Absent when inventory reads are unavailable; callers must skip all inventory execution. */
   inventoryBalances?: ChainMap<bigint>;
 };
 

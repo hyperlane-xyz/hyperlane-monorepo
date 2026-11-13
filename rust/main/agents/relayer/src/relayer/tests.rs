@@ -35,6 +35,67 @@ use super::{
     PROD_CHAIN_BUILD_RETRY,
 };
 
+struct UnavailableCursorSync {
+    domain: HyperlaneDomain,
+    attempts: std::sync::atomic::AtomicUsize,
+}
+
+#[async_trait::async_trait]
+impl super::ContractSyncer<super::HyperlaneMessage> for UnavailableCursorSync {
+    async fn cursor(
+        &self,
+        _: IndexSettings,
+    ) -> eyre::Result<Box<dyn super::ContractSyncCursor<super::HyperlaneMessage>>> {
+        self.attempts.fetch_add(1, Ordering::Relaxed);
+        Err(eyre!("gas indexer unavailable"))
+    }
+
+    async fn sync(&self, _: &'static str, _: super::SyncOptions<super::HyperlaneMessage>) {
+        panic!("sync cannot start without a cursor");
+    }
+
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn get_broadcaster(&self) -> Option<super::BroadcastMpscSender<super::IndexingNotification>> {
+        None
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn cursor_failure_retries_without_exiting_and_remains_cancellable() {
+    let sync = Arc::new(UnavailableCursorSync {
+        domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Base),
+        attempts: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let worker_sync = sync.clone();
+    let errors = generate_test_critical_error_tracker(&generate_test_chain_metrics());
+    let task = tokio::spawn(async move {
+        Relayer::rpc_sync_task(
+            &worker_sync.domain,
+            IndexSettings::default(),
+            worker_sync.clone(),
+            errors,
+            crate::scraper_websocket::Kind::Gas,
+            None,
+            None,
+        )
+        .await;
+    });
+    tokio::time::sleep(Duration::from_secs(6)).await;
+    assert!(sync.attempts.load(Ordering::Relaxed) > super::CURSOR_INSTANTIATION_ATTEMPTS);
+    assert!(
+        !task.is_finished(),
+        "cursor failures must not restart healthy sibling indexers"
+    );
+    task.abort();
+    assert!(task
+        .await
+        .expect_err("cutover can cancel retries")
+        .is_cancelled());
+}
+
 #[tokio::test]
 async fn cancelled_blocking_task_is_signalled_to_stop() {
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();
@@ -146,80 +207,22 @@ fn generate_test_critical_error_tracker(chain_metrics: &ChainMetrics) -> Critica
     CriticalErrorTracker::new(chain_metrics.clone())
 }
 
-#[test]
-fn direct_rpc_recovery_preserves_other_critical_errors() {
-    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-    let chain_metrics = generate_test_chain_metrics();
-    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
-    let metric = chain_metrics
-        .critical_error
-        .with_label_values(&[domain.name()]);
-
-    critical_errors.record(
-        &domain,
-        CriticalErrorSource::MessageSync,
-        &eyre!("message cursor failed"),
-        "message cursor failed",
-    );
-    critical_errors.record(
-        &domain,
-        CriticalErrorSource::GasPaymentSync,
-        &eyre!("gas cursor failed"),
-        "gas cursor failed",
-    );
-    critical_errors.clear_direct_rpc_sync_errors(&domain);
-    assert_eq!(metric.get(), 1);
-
-    critical_errors.clear(&domain, CriticalErrorSource::GasPaymentSync);
-    assert_eq!(metric.get(), 0);
-}
-
-#[test]
-fn scraper_handoff_retires_direct_rpc_critical_errors() {
-    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-    let chain_metrics = generate_test_chain_metrics();
-    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
-    let metric = chain_metrics
-        .critical_error
-        .with_label_values(&[domain.name()]);
-
-    critical_errors.record(
-        &domain,
-        CriticalErrorSource::MessageSync,
-        &eyre!("message cursor failed"),
-        "message cursor failed",
-    );
-    critical_errors.record(
-        &domain,
-        CriticalErrorSource::MerkleTreeHookSync,
-        &eyre!("merkle cursor failed"),
-        "merkle cursor failed",
-    );
-    critical_errors.clear_direct_rpc_sync_errors(&domain);
-
-    assert_eq!(metric.get(), 0);
-}
-
 #[tokio::test]
-async fn scraper_authority_during_rpc_retry_clears_direct_errors() {
+async fn scraper_handoff_during_rpc_retry_clears_only_indexing_errors() {
     let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
     let chain_metrics = generate_test_chain_metrics();
     let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
     let metric = chain_metrics
         .critical_error
         .with_label_values(&[domain.name()]);
-    critical_errors.record(
-        &domain,
+    for source in [
         CriticalErrorSource::MessageSync,
-        &eyre!("message cursor failed"),
-        "message cursor failed",
-    );
-    critical_errors.record(
-        &domain,
+        CriticalErrorSource::MerkleTreeHookSync,
         CriticalErrorSource::GasPaymentSync,
-        &eyre!("gas cursor failed"),
-        "gas cursor failed",
-    );
+        CriticalErrorSource::Destination,
+    ] {
+        critical_errors.record(&domain, source, &eyre!("failed"), "failed");
+    }
 
     let (sender, mut authority) = ScraperAuthorityReceiver::test_channel(domain.id());
     let grant_authority = tokio::spawn(async move {
@@ -243,9 +246,9 @@ async fn scraper_authority_during_rpc_retry_clears_direct_errors() {
     grant_authority.await.expect("authority grant task");
 
     assert!(authority_channel_open);
-    assert_eq!(metric.get(), 1, "gas payment error remains active");
-    critical_errors.clear(&domain, CriticalErrorSource::GasPaymentSync);
-    assert_eq!(metric.get(), 0);
+    assert_eq!(metric.get(), 1, "destination error must remain active");
+    critical_errors.clear(&domain, CriticalErrorSource::Destination);
+    assert_eq!(metric.get(), 0, "all RPC indexing errors were cleared");
 }
 
 /// Builds a test RelayerSetting
@@ -291,7 +294,6 @@ fn generate_test_relayer_settings(
         max_retries: 1,
         tx_id_indexing_enabled: true,
         igp_indexing_enabled: true,
-        websocket_authority_enabled: false,
         websocket_url: None,
         relay_api_enabled: false,
         relay_api_port: None,
@@ -811,79 +813,6 @@ async fn test_from_settings_and_run_bad_signer() {
             .await
             .is_ok()
     );
-}
-
-#[tokio::test]
-async fn gas_payment_rpc_fallback_stops_restarts_and_survives_monitor_exit() {
-    struct Running(Arc<AtomicBool>);
-    impl Drop for Running {
-        fn drop(&mut self) {
-            self.0.store(false, Ordering::SeqCst);
-        }
-    }
-    let (sender, receiver) = tokio::sync::watch::channel(false);
-    let running = Arc::new(AtomicBool::new(false));
-    let authority_observed = Arc::new(AtomicBool::new(false));
-    let (started, mut starts) = tokio::sync::mpsc::unbounded_channel();
-    let observed = running.clone();
-    let observed_authority = authority_observed.clone();
-    let task = tokio::spawn(super::run_gas_payment_fallback(
-        Some(receiver),
-        move || observed_authority.store(true, Ordering::SeqCst),
-        move || {
-            let running = observed.clone();
-            let started = started.clone();
-            async move {
-                assert!(
-                    !running.swap(true, Ordering::SeqCst),
-                    "RPC tasks must not overlap"
-                );
-                let _guard = Running(running);
-                started.send(()).expect("start notification");
-                std::future::pending::<()>().await;
-            }
-        },
-    ));
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("startup RPC")
-        .expect("started");
-    sender.send(true).expect("connected");
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while running.load(Ordering::SeqCst) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("RPC cancelled on connection");
-    assert!(authority_observed.load(Ordering::SeqCst));
-    assert!(
-        tokio::time::timeout(Duration::from_millis(20), starts.recv())
-            .await
-            .is_err(),
-        "no parallel RPC while connected"
-    );
-    sender.send(false).expect("disconnected");
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("outage RPC")
-        .expect("started");
-    sender.send(true).expect("reconnected");
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while running.load(Ordering::SeqCst) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("RPC paused again");
-    drop(sender);
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("closed monitor RPC")
-        .expect("started");
-    task.abort();
-    let _ = task.await;
-    assert!(!running.load(Ordering::SeqCst));
 }
 
 #[tokio::test(start_paused = true)]

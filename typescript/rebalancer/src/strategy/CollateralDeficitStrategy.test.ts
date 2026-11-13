@@ -348,6 +348,91 @@ describe('CollateralDeficitStrategy', () => {
   });
 
   describe('getRebalancingRoutes', () => {
+    it('allocates available collateral across enabled pairs before filtering', () => {
+      const chain4 = 'chain4';
+      tokensByChainName[chain4] = new Token({
+        ...tokenArgs,
+        chainName: chain4,
+      });
+      const config = {
+        [chain1]: {
+          bridge: BRIDGE1,
+          buffer: 0,
+          override: { [chain3]: { enabled: false } },
+        },
+        [chain2]: {
+          bridge: BRIDGE2,
+          buffer: 0,
+          override: { [chain4]: { enabled: false } },
+        },
+        [chain3]: { bridge: BRIDGE1, buffer: 0 },
+        [chain4]: { bridge: BRIDGE1, buffer: 0 },
+      };
+      const bridgeConfigs = extractBridgeConfigs(config);
+      bridgeConfigs[chain1].override = config[chain1].override;
+      bridgeConfigs[chain2].override = config[chain2].override;
+      const strategy = new CollateralDeficitStrategy(
+        config,
+        tokensByChainName,
+        testLogger,
+        bridgeConfigs,
+      );
+      const routes = strategy.getRebalancingRoutes(
+        {
+          [chain1]: 20_000_000n,
+          [chain2]: 10_000_000n,
+          [chain3]: 0n,
+          [chain4]: 0n,
+        },
+        {
+          pendingTransfers: [
+            { origin: chain1, destination: chain3, amount: 20_000_000n },
+            { origin: chain2, destination: chain4, amount: 10_000_000n },
+          ],
+          pendingRebalances: [],
+        },
+      );
+      expect(
+        routes.map(({ origin, destination, amount }) => ({
+          origin,
+          destination,
+          amount,
+        })),
+      ).to.have.deep.members([
+        { origin: chain1, destination: chain4, amount: 10_000_000n },
+        { origin: chain2, destination: chain3, amount: 10_000_000n },
+      ]);
+    });
+
+    it('prefers the pending transfer origin over a larger unrelated surplus', () => {
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: 0 },
+        [chain2]: { bridge: BRIDGE2, buffer: 0 },
+        [chain3]: { bridge: BRIDGE1, buffer: 0 },
+      };
+      const strategy = new CollateralDeficitStrategy(
+        config,
+        tokensByChainName,
+        testLogger,
+        extractBridgeConfigs(config),
+      );
+      const routes = strategy.getRebalancingRoutes(
+        { [chain1]: 100_000_000n, [chain2]: 10_000_000n, [chain3]: 0n },
+        {
+          pendingTransfers: [
+            { origin: chain2, destination: chain3, amount: 5_000_000n },
+          ],
+          pendingRebalances: [],
+        },
+      );
+      expect(routes).to.have.lengthOf(1);
+      expect(routes[0]).to.include({
+        origin: chain2,
+        destination: chain3,
+        amount: 5_000_000n,
+      });
+    });
+
     it('should set bridge field on output routes', () => {
       const config = {
         [chain1]: { bridge: BRIDGE1, buffer: '1000' },

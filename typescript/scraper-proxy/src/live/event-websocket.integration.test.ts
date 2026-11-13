@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { after, before, it, type TestContext } from 'node:test';
+import { setImmediate as nextTurn } from 'node:timers/promises';
 
 import { WebSocket } from 'ws';
 import type { QueryResultRow } from 'pg';
@@ -8,20 +9,16 @@ import type { QueryResultRow } from 'pg';
 import { DiagnosticsService } from '../diagnostics/service.js';
 import {
   metricsRegistry,
-  websocketCatchUps,
   websocketNotificationQueueOverflows,
   websocketSendFailures,
 } from '../metrics.js';
 import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
 import { EVENT_TYPES, type EventType } from './protocol.js';
 import { rawData } from './websocket-data.js';
+import { ConfirmationStream } from './confirmation-stream.js';
 
 const hookA = '\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const hookB = '\\xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
-const emptyHook = '\\xcccccccccccccccccccccccccccccccccccccccc';
-const replayHook = '\\xdddddddddddddddddddddddddddddddddddddddd';
-const historyHook = '\\xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
-const pacedHook = '\\xffffffffffffffffffffffffffffffffffffffff';
 const gasPaymaster = '\\x1111111111111111111111111111111111111111';
 const msgId = `\\x${'01'.repeat(32)}`;
 const msgBody = 'é🚀'.repeat(50);
@@ -32,7 +29,6 @@ const rows = new Map([
 const deliveryRows = new Map<string, Record<string, unknown>>();
 const dispatchRows = new Map<string, Record<string, unknown>>();
 const gasPaymentRows = new Map<string, Record<string, unknown>>();
-const databaseDomainFilters: unknown[] = [];
 let notify: (channel: string, payload?: string) => void;
 const explorerBatchSizes: number[] = [];
 let explorerQuery = '';
@@ -43,10 +39,8 @@ let notificationQueryError: Error | undefined;
 let headQueryError: Error | undefined;
 let headQueryErrorDomain: number | undefined;
 let headQueryErrorEventType: EventType | undefined;
-let omitMappedGasPaymentRows = false;
 let omitExplorerRows = false;
 const notifiedIds = new Set<string>();
-const gasReplayQueries: string[] = [];
 
 const db: EventDatabase = {
   async listen(_channels, handler) {
@@ -54,42 +48,6 @@ const db: EventDatabase = {
     return async () => undefined;
   },
   async queryLive<T>(sql, values = []) {
-    if (sql.includes('"gas_payment_stream_head"')) {
-      databaseDomainFilters.push(values[0]);
-      const durable = [...gasPaymentRows.entries()].filter(
-        ([, payment]) =>
-          payment.domain === values[0] &&
-          payment.interchain_gas_paymaster === values[1],
-      );
-      const legacyMaxId = durable.reduce((max, [id, payment]) => {
-        if (payment.scraper_stream_cursor !== undefined) return max;
-        return BigInt(id) > max ? BigInt(id) : max;
-      }, 0n);
-      const last = durable.reduce((max, [, payment]) => {
-        const cursor = testStreamCursor(payment) ?? legacyMaxId;
-        return cursor > max ? cursor : max;
-      }, legacyMaxId);
-      return queryRows<T>([
-        {
-          last_cursor: last.toString(),
-          legacy_max_id: legacyMaxId.toString(),
-        },
-      ]);
-    }
-    if (sql.includes('MIN(')) {
-      databaseDomainFilters.push(values[0]);
-      return queryRows<T>([
-        values[1] === emptyHook
-          ? { first: '0', last: '-1' }
-          : values[1] === replayHook
-            ? { first: '0', last: '2' }
-            : values[1] === historyHook
-              ? { first: '5', last: '5' }
-              : values[1] === pacedHook
-                ? { first: '0', last: '1' }
-                : { first: '0', last: '0' },
-      ]);
-    }
     if (sql.includes('"message_view"')) {
       explorerQuery = sql;
       explorerQueryCount++;
@@ -106,47 +64,6 @@ const db: EventDatabase = {
           msg_id: messageId,
           origin_domain_id: 1,
         })),
-      );
-    }
-    if (sql.includes('ORDER BY "leaf_index"')) {
-      databaseDomainFilters.push(values[0]);
-      if (values[1] === replayHook)
-        return queryRows<T>(
-          [0, 1, 2]
-            .filter((index) => BigInt(index) > BigInt(String(values[2])))
-            .slice(0, 2)
-            .map((index) => row(replayHook, index)),
-        );
-      if (values[1] === historyHook) return queryRows<T>([row(historyHook, 5)]);
-      if (values[1] === pacedHook)
-        return queryRows<T>([row(pacedHook, 0), row(pacedHook, 1)]);
-      return queryRows<T>([{ ...row(hookA, 0), domain: values[0] }]);
-    }
-    if (
-      !sql.includes('notification_id') &&
-      sql.includes('ORDER BY "event_row"."id"') &&
-      sql.includes('"confirmed_gas_payment"')
-    ) {
-      databaseDomainFilters.push(values[0]);
-      gasReplayQueries.push(sql);
-      const after = BigInt(String(values[2]));
-      const through = BigInt(String(values[3]));
-      return queryRows<T>(
-        [...gasPaymentRows.entries()]
-          .filter(
-            ([id, payment]) =>
-              payment.domain === values[0] &&
-              payment.interchain_gas_paymaster === values[1] &&
-              payment.scraper_stream_cursor === undefined &&
-              BigInt(id) > after &&
-              BigInt(id) <= through,
-          )
-          .sort(([left], [right]) => (BigInt(left) < BigInt(right) ? -1 : 1))
-          .slice(0, Number(values[4]))
-          .map(([id, payment]) => ({
-            ...payment,
-            scraper_stream_cursor: id,
-          })),
       );
     }
     if (
@@ -232,33 +149,6 @@ const db: EventDatabase = {
           }),
       );
     }
-    if (
-      !sql.includes('notification_id') &&
-      sql.includes('FROM "gas_payment_stream_cursor"')
-    ) {
-      databaseDomainFilters.push(values[0]);
-      gasReplayQueries.push(sql);
-      if (omitMappedGasPaymentRows) return [];
-      const after = BigInt(String(values[2]));
-      const through = BigInt(String(values[3]));
-      return queryRows<T>(
-        [...gasPaymentRows.values()]
-          .filter(
-            (payment) =>
-              payment.domain === values[0] &&
-              payment.interchain_gas_paymaster === values[1] &&
-              testStreamCursor(payment) !== undefined &&
-              (testStreamCursor(payment) ?? 0n) > after &&
-              (testStreamCursor(payment) ?? 0n) <= through,
-          )
-          .sort((left, right) =>
-            (testStreamCursor(left) ?? 0n) < (testStreamCursor(right) ?? 0n)
-              ? -1
-              : 1,
-          )
-          .slice(0, Number(values[4])),
-      );
-    }
     if (!sql.includes('notification_id')) return [];
     if (notificationQueryError) throw notificationQueryError;
     const ids = stringArray(values[0]);
@@ -277,7 +167,6 @@ const db: EventDatabase = {
               {
                 notification_id: id,
                 ...event,
-                scraper_stream_cursor: event.scraper_stream_cursor ?? id,
               },
             ]
           : [];
@@ -296,7 +185,6 @@ before(async () => {
   const { EventWebSocketServer } = await import('./event-websocket.js');
   events = new EventWebSocketServer(db, {
     maxAgentClients: 2,
-    maxConcurrentCatchUps: 1,
     maxExplorerClients: 8,
     maxTotalBufferedBytes: 1_024,
   });
@@ -315,7 +203,553 @@ after(async () => {
   );
 });
 
+void it('rejects agent backfills without reads and starts live on every connection', async (context) => {
+  const original = db.queryLive.bind(db);
+  const queries: string[] = [];
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      queries.push(sql);
+      return original<T>(sql, values);
+    },
+  );
+  gasPaymentRows.set('200', gasPaymentRow('200', '1'));
+  try {
+    for (const id of ['201', '202']) {
+      const socket = new WebSocket(url);
+      const messages = captureMessages(socket);
+      try {
+        const ready = await waitFor(messages, 'ready');
+        assert.equal(ready.historicalStreaming, false);
+        assert.equal(ready.streamCursorVersions, undefined);
+        const before = queries.length;
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [
+              {
+                eventType: 'gas_payment',
+                domains: [1],
+                streamCursorVersion: 3,
+                cursors: [
+                  { address: gasPaymaster, domain: 1, afterStreamCursor: '0' },
+                ],
+              },
+            ],
+          }),
+        );
+        assert.match(
+          String((await waitFor(messages, 'error')).error),
+          /live-only/,
+        );
+        assert.equal(queries.length, before);
+        assert(!messages.some(({ type }) => type === 'subscribed'));
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [{ eventType: 'gas_payment', domains: [1] }],
+          }),
+        );
+        await waitFor(messages, 'subscribed');
+        await waitFor(messages, 'live_start_unavailable');
+        socket.send(JSON.stringify({ type: 'ping' }));
+        await waitFor(messages, 'pong');
+        assert.equal(queries.length, before + 1);
+        assert.match(queries[before], /JOIN scraper_checkpoint/);
+        assert(
+          !messages.some(
+            ({ type }) => type === 'event' || type === 'caught_up',
+          ),
+        );
+        gasPaymentRows.set(id, gasPaymentRow(id, '1'));
+        notify(
+          'scraper_event',
+          JSON.stringify({ domain: 1, eventType: 'gas_payment', id }),
+        );
+        const event = await waitFor(messages, 'event');
+        assert.equal(event.rowId, id);
+        assert.equal(event.streamCursor, undefined);
+        assert.equal(event.legacyMaxStreamCursor, undefined);
+        assert.equal(
+          record(event.data).origin_tx_hash,
+          gasPaymentRows.get(id)?.origin_tx_hash,
+        );
+        assert(
+          queries
+            .slice(before)
+            .every((sql) => !sql.includes('gas_payment_stream_')),
+        );
+      } finally {
+        socket.close();
+        await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+      }
+    }
+  } finally {
+    for (const id of ['200', '201', '202']) gasPaymentRows.delete(id);
+  }
+});
+
+const liveStartRow = {
+  domain: 1,
+  height: '100',
+  hash: 'ab'.repeat(32),
+  mailbox: '11'.repeat(20),
+  merkle_tree_hook: '22'.repeat(32),
+  interchain_gas_paymaster: '33'.repeat(32),
+};
+
+void it('provides quiet-chain live starts and isolates malformed checkpoints without scanning events', async (context) => {
+  let queries = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      queries++;
+      assert.match(sql, /JOIN scraper_checkpoint/);
+      assert.deepEqual(values, [[1, -2, 2]]);
+      return queryRows<T>([
+        liveStartRow,
+        { ...liveStartRow, domain: -2, height: '0' },
+        { ...liveStartRow, domain: 2, hash: 'ab' },
+      ]);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.equal(ready.liveStartVersion, 1);
+    const eventTypes = ['dispatch', 'gas_payment', 'merkle_tree_insertion'];
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: eventTypes.map((eventType) => ({
+          eventType,
+          domains: [1, 4294967294, 2],
+        })),
+      }),
+    );
+    await waitFor(messages, 'live_start_unavailable');
+    const starts = messages.filter(({ type }) => type === 'live_start');
+    assert.deepEqual(
+      starts,
+      [
+        { domain: 1, height: '100' },
+        { domain: 4294967294, height: '0' },
+      ].map((boundary) => ({
+        type: 'live_start',
+        ...boundary,
+        hash: `0x${liveStartRow.hash}`,
+        streams: [
+          { eventType: 'dispatch', address: `0x${liveStartRow.mailbox}` },
+          {
+            eventType: 'gas_payment',
+            address: `0x${liveStartRow.interchain_gas_paymaster}`,
+          },
+          {
+            eventType: 'merkle_tree_insertion',
+            address: `0x${liveStartRow.merkle_tree_hook}`,
+          },
+        ],
+      })),
+    );
+    assert.deepEqual(messages.at(-1), {
+      type: 'live_start_unavailable',
+      domain: 2,
+      eventTypes,
+      reason: 'No healthy live-start scraper checkpoint',
+    });
+    assert(
+      messages.indexOf(await waitFor(messages, 'subscribed')) <
+        messages.indexOf(starts[0]),
+    );
+    assert.equal(queries, 1);
+    assert(
+      !messages.some(({ type }) => type === 'event' || type === 'caught_up'),
+    );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('automatically distinguishes canonical, custom and advisory zero-confirmation boundaries', async (context) => {
+  const confirmations: unknown[] = [];
+  const ranges: unknown[][] = [];
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('LEFT JOIN LATERAL')) {
+        confirmations.push(values[1]);
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            head_height: '112',
+            indexed_height: '110',
+            confirmed_height: '100',
+            height: values[1] === 2 ? '108' : '110',
+            hash: (values[1] === 2 ? 'cd' : 'ef').repeat(32),
+          },
+        ]);
+      }
+      if (sql.includes('JOIN scraper_checkpoint'))
+        return queryRows<T>([liveStartRow]);
+      if (sql.includes('confirmation_events')) {
+        ranges.push(values);
+        return [];
+      }
+      throw new Error(`Unexpected boundary query: ${sql}`);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          {
+            eventType: 'merkle_tree_insertion',
+            domains: [1],
+            confirmations: 2,
+            includeZeroConfirmations: true,
+          },
+          { eventType: 'dispatch', domains: [1] },
+        ],
+      }),
+    );
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'live_start').length === 3,
+    );
+    const starts = messages.filter(({ type }) => type === 'live_start');
+    assert.deepEqual(
+      starts.map(({ confirmations, height, hash, streams }) => ({
+        confirmations,
+        height,
+        hash,
+        streams,
+      })),
+      [
+        {
+          confirmations: 2,
+          height: '108',
+          hash: `0x${'cd'.repeat(32)}`,
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              address: `0x${liveStartRow.merkle_tree_hook}`,
+            },
+          ],
+        },
+        {
+          confirmations: 0,
+          height: '110',
+          hash: `0x${'ef'.repeat(32)}`,
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              address: `0x${liveStartRow.merkle_tree_hook}`,
+            },
+          ],
+        },
+        {
+          confirmations: undefined,
+          height: '100',
+          hash: `0x${liveStartRow.hash}`,
+          streams: [
+            { eventType: 'dispatch', address: `0x${liveStartRow.mailbox}` },
+          ],
+        },
+      ],
+    );
+    assert.deepEqual(confirmations, [2, 0]);
+    assert.deepEqual(
+      ranges.map((values) => [values[1], values[3]]),
+      [['108', '110']],
+    );
+    assert(
+      messages.indexOf(await waitFor(messages, 'subscribed')) <
+        messages.indexOf(starts[0]),
+    );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+for (const rollback of [false, true]) {
+  void it(`shares a custom snapshot across all event types${rollback ? ' and refreshes it after a setup rollback' : ''}`, async (context) => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let queries = 0;
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
+        assert.match(sql, /LEFT JOIN LATERAL/);
+        const first = ++queries === 1;
+        if (first) await held;
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            height: rollback && !first ? '99' : '100',
+            head_height: rollback && !first ? '101' : '102',
+            indexed_height: rollback && !first ? '99' : '100',
+            confirmed_height: '90',
+            hash: (rollback && !first ? 'cd' : 'ab').repeat(32),
+          },
+        ]);
+      },
+    );
+    const socket = new WebSocket(url);
+    const messages = captureMessages(socket);
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            'dispatch',
+            'delivery',
+            'gas_payment',
+            'merkle_tree_insertion',
+          ].map((eventType) => ({ eventType, domains: [1], confirmations: 2 })),
+        }),
+      );
+      await waitUntil(() => queries === 1);
+      if (rollback)
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            domain: 1,
+            confirmedHeight: '90',
+            previousConfirmedHeight: '90',
+            indexedHeight: '99',
+            previousIndexedHeight: '100',
+            headHeight: '101',
+          }),
+        );
+      await new Promise((resolve) => setImmediate(resolve));
+      release();
+      await waitUntil(
+        () => messages.filter(({ type }) => type === 'live_start').length === 4,
+      );
+      assert.equal(queries, rollback ? 2 : 1);
+      const starts = messages.filter(({ type }) => type === 'live_start');
+      assert(
+        starts.every(
+          ({ height, hash, confirmations }) =>
+            height === (rollback ? '99' : '100') &&
+            hash === `0x${(rollback ? 'cd' : 'ab').repeat(32)}` &&
+            confirmations === 2,
+        ),
+      );
+      assert.equal(socket.readyState, WebSocket.OPEN);
+    } finally {
+      release();
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+}
+
+void it('keeps custom streams without retained checkpoints unavailable, never canonical', async (context) => {
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
+      assert.match(sql, /LEFT JOIN LATERAL/);
+      return queryRows<T>([
+        {
+          domain: 1,
+          head_height: '120',
+          indexed_height: '110',
+          confirmed_height: '100',
+          height: null,
+        },
+      ]);
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          {
+            eventType: 'merkle_tree_insertion',
+            domains: [1],
+            confirmations: 30,
+          },
+        ],
+      }),
+    );
+    const unavailable = await waitFor(messages, 'live_start_unavailable');
+    assert.equal(unavailable.confirmations, 30);
+    assert.equal(unavailable.domain, 1);
+    assert(!messages.some(({ type }) => type === 'live_start'));
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('registers live delivery before reading the boundary and resamples on reconnect', async (context) => {
+  const original = db.queryLive.bind(db);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let queries = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (!sql.includes('JOIN scraper_checkpoint'))
+        return original<T>(sql, values);
+      const height = ++queries === 1 ? '100' : '101';
+      await held;
+      return queryRows<T>([{ ...liveStartRow, height }]);
+    },
+  );
+  const sockets: WebSocket[] = [];
+  rows.set('9021', { ...row(hookA, 1), block_number: '101' });
+  try {
+    for (const height of ['100', '101']) {
+      const socket = new WebSocket(url);
+      sockets.push(socket);
+      const messages = captureMessages(socket);
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [{ eventType: 'merkle_tree_insertion', domains: [1] }],
+        }),
+      );
+      await waitFor(messages, 'subscribed');
+      if (height === '100') {
+        await waitUntil(() => queries === 1);
+        notify('scraper_event', notification('9021'));
+        await waitFor(messages, 'event');
+        assert(!messages.some(({ type }) => type === 'live_start'));
+        release();
+      }
+      const start = await waitFor(messages, 'live_start');
+      assert.equal(start.height, height);
+      if (height === '100') {
+        assert(
+          messages.indexOf(await waitFor(messages, 'event')) <
+            messages.indexOf(start),
+        );
+      }
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+    assert.equal(queries, 2);
+  } finally {
+    release();
+    rows.delete('9021');
+    sockets.forEach((socket) => socket.terminate());
+  }
+});
+
+void it('closes a failed boundary snapshot without claiming a live start', async (context) => {
+  context.mock.method(db, 'queryLive', async () => {
+    throw new Error('snapshot failed');
+  });
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [{ eventType: 'dispatch', domains: [1] }],
+      }),
+    );
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    assert(!messages.some(({ type }) => type === 'live_start'));
+    assert(messages.some(({ type }) => type === 'subscribed'));
+  } finally {
+    socket.terminate();
+  }
+});
+
 for (const route of ['agents', 'messages']) {
+  void it(`${route} cancels confirmation setup when disconnected during the block snapshot`, async (context) => {
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let snapshotStarted = false;
+    context.mock.method(db, 'queryLive', async (sql) => {
+      assert(sql.includes("encode(indexed_hash, 'hex')"));
+      snapshotStarted = true;
+      await held;
+      return [];
+    });
+    const initialize = context.mock.method(
+      ConfirmationStream.prototype,
+      'initialize',
+    );
+    const socket = new WebSocket(
+      route === 'agents'
+        ? url
+        : `${messagesUrl}?blocks=true&confirmations=0&domains=1`,
+    );
+    const messages = captureMessages(socket);
+    try {
+      if (route === 'agents') {
+        await waitFor(messages, 'ready');
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [
+              { eventType: 'blocks', domains: [1] },
+              { eventType: 'dispatch', domains: [1], confirmations: 0 },
+            ],
+          }),
+        );
+      }
+      await waitUntil(() => snapshotStarted);
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+      await waitUntil(() => {
+        const { connections } = events.metricsSnapshot();
+        return connections.agent === 0 && connections.messages === 0;
+      });
+      release();
+      // Let all async setup continuations finish after the held query resolves.
+      await nextTurn();
+      assert.equal(initialize.mock.callCount(), 0);
+      assert(!messages.some(({ type }) => type === 'subscribed'));
+    } finally {
+      release();
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+
   void it(`${route} streams opt-in block snapshots, progress and replacement heads`, async (context) => {
     const original = db.queryLive.bind(db);
     let release = () => {};
@@ -495,7 +929,8 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   await Promise.all(explorerMessages.map((items) => waitFor(items, 'ready')));
   const ready = await waitFor(agentMessages, 'ready');
   assert.equal(ready.type, 'ready');
-  assert.deepEqual(ready.streamCursorVersions, { gas_payment: 3 });
+  assert.equal(ready.historicalStreaming, false);
+  assert.equal(ready.streamCursorVersions, undefined);
   assert.deepEqual(events.metricsSnapshot().connections, {
     agent: 1,
     messages: 8,
@@ -558,7 +993,7 @@ for (const kind of ['query', 'unavailable']) {
 }
 
 for (const available of [false, true]) {
-  void it(`preserves canonical replay with ${available ? 'partial' : 'no'} advisory near-head coverage`, async (context) => {
+  void it(`preserves canonical live events with ${available ? 'partial' : 'no'} advisory near-head coverage`, async (context) => {
     const original = db.queryLive.bind(db);
     const reads: unknown[][] = [];
     context.mock.method(
@@ -568,7 +1003,10 @@ for (const available of [false, true]) {
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
-        if (sql.includes('SELECT domain, head_height'))
+        if (
+          sql.includes('SELECT domain, head_height') ||
+          sql.includes('SELECT h.domain, h.head_height')
+        )
           return queryRows<T>(
             available
               ? [
@@ -606,11 +1044,7 @@ for (const available of [false, true]) {
             {
               eventType: 'merkle_tree_insertion',
               includeZeroConfirmations: true,
-              cursors: [1, 2].map((domain) => ({
-                domain,
-                address: hookA,
-                afterSequence: '-1',
-              })),
+              domains: [1, 2],
             },
           ],
         }),
@@ -618,12 +1052,10 @@ for (const available of [false, true]) {
       const ack = await waitFor(messages, 'subscribed');
       assert(Array.isArray(ack.streams));
       assert.equal(record(ack.streams[0]).includeZeroConfirmations, true);
-      await waitUntil(
-        () => messages.filter(({ type }) => type === 'caught_up').length === 2,
-      );
-      const replay = messages.filter(({ type }) => type === 'event');
-      assert.deepEqual(replay.map(({ domain }) => domain).sort(), [1, 2]);
-      assert(replay.every(({ confirmations }) => confirmations === undefined));
+      notify('scraper_event', notification('2'));
+      const canonical = await waitFor(messages, 'event');
+      assert.equal(canonical.confirmations, undefined);
+      assert.equal(canonical.domain, 1);
       for (const domain of [1, 2])
         notify(
           'scraper_head',
@@ -637,13 +1069,15 @@ for (const available of [false, true]) {
         );
       if (available) {
         await waitUntil(() =>
-          messages.some(({ confirmations }) => confirmations === 0),
+          messages.some(
+            ({ type, confirmations }) =>
+              type === 'event' && confirmations === 0,
+          ),
         );
         assert.deepEqual(
           reads.map((values) => values[0]),
           [1],
         );
-        assert.deepEqual(reads[0]?.[5], [hookA]);
       } else {
         await new Promise((resolve) => setTimeout(resolve, 150));
         assert.deepEqual(reads, []);
@@ -674,7 +1108,10 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
       sql: string,
       values: unknown[] = [],
     ): Promise<T[]> => {
-      if (sql.includes('SELECT domain, head_height')) {
+      if (
+        sql.includes('SELECT domain, head_height') ||
+        sql.includes('SELECT h.domain, h.head_height')
+      ) {
         snapshots++;
         if (snapshots === 2) await held;
         return queryRows<T>([
@@ -705,7 +1142,7 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
             domains: [1],
             includeZeroConfirmations: true,
           },
-          { eventType: 'gas_payment', confirmations: 0, domains: [1] },
+          { eventType: 'gas_payment', confirmations: 1, domains: [1] },
         ],
       }),
     );
@@ -733,8 +1170,8 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
     notify('scraper_event', notification('1'));
     await waitFor(messages, 'event');
     assert.deepEqual(
-      messages.slice(0, 3).map(({ type }) => type),
-      ['ready', 'subscribed', 'event'],
+      messages.slice(0, 2).map(({ type }) => type),
+      ['ready', 'subscribed'],
     );
   } finally {
     release();
@@ -749,7 +1186,10 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
     db,
     'queryLive',
     async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
-      if (sql.includes('SELECT domain, head_height'))
+      if (
+        sql.includes('SELECT domain, head_height') ||
+        sql.includes('SELECT h.domain, h.head_height')
+      )
         return queryRows<T>([
           {
             domain: 1,
@@ -846,7 +1286,10 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
-        if (sql.includes('SELECT domain, head_height'))
+        if (
+          sql.includes('SELECT domain, head_height') ||
+          sql.includes('SELECT h.domain, h.head_height')
+        )
           return queryRows<T>([
             {
               domain: 1,
@@ -1049,7 +1492,10 @@ for (const supported of [true, false]) {
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
-        if (sql.includes('SELECT domain, head_height'))
+        if (
+          sql.includes('SELECT domain, head_height') ||
+          sql.includes('SELECT h.domain, h.head_height')
+        )
           return queryRows<T>(
             supported
               ? [
@@ -1110,7 +1556,7 @@ for (const supported of [true, false]) {
   });
 }
 
-void it('normalizes legacy signed domains on the agent wire', async () => {
+void it('normalizes signed domains and excludes events outside subscribed domains', async () => {
   const signedDomain = -846_819_108;
   const unsignedDomain = 3_448_148_188;
   const ids = {
@@ -1121,8 +1567,21 @@ void it('normalizes legacy signed domains on the agent wire', async () => {
   } as const;
   const socket = new WebSocket(url);
   const messages = captureMessages(socket);
+  const excluded = new WebSocket(url);
+  const excludedMessages = captureMessages(excluded);
 
   try {
+    await waitFor(excludedMessages, 'ready');
+    excluded.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: Object.keys(ids).map((eventType) => ({
+          eventType,
+          domains: [1],
+        })),
+      }),
+    );
+    await waitFor(excludedMessages, 'subscribed');
     await waitFor(messages, 'ready');
     socket.send(
       JSON.stringify({
@@ -1209,126 +1668,21 @@ void it('normalizes legacy signed domains on the agent wire', async () => {
       },
     );
     assert.equal(event('merkle_tree_insertion').domain, unsignedDomain);
+    excluded.send(JSON.stringify({ type: 'ping' }));
+    await waitFor(excludedMessages, 'pong');
+    assert(!excludedMessages.some(({ type }) => type === 'event'));
   } finally {
     deliveryRows.delete(ids.delivery);
     dispatchRows.delete(ids.dispatch);
     gasPaymentRows.delete(ids.gas_payment);
     rows.delete(ids.merkle_tree_insertion);
     socket.close();
-    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
-  }
-});
-
-void it('queries high domains using the legacy signed representation', async () => {
-  const signedDomain = -846_819_108;
-  const unsignedDomain = 3_448_148_188;
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  databaseDomainFilters.length = 0;
-  socket.on('message', (data) => messages.push(parseRecord(rawData(data))));
-
-  try {
-    await waitFor(messages, 'ready');
-    socket.send(
-      JSON.stringify({
-        streams: [
-          {
-            cursors: [
-              {
-                address: hookA,
-                afterSequence: '-1',
-                domain: unsignedDomain,
-              },
-            ],
-            eventType: 'merkle_tree_insertion',
-          },
-        ],
-        type: 'subscribe',
-      }),
+    excluded.close();
+    await waitUntil(() =>
+      [socket, excluded].every(
+        ({ readyState }) => readyState === WebSocket.CLOSED,
+      ),
     );
-    await waitFor(messages, 'caught_up');
-
-    assert.deepEqual(databaseDomainFilters, [signedDomain, signedDomain]);
-    const event = messages.find(({ type }) => type === 'event');
-    assert(event);
-    assert.equal(event.domain, unsignedDomain);
-    assert.equal(record(event.data).domain, unsignedDomain);
-  } finally {
-    socket.close();
-    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
-    databaseDomainFilters.length = 0;
-  }
-});
-
-void it('queries high gas payment domains using the legacy signed representation', async () => {
-  const signedDomain = -846_819_108;
-  const unsignedDomain = 3_448_148_188;
-  gasPaymentRows.clear();
-  databaseDomainFilters.length = 0;
-  gasPaymentRows.set('10', {
-    ...gasPaymentRow('10', null),
-    destination: signedDomain,
-    domain: signedDomain,
-    origin: signedDomain,
-  });
-  gasPaymentRows.set('30', {
-    ...gasPaymentRow('30', null, '11'),
-    destination: signedDomain,
-    domain: signedDomain,
-    origin: signedDomain,
-  });
-  const socket = new WebSocket(url);
-  const messages = captureMessages(socket);
-
-  try {
-    await waitFor(messages, 'ready');
-    socket.send(
-      JSON.stringify({
-        streams: [
-          {
-            cursors: [
-              {
-                address: gasPaymaster,
-                afterStreamCursor: '0',
-                domain: unsignedDomain,
-              },
-            ],
-            eventType: 'gas_payment',
-            streamCursorVersion: 3,
-          },
-        ],
-        type: 'subscribe',
-      }),
-    );
-    await waitFor(messages, 'caught_up');
-
-    assert.deepEqual(databaseDomainFilters, [
-      signedDomain,
-      signedDomain,
-      signedDomain,
-    ]);
-    const events = messages.filter(({ type }) => type === 'event');
-    assert.equal(events.length, 2);
-    for (const event of events) {
-      assert.equal(event.domain, unsignedDomain);
-      assert.deepEqual(
-        {
-          destination: record(event.data).destination,
-          domain: record(event.data).domain,
-          origin: record(event.data).origin,
-        },
-        {
-          destination: unsignedDomain,
-          domain: unsignedDomain,
-          origin: unsignedDomain,
-        },
-      );
-    }
-  } finally {
-    socket.close();
-    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
-    gasPaymentRows.clear();
-    databaseDomainFilters.length = 0;
   }
 });
 
@@ -1375,11 +1729,7 @@ void it('accepts fleet-sized agent subscriptions without raising the Explorer pa
     const subscription = JSON.stringify({
       streams: [
         {
-          cursors: Array.from({ length: 64 }, (_, domain) => ({
-            address: `0x${domain.toString(16).padStart(40, '0')}`,
-            afterSequence: '0',
-            domain,
-          })),
+          domains: Array.from({ length: 1_000 }, (_, domain) => domain + 1_000),
           eventType: 'dispatch',
         },
       ],
@@ -1395,6 +1745,12 @@ void it('accepts fleet-sized agent subscriptions without raising the Explorer pa
       explorer.once('close', resolve),
     );
     assert.equal(code, 1009);
+
+    const agentClosed = new Promise<number>((resolve) =>
+      agent.once('close', resolve),
+    );
+    agent.send('x'.repeat(65_537));
+    assert.equal(await agentClosed, 1009);
   } finally {
     agent.close();
     explorer.close();
@@ -1496,283 +1852,6 @@ void it('limits Explorer connections to five per IP and safely handles errors wh
   );
 });
 
-void it('completes historical replay across pages without a total row budget', async () => {
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: replayHook,
-                  afterSequence: '-1',
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  const message = await waitFor(messages, 'caught_up');
-  assert.equal(message.sequence, '2');
-  assert.deepEqual(eventSequences(messages), ['0', '1', '2']);
-  assert.equal(
-    messages.some(({ type }) => type === 'error'),
-    false,
-  );
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-});
-
-void it('treats a missing sequence zero as a gap for -1 cursors', async () => {
-  const socket = new WebSocket(url);
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: historyHook,
-                  afterSequence: '-1',
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  const reason = await new Promise<string>((resolve) =>
-    socket.once('close', (_code, reason) => resolve(reason.toString())),
-  );
-  assert.match(reason, /sequence gap: expected 0, received 5/);
-});
-
-void it('paces historical sends by send completion', async (context) => {
-  const completions = delayServerSendCompletions(context);
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: pacedHook,
-                  afterSequence: '-1',
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  await waitUntil(() => eventSequences(messages).includes('0'));
-  await waitUntil(() => completions.length === 1);
-  assert.deepEqual(eventSequences(messages), ['0']);
-  assert.equal(
-    messages.some(({ type }) => type === 'caught_up'),
-    false,
-  );
-  completions.shift()?.();
-
-  await waitUntil(() => eventSequences(messages).includes('1'));
-  await waitUntil(() => completions.length === 1);
-  assert.deepEqual(eventSequences(messages), ['0', '1']);
-  assert.equal(
-    messages.some(({ type }) => type === 'caught_up'),
-    false,
-  );
-  completions.shift()?.();
-
-  await waitFor(messages, 'caught_up');
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-  assert.deepEqual(eventSequences(messages), ['0', '1']);
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-});
-
-void it('queues catch-ups at the concurrency limit', async (context) => {
-  let now = 0;
-  context.mock.method(Date, 'now', () => now);
-  const completions = delayServerSendCompletions(context);
-  const sockets = [new WebSocket(url), new WebSocket(url)];
-  const messages: Record<string, unknown>[][] = [[], []];
-  sockets.forEach((socket, index) =>
-    socket.on('message', (data) => {
-      const message = parseRecord(rawData(data));
-      messages[index]?.push(message);
-      if (message.type === 'ready') {
-        socket.send(
-          JSON.stringify({
-            streams: [
-              {
-                cursors: [
-                  {
-                    address: hookA,
-                    afterSequence: '-1',
-                    domain: 1,
-                  },
-                ],
-                eventType: 'merkle_tree_insertion',
-              },
-            ],
-            type: 'subscribe',
-          }),
-        );
-      }
-    }),
-  );
-
-  await waitUntil(
-    () => messages.flat().filter(({ type }) => type === 'event').length === 1,
-  );
-  assert.equal(events.metricsSnapshot().catchUps, 1);
-  for (let sent = 1; sent <= 4; sent++) {
-    await waitUntil(() => completions.length === 1);
-    if (sent === 2) now = 1_800_001;
-    completions.shift()?.();
-    if (sent === 2)
-      await waitUntil(
-        () =>
-          messages.flat().filter(({ type }) => type === 'event').length === 2,
-      );
-  }
-  await Promise.all(messages.map((items) => waitFor(items, 'caught_up')));
-  sockets.forEach((socket) => socket.close());
-  await waitUntil(() =>
-    sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
-  );
-});
-
-void it('records a disconnected historical replay as aborted', async (context) => {
-  const abortedBefore = await catchUpOutcome('aborted');
-  const successesBefore = await catchUpOutcome('success');
-  const completions = delayServerSendCompletions(context);
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: pacedHook,
-                  afterSequence: '-1',
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  await waitUntil(() => eventSequences(messages).includes('0'));
-  await waitUntil(() => completions.length === 1);
-  const closed = new Promise<void>((resolve) => socket.once('close', resolve));
-  socket.close();
-  await closed;
-  await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
-  completions.shift()?.();
-
-  await waitUntil(
-    async () => (await catchUpOutcome('aborted')) === abortedBefore + 1,
-  );
-  assert.equal(await catchUpOutcome('success'), successesBefore);
-});
-
-void it('drains live events arriving while the pending buffer is sent', async (context) => {
-  const completions = delayServerSendCompletions(context);
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: pacedHook,
-                  afterSequence: '-1',
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  await waitUntil(() => eventSequences(messages).includes('0'));
-  await waitUntil(() => completions.length === 1);
-  rows.set('3', row(pacedHook, 2));
-  notify('scraper_event', notification('3'));
-  await waitUntil(() => notifiedIds.has('3'));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  completions.shift()?.();
-  await waitUntil(() => eventSequences(messages).includes('1'));
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-  await waitFor(messages, 'caught_up');
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-
-  await waitUntil(() => eventSequences(messages).includes('2'));
-  await waitUntil(() => completions.length === 1);
-  rows.set('4', row(pacedHook, 3));
-  notify('scraper_event', notification('4'));
-  await waitUntil(() => notifiedIds.has('4'));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  completions.shift()?.();
-
-  await waitUntil(() => eventSequences(messages).includes('3'));
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-  assert.deepEqual(eventSequences(messages), ['0', '1', '2', '3']);
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-});
-
 void it('publishes every frontier projection without exposing pagination columns', async () => {
   const fixtures = [
     {
@@ -1811,7 +1890,7 @@ void it('publishes every frontier projection without exposing pagination columns
     },
     {
       event: {
-        ...gasPaymentRow('52', null, '1'),
+        ...gasPaymentRow('52', null),
         block_number: '10',
       },
       eventType: 'gas_payment',
@@ -1856,40 +1935,6 @@ void it('publishes every frontier projection without exposing pagination columns
       socket.close();
       await new Promise<void>((resolve) => socket.once('close', resolve));
     }
-  }
-});
-
-void it('fails a frontier instead of inventing a missing gas cursor', async () => {
-  const socket = new WebSocket(url);
-  const messages = captureMessages(socket);
-  try {
-    await waitFor(messages, 'ready');
-    socket.send(
-      JSON.stringify({
-        streams: [{ domains: [1], eventType: 'gas_payment' }],
-        type: 'subscribe',
-      }),
-    );
-    await waitFor(messages, 'subscribed');
-    gasPaymentRows.set('54', {
-      ...gasPaymentRow('54', null),
-      block_number: '10',
-    });
-    const closed = new Promise<number>((resolve) =>
-      socket.once('close', resolve),
-    );
-    notify(
-      'scraper_head',
-      JSON.stringify({
-        confirmedHeight: '10',
-        domain: 1,
-        previousConfirmedHeight: '9',
-      }),
-    );
-    assert.equal(await closed, 1013);
-  } finally {
-    gasPaymentRows.delete('54');
-    socket.terminate();
   }
 });
 
@@ -2148,139 +2193,7 @@ void it('keeps Explorer connected after an agent-only frontier fails', async () 
   }
 });
 
-void it('checks each cursor before sharing a live agent frame', async () => {
-  const sockets = [new WebSocket(url), new WebSocket(url)];
-  const received = sockets.map((socket) => {
-    const messages: Record<string, unknown>[] = [];
-    socket.on('message', (data, isBinary) => {
-      assert.equal(isBinary, false);
-      messages.push(parseRecord(rawData(data)));
-    });
-    return messages;
-  });
-  try {
-    await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
-    for (const [index, socket] of sockets.entries()) {
-      socket.send(
-        JSON.stringify({
-          type: 'subscribe',
-          streams: [
-            {
-              eventType: 'merkle_tree_insertion',
-              ...(index === 0
-                ? {}
-                : {
-                    cursors: [
-                      {
-                        address: hookA,
-                        afterSequence: '0',
-                        domain: 1,
-                      },
-                    ],
-                  }),
-            },
-          ],
-        }),
-      );
-    }
-    await Promise.all(
-      received.map((messages) => waitFor(messages, 'subscribed')),
-    );
-    await waitFor(received[1], 'caught_up');
-    rows.set('8100', row(hookA, 1));
-    notify('scraper_event', notification('8100'));
-    await Promise.all(
-      received.map((messages) =>
-        waitUntil(() => eventSequences(messages).length === 1),
-      ),
-    );
-    assert.deepEqual(eventSequences(received[0]), ['1']);
-    assert.deepEqual(eventSequences(received[1]), ['1']);
-    notify('scraper_event', notification('8100'));
-    await waitUntil(() => eventSequences(received[0]).length === 2);
-    assert.deepEqual(eventSequences(received[1]), ['1']);
-    rows.set('8101', row(hookA, 3));
-    const closed = new Promise<number>((resolve) =>
-      sockets[1].once('close', resolve),
-    );
-    notify('scraper_event', notification('8101'));
-    assert.equal(await closed, 1013);
-    await waitUntil(() => eventSequences(received[0]).length === 3);
-    assert.deepEqual(eventSequences(received[0]), ['1', '1', '3']);
-  } finally {
-    rows.delete('8100');
-    rows.delete('8101');
-    for (const socket of sockets) socket.terminate();
-    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
-  }
-});
-
-void it('keeps gas cursor boundaries specific to each subscriber', async () => {
-  gasPaymentRows.clear();
-  const payment = {
-    destination: 2,
-    id: '14',
-    domain: 1,
-    interchain_gas_paymaster: gasPaymaster,
-    origin: 1,
-  };
-  gasPaymentRows.set('14', payment);
-  const sockets = [new WebSocket(url), new WebSocket(url)];
-  const received = sockets.map((socket) => {
-    const messages = captureMessages(socket);
-    return messages;
-  });
-  try {
-    await Promise.all(received.map((messages) => waitFor(messages, 'ready')));
-    for (const [index, socket] of sockets.entries()) {
-      socket.send(
-        JSON.stringify({
-          type: 'subscribe',
-          streams: [
-            {
-              eventType: 'gas_payment',
-              ...(index === 0
-                ? {}
-                : {
-                    streamCursorVersion: 3,
-                    cursors: [
-                      {
-                        address: gasPaymaster,
-                        afterStreamCursor: '14',
-                        domain: 1,
-                      },
-                    ],
-                  }),
-            },
-          ],
-        }),
-      );
-    }
-    await Promise.all(
-      received.map((messages) => waitFor(messages, 'subscribed')),
-    );
-    await waitFor(received[1], 'caught_up');
-    gasPaymentRows.set('30', {
-      ...payment,
-      id: '30',
-      scraper_stream_cursor: '15',
-    });
-    notify('scraper_event', gasPaymentNotification('30'));
-    const [legacy, cursored] = await Promise.all(
-      received.map((messages) => waitFor(messages, 'event')),
-    );
-    assert.equal(legacy.streamCursor, '15');
-    assert.equal(cursored.streamCursor, '15');
-    assert.equal(legacy.legacyMaxStreamCursor, undefined);
-    assert.equal(cursored.legacyMaxStreamCursor, '14');
-  } finally {
-    gasPaymentRows.clear();
-    for (const socket of sockets) socket.terminate();
-    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
-  }
-});
-
-void it('accepts a legacy non-cursored live gas payment subscription', async () => {
+void it('accepts a live gas payment subscription', async () => {
   const socket = new WebSocket(url);
   const messages: Record<string, unknown>[] = [];
   socket.on('message', (data) => {
@@ -2302,793 +2215,6 @@ void it('accepts a legacy non-cursored live gas payment subscription', async () 
   ]);
   socket.close();
   await new Promise<void>((resolve) => socket.once('close', resolve));
-});
-
-void it('completes gas payment stream cursor replay without a total row budget', async () => {
-  gasPaymentRows.clear();
-  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
-  gasPaymentRows.set('20', gasPaymentRow('20', '200'));
-  gasPaymentRows.set('30', gasPaymentRow('30', '300'));
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '0',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  const caughtUp = await waitFor(messages, 'caught_up');
-  assert.equal(caughtUp.streamCursor, '30');
-  assert.deepEqual(eventStreamCursors(messages), ['10', '20', '30']);
-  assert.equal(
-    messages.some(({ type }) => type === 'error'),
-    false,
-  );
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-  gasPaymentRows.clear();
-});
-
-void it('limits gas payment replay batches before joining metadata', async () => {
-  gasPaymentRows.clear();
-  gasReplayQueries.length = 0;
-  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
-  gasPaymentRows.set('30', gasPaymentRow('30', '300', '11'));
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '0',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  const caughtUp = await waitFor(messages, 'caught_up');
-  assert.equal(caughtUp.streamCursor, '11');
-  assert.deepEqual(eventStreamCursors(messages), ['10', '11']);
-  const legacy = gasReplayQueries.find((sql) =>
-    sql.includes('ORDER BY "event_row"."id"'),
-  );
-  const mapped = gasReplayQueries.find((sql) =>
-    sql.includes('FROM "gas_payment_stream_cursor"'),
-  );
-  for (const sql of [legacy, mapped]) {
-    assert.ok(sql);
-    const limit = sql.indexOf('LIMIT $5)');
-    assert.ok(limit > 0, sql);
-    assert.ok(limit < sql.indexOf('LEFT JOIN "transaction"'), sql);
-  }
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-  gasPaymentRows.clear();
-});
-
-void it('streams legacy and mapped gas payments without transaction metadata', async (context) => {
-  gasPaymentRows.clear();
-  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
-  gasPaymentRows.set('14', gasPaymentRow('14', null));
-  const completions = delayServerSendCompletions(context);
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '0',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  await waitUntil(() => eventStreamCursors(messages).includes('10'));
-  await waitUntil(() => completions.length === 1);
-  notify('scraper_event', gasPaymentNotification('14'));
-  gasPaymentRows.set('30', gasPaymentRow('30', null, '15'));
-  notify('scraper_event', gasPaymentNotification('30'));
-  await waitUntil(() => notifiedIds.has('14') && notifiedIds.has('30'));
-  completions.shift()?.();
-  await waitUntil(() => eventStreamCursors(messages).includes('14'));
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-  const caughtUp = await waitFor(messages, 'caught_up');
-  assert.equal(caughtUp.streamCursor, '14');
-  assert.equal(caughtUp.legacyMaxStreamCursor, '14');
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-  await waitUntil(() => eventStreamCursors(messages).includes('15'));
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-  assert.deepEqual(eventStreamCursors(messages), ['10', '14', '15']);
-  assert.deepEqual(
-    messages
-      .filter(({ type }) => type === 'event')
-      .map(({ data }) => record(data).tx_id),
-    ['100', null, null],
-  );
-  assert.deepEqual(
-    messages
-      .filter(
-        ({ eventType, type }) =>
-          type === 'event' && eventType === 'gas_payment',
-      )
-      .map(({ legacyMaxStreamCursor }) => legacyMaxStreamCursor),
-    ['14', '14', '14'],
-  );
-
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-
-  const resumed = new WebSocket(url);
-  const resumedMessages: Record<string, unknown>[] = [];
-  resumed.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    resumedMessages.push(message);
-    if (message.type === 'ready') {
-      resumed.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '15',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  const resumedMarker = await waitFor(resumedMessages, 'caught_up');
-  assert.equal(resumedMarker.streamCursor, '15');
-  assert.equal(resumedMarker.legacyMaxStreamCursor, '14');
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-
-  notify('scraper_event', gasPaymentNotification('30'));
-  notify('scraper_event', gasPaymentNotification('35'));
-  await waitUntil(() => notifiedIds.has('35'));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(eventStreamCursors(resumedMessages), []);
-
-  gasPaymentRows.set('42', gasPaymentRow('42', '420', '16'));
-  notify('scraper_event', gasPaymentNotification('42'));
-  await waitUntil(() => eventStreamCursors(resumedMessages).includes('16'));
-  assert.deepEqual(eventStreamCursors(resumedMessages), ['16']);
-  await waitUntil(() => completions.length === 1);
-  completions.shift()?.();
-  resumed.close();
-  await new Promise<void>((resolve) => resumed.once('close', resolve));
-  gasPaymentRows.clear();
-});
-
-void it('orders gas payments by commit cursor instead of allocated row ID', async () => {
-  gasPaymentRows.clear();
-  gasPaymentRows.set('100', gasPaymentRow('100', '1000', '2'));
-  gasPaymentRows.set('101', gasPaymentRow('101', '1001', '1'));
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '0',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  await waitFor(messages, 'caught_up');
-  assert.deepEqual(eventStreamCursors(messages), ['1', '2']);
-  assert.deepEqual(
-    messages
-      .filter(({ type }) => type === 'event')
-      .map(({ data }) => record(data).id),
-    ['101', '100'],
-  );
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-  gasPaymentRows.clear();
-});
-
-void it('rejects a gap at the legacy-to-mapped cursor transition', async () => {
-  gasPaymentRows.clear();
-  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
-  gasPaymentRows.set('100', gasPaymentRow('100', '1000', '12'));
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '10',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  const [code, reason] = await new Promise<[number, string]>((resolve) =>
-    socket.once('close', (code, reason) => resolve([code, reason.toString()])),
-  );
-  assert.equal(code, 1013);
-  assert.equal(
-    reason,
-    'gas_payment stream cursor gap: expected 11, received 12',
-  );
-  assert.deepEqual(eventStreamCursors(messages), []);
-  assert.equal(
-    messages.some(({ type }) => type === 'caught_up'),
-    false,
-  );
-  gasPaymentRows.clear();
-});
-
-void it('rejects an empty mapped gas payment cursor range', async () => {
-  gasPaymentRows.clear();
-  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
-  gasPaymentRows.set('100', gasPaymentRow('100', '1000', '11'));
-  omitMappedGasPaymentRows = true;
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '10',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  try {
-    const error = await waitFor(messages, 'error');
-    assert.equal(error.error, 'Failed to catch up gas_payment');
-    assert.deepEqual(eventStreamCursors(messages), []);
-    assert.equal(
-      messages.some(({ type }) => type === 'caught_up'),
-      false,
-    );
-  } finally {
-    omitMappedGasPaymentRows = false;
-    gasPaymentRows.clear();
-    socket.close();
-    await new Promise<void>((resolve) => socket.once('close', resolve));
-  }
-});
-
-void it('disconnects a live gas payment cursor gap', async () => {
-  gasPaymentRows.clear();
-  gasPaymentRows.set('10', gasPaymentRow('10', '100'));
-  gasPaymentRows.set('100', gasPaymentRow('100', '1000', '11'));
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '11',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  await waitFor(messages, 'caught_up');
-  gasPaymentRows.set('102', gasPaymentRow('102', '1002', '13'));
-  notify('scraper_event', gasPaymentNotification('102'));
-  const [code, reason] = await new Promise<[number, string]>((resolve) =>
-    socket.once('close', (code, reason) => resolve([code, reason.toString()])),
-  );
-  assert.equal(code, 1013);
-  assert.equal(
-    reason,
-    'gas_payment stream cursor gap: expected 12, received 13',
-  );
-  assert.deepEqual(eventStreamCursors(messages), []);
-  gasPaymentRows.clear();
-});
-
-void it('crosses the immutable legacy boundary before mapped replay', async () => {
-  gasPaymentRows.clear();
-  gasPaymentRows.set('10', gasPaymentRow('10', '1000'));
-  gasPaymentRows.set('9', gasPaymentRow('9', '1001', '11'));
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '0',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  const caughtUp = await waitFor(messages, 'caught_up');
-  assert.equal(caughtUp.streamCursor, '11');
-  assert.deepEqual(eventStreamCursors(messages), ['10', '11']);
-  assert.deepEqual(
-    messages
-      .filter(({ type }) => type === 'event')
-      .map(({ data }) => record(data).id),
-    ['10', '9'],
-  );
-  assert.deepEqual(
-    messages.filter(({ type }) => type === 'event').map(({ rowId }) => rowId),
-    ['10', '9'],
-  );
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-  gasPaymentRows.clear();
-});
-
-void it('rejects a gas payment cursor ahead of the durable high-water', async () => {
-  gasPaymentRows.clear();
-  gasPaymentRows.set('20', gasPaymentRow('20', '200'));
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: gasPaymaster,
-                  afterStreamCursor: '30',
-                  domain: 1,
-                },
-              ],
-              eventType: 'gas_payment',
-              streamCursorVersion: 3,
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  const error = await waitFor(messages, 'error');
-  assert.equal(error.error, 'Failed to catch up gas_payment');
-  assert.equal(
-    messages.some(({ type }) => type === 'caught_up'),
-    false,
-  );
-
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-  gasPaymentRows.clear();
-});
-
-void it('enforces the catch-up deadline while pending rows replenish', async (context) => {
-  let now = 0;
-  context.mock.method(Date, 'now', () => now);
-  const completions = delayServerSendCompletions(context);
-  let deadlineNotify: (channel: string, payload?: string) => void;
-  const deadlineDb: EventDatabase = {
-    ...db,
-    async listen(_channels, handler) {
-      deadlineNotify = handler;
-      return async () => undefined;
-    },
-  };
-  const deadlineHttp = createServer();
-  const { EventWebSocketServer } = await import('./event-websocket.js');
-  const deadlineEvents = new EventWebSocketServer(deadlineDb, {
-    maxCatchUpMs: 10,
-  });
-  await new Promise<void>((resolve) =>
-    deadlineHttp.listen(0, '127.0.0.1', resolve),
-  );
-  const address = deadlineHttp.address();
-  assert(address && typeof address !== 'string');
-  await deadlineEvents.start(deadlineHttp);
-
-  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/agents`);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: pacedHook,
-                  afterSequence: '-1',
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-
-  try {
-    await waitUntil(() => eventSequences(messages).includes('0'));
-    await waitUntil(() => completions.length === 1);
-    rows.set('5', row(pacedHook, 2));
-    deadlineNotify('scraper_event', notification('5'));
-    await waitUntil(() => notifiedIds.has('5'));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    completions.shift()?.();
-    await waitUntil(() => eventSequences(messages).includes('1'));
-    await waitUntil(() => completions.length === 1);
-    completions.shift()?.();
-    await waitFor(messages, 'caught_up');
-    await waitUntil(() => completions.length === 1);
-    completions.shift()?.();
-
-    await waitUntil(() => eventSequences(messages).includes('2'));
-    await waitUntil(() => completions.length === 1);
-    rows.set('6', row(pacedHook, 3));
-    deadlineNotify('scraper_event', notification('6'));
-    await waitUntil(() => notifiedIds.has('6'));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    now = 11;
-    completions.shift()?.();
-
-    const error = await waitFor(messages, 'error');
-    assert.equal(error.error, 'Failed to catch up merkle_tree_insertion');
-    assert.deepEqual(eventSequences(messages), ['0', '1', '2']);
-  } finally {
-    socket.close();
-    await new Promise<void>((resolve) => socket.once('close', resolve));
-    await deadlineEvents.stop();
-    await new Promise<void>((resolve, reject) =>
-      deadlineHttp.close((error) => (error ? reject(error) : resolve())),
-    );
-  }
-});
-
-void it('reports a fresh empty historical cursor at -1', async () => {
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [{ address: emptyHook, domain: 1 }],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  const message = await waitFor(messages, 'caught_up');
-  assert.equal(message.address, '0xcccccccccccccccccccccccccccccccccccccccc');
-  assert.equal(message.sequence, '-1');
-  assert.equal(
-    messages.some(({ type }) => type === 'error'),
-    false,
-  );
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-});
-
-void it('rejects a durable cursor when its history is empty', async () => {
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: emptyHook,
-                  afterSequence: '0',
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  const message = await waitFor(messages, 'error');
-  assert.equal(message.error, 'Failed to catch up merkle_tree_insertion');
-  assert.equal(
-    messages.some(({ type }) => type === 'caught_up'),
-    false,
-  );
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-});
-
-void it('catches up populated and fresh empty origins together', async () => {
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: hookA,
-                  afterSequence: '-1',
-                  domain: 1,
-                },
-                { address: emptyHook, domain: 2 },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  await waitUntil(
-    () => messages.filter(({ type }) => type === 'caught_up').length === 2,
-  );
-  assert.deepEqual(
-    messages
-      .filter(({ type }) => type === 'caught_up')
-      .map(({ domain, sequence }) => [domain, sequence]),
-    [
-      [1, '0'],
-      [2, '-1'],
-    ],
-  );
-  assert.equal(
-    messages.some(({ type }) => type === 'error'),
-    false,
-  );
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-});
-
-void it('requires replay opt-in for a cursor ahead of scraper history', async () => {
-  const rejected = new WebSocket(url);
-  const rejectedMessages: Record<string, unknown>[] = [];
-  rejected.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    rejectedMessages.push(message);
-    if (message.type === 'ready') {
-      rejected.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: hookA,
-                  afterSequence: '10',
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  const error = await waitFor(rejectedMessages, 'error');
-  assert.equal(error.error, 'Failed to catch up merkle_tree_insertion');
-  rejected.close();
-  await new Promise<void>((resolve) => rejected.once('close', resolve));
-
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [
-                {
-                  address: hookA,
-                  afterSequence: '10',
-                  allowReplay: true,
-                  domain: 1,
-                },
-              ],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  const caughtUp = await waitFor(messages, 'caught_up');
-  assert.equal(caughtUp.sequence, '0');
-  assert.deepEqual(eventSequences(messages), []);
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', resolve));
-});
-
-void it('only emits addresses named by sequence cursors', async () => {
-  const socket = new WebSocket(url);
-  const messages: Record<string, unknown>[] = [];
-  socket.on('message', (data) => {
-    const message = parseRecord(rawData(data));
-    messages.push(message);
-    if (message.type === 'ready') {
-      socket.send(
-        JSON.stringify({
-          streams: [
-            {
-              cursors: [{ address: hookA, afterSequence: '0', domain: 1 }],
-              eventType: 'merkle_tree_insertion',
-            },
-          ],
-          type: 'subscribe',
-        }),
-      );
-    }
-  });
-  await waitFor(messages, 'caught_up');
-  notify('scraper_event', notification('1'));
-  notify('scraper_event', notification('2'));
-  const event = await waitFor(messages, 'event');
-  assert.equal(record(event.data).merkle_tree_hook, hookA);
-  assert.equal(messages.filter(({ type }) => type === 'event').length, 1);
-  socket.close();
-  await new Promise<void>((resolve) => socket.once('close', () => resolve()));
 });
 
 void it('filters Explorer message IDs before enrichment and keeps empty filters quiet', async () => {
@@ -3970,7 +3096,6 @@ function row(
 function gasPaymentRow(
   id: string,
   txId: string | null,
-  streamCursor?: string,
 ): Record<string, unknown> {
   return {
     destination: 2,
@@ -3986,24 +3111,9 @@ function gasPaymentRow(
     origin_tx_hash: txId == null ? null : `\\x${'03'.repeat(32)}`,
     payment: '1000',
     sequence: txId == null ? '0' : null,
-    ...(streamCursor === undefined
-      ? {}
-      : { scraper_stream_cursor: streamCursor }),
     time_created: new Date(0).toISOString(),
     tx_id: txId,
   };
-}
-
-function testStreamCursor(
-  payment: Record<string, unknown>,
-): bigint | undefined {
-  return typeof payment.scraper_stream_cursor === 'string'
-    ? BigInt(payment.scraper_stream_cursor)
-    : undefined;
-}
-
-function gasPaymentNotification(id: string): string {
-  return JSON.stringify({ domain: 1, eventType: 'gas_payment', id });
 }
 
 function explorerSocket(ip: string): WebSocket {
@@ -4055,7 +3165,6 @@ function delayServerSendCompletions(
       const delay =
         completion &&
         (message?.type === 'event' ||
-          message?.type === 'caught_up' ||
           message?.type === 'diagnostics' ||
           message?.type === 'message_upsert');
       const completed = delay
@@ -4125,12 +3234,6 @@ function eventSequences(messages: Record<string, unknown>[]): unknown[] {
     .map(({ sequence }) => sequence);
 }
 
-function eventStreamCursors(messages: Record<string, unknown>[]): unknown[] {
-  return messages
-    .filter(({ type }) => type === 'event')
-    .map(({ streamCursor }) => streamCursor);
-}
-
 function notification(id: string): string {
   return JSON.stringify({
     domain: 1,
@@ -4170,13 +3273,6 @@ async function waitUntilImmediate(
     await new Promise<void>((resolve) => setImmediate(resolve));
   }
   throw new Error('Timed out waiting for immediate condition');
-}
-
-async function catchUpOutcome(outcome: string): Promise<number> {
-  const metric = await websocketCatchUps.get();
-  return (
-    metric.values.find(({ labels }) => labels.outcome === outcome)?.value ?? 0
-  );
 }
 
 async function sendFailureCount(): Promise<number> {

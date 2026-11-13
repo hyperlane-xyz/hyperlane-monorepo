@@ -477,6 +477,11 @@ impl HyperlaneProvider for TronProvider {
             .map_err(HyperlaneTronError::from)?
             .map(|r| -> Result<_, HyperlaneProviderError> {
                 Ok(TxnReceiptInfo {
+                    block_hash: Some(
+                        r.block_hash
+                            .ok_or(HyperlaneProviderError::NoReceiptBlockHash)?
+                            .into(),
+                    ),
                     gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?.into(),
                     cumulative_gas_used: r.cumulative_gas_used.into(),
                     effective_gas_price: r.effective_gas_price.map(Into::into),

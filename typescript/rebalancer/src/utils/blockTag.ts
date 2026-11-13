@@ -6,20 +6,21 @@ import {
   EthJsonRpcBlockParameterTag,
   type MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
-import { isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
 const HEX_BLOCK_NUMBER_REGEX = /^0x[0-9a-fA-F]+$/;
 
 /**
- * Get the confirmed block tag for a chain, accounting for reorg period.
- * Returns a block number that is safe from reorgs, or a named tag like 'finalized'.
+ * Get the confirmed-state query mode for a chain. EVM named finality resolves
+ * once to an exact height; Tron uses its native moving solidified state.
  *
  * @param multiProvider - Provider registry with chain metadata and ethers access
  * @param chainName - Name of the chain
  * @param logger - Optional logger for warnings
- * @returns Confirmed block tag, or undefined for optional tags, metadata errors or failed Ethereum lookups.
- * @throws If a numeric Tron block lookup fails.
+ * @returns An exact EVM height, the explicit Tron finalized tag, or undefined
+ * for another protocol without historical queries.
  */
 export async function getConfirmedBlockTag(
   multiProvider: Pick<
@@ -29,32 +30,38 @@ export async function getConfirmedBlockTag(
   chainName: string,
   logger?: Logger,
 ): Promise<ConfirmedBlockTag> {
-  let numericTronLookup = false;
   try {
     const metadata = multiProvider.getChainMetadata(chainName);
 
-    // Only EVM-like chains support block tag queries (e.g., Ethereum, Tron).
-    // Tron uses TronJsonRpcProvider which supports eth_blockNumber
-    if (!isEVMLike(metadata.protocol)) {
-      return undefined;
-    }
+    // Undefined identifies protocols without EVM snapshot support. Tron has an
+    // explicit finalized-state mode; neither mode falls back to latest EVM state.
+    if (!isEVMLike(metadata.protocol)) return undefined;
 
     const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
+    const provider = multiProvider.getEthersV5Provider(chainName);
+    if (metadata.protocol === ProtocolType.Tron) {
+      assert(
+        provider instanceof TronJsonRpcProvider,
+        `Missing Tron provider for ${chainName}`,
+      );
+      // Tron cannot query historical contract state. The native Solidity API
+      // provides irreversible state; settlement changes require a fresh balance cycle.
+      return EthJsonRpcBlockParameterTag.Finalized;
+    }
     if (typeof reorgPeriod === 'string') {
-      if (metadata.protocol === ProtocolType.Tron) {
-        logger?.warn(
-          { chain: chainName, reorgPeriod },
-          'Tron does not support named block tags — ignoring string reorgPeriod, using latest block',
-        );
-        return undefined;
-      }
-      return reorgPeriod as EthJsonRpcBlockParameterTag;
+      const block = await provider.getBlock(reorgPeriod);
+      assert(
+        block && Number.isSafeInteger(block.number) && block.number >= 0,
+        `Invalid ${reorgPeriod} block for ${chainName}`,
+      );
+      return block.number;
     }
 
-    numericTronLookup = metadata.protocol === ProtocolType.Tron;
-    const provider = multiProvider.getEthersV5Provider(chainName);
     let latestBlock: number;
-    if (provider instanceof providers.JsonRpcProvider) {
+    if (
+      provider instanceof providers.JsonRpcProvider ||
+      provider instanceof TronJsonRpcProvider
+    ) {
       const latestBlockHex = await provider.send('eth_blockNumber', []);
       if (
         typeof latestBlockHex !== 'string' ||
@@ -71,18 +78,13 @@ export async function getConfirmedBlockTag(
     if (!Number.isSafeInteger(latestBlock) || latestBlock < 0) {
       throw new Error(`Invalid block number for ${chainName}: ${latestBlock}`);
     }
-    return Math.max(0, latestBlock - reorgPeriod);
+    const confirmedBlock = Math.max(0, latestBlock - reorgPeriod);
+    return confirmedBlock;
   } catch (error) {
     logger?.warn(
-      {
-        chain: chainName,
-        error: error instanceof Error ? error.message : String(error),
-      },
-      'Failed to get confirmed block',
+      { chain: chainName, error },
+      'Failed to resolve confirmed balance snapshot',
     );
-    // For Tron, undefined is intentional only in named-tag mode. A failed
-    // numeric lookup must not silently query supply at latest instead.
-    if (numericTronLookup) throw error;
-    return undefined;
+    throw error;
   }
 }

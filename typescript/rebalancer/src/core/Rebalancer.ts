@@ -7,7 +7,6 @@ import {
   type ChainName,
   type EthJsonRpcBlockParameterTag,
   EvmMovableCollateralAdapter,
-  HyperlaneCore,
   type InterchainGasQuote,
   type MultiProvider,
   type Token,
@@ -15,6 +14,16 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { eqAddress, isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
 
+import {
+  Erc20ApprovalMode,
+  Erc20ApprovalError,
+  type Erc20ApprovalOptions,
+  approveErc20IfNeeded,
+  revokeErc20ApprovalIfNeeded,
+} from '../bridges/erc20Approve.js';
+import { createStatusAdapters } from '../bridges/status/index.js';
+import { validateSettlementRoute } from '../bridges/status/validateOftRoutes.js';
+import { TokenBridgeStatusAdapterType } from '../config/types.js';
 import type {
   IMovableCollateralRebalancer,
   MovableCollateralExecutionResult,
@@ -22,8 +31,14 @@ import type {
   RebalancerType,
 } from '../interfaces/IRebalancer.js';
 import { MovableCollateralRoute } from '../interfaces/IStrategy.js';
+import type {
+  MCRStatusRef,
+  StatusAdaptersByKind,
+} from '../interfaces/ITokenBridgeStatusAdapter.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
+import { isReceiptFinalized } from '../utils/receiptFinality.js';
+import { trackActionSubmission } from '../tracking/submission.js';
 import type { RebalanceIntent } from '../tracking/types.js';
 import {
   denormalizeToLocal,
@@ -33,15 +48,29 @@ import {
 // Internal types with intentId for tracking
 type InternalExecutionResult = MovableCollateralExecutionResult & {
   intentId: string;
+  actionId?: string;
   canonicalAmount?: bigint;
   localAmount?: bigint;
 };
 
 type InternalRoute = MovableCollateralRoute & { intentId: string };
+type CollateralFeeApproval = NonNullable<
+  PreparedTransaction['collateralFeeApproval']
+>;
+type PendingOriginSubmission = {
+  approval?: CollateralFeeApproval;
+  awaitingReceipt: boolean;
+  txHash?: string;
+};
 
 export class Rebalancer implements IMovableCollateralRebalancer {
   public readonly rebalancerType: RebalancerType = 'movableCollateral';
   private readonly logger: Logger;
+  private readonly statusAdaptersByKind: StatusAdaptersByKind;
+  private readonly pendingOrigins = new Map<
+    ChainName,
+    PendingOriginSubmission
+  >();
 
   constructor(
     private readonly warpCore: WarpCore,
@@ -51,8 +80,15 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     private readonly actionTracker: IActionTracker,
     logger: Logger,
     private readonly metrics?: Metrics,
+    private readonly approvalOptions: Pick<
+      Erc20ApprovalOptions,
+      'contractFactory'
+    > = {},
+    statusAdaptersByKind?: StatusAdaptersByKind,
   ) {
     this.logger = logger.child({ class: Rebalancer.name });
+    this.statusAdaptersByKind =
+      statusAdaptersByKind ?? createStatusAdapters(this.logger);
   }
 
   async rebalance(
@@ -154,26 +190,37 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     for (const result of results) {
       const intentId = result.intentId;
 
-      if (result.success && result.messageId) {
-        await this.actionTracker.createRebalanceAction({
-          intentId,
-          origin: this.multiProvider.getDomainId(result.route.origin),
-          destination: this.multiProvider.getDomainId(result.route.destination),
-          amount: result.canonicalAmount ?? result.route.amount,
-          type: 'rebalance_message',
-          messageId: result.messageId,
-          txHash: result.txHash,
-        });
-
+      if (result.success && result.externalExecutionRef && result.actionId) {
         this.logger.info(
           {
             intentId,
+            actionId: result.actionId,
             messageId: result.messageId,
+            statusAdapter: result.externalExecutionRef.kind,
             txHash: result.txHash,
             origin: result.route.origin,
             destination: result.route.destination,
           },
-          'Rebalance action created successfully',
+          'Rebalance action execution identity recorded',
+        );
+      } else if (result.actionId) {
+        const action = await this.actionTracker.getRebalanceAction(
+          result.actionId,
+        );
+        if (
+          action?.status === 'failed' &&
+          action.submissionState === 'not_submitted'
+        ) {
+          await this.actionTracker.failRebalanceIntent(intentId);
+          continue;
+        }
+        this.logger.warn(
+          {
+            intentId,
+            actionId: result.actionId,
+            error: result.error,
+          },
+          'Source execution may have started; action remains suppressed for this process lifetime',
         );
       } else {
         await this.actionTracker.failRebalanceIntent(intentId);
@@ -201,6 +248,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       error: internal.error,
       messageId: internal.messageId || '', // Ensure messageId is always a string
       txHash: internal.txHash,
+      externalExecutionRef: internal.externalExecutionRef,
     }));
   }
 
@@ -265,10 +313,24 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     );
 
     // 1. Adapter and permissions validation
+    const statusKind =
+      route.statusAdapter?.kind ??
+      TokenBridgeStatusAdapterType.HyperlaneMessage;
+    if (!this.statusAdaptersByKind.has(statusKind)) {
+      throw new Error(`No status adapter registered for ${statusKind}`);
+    }
     if (!(await this.validateRoute(route))) {
       // Errors logged in validateRoute
       return null;
     }
+
+    await validateSettlementRoute(
+      origin,
+      destination,
+      route,
+      this.tokensByChainName,
+      this.warpCore.multiProvider,
+    );
 
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];
@@ -307,6 +369,15 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return null;
     }
 
+    const collateralFeeApproval = originToken.isHypNative()
+      ? undefined
+      : await this.getCollateralFeeApprovalRequirement(
+          originHypAdapter,
+          originToken.addressOrDenom,
+          quotes,
+          localAmount,
+        );
+
     // 3. Populate transaction
     let populatedTx: PopulatedTransaction;
     try {
@@ -330,7 +401,36 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return null;
     }
 
-    return { populatedTx, route, originTokenAmount };
+    return {
+      populatedTx,
+      route,
+      originTokenAmount,
+      collateralFeeApproval,
+    };
+  }
+
+  private async getCollateralFeeApprovalRequirement(
+    originHypAdapter: EvmMovableCollateralAdapter,
+    router: string,
+    quotes: InterchainGasQuote[],
+    localAmount: bigint,
+  ): Promise<PreparedTransaction['collateralFeeApproval']> {
+    const collateralToken = await originHypAdapter.getWrappedTokenAddress();
+    const quotedCollateral = quotes.reduce(
+      (total, quote) =>
+        quote.igpQuote.addressOrDenom &&
+        eqAddress(quote.igpQuote.addressOrDenom, collateralToken)
+          ? total + quote.igpQuote.amount
+          : total,
+      0n,
+    );
+
+    return {
+      token: collateralToken,
+      spender: router,
+      amount:
+        quotedCollateral > localAmount ? quotedCollateral - localAmount : 0n,
+    };
   }
 
   private async validateRoute(route: InternalRoute): Promise<boolean> {
@@ -420,6 +520,21 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return false;
     }
 
+    const expectedRecipient =
+      route.statusAdapter?.kind === TokenBridgeStatusAdapterType.LayerZeroScan
+        ? route.statusAdapter.destinationRecipient
+        : undefined;
+    if (
+      expectedRecipient !== undefined &&
+      !eqAddress(expectedRecipient, destinationToken.addressOrDenom)
+    ) {
+      this.logger.error(
+        { origin, destination, expectedRecipient },
+        'Route validation failed: Settlement recipient does not match monitored collateral.',
+      );
+      return false;
+    }
+
     const { bridge } = route;
 
     if (
@@ -448,6 +563,202 @@ export class Rebalancer implements IMovableCollateralRebalancer {
   private async executeTransactions(
     transactions: PreparedTransaction[],
   ): Promise<InternalExecutionResult[]> {
+    const byOrigin = new Map<ChainName, PreparedTransaction[]>();
+    for (const transaction of transactions) {
+      const origin = transaction.route.origin;
+      const pending = byOrigin.get(origin) ?? [];
+      pending.push(transaction);
+      byOrigin.set(origin, pending);
+    }
+    const results = await Promise.all(
+      Array.from(byOrigin, async ([origin, originTransactions]) => {
+        const results: InternalExecutionResult[] = [];
+        for (const transaction of originTransactions) {
+          const failure = (error: string): InternalExecutionResult => ({
+            route: transaction.route,
+            intentId: transaction.route.intentId,
+            success: false,
+            error,
+            messageId: '',
+          });
+          if (!(await this.reconcilePendingOrigin(origin))) {
+            results.push(
+              failure(
+                'Origin has an unresolved submission or allowance cleanup',
+              ),
+            );
+            continue;
+          }
+          const approval = transaction.collateralFeeApproval;
+          if (approval) {
+            try {
+              const approvalOptions: Erc20ApprovalOptions = {
+                ...this.approvalOptions,
+                mode: Erc20ApprovalMode.Exact,
+                // Supplying an observer enables signing before broadcast so lost responses retain a hash.
+                onApproval: async (pending) => {
+                  if (pending)
+                    this.pendingOrigins.set(origin, {
+                      approval,
+                      awaitingReceipt: true,
+                      txHash: pending.txHash,
+                    });
+                  else this.pendingOrigins.delete(origin);
+                },
+              };
+              const signer = this.multiProvider.getSigner(origin);
+              if (approval.amount === 0n) {
+                await revokeErc20ApprovalIfNeeded(
+                  signer,
+                  approval.token,
+                  approval.spender,
+                  this.logger,
+                  approvalOptions,
+                );
+              } else {
+                await approveErc20IfNeeded(
+                  signer,
+                  approval.token,
+                  approval.spender,
+                  approval.amount,
+                  this.logger,
+                  approvalOptions,
+                );
+              }
+            } catch (error) {
+              if (
+                error instanceof Erc20ApprovalError &&
+                error.submissionState !== 'not_submitted'
+              ) {
+                this.pendingOrigins.set(origin, {
+                  approval,
+                  awaitingReceipt: true,
+                  txHash: error.txHash,
+                });
+              } else {
+                this.pendingOrigins.set(origin, {
+                  approval,
+                  awaitingReceipt: false,
+                });
+                await this.reconcilePendingOrigin(origin);
+              }
+              results.push(
+                failure(`Collateral fee approval failed: ${String(error)}`),
+              );
+              continue;
+            }
+          }
+          try {
+            // One allowance belongs to one primary transaction, even when the next route uses the same router.
+            const executionResults = await this.executeApprovedTransactions([
+              transaction,
+            ]);
+            results.push(...executionResults);
+            const unresolved = executionResults.find(
+              (result) => result.actionId && !result.txHash,
+            );
+            if (unresolved?.actionId) {
+              const action = await this.actionTracker.getRebalanceAction(
+                unresolved.actionId,
+              );
+              if (action?.submissionState !== 'not_submitted') {
+                this.pendingOrigins.set(origin, {
+                  approval,
+                  awaitingReceipt: true,
+                  txHash: action?.txHash,
+                });
+                continue;
+              }
+            }
+            if (executionResults.length === 0) {
+              this.pendingOrigins.set(origin, {
+                approval,
+                awaitingReceipt: true,
+              });
+              results.push(failure('Execution returned no source outcome'));
+              continue;
+            }
+            if (approval) {
+              this.pendingOrigins.set(origin, {
+                approval,
+                awaitingReceipt: false,
+              });
+              await this.reconcilePendingOrigin(origin);
+            }
+          } catch (error) {
+            this.pendingOrigins.set(origin, {
+              approval,
+              awaitingReceipt: true,
+            });
+            results.push(
+              failure(
+                `Source execution outcome is unresolved: ${String(error)}`,
+              ),
+            );
+          }
+        }
+        return results;
+      }),
+    );
+    return results.flat();
+  }
+
+  /** Never increase or revoke an allowance while an earlier submission may still consume it. */
+  private async reconcilePendingOrigin(origin: ChainName): Promise<boolean> {
+    const pending = this.pendingOrigins.get(origin);
+    if (!pending) return true;
+    try {
+      if (pending.awaitingReceipt) {
+        if (!pending.txHash) return false;
+        const provider = this.multiProvider.getProvider(origin);
+        const receipt = await provider.getTransactionReceipt(pending.txHash);
+        if (!receipt || (receipt.status !== 0 && receipt.status !== 1))
+          return false;
+        if (
+          !(await isReceiptFinalized(
+            provider,
+            receipt,
+            this.multiProvider.getChainMetadata(origin).blocks,
+            this.multiProvider.getProtocol(origin),
+          ))
+        )
+          return false;
+        pending.awaitingReceipt = false;
+      }
+      if (pending.approval) {
+        const { token, spender } = pending.approval;
+        await revokeErc20ApprovalIfNeeded(
+          this.multiProvider.getSigner(origin),
+          token,
+          spender,
+          this.logger,
+          {
+            ...this.approvalOptions,
+            onApproval: async (approval) => {
+              pending.awaitingReceipt = approval !== undefined;
+              pending.txHash = approval?.txHash;
+            },
+          },
+        );
+      }
+      this.pendingOrigins.delete(origin);
+      return true;
+    } catch (error) {
+      if (error instanceof Erc20ApprovalError) {
+        pending.awaitingReceipt = error.submissionState !== 'not_submitted';
+        pending.txHash = error.txHash;
+      }
+      this.logger.error(
+        { origin, txHash: pending.txHash, error },
+        'Origin remains reserved until submission and allowance cleanup are reconciled',
+      );
+      return false;
+    }
+  }
+
+  private async executeApprovedTransactions(
+    transactions: PreparedTransaction[],
+  ): Promise<InternalExecutionResult[]> {
     this.logger.info(
       { numTransactions: transactions.length },
       'Estimating gas for all prepared transactions.',
@@ -455,7 +766,8 @@ export class Rebalancer implements IMovableCollateralRebalancer {
 
     const results: InternalExecutionResult[] = [];
 
-    // 1. Estimate gas for rebalance transactions
+    // The exact allowance deliberately makes a higher on-chain quote fail.
+    // A later cycle will fetch a fresh quote; this cycle never widens it.
     const gasEstimateResults = await Promise.allSettled(
       transactions.map(async (transaction) => {
         await this.multiProvider.estimateGas(
@@ -466,7 +778,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       }),
     );
 
-    // 2. Filter out failed transactions and track failures
     const validTransactions: PreparedTransaction[] = [];
     gasEstimateResults.forEach((result, i) => {
       if (result.status === 'fulfilled') {
@@ -489,7 +800,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           intentId: failedTransaction.route.intentId,
           success: false,
           error: `Gas estimation failed: ${String(result.reason)}`,
-          messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
+          messageId: '',
         });
       }
     });
@@ -499,17 +810,14 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       return results;
     }
 
-    // 3. Group transactions by origin chain
     const txsByOrigin = new Map<ChainName, PreparedTransaction[]>();
     for (const tx of validTransactions) {
       const origin = tx.route.origin;
-      if (!txsByOrigin.has(origin)) {
-        txsByOrigin.set(origin, []);
-      }
-      txsByOrigin.get(origin)!.push(tx);
+      const originTransactions = txsByOrigin.get(origin);
+      if (originTransactions) originTransactions.push(tx);
+      else txsByOrigin.set(origin, [tx]);
     }
 
-    // 4. Send transactions - parallel across chains, sequential within each chain
     this.logger.info(
       {
         numChains: txsByOrigin.size,
@@ -523,11 +831,10 @@ export class Rebalancer implements IMovableCollateralRebalancer {
         this.sendTransactionsForChain(origin, txs),
       ),
     );
-
-    // 5. Collect successful sends and record send failures
     const successfulSends: Array<{
       transaction: PreparedTransaction;
       receipt: providers.TransactionReceipt;
+      actionId: string;
     }> = [];
 
     chainSendResults.forEach((chainResult) => {
@@ -539,9 +846,10 @@ export class Rebalancer implements IMovableCollateralRebalancer {
             results.push({
               route: txResult.transaction.route,
               intentId: txResult.transaction.route.intentId,
+              actionId: txResult.actionId,
               success: false,
               error: `Transaction send failed: ${txResult.error}`,
-              messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
+              messageId: '',
             });
             this.metrics?.recordActionAttempt(
               txResult.transaction.route,
@@ -550,8 +858,6 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           }
         }
       } else {
-        // This shouldn't happen since sendTransactionsForChain catches errors internally,
-        // but handle it just in case
         this.logger.error(
           { error: chainResult.reason },
           'Unexpected error during chain transaction sending.',
@@ -560,8 +866,8 @@ export class Rebalancer implements IMovableCollateralRebalancer {
     });
 
     // 6. Build results from confirmed receipts
-    for (const { transaction, receipt } of successfulSends) {
-      const result = this.buildResult(transaction, receipt);
+    for (const { transaction, receipt, actionId } of successfulSends) {
+      const result = await this.buildResult(transaction, receipt, actionId);
       results.push(result);
       this.metrics?.recordActionAttempt(result.route, result.success);
     }
@@ -583,26 +889,51 @@ export class Rebalancer implements IMovableCollateralRebalancer {
       | {
           transaction: PreparedTransaction;
           receipt: providers.TransactionReceipt;
+          actionId: string;
         }
-      | { transaction: PreparedTransaction; error: string }
+      | {
+          transaction: PreparedTransaction;
+          error: string;
+          actionId?: string;
+        }
     >
   > {
     const results: Array<
       | {
           transaction: PreparedTransaction;
           receipt: providers.TransactionReceipt;
+          actionId: string;
         }
-      | { transaction: PreparedTransaction; error: string }
+      | {
+          transaction: PreparedTransaction;
+          error: string;
+          actionId?: string;
+        }
     > = [];
 
     // Send sequentially to avoid nonce contention
     for (const transaction of transactions) {
+      let actionId: string | undefined;
       try {
         const decimalFormattedAmount =
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
 
         const reorgPeriod = this.getReorgPeriod(origin);
+
+        const action = await this.actionTracker.createRebalanceAction({
+          intentId: transaction.route.intentId,
+          origin: this.multiProvider.getDomainId(origin),
+          destination: this.multiProvider.getDomainId(
+            transaction.route.destination,
+          ),
+          amount: normalizeToCanonical(
+            transaction.originTokenAmount.amount,
+            transaction.originTokenAmount.token,
+          ),
+          type: 'rebalance_message',
+        });
+        actionId = action.id;
 
         this.logger.info(
           {
@@ -615,13 +946,22 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           'Sending rebalance transaction and waiting for reorgPeriod confirmations.',
         );
 
-        const receipt = await this.multiProvider.sendTransaction(
-          origin,
-          transaction.populatedTx,
-          {
-            waitConfirmations: reorgPeriod as
-              | number
-              | EthJsonRpcBlockParameterTag,
+        const receipt = await trackActionSubmission(
+          this.actionTracker,
+          actionId,
+          async (options) => {
+            const receipt = await this.multiProvider.sendTransaction(
+              origin,
+              transaction.populatedTx,
+              {
+                ...options,
+                waitConfirmations: reorgPeriod as
+                  | number
+                  | EthJsonRpcBlockParameterTag,
+              },
+            );
+            await options.onSubmitted?.(receipt.transactionHash);
+            return receipt;
           },
         );
 
@@ -636,7 +976,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           'Rebalance transaction confirmed at reorgPeriod depth.',
         );
 
-        results.push({ transaction, receipt });
+        results.push({ transaction, receipt, actionId });
       } catch (error) {
         this.logger.error(
           {
@@ -648,7 +988,7 @@ export class Rebalancer implements IMovableCollateralRebalancer {
           },
           'Transaction send failed for route.',
         );
-        results.push({ transaction, error: String(error) });
+        results.push({ transaction, error: String(error), actionId });
       }
     }
 
@@ -659,34 +999,110 @@ export class Rebalancer implements IMovableCollateralRebalancer {
    * Build the execution result from a confirmed transaction receipt.
    * Receipt is already confirmed at reorgPeriod depth from sendTransaction.
    */
-  private buildResult(
+  private async buildResult(
     transaction: PreparedTransaction,
     receipt: providers.TransactionReceipt,
-  ): InternalExecutionResult {
+    actionId: string,
+  ): Promise<InternalExecutionResult> {
     const { origin, destination } = transaction.route;
-    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
+    const statusAdapterKind =
+      transaction.route.statusAdapter?.kind ??
+      TokenBridgeStatusAdapterType.HyperlaneMessage;
+    const statusAdapter = this.statusAdaptersByKind.get(statusAdapterKind);
 
-    if (dispatchedMessages.length === 0) {
+    if (!statusAdapter) {
       this.logger.error(
-        { origin, destination, txHash: receipt.transactionHash },
-        'No Dispatch event found in confirmed rebalance receipt',
+        { origin, destination, statusAdapterKind },
+        'No movable collateral status adapter registered',
       );
       return {
         route: transaction.route,
         intentId: transaction.route.intentId,
+        actionId,
         success: false,
-        error: `Transaction confirmed but no Dispatch event found`,
+        error: `No status adapter registered for ${statusAdapterKind}`,
         messageId: '', // Required by MovableCollateralExecutionResult, empty for failures
         txHash: receipt.transactionHash,
       };
     }
 
+    let externalExecutionRef: MCRStatusRef | null;
+    try {
+      externalExecutionRef = await statusAdapter.initFromReceipt({
+        origin,
+        destination,
+        originDomain: this.multiProvider.getDomainId(origin),
+        destinationDomain: this.multiProvider.getDomainId(destination),
+        bridge: transaction.route.bridge,
+        ...(transaction.route.statusAdapter?.kind ===
+        TokenBridgeStatusAdapterType.LayerZeroScan
+          ? {
+              sourceEid: transaction.route.statusAdapter.sourceEid,
+              destinationEid: transaction.route.statusAdapter.destinationEid,
+              sourceOft: transaction.route.statusAdapter.sourceOft,
+              destinationOft: transaction.route.statusAdapter.destinationOft,
+              destinationRecipient:
+                transaction.route.statusAdapter.destinationRecipient ??
+                this.tokensByChainName[destination].addressOrDenom,
+              sourceTokenDecimals: this.tokensByChainName[origin].decimals,
+              destinationTokenDecimals:
+                this.tokensByChainName[destination].decimals,
+              minimumDestinationAmount: denormalizeToLocal(
+                normalizeToCanonical(
+                  transaction.originTokenAmount.amount,
+                  transaction.originTokenAmount.token,
+                ),
+                this.tokensByChainName[destination],
+              ),
+            }
+          : {}),
+        receipt,
+      });
+    } catch (error) {
+      this.logger.error(
+        { origin, destination, statusAdapterKind, error },
+        'Failed to initialize movable collateral settlement tracking',
+      );
+      externalExecutionRef = null;
+    }
+
+    if (!externalExecutionRef) {
+      const error =
+        statusAdapterKind === TokenBridgeStatusAdapterType.HyperlaneMessage
+          ? 'Transaction confirmed but no Dispatch event found'
+          : `Transaction confirmed but ${statusAdapterKind} settlement tracking could not be initialized`;
+      return {
+        route: transaction.route,
+        intentId: transaction.route.intentId,
+        actionId,
+        success: false,
+        error,
+        messageId: '',
+        txHash: receipt.transactionHash,
+      };
+    }
+
+    const messageId =
+      externalExecutionRef.kind ===
+        TokenBridgeStatusAdapterType.HyperlaneMessage &&
+      typeof externalExecutionRef.data.messageId === 'string'
+        ? externalExecutionRef.data.messageId
+        : '';
+
+    await this.actionTracker.updateRebalanceActionExecution(actionId, {
+      messageId: messageId || undefined,
+      txHash: receipt.transactionHash,
+      externalExecutionRef,
+    });
+
     return {
       route: transaction.route,
       intentId: transaction.route.intentId,
+      actionId,
       success: true,
-      messageId: dispatchedMessages[0].id,
+      messageId,
       txHash: receipt.transactionHash,
+      externalExecutionRef,
       canonicalAmount: normalizeToCanonical(
         transaction.originTokenAmount.amount,
         transaction.originTokenAmount.token,

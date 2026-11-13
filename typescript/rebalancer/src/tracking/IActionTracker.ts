@@ -1,7 +1,15 @@
-import type { Address, Domain } from '@hyperlane-xyz/utils';
+import type {
+  Address,
+  Domain,
+  TransactionSubmissionState,
+} from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
-import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
+import type {
+  ExternalBridgeRegistry,
+  PendingApproval,
+} from '../interfaces/IExternalBridge.js';
+import type { MCRStatusRef } from '../interfaces/ITokenBridgeStatusAdapter.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 
 import type {
@@ -34,6 +42,16 @@ export interface CreateRebalanceActionParams {
   txHash?: string;
   externalBridgeTransferId?: string; // Optional - for inventory_movement (external transfer bridge ID)
   externalBridgeId?: ExternalBridgeType; // Optional - for inventory_movement (e.g., 'lifi')
+  externalExecutionRef?: MCRStatusRef; // Optional - movable collateral settlement cursor
+}
+
+export interface UpdateRebalanceActionExecutionParams {
+  submissionState?: TransactionSubmissionState;
+  pendingApproval?: PendingApproval;
+  messageId?: string;
+  txHash?: string;
+  externalBridgeTransferId?: string;
+  externalExecutionRef?: MCRStatusRef;
 }
 
 /**
@@ -56,8 +74,12 @@ export interface IActionTracker {
   /**
    * Sync inflight user transfers from Explorer and verify delivery status.
    * @param confirmedBlockTags Optional block tags from Monitor for consistent state queries
+   * @returns Whether settlement at a moving block tag requires fresh balances
+   * Legacy implementations may return void without a refresh signal.
    */
-  syncTransfers(confirmedBlockTags?: ConfirmedBlockTags): Promise<void>;
+  syncTransfers(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<boolean | void>;
 
   /**
    * Sync rebalance intents by checking fulfillment status.
@@ -67,8 +89,12 @@ export interface IActionTracker {
   /**
    * Sync rebalance actions by verifying on-chain message delivery.
    * @param confirmedBlockTags Optional block tags from Monitor for consistent state queries
+   * @returns Whether settlement at a moving block tag requires fresh balances
+   * Legacy implementations may return void without a refresh signal.
    */
-  syncRebalanceActions(confirmedBlockTags?: ConfirmedBlockTags): Promise<void>;
+  syncRebalanceActions(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<boolean | void>;
 
   /**
    * Sync inventory_movement actions by checking their status via external bridge API.
@@ -122,8 +148,8 @@ export interface IActionTracker {
 
   /**
    * Returns inventory intents that have remaining work.
-   * Intents with in-flight deposits are included but marked via hasInflightDeposit —
-   * callers must check before continuing.
+   * Intents with in-flight movements or deposits are included but marked — callers
+   * must check before continuing.
    * Returns enriched data with computed values derived from action states.
    */
   getPartiallyFulfilledInventoryIntents(): Promise<PartialInventoryIntent[]>;
@@ -186,14 +212,22 @@ export interface IActionTracker {
 
   /**
    * Get all rebalance actions currently in progress.
+   * Set includeIgnored to false for diagnostics that exclude denylisted rebalance messages.
+   * Reservation and reconciliation callers must retain the default true.
    */
-  getInProgressActions(): Promise<RebalanceAction[]>;
+  getInProgressActions(includeIgnored?: boolean): Promise<RebalanceAction[]>;
 
   // === RebalanceAction Management ===
 
   createRebalanceAction(
     params: CreateRebalanceActionParams,
   ): Promise<RebalanceAction>;
+
+  /** Record source transaction identifiers on a pre-send action. */
+  updateRebalanceActionExecution(
+    id: string,
+    params: UpdateRebalanceActionExecutionParams,
+  ): Promise<void>;
 
   /**
    * Mark a rebalance action as complete.

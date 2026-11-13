@@ -3,6 +3,8 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
+  type ChainMetadata,
+  ChainStatus,
   type CoreAddresses,
   MultiProtocolCore,
   MultiProtocolProvider,
@@ -16,9 +18,12 @@ import {
   assert,
   isEVMLike,
   ProtocolType,
+  objFilter,
   objMap,
 } from '@hyperlane-xyz/utils';
 
+import { createStatusAdapters } from '../bridges/status/index.js';
+import { validateOftRoutes } from '../bridges/status/validateOftRoutes.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
@@ -39,6 +44,7 @@ import { RebalancerOrchestrator } from '../core/RebalancerOrchestrator.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
+import type { StatusAdaptersByKind } from '../interfaces/ITokenBridgeStatusAdapter.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
@@ -73,6 +79,8 @@ const DEFAULT_EXPLORER_URL =
   process.env.EXPLORER_API_URL || 'https://explorer4.hasura.app/v1/graphql';
 
 export class RebalancerContextFactory {
+  private readonly statusAdaptersByKind: StatusAdaptersByKind;
+
   /**
    * @param config - The rebalancer config
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
@@ -93,7 +101,12 @@ export class RebalancerContextFactory {
     private readonly inventorySignerKeysByProtocol?: Partial<
       Record<ProtocolType, string>
     >,
-  ) {}
+    private readonly externalBridgeApiKeys?: Partial<
+      Record<ExternalBridgeType, string>
+    >,
+  ) {
+    this.statusAdaptersByKind = createStatusAdapters(this.logger);
+  }
 
   /**
    * @param config - The rebalancer config
@@ -110,6 +123,7 @@ export class RebalancerContextFactory {
     logger: Logger,
     inventorySignerKeysByProtocol?: Partial<Record<ProtocolType, string>>,
     warpCoreConfigOverride?: WarpCoreConfig,
+    externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
   ): Promise<RebalancerContextFactory> {
     logger.debug(
       {
@@ -164,6 +178,12 @@ export class RebalancerContextFactory {
       warpCore.tokens.map((t) => [t.chainName, t]),
     );
 
+    await validateOftRoutes(
+      config.strategyConfig,
+      tokensByChainName,
+      extendedMultiProtocolProvider,
+    );
+
     logger.debug(
       {
         warpRouteId: config.warpRouteId,
@@ -179,6 +199,7 @@ export class RebalancerContextFactory {
       registry,
       logger,
       inventorySignerKeysByProtocol,
+      externalBridgeApiKeys,
     );
   }
 
@@ -303,6 +324,8 @@ export class RebalancerContextFactory {
       actionTracker,
       this.logger,
       metrics,
+      {},
+      this.statusAdaptersByKind,
     );
 
     return rebalancer;
@@ -421,6 +444,7 @@ export class RebalancerContextFactory {
       multiProtocolCore,
       trackerConfig,
       this.logger,
+      this.statusAdaptersByKind,
     );
 
     // 7. Create InflightContextAdapter
@@ -657,6 +681,12 @@ export class RebalancerContextFactory {
     const { externalBridges } = this.config;
     const registry: Partial<ExternalBridgeRegistry> = {};
 
+    const bridgeChainMetadata = objFilter(
+      this.multiProvider.metadata,
+      (_, metadata): metadata is ChainMetadata =>
+        metadata.availability?.status !== ChainStatus.Disabled,
+    );
+
     for (const bridgeType of Object.values(ExternalBridgeType)) {
       switch (bridgeType) {
         case ExternalBridgeType.LiFi: {
@@ -667,7 +697,87 @@ export class RebalancerContextFactory {
               {
                 integrator: lifiConfig.integrator,
                 defaultSlippage: lifiConfig.defaultSlippage,
-                chainMetadata: this.multiProvider.metadata,
+                chainMetadata: bridgeChainMetadata,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.DeBridge: {
+          const debridgeConfig = externalBridges?.debridge;
+          if (debridgeConfig) {
+            const { DeBridgeBridge } =
+              await import('../bridges/DeBridgeBridge.js');
+            registry[ExternalBridgeType.DeBridge] = new DeBridgeBridge(
+              {
+                chainMetadata: bridgeChainMetadata,
+                maxFeeBps: debridgeConfig.maxFeeBps,
+                maxEvmNativeValueWei: debridgeConfig.maxEvmNativeValueWei,
+                maxTronNativeValueSun: debridgeConfig.maxTronNativeValueSun,
+                maxSolanaNativeSpendLamports:
+                  debridgeConfig.maxSolanaNativeSpendLamports,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.LayerZero: {
+          const layerZeroConfig = externalBridges?.layerzero;
+          if (layerZeroConfig) {
+            const warpRoutes = await Promise.all(
+              layerZeroConfig.warpRouteIds.map(async (id) => {
+                const config = await this.registry.getWarpRoute(id);
+                assert(
+                  config,
+                  `OFT warp route ${id} was not found in registry`,
+                );
+                return { id, config };
+              }),
+            );
+            const { LayerZeroBridge } =
+              await import('../bridges/LayerZeroBridge.js');
+            registry[ExternalBridgeType.LayerZero] = new LayerZeroBridge(
+              {
+                chainMetadata: bridgeChainMetadata,
+                warpRoutes,
+                maxFeeBps: layerZeroConfig.maxFeeBps,
+                maxEvmNativeValueWei: layerZeroConfig.maxEvmNativeValueWei,
+                maxTronNativeValueSun: layerZeroConfig.maxTronNativeValueSun,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.SwapsXyz: {
+          const swapsxyzConfig = externalBridges?.swapsxyz;
+          if (swapsxyzConfig) {
+            const apiKey =
+              this.externalBridgeApiKeys?.[ExternalBridgeType.SwapsXyz];
+            if (!apiKey) {
+              throw new Error(
+                'externalBridges.swapsxyz is configured but SWAPSXYZ_API_KEY is not set',
+              );
+            }
+            const { SwapsXyzBridge } =
+              await import('../bridges/SwapsXyzBridge.js');
+            registry[ExternalBridgeType.SwapsXyz] = new SwapsXyzBridge(
+              {
+                apiKey,
+                apiUrl: swapsxyzConfig.apiUrl,
+                defaultSlippage: swapsxyzConfig.defaultSlippage,
+                maxQuoteLossBps: swapsxyzConfig.maxQuoteLossBps,
+                maxEvmNativeFeeWei: swapsxyzConfig.maxEvmNativeFeeWei,
+                maxTronNativeFeeSun: swapsxyzConfig.maxTronNativeFeeSun,
+                maxSolanaTransactionFeeLamports:
+                  swapsxyzConfig.maxSolanaTransactionFeeLamports,
+                solanaTransactionFeeWarningLamports:
+                  swapsxyzConfig.solanaTransactionFeeWarningLamports,
+                maxSolanaNativeSpendLamports:
+                  swapsxyzConfig.maxSolanaNativeSpendLamports,
+                chainMetadata: bridgeChainMetadata,
               },
               this.logger,
             );

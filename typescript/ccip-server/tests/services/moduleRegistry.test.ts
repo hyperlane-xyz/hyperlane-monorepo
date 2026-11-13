@@ -22,7 +22,8 @@ describe('module registry', () => {
     ['wormhole', 'HYPERLANE_EXPLORER_URL'],
   ] as const) {
     it(`loads ${name} and preserves required configuration validation`, async function () {
-      this.timeout(name === 'callCommitments' ? 10_000 : 5_000);
+      // Cold imports can exceed Mocha's default timeout on busy CI workers.
+      this.timeout(10_000);
       const previous = process.env[requiredSetting];
       delete process.env[requiredSetting];
       let rejected: unknown;

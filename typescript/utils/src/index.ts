@@ -264,3 +264,9 @@ export {
 } from './yaml.js';
 export type { ArraySortConfig } from './yaml.js';
 export { createServiceLogger } from './logging.js';
+export {
+  TransactionSubmission,
+  TransactionSubmissionError,
+  type TransactionSubmissionOptions,
+  type TransactionSubmissionState,
+} from './transactionSubmission.js';

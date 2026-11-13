@@ -128,6 +128,7 @@ export class StrategyFactory {
     for (const [chain, config] of Object.entries(strategyConfig.chains)) {
       const baseConfig = {
         bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
+        enabled: config.enabled ?? true,
       };
 
       const executionType =
@@ -145,6 +146,7 @@ export class StrategyFactory {
           ...baseConfig,
           executionType: 'movableCollateral',
           bridge: config.bridge!, // Validated by config schema
+          statusAdapter: config.statusAdapter,
           override: config.override as ChainMap<
             Partial<MovableCollateralBridgeConfig>
           >,

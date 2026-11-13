@@ -16,7 +16,6 @@ import { config } from '../config.js';
 import type { DbService } from '../db/db.service.js';
 import {
   type WebSocketMetricsSnapshot,
-  websocketCatchUps,
   websocketClientMessageRejections,
   websocketConnectionRejections,
   websocketConnections,
@@ -30,6 +29,7 @@ import {
   type EventNotification,
   type EventType,
   type HeadNotification,
+  type LiveStartBoundary,
   parseDatabaseDomain,
   parseClientMessage,
   parseEventNotification,
@@ -42,8 +42,6 @@ import {
   parseHeadNotification,
   parseId,
   type StreamRequest,
-  type StreamCursor,
-  STREAM_CURSOR_VERSIONS,
 } from './protocol.js';
 import {
   ConfirmationStream,
@@ -53,13 +51,12 @@ import {
   type Row,
   STREAMS,
   compareRows,
-  rowCursorKey,
+  eventMessage,
   rowDomain,
   EventStore,
 } from './event-store.js';
 import { rawData } from './websocket-data.js';
 import { NotificationWorker } from './notification-worker.js';
-import { AgentSubscription, MAX_PENDING_EVENTS } from './agent-subscription.js';
 
 // Explorer types first: a failure in an agent-only type must not close Explorer
 // clients that already received this range. No cross-type order is promised.
@@ -71,7 +68,7 @@ const HEAD_PUBLICATION_ORDER = [
 ] as const satisfies readonly EventType[];
 
 const AGENT_PATH = '/agents';
-const MAX_AGENT_MESSAGE_BYTES = 1_048_576;
+const MAX_AGENT_MESSAGE_BYTES = 65_536;
 const MESSAGE_PATH = '/messages';
 const EVENT_CHANNEL = 'scraper_event';
 const EXPLORER_CHANNEL = 'scraper_explorer_event';
@@ -96,7 +93,7 @@ type Client = {
   alive: boolean;
   messages: number;
   messageWindow: number;
-  subscriptions: Map<EventType, AgentSubscription>;
+  subscriptions: Map<EventType, StreamRequest>;
   subscribing: boolean;
 };
 type ExplorerClient = {
@@ -108,16 +105,10 @@ type ExplorerClient = {
   queue: SerializedMessage[];
   sending: boolean;
 };
-type CatchUpWaiter = {
-  resolve: (reserved: boolean) => void;
-  socket: WebSocket;
-};
 type Limits = {
   heartbeatMs: number;
   maxAgentClients: number;
   maxBufferedBytes: number;
-  maxCatchUpMs: number;
-  maxConcurrentCatchUps: number;
   maxExplorerClients: number;
   maxTotalBufferedBytes: number;
 };
@@ -160,7 +151,6 @@ export class EventWebSocketServer {
   private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
   private readonly explorerClientsByIp = new Map<string, number>();
-  private readonly catchUpWaiters: CatchUpWaiter[] = [];
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
   private readonly pendingHeads = new Map<number, HeadNotification>();
@@ -178,6 +168,7 @@ export class EventWebSocketServer {
     () => this.drainExplorerNotifications(),
     (error) => this.failExplorerStream(error),
   );
+  private confirmationRevision = 0;
   private readonly confirmationUpdates = new NotificationWorker(
     NOTIFICATION_BATCH_MS,
     async () => {
@@ -197,7 +188,6 @@ export class EventWebSocketServer {
       this.headUpdates.schedule(LISTENER_RETRY_MS);
     },
   );
-  private catchUps = 0;
   private pendingBytes = 0;
   private listenerReady = false;
   private stopped = false;
@@ -224,8 +214,6 @@ export class EventWebSocketServer {
       heartbeatMs: HEARTBEAT_MS,
       maxAgentClients: config.EVENT_STREAM_MAX_AGENT_CLIENTS,
       maxBufferedBytes: config.EVENT_STREAM_MAX_BUFFERED_BYTES,
-      maxCatchUpMs: config.EVENT_STREAM_HISTORY_MAX_MS,
-      maxConcurrentCatchUps: config.EVENT_STREAM_HISTORY_MAX_CONCURRENT,
       maxExplorerClients: MAX_EXPLORER_CLIENTS,
       maxTotalBufferedBytes: config.EVENT_STREAM_MAX_TOTAL_BUFFERED_BYTES,
       ...limits,
@@ -247,9 +235,7 @@ export class EventWebSocketServer {
     await this.connectListener();
     this.diagnostics?.start();
     this.agentServer = new WebSocketServer({
-      // Agent subscriptions carry one cursor per chain and stream, so the
-      // fleet-wide relayer payload is substantially larger than an Explorer
-      // client request. Keep it bounded independently from outbound buffers.
+      // Bound fleet-wide domain lists independently from outbound buffers.
       maxPayload: MAX_AGENT_MESSAGE_BYTES,
       noServer: true,
     });
@@ -307,38 +293,17 @@ export class EventWebSocketServer {
 
   metricsSnapshot(): WebSocketMetricsSnapshot {
     const subscriptions: WebSocketMetricsSnapshot['subscriptions'] = {
-      delivery: { catchingUp: 0, live: 0 },
-      dispatch: { catchingUp: 0, live: 0 },
-      gas_payment: { catchingUp: 0, live: 0 },
-      merkle_tree_insertion: { catchingUp: 0, live: 0 },
+      delivery: 0,
+      dispatch: 0,
+      gas_payment: 0,
+      merkle_tree_insertion: 0,
     };
-    const now = Date.now();
-    let maxCatchUpDurationMs = 0;
-    let maxCatchUpRows = 0;
-    let maxPendingCatchUpEvents = 0;
-    let pendingCatchUpEvents = 0;
     for (const client of this.clients.values()) {
-      for (const [eventType, subscription] of client.subscriptions) {
-        subscriptions[eventType][
-          subscription.state === 'live' ? 'live' : 'catchingUp'
-        ]++;
-        pendingCatchUpEvents += subscription.pendingCount;
-        maxPendingCatchUpEvents = Math.max(
-          maxPendingCatchUpEvents,
-          subscription.pendingCount,
-        );
-        if (subscription.state !== 'live') {
-          maxCatchUpDurationMs = Math.max(
-            maxCatchUpDurationMs,
-            now - subscription.catchUpStartedAt,
-          );
-          maxCatchUpRows = Math.max(maxCatchUpRows, subscription.catchUpRows);
-        }
-      }
+      for (const eventType of client.subscriptions.keys())
+        subscriptions[eventType]++;
     }
     const sockets = [...this.clients.keys(), ...this.explorerClients.keys()];
     return {
-      catchUps: this.catchUps,
       connections: {
         agent: this.clients.size,
         messages: this.explorerClients.size,
@@ -370,21 +335,16 @@ export class EventWebSocketServer {
       ),
       limits: {
         agentConnections: this.limits.maxAgentClients,
-        catchUpMs: this.limits.maxCatchUpMs,
         clientMessagesPerMinute: MAX_CLIENT_MESSAGES,
-        concurrentCatchUps: this.limits.maxConcurrentCatchUps,
         explorerPendingBytes: MAX_EXPLORER_PENDING_BYTES,
         explorerPendingMessages: MAX_EXPLORER_PENDING_MESSAGES,
         messageConnections: this.limits.maxExplorerClients,
         messageConnectionsPerIp: MAX_EXPLORER_CLIENTS_PER_IP,
         notificationEvents: MAX_PENDING_NOTIFICATIONS,
-        pendingEvents: MAX_PENDING_EVENTS,
         socketBufferedBytes: this.limits.maxBufferedBytes,
         totalPendingBytes: this.limits.maxTotalBufferedBytes,
       },
       listenerReady: this.listenerReady,
-      maxCatchUpDurationMs,
-      maxCatchUpRows,
       maxClientBufferedBytes: sockets.reduce(
         (max, socket) => Math.max(max, socket.bufferedAmount),
         0,
@@ -394,8 +354,6 @@ export class EventWebSocketServer {
         messages: this.explorerNotifications.size,
       },
       outboundPendingBytes: this.pendingBytes,
-      maxPendingCatchUpEvents,
-      pendingCatchUpEvents,
       subscriptions,
     };
   }
@@ -414,8 +372,8 @@ export class EventWebSocketServer {
     this.send(socket, {
       confirmations: { unit: 'blocks', liveOnly: true },
       eventTypes: SUBSCRIPTION_TYPES,
-      historicalStreaming: true,
-      streamCursorVersions: STREAM_CURSOR_VERSIONS,
+      historicalStreaming: false,
+      liveStartVersion: 1,
       type: 'ready',
     });
     socket.on('message', (data) => void this.onMessage(socket, rawData(data)));
@@ -626,11 +584,17 @@ export class EventWebSocketServer {
     confirmations: number,
     domains: Set<number>,
     eventType?: EventType,
-    cursors?: StreamCursor[],
     allowUnavailable = eventType === undefined,
-  ): Promise<ConfirmationStream> {
+    readHeads = () =>
+      this.store.confirmationHeads(
+        domains,
+        eventType ? confirmations : undefined,
+      ),
+  ): Promise<ConfirmationStream | undefined> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
+    // Disconnect may have removed this socket while setup awaited a DB read.
+    if (!this.clients.has(socket) && !this.explorerClients.has(socket)) return;
     const stream = new ConfirmationStream(confirmations, domains, {
       active: () =>
         this.clients.has(socket) || this.explorerClients.has(socket),
@@ -642,9 +606,6 @@ export class EventWebSocketServer {
               after,
               through,
               confirmations,
-              cursors
-                ?.filter((cursor) => cursor.domain === domain)
-                .map((cursor) => cursor.address),
             )
           : this.store.confirmationMessageRows(
               domain,
@@ -702,10 +663,7 @@ export class EventWebSocketServer {
     const streams = this.confirmationStreams.get(socket) ?? [];
     streams.push(stream);
     this.confirmationStreams.set(socket, streams);
-    await stream.initialize(
-      () => this.store.confirmationHeads(domains),
-      allowUnavailable,
-    );
+    await stream.initialize(readHeads, allowUnavailable);
     if (eventType && stream.canonicalDomains.length)
       this.logger.warn(
         `websocket skipped advisory confirmations=${confirmations} eventType=${eventType} domains=${stream.canonicalDomains.join(',')}: near-head state unavailable`,
@@ -757,6 +715,32 @@ export class EventWebSocketServer {
     }
 
     client.subscribing = true;
+    const customStreams: {
+      request: StreamRequest;
+      stream: ConfirmationStream;
+    }[] = [];
+    // One primary snapshot per confirmations/domains group. All readers are
+    // registered concurrently before it resolves. Rollbacks force a fresh read
+    // when initialize retries; never reuse a snapshot from an earlier ancestry.
+    const snapshots = new Map<
+      string,
+      { revision: number; heads: ReturnType<EventStore['confirmationHeads']> }
+    >();
+    const readHeads = (confirmations: number, domains: Set<number>) => {
+      const key = JSON.stringify([
+        confirmations,
+        [...domains].sort((a, b) => a - b),
+      ]);
+      let snapshot = snapshots.get(key);
+      if (!snapshot || snapshot.revision !== this.confirmationRevision) {
+        snapshot = {
+          revision: this.confirmationRevision,
+          heads: this.store.confirmationHeads(domains, confirmations),
+        };
+        snapshots.set(key, snapshot);
+      }
+      return snapshot.heads;
+    };
     const eventStreams = message.streams.filter(
       (request) => request.eventType !== 'blocks',
     );
@@ -765,28 +749,42 @@ export class EventWebSocketServer {
         (request) => request.eventType === 'blocks',
       );
       if (blocks) await this.subscribeBlocks(socket, blocks.domains);
+      const initializing: Promise<
+        | {
+            request: StreamRequest;
+            stream: ConfirmationStream;
+          }
+        | undefined
+      >[] = [];
+      const addStream = (
+        request: StreamRequest,
+        confirmations: number,
+        domains: Set<number>,
+        allowUnavailable = false,
+      ) => {
+        initializing.push(
+          this.createConfirmationStream(
+            socket,
+            confirmations,
+            domains,
+            request.eventType,
+            allowUnavailable,
+            () => readHeads(confirmations, domains),
+          ).then((stream) => (stream ? { request, stream } : undefined)),
+        );
+      };
       for (const request of eventStreams) {
         if (request.confirmations !== undefined && request.domains)
-          await this.createConfirmationStream(
-            socket,
-            request.confirmations,
-            request.domains,
-            request.eventType,
-            request.cursors,
-          );
+          addStream(request, request.confirmations, request.domains);
         if (
           request.includeZeroConfirmations &&
           request.confirmations !== 0 &&
           request.domains
         )
-          await this.createConfirmationStream(
-            socket,
-            0,
-            request.domains,
-            request.eventType,
-            request.cursors,
-            true,
-          );
+          addStream(request, 0, request.domains, true);
+      }
+      for (const result of await Promise.all(initializing)) {
+        if (result) customStreams.push(result);
       }
     } catch (error) {
       if (error instanceof ConfirmationUnavailableError)
@@ -796,21 +794,7 @@ export class EventWebSocketServer {
     }
     if (this.clients.get(socket) !== client) return;
     for (const request of eventStreams) {
-      const subscription: AgentSubscription = new AgentSubscription(
-        request,
-        this.store,
-        this.limits.maxCatchUpMs,
-        {
-          active: () =>
-            this.clients.get(socket) === client &&
-            client.subscriptions.get(request.eventType) === subscription,
-          send: (message) => this.sendAndWait(socket, message),
-          close: (reason) => {
-            socket.close(1013, reason);
-          },
-        },
-      );
-      client.subscriptions.set(request.eventType, subscription);
+      client.subscriptions.set(request.eventType, request);
     }
 
     client.subscribing = false;
@@ -820,86 +804,113 @@ export class EventWebSocketServer {
     });
     this.confirmationStreams.get(socket)?.forEach((stream) => stream.start());
     this.startBlocks(socket);
-    await Promise.all(
-      eventStreams
-        .filter(({ cursors }) => cursors)
-        .map((request) => this.catchUp(socket, client, request)),
-    );
+    try {
+      for (const { request, stream } of customStreams) {
+        for (const domain of stream.domains) {
+          if (
+            !(await this.sendLiveStart(
+              socket,
+              client,
+              domain,
+              [request.eventType],
+              stream.liveStart(domain),
+              stream.confirmations,
+            ))
+          )
+            return;
+        }
+      }
+      await this.sendLiveStarts(
+        socket,
+        client,
+        eventStreams.filter((request) => request.confirmations === undefined),
+      );
+    } catch (error) {
+      this.failSocket(socket, formatError(error));
+      return;
+    }
   }
 
-  private async catchUp(
+  private async sendLiveStarts(
     socket: WebSocket,
     client: Client,
-    request: StreamRequest,
+    streams: StreamRequest[],
   ): Promise<void> {
-    const subscription = client.subscriptions.get(request.eventType);
-    if (!subscription) return;
-    if (!(await this.reserveCatchUp(socket))) return;
-    try {
-      websocketCatchUps.inc({ outcome: await subscription.replay() });
-    } catch (error) {
-      if (!subscription.isActive()) {
-        websocketCatchUps.inc({ outcome: 'aborted' });
+    if (!streams.length) return;
+    const domains = streams.every((stream) => stream.domains)
+      ? new Set(streams.flatMap((stream) => [...(stream.domains ?? [])]))
+      : undefined;
+    // Canonical subscriptions are registered before this primary DB read.
+    // Consumers must buffer from `subscribed`, not from the boundary frame.
+    const boundaries = await this.store.liveStartBoundaries(domains);
+    const requested = new Set([
+      ...boundaries.keys(),
+      ...streams.flatMap((stream) => [...(stream.domains ?? [])]),
+    ]);
+    for (const domain of requested) {
+      const eventTypes = streams
+        .filter((stream) => !stream.domains || stream.domains.has(domain))
+        .map((stream) => stream.eventType);
+      if (
+        !(await this.sendLiveStart(
+          socket,
+          client,
+          domain,
+          eventTypes,
+          boundaries.get(domain),
+        ))
+      )
         return;
-      }
-      websocketCatchUps.inc({ outcome: 'failure' });
-      client.subscriptions.delete(request.eventType);
-      const reason = formatError(error);
-      this.logger.warn(
-        `websocket catch-up failed eventType=${request.eventType}: ${reason}`,
-      );
-      this.sendError(socket, `Failed to catch up ${request.eventType}`);
-    } finally {
-      this.releaseCatchUp();
     }
   }
 
-  private reserveCatchUp(socket: WebSocket): Promise<boolean> {
-    if (this.catchUps < this.limits.maxConcurrentCatchUps) {
-      this.catchUps++;
-      return Promise.resolve(true);
-    }
-    return new Promise((resolve) =>
-      this.catchUpWaiters.push({ resolve, socket }),
+  private sendLiveStart(
+    socket: WebSocket,
+    client: Client,
+    domain: number,
+    eventTypes: EventType[],
+    boundary: LiveStartBoundary | undefined,
+    confirmations?: number,
+  ): Promise<boolean> {
+    if (this.clients.get(socket) !== client) return Promise.resolve(false);
+    const policy = confirmations === undefined ? {} : { confirmations };
+    return this.sendAndWait(
+      socket,
+      boundary
+        ? {
+            type: 'live_start',
+            domain,
+            ...policy,
+            height: boundary.height,
+            hash: boundary.hash,
+            streams: eventTypes.map((eventType) => ({
+              eventType,
+              address: boundary.contracts[eventType],
+            })),
+          }
+        : {
+            type: 'live_start_unavailable',
+            domain,
+            ...policy,
+            eventTypes,
+            reason: 'No healthy live-start scraper checkpoint',
+          },
     );
-  }
-
-  private releaseCatchUp(): void {
-    this.catchUps--;
-    const waiter = this.catchUpWaiters.shift();
-    if (!waiter) return;
-    this.catchUps++;
-    waiter.resolve(true);
-  }
-
-  private cancelCatchUp(socket: WebSocket): void {
-    for (let index = this.catchUpWaiters.length - 1; index >= 0; index--) {
-      if (this.catchUpWaiters[index]?.socket === socket) {
-        this.catchUpWaiters.splice(index, 1)[0]?.resolve(false);
-      }
-    }
   }
 
   private publish(eventType: EventType, row: Row): void {
     const domain = rowDomain(row, STREAMS[eventType].domain);
-    const key = rowCursorKey(eventType, domain, row);
     let serialized: SerializedMessage | undefined;
     for (const [socket, client] of this.clients) {
-      const subscription = client.subscriptions.get(eventType);
-      if (!subscription?.matches(domain, key)) continue;
-      if (subscription.state === 'live') {
-        const message = subscription.eventForDelivery(row);
-        if (!message) continue;
-        // Gas payment envelopes include each subscriber's legacy cursor boundary.
-        const payload =
-          eventType === 'gas_payment'
-            ? serialize(message)
-            : (serialized ??= serialize(message));
-        this.sendSerialized(socket, payload);
-      } else if (!subscription.buffer(row)) {
-        this.disconnect(socket);
-        socket.close(1013, 'Event catch-up buffer exceeded');
-      }
+      const request = client.subscriptions.get(eventType);
+      if (
+        !request ||
+        request.confirmations !== undefined ||
+        !matchesDomain(request, domain)
+      )
+        continue;
+      serialized ??= serialize(eventMessage(eventType, row));
+      this.sendSerialized(socket, serialized);
     }
   }
 
@@ -948,6 +959,7 @@ export class EventWebSocketServer {
           head.indexedHeight !== undefined &&
           head.indexedHeight < head.previousIndexedHeight
         ) {
+          this.confirmationRevision++;
           // A rollback must invalidate in-flight readers immediately; never
           // coalesce it away with a subsequent forward observation.
           this.pendingHeads.delete(head.domain);
@@ -1103,11 +1115,7 @@ export class EventWebSocketServer {
     // Delivery and gas share message ids; queue each Explorer id once per range.
     const explorerIds = new Set<string>();
     for (const eventType of HEAD_PUBLICATION_ORDER) {
-      const agentInterested = this.hasSubscriber({
-        domain,
-        eventType,
-        id: 0n,
-      });
+      const agentInterested = this.hasSubscriber({ domain, eventType });
       const explorerInterested =
         this.explorerClients.size > 0 &&
         (eventType === 'delivery' || eventType === 'gas_payment');
@@ -1313,13 +1321,16 @@ export class EventWebSocketServer {
     }
   }
 
-  private hasSubscriber({ domain, eventType }: EventNotification): boolean {
+  private hasSubscriber({
+    domain,
+    eventType,
+  }: Pick<EventNotification, 'domain' | 'eventType'>): boolean {
     for (const client of this.clients.values()) {
       const subscription = client.subscriptions.get(eventType);
       if (
         subscription &&
-        subscription.request.confirmations === undefined &&
-        subscription.matchesDomain(domain)
+        subscription.confirmations === undefined &&
+        matchesDomain(subscription, domain)
       )
         return true;
     }
@@ -1356,7 +1367,7 @@ export class EventWebSocketServer {
     for (const [socket, client] of this.clients) {
       if (
         [...client.subscriptions.values()].some((subscription) =>
-          subscription.matchesDomain(domain),
+          matchesDomain(subscription, domain),
         )
       ) {
         this.disconnect(socket);
@@ -1386,7 +1397,6 @@ export class EventWebSocketServer {
       this.disconnect(socket);
       socket.close(code, reason);
     }
-    this.clients.clear();
   }
 
   private closeExplorerClients(reason: string, code = 1013): void {
@@ -1395,8 +1405,6 @@ export class EventWebSocketServer {
       this.disconnect(socket);
       socket.close(code, reason);
     }
-    this.explorerClients.clear();
-    this.explorerClientsByIp.clear();
   }
 
   private heartbeat(): void {
@@ -1526,8 +1534,6 @@ export class EventWebSocketServer {
   private disconnect(socket: WebSocket): void {
     this.blockSubscriptions.delete(socket);
     this.confirmationStreams.delete(socket);
-    this.cancelCatchUp(socket);
-    this.clients.get(socket)?.subscriptions.clear();
     this.clients.delete(socket);
     const explorerClient = this.explorerClients.get(socket);
     if (explorerClient) {
@@ -1567,6 +1573,10 @@ function serialize(message: Record<string, unknown>): SerializedMessage {
   return Buffer.from(JSON.stringify(message));
 }
 
+function matchesDomain(request: StreamRequest, domain: number): boolean {
+  return !request.domains || request.domains.has(domain);
+}
+
 function subscriptionResponse(
   request: StreamRequest | BlockStreamRequest,
 ): Record<string, unknown> {
@@ -1575,22 +1585,8 @@ function subscriptionResponse(
     ...(request.includeZeroConfirmations !== undefined
       ? { includeZeroConfirmations: request.includeZeroConfirmations }
       : {}),
-    cursors: request.cursors?.map((cursor) =>
-      cursor.kind === 'gas_payment'
-        ? {
-            address: displayAddress(cursor.address),
-            afterStreamCursor: cursor.afterStreamCursor?.toString(),
-            domain: cursor.domain,
-          }
-        : {
-            address: displayAddress(cursor.address),
-            afterSequence: cursor.afterSequence?.toString(),
-            domain: cursor.domain,
-          },
-    ),
     domains: request.domains ? [...request.domains] : undefined,
     eventType: request.eventType,
-    streamCursorVersion: request.streamCursorVersion,
   };
 }
 

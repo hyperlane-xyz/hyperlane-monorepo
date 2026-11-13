@@ -171,6 +171,11 @@ where
         &self.domain
     }
 
+    /// The independent chain indexer used for RPC recovery.
+    pub fn indexer(&self) -> &I {
+        &self.indexer
+    }
+
     /// Fetch logs directly from the underlying indexer without storing them.
     pub async fn fetch_logs_in_range(
         &self,
