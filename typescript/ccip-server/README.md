@@ -149,8 +149,9 @@ the first VAA whose locator, emitter, nonce, consistency level and payload
 match the publication. While any endpoint reports the VAA as pending, it
 retries every endpoint with backoff, up to `WORMHOLE_VAA_MAX_ATTEMPTS` rounds.
 If no endpoint matches, the request fails with a pending error when any endpoint
-had no VAA yet, and otherwise with an error listing each endpoint's failure. The destination contract repeats all security checks; the server
-is untrusted availability infrastructure.
+had no VAA yet. Otherwise it returns HTTP 500 with `Internal server error` and
+logs each endpoint's failure. The destination contract repeats all security
+checks; the server is untrusted availability infrastructure.
 
 ### LayerZero V2 packet lookup
 

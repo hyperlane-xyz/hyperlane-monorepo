@@ -765,7 +765,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       });
       expect(response.statusCode).to.equal(500);
       expect(response.json()).to.deep.equal({
-        error: 'Missing origin transaction hash for reveal message',
+        error: 'Internal server error',
       });
       sinon.assert.notCalled(f.receipt);
       sinon.assert.notCalled(f.updateMany);
@@ -887,7 +887,7 @@ describe('CCS authenticated reveal recovery integration', () => {
         f.icaApp.getAccount.rejects(unavailableRpc());
       },
       statusCode: 500,
-      error: 'Could not derive every ICA candidate for the reveal',
+      error: 'Internal server error',
       readsReceipt: true,
       readsChain: true,
     },
@@ -917,7 +917,7 @@ describe('CCS authenticated reveal recovery integration', () => {
         f.destinationCall.rejects(unavailableRpc());
       },
       statusCode: 500,
-      error: 'missing response',
+      error: 'Internal server error',
       readsReceipt: true,
       readsChain: true,
     },
@@ -990,10 +990,7 @@ describe('CCS authenticated reveal recovery integration', () => {
         });
         expect(response.statusCode).to.equal(500);
         expect(response.json()).to.deep.equal({
-          error:
-            failure === 'missing receipt'
-              ? `Transaction not found: ${originTxHash}`
-              : 'origin RPC unavailable',
+          error: 'Internal server error',
         });
         sinon.assert.notCalled(f.destinationCall);
         sinon.assert.notCalled(f.updateMany);

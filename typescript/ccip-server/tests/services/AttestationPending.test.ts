@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import Fastify from 'fastify';
-import { pino } from 'pino';
 import { Registry } from 'prom-client';
 import sinon from 'sinon';
 
@@ -15,19 +14,7 @@ import {
 } from '../../src/utils/abiHandler.js';
 import { AttestationPendingError } from '../../src/utils/errors.js';
 import { initializeMetrics } from '../../src/utils/prometheus.js';
-
-function captureLogger(level = 'info') {
-  const lines: string[] = [];
-  const logger = pino(
-    { level },
-    {
-      write: (line: string) => {
-        lines.push(line);
-      },
-    },
-  );
-  return { logger, lines };
-}
+import { captureLogger, respondWithAbiError } from '../utils/abiHandler.js';
 
 async function rejected(promise: Promise<unknown>): Promise<Error> {
   try {
@@ -174,47 +161,24 @@ describe('CCTP pending attestation logging', () => {
   });
 
   for (const expected of [true, false]) {
-    it(`preserves HTTP status and body for ${expected ? 'typed pending' : 'ordinary'} errors`, async () => {
-      const { logger, lines } = captureLogger();
+    it(`returns HTTP 500 with the ${expected ? 'pending message for typed pending' : 'fixed body for ordinary'} errors`, async () => {
       const error = expected
         ? new AttestationPendingError()
         : new Error('CCTP attestation is pending');
-      const app: CcipApp = Fastify({
-        loggerInstance: logger,
-        routerOptions: { maxParamLength: MAX_CCIP_PARAMETER_LENGTH },
+      const { response, lines } = await respondWithAbiError(error);
+      expect(response.statusCode).to.equal(500);
+      expect(response.json()).to.deep.equal({
+        error: expected
+          ? 'CCTP attestation is pending'
+          : 'Internal server error',
       });
-      app.post<AbiRoute>(
-        '/',
-        ABI_ROUTE_OPTIONS,
-        createAbiHandler(CctpService__factory, 'getCCTPAttestation', () =>
-          Promise.reject(error),
-        ),
+      const handlerErrors = lines.filter((line) =>
+        line.includes('Error in ABI handler'),
       );
-      await app.ready();
-      try {
-        const data = CctpService__factory.createInterface().encodeFunctionData(
-          'getCCTPAttestation',
-          ['0x1234'],
-        );
-        const response = await app.inject({
-          method: 'POST',
-          url: '/',
-          payload: { data },
-        });
-        expect(response.statusCode).to.equal(500);
-        expect(response.json()).to.deep.equal({
-          error: 'CCTP attestation is pending',
-        });
-        const handlerErrors = lines.filter((line) =>
-          line.includes('Error in ABI handler'),
-        );
-        expect(handlerErrors).to.have.length(expected ? 0 : 1);
-        expect(
-          lines.some((line) => line.includes('Processing ABI handler request')),
-        ).to.equal(true);
-      } finally {
-        await app.close();
-      }
+      expect(handlerErrors).to.have.length(expected ? 0 : 1);
+      expect(
+        lines.some((line) => line.includes('Processing ABI handler request')),
+      ).to.equal(true);
     });
   }
 });

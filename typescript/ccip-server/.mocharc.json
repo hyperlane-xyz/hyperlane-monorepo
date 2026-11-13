@@ -6,6 +6,7 @@
     "./tests/**/cctpMessageMatcher.test.ts",
     "./tests/**/CCTPService.test.ts",
     "./tests/**/AttestationPending.test.ts",
+    "./tests/**/AbiHandler.test.ts",
     "./tests/**/moduleRegistry.test.ts",
     "./tests/**/RequestLogging.test.ts",
     "./tests/**/LookupMetrics.test.ts",

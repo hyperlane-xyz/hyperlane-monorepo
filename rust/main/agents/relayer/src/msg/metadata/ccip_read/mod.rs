@@ -1039,7 +1039,7 @@ mod test {
                 if allowed {
                     let error: serde_json::Value = response.json().await?;
                     assert_eq!(
-                        error["error"], "Missing origin transaction hash for reveal message",
+                        error["error"], "Internal server error",
                         "{} signer {key_byte} without origin_tx_hash",
                         case.name
                     );

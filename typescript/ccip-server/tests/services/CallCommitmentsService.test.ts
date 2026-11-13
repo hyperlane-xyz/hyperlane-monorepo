@@ -400,6 +400,34 @@ describe('CallCommitmentsService.handleCommitment', () => {
     expect(service.upsertCommitmentInDB.called).to.be.false;
   });
 
+  it('returns the ICA derivation error with urls and hostnames redacted', async () => {
+    const deriveIcaFromConfig = sinon
+      .stub()
+      .rejects(
+        new Error(
+          'missing response (serverError={"hostname":"secret-host.invalid"}, ' +
+            'url="https://secret-host.invalid/apikey-SECRET123", code=SERVER_ERROR)',
+        ),
+      );
+    const service = createService({ deriveIcaFromConfig });
+    service.upsertCommitmentInDB = sinon.stub();
+    const res = mockRes();
+
+    await service.handleCommitment(
+      { body: icaPayload, log: mockLogger() },
+      res,
+    );
+
+    expect(res.status.calledWith(400)).to.be.true;
+    expect(
+      res.json.calledWith({
+        error:
+          'Failed to derive ICA address: missing response (serverError={"hostname":"<redacted-host>"}, ' +
+          'url="<redacted-url>", code=SERVER_ERROR)',
+      }),
+    ).to.be.true;
+  });
+
   it('routes legacy payload to deriveIcaFromDispatchTx', async () => {
     const multiProvider = {
       getChainName: sinon.stub().returns('ethereum'),

@@ -32,6 +32,8 @@ import {
   isNullish,
   isZeroishAddress,
   parseMessage,
+  redactErrorMessage,
+  redactErrorStack,
 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../db.js';
@@ -461,12 +463,11 @@ export class CallCommitmentsService extends BaseService {
         ica = await this.deriveIcaFromDispatchTx(data, logger);
       }
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = redactErrorMessage(error);
       logger.warn(
         {
           error: errorMessage,
-          stack: error instanceof Error ? error.stack : undefined,
+          stack: redactErrorStack(error),
         },
         'Failed to derive ICA address',
       );
@@ -657,8 +658,8 @@ export class CallCommitmentsService extends BaseService {
         {
           revealMessage: message,
           relayer,
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
+          error: redactErrorMessage(error),
+          stack: redactErrorStack(error),
         },
         'Error fetching commitment from message',
       );
@@ -791,7 +792,7 @@ export class CallCommitmentsService extends BaseService {
       log.debug(
         {
           originTxHash,
-          error: error instanceof Error ? error.message : String(error),
+          error: redactErrorMessage(error),
         },
         'The chain did not derive the ICA for the dispatched routers',
       );
@@ -888,10 +889,7 @@ export class CallCommitmentsService extends BaseService {
         routerVersionIcas.push(result.value);
         continue;
       }
-      const error =
-        result.reason instanceof Error
-          ? result.reason.message
-          : String(result.reason);
+      const error = redactErrorMessage(result.reason);
       if (result.reason instanceof RpcUnavailableError) {
         unavailableCandidates++;
         log.warn(
