@@ -1,10 +1,31 @@
 warpRouteId: USDC/eclipsemainnet
+
+deployment:
+  monitorOnly: false
+  imageRepository: ghcr.io/hyperlane-xyz/hyperlane-node-services
+  imageTag: 11861e5-20261110-130055
+  imageDigest: sha256:b77396a69e3c295d4b8dea9b9566aac0905a43442ec472d225985e2455ac8260
+  registryCommit: 774cf8fadf1a3472a59065b45d193f2b27891f3e
+  swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
+
+pendingTransferMiddlewares:
+  - type: relayerDenylist
+    url: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json
+
 inventorySigners:
   ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
   sealevel: '4ZJoMHQPEMkeExtFQLbuh8nB21dxHj741dSo6oJ5BcMo'
 externalBridges:
-  lifi:
-    integrator: rebalancer
+  swapsxyz:
+    defaultSlippage: 0.005
+    maxQuoteLossBps: 50
+    maxEvmNativeFeeWei: '10000000000000000'
+    maxSolanaNativeSpendLamports: 10000000
+  relay:
+    defaultSlippage: 0.001
+    maxQuoteLossBps: 100
+  elysiumNative:
+    maxNativeValueWei: '10000000000000000'
 strategy:
   rebalanceStrategy: weighted
   chains:
@@ -18,10 +39,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     base:
       weighted:
@@ -33,10 +58,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     arbitrum:
       weighted:
@@ -48,10 +77,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     optimism:
       weighted:
@@ -63,10 +96,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     polygon:
       weighted:
@@ -78,10 +115,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     unichain:
       weighted:
@@ -93,10 +134,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     arc:
       weighted:
@@ -108,10 +153,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     ink:
       weighted:
@@ -123,10 +172,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     avalanche:
       weighted:
@@ -138,10 +191,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     linea:
       weighted:
@@ -153,10 +210,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     worldchain:
       weighted:
@@ -168,10 +229,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     hyperevm:
       weighted:
@@ -183,10 +248,14 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     monad:
       weighted:
@@ -198,21 +267,136 @@ strategy:
       override:
         bsc:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
         solanamainnet:
           executionType: inventory
-          externalBridge: lifi
+          externalBridge: swapsxyz
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     bsc:
       weighted:
         weight: 25
         tolerance: 10
       executionType: inventory
-      externalBridge: lifi
+      externalBridge: swapsxyz
+      override:
+        elysium:
+          executionType: inventory
+          externalBridge: relay
+          bridgeMinAcceptedAmount: 2500
 
     solanamainnet:
       weighted:
         weight: 47
         tolerance: 10
       executionType: inventory
-      externalBridge: lifi
+      externalBridge: swapsxyz
+      override:
+        elysium:
+          enabled: false
+    elysium:
+      enabled: false
+      weighted:
+        weight: 3
+        tolerance: 3
+      executionType: inventory
+      externalBridge: relay
+      bridgeMinAcceptedAmount: 2500
+      override:
+        solanamainnet:
+          enabled: false
+inventoryRoutes:
+  ethereum:
+    elysium:
+      externalBridge: relay
+  base:
+    elysium:
+      externalBridge: relay
+  arbitrum:
+    elysium:
+      externalBridge: relay
+  optimism:
+    elysium:
+      externalBridge: relay
+  polygon:
+    elysium:
+      externalBridge: relay
+  unichain:
+    elysium:
+      externalBridge: relay
+  arc:
+    elysium:
+      externalBridge: relay
+  ink:
+    elysium:
+      externalBridge: relay
+  avalanche:
+    elysium:
+      externalBridge: relay
+  linea:
+    elysium:
+      externalBridge: relay
+  worldchain:
+    elysium:
+      externalBridge: relay
+  hyperevm:
+    elysium:
+      externalBridge: elysiumNative
+      priority: 1
+  monad:
+    elysium:
+      externalBridge: relay
+  bsc:
+    elysium:
+      externalBridge: relay
+  solanamainnet:
+    elysium:
+      enabled: false
+  elysium:
+    ethereum:
+      enabled: false
+      externalBridge: relay
+    base:
+      enabled: false
+      externalBridge: relay
+    arbitrum:
+      enabled: false
+      externalBridge: relay
+    optimism:
+      enabled: false
+      externalBridge: relay
+    polygon:
+      enabled: false
+      externalBridge: relay
+    unichain:
+      enabled: false
+      externalBridge: relay
+    arc:
+      enabled: false
+      externalBridge: relay
+    ink:
+      enabled: false
+      externalBridge: relay
+    avalanche:
+      enabled: false
+      externalBridge: relay
+    linea:
+      enabled: false
+      externalBridge: relay
+    worldchain:
+      enabled: false
+      externalBridge: relay
+    hyperevm:
+      enabled: false
+      externalBridge: relay
+    monad:
+      enabled: false
+      externalBridge: relay
+    bsc:
+      enabled: false
+      externalBridge: relay
+    solanamainnet:
+      enabled: false
