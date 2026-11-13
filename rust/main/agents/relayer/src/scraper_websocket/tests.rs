@@ -8,21 +8,78 @@ use hyperlane_core::{
     SequenceAwareIndexer,
 };
 use prometheus::Registry;
-use std::{
-    fmt::Debug,
-    ops::RangeInclusive,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::{fmt::Debug, ops::RangeInclusive};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
-#[derive(Debug)]
-struct CountIndexer(AtomicUsize, Option<u32>);
-impl Default for CountIndexer {
-    fn default() -> Self {
-        Self(AtomicUsize::new(0), Some(2))
+#[derive(Debug, Clone)]
+struct TestProvider(HyperlaneDomain);
+impl hyperlane_core::HyperlaneChain for TestProvider {
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.0
+    }
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(self.clone())
     }
 }
+#[async_trait]
+impl HyperlaneProvider for TestProvider {
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<hyperlane_core::BlockInfo> {
+        Ok(hyperlane_core::BlockInfo {
+            number: height,
+            hash: H256::from_low_u64_be(100),
+            timestamp: 0,
+        })
+    }
+    async fn get_txn_by_hash(&self, _: &H512) -> ChainResult<hyperlane_core::TxnInfo> {
+        unreachable!()
+    }
+    async fn is_contract(&self, _: &H256) -> ChainResult<bool> {
+        unreachable!()
+    }
+    async fn get_balance(&self, _: String) -> ChainResult<hyperlane_core::U256> {
+        unreachable!()
+    }
+    async fn get_chain_metrics(&self) -> ChainResult<Option<hyperlane_core::ChainInfo>> {
+        unreachable!()
+    }
+}
+fn boundary(source: &ScraperSource, height: u64) -> LiveStartBoundary {
+    LiveStartBoundary {
+        domain: source.domain,
+        height: height.to_string(),
+        hash: format!("{:#x}", H256::from_low_u64_be(100)),
+        confirmations: None,
+        streams: Kind::ALL
+            .into_iter()
+            .filter(|k| *k != Kind::Gas || source.gas_indexing)
+            .map(|kind| hyperlane_base::scraper_websocket::LiveStartStream {
+                event_type: kind.label().into(),
+                address: format!(
+                    "{:#x}",
+                    match kind {
+                        Kind::Dispatch => source.mailbox,
+                        Kind::Merkle => source.merkle_tree_hook,
+                        Kind::Gas => source.interchain_gas_paymaster,
+                    }
+                ),
+            })
+            .collect(),
+    }
+}
+fn accept_verified(state: &mut SourceState<'_>, height: u64) {
+    state
+        .accept_boundary(boundary(state.source, height))
+        .unwrap();
+    state
+        .observe_probe(
+            state.source.control.generation(),
+            Ok(Some(RpcProbe::BoundaryVerified)),
+        )
+        .unwrap();
+}
+#[derive(Debug, Default)]
+struct CountIndexer;
 #[async_trait]
 impl<T: Send + Sync + Debug + 'static> Indexer<T> for CountIndexer {
     async fn fetch_logs_in_range(
@@ -38,8 +95,7 @@ impl<T: Send + Sync + Debug + 'static> Indexer<T> for CountIndexer {
 #[async_trait]
 impl<T: Send + Sync + Debug + 'static> SequenceAwareIndexer<T> for CountIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        self.0.fetch_add(1, Ordering::Relaxed);
-        Ok((self.1, 100))
+        Ok((Some(2), 100))
     }
 }
 fn fixture() -> (tempfile::TempDir, ScraperSource, CoreMetrics) {
@@ -57,10 +113,11 @@ fn fixture() -> (tempfile::TempDir, ScraperSource, CoreMetrics) {
         interchain_gas_paymaster: H256::from_low_u64_be(3),
         database: db,
         broadcaster: None,
-        freshness_indexer: Arc::new(CountIndexer::default()),
-        merkle_freshness_indexer: Arc::new(CountIndexer::default()),
+        provider: Arc::new(TestProvider(HyperlaneDomain::new_test_domain("base-test"))),
+        freshness_indexer: Arc::new(CountIndexer),
+        merkle_freshness_indexer: Arc::new(CountIndexer),
         sync_metrics: Arc::new(ContractSyncMetrics::new(&metrics)),
-        gas_indexer: Some(Arc::new(CountIndexer::default())),
+        gas_indexing: true,
         control: Arc::new(Authority::new(8453)),
     };
     (dir, source, metrics)
@@ -87,7 +144,7 @@ fn merkle(index: u32) -> LiveEvent {
     LiveEvent::Merkle(MerkleTreeInsertion::new(index, message.id()), 100)
 }
 #[derive(Debug)]
-struct CompleteCursor(bool, u32);
+struct CompleteCursor(bool, u32, u32);
 #[async_trait]
 impl ContractSyncCursor<HyperlaneMessage> for CompleteCursor {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
@@ -95,6 +152,9 @@ impl ContractSyncCursor<HyperlaneMessage> for CompleteCursor {
     }
     fn latest_queried_block(&self) -> u32 {
         self.1
+    }
+    fn next_sequence(&self) -> Option<u32> {
+        Some(self.2)
     }
     fn is_caught_up(&self) -> bool {
         self.0
@@ -116,7 +176,16 @@ async fn progress_at(source: &ScraperSource, kinds: &[Kind], complete: bool, blo
     let receiver = source.control.receiver();
     for kind in kinds {
         RpcRecovery::track(
-            Box::new(CompleteCursor(complete, block)),
+            Box::new(CompleteCursor(
+                complete,
+                block,
+                source
+                    .database
+                    .retrieve_highest_message_nonce()
+                    .unwrap()
+                    .map(|n| n + 1)
+                    .unwrap_or(0),
+            )),
             Some(receiver.recovery(*kind)),
         )
         .next_action()
@@ -197,124 +266,93 @@ async fn rejected_live_subscription_uses_slow_reconnect() {
 }
 
 #[tokio::test]
-async fn overlap_requires_complete_rpc_history_including_gas() {
+async fn quiet_boundary_requires_verified_hash_and_all_rpc_history_including_gas() {
     let (_dir, source, _) = fixture();
     let mut state = SourceState::new(&source);
-    state
-        .observe_probe(
-            source.control.generation(),
-            Ok(Some(RpcProbe::GasBoundary(100))),
-        )
+    state.accept_boundary(boundary(&source, 100)).unwrap();
+    progress(&source, &Kind::ALL, true).await;
+    assert!(
+        state.handoff_sequences().is_none(),
+        "boundary must be independently verified"
+    );
+    source
+        .verify_boundary(state.boundary.unwrap())
+        .await
         .unwrap();
-    for event in [dispatch(7), merkle(7)] {
-        state.ingest(event).unwrap();
-    }
-    assert!(!state.overlap_ready().unwrap());
-    source.store(&dispatch(7)).unwrap();
-    source.store(&merkle(7)).unwrap();
-    // Merely finding the anchor does not prove earlier history was filled.
+    // Only complete, fresh cursor reports at/above B may authorize handoff.
+    let mut state = SourceState::new(&source);
+    accept_verified(&mut state, 100);
     progress(&source, &Kind::ALL, false).await;
-    assert!(!state.overlap_ready().unwrap());
+    assert!(state.handoff_sequences().is_none());
+    progress_at(&source, &Kind::ALL, true, 99).await;
+    assert!(state.handoff_sequences().is_none());
     progress(&source, &[Kind::Dispatch, Kind::Merkle], true).await;
     assert!(
-        !state.overlap_ready().unwrap(),
-        "gas recovery must also finish"
+        state.handoff_sequences().is_none(),
+        "gas history is required even without a gas event"
     );
     progress(&source, &[Kind::Gas], true).await;
-    assert!(state.overlap_ready().unwrap());
+    assert!(state.handoff_sequences().is_some());
+    assert!(
+        state.pending.is_empty(),
+        "quiet chains need no anchor events"
+    );
+    state.finish_handoff().unwrap();
+    assert!(state.authoritative);
+    assert_eq!(state.next, [Some(0), Some(0)]);
+    // A missing first live event must still be detected on a quiet chain.
+    assert!(state.ingest(dispatch(1)).is_err());
 }
 
 #[tokio::test]
-async fn gas_recovery_covers_subscription_height_even_without_buffered_gas() {
+async fn boundary_rejects_wrong_hash_contracts_policy_and_incomplete_streams() {
     let (_dir, source, _) = fixture();
-    let mut state = SourceState::new(&source);
-    for mut event in [dispatch(7), merkle(7)] {
-        match &mut event {
-            LiveEvent::Dispatch(_, block, _) | LiveEvent::Merkle(_, block) => *block = 101,
-            _ => unreachable!(),
-        }
-        source.store(&event).unwrap();
-        state.ingest(event).unwrap();
-    }
-    // Every RPC cursor reported caught up at 105, but the initial proxy range
-    // extended through 110 and its gas phase preceded our subscription.
-    progress_at(&source, &Kind::ALL, true, 105).await;
+    let mut wrong = boundary(&source, 100);
+    wrong.streams[0].address = format!("{:#x}", H256::zero());
+    assert!(SourceState::new(&source).accept_boundary(wrong).is_err());
+    let mut wrong = boundary(&source, 100);
+    wrong.confirmations = Some(0);
+    assert!(SourceState::new(&source).accept_boundary(wrong).is_err());
+    let mut wrong = boundary(&source, 100);
+    wrong.streams.pop();
+    assert!(SourceState::new(&source).accept_boundary(wrong).is_err());
+    assert!(source
+        .verify_boundary(Boundary {
+            height: 100,
+            hash: H256::zero()
+        })
+        .await
+        .is_err());
+    let mut future = SourceState::new(&source);
+    accept_verified(&mut future, 101);
+    progress(&source, &Kind::ALL, true).await;
     assert!(
-        !state.overlap_ready().unwrap(),
-        "must first sample the boundary"
-    );
-    state
-        .observe_probe(
-            source.control.generation(),
-            Err(eyre::eyre!("RPC unavailable")),
-        )
-        .unwrap();
-    assert!(!state.overlap_ready().unwrap());
-    state
-        .observe_probe(
-            source.control.generation(),
-            Ok(Some(RpcProbe::GasBoundary(110))),
-        )
-        .unwrap();
-    assert!(
-        !state.overlap_ready().unwrap(),
-        "gas through 105 leaves a gap"
-    );
-
-    // An empty successful scan still proves block coverage. No gas event is
-    // required in the buffer, and dispatch/Merkle need only cover their anchors.
-    let mut gas = RpcRecovery::track(
-        Box::new(CompleteCursor(false, 105)),
-        Some(source.control.receiver().recovery(Kind::Gas)),
-    );
-    gas.update(vec![], 106..=110).await.unwrap();
-    assert!(state.overlap_ready().unwrap());
-    state
-        .observe_probe(
-            source.control.generation(),
-            Ok(Some(RpcProbe::GasBoundary(120))),
-        )
-        .unwrap();
-    assert!(
-        state.overlap_ready().unwrap(),
-        "the sampled boundary stays fixed"
-    );
-
-    let old_generation = source.control.generation();
-    source.control.resume();
-    let mut recovered = SourceState::new(&source);
-    recovered
-        .observe_probe(old_generation, Ok(Some(RpcProbe::GasBoundary(110))))
-        .unwrap();
-    assert!(
-        recovered.gas_boundary.is_none(),
-        "fallback needs a new sample"
+        future.handoff_sequences().is_none(),
+        "RPC confirmation frontier must cover the boundary"
     );
 }
 
 #[tokio::test]
-async fn completed_gas_query_records_recovery_before_the_next_poll() {
+async fn boundary_cutover_preserves_configured_floor_sequence_without_local_events() {
     let (_dir, source, _) = fixture();
     let mut state = SourceState::new(&source);
-    state
-        .observe_probe(
-            source.control.generation(),
-            Ok(Some(RpcProbe::GasBoundary(100))),
+    accept_verified(&mut state, 100);
+    for kind in Kind::ALL {
+        RpcRecovery::track(
+            Box::new(CompleteCursor(true, 100, 700)),
+            Some(source.control.receiver().recovery(kind)),
         )
+        .next_action()
+        .await
         .unwrap();
-    for event in [dispatch(7), merkle(7)] {
-        source.store(&event).unwrap();
-        state.ingest(event).unwrap();
     }
-    progress(&source, &[Kind::Dispatch, Kind::Merkle], true).await;
-    let mut gas = RpcRecovery::track(
-        Box::new(CompleteCursor(false, 100)),
-        Some(source.control.receiver().recovery(Kind::Gas)),
-    );
-    gas.next_action().await.unwrap();
-    assert!(!state.overlap_ready().unwrap());
-    gas.update(vec![], 90..=100).await.unwrap();
-    assert!(state.overlap_ready().unwrap());
+    assert!(state.handoff_sequences().is_some());
+    state.finish_handoff().unwrap();
+    assert_eq!(state.next, [Some(700), Some(700)]);
+    state.ingest(dispatch(700)).unwrap();
+    state.ingest(merkle(700)).unwrap();
+    assert!(dispatch(700).matches(&source.database).unwrap());
+    assert!(state.ingest(merkle(702)).is_err());
 }
 
 #[tokio::test]
@@ -322,17 +360,12 @@ async fn old_rpc_progress_and_stale_pause_ack_cannot_authorize_reconnect() {
     let (_dir, source, _) = fixture();
     progress(&source, &Kind::ALL, true).await;
     let mut state = SourceState::new(&source);
-    state
-        .observe_probe(
-            source.control.generation(),
-            Ok(Some(RpcProbe::GasBoundary(100))),
-        )
-        .unwrap();
+    accept_verified(&mut state, 100);
     for event in [dispatch(1), merkle(1)] {
         source.store(&event).unwrap();
         state.ingest(event).unwrap();
     }
-    assert!(!state.overlap_ready().unwrap());
+    assert!(state.handoff_sequences().is_none());
     let scheduled = source.control.generation();
     source.control.resume();
     assert!(
@@ -351,13 +384,7 @@ async fn old_rpc_progress_and_stale_pause_ack_cannot_authorize_reconnect() {
 
 #[test]
 fn gaps_conflicts_and_full_buffers_require_rpc_recovery() {
-    let (_dir, source, metrics) = fixture();
-    let monitor = ScraperWebSocketMonitor::new(
-        Url::parse("ws://localhost:1").unwrap(),
-        vec![source.clone()],
-        &metrics,
-    )
-    .unwrap();
+    let (_dir, source, _) = fixture();
     let mut state = SourceState::new(&source);
     state.ingest(dispatch(0)).unwrap();
     assert!(state.ingest(dispatch(2)).is_err());
@@ -366,20 +393,11 @@ fn gaps_conflicts_and_full_buffers_require_rpc_recovery() {
         message.body.push(3);
     }
     assert!(state.ingest(conflict).is_err());
-    source.control.request(source.control.generation()).unwrap();
-    monitor.fallback(&mut state, eyre::eyre!("gap"));
-    assert!(!source.control.desired());
-    assert!(state.pending.is_empty());
+    let mut state = SourceState::new(&source);
     for n in 0..MAX_HANDOFF_EVENTS as u32 {
         state.ingest(dispatch(n)).unwrap();
     }
-    let overflow = state
-        .ingest(dispatch(MAX_HANDOFF_EVENTS as u32))
-        .unwrap_err();
-    monitor.fallback(&mut state, overflow);
-    assert!(state.pending.is_empty());
-    assert!(!state.authoritative);
-    state.ingest(dispatch(100)).unwrap(); // A fresh overlap can start after recovery.
+    assert!(state.ingest(dispatch(MAX_HANDOFF_EVENTS as u32)).is_err());
     assert!(source
         .database
         .retrieve_message_by_nonce(0)
@@ -414,26 +432,16 @@ fn wire_event(event: &LiveEvent, source: &ScraperSource) -> serde_json::Value {
 
 #[tokio::test]
 async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_replay() {
-    // Block-indexed gas has no count; sequence-indexed gas (including Sealevel)
-    // exposes a count and tip without supporting a block-height watermark.
-    for gas_count in [None, Some(2)] {
-        socket_cutover_with_gas_count(gas_count).await;
-    }
-}
-
-async fn socket_cutover_with_gas_count(gas_count: Option<u32>) {
-    let (_dir, mut source, metrics) = fixture();
-    let gas_indexer = Arc::new(CountIndexer(AtomicUsize::new(0), gas_count));
-    source.gas_indexer = Some(gas_indexer.clone());
+    let (_dir, source, metrics) = fixture();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = Url::parse(&format!("ws://{}", listener.local_addr().unwrap())).unwrap();
     let mut other = source.clone();
     other.domain = 1;
     other.chain = "other".into();
-    other.gas_indexer = None;
+    other.gas_indexing = false;
     other.control = Arc::new(Authority::new(other.domain));
     let monitor = ScraperWebSocketMonitor::new(url, vec![source.clone(), other], &metrics).unwrap();
-    for (connection, first) in [20, 30].into_iter().enumerate() {
+    for first in [20, 30] {
         let session = monitor.stream(StreamTimeouts {
             progress_check: Duration::from_millis(5),
             ..Default::default()
@@ -450,11 +458,6 @@ async fn socket_cutover_with_gas_count(gas_count: Option<u32>) {
             let request = socket.next().await.unwrap().unwrap();
             let request: serde_json::Value =
                 serde_json::from_str(request.to_text().unwrap()).unwrap();
-            assert_eq!(
-                gas_indexer.0.load(Ordering::Relaxed),
-                connection,
-                "do not sample the gas boundary before subscribing"
-            );
             let streams = request["streams"].as_array().unwrap();
             assert_eq!(streams.len(), 3);
             for stream in streams {
@@ -476,6 +479,26 @@ async fn socket_cutover_with_gas_count(gas_count: Option<u32>) {
                 ))
                 .await
                 .unwrap();
+            socket
+                .send(Message::Text(
+                    serde_json::json!({"type":"live_start_unavailable","domain":1})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .unwrap();
+            // An unavailable origin stays on RPC and must not poison the shared
+            // socket, even if live events continue to arrive for that origin.
+            socket
+                .send(Message::Text(
+                    serde_json::json!({"type":"event","domain":1,"eventType":"dispatch","data":{}})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .unwrap();
+            let marker = boundary(&source, 100);
+            socket.send(Message::Text(serde_json::json!({"type":"live_start", "domain":marker.domain,"height":marker.height,"hash":marker.hash,"streams":marker.streams.iter().map(|s| serde_json::json!({"eventType":s.event_type,"address":s.address})).collect::<Vec<_>>()}).to_string().into())).await.unwrap();
             for event in [
                 dispatch(first),
                 merkle(first),
@@ -536,11 +559,6 @@ async fn socket_cutover_with_gas_count(gas_count: Option<u32>) {
             })
             .await
             .unwrap();
-            assert_eq!(
-                gas_indexer.0.load(Ordering::Relaxed),
-                connection + 1,
-                "sample once per connection, without chasing the head"
-            );
             socket.close(None).await.unwrap();
         };
         let (result, ()) = timeout(Duration::from_secs(5), async {
@@ -592,5 +610,66 @@ fn rpc_and_live_gas_overlap_is_not_double_credited() {
             .unwrap()
             .payment,
         U256::from(100)
+    );
+}
+
+/// Run against an actual proxy + PostgreSQL fixture with domain 8453, checkpoint
+/// 100/hash H256::from_low_u64_be(100), and contract addresses 1/2/3.
+#[tokio::test]
+#[ignore = "requires RELAYER_TEST_PROXY_URL and an isolated scraper PostgreSQL fixture"]
+async fn real_proxy_quiet_boundary_cutover() {
+    let (_dir, source, metrics) = fixture();
+    let url = Url::parse(&std::env::var("RELAYER_TEST_PROXY_URL").expect("proxy URL")).unwrap();
+    let monitor = ScraperWebSocketMonitor::new(url, vec![source.clone()], &metrics).unwrap();
+    let check = async {
+        timeout(Duration::from_secs(10), async {
+            while monitor.active.with_label_values(&[&source.chain]).get() != 1 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("actual proxy subscription");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !source.control.desired(),
+            "boundary alone must not stop RPC"
+        );
+        assert_eq!(
+            monitor.authority.with_label_values(&[&source.chain]).get(),
+            0
+        );
+        progress(&source, &[Kind::Dispatch, Kind::Merkle], true).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!source.control.desired(), "gas history still missing");
+        progress(&source, &[Kind::Gas], true).await;
+        let mut receiver = source.control.receiver();
+        timeout(Duration::from_secs(10), async {
+            loop {
+                let command = receiver.borrow_and_update();
+                if command.desired {
+                    receiver.mark_paused(source.domain, command.generation);
+                    break;
+                }
+                receiver.changed().await.unwrap();
+            }
+            while monitor.authority.with_label_values(&[&source.chain]).get() != 1 {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("quiet chain must switch without a dispatch");
+        assert!(source
+            .database
+            .retrieve_highest_message_nonce()
+            .unwrap()
+            .is_none());
+    };
+    tokio::select! {
+        result=monitor.stream(StreamTimeouts {progress_check:Duration::from_millis(10),..Default::default()}) => panic!("unexpected disconnect: {result:?}"),
+        ()=check => {}
+    }
+    assert!(
+        !source.control.desired(),
+        "dropping the connection restores RPC"
     );
 }

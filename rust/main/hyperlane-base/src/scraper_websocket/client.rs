@@ -291,6 +291,10 @@ impl ScraperWebSocket {
                         ServerMessage::CaughtUp { .. } => {
                             self.state.require_subscribed("caught-up marker")?
                         }
+                        ServerMessage::LiveStart(_)
+                        | ServerMessage::LiveStartUnavailable { .. } => {
+                            self.state.require_subscribed("live-start boundary")?
+                        }
                         ServerMessage::Rollback => self.state.require_subscribed("rollback")?,
                         ServerMessage::Error { .. } | ServerMessage::Other => {}
                     }

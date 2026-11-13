@@ -28,6 +28,11 @@ pub trait ContractSyncCursor<T>: Debug + Send + Sync + 'static {
         false
     }
 
+    /// Next sequence after the completed forward history, when available.
+    fn next_sequence(&self) -> Option<u32> {
+        None
+    }
+
     /// Ingests the logs that were fetched from the chain and the range that was queried,
     /// and adjusts the cursor accordingly.
     /// This is called after the logs have been written to the store,

@@ -64,6 +64,10 @@ impl<T> Debug for ForwardSequenceAwareSyncCursor<T> {
 }
 
 impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareSyncCursor<T> {
+    pub(super) fn next_sequence(&self) -> u32 {
+        self.current_indexing_snapshot.sequence
+    }
+
     #[instrument(
         skip(store, latest_sequence_querier, metrics_data),
         fields(chunk_size, next_sequence, start_block, index_mode),

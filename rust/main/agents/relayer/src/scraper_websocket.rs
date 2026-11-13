@@ -1,4 +1,4 @@
-//! Live scraper input with RPC history recovery and an acknowledged overlap cutover.
+//! Live scraper input with RPC history recovery and a checkpoint-based acknowledged cutover.
 mod events;
 mod rpc;
 #[cfg(test)]
@@ -12,13 +12,14 @@ use hyperlane_base::{
     broadcast::{BroadcastMpscSender, IndexingNotification},
     db::HyperlaneRocksDB,
     scraper_websocket::{
-        reconnect_after, RejectedStream, ScraperSession, ServerMessage, SessionEvent, StreamHealth,
-        StreamTimeouts, SubscribeMessage, SubscribeStream,
+        parse_address, reconnect_after, LiveStartBoundary, RejectedStream, ScraperSession,
+        ServerMessage, SessionEvent, StreamHealth, StreamTimeouts, SubscribeMessage,
+        SubscribeStream,
     },
     settings::SequenceIndexer,
     ContractSyncMetrics, CoreMetrics,
 };
-use hyperlane_core::{HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, H256};
+use hyperlane_core::{HyperlaneMessage, HyperlaneProvider, MerkleTreeInsertion, H256};
 use prometheus::IntGaugeVec;
 use rpc::Authority;
 pub(crate) use rpc::{AuthorityCommand, RpcRecovery, ScraperAuthorityReceiver};
@@ -66,10 +67,11 @@ pub(crate) struct ScraperSource {
     interchain_gas_paymaster: H256,
     database: HyperlaneRocksDB,
     broadcaster: Option<BroadcastMpscSender<IndexingNotification>>,
+    provider: Arc<dyn HyperlaneProvider>,
     freshness_indexer: SequenceIndexer<HyperlaneMessage>,
     merkle_freshness_indexer: SequenceIndexer<MerkleTreeInsertion>,
     sync_metrics: Arc<ContractSyncMetrics>,
-    gas_indexer: Option<SequenceIndexer<InterchainGasPayment>>,
+    gas_indexing: bool,
     control: Arc<Authority>,
 }
 impl ScraperSource {
@@ -82,12 +84,22 @@ impl ScraperSource {
             interchain_gas_paymaster: origin.chain_conf.addresses.interchain_gas_paymaster,
             database: origin.database.clone(),
             broadcaster: origin.message_sync.get_broadcaster(),
+            provider: origin.validator_announce.provider().into(),
             freshness_indexer: origin.message_sequence_indexer.clone(),
             merkle_freshness_indexer: origin.merkle_sequence_indexer.clone(),
             sync_metrics: origin.sync_metrics.clone(),
-            gas_indexer: origin.igp_indexer.clone(),
+            gas_indexing: origin.igp_indexer.is_some(),
             control: Arc::new(Authority::new(origin.domain.id())),
         }
+    }
+    async fn verify_boundary(&self, boundary: Boundary) -> Result<()> {
+        // RPC cursor coverage enforces the confirmation policy; check the fork here.
+        let block = self.provider.get_block_by_height(boundary.height).await?;
+        ensure!(
+            block.number == boundary.height && block.hash == boundary.hash,
+            "Live-start checkpoint does not match independent RPC"
+        );
+        Ok(())
     }
     async fn counts(&self) -> Result<[u32; 2]> {
         let (dispatch, merkle) = tokio::try_join!(
@@ -102,8 +114,14 @@ impl ScraperSource {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+struct Boundary {
+    height: u64,
+    hash: H256,
+}
+
 enum RpcProbe {
-    GasBoundary(u32),
+    BoundaryVerified,
     Health(HealthProbe),
 }
 
@@ -169,7 +187,7 @@ impl ScraperWebSocketMonitor {
                     let mut domains: Vec<_> = self
                         .sources
                         .values()
-                        .filter(|s| kind != Kind::Gas || s.gas_indexer.is_some())
+                        .filter(|s| kind != Kind::Gas || s.gas_indexing)
                         .map(|s| s.domain)
                         .collect();
                     domains.sort_unstable();
@@ -184,18 +202,6 @@ impl ScraperWebSocketMonitor {
                 })
                 .collect(),
         }
-    }
-    fn fallback(&self, state: &mut SourceState<'_>, error: eyre::Report) {
-        warn!(
-            chain = state.source.chain,
-            ?error,
-            "Origin stream unavailable; restoring RPC indexing"
-        );
-        state.source.control.resume();
-        self.authority
-            .with_label_values(&[&state.source.chain])
-            .set(0);
-        *state = SourceState::new(state.source);
     }
     async fn stream(&self, timeouts: StreamTimeouts) -> Result<()> {
         let _fallback = RpcFallback(self);
@@ -212,8 +218,7 @@ impl ScraperWebSocketMonitor {
         let mut subscribed = false;
         while let Some(event) = session
             .next::<serde_json::Value>(subscribed, || {
-                // Sample the gas boundary once after subscription (and each fallback).
-                // Then handoff uses local progress; established streams get health probes.
+                // Verify each connection-scoped boundary once; keep health probes after cutover.
                 let probes: Vec<_> = states
                     .values_mut()
                     .map(|state| {
@@ -224,41 +229,41 @@ impl ScraperWebSocketMonitor {
                         if probe {
                             state.last_probe = Some(Instant::now());
                         }
-                        let gas = state
-                            .source
-                            .gas_indexer
-                            .clone()
-                            .filter(|_| !state.authoritative && state.gas_boundary.is_none());
+                        let boundary = state
+                            .boundary
+                            .filter(|_| !state.authoritative && !state.boundary_verified);
                         (
                             state.source.clone(),
                             probe,
-                            gas,
+                            boundary,
                             state.next.map(|n| n.unwrap_or(0)),
                             state.source.control.generation(),
                         )
                     })
                     .collect();
                 stream::iter(probes)
-                    .map(|(source, probe, gas, observed, generation)| async move {
-                        let result = if let Some(indexer) = gas {
-                            timeout(RPC_TIMEOUT, indexer.latest_sequence_count_and_tip())
-                                .await
-                                .context("RPC gas boundary read timed out")
-                                .and_then(|r| r.map_err(Into::into))
-                                .map(|(_, tip)| Some(RpcProbe::GasBoundary(tip)))
-                        } else if probe {
-                            timeout(RPC_TIMEOUT, source.counts())
-                                .await
-                                .context("RPC health probe timed out")
-                                .and_then(|r| r)
-                                .map(|counts| {
-                                    Some(RpcProbe::Health(HealthProbe { counts, observed }))
-                                })
-                        } else {
-                            Ok(None)
-                        };
-                        (source.domain, generation, result)
-                    })
+                    .map(
+                        |(source, probe, boundary, observed, generation)| async move {
+                            let result = if let Some(boundary) = boundary {
+                                timeout(RPC_TIMEOUT, source.verify_boundary(boundary))
+                                    .await
+                                    .context("RPC boundary verification timed out")
+                                    .and_then(|r| r)
+                                    .map(|()| Some(RpcProbe::BoundaryVerified))
+                            } else if probe {
+                                timeout(RPC_TIMEOUT, source.counts())
+                                    .await
+                                    .context("RPC health probe timed out")
+                                    .and_then(|r| r)
+                                    .map(|counts| {
+                                        Some(RpcProbe::Health(HealthProbe { counts, observed }))
+                                    })
+                            } else {
+                                Ok(None)
+                            };
+                            (source.domain, generation, result)
+                        },
+                    )
                     .buffer_unordered(8)
                     .boxed()
             })
@@ -275,76 +280,79 @@ impl ScraperWebSocketMonitor {
                     }
                     info!("Subscribed to canonical live scraper events; RPC fills history");
                 }
+                SessionEvent::Message(ServerMessage::LiveStart(boundary)) => {
+                    ensure!(subscribed, "Boundary before subscription acknowledgement");
+                    let state = states
+                        .get_mut(&boundary.domain)
+                        .context("Unexpected boundary domain")?;
+                    state.accept_boundary(boundary)?;
+                }
+                SessionEvent::Message(ServerMessage::LiveStartUnavailable { domain }) => {
+                    let state = states
+                        .remove(&domain)
+                        .context("Unexpected unavailable domain")?;
+                    ensure!(state.boundary.is_none(), "Boundary became unavailable");
+                    info!(
+                        chain = state.source.chain,
+                        "Live-start checkpoint unavailable; retaining RPC indexing"
+                    );
+                }
                 SessionEvent::Message(ServerMessage::Event(event)) => {
                     ensure!(subscribed, "Event before subscription acknowledgement");
-                    let state = states
-                        .get_mut(&event.domain)
-                        .context("Unexpected event domain")?;
-                    let result =
-                        LiveEvent::decode(event, state.source).and_then(|event| match event {
-                            Some(event) => state.ingest(event),
-                            None => Ok(()),
-                        });
-                    if let Err(error) = result {
-                        self.fallback(state, error);
+                    ensure!(
+                        self.sources.contains_key(&event.domain),
+                        "Unexpected event domain"
+                    );
+                    let Some(state) = states.get_mut(&event.domain) else {
+                        continue;
+                    };
+                    if let Some(event) = LiveEvent::decode(event, state.source)? {
+                        state.ingest(event)?;
                     }
                 }
                 SessionEvent::Progress((domain, generation, result)) => {
-                    let state = states.get_mut(&domain).context("Unexpected probe domain")?;
-                    let result = state.observe_probe(generation, result).and_then(|()| {
-                        if !state.authoritative && !state.source.control.desired() {
-                            state.overlap_ready()
-                        } else {
-                            Ok(false)
-                        }
-                    });
-                    match result {
-                        Ok(true) => {
-                            let control = state.source.control.clone();
-                            let expected = control.generation();
-                            session.start_cutover(domain, async move {
-                                let Some(generation) = control.request(expected) else {
-                                    return (expected, false);
-                                };
-                                (
-                                    generation,
-                                    timeout(RPC_TIMEOUT, control.paused(generation))
-                                        .await
-                                        .unwrap_or(false),
-                                )
-                            });
-                        }
-                        Ok(false) => {}
-                        Err(error) => self.fallback(state, error),
+                    let Some(state) = states.get_mut(&domain) else {
+                        continue;
+                    };
+                    state.observe_probe(generation, result)?;
+                    if !state.authoritative
+                        && !state.source.control.desired()
+                        && state.handoff_sequences().is_some()
+                    {
+                        let control = state.source.control.clone();
+                        let expected = control.generation();
+                        session.start_cutover(domain, async move {
+                            let Some(generation) = control.request(expected) else {
+                                return (expected, false);
+                            };
+                            (
+                                generation,
+                                timeout(RPC_TIMEOUT, control.paused(generation))
+                                    .await
+                                    .unwrap_or(false),
+                            )
+                        });
                     }
                 }
                 SessionEvent::Cutover {
                     domain,
                     result: (generation, paused),
                 } => {
-                    let state = states
-                        .get_mut(&domain)
-                        .context("Unexpected cutover domain")?;
+                    let Some(state) = states.get_mut(&domain) else {
+                        continue;
+                    };
                     if !state.source.control.current(generation) {
                         continue;
                     }
-                    let result = if paused {
-                        state.finish_handoff()
-                    } else {
-                        Err(eyre::eyre!("RPC pause timed out"))
-                    };
-                    match result {
-                        Ok(()) => {
-                            self.authority
-                                .with_label_values(&[&state.source.chain])
-                                .set(1);
-                            info!(
-                                chain = state.source.chain,
-                                "RPC overlap verified; live scraper indexing is authoritative"
-                            );
-                        }
-                        Err(error) => self.fallback(state, error),
-                    }
+                    ensure!(paused, "RPC pause timed out");
+                    state.finish_handoff()?;
+                    self.authority
+                        .with_label_values(&[&state.source.chain])
+                        .set(1);
+                    info!(
+                        chain = state.source.chain,
+                        "Live-start checkpoint verified; live scraper indexing is authoritative"
+                    );
                 }
                 SessionEvent::Message(ServerMessage::Rollback) => {
                     bail!("Scraper rolled back; restoring RPC indexing")
@@ -364,8 +372,8 @@ struct SourceState<'a> {
     source: &'a ScraperSource,
     started: Instant,
     last_probe: Option<Instant>,
-    // Fixed canonical tip (height, slot, or state version) sampled after subscription.
-    gas_boundary: Option<u32>,
+    boundary: Option<Boundary>,
+    boundary_verified: bool,
     next: [Option<u32>; 2],
     pending: VecDeque<LiveEvent>,
     bytes: usize,
@@ -378,7 +386,8 @@ impl<'a> SourceState<'a> {
             source,
             started: Instant::now(),
             last_probe: None,
-            gas_boundary: None,
+            boundary: None,
+            boundary_verified: false,
             next: [None, None],
             pending: VecDeque::new(),
             bytes: 0,
@@ -392,13 +401,13 @@ impl<'a> SourceState<'a> {
         }
         if !self.authoritative {
             match result {
-                Ok(Some(RpcProbe::GasBoundary(block))) => {
-                    self.gas_boundary.get_or_insert(block);
+                Ok(Some(RpcProbe::BoundaryVerified)) => {
+                    self.boundary_verified = true;
                 }
                 Err(error) => warn!(
                     chain = self.source.chain,
                     ?error,
-                    "Gas boundary unavailable; retaining RPC indexing"
+                    "Live-start checkpoint not verified; retaining RPC indexing"
                 ),
                 _ => {}
             }
@@ -409,7 +418,7 @@ impl<'a> SourceState<'a> {
         }
         let probe = match result {
             Ok(Some(RpcProbe::Health(probe))) => probe,
-            Ok(Some(RpcProbe::GasBoundary(_))) => return Ok(()),
+            Ok(Some(RpcProbe::BoundaryVerified)) => return Ok(()),
             Ok(None) => return Ok(()),
             Err(error) => {
                 if self
@@ -473,40 +482,60 @@ impl<'a> SourceState<'a> {
         self.pending.push_back(event);
         Ok(())
     }
-    fn overlap_ready(&self) -> Result<bool> {
-        // The first events stay buffered until handoff; no duplicate anchor copies.
-        let dispatch = self
-            .pending
-            .iter()
-            .find(|event| matches!(event, LiveEvent::Dispatch(..)));
-        let merkle = self
-            .pending
-            .iter()
-            .find(|event| matches!(event, LiveEvent::Merkle(..)));
-        let (Some(dispatch), Some(merkle)) = (dispatch, merkle) else {
-            return Ok(false);
-        };
-        if !dispatch.matches(&self.source.database)? || !merkle.matches(&self.source.database)? {
-            return Ok(false);
+    fn accept_boundary(&mut self, wire: LiveStartBoundary) -> Result<()> {
+        ensure!(
+            wire.confirmations.is_none(),
+            "Expected canonical live-start boundary"
+        );
+        ensure!(
+            self.boundary.is_none() && !self.authoritative,
+            "Duplicate live-start boundary"
+        );
+        let mut seen = [false; 3];
+        for stream in wire.streams {
+            let (kind, address) = match stream.event_type.as_str() {
+                "dispatch" => (Kind::Dispatch, self.source.mailbox),
+                "merkle_tree_insertion" => (Kind::Merkle, self.source.merkle_tree_hook),
+                "gas_payment" => (Kind::Gas, self.source.interchain_gas_paymaster),
+                _ => bail!("Unexpected live-start event type"),
+            };
+            ensure!(!seen[kind.index()], "Duplicate live-start stream");
+            ensure!(
+                parse_address(&stream.address)? == address,
+                "Live-start contract mismatch"
+            );
+            seen[kind.index()] = true;
         }
-        let block = dispatch.block().max(merkle.block());
-        if self.source.gas_indexer.is_some() && self.gas_boundary.is_none() {
-            return Ok(false);
-        }
-        Ok(self
-            .source
-            .control
-            .history_ready(self.started, block, self.gas_boundary))
+        ensure!(
+            seen == [true, true, self.source.gas_indexing],
+            "Incomplete live-start streams"
+        );
+        self.boundary = Some(Boundary {
+            height: wire.height.parse()?,
+            hash: parse_address(&wire.hash)?,
+        });
+        Ok(())
+    }
+    fn handoff_sequences(&self) -> Option<[u32; 2]> {
+        let boundary = self.boundary.filter(|_| self.boundary_verified)?;
+        self.source.control.recovered_sequences(
+            self.started,
+            boundary.height,
+            self.source.gas_indexing,
+        )
     }
     fn finish_handoff(&mut self) -> Result<()> {
-        // RPC is joined before socket writes begin. Recheck the fixed overlap;
-        // later RPC writes are deduplicated while draining the live tail.
-        ensure!(self.overlap_ready()?, "RPC overlap changed during handoff");
+        // These positions include RPC's configured floor, even if its local
+        // history contains no events. Recheck coverage after RPC has joined.
+        self.next = self
+            .handoff_sequences()
+            .context("RPC boundary coverage changed during handoff")?
+            .map(Some);
+        self.authoritative = true;
         while let Some(event) = self.pending.pop_front() {
-            self.source.store(&event)?;
+            self.ingest(event)?;
         }
         self.bytes = 0;
-        self.authoritative = true;
         Ok(())
     }
 }

@@ -79,25 +79,23 @@ impl Authority {
         let command = self.command.borrow();
         command.desired && command.generation == generation
     }
-    pub(super) fn history_ready(
+    pub(super) fn recovered_sequences(
         &self,
         since: Instant,
         block: u64,
-        gas_boundary: Option<u32>,
-    ) -> bool {
+        gas: bool,
+    ) -> Option<[u32; 2]> {
         let progress = self.ack.recovery.lock().expect("RPC recovery lock");
-        Kind::ALL
+        for kind in Kind::ALL
             .into_iter()
-            .filter(|kind| gas_boundary.is_some() || *kind != Kind::Gas)
-            .all(|kind| {
-                let required = if kind == Kind::Gas {
-                    block.max(u64::from(gas_boundary.unwrap_or_default()))
-                } else {
-                    block
-                };
-                progress[kind.index()]
-                    .is_some_and(|p| p.at >= since && u64::from(p.block) >= required)
-            })
+            .filter(|kind| gas || *kind != Kind::Gas)
+        {
+            let p = progress[kind.index()]?;
+            if p.at < since || u64::from(p.block) < block {
+                return None;
+            }
+        }
+        Some([progress[0]?.next_sequence?, progress[1]?.next_sequence?])
     }
     pub(super) fn resume(&self) {
         self.command.send_if_modified(|command| {
@@ -167,6 +165,7 @@ impl ScraperAuthorityReceiver {
 struct RpcProgress {
     at: Instant,
     block: u32,
+    next_sequence: Option<u32>,
 }
 
 #[derive(Clone, Debug)]
@@ -198,6 +197,7 @@ impl<T: Send + Sync + Debug + 'static> RecoveryCursor<T> {
                 Some(RpcProgress {
                     at: Instant::now(),
                     block: self.cursor.latest_queried_block(),
+                    next_sequence: self.cursor.next_sequence(),
                 });
         }
     }
@@ -211,6 +211,9 @@ impl<T: Send + Sync + Debug + 'static> ContractSyncCursor<T> for RecoveryCursor<
     }
     fn latest_queried_block(&self) -> u32 {
         self.cursor.latest_queried_block()
+    }
+    fn next_sequence(&self) -> Option<u32> {
+        self.cursor.next_sequence()
     }
     async fn update(
         &mut self,

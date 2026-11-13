@@ -775,7 +775,9 @@ impl MerkleTreeHookWebSocketSync {
                     // The submitter repairs stored fork leaves after verifying checkpoint roots.
                     bail!("Scraper stream rolled back; resuming RPC indexing");
                 }
-                ServerMessage::Other => {}
+                ServerMessage::LiveStart(_)
+                | ServerMessage::LiveStartUnavailable { .. }
+                | ServerMessage::Other => {}
             }
         }
         Ok(())

@@ -28,12 +28,6 @@ impl LiveEvent {
             Self::Gas(..) => None,
         }
     }
-    pub(super) fn block(&self) -> u64 {
-        match self {
-            Self::Dispatch(_, b, _) | Self::Merkle(_, b) => *b,
-            Self::Gas(_, m) => m.block_number,
-        }
-    }
     pub(super) fn body_bytes(&self) -> usize {
         match self {
             Self::Dispatch(m, ..) => m.body.len(),
@@ -100,10 +94,7 @@ impl LiveEvent {
                 Ok(Some(Self::Merkle(insertion, block)))
             }
             "gas_payment" => {
-                ensure!(
-                    source.gas_indexer.is_some(),
-                    "Unexpected gas payment stream"
-                );
+                ensure!(source.gas_indexing, "Unexpected gas payment stream");
                 let data: GasData = serde_json::from_value(event.data)?;
                 if parse_address(&data.interchain_gas_paymaster)? != source.interchain_gas_paymaster
                 {

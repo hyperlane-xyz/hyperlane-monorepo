@@ -171,6 +171,10 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
         self.forward.latest_queried_block()
     }
 
+    fn next_sequence(&self) -> Option<u32> {
+        Some(self.forward.next_sequence())
+    }
+
     fn is_caught_up(&self) -> bool {
         self.caught_up
     }
