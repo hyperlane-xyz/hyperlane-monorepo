@@ -11,6 +11,7 @@ import {
   parseClientMessage,
   parseExplorerConfirmations,
   type HeadNotification,
+  type LiveStartBoundary,
 } from './protocol.js';
 
 function head(
@@ -248,13 +249,15 @@ void it('retries negotiation if a rollback arrives during the initial read', asy
   });
   const initializing = stream.initialize(async () => {
     reads++;
+    const liveStart = boundary(reads === 1 ? 10n : 9n);
     if (reads === 1) await held.promise;
-    return new Map([[1, { head: 9n, indexed: 9n, confirmed: 0n }]]);
+    return new Map([[1, { head: 9n, indexed: 9n, confirmed: 0n, liveStart }]]);
   });
   stream.notify(head(9n, 10n));
   held.release();
   await initializing;
   assert.equal(reads, 2);
+  assert.deepEqual(stream.liveStart(1), boundary(9n));
 });
 
 void it('does not retry negotiation for an advancing head or emit rollback before start', async () => {
@@ -422,4 +425,86 @@ void it('re-reads Explorer metadata if its frontier rolls back during enrichment
     f.stop();
     held.release();
   }
+});
+
+function boundary(height: bigint): LiveStartBoundary {
+  return {
+    height: height.toString(),
+    hash: `0x${'ab'.repeat(32)}`,
+    contracts: {
+      dispatch: 'mailbox',
+      delivery: 'mailbox',
+      merkle_tree_insertion: 'merkle',
+      gas_payment: 'igp',
+    },
+  };
+}
+
+void it('starts at the custom checkpoint, preserves it across advances and invalidates it on rollback', async () => {
+  const ranges: bigint[][] = [];
+  const rollbacks: bigint[][] = [];
+  const stream = new ConfirmationStream(2, new Set([1]), {
+    active: () => true,
+    read: async function* (_domain, after, through) {
+      ranges.push([after[0], through]);
+      yield* [];
+    },
+    send: async () => true,
+    rollback: (_domain, from, to) => {
+      rollbacks.push([from, to]);
+    },
+    fail: (error) => assert.fail(String(error)),
+  });
+  await stream.initialize(
+    async () =>
+      new Map([
+        [
+          1,
+          {
+            head: 112n,
+            indexed: 110n,
+            confirmed: 100n,
+            liveStart: boundary(108n),
+          },
+        ],
+      ]),
+  );
+  // A sparse checkpoint is below the numerical frontier. The live reader must
+  // cover this interval instead of skipping directly to head-confirmations.
+  stream.start();
+  await until(() => ranges.length === 1);
+  assert.deepEqual(ranges[0], [108n, 110n]);
+  stream.notify(head(113n, 110n, 114n));
+  await until(() => ranges.length === 2);
+  assert.deepEqual(ranges[1], [110n, 112n]);
+  assert.deepEqual(stream.liveStart(1), boundary(108n));
+  stream.notify(head(105n, 113n, 110n));
+  assert.equal(stream.liveStart(1), undefined);
+  assert.deepEqual(rollbacks, [[112n, 105n]]);
+});
+
+void it('invalidates a boundary if another stream is negotiating during a rollback', async () => {
+  const stream = new ConfirmationStream(0, new Set([1]), {
+    active: () => true,
+    read: () => assert.fail('not started'),
+    send: async () => assert.fail('not started'),
+    rollback: () => assert.fail('not started'),
+    fail: (error) => assert.fail(String(error)),
+  });
+  await stream.initialize(
+    async () =>
+      new Map([
+        [
+          1,
+          {
+            head: 10n,
+            indexed: 10n,
+            confirmed: 5n,
+            liveStart: boundary(10n),
+          },
+        ],
+      ]),
+  );
+  stream.notify(head(9n, 10n));
+  assert.equal(stream.liveStart(1), undefined);
 });

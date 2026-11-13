@@ -330,3 +330,9 @@ function parseNotification(
   if (!isRecord(value)) throw new Error(`Invalid scraper ${kind} notification`);
   return value;
 }
+
+export type LiveStartBoundary = {
+  height: string;
+  hash: string;
+  contracts: Record<EventType, string>;
+};

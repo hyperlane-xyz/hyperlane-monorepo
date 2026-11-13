@@ -29,6 +29,7 @@ import {
   type EventNotification,
   type EventType,
   type HeadNotification,
+  type LiveStartBoundary,
   parseDatabaseDomain,
   parseClientMessage,
   parseEventNotification,
@@ -167,6 +168,7 @@ export class EventWebSocketServer {
     () => this.drainExplorerNotifications(),
     (error) => this.failExplorerStream(error),
   );
+  private confirmationRevision = 0;
   private readonly confirmationUpdates = new NotificationWorker(
     NOTIFICATION_BATCH_MS,
     async () => {
@@ -371,6 +373,7 @@ export class EventWebSocketServer {
       confirmations: { unit: 'blocks', liveOnly: true },
       eventTypes: SUBSCRIPTION_TYPES,
       historicalStreaming: false,
+      liveStartVersion: 1,
       type: 'ready',
     });
     socket.on('message', (data) => void this.onMessage(socket, rawData(data)));
@@ -582,6 +585,11 @@ export class EventWebSocketServer {
     domains: Set<number>,
     eventType?: EventType,
     allowUnavailable = eventType === undefined,
+    readHeads = () =>
+      this.store.confirmationHeads(
+        domains,
+        eventType ? confirmations : undefined,
+      ),
   ): Promise<ConfirmationStream | undefined> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
@@ -655,10 +663,7 @@ export class EventWebSocketServer {
     const streams = this.confirmationStreams.get(socket) ?? [];
     streams.push(stream);
     this.confirmationStreams.set(socket, streams);
-    await stream.initialize(
-      () => this.store.confirmationHeads(domains),
-      allowUnavailable,
-    );
+    await stream.initialize(readHeads, allowUnavailable);
     if (eventType && stream.canonicalDomains.length)
       this.logger.warn(
         `websocket skipped advisory confirmations=${confirmations} eventType=${eventType} domains=${stream.canonicalDomains.join(',')}: near-head state unavailable`,
@@ -710,6 +715,32 @@ export class EventWebSocketServer {
     }
 
     client.subscribing = true;
+    const customStreams: {
+      request: StreamRequest;
+      stream: ConfirmationStream;
+    }[] = [];
+    // One primary snapshot per confirmations/domains group. All readers are
+    // registered concurrently before it resolves. Rollbacks force a fresh read
+    // when initialize retries; never reuse a snapshot from an earlier ancestry.
+    const snapshots = new Map<
+      string,
+      { revision: number; heads: ReturnType<EventStore['confirmationHeads']> }
+    >();
+    const readHeads = (confirmations: number, domains: Set<number>) => {
+      const key = JSON.stringify([
+        confirmations,
+        [...domains].sort((a, b) => a - b),
+      ]);
+      let snapshot = snapshots.get(key);
+      if (!snapshot || snapshot.revision !== this.confirmationRevision) {
+        snapshot = {
+          revision: this.confirmationRevision,
+          heads: this.store.confirmationHeads(domains, confirmations),
+        };
+        snapshots.set(key, snapshot);
+      }
+      return snapshot.heads;
+    };
     const eventStreams = message.streams.filter(
       (request) => request.eventType !== 'blocks',
     );
@@ -718,26 +749,42 @@ export class EventWebSocketServer {
         (request) => request.eventType === 'blocks',
       );
       if (blocks) await this.subscribeBlocks(socket, blocks.domains);
+      const initializing: Promise<
+        | {
+            request: StreamRequest;
+            stream: ConfirmationStream;
+          }
+        | undefined
+      >[] = [];
+      const addStream = (
+        request: StreamRequest,
+        confirmations: number,
+        domains: Set<number>,
+        allowUnavailable = false,
+      ) => {
+        initializing.push(
+          this.createConfirmationStream(
+            socket,
+            confirmations,
+            domains,
+            request.eventType,
+            allowUnavailable,
+            () => readHeads(confirmations, domains),
+          ).then((stream) => (stream ? { request, stream } : undefined)),
+        );
+      };
       for (const request of eventStreams) {
         if (request.confirmations !== undefined && request.domains)
-          await this.createConfirmationStream(
-            socket,
-            request.confirmations,
-            request.domains,
-            request.eventType,
-          );
+          addStream(request, request.confirmations, request.domains);
         if (
           request.includeZeroConfirmations &&
           request.confirmations !== 0 &&
           request.domains
         )
-          await this.createConfirmationStream(
-            socket,
-            0,
-            request.domains,
-            request.eventType,
-            true,
-          );
+          addStream(request, 0, request.domains, true);
+      }
+      for (const result of await Promise.all(initializing)) {
+        if (result) customStreams.push(result);
       }
     } catch (error) {
       if (error instanceof ConfirmationUnavailableError)
@@ -757,6 +804,98 @@ export class EventWebSocketServer {
     });
     this.confirmationStreams.get(socket)?.forEach((stream) => stream.start());
     this.startBlocks(socket);
+    try {
+      for (const { request, stream } of customStreams) {
+        for (const domain of stream.domains) {
+          if (
+            !(await this.sendLiveStart(
+              socket,
+              client,
+              domain,
+              [request.eventType],
+              stream.liveStart(domain),
+              stream.confirmations,
+            ))
+          )
+            return;
+        }
+      }
+      await this.sendLiveStarts(
+        socket,
+        client,
+        eventStreams.filter((request) => request.confirmations === undefined),
+      );
+    } catch (error) {
+      this.failSocket(socket, formatError(error));
+      return;
+    }
+  }
+
+  private async sendLiveStarts(
+    socket: WebSocket,
+    client: Client,
+    streams: StreamRequest[],
+  ): Promise<void> {
+    if (!streams.length) return;
+    const domains = streams.every((stream) => stream.domains)
+      ? new Set(streams.flatMap((stream) => [...(stream.domains ?? [])]))
+      : undefined;
+    // Canonical subscriptions are registered before this primary DB read.
+    // Consumers must buffer from `subscribed`, not from the boundary frame.
+    const boundaries = await this.store.liveStartBoundaries(domains);
+    const requested = new Set([
+      ...boundaries.keys(),
+      ...streams.flatMap((stream) => [...(stream.domains ?? [])]),
+    ]);
+    for (const domain of requested) {
+      const eventTypes = streams
+        .filter((stream) => !stream.domains || stream.domains.has(domain))
+        .map((stream) => stream.eventType);
+      if (
+        !(await this.sendLiveStart(
+          socket,
+          client,
+          domain,
+          eventTypes,
+          boundaries.get(domain),
+        ))
+      )
+        return;
+    }
+  }
+
+  private sendLiveStart(
+    socket: WebSocket,
+    client: Client,
+    domain: number,
+    eventTypes: EventType[],
+    boundary: LiveStartBoundary | undefined,
+    confirmations?: number,
+  ): Promise<boolean> {
+    if (this.clients.get(socket) !== client) return Promise.resolve(false);
+    const policy = confirmations === undefined ? {} : { confirmations };
+    return this.sendAndWait(
+      socket,
+      boundary
+        ? {
+            type: 'live_start',
+            domain,
+            ...policy,
+            height: boundary.height,
+            hash: boundary.hash,
+            streams: eventTypes.map((eventType) => ({
+              eventType,
+              address: boundary.contracts[eventType],
+            })),
+          }
+        : {
+            type: 'live_start_unavailable',
+            domain,
+            ...policy,
+            eventTypes,
+            reason: 'No healthy live-start scraper checkpoint',
+          },
+    );
   }
 
   private publish(eventType: EventType, row: Row): void {
@@ -820,6 +959,7 @@ export class EventWebSocketServer {
           head.indexedHeight !== undefined &&
           head.indexedHeight < head.previousIndexedHeight
         ) {
+          this.confirmationRevision++;
           // A rollback must invalidate in-flight readers immediately; never
           // coalesce it away with a subsequent forward observation.
           this.pendingHeads.delete(head.domain);
