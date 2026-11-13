@@ -101,6 +101,8 @@ impl ScraperSource {
         );
         Ok(())
     }
+    // Gas payments have no portable on-chain sequence count, so these probes
+    // cannot detect a gas-only stream stall after cutover.
     async fn counts(&self) -> Result<[u32; 2]> {
         let (dispatch, merkle) = tokio::try_join!(
             self.freshness_indexer.latest_sequence_count_and_tip(),
@@ -147,7 +149,7 @@ impl ScraperWebSocketMonitor {
             url,
             active: metrics.new_int_gauge(
                 "relayer_scraper_websocket_active",
-                "Whether the scraper stream is connected",
+                "Whether this chain has an active scraper subscription",
                 &["chain"],
             )?,
             authority: metrics.new_int_gauge(
@@ -407,6 +409,7 @@ impl ScraperWebSocketMonitor {
     ) {
         if let Some(state) = states.remove(&domain) {
             state.source.control.resume();
+            self.active.with_label_values(&[&state.source.chain]).set(0);
             self.authority
                 .with_label_values(&[&state.source.chain])
                 .set(0);

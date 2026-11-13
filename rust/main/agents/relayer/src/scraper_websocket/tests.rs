@@ -246,9 +246,12 @@ fn fallback_isolates_one_origin_and_invalidates_its_pending_cutover() {
     let failed_generation = source.control.request(source.control.generation()).unwrap();
     let healthy_generation = other.control.request(other.control.generation()).unwrap();
     for origin in [&source, &other] {
+        monitor.active.with_label_values(&[&origin.chain]).set(1);
         monitor.authority.with_label_values(&[&origin.chain]).set(1);
     }
     monitor.fallback(&mut states, source.domain, "local failure");
+    assert_eq!(monitor.active.with_label_values(&[&source.chain]).get(), 0);
+    assert_eq!(monitor.active.with_label_values(&[&other.chain]).get(), 1);
     assert!(!states.contains_key(&source.domain));
     assert!(!source.control.current(failed_generation));
     assert!(states.contains_key(&other.domain));
@@ -584,7 +587,11 @@ async fn unavailable_boundary_is_retried_with_a_fresh_subscription() {
                 assert!(!source.control.desired());
                 assert_eq!(
                     monitor.active.with_label_values(&[&source.chain]).get(),
-                    1,
+                    0,
+                    "unavailable origin is using RPC indexing"
+                );
+                assert!(
+                    socket.next().now_or_never().is_none(),
                     "no immediate reconnect loop"
                 );
                 let _ = socket.next().await;
