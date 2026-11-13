@@ -1093,6 +1093,52 @@ async fn streamed_headers_preserve_proofs_ancestry_health_and_http_bounds() -> R
 }
 
 #[tokio::test]
+async fn streamed_headers_refresh_tagged_finality_without_reindexing() -> Result<()> {
+    for tag in ["safe", "finalized"] {
+        let chain = Arc::new(Chain::new(2, false));
+        chain
+            .events
+            .lock()
+            .expect("events")
+            .extend([dispatch_event(1, 0), gas_event(2, 0)]);
+        *chain.count_values.lock().expect("counts") = [1, 0];
+        let (_postgres, worker) = header_worker(chain.clone(), 0).await?;
+        let worker = Worker {
+            period: ReorgPeriod::Tag(tag.into()),
+            ..worker
+        };
+        let mut cache = CountCache::default();
+        worker.cycle(&mut cache).await?;
+        assert_eq!(worker.store.state().await?.expect("state").confirmed, 0);
+        let reads = chain.event_reads.load(Ordering::SeqCst);
+        let mut recent = VecDeque::new();
+        remember_header(&mut recent, streamed_header(3));
+        chain.head.store(3, Ordering::SeqCst);
+
+        // A new head alone cannot confirm anything while the tag stays behind.
+        worker.header_cycle(&recent, &cache).await?;
+        assert_eq!(worker.store.state().await?.expect("state").confirmed, 0);
+        chain.tag.store(1, Ordering::SeqCst);
+        worker.header_cycle(&recent, &cache).await?;
+        assert_eq!(worker.store.state().await?.expect("state").confirmed, 1);
+        assert!(worker.dispatch_wakeup.notified().now_or_never().is_some());
+        worker.header_cycle(&recent, &cache).await?;
+        assert!(worker.dispatch_wakeup.notified().now_or_never().is_none());
+
+        chain.fail_tag.store(true, Ordering::SeqCst);
+        assert!(worker.header_cycle(&recent, &cache).await.is_err());
+        assert_eq!(worker.store.state().await?.expect("state").confirmed, 1);
+        chain.fail_tag.store(false, Ordering::SeqCst);
+        chain.tag.store(3, Ordering::SeqCst);
+        worker.header_cycle(&recent, &cache).await?;
+        // Tagged finality cannot publish beyond complete indexed history.
+        assert_eq!(worker.store.state().await?.expect("state").confirmed, 2);
+        assert_eq!(chain.event_reads.load(Ordering::SeqCst), reads);
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn indexing_wakes_all_receipt_pages_before_confirmation() -> Result<()> {
     let chain = Arc::new(Chain::new(1, false));
     chain.events.lock().expect("events").extend([

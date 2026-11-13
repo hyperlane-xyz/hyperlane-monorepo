@@ -196,8 +196,6 @@ impl ScraperWebSocketMonitor {
                         domains: Some(domains),
                         // Canonical events use each chain's standard reorg period.
                         confirmations: None,
-                        cursors: None,
-                        stream_cursor_version: None,
                     })
                 })
                 .collect(),
@@ -279,7 +277,7 @@ impl ScraperWebSocketMonitor {
                 return Ok(());
             };
             match event {
-                SessionEvent::Message(ServerMessage::Ready { .. }) => {
+                SessionEvent::Message(ServerMessage::Ready) => {
                     session.subscribe(self.subscription()).await?;
                 }
                 SessionEvent::Message(ServerMessage::Subscribed { .. }) => {
@@ -396,8 +394,7 @@ impl ScraperWebSocketMonitor {
                 SessionEvent::Message(ServerMessage::Error { error }) => {
                     return Err(RejectedStream(error).into());
                 }
-                // No cursors were requested, so replay markers cannot authorize a handoff.
-                SessionEvent::Message(ServerMessage::CaughtUp { .. } | ServerMessage::Other) => {}
+                SessionEvent::Message(ServerMessage::Other) => {}
             }
         }
     }
@@ -506,7 +503,7 @@ impl<'a> SourceState<'a> {
                     "Live scraper remained ahead of canonical count"
                 );
             } else {
-                self.health[i].observe(count, self.next[i].unwrap_or(0), false)?;
+                self.health[i].observe(count, self.next[i].unwrap_or(0))?;
             }
         }
         Ok(())
