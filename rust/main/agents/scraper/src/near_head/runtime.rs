@@ -456,8 +456,26 @@ impl Worker {
         let through = match &self.period {
             ReorgPeriod::Blocks(depth) => header.height.saturating_sub(u64::from(depth.get())),
             ReorgPeriod::Tag(tag) if tag == "latest" => header.height,
-            // Latest headers cannot prove safe/finalized tags.
-            _ => return Ok(idle),
+            _ => {
+                let confirmation = confirm_leased_through(
+                    self.source.as_ref(),
+                    &self.store,
+                    &self.period,
+                    lease,
+                    cache.proven_through.unwrap_or(state.confirmed),
+                )
+                .await?;
+                state = self
+                    .store
+                    .state()
+                    .await?
+                    .ok_or_else(|| eyre::eyre!("Missing head state"))?;
+                self.record_progress(&state, confirmation.counts)?;
+                return Ok(CycleOutcome {
+                    more: confirmation.page_limited,
+                    ingestion_failed: false,
+                });
+            }
         }
         .min(state.indexed)
         .min(cache.proven_through.unwrap_or(state.confirmed));
