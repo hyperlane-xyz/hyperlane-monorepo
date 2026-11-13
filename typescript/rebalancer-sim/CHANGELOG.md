@@ -1,5 +1,83 @@
 # @hyperlane-xyz/rebalancer-sim
 
+## 0.2.48
+
+### Patch Changes
+
+- e40bf51: Inventory movements were reserved before bridge submission and retained across ambiguous sends, cancellation statuses, and tracking expiry to prevent duplicate transfers. Proven pre-send failures remained retryable, and approval identities were tracked separately from primary transfers.
+- Updated dependencies [584d09a]
+- Updated dependencies [5ad5b80]
+- Updated dependencies [584d09a]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [d61a29e]
+- Updated dependencies [46781ac]
+- Updated dependencies [866134f]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [46781ac]
+- Updated dependencies [46781ac]
+- Updated dependencies [d61a29e]
+- Updated dependencies [584d09a]
+- Updated dependencies [584d09a]
+- Updated dependencies [e41a746]
+- Updated dependencies [866134f]
+- Updated dependencies [584d09a]
+- Updated dependencies [d61a29e]
+- Updated dependencies [f7976c2]
+- Updated dependencies [311b28c]
+- Updated dependencies [e41a746]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [311b28c]
+- Updated dependencies [46781ac]
+- Updated dependencies [e40bf51]
+- Updated dependencies [584d09a]
+- Updated dependencies [699732b]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [311b28c]
+- Updated dependencies [584d09a]
+- Updated dependencies [46781ac]
+- Updated dependencies [584d09a]
+- Updated dependencies [f32ac07]
+- Updated dependencies [c317ae7]
+- Updated dependencies [584d09a]
+- Updated dependencies [d61a29e]
+- Updated dependencies [584d09a]
+- Updated dependencies [584d09a]
+- Updated dependencies [e41a746]
+- Updated dependencies [8509874]
+- Updated dependencies [e40bf51]
+- Updated dependencies [f32ac07]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [e41a746]
+- Updated dependencies [e41a746]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e41a746]
+- Updated dependencies [584d09a]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [866134f]
+- Updated dependencies [866134f]
+- Updated dependencies [f7976c2]
+- Updated dependencies [f7976c2]
+- Updated dependencies [8237f59]
+- Updated dependencies [866134f]
+- Updated dependencies [e40bf51]
+- Updated dependencies [311b28c]
+- Updated dependencies [311b28c]
+- Updated dependencies [e41a746]
+- Updated dependencies [d5e4e91]
+- Updated dependencies [d61a29e]
+- Updated dependencies [6f1ef9b]
+  - @hyperlane-xyz/rebalancer@29.2.0
+  - @hyperlane-xyz/sdk@46.0.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+
 ## 0.2.47
 
 ### Patch Changes

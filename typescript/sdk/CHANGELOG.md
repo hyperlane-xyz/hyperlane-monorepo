@@ -1,5 +1,40 @@
 # @hyperlane-xyz/sdk
 
+## 46.0.0
+
+### Major Changes
+
+- 8509874: Removed `websocketAuthorityEnabled` from relayer configuration and made `websocketUrl` enable canonical live websocket indexing, with RPC responsible for history recovery and fallback. For RPC-only indexing, omit `websocketUrl`.
+- d5e4e91: Removed lightweight validator mode and its `lightweight` and `leightweigt` configuration fields. Validators now require RPC indexing for historical recovery before handing off to optional live WebSocket insertions. Existing configurations must remove either field, including when set to `false`.
+
+  Deferred RPC-free indexing until a supported bootstrap and recovery solution is available, potentially through a future snapshot service.
+
+### Minor Changes
+
+- 5ad5b80: Added the initial Abacus Works validator configuration for Aevo mainnet.
+- d61a29e: The xERC20 extra-bridge type was made explicit, and legacy entries were identified on-chain, so CCIP token pools were excluded from managed-lockbox metrics without hiding RPC failures.
+- f32ac07: Added transaction submission observers and typed failures that retained known identities across delegated sends, ambiguous broadcast responses, and later failures.
+
+  Solana sends were limited to one signed identity per invocation. Automatic blockhash resubmission was disabled by default, and the deprecated `enableBlockhashResubmit: true` setting was rejected before signing; callers using that setting must remove it or set it to `false`. Unresolved sends retained their original signature rather than risking duplicate execution with a fresh blockhash.
+
+  Tron receipt waits gained per-call deadlines covering requests, retries, confirmation checks, and receipt construction. Timed-out HTTP requests were cancelled without changing other waits or shared transport settings.
+
+### Patch Changes
+
+- Updated dependencies [e40bf51]
+- Updated dependencies [f32ac07]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+  - @hyperlane-xyz/tron-sdk@26.1.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/deploy-sdk@11.0.4
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/aleo-sdk@46.0.0
+  - @hyperlane-xyz/cosmos-sdk@46.0.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+  - @hyperlane-xyz/radix-sdk@46.0.0
+  - @hyperlane-xyz/starknet-core@46.0.0
+
 ## 45.2.0
 
 ### Minor Changes

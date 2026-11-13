@@ -1,5 +1,92 @@
 # @hyperlane-xyz/infra
 
+## 46.0.0
+
+### Patch Changes
+
+- 46781ac: Added route-specific rebalancer image and credential settings, monitor-only deployment, and local manifest rendering without cluster mutations.
+- Updated dependencies [584d09a]
+- Updated dependencies [5ad5b80]
+- Updated dependencies [584d09a]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [d61a29e]
+- Updated dependencies [46781ac]
+- Updated dependencies [866134f]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [46781ac]
+- Updated dependencies [46781ac]
+- Updated dependencies [d61a29e]
+- Updated dependencies [584d09a]
+- Updated dependencies [584d09a]
+- Updated dependencies [e41a746]
+- Updated dependencies [866134f]
+- Updated dependencies [584d09a]
+- Updated dependencies [d61a29e]
+- Updated dependencies [f7976c2]
+- Updated dependencies [311b28c]
+- Updated dependencies [e41a746]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [311b28c]
+- Updated dependencies [46781ac]
+- Updated dependencies [e40bf51]
+- Updated dependencies [584d09a]
+- Updated dependencies [699732b]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [311b28c]
+- Updated dependencies [584d09a]
+- Updated dependencies [46781ac]
+- Updated dependencies [584d09a]
+- Updated dependencies [f32ac07]
+- Updated dependencies [c317ae7]
+- Updated dependencies [584d09a]
+- Updated dependencies [d61a29e]
+- Updated dependencies [584d09a]
+- Updated dependencies [584d09a]
+- Updated dependencies [e41a746]
+- Updated dependencies [8509874]
+- Updated dependencies [e40bf51]
+- Updated dependencies [f32ac07]
+- Updated dependencies [6f1ef9b]
+- Updated dependencies [e41a746]
+- Updated dependencies [e41a746]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e41a746]
+- Updated dependencies [584d09a]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [8237f59]
+- Updated dependencies [866134f]
+- Updated dependencies [866134f]
+- Updated dependencies [f7976c2]
+- Updated dependencies [f7976c2]
+- Updated dependencies [8237f59]
+- Updated dependencies [866134f]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [311b28c]
+- Updated dependencies [e40bf51]
+- Updated dependencies [311b28c]
+- Updated dependencies [e41a746]
+- Updated dependencies [d5e4e91]
+- Updated dependencies [d61a29e]
+- Updated dependencies [6f1ef9b]
+  - @hyperlane-xyz/rebalancer@29.2.0
+  - @hyperlane-xyz/sdk@46.0.0
+  - @hyperlane-xyz/tron-sdk@26.1.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/http-registry-server@46.0.0
+  - @hyperlane-xyz/keyfunder@0.1.55
+  - @hyperlane-xyz/metrics@1.0.7
+  - @hyperlane-xyz/relayer@4.1.1
+  - @hyperlane-xyz/deploy-sdk@11.0.4
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+  - @hyperlane-xyz/sealevel-sdk@46.0.0
+
 ## 45.2.0
 
 ### Patch Changes

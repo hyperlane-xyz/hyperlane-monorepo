@@ -1,5 +1,13 @@
 # @hyperlane-xyz/forking-sdk
 
+## 10.0.4
+
+### Patch Changes
+
+- Updated dependencies [f32ac07]
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+
 ## 10.0.3
 
 ### Patch Changes
