@@ -73,6 +73,8 @@ const EnvSchema = z.object({
     .transform((value) =>
       z.array(CcsSignerSchema).min(1).parse(JSON.parse(value)),
     ),
+  // Keep unset (disabled) in production until the Sealevel reveal flow is
+  // redesigned; enable only for local testing.
   CCS_CALLDATA_LOOKUP_ENABLED: CalldataLookupEnabledSchema,
 });
 
