@@ -119,6 +119,10 @@ async function main(): Promise<void> {
     eqAddressSol(upgradeAuthority, expectedUpgradeAuthority),
     `Mailbox upgrade authority is ${upgradeAuthority}, expected ${expectedUpgradeAuthority}`,
   );
+  assert(
+    eqAddressSol(current.config.owner, upgradeAuthority),
+    `Mailbox owner ${current.config.owner} differs from upgrade authority ${upgradeAuthority}; refusing to let the mailbox writer transfer upgrade authority`,
+  );
 
   let currentProgramDataCapacity: number | undefined;
   if (argv.singleSquadsTransaction) {
