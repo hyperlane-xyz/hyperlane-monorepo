@@ -787,26 +787,11 @@ async function main(): Promise<void> {
     maxSupportedTransactionVersion:
       metadata.maxSupportedTransactionVersion ?? 0,
   });
-  const altAccounts = await resolveWireAddressLookupTables(
-    receipt.transaction_base58,
-    upstreamConnection,
-  );
-  const plans = planReceiptProposals(parsed.txs, [altAccounts]);
-  const plan = plans[0];
-  assert(plan && plans.length === 1, 'Expected one Squads proposal plan');
   const squadsKeys = getSquadsKeys(chain, GovernanceType.Regular);
   assert(
     eqAddressSol(squadsKeys.vault.toBase58(), expectedUpgradeAuthority),
     `Regular Squads vault is ${squadsKeys.vault}, expected ${expectedUpgradeAuthority}`,
   );
-  const proposalAddresses = await assertProposalMatchesReceipt({
-    connection: upstreamConnection,
-    proposalIndex,
-    receiptInstructions: plan.instructions,
-    multisigPda: squadsKeys.multisigPda,
-    programId: squadsKeys.programId,
-    expectedVault: squadsKeys.vault,
-  });
 
   const upgradeInstruction = receipt.instructions[0];
   assert(upgradeInstruction, 'Receipt is missing its upgrade instruction');
@@ -826,27 +811,8 @@ async function main(): Promise<void> {
     { buffer: bufferAddress, spill: spillAddress },
     'Validated mailbox upgrade instruction accounts',
   );
-  const upstreamBuffer = await fetchRpcAccount(upstreamRpcUrl, bufferAddress);
-  assert(upstreamBuffer, `Upgrade buffer ${bufferAddress} is missing`);
-  assert(
-    upstreamBuffer.owner === LOADER_V3 &&
-      upstreamBuffer.data.readUInt32LE(0) === 1,
-    `Invalid upgrade buffer ${bufferAddress}`,
-  );
-  const bufferAuthority = new PublicKey(
-    upstreamBuffer.data.subarray(5, BUFFER_HEADER_SIZE),
-  ).toBase58();
-  assert(
-    eqAddressSol(bufferAuthority, expectedUpgradeAuthority),
-    `Buffer authority is ${bufferAuthority}`,
-  );
   const expectedBytes = HYPERLANE_SVM_PROGRAM_BYTES.mailbox;
   const expectedHash = sha256(expectedBytes);
-  assert(
-    upstreamBuffer.data.length === BUFFER_HEADER_SIZE + expectedBytes.length &&
-      sha256(upstreamBuffer.data.subarray(BUFFER_HEADER_SIZE)) === expectedHash,
-    'Upgrade buffer bytes do not match the bundled mailbox program',
-  );
 
   const forkManager = createSvmForkManager({
     chainName: chain,
@@ -865,6 +831,39 @@ async function main(): Promise<void> {
     } satisfies ChainMetadataForAltVM;
     const forkRpc = createRpc(forkRpcUrl);
     const forkConnection = new Connection(forkRpcUrl, 'confirmed');
+    const altAccounts = await resolveWireAddressLookupTables(
+      receipt.transaction_base58,
+      forkConnection,
+    );
+    const plans = planReceiptProposals(parsed.txs, [altAccounts]);
+    const plan = plans[0];
+    assert(plan && plans.length === 1, 'Expected one Squads proposal plan');
+    const proposalAddresses = await assertProposalMatchesReceipt({
+      connection: forkConnection,
+      proposalIndex,
+      receiptInstructions: plan.instructions,
+      multisigPda: squadsKeys.multisigPda,
+      programId: squadsKeys.programId,
+      expectedVault: squadsKeys.vault,
+    });
+    const forkBuffer = await fetchRpcAccount(forkRpcUrl, bufferAddress);
+    assert(forkBuffer, `Upgrade buffer ${bufferAddress} is missing`);
+    assert(
+      forkBuffer.owner === LOADER_V3 && forkBuffer.data.readUInt32LE(0) === 1,
+      `Invalid upgrade buffer ${bufferAddress}`,
+    );
+    const bufferAuthority = new PublicKey(
+      forkBuffer.data.subarray(5, BUFFER_HEADER_SIZE),
+    ).toBase58();
+    assert(
+      eqAddressSol(bufferAuthority, expectedUpgradeAuthority),
+      `Buffer authority is ${bufferAuthority}`,
+    );
+    assert(
+      forkBuffer.data.length === BUFFER_HEADER_SIZE + expectedBytes.length &&
+        sha256(forkBuffer.data.subarray(BUFFER_HEADER_SIZE)) === expectedHash,
+      'Upgrade buffer bytes do not match the bundled mailbox program',
+    );
     const reader = new SealevelMailboxReader(forkRpc);
     const before = await reader.read(mailbox);
     assert(
