@@ -123,6 +123,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
         } else {
             Vec::new()
         };
+        let coverage = store.retrieve_sequence_coverage().await?;
         let params = BackwardSequenceAwareSyncCursorParams {
             chunk_size,
             latest_sequence_querier: latest_sequence_querier.clone(),
@@ -134,7 +135,8 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             index_mode: mode,
             metrics_data,
         };
-        let backward_cursor = BackwardSequenceAwareSyncCursor::new(params);
+        let mut backward_cursor = BackwardSequenceAwareSyncCursor::new(params);
+        backward_cursor.coverage = coverage;
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,
@@ -349,6 +351,70 @@ mod tests {
             cursor.backward.lowest_block_height_or_sequence,
             lowest_block_height_or_sequence
         );
+    }
+
+    #[tokio::test]
+    async fn coverage_skips_only_verified_history() {
+        use hyperlane_core::SequenceCoverage;
+        for (mode, first, count, floor, missing, reads, expected) in [
+            (IndexMode::Block, 0, 100, 0, None, vec![99, 0], None),
+            (IndexMode::Sequence, 0, 100, 0, None, vec![99, 0], None),
+            (
+                IndexMode::Block,
+                20,
+                100,
+                110,
+                Some(19),
+                vec![99, 20, 19],
+                Some(110..=120),
+            ),
+            (
+                IndexMode::Block,
+                0,
+                101,
+                0,
+                Some(100),
+                vec![100],
+                Some(980..=1000),
+            ),
+        ] {
+            let domain = HyperlaneDomain::new_test_domain("coverage");
+            let mut indexer = MockSequenceAwareIndexerMock::<H256>::new();
+            indexer
+                .expect_latest_sequence_count_and_tip()
+                .returning(move || Ok((Some(count), 1000)));
+            let mut store = MockDb::<H256>::new();
+            store
+                .expect_retrieve_backward_cursors()
+                .returning(|| Ok(vec![]));
+            store
+                .expect_retrieve_by_sequence()
+                .times(reads.len())
+                .returning(move |sequence| {
+                    assert!(
+                        reads.contains(&sequence),
+                        "covered history must not be walked"
+                    );
+                    Ok((missing != Some(sequence)).then_some(H256::zero()))
+                });
+            store
+                .expect_retrieve_log_block_number_by_sequence()
+                .returning(|sequence| Ok(Some(100 + u64::from(sequence))));
+            let mut cursor = ForwardBackwardSequenceAwareSyncCursor::new(
+                &domain,
+                Arc::new(mock_cursor_metrics()),
+                Arc::new(indexer),
+                Arc::new(store),
+                20,
+                floor,
+                mode,
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap();
+            cursor.backward.coverage = Some(SequenceCoverage { first, last: 98 });
+            assert_eq!(cursor.backward.get_next_range().await.unwrap(), expected);
+        }
     }
 
     #[tokio::test]

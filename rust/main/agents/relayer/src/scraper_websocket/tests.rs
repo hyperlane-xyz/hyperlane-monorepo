@@ -299,6 +299,7 @@ async fn probe_errors_share_grace_and_ignore_previous_generations() {
         .observe_probe(
             generation,
             Ok(Some(RpcProbe::Health(HealthProbe {
+                height: 100,
                 counts: [2, 2],
                 observed: [2, 2],
             }))),
@@ -310,6 +311,53 @@ async fn probe_errors_share_grace_and_ignore_previous_generations() {
     let current = source.control.request(source.control.generation()).unwrap();
     assert!(state.observe_probe(generation, failed()).is_ok());
     assert!(state.observe_probe(current, failed()).is_err());
+}
+
+#[tokio::test]
+async fn gas_restart_height_advances_only_on_current_fresh_live_probes() {
+    use hyperlane_core::{HyperlaneWatermarkedLogStore, InterchainGasPayment};
+    let (_dir, source, _) = fixture();
+    let mut state = SourceState::new(&source);
+    state.next = [Some(2), Some(2)];
+    let generation = source.control.request(source.control.generation()).unwrap();
+    let probe = |height, counts| {
+        Ok(Some(RpcProbe::Health(HealthProbe {
+            height,
+            counts,
+            observed: [2, 2],
+        })))
+    };
+    state.observe_probe(generation, probe(100, [2, 2])).unwrap();
+    assert_eq!(
+        HyperlaneWatermarkedLogStore::<InterchainGasPayment>::retrieve_high_watermark(
+            &source.database
+        )
+        .await
+        .unwrap(),
+        None
+    );
+    state.authoritative = true;
+    state.observe_probe(generation, probe(100, [3, 2])).unwrap();
+    assert_eq!(
+        HyperlaneWatermarkedLogStore::<InterchainGasPayment>::retrieve_high_watermark(
+            &source.database
+        )
+        .await
+        .unwrap(),
+        None
+    );
+    state.observe_probe(generation, probe(200, [2, 2])).unwrap();
+    state.observe_probe(generation, probe(190, [2, 2])).unwrap();
+    source.control.resume();
+    state.observe_probe(generation, probe(300, [2, 2])).unwrap();
+    assert_eq!(
+        HyperlaneWatermarkedLogStore::<InterchainGasPayment>::retrieve_high_watermark(
+            &source.database
+        )
+        .await
+        .unwrap(),
+        Some(199)
+    );
 }
 
 #[tokio::test]
@@ -751,6 +799,10 @@ async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_re
             })
             .await
             .unwrap();
+            let coverage = hyperlane_core::HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_sequence_coverage(&source.database).await.unwrap().unwrap();
+            // The second fixture session skips 23..29 without storing them.
+            // Live writes extend 20..22, but must not bridge that artificial gap.
+            assert_eq!(coverage.last, 22, "coverage must remain contiguous");
             socket.close(None).await.unwrap();
         };
         let (result, ()) = timeout(Duration::from_secs(5), async {
@@ -767,8 +819,8 @@ async fn socket_cutover_waits_for_pause_and_recovers_after_disconnect_without_re
     }
 }
 
-#[test]
-fn rpc_and_live_gas_overlap_is_not_double_credited() {
+#[tokio::test]
+async fn rpc_and_live_gas_overlap_is_not_double_credited() {
     use hyperlane_core::{GasPaymentKey, InterchainGasPayment, U256};
     let (_dir, source, _) = fixture();
     let key = GasPaymentKey {
@@ -794,6 +846,7 @@ fn rpc_and_live_gas_overlap_is_not_double_credited() {
         .process_indexed_gas_payment(payment, &meta)
         .unwrap();
     source.store(&LiveEvent::Gas(payment, meta)).unwrap();
+    assert_eq!(hyperlane_core::HyperlaneWatermarkedLogStore::<InterchainGasPayment>::retrieve_high_watermark(&source.database).await.unwrap(), Some(99));
     assert_eq!(
         source
             .database

@@ -69,10 +69,57 @@ impl Decode for BackwardCursorProgress {
     }
 }
 
+/// Inclusive sequence range whose entries and block metadata have been verified in storage.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SequenceCoverage {
+    /// First verified sequence.
+    pub first: u32,
+    /// Last verified sequence.
+    pub last: u32,
+}
+
+impl SequenceCoverage {
+    /// Join overlapping or adjacent ranges; never cover an unverified gap.
+    pub fn merge(self, other: Self) -> Option<Self> {
+        (self.first <= other.last.saturating_add(1) && other.first <= self.last.saturating_add(1))
+            .then_some(Self {
+                first: self.first.min(other.first),
+                last: self.last.max(other.last),
+            })
+    }
+}
+
+impl Encode for SequenceCoverage {
+    fn write_to<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<usize> {
+        self.first.write_to(writer)?;
+        self.last.write_to(writer)?;
+        Ok(8)
+    }
+}
+
+impl Decode for SequenceCoverage {
+    fn read_from<R: std::io::Read>(reader: &mut R) -> Result<Self, HyperlaneProtocolError> {
+        Ok(Self {
+            first: u32::read_from(reader)?,
+            last: u32::read_from(reader)?,
+        })
+    }
+}
+
 /// Store for direction- and event-specific backwards cursor progress.
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait HyperlaneBackwardCursorStore<T>: Send + Sync + Debug {
+    /// Retrieves verified local history. Stores without persistence may omit it.
+    async fn retrieve_sequence_coverage(&self) -> Result<Option<SequenceCoverage>> {
+        Ok(None)
+    }
+
+    /// Saves coverage only after every entry and its block metadata were verified.
+    async fn store_sequence_coverage(&self, _coverage: SequenceCoverage) -> Result<()> {
+        Ok(())
+    }
+
     /// Retrieves all durable backwards cursor positions.
     async fn retrieve_backward_cursors(&self) -> Result<Vec<BackwardCursorProgress>>;
 
