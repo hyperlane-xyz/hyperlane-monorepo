@@ -9,6 +9,10 @@ import { computeSealevelSourceHash } from './sealevel-source-hash.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROGRAM_BYTES_FILE = join(__dirname, '../src/hyperlane/program-bytes.ts');
+const PACKAGE_VERSION_FILE = join(
+  __dirname,
+  '../../../rust/sealevel/libraries/package-versioned/src/lib.rs',
+);
 // CI passes --warn after comparing rebuilt ELFs: inputs such as the rust/main
 // workspace manifest can change the hash without changing program bytes.
 const warnOnly = process.argv.includes('--warn');
@@ -38,6 +42,20 @@ if (!match) {
 
 const embeddedHash = match[1];
 const currentHash = computeSealevelSourceHash();
+const packageVersionSource = readFileSync(PACKAGE_VERSION_FILE, 'utf-8');
+const sourceVersion = packageVersionSource.match(
+  /pub const PACKAGE_VERSION: &str = "([^"]+)";/,
+)?.[1];
+const embeddedVersion = content.match(
+  /HYPERLANE_SVM_PROGRAM_VERSION\s*=\s*'([^']+)'/,
+)?.[1];
+
+if (!sourceVersion || embeddedVersion !== sourceVersion) {
+  console.error('ERROR: bundled SVM program version is STALE.');
+  console.error(`  Embedded version: ${embeddedVersion ?? 'missing'}`);
+  console.error(`  Rust source version: ${sourceVersion ?? 'missing'}`);
+  process.exit(1);
+}
 
 if (embeddedHash === currentHash) {
   console.log('program-bytes.ts is up to date with Rust sealevel sources.');

@@ -9,6 +9,9 @@
 export const SEALEVEL_SOURCE_HASH =
   '46d188960ddb76f6a507153e11f954f0a37fb6f5fba69cf79fe86109265113dc';
 
+/** package-versioned::PACKAGE_VERSION compiled into every bundled program. */
+export const HYPERLANE_SVM_PROGRAM_VERSION = '1.0.0';
+
 export const HYPERLANE_SVM_PROGRAM_BYTES = {
   mailbox: new Uint8Array([
     127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 7, 1, 1, 0, 0, 0,

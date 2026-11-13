@@ -26,6 +26,7 @@ import { address } from '@solana/kit';
 
 import {
   HYPERLANE_SVM_PROGRAM_BYTES,
+  HYPERLANE_SVM_PROGRAM_VERSION,
   SealevelMailboxReader,
   SealevelMailboxWriter,
   SealevelSigner,
@@ -53,9 +54,7 @@ import { getArgs } from '../agent-utils.js';
 
 const logger = rootLogger.child({ module: 'prepare-mailbox-upgrade' });
 
-// Must match package-versioned::PACKAGE_VERSION compiled into the embedded
-// HYPERLANE_SVM_PROGRAM_BYTES.mailbox binary.
-const TARGET_VERSION = '1.0.0';
+const TARGET_VERSION = HYPERLANE_SVM_PROGRAM_VERSION;
 
 async function main(): Promise<void> {
   const argv = await getArgs()

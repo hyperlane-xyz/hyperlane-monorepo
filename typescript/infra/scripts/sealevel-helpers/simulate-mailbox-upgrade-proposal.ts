@@ -33,6 +33,7 @@ import { z } from 'zod';
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   HYPERLANE_SVM_PROGRAM_BYTES,
+  HYPERLANE_SVM_PROGRAM_VERSION,
   SealevelImpersonatingSigner,
   SealevelMailboxReader,
   convertLegacySolanaTransaction,
@@ -703,7 +704,7 @@ async function main(): Promise<void> {
     })
     .option('expectedVersion', {
       type: 'string',
-      default: '1.0.0',
+      default: HYPERLANE_SVM_PROGRAM_VERSION,
     })
     .option('rpcPort', {
       type: 'number',

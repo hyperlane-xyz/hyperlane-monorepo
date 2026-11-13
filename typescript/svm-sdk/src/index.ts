@@ -36,7 +36,10 @@ export {
 export type { SvmRoutingMessageIdMultisigIsmWriterConfig as SealevelRoutingMessageIdMultisigIsmWriterConfig } from './ism/multisig-ism.js';
 
 // Program bytes (auto-generated from compiled .so binaries)
-export { HYPERLANE_SVM_PROGRAM_BYTES } from './hyperlane/program-bytes.js';
+export {
+  HYPERLANE_SVM_PROGRAM_BYTES,
+  HYPERLANE_SVM_PROGRAM_VERSION,
+} from './hyperlane/program-bytes.js';
 
 // Low-level instruction builders
 export {

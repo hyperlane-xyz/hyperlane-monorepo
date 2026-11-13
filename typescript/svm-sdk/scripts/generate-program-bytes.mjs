@@ -12,12 +12,25 @@ const __dirname = dirname(__filename);
 
 const PROGRAMS_DIR = join(__dirname, '../../../rust/sealevel/target/deploy');
 const OUTPUT_FILE = join(__dirname, '../src/hyperlane/program-bytes.ts');
+const PACKAGE_VERSION_FILE = join(
+  __dirname,
+  '../../../rust/sealevel/libraries/package-versioned/src/lib.rs',
+);
 
 import { PROGRAMS } from './programs.mjs';
 
 console.log('🔧 Generating program bytes from .so files...\n');
 
 const programBytes = {};
+const packageVersionSource = readFileSync(PACKAGE_VERSION_FILE, 'utf8');
+const packageVersionMatch = packageVersionSource.match(
+  /pub const PACKAGE_VERSION: &str = "([^"]+)";/,
+);
+if (!packageVersionMatch) {
+  console.error(`  ❌ PACKAGE_VERSION not found in ${PACKAGE_VERSION_FILE}`);
+  process.exit(1);
+}
+const programVersion = packageVersionMatch[1];
 
 for (const [key, filename] of Object.entries(PROGRAMS)) {
   const path = join(PROGRAMS_DIR, filename);
@@ -47,6 +60,9 @@ const tsContent = `/**
 
 /** SHA-256 of Rust sealevel sources at generation time. Used for CI staleness detection. */
 export const SEALEVEL_SOURCE_HASH = '${sourceHash}';
+
+/** package-versioned::PACKAGE_VERSION compiled into every bundled program. */
+export const HYPERLANE_SVM_PROGRAM_VERSION = '${programVersion}';
 
 export const HYPERLANE_SVM_PROGRAM_BYTES = {
 ${entries}
