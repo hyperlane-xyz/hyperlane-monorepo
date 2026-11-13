@@ -33,6 +33,7 @@ import {
   type LiveStartBoundary,
   parseDatabaseDomain,
   parseClientMessage,
+  splitConfirmationStreams,
   parseEventNotification,
   parseExplorerNotification,
   parseExplorerConfirmations,
@@ -414,7 +415,7 @@ export class EventWebSocketServer {
     });
     websocketConnections.inc({ route: 'agent' });
     this.send(socket, {
-      confirmations: { unit: 'blocks', liveOnly: true },
+      confirmations: { unit: 'blocks', liveOnly: true, byDomain: true },
       eventTypes: SUBSCRIPTION_TYPES,
       historicalStreaming: true,
       liveStartVersion: 1,
@@ -788,9 +789,11 @@ export class EventWebSocketServer {
       }
       return snapshot.heads;
     };
-    const eventStreams = message.streams.filter(
-      (request) => request.eventType !== 'blocks',
-    );
+    const eventStreams = message.streams
+      .filter((request) => request.eventType !== 'blocks')
+      .flatMap((request) =>
+        splitConfirmationStreams(request, message.confirmationsByDomain),
+      );
     try {
       const blocks = message.streams.find(
         (request) => request.eventType === 'blocks',
@@ -844,7 +847,17 @@ export class EventWebSocketServer {
       return;
     }
     if (this.clients.get(socket) !== client) return;
+    // Custom readers are separate; retain the canonical group for live filtering/replay.
+    const subscriptions = new Map<EventType, StreamRequest>();
     for (const request of eventStreams) {
+      if (
+        !subscriptions.has(request.eventType) ||
+        request.confirmations === undefined
+      ) {
+        subscriptions.set(request.eventType, request);
+      }
+    }
+    for (const request of subscriptions.values()) {
       const subscription: AgentSubscription = new AgentSubscription(
         request,
         this.store,
@@ -864,6 +877,13 @@ export class EventWebSocketServer {
 
     client.subscribing = false;
     this.send(socket, {
+      ...(message.confirmationsByDomain
+        ? {
+            confirmationsByDomain: Object.fromEntries(
+              message.confirmationsByDomain,
+            ),
+          }
+        : {}),
       streams: message.streams.map(subscriptionResponse),
       type: 'subscribed',
     });
