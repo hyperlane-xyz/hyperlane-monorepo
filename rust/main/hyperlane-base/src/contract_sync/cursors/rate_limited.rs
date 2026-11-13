@@ -85,6 +85,7 @@ pub(crate) struct RateLimitedContractSyncCursor<T> {
     store: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
     last_tip_update: Instant,
+    caught_up: bool,
     eta_calculator: SyncerEtaCalculator,
     sync_state: SyncState,
     metrics: Arc<CursorMetrics>,
@@ -135,6 +136,7 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
             store,
             tip,
             last_tip_update: Instant::now(),
+            caught_up: false,
             eta_calculator: SyncerEtaCalculator::new(index_start_height, tip, ETA_TIME_WINDOW),
             sync_state: SyncState::new(
                 chunk_size,
@@ -189,9 +191,9 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
         self.sync_state.chunk_size
     }
 
-    async fn get_next_range(&self) -> Result<Option<RangeInclusive<u32>>> {
-        let tip = self.indexer.get_finalized_block_number().await?;
-        self.sync_state.get_next_range(tip).await
+    async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
+        self.tip = self.indexer.get_finalized_block_number().await?;
+        self.sync_state.get_next_range(self.tip).await
     }
 
     fn sync_eta(&mut self) -> Duration {
@@ -227,6 +229,8 @@ where
     T: Indexable + Send + Sync + Debug + 'static,
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
+        // Only a fresh tip read with no remaining range proves catch-up.
+        self.caught_up = false;
         let eta = self.sync_eta();
 
         let rate_limit = self.get_rate_limit().await?;
@@ -237,12 +241,17 @@ where
         if let Some(range) = self.get_next_range().await? {
             return Ok((CursorAction::Query(range), eta));
         } else {
+            self.caught_up = true;
             return Ok((CursorAction::Sleep(self.idle_sleep_duration), eta));
         }
     }
 
     fn latest_queried_block(&self) -> u32 {
         self.sync_state.next_block.saturating_sub(1)
+    }
+
+    fn is_caught_up(&self) -> bool {
+        self.caught_up
     }
 
     async fn update(
@@ -269,6 +278,7 @@ where
                 // we retrieved a new tip value, go ahead and update.
                 self.last_tip_update = Instant::now();
                 self.tip = tip;
+                self.caught_up = self.sync_state.next_block > tip;
                 Ok(())
             }
             Err(e) => {
@@ -476,6 +486,47 @@ pub(crate) mod test {
             assert_eq!(cursor.sync_state.start_block, expected);
             assert_eq!(cursor.sync_state.next_block, expected);
         }
+    }
+
+    #[tokio::test]
+    async fn advancing_tip_requires_completed_query_and_fresh_catchup_check() {
+        let mut cursor =
+            mock_rate_limited_cursor::<MockIndexable>(Some(vec![100, 110, 110, 110])).await;
+        cursor.sync_state.next_block = 101;
+        cursor.last_tip_update = Instant::now() - Duration::from_secs(31);
+
+        let (action, _) = cursor.next_action().await.unwrap();
+        let CursorAction::Query(range) = action else {
+            panic!("Expected the newly available range");
+        };
+        assert_eq!(range, 101..=110);
+        assert!(
+            !cursor.is_caught_up(),
+            "an unfinished range cannot authorize cutover"
+        );
+        cursor.update(vec![], range).await.unwrap();
+        assert!(
+            cursor.is_caught_up(),
+            "completed range covers the fresh tip"
+        );
+
+        cursor.last_tip_update = Instant::now() - Duration::from_secs(31);
+        assert!(matches!(
+            cursor.next_action().await.unwrap().0,
+            CursorAction::Sleep(_)
+        ));
+        assert!(cursor.is_caught_up());
+        assert_eq!(cursor.latest_queried_block(), 110);
+
+        cursor.last_tip_update = Instant::now();
+        assert!(matches!(
+            cursor.next_action().await.unwrap().0,
+            CursorAction::Sleep(_)
+        ));
+        assert!(
+            !cursor.is_caught_up(),
+            "cached-tip sleeps must not renew readiness"
+        );
     }
 
     #[tokio::test]

@@ -484,14 +484,14 @@ impl MerkleTreeHookWebSocketSync {
                             bail!("WebSocket insertion cursor remained ahead of canonical count");
                         }
                     } else {
-                        health.observe(count, *next_sequence, false)?;
+                        health.observe(count, *next_sequence)?;
                     }
                     continue;
                 }
             };
             if let Some(message) = message {
                 match message {
-                    ServerMessage::Ready { .. } => socket.subscribe(self.subscription()).await?,
+                    ServerMessage::Ready => socket.subscribe(self.subscription()).await?,
                     ServerMessage::Subscribed { .. } => {
                         info!(
                             domain = self.domain,
@@ -521,8 +521,7 @@ impl MerkleTreeHookWebSocketSync {
                     ServerMessage::Rollback => {
                         bail!("Scraper stream rolled back; resuming RPC indexing")
                     }
-                    // Live subscriptions never depend on a replay marker.
-                    ServerMessage::CaughtUp { .. } | ServerMessage::Other => {}
+                    ServerMessage::Other => {}
                 }
             }
             self.try_handoff(next_sequence, target_count, fallback, &mut pending)
@@ -594,10 +593,8 @@ impl MerkleTreeHookWebSocketSync {
         SubscribeMessage {
             streams: vec![SubscribeStream {
                 confirmations: self.confirmations,
-                cursors: None,
                 domains: Some(vec![self.domain]),
                 event_type: EVENT_TYPE,
-                stream_cursor_version: None,
             }],
             message_type: "subscribe",
         }

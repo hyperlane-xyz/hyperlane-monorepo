@@ -23,6 +23,16 @@ pub trait ContractSyncCursor<T>: Debug + Send + Sync + 'static {
     /// TODO: consider a better way to assess health
     fn latest_queried_block(&self) -> u32;
 
+    /// Whether the last action found both forward and historical indexing complete.
+    fn is_caught_up(&self) -> bool {
+        false
+    }
+
+    /// Next sequence after the completed forward history, when available.
+    fn next_sequence(&self) -> Option<u32> {
+        None
+    }
+
     /// Ingests the logs that were fetched from the chain and the range that was queried,
     /// and adjusts the cursor accordingly.
     /// This is called after the logs have been written to the store,
