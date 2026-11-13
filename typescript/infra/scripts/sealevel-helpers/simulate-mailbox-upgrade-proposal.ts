@@ -831,7 +831,6 @@ async function main(): Promise<void> {
     upstreamRpcUrl,
     rpcPort,
     wsPort: rpcPort + 1,
-    keepRunning: true,
   });
 
   try {
