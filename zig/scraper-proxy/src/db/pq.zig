@@ -318,6 +318,48 @@ pub fn tlsExact() bool {
     return tls.pendingFn() != null;
 }
 
+/// A reply read ahead of its use (`Conn.pollRaw`/`finishRaw`): libpq's
+/// results, converted only by `take` in the consumer's arena.
+pub const RawReply = struct {
+    tuples: ?*PGresult = null,
+    err: ?*PGresult = null,
+    complete: bool = false,
+
+    pub fn deinit(self: *RawReply) void {
+        if (self.tuples) |r| PQclear(r);
+        if (self.err) |r| PQclear(r);
+        self.* = .{};
+    }
+
+    /// The rows (node-pg conversion) or the server error, as `query` would
+    /// return them; frees the results.
+    pub fn take(self: *RawReply, arena: std.mem.Allocator, failure: ?*Failure) Error!root.Result {
+        defer self.deinit();
+        if (self.err) |res| {
+            const message = if (PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY)) |m| std.mem.span(m) else "";
+            const code = if (PQresultErrorField(res, PG_DIAG_SQLSTATE)) |c| std.mem.span(c) else null;
+            setFailure(failure, arena, message, code);
+            return error.QueryFailed;
+        }
+        const res = self.tuples orelse return .{ .rows = &.{}, .row_count = 0 };
+        return .{ .rows = try convertRows(arena, res), .row_count = rowCount(res) };
+    }
+
+    /// SQLSTATE of the server error, if any (borrowed until `take`/`deinit`).
+    pub fn errorCode(self: *const RawReply) ?[]const u8 {
+        const res = self.err orelse return null;
+        return if (PQresultErrorField(res, PG_DIAG_SQLSTATE)) |c| std.mem.span(c) else null;
+    }
+};
+
+/// The reply to one query, accumulated by `collect`.
+pub const Reply = struct {
+    result: root.Result = .{ .rows = &.{}, .row_count = 0 },
+    server_error: bool = false,
+    /// libpq returned the final null result: nothing more to read.
+    complete: bool = false,
+};
+
 pub fn nowMs() i64 {
     return std.time.milliTimestamp();
 }
@@ -337,6 +379,9 @@ pub const Conn = struct {
     broken: bool = false,
     /// When the pool last handed it out (`Pool.hold_histogram`).
     checked_out_ns: i128 = 0,
+    /// A `sendQuery` left part of its message in libpq's output buffer
+    /// (the kernel would not take it all): `pollRaw`/`finishRaw` flush it.
+    unflushed: bool = false,
     /// Named statements (`Plan.custom`/`.reusable`), allocated on first use.
     statements: ?*Statements = null,
     plan_mode: PlanMode = .custom,
@@ -494,13 +539,168 @@ pub const Conn = struct {
     }
 
     fn runUnnamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, deadline: ?i64, failure: ?*Failure) Error!root.Result {
+        try self.sendUnnamed(arena, sql, params, deadline, failure);
+        return self.collect(arena, deadline, failure);
+    }
+
+    fn sendUnnamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, deadline: ?i64, failure: ?*Failure) Error!void {
         const sql_z = try arena.dupeZ(u8, sql);
         const sent = if (params.len == 0) PQsendQuery(self.pg, sql_z) else blk: {
             const values = try textParams(arena, params);
             break :blk PQsendQueryParams(self.pg, sql_z, @intCast(params.len), null, values.ptr, null, null, 0);
         };
         try self.flushSent(sent, arena, deadline, failure);
-        return self.collect(arena, deadline, failure);
+    }
+
+    fn deadlineFromNow(self: *const Conn) ?i64 {
+        return if (self.query_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
+    }
+
+    /// First half of an unnamed `query`: sends it and returns without reading.
+    /// Then `pollQuery` (never waits) until it reports completion, and/or
+    /// `finishQuery` (waits); or `discardQuery`.
+    /// Never waits: what the kernel does not take at once stays buffered
+    /// (`unflushed`; the caller polls for writability, see `wantsWrite`).
+    pub fn sendQuery(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error!void {
+        errdefer self.broken = true;
+        const sql_z = try arena.dupeZ(u8, sql);
+        const sent = if (params.len == 0) PQsendQuery(self.pg, sql_z) else blk: {
+            const values = try textParams(arena, params);
+            break :blk PQsendQueryParams(self.pg, sql_z, @intCast(params.len), null, values.ptr, null, null, 0);
+        };
+        if (sent == 0) return self.transportFailure(arena, failure);
+        switch (PQflush(self.pg)) {
+            0 => {},
+            1 => self.unflushed = true,
+            else => return self.transportFailure(arena, failure),
+        }
+    }
+
+    /// The rest of a `sendQuery` is still to be written.
+    pub fn wantsWrite(self: *const Conn) bool {
+        return self.unflushed;
+    }
+
+    /// Writes what the kernel takes now; true once nothing is left.
+    fn flushSome(self: *Conn) Error!bool {
+        if (!self.unflushed) return true;
+        switch (PQflush(self.pg)) {
+            0 => {
+                self.unflushed = false;
+                return true;
+            },
+            1 => return false,
+            else => {
+                self.broken = true;
+                return error.ConnectionFailed;
+            },
+        }
+    }
+
+    /// Reads whatever has arrived for a `sendQuery` without waiting (keeping
+    /// the server from blocking on a full socket); libpq's results are kept
+    /// in `reply` unconverted, so any thread may call this. True once the
+    /// reply is complete. Errors: ConnectionFailed (connection broken).
+    pub fn pollRaw(self: *Conn, reply: *RawReply) Error!bool {
+        if (reply.complete) return true;
+        if (!try self.flushSome()) {
+            // Still writing; take any input so the server is not blocked.
+            if (!self.consumeAll(.reply)) {
+                self.broken = true;
+                return error.ConnectionFailed;
+            }
+            return false;
+        }
+        // libpq reads at most its buffer's free space (~16 KB) per call: keep
+        // reading while the socket has data, bounded so one poll stays short
+        // (64 reads, about 1 MB).
+        var reads: usize = 0;
+        while (reads < 64) : (reads += 1) {
+            if (!self.consumeAll(.reply)) {
+                self.broken = true;
+                return error.ConnectionFailed;
+            }
+            if (try self.stepRaw(reply)) return true;
+            var fds = [_]std.posix.pollfd{.{ .fd = self.socket(), .events = std.posix.POLL.IN, .revents = 0 }};
+            if ((std.posix.poll(&fds, 0) catch 0) == 0) break;
+        }
+        return false;
+    }
+
+    /// Completes a `sendQuery`, waiting for the rest of the reply. The client
+    /// query timeout counts from here, when node-pg would have issued it.
+    /// Errors: QueryTimeout, ConnectionFailed (the connection is broken).
+    pub fn finishRaw(self: *Conn, reply: *RawReply) Error!void {
+        const deadline = self.deadlineFromNow();
+        while (!try self.flushSome()) {
+            if (!waitSocket(self.socket(), std.posix.POLL.OUT | std.posix.POLL.IN, deadline)) {
+                self.broken = true;
+                return error.QueryTimeout;
+            }
+            if (!self.consumeAll(.reply)) {
+                self.broken = true;
+                return error.ConnectionFailed;
+            }
+        }
+        while (!try self.stepRaw(reply)) {
+            if (!self.waitInput(deadline)) {
+                self.broken = true;
+                return error.QueryTimeout;
+            }
+            if (!self.consumeAll(.reply)) {
+                self.broken = true;
+                return error.ConnectionFailed;
+            }
+        }
+    }
+
+    /// Takes the results libpq has parsed, without waiting.
+    fn stepRaw(self: *Conn, reply: *RawReply) Error!bool {
+        if (reply.complete) return true;
+        while (PQisBusy(self.pg) == 0) {
+            const res = PQgetResult(self.pg) orelse {
+                reply.complete = true;
+                if (PQstatus(self.pg) != CONNECTION_OK) {
+                    self.broken = true;
+                    return error.ConnectionFailed;
+                }
+                return true;
+            };
+            switch (PQresultStatus(res)) {
+                PGRES_TUPLES_OK, PGRES_COMMAND_OK, PGRES_EMPTY_QUERY => if (reply.err == null) {
+                    if (reply.tuples) |old| PQclear(old);
+                    reply.tuples = res;
+                    continue;
+                },
+                PGRES_FATAL_ERROR => if (reply.err == null) {
+                    reply.err = res;
+                    continue;
+                },
+                else => {},
+            }
+            PQclear(res);
+        }
+        return false;
+    }
+
+    /// TLS without the exact OpenSSL check (`tls`): socket readiness may not
+    /// reveal input OpenSSL still holds, so readers must re-poll on a timer.
+    pub fn tlsBlind(self: *const Conn) bool {
+        return PQsslInUse(self.pg) != 0 and tls.pendingFn() == null;
+    }
+
+    /// Abandons a sent query without waiting: a complete reply is drained and
+    /// the connection stays usable; otherwise it is marked broken.
+    pub fn discardQuery(self: *Conn) void {
+        if (PQconsumeInput(self.pg) == 0) {
+            self.broken = true;
+            return;
+        }
+        while (PQisBusy(self.pg) == 0) {
+            const res = PQgetResult(self.pg) orelse return;
+            PQclear(res);
+        }
+        self.broken = true;
     }
 
     /// Executes `sql` as this connection's named statement. A new statement
@@ -685,30 +885,51 @@ pub const Conn = struct {
                 setFailure(failure, arena, "Query read timeout", null);
                 return error.QueryTimeout;
             }
-            if (PQconsumeInput(self.pg) == 0) return self.transportFailure(arena, failure);
+            // Input read while flushing must not stay inside OpenSSL either:
+            // the reply wait that follows could not see it (`tls`).
+            if (!self.consumeAll(.reply)) return self.transportFailure(arena, failure);
         }
     }
 
     fn collect(self: *Conn, arena: std.mem.Allocator, deadline: ?i64, failure: ?*Failure) Error!root.Result {
-        var result: root.Result = .{ .rows = &.{}, .row_count = 0 };
-        var server_error: bool = false;
-        while (true) {
-            while (PQisBusy(self.pg) != 0) {
-                if (!self.waitInput(deadline)) {
-                    self.broken = true;
-                    setFailure(failure, arena, "Query read timeout", null);
-                    return error.QueryTimeout;
-                }
-                if (!self.consumeAll(.reply)) return self.transportFailure(arena, failure);
+        var reply: Reply = .{};
+        return self.collectWith(arena, &reply, deadline, failure);
+    }
+
+    fn collectWith(self: *Conn, arena: std.mem.Allocator, reply: *Reply, deadline: ?i64, failure: ?*Failure) Error!root.Result {
+        while (!try self.collectStep(arena, reply, failure)) {
+            if (!self.waitInput(deadline)) {
+                self.broken = true;
+                setFailure(failure, arena, "Query read timeout", null);
+                return error.QueryTimeout;
             }
-            const res = PQgetResult(self.pg) orelse break;
+            if (!self.consumeAll(.reply)) return self.transportFailure(arena, failure);
+        }
+        if (PQstatus(self.pg) != CONNECTION_OK) {
+            self.broken = true;
+            if (!reply.server_error) setFailure(failure, arena, "Connection terminated unexpectedly", null);
+            return error.ConnectionFailed;
+        }
+        if (reply.server_error) return error.QueryFailed;
+        return reply.result;
+    }
+
+    /// Processes the results libpq has already parsed, without waiting.
+    /// True when the reply is complete (libpq returned its final null).
+    fn collectStep(self: *Conn, arena: std.mem.Allocator, reply: *Reply, failure: ?*Failure) Error!bool {
+        if (reply.complete) return true;
+        while (PQisBusy(self.pg) == 0) {
+            const res = PQgetResult(self.pg) orelse {
+                reply.complete = true;
+                return true;
+            };
             defer PQclear(res);
             switch (PQresultStatus(res)) {
-                PGRES_TUPLES_OK, PGRES_COMMAND_OK, PGRES_EMPTY_QUERY => if (!server_error) {
-                    result = .{ .rows = try convertRows(arena, res), .row_count = rowCount(res) };
+                PGRES_TUPLES_OK, PGRES_COMMAND_OK, PGRES_EMPTY_QUERY => if (!reply.server_error) {
+                    reply.result = .{ .rows = try convertRows(arena, res), .row_count = rowCount(res) };
                 },
-                PGRES_FATAL_ERROR => if (!server_error) {
-                    server_error = true;
+                PGRES_FATAL_ERROR => if (!reply.server_error) {
+                    reply.server_error = true;
                     const message = if (PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY)) |m| std.mem.span(m) else trimMessage(std.mem.span(PQerrorMessage(self.pg)));
                     const code = if (PQresultErrorField(res, PG_DIAG_SQLSTATE)) |c| std.mem.span(c) else null;
                     setFailure(failure, arena, message, code);
@@ -716,13 +937,7 @@ pub const Conn = struct {
                 else => {},
             }
         }
-        if (PQstatus(self.pg) != CONNECTION_OK) {
-            self.broken = true;
-            if (!server_error) setFailure(failure, arena, "Connection terminated unexpectedly", null);
-            return error.ConnectionFailed;
-        }
-        if (server_error) return error.QueryFailed;
-        return result;
+        return false;
     }
 
     /// `PQconsumeInput`, plus (TLS only) what OpenSSL already decrypted

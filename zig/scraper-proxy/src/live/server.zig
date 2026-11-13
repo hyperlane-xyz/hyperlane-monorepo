@@ -51,6 +51,9 @@ const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
 const MAX_HEAD_PUBLICATION_FAILURES = 3;
+/// Corked peers per write thread at turn end (fewer: written lazily).
+const PARALLEL_FLUSH_MIN = 64;
+const PARALLEL_FLUSH_THREADS = 4;
 /// Cork bounds per peer and turn (memory only; limits are decided exactly).
 const MAX_CORKED_FRAMES = 256;
 const MAX_CORKED_BYTES = 256 * 1024;
@@ -128,7 +131,10 @@ pub const Socket = struct {
 
     pub const ManyResult = union(enum) { done: struct { written: usize, queued: usize }, closed, failed };
 
-    pub const Snapshot = struct { open: bool, buffered: usize };
+    /// `buffered`: what ws holds now. `control`: the part that is ws's own
+    /// frames (pongs, pings, close; no completion), which live cannot
+    /// mirror but Node's `bufferedAmount` counts.
+    pub const Snapshot = struct { open: bool, buffered: usize, control: usize = 0 };
 
     pub const InlineResult = enum {
         /// The whole frame reached the kernel; `job` will not complete.
@@ -188,6 +194,13 @@ pub const SendJob = struct {
     peer: *Peer,
     len: usize,
     kind: Kind,
+    /// A drain lookahead frame (`planFlush`): excluded from the checks
+    /// (`lookahead_unconsumed`) until `sendLookahead`.
+    lookahead: bool = false,
+    /// Its Node write request (`Peer.requests`, by absolute index).
+    request: u64 = 0,
+    /// Outcome reported by ws (`complete`), applied in `passEnd`.
+    ok: bool = false,
 
     const Kind = union(enum) {
         none,
@@ -196,36 +209,24 @@ pub const SendJob = struct {
         diagnostics: diagnostics.stream.Completion,
     };
 
+    /// ws wrote the frame (or failed it). Only recorded: live applies the
+    /// completions of a ws flush pass together when it ends
+    /// (`Server.passEnd`), as the Node macrotask that runs them would.
     pub fn complete(self: *SendJob, ok: bool) void {
-        const server = self.server;
         const peer = self.peer;
-        const kind = self.kind;
-        _ = server.pending_bytes.fetchSub(self.len, .monotonic);
-        server.allocator.destroy(self);
-        // Successful plain and awaited sends touch no loop state: skip the
-        // loop mutex (a catch-up completes one of these per replayed row).
-        if (ok) switch (kind) {
-            .none => return peer.releaseUnlocked(),
-            .waiter => |waiter| {
-                waiter.finish(true);
-                return peer.releaseUnlocked();
-            },
-            .explorer_drain, .diagnostics => {},
-        };
-        server.loop.lock();
-        defer server.loop.unlock();
-        switch (kind) {
-            .none => {},
-            .waiter => |waiter| waiter.finish(ok),
-            .explorer_drain => {},
-            .diagnostics => |done| done.complete(ok),
-        }
-        if (!ok) server.failSend(peer, "WebSocket is not open");
-        if (kind == .explorer_drain) {
-            if (ok) server.drainExplorerClient(peer) else peer.explorer.sending = false;
-        }
-        peer.release();
+        peer.completion_mutex.lock();
+        defer peer.completion_mutex.unlock();
+        peer.completed.append(self.server.allocator, .{ .job = self, .ok = ok }) catch oom();
     }
+};
+
+const Completed = struct { job: *SendJob, ok: bool };
+
+/// One Node write request: a frame written alone, or the frames buffered
+/// while the one before was in flight (written together, one writev).
+const Request = struct {
+    jobs: std.ArrayList(*SendJob) = .empty,
+    done: usize = 0,
 };
 
 const Waiter = struct {
@@ -330,6 +331,33 @@ pub const Peer = struct {
     /// Non-awaited frames sent this turn, written with one syscall when the
     /// turn ends or before any other operation on the socket (`flushCork`).
     cork: Cork = .{},
+    /// ws completions not applied yet (`Server.passEnd`); ws's threads
+    /// append under `completion_mutex` without the loop mutex.
+    completion_mutex: std.Thread.Mutex = .{},
+    completed: std.ArrayList(Completed) = .empty,
+    /// Node's write requests on this socket (loop mutex): frames handed to ws
+    /// and not written whole at once. The first is in flight; frames sent
+    /// meanwhile form the next one, written together when it ends.
+    requests: std.ArrayList(Request) = .empty,
+    /// Absolute index of `requests[0]`.
+    request_base: u64 = 0,
+    /// Node's `bufferedAmount` (its writable length) for this socket:
+    /// framed bytes of the frames in `requests` (and of a frame being
+    /// written), released when its whole request is. Limit checks use this,
+    /// not ws's counter, which drops each frame as it is written.
+    node_buffered: std.atomic.Value(usize) = .init(0),
+
+    fn bufferedAmount(self: *Peer) usize {
+        return self.node_buffered.load(.monotonic) + self.socket.snapshot().control;
+    }
+
+    fn addBuffered(self: *Peer, len: usize) void {
+        _ = self.node_buffered.fetchAdd(len + frameHeaderLen(len), .monotonic);
+    }
+
+    fn subBuffered(self: *Peer, len: usize) void {
+        _ = self.node_buffered.fetchSub(len + frameHeaderLen(len), .monotonic);
+    }
 
     pub fn retain(self: *Peer) void {
         _ = self.refs.fetchAdd(1, .monotonic);
@@ -373,6 +401,9 @@ pub const Peer = struct {
         if (self.explorer.ip.len > 0) server.allocator.free(self.explorer.ip);
         self.explorer.queue.deinit(server.allocator);
         self.cork.deinit(server.allocator);
+        std.debug.assert(self.requests.items.len == 0 and self.completed.items.len == 0);
+        self.requests.deinit(server.allocator);
+        self.completed.deinit(server.allocator);
         self.socket.vtable.release(self.socket.ptr);
         server.allocator.destroy(self);
     }
@@ -383,6 +414,8 @@ const Cork = struct {
     frames: std.ArrayList(struct { start: usize, len: usize, job: *SendJob, drain: bool }) = .empty,
     /// Upper bound of what the corked frames add to `bufferedAmount`.
     framed: usize = 0,
+    /// In `Server.corked` (once per turn, however often it is flushed).
+    listed: bool = false,
     /// Flush outcome per corked frame, consumed in order by the frames'
     /// `Deferred` entries.
     outcomes: std.ArrayList(Outcome) = .empty,
@@ -465,6 +498,7 @@ pub const Server = struct {
     head_range_seq: u64 = 0,
     head_failures: std.AutoArrayHashMapUnmanaged(u32, u32) = .empty,
     heartbeat_timer: ?u64 = null,
+    heartbeat_hold: if (runtime.hold_stats) runtime.HoldHistogram else void = if (runtime.hold_stats) .{} else {},
     listener_retry_timer: ?u64 = null,
     agent_notifications: NotificationWorker = undefined,
     explorer_updates: NotificationWorker = undefined,
@@ -480,14 +514,35 @@ pub const Server = struct {
     listener_attempt: u64 = 0,
     /// Write callbacks of frames written inline, run at the end of the turn.
     deferred: std.ArrayList(Deferred) = .empty,
+    /// Bumped by every head or event notification for a domain
+    /// (`replayEpoch`): a replay page read ahead of its turn is dropped if one
+    /// was processed.
+    head_epochs: std.AutoHashMapUnmanaged(u32, u64) = .empty,
+    /// Bumped when every stream restarts (listener lost, stop).
+    epoch_base: u64 = 0,
+    /// Charges of lookahead frames written but not yet sent by their drain.
+    lookahead_unconsumed: usize = 0,
     /// Peers corked this turn (one reference each; a flushed peer stays).
     corked: std.ArrayList(*Peer) = .empty,
-    /// Cork non-awaited and drain frames per peer and turn (tests compare
-    /// against the uncorked writes).
+    /// Cork non-awaited and drain frames per peer and turn, and batch replay
+    /// rows (tests compare against uncorked writes and per-row replay).
     coalesce: bool = true,
+    /// Write corks at the turn's end on several threads once at least this
+    /// many peers are corked (tests lower it).
+    parallel_flush_min: usize = PARALLEL_FLUSH_MIN,
+    /// At most one write thread per CPU this process may run on.
+    parallel_flush_threads: usize = PARALLEL_FLUSH_THREADS,
+    /// Tests: what a send's limit checks see (Node's `bufferedAmount` and
+    /// `pendingBytes`), before the frame is charged.
+    send_observer: ?struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque, buffered: usize, pending: usize) void } = null,
     /// Scratch for `flushCork`.
     flush_payloads: std.ArrayList([]const u8) = .empty,
     flush_jobs: std.ArrayList(*SendJob) = .empty,
+    /// Scratch for `applyCompletions`.
+    completions_scratch: std.ArrayList(Completed) = .empty,
+    released_scratch: std.ArrayList(*SendJob) = .empty,
+    /// The LISTEN connection being opened ahead of `start`.
+    early_listen: ?*EarlyListen = null,
     /// Listener callback contexts, freed in `destroy` (callbacks may race shutdown).
     listener_contexts: std.ArrayList(*ListenerContext) = .empty,
 
@@ -509,6 +564,7 @@ pub const Server = struct {
             .limits = options.limits,
             .production = options.production,
             .diagnostics_stream = diagnostics_stream,
+            .parallel_flush_threads = @max(1, @min(PARALLEL_FLUSH_THREADS, std.Thread.getCpuCount() catch 1)),
         };
         self.agent_notifications = .init(loop, NOTIFICATION_BATCH_MS, self, drainAgentThunk, failAgentThunk);
         self.explorer_updates = .init(loop, NOTIFICATION_BATCH_MS, self, drainExplorerThunk, failExplorerThunk);
@@ -537,7 +593,10 @@ pub const Server = struct {
         self.deferred.deinit(a);
         self.flush_payloads.deinit(a);
         self.corked.deinit(a);
+        self.head_epochs.deinit(a);
         self.flush_jobs.deinit(a);
+        self.completions_scratch.deinit(a);
+        self.released_scratch.deinit(a);
         for (self.listener_contexts.items) |context| a.destroy(context);
         self.listener_contexts.deinit(a);
         a.destroy(self);
@@ -547,6 +606,12 @@ pub const Server = struct {
     /// the ws callback): release their bytes, then resume Explorer drains.
     fn endTurnThunk(ctx: *anyopaque) void {
         const self: *Server = @ptrCast(@alignCast(ctx));
+        if (self.corked.items.len >= self.parallel_flush_min) self.flushCorksInParallel();
+        self.runDeferred();
+        self.clearCorked();
+    }
+
+    fn runDeferred(self: *Server) void {
         var index: usize = 0;
         while (index < self.deferred.items.len) : (index += 1) {
             const item = self.deferred.items[index];
@@ -570,8 +635,125 @@ pub const Server = struct {
             item.peer.release();
         }
         self.deferred.clearRetainingCapacity();
-        for (self.corked.items) |peer| peer.release();
+    }
+
+    fn clearCorked(self: *Server) void {
+        for (self.corked.items) |peer| {
+            peer.cork.listed = false;
+            peer.release();
+        }
         self.corked.clearRetainingCapacity();
+    }
+
+    /// A frame handed to ws that was not written whole at once (loop mutex
+    /// held, before any later frame of the peer): in Node it is the request
+    /// in flight if there is none, else part of the next one.
+    fn trackQueued(self: *Server, peer: *Peer, job: *SendJob) void {
+        const requests = &peer.requests;
+        if (requests.items.len < 2) requests.append(self.allocator, .{}) catch oom();
+        const last = requests.items.len - 1;
+        job.request = peer.request_base + last;
+        requests.items[last].jobs.append(self.allocator, job) catch oom();
+    }
+
+    /// ws finished a flush pass on `peer`'s socket (called with no lock
+    /// held, after ws released the socket): apply what it completed.
+    pub fn passEnd(self: *Server, peer: *Peer) void {
+        // A poller waiting for the loop mutex hands its other sockets off
+        // (`Loop.lock` uses `core.blocking`).
+        self.loop.lock();
+        defer self.loop.unlock();
+        self.passEndLocked(peer);
+    }
+
+    /// `passEnd` with the loop mutex held (tests that observe the moment).
+    pub fn passEndLocked(self: *Server, peer: *Peer) void {
+        self.applyCompletions(peer);
+    }
+
+    /// Node's macrotask for the completed writes: each request whose frames
+    /// are all written leaves the writable length and runs its callbacks; a
+    /// request written whole at the moment the one before it ended was
+    /// synchronous (its callbacks are nextTicks, still before any
+    /// continuation). Then the continuations (awaited sends, drains), in
+    /// order. A request partly written stays counted whole.
+    fn applyCompletions(self: *Server, peer: *Peer) void {
+        peer.retain();
+        defer peer.release();
+        self.completions_scratch.clearRetainingCapacity();
+        {
+            peer.completion_mutex.lock();
+            defer peer.completion_mutex.unlock();
+            self.completions_scratch.appendSlice(self.allocator, peer.completed.items) catch oom();
+            peer.completed.clearRetainingCapacity();
+        }
+        for (self.completions_scratch.items) |c| {
+            c.job.ok = c.ok;
+            peer.requests.items[@intCast(c.job.request - peer.request_base)].done += 1;
+        }
+        self.released_scratch.clearRetainingCapacity();
+        while (peer.requests.items.len > 0 and peer.requests.items[0].done == peer.requests.items[0].jobs.items.len) {
+            var request = peer.requests.orderedRemove(0);
+            peer.request_base += 1;
+            self.released_scratch.appendSlice(self.allocator, request.jobs.items) catch oom();
+            request.jobs.deinit(self.allocator);
+        }
+        const released = self.allocator.dupe(*SendJob, self.released_scratch.items) catch oom();
+        defer self.allocator.free(released);
+        // Callbacks: the bytes leave the counts.
+        var failed = false;
+        for (released) |job| {
+            peer.subBuffered(job.len);
+            _ = self.pending_bytes.fetchSub(job.len, .monotonic);
+            failed = failed or !job.ok;
+        }
+        if (failed) self.failSend(peer, "WebSocket is not open");
+        // Continuations (Node's microtasks), in order, before any other
+        // turn: a blocked task resumes in its turn (`Loop.lockHandoff`), the
+        // others run when they reach the head of the queue.
+        for (released) |job| {
+            const ok = job.ok;
+            switch (job.kind) {
+                .none => {
+                    self.allocator.destroy(job);
+                    peer.release();
+                },
+                .waiter => |waiter| {
+                    self.allocator.destroy(job);
+                    peer.release();
+                    resumeWaiter(self.loop, waiter, ok);
+                },
+                // The job (and its peer reference) goes to the continuation.
+                .explorer_drain, .diagnostics => self.loop.handOff(.{ .run = .{ .ctx = job, .func = continueSend } }),
+            }
+        }
+    }
+
+    /// Handoff invariant I2: a task's handoff is queued in the same critical
+    /// section (loop mutex held) as the wake of the task it resumes, and
+    /// that task has not been woken before.
+    fn resumeWaiter(loop: *runtime.Loop, waiter: *Waiter, ok: bool) void {
+        std.debug.assert(!waiter.event.isSet());
+        loop.handOff(.{ .task = waiter });
+        waiter.finish(ok);
+    }
+
+    /// An Explorer drain's or a diagnostics send's continuation.
+    fn continueSend(ctx: *anyopaque) void {
+        const job: *SendJob = @ptrCast(@alignCast(ctx));
+        const self = job.server;
+        const peer = job.peer;
+        const ok = job.ok;
+        const kind = job.kind;
+        self.allocator.destroy(job);
+        defer peer.release();
+        switch (kind) {
+            .explorer_drain => if (ok) self.drainExplorerClient(peer) else {
+                peer.explorer.sending = false;
+            },
+            .diagnostics => |done| done.complete(ok),
+            .none, .waiter => unreachable,
+        }
     }
 
     // -- lifecycle -------------------------------------------------------------
@@ -614,11 +796,15 @@ pub const Server = struct {
         const listener = self.listener;
         self.listener = null;
         self.listener_attempt += 1;
+        // Startup failed before `start` adopted it: close it, silently.
+        const early = self.takeEarlyListen();
         self.loop.unlock();
         if (listener) |handle| self.listen_api.unlisten(self.listen_api.ctx, handle);
+        if (early) |taken| if (taken.result) |handle| self.listen_api.unlisten(self.listen_api.ctx, handle) else |_| {};
         self.loop.lock();
         self.closeClients("Server stopping", 1001);
         self.loop.unlock();
+        self.logHoldTimes();
     }
 
     // -- metrics ---------------------------------------------------------------
@@ -664,14 +850,14 @@ pub const Server = struct {
         var max_explorer_bytes: usize = 0;
         var max_explorer_messages: usize = 0;
         var max_buffered: usize = 0;
-        for (self.clients.keys()) |peer| max_buffered = @max(max_buffered, peer.socket.bufferedAmount());
+        for (self.clients.keys()) |peer| max_buffered = @max(max_buffered, peer.bufferedAmount());
         for (self.explorer_clients.keys()) |peer| {
             const client = &peer.explorer;
             explorer_messages += client.queueLength();
             explorer_bytes += client.queued_bytes;
             max_explorer_bytes = @max(max_explorer_bytes, client.queued_bytes);
             max_explorer_messages = @max(max_explorer_messages, client.queueLength());
-            max_buffered = @max(max_buffered, peer.socket.bufferedAmount());
+            max_buffered = @max(max_buffered, peer.bufferedAmount());
         }
         var max_per_ip: usize = 0;
         for (self.explorer_clients_by_ip.values()) |count| max_per_ip = @max(max_per_ip, count);
@@ -930,7 +1116,7 @@ pub const Server = struct {
             if (done) |d| d.complete(false);
             return false;
         }
-        if (2 * (peer.socket.bufferedAmount() + bytes.len) > self.limits.max_buffered_bytes or
+        if (2 * (peer.bufferedAmount() + bytes.len) > self.limits.max_buffered_bytes or
             2 * (self.pending_bytes.load(.monotonic) + bytes.len) > self.limits.max_total_buffered_bytes)
         {
             if (done) |d| d.complete(false);
@@ -1085,8 +1271,11 @@ pub const Server = struct {
                 .ctx = binding,
                 .active = SubscriptionBinding.active,
                 .send = SubscriptionBinding.send,
+                // Tests compare batched replay against TS's per-row loop.
+                .send_all = if (self.coalesce) SubscriptionBinding.sendAll else null,
                 .close = SubscriptionBinding.close,
                 .deinit = SubscriptionBinding.free,
+                .epoch = SubscriptionBinding.epoch,
             }) catch oom();
             binding.subscription = subscription;
             if (client.subscriptions.get(event_type)) |previous| previous.release();
@@ -1171,9 +1360,17 @@ pub const Server = struct {
             const self: *SubscriptionBinding = @ptrCast(@alignCast(ctx));
             return self.peer.server.sendAndWait(self.peer, frame);
         }
+        fn sendAll(ctx: *anyopaque, batch: []const []const u8) ?usize {
+            const self: *SubscriptionBinding = @ptrCast(@alignCast(ctx));
+            return self.peer.server.sendAllAndWait(self.peer, batch);
+        }
         fn close(ctx: *anyopaque, reason: []const u8) void {
             const self: *SubscriptionBinding = @ptrCast(@alignCast(ctx));
             self.peer.wsClose(1013, reason);
+        }
+        fn epoch(ctx: *anyopaque, domain: u32) u64 {
+            const self: *SubscriptionBinding = @ptrCast(@alignCast(ctx));
+            return self.peer.server.replayEpoch(domain);
         }
         fn free(ctx: *anyopaque) void {
             const self: *SubscriptionBinding = @ptrCast(@alignCast(ctx));
@@ -1550,31 +1747,94 @@ pub const Server = struct {
 
     // -- notifications -------------------------------------------------------------------
 
-    fn connectListener(self: *Server) void {
-        self.listener_attempt += 1;
-        const attempt = self.listener_attempt;
-        const context = self.allocator.create(ListenerContext) catch oom();
-        context.* = .{ .server = self, .attempt = attempt };
-        self.listener_contexts.append(self.allocator, context) catch oom();
-        const channels = [_][]const u8{ EVENT_CHANNEL, EXPLORER_CHANNEL, HEAD_CHANNEL };
+    const listen_channels = [_][]const u8{ EVENT_CHANNEL, EXPLORER_CHANNEL, HEAD_CHANNEL };
+
+    /// A listener connected ahead of `start` (`listenEarly`).
+    const EarlyListen = struct {
+        server: *Server,
+        context: *ListenerContext,
+        thread: std.Thread = undefined,
+        result: anyerror!*anyopaque = error.Pending,
+
+        fn run(self: *EarlyListen) void {
+            self.result = self.server.listen_api.listen(self.server.listen_api.ctx, &listen_channels, self.context.handler());
+        }
+    };
+
+    /// Connect the LISTEN connection while the rest of startup runs (TS
+    /// awaits it inside `start`, after `db.start()`). Nothing is observable
+    /// before `start`: no client can connect yet, and `start` reports a
+    /// failure (or adopts the listener) exactly where TS's await would.
+    pub fn listenEarly(self: *Server) void {
+        self.loop.lock();
+        defer self.loop.unlock();
+        if (self.early_listen != null) return;
+        const early = self.allocator.create(EarlyListen) catch oom();
+        const context = self.newListenerContext();
+        context.early = true;
+        early.* = .{ .server = self, .context = context };
+        early.thread = std.Thread.spawn(.{}, EarlyListen.run, .{early}) catch {
+            // No thread: `start` connects as TS does.
+            self.allocator.destroy(early);
+            return;
+        };
+        self.early_listen = early;
+    }
+
+    /// Join an early listener; null if there was none.
+    fn takeEarlyListen(self: *Server) ?struct { context: *ListenerContext, result: anyerror!*anyopaque } {
+        const early = self.early_listen orelse return null;
+        self.early_listen = null;
         self.loop.unlock();
-        const result = self.listen_api.listen(self.listen_api.ctx, &channels, .{
-            .ctx = context,
-            .on_notification = ListenerContext.onNotification,
-            .on_disconnect = ListenerContext.onDisconnect,
-        });
+        early.thread.join();
+        self.loop.lock();
+        const context = early.context;
+        const result = early.result;
+        self.allocator.destroy(early);
+        return .{ .context = context, .result = result };
+    }
+
+    fn newListenerContext(self: *Server) *ListenerContext {
+        self.listener_attempt += 1;
+        const context = self.allocator.create(ListenerContext) catch oom();
+        context.* = .{ .server = self, .attempt = self.listener_attempt };
+        self.listener_contexts.append(self.allocator, context) catch oom();
+        return context;
+    }
+
+    fn connectListener(self: *Server) void {
+        if (self.takeEarlyListen()) |early| {
+            // Used only if it is still connected; otherwise (failed or lost
+            // before this point) connect now, as TS does.
+            if (early.result) |handle| {
+                if (!early.context.lost or self.stopped or early.context.attempt != self.listener_attempt)
+                    return self.adoptListener(early.context, handle);
+                self.loop.unlock();
+                self.listen_api.unlisten(self.listen_api.ctx, handle);
+                self.loop.lock();
+            } else |_| {}
+        }
+        const context = self.newListenerContext();
+        self.loop.unlock();
+        const result = self.listen_api.listen(self.listen_api.ctx, &listen_channels, context.handler());
         self.loop.lock();
         const handle = result catch |err| {
             self.logger.err("database listener failed: {s}", .{errorMessage(err)});
             self.reconnectListener();
             return;
         };
-        if (self.stopped or attempt != self.listener_attempt) {
+        self.adoptListener(context, handle);
+    }
+
+    fn adoptListener(self: *Server, context: *ListenerContext, handle: *anyopaque) void {
+        if (self.stopped or context.attempt != self.listener_attempt) {
             self.loop.unlock();
             self.listen_api.unlisten(self.listen_api.ctx, handle);
             self.loop.lock();
             return;
         }
+        context.early = false;
+        self.bumpAllReplayEpochs(); // pages read while not listening
         self.listener = handle;
         self.listener_ready = true;
     }
@@ -1582,13 +1842,22 @@ pub const Server = struct {
     const ListenerContext = struct {
         server: *Server,
         attempt: u64,
+        /// Connected ahead of `start` and not adopted yet: TS is not
+        /// listening, so its notifications are dropped and a disconnect only
+        /// marks it `lost` (`start` then connects anew).
+        early: bool = false,
+        lost: bool = false,
+
+        fn handler(self: *ListenerContext) ListenHandler {
+            return .{ .ctx = self, .on_notification = onNotification, .on_disconnect = onDisconnect };
+        }
 
         fn onNotification(ctx: *anyopaque, channel: []const u8, payload: []const u8) void {
             const self: *ListenerContext = @ptrCast(@alignCast(ctx));
             const server_ = self.server;
             server_.loop.lock();
             defer server_.loop.unlock();
-            if (self.attempt != server_.listener_attempt) return;
+            if (self.attempt != server_.listener_attempt or self.early) return;
             server_.queueNotification(channel, payload);
         }
 
@@ -1598,6 +1867,10 @@ pub const Server = struct {
             server_.loop.lock();
             defer server_.loop.unlock();
             if (self.attempt != server_.listener_attempt) return;
+            if (self.early) {
+                self.lost = true;
+                return;
+            }
             server_.listenerDisconnected(message);
         }
     };
@@ -1616,6 +1889,7 @@ pub const Server = struct {
         if (std.mem.eql(u8, channel, HEAD_CHANNEL)) {
             if (self.clients.count() == 0 and self.explorer_clients.count() == 0) return;
             const head = try protocol.parseHeadNotification(a, payload, diag);
+            self.bumpReplayEpoch(head.domain);
             if (head.indexed_height != null and head.indexed_hash != null and head.head_height != null) {
                 var out: std.Io.Writer.Allocating = .init(self.allocator);
                 var o = frames.Object.begin(&out.writer) catch oom();
@@ -1660,6 +1934,9 @@ pub const Server = struct {
             self.queueExplorerNotification(message_id);
         } else {
             const notification = try protocol.parseEventNotification(a, payload, diag);
+            // A row committed for this domain (possibly a backfill inside a
+            // replay range): a replay page read before it is dropped.
+            self.bumpReplayEpoch(notification.domain);
             if (!self.hasSubscriber(notification.domain, notification.event_type)) return;
             const key = std.fmt.allocPrint(a, "{s}:{d}", .{ notification.event_type.name(), notification.id }) catch oom();
             if (!self.notifications.contains(key) and self.notifications.count() >= MAX_PENDING_NOTIFICATIONS) {
@@ -2083,6 +2360,9 @@ pub const Server = struct {
     }
 
     fn listenerDisconnected(self: *Server, message: ?[]const u8) void {
+        // Notifications are missed until it reconnects: no page read ahead
+        // before this point can be checked against them.
+        self.bumpAllReplayEpochs();
         self.listener_ready = false;
         const handle = self.listener;
         self.listener = null;
@@ -2147,7 +2427,22 @@ pub const Server = struct {
         self.closeExplorerClients("Event stream read failed", 1013);
     }
 
+    fn bumpReplayEpoch(self: *Server, domain: u32) void {
+        const epoch = self.head_epochs.getOrPut(self.allocator, domain) catch oom();
+        epoch.value_ptr.* = if (epoch.found_existing) epoch.value_ptr.* + 1 else 1;
+    }
+
+    pub fn replayEpoch(self: *Server, domain: u32) u64 {
+        return self.epoch_base + (self.head_epochs.get(domain) orelse 0);
+    }
+
+    /// Every domain's replay epoch changes (pages read ahead are dropped).
+    fn bumpAllReplayEpochs(self: *Server) void {
+        self.epoch_base +%= 1 << 32;
+    }
+
     fn closeClients(self: *Server, reason: []const u8, code: u16) void {
+        self.bumpAllReplayEpochs();
         for (self.confirmation_streams.keys()) |peer| {
             var streams = peer.streams.?;
             peer.streams = null;
@@ -2195,7 +2490,27 @@ pub const Server = struct {
         defer self.loop.unlock();
         if (self.heartbeat_timer != id or self.stopped) return;
         self.heartbeat_timer = self.loop.scheduler.schedule(self.limits.heartbeat_ms, self, onHeartbeatTimer);
+        if (!runtime.hold_stats) return self.heartbeat();
+        const started = std.time.nanoTimestamp();
         self.heartbeat();
+        self.heartbeat_hold.record(std.time.nanoTimestamp() - started);
+        self.logHoldTimes();
+    }
+
+    /// `-Dloop-hold-stats=true` builds: cumulative loop mutex hold times and
+    /// replay prefetch outcomes, at info (every heartbeat and at stop; the
+    /// shipped build logs nothing TS does not). `heartbeat` excludes its
+    /// turn end.
+    fn logHoldTimes(self: *Server) void {
+        if (!runtime.hold_stats) return;
+        self.logger.info("loop hold all {f}", .{&self.loop.hold});
+        self.logger.info("loop hold turnEnd {f}", .{&self.loop.turn_end_hold});
+        self.logger.info("loop hold heartbeat {f}", .{&self.heartbeat_hold});
+        const stats = &self.store.prefetch_stats;
+        self.logger.info("replay prefetch used={d} droppedEpoch={d} droppedAge={d} droppedMismatch={d} droppedFailedEarly={d} notIssued={d} abandoned={d}", .{
+            stats.get(.used),                 stats.get(.dropped_epoch), stats.get(.dropped_age), stats.get(.dropped_mismatch),
+            stats.get(.dropped_failed_early), stats.get(.not_issued),    stats.get(.abandoned),
+        });
     }
 
     fn heartbeat(self: *Server) void {
@@ -2230,13 +2545,139 @@ pub const Server = struct {
     /// `sendAndWait`: blocks this task (mutex released) until the frame is
     /// written or fails.
     fn sendAndWait(self: *Server, peer: *Peer, bytes: []const u8) bool {
+        return self.sendAndWaitReporting(peer, bytes) != .failed;
+    }
+
+    const AwaitedSend = enum { failed, written, waited };
+
+    /// `sendAndWait`, reporting whether it had to wait.
+    fn sendAndWaitReporting(self: *Server, peer: *Peer, bytes: []const u8) AwaitedSend {
         var waiter: Waiter = .{};
-        if (!self.sendSerialized(peer, bytes, .{ .waiter = &waiter })) return false;
-        if (waiter.event.isSet()) return waiter.ok; // written inline
+        if (!self.sendSerialized(peer, bytes, .{ .waiter = &waiter })) return .failed;
+        // Written inline (ws completions finish waiters only in `passEnd`,
+        // under the loop mutex held here).
+        if (waiter.event.isSet()) return if (waiter.ok) .written else .failed;
+        runtime.assertMayBlock();
         self.loop.unlock();
         waiter.event.wait();
-        self.loop.lock();
-        return waiter.ok;
+        self.loop.lockHandoff(&waiter);
+        return if (waiter.ok) .waited else .failed;
+    }
+
+    /// `for (frame of frames) if (!await sendAndWait(frame)) return false`,
+    /// with the frames Node would write back to back in one syscall: while
+    /// nothing is queued, each awaited frame that reaches the kernel is
+    /// released before the next one is checked, so the next send's checks
+    /// see the same state (no queued bytes, the same charges) and are
+    /// decided before the write. The frame the kernel stops in is awaited
+    /// like Node's async write; the frames after it were not touched and go
+    /// out afterwards, each checked then.
+    ///
+    /// Returns after the first frame it had to wait for (the caller checks
+    /// its time budget again before the rest, as TS does before every row):
+    /// how many frames were sent, null when one failed.
+    fn sendAllAndWait(self: *Server, peer: *Peer, batch_frames: []const []const u8) ?usize {
+        self.observeSend(peer);
+        var index: usize = 0;
+        while (index < batch_frames.len) {
+            const run = self.writableRun(peer, batch_frames[index..]);
+            if (run == 0) {
+                // Not writable inline as a run (queued bytes, a check that
+                // fails, no vectored write): the per-frame path decides.
+                const sent = self.sendAndWaitReporting(peer, batch_frames[index]);
+                if (sent == .failed) return null;
+                index += 1;
+                if (sent == .waited) return index;
+                continue;
+            }
+            const batch = batch_frames[index..][0..run];
+            var waiter: Waiter = .{};
+            self.flush_jobs.clearRetainingCapacity();
+            for (batch) |bytes| {
+                // Charged like `sendFrame` before the attempt (a partial
+                // write's completion may run before the call returns).
+                _ = self.pending_bytes.fetchAdd(bytes.len, .monotonic);
+                peer.addBuffered(bytes.len);
+                const job = self.allocator.create(SendJob) catch oom();
+                job.* = .{ .server = self, .peer = peer, .len = bytes.len, .kind = .{ .waiter = &waiter } };
+                peer.retain();
+                self.flush_jobs.append(self.allocator, job) catch oom();
+            }
+            const jobs = self.allocator.dupe(*SendJob, self.flush_jobs.items) catch oom();
+            defer self.allocator.free(jobs);
+            var full: usize = 0;
+            var partial = false;
+            var failed = false;
+            var closed = false;
+            // Nothing is required: each awaited frame is sent only once the
+            // one before it was written, so only the frame the kernel stops
+            // inside is queued; the rest is not touched.
+            switch (peer.socket.vtable.try_send_inline_many.?(peer.socket.ptr, batch, jobs, 0)) {
+                .done => |d| {
+                    full = d.written;
+                    partial = d.queued > 0;
+                },
+                .closed => {
+                    failed = true;
+                    closed = true;
+                },
+                .failed => failed = true,
+            }
+            // Written whole: complete at once, uncharged (the awaited
+            // callback has released them by the time the next is sent).
+            // Not touched (or failed): never sent.
+            for (jobs, 0..) |job, i| {
+                if (partial and i == full and !failed) continue; // ws completes it
+                _ = self.pending_bytes.fetchSub(job.len, .monotonic);
+                peer.subBuffered(job.len);
+                self.allocator.destroy(job);
+                peer.release();
+            }
+            if (failed) {
+                // No longer OPEN: `sendSerialized` returns false, no failure.
+                if (!closed) self.failSend(peer, "WebSocket is not open");
+                return null;
+            }
+            index += full;
+            if (partial) {
+                // Await the frame the kernel stopped in, like `sendAndWait`.
+                self.trackQueued(peer, jobs[full]);
+                runtime.assertMayBlock();
+                self.loop.unlock();
+                waiter.event.wait();
+                self.loop.lockHandoff(&waiter);
+                if (!waiter.ok) return null;
+                return index + 1;
+            }
+            // `full < run` without a partial frame: the kernel took nothing of
+            // frame `index`; the per-frame path sends it (queued, awaited).
+            if (full < run) {
+                const sent = self.sendAndWaitReporting(peer, batch_frames[index]);
+                if (sent == .failed) return null;
+                index += 1;
+                if (sent == .waited) return index;
+            }
+        }
+        return index;
+    }
+
+    /// How many of `frames` (at least 2, else 0) can be written as one run:
+    /// nothing is queued or corked, and each frame passes `sendFrame`'s
+    /// checks against the state it would see (no queued bytes, the current
+    /// charges, as each earlier one was written whole and released).
+    fn writableRun(self: *Server, peer: *Peer, batch_frames: []const []const u8) usize {
+        if (!self.coalesce or batch_frames.len < 2 or peer.socket.vtable.try_send_inline_many == null) return 0;
+        if (peer.terminated or peer.cork.frames.items.len > 0) return 0;
+        const state = peer.socket.snapshot();
+        if (!state.open or state.buffered > 0 or peer.requests.items.len > 0) return 0;
+        const pending = self.pending_bytes.load(.monotonic);
+        var count: usize = 0;
+        for (batch_frames) |bytes| {
+            if (count == MAX_CORKED_FRAMES) break;
+            if (bytes.len > self.limits.max_buffered_bytes or pending + bytes.len > self.limits.max_total_buffered_bytes) break;
+            count += 1;
+        }
+        return if (count >= 2) count else 0;
     }
 
     fn sendSerialized(self: *Server, peer: *Peer, bytes: []const u8, kind: SendJob.Kind) bool {
@@ -2247,8 +2688,14 @@ pub const Server = struct {
 
     /// `sendSerialized`, also reporting a frame written inline (no completion
     /// follows for it).
+    fn observeSend(self: *Server, peer: *Peer) void {
+        const observer = self.send_observer orelse return;
+        observer.func(observer.ctx, peer.bufferedAmount(), self.pending_bytes.load(.monotonic));
+    }
+
     fn sendFrame(self: *Server, peer: *Peer, bytes: []const u8, kind: SendJob.Kind) SendOutcome {
         if (peer.terminated) return .failed;
+        self.observeSend(peer);
         if (peer.cork.lookahead) |lookahead| if (lookahead.bytes.ptr == bytes.ptr) return self.sendLookahead(peer, kind);
         if (self.coalesce and (kind == .none or kind == .explorer_drain) and peer.socket.vtable.try_send_inline_many != null) {
             if (self.corkFrame(peer, bytes, kind)) |outcome| return outcome;
@@ -2260,7 +2707,7 @@ pub const Server = struct {
         }
         const state = peer.socket.snapshot();
         if (!state.open) return .failed;
-        if (state.buffered + bytes.len > self.limits.max_buffered_bytes or
+        if (peer.bufferedAmount() + bytes.len > self.limits.max_buffered_bytes or
             !self.withinTotal(bytes.len))
         {
             metrics.websocket_send_failures.inc(.{"buffer_limit"}, 1);
@@ -2270,12 +2717,17 @@ pub const Server = struct {
         // Charged and referenced before the attempt: a partial write's
         // completion may run on another thread before the call returns.
         _ = self.pending_bytes.fetchAdd(bytes.len, .monotonic);
+        peer.addBuffered(bytes.len);
         const job = self.allocator.create(SendJob) catch oom();
         job.* = .{ .server = self, .peer = peer, .len = bytes.len, .kind = kind };
         peer.retain();
-        if (kind != .diagnostics) if (peer.socket.vtable.try_send_inline) |try_inline| {
+        // Node writes at once only while no request is in flight; otherwise
+        // the frame waits behind it (whatever ws holds right now).
+        if (kind != .diagnostics and peer.requests.items.len == 0) if (peer.socket.vtable.try_send_inline) |try_inline| {
             switch (try_inline(peer.socket.ptr, bytes, job)) {
                 .written => {
+                    // Written whole at once: never in `bufferedAmount`.
+                    peer.subBuffered(bytes.len);
                     self.allocator.destroy(job);
                     switch (kind) {
                         // An awaited send resumes after its callback, which has
@@ -2298,9 +2750,13 @@ pub const Server = struct {
                     }
                 },
                 // Charged until the remainder is written, then `job` completes.
-                .partial => return .queued,
+                .partial => {
+                    self.trackQueued(peer, job);
+                    return .queued;
+                },
                 .failed, .closed => |result| {
                     _ = self.pending_bytes.fetchSub(bytes.len, .monotonic);
+                    peer.subBuffered(bytes.len);
                     self.allocator.destroy(job);
                     peer.release();
                     if (kind == .waiter) kind.waiter.finish(false);
@@ -2314,11 +2770,13 @@ pub const Server = struct {
         };
         if (!peer.socket.send(bytes, job)) {
             _ = self.pending_bytes.fetchSub(bytes.len, .monotonic);
+            peer.subBuffered(bytes.len);
             self.allocator.destroy(job);
             peer.release();
             self.failSend(peer, "WebSocket is not open");
             return .failed;
         }
+        self.trackQueued(peer, job);
         return .queued;
     }
 
@@ -2332,10 +2790,11 @@ pub const Server = struct {
     fn corkFrame(self: *Server, peer: *Peer, bytes: []const u8, kind: SendJob.Kind) ?SendOutcome {
         const state = peer.socket.snapshot();
         if (!state.open) return .failed;
-        // Something is queued (a partial write, a pong): nothing goes inline.
-        if (state.buffered > 0) return null;
+        // Something is queued (a partial write, a pong) or a request is in
+        // flight in Node's terms: nothing goes inline.
+        if (state.buffered > 0 or peer.requests.items.len > 0) return null;
         const cork = &peer.cork;
-        if (cork.framed + bytes.len > self.limits.max_buffered_bytes) return null;
+        if (peer.bufferedAmount() + cork.framed + bytes.len > self.limits.max_buffered_bytes) return null;
         if (cork.frames.items.len >= MAX_CORKED_FRAMES or cork.bytes.items.len + bytes.len > MAX_CORKED_BYTES) return null;
         if (!self.withinTotal(bytes.len)) {
             metrics.websocket_send_failures.inc(.{"buffer_limit"}, 1);
@@ -2346,7 +2805,8 @@ pub const Server = struct {
         const job = self.allocator.create(SendJob) catch oom();
         job.* = .{ .server = self, .peer = peer, .len = bytes.len, .kind = kind };
         peer.retain(); // the job's
-        if (cork.frames.items.len == 0) {
+        if (!cork.listed) {
+            cork.listed = true;
             peer.retain(); // the corked list's
             self.corked.append(self.allocator, peer) catch oom();
         }
@@ -2365,17 +2825,18 @@ pub const Server = struct {
     /// releases them, which Node would have done at once. So a pass is
     /// certain, but a failure is only decided once every cork is written.
     fn withinTotal(self: *Server, len: usize) bool {
-        if (self.pending_bytes.load(.monotonic) + len <= self.limits.max_total_buffered_bytes) return true;
+        // Lookahead frames written early are not charged in Node until the
+        // drain sends them.
+        if (self.pending_bytes.load(.monotonic) - self.lookahead_unconsumed + len <= self.limits.max_total_buffered_bytes) return true;
         if (self.corked.items.len > 0) self.flushAllCorks();
-        return self.pending_bytes.load(.monotonic) + len <= self.limits.max_total_buffered_bytes;
+        return self.pending_bytes.load(.monotonic) - self.lookahead_unconsumed + len <= self.limits.max_total_buffered_bytes;
     }
 
     fn flushAllCorks(self: *Server) void {
         // Flushes can fail sockets, which never cork again this turn.
         var index: usize = 0;
         while (index < self.corked.items.len) : (index += 1) self.flushCork(self.corked.items[index], false);
-        for (self.corked.items) |peer| peer.release();
-        self.corked.clearRetainingCapacity();
+        self.clearCorked();
     }
 
     /// The send of the drain's next frame from its predecessor's callback,
@@ -2385,18 +2846,29 @@ pub const Server = struct {
         std.debug.assert(kind == .explorer_drain);
         const lookahead = peer.cork.lookahead.?;
         peer.cork.lookahead = null;
-        const job = lookahead.job; // charged by `flushCork`
+        // Charged by `planFlush`. When ws queued part of it, `job` belongs to
+        // ws now (completed after this turn): only `lookahead.bytes` is ours.
+        const job = lookahead.job;
+        self.lookahead_unconsumed -= lookahead.bytes.len;
         switch (lookahead.outcome) {
             .written => {
                 // Like a corked frame that reached the kernel: released by its
                 // deferred callback (the job's peer reference moves to it).
-                const len = job.len;
+                const len = lookahead.bytes.len;
                 self.allocator.destroy(job);
                 peer.cork.outcomes.append(self.allocator, .written) catch oom();
                 self.deferred.append(self.allocator, .{ .peer = peer, .len = len, .drain = true, .corked = true }) catch oom();
             },
-            .partial => {}, // queued by ws: `job` completes it
-            .untouched => if (!peer.socket.send(lookahead.bytes, job)) {
+            // Queued by ws: `job` completes it (after this turn).
+            .partial => {
+                peer.addBuffered(lookahead.bytes.len);
+                self.trackQueued(peer, job);
+            },
+            .untouched => if (blk: {
+                peer.addBuffered(lookahead.bytes.len);
+                break :blk peer.socket.send(lookahead.bytes, job);
+            }) self.trackQueued(peer, job) else {
+                peer.subBuffered(lookahead.bytes.len);
                 _ = self.pending_bytes.fetchSub(job.len, .monotonic);
                 self.allocator.destroy(job);
                 peer.release();
@@ -2419,36 +2891,80 @@ pub const Server = struct {
     /// frame is written in the same syscall and `sendLookahead` applies it.
     fn flushCork(self: *Server, peer: *Peer, drain: bool) void {
         const cork = &peer.cork;
-        const count = cork.frames.items.len;
-        if (count == 0) return;
-        self.flush_payloads.clearRetainingCapacity();
-        self.flush_jobs.clearRetainingCapacity();
-        for (cork.frames.items) |frame| {
-            self.flush_payloads.append(self.allocator, cork.bytes.items[frame.start..][0..frame.len]) catch oom();
-            self.flush_jobs.append(self.allocator, frame.job) catch oom();
-        }
+        if (cork.frames.items.len == 0) return;
         var next: ?*SharedFrame = null;
-        if (drain and cork.frames.items[0].drain and count < MAX_CORKED_FRAMES) next = self.lookaheadFrame(peer, cork.frames.items[0].len);
+        if (drain and cork.frames.items[0].drain and cork.frames.items.len < MAX_CORKED_FRAMES)
+            next = self.lookaheadFrame(peer, cork.frames.items[0].len);
+        var plan = self.planFlush(peer, next);
+        defer plan.deinit(self.allocator);
+        plan.write();
+        self.applyFlush(&plan);
+    }
+
+    /// One peer's cork write: prepared and applied under the loop mutex,
+    /// written (`write`) on any thread.
+    const FlushPlan = struct {
+        peer: *Peer,
+        payloads: []const []const u8,
+        jobs: []*SendJob,
+        count: usize,
+        next: ?*SharedFrame,
+        result: Socket.ManyResult = .failed,
+
+        fn write(self: *FlushPlan) void {
+            const socket = self.peer.socket;
+            // Every cork frame goes out or is queued, in order, in one step
+            // (as Node's writes of this tick); only the lookahead is optional.
+            self.result = socket.vtable.try_send_inline_many.?(socket.ptr, self.payloads, self.jobs, self.count);
+        }
+
+        fn deinit(self: *FlushPlan, allocator: Allocator) void {
+            allocator.free(self.payloads);
+            allocator.free(self.jobs);
+        }
+    };
+
+    fn planFlush(self: *Server, peer: *Peer, next: ?*SharedFrame) FlushPlan {
+        const cork = &peer.cork;
+        const count = cork.frames.items.len;
+        const total = count + @intFromBool(next != null);
+        const payloads = self.allocator.alloc([]const u8, total) catch oom();
+        const jobs = self.allocator.alloc(*SendJob, total) catch oom();
+        for (cork.frames.items, 0..) |frame, index| {
+            payloads[index] = cork.bytes.items[frame.start..][0..frame.len];
+            jobs[index] = frame.job;
+            // Handed to ws now (a queued frame's completion may run first).
+            peer.addBuffered(frame.len);
+        }
         if (next) |frame| {
             const job = self.allocator.create(SendJob) catch oom();
-            job.* = .{ .server = self, .peer = peer, .len = frame.bytes.len, .kind = .explorer_drain };
+            job.* = .{ .server = self, .peer = peer, .len = frame.bytes.len, .kind = .explorer_drain, .lookahead = true };
             peer.retain(); // the job's
-            // Charged now: a partial write's completion may run before this returns.
+            // Charged now (a partial write's completion may run first); not
+            // part of limit decisions until the drain sends it.
             _ = self.pending_bytes.fetchAdd(job.len, .monotonic);
-            self.flush_payloads.append(self.allocator, frame.bytes) catch oom();
-            self.flush_jobs.append(self.allocator, job) catch oom();
+            self.lookahead_unconsumed += job.len;
+            payloads[count] = frame.bytes;
+            jobs[count] = job;
         }
-        const payloads = self.flush_payloads.items;
-        const jobs = self.flush_jobs.items;
-        // Every cork frame goes out or is queued, in order, in one step (as
-        // Node's writes of this tick); only the lookahead frame is optional.
+        return .{ .peer = peer, .payloads = payloads, .jobs = jobs, .count = count, .next = next };
+    }
+
+    /// The bookkeeping of a written cork: fully written frames are released
+    /// by their deferred callbacks; the rest stay charged until ws writes
+    /// them (like Node's async writes).
+    fn applyFlush(self: *Server, plan: *FlushPlan) void {
+        const peer = plan.peer;
+        const cork = &peer.cork;
+        const count = plan.count;
+        const jobs = plan.jobs;
         var written: usize = 0;
         var queued: usize = 0;
         var failed = false;
         // Closed since the frames were corked: dropped like sends to a
         // socket that is no longer OPEN, without a send failure.
         var closed = false;
-        switch (peer.socket.vtable.try_send_inline_many.?(peer.socket.ptr, payloads, jobs, count)) {
+        switch (plan.result) {
             .done => |d| {
                 written = d.written;
                 queued = d.queued;
@@ -2462,6 +2978,7 @@ pub const Server = struct {
         for (cork.frames.items, 0..) |frame, index| {
             const job = jobs[index];
             if (failed) {
+                peer.subBuffered(job.len);
                 cork.outcomes.append(self.allocator, .failed) catch oom();
                 _ = self.pending_bytes.fetchSub(job.len, .monotonic);
                 self.allocator.destroy(job);
@@ -2469,6 +2986,7 @@ pub const Server = struct {
                 // A drain whose frame was not sent stops.
                 if (frame.drain) peer.explorer.sending = false;
             } else if (index < written) {
+                peer.subBuffered(job.len); // written whole at once
                 // Released by its deferred callback.
                 cork.outcomes.append(self.allocator, .written) catch oom();
                 self.allocator.destroy(job);
@@ -2476,9 +2994,10 @@ pub const Server = struct {
             } else {
                 std.debug.assert(index < written + queued);
                 cork.outcomes.append(self.allocator, .queued) catch oom(); // ws completes the job
+                self.trackQueued(peer, job);
             }
         }
-        if (next) |frame| {
+        if (plan.next) |frame| {
             const job = jobs[count];
             // The first frame's callback sends the next one only if the
             // first frame was written whole; it was written (or not) here.
@@ -2493,6 +3012,7 @@ pub const Server = struct {
             } else {
                 std.debug.assert(failed or written + queued <= count);
                 _ = self.pending_bytes.fetchSub(job.len, .monotonic);
+                self.lookahead_unconsumed -= job.len;
                 self.allocator.destroy(job);
                 peer.release();
             }
@@ -2501,6 +3021,94 @@ pub const Server = struct {
         cork.bytes.clearRetainingCapacity();
         cork.framed = 0;
         if (failed and !closed) self.failSend(peer, "WebSocket is not open");
+    }
+
+    /// At the start of the turn's write callbacks: write every unflushed cork
+    /// at once, split across pool threads when there are many (the syscalls
+    /// run in parallel; all bookkeeping stays here, in order). A drain's
+    /// lookahead frame joins its cork only if its send is certain whatever
+    /// order the callbacks run in: per socket as in `lookaheadFrame`, and the
+    /// aggregate against the current charges plus every lookahead frame.
+    fn flushCorksInParallel(self: *Server) void {
+        var plans: std.ArrayList(FlushPlan) = .empty;
+        defer {
+            for (plans.items) |*plan| plan.deinit(self.allocator);
+            plans.deinit(self.allocator);
+        }
+        var candidates: std.ArrayList(struct { peer: *Peer, next: ?*SharedFrame }) = .empty;
+        defer candidates.deinit(self.allocator);
+        for (self.corked.items) |peer| {
+            const cork = &peer.cork;
+            // Flushed earlier in the turn (a ping or close wrapper): its
+            // outcomes wait for the callbacks; written lazily.
+            if (cork.frames.items.len == 0 or cork.outcomes.items.len > 0 or cork.lookahead != null) continue;
+            var next: ?*SharedFrame = null;
+            if (cork.frames.items[0].drain and cork.frames.items.len < MAX_CORKED_FRAMES)
+                next = self.lookaheadFrame(peer, 0);
+            candidates.append(self.allocator, .{ .peer = peer, .next = next }) catch oom();
+        }
+        if (candidates.items.len < self.parallel_flush_min) return; // written lazily, one by one
+        // Lookaheads are consumed in the turn that writes them.
+        std.debug.assert(self.lookahead_unconsumed == 0);
+        const keep_lookahead = self.pending_bytes.load(.monotonic) + self.drainSendsBound() <= self.limits.max_total_buffered_bytes;
+        for (candidates.items) |c| plans.append(self.allocator, self.planFlush(c.peer, if (keep_lookahead) c.next else null)) catch oom();
+        const workers = @min(self.parallel_flush_threads, (plans.items.len + self.parallel_flush_min - 1) / self.parallel_flush_min);
+        const Chunk = struct {
+            job: runtime.Pool.Job = .{ .run = run },
+            plans: []FlushPlan,
+            group: *std.Thread.WaitGroup,
+
+            fn run(job: *runtime.Pool.Job) void {
+                const chunk: *@This() = @alignCast(@fieldParentPtr("job", job));
+                for (chunk.plans) |*plan| plan.write();
+                chunk.group.finish();
+            }
+        };
+        var group: std.Thread.WaitGroup = .{};
+        const chunks = self.allocator.alloc(Chunk, workers) catch oom();
+        defer self.allocator.free(chunks);
+        const per = (plans.items.len + workers - 1) / workers;
+        for (chunks, 0..) |*chunk, index| {
+            const first = @min(index * per, plans.items.len);
+            chunk.* = .{ .plans = plans.items[first..@min(first + per, plans.items.len)], .group = &group };
+        }
+        // Workers may be blocked on the loop mutex this thread holds: a chunk
+        // no thread is certain to take is written here.
+        var submitted: usize = 1;
+        while (submitted < chunks.len) : (submitted += 1) {
+            group.start();
+            if (!self.loop.pool.trySubmit(&chunks[submitted].job)) {
+                group.finish();
+                break;
+            }
+        }
+        for (chunks[0].plans) |*plan| plan.write();
+        for (chunks[submitted..]) |chunk| for (chunk.plans) |*plan| plan.write();
+        group.wait();
+        for (plans.items) |*plan| self.applyFlush(plan);
+    }
+
+    /// What the turn's write callbacks can charge before any of them runs a
+    /// drain's lookahead check: every deferred drain callback sends at most
+    /// the peer's next queued frame (the k-th callback of a peer the k-th
+    /// next). Sends from callbacks those queue run after every original
+    /// callback, so after every lookahead check. Releases are ignored (they
+    /// only lower the charges), so the bound holds in any order.
+    fn drainSendsBound(self: *Server) usize {
+        var seen: std.AutoHashMapUnmanaged(*Peer, usize) = .empty;
+        defer seen.deinit(self.allocator);
+        var total: usize = 0;
+        for (self.deferred.items) |item| {
+            if (!item.drain) continue;
+            const peer = item.peer;
+            if (peer.terminated or !peer.in_explorer) continue;
+            const k = seen.getOrPut(self.allocator, peer) catch oom();
+            if (!k.found_existing) k.value_ptr.* = 0;
+            const index = peer.explorer.queue_head + k.value_ptr.*;
+            k.value_ptr.* += 1;
+            if (index < peer.explorer.queue.items.len) total += peer.explorer.queue.items[index].bytes.len;
+        }
+        return total;
     }
 
     /// The frame the drain sends from the callback of its frame of length
@@ -2512,8 +3120,8 @@ pub const Server = struct {
         if (peer.terminated or !peer.in_explorer or peer.explorer.queueLength() == 0) return null;
         const frame = peer.explorer.queue.items[peer.explorer.queue_head];
         const len = frame.bytes.len;
-        if (peer.socket.bufferedAmount() + peer.cork.framed + len > self.limits.max_buffered_bytes) return null;
-        if (self.pending_bytes.load(.monotonic) - first_len + len > self.limits.max_total_buffered_bytes) return null;
+        if (peer.bufferedAmount() + peer.cork.framed + len > self.limits.max_buffered_bytes) return null;
+        if (self.pending_bytes.load(.monotonic) - self.lookahead_unconsumed - first_len + len > self.limits.max_total_buffered_bytes) return null;
         return frame;
     }
 
@@ -2610,8 +3218,8 @@ pub fn isoTime(ms: i64) [24]u8 {
     const month_day = day.calculateMonthDay();
     const time = epoch.getDaySeconds();
     _ = std.fmt.bufPrint(&out, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}.{d:0>3}Z", .{
-        day.year,                     month_day.month.numeric(),     month_day.day_index + 1,
-        time.getHoursIntoDay(),       time.getMinutesIntoHour(),     time.getSecondsIntoMinute(),
+        day.year,               month_day.month.numeric(), month_day.day_index + 1,
+        time.getHoursIntoDay(), time.getMinutesIntoHour(), time.getSecondsIntoMinute(),
         millis,
     }) catch unreachable;
     return out;

@@ -47,7 +47,7 @@ pub const EventWebSocketServer = struct {
         errdefer self.scheduler.deinit();
         self.loop = .{ .allocator = gpa, .pool = &self.pool, .scheduler = self.scheduler.scheduler() };
         const config = core.config.get();
-        self.server = try live.Server.create(gpa, &self.loop, .{ .ctx = self, .query = query }, .{
+        self.server = try live.Server.create(gpa, &self.loop, .{ .ctx = self, .query = query, .begin = beginQuery, .issued = queryIssued, .failed_early = queryFailedEarly, .finish = finishQuery, .cancel = cancelQuery }, .{
             .ctx = self,
             .listen = listen,
             .unlisten = unlisten,
@@ -65,6 +65,12 @@ pub const EventWebSocketServer = struct {
             message.* = std.fmt.bufPrint(&self.start_error, "Invalid heartbeatMs {d}: must be an integer between 1 and 2147483647", .{self.server.limits.heartbeat_ms}) catch null;
             return err;
         };
+    }
+
+    /// Open the LISTEN connection while the rest of startup runs (`start`
+    /// adopts it where TS awaits it).
+    pub fn listenEarly(self: *EventWebSocketServer) void {
+        self.server.listenEarly();
     }
 
     pub fn stop(self: *EventWebSocketServer) void {
@@ -117,6 +123,7 @@ pub const EventWebSocketServer = struct {
             .on_error = onError,
             .on_close = onClose,
             .transition = onTransition,
+            .on_pass_end = onPassEnd,
         };
         const conn = ws_server.handleUpgrade(self.gpa, req, socket, handler) orelse return;
         const sock: live.Socket = .{ .ptr = conn, .vtable = &conn_vtable };
@@ -169,6 +176,14 @@ pub const EventWebSocketServer = struct {
     fn onError(ctx: *anyopaque, conn: *ws.Conn, message: []const u8) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
         self.server.onError(peerOf(conn), message);
+    }
+
+    /// ws ended a write pass (frames' callbacks recorded just before): live
+    /// applies them as one Node macrotask. The peer is alive: 'close' (which
+    /// precedes its release) comes after the last pass.
+    fn onPassEnd(ctx: *anyopaque, conn: *ws.Conn, _: bool) void {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        self.server.passEnd(peerOf(conn));
     }
 
     fn onClose(ctx: *anyopaque, conn: *ws.Conn, _: u16, _: []const u8) void {
@@ -229,7 +244,7 @@ pub const EventWebSocketServer = struct {
     }
     fn connSnapshot(ptr: *anyopaque) live.Socket.Snapshot {
         const state = asConn(ptr).snapshot();
-        return .{ .open = state.ready_state == .open, .buffered = state.buffered_amount };
+        return .{ .open = state.ready_state == .open, .buffered = state.buffered_amount, .control = state.control };
     }
     fn connClose(ptr: *anyopaque, code: u16, reason: []const u8) void {
         asConn(ptr).close(code, reason);
@@ -251,6 +266,37 @@ pub const EventWebSocketServer = struct {
         var failure: db.Failure = .{};
         return self.db.queryLive(arena, sql, params, &failure) catch |err|
             runtime.fail("{s}", .{core.log.formatError(err, if (failure.message.len > 0) failure.message else null)});
+    }
+
+    /// `DbService.beginLive` (a replay page sent ahead of its turn).
+    /// The pending query is db's: `finish`/`cancel` free it (null: out of
+    /// memory, the page is read at its turn instead).
+    fn beginQuery(ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const core.json.Value) ?*anyopaque {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        return self.db.beginLive(arena, sql, params);
+    }
+
+    fn pendingQuery(handle: *anyopaque) *db.DbService.PendingQuery {
+        return @ptrCast(@alignCast(handle));
+    }
+
+    fn queryIssued(_: *anyopaque, handle: *anyopaque) bool {
+        return pendingQuery(handle).pending != null;
+    }
+
+    fn queryFailedEarly(_: *anyopaque, handle: *anyopaque) bool {
+        return pendingQuery(handle).failedEarly();
+    }
+
+    fn finishQuery(_: *anyopaque, handle: *anyopaque) anyerror![]core.json.Value {
+        const query_ = pendingQuery(handle);
+        var failure: db.Failure = .{};
+        return query_.finish(&failure) catch |err|
+            runtime.fail("{s}", .{core.log.formatError(err, if (failure.message.len > 0) failure.message else null)});
+    }
+
+    fn cancelQuery(_: *anyopaque, handle: *anyopaque) void {
+        pendingQuery(handle).cancel();
     }
 
     fn listen(ctx: *anyopaque, channels: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {

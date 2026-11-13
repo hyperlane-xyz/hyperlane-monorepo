@@ -25,6 +25,33 @@ pub const Clock = struct {
 
 pub const TimerCallback = *const fn (ctx: *anyopaque, id: u64) void;
 
+/// `-Dloop-hold-stats=true` builds: how long the loop mutex is held per
+/// acquisition (lock to unlock or wait, turn-end work included). Off by
+/// default: the shipped build does no extra work.
+pub const hold_stats = @import("live_options").loop_hold_stats;
+
+/// Cumulative hold times (`hold_stats` builds only).
+pub const HoldHistogram = struct {
+    /// Upper bounds in microseconds; the last bucket is everything above.
+    pub const bounds_us = [_]u64{ 10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 50_000 };
+    counts: [bounds_us.len + 1]std.atomic.Value(u64) = @splat(.init(0)),
+    max_us: std.atomic.Value(u64) = .init(0),
+
+    pub fn record(self: *HoldHistogram, held_ns: i128) void {
+        const us: u64 = @intCast(@max(0, @divTrunc(held_ns, 1000)));
+        var i: usize = 0;
+        while (i < bounds_us.len and us >= bounds_us[i]) i += 1;
+        _ = self.counts[i].fetchAdd(1, .monotonic);
+        _ = self.max_us.fetchMax(us, .monotonic);
+    }
+
+    /// `<10us=N <20us=N ... >=50000us=N maxUs=N`.
+    pub fn format(self: *const HoldHistogram, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        for (bounds_us, 0..) |b, i| try w.print("<{d}us={d} ", .{ b, self.counts[i].load(.monotonic) });
+        try w.print(">={d}us={d} maxUs={d}", .{ bounds_us[bounds_us.len - 1], self.counts[bounds_us.len].load(.monotonic), self.max_us.load(.monotonic) });
+    }
+};
+
 /// One-shot timers. Callbacks run on the scheduler's thread without the loop
 /// mutex held and without any scheduler lock held.
 pub const Scheduler = struct {
@@ -45,6 +72,21 @@ pub const Scheduler = struct {
     }
 };
 
+/// Handoff invariants (deadlock freedom, also with a pinned loop thread):
+/// - I1: nothing holding the loop mutex waits for a poller or the loop
+///   thread; `passEnd` is a poller's only wait for the loop mutex.
+/// - I2: a `.task` handoff is queued in the same critical section as its
+///   task's wake (`resumeWaiter`).
+/// - I3: a `.run` continuation never blocks (`assertMayBlock`).
+///
+/// Set (safety builds) while this thread runs a `.run` handoff (I3).
+threadlocal var in_run_handoff: bool = false;
+
+/// I3: no `.run` continuation blocks (an awaited send, `Loop.wait`, a query).
+pub fn assertMayBlock() void {
+    if (std.debug.runtime_safety) std.debug.assert(!in_run_handoff);
+}
+
 pub const Loop = struct {
     allocator: std.mem.Allocator,
     mutex: std.Thread.Mutex = .{},
@@ -59,27 +101,105 @@ pub const Loop = struct {
     /// reads of tasks spawned after it). Tickets are taken in pool order.
     next_ticket: u64 = 1,
     next_start: u64 = 1,
+    /// `hold_stats` builds: every hold, and the turn-end hook alone.
+    hold: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
+    turn_end_hold: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
+    locked_at: if (hold_stats) i128 else void = if (hold_stats) 0 else {},
     start_waiters: std.AutoHashMapUnmanaged(u64, *std.Thread.Condition) = .empty,
+    /// Continuations a turn resolved (Node's microtasks): they run, in
+    /// order, before anything else takes the mutex. `task`: a blocked task
+    /// resumes (`lockHandoff`); `run`: a callback the releasing thread runs.
+    handoffs: std.ArrayList(Handoff) = .empty,
+    handoff_turn: std.Thread.Condition = .{},
+
+    pub const Handoff = union(enum) {
+        task: *anyopaque,
+        run: struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque) void },
+    };
 
     pub fn lock(self: *Loop) void {
-        self.mutex.lock();
+        // A poller thread waiting here hands its other sockets off
+        // (`core.blocking`); an uncontended lock costs nothing more.
+        if (!self.mutex.tryLock()) {
+            core.blocking.begin();
+            self.mutex.lock();
+            core.blocking.end();
+        }
+        if (self.handoffs.items.len > 0) {
+            core.blocking.begin();
+            self.awaitHandoffs();
+            core.blocking.end();
+        }
+        self.holdStart();
     }
 
     pub fn unlock(self: *Loop) void {
         self.endTurn();
+        self.runHandoffs();
+        self.holdEnd();
         self.mutex.unlock();
+        self.handoff_turn.broadcast();
     }
 
     /// `await` on a condition: the mutex must be held.
     pub fn wait(self: *Loop, condition: *std.Thread.Condition) void {
+        assertMayBlock();
         self.endTurn();
+        self.runHandoffs();
+        self.holdEnd();
+        self.handoff_turn.broadcast();
         condition.wait(&self.mutex);
+        self.awaitHandoffs();
+        self.holdStart();
+    }
+
+    /// Queue a continuation (mutex held): see `handoffs`.
+    pub fn handOff(self: *Loop, handoff: Handoff) void {
+        self.handoffs.append(self.allocator, handoff) catch @panic("live: out of memory queueing a continuation");
+    }
+
+    /// Take the mutex for the continuation handed off as `token`, when its
+    /// turn comes (the task was woken after `handOff(.{ .task = token })`).
+    pub fn lockHandoff(self: *Loop, token: *anyopaque) void {
+        assertMayBlock();
+        self.mutex.lock();
+        while (!(self.handoffs.items.len > 0 and self.handoffs.items[0] == .task and self.handoffs.items[0].task == token))
+            self.handoff_turn.wait(&self.mutex);
+        _ = self.handoffs.orderedRemove(0);
+        self.holdStart();
+    }
+
+    fn awaitHandoffs(self: *Loop) void {
+        while (self.handoffs.items.len > 0) self.handoff_turn.wait(&self.mutex);
+    }
+
+    /// The callbacks at the head of the queue run now, each a turn.
+    fn runHandoffs(self: *Loop) void {
+        while (self.handoffs.items.len > 0 and self.handoffs.items[0] == .run) {
+            const run = self.handoffs.orderedRemove(0).run;
+            if (std.debug.runtime_safety) in_run_handoff = true;
+            run.func(run.ctx);
+            if (std.debug.runtime_safety) in_run_handoff = false;
+            self.endTurn();
+        }
     }
 
     /// Releasing the mutex ends the emulated event-loop turn: run work that
     /// Node defers past the current synchronous code (write callbacks).
     fn endTurn(self: *Loop) void {
-        if (self.turn_end) |hook| hook.func(hook.ctx);
+        const hook = self.turn_end orelse return;
+        if (!hold_stats) return hook.func(hook.ctx);
+        const started = std.time.nanoTimestamp();
+        hook.func(hook.ctx);
+        self.turn_end_hold.record(std.time.nanoTimestamp() - started);
+    }
+
+    fn holdStart(self: *Loop) void {
+        if (hold_stats) self.locked_at = std.time.nanoTimestamp();
+    }
+
+    fn holdEnd(self: *Loop) void {
+        if (hold_stats) self.hold.record(std.time.nanoTimestamp() - self.locked_at);
     }
 
     pub fn now(self: *Loop) i64 {
@@ -120,7 +240,10 @@ pub const Loop = struct {
         if (self.next_start != ticket) {
             var turn: std.Thread.Condition = .{};
             self.start_waiters.put(self.allocator, ticket, &turn) catch @panic("live: out of memory ordering task");
+            self.holdEnd();
             while (self.next_start != ticket) turn.wait(&self.mutex);
+            self.awaitHandoffs();
+            self.holdStart();
             _ = self.start_waiters.remove(ticket);
         }
         self.next_start += 1;
@@ -129,7 +252,9 @@ pub const Loop = struct {
 
     pub fn deinit(self: *Loop) void {
         std.debug.assert(self.start_waiters.count() == 0);
+        std.debug.assert(self.handoffs.items.len == 0);
         self.start_waiters.deinit(self.allocator);
+        self.handoffs.deinit(self.allocator);
     }
 };
 
@@ -195,6 +320,27 @@ pub const Pool = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         self.enqueue(job);
+    }
+
+    /// `submit` only if a thread is certain to run the job (an idle one, or
+    /// one started for it); false leaves it to the caller. For callers that
+    /// wait for the job while holding a lock workers may need.
+    pub fn trySubmit(self: *Pool, job: *Job) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.stopping) return false;
+        // Every job queued ahead (FIFO) and this one need a free thread: an
+        // idle one, or one started now (left running if a later spawn fails).
+        const ahead = self.queue.items.len - self.head;
+        var free = self.idle;
+        while (free < ahead + 1) : (free += 1) {
+            const thread = self.spawnWorker() catch return false;
+            thread.detach();
+            self.threads += 1;
+        }
+        self.queue.append(self.allocator, job) catch return false;
+        self.condition.broadcast();
+        return true;
     }
 
     /// `submit`, numbering the job from `counter` under the pool mutex, so

@@ -356,6 +356,19 @@ pub const Loop = struct {
         t.detach();
     }
 
+    /// Logs the event-loop counters (debug level) in `-Dloop-stats` builds
+    /// (the shipped build logs nothing TS does not). `Server.close` calls
+    /// it: the process exits after close without freeing the loop.
+    pub fn logStats(self: *Loop) void {
+        if (!@import("http_options").loop_stats) return;
+        const st = &self.stats;
+        core.log.child("Http").debug("loop stats waits={d} events={d} begins={d} begin_spare={d} unparks={d} spawns={d} parks={d} exits={d} monitor_starts={d} monitor_ticks={d} stalls={d} stolen={d}", .{
+            st.waits.load(.monotonic),   st.events.load(.monotonic), st.begins.load(.monotonic),        st.begin_spare.load(.monotonic),
+            st.unparks.load(.monotonic), st.spawns.load(.monotonic), st.parks.load(.monotonic),         st.exits.load(.monotonic),
+            st.monitor_starts.load(.monotonic), st.monitor_ticks.load(.monotonic), st.stalls.load(.monotonic), st.stolen.load(.monotonic),
+        });
+    }
+
     /// Stops and waits for every poller, then frees the set. Slots must be
     /// unused by then (callers free their sockets first).
     pub fn deinit(self: *Loop) void {
@@ -365,12 +378,6 @@ pub const Loop = struct {
         self.park_cond.broadcast();
         while (self.threads > 0 or self.monitor_running.load(.acquire)) self.cond.timedWait(&self.mutex, std.time.ns_per_ms) catch {};
         self.mutex.unlock();
-        const st = &self.stats;
-        core.log.child("Http").debug("loop stats waits={d} events={d} begins={d} begin_spare={d} unparks={d} spawns={d} parks={d} exits={d} monitor_starts={d} monitor_ticks={d} stalls={d} stolen={d}", .{
-            st.waits.load(.monotonic),   st.events.load(.monotonic), st.begins.load(.monotonic),        st.begin_spare.load(.monotonic),
-            st.unparks.load(.monotonic), st.spawns.load(.monotonic), st.parks.load(.monotonic),         st.exits.load(.monotonic),
-            st.monitor_starts.load(.monotonic), st.monitor_ticks.load(.monotonic), st.stalls.load(.monotonic), st.stolen.load(.monotonic),
-        });
         if (self.wake_fd >= 0) posix.close(self.wake_fd);
         if (self.tick_fd >= 0) posix.close(self.tick_fd);
         posix.close(self.fd);

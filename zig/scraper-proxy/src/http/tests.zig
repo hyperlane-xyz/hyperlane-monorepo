@@ -146,6 +146,36 @@ const WsEcho = struct {
     /// Allocator for `/oom*` upgrades (allocation-failure tests).
     failing: ?std.mem.Allocator = null,
     short_busy: bool = false,
+    /// Write-pass log: completed frame tags (>= 0), then -1 for a pass that
+    /// drained the queue, -2 for one that did not.
+    pass_log: std.ArrayList(i32) = .empty,
+    send_in_pass_end: std.atomic.Value(bool) = .init(false),
+    sent_in_pass_end: std.atomic.Value(bool) = .init(false),
+
+    fn onPassEnd(ctx: *anyopaque, conn: *ws.Conn, drained: bool) void {
+        const self: *WsEcho = @ptrCast(@alignCast(ctx));
+        self.logPass(if (drained) -1 else -2);
+        // Like live: block on another thread that sends on this connection
+        // (a ws lock or the write token held here would deadlock or stall).
+        if (self.send_in_pass_end.swap(false, .acq_rel)) {
+            const Sender = struct {
+                fn run(c: *ws.Conn, sent: *std.atomic.Value(bool)) void {
+                    _ = c.snapshot();
+                    _ = c.trySendInline("from-other-thread", false, null) catch {};
+                    c.send("queued-from-other-thread", false, null) catch {};
+                    sent.store(true, .release);
+                }
+            };
+            const t = std.Thread.spawn(.{}, Sender.run, .{ conn, &self.sent_in_pass_end }) catch return;
+            t.join();
+        }
+    }
+
+    fn logPass(self: *WsEcho, v: i32) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.pass_log.append(testing.allocator, v) catch @panic("oom");
+    }
 
     fn ignoreSent(_: *anyopaque, _: *ws.Conn, _: bool) void {}
 
@@ -164,6 +194,7 @@ const WsEcho = struct {
             .on_pong = onPong,
             .on_error = onError,
             .on_close = onClose,
+            .on_pass_end = onPassEnd,
         }) orelse return;
         if (keep) {
             self.kept = conn; // released by the test
@@ -240,6 +271,7 @@ const WsEcho = struct {
         for (self.errors.items) |e| testing.allocator.free(e);
         self.errors.deinit(testing.allocator);
         self.closes.deinit(testing.allocator);
+        self.pass_log.deinit(testing.allocator);
     }
 };
 
@@ -1522,6 +1554,151 @@ fn keptConn(h: *Harness, c: *Client, a: std.mem.Allocator) !*ws.Conn {
     return error.Timeout;
 }
 
+/// A send callback that logs its frame's tag in `WsEcho.pass_log`.
+const PassTag = struct {
+    echo: *WsEcho,
+    tag: i32,
+    fn func(ctx: *anyopaque, _: *ws.Conn, ok: bool) void {
+        const self: *PassTag = @ptrCast(@alignCast(ctx));
+        self.echo.logPass(if (ok) self.tag else 1000 + self.tag);
+    }
+    fn cb(self: *PassTag) ws.SendCallback {
+        return .{ .ctx = self, .func = func };
+    }
+};
+
+fn passLog(h: *Harness, a: std.mem.Allocator) ![]i32 {
+    h.wse.mutex.lock();
+    defer h.wse.mutex.unlock();
+    return a.dupe(i32, h.wse.pass_log.items);
+}
+
+test "write passes complete their frames together, in order, then report drained" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    // The client reads nothing yet: the frames queue behind a small buffer.
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    var tags: [20]PassTag = undefined;
+    const payload = try a.alloc(u8, 4000);
+    @memset(payload, 'p');
+    for (&tags, 0..) |*t, i| {
+        t.* = .{ .echo = &h.wse, .tag = @intCast(i) };
+        try conn.send(payload, true, t.cb());
+    }
+    // Drain every frame (2-byte header + 2-byte length + 4000 each).
+    var got: usize = 0;
+    var buf: [64 * 1024]u8 = undefined;
+    while (got < tags.len * (4 + 4000)) got += try posix.read(c.fd, &buf);
+    // Until every frame completed and its pass ended (an earlier pass may
+    // have drained the queue before the last frames were sent).
+    var waited: u32 = 0;
+    var log = try passLog(&h, a);
+    while (waited < 400) : (waited += 1) {
+        var completed: usize = 0;
+        for (log) |v| completed += @intFromBool(v >= 0);
+        if (completed == tags.len and log[log.len - 1] < 0) break;
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+        log = try passLog(&h, a);
+    }
+    // Callbacks in queue order; each pass end follows that pass's
+    // completions; the last pass drained the queue.
+    try testing.expect(log.len > 0 and log[log.len - 1] == -1);
+    var next: i32 = 0;
+    var in_pass: u32 = 0;
+    for (log) |v| {
+        if (v >= 0) {
+            try testing.expectEqual(next, v);
+            next += 1;
+            in_pass += 1;
+        } else {
+            try testing.expect(in_pass > 0);
+            in_pass = 0;
+        }
+    }
+    try testing.expectEqual(@as(i32, tags.len), next);
+}
+
+test "on_pass_end may block on another thread that sends on the same connection" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    h.wse.send_in_pass_end.store(true, .release);
+    var tag: PassTag = .{ .echo = &h.wse, .tag = 0 };
+    try conn.send("first", false, tag.cb());
+    var waited: u32 = 0;
+    while (!h.wse.sent_in_pass_end.load(.acquire) and waited < 400) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+    try testing.expect(h.wse.sent_in_pass_end.load(.acquire));
+    // Everything arrives, in order.
+    for ([_][]const u8{ "first", "from-other-thread", "queued-from-other-thread" }) |want| {
+        const f = try wsRead(&c);
+        defer testing.allocator.free(f.payload);
+        try testing.expectEqualStrings(want, f.payload);
+    }
+}
+
+test "teardown fails the queued frames, then ends the pass undrained" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    var tags: [20]PassTag = undefined;
+    // Far more than the client's receive buffer: frames are left unwritten.
+    const payload = try a.alloc(u8, 64 * 1024);
+    @memset(payload, 'p');
+    for (&tags, 0..) |*t, i| {
+        t.* = .{ .echo = &h.wse, .tag = @intCast(i) };
+        try conn.send(payload, true, t.cb());
+    }
+    c.close(); // unread data: the server's socket fails
+    // Until every frame completed (a pass that hit EAGAIN also ends undrained).
+    var waited: u32 = 0;
+    var log = try passLog(&h, a);
+    while (waited < 400) : (waited += 1) {
+        var completed: usize = 0;
+        for (log) |v| completed += @intFromBool(v >= 0);
+        if (completed == tags.len) break;
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+        log = try passLog(&h, a);
+    }
+    // Teardown's pass end comes right after its failed callbacks.
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+    log = try passLog(&h, a);
+    try testing.expect(log.len > 0 and log[log.len - 1] == -2);
+    try testing.expect(log[log.len - 2] >= 1000);
+    // Every frame completed exactly once, written ones before failed ones.
+    var seen = [_]bool{false} ** 20;
+    var failed_started = false;
+    for (log) |v| {
+        if (v < 0) continue;
+        const tag: usize = @intCast(@mod(v, 1000));
+        try testing.expect(!seen[tag]);
+        seen[tag] = true;
+        if (v >= 1000) failed_started = true else try testing.expect(!failed_started);
+    }
+    for (seen) |b| try testing.expect(b);
+}
+
 test "trySendInline: interleaved inline and queued sends from two threads keep order" {
     var h: Harness = .{};
     try h.start(10_000);
@@ -1649,6 +1826,45 @@ test "snapshot: readyState and bufferedAmount under one lock" {
     try testing.expectEqual(@as(usize, 0), open.buffered_amount);
     conn.close(1000, "bye");
     try testing.expectEqual(ws.ReadyState.closing, conn.snapshot().ready_state);
+}
+
+test "snapshot: queued ping and close frames are reported as control bytes" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    // The client reads nothing yet: a large data frame stays queued, so the
+    // ping and the close frame behind it queue too.
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    const big = try a.alloc(u8, 4 * 1024 * 1024);
+    @memset(big, 'd');
+    try conn.send(big, true, null);
+    conn.ping();
+    conn.close(1000, "bye");
+    const snap = conn.snapshot();
+    // ping: 2-byte header; close: 2-byte header + code + "bye".
+    try testing.expectEqual(@as(usize, 2 + 2 + 2 + 3), snap.control);
+    try testing.expect(snap.buffered_amount >= big.len + snap.control);
+    // Draining the socket writes everything: nothing is left charged. (Read
+    // by bytes, not by calls: an 8 KiB send buffer hands over small pieces.)
+    var buf: [256 * 1024]u8 = undefined;
+    var got: usize = 0;
+    while (got < snap.buffered_amount) {
+        const n = try posix.read(c.fd, &buf);
+        if (n == 0) break;
+        got += n;
+    }
+    var waited: u32 = 0;
+    while (conn.snapshot().buffered_amount > 0 and waited < 400) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+    const drained = conn.snapshot();
+    try testing.expectEqual(@as(usize, 0), drained.buffered_amount);
+    try testing.expectEqual(@as(usize, 0), drained.control);
 }
 
 test "sendInlineCorked: the frames before `required` go out or queue together, in order" {

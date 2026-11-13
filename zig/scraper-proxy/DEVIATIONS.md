@@ -211,6 +211,30 @@ rule, not the scheduling.
   Other resolvers' V8 limits differ by a few levels, so their exact boundary
   may differ slightly; the response at and beyond it is the same. Query logs
   show parameters nested deeper than 64 levels as "…".
+- **Replay page prefetch.** When a catch-up page comes back full, the next
+  page's query (the same SQL and parameters TS sends next) is sent at once on
+  a live connection that is idle right then (never opening one, queueing or
+  overtaking a waiter), so the read runs up to one page's delivery ahead of
+  TS. At the point where TS sends that query (after the page's last row) the
+  early result is used only if its parameters equal TS's, it was sent at most
+  50 ms earlier, and the domain's replay epoch is unchanged. The epoch moves
+  with every `scraper_head` and `scraper_event` notification for the domain,
+  and for all domains on a listener disconnect or adoption and when clients
+  are closed. Otherwise the early result is discarded and the query is sent
+  at TS's point. A background reader reads early replies as they arrive,
+  drains discarded ones and returns their connections to the pool (no
+  reconnect). An early read that failed in a way TS would not have seen at
+  its read point (connection lost, client or statement timeout) is rerun
+  there. Only the query used at the read point counts in query metrics,
+  stats and logs, once; a discarded one counts nowhere, though PostgreSQL
+  sees it. Visible differences: while a prefetch is in flight, the live
+  pool's `database_pool_connections` gauge shows one more `active` and one
+  fewer `idle` connection (the total is unchanged), and a prefetched query's
+  duration runs from its send to the reply as observed by the reader, an
+  upper bound by the reader's wake latency (at most 50 ms on TLS builds
+  without OpenSSL's `SSL_pending`). Tests: a head rollback, an event
+  notification for the domain, or a send older than the cap discards the
+  early page; a notification for another domain does not.
 - **Idle connection errors** are detected at checkout (pg-pool reacts to
   the socket event at once); the log line and replacement behaviour match.
 - **Inputs GraphQL coercion cannot produce** are handled deterministically
@@ -249,6 +273,13 @@ rule, not the scheduling.
   write-callback order as seen from outside the tick (no `/metrics` read or
   other event runs inside a tick; a randomized differential test checks this
   against one write per frame). Only TCP segment boundaries differ.
+  Catch-up rows that TS awaits one at a time are written the same way while
+  nothing is queued on the socket: each frame's checks are decided against
+  the state Node would see, and a frame the kernel only partly takes is
+  awaited before the rest (a differential checks this against per-row
+  awaited writes). With many corked sockets, the end-of-tick writes run on
+  several threads; each socket's order is unchanged and all bookkeeping runs
+  in order afterwards, so only which socket is written first differs.
 - **Heartbeat `serverTime`** is computed once per heartbeat sweep (TS: per
   client, within the same millisecond in practice).
 - **Upgrades after `stop()`.** TS removes its 'upgrade' listener, so Node
