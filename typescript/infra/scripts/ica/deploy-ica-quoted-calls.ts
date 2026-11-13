@@ -9,7 +9,12 @@ import {
   ExplorerLicenseType,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert, inCIMode, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  inCIMode,
+  redactErrorMessage,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChainMetadata, getEnvAddresses } from '../../config/registry.js';
@@ -19,7 +24,6 @@ import {
   createMemoryChainStore,
 } from '../../src/aggregation-hook-upgrade/address-export.js';
 import { createUpgradeMultiProvider } from '../../src/aggregation-hook-upgrade/provider.js';
-import { describeError } from '../../src/aggregation-hook-upgrade/redact.js';
 import { assertForkable } from '../../src/aggregation-hook-upgrade/protocol.js';
 import { writeVerificationInputsToFile } from '../../src/deployment/verification-inputs.js';
 import {
@@ -345,7 +349,7 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error: unknown) => {
-    rootLogger.error(describeError(error));
+    rootLogger.error(redactErrorMessage(error));
     process.exit(1);
   });
 }

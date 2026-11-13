@@ -3,6 +3,7 @@ import { Logger } from 'pino';
 
 import { assert } from '@hyperlane-xyz/utils';
 
+import { LookupPendingError } from '../utils/errors.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -16,7 +17,7 @@ export interface WormholeVaaFetcherConfig {
 }
 
 /** Signals that Guardians have not signed yet; the relayer should retry later. */
-export class VaaPendingError extends Error {
+export class VaaPendingError extends LookupPendingError {
   constructor(vaaId: string) {
     super(`VAA ${vaaId} is pending Guardian signatures`);
     this.name = 'VaaPendingError';

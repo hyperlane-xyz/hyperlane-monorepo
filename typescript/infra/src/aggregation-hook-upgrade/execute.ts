@@ -26,6 +26,7 @@ import {
   concurrentMap,
   eqAddress,
   isZeroishAddress,
+  redactErrorMessage,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -36,7 +37,6 @@ import {
 } from './plan.js';
 import { isStandardEvm } from './protocol.js';
 import type { ChainReader } from './reader.js';
-import { describeError } from './redact.js';
 import type { ChainPlan, ChainState, RouteConfig } from './types.js';
 
 const STATIC_AGGREGATION_HOOK_CONTRACT = 'StaticAggregationHook';
@@ -69,7 +69,7 @@ async function afterDeploy<T>(
     return await step();
   } catch (error: unknown) {
     throw new Error(
-      `${label} ${address} was deployed on ${chain} but a later step failed: ${describeError(error)}`,
+      `${label} ${address} was deployed on ${chain} but a later step failed: ${redactErrorMessage(error)}`,
     );
   }
 }
@@ -458,7 +458,7 @@ export async function verifyDeployed(args: {
       await contractVerifier.verifyContract(chain, input, logger);
     } catch (error: unknown) {
       logger.warn(
-        `[${chain}] failed to verify ${input.name} ${input.address}: ${describeError(error)}`,
+        `[${chain}] failed to verify ${input.name} ${input.address}: ${redactErrorMessage(error)}`,
       );
     }
   }

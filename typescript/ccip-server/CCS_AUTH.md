@@ -29,15 +29,25 @@ HTTPS and avoid logging signatures. Protected responses use `Cache-Control: no-s
 {
   "sender": "0x<ISM contract address>",
   "data": "0x<ABI lookup calldata>",
-  "signature": "0x<65-byte EVM signature>"
+  "signature": "0x<65-byte EVM signature>",
+  "origin_tx_hash": "0x<32-byte hash of the tx that dispatched the reveal>"
 }
 ```
 
 The signed URL is the configured public endpoint URL, including
 `/callCommitments/getCallsFromRevealMessage`. Existing Rust and TypeScript EVM clients
-continue working unchanged if their signer is whitelisted.
+keep their signing format if their signer is whitelisted, but a reveal is only served
+with `origin_tx_hash`, and its calls are resolved from the commitment dispatched
+alongside it (see the ccip-server README).
+
+The reveal lookup derives the account from the commit's owner and user salt. A contract
+that commits on a user's behalf must therefore derive the commit's user salt from its own
+caller (`msg.sender`).
 
 ## General calldata lookup
+
+This route is disabled by default while the Sealevel reveal flow is redesigned; set
+`CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
 
 For `GET /callCommitments/calldata/:commitment`, sign with:
 
@@ -105,7 +115,14 @@ Deploy authenticated GET clients before enabling the CCS whitelist:
 ## Local HTTP integration tests
 
 `tests/e2e/ccsAuthServer.mjs` runs the real CCS handlers behind local HTTPS, uploads
-four EVM/SVM fixtures to PostgreSQL, and checks unsigned reads and record restrictions.
+five EVM/SVM fixtures to PostgreSQL, and checks unsigned reads and record restrictions.
+The harness constructs the service from local registry addresses with the calldata lookup
+enabled. It also serves local JSON-RPC endpoints for two origin chains, one of which lists
+only a V3 ICA router (`evmV3Only`), and a destination chain: each EVM fixture gets an
+origin transaction whose registry mailbox dispatches the commitment and then its reveal,
+and the destination router derives the stored ICA. Origin chains answer only receipt
+requests. `fixtures.json` records each EVM fixture's `originTxHash`, and the harness
+checks a reveal lookup with it before printing `READY`.
 It accepts only a localhost database named `ccs_e2e`. Prepare that disposable database
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing
 `ca.pem`, `tls-cert.pem`, and `tls-key.pem`; the server certificate must cover
@@ -128,7 +145,9 @@ CCS_E2E_FIXTURES="$CCS_E2E_DIR/fixtures.json" cargo test \
   -p relayer -p hyperlane-sealevel --lib ccs_e2e -- --ignored
 ```
 
-The POST test uses a real local EVM signer. The SVM test exercises the production GET
+The POST test uses a real local EVM signer. It sends each EVM fixture's
+`origin_tx_hash` and expects the bound calls, and without the hash expects HTTP 500 for
+allowed signers and 403 for others. The SVM test exercises the production GET
 client with valid pre-signed EVM fixtures and asserts its exact signing hash. Both check
 global and per-record authorization. These tests do not access production KMS or execute
 on-chain swaps. Stop the fixture server and disposable database afterward.

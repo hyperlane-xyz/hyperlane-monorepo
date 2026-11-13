@@ -25,9 +25,15 @@ import {
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
   addressToBytes32,
-  bytes32ToAddress,
   assert,
+  bytes32ToAddress,
+  eqAddress,
+  isEmptyAddress,
+  isNullish,
+  isZeroishAddress,
   parseMessage,
+  redactErrorMessage,
+  redactErrorStack,
 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../db.js';
@@ -45,6 +51,7 @@ import {
 } from '../utils/prometheus.js';
 import { createRateLimitHook } from '../utils/rateLimit.js';
 import { CommitmentAccessDeniedError } from '../utils/errors.js';
+import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
 
 import {
@@ -52,6 +59,11 @@ import {
   REGISTRY_URI_SCHEMA,
   ServiceConfigWithBaseUrl,
 } from './BaseService.js';
+
+export const CalldataLookupEnabledSchema = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((value) => value === 'true');
 
 const EnvSchema = z.object({
   REGISTRY_URI: REGISTRY_URI_SCHEMA,
@@ -61,6 +73,9 @@ const EnvSchema = z.object({
     .transform((value) =>
       z.array(CcsSignerSchema).min(1).parse(JSON.parse(value)),
     ),
+  // Keep unset (disabled) in production until the Sealevel reveal flow is
+  // redesigned; enable only for local testing.
+  CCS_CALLDATA_LOOKUP_ENABLED: CalldataLookupEnabledSchema,
 });
 
 const CommitmentMetadataSchema = z.object({
@@ -273,17 +288,108 @@ function hasMatchingLegacyCommitment(
   );
 }
 
+/** Registry keys of the ICA router deployments that run in parallel. */
+const ICA_ROUTER_VERSIONS = [
+  'interchainAccountRouter',
+  'interchainAccountRouterV3',
+] as const;
+type IcaRouterVersion = (typeof ICA_ROUTER_VERSIONS)[number];
+export type IcaRouters = Partial<Record<IcaRouterVersion, string>>;
+
+/** Per-domain values selected from the registry addresses of known chains. */
+function registryValuesByDomain<T>(
+  addressesByChain: Record<string, Record<string, string>>,
+  multiProvider: MultiProvider,
+  select: (addresses: Record<string, string>) => T | undefined,
+): Map<number, T> {
+  const values = new Map<number, T>();
+  for (const [chain, addresses] of Object.entries(addressesByChain)) {
+    const domain = multiProvider.tryGetDomainId(chain);
+    if (isNullish(domain)) continue;
+    const value = select(addresses);
+    if (value === undefined) continue;
+    values.set(domain, value);
+  }
+  return values;
+}
+
+/**
+ * The registry's ICA routers by domain and version, lowercased. Empty and
+ * zero-ish router addresses are ignored, and chains without an ICA router are
+ * omitted.
+ */
+export function icaRoutersByDomain(
+  addressesByChain: Record<string, Record<string, string>>,
+  multiProvider: MultiProvider,
+): Map<number, IcaRouters> {
+  return registryValuesByDomain(
+    addressesByChain,
+    multiProvider,
+    (addresses) => {
+      const domainRouters: IcaRouters = Object.fromEntries(
+        ICA_ROUTER_VERSIONS.flatMap((version) => {
+          const router = addresses[version];
+          if (isEmptyAddress(router)) return [];
+          return [[version, router.toLowerCase()]];
+        }),
+      );
+      return Object.keys(domainRouters).length === 0
+        ? undefined
+        : domainRouters;
+    },
+  );
+}
+
+/**
+ * The registry's mailboxes by domain, lowercased. Empty and zero-ish mailbox
+ * addresses are ignored.
+ */
+export function mailboxesByDomain(
+  addressesByChain: Record<string, Record<string, string>>,
+  multiProvider: MultiProvider,
+): Map<number, string> {
+  return registryValuesByDomain(addressesByChain, multiProvider, (addresses) =>
+    isEmptyAddress(addresses.mailbox)
+      ? undefined
+      : addresses.mailbox.toLowerCase(),
+  );
+}
+
+/** A reveal's paired commitment and the ICA its dispatched routers derive. */
+interface RevealDispatch {
+  ica: string;
+  origin: number;
+  destination: number;
+  originRouter: string;
+  destinationRouter: string;
+  owner: string;
+  ism: string;
+  userSalt: string;
+}
+
 export class CallCommitmentsService extends BaseService {
   private multiProvider: MultiProvider;
   private readonly auth: CcsAuth;
-  private readonly originMailboxes = new Map<string, string>();
 
   constructor(
     config: ServiceConfigWithBaseUrl,
     private icaApp: InterchainAccount,
-    authorizedSigners: string[] = [],
+    authorizedSigners: string[],
+    private readonly trustedIcaRouters: ReadonlyMap<number, IcaRouters>,
+    private readonly calldataLookupEnabled: boolean,
+    private readonly originMailboxes: ReadonlyMap<number, string>,
   ) {
     super(config);
+    assert(
+      trustedIcaRouters.size > 0,
+      'No ICA routers configured: callCommitments requires interchainAccountRouter or interchainAccountRouterV3 registry addresses',
+    );
+    for (const domain of trustedIcaRouters.keys()) {
+      assert(
+        originMailboxes.has(domain),
+        `Missing mailbox address for domain ${domain}`,
+      );
+    }
     this.multiProvider = config.multiProvider;
     this.auth = new CcsAuth(config.baseUrl, authorizedSigners);
   }
@@ -310,6 +416,9 @@ export class CallCommitmentsService extends BaseService {
       },
       icaApp,
       env.CCS_AUTHORIZED_SIGNERS,
+      icaRoutersByDomain(coreAddresses, multiProvider),
+      env.CCS_CALLDATA_LOOKUP_ENABLED,
+      mailboxesByDomain(coreAddresses, multiProvider),
     );
   }
 
@@ -356,12 +465,11 @@ export class CallCommitmentsService extends BaseService {
         ica = await this.deriveIcaFromDispatchTx(data, logger);
       }
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = redactErrorMessage(error);
       logger.warn(
         {
           error: errorMessage,
-          stack: error instanceof Error ? error.stack : undefined,
+          stack: redactErrorStack(error),
         },
         'Failed to derive ICA address',
       );
@@ -441,13 +549,16 @@ export class CallCommitmentsService extends BaseService {
     originTxHash?: string,
   ) {
     const log = this.addLoggerServiceContext(logger);
-    log.info({ message, relayer }, 'Handling fetch commitment request');
+    log.info(
+      { revealMessage: message, relayer },
+      'Handling fetch commitment request',
+    );
 
     try {
       const { body, origin } = parseMessage(message);
       const commitment = commitmentFromRevealMessage(body);
       log.info(
-        { commitment, message, relayer },
+        { commitment, revealMessage: message, relayer },
         'Extracted commitment from reveal message',
       );
 
@@ -465,24 +576,58 @@ export class CallCommitmentsService extends BaseService {
         throw new CommitmentAccessDeniedError();
       }
 
+      if (origin !== record.originDomain) {
+        throw new CommitmentAccessDeniedError(
+          'Reveal origin does not match stored commitment',
+        );
+      }
+      // Calls are resolved from the commitment dispatched alongside this
+      // reveal, which must target the account the calls were registered for.
+      // Without the origin transaction hash the request returns HTTP 500 and
+      // the relayer retries.
       assert(
-        origin === record.originDomain,
-        'Reveal origin does not match stored commitment',
+        originTxHash,
+        'Missing origin transaction hash for reveal message',
       );
-      // The dispatch receipt identifies the actual router pair, including for
-      // older records derived using the registry's default router version.
-      const ica = originTxHash
-        ? await this.deriveIcaFromRevealMessage(message, originTxHash)
-        : record.ica;
-      if (ica.toLowerCase() !== record.ica.toLowerCase()) {
-        log.warn(
-          {
-            commitment,
-            originTxHash,
-            previousIca: record.ica,
-            ica,
-          },
-          'Verified dispatch ICA differs from stored commitment ICA',
+      const dispatch = await this.deriveIcaFromRevealMessage(
+        message,
+        originTxHash,
+        log,
+      );
+      const { ica } = dispatch;
+      if (!eqAddress(ica, record.ica)) {
+        // Records registered without router overrides store the V2-derived
+        // ICA; a router version candidate equal to the stored ICA admits the
+        // reveal, and the dispatched ICA is served.
+        const { routerVersionIcas, unavailableCandidates } =
+          await this.deriveRouterVersionIcas(dispatch, originTxHash, log);
+        if (
+          !routerVersionIcas.some((candidate) =>
+            eqAddress(candidate, record.ica),
+          )
+        ) {
+          // A candidate whose chain read failed might have matched: that is
+          // not a denial, so fail with HTTP 500 and let the relayer retry.
+          assert(
+            unavailableCandidates === 0,
+            'Could not derive every ICA candidate for the reveal',
+          );
+          log.warn(
+            {
+              commitment,
+              originTxHash,
+              storedIca: record.ica,
+              revealIca: ica,
+            },
+            'Paired commitment does not derive the stored ICA',
+          );
+          throw new CommitmentAccessDeniedError(
+            'Reveal does not belong to this commitment',
+          );
+        }
+        log.info(
+          { commitment, originTxHash, storedIca: record.ica, revealIca: ica },
+          'Serving the dispatched ICA; the stored ICA was derived with another router version or ISM',
         );
       }
       const encoded =
@@ -499,13 +644,24 @@ export class CallCommitmentsService extends BaseService {
 
       return encoded;
     } catch (error: unknown) {
-      if (error instanceof CommitmentAccessDeniedError) throw error;
+      if (error instanceof CommitmentAccessDeniedError) {
+        log.warn(
+          {
+            revealMessage: message,
+            relayer,
+            originTxHash,
+            reason: error.message,
+          },
+          'Commitment access denied',
+        );
+        throw error;
+      }
       log.error(
         {
-          message,
+          revealMessage: message,
           relayer,
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
+          error: redactErrorMessage(error),
+          stack: redactErrorStack(error),
         },
         'Error fetching commitment from message',
       );
@@ -513,47 +669,68 @@ export class CallCommitmentsService extends BaseService {
     }
   }
 
+  private isTrustedIcaRouter(domain: number, router: string): boolean {
+    return Object.values(this.trustedIcaRouters.get(domain) ?? {}).includes(
+      bytes32ToAddress(router).toLowerCase(),
+    );
+  }
+
+  /**
+   * Finds the commitment dispatched alongside a reveal and derives `ica`, the
+   * ICA it targets through the routers it was dispatched through.
+   *
+   * The reveal must be in the given transaction's mailbox logs, and both of
+   * its routers must be ICA routers from the registry.
+   */
   private async deriveIcaFromRevealMessage(
     message: string,
     originTxHash: string,
-  ): Promise<string> {
+    log: Logger,
+  ): Promise<RevealDispatch> {
     const reveal = parseMessage(message);
     assert(
       utils.hexDataLength(reveal.body) === 65 &&
         utils.hexDataSlice(reveal.body, 0, 1) === '0x02',
       'Invalid ICA reveal message',
     );
+    if (
+      !this.isTrustedIcaRouter(reveal.origin, reveal.sender) ||
+      !this.isTrustedIcaRouter(reveal.destination, reveal.recipient)
+    ) {
+      throw new CommitmentAccessDeniedError(
+        'Reveal was not dispatched between known ICA routers',
+      );
+    }
+    const mailbox = this.originMailboxes.get(reveal.origin);
+    assert(mailbox, `Missing mailbox address for domain ${reveal.origin}`);
     const commitment = commitmentFromRevealMessage(reveal.body);
     const originChain = this.multiProvider.getChainName(reveal.origin);
     const provider = this.multiProvider.getProvider(originChain);
     const receipt = await provider.getTransactionReceipt(originTxHash);
     assert(receipt, `Transaction not found: ${originTxHash}`);
 
-    let mailbox = this.originMailboxes.get(originChain);
-    if (mailbox === undefined) {
-      mailbox = await this.icaApp
-        .getContracts(originChain)
-        .interchainAccountRouter.mailbox();
-      this.originMailboxes.set(originChain, mailbox);
-    }
     const iface = Mailbox__factory.createInterface();
     const dispatchTopic = iface.getEventTopic('Dispatch');
     const dispatches = receipt.logs
       .filter(
-        (log) =>
-          log.address.toLowerCase() === mailbox.toLowerCase() &&
-          log.topics[0] === dispatchTopic,
+        (receiptLog) =>
+          receiptLog.address.toLowerCase() === mailbox.toLowerCase() &&
+          receiptLog.topics[0] === dispatchTopic,
       )
-      .map((log) => {
+      .map((receiptLog) => {
         const dispatchedMessage = z
           .string()
-          .parse(iface.parseLog(log).args.message);
-        return { log, message: dispatchedMessage };
+          .parse(iface.parseLog(receiptLog).args.message);
+        return { log: receiptLog, message: dispatchedMessage };
       });
     const revealDispatch = dispatches.find(
       (dispatch) => dispatch.message.toLowerCase() === message.toLowerCase(),
     );
-    assert(revealDispatch, 'Reveal message not found in origin transaction');
+    if (!revealDispatch) {
+      throw new CommitmentAccessDeniedError(
+        'Reveal message not found in origin transaction',
+      );
+    }
 
     // A dispatch hook can nest another commit/reveal using the same hash.
     // Consume earlier reveals so the outer reveal retains its own commitment.
@@ -592,20 +769,143 @@ export class CallCommitmentsService extends BaseService {
         }
       }
     }
-    assert(committed, 'Matching commitment dispatch not found');
+    if (!committed) {
+      throw new CommitmentAccessDeniedError(
+        'Matching commitment dispatch not found',
+      );
+    }
+    const owner = utils.hexDataSlice(committed.body, 1, 33);
+    const ism = utils.hexDataSlice(committed.body, 33, 65);
+    const userSalt = utils.hexDataSlice(committed.body, 65, 97);
+
     const destinationRouter = InterchainAccountRouter__factory.connect(
       bytes32ToAddress(reveal.recipient),
       this.multiProvider.getProvider(reveal.destination),
     );
-    return destinationRouter[
-      'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
-    ](
-      reveal.origin,
-      utils.hexDataSlice(committed.body, 1, 33),
-      reveal.sender,
-      bytes32ToAddress(utils.hexDataSlice(committed.body, 33, 65)),
-      utils.hexDataSlice(committed.body, 65, 97),
+    // A router pair the chain answers as unable to derive the ICA (e.g. one
+    // without commit-reveal) cannot serve the reveal. A failed read is
+    // retried.
+    const ica = await readOnchain(() =>
+      destinationRouter[
+        'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)'
+      ](reveal.origin, owner, reveal.sender, bytes32ToAddress(ism), userSalt),
+    ).catch((error: unknown) => {
+      if (error instanceof RpcUnavailableError) throw error;
+      log.debug(
+        {
+          originTxHash,
+          error: redactErrorMessage(error),
+        },
+        'The chain did not derive the ICA for the dispatched routers',
+      );
+      throw new CommitmentAccessDeniedError(
+        'Dispatched routers do not derive an ICA for the reveal',
+      );
+    });
+    return {
+      ica,
+      origin: reveal.origin,
+      destination: reveal.destination,
+      originRouter: reveal.sender,
+      destinationRouter: reveal.recipient,
+      owner,
+      ism,
+      userSalt,
+    };
+  }
+
+  /**
+   * Derives the ICA of a dispatched commitment for each registry router
+   * version and ISM variant, from the same owner and user salt (see
+   * `handleFetchCommitment`). `unavailableCandidates` counts those whose chain
+   * read failed; candidates the chain answered as underivable cannot match and
+   * are not counted.
+   */
+  private async deriveRouterVersionIcas(
+    dispatch: RevealDispatch,
+    originTxHash: string,
+    log: Logger,
+  ): Promise<{ routerVersionIcas: string[]; unavailableCandidates: number }> {
+    // Registrations derive their ICA with whichever router pair they were
+    // given, or the default (V2) pair when none: try each pair the registry
+    // has for both chains, with and without the commit's ISM since
+    // registrations may not have passed one.
+    const originChain = this.multiProvider.getChainName(dispatch.origin);
+    const destinationChain = this.multiProvider.getChainName(
+      dispatch.destination,
     );
+    const originRouters = this.trustedIcaRouters.get(dispatch.origin) ?? {};
+    const destinationRouters =
+      this.trustedIcaRouters.get(dispatch.destination) ?? {};
+    const zeroCommitIsm = isZeroishAddress(bytes32ToAddress(dispatch.ism));
+    const ismOverrides = zeroCommitIsm
+      ? [undefined]
+      : [undefined, dispatch.ism];
+    // A version the chain answers as underivable (e.g. a pre-salt router)
+    // cannot make a reveal match. A version whose read fails is counted: any
+    // other match still serves, and with none the request fails so the
+    // relayer retries.
+    const versionResults = await Promise.allSettled(
+      ICA_ROUTER_VERSIONS.flatMap((version) => {
+        const localRouter = originRouters[version];
+        const routerOverride = destinationRouters[version];
+        // `getAccount`, which registrations also derive with, requires the
+        // destination's V2 router; other records store the dispatched ICA.
+        if (
+          localRouter === undefined ||
+          routerOverride === undefined ||
+          destinationRouters.interchainAccountRouter === undefined
+        ) {
+          return [];
+        }
+        const isDispatchedPair =
+          eqAddress(localRouter, bytes32ToAddress(dispatch.originRouter)) &&
+          eqAddress(
+            routerOverride,
+            bytes32ToAddress(dispatch.destinationRouter),
+          );
+        // On the dispatched pair, the commit's ISM repeats `ica`. Registry ICA
+        // routers enroll no ISM, so with a zero commit ISM the enrolled-ISM
+        // variant repeats it too.
+        if (isDispatchedPair && zeroCommitIsm) return [];
+        return ismOverrides
+          .filter((ismOverride) => !isDispatchedPair || isNullish(ismOverride))
+          .map((ismOverride) =>
+            readOnchain(() =>
+              this.icaApp.getAccount(destinationChain, {
+                origin: originChain,
+                owner: bytes32ToAddress(dispatch.owner),
+                userSalt: dispatch.userSalt,
+                localRouter,
+                routerOverride,
+                ismOverride,
+              }),
+            ),
+          );
+      }),
+    );
+    const routerVersionIcas: string[] = [];
+    let unavailableCandidates = 0;
+    for (const result of versionResults) {
+      if (result.status === 'fulfilled') {
+        routerVersionIcas.push(result.value);
+        continue;
+      }
+      const error = redactErrorMessage(result.reason);
+      if (result.reason instanceof RpcUnavailableError) {
+        unavailableCandidates++;
+        log.warn(
+          { originTxHash, error },
+          'Could not read the chain to derive the ICA for a router version',
+        );
+      } else {
+        log.debug(
+          { originTxHash, error },
+          'The chain did not derive the ICA for a router version',
+        );
+      }
+    }
+    return { routerVersionIcas, unavailableCandidates };
   }
 
   /**
@@ -1120,11 +1420,15 @@ export class CallCommitmentsService extends BaseService {
       writeRateLimit,
       this.handleCalldataPost.bind(this),
     );
-    app.get<{ Params: CommitmentParams }>(
-      `${prefix}${RateLimitedRoute.CalldataByCommitment}`,
-      { preHandler: [readRateLimit.preHandler, this.auth.authenticate] },
-      this.handleCalldataGet.bind(this),
-    );
+    // GET /calldata/:commitment is disabled by default while the Sealevel
+    // reveal flow is redesigned.
+    if (this.calldataLookupEnabled) {
+      app.get<{ Params: CommitmentParams }>(
+        `${prefix}${RateLimitedRoute.CalldataByCommitment}`,
+        { preHandler: [readRateLimit.preHandler, this.auth.authenticate] },
+        this.handleCalldataGet.bind(this),
+      );
+    }
     app.post<AbiRoute>(
       `${prefix}/getCallsFromRevealMessage`,
       { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },

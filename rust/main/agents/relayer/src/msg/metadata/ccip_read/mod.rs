@@ -984,6 +984,7 @@ mod test {
             name: String,
             lookup_data: String,
             expected_metadata: String,
+            origin_tx_hash: Option<String>,
         }
         let fixtures: Fixtures =
             serde_json::from_slice(&std::fs::read(std::env::var("CCS_E2E_FIXTURES")?)?)?;
@@ -999,6 +1000,10 @@ mod test {
             .iter()
             .filter(|c| c.name.to_lowercase().contains("evm"))
         {
+            let origin_tx_hash = case
+                .origin_tx_hash
+                .clone()
+                .ok_or_else(|| eyre::eyre!("{} fixture has no originTxHash", case.name))?;
             for key_byte in [1u8, 2, 3] {
                 let signer = Signers::Local(ethers::signers::LocalWallet::from_str(&hex::encode(
                     [key_byte; 32],
@@ -1013,15 +1018,40 @@ mod test {
                 let signature =
                     CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url)
                         .await?;
+                let allowed =
+                    key_byte != 3 && (!case.name.starts_with("restricted") || key_byte == 2);
+
+                // Signers are authorized before the origin transaction hash is
+                // required, so a missing hash only fails allowed signers.
+                let without_hash = OffchainLookupRequestBody {
+                    sender: fixtures.sender.clone(),
+                    data: case.lookup_data.clone(),
+                    signature: Some(signature.clone()),
+                    origin_tx_hash: None,
+                };
+                let response = client.post(&url).json(&without_hash).send().await?;
+                assert_eq!(
+                    response.status().as_u16(),
+                    if allowed { 500 } else { 403 },
+                    "{} signer {key_byte} without origin_tx_hash",
+                    case.name
+                );
+                if allowed {
+                    let error: serde_json::Value = response.json().await?;
+                    assert_eq!(
+                        error["error"], "Internal server error",
+                        "{} signer {key_byte} without origin_tx_hash",
+                        case.name
+                    );
+                }
+
                 let body = OffchainLookupRequestBody {
                     sender: fixtures.sender.clone(),
                     data: case.lookup_data.clone(),
                     signature: Some(signature),
-                    origin_tx_hash: None,
+                    origin_tx_hash: Some(origin_tx_hash.clone()),
                 };
                 let response = client.post(&url).json(&body).send().await?;
-                let allowed =
-                    key_byte != 3 && (!case.name.starts_with("restricted") || key_byte == 2);
                 assert_eq!(
                     response.status().as_u16(),
                     if allowed { 200 } else { 403 },

@@ -6,7 +6,7 @@ image:
   # Modify this tag to deploy a new revision.
   # Images can be found here:
   # https://github.com/orgs/hyperlane-xyz/packages/container/package/hyperlane-node-services
-  tag: b172535-20261021-235950
+  tag: 6fbd062-20261113-221154
 
 # In Google Cloud Secret Manager, all secrets need to have a certain prefix in order to be accessible by
 # the Cluster Secret Store. For testnet this prefix is "hyperlane-testnet4"
@@ -31,6 +31,6 @@ env:
   - name: SERVER_PORT
     value: '3000'
   - name: REGISTRY_URI
-    value: 'https://github.com/hyperlane-xyz/hyperlane-registry/tree/cc6aa9cf28b2b4051308c4254ee3659e2051258d'
+    value: 'https://github.com/hyperlane-xyz/hyperlane-registry/tree/84a4c50a5a51e538e285482c799aa193bc64c2e1'
   - name: SERVER_BASE_URL
     value: 'https://offchain-lookup.services.hyperlane.xyz'

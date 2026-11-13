@@ -19,7 +19,7 @@ import {
   OnchainHookType,
   testChainMetadata,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, REDACTED_URL } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../config/contexts.js';
 import {
@@ -49,12 +49,6 @@ import {
 import { assertForkable } from '../src/aggregation-hook-upgrade/protocol.js';
 import { createUpgradeMultiProvider } from '../src/aggregation-hook-upgrade/provider.js';
 import type { ChainReader } from '../src/aggregation-hook-upgrade/reader.js';
-import {
-  REDACTED_HOST,
-  REDACTED_URL,
-  describeError,
-  redactSecrets,
-} from '../src/aggregation-hook-upgrade/redact.js';
 import { buildRegistryAddresses } from '../src/aggregation-hook-upgrade/registry.js';
 import { runUpgrade } from '../src/aggregation-hook-upgrade/run.js';
 import {
@@ -1455,51 +1449,6 @@ describe('aggregation hook upgrade', () => {
       'missing response (requestBody="{\\"method\\":\\"eth_call\\"}", requestMethod="POST", ' +
       `serverError={"errno":-3008,"code":"ENOTFOUND","syscall":"getaddrinfo","hostname":"${SECRET_HOST}"}, ` +
       `url="https://${SECRET_HOST}/${SECRET_PATH}", code=SERVER_ERROR, version=web/5.8.0)`;
-
-    interface Case {
-      name: string;
-      input: string;
-      expected: string;
-    }
-    const cases: Case[] = [
-      {
-        name: 'redacts the url and hostname of an ethers server error',
-        input: ethersMessage,
-        expected:
-          'missing response (requestBody="{\\"method\\":\\"eth_call\\"}", requestMethod="POST", ' +
-          `serverError={"errno":-3008,"code":"ENOTFOUND","syscall":"getaddrinfo","hostname":"${REDACTED_HOST}"}, ` +
-          `url="${REDACTED_URL}", code=SERVER_ERROR, version=web/5.8.0)`,
-      },
-      {
-        name: 'redacts websocket and credentialed urls',
-        input: `connect failed wss://user:pw@${SECRET_HOST}:8546/${SECRET_PATH}?key=1 and http://${SECRET_HOST}`,
-        expected: `connect failed ${REDACTED_URL} and ${REDACTED_URL}`,
-      },
-      {
-        name: 'redacts assigned hostnames',
-        input: `getaddrinfo ENOTFOUND hostname=${SECRET_HOST}, code=X`,
-        expected: `getaddrinfo ENOTFOUND hostname=${REDACTED_HOST}, code=X`,
-      },
-      {
-        name: 'keeps messages without secrets unchanged',
-        input: `call revert exception (method="defaultHook()", data="0x", code=CALL_EXCEPTION)`,
-        expected: `call revert exception (method="defaultHook()", data="0x", code=CALL_EXCEPTION)`,
-      },
-    ];
-    for (const c of cases) {
-      it(c.name, () => {
-        expect(redactSecrets(c.input)).to.equal(c.expected);
-      });
-    }
-
-    it('describes non-Error rejections without leaking', () => {
-      expect(
-        describeError({ message: `bad https://${SECRET_HOST}/k` }),
-      ).to.equal(`bad ${REDACTED_URL}`);
-      expect(describeError(`plain https://${SECRET_HOST}/k`)).to.equal(
-        `plain ${REDACTED_URL}`,
-      );
-    });
 
     it('keeps provider urls out of per-chain results and logs', async () => {
       const multiProvider = MultiProvider.createTestMultiProvider();
