@@ -43,9 +43,7 @@ export const deploymentChains = [
   'soneium',
   'mode',
   'fraxtal',
-  'lisk',
   'metal',
-  'bob',
   'zerogravity',
   // Aug 6, 2026 - oUSDT expansion (new collateral/xERC20 legs, 6 decimals)
   'tron',
@@ -155,9 +153,7 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   soneium: lowerBufferCap,
   mode: lowerBufferCap,
   fraxtal: lowerBufferCap,
-  lisk: lowerBufferCap,
   metal: lowerBufferCap,
-  bob: lowerBufferCap,
   zerogravity: middleBufferCap,
   tron: upperBufferCap,
   bsc: upperBufferCap,
@@ -177,9 +173,7 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   soneium: lowerRateLimitPerSecond,
   mode: lowerRateLimitPerSecond,
   fraxtal: lowerRateLimitPerSecond,
-  lisk: lowerRateLimitPerSecond,
   metal: lowerRateLimitPerSecond,
-  bob: lowerRateLimitPerSecond,
   zerogravity: middleRateLimitPerSecond,
   tron: productionDefaultRateLimitPerSecond,
   bsc: productionDefaultRateLimitPerSecond,
@@ -246,7 +240,6 @@ const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   celo: '0x47Db76c9c97F4bcFd54D8872FDb848Cab696092d',
   base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
   optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
-  bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
   zerogravity: '0xd7502CaBdb70c79382deF58FB6df3CdA69cb2A1b',
 };
 
@@ -309,12 +302,6 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: productionCCIPTokenPoolLimits,
     },
   ],
-  bob: [
-    {
-      lockbox: productionCCIPTokenPoolAddresses.bob,
-      limits: productionCCIPTokenPoolLimits,
-    },
-  ],
   zerogravity: [
     {
       lockbox: productionCCIPTokenPoolAddresses.zerogravity,
@@ -333,9 +320,7 @@ const productionTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   soneium: productionXERC20TokenAddress,
   mode: productionXERC20TokenAddress,
   fraxtal: productionXERC20TokenAddress,
-  lisk: productionXERC20TokenAddress,
   metal: productionXERC20TokenAddress,
-  bob: productionXERC20TokenAddress,
   zerogravity: productionXERC20TokenAddress,
   tron: usdtTokenAddresses.tron,
   bsc: usdtTokenAddresses.bsc,
@@ -379,9 +364,7 @@ const stagingTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   soneium: stagingXERC20TokenAddress,
   mode: stagingXERC20TokenAddress,
   fraxtal: stagingXERC20TokenAddress,
-  lisk: stagingXERC20TokenAddress,
   metal: stagingXERC20TokenAddress,
-  bob: stagingXERC20TokenAddress,
   zerogravity: stagingXERC20TokenAddress,
   tron: usdtTokenAddresses.tron,
   bsc: usdtTokenAddresses.bsc,
