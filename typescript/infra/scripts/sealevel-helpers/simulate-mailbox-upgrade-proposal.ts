@@ -12,6 +12,10 @@ import {
 import {
   type AccountMeta,
   Connection,
+  type ParsedInstruction,
+  type ParsedMessageAccount,
+  type ParsedTransactionWithMeta,
+  type PartiallyDecodedInstruction,
   PublicKey,
   TransactionInstruction,
 } from '@solana/web3.js';
@@ -23,6 +27,7 @@ import {
   instructions as squadsInstructions,
   utils as squadsUtils,
 } from '@sqds/multisig';
+import bs58 from 'bs58';
 import { z } from 'zod';
 
 import type { ChainMetadataForAltVM } from '@hyperlane-xyz/provider-sdk/chain';
@@ -35,6 +40,7 @@ import {
   deriveMailboxDispatchedMessagePda,
   deriveMailboxInboxPda,
   deriveMailboxOutboxPda,
+  fetchMailboxInboxAccount,
   getProgramUpgradeAuthority,
 } from '@hyperlane-xyz/sealevel-sdk';
 import { createSvmForkManager } from '@hyperlane-xyz/sealevel-sdk/fork';
@@ -65,6 +71,10 @@ const LOADER_V3 = 'BPFLoaderUpgradeab1e11111111111111111111111';
 const MAX_COMPUTE_UNITS = 1_400_000;
 const PROGRAM_DATA_HEADER_SIZE = 45;
 const BUFFER_HEADER_SIZE = 37;
+const INBOX_PROCESS_DISCRIMINATOR = 1;
+const INBOX_PROCESS_SEARCH_BATCH_SIZE = 20;
+const INBOX_PROCESS_SEARCH_LIMIT = 100;
+const MAX_SOURCE_TRANSACTION_VERSION = 1;
 const SYSTEM_PROGRAM = address('11111111111111111111111111111111');
 const SPL_NOOP_PROGRAM = address('noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV');
 const VOTER_PERMISSION = 2;
@@ -84,6 +94,15 @@ const RpcAccountSchema = z.object({
 type RpcAccount = {
   data: Buffer;
   owner: string;
+};
+
+type InboxProcessReplay = {
+  addressLookupTables: Address[];
+  instruction: Instruction;
+  payer: Address;
+  processedMessage: Address;
+  sourceSignature: string;
+  version: 0 | 1;
 };
 
 async function fetchRpcAccount(
@@ -107,6 +126,216 @@ async function fetchRpcAccount(
     data: Buffer.from(parsed.result.value.data[0], 'base64'),
     owner: parsed.result.value.owner,
   };
+}
+
+function isPartiallyDecodedInstruction(
+  instruction: ParsedInstruction | PartiallyDecodedInstruction,
+): instruction is PartiallyDecodedInstruction {
+  return 'accounts' in instruction && 'data' in instruction;
+}
+
+function accountRole(account: ParsedMessageAccount): AccountRole {
+  if (account.signer) {
+    return account.writable
+      ? AccountRole.WRITABLE_SIGNER
+      : AccountRole.READONLY_SIGNER;
+  }
+  return account.writable ? AccountRole.WRITABLE : AccountRole.READONLY;
+}
+
+async function parseInboxProcessReplay({
+  mailbox,
+  signature,
+  source,
+}: {
+  mailbox: Address;
+  signature: string;
+  source: ParsedTransactionWithMeta;
+}): Promise<InboxProcessReplay | null> {
+  if (!source.meta || source.meta.err !== null) return null;
+
+  const mailboxProgram = new PublicKey(mailbox);
+  const processInstructions = source.transaction.message.instructions
+    .filter(isPartiallyDecodedInstruction)
+    .filter((instruction) => {
+      if (!instruction.programId.equals(mailboxProgram)) return false;
+      return bs58.decode(instruction.data)[0] === INBOX_PROCESS_DISCRIMINATOR;
+    });
+  if (processInstructions.length === 0) return null;
+  assert(
+    processInstructions.length === 1,
+    `Expected one InboxProcess instruction in ${signature}, got ${processInstructions.length}`,
+  );
+  const processInstruction = processInstructions[0];
+  assert(processInstruction, 'Missing InboxProcess instruction');
+
+  const messageAccounts = new Map(
+    source.transaction.message.accountKeys.map((account) => [
+      account.pubkey.toBase58(),
+      account,
+    ]),
+  );
+  const accounts = processInstruction.accounts.map((pubkey) => {
+    const account = messageAccounts.get(pubkey.toBase58());
+    assert(account, `Missing message account metadata for ${pubkey}`);
+    return {
+      address: address(pubkey.toBase58()),
+      role: accountRole(account),
+    };
+  });
+  const payer = accounts[0];
+  const inbox = accounts[2];
+  const processedMessage = accounts[4];
+  const { address: expectedInbox } = await deriveMailboxInboxPda(mailbox);
+  assert(
+    payer?.role === AccountRole.WRITABLE_SIGNER,
+    'InboxProcess payer is not a writable signer',
+  );
+  assert(
+    inbox && eqAddressSol(inbox.address, expectedInbox),
+    `InboxProcess targets inbox ${inbox?.address}, expected ${expectedInbox}`,
+  );
+  assert(
+    processedMessage?.role === AccountRole.WRITABLE,
+    'InboxProcess processed-message account is not writable',
+  );
+  assert(
+    accounts.filter(
+      (account) =>
+        account.role === AccountRole.READONLY_SIGNER ||
+        account.role === AccountRole.WRITABLE_SIGNER,
+    ).length === 1,
+    'InboxProcess replay must require only its payer to sign',
+  );
+  assert(
+    source.version === undefined ||
+      source.version === 'legacy' ||
+      source.version === 0 ||
+      source.version === 1,
+    `Unsupported inbound source transaction version ${source.version}`,
+  );
+  const version = source.version === 1 ? 1 : 0;
+  const addressLookupTables =
+    source.transaction.message.addressTableLookups?.map((lookup) =>
+      address(lookup.accountKey.toBase58()),
+    ) ?? [];
+  assert(
+    version === 0 || addressLookupTables.length === 0,
+    'Version-1 InboxProcess replay cannot use address lookup tables',
+  );
+
+  return {
+    addressLookupTables,
+    instruction: {
+      programAddress: mailbox,
+      accounts,
+      data: bs58.decode(processInstruction.data),
+    },
+    payer: payer.address,
+    processedMessage: processedMessage.address,
+    sourceSignature: signature,
+    version,
+  };
+}
+
+async function findRecentInboxProcessReplay({
+  connection,
+  mailbox,
+  maxSupportedTransactionVersion,
+}: {
+  connection: Connection;
+  mailbox: Address;
+  maxSupportedTransactionVersion: number;
+}): Promise<InboxProcessReplay> {
+  const signatures = await connection.getSignaturesForAddress(
+    new PublicKey(mailbox),
+    { limit: INBOX_PROCESS_SEARCH_LIMIT },
+    'confirmed',
+  );
+
+  for (
+    let offset = 0;
+    offset < signatures.length;
+    offset += INBOX_PROCESS_SEARCH_BATCH_SIZE
+  ) {
+    const successful = signatures
+      .slice(offset, offset + INBOX_PROCESS_SEARCH_BATCH_SIZE)
+      .filter((entry) => entry.err === null);
+    const transactions = await connection.getParsedTransactions(
+      successful.map((entry) => entry.signature),
+      {
+        commitment: 'confirmed',
+        maxSupportedTransactionVersion: MAX_SOURCE_TRANSACTION_VERSION,
+      },
+    );
+
+    for (const [index, source] of transactions.entries()) {
+      const signature = successful[index]?.signature;
+      if (!source || !signature) continue;
+      if (
+        source.version === 1 &&
+        maxSupportedTransactionVersion < MAX_SOURCE_TRANSACTION_VERSION
+      ) {
+        continue;
+      }
+      const replay = await parseInboxProcessReplay({
+        mailbox,
+        signature,
+        source,
+      });
+      if (replay) return replay;
+    }
+  }
+
+  throw new Error(
+    `No successful InboxProcess transaction found in the latest ${signatures.length} mailbox transactions`,
+  );
+}
+
+async function clearProcessedMessageAccount(
+  rpcUrl: string,
+  processedMessage: Address,
+): Promise<void> {
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'surfnet_setAccount',
+      params: [
+        processedMessage,
+        {
+          data: '',
+          executable: false,
+          lamports: 0,
+          owner: SYSTEM_PROGRAM,
+          rentEpoch: 0,
+        },
+      ],
+    }),
+  });
+  assert(
+    response.ok,
+    `Surfpool setAccount failed with HTTP ${response.status}`,
+  );
+  const result: unknown = await response.json();
+  const parsed = z
+    .union([
+      z.object({ result: z.unknown() }),
+      z.object({ error: z.object({ message: z.string() }) }),
+    ])
+    .parse(result);
+  assert(
+    !('error' in parsed),
+    `Surfpool setAccount failed: ${'error' in parsed ? parsed.error.message : 'unknown error'}`,
+  );
+
+  const cleared = await fetchRpcAccount(rpcUrl, processedMessage);
+  assert(
+    !cleared || (cleared.owner === SYSTEM_PROGRAM && cleared.data.length === 0),
+    `Processed-message account ${processedMessage} was not cleared`,
+  );
 }
 
 function sha256(bytes: Uint8Array): string {
@@ -525,6 +754,12 @@ async function main(): Promise<void> {
   );
 
   const upstreamConnection = mpp.getSolanaWeb3Provider(chain);
+  const inboundReplay = await findRecentInboxProcessReplay({
+    connection: upstreamConnection,
+    mailbox,
+    maxSupportedTransactionVersion:
+      metadata.maxSupportedTransactionVersion ?? 0,
+  });
   const altAccounts = await resolveWireAddressLookupTables(
     receipt.transaction_base58,
     upstreamConnection,
@@ -682,6 +917,47 @@ async function main(): Promise<void> {
       'Upgrade buffer was not closed after execution',
     );
 
+    const sourceProcessedMessage = await fetchRpcAccount(
+      forkRpcUrl,
+      inboundReplay.processedMessage,
+    );
+    assert(
+      sourceProcessedMessage?.owner === mailbox,
+      `Source processed-message account ${inboundReplay.processedMessage} is missing or not owned by the mailbox`,
+    );
+    const inboxBeforeReplay = await fetchMailboxInboxAccount(forkRpc, mailbox);
+    assert(inboxBeforeReplay, 'Mailbox inbox missing before inbound replay');
+    await clearProcessedMessageAccount(
+      forkRpcUrl,
+      inboundReplay.processedMessage,
+    );
+    const inboundSigner = await SealevelImpersonatingSigner.create(
+      forkMetadata,
+      inboundReplay.payer,
+    );
+    const inboundReceipt = await inboundSigner.send({
+      version: inboundReplay.version,
+      instructions: [inboundReplay.instruction],
+      computeUnits: MAX_COMPUTE_UNITS,
+      addressLookupTables: inboundReplay.addressLookupTables,
+      waitForSlotAdvance: true,
+    });
+    const replayedProcessedMessage = await fetchRpcAccount(
+      forkRpcUrl,
+      inboundReplay.processedMessage,
+    );
+    assert(
+      replayedProcessedMessage?.owner === mailbox &&
+        replayedProcessedMessage.data.length > 0,
+      `Inbound replay did not recreate processed-message account ${inboundReplay.processedMessage}`,
+    );
+    const inboxAfterReplay = await fetchMailboxInboxAccount(forkRpc, mailbox);
+    assert(inboxAfterReplay, 'Mailbox inbox missing after inbound replay');
+    assert(
+      inboxAfterReplay.processedCount === inboxBeforeReplay.processedCount + 1n,
+      `Inbound replay changed processed count from ${inboxBeforeReplay.processedCount} to ${inboxAfterReplay.processedCount}`,
+    );
+
     const smokeSigner = await SealevelImpersonatingSigner.create(
       forkMetadata,
       smokeSender,
@@ -736,6 +1012,8 @@ async function main(): Promise<void> {
         expectedHash,
         executionSignature,
         forkRpcUrl,
+        inboundReplaySignature: inboundReceipt.signature,
+        inboundSourceSignature: inboundReplay.sourceSignature,
         mailbox,
         proposalIndex: proposalIndex.toString(),
         proposalPda: proposalAddresses.proposalPda.toBase58(),
