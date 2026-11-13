@@ -54,6 +54,7 @@ import {
 import { getRegistryForEnvironment } from '../../src/config/chain.js';
 import { getSquadsKeys } from '../../src/config/squads.js';
 import { GovernanceType } from '../../src/governanceTypes.js';
+import { assertMailboxUpgradeInstruction } from '../../src/utils/mailbox-upgrade.js';
 import {
   parseReceiptFile,
   planReceiptProposals,
@@ -782,18 +783,22 @@ async function main(): Promise<void> {
   });
 
   const upgradeInstruction = receipt.instructions[0];
-  const upgradeAccounts = upgradeInstruction?.accounts;
+  assert(upgradeInstruction, 'Receipt is missing its upgrade instruction');
+  const bufferAddress = upgradeInstruction.accounts?.[2]?.address;
+  const spillAddress = upgradeInstruction.accounts?.[3]?.address;
   assert(
-    upgradeInstruction?.programAddress === LOADER_V3 &&
-      upgradeInstruction.data === '03000000' &&
-      upgradeAccounts?.length === 7,
-    'Receipt is not a loader-v3 Upgrade instruction',
-  );
-  const bufferAddress = upgradeAccounts[2]?.address;
-  const smokeSender = upgradeAccounts[3]?.address;
-  assert(
-    bufferAddress && smokeSender,
+    bufferAddress && spillAddress,
     'Upgrade receipt is missing buffer/spill accounts',
+  );
+  assertMailboxUpgradeInstruction({
+    instruction: upgradeInstruction,
+    mailbox,
+    upgradeAuthority: expectedUpgradeAuthority,
+    spillAddress,
+  });
+  logger.info(
+    { buffer: bufferAddress, spill: spillAddress },
+    'Validated mailbox upgrade instruction accounts',
   );
   const upstreamBuffer = await fetchRpcAccount(upstreamRpcUrl, bufferAddress);
   assert(upstreamBuffer, `Upgrade buffer ${bufferAddress} is missing`);
@@ -958,6 +963,7 @@ async function main(): Promise<void> {
       `Inbound replay changed processed count from ${inboxBeforeReplay.processedCount} to ${inboxAfterReplay.processedCount}`,
     );
 
+    const smokeSender = (await generateKeyPairSigner()).address;
     const smokeSigner = await SealevelImpersonatingSigner.create(
       forkMetadata,
       smokeSender,
@@ -1017,6 +1023,7 @@ async function main(): Promise<void> {
         mailbox,
         proposalIndex: proposalIndex.toString(),
         proposalPda: proposalAddresses.proposalPda.toBase58(),
+        spill: spillAddress,
         transactionPda: proposalAddresses.transactionPda.toBase58(),
         version: finalRead.config.contractVersion,
       },

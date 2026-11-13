@@ -4,6 +4,7 @@ import { PublicKey } from '@solana/web3.js';
 import { assert, eqAddressSol } from '@hyperlane-xyz/utils';
 
 import {
+  type PrintableSvmInstruction,
   type PrintableSvmTransaction,
   ReceiptFileSchema,
   validateInstructionsAgainstWire,
@@ -49,45 +50,20 @@ export function assertProgramBinaryFitsCurrentCapacity({
 }
 
 /**
- * Converts the single mailbox Upgrade transaction emitted by the SVM writer
- * into a receipt accepted by the generic Squads proposer.
- *
- * `waitForSlotAdvance` is safe to remove only in this exact case: buffer
- * preparation has already landed and there are no adjacent authority
- * transactions whose execution must be ordered across slots. Every relevant
- * loader field is checked before the barrier metadata is removed.
+ * Validates the loader Upgrade shape, known account identities, and every
+ * account role. Buffer contents must be verified independently on chain.
  */
-export function sanitizeSingleMailboxUpgradeReceiptForSquads({
-  transactions,
+export function assertMailboxUpgradeInstruction({
+  instruction,
   mailbox,
   upgradeAuthority,
   spillAddress,
 }: {
-  transactions: readonly unknown[];
+  instruction: PrintableSvmInstruction;
   mailbox: string;
   upgradeAuthority: string;
   spillAddress: string;
-}): PrintableSvmTransaction[] {
-  const parsedTransactions = ReceiptFileSchema.parse(transactions);
-  assert(
-    parsedTransactions.length === 1,
-    `Expected exactly one mailbox upgrade transaction, got ${parsedTransactions.length}`,
-  );
-  const transaction = parsedTransactions[0];
-  assert(
-    transaction.waitForSlotAdvance === true,
-    'Expected mailbox upgrade transaction to require waitForSlotAdvance',
-  );
-  assert(
-    transaction.computeUnits === MAX_COMPUTE_UNITS,
-    `Expected mailbox upgrade transaction to use ${MAX_COMPUTE_UNITS} compute units`,
-  );
-  assert(
-    transaction.instructions.length === 1,
-    `Expected exactly one mailbox upgrade instruction, got ${transaction.instructions.length}`,
-  );
-
-  const instruction = transaction.instructions[0];
+}): void {
   assert(
     eqAddressSol(instruction.programAddress, LOADER_V3),
     `Expected loader-v3 instruction, got ${instruction.programAddress}`,
@@ -124,6 +100,55 @@ export function sanitizeSingleMailboxUpgradeReceiptForSquads({
       account.role === expected.role,
       `Unexpected loader Upgrade role for account ${index}: ${account.role}, expected ${expected.role}`,
     );
+  });
+}
+
+/**
+ * Converts the single mailbox Upgrade transaction emitted by the SVM writer
+ * into a receipt accepted by the generic Squads proposer.
+ *
+ * `waitForSlotAdvance` is safe to remove only in this exact case: buffer
+ * preparation has already landed and there are no adjacent authority
+ * transactions whose execution must be ordered across slots. The loader
+ * structure, expected accounts, roles, and wire payload are checked before
+ * the barrier metadata is removed.
+ */
+export function sanitizeSingleMailboxUpgradeReceiptForSquads({
+  transactions,
+  mailbox,
+  upgradeAuthority,
+  spillAddress,
+}: {
+  transactions: readonly unknown[];
+  mailbox: string;
+  upgradeAuthority: string;
+  spillAddress: string;
+}): PrintableSvmTransaction[] {
+  const parsedTransactions = ReceiptFileSchema.parse(transactions);
+  assert(
+    parsedTransactions.length === 1,
+    `Expected exactly one mailbox upgrade transaction, got ${parsedTransactions.length}`,
+  );
+  const transaction = parsedTransactions[0];
+  assert(
+    transaction.waitForSlotAdvance === true,
+    'Expected mailbox upgrade transaction to require waitForSlotAdvance',
+  );
+  assert(
+    transaction.computeUnits === MAX_COMPUTE_UNITS,
+    `Expected mailbox upgrade transaction to use ${MAX_COMPUTE_UNITS} compute units`,
+  );
+  assert(
+    transaction.instructions.length === 1,
+    `Expected exactly one mailbox upgrade instruction, got ${transaction.instructions.length}`,
+  );
+
+  const instruction = transaction.instructions[0];
+  assertMailboxUpgradeInstruction({
+    instruction,
+    mailbox,
+    upgradeAuthority,
+    spillAddress,
   });
 
   // Ensures the expanded instruction inspected above exactly matches the
