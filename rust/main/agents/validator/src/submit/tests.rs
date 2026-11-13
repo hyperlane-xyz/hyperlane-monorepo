@@ -2614,8 +2614,6 @@ async fn assert_backfill_rebuilds_tree(snapshot: Result<Option<MerkleTreeSnapsho
 async fn normal_backfill_replays_skipped_history_after_snapshot_loss() {
     use hyperlane_base::db::{HyperlaneRocksDB, DB};
 
-    use crate::merkle_tree_hook_sync::contiguous_sequence;
-
     for corrupt in [false, true] {
         let (domain, insertions, _, target, mut snapshot) = three_leaf_snapshot_fixture();
         let directory = tempfile::tempdir().expect("test database");
@@ -2624,9 +2622,7 @@ async fn normal_backfill_replays_skipped_history_after_snapshot_loss() {
             DB::from_path(directory.path()).expect("test database"),
         );
         // A previous consensus run skipped the prefix covered by its snapshot.
-        assert_eq!(contiguous_sequence(&db, 2).unwrap(), 2);
         db.store_tree_insertion(&insertions[2], 1).unwrap();
-        assert_eq!(contiguous_sequence(&db, 2).unwrap(), 3);
 
         snapshot.root = H256::repeat_byte(0xff);
         let mut syncer = MockCheckpointSyncer::new();
@@ -2666,12 +2662,12 @@ async fn normal_backfill_replays_skipped_history_after_snapshot_loss() {
             .restored_snapshot_tree(target.index)
             .await
             .unwrap_or_default();
-        let replay_from = contiguous_sequence(&db, tree.count() as u32).unwrap();
+        let replay_from = tree.count();
         assert_eq!(
             replay_from, 0,
             "must ignore the old cursor after snapshot loss"
         );
-        for insertion in &insertions[replay_from as usize..2] {
+        for insertion in &insertions[replay_from..2] {
             db.store_tree_insertion(insertion, 1).unwrap();
         }
         submitter.backfill_checkpoint_submitter(target, tree).await;

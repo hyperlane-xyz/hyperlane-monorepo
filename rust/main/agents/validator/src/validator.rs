@@ -39,7 +39,7 @@ use hyperlane_metric::{
 
 use crate::checkpoint_consensus::CheckpointReader;
 use crate::merkle_tree_hook_sync::{
-    load_contiguous_sequence, MerkleTreeHookWebSocketSync, MerkleTreeRpcRecovery, MerkleTreeStore,
+    MerkleTreeHookWebSocketSync, MerkleTreeRpcRecovery, MerkleTreeStore,
 };
 use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
 use crate::rpc::{build_validator_per_url_hooks, dedupe_rpc_urls, state_read_urls};
@@ -685,14 +685,7 @@ impl BaseAgent for Validator {
             u32::try_from(backfill_tree.count()).expect("snapshot count fits in u32");
 
         let merkle_tree_hook_sync = match self
-            .try_n_times_to_run_merkle_tree_hook_sync(
-                CURSOR_INSTANTIATION_ATTEMPTS,
-                tip_tree
-                    .count()
-                    .try_into()
-                    .expect("Merkle tree leaf count must fit in u32"),
-                verified_count,
-            )
+            .try_n_times_to_run_merkle_tree_hook_sync(CURSOR_INSTANTIATION_ATTEMPTS, verified_count)
             .await
         {
             Ok(s) => s,
@@ -723,14 +716,10 @@ impl Validator {
     async fn try_n_times_to_run_merkle_tree_hook_sync(
         &self,
         attempts: usize,
-        startup_count: u32,
         verified_count: u32,
     ) -> eyre::Result<JoinHandle<()>> {
         for i in 0..attempts {
-            let task = match self
-                .run_merkle_tree_hook_sync(startup_count, verified_count)
-                .await
-            {
+            let task = match self.run_merkle_tree_hook_sync(verified_count).await {
                 Ok(s) => s,
                 Err(err) => {
                     error!(
@@ -755,11 +744,7 @@ impl Validator {
         ))
     }
 
-    async fn run_merkle_tree_hook_sync(
-        &self,
-        startup_count: u32,
-        verified_count: u32,
-    ) -> eyre::Result<JoinHandle<()>> {
+    async fn run_merkle_tree_hook_sync(&self, verified_count: u32) -> eyre::Result<JoinHandle<()>> {
         let index_settings = Self::index_settings_for_snapshot(
             self.origin_chain_conf.index_settings(),
             verified_count,
@@ -767,19 +752,16 @@ impl Validator {
         let rpc_sync = self.rpc_sync.clone();
         if let Some(websocket) = &self.websocket_sync {
             let websocket = websocket.clone();
-            let db = self.db.clone();
-            let next_sequence = load_contiguous_sequence(db, verified_count).await?;
-            let merkle_tree_hook = self.merkle_tree_hook.clone();
+            let provider = self.merkle_tree_hook.provider().into();
             let reorg_period = self.reorg_period.clone();
             return Ok(tokio::spawn(
                 async move {
                     websocket
                         .run(
-                            next_sequence,
-                            startup_count,
+                            verified_count,
                             rpc_sync,
                             index_settings,
-                            merkle_tree_hook,
+                            provider,
                             reorg_period,
                         )
                         .await;
