@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use axum::Router;
 use derive_more::AsRef;
 use ethers::utils::keccak256;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
 use rand::Rng;
 use serde::Serialize;
@@ -39,7 +39,7 @@ use hyperlane_metric::{
 
 use crate::checkpoint_consensus::CheckpointReader;
 use crate::merkle_tree_hook_sync::{
-    contiguous_sequence, MerkleTreeHookWebSocketSync, MerkleTreeRpcRecovery, MerkleTreeStore,
+    load_contiguous_sequence, MerkleTreeHookWebSocketSync, MerkleTreeRpcRecovery, MerkleTreeStore,
 };
 use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
 use crate::rpc::{build_validator_per_url_hooks, dedupe_rpc_urls, state_read_urls};
@@ -768,10 +768,7 @@ impl Validator {
         if let Some(websocket) = &self.websocket_sync {
             let websocket = websocket.clone();
             let db = self.db.clone();
-            let next_sequence =
-                tokio::task::spawn_blocking(move || contiguous_sequence(&db, verified_count))
-                    .await
-                    .context("Finding the next Merkle tree insertion sequence")??;
+            let next_sequence = load_contiguous_sequence(db, verified_count).await?;
             let merkle_tree_hook = self.merkle_tree_hook.clone();
             let reorg_period = self.reorg_period.clone();
             return Ok(tokio::spawn(
@@ -806,9 +803,10 @@ impl Validator {
         mut settings: IndexSettings,
         verified_count: u32,
     ) -> IndexSettings {
-        // An empty verified prefix requires leaf zero, regardless of the configured floor.
-        if matches!(settings.mode, IndexMode::Sequence) && verified_count == 0 {
-            settings.from = 0;
+        // The authenticated snapshot covers exactly the prefix below this count.
+        // A configured floor must not skip any of the remaining leaves.
+        if matches!(settings.mode, IndexMode::Sequence) {
+            settings.from = i64::from(verified_count);
         }
         settings
     }
@@ -1170,11 +1168,13 @@ mod tests {
     use crate::test_utils::mock_merkle_tree_hook::MockMerkleTreeHook;
 
     #[test]
-    fn sequence_indexing_without_a_snapshot_starts_at_leaf_zero() {
+    fn sequence_indexing_starts_after_the_verified_snapshot_prefix() {
         for (mode, from, verified_count, expected_from) in [
             (IndexMode::Sequence, 1, 0, 0),
             (IndexMode::Sequence, -1, 0, 0),
-            (IndexMode::Sequence, 1, 10, 1),
+            (IndexMode::Sequence, 1, 10, 10),
+            (IndexMode::Sequence, 20, 10, 10),
+            (IndexMode::Sequence, -1, 10, 10),
             (IndexMode::Block, 39, 0, 39),
         ] {
             let settings = Validator::index_settings_for_snapshot(

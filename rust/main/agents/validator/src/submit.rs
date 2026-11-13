@@ -1037,7 +1037,7 @@ impl ValidatorSubmitter {
                 warn!(
                     first_sequence = verified_tree.count(),
                     last_sequence = correctness_checkpoint.index,
-                    "WebSocket batch failed root verification; falling back to RPC indexing"
+                    "WebSocket batch failed root verification; recovering checkpoint batch through RPC"
                 );
                 let first_sequence = u32::try_from(verified_tree.count())
                     .expect("Merkle tree count fits in u32 before the target checkpoint");

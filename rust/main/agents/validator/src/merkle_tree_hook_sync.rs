@@ -421,7 +421,13 @@ impl MerkleTreeHookWebSocketSync {
                 )
                 .await;
             self.websocket_active.set(0);
-            if fallback.is_none() {
+            if fallback
+                .as_ref()
+                .is_none_or(|task| task.handle.is_finished())
+            {
+                if let Some(task) = fallback.take() {
+                    task.stop().await;
+                }
                 fallback = Some(start_fallback());
                 warn!(
                     domain = self.domain,
@@ -525,15 +531,18 @@ impl MerkleTreeHookWebSocketSync {
         fallback: &mut Option<RpcFallback>,
         pending: &mut BTreeMap<u32, (MerkleTreeInsertion, u64)>,
     ) -> Result<()> {
-        if fallback.is_none() {
+        let Some(task) = fallback.as_ref() else {
             return Ok(());
+        };
+        if task.handle.is_finished() {
+            bail!("RPC fallback indexing task exited; restarting recovery");
         }
         // Only RPC has written the buffered range. Its cursor covers a contiguous
         // prefix from the authenticated snapshot, never just the highest stored row.
         let Some((&anchor, (insertion, _))) = pending.first_key_value() else {
             return Ok(());
         };
-        *next_sequence = contiguous_sequence(&self.db, *next_sequence)?;
+        *next_sequence = load_contiguous_sequence(self.db.clone(), *next_sequence).await?;
         if *next_sequence < startup_count || *next_sequence <= anchor {
             return Ok(());
         }
@@ -548,7 +557,7 @@ impl MerkleTreeHookWebSocketSync {
         if let Some(task) = fallback.take() {
             task.stop().await;
         }
-        *next_sequence = contiguous_sequence(&self.db, *next_sequence)?;
+        *next_sequence = load_contiguous_sequence(self.db.clone(), *next_sequence).await?;
         while let Some((_, (insertion, block_number))) = pending.pop_first() {
             self.store_insertion(insertion, block_number, next_sequence)?;
         }
@@ -649,6 +658,12 @@ impl MerkleTreeHookWebSocketSync {
         self.checkpoint_wake.notify_one();
         Ok(())
     }
+}
+
+pub(crate) async fn load_contiguous_sequence(db: HyperlaneRocksDB, sequence: u32) -> Result<u32> {
+    tokio::task::spawn_blocking(move || contiguous_sequence(&db, sequence))
+        .await
+        .context("Finding the next Merkle tree insertion sequence")?
 }
 
 pub(crate) fn contiguous_sequence(db: &HyperlaneRocksDB, mut sequence: u32) -> Result<u32> {
@@ -999,7 +1014,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn socket_disconnect_and_sequence_gap_restore_rpc_and_require_new_overlap() {
+    async fn fallback_panic_disconnect_and_sequence_gap_restore_rpc_and_require_new_overlap() {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .expect("test operation");
@@ -1062,6 +1077,8 @@ mod tests {
                 }
             }
         });
+        let crash = Arc::new(Notify::new());
+        let crash_task = crash.clone();
         let task = tokio::spawn(async move {
             sync.run_loop(
                 1,
@@ -1077,8 +1094,19 @@ mod tests {
                     reorg_period: ReorgPeriod::None,
                 },
                 || {
-                    started.fetch_add(1, Ordering::SeqCst);
-                    test_fallback(&sync.fallback_active)
+                    if started.fetch_add(1, Ordering::SeqCst) == 0 {
+                        let crash = crash_task.clone();
+                        sync.fallback_active.set(1);
+                        RpcFallback {
+                            handle: tokio::spawn(async move {
+                                crash.notified().await;
+                                panic!("injected RPC fallback panic");
+                            }),
+                            active: sync.fallback_active.clone(),
+                        }
+                    } else {
+                        test_fallback(&sync.fallback_active)
+                    }
                 },
             )
             .await;
@@ -1089,6 +1117,11 @@ mod tests {
             "merkle_tree_hook": format!("{:#x}", H256::from_low_u64_be(2)), "message_id": format!("{:#x}", leaf(i).message_id()) } }).to_string().into())
         };
         wait_until(|| subscriptions.load(Ordering::SeqCst) == 1).await;
+        // No buffered anchor is needed to detect and replace a failed RPC task.
+        crash.notify_one();
+        wait_until(|| subscriptions.load(Ordering::SeqCst) == 2).await;
+        assert_eq!(starts.load(Ordering::SeqCst), 2);
+        assert_eq!(rpc_active.get(), 1);
         assert_eq!(active.get(), 0);
         frames.send(frame(0)).await.expect("test operation");
         wait_until(|| active.get() == 1).await;
@@ -1106,10 +1139,10 @@ mod tests {
             .send(Message::Close(None))
             .await
             .expect("test operation");
-        wait_until(|| subscriptions.load(Ordering::SeqCst) == 2).await;
+        wait_until(|| subscriptions.load(Ordering::SeqCst) == 3).await;
         assert_eq!(active.get(), 0);
         assert_eq!(rpc_active.get(), 1);
-        assert_eq!(starts.load(Ordering::SeqCst), 2);
+        assert_eq!(starts.load(Ordering::SeqCst), 3);
         // Missing outage leaves come from RPC, not server replay.
         write_rpc(&writer, 2..=3).await;
         count.store(4, Ordering::SeqCst);
@@ -1117,7 +1150,7 @@ mod tests {
         wait_until(|| active.get() == 1).await;
         // A gap after takeover returns to RPC instead of skipping the leaf.
         frames.send(frame(5)).await.expect("test operation");
-        wait_until(|| subscriptions.load(Ordering::SeqCst) == 3).await;
+        wait_until(|| subscriptions.load(Ordering::SeqCst) == 4).await;
         assert_eq!(active.get(), 0);
         assert_eq!(rpc_active.get(), 1);
         assert!(writer
@@ -1133,7 +1166,7 @@ mod tests {
         tokio::time::pause();
         tokio::time::advance(Duration::from_secs(6)).await;
         tokio::time::resume();
-        wait_until(|| subscriptions.load(Ordering::SeqCst) == 4).await;
+        wait_until(|| subscriptions.load(Ordering::SeqCst) == 5).await;
         assert_eq!(active.get(), 0);
         assert_eq!(rpc_active.get(), 1);
         task.abort();

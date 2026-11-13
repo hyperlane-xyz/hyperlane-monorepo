@@ -56,15 +56,10 @@ probes still detect stale or persistently ahead streams after handoff. No indexi
 handoff authorizes signatures: the configured checkpoint verification remains the
 signing gate, including historical checkpoint publication and reorg protection.
 
-`lightweight` and its misspelled alias `leightweigt` were removed. Remove either
-setting (including `false`) from CLI flags, environment variables, and configuration
-files. All validators now require RPC log-indexing access in addition to state
-reads. `allowPublicRpcs` remains an explicit opt-in; it is not enabled automatically.
-
-This is a breaking configuration change. RPC-free validators need a supported way
-to bootstrap history and recover after disconnects before lightweight mode can
-return. A snapshot service is a potential future solution; until then, validators
-use RPC indexing for historical recovery and WebSocket for live updates.
+Validators require RPC log-indexing access in addition to state reads. Optional
+WebSocket indexing supplies live updates after RPC recovery. `lightweight` and
+`leightweigt` are unsupported settings, including when set to `false`.
+`allowPublicRpcs` is an explicit opt-in; it is not enabled automatically.
 
 Startup restores a structurally validated snapshot authenticated by this validator's
 own signed checkpoint, then reconstructs missing history through RPC. A fresh local
@@ -135,7 +130,7 @@ frontiers only at sampled indices, bounded by endpoint count. If a later sample
 requests an uncached intermediate index, replay resumes from the committed tree
 using stored insertions. Roots are calculated only at sampled indices.
 
-All modes retain the 60-second root audit once the local tree is non-empty.
+Validators run the 60-second root audit once the local tree is non-empty.
 The next unsigned insertion in the local DB drives independent RPC verification.
 Both WebSocket and fallback RPC indexing notify the same verifier after persisting
 new insertions. It does not track which indexer is active, and no separate insertion
