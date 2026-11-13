@@ -105,6 +105,9 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
     for the same owner and user salt, equals the stored ICA. The latter covers
     registrations made without router overrides.
 
+  Reveals from chains without registry ICA routers, such as Sealevel origins,
+  are not served.
+
   The ICA of the dispatched router pair is served, which can differ from the
   stored one. Reads do not modify stored commitments. A reveal that fails these
   checks gets HTTP 403. A missing or null hash, a missing receipt, a failing
