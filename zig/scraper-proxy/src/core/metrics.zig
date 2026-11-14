@@ -391,7 +391,9 @@ var database_provider: ?DatabaseMetricsProvider = null;
 var websocket_provider: ?WebSocketMetricsProvider = null;
 
 /// Providers are called from the `/metrics` request thread; they must be
-/// thread-safe with respect to their owner's state.
+/// thread-safe with respect to their owner's state. With fibers they run on
+/// the event-loop thread (`core.fiber.offFiber`), so they must only take
+/// short locks: no queries, I/O, log waits or other unbounded waits.
 pub fn setDatabaseMetricsProvider(provider: ?DatabaseMetricsProvider) void {
     provider_mutex.lock();
     defer provider_mutex.unlock();

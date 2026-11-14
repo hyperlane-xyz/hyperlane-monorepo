@@ -253,6 +253,15 @@ rule, not the scheduling.
 - **Column allowlists are static** (`tables.zig`) where TS derives them from
   `scraperdb-schema.graphql` at startup; `corpus_test.zig` asserts they
   match, so a schema edit needs the corpus regenerated.
+- **Idle connection choice with several event loops.** Only with
+  `-Dhttp-loops` above 1, or 0 (one loop per CPU) on a multi-CPU host; the
+  default build runs one loop and matches pg-pool. pg-pool hands out the
+  most recently released idle client (LIFO). With several loops, a checkout
+  takes the most recently released idle connection that the caller's loop
+  already watches, else the most recently released one; waiters are still
+  served strictly in arrival order (FIFO). Responses and errors are
+  unchanged. Which connections stay idle long enough to be closed, and so
+  the pool gauges over time, can differ.
 
 ## WebSockets (`/agents`, `/messages`)
 

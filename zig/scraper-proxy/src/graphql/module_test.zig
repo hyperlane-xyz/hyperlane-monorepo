@@ -26,19 +26,34 @@ const FakeDb = struct {
     fail: ?[]const u8 = null,
     fail_first_only: bool = false,
     blocked: bool = false,
-    /// Bracket the blocked wait with `core.blocking` like the real database
-    /// adapters (pq.waitSocket). False: the handler blocks unannounced, so
-    /// the HTTP loop's stall monitor must hand its batch to another poller.
-    blocking_hook: bool = true,
+    /// Like `blocked`, for queries whose SQL contains this needle only.
+    block_sql: ?[]const u8 = null,
+    /// Parked fibers waiting for `release` (a thread wait would block the
+    /// loop thread every other request needs).
+    parked: [64]*core.fiber.Waiter = undefined,
+    parked_len: usize = 0,
+    /// What each query saw of the request's fiber-locals (`execute.admission`
+    /// and `execute.io_events`), in call order.
+    seen: [16]Seen = undefined,
+    seen_len: usize = 0,
     /// Queries whose SQL contains this needle fail with `fail_sql_message`.
     fail_sql: ?[]const u8 = null,
     fail_sql_message: []const u8 = "boom",
     /// Queries whose SQL contains this needle sleep first (completion order).
     delay_sql: ?[]const u8 = null,
 
+    const Seen = struct { admission: ?*anyopaque, io_events: u32 };
+
+    fn mustWait(self: *const FakeDb, text: []const u8) bool {
+        if (self.blocked) return true;
+        const needle = self.block_sql orelse return false;
+        return std.mem.indexOf(u8, text, needle) != null;
+    }
+
     fn query(ctx: *anyopaque, arena: Allocator, text: []const u8, _: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
         const self: *FakeDb = @ptrCast(@alignCast(ctx));
         const execute = @import("execute.zig");
+        const seen: Seen = .{ .admission = if (execute.admission) |adm| adm.ctx else null, .io_events = execute.io_events };
         if (!execute.beforeIo()) {
             diag.message = route_mod.capacity_message;
             return error.CapacityExceeded;
@@ -48,11 +63,28 @@ const FakeDb = struct {
         self.queries += 1;
         self.started += 1;
         const n = self.queries;
+        if (self.seen_len < self.seen.len) {
+            self.seen[self.seen_len] = seen;
+            self.seen_len += 1;
+        }
         self.cond.broadcast();
-        if (self.blocked) {
-            if (self.blocking_hook) core.blocking.begin();
-            defer if (self.blocking_hook) core.blocking.end();
-            while (self.blocked) self.cond.wait(&self.mutex);
+        if (self.mustWait(text)) {
+            if (core.fiber.inFiber()) {
+                // The loop thread must keep serving: park this fiber.
+                while (self.mustWait(text)) {
+                    var w: core.fiber.Waiter = .{};
+                    if (self.parked_len == self.parked.len) @panic("FakeDb: more than 64 parked queries");
+                    self.parked[self.parked_len] = &w;
+                    self.parked_len += 1;
+                    self.mutex.unlock();
+                    w.wait();
+                    self.mutex.lock();
+                }
+            } else {
+                core.blocking.begin();
+                defer core.blocking.end();
+                while (self.mustWait(text)) self.cond.wait(&self.mutex);
+            }
         }
         const fail = self.fail;
         const fail_first = self.fail_first_only;
@@ -64,7 +96,14 @@ const FakeDb = struct {
         const fail_sql = self.fail_sql;
         const delay_sql = self.delay_sql;
         self.mutex.unlock();
-        if (delay_sql) |needle| if (std.mem.indexOf(u8, text, needle) != null) std.Thread.sleep(40 * std.time.ns_per_ms);
+        if (delay_sql) |needle| if (std.mem.indexOf(u8, text, needle) != null) {
+            // A slow query: on a fiber it parks (sibling root fields run
+            // meanwhile, as on separate threads); elsewhere the thread sleeps.
+            if (core.fiber.inFiber()) {
+                var w: core.fiber.Waiter = .{};
+                _ = w.waitTimeout(core.fiber.monoMs() + 40);
+            } else std.Thread.sleep(40 * std.time.ns_per_ms);
+        };
         if (fail_sql) |needle| if (std.mem.indexOf(u8, text, needle) != null) {
             diag.message = self.fail_sql_message;
             return error.QueryFailed;
@@ -93,7 +132,11 @@ const FakeDb = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         self.blocked = false;
+        self.block_sql = null;
         self.cond.broadcast();
+        // `wake` never touches a waiter after waking it.
+        for (self.parked[0..self.parked_len]) |w| w.wake();
+        self.parked_len = 0;
     }
 };
 
@@ -395,10 +438,9 @@ test "serializes the production query surface consistently" {
     try expectJson(try app.postQuery(a, "{ raw_message_dispatch(limit: 1) { id } }"), 200, "{\"data\":{\"raw_message_dispatch\":[{\"id\":1}]}}");
 }
 
-fn boundsConcurrentPathological(blocking_hook: bool) !void {
+test "bounds concurrent pathological GraphQL requests" {
     var app: App = .{};
     app.db.blocked = true;
-    app.db.blocking_hook = blocking_hook;
     try app.start();
     defer app.stop();
     var threads: [25]std.Thread = undefined;
@@ -419,16 +461,39 @@ fn boundsConcurrentPathological(blocking_hook: bool) !void {
     try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, "{ domain(limit: 1) { id } }")).status);
 }
 
-test "bounds concurrent pathological GraphQL requests" {
-    try boundsConcurrentPathological(true);
-}
-
-// Same, with handlers that block without announcing it (no core.blocking):
-// every parked request goes through the HTTP loop's stall monitor, which must
-// hand the stalled poller's remaining events to another poller (regression
-// test for events lost in that hand-off).
-test "bounds concurrent pathological GraphQL requests (unannounced blocking)" {
-    try boundsConcurrentPathological(false);
+test "a parked request keeps its own fiber-locals while another runs (route FiberLocals)" {
+    // `execute.admission` and `execute.io_events` are thread-locals that
+    // route.zig registers as fiber-locals. Request A's one field reads a
+    // confirmation snapshot (parked here) and then its projection; request B
+    // runs to completion on the same loop meanwhile. A's second query must
+    // still see A's admission and A's own I/O count.
+    const frontier = "custom_frontier AS";
+    var app: App = .{};
+    app.db.block_sql = frontier;
+    app.db.rows_by_sql = &.{.{ .needle = frontier, .rows = "[{\"domains\":[],\"heights\":[],\"message_ids\":[]}]" }};
+    try app.start();
+    defer app.stop();
+    var a_result: ParkedResult = .{};
+    const a_thread = try std.Thread.spawn(.{}, ParkedResult.run, .{ &a_result, &app, "{ message_view(confirmations: 0, limit: 1) { id } }" });
+    app.db.waitStarted(1);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try expectJson(try app.postQuery(a, "{ d1: domain(limit: 1) { id } d2: domain(limit: 2) { id } }"), 200, "{\"data\":{\"d1\":[],\"d2\":[]}}");
+    app.db.release();
+    a_thread.join();
+    try a_result.expectOk(0);
+    const seen = app.db.seen[0..app.db.seen_len];
+    try testing.expectEqual(@as(usize, 4), seen.len);
+    const first = seen[0];
+    const last = seen[3];
+    try testing.expect(first.admission != null);
+    for (seen[1..3]) |b| {
+        try testing.expect(b.admission != null);
+        try testing.expect(b.admission != first.admission);
+    }
+    try testing.expectEqual(first.admission, last.admission);
+    try testing.expectEqual(first.io_events +% 1, last.io_events);
 }
 
 test "only requests parked on I/O hold execution slots (Node turn semantics)" {

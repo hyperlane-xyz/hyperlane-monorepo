@@ -645,6 +645,89 @@ test "libpq: the deepest jsonb PostgreSQL returns converts and re-serializes wit
     try testing.expectEqual(@as(usize, depth * 2), text.len);
 }
 
+test "libpq on a fiber: queries park the fiber, and two fibers interleave on one thread" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    const Ctx = struct {
+        pool: *pool_mod.Pool,
+        in_fiber: bool = false,
+        rows: [2]usize = .{ 0, 0 },
+        err: ?anyerror = null,
+        started: std.atomic.Value(usize) = .init(0),
+
+        fn one(self: *@This(), index: usize, sleep: []const u8) void {
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            _ = self.started.fetchAdd(1, .monotonic);
+            const sql = std.fmt.allocPrint(arena.allocator(), "SELECT g, pg_sleep({s}) FROM generate_series(1, 3) g", .{sleep}) catch unreachable;
+            const r = self.pool.query(arena.allocator(), sql, &.{}, null) catch |e| {
+                self.err = e;
+                return;
+            };
+            self.rows[index] = r.rows.len;
+        }
+        fn second(arg: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(arg));
+            self.one(1, "0");
+        }
+        fn first(arg: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(arg));
+            self.in_fiber = core.fiber.inFiber();
+            core.fiber.spawn(second, self) catch |e| {
+                self.err = e;
+                return;
+            };
+            // This query sleeps ~0.2 s server-side while its fiber is parked:
+            // the spawned fiber runs and finishes meanwhile.
+            self.one(0, "0.1");
+        }
+    };
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 2 });
+    defer p.deinit();
+    var ctx: Ctx = .{ .pool = p };
+    const started = pq.nowMs();
+    try core.fiber.testing.run(Ctx.first, &ctx);
+    try testing.expect(ctx.err == null);
+    try testing.expect(ctx.in_fiber);
+    try testing.expectEqual([2]usize{ 3, 3 }, ctx.rows);
+    // Interleaved, not serial: well under two sleeping queries back to back.
+    try testing.expect(pq.nowMs() - started < 2_000);
+}
+
+test "libpq on a fiber: an exhausted pool times out with node-pg's text" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    const Ctx = struct {
+        pool: *pool_mod.Pool,
+        err: ?anyerror = null,
+        message: []const u8 = "",
+        arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(testing.allocator),
+
+        fn run(arg: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(arg));
+            var failure: root.Failure = .{};
+            if (self.pool.acquire(self.arena.allocator(), &failure)) |conn| {
+                self.pool.release(conn);
+            } else |e| {
+                self.err = e;
+                self.message = failure.message;
+            }
+        }
+    };
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .connect_timeout_ms = 200 }, .max = 1 });
+    defer p.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const held = try p.acquire(arena_state.allocator(), null);
+    var ctx: Ctx = .{ .pool = p };
+    defer ctx.arena.deinit();
+    const started = pq.nowMs();
+    try core.fiber.testing.run(Ctx.run, &ctx);
+    p.release(held);
+    try testing.expectEqual(@as(?anyerror, error.ConnectionFailed), ctx.err);
+    try testing.expectEqualStrings("timeout exceeded when trying to connect", ctx.message);
+    const waited = pq.nowMs() - started;
+    try testing.expect(waited >= 190 and waited < 1_000);
+}
+
 test "libpq: early queries: read later, idle-only, cancel cleanly" {
     const url = testUrl() orelse return error.SkipZigTest;
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
@@ -1604,4 +1687,56 @@ test "stress: DbService close races in-flight queries, listens and metrics" {
         try testing.expect(!svc.leaked);
         svc.deinit();
     }
+}
+
+test "libpq on a fiber: checkout prefers the newest idle connection of the fiber's loop" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    const Ctx = struct {
+        pool: *pool_mod.Pool,
+        err: ?anyerror = null,
+        own_waited: bool = false,
+        picked_own: bool = false,
+        picked_top: bool = false,
+        var other_loop: u8 = 0;
+
+        fn run(arg: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(arg));
+            self.body() catch |e| {
+                self.err = e;
+            };
+        }
+        fn body(self: *@This()) !void {
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            const a = arena.allocator();
+            const here = core.fiber.current().?.sched.ctx;
+            // A query waiting on a fiber records the fiber's loop.
+            var q = try self.pool.acquire(a, null);
+            _ = try q.query(a, "SELECT pg_sleep(0.05)", &.{}, null);
+            self.own_waited = q.home == here;
+            self.pool.release(q);
+            // Idle stack, oldest first: own loop's connection, then five of
+            // another loop's: the own one is taken from the bottom.
+            var conns: [6]pq.Conn = undefined;
+            for (&conns) |*c| c.* = try self.pool.acquire(a, null);
+            conns[0].home = here;
+            for (conns[1..]) |*c| c.home = &other_loop;
+            for (conns) |c| self.pool.release(c);
+            const own = try self.pool.acquire(a, null);
+            self.picked_own = own.socket() == conns[0].socket();
+            // None of this loop's left: plain LIFO.
+            const top = try self.pool.acquire(a, null);
+            const next = try self.pool.acquire(a, null);
+            self.picked_top = top.socket() == conns[5].socket() and next.socket() == conns[4].socket();
+            for ([_]pq.Conn{ own, next, top }) |c| self.pool.release(c);
+        }
+    };
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 6 });
+    defer p.deinit();
+    var ctx: Ctx = .{ .pool = p };
+    try core.fiber.testing.run(Ctx.run, &ctx);
+    try testing.expect(ctx.err == null);
+    try testing.expect(ctx.own_waited);
+    try testing.expect(ctx.picked_own);
+    try testing.expect(ctx.picked_top);
 }

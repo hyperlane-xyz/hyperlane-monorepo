@@ -73,6 +73,8 @@ const KernelSocket = struct {
     node_base: u64 = 0,
     /// The kernel fills up once this many frames were delivered.
     stall_at: ?usize = null,
+    /// Pings the server sent.
+    pings: usize = 0,
 
     const Item = struct { payload: []u8, total: usize, off: usize, job: ?*live.SendJob, control: bool = false, request: u64 = 0 };
     const NodeRequest = struct { frames: usize = 0, done: usize = 0, framed: usize = 0, payload: usize = 0 };
@@ -312,7 +314,21 @@ const KernelSocket = struct {
         self.destroyed = true;
         self.open = false;
     }
-    fn ping(_: *anyopaque) void {}
+    /// ws's ping: written at once when nothing is queued and the kernel
+    /// takes it, else queued (a control frame, counted in bufferedAmount).
+    fn ping(ptr: *anyopaque) void {
+        const self = of(ptr);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.destroyed or !self.open) return;
+        self.pings += 1;
+        if (self.queue.items.len == 0 and self.capacity >= 2) {
+            self.capacity -= 2;
+            return;
+        }
+        self.queue.append(a, .{ .payload = a.dupe(u8, "") catch unreachable, .total = 2, .off = 0, .job = null, .control = true }) catch unreachable;
+        self.buffered += 2;
+    }
     fn release(_: *anyopaque) void {}
 
     /// The client reads: the kernel takes `capacity` more bytes and ws writes
@@ -786,7 +802,13 @@ const ReplayScenario = struct {
         var sizes: [16]usize = undefined;
         for (&sizes) |*size| size.* = 2 * r.intRangeAtMost(usize, 1, 600);
         const limits: live.Limits = .{
-            .heartbeat_ms = 1_000_000,
+            // Every third seed: heartbeats (ping + frame) during the replay,
+            // as the clock steps (the client pongs after each step, so the
+            // heartbeat never terminates it). The model's ping/pong follow
+            // real Node (live-c4/tools/node-pong.mjs: an inline control frame
+            // leaves bufferedAmount at once; a queued one counts until it is
+            // written).
+            .heartbeat_ms = if (seed % 3 == 1) 500 + (seed % 7) * 100 else 1_000_000,
             .max_agent_clients = 10,
             .max_buffered_bytes = if (concurrent) 1 << 30 else r.intRangeAtMost(u64, 1_024, 8_000),
             .max_catch_up_ms = if (concurrent) 1_800_000 else r.intRangeAtMost(u64, 100, 3_000),
@@ -915,7 +937,10 @@ fn runReplay(scenario: ReplayScenario, coalesce: bool, trace: *Trace) !void {
         switch (step) {
             .refresh => |bytes| socket.refresh(bytes),
             .fail => socket.fail_next = true,
-            .tick => |ms| loop.fake.tick(ms),
+            .tick => |ms| {
+                loop.fake.tick(ms);
+                server.onPong(peer);
+            },
             .live => |l| {
                 for (l.first..l.first + l.count) |id| {
                     var payload: [96]u8 = undefined;
@@ -1742,6 +1767,78 @@ test "a timer due when an awaited frame completes runs after that frame's contin
         }
         try testing.expect(heartbeat != null and last_row != null);
         try testing.expect(last_row.? < heartbeat.?);
+        server.stop();
+        server.onClose(peer);
+        loop.pool.deinit();
+        server.destroy();
+        loop.loop.deinit();
+        loop.fake.deinit();
+        socket.deinit();
+    }
+}
+
+test "a heartbeat while a catch-up row is partly written queues behind it, in Node's order and counts" {
+    // Fake clock: the catch-up's first row is in flight (partly written);
+    // the heartbeat's ping and frame are sent meanwhile (behind it, one
+    // batch in Node). The client then reads up to the end of the row, then
+    // everything: the wire order, and live's bufferedAmount / pendingBytes
+    // against the model's Node view after each step. Real Node
+    // (live-c4/tools/node-heartbeat.mjs, ws 8.21.3): client order "f1, ping,
+    // heartbeat, f2 (sent in f1's continuation)"; with f1 in flight the ping
+    // adds 2 bytes to bufferedAmount and the heartbeat its framed length,
+    // pendingBytes only the heartbeat's payload; a batch not yet written
+    // stays counted (30 MB heartbeat: f1 continuation buffered=30000012
+    // pending=30000000). (Node also keeps the ping counted until its whole
+    // batch is written; ws drops it once its own bytes are out: this test
+    // reads at the batch's start, before that differs; see DEVIATIONS.)
+    core.log.setSink(discard, null);
+    defer core.log.setSink(null, null);
+    for ([_]bool{ false, true }) |coalesce| {
+        var loop: TestLoop = undefined;
+        loop.init();
+        var db: ReplayDb = .{ .last = 3, .missing = null, .sizes = @splat(2000), .batch = 8 };
+        var listen: NullListen = .{};
+        const limits: live.Limits = .{ .heartbeat_ms = 1_000, .max_agent_clients = 10, .max_buffered_bytes = 1 << 30, .max_catch_up_ms = 1_800_000, .max_concurrent_catch_ups = 2, .max_total_buffered_bytes = 1 << 30 };
+        const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = db.batch }, null);
+        server.coalesce = coalesce;
+        try server.start();
+        var socket: KernelSocket = .{ .capacity = 1_000_000 };
+        const peer = server.connectAgent(socket.socket());
+        socket.stall_at = 2; // ready, subscribed; the kernel then takes 100 bytes of row 0
+        server.onMessage(peer,
+            \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
+        );
+        quiesce(&loop, server, &socket);
+        try expectNodeView(server, &.{peer}, &.{&socket});
+        socket.refresh(100); // row 0 partly written, still in flight
+        quiesce(&loop, server, &socket);
+        loop.fake.tick(1_000); // heartbeat: ping + frame, behind row 0
+        quiesce(&loop, server, &socket);
+        try expectNodeView(server, &.{peer}, &.{&socket});
+        socket.mutex.lock();
+        try testing.expectEqual(@as(usize, 1), socket.pings);
+        try testing.expectEqual(@as(usize, 3), socket.queue.items.len); // row 0, ping, heartbeat
+        const row_rest = socket.queue.items[0].total - socket.queue.items[0].off;
+        socket.mutex.unlock();
+        socket.refresh(row_rest); // row 0 done; the batch (ping, heartbeat) not started
+        quiesce(&loop, server, &socket);
+        try expectNodeView(server, &.{peer}, &.{&socket});
+        server.onPong(peer);
+        socket.refresh(1 << 30); // everything
+        quiesce(&loop, server, &socket);
+        try expectNodeView(server, &.{peer}, &.{&socket});
+        // Wire order: row 0, the heartbeat, then the rows sent after row 0
+        // completed (they wait behind the batch).
+        var heartbeat: ?usize = null;
+        var row0: ?usize = null;
+        var row1: ?usize = null;
+        for (socket.delivered.items, 0..) |payload, i| {
+            if (heartbeat == null and std.mem.indexOf(u8, payload, "\"type\":\"heartbeat\"") != null) heartbeat = i;
+            if (std.mem.indexOf(u8, payload, "\"leaf_index\":0") != null) row0 = i;
+            if (std.mem.indexOf(u8, payload, "\"leaf_index\":1") != null) row1 = i;
+        }
+        try testing.expect(row0.? < heartbeat.? and heartbeat.? < row1.?);
+        try testing.expect(!socket.destroyed);
         server.stop();
         server.onClose(peer);
         loop.pool.deinit();

@@ -2,7 +2,8 @@
 //! @skip/@include, argument coercion, resolver calls, value completion with
 //! non-null propagation, leaf serialization and located errors.
 //!
-//! Root fields run concurrently (extra fields on `RootPool` threads) when enabled
+//! Root fields run concurrently when enabled (extra fields on sibling fibers
+//! when the request runs on a fiber, else on `RootPool` threads)
 //! (graphql-js starts them all at once). Results and errors are merged in
 //! document order; after a non-null root failure, later fields' data and
 //! errors are dropped and `data` is null, like the rejected `Promise.all`
@@ -109,8 +110,9 @@ pub const Result = struct {
 };
 
 /// Bumped by data-source adapters whenever a resolver performs I/O (database
-/// query or diagnostics read) on the current thread; root fields use it to
-/// tell graphql-js microtask-settled failures from I/O-settled ones.
+/// query or diagnostics read) on the current thread or fiber (a fiber-local,
+/// registered by route.zig); root fields use it to tell graphql-js
+/// microtask-settled failures from I/O-settled ones.
 pub threadlocal var io_events: u32 = 0;
 
 /// The request's execution-admission hook (`graphql.ts` counts a request
@@ -121,8 +123,9 @@ pub const Admission = struct {
     enter: *const fn (ctx: *anyopaque) bool,
 };
 
-/// Set by the route on the request thread and by `RootTask.run` on pool
-/// threads while a request executes.
+/// Set by the route on the request's fiber (thread off fibers) and by
+/// `RootTask.run` for each root field (sibling fibers inherit it; pool
+/// threads set it) while a request executes. A fiber-local (route.zig).
 pub threadlocal var admission: ?Admission = null;
 
 /// Called by data-source adapters right before a resolver performs I/O
@@ -140,9 +143,11 @@ pub fn afterIo() void {
 
 var completion_seq: std.atomic.Value(u64) = .init(0);
 
-/// Root-field fan-out: extra root fields go to a FIFO `RootPool` (std.Thread.Pool
-/// is LIFO and starves old tasks under load), plus a thread-safe allocator
-/// for the per-field arenas.
+/// Root-field fan-out: on a fiber, extra root fields run as sibling fibers;
+/// off fibers they go to a FIFO `RootPool` (std.Thread.Pool is LIFO and
+/// starves old tasks under load). Plus a thread-safe allocator for the
+/// per-field arenas. Null (`root_field_threads = 0`): fields run one after
+/// another; under fibers that option is only an on/off switch.
 pub const Parallel = struct {
     pool: *root_pool.RootPool,
     backing: Allocator,
@@ -161,7 +166,7 @@ pub const Executor = struct {
     /// The error being raised (raw until located).
     pending: GqlError = .{ .message = "" },
     pending_offsets: []const u32 = &.{},
-    /// Propagated to root-field pool threads (thread-local `admission`).
+    /// Propagated to each root field's fiber or pool thread (`admission`).
     admission: ?Admission = null,
     /// Completed values are serialized here as they are produced (no result
     /// tree); an error nulls the nearest nullable position by rewinding to
@@ -264,6 +269,14 @@ pub const Executor = struct {
             run(@fieldParentPtr("job", job));
         }
 
+        /// A sibling fiber's entry (`core.fiber.spawn`): runs, then wakes
+        /// the request's fiber parked on `job.done`.
+        fn runFiber(arg: *anyopaque) void {
+            const t: *RootTask = @ptrCast(@alignCast(arg));
+            run(t);
+            t.job.done.wake();
+        }
+
         fn run(t: *RootTask) void {
             const saved_admission = admission;
             admission = t.parent.admission;
@@ -307,8 +320,8 @@ pub const Executor = struct {
         }
     };
 
-    /// Runs root fields concurrently (extra fields on their own threads when
-    /// `parallel` is set), then merges results the way graphql-js collects
+    /// Runs root fields concurrently when `parallel` is set (extra fields on
+    /// sibling fibers, or pool threads off fibers), then merges results the way graphql-js collects
     /// them for a first execution: errors in settle order, where fields that
     /// fail without I/O settle first (document order) and I/O fields settle in
     /// completion order; the first non-null failure in settle order makes
@@ -339,13 +352,25 @@ pub const Executor = struct {
         result.arenas = arenas[0..created];
         const pooled = try self.a.alloc(bool, n);
         @memset(pooled, false);
-        if (parallel) |p| for (tasks[1..], pooled[1..]) |*t, *in_pool| {
-            in_pool.* = p.pool.submit(&t.job); // false (pool full): runs here below
+        // On a fiber the extra fields are sibling fibers on the same loop
+        // (they interleave at I/O like graphql-js's promises; no threads);
+        // otherwise they go to the RootPool.
+        const on_fiber = parallel != null and core.fiber.inFiber();
+        if (parallel) |p| for (tasks[1..], pooled[1..]) |*t, *started| {
+            if (on_fiber) {
+                // No fiber for it (out of memory): run it right away on this
+                // fiber rather than after the joins of the fields before it
+                // (`runFiber` wakes its `job.done`, so the join returns at once).
+                core.fiber.spawn(RootTask.runFiber, t) catch RootTask.runFiber(t);
+                started.* = true;
+            } else started.* = p.pool.submit(&t.job); // false (pool full): runs here below
         };
         RootTask.run(&tasks[0]);
         for (tasks[1..], pooled[1..]) |*t, in_pool| {
             if (!in_pool) {
                 RootTask.run(t);
+            } else if (on_fiber) {
+                t.job.done.wait(); // parks until the sibling fiber finishes
             } else if (parallel.?.pool.reclaim(&t.job)) {
                 RootTask.run(t); // no thread started it yet
             } else {

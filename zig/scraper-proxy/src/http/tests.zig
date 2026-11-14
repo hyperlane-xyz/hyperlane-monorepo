@@ -15,6 +15,19 @@ const posix = std.posix;
 // Test app: /metrics + an echo route standing in for /graphql
 // ---------------------------------------------------------------------------
 
+/// A 300 ms handler wait. On a fiber it parks (as every real wait does there);
+/// otherwise it blocks the thread, announced to core.blocking when `hooked`.
+fn slowWait(ms: i64, hooked: bool) void {
+    if (server_mod.fibers and core.fiber.inFiber()) {
+        var w: core.fiber.Waiter = .{};
+        _ = w.waitTimeout(core.fiber.monoMs() + ms);
+        return;
+    }
+    if (hooked) core.blocking.begin();
+    std.Thread.sleep(@as(u64, @intCast(ms)) * std.time.ns_per_ms);
+    if (hooked) core.blocking.end();
+}
+
 /// What a handler on a poller may use: graphql's deepest admitted request
 /// (`_not` via variables) is 8.9 MiB in Debug and 2.5 MiB in ReleaseFast.
 const stack_probe_bytes: usize = if (@import("builtin").mode == .Debug) 18 * 1024 * 1024 else 6 * 1024 * 1024;
@@ -28,6 +41,8 @@ noinline fn deepStack(levels: usize, depth: usize) usize {
     const r = deepStack(levels, depth + 1);
     return r + (@as(*volatile u8, &frame[depth % deep_frame]).* & 0);
 }
+
+var shared_fd: std.atomic.Value(posix.fd_t) = .init(-1);
 
 const Echo = struct {
     mutex: std.Thread.Mutex = .{},
@@ -69,19 +84,54 @@ const Echo = struct {
         self.handled += 1;
         self.mutex.unlock();
         // A slow handler: input arriving meanwhile is merged into one edge.
-        if (std.mem.eql(u8, req.query, "sleep")) std.Thread.sleep(300 * std.time.ns_per_ms);
+        if (std.mem.eql(u8, req.query, "sleep")) slowWait(300, false);
         // A wait announced like a DB wait (core.blocking): handed off at once.
         // A short unannounced stall (caught by the monitor, not core.blocking).
         if (std.mem.eql(u8, req.query, "stall")) std.Thread.sleep(20 * std.time.ns_per_ms);
         if (std.mem.eql(u8, req.query, "hooked")) {
-            core.blocking.begin();
-            std.Thread.sleep(300 * std.time.ns_per_ms);
-            core.blocking.end();
+            slowWait(300, true);
         }
         if (std.mem.eql(u8, req.query, "deep")) {
             const used = deepStack(stack_probe_bytes / deep_frame, 0);
             return reply.sendText(if (used == stack_probe_bytes / deep_frame) "deep ok" else "deep short");
         }
+        if (server_mod.fibers and std.mem.eql(u8, req.query, "spawn")) {
+            // A detached child fiber that parks, then wakes the parent.
+            const Child = struct {
+                done: core.fiber.Waiter = .{},
+                ran: bool = false,
+                fn run(arg: *anyopaque) void {
+                    const c: *@This() = @ptrCast(@alignCast(arg));
+                    slowWait(20, false);
+                    c.ran = true;
+                    c.done.wake();
+                }
+            };
+            var child: Child = .{};
+            core.fiber.spawn(Child.run, &child) catch return reply.sendText("spawn failed");
+            child.done.wait();
+            return reply.sendText(if (child.ran) "spawned" else "not run");
+        }
+        if (std.mem.eql(u8, req.query, "park")) slowWait(2, false);
+        if (server_mod.fibers and std.mem.eql(u8, req.query, "shared")) {
+            // A socket every request waits on in turn, like a pooled DB
+            // connection: its registration follows the waiting loop.
+            const fd = shared_fd.load(.acquire);
+            var b: [1]u8 = undefined;
+            while (true) {
+                const n = posix.read(fd, &b) catch |e| switch (e) {
+                    error.WouldBlock => {
+                        core.fiber.waitFd(fd, core.fiber.Events.read, core.fiber.monoMs() + 5_000) catch return reply.sendText("timeout");
+                        continue;
+                    },
+                    else => return reply.sendText("read failed"),
+                };
+                if (n == 1) break;
+                return reply.sendText("eof");
+            }
+            return reply.sendText("got");
+        }
+        if (std.mem.eql(u8, req.query, "loopthread")) return reply.sendText(if (core.onEventLoopThread()) "loop" else "other");
         if (std.mem.eql(u8, req.query, "big")) {
             const big = req.arena.alloc(u8, 16 * 1024 * 1024) catch return;
             @memset(big, 'b');
@@ -280,6 +330,8 @@ const Harness = struct {
     wse: WsEcho = .{},
     routes: [2]types.Route = undefined,
     server: *server_mod.Server = undefined,
+    /// `Options.loops` (fiber mode).
+    loops: u32 = 1,
 
     fn start(self: *Harness, request_timeout_ms: u32) !void {
         self.routes = .{
@@ -298,6 +350,7 @@ const Harness = struct {
             .routes = &self.routes,
             .upgrade = .{ .ctx = &self.wse, .on_upgrade = WsEcho.onUpgrade },
             .request_timeout_ms = request_timeout_ms,
+            .loops = self.loops,
         });
         try self.server.start();
     }
@@ -415,6 +468,66 @@ test "404, CORS vary/allow-origin and header order match Fastify" {
     try testing.expectEqualStrings("{\"message\":\"Route DELETE:/graphql not found\",\"error\":\"Not Found\",\"statusCode\":404}", r2.body);
     try testing.expect(r2.header("access-control-allow-origin") == null);
     try expectHeader(r2, "vary", "Origin");
+}
+
+test "a request that gets no fiber is answered 503 and its handler never runs on the loop thread" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const handled = h.echo.snapshot().handled;
+    var c = try h.connect();
+    defer c.close();
+    core.fiber.test_fail_create = true;
+    defer core.fiber.test_fail_create = false;
+    const r = try c.request(arena.allocator(), "GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqual(@as(u16, 503), r.status);
+    try testing.expectEqual(handled, h.echo.snapshot().handled);
+    // The next connection is served normally.
+    var c2 = try h.connect();
+    defer c2.close();
+    try testing.expectEqual(@as(u16, 200), (try c2.request(arena.allocator(), "GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n")).status);
+}
+
+test "handlers run on a thread that reports itself as an event-loop thread" {
+    try testing.expect(!core.onEventLoopThread());
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    const r = try c.request(arena.allocator(), "GET /graphql?loopthread HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqualStrings("loop", r.body);
+}
+
+test "metrics snapshot providers never run on a fiber (they take OS mutexes)" {
+    const Probe = struct {
+        var calls = std.atomic.Value(u32).init(0);
+        var on_fiber = std.atomic.Value(bool).init(false);
+        fn snapshot(_: *anyopaque) core.metrics.WebSocketMetricsSnapshot {
+            _ = calls.fetchAdd(1, .monotonic);
+            if (core.fiber.inFiber()) on_fiber.store(true, .monotonic);
+            return .{};
+        }
+    };
+    var dummy: u8 = 0;
+    core.metrics.setWebSocketMetricsProvider(.{ .ctx = &dummy, .snapshot = Probe.snapshot });
+    defer core.metrics.setWebSocketMetricsProvider(null);
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    const r = try c.request(arena.allocator(), "GET /metrics HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqual(@as(u16, 200), r.status);
+    try testing.expect(Probe.calls.load(.monotonic) > 0);
+    try testing.expect(!Probe.on_fiber.load(.monotonic));
 }
 
 test "metrics route: content type, case-insensitive, trailing slash, HEAD" {
@@ -683,6 +796,87 @@ test "a handler on a poller has the stack of graphql's deepest admitted request 
     try testing.expectEqualStrings("deep ok", r.body);
 }
 
+test "a handler's detached child fiber runs, parks and is reaped" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    for (0..3) |_| {
+        const r = try c.request(arena.allocator(), "GET /graphql?spawn HTTP/1.1\r\nHost: a\r\n\r\n");
+        try testing.expectEqualStrings("spawned", r.body);
+    }
+}
+
+test "two loops share the listener: parked requests from many connections all complete" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{ .loops = 2 };
+    try h.start(10_000);
+    defer h.stop();
+    const Worker = struct {
+        fn run(port: u16, failures: *std.atomic.Value(u32)) void {
+            const addr = std.net.Address.parseIp("127.0.0.1", port) catch return;
+            var ar = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer ar.deinit();
+            for (0..10) |_| {
+                const stream = std.net.tcpConnectToAddress(addr) catch {
+                    _ = failures.fetchAdd(1, .monotonic);
+                    continue;
+                };
+                var cl: Client = .{ .fd = stream.handle };
+                defer cl.close();
+                for (0..5) |_| {
+                    const r = cl.request(ar.allocator(), "GET /graphql?park HTTP/1.1\r\nHost: a\r\n\r\n") catch {
+                        _ = failures.fetchAdd(1, .monotonic);
+                        break;
+                    };
+                    if (r.status != 200) _ = failures.fetchAdd(1, .monotonic);
+                }
+            }
+        }
+    };
+    var failures = std.atomic.Value(u32).init(0);
+    var threads: [8]std.Thread = undefined;
+    for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Worker.run, .{ h.server.port(), &failures });
+    for (threads) |t| t.join();
+    try testing.expectEqual(@as(u32, 0), failures.load(.monotonic));
+}
+
+test "two loops: a socket fibers wait on in turn follows the waiting loop" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{ .loops = 2 };
+    try h.start(10_000);
+    defer h.stop();
+    var pair: [2]posix.socket_t = undefined;
+    if (std.c.socketpair(posix.AF.UNIX, posix.SOCK.STREAM, 0, &pair) != 0) return error.SocketPair;
+    defer posix.close(pair[1]);
+    const flags = try posix.fcntl(pair[0], posix.F.GETFL, 0);
+    _ = try posix.fcntl(pair[0], posix.F.SETFL, flags | @as(usize, 1 << @bitOffsetOf(posix.O, "NONBLOCK")));
+    shared_fd.store(pair[0], .release);
+    defer {
+        shared_fd.store(-1, .release);
+        core.fiber.forgetFd(pair[0]);
+        posix.close(pair[0]);
+    }
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Fresh connections land on either loop; each request waits on the
+    // shared socket until the byte arrives.
+    for (0..30) |_| {
+        var c = try h.connect();
+        defer c.close();
+        try c.send("GET /graphql?shared HTTP/1.1\r\nHost: a\r\n\r\n");
+        std.Thread.sleep(2 * std.time.ns_per_ms);
+        _ = try posix.write(pair[1], "x");
+        const r = try c.read(a, false);
+        try testing.expectEqualStrings("got", r.body);
+    }
+}
+
 test "blocked requests in one accept batch never hold up later accepts" {
     var h: Harness = .{};
     try h.start(10_000);
@@ -800,6 +994,8 @@ test "close() while upgrades are in flight never treats a WebSocket as HTTP" {
 }
 
 test "pollers settle back to one soon after a burst of blocked requests" {
+    // Thread hand-off model only: fiber mode pins one thread, no monitor.
+    if (server_mod.fibers) return error.SkipZigTest;
     var h: Harness = .{};
     try h.start(10_000);
     defer h.stop();
@@ -818,7 +1014,7 @@ test "pollers settle back to one soon after a burst of blocked requests" {
     var threads: [8]std.Thread = undefined;
     for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Slow.run, .{h.server.port()});
     for (threads) |t| t.join();
-    const loop = &h.server.loop;
+    const loop = &h.server.loop.loops[0];
     loop.mutex.lock();
     const peak = loop.threads;
     loop.mutex.unlock();
@@ -836,6 +1032,8 @@ test "pollers settle back to one soon after a burst of blocked requests" {
 }
 
 test "the stall monitor thread starts (pthread stack minimum on Linux)" {
+    // Thread hand-off model only: fiber mode pins one thread, no monitor.
+    if (server_mod.fibers) return error.SkipZigTest;
     var h: Harness = .{};
     try h.start(10_000);
     defer h.stop();
@@ -846,10 +1044,12 @@ test "the stall monitor thread starts (pthread stack minimum on Linux)" {
     // The first dispatch spawns the monitor; a spawn failure would assert
     // (Zig asserts pthread_attr_setstacksize) or leave it stopped.
     _ = try c.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
-    try testing.expect(h.server.loop.monitor_running.load(.acquire));
+    try testing.expect(h.server.loop.loops[0].monitor_running.load(.acquire));
 }
 
 test "the first unhooked stall after an idle second is handed off promptly" {
+    // Thread hand-off model only: fiber mode pins one thread, no monitor.
+    if (server_mod.fibers) return error.SkipZigTest;
     var h: Harness = .{};
     try h.start(10_000);
     defer h.stop();
@@ -913,6 +1113,67 @@ test "close() ends idle keep-alive sockets with FIN; a request mid-head still ge
     try testing.expect(mid.closedByPeer());
     closer.join();
     h.stop();
+}
+
+/// A handler that reads like libpq: at most 16 KiB per wakeup, waiting with
+/// `core.fiber.waitFd` (on a fiber when `server.fibers`).
+const ChunkReader = struct {
+    fn handler(_: *anyopaque, req: *types.Request, reply: *types.Reply) void {
+        var pair: [2]posix.socket_t = undefined;
+        if (std.c.socketpair(posix.AF.UNIX, posix.SOCK.STREAM, 0, &pair) != 0) return reply.sendText("socketpair failed");
+        defer posix.close(pair[0]);
+        const total = 8 * 1024 * 1024;
+        const Writer = struct {
+            fn run(fd: posix.socket_t) void {
+                defer posix.close(fd);
+                var chunk: [64 * 1024]u8 = undefined;
+                @memset(&chunk, 'w');
+                var sent: usize = 0;
+                while (sent < total) sent += posix.write(fd, chunk[0..@min(chunk.len, total - sent)]) catch return;
+            }
+        };
+        const t = std.Thread.spawn(.{}, Writer.run, .{pair[1]}) catch return reply.sendText("spawn failed");
+        defer t.join();
+        defer core.fiber.forgetFd(pair[0]);
+        const flags = posix.fcntl(pair[0], posix.F.GETFL, 0) catch 0;
+        _ = posix.fcntl(pair[0], posix.F.SETFL, flags | @as(usize, 1 << @bitOffsetOf(posix.O, "NONBLOCK"))) catch {};
+        var got: usize = 0;
+        var buf: [16 * 1024]u8 = undefined;
+        while (got < total) {
+            const n = posix.read(pair[0], &buf) catch |e| switch (e) {
+                error.WouldBlock => {
+                    if (core.fiber.inFiber()) {
+                        core.fiber.waitFd(pair[0], core.fiber.Events.read, core.fiber.monoMs() + 10_000) catch return reply.sendText("timeout");
+                    } else {
+                        var fds = [_]posix.pollfd{.{ .fd = pair[0], .events = posix.POLL.IN, .revents = 0 }};
+                        _ = posix.poll(&fds, 10_000) catch {};
+                    }
+                    continue;
+                },
+                else => return reply.sendText("read failed"),
+            };
+            if (n == 0) break;
+            got += n;
+            // Like PQconsumeInput: one read per wakeup, then wait again.
+            if (core.fiber.inFiber()) core.fiber.waitFd(pair[0], core.fiber.Events.read, core.fiber.monoMs() + 10_000) catch return reply.sendText("timeout");
+        }
+        reply.sendText(std.fmt.allocPrint(req.arena, "{d}", .{got}) catch "oom");
+    }
+};
+
+test "a fiber reading 8 MiB at 16 KiB per wake completes (level check before parking)" {
+    var dummy: u8 = 0;
+    const routes = [_]types.Route{.{ .methods = &.{"GET"}, .path = "/read", .ctx = &dummy, .hooks = .{ .handler = ChunkReader.handler } }};
+    const server = try server_mod.Server.init(testing.allocator, .{ .host = "127.0.0.1", .port = 0, .routes = &routes });
+    try server.start();
+    defer server.deinit();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const stream = try std.net.tcpConnectToAddress(try std.net.Address.parseIp("127.0.0.1", server.port()));
+    var c: Client = .{ .fd = stream.handle };
+    defer c.close();
+    const r = try c.request(arena.allocator(), "GET /read HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqualStrings("8388608", r.body);
 }
 
 test "late requests during close get 503" {

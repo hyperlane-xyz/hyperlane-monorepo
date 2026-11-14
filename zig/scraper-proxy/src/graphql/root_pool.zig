@@ -9,11 +9,13 @@
 //! takes back any of its jobs no thread has started (`reclaim`), so a request
 //! never waits on a queue position. Idle threads exit after `idle_ms`.
 const std = @import("std");
+const core = @import("core");
 
 pub const Job = struct {
     run: *const fn (*Job) void,
     state: State = .idle,
-    done: std.Thread.ResetEvent = .{},
+    /// Blocks a joining thread, or parks a joining fiber (`core.fiber`).
+    done: core.fiber.Waiter = .{},
     prev: ?*Job = null,
     next: ?*Job = null,
 
@@ -54,7 +56,7 @@ pub const RootPool = struct {
 
     /// Queues `job` for a pool thread; false = run it on the caller.
     pub fn submit(self: *RootPool, job: *Job) bool {
-        job.done.reset();
+        job.done = .{};
         self.mutex.lock();
         if (self.stopping) {
             self.mutex.unlock();
@@ -124,7 +126,7 @@ pub const RootPool = struct {
                 self.mutex.unlock();
                 job.run(job);
                 // The submitter may free `job` as soon as `done` is set.
-                job.done.set();
+                job.done.wake();
                 self.mutex.lock();
                 continue;
             }

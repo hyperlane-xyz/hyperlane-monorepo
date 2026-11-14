@@ -74,17 +74,34 @@ pub const Scheduler = struct {
 
 /// Handoff invariants (deadlock freedom, also with a pinned loop thread):
 /// - I1: nothing holding the loop mutex waits for a poller or the loop
-///   thread; `passEnd` is a poller's only wait for the loop mutex.
+///   thread; `passEnd` is a poller's only wait for the loop mutex. No fiber
+///   ever holds the loop mutex (`assertNotFiber`): fibers park only on
+///   their own I/O, and this also keeps `in_run_handoff` thread-scoped.
 /// - I2: a `.task` handoff is queued in the same critical section as its
 ///   task's wake (`resumeWaiter`).
 /// - I3: a `.run` continuation never blocks (`assertMayBlock`).
+/// - I4: the loop thread never waits indefinitely: no awaited send,
+///   `Loop.wait`, `Loop.lockHandoff` or database wait runs on an HTTP loop
+///   thread or poller (`core.onEventLoopThread`); their completion needs
+///   those threads.
 ///
 /// Set (safety builds) while this thread runs a `.run` handoff (I3).
 threadlocal var in_run_handoff: bool = false;
 
-/// I3: no `.run` continuation blocks (an awaited send, `Loop.wait`, a query).
+/// I3 and I4: here this thread may block until another thread acts (an
+/// awaited send, `Loop.wait`, a query): never inside a `.run` continuation,
+/// never on an HTTP loop thread.
 pub fn assertMayBlock() void {
-    if (std.debug.runtime_safety) std.debug.assert(!in_run_handoff);
+    if (std.debug.runtime_safety) {
+        std.debug.assert(!in_run_handoff);
+        std.debug.assert(!core.onEventLoopThread());
+    }
+}
+
+/// I1: the loop mutex is never taken on a fiber (a parked fiber holding it
+/// would stall every other on its thread).
+fn assertNotFiber() void {
+    if (std.debug.runtime_safety) std.debug.assert(!core.fiber.inFiber());
 }
 
 pub const Loop = struct {
@@ -104,6 +121,10 @@ pub const Loop = struct {
     /// `hold_stats` builds: every hold, and the turn-end hook alone.
     hold: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
     turn_end_hold: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
+    /// `hold_stats` builds: time `lock` waited for the mutex (and queued
+    /// continuations), on HTTP loop threads and pollers vs any thread.
+    wait_loop_thread: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
+    wait_any: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
     locked_at: if (hold_stats) i128 else void = if (hold_stats) 0 else {},
     start_waiters: std.AutoHashMapUnmanaged(u64, *std.Thread.Condition) = .empty,
     /// Continuations a turn resolved (Node's microtasks): they run, in
@@ -118,6 +139,13 @@ pub const Loop = struct {
     };
 
     pub fn lock(self: *Loop) void {
+        assertNotFiber();
+        const asked = if (hold_stats) std.time.nanoTimestamp() else {};
+        defer if (hold_stats) {
+            const waited = std.time.nanoTimestamp() - asked;
+            self.wait_any.record(waited);
+            if (core.onEventLoopThread()) self.wait_loop_thread.record(waited);
+        };
         // A poller thread waiting here hands its other sockets off
         // (`core.blocking`); an uncontended lock costs nothing more.
         if (!self.mutex.tryLock()) {
@@ -143,6 +171,7 @@ pub const Loop = struct {
 
     /// `await` on a condition: the mutex must be held.
     pub fn wait(self: *Loop, condition: *std.Thread.Condition) void {
+        assertNotFiber();
         assertMayBlock();
         self.endTurn();
         self.runHandoffs();
@@ -161,6 +190,7 @@ pub const Loop = struct {
     /// Take the mutex for the continuation handed off as `token`, when its
     /// turn comes (the task was woken after `handOff(.{ .task = token })`).
     pub fn lockHandoff(self: *Loop, token: *anyopaque) void {
+        assertNotFiber();
         assertMayBlock();
         self.mutex.lock();
         while (!(self.handoffs.items.len > 0 and self.handoffs.items[0] == .task and self.handoffs.items[0].task == token))

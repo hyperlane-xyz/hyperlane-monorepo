@@ -53,12 +53,42 @@ pub const Io = enum {
 
 pub const no_deadline: i64 = std.math.maxInt(i64);
 
+const fiber_mod = core.fiber;
+
+/// Posted-event token: `udata` is a `*core.fiber.Fiber` to resume.
+const fiber_token: u32 = 1 << 31;
+
+/// Called when a fiber started by the owner finishes on a later resume.
+pub const FiberDone = struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque) void };
+
+/// A socket fibers wait on (`core.fiber.waitFd`).
+const FdWait = struct {
+    mutex: std.Thread.Mutex = .{},
+    fd: posix.fd_t,
+    /// The loop whose epoll/kqueue holds the registration (`Loop.id`); the
+    /// slot below belongs to it. A wait from another loop moves both.
+    owner: u8,
+    index: u32,
+    gen: u32,
+    /// Readiness seen since the last wait consumed it (edge-triggered).
+    ready: u32 = 0,
+    fiber: ?*fiber_mod.Fiber = null,
+    wanted: u32 = 0,
+};
+
+fn pollEvents(events: u32) i16 {
+    var e: i16 = 0;
+    if (events & fiber_mod.Events.read != 0) e |= posix.POLL.IN;
+    if (events & fiber_mod.Events.write != 0) e |= posix.POLL.OUT;
+    return e;
+}
+
 /// Pollers run whole requests. The deepest request graphql admits needs
 /// 2.5 MiB in ReleaseFast but 8.9 MiB in Debug: at least 2x that, plus
 /// margin. The reservation is virtual: only touched pages cost memory.
 pub const poller_stack_bytes: usize = if (builtin.mode == .Debug) 20 * 1024 * 1024 else 8 * 1024 * 1024;
 
-pub const Kind = enum(u8) { free, listener, http, ws };
+pub const Kind = enum(u8) { free, listener, http, ws, fiber_fd, fiber_timer };
 
 pub const Slot = struct {
     state: std.atomic.Value(u64) = .init(0),
@@ -72,6 +102,9 @@ pub const Slot = struct {
     /// Position in the timer heap (timer mutex).
     heap_pos: u32 = none,
     kind: Kind = .free,
+    /// The loop (`Loop.id`) whose set the slot's socket is registered in:
+    /// its posts, deadlines and timers go there.
+    owner: u8 = 0,
     ptr: ?*anyopaque = null,
     next_free: u32 = none,
 
@@ -147,7 +180,7 @@ const Slots = struct {
         return &self.chunks[index >> chunk_bits].load(.acquire).?[index & (chunk_len - 1)];
     }
 
-    fn alloc(self: *Slots, gpa: std.mem.Allocator, kind: Kind, ptr: *anyopaque) !struct { index: u32, gen: u32 } {
+    fn alloc(self: *Slots, gpa: std.mem.Allocator, kind: Kind, ptr: *anyopaque, owner: u8) !struct { index: u32, gen: u32 } {
         self.mutex.lock();
         defer self.mutex.unlock();
         var index = self.free_head;
@@ -166,6 +199,7 @@ const Slots = struct {
         }
         const slot = self.get(index);
         slot.kind = kind;
+        slot.owner = owner;
         slot.ptr = ptr;
         slot.next_free = none;
         slot.deadline.store(no_deadline, .monotonic);
@@ -219,6 +253,8 @@ pub const Options = struct {
     /// Events taken per `epoll_wait`/`kevent` (Node-style batching). A
     /// poller that blocks or stalls hands its unprocessed ones to another.
     event_batch: u32 = 64,
+    /// Stall monitor on/off (fiber mode: off; nothing to hand off to).
+    monitor: bool = true,
     /// A dispatch running this long without a `blockingBegin` is assumed
     /// blocked (e.g. on a mutex): the monitor hands its place to another.
     stall_us: u32 = 2_000,
@@ -239,6 +275,17 @@ pub const Stats = struct {
     monitor_starts: std.atomic.Value(u64) = .init(0),
     stalls: std.atomic.Value(u64) = .init(0),
     stolen: std.atomic.Value(u64) = .init(0),
+    /// Fiber mode: resumes, fd waits satisfied by an edge already seen,
+    /// parks without a level check (`waitFdAfterSend`), level checks, and
+    /// level checks that found input (no park).
+    fiber_resumes: std.atomic.Value(u64) = .init(0),
+    fiber_ready_hits: std.atomic.Value(u64) = .init(0),
+    fiber_fresh_parks: std.atomic.Value(u64) = .init(0),
+    fiber_level_checks: std.atomic.Value(u64) = .init(0),
+    fiber_level_hits: std.atomic.Value(u64) = .init(0),
+    /// fd registrations moved here from another loop (a pooled DB socket
+    /// last waited on elsewhere).
+    fiber_migrations: std.atomic.Value(u64) = .init(0),
 
     fn bump(counter: *std.atomic.Value(u64), n: u64) void {
         _ = counter.fetchAdd(n, .monotonic);
@@ -285,6 +332,194 @@ pub const Event = struct {
     token: u32 = 0,
 };
 
+/// The `FdWait` of a fiber_fd slot event still of generation `gen`. Another
+/// loop may free the slot meanwhile (moving the registration, or the fd
+/// closing): `FdWait`s are never freed while the group runs, and the
+/// generation, checked after reading the pointer and again under the
+/// FdWait's mutex, rejects stale events.
+fn fdWaitOf(sl: *Slot, gen: u32) ?*FdWait {
+    if (sl.gen() != gen) return null;
+    const p = @atomicLoad(?*anyopaque, &sl.ptr, .acquire) orelse return null;
+    if (sl.gen() != gen or sl.kind != .fiber_fd) return null;
+    return @ptrCast(@alignCast(p));
+}
+
+/// One loop per pinned thread in fiber mode (`Options.loops`), sharing a
+/// global slot table: each slot belongs to the loop its socket is
+/// registered with (`Slot.owner`), and the routing calls below send posts,
+/// deadlines and registrations there. With one loop it is that loop.
+pub const Group = struct {
+    gpa: std.mem.Allocator,
+    slots: Slots = .{},
+    loops: []Loop = &.{},
+    /// Sockets fibers wait on (`core.fiber.waitFd`): one persistent
+    /// edge-triggered registration each, keyed by fd, on the loop that last
+    /// waited on it.
+    fd_mutex: std.Thread.Mutex = .{},
+    fd_waits: std.AutoHashMapUnmanaged(posix.fd_t, *FdWait) = .empty,
+    /// Forgotten registrations, kept (stale events may still read them).
+    fd_free: std.ArrayListUnmanaged(*FdWait) = .empty,
+
+    pub fn init(self: *Group, gpa: std.mem.Allocator, n: u32, options: Options, handler: Handler) !void {
+        std.debug.assert(n >= 1 and n <= 64);
+        self.* = .{ .gpa = gpa };
+        self.loops = try gpa.alloc(Loop, n);
+        var done: usize = 0;
+        errdefer {
+            for (self.loops[0..done]) |*l| l.deinit();
+            gpa.free(self.loops);
+        }
+        for (self.loops, 0..) |*l, i| {
+            try l.init(gpa, options, handler, self, @intCast(i));
+            done += 1;
+        }
+    }
+
+    pub fn start(self: *Group) !void {
+        for (self.loops) |*l| try l.start();
+    }
+
+    pub fn logStats(self: *Group) void {
+        for (self.loops) |*l| l.logStats();
+    }
+
+    /// Stops every loop and frees the group (slots unused by then).
+    pub fn deinit(self: *Group) void {
+        for (self.loops) |*l| l.deinit();
+        self.gpa.free(self.loops);
+        var it = self.fd_waits.valueIterator();
+        while (it.next()) |w| self.gpa.destroy(w.*);
+        self.fd_waits.deinit(self.gpa);
+        for (self.fd_free.items) |w| self.gpa.destroy(w);
+        self.fd_free.deinit(self.gpa);
+        self.slots.deinit(self.gpa);
+    }
+
+    pub fn isStopping(self: *const Group) bool {
+        return self.loops[0].isStopping();
+    }
+
+    /// The loop running on this thread, else the first.
+    pub fn current(self: *Group) *Loop {
+        if (tls_poller) |l| if (l.group == self) return l;
+        return &self.loops[0];
+    }
+
+    pub fn owner(self: *Group, index: u32) *Loop {
+        return &self.loops[self.slots.get(index).owner];
+    }
+
+    pub fn slot(self: *Group, index: u32) *Slot {
+        return self.slots.get(index);
+    }
+
+    /// On this thread's loop (R held by the caller).
+    pub fn allocSlot(self: *Group, kind: Kind, ptr: *anyopaque) !struct { index: u32, gen: u32 } {
+        const r = try self.current().allocSlot(kind, ptr);
+        return .{ .index = r.index, .gen = r.gen };
+    }
+
+    /// The loop a new connection should belong to: the one owning the
+    /// fewest sockets, this thread's on a tie (so with one loop, or when
+    /// connections come and go one at a time, nothing moves). Spreads a burst
+    /// of keep-alive connections accepted by one loop over all of them.
+    pub fn pickLoop(self: *Group) usize {
+        const here = self.current();
+        var best = here;
+        var best_n = here.sockets.load(.monotonic);
+        if (self.loops.len == 1) return here.id;
+        for (self.loops) |*l| {
+            const n = l.sockets.load(.monotonic);
+            if (n < best_n) {
+                best = l;
+                best_n = n;
+            }
+        }
+        return best.id;
+    }
+
+    pub fn allocSlotOn(self: *Group, loop: usize, kind: Kind, ptr: *anyopaque) !struct { index: u32, gen: u32 } {
+        const r = try self.loops[loop].allocSlot(kind, ptr);
+        return .{ .index = r.index, .gen = r.gen };
+    }
+
+    pub fn freeSlot(self: *Group, index: u32) void {
+        self.owner(index).freeSlot(index);
+    }
+
+    pub fn setKind(self: *Group, index: u32, kind: Kind, ptr: *anyopaque) void {
+        self.owner(index).setKind(index, kind, ptr);
+    }
+
+    pub fn slotCount(self: *Group) u32 {
+        return self.slots.high.load(.acquire);
+    }
+
+    pub fn register(self: *Group, fd: posix.fd_t, index: u32, gen: u32) !void {
+        return self.owner(index).register(fd, index, gen);
+    }
+
+    pub fn enableWrite(self: *Group, fd: posix.fd_t, index: u32, gen: u32) !void {
+        return self.owner(index).enableWrite(fd, index, gen);
+    }
+
+    pub fn post(self: *Group, index: u32, gen: u32, token: u32) void {
+        self.owner(index).post(index, gen, token);
+    }
+
+    pub fn setDeadline(self: *Group, index: u32, deadline: i64) void {
+        self.owner(index).setDeadline(index, deadline);
+    }
+
+    /// For a handler starting a fiber on this thread's loop.
+    pub fn fiberScheduler(self: *Group) fiber_mod.Scheduler {
+        return self.current().fiberScheduler();
+    }
+
+    pub fn runFiber(self: *Group, f: *fiber_mod.Fiber) ?*FiberDone {
+        return self.current().runFiber(f);
+    }
+
+    /// `core.fiber.forgetFd`: the fd is about to close (its number may be reused).
+    pub fn forgetFd(self: *Group, fd: posix.fd_t) void {
+        self.fd_mutex.lock();
+        defer self.fd_mutex.unlock();
+        const kv = self.fd_waits.fetchRemove(fd) orelse return;
+        const w = kv.value;
+        const l = &self.loops[w.owner];
+        l.unregister(fd, true);
+        w.mutex.lock();
+        const index = w.index;
+        w.gen = none; // stale events now miss
+        w.fiber = null;
+        w.mutex.unlock();
+        l.freeSlot(index);
+        self.fd_free.append(self.gpa, w) catch {
+            // Kept alive (leaked) rather than freed under a racing reader.
+        };
+    }
+
+    /// A registration record (reused from forgotten ones: a stale reader
+    /// may hold its mutex, so it is updated under it, never overwritten).
+    fn newFdWait(self: *Group, fd: posix.fd_t, owner_id: u8, index: u32, gen: u32) !*FdWait {
+        if (self.fd_free.pop()) |w| {
+            w.mutex.lock();
+            defer w.mutex.unlock();
+            w.fd = fd;
+            w.owner = owner_id;
+            w.index = index;
+            w.gen = gen;
+            w.ready = 0;
+            w.fiber = null;
+            w.wanted = 0;
+            return w;
+        }
+        const w = try self.gpa.create(FdWait);
+        w.* = .{ .fd = fd, .owner = owner_id, .index = index, .gen = gen };
+        return w;
+    }
+};
+
 pub const Loop = struct {
     gpa: std.mem.Allocator,
     options: Options,
@@ -293,7 +528,14 @@ pub const Loop = struct {
     /// Linux eventfd / timerfd (kqueue uses EVFILT_USER / EVFILT_TIMER).
     wake_fd: posix.fd_t = -1,
     tick_fd: posix.fd_t = -1,
-    slots: Slots = .{},
+    /// Shared by every loop of the group (indices are global).
+    slots: *Slots,
+    group: *Group,
+    /// Index in `group.loops` (`Slot.owner`).
+    id: u8,
+    /// Client sockets (HTTP and WebSocket slots) this loop owns: new
+    /// connections go to the loop with the fewest (`Group.pickLoop`).
+    sockets: std.atomic.Value(u32) = .init(0),
 
     mutex: std.Thread.Mutex = .{},
     cond: std.Thread.Condition = .{},
@@ -318,8 +560,8 @@ pub const Loop = struct {
     heap: std.ArrayList(u32) = .empty,
     timer_at: i64 = no_deadline,
 
-    pub fn init(self: *Loop, gpa: std.mem.Allocator, options: Options, handler: Handler) !void {
-        self.* = .{ .gpa = gpa, .options = options, .handler = handler, .fd = -1 };
+    fn init(self: *Loop, gpa: std.mem.Allocator, options: Options, handler: Handler, group: *Group, id: u8) !void {
+        self.* = .{ .gpa = gpa, .options = options, .handler = handler, .fd = -1, .slots = &group.slots, .group = group, .id = id };
         self.recs = try gpa.alloc(Rec, options.max_threads);
         errdefer gpa.free(self.recs);
         @memset(self.recs, .{});
@@ -362,10 +604,14 @@ pub const Loop = struct {
     pub fn logStats(self: *Loop) void {
         if (!@import("http_options").loop_stats) return;
         const st = &self.stats;
-        core.log.child("Http").debug("loop stats waits={d} events={d} begins={d} begin_spare={d} unparks={d} spawns={d} parks={d} exits={d} monitor_starts={d} monitor_ticks={d} stalls={d} stolen={d}", .{
-            st.waits.load(.monotonic),   st.events.load(.monotonic), st.begins.load(.monotonic),        st.begin_spare.load(.monotonic),
-            st.unparks.load(.monotonic), st.spawns.load(.monotonic), st.parks.load(.monotonic),         st.exits.load(.monotonic),
-            st.monitor_starts.load(.monotonic), st.monitor_ticks.load(.monotonic), st.stalls.load(.monotonic), st.stolen.load(.monotonic),
+        core.log.child("Http").debug("loop {d} stats waits={d} events={d} begins={d} begin_spare={d} unparks={d} spawns={d} parks={d} exits={d} monitor_starts={d} monitor_ticks={d} stalls={d} stolen={d}", .{
+            self.id,                           st.waits.load(.monotonic),  st.events.load(.monotonic), st.begins.load(.monotonic), st.begin_spare.load(.monotonic),
+            st.unparks.load(.monotonic),       st.spawns.load(.monotonic), st.parks.load(.monotonic),  st.exits.load(.monotonic),  st.monitor_starts.load(.monotonic),
+            st.monitor_ticks.load(.monotonic), st.stalls.load(.monotonic), st.stolen.load(.monotonic),
+        });
+        if (st.fiber_resumes.load(.monotonic) > 0) core.log.child("Http").debug("loop {d} fiber stats resumes={d} ready_hits={d} fresh_parks={d} level_checks={d} level_hits={d} migrations={d}", .{
+            self.id,                                st.fiber_resumes.load(.monotonic),    st.fiber_ready_hits.load(.monotonic), st.fiber_fresh_parks.load(.monotonic),
+            st.fiber_level_checks.load(.monotonic), st.fiber_level_hits.load(.monotonic), st.fiber_migrations.load(.monotonic),
         });
     }
 
@@ -384,7 +630,6 @@ pub const Loop = struct {
         self.posted_events.deinit(self.gpa);
         self.heap.deinit(self.gpa);
         self.gpa.free(self.recs);
-        self.slots.deinit(self.gpa);
     }
 
     pub fn isStopping(self: *const Loop) bool {
@@ -399,13 +644,15 @@ pub const Loop = struct {
 
     /// Allocates a slot (R held by the caller).
     pub fn allocSlot(self: *Loop, kind: Kind, ptr: *anyopaque) !struct { index: u32, gen: u32 } {
-        const r = try self.slots.alloc(self.gpa, kind, ptr);
+        const r = try self.slots.alloc(self.gpa, kind, ptr, self.id);
+        if (kind == .http) _ = self.sockets.fetchAdd(1, .monotonic);
         return .{ .index = r.index, .gen = r.gen };
     }
 
     /// Frees a slot (the caller holds its tokens and has closed the fd).
     pub fn freeSlot(self: *Loop, index: u32) void {
         const sl = self.slots.get(index);
+        if (sl.kind == .http or sl.kind == .ws) _ = self.sockets.fetchSub(1, .monotonic);
         if (sl.armed.load(.acquire) != no_deadline) {
             self.timer_mutex.lock();
             if (sl.heap_pos != none) self.heapRemove(sl.heap_pos);
@@ -440,6 +687,16 @@ pub const Loop = struct {
         } else {
             try self.kev(&.{.{ .ident = @intCast(fd), .filter = std.c.EVFILT.READ, .flags = std.c.EV.ADD | std.c.EV.CLEAR, .fflags = 0, .data = 0, .udata = udataOf(index, gen) }});
         }
+    }
+
+    /// A listen socket shared by several loops: each registers it. With
+    /// `exclusive` (Linux EPOLLEXCLUSIVE) a new connection wakes one waiting
+    /// loop rather than all; kqueue wakes every loop (development only).
+    pub fn registerListener(self: *Loop, fd: posix.fd_t, index: u32, gen: u32, exclusive: bool) !void {
+        if (is_linux) {
+            const excl: u32 = if (exclusive) linux.EPOLL.EXCLUSIVE else 0;
+            try self.epollCtl(linux.EPOLL.CTL_ADD, fd, linux.EPOLL.IN | linux.EPOLL.ET | excl, udataOf(index, gen));
+        } else try self.register(fd, index, gen);
     }
 
     /// Adds edge-triggered write interest (after a write hit EAGAIN).
@@ -503,7 +760,8 @@ pub const Loop = struct {
             const one: u64 = 1;
             _ = posix.write(self.wake_fd, std.mem.asBytes(&one)) catch {};
         } else {
-            self.kev(&.{.{ .ident = 0, .filter = std.c.EVFILT.USER, .flags = 0, .fflags = std.c.NOTE.TRIGGER, .data = 0, .udata = wake_udata }}) catch {};
+            var none_out: [0]posix.Kevent = .{};
+            _ = posix.kevent(self.fd, &.{.{ .ident = 0, .filter = std.c.EVFILT.USER, .flags = 0, .fflags = std.c.NOTE.TRIGGER, .data = 0, .udata = wake_udata }}, &none_out, null) catch {};
         }
     }
 
@@ -714,10 +972,259 @@ pub const Loop = struct {
                 if (deadline == no_deadline) continue;
                 if (deadline > now) {
                     self.setDeadline(d.index, deadline);
+                } else if (sl.kind == .fiber_fd) {
+                    if (fdWaitOf(sl, d.gen)) |w| self.onFdTimeout(w, d.gen);
+                } else if (sl.kind == .fiber_timer) {
+                    self.onFiberTimer(sl);
                 } else self.handler.on_expired(self.handler.ctx, d.index, d.gen);
             }
             if (!more) return;
         }
+    }
+
+    // -- fibers -----------------------------------------------------------------------
+
+    pub fn fiberScheduler(self: *Loop) fiber_mod.Scheduler {
+        return .{ .ctx = self, .wake = fiberWake };
+    }
+
+    fn fiberWake(ctx: *anyopaque, f: *fiber_mod.Fiber) void {
+        const self: *Loop = @ptrCast(@alignCast(ctx));
+        self.postFiber(f);
+    }
+
+    /// Makes a suspended fiber runnable on a poller (thread-safe).
+    pub fn postFiber(self: *Loop, f: *fiber_mod.Fiber) void {
+        // Called from any thread, possibly holding the caller's locks (e.g.
+        // core.log's output mutex): only this loop's mutex and the wake fd,
+        // never a resume here (fibers are pinned to their loop thread) and
+        // never a log line.
+        while (true) {
+            self.mutex.lock();
+            const was_empty = self.posted_events.items.len == 0;
+            self.posted_events.append(self.gpa, .{ .udata = @intFromPtr(f), .token = fiber_token }) catch {
+                self.mutex.unlock();
+                // Out of memory: the wake must not be lost; retry shortly.
+                std.Thread.sleep(std.time.ns_per_ms);
+                continue;
+            };
+            self.mutex.unlock();
+            if (was_empty) self.signalWake();
+            return;
+        }
+    }
+
+    /// Resumes `f` until it finishes or waits, publishing each wait only
+    /// after the switch-out. Returns its `FiberDone` (the fiber is freed) if
+    /// it finished; null while it waits (or when a detached one finished).
+    pub fn runFiber(self: *Loop, f: *fiber_mod.Fiber) ?*FiberDone {
+        while (true) {
+            // A timed wait that ended (woken or expired): drop its timer.
+            if (f.timer_slot) |index| {
+                f.timer_slot = null;
+                self.freeSlot(index);
+            }
+            Stats.bump(&self.stats.fiber_resumes, 1);
+            fiber_mod.resumeFiber(f);
+            if (f.done) {
+                // No user: a detached fiber (`fiber.spawn`), nothing to report.
+                const user = f.user;
+                _ = fiber_mod.reap(f);
+                const u = user orelse return null;
+                return @ptrCast(@alignCast(u));
+            }
+            const ready = switch (f.parked_on) {
+                .nothing => false,
+                .call => |c| blk: {
+                    // On the loop's own stack, outside any fiber.
+                    c.func(c.ctx);
+                    break :blk true;
+                },
+                .waiter => |p| self.publishWaiter(f, p.w, p.deadline_ms),
+                .fd => |p| self.publishFdWait(f, p.fd, p.events, p.deadline_ms, p.fresh),
+            };
+            if (!ready) return null;
+        }
+    }
+
+    /// The fd's registration, created on (or moved to) this loop. Only the
+    /// waiting fiber uses a socket, so nothing waits on it elsewhere now.
+    fn fdWaitFor(self: *Loop, fd: posix.fd_t) !*FdWait {
+        const g = self.group;
+        g.fd_mutex.lock();
+        defer g.fd_mutex.unlock();
+        if (g.fd_waits.get(fd)) |w| {
+            if (w.owner == self.id) return w;
+            // Last waited on from another loop: move the registration. Its
+            // old slot is freed (a new generation), so events the old set
+            // already reported are dropped; adding to this set reports
+            // input that is already there.
+            const old = &g.loops[w.owner];
+            old.unregister(fd, true);
+            old.freeSlot(w.index);
+            const sl = try self.allocSlot(.fiber_fd, w);
+            w.mutex.lock();
+            w.owner = self.id;
+            w.index = sl.index;
+            w.gen = sl.gen;
+            w.ready = 0;
+            w.mutex.unlock();
+            _ = release(self.slots.get(sl.index), R, 0);
+            Stats.bump(&self.stats.fiber_migrations, 1);
+            self.registerFiberFd(fd, sl.index, sl.gen) catch |e| {
+                _ = g.fd_waits.remove(fd);
+                w.mutex.lock();
+                w.gen = none;
+                w.mutex.unlock();
+                self.freeSlot(sl.index);
+                g.fd_free.append(self.gpa, w) catch {};
+                return e;
+            };
+            return w;
+        }
+        try g.fd_waits.ensureUnusedCapacity(self.gpa, 1);
+        try g.fd_free.ensureUnusedCapacity(self.gpa, 1);
+        // The slot points at the record before it exists: nothing reports
+        // events for it until the registration below.
+        const sl = try self.allocSlot(.fiber_fd, self);
+        const w = g.newFdWait(fd, self.id, sl.index, sl.gen) catch |e| {
+            self.freeSlot(sl.index);
+            return e;
+        };
+        self.slots.get(sl.index).ptr = w;
+        self.registerFiberFd(fd, sl.index, sl.gen) catch |e| {
+            w.mutex.lock();
+            w.gen = none;
+            w.mutex.unlock();
+            self.freeSlot(sl.index);
+            g.fd_free.appendAssumeCapacity(w);
+            return e;
+        };
+        // Slots are handed out with R held; fiber_fd slots never use it.
+        _ = release(self.slots.get(sl.index), R, 0);
+        g.fd_waits.putAssumeCapacity(fd, w);
+        return w;
+    }
+
+    fn registerFiberFd(self: *Loop, fd: posix.fd_t, index: u32, gen: u32) !void {
+        if (is_linux) {
+            try self.epollCtl(linux.EPOLL.CTL_ADD, fd, linux.EPOLL.IN | linux.EPOLL.OUT | linux.EPOLL.RDHUP | linux.EPOLL.ET, udataOf(index, gen));
+        } else {
+            try self.kev(&.{
+                .{ .ident = @intCast(fd), .filter = std.c.EVFILT.READ, .flags = std.c.EV.ADD | std.c.EV.CLEAR, .fflags = 0, .data = 0, .udata = udataOf(index, gen) },
+                .{ .ident = @intCast(fd), .filter = std.c.EVFILT.WRITE, .flags = std.c.EV.ADD | std.c.EV.CLEAR, .fflags = 0, .data = 0, .udata = udataOf(index, gen) },
+            });
+        }
+    }
+
+    /// True when `events` already happened since the last wait (resume now).
+    fn publishFdWait(self: *Loop, f: *fiber_mod.Fiber, fd: posix.fd_t, events: u32, deadline_ms: ?i64, fresh: bool) bool {
+        const w = self.fdWaitFor(fd) catch |e| {
+            // No registration (out of memory or descriptors): fail this wait
+            // as timed out rather than block the whole loop in poll(). Clients
+            // see the caller's timeout error (e.g. "Query read timeout"), with
+            // one warning per failed wait.
+            log.warn("fiber fd wait failed: {s}", .{@errorName(e)});
+            f.timed_out = true;
+            return true;
+        };
+        w.mutex.lock();
+        if (w.ready & events != 0) {
+            w.ready &= ~events;
+            w.mutex.unlock();
+            Stats.bump(&self.stats.fiber_ready_hits, 1);
+            return true;
+        }
+        w.fiber = f;
+        w.wanted = events;
+        w.mutex.unlock();
+        if (fresh) {
+            // Only input sent after the call is awaited: its edge resumes us.
+            Stats.bump(&self.stats.fiber_fresh_parks, 1);
+            self.setDeadline(w.index, deadline_ms orelse no_deadline);
+            return false;
+        }
+        Stats.bump(&self.stats.fiber_level_checks, 1);
+        // Level check: the reader (libpq reads ~16 KiB per call) may have
+        // left bytes in the socket that raise no new edge. Published first,
+        // so an edge meanwhile cannot be missed: whoever takes `fiber` back
+        // resumes it.
+        var fds = [_]posix.pollfd{.{ .fd = fd, .events = pollEvents(events), .revents = 0 }};
+        const level = (posix.poll(&fds, 0) catch 1) > 0;
+        if (level) {
+            Stats.bump(&self.stats.fiber_level_hits, 1);
+            w.mutex.lock();
+            const mine = w.fiber == f;
+            if (mine) w.fiber = null;
+            w.mutex.unlock();
+            // Not mine: an edge already took it and resumes it.
+            return mine;
+        }
+        self.setDeadline(w.index, deadline_ms orelse no_deadline);
+        return false;
+    }
+
+    /// True when the wake already happened (resume now).
+    fn publishWaiter(self: *Loop, f: *fiber_mod.Fiber, w: *fiber_mod.Waiter, deadline_ms: ?i64) bool {
+        if (w.publish(f)) return true;
+        const d = deadline_ms orelse return false;
+        const sl = self.allocSlot(.fiber_timer, f) catch {
+            // No timer: the wait just has no deadline.
+            return false;
+        };
+        _ = release(self.slots.get(sl.index), R, 0);
+        f.timer_slot = sl.index;
+        self.setDeadline(sl.index, d);
+        return false;
+    }
+
+    /// A timed `Waiter` wait reached its deadline (pinned loop: no race
+    /// with this fiber's resume, which runs on this thread too).
+    fn onFiberTimer(self: *Loop, sl: *Slot) void {
+        const f: *fiber_mod.Fiber = @ptrCast(@alignCast(sl.ptr.?));
+        const w = switch (f.parked_on) {
+            .waiter => |p| p.w,
+            else => return,
+        };
+        if (!w.expire(f)) return; // a wake won: its resume is on the way
+        f.timed_out = true;
+        if (self.runFiber(f)) |done| done.func(done.ctx);
+    }
+
+    fn onFdReady(self: *Loop, w: *FdWait, gen: u32, ev: Event) void {
+        var bits: u32 = 0;
+        if (ev.readable or ev.hup) bits |= fiber_mod.Events.read;
+        if (ev.writable or ev.hup) bits |= fiber_mod.Events.write;
+        w.mutex.lock();
+        if (w.gen != gen) {
+            w.mutex.unlock();
+            return;
+        }
+        w.ready |= bits;
+        var f: ?*fiber_mod.Fiber = null;
+        if (w.fiber != null and w.ready & w.wanted != 0) {
+            f = w.fiber;
+            w.fiber = null;
+            w.ready &= ~w.wanted;
+        }
+        w.mutex.unlock();
+        const fib = f orelse return;
+        self.setDeadline(w.index, no_deadline);
+        if (self.runFiber(fib)) |done| done.func(done.ctx);
+    }
+
+    fn onFdTimeout(self: *Loop, w: *FdWait, gen: u32) void {
+        w.mutex.lock();
+        if (w.gen != gen) {
+            w.mutex.unlock();
+            return;
+        }
+        const f = w.fiber;
+        w.fiber = null;
+        w.mutex.unlock();
+        const fib = f orelse return;
+        fib.timed_out = true;
+        if (self.runFiber(fib)) |done| done.func(done.ctx);
     }
 
     // -- pollers ----------------------------------------------------------------------
@@ -764,6 +1271,7 @@ pub const Loop = struct {
 
     fn worker(self: *Loop) void {
         tls_poller = self;
+        core.fiber.setEventLoopThread(true);
         tls_rec = self.claimRec();
         if (tls_rec == null) return self.exitThread(false); // more threads than records
         var batch: [max_event_batch]Event = undefined;
@@ -877,7 +1385,7 @@ pub const Loop = struct {
 
     fn dispatchTracked(self: *Loop, ev: Event) void {
         const rec = tls_rec orelse return self.dispatch(ev);
-        if (!self.monitor_running.load(.monotonic)) self.startMonitor();
+        if (self.options.monitor and !self.monitor_running.load(.monotonic)) self.startMonitor();
         rec.state.store(.running, .seq_cst);
         rec.start.store(monoNs(), .release);
         self.dispatch(ev);
@@ -938,11 +1446,24 @@ pub const Loop = struct {
     }
 
     fn dispatch(self: *Loop, ev: Event) void {
+        if (ev.token == fiber_token) {
+            if (self.runFiber(@ptrFromInt(ev.udata))) |done| done.func(done.ctx);
+            return;
+        }
         if (ev.token != 0) return self.handler.on_posted(self.handler.ctx, @truncate(ev.udata), @truncate(ev.udata >> 32), ev.token);
         switch (ev.udata) {
             wake_udata => self.onWake(),
             tick_udata => self.onTick(),
-            else => self.handler.on_event(self.handler.ctx, @truncate(ev.udata), @truncate(ev.udata >> 32), ev),
+            else => {
+                const index: u32 = @truncate(ev.udata);
+                const gen: u32 = @truncate(ev.udata >> 32);
+                const sl = self.slots.get(index);
+                if (sl.kind == .fiber_fd) {
+                    if (fdWaitOf(sl, gen)) |w| self.onFdReady(w, gen, ev);
+                    return;
+                }
+                self.handler.on_event(self.handler.ctx, index, gen, ev);
+            },
         }
     }
 

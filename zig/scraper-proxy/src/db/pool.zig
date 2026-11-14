@@ -1,7 +1,8 @@
 //! pg-pool equivalent over blocking libpq connections.
 //!
-//! * acquire: newest idle connection (LIFO, like `_idle.pop()`), else open a
-//!   new one while `total < max`, else wait FIFO; with `connect_timeout_ms` a
+//! * acquire: newest idle connection (LIFO, like `_idle.pop()`; on a fiber,
+//!   the newest one already registered on its loop, if any), else
+//!   open a new one while `total < max`, else wait FIFO; with `connect_timeout_ms` a
 //!   waiter gives up with "timeout exceeded when trying to connect".
 //! * release: hand straight to the oldest waiter, else park idle.
 //! * idle connections above `min` close after `idle_timeout_ms` (reaper thread).
@@ -45,6 +46,16 @@ pub const HoldHistogram = struct {
     /// Upper bounds in microseconds; the last bucket is everything above.
     pub const bounds_us = [_]u64{ 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 50_000 };
     counts: [bounds_us.len + 1]std.atomic.Value(u64) = @splat(.init(0)),
+    /// Where checkouts came from relative to the caller's event loop
+    /// (`Conn.home`; pool mutex held when counted): an idle connection of
+    /// its loop, another idle one (moves loops unless never waited on), a
+    /// release hand-off from the same or another loop, or off a fiber.
+    affinity: [5]std.atomic.Value(u64) = @splat(.init(0)),
+    pub const Affinity = enum { own, other, handoff_same, handoff_other, thread };
+
+    fn count(self: *HoldHistogram, a: Affinity) void {
+        _ = self.affinity[@intFromEnum(a)].fetchAdd(1, .monotonic);
+    }
 
     fn record(self: *HoldHistogram, held_ns: i128) void {
         const us: u64 = @intCast(@max(0, @divTrunc(held_ns, 1000)));
@@ -57,6 +68,8 @@ pub const HoldHistogram = struct {
     pub fn format(self: *const HoldHistogram, w: *std.Io.Writer) std.Io.Writer.Error!void {
         for (bounds_us, 0..) |b, i| try w.print("<{d}us={d} ", .{ b, self.counts[i].load(.monotonic) });
         try w.print(">={d}us={d}", .{ bounds_us[bounds_us.len - 1], self.counts[bounds_us.len].load(.monotonic) });
+        try w.writeAll(" affinity");
+        for (self.affinity, 0..) |c, i| try w.print(" {s}={d}", .{ @tagName(@as(Affinity, @enumFromInt(i))), c.load(.monotonic) });
     }
 };
 
@@ -64,11 +77,26 @@ const Idle = struct { conn: pq.Conn, since_ms: i64 };
 
 const Waiter = struct {
     cond: std.Thread.Condition = .{},
+    /// Set when the waiter is a fiber: it parks instead of blocking a thread.
+    fiber: ?*core.fiber.Waiter = null,
     /// Set by `release` (hand-off) or to signal "try to open" (`slot`).
     conn: ?pq.Conn = null,
     slot: bool = false,
     next: ?*Waiter = null,
+    /// The waiting fiber's event loop (`hold_stats` affinity counts only).
+    loop: ?*anyopaque = null,
+
+    /// Pool mutex held.
+    fn signal(self: *Waiter) void {
+        if (self.fiber) |fw| fw.wake() else self.cond.signal();
+    }
 };
+
+/// `pq.Conn.connect`, but never on a fiber stack (name resolution, TLS):
+/// on a fiber it runs on a helper thread while the fiber parks.
+fn connectOffFiber(opts: pq.ConnOptions, arena: std.mem.Allocator, failure: ?*Failure) Error!pq.Conn {
+    return core.fiber.offload(pq.Conn.connect, .{ opts, arena, failure });
+}
 
 pub const Pool = struct {
     gpa: std.mem.Allocator,
@@ -159,7 +187,7 @@ pub const Pool = struct {
         self.total -= @intCast(idle.items.len);
         // Wake waiters so they fail with PoolClosed.
         var w = self.head;
-        while (w) |waiter| : (w = waiter.next) waiter.cond.signal();
+        while (w) |waiter| : (w = waiter.next) waiter.signal();
         self.reaper_cond.signal();
         self.mutex.unlock();
         for (idle.items) |*i| i.conn.deinit();
@@ -317,7 +345,7 @@ pub const Pool = struct {
                     if (queued) if (deadline) |d| {
                         opts.connect_timeout_ms = @intCast(@max(1, d - pq.nowMs()));
                     };
-                    var conn = pq.Conn.connect(opts, arena, failure) catch |e| {
+                    var conn = connectOffFiber(opts, arena, failure) catch |e| {
                         self.mutex.lock();
                         self.total -= 1;
                         self.wakeOne();
@@ -346,13 +374,34 @@ pub const Pool = struct {
     /// obtained after queueing.
     const Checkout = union(enum) { conn: pq.Conn, open: bool, busy };
 
+    /// The newest idle connection (LIFO). On a fiber, the newest one whose
+    /// socket is registered on the fiber's loop, if any (the list holds at
+    /// most `max`): another loop's would have to move to this one (epoll_ctl
+    /// DEL and ADD under the loop group's lock). Mutex held.
+    fn takeIdle(self: *Pool) ?pq.Conn {
+        const items = self.idle.items;
+        if (items.len == 0) return null;
+        if (core.fiber.current()) |f| {
+            var i = items.len;
+            while (i > 0) {
+                i -= 1;
+                if (items[i].conn.home == f.sched.ctx) {
+                    if (hold_stats) self.hold.count(.own);
+                    return self.idle.orderedRemove(i).conn;
+                }
+            }
+            if (hold_stats) self.hold.count(.other);
+        } else if (hold_stats) self.hold.count(.thread);
+        return self.idle.pop().?.conn;
+    }
+
     /// Sets `blocked` after `core.blocking.begin()` (caller calls `end`).
     fn checkout(self: *Pool, arena: std.mem.Allocator, failure: ?*Failure, deadline: ?i64, wait: bool, blocked: *bool) Error!Checkout {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.closed) return error.PoolClosed;
         if (self.head == null) {
-            if (self.idle.pop()) |i| return .{ .conn = i.conn };
+            if (self.takeIdle()) |c| return .{ .conn = c };
             if (!wait) return .busy;
             if (self.total < self.options.max) {
                 self.total += 1;
@@ -365,6 +414,29 @@ pub const Pool = struct {
         self.tail = &waiter;
         self.waiting += 1;
         defer self.waiting -= 1;
+        // A fiber parks (no thread blocked) until a hand-off, a free slot
+        // or the checkout deadline (`waitTimeout`).
+        if (core.fiber.inFiber()) {
+            const mono: ?i64 = if (deadline) |d| core.fiber.monoMs() + (d - pq.nowMs()) else null;
+            if (hold_stats) waiter.loop = core.fiber.current().?.sched.ctx;
+            while (waiter.conn == null and !waiter.slot and !self.closed) {
+                var fw: core.fiber.Waiter = .{};
+                waiter.fiber = &fw;
+                self.mutex.unlock();
+                const woken = fw.waitTimeout(mono);
+                self.mutex.lock();
+                waiter.fiber = null;
+                if (!woken and waiter.conn == null and !waiter.slot) {
+                    self.unlink(&waiter);
+                    if (failure) |f| f.message = arena.dupe(u8, "timeout exceeded when trying to connect") catch "";
+                    return error.ConnectionFailed;
+                }
+            }
+            if (waiter.conn) |c| return .{ .conn = c };
+            if (waiter.slot) return .{ .open = true };
+            self.unlink(&waiter);
+            return error.PoolClosed;
+        }
         // About to sleep: let an HTTP poller hand off its work. The hook runs
         // with the pool mutex released; a hand-off meanwhile is seen by the
         // loop condition below.
@@ -419,7 +491,7 @@ pub const Pool = struct {
             // waiter runs (which would exceed `max`).
             self.total += 1;
             w.slot = true;
-            w.cond.signal();
+            w.signal();
         }
     }
 
@@ -436,8 +508,11 @@ pub const Pool = struct {
             return;
         }
         if (self.popWaiter()) |w| {
+            if (hold_stats) {
+                self.hold.count(if (w.loop == null) .thread else if (w.loop == conn.home) .handoff_same else .handoff_other);
+            }
             w.conn = conn;
-            w.cond.signal();
+            w.signal();
             self.mutex.unlock();
             return;
         }

@@ -22,7 +22,7 @@ const Reply = types.Reply;
 const Route = types.Route;
 const Header = types.Header;
 const FastifyError = types.FastifyError;
-const Loop = loop_mod.Loop;
+const Group = loop_mod.Group;
 const monoMs = loop_mod.monoMs;
 
 const log = core.log.child("Http");
@@ -79,9 +79,30 @@ pub const Options = struct {
     /// release 8 MiB: see `loop.poller_stack_bytes`.
     thread_stack_bytes: usize = loop_mod.poller_stack_bytes,
     kernel_backlog: u31 = 511,
+    /// Fiber mode: event loops, one pinned thread each, sharing the listen
+    /// socket (one registration per loop; on Linux EPOLLEXCLUSIVE wakes one
+    /// loop per connection burst). Thread mode always runs one.
+    /// 0: one per CPU this process may run on (`std.Thread.getCpuCount`,
+    /// which honours the affinity mask, e.g. a cpuset). Default:
+    /// `-Dhttp-loops` (1 until measured).
+    loops: u32 = @import("http_options").loops,
 };
 
+/// Most loops a server runs (`Options.loops`).
+pub const max_loops = 64;
+
 const buf_len = 64 * 1024;
+
+/// Prototype: run route handlers on fibers (`core.fiber`), so a handler that
+/// waits on the database parks instead of blocking a poller thread.
+pub const fibers = true;
+
+/// The loops that own fiber fd registrations (`core.fiber.forgetFd`).
+var fiber_group: ?*Group = null;
+
+fn fiberFdClosing(fd: posix.fd_t) void {
+    if (fiber_group) |g| g.forgetFd(fd);
+}
 
 /// A request arena with a stable address (requests keep `*ArenaBox` across
 /// parks; idle sockets own none).
@@ -131,9 +152,12 @@ pub const Server = struct {
     options: Options,
     listen_fd: posix.socket_t,
     address: std.net.Address,
-    loop: Loop = undefined,
-    listener_index: u32 = 0,
-    listener_gen: u32 = 0,
+    loop: Group = undefined,
+    /// The listen socket's slot on each loop.
+    listeners: [max_loops]Listener = undefined,
+    listener_count: u32 = 0,
+    /// Listener slots not yet freed by `close`.
+    listeners_open: u32 = 0,
     started: bool = false,
     mutex: std.Thread.Mutex = .{},
     cond: std.Thread.Condition = .{},
@@ -148,8 +172,14 @@ pub const Server = struct {
     /// Free request arenas (bounded).
     arenas: ?*ArenaBox = null,
     arena_count: u32 = 0,
-    accept_backoff_ms: i64 = 10,
-    last_accept_log: i64 = 0,
+    last_accept_log: std.atomic.Value(i64) = .init(0),
+
+    const Listener = struct {
+        index: u32,
+        gen: u32,
+        /// EMFILE/ENFILE retry backoff (only this listener's R holder uses it).
+        backoff_ms: i64 = 10,
+    };
 
     /// Binds and listens (like `app.listen`); errors surface immediately.
     pub fn init(gpa: std.mem.Allocator, options: Options) !*Server {
@@ -169,10 +199,17 @@ pub const Server = struct {
         const self = try gpa.create(Server);
         errdefer gpa.destroy(self);
         self.* = .{ .gpa = gpa, .options = options, .listen_fd = fd, .address = bound };
-        try self.loop.init(gpa, .{
+        const n_loops: u32 = if (!fibers) 1 else if (options.loops == 0)
+            @intCast(std.math.clamp(std.Thread.getCpuCount() catch 1, 1, max_loops))
+        else
+            @min(options.loops, max_loops);
+        try self.loop.init(gpa, n_loops, .{
             // Without `core.blocking` the database cannot hand off: stay elastic.
-            .active = if (@hasDecl(core, "blocking")) options.pollers else options.max_threads,
-            .max_threads = options.max_threads,
+            .active = if (fibers) 1 else if (@hasDecl(core, "blocking")) options.pollers else options.max_threads,
+            // Fiber mode: one pinned thread per loop; waits park fibers, so
+            // nothing hands off to another thread (fibers never migrate).
+            .max_threads = if (fibers) 1 else options.max_threads,
+            .monitor = !fibers,
             .event_batch = options.event_batch,
             .stack_size = options.thread_stack_bytes,
         }, .{
@@ -183,16 +220,26 @@ pub const Server = struct {
             .on_thread_exit = onThreadExit,
         });
         errdefer self.loop.deinit();
+        if (fibers) {
+            fiber_group = &self.loop;
+            core.fiber.fd_closing = fiberFdClosing;
+        }
         // Process-wide: pollers wait this long for a short DB reply before
         // handing off (the database calls `core.blocking.graceWait`).
         if (@hasDecl(core, "blocking") and @hasDecl(core.blocking, "grace_ns"))
             core.blocking.grace_ns = @as(u64, options.handoff_grace_us) * std.time.ns_per_us;
-        const slot = try self.loop.allocSlot(.listener, self);
-        self.listener_index = slot.index;
-        self.listener_gen = slot.gen;
-        try self.loop.register(fd, slot.index, slot.gen);
-        // No poller runs yet: nothing can have set a pending bit.
-        _ = loop_mod.release(self.loop.slot(slot.index), loop_mod.R, 0);
+        // One registration per loop. Several: exclusive wake-ups (Linux), so
+        // a connection burst wakes one loop, which accepts at most a small
+        // batch per wake-up before the others get theirs.
+        for (0..n_loops) |i| {
+            const slot = try self.loop.allocSlotOn(i, .listener, self);
+            self.listeners[i] = .{ .index = slot.index, .gen = slot.gen };
+            self.listener_count += 1;
+            try self.loop.loops[i].registerListener(fd, slot.index, slot.gen, n_loops > 1);
+            // No poller runs yet: nothing can have set a pending bit.
+            _ = loop_mod.release(self.loop.slot(slot.index), loop_mod.R, 0);
+        }
+        self.listeners_open = self.listener_count;
         return self;
     }
 
@@ -218,9 +265,9 @@ pub const Server = struct {
         if (self.closing.swap(true, .acq_rel)) return;
         const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
         if (!self.started) {
-            self.closeListener();
+            for (self.listeners[0..self.listener_count]) |l| self.closeListener(l.index);
         } else {
-            self.kick(self.listener_index, self.listener_gen);
+            for (self.listeners[0..self.listener_count]) |l| self.kick(l.index, l.gen);
             self.mutex.lock();
             while (!self.listener_closed) self.cond.timedWait(&self.mutex, 10 * std.time.ns_per_ms) catch {};
             self.mutex.unlock();
@@ -291,11 +338,14 @@ pub const Server = struct {
             self.loop.post(index, gen, loop_mod.R | loop_mod.KICK);
     }
 
-    fn closeListener(self: *Server) void {
-        posix.close(self.listen_fd);
-        self.loop.freeSlot(self.listener_index);
+    /// Frees one loop's listener slot; the last one closes the socket.
+    fn closeListener(self: *Server, index: u32) void {
+        self.loop.freeSlot(index);
         self.mutex.lock();
         defer self.mutex.unlock();
+        self.listeners_open -= 1;
+        if (self.listeners_open > 0) return;
+        posix.close(self.listen_fd);
         self.listener_closed = true;
         self.cond.broadcast();
     }
@@ -335,13 +385,14 @@ pub const Server = struct {
     fn runSlot(self: *Server, index: u32, io: loop_mod.Io, kicked: bool) void {
         const slot = self.loop.slot(index);
         switch (slot.kind) {
-            .listener => self.runListener(),
+            .listener => self.runListener(index),
             .http => {
                 const conn: *Connection = @ptrCast(@alignCast(slot.ptr.?));
                 conn.run(io, kicked);
             },
             .ws => wsConn(slot).runReader(io, kicked),
-            .free => unreachable,
+            // The loop routes fiber kinds itself.
+            .free, .fiber_fd, .fiber_timer => unreachable,
         }
     }
 
@@ -354,17 +405,28 @@ pub const Server = struct {
     }
 
     fn onThreadExit(_: *anyopaque) void {
+        if (fibers) core.fiber.releaseThreadCache();
         freeScratch();
     }
 
     // -- accept -----------------------------------------------------------------------
 
-    /// R on the listener is held.
-    fn runListener(self: *Server) void {
-        const slot = self.loop.slot(self.listener_index);
+    fn listenerOf(self: *Server, index: u32) *Listener {
+        return &self.listeners[self.listenerPos(index)];
+    }
+
+    fn listenerPos(self: *Server, index: u32) usize {
+        for (self.listeners[0..self.listener_count], 0..) |l, i| if (l.index == index) return i;
+        unreachable;
+    }
+
+    /// R on this loop's listener slot is held.
+    fn runListener(self: *Server, index: u32) void {
+        const slot = self.loop.slot(index);
+        const l = self.listenerOf(index);
         while (true) {
-            if (self.isClosing()) return self.closeListener();
-            self.loop.setDeadline(self.listener_index, loop_mod.no_deadline);
+            if (self.isClosing()) return self.closeListener(index);
+            self.loop.setDeadline(index, loop_mod.no_deadline);
             var accepted: [16]*Connection = undefined;
             var n: usize = 0;
             var more = false;
@@ -378,16 +440,15 @@ pub const Server = struct {
                         // Persistent failures (EMFILE/ENFILE): retry from a
                         // deadline after a backoff up to 1 s; log at most once per second.
                         const now = std.time.milliTimestamp();
-                        if (now - self.last_accept_log >= 1000) {
+                        const last = self.last_accept_log.load(.monotonic);
+                        if (now - last >= 1000 and self.last_accept_log.cmpxchgStrong(last, now, .monotonic, .monotonic) == null)
                             log.err("accept failed: {s}", .{@errorName(e)});
-                            self.last_accept_log = now;
-                        }
-                        self.loop.setDeadline(self.listener_index, monoMs() + self.accept_backoff_ms);
-                        self.accept_backoff_ms = @min(self.accept_backoff_ms * 2, 1000);
+                        self.loop.setDeadline(index, monoMs() + l.backoff_ms);
+                        l.backoff_ms = @min(l.backoff_ms * 2, 1000);
                         break;
                     },
                 };
-                self.accept_backoff_ms = 10;
+                l.backoff_ms = 10;
                 if (self.newConnection(fd, addr)) |conn| {
                     accepted[n] = conn;
                     n += 1;
@@ -395,12 +456,24 @@ pub const Server = struct {
             } else more = true;
             // Let other pollers pick up the rest before serving one here.
             if (n > 1) for (accepted[1..n]) |conn| conn.handOff();
-            const pending = if (more) loop_mod.R_AGAIN else loop_mod.release(slot, loop_mod.R, loop_mod.R_AGAIN | loop_mod.KICK);
+            if (more and self.listener_count > 1) {
+                // A full batch: the next loop accepts the rest (it re-runs
+                // if it is accepting already), so one loop never drains a
+                // burst alone while the others idle.
+                const next = &self.listeners[(self.listenerPos(index) + 1) % self.listener_count];
+                if (loop_mod.claim(self.loop.slot(next.index), next.gen, loop_mod.R, loop_mod.R_AGAIN) == .claimed)
+                    self.loop.post(next.index, next.gen, loop_mod.R);
+            }
+            const pending = if (more and self.listener_count == 1) loop_mod.R_AGAIN else loop_mod.release(slot, loop_mod.R, loop_mod.R_AGAIN | loop_mod.KICK);
             if (pending != 0) {
                 // Still held: another poller continues accepting.
-                self.loop.post(self.listener_index, self.listener_gen, loop_mod.R);
+                self.loop.post(index, l.gen, loop_mod.R);
             }
-            if (n > 0) accepted[0].run(.io, false);
+            if (n > 0) {
+                // Its request is likely here already: serve it now, unless
+                // another loop owns it (that loop's set reports it).
+                if (self.loop.owner(accepted[0].index) == self.loop.current()) accepted[0].run(.io, false) else accepted[0].handOff();
+            }
             return;
         }
     }
@@ -414,7 +487,7 @@ pub const Server = struct {
             posix.close(fd);
             return null;
         };
-        const slot = self.loop.allocSlot(.http, conn) catch {
+        const slot = self.loop.allocSlotOn(self.loop.pickLoop(), .http, conn) catch {
             self.gpa.destroy(conn);
             posix.close(fd);
             return null;
@@ -498,6 +571,8 @@ const ClientError = enum {
 
 /// Where a connection waits when it parks.
 const Phase = enum {
+    /// The handler's fiber finished after waiting: send the response.
+    respond,
     /// No request bytes buffered (fresh socket or keep-alive idle).
     idle,
     /// A request head is arriving.
@@ -527,7 +602,9 @@ const After = enum {
 };
 
 /// `null` from a step: keep driving.
-const Step = enum { park, gone };
+/// `detached`: a handler fiber waits; the connection keeps R and continues
+/// when the fiber finishes (`handlerDone`).
+const Step = enum { park, gone, detached };
 
 /// One request in flight; lives in the request arena.
 const Exchange = struct {
@@ -569,6 +646,8 @@ const Connection = struct {
     linger_until: i64 = loop_mod.no_deadline,
     /// Request arena owned across parks (null: the thread's).
     arena_box: ?*ArenaBox = null,
+    /// Continuation of a handler fiber that finished after waiting.
+    fiber_done: loop_mod.FiberDone = undefined,
     ex: ?*Exchange = null,
     body: BodyReader = .{ .framing = .none },
     out: [2][]const u8 = .{ "", "" },
@@ -589,7 +668,8 @@ const Connection = struct {
                 return;
             };
             self.bind(s);
-            if (self.drive(kicked) == .gone) return;
+            // Gone, or detached while a handler fiber waits (R stays held).
+            if (self.drive(kicked) != .park) return;
             const pending = loop_mod.release(self.slot(), loop_mod.R, loop_mod.r_pending);
             if (pending == 0) return;
             self.noteIo(loop_mod.Io.fromPending(pending));
@@ -653,7 +733,7 @@ const Connection = struct {
             .idle => self.idle_since + @as(i64, if (self.first) o.request_timeout_ms else o.keep_alive_timeout_ms),
             .head => self.head_deadline,
             .linger => self.linger_until,
-            .body, .write, .drain => loop_mod.no_deadline,
+            .body, .write, .drain, .respond => loop_mod.no_deadline,
         };
     }
 
@@ -739,7 +819,7 @@ const Connection = struct {
             },
             .head => if (now >= self.head_deadline) return self.clientError(.timeout),
             .linger => if (server.isClosing() or now >= self.linger_until) return self.destroy(),
-            .body, .write, .drain => {},
+            .body, .write, .drain, .respond => {},
         }
         return null;
     }
@@ -748,6 +828,7 @@ const Connection = struct {
         if (kicked) if (self.onKick()) |step| return step;
         while (true) {
             const step: ?Step = switch (self.phase) {
+                .respond => self.stepRespond(),
                 .idle => self.stepIdle(),
                 .head => self.stepHead(),
                 .body => self.stepBody(),
@@ -1100,11 +1181,86 @@ const Connection = struct {
         const ex = self.ex.?;
         if (!ex.reply.sent) {
             if (ex.route) |r| {
-                r.hooks.handler(r.ctx, &ex.req, &ex.reply);
+                if (fibers) {
+                    if (self.handlerOnFiber()) return .detached;
+                } else r.hooks.handler(r.ctx, &ex.req, &ex.reply);
                 if (!ex.reply.sent) ex.reply.sendEmpty();
             } else notFound(&ex.req, &ex.reply);
         }
         return self.finish(ex.route);
+    }
+
+    /// No fiber for this request (stacks or memory exhausted): answer 503
+    /// and close. Never run the handler inline on the loop thread: a wait in
+    /// it (e.g. a database checkout behind connections held by fibers parked
+    /// on this loop) could only end at its timeout. TS has no such path.
+    fn noFiber(self: *Connection, e: anyerror) void {
+        log.warn("no fiber for a request ({s}): answering 503", .{@errorName(e)});
+        const reply = &self.ex.?.reply;
+        reply.code(503);
+        reply.destroy_after = true;
+        reply.sendText("Service Unavailable");
+    }
+
+    /// Runs the route handler on a fiber; true when it is waiting (the
+    /// connection is detached until `handlerDone`), false when it already
+    /// finished (or failed because no fiber was available).
+    fn handlerOnFiber(self: *Connection) bool {
+        const loop = &self.server.loop;
+        const f = core.fiber.create(loop.fiberScheduler(), runHandler, self) catch |e| {
+            self.noFiber(e);
+            return false;
+        };
+        self.fiber_done = .{ .ctx = self, .func = handlerDone };
+        f.user = &self.fiber_done;
+        // Detach first: once the fiber's wait is published, another poller
+        // may finish the request, so nothing may still point at this
+        // thread's scratch (leftover input, the request arena).
+        if (self.start < self.end) {
+            self.pending = self.server.gpa.dupe(u8, self.buf[self.start..self.end]) catch |e| {
+                core.fiber.destroyUnstarted(f);
+                self.noFiber(e);
+                return false;
+            };
+        }
+        self.start = 0;
+        self.end = 0;
+        const s = tls_scratch.?;
+        const own_arena = self.arena_box == null;
+        if (own_arena) {
+            self.arena_box = s.arena;
+            s.arena = null;
+        }
+        self.phase = .respond;
+        if (loop.runFiber(f) == null) return true;
+        // Finished without waiting: re-attach and go on here.
+        if (own_arena and s.arena == null) {
+            s.arena = self.arena_box;
+            self.arena_box = null;
+        }
+        self.bind(s);
+        self.phase = .body; // any non-respond phase; `finish` sets the next
+        return false;
+    }
+
+    fn runHandler(arg: *anyopaque) void {
+        const self: *Connection = @ptrCast(@alignCast(arg));
+        const ex = self.ex.?;
+        const r = ex.route.?;
+        r.hooks.handler(r.ctx, &ex.req, &ex.reply);
+    }
+
+    /// The handler fiber finished on a later resume (any poller): finish
+    /// the response and go on as usual (R is still held).
+    fn handlerDone(ctx: *anyopaque) void {
+        const self: *Connection = @ptrCast(@alignCast(ctx));
+        self.run(.none, false);
+    }
+
+    fn stepRespond(self: *Connection) ?Step {
+        const ex = self.ex.?;
+        if (!ex.reply.sent) ex.reply.sendEmpty();
+        return self.finish(ex.route) catch self.destroy();
     }
 
     fn finish(self: *Connection, route: ?*const Route) !?Step {
