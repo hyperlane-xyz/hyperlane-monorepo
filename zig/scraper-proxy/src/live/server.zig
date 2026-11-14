@@ -2506,6 +2506,8 @@ pub const Server = struct {
         self.logger.info("loop hold all {f}", .{&self.loop.hold});
         self.logger.info("loop hold turnEnd {f}", .{&self.loop.turn_end_hold});
         self.logger.info("loop hold heartbeat {f}", .{&self.heartbeat_hold});
+        self.logger.info("loop wait any {f}", .{&self.loop.wait_any});
+        self.logger.info("loop wait loopThread {f}", .{&self.loop.wait_loop_thread});
         const stats = &self.store.prefetch_stats;
         self.logger.info("replay prefetch used={d} droppedEpoch={d} droppedAge={d} droppedMismatch={d} droppedFailedEarly={d} notIssued={d} abandoned={d}", .{
             stats.get(.used),                 stats.get(.dropped_epoch), stats.get(.dropped_age), stats.get(.dropped_mismatch),

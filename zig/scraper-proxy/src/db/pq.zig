@@ -379,6 +379,15 @@ pub const Conn = struct {
     broken: bool = false,
     /// When the pool last handed it out (`Pool.hold_histogram`).
     checked_out_ns: i128 = 0,
+    /// The next input wait is the first of an exchange whose send needed no
+    /// wait: the reply can only arrive after the send and every earlier reply
+    /// was read, so a fiber may park without a level check
+    /// (`core.fiber.waitFdAfterSend`).
+    fresh_reply: bool = false,
+    /// The event loop whose poller holds the socket's registration: a fiber
+    /// wait registers it on (or moves it to) the fiber's loop. The pool
+    /// prefers handing it to that loop again (`Pool.takeIdle`).
+    home: ?*anyopaque = null,
     /// A `sendQuery` left part of its message in libpq's output buffer
     /// (the kernel would not take it all): `pollRaw`/`finishRaw` flush it.
     unflushed: bool = false,
@@ -437,7 +446,11 @@ pub const Conn = struct {
         if (existingOption(conninfo, "gssencmode") == null and std.posix.getenv("PGGSSENCMODE") == null)
             Kw.add(&kw_buf, &val_buf, &n_kw, "gssencmode", "disable");
         const pg = PQconnectStartParams(&kw_buf, &val_buf, 1) orelse return error.OutOfMemory;
-        errdefer PQfinish(pg);
+        errdefer {
+            const fd = PQsocket(pg);
+            if (fd >= 0) core.fiber.forgetFd(fd);
+            PQfinish(pg);
+        }
         const deadline: ?i64 = if (opts.connect_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
         if (PQstatus(pg) == 1) { // CONNECTION_BAD
             setFailure(failure, arena, trimMessage(std.mem.span(PQerrorMessage(pg))), null);
@@ -473,6 +486,9 @@ pub const Conn = struct {
     pub fn deinit(self: *Conn) void {
         if (self.statements) |s| s.deinit();
         self.statements = null;
+        // A fiber loop may hold a registration for this socket number.
+        const fd = PQsocket(self.pg);
+        if (fd >= 0) core.fiber.forgetFd(fd);
         PQfinish(self.pg);
     }
 
@@ -569,6 +585,9 @@ pub const Conn = struct {
             break :blk PQsendQueryParams(self.pg, sql_z, @intCast(params.len), null, values.ptr, null, null, 0);
         };
         if (sent == 0) return self.transportFailure(arena, failure);
+        // The reply may be read off-fiber in pieces (`pollRaw`): its first
+        // wait keeps the level check.
+        self.fresh_reply = false;
         switch (PQflush(self.pg)) {
             0 => {},
             1 => self.unflushed = true,
@@ -633,7 +652,7 @@ pub const Conn = struct {
     pub fn finishRaw(self: *Conn, reply: *RawReply) Error!void {
         const deadline = self.deadlineFromNow();
         while (!try self.flushSome()) {
-            if (!waitSocket(self.socket(), std.posix.POLL.OUT | std.posix.POLL.IN, deadline)) {
+            if (!self.waitOwn(std.posix.POLL.OUT | std.posix.POLL.IN, deadline, false)) {
                 self.broken = true;
                 return error.QueryTimeout;
             }
@@ -821,6 +840,7 @@ pub const Conn = struct {
     /// `collect` for a pipeline: results of each step (each ended by a null
     /// result) up to the sync point. Rows come from the `execute` step.
     fn collectPipeline(self: *Conn, arena: std.mem.Allocator, steps: []const Step, deadline: ?i64, failure: ?*Failure, failed: *Step) Error!root.Result {
+        defer self.fresh_reply = false;
         var result: root.Result = .{ .rows = &.{}, .row_count = 0 };
         var server_error = false;
         var index: usize = 0;
@@ -876,11 +896,14 @@ pub const Conn = struct {
     /// reading cannot block us past the deadline.
     fn flushSent(self: *Conn, sent: c_int, arena: std.mem.Allocator, deadline: ?i64, failure: ?*Failure) Error!void {
         if (sent == 0) return self.transportFailure(arena, failure);
+        self.fresh_reply = true;
         while (true) {
             const flushed = PQflush(self.pg);
             if (flushed == 0) return;
             if (flushed < 0) return self.transportFailure(arena, failure);
-            if (!waitSocket(self.socket(), std.posix.POLL.OUT | std.posix.POLL.IN, deadline)) {
+            // Waiting here may consume a readiness edge of the reply.
+            self.fresh_reply = false;
+            if (!self.waitOwn(std.posix.POLL.OUT | std.posix.POLL.IN, deadline, false)) {
                 self.broken = true;
                 setFailure(failure, arena, "Query read timeout", null);
                 return error.QueryTimeout;
@@ -897,6 +920,8 @@ pub const Conn = struct {
     }
 
     fn collectWith(self: *Conn, arena: std.mem.Allocator, reply: *Reply, deadline: ?i64, failure: ?*Failure) Error!root.Result {
+        // An exchange that needed no input wait must not leave the flag set.
+        defer self.fresh_reply = false;
         while (!try self.collectStep(arena, reply, failure)) {
             if (!self.waitInput(deadline)) {
                 self.broken = true;
@@ -967,9 +992,22 @@ pub const Conn = struct {
 
     const ConsumeMode = enum { reply, notifications };
 
+    /// `waitSocketMode` on this socket, noting the loop a fiber wait
+    /// registered it on (`home`; a hint: only after a wait that returned
+    /// ready, and a failed registration polls inline without moving it).
+    fn waitOwn(self: *Conn, events: i16, deadline: ?i64, after_send: bool) bool {
+        const ready = waitSocketMode(self.socket(), events, deadline, after_send);
+        if (ready) if (core.fiber.current()) |f| {
+            self.home = f.sched.ctx;
+        };
+        return ready;
+    }
+
     /// Waits for more reply input; false only once `deadline` has passed.
     fn waitInput(self: *Conn, deadline: ?i64) bool {
-        if (waitSocket(self.socket(), std.posix.POLL.IN, self.inputDeadline(deadline))) return true;
+        const after_send = self.fresh_reply;
+        self.fresh_reply = false;
+        if (self.waitOwn(std.posix.POLL.IN, self.inputDeadline(deadline), after_send)) return true;
         const d = deadline orelse return true;
         return nowMs() < d;
     }
@@ -1122,7 +1160,25 @@ fn optionBuf() []u8 {
 
 /// poll() until `fd` is ready for `events` or the deadline passes.
 pub fn waitSocket(fd: std.posix.fd_t, events: i16, deadline: ?i64) bool {
+    return waitSocketMode(fd, events, deadline, false);
+}
+
+/// `waitSocket`; `after_send`: the input can only arrive after our send and
+/// all earlier input was read, so a fiber parks without a level check.
+fn waitSocketMode(fd: std.posix.fd_t, events: i16, deadline: ?i64, after_send: bool) bool {
     if (deadline) |d| if (d - nowMs() <= 0) return false;
+    if (core.fiber.inFiber()) {
+        // Park the request's fiber; its loop resumes it on readiness. waitFd
+        // checks the fd's level before parking, so bytes libpq left in the
+        // kernel buffer never park it; bytes left inside OpenSSL are drained
+        // by the callers (`consumeAll`) before they wait.
+        var ev: u32 = 0;
+        if (events & std.posix.POLL.IN != 0) ev |= core.fiber.Events.read;
+        if (events & std.posix.POLL.OUT != 0) ev |= core.fiber.Events.write;
+        const mono: ?i64 = if (deadline) |d| core.fiber.monoMs() + (d - nowMs()) else null;
+        (if (after_send) core.fiber.waitFdAfterSend(fd, ev, mono) else core.fiber.waitFd(fd, ev, mono)) catch return false;
+        return true;
+    }
     var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = events, .revents = 0 }};
     // Already ready (e.g. the rest of a multi-packet result): no sleep, so
     // no poller hand-off.

@@ -32,10 +32,14 @@ pub fn build(b: *std.Build) void {
     const pool_hold_stats = b.option(bool, "pool-hold-stats", "Record and log DB pool checkout hold times") orelse false;
     const db_options = b.addOptions();
     db_options.addOption(bool, "pool_hold_stats", pool_hold_stats);
+    // Fiber-mode event loops (one pinned thread each); the default until the
+    // 1-vs-N measurement decides. Not a runtime knob (TS env surface).
+    const http_loops = b.option(u32, "http-loops", "HTTP event loops in fiber mode (0: one per CPU; default 1)") orelse 1;
+    const http_options = b.addOptions();
+    http_options.addOption(u32, "loops", http_loops);
     // Diagnostics only (bench): event-loop counters logged at close (debug
     // level). Off by default: the shipped build logs nothing TS does not.
     const loop_stats = b.option(bool, "loop-stats", "Log HTTP event-loop counters at close") orelse false;
-    const http_options = b.addOptions();
     http_options.addOption(bool, "loop_stats", loop_stats);
     // Diagnostics only (bench): live loop mutex hold-time histograms and
     // replay prefetch outcomes, logged at info. Off by default.
@@ -43,11 +47,16 @@ pub fn build(b: *std.Build) void {
     const live_options = b.addOptions();
     live_options.addOption(bool, "loop_hold_stats", loop_hold_stats);
 
+    // core/fiber.zig defines its context switch in global assembly, which
+    // Zig 0.15's self-hosted x86_64 backend (the Debug default there) drops,
+    // so the link fails. LLVM emits it (ReleaseFast already uses LLVM).
+    const use_llvm: ?bool = if (target.result.cpu.arch == .x86_64) true else null;
+
     // One module graph per mode (a module has a single optimize mode).
     const exe_modules = moduleGraph(b, target, exe_optimize, pg_lib_dir, pg_include_dir, db_options, http_options, live_options, true);
     const test_modules = if (test_optimize == exe_optimize) exe_modules else moduleGraph(b, target, test_optimize, pg_lib_dir, pg_include_dir, db_options, http_options, live_options, false);
 
-    const exe = b.addExecutable(.{ .name = "scraper-proxy", .root_module = mainModule(b, target, exe_optimize, pg_lib_dir, pg_include_dir, exe_modules) });
+    const exe = b.addExecutable(.{ .name = "scraper-proxy", .root_module = mainModule(b, target, exe_optimize, pg_lib_dir, pg_include_dir, exe_modules), .use_llvm = use_llvm });
     b.installArtifact(exe);
 
     const run = b.addRunArtifact(exe);
@@ -59,6 +68,7 @@ pub fn build(b: *std.Build) void {
         const tests = b.addTest(.{
             .root_module = test_modules[i],
             .filters = if (test_filter) |f| &.{f} else &.{},
+            .use_llvm = use_llvm,
         });
         const run_tests = b.addRunArtifact(tests);
         // DB-backed tests read SCRAPER_PROXY_TEST_DATABASE_URL: always re-run.
@@ -67,7 +77,7 @@ pub fn build(b: *std.Build) void {
         step.dependOn(&run_tests.step);
         test_all.dependOn(step);
     }
-    const main_tests = b.addTest(.{ .root_module = mainModule(b, target, test_optimize, pg_lib_dir, pg_include_dir, test_modules) });
+    const main_tests = b.addTest(.{ .root_module = mainModule(b, target, test_optimize, pg_lib_dir, pg_include_dir, test_modules), .use_llvm = use_llvm });
     b.step("test-main", "Run main.zig tests").dependOn(&b.addRunArtifact(main_tests).step);
 }
 

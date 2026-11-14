@@ -9,6 +9,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const json = @import("json.zig");
 const blocking = @import("blocking.zig");
+const fiber = @import("fiber.zig");
 
 pub const Level = enum(u8) {
     trace = 10,
@@ -147,7 +148,10 @@ fn emit(a: std.mem.Allocator, module: ?[]const u8, lvl: Level, fields: ?json.Val
 /// a full batch blocks callers until written (backpressure, like a sync write).
 const Output = struct {
     mutex: std.Thread.Mutex = .{},
-    written_cond: std.Thread.Condition = .{},
+    /// Callers waiting for progress (a batch written or the writer role
+    /// released). One-shot fiber-aware waiters: a fiber parks instead of
+    /// blocking its loop thread.
+    waiters: std.ArrayList(*fiber.Waiter) = .empty,
     pending: std.ArrayList(u8) = .empty,
     spare: std.ArrayList(u8) = .empty,
     writing: bool = false,
@@ -160,7 +164,7 @@ const Output = struct {
     fn write(self: *Output, file: std.fs.File, line: []const u8, wait: bool) void {
         self.mutex.lock();
         while (self.writing and self.pending.items.len > 0 and self.pending.items.len + line.len > max_pending) {
-            blockingWait(&self.written_cond, &self.mutex);
+            self.waitProgress();
         }
         if (!self.writing) {
             // Fast path: nothing queued (the writer drains before clearing
@@ -178,14 +182,14 @@ const Output = struct {
         }
         self.pending.appendSlice(allocator, line) catch {
             // Out of memory: wait for the writer, then write directly.
-            while (self.writing) blockingWait(&self.written_cond, &self.mutex);
+            while (self.writing) self.waitProgress();
             self.mutex.unlock();
             file.writeAll(line) catch {};
             return;
         };
         self.appended += 1;
         const seq = self.appended;
-        if (wait) while (self.written < seq) blockingWait(&self.written_cond, &self.mutex);
+        if (wait) while (self.written < seq) self.waitProgress();
         self.mutex.unlock();
     }
 
@@ -199,21 +203,48 @@ const Output = struct {
             self.spare.clearRetainingCapacity();
             self.mutex.lock();
             self.written = upto;
-            self.written_cond.broadcast();
+            self.wakeWaitersLocked();
         }
         self.writing = false;
-        self.written_cond.broadcast();
+        self.wakeWaitersLocked();
+    }
+
+    /// Called with `mutex` held; returns with it held after the next
+    /// progress (callers re-check their condition). Off fibers this is a
+    /// blocking wait (marked for the HTTP poller hand-off).
+    fn waitProgress(self: *Output) void {
+        var w: fiber.Waiter = .{};
+        self.waiters.append(allocator, &w) catch {
+            // Out of memory for the list: poll instead of waiting (a fiber
+            // parks for the millisecond rather than block its loop thread).
+            self.mutex.unlock();
+            if (fiber.inFiber()) {
+                var nap: fiber.Waiter = .{};
+                _ = nap.waitTimeout(fiber.monoMs() + 1);
+            } else std.Thread.sleep(std.time.ns_per_ms);
+            self.mutex.lock();
+            return;
+        };
+        self.mutex.unlock();
+        if (fiber.inFiber()) {
+            w.wait();
+        } else {
+            blocking.begin();
+            defer blocking.end();
+            w.wait();
+        }
+        self.mutex.lock();
+    }
+
+    /// Wakes every waiter (each re-checks its condition). `wake` never
+    /// touches a waiter after waking it, so waiters may return at once.
+    fn wakeWaitersLocked(self: *Output) void {
+        for (self.waiters.items) |w| w.wake();
+        self.waiters.clearRetainingCapacity();
     }
 };
 
 var output: Output = .{};
-
-/// Waiting for another thread's stdout write (a full pipe can stall it).
-fn blockingWait(cond: *std.Thread.Condition, mutex: *std.Thread.Mutex) void {
-    blocking.begin();
-    defer blocking.end();
-    cond.wait(mutex);
-}
 
 fn writeJsonLine(w: *std.Io.Writer, module: ?[]const u8, lvl: Level, fields: ?json.Value, msg: []const u8) !void {
     try w.print("{{\"level\":{d},\"time\":{d},\"pid\":{d}", .{ @intFromEnum(lvl), std.time.milliTimestamp(), pid() });
@@ -316,4 +347,55 @@ test "log write throughput to a pipe (opt-in LOG_BENCH=1)" {
     std.posix.close(fds[1]);
     reader.join();
     std.posix.close(fds[0]);
+}
+
+test "a fiber waiting for log output parks until the writer progresses" {
+    const pipe = try std.posix.pipe2(.{ .CLOEXEC = true });
+    defer {
+        std.posix.close(pipe[0]);
+        std.posix.close(pipe[1]);
+    }
+    var out: Output = .{};
+    defer {
+        out.pending.deinit(Output.allocator);
+        out.spare.deinit(Output.allocator);
+        out.waiters.deinit(Output.allocator);
+    }
+    // Another thread holds the writer role: a waiting caller must park.
+    out.writing = true;
+    const Ctx = struct {
+        out: *Output,
+        file: std.fs.File,
+        done: bool = false,
+        sibling_saw_done: ?bool = null,
+
+        fn drainer(c: *@This()) void {
+            std.Thread.sleep(20 * std.time.ns_per_ms);
+            c.out.mutex.lock();
+            c.out.drainLocked(c.file);
+            c.out.mutex.unlock();
+        }
+        // Runs on the same thread: only while `main` is parked can it see
+        // `done == false`.
+        fn sibling(arg: *anyopaque) void {
+            const c: *@This() = @ptrCast(@alignCast(arg));
+            c.sibling_saw_done = c.done;
+        }
+        fn main(arg: *anyopaque) void {
+            const c: *@This() = @ptrCast(@alignCast(arg));
+            fiber.spawn(sibling, c) catch return;
+            const t = std.Thread.spawn(.{}, drainer, .{c}) catch return;
+            c.out.write(c.file, "line\n", true);
+            c.done = true;
+            t.join();
+        }
+    };
+    var ctx: Ctx = .{ .out = &out, .file = .{ .handle = pipe[1] } };
+    try fiber.testing.run(Ctx.main, &ctx);
+    try std.testing.expect(ctx.done);
+    try std.testing.expectEqual(@as(?bool, false), ctx.sibling_saw_done);
+    var buf: [16]u8 = undefined;
+    const n = try std.posix.read(pipe[0], &buf);
+    try std.testing.expectEqualStrings("line\n", buf[0..n]);
+    try std.testing.expect(!out.writing);
 }

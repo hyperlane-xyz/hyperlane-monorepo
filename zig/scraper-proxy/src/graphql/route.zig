@@ -88,6 +88,15 @@ const RequestState = struct {
     hit: ?cache_mod.SharedHit = null,
 };
 
+const FiberLocals = struct {
+    fn admission() *?execute.Admission {
+        return &execute.admission;
+    }
+    fn ioEvents() *u32 {
+        return &execute.io_events;
+    }
+};
+
 pub const GraphqlRoute = struct {
     gpa: Allocator,
     schema: *const Schema,
@@ -112,6 +121,9 @@ pub const GraphqlRoute = struct {
 
     pub fn init(gpa: Allocator, schema: *const Schema, resolver_map: resolvers_mod.ResolverMap, options: Options) GraphqlRoute {
         metrics.graphql_active_request_limit.set(.{}, @floatFromInt(options.max_active_requests));
+        // Per-request thread-locals follow the request's fiber across parks.
+        core.fiber.registerLocal(core.fiber.localOf(?execute.Admission, FiberLocals.admission));
+        core.fiber.registerLocal(core.fiber.localOf(u32, FiberLocals.ioEvents));
         return .{
             .gpa = gpa,
             .schema = schema,
