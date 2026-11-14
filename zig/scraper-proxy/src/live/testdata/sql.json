@@ -1,0 +1,204 @@
+[
+  {
+    "name": "blockHeads",
+    "sql": "SELECT domain, indexed_height, encode(indexed_hash, 'hex') AS hash, head_height\n       FROM scraper_head",
+    "values": []
+  },
+  {
+    "name": "blockHeads:domains",
+    "sql": "SELECT domain, indexed_height, encode(indexed_hash, 'hex') AS hash, head_height\n       FROM scraper_head WHERE domain=ANY($1::integer[])",
+    "values": [[1, -1]]
+  },
+  {
+    "name": "canonicalMessages",
+    "sql": "SELECT \"delivery_latency\", \"delivery_occurred_at\", \"delivery_scape_latency\", \"delivery_scraped_at\", \"destination_block_hash\", \"destination_block_height\", \"destination_block_id\", \"destination_chain_id\", \"destination_domain\", \"destination_domain_id\", \"destination_mailbox\", \"destination_tx_cumulative_gas_used\", \"destination_tx_effective_gas_price\", \"destination_tx_gas_limit\", \"destination_tx_gas_price\", \"destination_tx_gas_used\", \"destination_tx_hash\", \"destination_tx_id\", \"destination_tx_max_fee_per_gas\", \"destination_tx_max_priority_fee_per_gas\", \"destination_tx_nonce\", \"destination_tx_recipient\", \"destination_tx_sender\", \"id\", \"is_delivered\", \"message_body\", \"msg_id\", \"nonce\", \"num_payments\", \"origin_block_hash\", \"origin_block_height\", \"origin_block_id\", \"origin_chain_id\", \"origin_domain\", \"origin_domain_id\", \"origin_mailbox\", \"origin_tx_cumulative_gas_used\", \"origin_tx_effective_gas_price\", \"origin_tx_gas_limit\", \"origin_tx_gas_price\", \"origin_tx_gas_used\", \"origin_tx_hash\", \"origin_tx_id\", \"origin_tx_max_fee_per_gas\", \"origin_tx_max_priority_fee_per_gas\", \"origin_tx_nonce\", \"origin_tx_recipient\", \"origin_tx_sender\", \"recipient\", \"send_occurred_at\", \"send_scape_latency\", \"send_scraped_at\", \"sender\", \"total_gas_amount\", \"total_payment\" FROM \"message_view\" WHERE \"msg_id\" = ANY($1::bytea[]) AND \"send_occurred_at\" IS NOT NULL",
+    "values": [
+      ["\\xabababababababababababababababababababababababababababababababab"]
+    ]
+  },
+  {
+    "name": "notifiedEvents:dispatch",
+    "sql": "SELECT \"event_row\".\"id\" AS \"notification_id\", \"event_row\".\"destination_domain\", \"event_row\".\"id\", \"event_row\".\"msg_body\", \"event_row\".\"msg_id\", \"event_row\".\"nonce\", \"event_row\".\"origin_block_hash\", \"event_row\".\"origin_block_height\", \"event_row\".\"origin_domain\", \"event_row\".\"origin_mailbox\", \"event_row\".\"origin_tx_hash\", \"event_row\".\"recipient\", \"event_row\".\"sender\", \"event_row\".\"time_created\" FROM \"confirmed_raw_message_dispatch\" AS \"event_row\" WHERE \"event_row\".\"id\" = ANY($1::bigint[]) ORDER BY \"event_row\".\"id\" ASC",
+    "values": [["1", "2"]]
+  },
+  {
+    "name": "headEvents:dispatch",
+    "sql": "SELECT \"event_row\".\"destination_domain\", \"event_row\".\"id\", \"event_row\".\"msg_body\", \"event_row\".\"msg_id\", \"event_row\".\"nonce\", \"event_row\".\"origin_block_hash\", \"event_row\".\"origin_block_height\", \"event_row\".\"origin_domain\", \"event_row\".\"origin_mailbox\", \"event_row\".\"origin_tx_hash\", \"event_row\".\"recipient\", \"event_row\".\"sender\", \"event_row\".\"time_created\", \"event_row\".\"id\" AS \"frontier_id\", \"event_row\".\"origin_block_height\" AS \"frontier_height\" FROM (SELECT * FROM \"confirmed_raw_message_dispatch\" AS \"frontier_row\" WHERE \"frontier_row\".\"origin_domain\"=$1 AND \"frontier_row\".\"origin_block_height\">$2::bigint AND \"frontier_row\".\"origin_block_height\"<=$3::bigint AND (\"frontier_row\".\"origin_block_height\">$4::bigint OR (\"frontier_row\".\"origin_block_height\"=$4::bigint AND \"frontier_row\".\"id\">$5::bigint)) ORDER BY \"frontier_row\".\"origin_block_height\", \"frontier_row\".\"id\" LIMIT $6) AS \"event_row\" ORDER BY \"event_row\".\"origin_block_height\", \"event_row\".\"id\"",
+    "values": [-1, "5", "10", "5", "0", 500]
+  },
+  {
+    "name": "confirmationEventRows:dispatch",
+    "sql": "/* confirmation_events */ SELECT \"event_row\".\"destination_domain\", \"event_row\".\"id\", \"event_row\".\"msg_body\", \"event_row\".\"msg_id\", \"event_row\".\"nonce\", \"event_row\".\"origin_block_hash\", \"event_row\".\"origin_block_height\", \"event_row\".\"origin_domain\", \"event_row\".\"origin_mailbox\", \"event_row\".\"origin_tx_hash\", \"event_row\".\"recipient\", \"event_row\".\"sender\", \"event_row\".\"time_created\", event_row.id AS frontier_id, event_row.\"origin_block_height\" AS frontier_height\n         FROM (SELECT * FROM \"raw_message_dispatch\" WHERE \"origin_domain\"=$1\n           AND (\"origin_block_height\", id)>($2::bigint,$3::bigint) AND \"origin_block_height\"<=$4::bigint\n           ORDER BY \"origin_block_height\", id LIMIT $5) event_row\n         ORDER BY event_row.\"origin_block_height\", event_row.id",
+    "values": [1, "3", "7", "10", 500]
+  },
+  {
+    "name": "confirmationEventRows:dispatch:addresses",
+    "sql": "/* confirmation_events */ SELECT \"event_row\".\"destination_domain\", \"event_row\".\"id\", \"event_row\".\"msg_body\", \"event_row\".\"msg_id\", \"event_row\".\"nonce\", \"event_row\".\"origin_block_hash\", \"event_row\".\"origin_block_height\", \"event_row\".\"origin_domain\", \"event_row\".\"origin_mailbox\", \"event_row\".\"origin_tx_hash\", \"event_row\".\"recipient\", \"event_row\".\"sender\", \"event_row\".\"time_created\", event_row.id AS frontier_id, event_row.\"origin_block_height\" AS frontier_height\n         FROM (SELECT * FROM \"raw_message_dispatch\" WHERE \"origin_domain\"=$1 AND \"origin_mailbox\"=ANY($6::bytea[])\n           AND (\"origin_block_height\", id)>($2::bigint,$3::bigint) AND \"origin_block_height\"<=$4::bigint\n           ORDER BY \"origin_block_height\", id LIMIT $5) event_row\n         ORDER BY event_row.\"origin_block_height\", event_row.id",
+    "values": [
+      1,
+      "3",
+      "7",
+      "10",
+      500,
+      ["\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    ]
+  },
+  {
+    "name": "notifiedEvents:delivery",
+    "sql": "SELECT \"event_row\".\"id\" AS \"notification_id\", \"event_row\".\"time_created\", \"event_row\".\"msg_id\", \"event_row\".\"domain\", \"event_row\".\"destination_mailbox\", \"event_row\".\"destination_tx_id\", \"event_row\".\"sequence\" FROM \"confirmed_delivered_message\" AS \"event_row\" WHERE \"event_row\".\"id\" = ANY($1::bigint[]) ORDER BY \"event_row\".\"id\" ASC",
+    "values": [["1", "2"]]
+  },
+  {
+    "name": "headEvents:delivery",
+    "sql": "SELECT \"event_row\".\"time_created\", \"event_row\".\"msg_id\", \"event_row\".\"domain\", \"event_row\".\"destination_mailbox\", \"event_row\".\"destination_tx_id\", \"event_row\".\"sequence\", \"event_row\".\"id\" AS \"frontier_id\", \"event_row\".\"block_number\" AS \"frontier_height\" FROM (SELECT * FROM \"confirmed_delivered_message\" AS \"frontier_row\" WHERE \"frontier_row\".\"domain\"=$1 AND \"frontier_row\".\"block_number\">$2::bigint AND \"frontier_row\".\"block_number\"<=$3::bigint AND (\"frontier_row\".\"block_number\">$4::bigint OR (\"frontier_row\".\"block_number\"=$4::bigint AND \"frontier_row\".\"id\">$5::bigint)) ORDER BY \"frontier_row\".\"block_number\", \"frontier_row\".\"id\" LIMIT $6) AS \"event_row\" ORDER BY \"event_row\".\"block_number\", \"event_row\".\"id\"",
+    "values": [-1, "5", "10", "5", "0", 500]
+  },
+  {
+    "name": "confirmationEventRows:delivery",
+    "sql": "/* confirmation_events */ SELECT \"event_row\".\"time_created\", \"event_row\".\"msg_id\", \"event_row\".\"domain\", \"event_row\".\"destination_mailbox\", \"event_row\".\"destination_tx_id\", \"event_row\".\"sequence\", event_row.id AS frontier_id, event_row.\"block_number\" AS frontier_height\n         FROM (SELECT * FROM \"delivered_message\" WHERE \"domain\"=$1\n           AND (\"block_number\", id)>($2::bigint,$3::bigint) AND \"block_number\"<=$4::bigint\n           ORDER BY \"block_number\", id LIMIT $5) event_row\n         ORDER BY event_row.\"block_number\", event_row.id",
+    "values": [1, "3", "7", "10", 500]
+  },
+  {
+    "name": "notifiedEvents:gas_payment",
+    "sql": "SELECT \"event_row\".\"id\" AS \"notification_id\", \"event_row\".\"id\", \"event_row\".\"time_created\", \"event_row\".\"domain\", \"event_row\".\"msg_id\", \"event_row\".\"payment\", \"event_row\".\"gas_amount\", \"event_row\".\"tx_id\", \"event_row\".\"log_index\", \"event_row\".\"origin\", \"event_row\".\"destination\", \"event_row\".\"interchain_gas_paymaster\", \"event_row\".\"sequence\", COALESCE(\"event_row\".\"transaction_hash\", \"event_transaction\".\"hash\") AS \"origin_tx_hash\", COALESCE(\"event_row\".\"block_hash\", \"event_block\".\"hash\") AS \"origin_block_hash\", COALESCE(\"event_row\".\"block_number\", \"event_block\".\"height\") AS \"origin_block_height\", COALESCE(\"event_cursor\".\"stream_cursor\", \"event_row\".\"id\") AS \"scraper_stream_cursor\" FROM \"confirmed_gas_payment\" AS \"event_row\" LEFT JOIN \"transaction\" AS \"event_transaction\" ON \"event_transaction\".\"id\" = \"event_row\".\"tx_id\" LEFT JOIN \"block\" AS \"event_block\" ON \"event_block\".\"id\" = \"event_transaction\".\"block_id\" LEFT JOIN \"gas_payment_stream_cursor\" AS \"event_cursor\" ON \"event_cursor\".\"gas_payment_id\" = \"event_row\".\"id\" WHERE \"event_row\".\"id\" = ANY($1::bigint[]) ORDER BY \"event_row\".\"id\" ASC",
+    "values": [["1", "2"]]
+  },
+  {
+    "name": "headEvents:gas_payment",
+    "sql": "SELECT \"event_row\".\"id\", \"event_row\".\"time_created\", \"event_row\".\"domain\", \"event_row\".\"msg_id\", \"event_row\".\"payment\", \"event_row\".\"gas_amount\", \"event_row\".\"tx_id\", \"event_row\".\"log_index\", \"event_row\".\"origin\", \"event_row\".\"destination\", \"event_row\".\"interchain_gas_paymaster\", \"event_row\".\"sequence\", COALESCE(\"event_row\".\"transaction_hash\", \"event_transaction\".\"hash\") AS \"origin_tx_hash\", COALESCE(\"event_row\".\"block_hash\", \"event_block\".\"hash\") AS \"origin_block_hash\", COALESCE(\"event_row\".\"block_number\", \"event_block\".\"height\") AS \"origin_block_height\", \"event_cursor\".\"stream_cursor\" AS \"scraper_stream_cursor\", \"event_row\".\"id\" AS \"frontier_id\", \"event_row\".\"block_number\" AS \"frontier_height\" FROM (SELECT * FROM \"confirmed_gas_payment\" AS \"frontier_row\" WHERE \"frontier_row\".\"domain\"=$1 AND \"frontier_row\".\"block_number\">$2::bigint AND \"frontier_row\".\"block_number\"<=$3::bigint AND (\"frontier_row\".\"block_number\">$4::bigint OR (\"frontier_row\".\"block_number\"=$4::bigint AND \"frontier_row\".\"id\">$5::bigint)) ORDER BY \"frontier_row\".\"block_number\", \"frontier_row\".\"id\" LIMIT $6) AS \"event_row\" LEFT JOIN \"transaction\" AS \"event_transaction\" ON \"event_transaction\".\"id\" = \"event_row\".\"tx_id\" LEFT JOIN \"block\" AS \"event_block\" ON \"event_block\".\"id\" = \"event_transaction\".\"block_id\" LEFT JOIN \"gas_payment_stream_cursor\" AS \"event_cursor\" ON \"event_cursor\".\"gas_payment_id\" = \"event_row\".\"id\" ORDER BY \"event_row\".\"block_number\", \"event_row\".\"id\"",
+    "values": [-1, "5", "10", "5", "0", 500]
+  },
+  {
+    "name": "confirmationEventRows:gas_payment",
+    "sql": "/* confirmation_events */ SELECT \"event_row\".\"id\", \"event_row\".\"time_created\", \"event_row\".\"domain\", \"event_row\".\"msg_id\", \"event_row\".\"payment\", \"event_row\".\"gas_amount\", \"event_row\".\"tx_id\", \"event_row\".\"log_index\", \"event_row\".\"origin\", \"event_row\".\"destination\", \"event_row\".\"interchain_gas_paymaster\", \"event_row\".\"sequence\", COALESCE(\"event_row\".\"transaction_hash\", \"event_transaction\".\"hash\") AS \"origin_tx_hash\", COALESCE(\"event_row\".\"block_hash\", \"event_block\".\"hash\") AS \"origin_block_hash\", COALESCE(\"event_row\".\"block_number\", \"event_block\".\"height\") AS \"origin_block_height\", event_row.id AS frontier_id, event_row.\"block_number\" AS frontier_height\n         FROM (SELECT * FROM \"gas_payment\" WHERE \"domain\"=$1\n           AND (\"block_number\", id)>($2::bigint,$3::bigint) AND \"block_number\"<=$4::bigint\n           ORDER BY \"block_number\", id LIMIT $5) event_row LEFT JOIN \"transaction\" AS \"event_transaction\" ON \"event_transaction\".\"id\" = \"event_row\".\"tx_id\" LEFT JOIN \"block\" AS \"event_block\" ON \"event_block\".\"id\" = \"event_transaction\".\"block_id\"\n         ORDER BY event_row.\"block_number\", event_row.id",
+    "values": [1, "3", "7", "10", 500]
+  },
+  {
+    "name": "confirmationEventRows:gas_payment:addresses",
+    "sql": "/* confirmation_events */ SELECT \"event_row\".\"id\", \"event_row\".\"time_created\", \"event_row\".\"domain\", \"event_row\".\"msg_id\", \"event_row\".\"payment\", \"event_row\".\"gas_amount\", \"event_row\".\"tx_id\", \"event_row\".\"log_index\", \"event_row\".\"origin\", \"event_row\".\"destination\", \"event_row\".\"interchain_gas_paymaster\", \"event_row\".\"sequence\", COALESCE(\"event_row\".\"transaction_hash\", \"event_transaction\".\"hash\") AS \"origin_tx_hash\", COALESCE(\"event_row\".\"block_hash\", \"event_block\".\"hash\") AS \"origin_block_hash\", COALESCE(\"event_row\".\"block_number\", \"event_block\".\"height\") AS \"origin_block_height\", event_row.id AS frontier_id, event_row.\"block_number\" AS frontier_height\n         FROM (SELECT * FROM \"gas_payment\" WHERE \"domain\"=$1 AND \"interchain_gas_paymaster\"=ANY($6::bytea[])\n           AND (\"block_number\", id)>($2::bigint,$3::bigint) AND \"block_number\"<=$4::bigint\n           ORDER BY \"block_number\", id LIMIT $5) event_row LEFT JOIN \"transaction\" AS \"event_transaction\" ON \"event_transaction\".\"id\" = \"event_row\".\"tx_id\" LEFT JOIN \"block\" AS \"event_block\" ON \"event_block\".\"id\" = \"event_transaction\".\"block_id\"\n         ORDER BY event_row.\"block_number\", event_row.id",
+    "values": [
+      1,
+      "3",
+      "7",
+      "10",
+      500,
+      ["\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    ]
+  },
+  {
+    "name": "notifiedEvents:merkle_tree_insertion",
+    "sql": "SELECT \"event_row\".\"id\" AS \"notification_id\", \"event_row\".\"domain\", \"event_row\".\"merkle_tree_hook\", \"event_row\".\"leaf_index\", \"event_row\".\"message_id\", \"event_row\".\"block_number\" FROM \"confirmed_merkle_tree_insertion\" AS \"event_row\" WHERE \"event_row\".\"id\" = ANY($1::bigint[]) ORDER BY \"event_row\".\"id\" ASC",
+    "values": [["1", "2"]]
+  },
+  {
+    "name": "headEvents:merkle_tree_insertion",
+    "sql": "SELECT \"event_row\".\"domain\", \"event_row\".\"merkle_tree_hook\", \"event_row\".\"leaf_index\", \"event_row\".\"message_id\", \"event_row\".\"block_number\", \"event_row\".\"id\" AS \"frontier_id\", \"event_row\".\"block_number\" AS \"frontier_height\" FROM (SELECT * FROM \"confirmed_merkle_tree_insertion\" AS \"frontier_row\" WHERE \"frontier_row\".\"domain\"=$1 AND \"frontier_row\".\"block_number\">$2::bigint AND \"frontier_row\".\"block_number\"<=$3::bigint AND (\"frontier_row\".\"block_number\">$4::bigint OR (\"frontier_row\".\"block_number\"=$4::bigint AND \"frontier_row\".\"id\">$5::bigint)) ORDER BY \"frontier_row\".\"block_number\", \"frontier_row\".\"id\" LIMIT $6) AS \"event_row\" ORDER BY \"event_row\".\"block_number\", \"event_row\".\"id\"",
+    "values": [-1, "5", "10", "5", "0", 500]
+  },
+  {
+    "name": "confirmationEventRows:merkle_tree_insertion",
+    "sql": "/* confirmation_events */ SELECT \"event_row\".\"domain\", \"event_row\".\"merkle_tree_hook\", \"event_row\".\"leaf_index\", \"event_row\".\"message_id\", \"event_row\".\"block_number\", event_row.block_hash, event_row.id AS frontier_id, event_row.\"block_number\" AS frontier_height\n         FROM (SELECT * FROM \"merkle_tree_insertion\" WHERE \"domain\"=$1\n           AND (\"block_number\", id)>($2::bigint,$3::bigint) AND \"block_number\"<=$4::bigint\n           ORDER BY \"block_number\", id LIMIT $5) event_row\n         ORDER BY event_row.\"block_number\", event_row.id",
+    "values": [1, "3", "7", "10", 500]
+  },
+  {
+    "name": "confirmationEventRows:merkle_tree_insertion:addresses",
+    "sql": "/* confirmation_events */ SELECT \"event_row\".\"domain\", \"event_row\".\"merkle_tree_hook\", \"event_row\".\"leaf_index\", \"event_row\".\"message_id\", \"event_row\".\"block_number\", event_row.block_hash, event_row.id AS frontier_id, event_row.\"block_number\" AS frontier_height\n         FROM (SELECT * FROM \"merkle_tree_insertion\" WHERE \"domain\"=$1 AND \"merkle_tree_hook\"=ANY($6::bytea[])\n           AND (\"block_number\", id)>($2::bigint,$3::bigint) AND \"block_number\"<=$4::bigint\n           ORDER BY \"block_number\", id LIMIT $5) event_row\n         ORDER BY event_row.\"block_number\", event_row.id",
+    "values": [
+      1,
+      "3",
+      "7",
+      "10",
+      500,
+      ["\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+    ]
+  },
+  {
+    "name": "confirmationMessageRows",
+    "sql": "/* confirmation_messages */ SELECT * FROM (\n          SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint\n          UNION ALL SELECT block_number, 1, id, msg_id FROM delivered_message WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint\n          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint\n        ) changes WHERE (height, source, id)>($2::bigint,$3::integer,$4::bigint) ORDER BY height, source, id LIMIT $6",
+    "values": [-2147483648, "3", 1, "7", "10", 500]
+  },
+  {
+    "name": "confirmationMessageRows:ids",
+    "sql": "/* confirmation_messages */ SELECT * FROM (\n          SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint AND msg_id = ANY($7::bytea[])\n          UNION ALL SELECT block_number, 1, id, msg_id FROM delivered_message WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint AND msg_id = ANY($7::bytea[])\n          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint AND msg_id = ANY($7::bytea[])\n        ) changes WHERE (height, source, id)>($2::bigint,$3::integer,$4::bigint) ORDER BY height, source, id LIMIT $6",
+    "values": [
+      1,
+      "3",
+      1,
+      "7",
+      "10",
+      500,
+      ["\\xabababababababababababababababababababababababababababababababab"]
+    ]
+  },
+  {
+    "name": "provisionalMessages",
+    "sql": "\n  /* provisional_message_view */\n  WITH frontier(domain, height) AS (\n    SELECT * FROM unnest($2::integer[], $3::bigint[])\n  ), dispatches AS (\n    SELECT id, msg_id, nonce, origin_domain, destination_domain, time_created,\n      sender, recipient, origin_mailbox, origin_tx_hash, origin_block_hash,\n      origin_block_height, msg_body\n    FROM raw_message_dispatch WHERE msg_id=ANY($1::bytea[])\n    UNION ALL\n    -- Historical/legacy messages can predate raw dispatch storage. Still\n    -- project their delivery/payment updates through the selected frontiers.\n    SELECT message.id, message.msg_id, message.nonce, message.origin,\n      message.destination, message.time_created, message.sender,\n      message.recipient, message.origin_mailbox, tx.hash, block.hash,\n      block.height, message.msg_body\n    FROM message\n    JOIN \"transaction\" tx ON tx.id=message.origin_tx_id\n    JOIN block ON block.id=tx.block_id\n    WHERE message.msg_id=ANY($1::bytea[])\n      AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch raw\n        WHERE raw.msg_id=message.msg_id)\n  ), eligible_dispatch AS (\n    SELECT dispatch.*\n    FROM dispatches dispatch\n    LEFT JOIN frontier ON frontier.domain=dispatch.origin_domain\n    LEFT JOIN scraper_head ON scraper_head.domain=dispatch.origin_domain\n    WHERE dispatch.origin_block_height<=coalesce(frontier.height,\n        scraper_head.confirmed_height, 9223372036854775807)\n  )\n  SELECT\n    coalesce(canonical.id, dispatch.id) AS id,\n    dispatch.msg_id,\n    dispatch.nonce,\n    delivery.id IS NOT NULL AS is_delivered,\n    coalesce(payment.num_payments, 0) AS num_payments,\n    coalesce(payment.total_payment, 0) AS total_payment,\n    coalesce(payment.total_gas_amount, 0) AS total_gas_amount,\n    payment.domains AS payment_domain_ids,\n    dispatch.origin_domain AS origin_domain_id,\n    origin_domain.chain_id AS origin_chain_id,\n    origin_domain.name AS origin_domain,\n    dispatch.destination_domain AS destination_domain_id,\n    destination_domain.chain_id AS destination_chain_id,\n    destination_domain.name AS destination_domain,\n    dispatch.time_created AS send_scraped_at,\n    origin_block.timestamp AS send_occurred_at,\n    delivery.time_created AS delivery_scraped_at,\n    destination_block.timestamp AS delivery_occurred_at,\n    destination_block.timestamp-origin_block.timestamp AS delivery_latency,\n    dispatch.time_created-origin_block.timestamp AS send_scape_latency,\n    delivery.time_created-destination_block.timestamp AS delivery_scape_latency,\n    dispatch.sender,\n    dispatch.recipient,\n    dispatch.origin_mailbox,\n    delivery.destination_mailbox,\n    origin_tx.id AS origin_tx_id,\n    coalesce(origin_tx.hash, dispatch.origin_tx_hash) AS origin_tx_hash,\n    origin_tx.gas_limit AS origin_tx_gas_limit,\n    origin_tx.max_priority_fee_per_gas AS origin_tx_max_priority_fee_per_gas,\n    origin_tx.max_fee_per_gas AS origin_tx_max_fee_per_gas,\n    origin_tx.gas_price AS origin_tx_gas_price,\n    origin_tx.effective_gas_price AS origin_tx_effective_gas_price,\n    origin_tx.nonce AS origin_tx_nonce,\n    origin_tx.sender AS origin_tx_sender,\n    origin_tx.recipient AS origin_tx_recipient,\n    origin_tx.gas_used AS origin_tx_gas_used,\n    origin_tx.cumulative_gas_used AS origin_tx_cumulative_gas_used,\n    origin_block.id AS origin_block_id,\n    dispatch.origin_block_height,\n    origin_block.hash AS origin_block_hash,\n    destination_tx.id AS destination_tx_id,\n    coalesce(destination_tx.hash, delivery.transaction_hash) AS destination_tx_hash,\n    destination_tx.gas_limit AS destination_tx_gas_limit,\n    destination_tx.max_priority_fee_per_gas AS destination_tx_max_priority_fee_per_gas,\n    destination_tx.max_fee_per_gas AS destination_tx_max_fee_per_gas,\n    destination_tx.gas_price AS destination_tx_gas_price,\n    destination_tx.effective_gas_price AS destination_tx_effective_gas_price,\n    destination_tx.nonce AS destination_tx_nonce,\n    destination_tx.sender AS destination_tx_sender,\n    destination_tx.recipient AS destination_tx_recipient,\n    destination_tx.gas_used AS destination_tx_gas_used,\n    destination_tx.cumulative_gas_used AS destination_tx_cumulative_gas_used,\n    destination_block.id AS destination_block_id,\n    coalesce(delivery.block_number, destination_block.height) AS destination_block_height,\n    coalesce(delivery.block_hash, destination_block.hash) AS destination_block_hash,\n    CASE WHEN canonical.id IS NOT NULL THEN canonical.msg_body\n      ELSE dispatch.msg_body END AS message_body\n  \n  FROM eligible_dispatch dispatch\n  LEFT JOIN message canonical ON canonical.msg_id=dispatch.msg_id\n  LEFT JOIN \"transaction\" canonical_origin_tx ON canonical_origin_tx.id=canonical.origin_tx_id\n  LEFT JOIN block raw_origin_block ON raw_origin_block.domain=dispatch.origin_domain\n    AND raw_origin_block.hash=dispatch.origin_block_hash\n  JOIN block origin_block ON origin_block.id=coalesce(raw_origin_block.id, canonical_origin_tx.block_id)\n    AND origin_block.timestamp IS NOT NULL\n\n  LEFT JOIN domain origin_domain ON origin_domain.id=dispatch.origin_domain\n  LEFT JOIN domain destination_domain ON destination_domain.id=dispatch.destination_domain\n  LEFT JOIN \"transaction\" origin_tx ON origin_tx.block_id=origin_block.id\n    AND origin_tx.hash=dispatch.origin_tx_hash\n  LEFT JOIN LATERAL (\n    SELECT delivery.*\n    FROM delivered_message delivery\n    LEFT JOIN frontier ON frontier.domain=delivery.domain\n    LEFT JOIN scraper_head ON scraper_head.domain=delivery.domain\n    WHERE delivery.msg_id=dispatch.msg_id\n      AND (delivery.block_number IS NULL OR delivery.block_number<=coalesce(\n        frontier.height, scraper_head.confirmed_height, 9223372036854775807))\n    ORDER BY delivery.block_number DESC NULLS LAST, delivery.id DESC\n    LIMIT 1\n  ) delivery ON TRUE\n  LEFT JOIN \"transaction\" identified_destination_tx\n    ON identified_destination_tx.id=delivery.destination_tx_id\n  LEFT JOIN block destination_block ON destination_block.domain=delivery.domain\n    AND (destination_block.hash=delivery.block_hash OR\n      (delivery.block_hash IS NULL AND\n        destination_block.id=identified_destination_tx.block_id))\n  LEFT JOIN \"transaction\" destination_tx ON destination_tx.id=delivery.destination_tx_id\n    OR (delivery.destination_tx_id IS NULL AND destination_tx.block_id=destination_block.id\n      AND destination_tx.hash=delivery.transaction_hash)\n  LEFT JOIN LATERAL (\n    SELECT count(*)::bigint AS num_payments,\n      array_agg(DISTINCT payment.domain) AS domains,\n      sum(payment.payment) AS total_payment,\n      sum(payment.gas_amount) AS total_gas_amount\n    FROM gas_payment payment\n    LEFT JOIN frontier ON frontier.domain=payment.domain\n    LEFT JOIN scraper_head ON scraper_head.domain=payment.domain\n    WHERE payment.msg_id=dispatch.msg_id\n      AND (payment.block_number IS NULL OR payment.block_number<=coalesce(\n        frontier.height, scraper_head.confirmed_height, 9223372036854775807))\n  ) payment ON TRUE\n",
+    "values": [
+      ["\\xaa", "\\xbb"],
+      [1, -1],
+      ["7", "5"]
+    ]
+  },
+  {
+    "name": "sequenceRows:dispatch",
+    "sql": "SELECT \"destination_domain\", \"id\", \"msg_body\", \"msg_id\", \"nonce\", \"origin_block_hash\", \"origin_block_height\", \"origin_domain\", \"origin_mailbox\", \"origin_tx_hash\", \"recipient\", \"sender\", \"time_created\" FROM \"confirmed_raw_message_dispatch\" WHERE \"origin_domain\" = $1 AND \"origin_mailbox\" = $2::bytea AND \"nonce\" > $3::bigint AND \"nonce\" <= $4::bigint ORDER BY \"nonce\" ASC LIMIT $5",
+    "values": [
+      -1,
+      "\\x0101010101010101010101010101010101010101",
+      "5",
+      "10",
+      500
+    ]
+  },
+  {
+    "name": "sequenceBounds:dispatch",
+    "sql": "SELECT COALESCE(MIN(\"nonce\"), 0)::text AS first, COALESCE(MAX(\"nonce\"), -1)::text AS last FROM \"confirmed_raw_message_dispatch\" WHERE \"origin_domain\" = $1 AND \"origin_mailbox\" = $2::bytea",
+    "values": [-1, "\\x0101010101010101010101010101010101010101"]
+  },
+  {
+    "name": "sequenceRows:merkle_tree_insertion",
+    "sql": "SELECT \"domain\", \"merkle_tree_hook\", \"leaf_index\", \"message_id\", \"block_number\" FROM \"confirmed_merkle_tree_insertion\" WHERE \"domain\" = $1 AND \"merkle_tree_hook\" = $2::bytea AND \"leaf_index\" > $3::bigint AND \"leaf_index\" <= $4::bigint ORDER BY \"leaf_index\" ASC LIMIT $5",
+    "values": [
+      -1,
+      "\\x0101010101010101010101010101010101010101",
+      "5",
+      "10",
+      500
+    ]
+  },
+  {
+    "name": "sequenceBounds:merkle_tree_insertion",
+    "sql": "SELECT COALESCE(MIN(\"leaf_index\"), 0)::text AS first, COALESCE(MAX(\"leaf_index\"), -1)::text AS last FROM \"confirmed_merkle_tree_insertion\" WHERE \"domain\" = $1 AND \"merkle_tree_hook\" = $2::bytea",
+    "values": [-1, "\\x0101010101010101010101010101010101010101"]
+  },
+  {
+    "name": "gasPaymentRows:legacy",
+    "sql": "SELECT \"event_row\".\"id\", \"event_row\".\"time_created\", \"event_row\".\"domain\", \"event_row\".\"msg_id\", \"event_row\".\"payment\", \"event_row\".\"gas_amount\", \"event_row\".\"tx_id\", \"event_row\".\"log_index\", \"event_row\".\"origin\", \"event_row\".\"destination\", \"event_row\".\"interchain_gas_paymaster\", \"event_row\".\"sequence\", COALESCE(\"event_row\".\"transaction_hash\", \"event_transaction\".\"hash\") AS \"origin_tx_hash\", COALESCE(\"event_row\".\"block_hash\", \"event_block\".\"hash\") AS \"origin_block_hash\", COALESCE(\"event_row\".\"block_number\", \"event_block\".\"height\") AS \"origin_block_height\", \"event_row\".\"id\" AS \"scraper_stream_cursor\" FROM (SELECT * FROM \"confirmed_gas_payment\" WHERE \"domain\" = $1 AND \"interchain_gas_paymaster\" = $2::bytea AND \"id\" > $3::bigint AND \"id\" <= $4::bigint ORDER BY \"id\" ASC LIMIT $5) AS \"event_row\" LEFT JOIN \"transaction\" AS \"event_transaction\" ON \"event_transaction\".\"id\" = \"event_row\".\"tx_id\" LEFT JOIN \"block\" AS \"event_block\" ON \"event_block\".\"id\" = \"event_transaction\".\"block_id\" ORDER BY \"event_row\".\"id\" ASC",
+    "values": [
+      1,
+      "\\x0202020202020202020202020202020202020202020202020202020202020202",
+      "1",
+      "2",
+      500
+    ]
+  },
+  {
+    "name": "gasPaymentRows:mapped",
+    "sql": "SELECT \"event_row\".\"id\", \"event_row\".\"time_created\", \"event_row\".\"domain\", \"event_row\".\"msg_id\", \"event_row\".\"payment\", \"event_row\".\"gas_amount\", \"event_row\".\"tx_id\", \"event_row\".\"log_index\", \"event_row\".\"origin\", \"event_row\".\"destination\", \"event_row\".\"interchain_gas_paymaster\", \"event_row\".\"sequence\", COALESCE(\"event_row\".\"transaction_hash\", \"event_transaction\".\"hash\") AS \"origin_tx_hash\", COALESCE(\"event_row\".\"block_hash\", \"event_block\".\"hash\") AS \"origin_block_hash\", COALESCE(\"event_row\".\"block_number\", \"event_block\".\"height\") AS \"origin_block_height\", \"event_cursor\".\"stream_cursor\" AS \"scraper_stream_cursor\" FROM (SELECT \"gas_payment_id\", \"stream_cursor\" FROM \"gas_payment_stream_cursor\" WHERE \"domain\" = $1 AND \"interchain_gas_paymaster\" = $2::bytea AND \"stream_cursor\" > $3::bigint AND \"stream_cursor\" <= $4::bigint ORDER BY \"stream_cursor\" ASC LIMIT $5) AS \"event_cursor\" INNER JOIN \"confirmed_gas_payment\" AS \"event_row\" ON \"event_row\".\"id\" = \"event_cursor\".\"gas_payment_id\" LEFT JOIN \"transaction\" AS \"event_transaction\" ON \"event_transaction\".\"id\" = \"event_row\".\"tx_id\" LEFT JOIN \"block\" AS \"event_block\" ON \"event_block\".\"id\" = \"event_transaction\".\"block_id\" ORDER BY \"event_cursor\".\"stream_cursor\" ASC",
+    "values": [
+      1,
+      "\\x0202020202020202020202020202020202020202020202020202020202020202",
+      "1",
+      "2",
+      500
+    ]
+  },
+  {
+    "name": "gasPaymentCursorBounds",
+    "sql": "SELECT COALESCE(\"legacy_max_id\", 0)::text AS legacy_max_id, COALESCE(\"last_cursor\", 0)::text AS last_cursor FROM \"gas_payment_stream_head\" WHERE \"domain\" = $1 AND \"interchain_gas_paymaster\" = $2::bytea",
+    "values": [
+      1,
+      "\\x0202020202020202020202020202020202020202020202020202020202020202"
+    ]
+  }
+]
