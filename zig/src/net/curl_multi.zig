@@ -1056,3 +1056,70 @@ test "curl multi driver work per completed transfer does not scale with live tra
         try std.testing.expect(per_busy <= per_lone + per_lone / 2);
     }
 }
+
+const KeepaliveFixture = struct {
+    server: std.net.Server,
+    requests: usize,
+    accepted: std.atomic.Value(usize) = .init(0),
+    failure: ?anyerror = null,
+    fn serve(self: *KeepaliveFixture) void {
+        self.run() catch |err| {
+            self.failure = err;
+        };
+    }
+    /// One accepted connection answers every request (HTTP/1.1 keepalive).
+    fn run(self: *KeepaliveFixture) !void {
+        const connection = try self.server.accept();
+        defer connection.stream.close();
+        _ = self.accepted.fetchAdd(1, .release);
+        var input: [4096]u8 = undefined;
+        var used: usize = 0;
+        for (0..self.requests) |_| {
+            while (true) {
+                if (std.mem.indexOf(u8, input[0..used], "\r\n\r\n")) |end| {
+                    std.mem.copyForwards(u8, &input, input[end + 4 .. used]);
+                    used -= end + 4;
+                    break;
+                }
+                if (used == input.len) return error.FixtureRequestTooLarge;
+                const got = try connection.stream.read(input[used..]);
+                if (got == 0) return error.FixtureUnexpectedEof;
+                used += got;
+            }
+            try connection.stream.writeAll("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        }
+    }
+};
+test "curl multi reuses one keepalive connection across idle gaps between transfers" {
+    const allocator = std.testing.allocator;
+    const library = try nativeLibrary(allocator);
+    defer allocator.free(library);
+    const requests = 4;
+    var fixture: KeepaliveFixture = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}), .requests = requests };
+    defer fixture.server.deinit();
+    const thread = try std.Thread.spawn(.{}, KeepaliveFixture.serve, .{&fixture});
+    // Declared after the fixture thread: deinit closes the kept connection
+    // (EOF for a fixture still reading) before the join below.
+    var joined = false;
+    defer if (!joined) thread.join();
+    const multi = try Multi.init(allocator, .{ .library_path = library, .max_concurrent = 2, .max_pending = 2 });
+    var multi_open = true;
+    defer if (multi_open) multi.deinit();
+    const url = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/kept", .{fixture.server.listen_address.getPort()});
+    defer allocator.free(url);
+    var timer = try std.time.Timer.start();
+    for (0..requests) |_| {
+        try driveFast(multi, url, &timer);
+        // The idle cached connection is out of the kernel set: a wait with
+        // no transfer blocks to its bound instead of spinning on the socket.
+        const waits = multi.waits;
+        try multi.wait(timer.read() / std.time.ns_per_ms, 5);
+        try std.testing.expectEqual(waits + 1, multi.waits);
+    }
+    try std.testing.expectEqual(@as(usize, 1), fixture.accepted.load(.acquire));
+    multi.deinit();
+    multi_open = false;
+    thread.join();
+    joined = true;
+    if (fixture.failure) |err| return err;
+}
