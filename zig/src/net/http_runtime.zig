@@ -4,6 +4,7 @@
 const std = @import("std");
 const curl = @import("curl.zig");
 const multi = @import("curl_multi.zig");
+const wake_notifier = @import("../runtime/wake.zig");
 const A = std.mem.Allocator;
 pub const Handle = struct { id: u64 };
 pub const Observer = struct {
@@ -183,6 +184,7 @@ pub const Runtime = struct {
         self.mutex.lock();
         session.result = result;
         self.mutex.unlock();
+        wake_notifier.notifyIo();
     }
     fn pollNative(self: *Runtime, now_ms: u64) !?multi.Completion {
         if (self.wait_failure) |err| return err;

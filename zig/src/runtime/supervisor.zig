@@ -2,6 +2,7 @@
 //! context has at most one retained job, including after owner-side timeout.
 const std = @import("std");
 const io = @import("io_pool.zig");
+const wake_notifier = @import("wake.zig");
 const A = std.mem.Allocator;
 pub const Times = struct { unix_ms: u64, monotonic_ms: u64 };
 pub const Report = struct { work: u64 = 0, next_delay_ms: ?u64 = null, halt: bool = false };
@@ -17,6 +18,9 @@ pub const Task = struct {
     /// Optional event mailbox. The worker consumes its own flag at job start;
     /// owner-side wake never grants reuse of an active/retiring context.
     wake: ?*const std.atomic.Value(bool) = null,
+    /// True when every writer of `wake` also calls runtime/wake.zig notify();
+    /// otherwise the service loop must re-check `wake` on a short slice.
+    wake_notified: bool = false,
     /// Nonblocking, thread-safe and idempotent. Cancels external retained work
     /// even after its polling callback yielded and no pool JobId remains active.
     stop_fn: ?*const fn (*anyopaque) void = null,
@@ -57,7 +61,25 @@ const Context = struct {
     fn freeOutput(_: *Context, _: Output) void {}
 };
 const Workers = io.Pool(Input, Output, Context, 8, 256);
-const Entry = struct { health: Health = .{}, next_ms: u64 = 0, active: ?Workers.JobId = null, timed_out: bool = false };
+/// Cadence for re-checking un-notified task wake flags and the backstop for a
+/// suspended (PendingReadIo) task whose completion source does not notify.
+pub const poll_slice_ms: u64 = 20;
+/// Minimum spacing between I/O-notified resumptions of one suspended task, so
+/// unrelated completions cannot replay a suspended task faster than this.
+pub const resume_spacing_ms: u64 = 10;
+/// Upper bound on one service-loop wait (health/server failure checks).
+pub const max_wait_ms: u64 = 1000;
+const Entry = struct {
+    health: Health = .{},
+    next_ms: u64 = 0,
+    active: ?Workers.JobId = null,
+    timed_out: bool = false,
+    deadline_ms: u64 = 0,
+    submitted_ms: u64 = 0,
+    /// Last run returned PendingReadIo; resume on an I/O notification.
+    suspended: bool = false,
+    io_generation: u32 = 0,
+};
 pub const Tick = struct { started: usize = 0, completed: usize = 0, suspended: usize = 0, failures: usize = 0, timeouts: usize = 0, retired: usize = 0 };
 pub const Supervisor = struct {
     allocator: A,
@@ -83,6 +105,7 @@ pub const Supervisor = struct {
         @memset(entries, .{});
         self.* = .{ .allocator = a, .context = .{ .tasks = copied }, .entries = entries, .workers = undefined };
         self.workers = try Workers.start(a, &self.context, Context.run, Context.freeInput, Context.freeOutput);
+        self.workers.notify_completion = true;
         return self;
     }
     pub fn deinit(self: *Supervisor) void {
@@ -140,6 +163,7 @@ pub const Supervisor = struct {
                     entry.health.last_error = null;
                     entry.health.halted = output.report.halt or self.terminal_error != null;
                     entry.next_ms = now.monotonic_ms +| (output.report.next_delay_ms orelse task.interval_ms);
+                    entry.suspended = false;
                     result.completed += 1;
                 },
                 .failure => |err| {
@@ -148,11 +172,15 @@ pub const Supervisor = struct {
                         // network/session state in its role-owned journal.
                         entry.health.suspended +|= 1;
                         result.suspended += 1;
-                        entry.next_ms = now.monotonic_ms +| 1;
+                        // Resume on the I/O completion it awaits (notifyIo), or
+                        // on the backstop for sources without a notifier.
+                        entry.suspended = true;
+                        entry.next_ms = entry.submitted_ms +| poll_slice_ms;
                         entry.timed_out = self.workers.retained(completion.id);
                         if (!entry.timed_out) entry.active = null;
                         continue;
                     }
+                    entry.suspended = false;
                     entry.health.last_error = err;
                     entry.health.failures +|= 1;
                     result.failures += 1;
@@ -189,17 +217,43 @@ pub const Supervisor = struct {
             const index = self.next_task;
             self.next_task = (index + 1) % self.entries.len;
             const entry = &self.entries[index];
-            const awake = if (self.context.tasks[index].wake) |wake| wake.load(.acquire) else false;
+            const awake = (if (self.context.tasks[index].wake) |wake| wake.load(.acquire) else false) or self.resumable(entry, now.monotonic_ms);
             if (entry.active != null or entry.health.halted or (now.monotonic_ms < entry.next_ms and !awake)) continue;
-            const id = self.workers.submit(.{ .index = index, .times = now }, now.monotonic_ms, now.monotonic_ms +| self.context.tasks[index].timeout_ms) catch |err| switch (err) {
+            const io_generation = wake_notifier.ioGeneration();
+            const deadline_ms = now.monotonic_ms +| self.context.tasks[index].timeout_ms;
+            const id = self.workers.submit(.{ .index = index, .times = now }, now.monotonic_ms, deadline_ms) catch |err| switch (err) {
                 error.IoPoolFull => break,
                 else => return err,
             };
+            entry.io_generation = io_generation;
+            entry.deadline_ms = deadline_ms;
+            entry.submitted_ms = now.monotonic_ms;
             entry.active = id;
             entry.health.started +|= 1;
             result.started += 1;
         }
         return result;
+    }
+    fn resumable(_: *const Supervisor, entry: *const Entry, now_ms: u64) bool {
+        return entry.suspended and wake_notifier.ioGeneration() != entry.io_generation and now_ms >= entry.submitted_ms +| resume_spacing_ms;
+    }
+    /// Milliseconds until the next tick can do work, assuming no notification
+    /// (runtime/wake.zig) arrives first. Job completions and I/O completions
+    /// notify; un-notified wake flags are re-checked every poll_slice_ms.
+    pub fn nextDelayMs(self: *const Supervisor, now_ms: u64) u64 {
+        var next = now_ms +| max_wait_ms;
+        for (self.entries, self.context.tasks) |*entry, task| {
+            if (entry.health.halted and entry.active == null) continue;
+            if (entry.active != null) {
+                if (!entry.timed_out) next = @min(next, entry.deadline_ms);
+                continue;
+            }
+            if (self.stopping) continue;
+            next = @min(next, entry.next_ms);
+            if (entry.suspended and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, entry.submitted_ms +| resume_spacing_ms);
+            if (task.wake != null and !task.wake_notified) next = @min(next, now_ms +| poll_slice_ms);
+        }
+        return next -| now_ms;
     }
 };
 
@@ -330,6 +384,53 @@ test "supervisor mailbox wake bypasses interval without reusing active or retiri
     owner.stop();
     state.fixture.release.post();
     while (!owner.drained()) std.Thread.sleep(std.time.ns_per_ms);
+}
+
+test "supervisor resumes a suspended read on I/O notification and sleeps to the next deadline" {
+    const Read = struct {
+        calls: std.atomic.Value(usize) = .init(0),
+        fn run(context: *anyopaque, _: Times, _: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            if (self.calls.fetchAdd(1, .acq_rel) < 2) return error.PendingReadIo;
+            return .{ .work = 1 };
+        }
+    };
+    var state: Read = .{};
+    const owner = try Supervisor.start(std.testing.allocator, &.{.{ .context = &state, .run = Read.run, .interval_ms = 60000, .timeout_ms = 10000 }});
+    defer owner.deinit();
+    const generation = wake_notifier.current();
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 })).started);
+    // Active job: the loop sleeps until its deadline unless completion notifies.
+    try std.testing.expectEqual(@as(u64, 1000), owner.nextDelayMs(0));
+    var attempts: usize = 0;
+    while ((try owner.tick(.{ .unix_ms = 1, .monotonic_ms = 1 })).suspended == 0) : (attempts += 1) {
+        if (attempts > 5000) return error.SuspensionNotObserved;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try std.testing.expect(wake_notifier.current() != generation); // job completion notified
+    // Suspended without I/O: backstop poll_slice_ms after submission.
+    try std.testing.expectEqual(@as(u64, poll_slice_ms - 1), owner.nextDelayMs(1));
+    try std.testing.expectEqual(@as(usize, 0), (try owner.tick(.{ .unix_ms = 10, .monotonic_ms = 10 })).started);
+    wake_notifier.notifyIo();
+    try std.testing.expectEqual(@as(u64, resume_spacing_ms - 5), owner.nextDelayMs(5));
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 10, .monotonic_ms = 10 })).started);
+    attempts = 0;
+    while ((try owner.tick(.{ .unix_ms = 11, .monotonic_ms = 11 })).suspended == 0) : (attempts += 1) {
+        if (attempts > 5000) return error.SuspensionNotObserved;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // No notification: resumes only at the backstop (submitted 10 + 20).
+    try std.testing.expectEqual(@as(usize, 0), (try owner.tick(.{ .unix_ms = 29, .monotonic_ms = 29 })).started);
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 30, .monotonic_ms = 30 })).started);
+    attempts = 0;
+    while ((try owner.health(0)).completed == 0) : (attempts += 1) {
+        if (attempts > 5000) return error.CompletionNotObserved;
+        _ = try owner.tick(.{ .unix_ms = 31, .monotonic_ms = 31 });
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // Idle until the 60 s interval: one bounded wait instead of 50 Hz ticks.
+    try std.testing.expectEqual(max_wait_ms, owner.nextDelayMs(31));
+    try std.testing.expectEqual(@as(u64, 3), state.calls.load(.acquire));
 }
 
 test "supervisor cooperative reads resume without consuming failures retries or completion" {

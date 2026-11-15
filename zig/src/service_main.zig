@@ -4,6 +4,7 @@ const std = @import("std");
 const options = @import("service_options");
 const settings = @import("settings/root.zig");
 const scheduler = @import("runtime/supervisor.zig");
+const wake_notifier = @import("runtime/wake.zig");
 const process_clock = @import("agents/process_clock.zig");
 const validator = @import("agents/validator_task.zig");
 const scraper = @import("agents/scraper/task.zig");
@@ -29,6 +30,7 @@ comptime {
 var stopping = std.atomic.Value(bool).init(false);
 fn signal(_: c_int) callconv(.c) void {
     stopping.store(true, .release);
+    wake_notifier.notify(); // futex wake: async-signal-safe
 }
 const ChainSigner = struct {
     settings: *const settings.Settings,
@@ -201,6 +203,8 @@ fn supervise(owner: *scheduler.Supervisor, server: *http.Server, public_http: ?*
     while (!stopping.load(.acquire)) {
         try server.checkFailure();
         if (public_http) |value| try value.checkFailure();
+        // Observed before the tick: a completion during the tick ends the wait.
+        const seen = wake_notifier.current();
         const now = try clock.observation().now();
         _ = try owner.tick(.{ .unix_ms = now.unix_ms, .monotonic_ms = now.monotonic_ms });
         if (owner.failureReason()) |err| {
@@ -220,7 +224,9 @@ fn supervise(owner: *scheduler.Supervisor, server: *http.Server, public_http: ?*
             if (health.halted) halt_error = health.last_error orelse error.AgentTaskHalted;
         }
         if ((once and finished) or halted) break;
-        std.Thread.sleep(20 * std.time.ns_per_ms);
+        // Sleep to the next task deadline; job completions, awaited I/O
+        // completions and signals notify and end the wait early.
+        wake_notifier.waitFrom(seen, @max(owner.nextDelayMs(now.monotonic_ms), 1) * std.time.ns_per_ms);
     }
     drain(owner, server, public_http);
     if (once) {

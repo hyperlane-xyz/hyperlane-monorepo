@@ -9,6 +9,7 @@ const A = std.mem.Allocator;
 const Value = std.json.Value;
 const tip_cache = @import("../net/dynamic_tip_cache.zig");
 const json_bounds = @import("../net/json_bounds.zig");
+const wake_notifier = @import("../runtime/wake.zig");
 
 pub const WireResponse = struct { bytes: []u8, len: usize };
 /// One caller owns a handle. Terminal poll or cancel consumes it. The pool owns
@@ -1944,6 +1945,7 @@ pub const Pool = struct {
         session.finished = true;
         session.wake.broadcast();
         session.mutex.unlock();
+        wake_notifier.notifyIo();
         session.closed.store(true, .release);
         for (session.peers, 0..) |*peer, index| {
             self.cacheRelease(peer);

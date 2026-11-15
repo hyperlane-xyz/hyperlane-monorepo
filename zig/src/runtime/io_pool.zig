@@ -2,6 +2,7 @@
 //! the owner thread; results carry identities so expired responses cannot mutate
 //! a newer generation. Timeout ends the owner's wait, not an already-sent RPC.
 const std = @import("std");
+const wake_notifier = @import("wake.zig");
 
 pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type, comptime workers: usize, comptime capacity: usize) type {
     comptime {
@@ -24,6 +25,9 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         mutex: std.Thread.Mutex = .{},
         wake: std.Thread.Condition = .{},
         stopping: bool = false,
+        /// Set before submissions by the service supervisor: completions and
+        /// retirements end its timed wait (runtime/wake.zig).
+        notify_completion: bool = false,
         sequence: u64 = 0,
         completions: u64 = 0,
 
@@ -227,6 +231,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                     slot.state = .done;
                 }
                 self.mutex.unlock();
+                if (self.notify_completion) wake_notifier.notify();
             }
         }
     };

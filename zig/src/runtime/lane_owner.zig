@@ -3,6 +3,7 @@
 //! No caller cancellation pointer or callback stack survives poll().
 const std = @import("std");
 const supervisor = @import("supervisor.zig");
+const wake_notifier = @import("wake.zig");
 pub const Config = struct {
     timeout_ms: u64,
     stack_size: usize = 1024 * 1024,
@@ -76,6 +77,8 @@ pub const Owner = struct {
             self.result = result;
             if (self.timer.?.read() >= self.config.timeout_ms * std.time.ns_per_ms) self.expired = true;
             self.state = .done;
+            // Resume the supervisor task polling this owner (PendingReadIo).
+            wake_notifier.notifyIo();
         }
         self.mutex.unlock();
     }
