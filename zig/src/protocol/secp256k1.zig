@@ -3,7 +3,8 @@
 //! split come from std.crypto.
 //!
 //! - `mulBase`: constant-time k*G from a precomputed comb of affine multiples
-//!   (65 mixed additions, no doublings) instead of std's 252 doublings plus 64
+//!   (53 mixed additions over signed 5-bit windows, no doublings) instead of
+//!   std's 252 doublings plus 64
 //!   table additions.
 //! - `mulDoubleBasePublic`: variable-time u1*G + u2*R for public recovery
 //!   inputs, using the GLV endomorphism (lambda*(x, y) = (beta*x, y)) to halve
@@ -26,22 +27,31 @@ fn entry(e: *const tables.Entry) Affine {
     return .{ .x = .{ .v = @bitCast(e[0]) }, .y = .{ .v = @bitCast(e[1]) } };
 }
 
-/// Signed 4-bit windows: digits in [-8, 8], 65 of them for a canonical scalar.
-/// Branch-free arithmetic, so safe for secret scalars.
-fn signedWindows(s: [32]u8) [65]i8 {
-    var e: [65]i8 = undefined;
-    for (s, 0..) |byte, i| {
-        e[2 * i] = @as(i8, @as(u4, @truncate(byte)));
-        e[2 * i + 1] = @as(i8, @as(u4, @truncate(byte >> 4)));
+const comb_bits = tables.comb_bits;
+const comb_windows = tables.comb.len;
+const comb_entries = tables.comb[0].len;
+comptime {
+    std.debug.assert(comb_windows == (256 + comb_bits - 1) / comb_bits + 1);
+    std.debug.assert(comb_entries == 1 << (comb_bits - 1));
+}
+
+/// Signed comb_bits-wide windows: digits in [-2^(w-1), 2^(w-1)], one extra
+/// window for the final carry. Branch-free arithmetic, safe for secrets.
+fn signedWindows(s: [32]u8) [comb_windows]i8 {
+    const value = std.mem.readInt(u256, &s, .little);
+    const half_window: i8 = 1 << (comb_bits - 1);
+    var e: [comb_windows]i8 = undefined;
+    inline for (0..comb_windows - 1) |i| {
+        e[i] = @intCast((value >> (comb_bits * i)) & ((1 << comb_bits) - 1));
     }
     var carry: i8 = 0;
-    for (e[0..64]) |*digit| {
-        // Digits stay within [-8, 16]; wrapping ops avoid safety-check branches.
+    for (e[0 .. comb_windows - 1]) |*digit| {
+        // Wrapping ops avoid safety-check branches; digits stay in range.
         digit.* +%= carry;
-        carry = (digit.* +% 8) >> 4;
-        digit.* -%= carry *% 16;
+        carry = (digit.* +% half_window) >> comb_bits;
+        digit.* -%= carry *% (2 * half_window);
     }
-    e[64] = carry;
+    e[comb_windows - 1] = carry;
     return e;
 }
 
@@ -65,7 +75,7 @@ pub fn mulBaseUnchecked(k: [32]u8) Point {
         const bits: u8 = @bitCast(digit);
         const negative: u1 = @truncate(bits >> 7);
         const magnitude: u8 = (bits ^ (0 -% @as(u8, negative))) +% negative;
-        // Scan all eight entries; each is masked in or out, so the memory
+        // Scan every entry of the row; each is masked in or out, so the memory
         // access pattern and instruction stream are independent of the digit.
         var x: [4]u64 = .{ 0, 0, 0, 0 };
         var y: [4]u64 = .{ 1, 0, 0, 0 }; // affine identity marker (0, 1)
@@ -280,7 +290,7 @@ test "generator tables match std arithmetic" {
             acc = acc.add(base);
             try std.testing.expect(try sameAsStd(Point.fromAffine(entry(e)), acc));
         }
-        base = base.dbl().dbl().dbl().dbl();
+        inline for (0..comb_bits) |_| base = base.dbl();
     }
     const two_g = Std.basePoint.dbl();
     var acc = Std.basePoint;
