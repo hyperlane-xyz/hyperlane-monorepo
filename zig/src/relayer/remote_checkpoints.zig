@@ -262,6 +262,8 @@ pub const ReadRequest = struct {
     }
 };
 
+const disk_wait_ns: u64 = 50 * std.time.ns_per_ms;
+
 pub const Engine = struct {
     allocator: A,
     config: Config,
@@ -274,6 +276,10 @@ pub const Engine = struct {
     sequence: u64 = 0,
     sessions: []?*Session,
     stopping: std.atomic.Value(bool) = .init(false),
+    /// Disk completion or a new session since the loop last waited (mutex).
+    kicked: bool = false,
+    /// Owner loop passes, for work-count evidence.
+    loop_iterations: std.atomic.Value(u64) = .init(0),
     thread: std.Thread,
     started: std.time.Instant,
     /// Allocator must be thread-safe. Callers may register/read concurrently;
@@ -296,6 +302,7 @@ pub const Engine = struct {
         self.* = .{ .allocator = allocator, .config = config, .http_owner = native, .readers = readers, .touched = touched, .sessions = sessions, .disk = undefined, .thread = undefined, .started = try std.time.Instant.now() };
         self.disk = try DiskPool.start(allocator, self, diskRun, diskFreeInput, diskFreeOutput);
         errdefer self.disk.deinit();
+        self.disk.completion_hook = .{ .context = self, .call_fn = diskCompleted };
         self.thread = try std.Thread.spawn(.{}, run, .{self});
         return self;
     }
@@ -472,6 +479,7 @@ pub const Engine = struct {
         session.* = .{ .allocator = self.allocator, .peers = peers, .kind = kind, .index = index, .deadline_ms = self.now() +| self.config.timeout_ms };
         session.retain(); // dedicated owner reference, released after work drains
         self.sessions[slot] = session;
+        self.kicked = true;
         self.wake.signal();
         return session;
     }
@@ -577,8 +585,18 @@ pub const Engine = struct {
     fn diskFreeOutput(_: *Engine, output: DiskOutput) void {
         output.session.release();
     }
+    /// Disk worker completion: end the owner's wait instead of a 1ms poll.
+    fn diskCompleted(context: *anyopaque) void {
+        const self: *Engine = @ptrCast(@alignCast(context));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.kicked = true;
+        self.wake.signal();
+    }
     fn run(self: *Engine) void {
         while (true) {
+            _ = self.loop_iterations.fetchAdd(1, .monotonic);
+            var http_pending = false;
             var snapshot: [128]?*Session = @splat(null);
             self.mutex.lock();
             for (self.sessions, snapshot[0..self.sessions.len]) |session, *out| {
@@ -622,6 +640,7 @@ pub const Engine = struct {
                 },
             };
             for (snapshot[0..self.sessions.len], 0..) |entry, index| if (entry) |session| {
+                for (session.peers) |peer| http_pending = http_pending or peer.http_id != null;
                 const drained = for (session.peers) |peer| {
                     if (peer.http_id != null or peer.disk_id != null) break false;
                 } else true;
@@ -647,8 +666,19 @@ pub const Engine = struct {
                     if (entry != null) break false;
                 } else true;
                 if (empty_sessions and !self.stopping.load(.acquire)) self.wake.timedWait(&self.mutex, std.time.ns_per_s) catch {};
+                self.kicked = false;
                 self.mutex.unlock();
-            } else std.Thread.sleep(std.time.ns_per_ms);
+            } else if (http_pending) {
+                // HTTP transfers progress only through http_owner.poll.
+                std.Thread.sleep(std.time.ns_per_ms);
+            } else {
+                // Disk-only sessions: sleep until a disk completion or new
+                // session (bounded, so session deadlines and closes are seen).
+                self.mutex.lock();
+                if (!self.kicked and !self.stopping.load(.acquire)) self.wake.timedWait(&self.mutex, disk_wait_ns) catch {};
+                self.kicked = false;
+                self.mutex.unlock();
+            }
         }
     }
     fn progress(self: *Engine, session: *Session, now_ms: u64) !void {

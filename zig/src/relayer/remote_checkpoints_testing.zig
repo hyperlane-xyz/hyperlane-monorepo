@@ -694,3 +694,33 @@ test "remote checkpoint async request preserves global flag barrier and cancella
     try std.testing.expectError(error.RequestCancelled, cancelled.poll(&cancel));
     try std.testing.expectError(error.RemoteReadAlreadyConsumed, cancelled.poll(&cancel));
 }
+
+test "remote checkpoint owner sleeps through a slow local read instead of polling" {
+    const a = std.testing.allocator;
+    const library = try nativeLibrary(a);
+    defer a.free(library);
+    var disk: DiskReader = .{ .value = try objects.SignedCheckpoint.sign(checkpoint(1), @splat(2), null), .release_guard = .init(false) };
+    const e = try engine.Engine.start(a, .{ .multi = .{ .library_path = library }, .timeout_ms = 3000, .allow_insecure_loopback = true });
+    defer e.deinit();
+    try e.registerLocal(try disk.interface(1));
+    const validator = try disk.value.recover();
+    var caller: Caller = .{ .e = e, .domain = 1, .validators = &.{validator}, .threshold = 1 };
+    const thread = try std.Thread.spawn(.{}, Caller.run, .{&caller});
+    var joined = false;
+    defer if (!joined) {
+        disk.release_guard.store(true, .release);
+        thread.join();
+    };
+    try waitFlag(&disk.entered);
+    const before = e.loop_iterations.load(.monotonic);
+    std.Thread.sleep(200 * std.time.ns_per_ms);
+    const stalled = e.loop_iterations.load(.monotonic) - before;
+    disk.release_guard.store(true, .release);
+    thread.join();
+    joined = true;
+    var result = (try caller.result).?;
+    defer result.deinit();
+    std.debug.print("\nremote checkpoint owner passes during a 200ms local read: {d}\n", .{stalled});
+    // A 1ms poll made ~200 passes; disk completions now end the wait.
+    try std.testing.expect(stalled <= 10);
+}
