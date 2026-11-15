@@ -91,6 +91,7 @@ def main() -> None:
             out.write(f"pairs={pairs}\n")
             out.write(f"mode={mode}\n")
             out.write(f"profile={'true' if data.get('profile') else 'false'}\n")
+            out.write(f"profile_kinds={data.get('profile_kinds') or 'perf,strace,sched'}\n")
             out.write(f"sandbox_seconds={int(hours * 3600)}\n")
 
 

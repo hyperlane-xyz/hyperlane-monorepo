@@ -184,7 +184,8 @@ def main() -> int:
     parser.add_argument("--build-only", action="store_true", help="run only the build job (warms caches), no bench")
     parser.add_argument("--poll", type=float, default=30)
     parser.add_argument("--ref", help="bench this commit instead of the working tree (current harness overlaid)")
-    parser.add_argument("--profile", action="store_true", help="add one perf-record pair and one strace pair per workload (excluded from stats)")
+    parser.add_argument("--profile", action="store_true", help="add one extra profiled pair per kind per workload (excluded from stats)")
+    parser.add_argument("--profile-kinds", default="perf,strace,sched", help="perf,strace,sched,startup (see bench.py)")
     args = parser.parse_args()
     provenance = None
     if args.fetch:
@@ -195,7 +196,8 @@ def main() -> int:
         tree = Tree(args.ref)
         try:
             run_id, provenance = trigger(["build"] if args.build_only else [], tree,
-                                         {"workloads": names, "pairs": args.pairs, "profile": args.profile})
+                                         {"workloads": names, "pairs": args.pairs, "profile": args.profile or args.profile_kinds != "perf,strace,sched",
+                                          "profile_kinds": args.profile_kinds})
         finally:
             tree.close()
         print(f"run {run_id}: source tree {provenance['source_tree'][:12]} (HEAD {provenance['local_head'][:10]}, "

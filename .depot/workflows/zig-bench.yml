@@ -38,6 +38,7 @@ jobs:
       pairs: ${{ steps.plan.outputs.pairs }}
       mode: ${{ steps.plan.outputs.mode }}
       profile: ${{ steps.plan.outputs.profile }}
+      profile_kinds: ${{ steps.plan.outputs.profile_kinds }}
       provenance: ${{ steps.provenance.outputs.provenance }}
       sandbox_seconds: ${{ steps.plan.outputs.sandbox_seconds }}
     steps:
@@ -219,7 +220,7 @@ jobs:
       - name: Bench ${{ matrix.workload }}
         run: |
           python3 zig/bench/depot/bench.py --workload "${{ matrix.workload }}" \
-            --pairs "${{ needs.plan.outputs.pairs }}" ${{ needs.plan.outputs.profile == 'true' && '--profile' || '' }} --bins .zb/out --output "$RUNNER_TEMP/zig-bench/${{ matrix.workload }}"
+            --pairs "${{ needs.plan.outputs.pairs }}" ${{ needs.plan.outputs.profile == 'true' && '--profile' || '' }} --profile-kinds "${{ needs.plan.outputs.profile_kinds }}" --bins .zb/out --output "$RUNNER_TEMP/zig-bench/${{ matrix.workload }}"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:

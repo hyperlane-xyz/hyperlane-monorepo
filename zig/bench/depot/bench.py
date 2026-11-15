@@ -123,8 +123,18 @@ def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str, cal
                 f"{perf} record -q -e page-faults -c 1 --call-graph {call_graph} -p $$ -o {stem}.faults.perf.data >/dev/null 2>&1 &\n"
                 f"{perf} stat -e task-clock,context-switches,cpu-migrations,page-faults,cycles,instructions "
                 f"-p $$ -o {stem}.perf-stat.txt >/dev/null 2>&1 &\nsleep 0.3\n")
+    if kind == "sched":
+        perf = perf_binary()
+        assert perf, "perf not installed (linux-tools-generic)"
+        # Every context switch out of an agent thread, with the stack it blocked on.
+        return (f"{perf} record -q -e sched:sched_switch --call-graph {call_graph} -p $$ "
+                f"-o {stem}.sched.perf.data >/dev/null 2>&1 &\nsleep 0.3\n")
     strace = shutil.which("strace")
     assert strace, "strace not installed"
+    if kind == "startup":
+        # Full per-thread syscall timeline (wall-clock -ttt) for startup analysis; the harness
+        # records launch_unix/ready_unix in the same clock (relayer only).
+        return f"{strace} -f -ttt -T -q -p $$ -o {stem}.startup-strace.txt >/dev/null 2>&1 &\nsleep 0.3\n"
     return f"{strace} -c -f -q -p $$ -o {stem}.strace.txt >/dev/null 2>&1 &\nsleep 0.3\n"
 
 
@@ -396,8 +406,10 @@ def postprocess_profiles(profdir: pathlib.Path) -> dict:
     groups: dict[str, dict[str, int]] = {}
     flats: dict[str, dict[str, int]] = {}
     for data in sorted(profdir.glob("*.perf.data")):
-        impl_role = "-".join(data.name.split("-")[:2]) + (".faults" if ".faults." in data.name else "")
-        script = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "--sort", "comm",
+        sched = ".sched." in data.name
+        impl_role = "-".join(data.name.split("-")[:2]) + (".faults" if ".faults." in data.name else ".sched" if sched else "")
+        # sched folded stacks are keyed per thread (comm + tid) so switches are attributable by thread and site.
+        script = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "--sort", "comm,tid" if sched else "comm",
                                  "-g", "folded,0,caller,count"], capture_output=True, text=True, timeout=900)
         folded = groups.setdefault(impl_role, {})
         for k, v in parse_perf_folded(script.stdout).items():
@@ -450,7 +462,10 @@ def main() -> int:
     parser.add_argument("--output", type=pathlib.Path, required=True)
     parser.add_argument("--agent-cpus", default=os.environ.get("BENCH_AGENT_CPUS"))
     parser.add_argument("--fixture-cpus", default=os.environ.get("BENCH_FIXTURE_CPUS"))
-    parser.add_argument("--profile", action="store_true", help="after measuring, one perf-record pair and one strace pair (both arms)")
+    parser.add_argument("--profile", action="store_true", help="after measuring, one extra pair per profile kind (both arms)")
+    parser.add_argument("--profile-kinds", default=os.environ.get("BENCH_PROFILE_KINDS") or "perf,strace,sched",
+                        help="comma list: perf (cycles + page faults + perf stat), strace (-c counts, relayer rpc-shapes), "
+                             "sched (sched_switch call graphs per thread), startup (strace -f -ttt timeline)")
     args = parser.parse_args()
     spec = catalogue.WORKLOADS[args.workload]
     out = args.output.resolve()
@@ -502,7 +517,7 @@ def main() -> int:
     if args.profile:
         # Separate one-pair passes; profiler overhead never touches the measured rows above.
         result["profiles"] = {}
-        for kind in ("perf", "strace"):
+        for kind in args.profile_kinds.split(","):
             profdir = out / "profiles" / kind
             profdir.mkdir(parents=True, exist_ok=True)
             prof_wrappers = make_wrappers(bins, spec["mode"], agent_cpus, work, (kind, profdir))
@@ -519,7 +534,7 @@ def main() -> int:
                     if kind == "strace" and pdata:
                         shapes = {r["implementation"]: r.get("rpc_shapes") for r in pdata.get("raw_samples", [])}
                         (profdir / "rpc-shapes.json").write_text(json.dumps(shapes, indent=2) + "\n")
-                info = postprocess_profiles(profdir) if kind == "perf" else {"files": sorted(p.name for p in profdir.iterdir())}
+                info = postprocess_profiles(profdir) if kind in ("perf", "sched") else {"files": sorted(p.name for p in profdir.iterdir())}
                 result["profiles"][kind] = {"harness_exit_code": pcode, **info}
             except Exception as error:  # profiling is diagnostic; never fail the measured run
                 result["profiles"][kind] = {"error": str(error)[-2000:]}

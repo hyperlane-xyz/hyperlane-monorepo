@@ -281,7 +281,10 @@ def run_attempt(name, sample, order, args, output):
 
             running = rb.launch(name, args.binaries[name], temporary, relayer_file, relayer_config)
             launch_ns = running.start_ns
+            launch_unix = time.time() - (time.perf_counter_ns() - launch_ns) / 1e9
+            agent_pid = running.p.pid
             ready_ns = rb.wait_for(running, lambda: rb.metrics_ready(metrics_port), args.deadline, "relayer readiness")
+            ready_unix = time.time()
             startup_rpc = rpc_snapshot()
             pending = list(messages)
 
@@ -385,6 +388,7 @@ def run_attempt(name, sample, order, args, output):
             return {
                 "implementation": name, "sample": sample, "order": order,
                 "launch_to_ready_ms": (ready_ns - launch_ns) / 1e6,
+                "launch_unix": launch_unix, "ready_unix": ready_unix, "agent_pid": agent_pid,
                 **rb.catchup_measurements(backlog, launch_ns, ready_ns, caught_ns),
                 "freshness_ms": fresh,
                 "freshness_percentiles_ms": {q: rb.percentile(fresh, v) for q, v in [("p50", .5), ("p95", .95), ("p99", .99)]},
