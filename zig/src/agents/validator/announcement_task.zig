@@ -33,6 +33,9 @@ pub const Worker = struct {
     transactions: ?lander.Service = null,
     loaded_digest: ?[32]u8 = null,
     loaded_revision: ?u64 = null,
+    /// Nothing to do until the mailbox wakes us: no request yet, or the
+    /// announcement is complete and its lander is idle.
+    settled: bool = false,
     empty_environment: std.process.EnvMap,
     date: [16]u8 = undefined,
     halt_signal: ?*std.atomic.Value(bool) = null,
@@ -78,10 +81,15 @@ pub const Worker = struct {
         // Snapshot once at callback entry, before DB/credentials/initialization.
         // The supervisor cancellation token still enforces its original watchdog.
         const deadline = (try @import("../scraper/receipts_evm.zig").nowNs()) +| (self.options.job_timeout_ms *| std.time.ns_per_ms);
-        _ = self.mailbox.pending.swap(false, .acq_rel);
+        const woke = self.mailbox.pending.swap(false, .acq_rel);
+        if (self.settled and !woke) return .{};
+        self.settled = false;
         if (self.startup_ready) |ready| if (!ready.load(.acquire)) return .{};
         if (self.settings.role.validator.skip_announce) return .{};
-        var request = try self.mailbox.read(cancel) orelse return .{};
+        var request = try self.mailbox.read(cancel) orelse {
+            self.settled = true;
+            return .{};
+        };
         defer request.deinit();
         const chain = self.settings.chainByName(self.settings.role.validator.origin_chain) orelse return error.UnknownOriginChain;
         // Both descriptors may start together on restart. Read the durable guard
@@ -96,7 +104,10 @@ pub const Worker = struct {
             if (self.native_owner) |owner| try owner.observedAnnounced(.{ .unix_ms = times.unix_ms, .monotonic_ms = times.monotonic_ms });
             return .{};
         }
-        if (request.wire.complete and self.transactions == null) return .{};
+        if (request.wire.complete and self.transactions == null) {
+            self.settled = true;
+            return .{};
+        }
         if (self.native == null) self.native = try Curl.Client.init(self.allocator, self.options.curl_library);
         self.http.native_curl = &self.native.?;
         self.http.cancel = cancel;
@@ -128,7 +139,10 @@ pub const Worker = struct {
             // Observed on chain and nothing left to submit, confirm or reorg:
             // ticking would only re-read the account nonce boundary. A restart
             // already skips the lander entirely in this state (see above).
-            if (request.wire.complete and try transactions.idle()) return .{};
+            if (request.wire.complete and try transactions.idle()) {
+                self.settled = true;
+                return .{};
+            }
             _ = try transactions.tick(times.unix_ms, .{});
             if (!request.wire.complete and (self.loaded_digest == null or !std.mem.eql(u8, &self.loaded_digest.?, &request.digest) or self.loaded_revision != request.wire.revision)) {
                 try self.checkEffects();

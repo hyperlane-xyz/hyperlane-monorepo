@@ -40,6 +40,7 @@ pub const Task = struct {
     effects_halted: std.atomic.Value(bool) = .init(false),
     checkpoint_cancel: ?*const std.atomic.Value(bool) = null,
     metadata_ready: std.atomic.Value(bool) = .init(false),
+    announcement_recorded: bool = false,
     metadata_url: ?Url.Library = null,
     resources: ?*config.Resources = null,
     validator: ?*role.Role = null,
@@ -147,7 +148,7 @@ pub const Task = struct {
             return err;
         };
         const role_completed = tick_elapsed.read();
-        if (validator.announcement_ready) if (validator.signed_announcement) |signed| try self.mailbox.completed(signed.value.digest(), cancel);
+        try self.recordAnnounced(validator.announcement_ready, validator.signed_announcement, cancel);
         self.recordMetrics() catch |err| self.metricFailure(err);
         const source_delay = if (result.next_delay_ms) |delay| @min(self.settings.role.validator.interval *| 1000, delay -| ((tick_elapsed.read() -| role_completed) / std.time.ns_per_ms)) else null;
         return .{ .work = if (result.progress) |progress| progress.published else 0, .next_delay_ms = if (result.indexed_range) 0 else source_delay };
@@ -169,10 +170,18 @@ pub const Task = struct {
             return err;
         };
         const role_completed = tick_elapsed.read();
-        if (validator.announcement_ready) if (validator.signed_announcement) |signed| try self.mailbox.completed(signed.value.digest(), cancel);
+        try self.recordAnnounced(validator.announcement_ready, validator.signed_announcement, cancel);
         self.recordMetrics() catch |err| self.metricFailure(err);
         const source_delay = if (result.next_delay_ms) |delay| @min(self.settings.role.validator.interval *| 1000, delay -| ((tick_elapsed.read() -| role_completed) / std.time.ns_per_ms)) else null;
         return .{ .work = if (result.progress) |progress| progress.published else 0, .next_delay_ms = if (result.indexed_range or result.audit_pending) 0 else source_delay };
+    }
+    /// The announcement is fixed for the role's lifetime: mark the mailbox
+    /// complete once, not with a DB read and parse on every tick.
+    fn recordAnnounced(self: *Task, ready: bool, signed: ?@import("../storage/objects.zig").SignedAnnouncement, cancel: *const std.atomic.Value(bool)) !void {
+        if (!ready or self.announcement_recorded) return;
+        const value = signed orelse return;
+        try self.mailbox.completed(value.value.digest(), cancel);
+        self.announcement_recorded = true;
     }
     fn publishMetadata(self: *Task, cancel: *const std.atomic.Value(bool)) !void {
         if (cancel.load(.acquire)) return error.RequestCancelled;

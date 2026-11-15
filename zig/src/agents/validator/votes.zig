@@ -68,8 +68,7 @@ pub const Engine = struct {
 /// socket becomes ready; libcurl timers and request deadlines shorten it.
 const max_wait_ms: u32 = 50;
 fn waitForSockets(engine: *multi.Multi, now_ms: u64) !void {
-    if (comptime @hasDecl(multi.Multi, "wait")) return engine.wait(now_ms, max_wait_ms);
-    std.Thread.sleep(500 * std.time.ns_per_us);
+    return engine.wait(now_ms, max_wait_ms);
 }
 const Runner = struct {
     a: A,

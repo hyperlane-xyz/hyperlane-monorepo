@@ -86,6 +86,9 @@ pub fn collect(a: A, slots: []const Slot, config: Config, context: *anyopaque, r
             if (!consumed) return error.UnknownCheckpointVoteCompletion;
             progressed = true;
         }
-        if (!progressed) std.Thread.sleep(std.time.ns_per_ms);
+        // Every pending read is a transfer on this multi: wait on its sockets
+        // (bounded so the borrowed cancel flag is still observed) instead of
+        // a fixed 1 ms sleep loop.
+        if (!progressed) try engine.wait(timer.read() / std.time.ns_per_ms, 50);
     }
 }
