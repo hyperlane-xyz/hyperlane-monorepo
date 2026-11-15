@@ -8,6 +8,9 @@ const std = @import("std");
 const pool = @import("../evm/pool.zig");
 const rpc = @import("../evm/provider.zig");
 const read_mode = @import("../runtime/read_mode.zig");
+const fiber = @import("../runtime/fiber.zig");
+/// Cancellation recheck while a fiber is parked on a read (no notifier).
+const parked_cancel_slice_ms: i64 = 100;
 const A = std.mem.Allocator;
 const V = std.json.Value;
 pub const ByteBudget = @import("byte_budget.zig").Budget;
@@ -136,6 +139,7 @@ pub const Replay = struct {
         if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         const remaining = try self.remainingMs();
         if (read_mode.direct()) return self.fetchDirect(a, body, options, remaining);
+        if (fiber.inFiber()) return self.fetchParked(a, body, options, remaining);
         var identity = try requestIdentity(a, body, self.config.max_request_bytes);
         // A larger later wire cap cannot inherit a cached small-cap failure;
         // a smaller cap must not reuse a response produced under different bounds.
@@ -215,6 +219,41 @@ pub const Replay = struct {
                 continue;
             };
         }
+    }
+    /// Fiber read (shared supervisor worker): submit to the Pool owner, park
+    /// this fiber until the session is terminal, then return its bytes. The
+    /// worker runs other jobs meanwhile; the callback is never replayed.
+    fn fetchParked(self: *Replay, a: A, body: []const u8, options: rpc.Options, remaining: u32) !rpc.WireResponse {
+        try requireReadOnly(a, body, self.config.max_request_bytes);
+        const timeout = if (self.config.use_owner_timeout) remaining else @min(options.timeout_ms, remaining);
+        const owner_limited = self.config.use_owner_timeout or remaining <= options.timeout_ms;
+        const handle = while (true) {
+            break self.pool.submitObservedCached(body, timeout, @min(options.connect_timeout_ms, timeout), options.max_response_bytes, options.pool_observer, options.indexer_tip_cache) catch |err| {
+                if (err != error.RpcPoolSessionsFull) return err;
+                try self.checkCancel(options);
+                _ = try self.remainingMs();
+                var nap: fiber.Waiter = .{};
+                _ = nap.waitTimeout(fiber.monoMs() + 1);
+                continue;
+            };
+        };
+        // Terminal poll or cancel ends the waiter registration under the
+        // session mutex before `waiter` leaves scope.
+        defer self.pool.cancel(handle);
+        var waiter: fiber.Waiter = .{};
+        _ = self.pool.attachWaiter(handle, &waiter);
+        while (true) {
+            const response = self.pool.poll(handle, a) catch |err| return self.completedFailure(err, owner_limited, options.cancel);
+            if (response) |wire| return .{ .bytes = wire.bytes, .len = wire.len };
+            try self.checkCancel(options);
+            // Completion wakes the fiber; borrowed cancel flags have no
+            // notifier, so they are rechecked on a coarse slice.
+            _ = waiter.waitTimeout(fiber.monoMs() + parked_cancel_slice_ms);
+        }
+    }
+    fn checkCancel(self: *Replay, options: rpc.Options) !void {
+        if (self.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+        if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
     }
     fn waitDirect(self: *Replay, a: A, handle: pool.Handle, options: rpc.Options, remaining: u32) !rpc.WireResponse {
         const timeout = if (self.config.use_owner_timeout) remaining else @min(options.timeout_ms, remaining);

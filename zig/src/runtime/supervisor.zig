@@ -117,8 +117,7 @@ pub const Supervisor = struct {
         @memset(entries, .{});
         for (entries, tasks) |*entry, task| entry.inline_task = task.nonblocking;
         self.* = .{ .allocator = a, .context = .{ .tasks = copied }, .entries = entries, .workers = undefined };
-        self.workers = try Workers.start(a, &self.context, Context.run, Context.freeInput, Context.freeOutput);
-        self.workers.notify_completion = true;
+        self.workers = try Workers.startWith(a, &self.context, Context.run, Context.freeInput, Context.freeOutput, .{ .fibers = true, .notify_completion = true });
         return self;
     }
     pub fn deinit(self: *Supervisor) void {

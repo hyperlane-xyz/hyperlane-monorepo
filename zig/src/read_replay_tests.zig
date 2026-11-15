@@ -100,7 +100,10 @@ test "cooperative EVM source indexes eight healthy chains past eight stalled cha
     for (groups[0..8], 0..) |*group, i| {
         try std.testing.expectEqual(@as(u64, 0), group.indexed.load(.acquire));
         try std.testing.expectEqual(@as(u64, 0), (try scheduler.health(i)).failures);
-        try std.testing.expect((try scheduler.health(i)).suspended > 0);
+        // Stalled reads hold no worker: a fiber parks on its session (or a
+        // journal pass yields PendingReadIo off-fiber). Either way started.
+        const health = try scheduler.health(i);
+        try std.testing.expect(health.started >= 1 and health.completed == 0);
     }
     for (8..16) |i| {
         // BEFORE and AFTER identical block-hash requests MUST be independent

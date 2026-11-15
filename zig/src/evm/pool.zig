@@ -10,6 +10,7 @@ const Value = std.json.Value;
 const tip_cache = @import("../net/dynamic_tip_cache.zig");
 const json_bounds = @import("../net/json_bounds.zig");
 const wake_notifier = @import("../runtime/wake.zig");
+const fiber = @import("../runtime/fiber.zig");
 
 pub const WireResponse = struct { bytes: []u8, len: usize };
 /// Borrowed cancellation flags observed by a blocking wait (either raises).
@@ -383,6 +384,8 @@ const Session = struct {
     blocking_waiter: bool = false,
     /// Session.mutex: the departing driver handed the drive token to this waiter.
     grant: bool = false,
+    /// Session.mutex: a parked fiber waiting for this session's completion.
+    fiber_waiter: ?*fiber.Waiter = null,
 
     fn wire(self: *Session) *Request {
         return if (self.current) |*current| current else &self.original;
@@ -747,6 +750,7 @@ pub const Pool = struct {
         const failure = session.failure;
         const winner = session.winner;
         session.winner = null;
+        session.fiber_waiter = null;
         session.taken.store(true, .release);
         session.mutex.unlock();
         // Retire now when nobody drives (no thread handoff); otherwise the
@@ -771,9 +775,33 @@ pub const Pool = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         const session = self.findSession(handle) orelse return;
+        session.mutex.lock();
+        session.fiber_waiter = null;
+        session.mutex.unlock();
         session.closed.store(true, .release);
         session.taken.store(true, .release);
         self.wakeOwner();
+    }
+    /// Wake `waiter` when the session becomes terminal. False when it already
+    /// is (poll now). The registration ends at terminal poll, cancel or
+    /// `detachWaiter`, all under the session mutex.
+    pub fn attachWaiter(self: *Pool, handle: Handle, waiter: *fiber.Waiter) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        const session = self.findSession(handle) orelse return false;
+        session.mutex.lock();
+        defer session.mutex.unlock();
+        if (session.finished) return false;
+        session.fiber_waiter = waiter;
+        return true;
+    }
+    pub fn detachWaiter(self: *Pool, handle: Handle) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        const session = self.findSession(handle) orelse return;
+        session.mutex.lock();
+        session.fiber_waiter = null;
+        session.mutex.unlock();
     }
     /// Caller holds Pool.mutex. The idle owner waits on the condition; a busy
     /// owner blocks in native socket wait, interrupted by curl_multi_wakeup.
@@ -2113,6 +2141,12 @@ pub const Pool = struct {
         session.failure = failure;
         session.finished = true;
         session.wake.broadcast();
+        // Woken under the session mutex: detach also takes it, so the Waiter
+        // (on the parked fiber's stack) cannot be gone during the wake.
+        if (session.fiber_waiter) |waiter| {
+            session.fiber_waiter = null;
+            waiter.wake();
+        }
         session.mutex.unlock();
         wake_notifier.notifyIo();
         session.closed.store(true, .release);
