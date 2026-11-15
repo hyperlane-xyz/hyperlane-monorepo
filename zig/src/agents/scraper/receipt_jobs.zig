@@ -70,6 +70,12 @@ pub fn Batch(comptime Network: type) type {
             for (jobs, requests) |*job, request| job.* = .{ .request = request };
             return .{ .allocator = a, .parent = parent, .limiter = limiter, .domain = domain, .deadline_ns = deadline_ns, .jobs = jobs };
         }
+        /// Jobs not yet admitted by the limiter.
+        pub fn waiting(self: Self) usize {
+            var count: usize = 0;
+            for (self.jobs) |job| count += @intFromBool(job.phase == .waiting);
+            return count;
+        }
         pub fn deinit(self: *Self) void {
             for (self.jobs) |*job| self.retire(job);
             self.allocator.free(self.jobs);
@@ -261,6 +267,7 @@ test "receipt batches retain four stalled peers while healthy domains persist ne
     const deadline = (try pg.nowNs()) + std.time.ns_per_s;
     for (&batches, 0..) |*batch, i| batch.* = try Batch(FakeNetwork).init(a, &parent, &limiter, @intCast(i + 1), requests[i * 4 ..][0..4], deadline);
     defer for (&batches) |*batch| batch.deinit();
+    for (&batches) |*batch| try std.testing.expectEqual(@as(usize, 4), batch.waiting());
     var persist: FakePersist = .{};
     for (0..8) |_| {
         for (&batches) |*batch| {
@@ -268,6 +275,8 @@ test "receipt batches retain four stalled peers while healthy domains persist ne
         }
     }
     try std.testing.expectEqual(@as(usize, 0), batches[0].completed);
+    // Stalled jobs hold permits; none is left waiting, so a window may plan more.
+    try std.testing.expectEqual(@as(usize, 0), batches[0].waiting());
     try std.testing.expectEqual(@as(usize, 4), batches[1].completed);
     try std.testing.expectEqual(@as(usize, 1), batches[1].failures);
     try std.testing.expectEqual(@as(usize, 4), batches[2].completed);

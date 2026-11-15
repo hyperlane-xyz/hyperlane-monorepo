@@ -22,6 +22,16 @@ const reconcile = @import("reconciliation.zig");
 const ccr = @import("ccr.zig");
 const receipt_jobs = @import("receipt_jobs.zig");
 const ReceiptBatch = receipt_jobs.Batch(chain_source.Resources);
+const receipt_window = 4;
+const ReceiptSlot = struct {
+    page: enrich.Page,
+    batch: ?ReceiptBatch,
+    fn deinit(self: *ReceiptSlot) void {
+        // Jobs retire (and release permits) before their page's memory.
+        if (self.batch) |*batch| batch.deinit();
+        self.page.deinit();
+    }
+};
 const HeadOwner = @import("../../runtime/lane_owner.zig").Owner;
 const A = std.mem.Allocator;
 pub const Options = struct {
@@ -101,11 +111,19 @@ const Lane = struct {
     ccr_lane: ?ccr.Lane = null,
     failures: runtime.FailureStreak = .{},
     head_healthy: bool = false,
+    /// Reconciliation and CCR enrichment batch (one page at a time).
     receipt_batch: ?ReceiptBatch = null,
-    receipt_page: ?enrich.Page = null,
+    /// Delivery/gas sliding window: up to `receipt_window` planned pages in
+    /// flight. A new page is planned as soon as every outstanding job holds a
+    /// permit, so a slow job no longer idles the other slots until its page
+    /// completes. Rows commit independently (each link is per row), so pages
+    /// finish in any order with Rust's page-level durability semantics.
+    receipt_slots: [receipt_window]?ReceiptSlot = @splat(null),
+    /// The last planned page was full and its sweep continues past it.
+    receipt_more: bool = false,
     receipt_linked: u64 = 0,
-    /// A head wake consumed while a receipt page was in flight; the next
-    /// page starts immediately after the current one completes.
+    /// A head wake consumed while receipt pages were in flight; the next
+    /// page starts immediately.
     rewake: bool = false,
     reconcile_page: ?struct { plan: reconcile.Plan, selected: reconcile.Lane, times: supervisor.Times, started_ns: u64 } = null,
     ccr_page: ?struct { plan: ccr.Plan, requests: []enrich.Request, range: ccr.Range } = null,
@@ -132,8 +150,11 @@ const Lane = struct {
     fn clearPending(self: *Lane) void {
         if (self.receipt_batch) |*batch| batch.deinit();
         self.receipt_batch = null;
-        if (self.receipt_page) |*page| page.deinit();
-        self.receipt_page = null;
+        for (&self.receipt_slots) |*entry| if (entry.*) |*slot| {
+            slot.deinit();
+            entry.* = null;
+        };
+        self.receipt_more = false;
         self.receipt_linked = 0;
         if (self.reconcile_page) |*page| page.plan.deinit();
         self.reconcile_page = null;
@@ -277,33 +298,87 @@ const Lane = struct {
     fn pollInterval(self: *const Lane) u64 {
         return @max(1, self.chain.configured.index.interval *| 1000);
     }
-    fn receipts(self: *Lane, _: supervisor.Times, io: pg.IoOptions) !supervisor.Report {
-        if (self.receipt_page == null) {
-            // This snapshot covers every row confirmed before the wake.
-            self.rewake = false;
+    fn receiptSlots(self: *const Lane) usize {
+        var count: usize = 0;
+        for (self.receipt_slots) |entry| count += @intFromBool(entry != null);
+        return count;
+    }
+    /// Every outstanding job already holds (or held) a permit: planning more
+    /// keeps the permits busy instead of waiting for the slowest job.
+    fn receiptWindowDrained(self: *const Lane) bool {
+        for (self.receipt_slots) |entry| if (entry) |slot| if (slot.batch) |batch| if (batch.waiting() != 0) return false;
+        return true;
+    }
+    fn inFlight(self: *const Lane, tx_hash: [64]u8) bool {
+        for (self.receipt_slots) |entry| if (entry) |slot| for (slot.page.requests) |request| {
+            if (std.mem.eql(u8, &request.meta.tx_hash, &tx_hash)) return true;
+        };
+        return false;
+    }
+    fn planReceiptSlot(self: *Lane, io: pg.IoOptions) !void {
+        const index = for (self.receipt_slots, 0..) |entry, i| {
+            if (entry == null) break i;
+        } else return;
+        // An empty window's snapshot covers every row confirmed before the wake.
+        if (self.receiptSlots() == 0) self.rewake = false;
+        var page = blk: {
             var db = try self.database(io);
             defer db.deinit();
-            self.receipt_page = try self.receipt_lane.plan(self.owner.allocator, db.store);
+            break :blk try self.receipt_lane.plan(self.owner.allocator, db.store);
+        };
+        errdefer page.deinit();
+        self.receipt_more = page.rows.len == enrich.page_size;
+        // A transaction already being fetched by an earlier page is linked by
+        // this page's finish once persisted (or retried by a later sweep).
+        var kept: usize = 0;
+        const requests = @constCast(page.requests);
+        for (requests) |request| if (!self.inFlight(request.meta.tx_hash)) {
+            requests[kept] = request;
+            kept += 1;
+        };
+        page.requests = requests[0..kept];
+        const deadline = @min(io.deadline_ns.?, (try pg.nowNs()) +| self.owner.options.auxiliary_timeout_ms *| std.time.ns_per_ms);
+        const batch = if (kept == 0) null else try ReceiptBatch.init(self.owner.allocator, self.resources.?, &self.owner.receipt_limit, self.chain.configured.domain, page.requests, deadline);
+        self.receipt_slots[index] = .{ .page = page, .batch = batch };
+    }
+    fn receipts(self: *Lane, _: supervisor.Times, io: pg.IoOptions) !supervisor.Report {
+        if (self.receiptSlots() == 0 or (self.receipt_more and self.receiptWindowDrained())) try self.planReceiptSlot(io);
+        var finished = false;
+        var linked: u64 = 0;
+        for (&self.receipt_slots) |*entry| {
+            if (entry.* == null) continue;
+            const slot = &entry.*.?;
+            if (slot.batch) |*batch| {
+                if (!try batch.step(io, Persist{ .lane = self, .page = &slot.page })) continue;
+                if (batch.failures > 0) std.log.warn("scraper chain={s} lane={s} receipt_failures={d} last={s}", .{ self.chain.configured.name, @tagName(self.kind), batch.failures, @errorName(batch.last_failure.?) });
+            }
+            var db = try self.database(io);
+            defer db.deinit();
+            const result = try self.receipt_lane.finish(db.store, slot.page);
+            linked +|= result.linked;
+            // A page with unresolved rows ends the immediate sweep, as before.
+            if (result.pending != 0) self.receipt_more = false;
+            slot.deinit();
+            entry.* = null;
+            finished = true;
+            // Refill as soon as a slot frees.
+            if (self.receipt_more and self.receiptWindowDrained()) try self.planReceiptSlot(io);
         }
-        const page = &self.receipt_page.?;
-        try self.fetchRequests(page.requests, io);
-        var db = try self.database(io);
-        defer db.deinit();
-        var result = try self.receipt_lane.finish(db.store, page.*);
-        result.linked +|= self.receipt_linked;
+        if (!finished) return error.PendingReadIo;
+        linked +|= self.receipt_linked;
         self.receipt_linked = 0;
-        page.deinit();
-        self.receipt_page = null;
-        return .{ .work = result.linked, .next_delay_ms = if (result.more or self.rewake) 0 else self.pollInterval() };
+        const again = self.receiptSlots() != 0 or self.receipt_more or self.rewake;
+        return .{ .work = linked, .next_delay_ms = if (again) 0 else self.pollInterval() };
     }
     const Persist = struct {
         lane: *Lane,
+        page: ?*const enrich.Page = null,
         pub fn store(self: Persist, request: enrich.Request, value: enrich.Txn, header: ?src.Header, io: pg.IoOptions) !void {
             var db = try self.lane.database(io);
             defer db.deinit();
             // A stalled sibling must not defer already available receipt links:
             // the page links in the same round trip as the transaction insert.
-            const link: ?enrich.LinkRange = if (self.lane.receipt_page) |page| .{ .stream = page.stream, .after = page.after, .through = page.through } else null;
+            const link: ?enrich.LinkRange = if (self.page) |page| .{ .stream = page.stream, .after = page.after, .through = page.through } else null;
             self.lane.receipt_linked +|= (try enrich.persistFetched(db.store, request, value, header, link)).linked;
         }
     };

@@ -37,6 +37,7 @@ pub const Page = struct {
     }
 };
 pub const Outcome = struct { more: bool, pending: usize, linked: u64 };
+pub const page_size = 100;
 pub const Lane = struct {
     stream: Stream,
     after: i64 = 0,
