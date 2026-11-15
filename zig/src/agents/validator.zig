@@ -40,6 +40,9 @@ pub const Publisher = struct {
     is_reorged: *const fn (*anyopaque) anyerror!bool,
     write_announcement: ?*const fn (*anyopaque, objects.SignedAnnouncement) anyerror!void = null,
     write_checkpoint: *const fn (*anyopaque, Verified, u64) anyerror!void,
+    /// Optional same-directory batch: per-object data fsync + rename, then
+    /// one directory fsync before returning (all or error).
+    write_checkpoints: ?*const fn (*anyopaque, []const Verified, u64) anyerror!void = null,
     write_latest: *const fn (*anyopaque, u32) anyerror!void,
     write_snapshot: *const fn (*anyopaque, *const objects.Snapshot) anyerror!void,
     persist_reorg: *const fn (*anyopaque, objects.ReorgEvent) anyerror!void,
@@ -445,9 +448,21 @@ pub const Service = struct {
         defer self.mutex.unlock();
         self.fresh_verified_through = null;
     }
+    /// Quorum authorization plus the serial path's single reservation.
     pub fn authorize(self: *Service, votes: []const ?Checkpoint, unix_timestamp: u64) !?Checkpoint {
         self.mutex.lock();
         defer self.mutex.unlock();
+        try self.authorizeUnlocked(votes, unix_timestamp);
+        return self.reserveNextUnlocked();
+    }
+    /// Quorum authorization only: batch publication durably reserves its own
+    /// indices, so the driver skips the legacy single-reservation WAL commit.
+    pub fn authorizeQuorum(self: *Service, votes: []const ?Checkpoint, unix_timestamp: u64) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        try self.authorizeUnlocked(votes, unix_timestamp);
+    }
+    fn authorizeUnlocked(self: *Service, votes: []const ?Checkpoint, unix_timestamp: u64) !void {
         if (self.halted) return error.ValidatorHalted;
         self.fresh_verified_through = null;
         if (votes.len != self.options.endpoint_count) return error.EndpointPoolChanged;
@@ -489,7 +504,6 @@ pub const Service = struct {
                 self.verified_through = target;
             }
         }
-        return self.reserveNextUnlocked();
     }
     fn reserveNextUnlocked(self: *Service) !?Checkpoint {
         if (try self.reservation()) |r| {
@@ -917,7 +931,9 @@ pub const Service = struct {
         }
         batch.forEach(workers, limit, PublicationBatch.resolveAt);
         self.recordSignatures(&batch);
-        batch.forEach(workers, limit, PublicationBatch.writeAt);
+        if (publisher.in_process) {
+            if (publisher.write_checkpoints) |many| self.writeInProcess(&batch, many) else batch.forEach(null, limit, PublicationBatch.writeAt);
+        } else batch.forEach(workers, limit, PublicationBatch.writeAt);
         const published = self.completePublications(&batch);
         self.mutex.lock();
         const halted = self.halted;
@@ -933,6 +949,33 @@ pub const Service = struct {
         defer self.mutex.unlock();
         try self.snapshotIfCovered(publisher);
         return published;
+    }
+    /// Highest index first (object, then latest pointer), then every lower
+    /// object in one store batch that ends with a single directory fsync.
+    /// Nothing below depends on a lower object until that call returns.
+    fn writeInProcess(self: *Service, batch: *PublicationBatch, many: *const fn (*anyopaque, []const Verified, u64) anyerror!void) void {
+        for (batch.jobs, 0..) |job, index| if (job.checkpoint.index == batch.highest) PublicationBatch.writeAt(batch, index);
+        const lower = self.allocator.alloc(Verified, batch.jobs.len) catch |err| {
+            for (batch.jobs) |*job| if (job.result == null and !job.written) batch.fail(job, err, .submission);
+            return;
+        };
+        defer self.allocator.free(lower);
+        var count: usize = 0;
+        for (batch.jobs) |job| if (job.result == null and !job.written) {
+            lower[count] = job.signed.?;
+            count += 1;
+        };
+        if (count == 0) return;
+        const written = if (batch.cancelled()) error.RequestCancelled else many(batch.publisher.context, lower[0..count], batch.timestamp);
+        for (batch.jobs) |*job| if (job.result == null and !job.written) {
+            if (written) |_| {
+                job.written = true;
+                if (self.options.readiness) |status| {
+                    var buffer: [80]u8 = undefined;
+                    status.ready(std.fmt.bufPrint(&buffer, "checkpoint_submission[{d}]", .{job.checkpoint.index}) catch unreachable);
+                }
+            } else |err| batch.fail(job, err, .submission);
+        };
     }
     fn prepareJob(self: *Service, job: *PublicationJob) !void {
         if (try self.signedCheckpoint(job.checkpoint.index)) |stored| job.signed = try self.verifyStored(stored);
@@ -987,6 +1030,10 @@ pub const Service = struct {
     fn completePublications(self: *Service, batch: *PublicationBatch) usize {
         self.mutex.lock();
         defer self.mutex.unlock();
+        if (@import("builtin").is_test) if (TestPublicationFault.before_completion.swap(false, .acq_rel)) {
+            batch.failLive(error.InjectedCompletionFailure, .persistence);
+            return 0;
+        };
         var wal = self.typed.batch(self.allocator) catch |err| {
             batch.failLive(err, .persistence);
             return 0;
@@ -1317,7 +1364,7 @@ pub const LocalSigner = struct {
 pub const LocalPublisher = struct {
     store: *@import("../storage/local.zig").LocalStore,
     pub fn interface(self: *LocalPublisher) Publisher {
-        return .{ .parallel_safe = true, .in_process = true, .context = self, .write_announcement = announcement, .read_snapshot = readSnapshot, .fetch_checkpoint = fetch, .is_reorged = guard, .write_checkpoint = checkpoint, .write_latest = latest, .write_snapshot = snapshot, .persist_reorg = reorg };
+        return .{ .parallel_safe = true, .in_process = true, .context = self, .write_announcement = announcement, .read_snapshot = readSnapshot, .fetch_checkpoint = fetch, .is_reorged = guard, .write_checkpoint = checkpoint, .write_checkpoints = checkpoints, .write_latest = latest, .write_snapshot = snapshot, .persist_reorg = reorg };
     }
     fn announcement(ctx: *anyopaque, value: objects.SignedAnnouncement) !void {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
@@ -1341,6 +1388,10 @@ pub const LocalPublisher = struct {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
         _ = try self.store.writeVerifiedCheckpoint(s, time);
     }
+    fn checkpoints(ctx: *anyopaque, batch: []const Verified, time: u64) !void {
+        const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
+        try self.store.writeVerifiedCheckpoints(batch, time);
+    }
     fn latest(ctx: *anyopaque, index: u32) !void {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
         try self.store.writeLatestIndex(index);
@@ -1354,6 +1405,12 @@ pub const LocalPublisher = struct {
         try self.store.persistReorg(e);
     }
 };
+
+/// Test-only crash boundary: publication fails after every object write and
+/// before the completion WAL commit.
+pub const TestPublicationFault = if (@import("builtin").is_test) struct {
+    pub var before_completion: std.atomic.Value(bool) = .init(false);
+} else void;
 
 /// Fault injection exists only in test binaries; production guard writes always
 /// call the actual RocksDB WAL+fsync implementation without an override.

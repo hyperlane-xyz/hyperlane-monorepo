@@ -77,7 +77,7 @@ pub fn tick(service: *validator.Service, source: Source, signer: validator.Signe
     }
     if (!service.repair_complete and finalized == null) finalized = source.finalized_height(source.context, service.options.reorg_period) catch null;
     const repaired = try service.repairHistory(publisher, source.context, source.insertion, finalized, limits.history, timestamp);
-    _ = try service.authorize(votes, timestamp);
+    try service.authorizeQuorum(votes, timestamp);
     const published = service.publishConcurrent(signer, publisher, timestamp, limits.publications) catch |err| {
         if (err == error.FreshAuthorizationRequired) return .{ .history_repaired = repaired, .snapshot_error = snapshot_error, .observed = observed, .published = 0, .unavailable_endpoints = unavailable, .more_observations = if (maximum) |m| service.tree.count <= m else false };
         return err;
