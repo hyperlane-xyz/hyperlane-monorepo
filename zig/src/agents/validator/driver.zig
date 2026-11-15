@@ -52,21 +52,27 @@ pub fn tick(service: *validator.Service, source: Source, signer: validator.Signe
         if (service.tree.count <= target) {
             const height = try source.finalized_height(source.context, service.options.reorg_period);
             finalized = height;
-            while (service.tree.count <= target and observed < limits.observations) {
-                const index = service.tree.count;
+            // Leaves are fetched one by one but made durable in one commit.
+            var pending: [64]validator.Observation = undefined;
+            var count: usize = 0;
+            const first = service.tree.count;
+            while (@as(u64, first) + count <= target and count < limits.observations) {
+                const index: u32 = first + @as(u32, @intCast(count));
                 var operation_buffer: [80]u8 = undefined;
                 const operation = try std.fmt.bufPrint(&operation_buffer, "merkle_tree_insertion[{d}]", .{index});
                 const observation = source.insertion(source.context, index, height) catch |err| {
                     if (service.options.readiness) |status| status.blocked(operation) catch {};
+                    _ = try service.observeNew(first, pending[0..count], height);
                     return err;
                 } orelse {
                     if (service.options.readiness) |status| status.blocked(operation) catch {};
                     break;
                 };
                 if (service.options.readiness) |status| status.ready(operation);
-                try service.observe(index, observation, height);
-                observed += 1;
+                pending[count] = observation;
+                count += 1;
             }
+            observed = try service.observeNew(first, pending[0..count], height);
         }
     }
     if (!service.repair_complete and finalized == null) finalized = source.finalized_height(source.context, service.options.reorg_period) catch null;

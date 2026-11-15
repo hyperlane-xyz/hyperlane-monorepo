@@ -259,6 +259,70 @@ pub const Service = struct {
         try batch.commitSync();
         self.tree = next;
     }
+    /// Appends new leaves tree.count.. with observe()'s checks in ONE durable
+    /// commit (one WAL fsync per driver tick instead of one per leaf). The
+    /// accepted prefix is committed before an invalid leaf's error is
+    /// returned, exactly as consecutive observe() calls would leave it.
+    pub fn observeNew(self: *Service, first: u32, observations: []const Observation, finalized_height: u64) !usize {
+        if (observations.len == 0) return 0;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.halted) return error.ValidatorHalted;
+        if (first != self.tree.count) return error.MissingInsertion;
+        var previous: ?Record = if (first > 0) try self.record(first - 1) orelse return error.MissingValidatorHistory else null;
+        var next = self.tree;
+        var batch = try self.typed.batch(self.allocator);
+        defer batch.deinit();
+        var accepted: usize = 0;
+        var failure: ?anyerror = null;
+        var halt_previous = false;
+        for (observations, 0..) |observation, offset| {
+            const index = first + @as(u32, @intCast(offset));
+            if (observation.block_height > finalized_height) {
+                failure = error.UnfinalizedObservation;
+                break;
+            }
+            if (previous) |old| {
+                if (observation.block_height < old.observation.block_height) {
+                    failure = error.NonmonotonicHistory;
+                    break;
+                }
+                if (observation.block_height == old.observation.block_height and hashesConflict(observation.block_hash, old.observation.block_hash)) {
+                    if (self.verified_through == null or index - 1 > self.verified_through.?) {
+                        failure = error.UnverifiedSuffixChanged;
+                    } else halt_previous = true;
+                    break;
+                }
+            }
+            try next.ingest(observation.message_id);
+            var bytes: [104]u8 = undefined;
+            bytes[0..32].* = observation.message_id;
+            std.mem.writeInt(u64, bytes[32..40], observation.block_height, .big);
+            bytes[40..72].* = observation.block_hash;
+            bytes[72..104].* = next.root();
+            try self.put(&batch, "history", &indexKey(index), &bytes);
+            try self.put(&batch, "snapshot", &indexKey(index), &next.snapshot());
+            try self.put(&batch, "unpublished", &indexKey(index), "");
+            previous = .{ .observation = observation, .root = next.root() };
+            accepted += 1;
+        }
+        if (accepted > 0) {
+            var frontier: [4 + protocol.IncrementalMerkle.snapshot_len]u8 = undefined;
+            frontier[0..4].* = indexKey(first + @as(u32, @intCast(accepted)) - 1);
+            frontier[4..].* = next.snapshot();
+            try self.put(&batch, "frontier", "", &frontier);
+            try batch.commitSync();
+            self.tree = next;
+        }
+        if (halt_previous) {
+            // Only the first leaf can conflict with a verified committed leaf.
+            const old = previous.?;
+            try self.halt(first - 1, old.root, old.root, 0);
+            return error.FinalizedHistoryConflict;
+        }
+        if (failure) |err| return err;
+        return accepted;
+    }
     /// Discard only observations beyond the last RPC-authenticated committed
     /// prefix. Signed objects/reservations/publication state can never be removed.
     pub fn resetUnverifiedSuffix(self: *Service) !bool {
@@ -596,6 +660,10 @@ pub const Service = struct {
             self.published = true;
         }
     };
+    /// Created once, sized by the configured publication limit (the signer's
+    /// max concurrency), and reused for every batch: worker threads are never
+    /// respawned per round or per batch. A larger limit (configuration change
+    /// in tests) is the only reason to rebuild it.
     fn ensurePublicationPool(self: *Service, threads: usize) !*std.Thread.Pool {
         if (self.publication_pool) |pool| {
             if (self.publication_threads >= threads) return pool;
@@ -638,7 +706,7 @@ pub const Service = struct {
         var highest: u32 = 0;
         for (candidates) |candidate| highest = @max(highest, candidate.index);
         for (jobs, candidates) |*job, candidate| job.* = .{ .service = self, .signer = signer, .publisher = publisher, .checkpoint = candidate, .highest = highest, .timestamp = timestamp };
-        const pool = try self.ensurePublicationPool(candidates.len);
+        const pool = try self.ensurePublicationPool(limit);
         var wait: std.Thread.WaitGroup = .{};
         for (jobs) |*job| pool.spawnWg(&wait, PublicationJob.run, .{job});
         wait.wait();
