@@ -787,6 +787,9 @@ pub const Pool = struct {
     /// several independent handles first and then wait for each in turn.
     pub fn wait(self: *Pool, handle: Handle, allocator: A, deadline_ms: u64, cancel_flag: ?*const std.atomic.Value(bool)) !WireResponse {
         defer self.cancel(handle);
+        // The session may have been submitted without waking a driver; tell
+        // the current driver once (not once per timed slice).
+        var driver_told = false;
         while (true) {
             if (try self.poll(handle, allocator)) |response| return response;
             if (cancel_flag) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
@@ -796,6 +799,7 @@ pub const Pool = struct {
             // own session is terminal (or its deadline/cancel), then hands off.
             if (self.driver.tryLock()) {
                 try self.driveFor(handle, deadline_ms, cancel_flag);
+                driver_told = false;
                 continue;
             }
             // Follower: the current driver progresses this session; completion
@@ -811,16 +815,22 @@ pub const Pool = struct {
             };
             session.blocking_waiter = true;
             // The driver may be blocked in a socket wait without this session.
-            self.wakeOwner();
+            if (!driver_told) self.wakeOwner();
+            driver_told = true;
             session.mutex.lock();
             self.mutex.unlock();
             // This handle has one caller, so taken remains false until it polls
             // or cancels. No driver can retire this session while waiting.
             if (!session.finished and !session.grant) session.wake.timedWait(&session.mutex, slice_ms *| std.time.ns_per_ms) catch {};
+            session.mutex.unlock();
+            // Grants are issued under Pool.mutex while blocking_waiter is set:
+            // consume and stop accepting them atomically, so no grant can land
+            // after this point and leave `granted` set with nobody driving.
+            self.mutex.lock();
+            session.mutex.lock();
             const granted = session.grant;
             session.grant = false;
             session.mutex.unlock();
-            self.mutex.lock();
             session.blocking_waiter = false;
             if (granted) self.granted = false;
             self.mutex.unlock();
@@ -2456,9 +2466,11 @@ const ConcurrentFetch = struct {
     body: []const u8,
     expected: []const u8,
     failures: std.atomic.Value(usize) = .init(0),
+    // Non-null: followers wake on timed slices, exercising grant races.
+    cancel: std.atomic.Value(bool) = .init(false),
     fn run(self: *ConcurrentFetch) void {
         for (0..10) |_| {
-            const response = self.owner.fetch(std.testing.allocator, self.body, 5000, 1000, null, 4096) catch {
+            const response = self.owner.fetch(std.testing.allocator, self.body, 5000, 1000, &self.cancel, 4096) catch {
                 _ = self.failures.fetchAdd(1, .acq_rel);
                 continue;
             };
@@ -2486,10 +2498,22 @@ test "concurrent blocking callers share one drive token and all complete" {
     for (&threads) |*thread| thread.* = try std.Thread.spawn(.{}, ConcurrentFetch.run, .{&work});
     for (threads) |thread| thread.join();
     try std.testing.expectEqual(@as(usize, 0), work.failures.load(.acquire));
-    // Async handles still progress through the owner thread fallback.
+    owner.mutex.lock();
+    const stale_grant = owner.granted or owner.caller_driving;
+    owner.mutex.unlock();
+    try std.testing.expect(!stale_grant);
+    // An async handle progresses only through the owner thread fallback:
+    // poll never drives, so a stale grant would park it until its deadline.
     const handle = try owner.submit(fixture.chain_id_body, 5000, 1000, 4096);
-    const response = try owner.wait(handle, a, owner.now() + 5000, null);
-    a.free(response.bytes);
+    var timer = try std.time.Timer.start();
+    while (true) {
+        if (try owner.poll(handle, a)) |response| {
+            a.free(response.bytes);
+            break;
+        }
+        if (timer.read() > 3 * std.time.ns_per_s) return error.OwnerFallbackStalled;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
 }
 
 test "native RPC owner notices delayed responses without any further submit" {
