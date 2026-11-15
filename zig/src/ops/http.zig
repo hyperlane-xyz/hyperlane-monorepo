@@ -1,5 +1,6 @@
 //! Bounded native HTTP/1.0 and HTTP/1.1 server. One nonblocking socket owner
-//! dispatches owned requests to a fixed I/O pool; callbacks never run on it.
+//! dispatches owned requests to a lazily started, bounded I/O pool. Requests
+//! the handler declares nonblocking (e.g. a metrics render) run on the owner.
 const std = @import("std");
 const builtin = @import("builtin");
 const io_pool = @import("../runtime/io_pool.zig");
@@ -166,6 +167,10 @@ pub const Response = struct {
 pub const Handler = struct {
     context: *anyopaque,
     handle_fn: *const fn (context: *anyopaque, allocator: A, request: Request, cancel: *const std.atomic.Value(bool)) anyerror!Response,
+    /// True: `handle_fn` never blocks for this request (bounded CPU only), so
+    /// the socket owner runs it itself: no worker handoff or completion wake.
+    /// Null or false: the request runs on a pool worker.
+    inline_fn: ?*const fn (context: *anyopaque, request: *const Request) bool = null,
 };
 
 pub const Options = struct {
@@ -256,6 +261,8 @@ pub const Server = struct {
     wake_write: std.posix.fd_t,
     /// Owner poll passes, for focused work-count evidence.
     owner_iterations: std.atomic.Value(u64) = .init(0),
+    /// Requests served on the owner thread (Handler.inline_fn).
+    inline_requests: std.atomic.Value(u64) = .init(0),
     thread: std.Thread,
     stopping: std.atomic.Value(bool) = .init(false),
     stop_mutex: std.Thread.Mutex = .{},
@@ -297,7 +304,7 @@ pub const Server = struct {
             .thread = undefined,
         };
         self.job_context.budget = &self.budget;
-        self.pool = try Worker.start(allocator, &self.job_context, JobContext.run, JobContext.freeInput, JobContext.freeOutput);
+        self.pool = try Worker.startWith(allocator, &self.job_context, JobContext.run, JobContext.freeInput, JobContext.freeOutput, .{ .lazy_workers = true });
         errdefer self.pool.deinit();
         self.pool.completion_hook = .{ .context = self, .call_fn = wakeOwner };
         self.thread = try std.Thread.spawn(.{}, ownerMain, .{self});
@@ -560,6 +567,13 @@ fn parseAndSubmit(self: *Server, connection: *Connection, now: u64) void {
     };
     consumeInput(self, connection, consumed);
     connection.close_after_write = connection.close_after_write or info.close;
+    if (self.job_context.handler.inline_fn) |is_inline| if (is_inline(self.job_context.handler.context, &request)) {
+        _ = self.inline_requests.fetchAdd(1, .monotonic);
+        const result: Worker.Result = if (self.job_context.run(request, &self.stopping)) |value| .{ .value = value } else |err| .{ .failure = err };
+        request.deinit();
+        deliver(self, connection, result, now);
+        return;
+    };
     const id = self.pool.submit(request, now, connection.deadline_ms) catch {
         request.deinit();
         setError(self, connection, 503, now);
@@ -609,20 +623,25 @@ fn collectJobs(self: *Server, now: u64) void {
             continue;
         };
         connection.job = null;
-        switch (completion.result) {
-            .failure => |err| setError(self, connection, if (err == error.IoTimeout) 503 else 500, now),
-            .value => |value| {
-                var response = value;
-                defer response.deinit();
-                if (response.close) connection.close_after_write = true;
-                const wire = render(self, connection, response) catch {
-                    setError(self, connection, 500, now);
-                    continue;
-                };
-                connection.output = wire;
-                connection.output_offset = 0;
-            },
-        }
+        deliver(self, connection, completion.result, now);
+    }
+}
+
+/// Owns `result`: renders a response (or an error status) for `connection`.
+fn deliver(self: *Server, connection: *Connection, result: Worker.Result, now: u64) void {
+    switch (result) {
+        .failure => |err| setError(self, connection, if (err == error.IoTimeout) 503 else 500, now),
+        .value => |value| {
+            var response = value;
+            defer response.deinit();
+            if (response.close) connection.close_after_write = true;
+            const wire = render(self, connection, response) catch {
+                setError(self, connection, 500, now);
+                return;
+            };
+            connection.output = wire;
+            connection.output_offset = 0;
+        },
     }
 }
 

@@ -2,6 +2,7 @@
 //! context has at most one retained job, including after owner-side timeout.
 const std = @import("std");
 const io = @import("io_pool.zig");
+const fiber = @import("fiber.zig");
 const wake_notifier = @import("wake.zig");
 const A = std.mem.Allocator;
 pub const Times = struct { unix_ms: u64, monotonic_ms: u64 };
@@ -28,6 +29,17 @@ pub const Task = struct {
     /// Nonblocking, thread-safe and idempotent. Cancels external retained work
     /// even after its polling callback yielded and no pool JobId remains active.
     stop_fn: ?*const fn (*anyopaque) void = null,
+    /// Owner-backed task (runtime/lane_owner.zig): its owner sets this flag
+    /// and calls wake.notify() when it publishes a result. While the task is
+    /// suspended on that owner it resumes only on this flag (or the
+    /// max_wait_ms backstop): I/O notifications and `wake` do not re-poll it,
+    /// since the owner itself handles kicks while it runs.
+    owner_wake: ?*const std.atomic.Value(bool) = null,
+    /// Owner-backed: monotonic ms (this supervisor's clock) at which the
+    /// owner's current run expires, 0 while no run is in progress. The
+    /// supervisor polls the task at that moment, so the owner's per-run
+    /// timeout cancels the run at its real deadline, not at a backstop.
+    owner_deadline: ?*const std.atomic.Value(u64) = null,
 };
 pub const Health = struct {
     started: u64 = 0,
@@ -42,21 +54,52 @@ pub const Health = struct {
 };
 const Input = struct { index: usize, times: Times };
 const Output = struct { index: usize, report: Report };
+/// A worker job whose run reports more work due now (next_delay_ms 0) runs
+/// again on its fiber, without a completion, service tick and resubmission,
+/// for at most this long and a quarter of its timeout.
+pub const max_held_ms: u64 = 1000;
 const Context = struct {
     tasks: []const Task,
+    /// Runs repeated on a worker fiber without a supervisor round trip.
+    held_runs: std.atomic.Value(u64) = .init(0),
     fn run(self: *Context, input: Input, cancel: *const std.atomic.Value(bool)) !Output {
         const task = self.tasks[input.index];
         if (cancel.load(.acquire)) return error.RequestCancelled;
-        const report = task.run(task.context, input.times, cancel) catch |err| {
-            if (task.failure) |classify| switch (classify(err)) {
-                .halt_all => self.stopRetained(),
-                .halt_task => if (task.stop_fn) |stop| stop(task.context),
-                .retry => {},
+        // Only worker fibers hold: inline (supervisor thread) runs return.
+        const hold = fiber.inFiber();
+        var since = if (hold) std.time.Timer.start() catch null else null;
+        const hold_ns: u64 = @as(u64, @min(max_held_ms, task.timeout_ms / 4)) * std.time.ns_per_ms;
+        var total: Report = .{};
+        var times = input.times;
+        while (true) {
+            const report = task.run(task.context, times, cancel) catch |err| {
+                if (task.failure) |classify| switch (classify(err)) {
+                    .halt_all => self.stopRetained(),
+                    .halt_task => if (task.stop_fn) |stop| stop(task.context),
+                    .retry => {},
+                };
+                return err;
             };
-            return err;
-        };
-        if (report.halt) if (task.stop_fn) |stop| stop(task.context);
-        return .{ .index = input.index, .report = report };
+            total.work +|= report.work;
+            total.halt = report.halt;
+            total.next_delay_ms = report.next_delay_ms;
+            if (report.halt) {
+                if (task.stop_fn) |stop| stop(task.context);
+                break;
+            }
+            const timer = if (since) |*value| value else break;
+            if (report.next_delay_ms != 0 or cancel.load(.acquire)) break;
+            const elapsed = timer.read();
+            if (elapsed >= hold_ns) break;
+            // Busy catch-up must not starve this worker's other fibers or
+            // queued jobs: hand back (a yield would re-pop this fiber before
+            // the worker claims a queued slot).
+            if (fiber.siblingReady()) break;
+            const elapsed_ms = timer.read() / std.time.ns_per_ms;
+            times = .{ .unix_ms = input.times.unix_ms +| elapsed_ms, .monotonic_ms = input.times.monotonic_ms +| elapsed_ms };
+            _ = self.held_runs.fetchAdd(1, .monotonic);
+        }
+        return .{ .index = input.index, .report = total };
     }
     fn stopRetained(self: *Context) void {
         for (self.tasks) |task| if (task.stop_fn) |stop| stop(task.context);
@@ -86,6 +129,8 @@ const Entry = struct {
     suspended: bool = false,
     /// Copied from Task.nonblocking: resumption costs no worker handoff.
     inline_task: bool = false,
+    /// Task.owner_wake != null: suspension is not an I/O wait.
+    owned: bool = false,
     io_generation: u32 = 0,
 };
 pub const Tick = struct { started: usize = 0, completed: usize = 0, suspended: usize = 0, failures: usize = 0, timeouts: usize = 0, retired: usize = 0 };
@@ -115,7 +160,7 @@ pub const Supervisor = struct {
         const entries = try a.alloc(Entry, tasks.len);
         errdefer a.free(entries);
         @memset(entries, .{});
-        for (entries, tasks) |*entry, task| entry.inline_task = task.nonblocking;
+        for (entries, tasks) |*entry, task| entry.* = .{ .inline_task = task.nonblocking, .owned = task.owner_wake != null };
         self.* = .{ .allocator = a, .context = .{ .tasks = copied }, .entries = entries, .workers = undefined };
         self.workers = try Workers.startWith(a, &self.context, Context.run, Context.freeInput, Context.freeOutput, .{ .fibers = true, .notify_completion = true });
         return self;
@@ -180,7 +225,7 @@ pub const Supervisor = struct {
             const index = self.next_task;
             self.next_task = (index + 1) % self.entries.len;
             const entry = &self.entries[index];
-            const awake = (if (self.context.tasks[index].wake) |wake| wake.load(.acquire) else false) or self.resumable(entry, now.monotonic_ms);
+            const awake = self.woken(index) or self.ownerExpired(index, now.monotonic_ms) or self.resumable(entry, now.monotonic_ms);
             if (entry.active != null or entry.health.halted or (now.monotonic_ms < entry.next_ms and !awake)) continue;
             const io_generation = wake_notifier.ioGeneration();
             const deadline_ms = now.monotonic_ms +| self.context.tasks[index].timeout_ms;
@@ -235,7 +280,9 @@ pub const Supervisor = struct {
                     // on the backstop for sources without a notifier.
                     setSuspended(entry, true);
                     entry.suspended_ms = now.monotonic_ms;
-                    entry.next_ms = now.monotonic_ms +| poll_slice_ms;
+                    // An owner publishes through Task.owner_wake; the
+                    // backstop only bounds deadline/cancel observation.
+                    entry.next_ms = now.monotonic_ms +| if (entry.owned) max_wait_ms else poll_slice_ms;
                     entry.timed_out = if (id) |job| self.workers.retained(job) else false;
                     if (!entry.timed_out) entry.active = null;
                     return;
@@ -265,18 +312,36 @@ pub const Supervisor = struct {
             },
         }
     }
+    /// A wake flag is set that this entry honours now: an owner-backed task
+    /// suspended on its owner follows only `owner_wake`.
+    fn woken(self: *const Supervisor, index: usize) bool {
+        const entry = &self.entries[index];
+        const task = self.context.tasks[index];
+        if (task.owner_wake) |flag| if (flag.load(.acquire)) return true;
+        if (entry.owned and entry.suspended) return false;
+        const wake = task.wake orelse return false;
+        return wake.load(.acquire);
+    }
+    /// The owner's current run passed its deadline: poll it to cancel.
+    fn ownerExpired(self: *const Supervisor, index: usize, now_ms: u64) bool {
+        if (!self.entries[index].suspended) return false;
+        const deadline = (self.context.tasks[index].owner_deadline orelse return false).load(.acquire);
+        return deadline != 0 and now_ms >= deadline;
+    }
     fn resumable(_: *const Supervisor, entry: *const Entry, now_ms: u64) bool {
-        if (!entry.suspended or wake_notifier.ioGeneration() == entry.io_generation) return false;
+        if (!entry.suspended or entry.owned or wake_notifier.ioGeneration() == entry.io_generation) return false;
         return entry.inline_task or now_ms >= entry.suspended_ms +| resume_spacing_ms;
     }
     fn setSuspended(entry: *Entry, suspended: bool) void {
         if (entry.suspended == suspended) return;
         entry.suspended = suspended;
-        wake_notifier.taskSuspended(suspended);
+        // Owner-backed suspensions wait on owner_wake, not on I/O.
+        if (!entry.owned) wake_notifier.taskSuspended(suspended);
     }
     /// Milliseconds until the next tick can do work, assuming no notification
-    /// (runtime/wake.zig) arrives first. Job completions and I/O completions
-    /// notify; un-notified wake flags are re-checked every poll_slice_ms.
+    /// (runtime/wake.zig) arrives first. Job completions, owner publishes and
+    /// I/O completions notify; un-notified wake flags are re-checked every
+    /// poll_slice_ms.
     pub fn nextDelayMs(self: *const Supervisor, now_ms: u64) u64 {
         var next = now_ms +| max_wait_ms;
         for (self.entries, self.context.tasks) |*entry, task| {
@@ -287,7 +352,16 @@ pub const Supervisor = struct {
             }
             if (self.stopping) continue;
             next = @min(next, entry.next_ms);
-            if (entry.suspended and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, if (entry.inline_task) now_ms else entry.suspended_ms +| resume_spacing_ms);
+            // An owner publish is due now. A wake flag left set is not: its
+            // writers notify, and a flag its run cannot clear must not spin.
+            if (task.owner_wake) |flag| if (flag.load(.acquire)) {
+                next = now_ms;
+            };
+            if (entry.suspended) if (task.owner_deadline) |deadline| {
+                const at = deadline.load(.acquire);
+                if (at != 0) next = @min(next, at);
+            };
+            if (entry.suspended and !entry.owned and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, if (entry.inline_task) now_ms else entry.suspended_ms +| resume_spacing_ms);
             if (task.wake != null and !task.wake_notified) next = @min(next, now_ms +| poll_slice_ms);
         }
         return next -| now_ms;
@@ -532,4 +606,87 @@ test "supervisor cooperative reads resume without consuming failures retries or 
     try std.testing.expectEqual(@as(u64, 3), health_.work);
     try std.testing.expect(health_.last_error == null);
     try std.testing.expectEqual(@as(usize, 3), state.calls.load(.acquire));
+}
+
+test "a worker job with more work due now reruns on its fiber without a supervisor round trip" {
+    const Busy = struct {
+        calls: std.atomic.Value(u32) = .init(0),
+        busy_runs: u32 = 5,
+        fn run(context: *anyopaque, _: Times, _: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            const call = self.calls.fetchAdd(1, .acq_rel) + 1;
+            return .{ .work = 1, .next_delay_ms = if (call <= self.busy_runs) 0 else 60000 };
+        }
+    };
+    var state: Busy = .{};
+    const owner = try Supervisor.start(std.testing.allocator, &.{.{ .context = &state, .run = Busy.run, .interval_ms = 60000, .timeout_ms = 10000 }});
+    defer owner.deinit();
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 })).started);
+    var attempts: usize = 0;
+    while ((try owner.health(0)).completed == 0) : (attempts += 1) {
+        if (attempts > 5000) return error.HeldJobDidNotComplete;
+        std.Thread.sleep(std.time.ns_per_ms);
+        _ = try owner.tick(.{ .unix_ms = 1, .monotonic_ms = 1 });
+    }
+    // Six runs, one submission and one completion: five held reruns.
+    const health_ = try owner.health(0);
+    try std.testing.expectEqual(@as(u64, 1), health_.started);
+    try std.testing.expectEqual(@as(u64, 1), health_.completed);
+    try std.testing.expectEqual(@as(u64, 6), health_.work);
+    try std.testing.expectEqual(@as(u32, 6), state.calls.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 5), owner.context.held_runs.load(.acquire));
+    // Inline (nonblocking) runs on the supervisor thread never hold.
+    var inline_state: Busy = .{ .busy_runs = 100 };
+    const inline_owner = try Supervisor.start(std.testing.allocator, &.{.{ .context = &inline_state, .run = Busy.run, .interval_ms = 60000, .timeout_ms = 10000, .nonblocking = true }});
+    defer inline_owner.deinit();
+    _ = try inline_owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 });
+    try std.testing.expectEqual(@as(u32, 1), inline_state.calls.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 0), inline_owner.context.held_runs.load(.acquire));
+}
+
+test "a held busy job hands its worker back when another job is queued" {
+    const Jobs = struct {
+        release: std.Thread.Semaphore = .{},
+        entered: std.Thread.Semaphore = .{},
+        busy_calls: std.atomic.Value(u32) = .init(0),
+        quick_done: std.atomic.Value(bool) = .init(false),
+        fn block(context: *anyopaque, _: Times, cancel: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.entered.post();
+            while (!cancel.load(.acquire)) {
+                self.release.timedWait(std.time.ns_per_ms) catch continue;
+                break;
+            }
+            return .{ .next_delay_ms = 60000 };
+        }
+        fn busy(context: *anyopaque, _: Times, _: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            _ = self.busy_calls.fetchAdd(1, .acq_rel);
+            return .{ .work = 1, .next_delay_ms = 0 };
+        }
+        fn quick(context: *anyopaque, _: Times, _: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.quick_done.store(true, .release);
+            return .{ .work = 1, .next_delay_ms = 60000 };
+        }
+    };
+    var jobs: Jobs = .{};
+    var tasks: [9]Task = undefined;
+    // Seven workers block; the eighth runs the busy job; the quick job queues.
+    for (tasks[0..7]) |*task| task.* = .{ .context = &jobs, .run = Jobs.block, .interval_ms = 60000, .timeout_ms = 60000 };
+    tasks[7] = .{ .context = &jobs, .run = Jobs.busy, .interval_ms = 60000, .timeout_ms = 60000 };
+    tasks[8] = .{ .context = &jobs, .run = Jobs.quick, .interval_ms = 60000, .timeout_ms = 60000 };
+    const owner = try Supervisor.start(std.testing.allocator, &tasks);
+    defer owner.deinit();
+    defer for (0..7) |_| jobs.release.post();
+    _ = try owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 });
+    var timer = try std.time.Timer.start();
+    while (!jobs.quick_done.load(.acquire)) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.QueuedJobStarvedByHeldJob;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // Handed back as soon as the job queued, not after the 1 s hold window
+    // (a re-popped yield ran millions of busy cycles first).
+    try std.testing.expect(jobs.busy_calls.load(.acquire) < 100_000);
+    owner.stop();
 }

@@ -12,6 +12,9 @@ pub const Options = struct {
     /// on the same worker when woken: no callback replay, no worker blocking.
     fibers: bool = false,
     notify_completion: bool = false,
+    /// Thread workers only: start no threads up front; submit starts one
+    /// (up to `workers`) only when no idle worker can take the job.
+    lazy_workers: bool = false,
 };
 
 pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type, comptime workers: usize, comptime capacity: usize) type {
@@ -25,8 +28,12 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         pub const Completion = struct { id: JobId, result: Result };
         const State = enum { free, queued, running, done, abandoned_queued, abandoned_running };
         const Slot = struct { state: State = .free, sequence: u64 = 0, completion_sequence: u64 = 0, deadline_ms: u64 = 0, input: Input = undefined, result: Result = undefined, cancel: std.atomic.Value(bool) = std.atomic.Value(bool).init(false) };
+        /// Fiber worker. `lock` guards the ready queue, `idle` and
+        /// `interrupt` (wakes from any thread); `timed` and `live` belong to
+        /// the worker thread. Lock order: pool mutex, then a worker lock.
         const WorkerState = struct {
             pool: *Self,
+            lock: std.Thread.Mutex = .{},
             cond: std.Thread.Condition = .{},
             ready_head: ?*fiber.Fiber = null,
             ready_tail: ?*fiber.Fiber = null,
@@ -35,8 +42,8 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             timed_storage: [capacity]*fiber.Fiber = undefined,
             idle: bool = false,
             live: usize = 0,
-            /// Pool mutex: the running fiber blocks this thread (driving a
-            /// socket wait); wakes for siblings interrupt it.
+            /// The running fiber blocks this thread (driving a socket wait);
+            /// wakes for siblings interrupt it.
             interrupt: ?fiber.Interrupt = null,
         };
         const SlotFiber = struct { pool: *Self, index: usize };
@@ -47,9 +54,21 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         free_output: *const fn (*Context, Output) void,
         slots: [capacity]Slot = @splat(.{}),
         threads: [workers]std.Thread = undefined,
+        /// Started worker threads (threads[0..spawned]).
+        spawned: usize = 0,
+        /// Thread workers waiting on `wake`, and wakes already sent to them
+        /// (pool mutex): a submit claims an idle worker or starts a new one.
+        idle_workers: usize = 0,
+        pending_wakes: usize = 0,
+        lazy: bool = false,
         mutex: std.Thread.Mutex = .{},
         wake: std.Thread.Condition = .{},
         stopping: bool = false,
+        /// `stopping`, readable without the pool mutex (fiber workers).
+        stop_flag: std.atomic.Value(bool) = .init(false),
+        /// Slots queued or abandoned_queued (changed under the pool mutex):
+        /// fiber workers and hasReady test for queued work without it.
+        queued: std.atomic.Value(u32) = .init(0),
         /// Set before submissions by the service supervisor: completions and
         /// retirements end its timed wait (runtime/wake.zig).
         notify_completion: bool = false,
@@ -72,23 +91,25 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         pub fn startWith(allocator: std.mem.Allocator, context: *Context, run_fn: *const fn (*Context, Input, *const std.atomic.Value(bool)) anyerror!Output, free_input: *const fn (*Context, Input) void, free_output: *const fn (*Context, Output) void, options: Options) !*Self {
             const self = try allocator.create(Self);
             errdefer allocator.destroy(self);
-            self.* = .{ .allocator = allocator, .context = context, .run_fn = run_fn, .free_input = free_input, .free_output = free_output, .fibers = options.fibers, .notify_completion = options.notify_completion };
+            if (options.lazy_workers and options.fibers) return error.InvalidIoPoolOptions;
+            self.* = .{ .allocator = allocator, .context = context, .run_fn = run_fn, .free_input = free_input, .free_output = free_output, .fibers = options.fibers, .notify_completion = options.notify_completion, .lazy = options.lazy_workers };
             for (&self.worker_states) |*state| {
                 state.* = .{ .pool = self };
                 state.timed = .initBuffer(&state.timed_storage);
             }
             for (&self.slot_fibers, 0..) |*slot_fiber, index| slot_fiber.* = .{ .pool = self, .index = index };
-            var started: usize = 0;
+            if (options.lazy_workers) return self;
             errdefer {
                 self.mutex.lock();
                 self.stopping = true;
+                self.stop_flag.store(true, .seq_cst);
                 self.wakeAll();
                 self.mutex.unlock();
-                for (self.threads[0..started]) |thread| thread.join();
+                for (self.threads[0..self.spawned]) |thread| thread.join();
             }
             for (&self.threads, 0..) |*thread, index| {
                 thread.* = if (options.fibers) try std.Thread.spawn(.{}, fiberWorker, .{ self, index }) else try std.Thread.spawn(.{}, worker, .{self});
-                started += 1;
+                self.spawned += 1;
             }
             return self;
         }
@@ -101,12 +122,27 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             if (self.sequence == std.math.maxInt(u64)) return error.IoSequenceExhausted;
             for (&self.slots, 0..) |*slot, index| {
                 if (slot.state != .free) continue;
+                // A lazy pool with no thread yet must start one or refuse.
+                const first = self.lazy and self.spawned == 0;
+                if (first) try self.spawnLocked();
                 self.sequence += 1;
                 slot.* = .{ .state = .queued, .sequence = self.sequence, .deadline_ms = deadline_ms, .input = input };
-                self.wakeOne();
+                _ = self.queued.fetchAdd(1, .seq_cst);
+                if (first) {
+                    // The new worker finds this job before it first waits.
+                } else if (self.lazy and self.idle_workers <= self.pending_wakes and self.spawned < workers) {
+                    // Every started worker is busy: a new one takes this job.
+                    // Failure leaves it queued for a busy worker's next pass.
+                    self.spawnLocked() catch {};
+                } else self.wakeOne();
                 return .{ .slot = @intCast(index), .sequence = self.sequence };
             }
             return error.IoPoolFull;
+        }
+        /// Pool mutex held.
+        fn spawnLocked(self: *Self) !void {
+            self.threads[self.spawned] = try std.Thread.spawn(.{}, worker, .{self});
+            self.spawned += 1;
         }
 
         /// Poll with an injected monotonic clock. Expired work is retained in its
@@ -208,14 +244,16 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         pub fn deinit(self: *Self) void {
             self.mutex.lock();
             self.stopping = true;
+            self.stop_flag.store(true, .seq_cst);
             for (&self.slots) |*slot| {
                 slot.cancel.store(true, .release);
                 if (slot.state == .queued) slot.state = .abandoned_queued;
                 if (slot.state == .running) slot.state = .abandoned_running;
             }
             self.wakeAll();
+            const spawned = self.spawned;
             self.mutex.unlock();
-            for (self.threads) |thread| thread.join();
+            for (self.threads[0..spawned]) |thread| thread.join();
             for (self.slots) |slot| {
                 if (slot.state == .done and slot.result == .value) self.free_output(self.context, slot.result.value);
             }
@@ -236,10 +274,14 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                         self.mutex.unlock();
                         return;
                     }
+                    self.idle_workers += 1;
                     self.wake.wait(&self.mutex);
+                    self.idle_workers -= 1;
+                    if (self.pending_wakes > 0) self.pending_wakes -= 1;
                 };
                 const slot = &self.slots[index];
                 const input = slot.input;
+                _ = self.queued.fetchSub(1, .seq_cst);
                 if (slot.state == .abandoned_queued) {
                     // Claim cleanup before releasing the mutex. A second
                     // worker must not select and free the same cancelled input.
@@ -279,62 +321,69 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         }
         /// Pool mutex held: one worker should look for queued work.
         fn wakeOne(self: *Self) void {
-            if (!self.fibers) return self.wake.signal();
+            if (!self.fibers) {
+                if (self.idle_workers > self.pending_wakes) self.pending_wakes += 1;
+                return self.wake.signal();
+            }
             // Claim the idle worker now: a second submit before it wakes must
             // signal a different worker, not the same one twice.
-            for (&self.worker_states) |*state| if (state.idle) {
+            for (&self.worker_states) |*state| {
+                state.lock.lock();
+                defer state.lock.unlock();
+                if (!state.idle) continue;
                 state.idle = false;
                 state.cond.signal();
                 return;
-            };
+            }
             // No idle worker: a fiber driving a socket wait must yield its
             // thread so the queued job starts (a stalled read cannot hold it).
-            for (&self.worker_states) |*state| if (state.interrupt) |interrupt| {
+            for (&self.worker_states) |*state| {
+                state.lock.lock();
+                defer state.lock.unlock();
+                const interrupt = state.interrupt orelse continue;
                 interrupt.call(interrupt.ctx);
                 return;
-            };
+            }
         }
         fn wakeAll(self: *Self) void {
             self.wake.broadcast();
-            if (self.fibers) for (&self.worker_states) |*state| state.cond.signal();
+            if (self.fibers) for (&self.worker_states) |*state| {
+                state.lock.lock();
+                state.cond.signal();
+                state.lock.unlock();
+            };
         }
         /// fiber.Scheduler.wake: thread-safe, posts `f` to its own worker.
         fn wakeFiber(context: *anyopaque, f: *fiber.Fiber) void {
             const state: *WorkerState = @ptrCast(@alignCast(context));
-            const self = state.pool;
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            state.lock.lock();
+            defer state.lock.unlock();
             pushReady(state, f);
             state.idle = false;
             state.cond.signal();
             if (state.interrupt) |interrupt| interrupt.call(interrupt.ctx);
         }
+        /// Called by fibers between driver passes: no pool mutex, no scan.
         fn hasReady(context: *anyopaque) bool {
             const state: *WorkerState = @ptrCast(@alignCast(context));
-            const self = state.pool;
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            return state.ready_head != null or self.queuedLocked();
+            state.lock.lock();
+            const ready = state.ready_head != null;
+            state.lock.unlock();
+            return ready or state.pool.queued.load(.seq_cst) != 0;
         }
         fn setInterrupt(context: *anyopaque, interrupt: ?fiber.Interrupt) void {
             const state: *WorkerState = @ptrCast(@alignCast(context));
-            const self = state.pool;
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            state.lock.lock();
+            defer state.lock.unlock();
             state.interrupt = interrupt;
         }
-        /// Pool mutex held: a queued job is waiting for any worker.
-        fn queuedLocked(self: *Self) bool {
-            for (self.slots) |slot| if (slot.state == .queued or slot.state == .abandoned_queued) return true;
-            return false;
-        }
-        /// fiber.Scheduler.adopt: a child spawned by a fiber on this worker.
+        /// fiber.Scheduler.adopt: a child spawned by a fiber on this worker
+        /// (so on its thread: `live` needs no lock).
         fn adoptFiber(context: *anyopaque, f: *fiber.Fiber) void {
             const state: *WorkerState = @ptrCast(@alignCast(context));
-            const self = state.pool;
-            self.mutex.lock();
-            defer self.mutex.unlock();
             state.live += 1;
+            state.lock.lock();
+            defer state.lock.unlock();
             pushReady(state, f);
             if (state.interrupt) |interrupt| interrupt.call(interrupt.ctx);
         }
@@ -357,22 +406,24 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             };
         }
         /// Worker of a fiber pool: runs ready fibers, expires timed parks,
-        /// starts queued jobs on new fibers, and sleeps only when idle.
+        /// starts queued jobs on new fibers, and sleeps only when idle. The
+        /// pool mutex is taken only to claim a queued slot.
         fn fiberWorker(self: *Self, index: usize) void {
             defer fiber.releaseThreadCache();
             const state = &self.worker_states[index];
-            self.mutex.lock();
             while (true) {
-                if (popReady(state)) |f| {
+                state.lock.lock();
+                const ready = popReady(state);
+                state.lock.unlock();
+                if (ready) |f| {
                     dropTimed(state, f);
-                    self.mutex.unlock();
                     self.step(state, f);
-                    self.mutex.lock();
                     continue;
                 }
                 var next_deadline: ?i64 = null;
                 if (state.timed.items.len != 0) {
                     const now = fiber.monoMs();
+                    var expired = false;
                     var i: usize = state.timed.items.len;
                     while (i > 0) {
                         i -= 1;
@@ -387,82 +438,94 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                         // A wake that won already posted the fiber.
                         if (parked.w.expire(f)) {
                             f.timed_out = true;
+                            state.lock.lock();
                             pushReady(state, f);
+                            state.lock.unlock();
+                            expired = true;
                         }
                     }
-                    if (state.ready_head != null) continue;
+                    if (expired) continue;
                 }
-                var selected: ?usize = null;
-                for (self.slots, 0..) |slot, i| {
-                    if (slot.state != .queued and slot.state != .abandoned_queued) continue;
-                    if (selected == null or slot.sequence < self.slots[selected.?].sequence) selected = i;
-                }
-                if (selected) |i| {
-                    const slot = &self.slots[i];
-                    if (slot.state == .abandoned_queued) {
-                        const input = slot.input;
-                        slot.state = .abandoned_running;
-                        self.mutex.unlock();
-                        self.free_input(self.context, input);
-                        self.mutex.lock();
-                        slot.state = .free;
-                        self.mutex.unlock();
-                        self.completed();
-                        self.mutex.lock();
-                        continue;
-                    }
-                    slot.state = .running;
-                    self.mutex.unlock();
-                    const f = fiber.create(.{ .ctx = state, .wake = wakeFiber, .adopt = adoptFiber, .has_ready = hasReady, .set_interrupt = setInterrupt }, jobFiber, &self.slot_fibers[i]) catch |err| {
-                        // No fiber stack: the job fails without running.
-                        self.finishJob(slot, err, true);
-                        self.mutex.lock();
-                        continue;
-                    };
-                    self.mutex.lock();
-                    state.live += 1;
-                    self.mutex.unlock();
-                    self.step(state, f);
-                    self.mutex.lock();
+                if (self.queued.load(.seq_cst) != 0 and self.claimQueued(state)) continue;
+                state.lock.lock();
+                // Re-check under the worker lock: a submit counts its job
+                // before it looks for an idle worker under this lock, and a
+                // wake pushes under it, so neither is missed by this sleep.
+                if (state.ready_head != null or self.queued.load(.seq_cst) != 0) {
+                    state.lock.unlock();
                     continue;
                 }
-                if (self.stopping and state.live == 0) {
-                    self.mutex.unlock();
+                if (self.stop_flag.load(.seq_cst) and state.live == 0) {
+                    state.lock.unlock();
                     return;
                 }
                 state.idle = true;
                 if (next_deadline) |deadline| {
                     const left = deadline - fiber.monoMs();
-                    if (left > 0) state.cond.timedWait(&self.mutex, @as(u64, @intCast(left)) * std.time.ns_per_ms) catch {};
-                } else state.cond.wait(&self.mutex);
+                    if (left > 0) state.cond.timedWait(&state.lock, @as(u64, @intCast(left)) * std.time.ns_per_ms) catch {};
+                } else state.cond.wait(&state.lock);
                 state.idle = false;
+                state.lock.unlock();
             }
+        }
+        /// Claim and start (or retire, if abandoned) the oldest queued job.
+        /// False when another worker claimed it first.
+        fn claimQueued(self: *Self, state: *WorkerState) bool {
+            self.mutex.lock();
+            var selected: ?usize = null;
+            for (self.slots, 0..) |slot, i| {
+                if (slot.state != .queued and slot.state != .abandoned_queued) continue;
+                if (selected == null or slot.sequence < self.slots[selected.?].sequence) selected = i;
+            }
+            const i = selected orelse {
+                self.mutex.unlock();
+                return false;
+            };
+            _ = self.queued.fetchSub(1, .seq_cst);
+            const slot = &self.slots[i];
+            if (slot.state == .abandoned_queued) {
+                const input = slot.input;
+                slot.state = .abandoned_running;
+                self.mutex.unlock();
+                self.free_input(self.context, input);
+                self.mutex.lock();
+                slot.state = .free;
+                self.mutex.unlock();
+                self.completed();
+                return true;
+            }
+            slot.state = .running;
+            self.mutex.unlock();
+            const f = fiber.create(.{ .ctx = state, .wake = wakeFiber, .adopt = adoptFiber, .has_ready = hasReady, .set_interrupt = setInterrupt }, jobFiber, &self.slot_fibers[i]) catch |err| {
+                // No fiber stack: the job fails without running.
+                self.finishJob(slot, err, true);
+                return true;
+            };
+            state.live += 1;
+            self.step(state, f);
+            return true;
         }
         /// Resume `f` until it parks or finishes; publish its park.
         fn step(self: *Self, state: *WorkerState, f: *fiber.Fiber) void {
             fiber.resumeFiber(f);
             if (fiber.reap(f)) {
-                self.mutex.lock();
                 state.live -= 1;
-                self.mutex.unlock();
                 return;
             }
             _ = self.parks.fetchAdd(1, .monotonic);
             switch (f.parked_on) {
                 .nothing => {
-                    self.mutex.lock();
+                    state.lock.lock();
                     pushReady(state, f);
-                    self.mutex.unlock();
+                    state.lock.unlock();
                 },
                 .waiter => |parked| {
                     if (parked.w.publish(f)) {
-                        self.mutex.lock();
+                        state.lock.lock();
                         pushReady(state, f);
-                        self.mutex.unlock();
+                        state.lock.unlock();
                     } else if (parked.deadline_ms != null) {
-                        self.mutex.lock();
                         state.timed.appendAssumeCapacity(f);
-                        self.mutex.unlock();
                     }
                 },
             }
@@ -725,4 +788,36 @@ test "fiber group children overlap their parks on one worker and join" {
     try std.testing.expect(timer.read() < 350 * std.time.ns_per_ms);
     // Off a fiber the same code runs children inline.
     try std.testing.expectEqual(@as(u32, 504), try GroupContext.run(&context, 5, undefined));
+}
+
+test "fiber readiness checks use the worker lock and a queued count, not the pool mutex" {
+    var context: TestContext = .{};
+    const Worker = Pool(u32, u32, TestContext, 1, 4);
+    const pool = try Worker.startWith(std.testing.allocator, &context, TestContext.run, TestContext.freeInput, TestContext.freeOutput, .{ .fibers = true });
+    defer pool.deinit();
+    _ = try pool.submit(1, 0, 60_000);
+    // The only worker is inside the first job (blocking its thread).
+    context.entered.wait();
+    try std.testing.expectEqual(@as(u32, 0), pool.queued.load(.acquire));
+    _ = try pool.submit(2, 0, 60_000);
+    try std.testing.expectEqual(@as(u32, 1), pool.queued.load(.acquire));
+    // A fiber driving a socket asks between passes; with the pool mutex
+    // held elsewhere it still answers (it would deadlock if it took it).
+    pool.mutex.lock();
+    const ready = Worker.hasReady(&pool.worker_states[0]);
+    pool.mutex.unlock();
+    try std.testing.expect(ready);
+    context.finish.post();
+    context.entered.wait();
+    try std.testing.expectEqual(@as(u32, 0), pool.queued.load(.acquire));
+    context.finish.post();
+    var timer = try std.time.Timer.start();
+    var completed: usize = 0;
+    while (completed < 2) {
+        if (pool.poll(1)) |completion| {
+            pool.release(completion.result.value);
+            completed += 1;
+        } else std.Thread.sleep(std.time.ns_per_ms);
+        if (timer.read() > 5 * std.time.ns_per_s) return error.FiberJobsDidNotComplete;
+    }
 }

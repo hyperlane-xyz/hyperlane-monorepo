@@ -349,7 +349,7 @@ pub const Slot = struct {
         };
     }
     fn descriptor(self: *Slot) supervisor.Task {
-        return .{ .context = self, .run = run, .failure = classify, .interval_ms = @max(1, self.chain.index.interval *| 1000), .timeout_ms = self.options.job_timeout_ms, .wake = &self.authority.wake };
+        return .{ .context = self, .run = run, .failure = classify, .interval_ms = @max(1, self.chain.index.interval *| 1000), .timeout_ms = self.options.job_timeout_ms, .wake = &self.authority.wake, .wake_notified = true };
     }
     fn deinit(self: *Slot) void {
         if (self.migration) |*value| value.deinit();

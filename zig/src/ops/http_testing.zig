@@ -12,7 +12,11 @@ pub const Echo = struct {
     calls: std.atomic.Value(usize) = .init(0),
 
     pub fn handler(self: *Echo) http.Handler {
-        return .{ .context = self, .handle_fn = handle };
+        return .{ .context = self, .handle_fn = handle, .inline_fn = nonblocking };
+    }
+
+    fn nonblocking(_: *anyopaque, request: *const http.Request) bool {
+        return std.mem.eql(u8, request.path, "/metrics");
     }
 
     fn handle(context: *anyopaque, allocator: A, request: http.Request, cancel: *const std.atomic.Value(bool)) anyerror!http.Response {
@@ -188,6 +192,47 @@ test "idle and keep-alive server owner blocks instead of polling every 5 ms" {
     const open = server.owner_iterations.load(.acquire);
     std.Thread.sleep(200 * std.time.ns_per_ms);
     try std.testing.expect(server.owner_iterations.load(.acquire) - open <= 2);
+}
+
+test "nonblocking routes run on the socket owner and pool workers start only on demand" {
+    const a = std.testing.allocator;
+    var echo: Echo = .{};
+    const server = try start(&echo, .{ .address = try loopback() });
+    defer server.deinit();
+    var client = try Client.connect(a, server.address());
+    defer client.deinit();
+    for (0..5) |_| {
+        try client.writeAll("GET /metrics HTTP/1.1\r\nHost: fixture\r\n\r\nHEAD /metrics HTTP/1.1\r\nHost: fixture\r\n\r\n");
+        var get_reply = try expectReply(&client, false, 200);
+        defer get_reply.deinit();
+        try std.testing.expectEqualStrings("fixture_metric 1\n", get_reply.body());
+        var head_reply = try expectReply(&client, true, 200);
+        head_reply.deinit();
+    }
+    // Ten scrapes: no worker thread started, no handoff or completion wake.
+    try std.testing.expectEqual(@as(u64, 10), server.inline_requests.load(.acquire));
+    try std.testing.expectEqual(@as(usize, 0), server.pool.spawned);
+    try client.writeAll("GET /echo HTTP/1.1\r\nHost: fixture\r\n\r\n");
+    var echoed = try expectReply(&client, false, 200);
+    echoed.deinit();
+    try std.testing.expectEqual(@as(usize, 1), server.pool.spawned);
+    // A worker that went idle is reused rather than another started.
+    for (0..3) |_| {
+        var timer = try std.time.Timer.start();
+        while (true) {
+            server.pool.mutex.lock();
+            const idle = server.pool.idle_workers;
+            server.pool.mutex.unlock();
+            if (idle == 1) break;
+            if (timer.read() > 5 * std.time.ns_per_s) return error.FixtureWorkerNotIdle;
+            std.Thread.sleep(std.time.ns_per_ms);
+        }
+        try client.writeAll("GET /echo HTTP/1.1\r\nHost: fixture\r\n\r\n");
+        var again = try expectReply(&client, false, 200);
+        again.deinit();
+    }
+    try std.testing.expectEqual(@as(usize, 1), server.pool.spawned);
+    try std.testing.expectEqual(@as(u64, 10), server.inline_requests.load(.acquire));
 }
 
 fn serveGetHeadAndStop(allocator: A, address: std.net.Address) !void {

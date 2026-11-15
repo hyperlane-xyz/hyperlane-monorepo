@@ -294,7 +294,7 @@ pub const Bridge = struct {
     }
 
     pub fn descriptor(self: *Bridge) supervisor.Task {
-        return .{ .context = self, .run = poll, .interval_ms = 20, .timeout_ms = self.options.probe_timeout_ms, .wake = &self.wake, .stop_fn = stop };
+        return .{ .context = self, .run = poll, .interval_ms = 20, .timeout_ms = self.options.probe_timeout_ms, .wake = &self.wake, .wake_notified = true, .stop_fn = stop };
     }
 
     pub fn requestStop(self: *Bridge) void {

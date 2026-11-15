@@ -1,5 +1,6 @@
 //! Generation-tagged handoff from a stream owner to the serialized RPC indexer.
 const std = @import("std");
+const wake_notifier = @import("wake.zig");
 pub const Mask = packed struct(u8) {
     dispatch: bool = false,
     insertion: bool = false,
@@ -37,6 +38,7 @@ pub const Gate = struct {
         self.requested = mask;
         self.acknowledged_generation = null;
         self.wake.store(true, .release);
+        wake_notifier.notify();
         return true;
     }
     pub fn snapshot(self: *Gate) Snapshot {
@@ -58,8 +60,11 @@ pub const Gate = struct {
 test "authority revocation rejects late pause acknowledgements and wakes RPC fallback" {
     var gate: Gate = .{};
     const pair: Mask = .{ .dispatch = true, .insertion = true };
+    const seen = wake_notifier.current();
     try std.testing.expect(gate.request(1, pair));
     try std.testing.expect(gate.wake.swap(false, .acq_rel));
+    // The origin task sets wake_notified: the flag's writer also notifies.
+    try std.testing.expect(wake_notifier.current() != seen);
     try std.testing.expect(!gate.snapshot().paused(1, pair));
     try std.testing.expect(gate.request(2, .{}));
     try std.testing.expect(!gate.acknowledge(1, pair));
