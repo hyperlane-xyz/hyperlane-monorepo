@@ -405,7 +405,7 @@ const RpcFixture = struct {
             try out.writer.writeAll(self.receipt);
             try out.writer.writeByte('}');
         } else return error.FixtureUnexpectedMethod;
-        self.requests += 1;
+        _ = @atomicRmw(usize, &self.requests, .Add, 1, .release);
         if (self.stall_ms > 0) std.Thread.sleep(self.stall_ms * std.time.ns_per_ms);
         var header_buffer: [160]u8 = undefined;
         const header = try std.fmt.bufPrint(&header_buffer, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{out.written().len});
@@ -879,6 +879,10 @@ test "native public relay admission gate wait observes cancellation" {
     var caller: SubmitCaller = .{ .owner = fixture.public.submissionOwner(), .origin = "origin", .hash = hash_text, .arena = std.heap.ArenaAllocator.init(a) };
     defer caller.arena.deinit();
     const thread = try std.Thread.spawn(.{}, SubmitCaller.run, .{&caller});
+    // Cancel only after both pre-gate RPCs were served; a fixed sleep let a
+    // loaded host cancel earlier and leave the fixture waiting forever.
+    var waited_ms: u64 = 0;
+    while (@atomicLoad(usize, &rpc.fixture.requests, .acquire) < 2 and waited_ms < 30_000) : (waited_ms += 5) std.Thread.sleep(5 * std.time.ns_per_ms);
     std.Thread.sleep(50 * std.time.ns_per_ms);
     caller.cancel.store(true, .release);
     thread.join();
