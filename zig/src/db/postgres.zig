@@ -34,6 +34,9 @@ extern fn PQgetvalue(*const PGresult, c_int, c_int) [*]const u8;
 extern fn PQgetlength(*const PGresult, c_int, c_int) c_int;
 extern fn PQcmdTuples(*PGresult) [*:0]const u8;
 extern fn PQfnumber(*const PGresult, [*:0]const u8) c_int;
+extern fn PQenterPipelineMode(*PGconn) c_int;
+extern fn PQexitPipelineMode(*PGconn) c_int;
+extern fn PQpipelineSync(*PGconn) c_int;
 extern fn PQunescapeBytea([*:0]const u8, *usize) ?[*]u8;
 extern fn PQfreemem(?*anyopaque) void;
 
@@ -62,6 +65,8 @@ pub const Param = struct {
         return .{ .value = if (value) "true" else "false", .oid = Oid.boolean };
     }
 };
+
+pub const Statement = struct { sql: []const u8, params: []const Param = &.{} };
 
 pub const Diagnostic = struct {
     bytes: [2048]u8 = undefined,
@@ -309,15 +314,12 @@ pub const Connection = struct {
     }
     /// Results always use text format; bytea() explicitly decodes returned
     /// PostgreSQL bytea rather than treating SQL NULL as an empty value.
-    pub fn query(self: *Connection, sql: []const u8, params: []const Param) !Result {
-        const handle = try self.live();
-        const deadline_ns = try self.io.deadline();
-        try self.io.check(deadline_ns);
+    const Prepared = struct { command: [*:0]const u8, count: c_int, types: ?[*]const u32, values: ?[*]const ?[*]const u8, lengths: ?[*]const c_int, formats: ?[*]const c_int };
+    /// Validates and converts one statement's parameters into libpq arrays
+    /// owned by scratch. No bytes are sent.
+    fn prepare(scratch: Allocator, sql: []const u8, params: []const Param) !Prepared {
         if (params.len > 65535) return error.TooManyParameters;
         if (std.mem.indexOfScalar(u8, sql, 0) != null) return error.InvalidSql;
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const scratch = arena.allocator();
         const command = try scratch.dupeZ(u8, sql);
         const values = try scratch.alloc(?[*]const u8, params.len);
         const lengths = try scratch.alloc(c_int, params.len);
@@ -338,35 +340,56 @@ pub const Connection = struct {
                 }
             } else values[i] = null;
         }
-        try self.io.check(deadline_ns); // no statement sent on expired admission
-        if (PQsendQueryParams(handle, command, @intCast(params.len), if (params.len == 0) null else types.ptr, if (params.len == 0) null else values.ptr, if (params.len == 0) null else lengths.ptr, if (params.len == 0) null else formats.ptr, 0) == 0) {
+        const empty = params.len == 0;
+        return .{ .command = command, .count = @intCast(params.len), .types = if (empty) null else types.ptr, .values = if (empty) null else values.ptr, .lengths = if (empty) null else lengths.ptr, .formats = if (empty) null else formats.ptr };
+    }
+    fn send(self: *Connection, handle: *PGconn, prepared: Prepared) !void {
+        if (PQsendQueryParams(handle, prepared.command, prepared.count, prepared.types, prepared.values, prepared.lengths, prepared.formats, 0) == 0) {
             if (self.diagnostic) |out| out.capture(std.mem.span(PQerrorMessage(handle)), null);
             self.poison();
             return error.PostgresQuery;
         }
-        // Once submission starts, any transport/deadline/cancel error has an
-        // uncertain server outcome. Close rather than recycling or replaying it.
-        var completed = false;
-        errdefer if (!completed) self.poison();
+    }
+    fn flushAll(self: *Connection, handle: *PGconn, deadline_ns: u64) !void {
         while (true) {
             try self.io.check(deadline_ns);
             const flush = PQflush(handle);
-            if (flush == 0) break;
+            if (flush == 0) return;
             if (flush < 0) return error.PostgresConnection;
             try waitSocket(handle, std.posix.POLL.IN | std.posix.POLL.OUT, self.io, deadline_ns);
             if (PQconsumeInput(handle) == 0) return error.PostgresConnection;
         }
+    }
+    /// Next libpq result (null ends one statement's results) once the socket
+    /// has delivered it, within the shared absolute deadline.
+    fn nextResult(self: *Connection, handle: *PGconn, deadline_ns: u64) !?*PGresult {
+        try self.io.check(deadline_ns);
+        if (PQconsumeInput(handle) == 0) return error.PostgresConnection;
+        while (PQisBusy(handle) != 0) {
+            try waitSocket(handle, std.posix.POLL.IN, self.io, deadline_ns);
+            if (PQconsumeInput(handle) == 0) return error.PostgresConnection;
+        }
+        return PQgetResult(handle);
+    }
+    pub fn query(self: *Connection, sql: []const u8, params: []const Param) !Result {
+        const handle = try self.live();
+        const deadline_ns = try self.io.deadline();
+        try self.io.check(deadline_ns);
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const prepared = try prepare(arena.allocator(), sql, params);
+        try self.io.check(deadline_ns); // no statement sent on expired admission
+        try self.send(handle, prepared);
+        // Once submission starts, any transport/deadline/cancel error has an
+        // uncertain server outcome. Close rather than recycling or replaying it.
+        var completed = false;
+        errdefer if (!completed) self.poison();
+        try self.flushAll(handle, deadline_ns);
         var result: ?*PGresult = null;
         errdefer if (result) |value| PQclear(value);
         var query_error = false;
         while (true) {
-            try self.io.check(deadline_ns);
-            if (PQconsumeInput(handle) == 0) return error.PostgresConnection;
-            while (PQisBusy(handle) != 0) {
-                try waitSocket(handle, std.posix.POLL.IN, self.io, deadline_ns);
-                if (PQconsumeInput(handle) == 0) return error.PostgresConnection;
-            }
-            const value = PQgetResult(handle) orelse break;
+            const value = try self.nextResult(handle, deadline_ns) orelse break;
             const status = PQresultStatus(value);
             if (status == 3 or status == 4 or status == 8) {
                 PQclear(value);
@@ -382,6 +405,69 @@ pub const Connection = struct {
         completed = true;
         if (query_error or result == null) return error.PostgresQuery;
         return .{ .handle = result.? };
+    }
+
+    /// Sends every statement and one Sync in a single network round trip.
+    /// Outside an explicit transaction the statements share one implicit
+    /// transaction ended by the Sync, so any statement error rolls back all
+    /// of them; inside BEGIN the caller's Transaction still owns the outcome.
+    /// On success the caller owns and deinitializes every result.
+    pub fn pipeline(self: *Connection, statements: []const Statement, results: []Result) !void {
+        if (statements.len == 0 or statements.len != results.len) return error.InvalidPipeline;
+        const handle = try self.live();
+        const deadline_ns = try self.io.deadline();
+        try self.io.check(deadline_ns);
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const prepared = try arena.allocator().alloc(Prepared, statements.len);
+        for (statements, prepared) |statement, *out| out.* = try prepare(arena.allocator(), statement.sql, statement.params);
+        try self.io.check(deadline_ns); // no statement sent on expired admission
+        if (PQenterPipelineMode(handle) == 0) {
+            if (self.diagnostic) |out| out.capture(std.mem.span(PQerrorMessage(handle)), null);
+            return error.PostgresPipeline;
+        }
+        // Any failure after entering pipeline mode has an uncertain server
+        // outcome or leaves libpq mid-pipeline. Close rather than recycle it.
+        var completed = false;
+        errdefer if (!completed) self.poison();
+        for (prepared) |statement| try self.send(handle, statement);
+        if (PQpipelineSync(handle) == 0) return error.PostgresConnection;
+        try self.flushAll(handle, deadline_ns);
+        var filled: usize = 0;
+        errdefer for (results[0..filled]) |*result| result.deinit();
+        var failed = false;
+        for (results) |*slot| {
+            var kept: ?*PGresult = null;
+            errdefer if (kept) |value| PQclear(value);
+            while (try self.nextResult(handle, deadline_ns)) |value| {
+                const status = PQresultStatus(value);
+                if (status == 3 or status == 4 or status == 8) {
+                    PQclear(value);
+                    return error.UnsupportedPostgresCopy;
+                }
+                // The first real error explains why later statements were skipped.
+                if (status != 1 and status != 2 and status != 11 and !failed) {
+                    if (self.diagnostic) |out| out.capture(std.mem.span(PQresultErrorMessage(value)), PQresultErrorField(value, 'C'));
+                }
+                if (status != 1 and status != 2) failed = true;
+                if (kept) |previous| PQclear(previous);
+                kept = value;
+            }
+            slot.* = .{ .handle = kept orelse return error.MissingPipelineResult };
+            kept = null;
+            filled += 1;
+        }
+        const sync = try self.nextResult(handle, deadline_ns) orelse return error.MissingPipelineSync;
+        const sync_status = PQresultStatus(sync);
+        PQclear(sync);
+        if (sync_status != 10) return error.MissingPipelineSync;
+        if (PQexitPipelineMode(handle) == 0) return error.PostgresPipeline;
+        completed = true;
+        if (failed) {
+            for (results) |*result| result.deinit();
+            filled = 0;
+            return error.PostgresQuery;
+        }
     }
 
     pub fn execute(self: *Connection, sql: []const u8, params: []const Param) !void {
@@ -401,6 +487,28 @@ pub const Connection = struct {
         if (PQtransactionStatus(try self.live()) != 0) return error.AlreadyInTransaction;
         try self.execute("BEGIN", &.{});
         return .{ .connection = self };
+    }
+    /// BEGIN plus the transaction's leading statements in one round trip.
+    /// On a statement error the transaction is rolled back before returning.
+    pub fn beginPipeline(self: *Connection, statements: []const Statement, results: []Result) !Transaction {
+        if (statements.len == 0 or statements.len != results.len) return error.InvalidPipeline;
+        if (PQtransactionStatus(try self.live()) != 0) return error.AlreadyInTransaction;
+        const all = try self.allocator.alloc(Statement, statements.len + 1);
+        defer self.allocator.free(all);
+        const outputs = try self.allocator.alloc(Result, statements.len + 1);
+        defer self.allocator.free(outputs);
+        all[0] = .{ .sql = "BEGIN" };
+        @memcpy(all[1 .. statements.len + 1], statements);
+        var transaction: Transaction = .{ .connection = self };
+        self.pipeline(all, outputs) catch |err| {
+            // A completed pipeline may have opened the transaction; a poisoned
+            // connection has no server transaction left to reuse.
+            if (!self.poisoned and self.handle != null and PQtransactionStatus(self.handle.?) != 0) transaction.deinit();
+            return err;
+        };
+        outputs[0].deinit();
+        @memcpy(results, outputs[1 .. statements.len + 1]);
+        return transaction;
     }
 };
 
@@ -431,6 +539,33 @@ pub const Transaction = struct {
             return err;
         };
         self.active = false;
+    }
+    /// The transaction's trailing statements and COMMIT in one round trip.
+    /// A statement error skips COMMIT and leaves the aborted transaction for
+    /// deinit to roll back; a lost response reports CommitOutcomeUnknown.
+    pub fn commitPipeline(self: *Transaction, statements: []const Statement, results: []Result) !void {
+        if (!self.active) return error.ClosedTransaction;
+        if (statements.len != results.len) return error.InvalidPipeline;
+        const handle = try self.connection.live();
+        if (PQtransactionStatus(handle) == 3) return error.TransactionAborted;
+        if (PQtransactionStatus(handle) != 2) return error.TransactionState;
+        const allocator = self.connection.allocator;
+        const all = try allocator.alloc(Statement, statements.len + 1);
+        defer allocator.free(all);
+        const outputs = try allocator.alloc(Result, statements.len + 1);
+        defer allocator.free(outputs);
+        @memcpy(all[0..statements.len], statements);
+        all[statements.len] = .{ .sql = "COMMIT" };
+        self.connection.pipeline(all, outputs) catch |err| {
+            if (self.connection.poisoned) {
+                self.active = false;
+                return error.CommitOutcomeUnknown;
+            }
+            return err;
+        };
+        self.active = false;
+        outputs[statements.len].deinit();
+        @memcpy(results, outputs[0..statements.len]);
     }
     pub fn rollback(self: *Transaction) !void {
         if (!self.active) return error.ClosedTransaction;

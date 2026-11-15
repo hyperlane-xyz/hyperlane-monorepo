@@ -222,6 +222,90 @@ test "bounded batches and confirmation preserve oversized atomic block publicati
     try std.testing.expectEqual(@as(u64, 300), (try max_domain.state()).?.indexed);
 }
 
+test "native Postgres pipeline returns every result in one implicit transaction and rolls back all on any error" {
+    var diagnostic: pg.Diagnostic = .{};
+    var connection = try connect(&diagnostic);
+    defer connection.deinit();
+    try connection.execute("CREATE TEMP TABLE ziggy_pipeline(id integer PRIMARY KEY, value text)", &.{});
+    var results: [3]pg.Result = undefined;
+    try connection.pipeline(&.{
+        .{ .sql = "INSERT INTO ziggy_pipeline VALUES($1::integer,$2)", .params = &.{ .{ .value = "1", .oid = pg.Oid.int4 }, pg.Param.text("one") } },
+        .{ .sql = "INSERT INTO ziggy_pipeline VALUES(2,'two') RETURNING id" },
+        .{ .sql = "SELECT count(*) AS count FROM ziggy_pipeline" },
+    }, &results);
+    defer for (&results) |*result| result.deinit();
+    try std.testing.expectEqual(@as(u64, 1), try results[0].affected());
+    try std.testing.expectEqual(@as(i64, 2), try results[1].integer(0, "id"));
+    // Later statements observe earlier ones within the same implicit transaction.
+    try std.testing.expectEqual(@as(i64, 2), try results[2].integer(0, "count"));
+    // A failing statement rolls back its successful predecessors and skips the
+    // rest; the connection drains, stays reusable and outside any transaction.
+    var failed: [3]pg.Result = undefined;
+    try std.testing.expectError(error.PostgresQuery, connection.pipeline(&.{
+        .{ .sql = "INSERT INTO ziggy_pipeline VALUES(3,'three')" },
+        .{ .sql = "INSERT INTO ziggy_pipeline VALUES(1,'duplicate')" },
+        .{ .sql = "INSERT INTO ziggy_pipeline VALUES(4,'four')" },
+    }, &failed));
+    try std.testing.expectEqualStrings("23505", &diagnostic.sqlstate.?);
+    try std.testing.expect(connection.reusable());
+    try std.testing.expectEqual(@as(u64, 2), try count(&connection, "SELECT count(*) AS count FROM ziggy_pipeline"));
+    // Inside an explicit transaction a failure leaves it for the owner to roll back.
+    var transaction = try connection.begin();
+    var inner: [2]pg.Result = undefined;
+    try std.testing.expectError(error.PostgresQuery, connection.pipeline(&.{
+        .{ .sql = "INSERT INTO ziggy_pipeline VALUES(5,'five')" },
+        .{ .sql = "SELECT 1/0" },
+    }, &inner));
+    try std.testing.expectError(error.TransactionAborted, transaction.commit());
+    transaction.deinit();
+    try std.testing.expect(connection.reusable());
+    try std.testing.expectEqual(@as(u64, 2), try count(&connection, "SELECT count(*) AS count FROM ziggy_pipeline"));
+    // A pipeline commit in an explicit transaction is durable.
+    var committed = try connection.begin();
+    var both: [2]pg.Result = undefined;
+    try connection.pipeline(&.{ .{ .sql = "INSERT INTO ziggy_pipeline VALUES(6,'six')" }, .{ .sql = "INSERT INTO ziggy_pipeline VALUES(7,'seven')" } }, &both);
+    for (&both) |*result| result.deinit();
+    try committed.commit();
+    committed.deinit();
+    try std.testing.expectEqual(@as(u64, 4), try count(&connection, "SELECT count(*) AS count FROM ziggy_pipeline"));
+}
+test "native Postgres pipelined transaction begin and commit preserve guard-then-write atomicity" {
+    var diagnostic: pg.Diagnostic = .{};
+    var connection = try connect(&diagnostic);
+    defer connection.deinit();
+    try connection.execute("CREATE TEMP TABLE ziggy_pipelined_tx(id integer PRIMARY KEY)", &.{});
+    // Guard read and leading write share the BEGIN round trip.
+    var lead: [2]pg.Result = undefined;
+    var transaction = try connection.beginPipeline(&.{ .{ .sql = "INSERT INTO ziggy_pipelined_tx VALUES(1)" }, .{ .sql = "SELECT count(*) AS count FROM ziggy_pipelined_tx" } }, &lead);
+    try std.testing.expectEqual(@as(i64, 1), try lead[1].integer(0, "count"));
+    for (&lead) |*result| result.deinit();
+    var trail: [1]pg.Result = undefined;
+    try transaction.commitPipeline(&.{.{ .sql = "INSERT INTO ziggy_pipelined_tx VALUES(2) RETURNING id" }}, &trail);
+    try std.testing.expectEqual(@as(i64, 2), try trail[0].integer(0, "id"));
+    trail[0].deinit();
+    transaction.deinit();
+    try std.testing.expectEqual(@as(u64, 2), try count(&connection, "SELECT count(*) AS count FROM ziggy_pipelined_tx"));
+    // A failing trailing write skips COMMIT; deinit rolls back the leading write.
+    var aborted = try connection.beginPipeline(&.{.{ .sql = "INSERT INTO ziggy_pipelined_tx VALUES(3)" }}, lead[0..1]);
+    lead[0].deinit();
+    try std.testing.expectError(error.PostgresQuery, aborted.commitPipeline(&.{ .{ .sql = "INSERT INTO ziggy_pipelined_tx VALUES(4)" }, .{ .sql = "INSERT INTO ziggy_pipelined_tx VALUES(1)" } }, &lead));
+    aborted.deinit();
+    try std.testing.expect(connection.reusable());
+    try std.testing.expectEqual(@as(u64, 2), try count(&connection, "SELECT count(*) AS count FROM ziggy_pipelined_tx"));
+    // A failing leading statement returns with the transaction already rolled back.
+    try std.testing.expectError(error.PostgresQuery, connection.beginPipeline(&.{ .{ .sql = "INSERT INTO ziggy_pipelined_tx VALUES(5)" }, .{ .sql = "INSERT INTO ziggy_pipelined_tx VALUES(2)" } }, &lead));
+    try std.testing.expect(connection.reusable());
+    try std.testing.expectEqual(@as(u64, 2), try count(&connection, "SELECT count(*) AS count FROM ziggy_pipelined_tx"));
+}
+test "native Postgres pipeline deadline poisons an ambiguous pipeline" {
+    var connection = try connect(null);
+    defer connection.deinit();
+    try connection.execute("SET statement_timeout=0", &.{});
+    connection.io = .{ .timeout_ms = 5000, .deadline_ns = (try pg.nowNs()) + 80 * std.time.ns_per_ms };
+    var results: [2]pg.Result = undefined;
+    try std.testing.expectError(error.PostgresDeadlineExceeded, connection.pipeline(&.{ .{ .sql = "SELECT 1" }, .{ .sql = "SELECT pg_sleep(5)" } }, &results));
+    try std.testing.expect(connection.poisoned);
+}
 test "native Postgres absolute query deadline closes an ambiguous operation even without server statement timeout" {
     var connection = try connect(null);
     defer connection.deinit();
