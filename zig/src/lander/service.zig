@@ -27,7 +27,7 @@ pub const Signer = struct {
 
 pub const NativeTests = if (@import("builtin").is_test) struct {
     pub fn simulateBatch(running: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain) !void {
-        try running.simulateBatch(record, allocator, submission);
+        _ = try running.simulateBatch(record, allocator, submission);
     }
 } else struct {};
 
@@ -671,10 +671,25 @@ pub const Service = struct {
         const previous_reverted = report.reverted_payloads;
         const payloads = try allocator.alloc(storage.JsonRecord, payload_uuids.len);
         const delivered_flags = try allocator.alloc(bool, payload_uuids.len);
-        var all_delivered = true;
-        for (payload_uuids, payloads, delivered_flags) |payload_uuid, *payload, *delivered| {
+        // Success criteria are independent reads at one height: one
+        // overlapped round instead of one round trip per payload.
+        const checks = try allocator.alloc(chain.Call, payload_uuids.len);
+        const check_of = try allocator.alloc(?usize, payload_uuids.len);
+        var check_count: usize = 0;
+        for (payload_uuids, payloads, check_of) |payload_uuid, *payload, *slot| {
             payload.* = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
-            delivered.* = try self.payloadDelivered(allocator, payload.value(), finalized_height);
+            slot.* = null;
+            if (try self.deliveryCall(allocator, payload.value())) |check| {
+                checks[check_count] = check;
+                slot.* = check_count;
+                check_count += 1;
+            }
+        }
+        const results = try allocator.alloc([]u8, check_count);
+        try self.chain.callMany(allocator, checks[0..check_count], finalized_height, results);
+        var all_delivered = true;
+        for (check_of, delivered_flags) |slot, *delivered| {
+            delivered.* = if (slot) |index| try abi.decodeBool(results[index]) else true;
             all_delivered = all_delivered and delivered.*;
         }
         // Still included, every payload still delivered and already stored
@@ -742,6 +757,13 @@ pub const Service = struct {
     }
 
     fn payloadDelivered(self: *Service, allocator: std.mem.Allocator, payload: std.json.Value, block: u64) !bool {
+        const check = (try self.deliveryCall(allocator, payload)) orelse return true;
+        return abi.decodeBool(try self.chain.call(allocator, check, block));
+    }
+
+    /// The read that decides whether `payload` was delivered (null: no
+    /// criteria, delivered by inclusion). Allocations live in `allocator`.
+    fn deliveryCall(self: *Service, allocator: std.mem.Allocator, payload: std.json.Value) !?chain.Call {
         const uuid = try records.payloadUuid(payload);
         if (try self.store.delivery(allocator, uuid)) |owned_value| {
             const owned = owned_value;
@@ -750,19 +772,15 @@ pub const Service = struct {
                 .mailbox_message => |id| {
                     const to = try abi.fixedHex(32, try types.stringField(payload, "to"));
                     if (!std.mem.allEqual(u8, to[0..12], 0)) return error.InvalidMailboxAddress;
-                    const calldata = abi.hashCall("delivered(bytes32)", id);
-                    const result = try self.chain.call(allocator, .{ .from = self.config.signer.address, .to = to[12..32].*, .calldata = &calldata }, block);
-                    return abi.decodeBool(result);
+                    const calldata = try allocator.dupe(u8, &abi.hashCall("delivered(bytes32)", id));
+                    return .{ .from = self.config.signer.address, .to = to[12..32].*, .calldata = calldata };
                 },
-                .contract => |call| {
-                    const result = try self.chain.call(allocator, .{ .from = self.config.signer.address, .to = call.to, .calldata = call.calldata }, block);
-                    return abi.decodeBool(result);
-                },
+                .contract => |call| return .{ .from = self.config.signer.address, .to = call.to, .calldata = call.calldata },
             }
         }
         const details = try types.field(payload, "details");
-        const criteria = types.optionalField(details, "success_criteria") orelse return true;
-        if (criteria == .null) return true;
+        const criteria = types.optionalField(details, "success_criteria") orelse return null;
+        if (criteria == .null) return null;
         const bytes = try jsonBytes(allocator, criteria);
         const parsed = try std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{});
         if (parsed != .array or parsed.array.items.len != 2) return error.InvalidSuccessCriteria;
@@ -772,8 +790,7 @@ pub const Service = struct {
             .eip2930 => |tx| tx.to,
             .eip1559 => |tx| tx.to,
         } orelse return error.InvalidSuccessCriteria;
-        const result = try self.chain.call(allocator, .{ .from = self.config.signer.address, .to = to, .calldata = request.owned_data }, block);
-        return abi.decodeBool(result);
+        return .{ .from = self.config.signer.address, .to = to, .calldata = request.owned_data };
     }
 
     fn staleRecovered(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator) !bool {
@@ -831,9 +848,10 @@ pub const Service = struct {
             if (elapsed <= @max(self.config.estimated_block_time_ms, 1000)) return;
         };
         const submission = try self.submissionChain(record, allocator);
-        if (!self.config.bypass_batch_simulation and (try types.uintField(record.value(), "submission_attempts")) == 0) try self.simulateBatch(record, allocator, submission);
+        const simulated = if (!self.config.bypass_batch_simulation and (try types.uintField(record.value(), "submission_attempts")) == 0) try self.simulateBatch(record, allocator, submission) else null;
         const previous_nonce = try types.optionalUint(try types.requestFromRecord(record.value()), "nonce");
-        var prepared = try self.prepareSubmission(record, allocator, submission);
+        // The simulation's latest block also prices and caps this submission.
+        var prepared = try self.prepareSubmission(record, allocator, submission, if (submission.context == self.chain.context) simulated else null);
         const old_price = try requestPrice(try types.requestFromRecord(record.value()));
         const db_nonce = try self.store.transactionNonce(allocator, self.config.signer.address, uuid);
         if (previous_nonce != db_nonce and (previous_nonce != null or db_nonce != null)) {
@@ -917,9 +935,10 @@ pub const Service = struct {
         return self.chain;
     }
 
-    fn simulateBatch(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain) !void {
+    /// Returns the submission chain's latest block it simulated against.
+    fn simulateBatch(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain) !?chain.LatestBlock {
         const details = try types.field(record.value(), "payload_details");
-        if (details.array.items.len <= 1) return;
+        if (details.array.items.len <= 1) return null;
         const request = try types.parseRequest(allocator, try types.requestFromRecord(record.value()));
         const to = switch (request.request) {
             .legacy => |tx| tx.to,
@@ -1017,11 +1036,12 @@ pub const Service = struct {
         defer self.allocator.free(json);
         try self.store.writeTransactionAndPayloads(self.allocator, uuid, json, failed);
         for (failed) |_| self.metric(.{ .dropped_payload = .{ .name = "FailedSimulation" } });
+        return latest;
     }
 
     const Prepared = struct { request: types.Request, price: gas.GasPrice };
 
-    fn prepareSubmission(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain) !Prepared {
+    fn prepareSubmission(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain, known_latest: ?chain.LatestBlock) !Prepared {
         const tx_json = try types.requestFromRecord(record.value());
         const info = try types.parseRequest(allocator, tx_json);
         var request = info.request;
@@ -1034,7 +1054,7 @@ pub const Service = struct {
                 tx.chain_id = self.config.chain_id;
             },
         }
-        const latest = try self.chain.latestBlock();
+        const latest = known_latest orelse try self.chain.latestBlock();
         const gas_latest = if (submission.context == self.chain.context) latest else try submission.latestBlock();
         const attempts = try types.uintField(record.value(), "submission_attempts");
         if (attempts == 0) {
@@ -1084,21 +1104,27 @@ pub const Service = struct {
 
     fn estimateBatchGas(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain, request: types.Request, latest: chain.LatestBlock) !u256 {
         const payload_uuids = try records.payloadTransactionUuids(allocator, record.value());
-        var estimate_sum: u256 = 0;
         var floor: u256 = 0;
-        for (payload_uuids) |payload_uuid| {
+        // Members and the batch estimate independently: one overlapped round.
+        const requests = try allocator.alloc(types.Request, payload_uuids.len + 1);
+        for (payload_uuids, requests[0..payload_uuids.len]) |payload_uuid, *member| {
             var payload = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
             floor = gas.satAdd(floor, (try types.optionalUint(payload.value(), "gas_limit")) orelse 0);
             const bytes = try jsonBytes(allocator, try types.field(payload.value(), "data"));
             const tuple = try std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{});
-            const member = try types.parseRequest(allocator, tuple.array.items[0]);
-            const member_floor = requestGas(member.request);
-            const estimate = try submission.estimateGas(member.request, self.config.signer.address);
+            member.* = (try types.parseRequest(allocator, tuple.array.items[0])).request;
+        }
+        requests[payload_uuids.len] = request;
+        const estimates = try allocator.alloc(u256, requests.len);
+        try submission.estimateGasMany(requests, self.config.signer.address, estimates);
+        var estimate_sum: u256 = 0;
+        for (requests[0..payload_uuids.len], estimates[0..payload_uuids.len]) |member, estimate| {
+            const member_floor = requestGas(member);
             const capped = try gas.capGasLimit(@max(estimate, member_floor), member_floor, latest.gas_limit, self.config.overrides);
             estimate_sum = gas.satAdd(estimate_sum, gas.satAdd(capped, 3500));
         }
         if (floor != 0) floor = gas.satAdd(floor, gas.satMul(payload_uuids.len, 3500));
-        const outer = try submission.estimateGas(request, self.config.signer.address);
+        const outer = estimates[payload_uuids.len];
         var result = @max(outer, estimate_sum);
         if (floor != 0) result = gas.bufferGasLimit(@max(result, floor), self.config.arbitrum_nitro);
         return gas.capGasLimit(@max(result, floor), floor, latest.gas_limit, self.config.overrides);

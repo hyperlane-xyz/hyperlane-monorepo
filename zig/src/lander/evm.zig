@@ -24,6 +24,8 @@ pub const Evm = struct {
             .call_fn = call,
             .get_code_fn = getCode,
             .zks_estimate_fee_fn = zksEstimateFee,
+            .estimate_gas_many_fn = estimateGasMany,
+            .call_many_fn = callMany,
         };
     }
 
@@ -95,7 +97,28 @@ pub const Evm = struct {
         try self.transport();
         var arena = std.heap.ArenaAllocator.init(self.rpc.allocator);
         defer arena.deinit();
+        var response = try self.rpc.call("eth_estimateGas", .{try estimateObject(arena.allocator(), request, signer)});
+        defer response.deinit();
+        return abi.quantityAs(u256, try provider.string(response.value()));
+    }
+
+    /// Batch members and the batch itself estimate independently: one round
+    /// of overlapped requests instead of one round trip each.
+    fn estimateGasMany(context: *anyopaque, requests: []const types.Request, signer: types.Address, out: []u256) !void {
+        const self: *Evm = @ptrCast(@alignCast(context));
+        try self.transport();
+        var arena = std.heap.ArenaAllocator.init(self.rpc.allocator);
+        defer arena.deinit();
         const allocator = arena.allocator();
+        const calls = try allocator.alloc(provider.RawCall, requests.len);
+        for (requests, calls) |request, *raw| raw.* = .{ .method = "eth_estimateGas", .params_json = try std.json.Stringify.valueAlloc(allocator, .{try estimateObject(allocator, request, signer)}, .{}) };
+        const responses = try allocator.alloc(provider.RpcResponse, requests.len);
+        try self.rpc.callMany(calls, responses);
+        defer for (responses) |*response| response.deinit();
+        for (responses, out) |response, *slot| slot.* = try abi.quantityAs(u256, try provider.string(response.value()));
+    }
+
+    fn estimateObject(allocator: std.mem.Allocator, request: types.Request, signer: types.Address) !std.json.Value {
         var object = std.json.ObjectMap.init(allocator);
         try object.put("from", .{ .string = try abi.hexAlloc(allocator, &signer) });
         switch (request) {
@@ -115,9 +138,7 @@ pub const Evm = struct {
                 try putAccessList(&object, allocator, tx.access_list);
             },
         }
-        var response = try self.rpc.call("eth_estimateGas", .{std.json.Value{ .object = object }});
-        defer response.deinit();
-        return abi.quantityAs(u256, try provider.string(response.value()));
+        return .{ .object = object };
     }
 
     fn putCommon(object: *std.json.ObjectMap, allocator: std.mem.Allocator, to: ?types.Address, value: u256, data: []const u8) !void {
@@ -199,6 +220,31 @@ pub const Evm = struct {
         errdefer allocator.free(bytes);
         _ = try abi.decodeHex(bytes, hex);
         return bytes;
+    }
+
+    fn callMany(context: *anyopaque, allocator: std.mem.Allocator, requests: []const chain.Call, block: u64, out: [][]u8) !void {
+        const self: *Evm = @ptrCast(@alignCast(context));
+        try self.transport();
+        var arena = std.heap.ArenaAllocator.init(self.rpc.allocator);
+        defer arena.deinit();
+        const scratch = arena.allocator();
+        const tag = try abi.quantityAlloc(scratch, block);
+        const calls = try scratch.alloc(provider.RawCall, requests.len);
+        for (requests, calls) |request, *raw| raw.* = .{ .method = "eth_call", .params_json = try std.json.Stringify.valueAlloc(scratch, .{ .{ .from = try abi.hexAlloc(scratch, &request.from), .to = try abi.hexAlloc(scratch, &request.to), .data = try abi.hexAlloc(scratch, request.calldata), .value = try types.quantity(scratch, request.value) }, tag }, .{}) };
+        const responses = try scratch.alloc(provider.RpcResponse, requests.len);
+        try self.rpc.callMany(calls, responses);
+        defer for (responses) |*response| response.deinit();
+        var filled: usize = 0;
+        errdefer for (out[0..filled]) |bytes| allocator.free(bytes);
+        for (responses, out) |response, *slot| {
+            const hex = try provider.string(response.value());
+            if (hex.len < 2 or hex.len % 2 != 0) return error.InvalidRpcResult;
+            const bytes = try allocator.alloc(u8, (hex.len - 2) / 2);
+            errdefer allocator.free(bytes);
+            _ = try abi.decodeHex(bytes, hex);
+            slot.* = bytes;
+            filled += 1;
+        }
     }
 
     fn getCode(context: *anyopaque, allocator: std.mem.Allocator, address: types.Address) ![]u8 {

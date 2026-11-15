@@ -48,6 +48,10 @@ pub const Chain = struct {
     call_fn: *const fn (*anyopaque, std.mem.Allocator, Call, u64) anyerror![]u8,
     get_code_fn: *const fn (*anyopaque, std.mem.Allocator, types.Address) anyerror![]u8,
     zks_estimate_fee_fn: ?*const fn (*anyopaque, types.Request, types.Address) anyerror!ZksFee = null,
+    /// Optional overlapped forms of estimateGas/call (all-or-error). Absent:
+    /// the requests run one after another.
+    estimate_gas_many_fn: ?*const fn (*anyopaque, []const types.Request, types.Address, []u256) anyerror!void = null,
+    call_many_fn: ?*const fn (*anyopaque, std.mem.Allocator, []const Call, u64, [][]u8) anyerror!void = null,
 
     pub fn latestBlock(self: Chain) !LatestBlock {
         return self.latest_block_fn(self.context);
@@ -60,6 +64,26 @@ pub const Chain = struct {
 
     pub fn estimateGas(self: Chain, request: types.Request, signer: types.Address) !u256 {
         return self.estimate_gas_fn(self.context, request, signer);
+    }
+
+    /// Independent estimates, overlapped when the chain supports it.
+    pub fn estimateGasMany(self: Chain, requests: []const types.Request, signer: types.Address, out: []u256) !void {
+        if (requests.len != out.len) return error.InvalidEstimateBatch;
+        if (self.estimate_gas_many_fn) |many| if (requests.len > 1) return many(self.context, requests, signer, out);
+        for (requests, out) |request, *slot| slot.* = try self.estimateGas(request, signer);
+    }
+
+    /// Independent calls at one block, overlapped when supported. On error no
+    /// `out` entry remains allocated.
+    pub fn callMany(self: Chain, allocator: std.mem.Allocator, requests: []const Call, block: u64, out: [][]u8) !void {
+        if (requests.len != out.len) return error.InvalidCallBatch;
+        if (self.call_many_fn) |many| if (requests.len > 1) return many(self.context, allocator, requests, block, out);
+        var filled: usize = 0;
+        errdefer for (out[0..filled]) |bytes| allocator.free(bytes);
+        for (requests, out) |request, *slot| {
+            slot.* = try self.call(allocator, request, block);
+            filled += 1;
+        }
     }
 
     pub fn accountNonceFinalized(self: Chain, signer: types.Address) !u256 {
