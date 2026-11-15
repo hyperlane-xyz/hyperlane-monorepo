@@ -35,5 +35,22 @@
     "elapsed_ns": 197084287875
   },
   "max_rss_bytes": null,
-  "note": "elapsed_ns is wall time on a loaded shared host, not a performance claim"
+  "note": "elapsed_ns is wall time on a loaded shared host, not a performance claim",
+  "x86_64": {
+    "source_commit": "9979181b68",
+    "host": "Depot sandbox, AMD EPYC 9R45 (Zen 5), 16 vCPU",
+    "build": "zig build-exe -O ReleaseFast -mcpu=x86_64_v3+pclmul zig/src/crypto_bench.zig -lc",
+    "command": "crypto_bench differential 1000000 20261115",
+    "result": {
+      "kernel": "differential",
+      "cases": 1000000,
+      "seed": 20261115,
+      "threads": 16,
+      "byte_identical_signatures": 1000000,
+      "matching_recoveries": 1000000,
+      "random_signatures_rejected_identically": 500295,
+      "failures": 0,
+      "elapsed_ns": 77616160993
+    }
+  }
 }
