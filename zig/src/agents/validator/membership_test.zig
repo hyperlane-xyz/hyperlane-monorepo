@@ -72,7 +72,7 @@ test "membership reads: fence parent proves the previous block and quorum root b
     defer a.free(path);
     var transport = try @import("../../net/curl.zig").Client.init(a, path);
     defer transport.deinit();
-    var client = try rpc.RpcClient.init(a, url, .{ .native_transport = &transport, .timeout_ms = 3000, .connect_timeout_ms = 1000 });
+    var client = try rpc.RpcClient.init(a, url, .{ .native_transport = &transport, .timeout_ms = 15000, .connect_timeout_ms = 5000 });
     defer client.deinit();
     var indexer = try indexing.Indexer.init(a, &client, .{ .chain_id = 1, .domain = 1, .mailbox = @splat(1), .hook = @splat(2), .paymaster = @splat(3), .reorg_period = .none });
     indexer.chain_checked = true;

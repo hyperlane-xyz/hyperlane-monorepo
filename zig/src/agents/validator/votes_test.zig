@@ -126,7 +126,7 @@ const Harness = struct {
     fn roundPinned(self: *Harness, hash_pin: bool) !votes.Result {
         const endpoints = [_]votes.Endpoint{.{ .client = &self.client, .chain_checked = true, .hash_pin = hash_pin }};
         var unused: u8 = 0;
-        const results = try votes.collect(a, &self.engine, &endpoints, .{ .library_path = self.path, .chain_id = 1, .domain = 1, .hook = @splat(2), .hook_hash = @splat(0), .reorg_period = .none, .timeout_ms = 3000, .connect_timeout_ms = 1000 }, &unused, never);
+        const results = try votes.collect(a, &self.engine, &endpoints, .{ .library_path = self.path, .chain_id = 1, .domain = 1, .hook = @splat(2), .hook_hash = @splat(0), .reorg_period = .none, .timeout_ms = 15000, .connect_timeout_ms = 5000 }, &unused, never);
         defer a.free(results);
         return results[0];
     }

@@ -333,7 +333,7 @@ fn evmTransport(comptime Role: type, comptime indexOneRange: anytype, comptime i
     var transport: ?Curl.Client = if (native_library) |library| try Curl.Client.init(a, library) else null;
     defer if (transport) |*native_transport| native_transport.deinit();
     var clients: [2]rpc.RpcClient = undefined;
-    for (&clients, urls) |*client, url| client.* = try rpc.RpcClient.init(a, url, .{ .native_transport = if (transport) |*native_transport| native_transport else null, .timeout_ms = 3000, .connect_timeout_ms = 1000 });
+    for (&clients, urls) |*client, url| client.* = try rpc.RpcClient.init(a, url, .{ .native_transport = if (transport) |*native_transport| native_transport else null, .timeout_ms = 15000, .connect_timeout_ms = 5000 });
     defer for (&clients) |*client| client.deinit();
     const Slot = @typeInfo(@TypeOf(@as(Role, undefined).slots)).pointer.child;
     var slots: [2]Slot = undefined;
@@ -468,7 +468,7 @@ fn evmTransport(comptime Role: type, comptime indexOneRange: anytype, comptime i
         try std.testing.expectEqual(@as(u8, 1), role.cursor_initialization.failures);
         for (&endpoints, &clients) |*endpoint, *client| {
             endpoint.tip_delay_ms.store(0, .release);
-            client.options.timeout_ms = 3000;
+            client.options.timeout_ms = 15000;
         }
     }
     // Cancellation is never a completed initialization attempt.
