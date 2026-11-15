@@ -53,8 +53,9 @@ pub const Message = struct {
     pub fn encodeAlloc(self: Message, allocator: std.mem.Allocator) ![]u8 {
         const size = try std.math.add(usize, prefix_len, self.body.len);
         const bytes = try allocator.alloc(u8, size);
-        errdefer allocator.free(bytes);
-        return self.encode(bytes);
+        // The buffer is exactly encodedLen(), so encode cannot fail; no cold
+        // free-on-error path is emitted into this hot function.
+        return self.encode(bytes) catch unreachable;
     }
 
     /// keccak256 of the canonical encoding without materialising it: the
