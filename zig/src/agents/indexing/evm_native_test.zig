@@ -355,16 +355,24 @@ test "EVM origin streams share a round head and settle idle count fences against
     wire.latest = 6;
     try round(service, 2000);
     try std.testing.expectEqual([2]usize{ 3, 2 }, [2]usize{ wire.latest_reads, wire.number_reads });
-    // Several blocks later: one header read per stream at the old height.
+    // Several blocks later, or even a replaced head: with no new message the
+    // plan moves the forward block to the new head anyway, so no read.
     wire.latest = 9;
     try round(service, 3000);
-    try std.testing.expectEqual([2]usize{ 4, 4 }, [2]usize{ wire.latest_reads, wire.number_reads });
-    // The old head left the canonical chain: each cursor restarts, fenced.
     wire.salt = 0x40;
     try round(service, 4000);
-    try std.testing.expectEqual([2]usize{ 5, 6 }, [2]usize{ wire.latest_reads, wire.number_reads });
+    try std.testing.expectEqual([2]usize{ 5, 2 }, [2]usize{ wire.latest_reads, wire.number_reads });
     try std.testing.expect(service.cursors[0] != null and service.cursors[1] != null);
     try std.testing.expectEqual(@as(usize, 0), wire.number_calls);
+    // Settling (new messages): an older canonical head costs one read; a
+    // head replaced at its height restarts that cursor without a read.
+    const head: rpc.BlockHeader = .{ .number = 9, .hash = @splat(9 + 0x40), .parent_hash = @splat(8 + 0x40), .timestamp = 1000 };
+    try service.settleFence(1, .{ .number = 7, .hash = @splat(7 + 0x40), .parent_hash = @splat(6 + 0x40), .timestamp = 1000 }, head);
+    try std.testing.expectEqual(@as(usize, 3), wire.number_reads);
+    try std.testing.expect(service.cursors[1] != null);
+    try service.settleFence(0, .{ .number = 9, .hash = @splat(9 + 0x10), .parent_hash = @splat(8 + 0x10), .timestamp = 1000 }, head);
+    try std.testing.expectEqual(@as(usize, 3), wire.number_reads);
+    try std.testing.expect(service.cursors[0] == null);
 }
 
 test "EVM origin counts fall back to number-pinned calls fenced at once without EIP-1898" {

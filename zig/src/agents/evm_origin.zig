@@ -254,9 +254,16 @@ pub const Service = struct {
             const head = try self.roundHead(selected, planned_ms);
             const round_ms = self.round_started_ms;
             self.due[selected] = round_ms +| self.chain.index.interval *| 1000;
-            if (self.unfenced[selected]) |previous| try self.settleFence(selected, previous, head);
             const tip_height = std.math.cast(u32, head.number) orelse return error.IndexHeightOutOfRange;
             const count = (try self.indexer.countAt(stream, head)) orelse return error.MissingEvmCount;
+            if (self.unfenced[selected]) |previous| {
+                // An unfenced head could only have misplaced the cursor's
+                // forward block. While the count is still the cursor's next
+                // sequence nothing was dispatched up to this head, and this
+                // plan moves that block to this head anyway; otherwise settle.
+                const unchanged = if (self.cursors[selected]) |*cursor| cursor.forward.sequence == count else false;
+                if (unchanged) self.unfenced[selected] = null else try self.settleFence(selected, previous, head);
+            }
             observed = true;
             observed_count = count;
             if (self.cursors[selected] == null) {
@@ -369,7 +376,7 @@ pub const Service = struct {
     /// equal hash, or this head's parent link, proves it canonical without a
     /// read; otherwise read its height. A head that left the canonical chain
     /// restarts the cursor from durable progress, as at startup.
-    fn settleFence(self: *Service, selected: usize, previous: rpc.BlockHeader, head: rpc.BlockHeader) !void {
+    pub fn settleFence(self: *Service, selected: usize, previous: rpc.BlockHeader, head: rpc.BlockHeader) !void {
         const canonical = if (head.number == previous.number)
             std.mem.eql(u8, &head.hash, &previous.hash)
         else if (head.number == previous.number +| 1)
