@@ -9,6 +9,7 @@ const pool = @import("../../db/pool.zig");
 const Curl = @import("../../net/curl.zig");
 const chain_source = @import("../chain_source.zig");
 const supervisor = @import("../../runtime/supervisor.zig");
+const wake = @import("../../runtime/wake.zig");
 const metrics = @import("../../ops/metrics.zig");
 const critical_metrics = @import("../../ops/critical_metrics.zig");
 const dynamic_tip_cache = @import("../../net/dynamic_tip_cache.zig");
@@ -84,6 +85,7 @@ const Chain = struct {
         if (counts[0] > 0) self.wake_reconciliation.store(true, .release);
         if (counts[1] > 0) self.wake_delivery.store(true, .release);
         if (counts[2] > 0) self.wake_gas.store(true, .release);
+        if (counts[0] > 0 or counts[1] > 0 or counts[2] > 0) wake.notify();
     }
 };
 const Lane = struct {
@@ -530,7 +532,7 @@ pub const TaskSet = struct {
                 const i = self.initialized_lanes;
                 lanes[i] = .{ .owner = self, .chain = owned, .kind = kind, .receipt_lane = .{ .stream = if (kind == .gas) .gas else .delivery }, .backoff = .{ .allocator = a } };
                 if (kind == .head) lanes[i].head_owner = try HeadOwner.init(&lanes[i], Lane.cycle, .{ .timeout_ms = options.head_timeout_ms });
-                tasks[i] = .{ .context = &lanes[i], .run = Lane.run, .failure = classify, .wake = owned.wakeFor(kind), .interval_ms = if (kind == .head) @max(1, @min(60000, chain.index.interval *| 1000)) else if (kind == .delivery or kind == .gas) @max(1, chain.index.interval *| 1000) else 5000, .timeout_ms = if (kind == .head) options.head_timeout_ms else options.auxiliary_timeout_ms };
+                tasks[i] = .{ .context = &lanes[i], .run = Lane.run, .failure = classify, .wake = owned.wakeFor(kind), .wake_notified = true, .interval_ms = if (kind == .head) @max(1, @min(60000, chain.index.interval *| 1000)) else if (kind == .delivery or kind == .gas) @max(1, chain.index.interval *| 1000) else 5000, .timeout_ms = if (kind == .head) options.head_timeout_ms else options.auxiliary_timeout_ms };
                 self.initialized_lanes += 1;
             }
         }

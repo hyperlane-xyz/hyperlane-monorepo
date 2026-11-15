@@ -115,7 +115,7 @@ fn run() !void {
             defer transaction_identity.deinit();
             var transaction_signer: ChainSigner = .{ .settings = &configured };
             defer transaction_signer.deinit();
-            const task = try validator.Task.init(a, &configured, .{ .curl_library = library, .metrics = telemetry, .environment = &environment, .git_sha = options.git_sha, .url_library = environment.get("HYPERLANE_URL_LIBRARY") orelse @import("net/url_host.zig").defaultPath() }, .{ .context = &identity, .lease = CredentialOwner.lease }, null);
+            const task = try validator.Task.init(a, &configured, .{ .curl_library = library, .metrics = telemetry, .environment = &environment, .git_sha = options.git_sha, .url_library = environment.get("HYPERLANE_URL_LIBRARY") orelse @import("net/url_host.zig").defaultPath(), .concurrent_svm_estimates = true }, .{ .context = &identity, .lease = CredentialOwner.lease }, null);
             defer task.deinit();
             identity.http = &task.http;
             transaction_identity.http = &task.announcement.http;
