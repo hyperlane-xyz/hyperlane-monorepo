@@ -132,14 +132,30 @@ pub fn ingest(allocator: std.mem.Allocator, source: src.Source, store: anytype, 
         if (height <= current.indexed or height > end) return error.ScraperEventOutsideRange;
         var limit = offset + 1;
         while (limit < batch.events.len and batch.events[limit].block_number == height) limit += 1;
-        const header = if (height == end) boundary else try source.header(.{ .height = height });
-        for (batch.events[offset..limit]) |*event| {
-            if (!std.mem.allEqual(u8, &event.block_hash, 0) and !equal(event.block_hash, header.hash)) return error.ScraperLogForkMismatch;
-            event.block_hash = header.hash;
-        }
-        try blocks.append(allocator, .{ .header = header, .events = batch.events[offset..limit] });
+        try blocks.append(allocator, .{ .header = if (height == end) boundary else .{ .height = height, .timestamp = 0, .hash = undefined }, .events = batch.events[offset..limit] });
         offset = limit;
     }
+    // Event-block headers are independent reads: fetch them 8 at a time, as
+    // Rust's buffered(8), then check every log against its canonical header.
+    var pending: [8]u64 = undefined;
+    var slots: [8]usize = undefined;
+    var fetched: [8]src.Header = undefined;
+    var index: usize = 0;
+    while (index < blocks.items.len) {
+        var count: usize = 0;
+        while (index < blocks.items.len and count < pending.len) : (index += 1) {
+            if (blocks.items[index].header.height == end) continue;
+            pending[count] = blocks.items[index].header.height;
+            slots[count] = index;
+            count += 1;
+        }
+        try source.headers(pending[0..count], fetched[0..count]);
+        for (slots[0..count], fetched[0..count]) |slot, header| blocks.items[slot].header = header;
+    }
+    for (blocks.items) |block| for (@constCast(block.events)) |*event| {
+        if (!std.mem.allEqual(u8, &event.block_hash, 0) and !equal(event.block_hash, block.header.hash)) return error.ScraperLogForkMismatch;
+        event.block_hash = block.header.hash;
+    };
     if (blocks.items.len == 0 or blocks.items[blocks.items.len - 1].header.height != end) try blocks.append(allocator, .{ .header = boundary, .events = &.{} });
     if (!equal((try source.freshHeader(.{ .height = current.indexed })).hash, current.hash)) return error.ScraperForkChanged;
     try verify(source, boundary);

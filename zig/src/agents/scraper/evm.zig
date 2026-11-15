@@ -12,7 +12,7 @@ pub const Evm = struct {
     domain: u32,
     max_events: usize = 100000,
     pub fn interface(self: *Evm) src.Source {
-        return .{ .context = self, .transaction_fn = transactionEvents, .cancel_fn = bindCancellation, .header_fn = header, .events_fn = events, .counts_fn = counts, .historical_counts = true };
+        return .{ .context = self, .transaction_fn = transactionEvents, .cancel_fn = bindCancellation, .header_fn = header, .headers_fn = headers, .events_fn = events, .counts_fn = counts, .historical_counts = true };
     }
     fn bindCancellation(context: *anyopaque, cancel: ?*const std.atomic.Value(bool)) void {
         cast(context).rpc_client.options.cancel = cancel;
@@ -34,6 +34,22 @@ pub const Evm = struct {
         };
         const value = try self.rpc_client.blockHeader(block);
         return .{ .height = value.number, .timestamp = value.timestamp, .hash = value.hash, .parent = value.parent_hash };
+    }
+    /// Independent historical headers overlapped on the endpoint pool.
+    fn headers(context: *anyopaque, heights: []const u64, out: []src.Header) !void {
+        const self = cast(context);
+        if (heights.len != out.len or heights.len > 16) return error.InvalidScraperHeaderBatch;
+        var params: [16][48]u8 = undefined;
+        var calls: [16]rpc.RawCall = undefined;
+        for (heights, 0..) |height, i| calls[i] = .{ .method = "eth_getBlockByNumber", .params_json = try std.fmt.bufPrint(&params[i], "[\"0x{x}\",false]", .{height}) };
+        var responses: [16]rpc.RpcResponse = undefined;
+        try self.rpc_client.callMany(calls[0..heights.len], responses[0..heights.len]);
+        defer for (responses[0..heights.len]) |*response| response.deinit();
+        for (heights, responses[0..heights.len], out) |height, response, *header_| {
+            const value = try rpc.BlockHeader.parse(response.value());
+            if (value.number != height) return error.WrongBlock;
+            header_.* = .{ .height = value.number, .timestamp = value.timestamp, .hash = value.hash, .parent = value.parent_hash };
+        }
     }
     fn count(self: *Evm, contract: src.Hash, signature: []const u8, hash: src.Hash) !u32 {
         const allocator = self.rpc_client.allocator;
@@ -194,4 +210,57 @@ pub fn parseLog(allocator: std.mem.Allocator, value: std.json.Value) !rpc.Log {
     while (it.next()) |entry| try object.put(entry.key_ptr.*, entry.value_ptr.*);
     try object.put("removed", .{ .bool = false });
     return rpc.Log.parse(allocator, .{ .object = object });
+}
+
+const OverlapFixture = struct {
+    overlapped: usize = 0,
+    serial: usize = 0,
+    wrong_height: bool = false,
+    fn reply(self: *OverlapFixture, a: std.mem.Allocator, body: []const u8) !rpc.WireResponse {
+        const request = try std.json.parseFromSlice(std.json.Value, a, body, .{});
+        defer request.deinit();
+        const id = request.value.object.get("id").?.integer;
+        try std.testing.expectEqualStrings("eth_getBlockByNumber", request.value.object.get("method").?.string);
+        var height = try abi.quantity(request.value.object.get("params").?.array.items[0].string);
+        if (self.wrong_height) height += 1;
+        const bytes = try std.fmt.allocPrint(a, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"result\":{{\"number\":\"0x{x}\",\"hash\":\"0x{x:0>64}\",\"parentHash\":\"0x{x:0>64}\",\"timestamp\":\"0x{x}\"}}}}", .{ id, height, height + 0x100, height + 0xff, height + 7 });
+        return .{ .bytes = bytes, .len = bytes.len };
+    }
+    fn one(context: *anyopaque, a: std.mem.Allocator, body: []const u8, _: rpc.Options) !rpc.WireResponse {
+        const self: *OverlapFixture = @ptrCast(@alignCast(context));
+        self.serial += 1;
+        return self.reply(a, body);
+    }
+    fn many(context: *anyopaque, a: std.mem.Allocator, bodies: []const []const u8, _: rpc.Options, out: []rpc.WireResponse) !void {
+        const self: *OverlapFixture = @ptrCast(@alignCast(context));
+        self.overlapped += 1;
+        var filled: usize = 0;
+        errdefer for (out[0..filled]) |wire| a.free(wire.bytes);
+        for (bodies, out) |body, *wire| {
+            wire.* = try self.reply(a, body);
+            filled += 1;
+        }
+    }
+};
+test "scraper EVM event-block headers overlap through one exchange batch and keep height checks" {
+    var fixture: OverlapFixture = .{};
+    var client = try rpc.RpcClient.init(std.testing.allocator, "http://127.0.0.1:1/", .{ .exchange = .{ .context = &fixture, .fetch_fn = OverlapFixture.one, .fetch_many_fn = OverlapFixture.many } });
+    defer client.deinit();
+    var source: Evm = .{ .rpc_client = &client, .domain = 1, .contracts = .{ .mailbox = .{0} ** 12 ++ .{0x11} ** 20, .hook = .{0} ** 12 ++ .{0x22} ** 20, .paymaster = .{0} ** 12 ++ .{0x33} ** 20 } };
+    const interface = source.interface();
+    const heights = [_]u64{ 5, 9, 12, 40 };
+    var headers_out: [4]src.Header = undefined;
+    try interface.headers(&heights, &headers_out);
+    try std.testing.expectEqual(@as(usize, 1), fixture.overlapped);
+    try std.testing.expectEqual(@as(usize, 0), fixture.serial);
+    for (heights, headers_out) |height, header_| {
+        try std.testing.expectEqual(height, header_.height);
+        try std.testing.expectEqual(height + 7, header_.timestamp);
+        try std.testing.expectEqual(@as(u8, @truncate(height + 0x100)), header_.hash[31]);
+    }
+    // A single height still uses the ordinary read.
+    try interface.headers(heights[0..1], headers_out[0..1]);
+    try std.testing.expectEqual(@as(usize, 1), fixture.serial);
+    fixture.wrong_height = true;
+    try std.testing.expectError(error.WrongBlock, interface.headers(&heights, &headers_out));
 }

@@ -202,7 +202,7 @@ pub const Resources = struct {
                 replay.* = try ReadReplay.Replay.init(a, self.rpc_pool.?, .{ .max_attempt_ms = options.read_attempt_timeout_ms, .shared_budget = options.read_budget, .use_owner_timeout = owner_fallback });
                 self.read_replay = replay;
                 r_options.exchange = replay.interface();
-            } else r_options.exchange = if (owner_fallback) .{ .context = self, .fetch_fn = fallbackExchange } else .{ .context = self.rpc_pool.?, .fetch_fn = exchange };
+            } else r_options.exchange = if (owner_fallback) .{ .context = self, .fetch_fn = fallbackExchange, .fetch_many_fn = fallbackExchangeMany } else .{ .context = self.rpc_pool.?, .fetch_fn = exchange, .fetch_many_fn = exchangeMany };
         }
         self.clients = switch (self.chain.protocol) {
             .ethereum => blk: {
@@ -364,6 +364,41 @@ pub const Resources = struct {
         _ = try self.fallbackRpcBudget(options.owner_deadline_ns);
         if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         return .{ .bytes = result.bytes, .len = result.len };
+    }
+    /// Independent reads overlapped on the shared pool: every request is
+    /// submitted before any is awaited, all under one deadline. All-or-error.
+    fn fetchMany(pool: *RpcPool.Pool, a: A, bodies: []const []const u8, options: rpc.Options, timeout_ms: u32, out: []rpc.WireResponse) !void {
+        if (bodies.len != out.len or bodies.len > max_overlapped_reads) return error.InvalidRpcBatch;
+        var handles: [max_overlapped_reads]RpcPool.Handle = undefined;
+        var submitted: usize = 0;
+        var done: usize = 0;
+        errdefer {
+            for (out[0..done]) |wire| a.free(wire.bytes);
+            // wait() consumed handles[done]; cancel is idempotent.
+            for (handles[done..submitted]) |handle| pool.cancel(handle);
+        }
+        for (bodies) |body| {
+            handles[submitted] = try pool.submitObservedCached(body, timeout_ms, options.connect_timeout_ms, options.max_response_bytes, options.pool_observer, options.indexer_tip_cache);
+            submitted += 1;
+        }
+        const deadline_ms = pool.now() +| timeout_ms;
+        while (done < submitted) : (done += 1) {
+            const result = try pool.wait(handles[done], a, deadline_ms, options.cancel);
+            out[done] = .{ .bytes = result.bytes, .len = result.len };
+        }
+    }
+    pub const max_overlapped_reads = 16;
+    fn exchangeMany(context: *anyopaque, a: A, bodies: []const []const u8, options: rpc.Options, out: []rpc.WireResponse) !void {
+        if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+        return fetchMany(@ptrCast(@alignCast(context)), a, bodies, options, options.timeout_ms, out);
+    }
+    fn fallbackExchangeMany(context: *anyopaque, a: A, bodies: []const []const u8, options: rpc.Options, out: []rpc.WireResponse) !void {
+        const self: *Resources = @ptrCast(@alignCast(context));
+        if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+        try fetchMany(self.rpc_pool.?, a, bodies, options, try self.fallbackRpcBudget(options.owner_deadline_ns), out);
+        errdefer for (out) |wire| a.free(wire.bytes);
+        _ = try self.fallbackRpcBudget(options.owner_deadline_ns);
+        if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
     }
     fn endpoints(self: *Resources, urls: []const []const u8) ![]endpoint.Endpoint {
         if (urls.len == 0 or urls.len > 256) return error.InvalidChainSourceEndpoints;
