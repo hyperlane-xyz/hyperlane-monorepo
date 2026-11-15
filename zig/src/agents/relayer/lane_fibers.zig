@@ -165,11 +165,14 @@ pub const Loop = struct {
 };
 
 /// Batch-position ordering for one side effect (the Lander handoff): position
-/// `i` passes only once every earlier position has finished. Fibers of one
-/// Loop only; never waits off a fiber (a sequential caller is already ordered).
+/// `i` passes only once every earlier position with the same key (origin)
+/// has finished, as Source disposes a prepared batch in per-origin order;
+/// other keys never wait on each other. Fibers of one Loop only; never waits
+/// off a fiber (a sequential caller is already ordered).
 pub const Turnstile = struct {
     pub const max = 32;
     count: usize,
+    keys: [max]usize = @splat(0),
     done: [max]bool = @splat(false),
     waiters: [max]?*fiber.Waiter = @splat(null),
 
@@ -179,7 +182,7 @@ pub const Turnstile = struct {
     }
 
     fn clear(self: *const Turnstile, position: usize) bool {
-        for (self.done[0..position]) |value| if (!value) return false;
+        for (self.done[0..position], self.keys[0..position]) |value, key| if (!value and key == self.keys[position]) return false;
         return true;
     }
 
@@ -273,6 +276,26 @@ const CrossWake = struct {
         self.waiter.wake();
     }
 };
+
+test "lane turnstile orders handoffs within a key and never across keys" {
+    var loop: Loop = .{};
+    var in_flight: usize = 0;
+    var peak: usize = 0;
+    var order: std.ArrayList(usize) = .empty;
+    defer order.deinit(std.testing.allocator);
+    var gate = Turnstile.init(4);
+    // Keys: positions 0 and 2 share one origin, 1 and 3 another. Position 0
+    // is slowest: 2 waits for it, but 1 and 3 hand off without waiting.
+    gate.keys = .{ 7, 9, 7, 9 } ++ @as([Turnstile.max - 4]usize, @splat(0));
+    const delays = [_]i64{ 40, 20, 1, 5 };
+    var probes: [4]Probe = undefined;
+    for (&probes, 0..) |*probe, i| {
+        probe.* = .{ .loop = &loop, .in_flight = &in_flight, .peak = &peak, .order = &order, .turnstile = &gate, .position = i, .delay_ms = delays[i] };
+        try loop.spawn(Probe.run, probe);
+    }
+    loop.run();
+    try std.testing.expectEqualSlices(usize, &.{ 1, 3, 0, 2 }, order.items);
+}
 
 test "lane fiber loop resumes a fiber woken from another thread before or after it parks" {
     for ([_]bool{ true, false }) |early| {

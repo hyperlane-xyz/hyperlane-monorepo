@@ -826,6 +826,7 @@ pub const Lane = struct {
         var spawned: usize = 0;
         var failure: ?anyerror = null;
         for (selected[0..count], 0..) |item, position| {
+            batch.turnstile.keys[position] = item.origin_index;
             batch.children[position] = .{ .batch = &batch, .item = item, .position = position };
             batch.loop.spawn(AdvanceBatch.Child.run, &batch.children[position]) catch |err| {
                 failure = err;
