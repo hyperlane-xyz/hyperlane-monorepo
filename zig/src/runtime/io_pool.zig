@@ -35,6 +35,9 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             timed_storage: [capacity]*fiber.Fiber = undefined,
             idle: bool = false,
             live: usize = 0,
+            /// Pool mutex: the running fiber blocks this thread (driving a
+            /// socket wait); wakes for siblings interrupt it.
+            interrupt: ?fiber.Interrupt = null,
         };
         const SlotFiber = struct { pool: *Self, index: usize };
         allocator: std.mem.Allocator,
@@ -284,6 +287,12 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                 state.cond.signal();
                 return;
             };
+            // No idle worker: a fiber driving a socket wait must yield its
+            // thread so the queued job starts (a stalled read cannot hold it).
+            for (&self.worker_states) |*state| if (state.interrupt) |interrupt| {
+                interrupt.call(interrupt.ctx);
+                return;
+            };
         }
         fn wakeAll(self: *Self) void {
             self.wake.broadcast();
@@ -298,6 +307,26 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             pushReady(state, f);
             state.idle = false;
             state.cond.signal();
+            if (state.interrupt) |interrupt| interrupt.call(interrupt.ctx);
+        }
+        fn hasReady(context: *anyopaque) bool {
+            const state: *WorkerState = @ptrCast(@alignCast(context));
+            const self = state.pool;
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            return state.ready_head != null or self.queuedLocked();
+        }
+        fn setInterrupt(context: *anyopaque, interrupt: ?fiber.Interrupt) void {
+            const state: *WorkerState = @ptrCast(@alignCast(context));
+            const self = state.pool;
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            state.interrupt = interrupt;
+        }
+        /// Pool mutex held: a queued job is waiting for any worker.
+        fn queuedLocked(self: *Self) bool {
+            for (self.slots) |slot| if (slot.state == .queued or slot.state == .abandoned_queued) return true;
+            return false;
         }
         /// fiber.Scheduler.adopt: a child spawned by a fiber on this worker.
         fn adoptFiber(context: *anyopaque, f: *fiber.Fiber) void {
@@ -307,6 +336,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             defer self.mutex.unlock();
             state.live += 1;
             pushReady(state, f);
+            if (state.interrupt) |interrupt| interrupt.call(interrupt.ctx);
         }
         fn pushReady(state: *WorkerState, f: *fiber.Fiber) void {
             f.next_ready = null;
@@ -383,7 +413,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                     }
                     slot.state = .running;
                     self.mutex.unlock();
-                    const f = fiber.create(.{ .ctx = state, .wake = wakeFiber, .adopt = adoptFiber }, jobFiber, &self.slot_fibers[i]) catch |err| {
+                    const f = fiber.create(.{ .ctx = state, .wake = wakeFiber, .adopt = adoptFiber, .has_ready = hasReady, .set_interrupt = setInterrupt }, jobFiber, &self.slot_fibers[i]) catch |err| {
                         // No fiber stack: the job fails without running.
                         self.finishJob(slot, err, true);
                         self.mutex.lock();

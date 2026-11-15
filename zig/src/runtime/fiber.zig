@@ -23,7 +23,36 @@ pub const Scheduler = struct {
     /// Take ownership of a newly spawned fiber and make it runnable (the loop
     /// reaps it when it finishes). Null: this loop does not support spawn.
     adopt: ?*const fn (ctx: *anyopaque, f: *Fiber) void = null,
+    /// True when another fiber on this loop is runnable now.
+    has_ready: ?*const fn (ctx: *anyopaque) bool = null,
+    /// While the running fiber blocks its thread (e.g. driving a socket
+    /// wait), a wake for another fiber on this loop calls `interrupt`.
+    set_interrupt: ?*const fn (ctx: *anyopaque, interrupt: ?Interrupt) void = null,
 };
+
+pub const Interrupt = struct { ctx: *anyopaque, call: *const fn (ctx: *anyopaque) void };
+
+/// On a fiber: may it block its thread now? Only when the loop supports
+/// interrupts and no sibling fiber is runnable. Off a fiber: always.
+pub fn mayBlockThread() bool {
+    const f = running orelse return true;
+    const has_ready = f.sched.has_ready orelse return false;
+    if (f.sched.set_interrupt == null) return false;
+    return !has_ready(f.sched.ctx);
+}
+
+/// On a fiber: another fiber on this loop became runnable.
+pub fn siblingReady() bool {
+    const f = running orelse return false;
+    const has_ready = f.sched.has_ready orelse return true;
+    return has_ready(f.sched.ctx);
+}
+
+/// Register (or clear with null) the running fiber's thread-block interrupt.
+pub fn setInterrupt(interrupt: ?Interrupt) void {
+    const f = running orelse return;
+    if (f.sched.set_interrupt) |set| set(f.sched.ctx, interrupt);
+}
 
 pub const ParkedOn = union(enum) {
     nothing,

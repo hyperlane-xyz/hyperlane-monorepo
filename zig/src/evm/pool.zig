@@ -723,12 +723,18 @@ pub const Pool = struct {
             session.deinit();
             return error.RpcPoolStopped;
         }
-        const slot = for (self.sessions, 0..) |entry, index| {
-            if (entry == null) break index;
-        } else {
-            self.mutex.unlock();
-            session.deinit();
-            return error.RpcPoolSessionsFull;
+        const slot = self.freeSlotLocked() orelse retry: {
+            // Taken, drained sessions wait for a driver pass to retire; when
+            // nobody drives, retire them now instead of refusing work.
+            if (self.driver.tryLock()) {
+                self.retireLocked();
+                self.driver.unlock();
+            }
+            break :retry self.freeSlotLocked() orelse {
+                self.mutex.unlock();
+                session.deinit();
+                return error.RpcPoolSessionsFull;
+            };
         };
         session.notify_io = wake_owner;
         self.sessions[slot] = session;
@@ -846,8 +852,9 @@ pub const Pool = struct {
         return self.waitCancels(handle, allocator, deadline_ms, .{ .first = cancel_flag });
     }
     pub fn waitCancels(self: *Pool, handle: Handle, allocator: A, deadline_ms: u64, cancel_flag: Cancels) !WireResponse {
-        // A fiber never drives (it would block its worker in a socket wait):
-        // it parks until the owner completes the session.
+        // A fiber drives only while no sibling on its loop is runnable (and
+        // a sibling's wake interrupts its socket wait); otherwise it parks
+        // until the current driver completes the session.
         if (fiber.inFiber()) return self.waitParked(handle, allocator, deadline_ms, cancel_flag);
         defer self.cancel(handle);
         // The session may have been submitted without waking a driver; tell
@@ -909,16 +916,34 @@ pub const Pool = struct {
         // Terminal poll or cancel ends the waiter registration under the
         // session mutex before `waiter` leaves scope.
         defer self.cancel(handle);
-        self.mutex.lock();
-        self.wakeOwner();
-        self.mutex.unlock();
         var waiter: fiber.Waiter = .{};
-        _ = self.attachWaiter(handle, &waiter);
+        var attached = false;
+        var owner_told = false;
         while (true) {
             if (try self.poll(handle, allocator)) |response| return response;
             if (cancel_flag.raised()) return error.RequestCancelled;
             const now_ms = self.now();
             if (now_ms >= deadline_ms) return error.RequestDeadlineExceeded;
+            // Leader on the fiber's own thread: no owner handoff, no wake back.
+            if (fiber.mayBlockThread() and self.driver.tryLock()) {
+                fiber.setInterrupt(.{ .ctx = self, .call = interruptDriver });
+                defer fiber.setInterrupt(null);
+                try self.driveFor(handle, deadline_ms, cancel_flag);
+                owner_told = false;
+                continue;
+            }
+            if (!owner_told) {
+                // The session may have been submitted for a driving caller.
+                self.mutex.lock();
+                self.wakeOwner();
+                self.mutex.unlock();
+                owner_told = true;
+            }
+            if (!attached) {
+                attached = true;
+                _ = self.attachWaiter(handle, &waiter);
+                continue; // it may have finished before the registration
+            }
             // Completion wakes the fiber; borrowed cancel flags have no
             // notifier, so they are rechecked on a coarse slice.
             var slice_ms = deadline_ms - now_ms;
@@ -926,6 +951,10 @@ pub const Pool = struct {
             if (self.config.clock != null) slice_ms = @min(slice_ms, injected_clock_slice_ms);
             _ = waiter.waitTimeout(fiber.monoMs() +| @as(i64, @intCast(@min(slice_ms, std.math.maxInt(i32)))));
         }
+    }
+    fn interruptDriver(context: *anyopaque) void {
+        const self: *Pool = @ptrCast(@alignCast(context));
+        self.native.wakeup();
     }
     /// Caller holds the drive token; released (and handed off) on return.
     fn driveFor(self: *Pool, handle: Handle, deadline_ms: u64, cancel_flag: Cancels) !void {
@@ -943,6 +972,8 @@ pub const Pool = struct {
             if (session.finished) return;
             if (cancel_flag.raised()) return;
             if (pass_.now_ms >= deadline_ms) return;
+            // A fiber driver yields its thread as soon as a sibling is runnable.
+            if (fiber.siblingReady()) return;
             if (pass_.busy) continue;
             var cap: u64 = deadline_ms - pass_.now_ms;
             if (cancel_flag.present()) cap = @min(cap, caller_cancel_slice_ms);
@@ -983,6 +1014,10 @@ pub const Pool = struct {
             if (!finished) return true;
         };
         return false;
+    }
+    fn freeSlotLocked(self: *Pool) ?usize {
+        for (self.sessions, 0..) |entry, index| if (entry == null) return index;
+        return null;
     }
     /// Pool.mutex and the drive token held.
     fn retireLocked(self: *Pool) void {
@@ -2611,6 +2646,48 @@ test "concurrent blocking callers share one drive token and all complete" {
         if (timer.read() > 3 * std.time.ns_per_s) return error.OwnerFallbackStalled;
         std.Thread.sleep(std.time.ns_per_ms);
     }
+}
+
+const FiberFetch = struct {
+    owner: *Pool,
+    body: []const u8,
+    fn run(self: *FiberFetch, input: u32, _: *const std.atomic.Value(bool)) !u32 {
+        for (0..input) |_| {
+            const response = try self.owner.fetch(std.testing.allocator, self.body, 5000, 1000, null, 4096);
+            std.testing.allocator.free(response.bytes);
+        }
+        return input;
+    }
+    fn freeInput(_: *FiberFetch, _: u32) void {}
+    fn freeOutput(_: *FiberFetch, _: u32) void {}
+};
+test "a lone fiber drives its own pool requests without owner thread handoffs" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const behaviors = [_]fixture.Behavior{.{ .replies = &.{.{ .body = fixture.chain_id_ok }} }};
+    var server = try fixture.Fixture.init(10, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{} } });
+    defer owner.deinit();
+    var context: FiberFetch = .{ .owner = owner, .body = fixture.chain_id_body };
+    const io = @import("../runtime/io_pool.zig");
+    const workers = try io.Pool(u32, u32, FiberFetch, 1, 2).startWith(a, &context, FiberFetch.run, FiberFetch.freeInput, FiberFetch.freeOutput, .{ .fibers = true });
+    defer workers.deinit();
+    _ = try workers.submit(10, 0, 60_000);
+    var timer = try std.time.Timer.start();
+    const completion = while (true) {
+        if (workers.poll(1)) |value| break value;
+        if (timer.read() > 10 * std.time.ns_per_s) return error.FiberFetchStalled;
+        std.Thread.sleep(std.time.ns_per_ms);
+    };
+    try std.testing.expectEqual(@as(u32, 10), completion.result.value);
+    // Every pass ran on the fiber's worker: the owner thread never drove.
+    try std.testing.expectEqual(owner.owner_iterations.load(.acquire), owner.caller_passes.load(.acquire));
 }
 
 test "native RPC owner notices delayed responses without any further submit" {
