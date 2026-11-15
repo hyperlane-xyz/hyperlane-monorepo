@@ -63,6 +63,97 @@ fn checkpointWire(allocator: Allocator, checkpoint: Checkpoint) !CheckpointWire 
     };
 }
 
+/// A signed checkpoint whose signer address was established by one of two
+/// paths only: a SigningKey's sign path (every signature is verified against
+/// the key's Q before release) or an actual ECDSA recovery. Consumers call
+/// `require(expected)` against their configured validator address, which also
+/// rejects any value not produced (or altered after production) by these
+/// constructors: `tag` is an HMAC under a process-random key that no other
+/// module can read. Requiring is two compares and one HMAC, never a recovery.
+pub const VerifiedCheckpoint = struct {
+    signed: SignedCheckpoint,
+    signer: Address,
+    tag: [32]u8,
+
+    /// Local keys: zero recoveries; the signature was checked against Q.
+    pub fn signWith(key: *const protocol.signature.SigningKey, value: Checkpoint, noise: ?Hash) !VerifiedCheckpoint {
+        const signed: SignedCheckpoint = .{ .value = value, .signature = Signature.fromBytes(try key.sign(value.digest(), noise)) };
+        return seal(signed, key.address);
+    }
+
+    /// Raw signatures (KMS/remote signers, storage reads): one recovery,
+    /// compared with the expected validator address.
+    pub fn recoverFrom(signed: SignedCheckpoint, expected: Address) !VerifiedCheckpoint {
+        if (@import("builtin").is_test) _ = test_recoveries.fetchAdd(1, .monotonic);
+        const recovered = try signed.recover();
+        if (!std.mem.eql(u8, &recovered, &expected)) return error.WrongSigner;
+        return seal(signed, recovered);
+    }
+
+    /// Fails unless this value came unmodified from a constructor above and
+    /// its established signer is the caller's configured validator address.
+    pub fn require(self: *const VerifiedCheckpoint, expected: Address) !void {
+        const tag = mac(self.signed, self.signer);
+        if (!std.crypto.timing_safe.eql([32]u8, tag, self.tag)) return error.UnverifiedCheckpoint;
+        if (!std.mem.eql(u8, &self.signer, &expected)) return error.WrongSigner;
+    }
+
+    fn seal(signed: SignedCheckpoint, signer: Address) VerifiedCheckpoint {
+        return .{ .signed = signed, .signer = signer, .tag = mac(signed, signer) };
+    }
+
+    fn mac(signed: SignedCheckpoint, signer: Address) [32]u8 {
+        const Hmac = std.crypto.auth.hmac.sha2.HmacSha256;
+        seal_key_once.call();
+        var state = Hmac.init(&seal_key);
+        const c = signed.value;
+        state.update(&c.merkle_tree_hook_address);
+        var domain: [4]u8 = undefined;
+        std.mem.writeInt(u32, &domain, c.mailbox_domain, .big);
+        state.update(&domain);
+        state.update(&c.root);
+        var index: [4]u8 = undefined;
+        std.mem.writeInt(u32, &index, c.index, .big);
+        state.update(&index);
+        state.update(&c.message_id);
+        state.update(&signed.signature.bytes());
+        var v: [8]u8 = undefined;
+        std.mem.writeInt(u64, &v, signed.signature.v, .big);
+        state.update(&v);
+        state.update(&signer);
+        var out: [32]u8 = undefined;
+        state.final(&out);
+        return out;
+    }
+};
+var seal_key: [32]u8 = undefined;
+var seal_key_once = std.once(initSealKey);
+fn initSealKey() void {
+    std.crypto.random.bytes(&seal_key);
+}
+/// Test-only count of recoveries performed at the VerifiedCheckpoint boundary.
+pub var test_recoveries: std.atomic.Value(usize) = .init(0);
+
+/// Small fixed memo of checkpoints a writer verified and wrote, so re-reads of
+/// the same object (latest index, snapshot) reuse that verification. A match
+/// requires the identical parsed checkpoint and signature.
+pub const RecentVerified = struct {
+    entries: [16]?VerifiedCheckpoint = @splat(null),
+    next: usize = 0,
+    pub fn record(self: *RecentVerified, verified: VerifiedCheckpoint) void {
+        for (&self.entries) |*entry| if (entry.*) |known| if (known.signed.value.index == verified.signed.value.index) {
+            entry.* = verified;
+            return;
+        };
+        self.entries[self.next] = verified;
+        self.next = (self.next + 1) % self.entries.len;
+    }
+    pub fn match(self: *const RecentVerified, signed: SignedCheckpoint) ?VerifiedCheckpoint {
+        for (self.entries) |entry| if (entry) |known| if (std.meta.eql(known.signed, signed)) return known;
+        return null;
+    }
+};
+
 pub const SignedCheckpoint = struct {
     value: Checkpoint,
     signature: Signature,
