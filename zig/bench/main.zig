@@ -25,6 +25,12 @@ fn benchmark(kernel: []const u8, iterations: u32, body_len: usize) !void {
     };
     var checksum: u64 = 0;
     var tree = protocol.IncrementalMerkle.init();
+    const signer: [32]u8 = @splat(0x11);
+    // Untimed recovery fixture: 16 signatures over the kernel digests.
+    var signatures: [16]protocol.signature.Signature = undefined;
+    if (std.mem.eql(u8, kernel, "recover")) {
+        for (&signatures, 0..) |*signed, i| signed.* = try protocol.signature.signDigest(signer, kernelDigest(@intCast(i)), null);
+    }
     var timer = try std.time.Timer.start();
     if (std.mem.eql(u8, kernel, "message_id")) {
         for (0..iterations) |i| {
@@ -68,9 +74,38 @@ fn benchmark(kernel: []const u8, iterations: u32, body_len: usize) !void {
             std.mem.doNotOptimizeAway(root);
             checksum = std.mem.readInt(u64, root[0..8], .big);
         }
+    } else if (std.mem.eql(u8, kernel, "sign") or std.mem.eql(u8, kernel, "sign_unverified")) {
+        // Nonce schemes differ (std's RFC6979-with-noise vs k256 RFC6979), so
+        // signature bytes differ; the checksum counts signatures in both.
+        // "sign" is the production signer with the fault self-check.
+        const checked = std.mem.eql(u8, kernel, "sign");
+        for (0..iterations) |i| {
+            const digest = kernelDigest(@intCast(i));
+            std.mem.doNotOptimizeAway(&digest);
+            const signed = if (checked)
+                try protocol.signature.signDigest(signer, digest, null)
+            else
+                try protocol.signature.benchmark.signWithoutFaultCheck(signer, digest, null);
+            std.mem.doNotOptimizeAway(signed);
+            checksum +%= 1;
+        }
+    } else if (std.mem.eql(u8, kernel, "recover")) {
+        for (0..iterations) |i| {
+            const digest = kernelDigest(@intCast(i % 16));
+            std.mem.doNotOptimizeAway(&digest);
+            const recovered = try protocol.signature.recover(digest, signatures[i % 16]);
+            checksum +%= recovered[i % 20];
+        }
     } else return error.UnknownKernel;
     const elapsed_ns = timer.read();
     try emit("{{\"kernel\":\"{s}\",\"iterations\":{d},\"body_len\":{d},\"elapsed_ns\":{d},\"checksum\":\"{x:0>16}\"}}\n", .{ kernel, iterations, body_len, elapsed_ns, checksum });
+}
+
+/// Signing-kernel digest: 0x22 bytes with the iteration in the first 4 bytes.
+fn kernelDigest(i: u32) [32]u8 {
+    var digest: [32]u8 = @splat(0x22);
+    std.mem.writeInt(u32, digest[0..4], i, .big);
+    return digest;
 }
 
 fn vectors() !void {

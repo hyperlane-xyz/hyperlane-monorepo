@@ -35,13 +35,33 @@ fn message(body_len: usize) -> HyperlaneMessage {
     }
 }
 
+/// Signing-kernel digest: 0x22 bytes with the iteration in the first 4 bytes.
+fn kernel_digest(i: u32) -> [u8; 32] {
+    let mut digest = [0x22u8; 32];
+    digest[..4].copy_from_slice(&i.to_be_bytes());
+    digest
+}
+
 fn bench(kernel: &str, iterations: u32, body_len: usize) -> Result<(), Box<dyn std::error::Error>> {
+    use k256::ecdsa::{RecoveryId, Signature, SigningKey, VerifyingKey};
+    use sha3::{Digest, Keccak256};
     if iterations == 0 {
         return Err("iterations must be positive".into());
     }
     let mut msg = message(body_len);
     let mut checksum = 0u64;
     let mut tree = IncrementalMerkle::default();
+    // Same calls as the Rust agents' ethers LocalWallet signer and
+    // Signature::recover: k256 sign_prehash_recoverable / recover_from_prehash.
+    let signer = SigningKey::from_slice(&[0x11u8; 32])?;
+    // Untimed recovery fixture: 16 signatures over the kernel digests.
+    let signatures: Vec<(Signature, RecoveryId)> = if kernel == "recover" {
+        (0..16)
+            .map(|i| signer.sign_prehash_recoverable(&kernel_digest(i)))
+            .collect::<Result<_, _>>()?
+    } else {
+        Vec::new()
+    };
     let start = Instant::now();
     match kernel {
         "message_id" => {
@@ -74,6 +94,28 @@ fn bench(kernel: &str, iterations: u32, body_len: usize) -> Result<(), Box<dyn s
                 let root = black_box(tree.root());
                 checksum =
                     checksum.wrapping_add(u64::from_be_bytes(root.as_bytes()[..8].try_into()?));
+            }
+        }
+        // Rust signers have no post-sign self-check: both names run k256 signing.
+        "sign" | "sign_unverified" => {
+            for i in 0..iterations {
+                let signed =
+                    black_box(signer.sign_prehash_recoverable(black_box(&kernel_digest(i)))?);
+                black_box(&signed);
+                checksum = checksum.wrapping_add(1);
+            }
+        }
+        "recover" => {
+            for i in 0..iterations {
+                let slot = (i % 16) as usize;
+                let (signature, id) = &signatures[slot];
+                let key = VerifyingKey::recover_from_prehash(
+                    black_box(&kernel_digest(i % 16)),
+                    signature,
+                    *id,
+                )?;
+                let hash = Keccak256::digest(&key.to_encoded_point(false).as_bytes()[1..]);
+                checksum = checksum.wrapping_add(u64::from(hash[12 + (i % 20) as usize]));
             }
         }
         _ => return Err("unknown benchmark kernel".into()),

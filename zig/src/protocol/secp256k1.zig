@@ -10,7 +10,7 @@
 //!   the doubling chain, width-5 wNAF for R and width-8 wNAF over a
 //!   precomputed odd-multiple table for G.
 const std = @import("std");
-const field = @import("secp256k1_field.zig");
+pub const field = @import("secp256k1_field.zig");
 const tables = @import("secp256k1_tables.zig");
 const scalar = std.crypto.ecc.Secp256k1.scalar;
 const Endomorphism = std.crypto.ecc.Secp256k1.Endormorphism;
@@ -57,7 +57,8 @@ pub fn mulBase(k: [32]u8) error{IdentityElement}!Point {
 /// Constant-time core of `mulBase`: fixed loop counts, every comb entry of a
 /// row scanned with masked selection, no secret-dependent branch or index.
 pub fn mulBaseUnchecked(k: [32]u8) Point {
-    const e = signedWindows(k);
+    var e = signedWindows(k);
+    defer std.crypto.secureZero(i8, &e);
     var q = Point.identity;
     for (e, &tables.comb) |digit, *row| {
         const bits: u8 = @bitCast(digit);
@@ -80,6 +81,10 @@ pub fn mulBaseUnchecked(k: [32]u8) Point {
         selected.y.cMov(selected.y.neg(), negative);
         // addMixed returns q unchanged for the affine identity marker.
         q = q.addMixed(selected);
+        // The selected entry identifies a secret digit.
+        std.crypto.secureZero(u64, &x);
+        std.crypto.secureZero(u64, &y);
+        std.crypto.secureZero(u8, std.mem.asBytes(&selected));
     }
     return q;
 }
@@ -104,13 +109,15 @@ fn wnaf(comptime w: u4, value: u256) WnafDigits {
     return out;
 }
 
-/// GLV half: (magnitude, negated). std's split returns residues mod n; values
-/// with a nonzero upper half are negative and are negated back below 2^128.
-fn half(r: [32]u8) struct { value: u256, negative: bool } {
-    if (r[16] == 0) return .{ .value = std.mem.readInt(u256, &r, .little), .negative = false };
-    const negated = scalar.neg(r, .little) catch unreachable;
-    std.debug.assert(negated[16] == 0);
-    return .{ .value = std.mem.readInt(u256, &negated, .little), .negative = true };
+/// GLV half: (magnitude, negated). std's split returns residues mod n; a
+/// half is either below 2^128 or n minus a value below 2^128. Anything else
+/// would overrun the wNAF digit buffer and is rejected in every build mode.
+fn half(r: [32]u8) error{GlvBound}!struct { value: u256, negative: bool } {
+    const value = std.mem.readInt(u256, &r, .little);
+    if (value < 1 << 128) return .{ .value = value, .negative = false };
+    if (value < scalar.field_order and scalar.field_order - value < 1 << 128)
+        return .{ .value = scalar.field_order - value, .negative = true };
+    return error.GlvBound;
 }
 
 /// Variable-time u1*G + u2*r for PUBLIC scalars and point (signature
@@ -120,10 +127,10 @@ pub fn mulDoubleBasePublic(g_scalar: [32]u8, r: Point, r_scalar: [32]u8) !Point 
     if (r.isIdentity()) return error.IdentityElement;
     const split1 = try Endomorphism.splitScalar(g_scalar, .little);
     const split2 = try Endomorphism.splitScalar(r_scalar, .little);
-    const g1 = half(split1.r1);
-    const g2 = half(split1.r2);
-    const p1 = half(split2.r1);
-    const p2 = half(split2.r2);
+    const g1 = try half(split1.r1);
+    const g2 = try half(split1.r2);
+    const p1 = try half(split2.r1);
+    const p2 = try half(split2.r2);
     const ng1 = wnaf(8, g1.value);
     const ng2 = wnaf(8, g2.value);
     const np1 = wnaf(5, p1.value);
@@ -255,12 +262,22 @@ test "GLV split halves stay below 2^128 and recombine to the scalar" {
     for (0..edges.len + 100_000) |i| {
         const k: u256 = if (i < edges.len) edges[i] else prng.random().int(u256) % n;
         const split = try Endomorphism.splitScalar(scalarBytes(k), .little);
-        const h1 = half(split.r1);
-        const h2 = half(split.r2);
+        const h1 = try half(split.r1);
+        const h2 = try half(split.r2);
         try std.testing.expect(h1.value < 1 << 128 and h2.value < 1 << 128);
         // k = (+-h1) + (+-h2) * lambda (mod n)
         const a1: u512 = if (h1.negative) n - h1.value else h1.value;
         const a2: u512 = if (h2.negative) n - h2.value else h2.value;
         try std.testing.expectEqual(@as(u512, k), (a1 + a2 * lambda) % n);
     }
+}
+
+test "GLV half rejects values outside both 128-bit bands" {
+    const n = scalar.field_order;
+    for ([_]u256{ 1 << 128, (1 << 128) + 1, n - (1 << 128), 1 << 255, n - 1 - (1 << 128), n, std.math.maxInt(u256) }) |v| {
+        try std.testing.expectError(error.GlvBound, half(scalarBytes(v)));
+    }
+    try std.testing.expectEqual(@as(u256, (1 << 128) - 1), (try half(scalarBytes((1 << 128) - 1))).value);
+    const negative = try half(scalarBytes(n - ((1 << 128) - 1)));
+    try std.testing.expect(negative.negative and negative.value == (1 << 128) - 1);
 }
