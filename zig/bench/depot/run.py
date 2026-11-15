@@ -152,8 +152,15 @@ def fetch(run_id: str, dest: pathlib.Path, provenance: dict | None = None) -> No
         if not name or not ident or name == "zig-bench-bins":
             continue
         target = dest / f"{name}.zip"
-        subprocess.run(["depot", "ci", "artifacts", "download", ident, "--output-file", str(target)], check=True,
-                       capture_output=True)
+        for attempt in range(4):  # downloads occasionally fail transiently
+            got = subprocess.run(["depot", "ci", "artifacts", "download", ident, "--output-file", str(target)],
+                                 capture_output=True, text=True)
+            if got.returncode == 0:
+                break
+            time.sleep(5 * (attempt + 1))
+        else:
+            print(f"artifact {name} download failed: {got.stderr[-500:]}", file=sys.stderr)
+            continue
         unpack = dest / ("summary" if name == "zig-bench-summary" else name.removeprefix("zig-bench-result-"))
         try:
             with zipfile.ZipFile(target) as archive:
