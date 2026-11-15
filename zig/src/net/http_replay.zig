@@ -6,6 +6,8 @@ const curl = @import("curl.zig");
 const runtime = @import("http_runtime.zig");
 const rpc_replay = @import("read_replay.zig");
 const metrics = @import("../ops/rpc_metrics.zig");
+const read_mode = @import("../runtime/read_mode.zig");
+const fiber = @import("../runtime/fiber.zig");
 const A = std.mem.Allocator;
 pub const Config = struct { max_attempt_ms: u32 = 120000, max_entries: usize = 512, max_request_bytes: usize = 1024 * 1024, max_cached_bytes: usize = 128 * 1024 * 1024, shared_budget: ?*rpc_replay.ByteBudget = null, recorder: ?*metrics.Recorder = null };
 const Entry = struct { key: [32]u8, occurrence: u32, id: ?i64, handle: ?runtime.Handle = null, response: ?curl.Response = null, failure: ?anyerror = null, bytes: usize = 0 };
@@ -89,11 +91,52 @@ pub const Replay = struct {
         const self: *Replay = @ptrCast(@alignCast(context));
         return self.fetch(a, original);
     }
+    fn fetchDirect(self: *Replay, a: A, original: curl.Request, remaining_ms: u32) !curl.Response {
+        const id = try requestPolicy(a, original, self.config.max_request_bytes);
+        var request = original;
+        request.timeout_ms = @min(request.timeout_ms, remaining_ms);
+        request.connect_timeout_ms = @min(request.connect_timeout_ms, request.timeout_ms);
+        const observer = if (self.config.recorder) |recorder| try recorder.httpCompletionObserver(request) else null;
+        defer if (observer) |o| o.release();
+        const handle = while (true) {
+            break self.owner.submit(request, observer) catch |err| switch (err) {
+                // Retiring sessions own slots until native drain: wait for one.
+                error.HttpRuntimeSessionsFull, error.HttpRuntimeByteBudgetExceeded => {
+                    if (self.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+                    _ = try self.remaining();
+                    var nap: fiber.Waiter = .{};
+                    _ = nap.waitTimeout(fiber.monoMs() + 1);
+                    continue;
+                },
+                else => return err,
+            };
+        };
+        var response = self.owner.wait(handle, self.owner.now() +| request.timeout_ms, self.cancel, original.cancel) catch |err| {
+            // Same mapping as the journal: a single native timeout with a live
+            // attempt budget is an ordinary (fallback-eligible) failure.
+            if (err == error.RequestDeadlineExceeded) {
+                _ = self.remaining() catch return error.RequestDeadlineExceeded;
+                return error.UpstreamReadTimeout;
+            }
+            return err;
+        };
+        if (a.ptr == response.allocator.ptr and a.vtable == response.allocator.vtable) {
+            errdefer response.deinit();
+            try checkDirectResponse(self.allocator, response, id, original.max_response_bytes);
+            return response;
+        }
+        defer response.deinit();
+        try checkDirectResponse(self.allocator, response, id, original.max_response_bytes);
+        return cloneResponse(a, response, null, null, original.max_response_bytes);
+    }
     pub fn fetch(self: *Replay, a: A, original: curl.Request) !curl.Response {
         if (!self.in_pass) return error.ReadReplayPassNotActive;
         if (self.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         if (original.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
-        _ = try self.remaining();
+        const remaining_ms = try self.remaining();
+        // Dedicated thread or fiber: wait for this one physical request; the
+        // callback is never replayed (no identity hash, no response clone).
+        if (read_mode.direct() or fiber.inFiber()) return self.fetchDirect(a, original, remaining_ms);
         const identity = try requestIdentity(a, original, self.config.max_request_bytes);
         const occurrence = try self.occurrences.getOrPut(self.allocator, identity.key);
         if (!occurrence.found_existing) occurrence.value_ptr.* = 0;
@@ -151,6 +194,32 @@ pub const Replay = struct {
     }
 };
 const Identity = struct { key: [32]u8, id: ?i64 };
+fn checkDirectResponse(a: A, response: curl.Response, id: ?i64, maximum: usize) !void {
+    if (id) |value| if (response.status == 200) try rpc_replay.validateResponse(a, response.body, value);
+    if (response.body.len > maximum) return error.ResponseTooLarge;
+}
+/// The read-only policy of requestIdentity without hashing; returns the
+/// JSON-RPC correlation id when the body is a JSON-RPC request.
+fn requestPolicy(a: A, request: curl.Request, maximum: usize) !?i64 {
+    try curl.validateRequest(request);
+    if (request.public_only or (request.method != .get and request.method != .post)) return error.NonReadOnlyReplayRequest;
+    const body = request.body orelse "";
+    if (body.len > maximum) return error.ReadReplayRequestTooLarge;
+    const trimmed = std.mem.trimStart(u8, body, " \t\r\n");
+    if (trimmed.len != 0 and (trimmed[0] == '{' or trimmed[0] == '[')) {
+        try @import("json_bounds.zig").validate(body);
+        const parsed = std.json.parseFromSlice(std.json.Value, a, body, .{ .duplicate_field_behavior = .@"error", .parse_numbers = false }) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => null,
+        };
+        defer if (parsed) |value| value.deinit();
+        if (parsed) |value| if (value.value == .object and value.value.object.contains("jsonrpc")) {
+            return (try rpc_replay.requestIdentity(a, body, maximum)).id;
+        };
+    }
+    if (request.method == .post and !readOnlyPost(request.url)) return error.NonReadOnlyReplayRequest;
+    return null;
+}
 fn hashBytes(hash: *std.crypto.hash.sha2.Sha256, bytes: []const u8) void {
     var size: [8]u8 = undefined;
     std.mem.writeInt(u64, &size, bytes.len, .big);

@@ -4,6 +4,7 @@
 const std = @import("std");
 const curl = @import("curl.zig");
 const multi = @import("curl_multi.zig");
+const fiber = @import("../runtime/fiber.zig");
 const wake_notifier = @import("../runtime/wake.zig");
 const A = std.mem.Allocator;
 pub const Handle = struct { id: u64 };
@@ -19,6 +20,7 @@ pub const Observer = struct {
         if (self.release_fn) |f| f(self.context);
     }
 };
+const cancel_slice_ms: u64 = 100;
 pub const Config = struct { multi: multi.Config, max_sessions: u16 = 256 };
 const Session = struct {
     arena: std.heap.ArenaAllocator,
@@ -33,6 +35,11 @@ const Session = struct {
     consumed: bool = false,
     reserved: usize,
     reported: bool = false,
+    /// Runtime.mutex: a parked fiber / blocked thread waiting in `wait`.
+    waiter: ?*fiber.Waiter = null,
+    /// Completion notifies the supervisor (journal readers poll later);
+    /// off for sessions consumed by `wait`, whose waiter is woken directly.
+    notify_io: bool = true,
     fn deinit(self: *Session, a: A) void {
         if (self.result) |*result| if (result.* == .response) result.response.deinit();
         if (self.observer) |observer| observer.release();
@@ -95,7 +102,7 @@ pub const Runtime = struct {
         const a = self.allocator;
         a.destroy(self);
     }
-    fn now(self: *Runtime) u64 {
+    pub fn now(self: *Runtime) u64 {
         return (std.time.Instant.now() catch self.started).since(self.started) / std.time.ns_per_ms;
     }
     pub fn submit(self: *Runtime, original: curl.Request, observer: ?Observer) !Handle {
@@ -151,6 +158,7 @@ pub const Runtime = struct {
         const session = self.find(handle) orelse return error.InvalidHttpHandle;
         const result = session.result orelse return null;
         session.result = null;
+        session.waiter = null;
         session.consumed = true;
         self.wakeOwner();
         return switch (result) {
@@ -162,6 +170,7 @@ pub const Runtime = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         const session = self.find(handle) orelse return;
+        session.waiter = null;
         session.closed.store(true, .release);
         session.consumed = true;
         self.wakeOwner();
@@ -183,8 +192,43 @@ pub const Runtime = struct {
         session.reported = true;
         self.mutex.lock();
         session.result = result;
+        const notify_io = session.notify_io;
+        // Woken under the mutex: `wait` clears its registration under it.
+        if (session.waiter) |waiter| {
+            session.waiter = null;
+            waiter.wake();
+        }
         self.mutex.unlock();
-        wake_notifier.notifyIo();
+        if (notify_io) wake_notifier.notifyIo();
+    }
+    /// Block (thread) or park (fiber) until the handle is terminal; consumes
+    /// it on every return. `deadline_ms` is runtime `now` milliseconds.
+    pub fn wait(self: *Runtime, handle: Handle, deadline_ms: u64, first_cancel: ?*const std.atomic.Value(bool), second_cancel: ?*const std.atomic.Value(bool)) !curl.Response {
+        var waiter: fiber.Waiter = .{};
+        defer {
+            self.mutex.lock();
+            if (self.find(handle)) |session| session.waiter = null;
+            self.mutex.unlock();
+            self.cancel(handle);
+        }
+        {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            const session = self.find(handle) orelse return error.InvalidHttpHandle;
+            session.notify_io = false;
+            if (session.result == null) session.waiter = &waiter;
+        }
+        while (true) {
+            if (try self.poll(handle)) |response| return response;
+            if (first_cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+            if (second_cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+            const now_ms = self.now();
+            if (now_ms >= deadline_ms) return error.RequestDeadlineExceeded;
+            var slice_ms = deadline_ms - now_ms;
+            // Borrowed cancel flags have no notifier: recheck on a slice.
+            if (first_cancel != null or second_cancel != null) slice_ms = @min(slice_ms, cancel_slice_ms);
+            _ = waiter.waitTimeout(fiber.monoMs() +| @as(i64, @intCast(@min(slice_ms, std.math.maxInt(i32)))));
+        }
     }
     fn pollNative(self: *Runtime, now_ms: u64) !?multi.Completion {
         if (self.wait_failure) |err| return err;
