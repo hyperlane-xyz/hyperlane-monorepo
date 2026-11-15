@@ -385,3 +385,76 @@ test "batched publication restarts at each crash boundary without resigning or c
         try expectDurablePrefix(&store);
     }
 }
+
+test "in-process crash before the merged reservation+signature commit leaves nothing durable to conflict with" {
+    const a = std.testing.allocator;
+    // reorg: the restarted validator sees a quorum for a different root at a
+    // reserved, signed-in-memory index; otherwise the same history returns.
+    for ([_]bool{ false, true }) |reorg| {
+        var temporary = std.testing.tmpDir(.{});
+        defer temporary.cleanup();
+        const directory = try temporary.dir.realpathAlloc(a, ".");
+        defer a.free(directory);
+        const db_path = try std.fs.path.join(a, &.{ directory, "db" });
+        defer a.free(db_path);
+        const object_path = try std.fs.path.join(a, &.{ directory, "objects" });
+        defer a.free(object_path);
+        const address = try signature.secretKeyAddress(@splat(0x11));
+        const options: service.Options = .{ .domain_name = "merged-commit-fixture", .domain = 3999999999, .hook = @splat(2), .signer_address = address, .endpoint_count = 1, .consensus = null };
+        var signer: CountingSigner = .{ .base = try service.LocalSigner.init(@splat(0x11), null) };
+        defer signer.base.deinit();
+        var database = try rocks.Database.open(a, db_path, .{});
+        var state = try service.Service.open(a, &database, options);
+        var store = try local.LocalStore.open(a, std.fs.cwd(), object_path, .{ .read_only = false, .signer = address });
+        var adapter: service.LocalPublisher = .{ .store = &store };
+        try observe(&state, 0, 4);
+        service.TestPublicationFault.before_signatures.store(true, .release);
+        try std.testing.expectError(error.InjectedSignatureCommitFailure, state.publishConcurrent(signer.interface(), adapter.interface(), 100, 50));
+        try std.testing.expectEqual(@as(usize, 4), signer.calls);
+        // Nothing derived from the in-memory signatures left the process.
+        for (0..4) |index| {
+            try std.testing.expect(try state.signedCheckpoint(@intCast(index)) == null);
+            try std.testing.expect(try store.fetchCheckpoint(@intCast(index)) == null);
+        }
+        try std.testing.expect(state.signed_watermark == null);
+        try std.testing.expect(try store.latestIndex() == null);
+        store.deinit();
+        state.deinit();
+        database.deinit();
+        database = try rocks.Database.open(a, db_path, .{});
+        defer database.deinit();
+        state = try service.Service.open(a, &database, options);
+        defer state.deinit();
+        store = try local.LocalStore.open(a, std.fs.cwd(), object_path, .{ .read_only = false, .signer = address });
+        defer store.deinit();
+        adapter = .{ .store = &store };
+        try std.testing.expect(state.signed_watermark == null);
+        var vote = try state.checkpoint(3);
+        if (reorg) {
+            // Index 3 is quorum-verified, so a canonical change there halts;
+            // the validator never signs (or has to retract) a second value.
+            vote.root = @splat(0xee);
+            try std.testing.expectError(error.FinalizedHistoryConflict, state.authorize(&.{vote}, 101));
+            try std.testing.expectError(error.ValidatorHalted, state.publishConcurrent(signer.interface(), adapter.interface(), 101, 50));
+            try state.publishReorg(adapter.interface());
+            try std.testing.expectEqual(@as(usize, 4), signer.calls);
+            for (0..4) |index| try std.testing.expect(try store.fetchCheckpoint(@intCast(index)) == null);
+            try std.testing.expect(try store.latestIndex() == null);
+            continue;
+        }
+        _ = try state.authorize(&.{vote}, 101);
+        try std.testing.expectEqual(@as(usize, 4), try state.publishConcurrent(signer.interface(), adapter.interface(), 101, 50));
+        // Re-reserved and re-signed once; local signatures are deterministic.
+        try std.testing.expectEqual(@as(usize, 8), signer.calls);
+        var key = try @import("../../protocol/root.zig").signature.SigningKey.init(@splat(0x11));
+        defer key.deinit();
+        for (0..4) |index| {
+            const published = (try store.fetchCheckpoint(@intCast(index))).?;
+            const expected = try service.Verified.signWith(&key, try state.checkpoint(@intCast(index)), null);
+            try std.testing.expect(std.meta.eql(expected.signed, published));
+        }
+        try std.testing.expectEqual(@as(?u32, 3), try store.latestIndex());
+        try std.testing.expectEqual(@as(?u32, 3), state.snapshot_through);
+        try std.testing.expect(!try state.hasPendingPublication());
+    }
+}
