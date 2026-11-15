@@ -1000,7 +1000,7 @@ test "unindexed gas payment parks without a retry until the index wait cap" {
         .{ .method = "eth_call", .result = zero_word },
         .{ .method = "eth_getCode", .result = "\"0x01\"" },
     };
-    const steps = unpaid ++ unpaid ++ unpaid;
+    const steps = unpaid ++ unpaid ++ unpaid ++ unpaid;
     const paid: relay_policy.Config = .{ .gas_payment_enforcement = &.{.{ .matching_list = &.{}, .policy = .{ .minimum = 5 } }} };
     var runtime = try Runtime.init(a, &fixture, &steps, paid, .{ .blocks = 1 });
     defer runtime.deinit();
@@ -1022,6 +1022,12 @@ test "unindexed gas payment parks without a retry until the index wait cap" {
     const capped = try runtime.stepAt(times);
     try std.testing.expectEqual(driver.State.retried, capped.state);
     try std.testing.expectEqual(@as(u32, 1), runtime.actor.value.retries);
+    // Once charged, later attempts stay on the ladder instead of re-parking.
+    times.monotonic_ms = runtime.actor.value.next_attempt_ms;
+    times.unix_ms += 600_000;
+    const ladder = try runtime.stepAt(times);
+    try std.testing.expectEqual(driver.State.retried, ladder.state);
+    try std.testing.expectEqual(@as(u32, 2), runtime.actor.value.retries);
     try runtime.rpc.expectDone();
 }
 
@@ -1134,6 +1140,34 @@ test "verified destination endpoints skip the per-prepare chain id read" {
     try std.testing.expectEqual(driver.State.prepared, report.state);
     for (runtime.rpc.requests.items) |request| try std.testing.expect(std.mem.indexOf(u8, request, "eth_chainId") == null);
     try runtime.rpc.expectDone();
+}
+
+test "destination endpoint chain check verifies, fails closed and defers" {
+    const tasks = @import("../relayer_task.zig");
+    const fixture_pool = @import("../../evm/pool_testing.zig");
+    const a = std.testing.allocator;
+    const library = try fixture_pool.nativeLibrary(a);
+    defer a.free(library);
+    var transport = try @import("../../net/curl.zig").Client.init(a, library);
+    defer transport.deinit();
+    const same_chain = [_]fixture_pool.Reply{.{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x7a69\"}" }};
+    const foreign = [_]fixture_pool.Reply{.{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x1\"}" }};
+    const failing = [_]fixture_pool.Reply{.{ .status = 503, .body = "unavailable" }};
+    const behaviors = [_]fixture_pool.Behavior{ .{ .replies = &same_chain }, .{ .replies = &foreign }, .{ .replies = &failing } };
+    var server = try fixture_pool.Fixture.init(3, &behaviors);
+    try server.start();
+    defer server.deinit();
+    var cancel = std.atomic.Value(bool).init(false);
+    for (0..3) |index| {
+        const url = try server.url(a, index);
+        defer a.free(url);
+        const result = tasks.checkEndpointChain(a, &transport, url, 31337, &cancel);
+        switch (index) {
+            0 => try std.testing.expectEqual(tasks.EndpointChain.verified, try result),
+            1 => try std.testing.expectError(error.WrongChain, result),
+            else => try std.testing.expectEqual(tasks.EndpointChain.deferred, try result),
+        }
+    }
 }
 
 test "native batch uses surviving payload estimate sum for source ratio" {

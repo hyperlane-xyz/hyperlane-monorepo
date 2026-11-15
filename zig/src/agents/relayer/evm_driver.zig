@@ -302,7 +302,9 @@ pub const Driver = struct {
         });
         defer outcome.deinit();
 
-        if (outcome.value == .retry) if (indexWait(outcome.value.retry)) |wait| {
+        // Park only before the first retry: once the cap (or any failure) has
+        // charged a retry, the persisted Source ladder governs later attempts.
+        if (outcome.value == .retry and actor.value.retries == 0) if (indexWait(outcome.value.retry)) |wait| {
             const since = self.index_wait_since_ms orelse now.monotonic_ms;
             if (now.monotonic_ms -| since < config.max_index_wait_ms) {
                 try self.updateRetryState(outcome.value.retry.retry_state, outcome.value.retry.cached_metadata);

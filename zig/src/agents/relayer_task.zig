@@ -170,6 +170,7 @@ pub const Lane = struct {
     endpoint_chain_checked: ?[]bool = null,
     endpoint_chain_verified: bool = false,
     next_endpoint_chain_check_ms: u64 = 0,
+    endpoint_chain_backoff_ms: u64 = 0,
     credential_manager: ?*credentials.Manager = null,
     svm_ccs_manager: ?*credentials.Manager = null,
     ccip_owner: ?ccip_sessions.Owner = null,
@@ -816,8 +817,9 @@ pub const Lane = struct {
     /// The destination pool's endpoints are fixed for its lifetime and curl
     /// reconnects per URL transparently, so one eth_chainId per configured URL
     /// replaces the per-prepare/confirm check routed to an arbitrary endpoint.
-    /// A mismatch fails closed for the lane. Until every URL has answered,
-    /// the per-attempt check stays on; unreachable URLs are retried later.
+    /// A mismatch fails the lane closed. One unverified URL per pass with a
+    /// short timeout; an unreachable URL backs off (30s doubling to 10min)
+    /// while the per-attempt check stays on until every URL has answered.
     fn verifyEndpointChains(self: *Lane, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !void {
         const a = self.owner.allocator;
         const urls = self.chain.rpc_urls;
@@ -826,30 +828,24 @@ pub const Lane = struct {
             @memset(checked, false);
             self.endpoint_chain_checked = checked;
         }
-        const expected = try std.fmt.parseInt(u256, self.chain.chain_id, 0);
+        const checked = self.endpoint_chain_checked.?;
+        const index = std.mem.indexOfScalar(bool, checked, false) orelse {
+            self.endpoint_chain_verified = urls.len != 0;
+            return;
+        };
         var transport = try curl.Client.init(a, self.owner.options.curl_library);
         defer transport.deinit();
-        var complete = urls.len != 0;
-        for (urls, self.endpoint_chain_checked.?) |url, *checked| {
-            if (checked.*) continue;
-            if (cancel.load(.acquire)) return error.RequestCancelled;
-            var client = @import("../evm/provider.zig").RpcClient.init(a, url, .{ .native_transport = &transport, .timeout_ms = endpoint_chain_check_timeout_ms, .connect_timeout_ms = endpoint_chain_check_timeout_ms, .cancel = cancel }) catch |err| {
-                if (err == error.OutOfMemory) return err;
-                complete = false;
-                continue;
-            };
-            defer client.deinit();
-            const actual = client.chainId256() catch |err| {
-                if (err == error.OutOfMemory or err == error.RequestCancelled or err == error.Cancelled) return err;
-                std.log.warn("destination {s} endpoint chain check deferred: {s}", .{ self.chain.name, @errorName(err) });
-                complete = false;
-                continue;
-            };
-            if (actual != expected) return error.WrongChain;
-            checked.* = true;
+        switch (try checkEndpointChain(a, &transport, urls[index], try std.fmt.parseInt(u256, self.chain.chain_id, 0), cancel)) {
+            .verified => {
+                checked[index] = true;
+                self.endpoint_chain_backoff_ms = 0;
+                self.endpoint_chain_verified = std.mem.indexOfScalar(bool, checked, false) == null;
+            },
+            .deferred => {
+                self.endpoint_chain_backoff_ms = if (self.endpoint_chain_backoff_ms == 0) endpoint_chain_retry_ms else @min(self.endpoint_chain_backoff_ms *| 2, endpoint_chain_max_retry_ms);
+                self.next_endpoint_chain_check_ms = times.monotonic_ms +| self.endpoint_chain_backoff_ms;
+            },
         }
-        self.endpoint_chain_verified = complete;
-        if (!complete) self.next_endpoint_chain_check_ms = times.monotonic_ms +| endpoint_chain_retry_ms;
     }
     fn wakeLanderWaiters(self: *Lane, now_ms: u64) void {
         for (self.active.items) |item| if (item.awaiting_lander) {
@@ -1959,8 +1955,27 @@ pub const Lane = struct {
 /// Upper bound on an event-driven Lander wait, covering any status change
 /// that a tick report does not count. Lander activity wakes waiters earlier.
 pub const lander_wait_fallback_ms: u64 = 1_000;
-pub const endpoint_chain_check_timeout_ms: u32 = 5_000;
+pub const endpoint_chain_check_timeout_ms: u32 = 2_000;
 pub const endpoint_chain_retry_ms: u64 = 30_000;
+pub const endpoint_chain_max_retry_ms: u64 = 600_000;
+pub const EndpointChain = enum { verified, deferred };
+/// One eth_chainId on a direct client for exactly this URL. WrongChain on a
+/// mismatch; transport or RPC failures defer the check.
+pub fn checkEndpointChain(a: A, transport: *curl.Client, url: []const u8, expected: u256, cancel: *const std.atomic.Value(bool)) !EndpointChain {
+    if (cancel.load(.acquire)) return error.RequestCancelled;
+    var client = @import("../evm/provider.zig").RpcClient.init(a, url, .{ .native_transport = transport, .timeout_ms = endpoint_chain_check_timeout_ms, .connect_timeout_ms = endpoint_chain_check_timeout_ms, .cancel = cancel }) catch |err| {
+        if (err == error.OutOfMemory) return err;
+        return .deferred;
+    };
+    defer client.deinit();
+    const actual = client.chainId256() catch |err| {
+        if (err == error.OutOfMemory or err == error.RequestCancelled or err == error.Cancelled) return err;
+        std.log.warn("destination endpoint chain check deferred: {s}", .{@errorName(err)});
+        return .deferred;
+    };
+    if (actual != expected) return error.WrongChain;
+    return .verified;
+}
 /// Arena capacity kept across EVM polls; larger one-off outcomes are released.
 pub const poll_arena_retain_bytes: usize = 256 * 1024;
 /// Upper bound on an origin-index wait between index generation wakes; the
