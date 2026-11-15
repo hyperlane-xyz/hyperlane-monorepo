@@ -32,9 +32,9 @@ pub fn Worker(comptime Store: type) type {
         pub fn cycle(self: *@This()) !Outcome {
             if (self.options.chunk_size == 0) return error.InvalidScraperChunk;
             const lease = pipeline.confirmationLease(self.options.poll_ms);
-            try self.store.claim(lease);
+            const leased = try pipeline.lease(self.store, lease);
             try self.source.beginCycle();
-            var observed = pipeline.observe(self.source, self.store) catch |err| {
+            var observed = pipeline.observeFrom(self.source, self.store, leased) catch |err| {
                 try self.store.pause(false);
                 return err;
             };

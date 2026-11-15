@@ -102,11 +102,52 @@ pub const Store = struct {
     pub fn state(self: Store) !?State {
         var memory = self.arena();
         defer memory.deinit();
-        var result = try self.connection.query("SELECT indexed_height,indexed_hash,confirmed_height,head_height,halted FROM scraper_head WHERE domain=$1", &.{try self.domainParam(memory.allocator())});
+        var result = try self.connection.query("SELECT " ++ state_columns ++ " FROM scraper_head WHERE domain=$1", &.{try self.domainParam(memory.allocator())});
         defer result.deinit();
         if (result.rows() == 0) return null;
         try one(result);
+        return try self.stateResult(result);
+    }
+    const state_columns = "indexed_height,indexed_hash,confirmed_height,head_height,halted";
+    fn stateResult(self: Store, result: pg.Result) !State {
         return .{ .indexed = try nonnegative(try result.integer(0, "indexed_height")), .hash = try self.hashResult(result, 0, "indexed_hash"), .confirmed = try nonnegative(try result.integer(0, "confirmed_height")), .head = try nonnegative(try result.integer(0, "head_height")), .halted = try result.boolean(0, "halted") };
+    }
+    /// claim() returning the claimed head row: one round trip instead of
+    /// claim plus the cycle's first state() read.
+    pub fn claimState(self: Store, lease_seconds: f64) !State {
+        var memory = self.arena();
+        defer memory.deinit();
+        const a = memory.allocator();
+        var result = try self.connection.query("UPDATE scraper_head SET writer_id=$2,writer_lease_until=clock_timestamp()+make_interval(secs=>$3) WHERE domain=$1 AND (writer_id=$2 OR writer_lease_until IS NULL OR writer_lease_until<clock_timestamp()) RETURNING " ++ state_columns, &.{ try self.domainParam(a), pg.Param.text(self.writer_id), try lease(a, lease_seconds) });
+        defer result.deinit();
+        try changed(result);
+        return self.stateResult(result);
+    }
+    /// checkpoint() and hash() of that checkpoint in one round trip.
+    pub fn checkpointHash(self: Store, through: u64) !struct { height: u64, hash: Hash } {
+        var memory = self.arena();
+        defer memory.deinit();
+        const a = memory.allocator();
+        var result = try self.connection.query("SELECT height,hash FROM scraper_checkpoint WHERE domain=$1 AND height<=$2 ORDER BY height DESC LIMIT 1", &.{ try self.domainParam(a), try number(a, through) });
+        defer result.deinit();
+        try one(result);
+        return .{ .height = try nonnegative(try result.integer(0, "height")), .hash = try self.hashResult(result, 0, "hash") };
+    }
+    /// observe() then state(). An unchanged ancestor (no suffix to delete) is
+    /// one guarded UPDATE whose row lock and predicate re-check equal the
+    /// SELECT ... FOR UPDATE checks; any refusal replays the exact
+    /// transactional path for its precise error.
+    pub fn observeState(self: Store, expected: State, ancestor: Header, head: Header) !State {
+        if (std.mem.eql(u8, &ancestor.hash, &expected.hash)) {
+            var memory = self.arena();
+            defer memory.deinit();
+            const a = memory.allocator();
+            var result = try self.connection.query("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,head_height=$4,healthy=true,updated_at=clock_timestamp() WHERE domain=$1 AND NOT halted AND (writer_id IS NULL OR writer_id=$5) AND indexed_hash=$3 AND confirmed_height<=$2 RETURNING " ++ state_columns, &.{ try self.domainParam(a), try number(a, ancestor.height), try blob(a, &ancestor.hash), try number(a, head.height), pg.Param.text(self.writer_id) });
+            defer result.deinit();
+            if (try result.affected() == 1) return self.stateResult(result);
+        }
+        try self.observe(expected, ancestor, head);
+        return try self.state() orelse error.MissingHeadState;
     }
 
     fn ensureEmpty(self: Store, a: Allocator) !void {
@@ -296,15 +337,22 @@ pub const Store = struct {
             previous = header.hash;
             height = header.height;
         }
-        var transaction = try self.connection.begin();
+        // Round trip 1: BEGIN and the locked head check. Round trip 2: every
+        // insert (same table order as Rust), the frontier update and COMMIT.
+        var guard: [1]pg.Result = undefined;
+        var transaction = try self.connection.beginPipeline(&.{.{ .sql = "SELECT indexed_hash,healthy,halted,writer_id FROM scraper_head WHERE domain=$1 FOR UPDATE", .params = &.{try self.domainParam(a)} }}, &guard);
         defer transaction.deinit();
-        var state_row = try self.connection.query("SELECT indexed_hash,healthy,halted,writer_id FROM scraper_head WHERE domain=$1 FOR UPDATE", &.{try self.domainParam(a)});
-        defer state_row.deinit();
-        try self.checkObservation(state_row, expected);
-        if (!try state_row.boolean(0, "healthy")) return error.UnhealthyHead;
-        inline for (std.meta.tags(Table)) |table| try insertBatches(self.connection, a, table, rows[@intFromEnum(table)].items);
-        try self.connection.execute("UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1", &.{ try self.domainParam(a), try number(a, height), try blob(a, &previous) });
-        try transaction.commit();
+        {
+            defer guard[0].deinit();
+            try self.checkObservation(guard[0], expected);
+            if (!try guard[0].boolean(0, "healthy")) return error.UnhealthyHead;
+        }
+        var statements: std.ArrayList(pg.Statement) = .empty;
+        inline for (std.meta.tags(Table)) |table| try insertBatches(a, table, rows[@intFromEnum(table)].items, &statements);
+        try statements.append(a, .{ .sql = "UPDATE scraper_head SET indexed_height=$2,indexed_hash=$3,updated_at=clock_timestamp() WHERE domain=$1", .params = try a.dupe(pg.Param, &.{ try self.domainParam(a), try number(a, height), try blob(a, &previous) }) });
+        const results = try a.alloc(pg.Result, statements.items.len);
+        try transaction.commitPipeline(statements.items, results);
+        for (results) |*result| result.deinit();
     }
 
     pub fn confirmationBoundary(self: Store, after: u64, through: u64) !u64 {
@@ -331,22 +379,33 @@ pub const Store = struct {
         var projections: std.ArrayList([]const u8) = .empty;
         inline for (streams) |stream| try projections.append(a, "(SELECT count(*) FROM " ++ stream[0] ++ " WHERE " ++ stream[1] ++ "=$1 AND " ++ stream[2] ++ ">$2 AND " ++ stream[2] ++ "<=$3) AS " ++ stream[0]);
         const count_query = try std.fmt.allocPrint(a, "SELECT {s}", .{try std.mem.join(a, ",", projections.items)});
-        var count_row = try self.connection.query(count_query, &.{ try self.domainParam(a), try number(a, expected.confirmed), try number(a, boundary.height) });
-        defer count_row.deinit();
+        const domain = try self.domainParam(a);
+        const confirmed = try number(a, expected.confirmed);
+        const through = try number(a, boundary.height);
+        // Round trip 1: BEGIN, published counts, checkpoint, gas cursors,
+        // pruning and the locked readiness check, in the original statement
+        // order (READ COMMITTED: counts see the same committed rows). Round
+        // trip 2: the frontier update and COMMIT.
+        var lead: [5]pg.Result = undefined;
+        var transaction = try self.connection.beginPipeline(&.{
+            .{ .sql = count_query, .params = &.{ domain, confirmed, through } },
+            .{ .sql = "INSERT INTO scraper_checkpoint(domain,hash,height,timestamp) VALUES($1,$2,$3,to_timestamp($4::bigint) AT TIME ZONE 'UTC') ON CONFLICT(domain,height) DO NOTHING", .params = &.{ domain, try blob(a, &boundary.hash), through, try number(a, boundary.timestamp) } },
+            .{ .sql = "SELECT assign_confirmed_gas_payment_cursors($1,$2,$3)", .params = &.{ domain, confirmed, through } },
+            .{ .sql = "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<$2", .params = &.{ domain, through } },
+            .{ .sql = "SELECT indexed_hash,head_height,confirmed_height,writer_id,healthy AND NOT halted AND updated_at>clock_timestamp()-make_interval(secs=>$2) AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE", .params = &.{ domain, try lease(a, lease_seconds) } },
+        }, &lead);
+        defer transaction.deinit();
+        defer for (&lead) |*result| result.deinit();
+        const count_row = lead[0];
         try one(count_row);
         var counts: [4]u64 = undefined;
         inline for (streams, 0..) |stream, i| counts[i] = try nonnegative(try count_row.integer(0, stream[0]));
-        var transaction = try self.connection.begin();
-        defer transaction.deinit();
-        try self.insertCheckpoint(a, boundary, true);
-        try self.connection.execute("SELECT assign_confirmed_gas_payment_cursors($1,$2,$3)", &.{ try self.domainParam(a), try number(a, expected.confirmed), try number(a, boundary.height) });
-        try self.connection.execute("DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<$2", &.{ try self.domainParam(a), try number(a, boundary.height) });
-        var state_row = try self.connection.query("SELECT indexed_hash,head_height,confirmed_height,writer_id,healthy AND NOT halted AND updated_at>clock_timestamp()-make_interval(secs=>$2) AS ready FROM scraper_head WHERE domain=$1 FOR UPDATE", &.{ try self.domainParam(a), try lease(a, lease_seconds) });
-        defer state_row.deinit();
+        const state_row = lead[4];
         try one(state_row);
         if (!try state_row.boolean(0, "ready") or !try self.writerMatches(state_row) or try nonnegative(try state_row.integer(0, "head_height")) < expected.head or try nonnegative(try state_row.integer(0, "confirmed_height")) != expected.confirmed or !std.mem.eql(u8, &try self.hashResult(state_row, 0, "indexed_hash"), &expected.hash)) return error.ConfirmationExpiredOrChanged;
-        try self.connection.execute("UPDATE scraper_head SET confirmed_height=$2 WHERE domain=$1", &.{ try self.domainParam(a), try number(a, boundary.height) });
-        try transaction.commit();
+        var trail: [1]pg.Result = undefined;
+        try transaction.commitPipeline(&.{.{ .sql = "UPDATE scraper_head SET confirmed_height=$2 WHERE domain=$1", .params = &.{ domain, through } }}, &trail);
+        trail[0].deinit();
         return counts;
     }
 };
@@ -394,7 +453,7 @@ fn eventRow(a: Allocator, domain: u32, header: Header, event: Event) !EventRow {
     };
     return .{ .table = table, .values = row.items };
 }
-fn insertBatches(connection: *pg.Connection, a: Allocator, table: Table, rows: []const []const pg.Param) !void {
+fn insertBatches(a: Allocator, table: Table, rows: []const []const pg.Param, out: *std.ArrayList(pg.Statement)) !void {
     const schema = spec(table);
     var offset: usize = 0;
     while (offset < rows.len) : (offset += 1000) {
@@ -427,6 +486,6 @@ fn insertBatches(connection: *pg.Connection, a: Allocator, table: Table, rows: [
             try sql.append(a, ')');
         }
         if (table == .block) try sql.appendSlice(a, " ON CONFLICT(hash) DO NOTHING");
-        try connection.execute(sql.items, params.items);
+        try out.append(a, .{ .sql = sql.items, .params = params.items });
     }
 }

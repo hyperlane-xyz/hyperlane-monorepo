@@ -11,24 +11,47 @@ pub fn equal(a: src.Hash, b: src.Hash) bool {
 fn state(store: anytype) !State {
     return try store.state() orelse error.MissingScraperHead;
 }
+fn Pointee(comptime T: type) type {
+    return @typeInfo(T).pointer.child;
+}
+/// Takes the writer lease; stores that return the leased head row in the
+/// same round trip save the cycle's first state() read.
+pub fn lease(store: anytype, lease_seconds: f64) !?State {
+    if (@hasDecl(Pointee(@TypeOf(store)), "claimState")) return try store.claimState(lease_seconds);
+    try store.claim(lease_seconds);
+    return null;
+}
+const Located = struct { height: u64, hash: ?src.Hash };
+fn locate(store: anytype, through: u64) !Located {
+    if (@hasDecl(Pointee(@TypeOf(store)), "checkpointHash")) {
+        const found = try store.checkpointHash(through);
+        return .{ .height = found.height, .hash = found.hash };
+    }
+    const height = try store.checkpoint(through);
+    return .{ .height = height, .hash = try store.hash(height) };
+}
 pub fn observe(source: src.Source, store: anytype) !State {
-    const current = try state(store);
+    return observeFrom(source, store, null);
+}
+/// `leased` is the head row returned with this cycle's writer lease, if any.
+pub fn observeFrom(source: src.Source, store: anytype, leased: ?State) !State {
+    const current = leased orelse try state(store);
     if (current.halted) return error.ScraperPublishedReorg;
     const head = try source.header(.latest);
     if (head.height < current.indexed) {
         try store.pause(false);
         return error.ScraperRpcBehind;
     }
-    var height = try store.checkpoint(@min(current.indexed, head.height));
+    var located = try locate(store, @min(current.indexed, head.height));
     const ancestor = while (true) {
-        const header = if (height == head.height) head else try source.header(.{ .height = height });
-        const stored = try store.hash(height);
-        if (stored != null and equal(stored.?, header.hash)) break header;
-        try store.pause(height == current.confirmed);
-        if (height <= current.confirmed) return error.ScraperPublishedReorg;
-        height = try store.checkpoint(try std.math.sub(u64, height, 1));
+        const header = if (located.height == head.height) head else try source.header(.{ .height = located.height });
+        if (located.hash != null and equal(located.hash.?, header.hash)) break header;
+        try store.pause(located.height == current.confirmed);
+        if (located.height <= current.confirmed) return error.ScraperPublishedReorg;
+        located = try locate(store, try std.math.sub(u64, located.height, 1));
     };
     if (!equal(ancestor.hash, head.hash)) try verify(source, head);
+    if (@hasDecl(Pointee(@TypeOf(store)), "observeState")) return store.observeState(current, ancestor, head);
     try store.observe(current, ancestor, head);
     return state(store);
 }
