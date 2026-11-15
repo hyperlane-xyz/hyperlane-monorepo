@@ -91,6 +91,8 @@ const ReceiptItem = struct {
     gas_used: ?u256 = null,
     effective_gas_price: ?u256 = null,
     executed: bool = true,
+    /// The receipt's block hash matched the canonical header at its height.
+    verified: bool = false,
 };
 
 const WinningReceipt = struct {
@@ -105,6 +107,8 @@ const WinningReceipt = struct {
 const Observed = struct {
     status: types.Status,
     winning: ?WinningReceipt = null,
+    /// Finalized height this classification used (null: none was needed).
+    finalized_height: ?u64 = null,
 };
 
 const ReceiptProgress = struct {
@@ -533,7 +537,7 @@ pub const Service = struct {
         try records.setStatus(&record.parsed.value, allocator, observed);
         try records.setTimestamp(&record.parsed.value, "last_status_check", try records.timestamp(allocator, now_ms));
         if (observed == .included or observed == .finalized) {
-            const finalized_height = try self.chain.finalizedHeight();
+            const finalized_height = observation.finalized_height orelse try self.chain.finalizedHeight();
             const delivery_height = if (observed == .included) (try self.chain.latestBlock()).number else finalized_height;
             try self.writePayloadOutcomes(record, allocator, observed, delivery_height, observation.winning, report, sameStatus(previous_status, observed));
             if (observed == .finalized) {
@@ -579,6 +583,11 @@ pub const Service = struct {
         const tx_hashes = try records.hashes(allocator, record.value());
         if (tx_hashes.len == 0) return .{ .status = .pending_inclusion };
         const progress = try ensureReceiptProgress(&self.receipt_progress, self.allocator, uuid, tx_hashes.len);
+        // One finalized-height read per reconciliation, shared by every receipt
+        // and by the caller. Only a receipt at or below it can classify as
+        // finalized, so only those need their block's canonical header; an
+        // included receipt above it is provisional and is re-read next check.
+        var finalized_height: ?u64 = null;
         while (progress.next < tx_hashes.len and report.receipts_read < limits.max_receipts) {
             const index = progress.next;
             const hash = tx_hashes[index];
@@ -591,15 +600,11 @@ pub const Service = struct {
                 item.executed = receipt_value.executed;
                 if (receipt_value.block_number) |number| {
                     if (receipt_value.block_hash) |receipt_hash| {
-                        const header = try self.chain.blockHeader(number);
-                        if (header.number == number and std.mem.eql(u8, &header.hash, &receipt_hash)) {
-                            item.block = number;
-                            item.block_hash = receipt_hash;
-                            item.status = .included;
-                        } else {
-                            item.status = .pending_inclusion;
-                            item.block = null;
-                        }
+                        if (finalized_height == null) finalized_height = try self.chain.finalizedHeight();
+                        item.block = number;
+                        item.block_hash = receipt_hash;
+                        item.status = .included;
+                        if (number <= finalized_height.?) try self.verifyReceiptBlock(&item);
                     }
                 } else {
                     item.status = .mempool;
@@ -609,13 +614,16 @@ pub const Service = struct {
             progress.next += 1;
         }
         if (progress.next < tx_hashes.len) return null;
-        const finalized_height = try self.chain.finalizedHeight();
+        if (finalized_height == null) finalized_height = try self.chain.finalizedHeight();
+        const finalized = finalized_height.?;
+        // A receipt read in an earlier tick may have become finalizable since.
+        for (progress.items) |*item| if (item.block) |number| if (number <= finalized and !item.verified) try self.verifyReceiptBlock(item);
         var statuses = try allocator.alloc(?types.Status, tx_hashes.len);
         for (progress.items, 0..) |item, i| {
             if (!item.read or item.status == null) {
                 statuses[i] = null;
             } else if (item.block) |number| {
-                statuses[i] = if (number <= finalized_height) .finalized else .included;
+                statuses[i] = if (number <= finalized) .finalized else .included;
             } else {
                 statuses[i] = item.status.?;
             }
@@ -624,17 +632,31 @@ pub const Service = struct {
         var winning: ?WinningReceipt = null;
         for (progress.items) |item| {
             if (item.hash == null or item.block == null) continue;
-            if (classified == .finalized and item.block.? <= finalized_height) {
+            if (classified == .finalized and item.block.? <= finalized) {
                 winning = .{ .hash = item.hash.?, .block_number = item.block.?, .block_hash = item.block_hash.?, .gas_used = item.gas_used, .effective_gas_price = item.effective_gas_price, .executed = item.executed };
                 break;
             }
-            if (classified == .included and item.block.? > finalized_height) {
+            if (classified == .included and item.block.? > finalized) {
                 winning = .{ .hash = item.hash.?, .block_number = item.block.?, .block_hash = item.block_hash.?, .gas_used = item.gas_used, .effective_gas_price = item.effective_gas_price, .executed = item.executed };
                 break;
             }
         }
         try self.clearProgress(uuid);
-        return .{ .status = classified, .winning = winning };
+        return .{ .status = classified, .winning = winning, .finalized_height = finalized };
+    }
+
+    /// Canonical-block membership of a receipt about to count as finalized:
+    /// its block hash must match the header at its height, else the receipt
+    /// is treated as not yet included (as a reorged receipt is).
+    fn verifyReceiptBlock(self: *Service, item: *ReceiptItem) !void {
+        const number = item.block.?;
+        const header = try self.chain.blockHeader(number);
+        if (header.number == number and std.mem.eql(u8, &header.hash, &item.block_hash.?)) {
+            item.verified = true;
+            return;
+        }
+        item.status = .pending_inclusion;
+        item.block = null;
     }
 
     fn clearProgress(self: *Service, uuid: types.Uuid) !void {
