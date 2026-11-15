@@ -44,3 +44,21 @@ Workloads (`workloads.py`): `validator-{majority,fallback}-{safe,fast}`, `scrape
 Rust ignores the harnesses' `tracing` config key: it reads `log.{level,format}` / `HYP_LOG_*`. Without an override it logs INFO in pretty format, about 2.5 MB per relayer run, while Zig logs only warnings and errors. The Rust exec wrapper therefore sets `HYP_LOG_LEVEL=error HYP_LOG_FORMAT=json`; override the level with `BENCH_RUST_LOG_LEVEL`.
 
 Approval selectors, hash pins, quiet-host and prerequisite-proof gates are intentionally absent.
+
+## Sandbox (warm interactive box)
+
+A Depot sandbox is the compute behind a CI job, and there is no standalone create command. `sandbox.py start` therefore runs the workflow's `sandbox` job, selected with `"mode": "sandbox"` in the patched `selection.json`. The job has 16 vCPU, Rust 1.98.0, Zig 0.15.2, Foundry, pnpm and Postgres, with the Cargo target and Zig caches restored. It idles for up to `--hours`.
+
+```sh
+zig/bench/depot/sandbox.py start --hours 4      # ~2-3 min to ready
+zig/bench/depot/sandbox.py push <rev> <name>    # git bundle -> worktree ~/zb/<name>, ~5 s, no push to origin
+zig/bench/depot/sandbox.py exec -C ~/zb/<name> -- 'python3 zig/bench/run.py --zig "$ZIG" ...'
+zig/bench/depot/sandbox.py pull ~/zb/out zig/bench/results/depot/x
+zig/bench/depot/sandbox.py stop
+```
+
+Gotchas:
+
+- `depot sandbox exec` waits for every child process. For long jobs, write the script and keep the exec in a local background task.
+- `exec-pipe` drops stdin that arrives before the remote command starts. Pass small payloads base64-encoded in the command; streamed payloads such as `push`/`git bundle` work.
+- The box dies when the job ends or hits its timeout. Caches persist only through the CI cache.

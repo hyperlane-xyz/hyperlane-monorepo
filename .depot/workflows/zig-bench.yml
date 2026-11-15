@@ -36,6 +36,8 @@ jobs:
     outputs:
       workloads: ${{ steps.plan.outputs.workloads }}
       pairs: ${{ steps.plan.outputs.pairs }}
+      mode: ${{ steps.plan.outputs.mode }}
+      sandbox_seconds: ${{ steps.plan.outputs.sandbox_seconds }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -47,6 +49,8 @@ jobs:
         run: python3 zig/bench/depot/workloads.py --github-output
 
   build:
+    needs: plan
+    if: needs.plan.outputs.mode == 'bench'
     runs-on: depot-ubuntu-24.04-16
     timeout-minutes: 120
     steps:
@@ -217,7 +221,7 @@ jobs:
 
   summary:
     needs: [plan, bench]
-    if: always() && needs.plan.result == 'success'
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.mode == 'bench'
     runs-on: depot-ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -238,3 +242,75 @@ jobs:
           name: zig-bench-summary
           path: summary
           retention-days: 30
+
+  # Long-lived warm build box (zig/bench/depot/sandbox.py). Selected only when
+  # selection.json has "mode": "sandbox"; drive it with `depot sandbox exec`.
+  sandbox:
+    needs: plan
+    if: needs.plan.outputs.mode == 'sandbox'
+    runs-on: depot-ubuntu-24.04-16
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Compute cache keys
+        id: keys
+        run: bash zig/bench/depot/cache_keys.sh | tee -a "$GITHUB_OUTPUT"
+      - name: Restore Cargo target
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            rust/main/target
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ steps.keys.outputs.rust_target }}-${{ steps.keys.outputs.rust }}
+          restore-keys: ${{ steps.keys.outputs.rust_target }}-
+      - name: Restore Zig caches
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/zig
+            zig/.zig-cache
+            zig/.toolchain
+          key: ${{ steps.keys.outputs.zig_cache }}-${{ steps.keys.outputs.zig }}
+          restore-keys: ${{ steps.keys.outputs.zig_cache }}-
+      - name: Restore finished products
+        uses: actions/cache/restore@v4
+        with:
+          path: .zb/native
+          key: ${{ steps.keys.outputs.native }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - name: Install Foundry v1.5.0
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.5.0
+          cache: false
+      - name: Install toolchains
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends build-essential clang cmake libclang-dev \
+            libcurl4-openssl-dev libpq-dev libssl-dev libudev-dev pkg-config protobuf-compiler python3 util-linux
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --no-self-update
+          python3 zig/tools/bootstrap.py
+          docker pull -q "$POSTGRES_IMAGE"
+      - name: Idle until stopped (touch /tmp/sandbox-stop) or timeout
+        env:
+          SANDBOX_SECONDS: ${{ needs.plan.outputs.sandbox_seconds }}
+        run: |
+          {
+            echo "export PATH=$PATH"
+            echo "export ZIG=$(python3 zig/tools/bootstrap.py)"
+            echo "export RUST_TOOLCHAIN=$RUST_TOOLCHAIN BENCH_RUSTFLAGS='$BENCH_RUSTFLAGS' BENCH_CFLAGS='$BENCH_CFLAGS'"
+            echo "export ZIG_CPU=$ZIG_CPU NATIVE_PROFILE=$NATIVE_PROFILE POSTGRES_IMAGE=$POSTGRES_IMAGE"
+            echo "export REPO=$GITHUB_WORKSPACE"
+            echo "cd $GITHUB_WORKSPACE"
+          } > /tmp/sandbox-env.sh
+          touch /tmp/sandbox-ready
+          end=$((SECONDS + SANDBOX_SECONDS))
+          while [ ! -e /tmp/sandbox-stop ] && [ $SECONDS -lt $end ]; do sleep 10; done

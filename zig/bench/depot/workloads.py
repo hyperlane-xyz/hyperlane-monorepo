@@ -57,9 +57,13 @@ def select(selectors: list[str]) -> list[str]:
     return chosen
 
 
-def resolve(workloads: str | None, pairs: str | None) -> tuple[list[str], int]:
+def selection_file() -> dict:
     file = HERE / "selection.json"
-    data = json.loads(file.read_text()) if file.is_file() else {}
+    return json.loads(file.read_text()) if file.is_file() else {}
+
+
+def resolve(workloads: str | None, pairs: str | None) -> tuple[list[str], int]:
+    data = selection_file()
     raw = workloads or data.get("workloads") or ["all"]
     if isinstance(raw, str):
         raw = raw.replace(",", " ").split()
@@ -76,11 +80,17 @@ def main() -> None:
     parser.add_argument("--github-output", action="store_true", help="append matrix/pairs to $GITHUB_OUTPUT")
     args = parser.parse_args()
     names, pairs = resolve(args.workloads, args.pairs)
-    print(json.dumps({"workloads": names, "pairs": pairs}))
+    data = selection_file()
+    # mode "sandbox" (written by sandbox.py) runs only the long-lived sandbox job.
+    mode = data.get("mode", "bench")
+    hours = float(data.get("sandbox_hours", 4))
+    print(json.dumps({"workloads": names, "pairs": pairs, "mode": mode, "sandbox_hours": hours}))
     if args.github_output:
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
             out.write(f"workloads={json.dumps(names)}\n")
             out.write(f"pairs={pairs}\n")
+            out.write(f"mode={mode}\n")
+            out.write(f"sandbox_seconds={int(hours * 3600)}\n")
 
 
 if __name__ == "__main__":
