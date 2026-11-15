@@ -791,3 +791,46 @@ test "remote checkpoint owner waits on sockets while every HTTP read stalls inst
     // 50 ms only so caller closes and session deadlines are observed.
     try std.testing.expect(stalled <= 10);
 }
+
+test "remote checkpoint local reads run inline without disk workers until storage proves slow" {
+    const a = std.testing.allocator;
+    const library = try nativeLibrary(a);
+    defer a.free(library);
+    const e = try engine.Engine.start(a, .{ .multi = .{ .library_path = library }, .timeout_ms = 3000 });
+    defer e.deinit();
+    var fast: DiskReader = .{ .value = try objects.SignedCheckpoint.sign(checkpoint(1), @splat(1), null) };
+    try e.registerLocal(try fast.interface(1));
+    const validator = try fast.value.recover();
+    var errors: usize = 0;
+    for (0..3) |_| {
+        var selected = (try e.fetchQuorum(1, a, &.{validator}, 1, 3, &errors, null)).?;
+        selected.deinit();
+    }
+    var latest: [1]?u32 = undefined;
+    try e.latestIndices(1, &.{validator}, &latest, &errors, null);
+    try std.testing.expectEqual(@as(?u32, 3), latest[0]);
+    try std.testing.expectEqual(@as(usize, 0), errors);
+    try std.testing.expectEqual(@as(usize, 3), fast.fetches.load(.acquire));
+    // Small local files never needed a worker thread or its handoffs.
+    try std.testing.expect(!e.disk_workers_started.load(.acquire));
+    var slow: DiskReader = .{ .value = try objects.SignedCheckpoint.sign(checkpoint(2), @splat(2), null), .release_guard = .init(false) };
+    try e.registerLocal(try slow.interface(2));
+    const slow_validator = try slow.value.recover();
+    const Releaser = struct {
+        fn run(reader: *DiskReader) void {
+            std.Thread.sleep(30 * std.time.ns_per_ms);
+            reader.release_guard.store(true, .release);
+        }
+    };
+    const releaser = try std.Thread.spawn(.{}, Releaser.run, .{&slow});
+    // The inline guard takes 30 ms: this storage's later reads (already this
+    // session's fetch) run on workers, so the owner keeps enforcing deadlines
+    // for every other session.
+    var first = (try e.fetchQuorum(2, a, &.{slow_validator}, 1, 3, &errors, null)).?;
+    first.deinit();
+    releaser.join();
+    try std.testing.expect(e.disk_workers_started.load(.acquire));
+    var second = (try e.fetchQuorum(2, a, &.{slow_validator}, 1, 3, &errors, null)).?;
+    second.deinit();
+    try std.testing.expectEqual(@as(usize, 0), errors);
+}

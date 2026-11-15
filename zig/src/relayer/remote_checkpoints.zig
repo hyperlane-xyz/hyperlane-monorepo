@@ -23,6 +23,9 @@ const Registration = struct {
     arena: std.heap.ArenaAllocator,
     value: Candidate,
     alternates: []*Registration = &.{},
+    /// Local storage whose inline read exceeded slow_disk_ns; its reads use
+    /// the lazily started disk workers from then on (owner thread only).
+    slow_disk: bool = false,
     fn at(self: *Registration, index: usize) *Registration {
         return if (index == 0) self else self.alternates[index - 1];
     }
@@ -89,6 +92,9 @@ const Session = struct {
     kind: Kind,
     index: u32,
     deadline_ms: u64,
+    /// Engine clock origin of deadline_ms: readers enforce the deadline
+    /// themselves even while the owner is inside an inline disk read.
+    clock: std.time.Instant,
     phase: enum { guard, read } = .guard,
     arrivals: [256]Arrival = undefined,
     length: usize = 0,
@@ -143,6 +149,16 @@ const Session = struct {
         self.diagnostics += 1;
         self.mutex.unlock();
     }
+    fn remainingMs(self: *const Session) u64 {
+        const now = std.time.Instant.now() catch return 0;
+        return self.deadline_ms -| now.since(self.clock) / std.time.ns_per_ms;
+    }
+    /// Mutex held. Mirrors the owner's deadline failure.
+    fn expireLocked(self: *Session) bool {
+        if (self.finished or self.remainingMs() != 0) return false;
+        self.closed.store(true, .release);
+        return true;
+    }
     fn fail(self: *Session, err: anyerror) void {
         self.mutex.lock();
         self.fatal = err;
@@ -156,6 +172,7 @@ const Session = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.fatal) |err| return err;
+        if (self.expireLocked()) return error.RequestDeadlineExceeded;
         if (self.consumed < self.length) {
             const value = self.arrivals[self.consumed];
             self.consumed += 1;
@@ -173,6 +190,10 @@ const Session = struct {
             if (self.fatal) |err| {
                 self.mutex.unlock();
                 return err;
+            }
+            if (self.expireLocked()) {
+                self.mutex.unlock();
+                return error.RequestDeadlineExceeded;
             }
             if (self.consumed < self.length) {
                 const value = self.arrivals[self.consumed];
@@ -279,7 +300,7 @@ pub const ReadRequest = struct {
             if (ready != .pending) return ready;
             var waiter: fiber.Waiter = .{};
             if (!self.session.armWaiter(&waiter)) continue;
-            const slice_ms: i64 = if (cancel != null) cancel_slice_ms else 1000;
+            const slice_ms: i64 = @min(@as(i64, if (cancel != null) cancel_slice_ms else 1000), @as(i64, @intCast(@min(self.session.remainingMs(), 1000))) + 1);
             _ = waiter.waitTimeout(fiber.monoMs() + slice_ms);
             self.session.disarmWaiter(&waiter);
         }
@@ -304,6 +325,9 @@ pub const ReadRequest = struct {
 };
 
 const disk_wait_ns: u64 = 50 * std.time.ns_per_ms;
+/// Local checkpoint files are small: an inline read slower than this marks
+/// the storage slow and moves its later reads to disk workers.
+const slow_disk_ns: u64 = 10 * std.time.ns_per_ms;
 /// Bound on a socket wait, so caller closes (which have no notifier) and
 /// session deadlines are still observed while HTTP transfers are in flight.
 const http_wait_ms: u64 = disk_wait_ns / std.time.ns_per_ms;
@@ -312,7 +336,12 @@ pub const Engine = struct {
     allocator: A,
     config: Config,
     http_owner: *multi.Multi,
-    disk: *DiskPool,
+    /// Started on the first slow local storage; null while reads run inline.
+    disk: ?*DiskPool = null,
+    /// Owner thread: an inline disk read completed during this pass.
+    inline_progress: bool = false,
+    /// Disk workers exist (evidence that local reads otherwise run inline).
+    disk_workers_started: std.atomic.Value(bool) = .init(false),
     mutex: std.Thread.Mutex = .{},
     wake: std.Thread.Condition = .{},
     readers: []?*Registration,
@@ -345,21 +374,20 @@ pub const Engine = struct {
         const sessions = try allocator.alloc(?*Session, config.max_sessions);
         errdefer allocator.free(sessions);
         @memset(sessions, null);
-        self.* = .{ .allocator = allocator, .config = config, .http_owner = native, .readers = readers, .touched = touched, .sessions = sessions, .disk = undefined, .thread = undefined, .started = try std.time.Instant.now() };
-        self.disk = try DiskPool.start(allocator, self, diskRun, diskFreeInput, diskFreeOutput);
-        errdefer self.disk.deinit();
-        self.disk.completion_hook = .{ .context = self, .call_fn = diskCompleted };
+        self.* = .{ .allocator = allocator, .config = config, .http_owner = native, .readers = readers, .touched = touched, .sessions = sessions, .thread = undefined, .started = try std.time.Instant.now() };
         self.thread = try std.Thread.spawn(.{}, run, .{self});
         return self;
     }
     pub fn deinit(self: *Engine) void {
         self.stopping.store(true, .release);
         self.mutex.lock();
+        // An inline disk read observes its session's closed flag.
+        for (self.sessions) |entry| if (entry) |session| session.closed.store(true, .release);
         self.wake.signal();
         self.mutex.unlock();
         self.http_owner.wakeup();
         self.thread.join();
-        self.disk.deinit();
+        if (self.disk) |disk| disk.deinit();
         self.http_owner.deinit();
         for (self.readers) |registration| if (registration) |value| value.release();
         self.allocator.free(self.readers);
@@ -523,7 +551,7 @@ pub const Engine = struct {
             self.touched[i] = self.sequence;
             break;
         };
-        session.* = .{ .allocator = self.allocator, .peers = peers, .kind = kind, .index = index, .deadline_ms = self.now() +| self.config.timeout_ms };
+        session.* = .{ .allocator = self.allocator, .peers = peers, .kind = kind, .index = index, .deadline_ms = self.now() +| self.config.timeout_ms, .clock = self.started };
         session.retain(); // dedicated owner reference, released after work drains
         self.sessions[slot] = session;
         self.kicked = true;
@@ -610,24 +638,32 @@ pub const Engine = struct {
             output[arrival.index] = value.latest;
         }
     }
-    fn diskRun(_: *Engine, input: DiskInput, cancel: *const std.atomic.Value(bool)) !DiskOutput {
-        const reader = input.registration.value.disk;
-        const result: anyerror!ReadValue = blk: {
-            if (cancel.load(.acquire)) break :blk error.RequestCancelled;
-            if (input.guard) {
-                if (reader.validate) |validate| validate(reader.context, cancel) catch |err| break :blk err;
-                break :blk switch (input.session.kind) {
-                    .checkpoint => .{ .checkpoint = null },
-                    .latest => .{ .latest = null },
-                };
-            }
-            break :blk switch (input.session.kind) {
-                .checkpoint => .{ .checkpoint = reader.fetch(reader.context, input.session.index, cancel) catch |err| break :blk err },
-                .latest => .{ .latest = reader.latest(reader.context, cancel) catch |err| break :blk err },
+    fn readDisk(session: *const Session, registration: *Registration, guard: bool, cancel: *const std.atomic.Value(bool)) anyerror!ReadValue {
+        const reader = registration.value.disk;
+        if (cancel.load(.acquire)) return error.RequestCancelled;
+        if (guard) {
+            if (reader.validate) |validate| try validate(reader.context, cancel);
+            return switch (session.kind) {
+                .checkpoint => .{ .checkpoint = null },
+                .latest => .{ .latest = null },
             };
+        }
+        return switch (session.kind) {
+            .checkpoint => .{ .checkpoint = try reader.fetch(reader.context, session.index, cancel) },
+            .latest => .{ .latest = try reader.latest(reader.context, cancel) },
         };
+    }
+    fn diskRun(_: *Engine, input: DiskInput, cancel: *const std.atomic.Value(bool)) !DiskOutput {
+        const result = readDisk(input.session, input.registration, input.guard, cancel);
         input.session.retain(); // output outlives input cleanup
         return .{ .session = input.session, .peer = input.peer, .guard = input.guard, .result = result };
+    }
+    fn startDisk(self: *Engine) !*DiskPool {
+        const disk = try DiskPool.start(self.allocator, self, diskRun, diskFreeInput, diskFreeOutput);
+        disk.completion_hook = .{ .context = self, .call_fn = diskCompleted };
+        self.disk = disk;
+        self.disk_workers_started.store(true, .release);
+        return disk;
     }
     fn diskFreeInput(_: *Engine, input: DiskInput) void {
         input.session.release();
@@ -668,6 +704,7 @@ pub const Engine = struct {
             // Completions mutate session state whose follow-up runs in the next
             // pass's progress: such a pass loops again instead of waiting.
             var progressed = false;
+            self.inline_progress = false;
             var next_deadline: u64 = std.math.maxInt(u64);
             const now_ms = self.now();
             for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| {
@@ -694,11 +731,12 @@ pub const Engine = struct {
                     if (found) break;
                 };
             }
-            while (self.disk.poll(now_ms)) |completion| : (progressed = true) switch (completion.result) {
+            progressed = progressed or self.inline_progress;
+            if (self.disk) |disk| while (disk.poll(now_ms)) |completion| : (progressed = true) switch (completion.result) {
                 .value => |output| {
                     output.session.peers[output.peer].disk_id = null;
                     self.acceptResult(output.session, output.peer, output.guard, output.result) catch |err| output.session.fail(err);
-                    self.disk.release(output);
+                    disk.release(output);
                 },
                 .failure => |err| for (snapshot) |entry| if (entry) |session| for (session.peers, 0..) |*peer, index| if (peer.disk_id) |id| if (std.meta.eql(id, completion.id)) {
                     peer.disk_id = null;
@@ -745,10 +783,11 @@ pub const Engine = struct {
                     };
                 }
             } else {
-                // Disk-only sessions: sleep until a disk completion or new
-                // session (bounded, so session deadlines and closes are seen).
+                // Disk-only sessions: an inline read's follow-up runs at once;
+                // otherwise sleep until a disk completion or new session
+                // (bounded, so session deadlines and closes are seen).
                 self.mutex.lock();
-                if (!self.kicked and !self.stopping.load(.acquire)) self.wake.timedWait(&self.mutex, disk_wait_ns) catch {};
+                if (!progressed and !self.kicked and !self.stopping.load(.acquire)) self.wake.timedWait(&self.mutex, disk_wait_ns) catch {};
                 self.kicked = false;
                 self.mutex.unlock();
             }
@@ -760,7 +799,7 @@ pub const Engine = struct {
             for (session.peers) |*peer| {
                 if (peer.http_id) |id| self.http_owner.cancel(id) catch {};
                 if (peer.disk_id) |id| {
-                    _ = self.disk.cancel(id) catch {};
+                    if (self.disk) |disk| _ = disk.cancel(id) catch {};
                     peer.disk_id = null;
                 }
             }
@@ -784,8 +823,24 @@ pub const Engine = struct {
             if (peer.registration == null) continue;
             const registration = peer.selected();
             if (registration.value == .disk) {
+                const guard = session.phase == .guard;
+                if (!registration.slow_disk) {
+                    // Small local files: read inline on the owner thread, with
+                    // no worker handoff per read. The session's closed flag
+                    // cancels it and readers enforce the deadline meanwhile.
+                    const begin = std.time.Instant.now() catch null;
+                    const value = readDisk(session, registration, guard, &session.closed);
+                    if (begin) |started| if ((std.time.Instant.now() catch started).since(started) > slow_disk_ns) {
+                        registration.slow_disk = true;
+                    };
+                    self.inline_progress = true;
+                    submitted += 1;
+                    try self.acceptResult(session, index, guard, value);
+                    continue;
+                }
+                const disk = self.disk orelse try self.startDisk();
                 session.retain();
-                peer.disk_id = self.disk.submit(.{ .session = session, .peer = index, .registration = registration, .guard = session.phase == .guard }, now_ms, session.deadline_ms) catch |err| {
+                peer.disk_id = disk.submit(.{ .session = session, .peer = index, .registration = registration, .guard = guard }, now_ms, session.deadline_ms) catch |err| {
                     session.release();
                     if (err == error.IoPoolFull) continue;
                     return err;
