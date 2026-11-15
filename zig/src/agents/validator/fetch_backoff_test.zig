@@ -374,7 +374,10 @@ fn evmTransport(comptime Role: type, comptime indexOneRange: anytype, comptime i
     role.read_preferred = 0;
     role.round_results = &round;
     try std.testing.expect(try indexOneRange(&role, 0));
-    try std.testing.expectEqual(@as(usize, if (fault != null and fault.?.header != null) 0 else 1), endpoints[0].calls.load(.acquire));
+    // The backfill range ends at the round head, so that endpoint's fenced round
+    // header is the leading fence: eth_getLogs runs once and a malformed header
+    // is rejected by the trailing fence read, still before any storage.
+    try std.testing.expectEqual(@as(usize, 1), endpoints[0].calls.load(.acquire));
     try std.testing.expectEqual(@as(usize, 1), endpoints[1].calls.load(.acquire));
     try std.testing.expectEqual(@as(u32, 0), role.fetch_retry.consecutive_failures);
     try std.testing.expectEqual(@as(?usize, 1), role.primary);

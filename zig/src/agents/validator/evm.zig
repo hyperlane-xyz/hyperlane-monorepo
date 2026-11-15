@@ -759,8 +759,11 @@ pub const Role = struct {
         for (0..self.slots.len) |offset| {
             if (self.runtime.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
             const index = (preferred + offset) % self.slots.len;
+            var leading: ?rpc.BlockHeader = null;
             if (self.round_results) |results| {
                 if (!results[index].ready or results[index].head.?.number < range.to) continue;
+                // This endpoint's own fenced round head serves as the leading fence.
+                if (results[index].head.?.number == range.to) leading = results[index].head.?;
             }
             const slot = self.checked(index) catch |err| {
                 const actual = self.physicalFailure(self.slots[index].client, err);
@@ -772,7 +775,7 @@ pub const Role = struct {
             const saved = slot.client.options;
             defer slot.client.options = saved;
             self.indexedOptions(slot.client);
-            const batch = slot.indexer.fetch(.insertion, range, finalized_height) catch |err| {
+            const batch = slot.indexer.fetchFenced(.insertion, range, finalized_height, .{ .leading = leading }) catch |err| {
                 const actual = self.physicalFailure(slot.client, err);
                 if (!fetch_observation.retryable(actual)) return err;
                 slot.last_error = actual;
