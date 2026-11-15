@@ -35,6 +35,11 @@ pub const Task = struct {
     /// max_wait_ms backstop): I/O notifications and `wake` do not re-poll it,
     /// since the owner itself handles kicks while it runs.
     owner_wake: ?*const std.atomic.Value(bool) = null,
+    /// Owner-backed: monotonic ms (this supervisor's clock) at which the
+    /// owner's current run expires, 0 while no run is in progress. The
+    /// supervisor polls the task at that moment, so the owner's per-run
+    /// timeout cancels the run at its real deadline, not at a backstop.
+    owner_deadline: ?*const std.atomic.Value(u64) = null,
 };
 pub const Health = struct {
     started: u64 = 0,
@@ -220,7 +225,7 @@ pub const Supervisor = struct {
             const index = self.next_task;
             self.next_task = (index + 1) % self.entries.len;
             const entry = &self.entries[index];
-            const awake = self.woken(index) or self.resumable(entry, now.monotonic_ms);
+            const awake = self.woken(index) or self.ownerExpired(index, now.monotonic_ms) or self.resumable(entry, now.monotonic_ms);
             if (entry.active != null or entry.health.halted or (now.monotonic_ms < entry.next_ms and !awake)) continue;
             const io_generation = wake_notifier.ioGeneration();
             const deadline_ms = now.monotonic_ms +| self.context.tasks[index].timeout_ms;
@@ -317,6 +322,12 @@ pub const Supervisor = struct {
         const wake = task.wake orelse return false;
         return wake.load(.acquire);
     }
+    /// The owner's current run passed its deadline: poll it to cancel.
+    fn ownerExpired(self: *const Supervisor, index: usize, now_ms: u64) bool {
+        if (!self.entries[index].suspended) return false;
+        const deadline = (self.context.tasks[index].owner_deadline orelse return false).load(.acquire);
+        return deadline != 0 and now_ms >= deadline;
+    }
     fn resumable(_: *const Supervisor, entry: *const Entry, now_ms: u64) bool {
         if (!entry.suspended or entry.owned or wake_notifier.ioGeneration() == entry.io_generation) return false;
         return entry.inline_task or now_ms >= entry.suspended_ms +| resume_spacing_ms;
@@ -345,6 +356,10 @@ pub const Supervisor = struct {
             // writers notify, and a flag its run cannot clear must not spin.
             if (task.owner_wake) |flag| if (flag.load(.acquire)) {
                 next = now_ms;
+            };
+            if (entry.suspended) if (task.owner_deadline) |deadline| {
+                const at = deadline.load(.acquire);
+                if (at != 0) next = @min(next, at);
             };
             if (entry.suspended and !entry.owned and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, if (entry.inline_task) now_ms else entry.suspended_ms +| resume_spacing_ms);
             if (task.wake != null and !task.wake_notified) next = @min(next, now_ms +| poll_slice_ms);

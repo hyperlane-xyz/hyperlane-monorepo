@@ -49,6 +49,10 @@ pub const Owner = struct {
     source_at_start: bool = false,
     /// Between continued runs (mutex): no callback runs, so no deadline.
     waiting: bool = false,
+    /// Task.owner_deadline: the current run's expiry in the poller's
+    /// monotonic ms (+1 so the poll's own timer has passed it), 0 when no
+    /// run is in progress.
+    run_deadline_ms: std.atomic.Value(u64) = .init(0),
     /// Runs continued on the owner thread without a supervisor handoff.
     continued_runs: u64 = 0,
 
@@ -60,6 +64,10 @@ pub const Owner = struct {
     /// The supervisor Task.owner_wake flag for this owner.
     pub fn ownerWake(self: *Owner) *std.atomic.Value(bool) {
         return &self.published;
+    }
+    /// The supervisor Task.owner_deadline for this owner.
+    pub fn ownerDeadline(self: *Owner) *std.atomic.Value(u64) {
+        return &self.run_deadline_ms;
     }
     /// Null means retained work is pending. No native I/O on the caller; the
     /// owner holds its mutex only between runs, never across `run_fn`. A
@@ -78,6 +86,9 @@ pub const Owner = struct {
                 self.expired = true;
                 self.cancel.store(true, .release);
                 self.changed.broadcast();
+                // Signalled: the poller falls back to its backstop instead
+                // of re-polling a run that is already retiring.
+                self.run_deadline_ms.store(0, .release);
             }
             if (self.state != .done) return null;
             const result = self.result orelse unreachable;
@@ -96,6 +107,8 @@ pub const Owner = struct {
         self.expired = false;
         self.cancelled = false;
         self.cancel.store(false, .release);
+        // Published before the poller computes its next wait.
+        self.run_deadline_ms.store(times.monotonic_ms +| self.config.timeout_ms +| 1, .release);
         self.state = .queued;
         self.changed.signal();
         return null;
@@ -145,14 +158,22 @@ pub const Owner = struct {
         var since = self.timer.?;
         var total: supervisor.Report = .{};
         const hold_ns = self.config.hold_ms * std.time.ns_per_ms;
+        const continued_at_poll = self.continued_runs;
         while (true) {
             const elapsed_ms = since.read() / std.time.ns_per_ms;
             const times: supervisor.Times = .{ .unix_ms = base.unix_ms +| elapsed_ms, .monotonic_ms = base.monotonic_ms +| elapsed_ms };
             self.kicked = false;
             self.source_at_start = if (self.kick_source) |source| source.load(.acquire) else false;
+            if (self.continued_runs != continued_at_poll) {
+                self.run_deadline_ms.store(times.monotonic_ms +| self.config.timeout_ms +| 1, .release);
+                // A poller already asleep wakes at least every max_wait_ms
+                // and then sees this deadline; a shorter timeout needs a wake.
+                if (self.config.timeout_ms < supervisor.max_wait_ms) wake_notifier.notify();
+            }
             self.mutex.unlock();
             const outcome = self.run_fn(self.context, times, &self.cancel);
             self.mutex.lock();
+            self.run_deadline_ms.store(0, .release);
             const report = try outcome;
             total.work +|= report.work;
             total.halt = report.halt;
@@ -505,4 +526,93 @@ test "an unwired owner polled by a pooled task publishes through the I/O generat
     // not only on the poll_slice backstop.
     try std.testing.expect(wake_notifier.ioGeneration() != io_before);
     try std.testing.expect(scheduler.nextDelayMs(1) <= supervisor.resume_spacing_ms);
+}
+
+const StallFixture = struct {
+    owner: Owner = undefined,
+    calls: std.atomic.Value(u32) = .init(0),
+    /// Monotonic ns at which the stalled run observed its cancellation.
+    cancelled_at: std.atomic.Value(u64) = .init(0),
+    stall: bool = false,
+    /// Runs before the stalling one (each asks to run again in 1 ms).
+    stall_after: u32 = 0,
+    stalled_at: std.atomic.Value(u64) = .init(0),
+    timer: std.time.Timer = undefined,
+    fn run(context: *anyopaque, _: supervisor.Times, cancel: *const std.atomic.Value(bool)) !supervisor.Report {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        const call = self.calls.fetchAdd(1, .acq_rel) + 1;
+        if (self.stall and call <= self.stall_after) return .{ .work = 1, .next_delay_ms = 1 };
+        if (self.stall) {
+            self.stalled_at.store(self.timer.read(), .release);
+            while (!cancel.load(.acquire)) std.Thread.sleep(std.time.ns_per_ms);
+            self.cancelled_at.store(self.timer.read(), .release);
+            return error.RequestCancelled;
+        }
+        return .{ .work = 1, .next_delay_ms = 500 };
+    }
+    fn poll(context: *anyopaque, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !supervisor.Report {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        return try self.owner.poll(times, cancel) orelse error.PendingReadIo;
+    }
+    fn stop(context: *anyopaque) void {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        self.owner.requestStop();
+    }
+    fn task(self: *@This(), timeout_ms: u64) supervisor.Task {
+        return .{ .context = self, .run = poll, .interval_ms = 100, .timeout_ms = timeout_ms, .owner_wake = self.owner.ownerWake(), .owner_deadline = self.owner.ownerDeadline(), .stop_fn = stop, .nonblocking = true };
+    }
+};
+test "supervisor stop ends an owner's idle cadence wait at once, not at its hand-back" {
+    var fixture: StallFixture = .{};
+    fixture.owner = try Owner.init(&fixture, StallFixture.run, .{ .timeout_ms = 10000, .hold_ms = 1000, .notify_io = false });
+    defer fixture.owner.deinit();
+    const scheduler = try supervisor.Supervisor.start(std.testing.allocator, &.{fixture.task(10000)});
+    defer scheduler.deinit();
+    _ = try scheduler.tick(.{ .unix_ms = 0, .monotonic_ms = 0 });
+    try waitCount(&fixture.calls, 1);
+    // The owner now waits its 500 ms cadence inside the 1 s hold window.
+    std.Thread.sleep(5 * std.time.ns_per_ms);
+    var timer = try std.time.Timer.start();
+    scheduler.stop();
+    // stop_fn broadcasts the owner's condvar: the wait ends and it joins.
+    fixture.owner.deinit();
+    // Generous for a loaded test host; the wait it must not sit out is 500 ms.
+    try std.testing.expect(timer.read() < 200 * std.time.ns_per_ms);
+    try std.testing.expectEqual(@as(u32, 1), fixture.calls.load(.acquire));
+}
+fn expectDeadlineCancel(stall_after: u32) !void {
+    var fixture: StallFixture = .{ .stall = true, .stall_after = stall_after };
+    fixture.timer = try std.time.Timer.start();
+    fixture.owner = try Owner.init(&fixture, StallFixture.run, .{ .timeout_ms = 100, .hold_ms = 1000, .notify_io = false });
+    defer fixture.owner.deinit();
+    const scheduler = try supervisor.Supervisor.start(std.testing.allocator, &.{fixture.task(100)});
+    defer scheduler.deinit();
+    // The service loop: tick, then sleep to nextDelayMs or a notification.
+    const base_ms: u64 = 1000;
+    var expired_at: ?u64 = null;
+    while (fixture.timer.read() < 5 * std.time.ns_per_s) {
+        const seen = wake_notifier.current();
+        const now = base_ms + fixture.timer.read() / std.time.ns_per_ms;
+        _ = try scheduler.tick(.{ .unix_ms = now, .monotonic_ms = now });
+        if ((try scheduler.health(0)).last_error) |err| {
+            try std.testing.expectEqual(error.LaneOwnerDeadline, err);
+            expired_at = fixture.timer.read();
+            break;
+        }
+        wake_notifier.waitFrom(seen, @max(scheduler.nextDelayMs(now), 1) * std.time.ns_per_ms);
+    }
+    scheduler.stop();
+    // Cancelled at the run's 100 ms deadline (not the 1 s backstop) and
+    // reported once it retired. Slack for a loaded test host.
+    try std.testing.expect(expired_at != null);
+    const stalled = fixture.stalled_at.load(.acquire);
+    const cancelled = fixture.cancelled_at.load(.acquire);
+    try std.testing.expect(cancelled >= stalled + 50 * std.time.ns_per_ms);
+    try std.testing.expect(cancelled < stalled + 400 * std.time.ns_per_ms);
+    try std.testing.expect(expired_at.? < stalled + 400 * std.time.ns_per_ms);
+}
+test "an owner run past its timeout is cancelled at its deadline by the polling supervisor" {
+    // First run of a poll, and a run continued on the owner thread.
+    try expectDeadlineCancel(0);
+    try expectDeadlineCancel(2);
 }
