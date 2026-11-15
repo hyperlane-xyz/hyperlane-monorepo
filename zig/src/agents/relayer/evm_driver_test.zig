@@ -908,6 +908,33 @@ test "lane polling inside a live confirmation window performs no durable writes"
     try runtime.rpc.expectDone();
 }
 
+test "lane sleeps on a Lander-owned payload until Lander reports activity" {
+    const tasks = @import("../relayer_task.zig");
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = readySteps();
+    const policy: @import("../../runtime/relayer.zig").Policy = .{ .confirm_delay_ms = 600_000 };
+    var runtime = try Runtime.initAt(a, &fixture, &steps, allow_gas, .{ .blocks = 1 }, policy, now());
+    defer runtime.deinit();
+    _ = try runtime.prepareStep();
+    // Ready payload owned by Lander, no operation deadline: event-driven wait.
+    const pending = try runtime.step();
+    try std.testing.expect(tasks.awaitingLander(pending, runtime.actor.value.next_attempt_ms, now().monotonic_ms));
+    // Included payload: the confirmation window deadline drives the next poll.
+    try runtime.associate(&.{pending.payload.?}, @splat(3), @splat(4), .included);
+    const included = try runtime.step();
+    try std.testing.expectEqual(driver.State.existing_payload, included.state);
+    try std.testing.expect(!tasks.awaitingLander(included, runtime.actor.value.next_attempt_ms, now().monotonic_ms));
+    try std.testing.expect(!tasks.landerActivity(.{}));
+    try std.testing.expect(!tasks.landerActivity(.{ .deferred = 3, .transactions_scanned = 5 }));
+    try std.testing.expect(tasks.landerActivity(.{ .receipts_read = 1 }));
+    try std.testing.expect(tasks.landerActivity(.{ .built = 1 }));
+    try std.testing.expect(tasks.landerActivity(.{ .rejected = 1 }));
+    try std.testing.expect(tasks.landerActivity(.{ .stale_dropped = 1 }));
+    try runtime.rpc.expectDone();
+}
+
 test "native batch uses surviving payload estimate sum for source ratio" {
     const a = std.testing.allocator;
     var fixture = try Fixture.init(a);
