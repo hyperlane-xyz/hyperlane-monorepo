@@ -123,6 +123,10 @@ pub const Worker = struct {
             defer transactions.cancel = &self.idle_cancel;
             // Recover prior persisted transactions before accepting this request.
             try self.checkEffects();
+            // Observed on chain and nothing left to submit, confirm or reorg:
+            // ticking would only re-read the account nonce boundary. A restart
+            // already skips the lander entirely in this state (see above).
+            if (request.wire.complete and try transactions.idle()) return .{};
             _ = try transactions.tick(times.unix_ms, .{});
             if (!request.wire.complete and (self.loaded_digest == null or !std.mem.eql(u8, &self.loaded_digest.?, &request.digest) or self.loaded_revision != request.wire.revision)) {
                 try self.checkEffects();
