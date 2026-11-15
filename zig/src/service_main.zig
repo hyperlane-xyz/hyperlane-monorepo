@@ -69,6 +69,7 @@ const CredentialOwner = struct {
     }
 };
 pub fn main() void {
+    @import("runtime/malloc.zig").boundArenas();
     run() catch |err| {
         // Error names only: never print config/URLs, native diagnostics or keys.
         std.log.err("agent stopped: {s}", .{@errorName(err)});
