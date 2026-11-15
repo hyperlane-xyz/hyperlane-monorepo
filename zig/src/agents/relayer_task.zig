@@ -729,11 +729,12 @@ pub const Lane = struct {
             self.destination_initialized = true;
             if (self.critical_state) |tracker| tracker.clear(.destination);
         }
-        if (self.transactions) |*transactions| {
-            const report = try transactions.tick(times.unix_ms, .{ .max_build = 4, .max_receipts = 16 });
-            work +|= report.built + report.broadcasts + report.finalized;
-            if (landerActivity(report)) self.wakeLanderWaiters(times.monotonic_ms);
-        }
+        // An EVM lane runs its Lander tick beside the batch's advances
+        // (advanceDue); other lanes tick first.
+        const overlap_lander = self.chain.protocol == .ethereum and self.protected_network == null;
+        if (!overlap_lander) if (self.transactions != null) {
+            work +|= try self.landerTick(times);
+        };
         if (self.chain.protocol == .ethereum) self.wakeIndexWaiters(times.monotonic_ms);
         if (self.native_destination) |factory| {
             for (0..self.origins.len) |_| {
@@ -758,7 +759,7 @@ pub const Lane = struct {
         // EVM: spend the quantum only on due items. Lander waiters and
         // confirmation windows are long-lived non-due items; visiting them by
         // position would delay a due item by one owner cycle per waiter.
-        if (self.chain.protocol == .ethereum) work +|= try self.advanceDue(quantum, times, cancel);
+        if (self.chain.protocol == .ethereum) work +|= try self.advanceDue(quantum, times, cancel, overlap_lander and self.transactions != null);
         var remaining = if (self.chain.protocol == .ethereum) 0 else @min(quantum, self.active.items.len);
         while (remaining > 0 and self.active.items.len > 0) : (remaining -= 1) {
             self.next_active %= self.active.items.len;
@@ -781,8 +782,21 @@ pub const Lane = struct {
         // than after rounding it up to the next100ms owner polling boundary.
         for (self.active.items) |item| if (item.next_ms > times.monotonic_ms) {
             delay_ms = @min(delay_ms, item.next_ms - times.monotonic_ms);
+        } else if (self.chain.protocol == .ethereum and work > 0) {
+            // Due items beyond this cycle's quantum: Source pops the next
+            // prepare batch at once instead of sleeping between batches.
+            delay_ms = @min(delay_ms, 1);
         };
         return .{ .work = work, .next_delay_ms = delay_ms };
+    }
+    fn landerTick(self: *Lane, times: supervisor.Times) !u64 {
+        return self.landerTicked(times, try self.transactions.?.tick(times.unix_ms, lander_tick_limits));
+    }
+    /// Owner side, never on a batch fiber: an advance that parked awaiting
+    /// the Lander during the tick must see this wake after it settled.
+    fn landerTicked(self: *Lane, times: supervisor.Times, report: lander.Report) u64 {
+        if (landerActivity(report)) self.wakeLanderWaiters(times.monotonic_ms);
+        return report.built + report.broadcasts + report.finalized;
     }
     fn currentTimes(self: *Lane, fallback: supervisor.Times) !supervisor.Times {
         const clock = self.owner.options.observation_clock orelse return fallback;
@@ -796,8 +810,13 @@ pub const Lane = struct {
     /// batch order. Items are released only after every fiber joined; an item
     /// whose advance yielded PendingReadIo (shared-reader contention) stays
     /// due for the next cycle without failing its siblings.
-    fn advanceDue(self: *Lane, quantum: usize, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !u64 {
-        if (self.active.items.len == 0) return 0;
+    ///
+    /// With `tick_lander`, the Lander tick runs as one more sibling: its
+    /// confirmation and submission RPCs overlap the prepares. A sibling's
+    /// enqueue parks until the tick releases the Lander mutex, and items it
+    /// wakes become due on the next cycle.
+    fn advanceDue(self: *Lane, quantum: usize, times: supervisor.Times, cancel: *const std.atomic.Value(bool), tick_lander: bool) !u64 {
+        if (self.active.items.len == 0) return if (tick_lander) try self.landerTick(times) else 0;
         const now = try self.currentTimes(times);
         const limit = @min(quantum, max_batch_slots);
         var selected: [max_batch_slots]*Active = undefined;
@@ -812,19 +831,30 @@ pub const Lane = struct {
             count += 1;
             last = index;
         }
-        if (count == 0) return 0;
+        if (count == 0) return if (tick_lander) try self.landerTick(times) else 0;
         self.next_active = (last + 1) % self.active.items.len;
         // A protected estimate swaps its client's exchange for a scoped
         // deadline, so that client cannot serve overlapping advances.
-        if (count == 1 or self.protected_network != null) {
+        if (self.protected_network != null) {
             for (selected[0..count]) |item| {
-                if (try self.advanceIn(item, try self.currentTimes(times), cancel, 0, null)) try self.releaseItem(item);
+                if (try self.advanceIn(item, try self.currentTimes(times), cancel, 0, null, null)) try self.releaseItem(item);
             }
             return count;
         }
-        var batch: AdvanceBatch = .{ .lane = self, .cancel = cancel, .fallback = times, .turnstile = lane_fibers.Turnstile.init(count) };
+        if (count == 1 and !tick_lander) {
+            if (try self.advanceIn(selected[0], try self.currentTimes(times), cancel, 0, null, null)) try self.releaseItem(selected[0]);
+            return count;
+        }
+        var batch: AdvanceBatch = .{ .lane = self, .cancel = cancel, .fallback = times, .turnstile = lane_fibers.Turnstile.init(count), .lander_idle = .{ .opened = !tick_lander } };
         var spawned: usize = 0;
         var failure: ?anyerror = null;
+        var lander_work: u64 = 0;
+        var ticked: AdvanceBatch.LanderTick = .{ .batch = &batch, .times = times };
+        if (tick_lander) batch.loop.spawn(AdvanceBatch.LanderTick.run, &ticked) catch {
+            // Without a fiber the tick runs inline first, as before.
+            ticked.result = self.transactions.?.tick(times.unix_ms, lander_tick_limits);
+            batch.lander_idle.opened = true;
+        };
         for (selected[0..count], 0..) |item, position| {
             batch.turnstile.keys[position] = item.origin_index;
             batch.children[position] = .{ .batch = &batch, .item = item, .position = position };
@@ -838,6 +868,9 @@ pub const Lane = struct {
         for (spawned..count) |position| batch.turnstile.finish(position);
         // Join before any unwind: children borrow this frame and the lane.
         batch.loop.run();
+        if (tick_lander) {
+            if (ticked.result) |report| lander_work = self.landerTicked(times, report) else |err| failure = err;
+        }
         for (batch.children[0..spawned]) |child| {
             const completed = child.result catch |err| {
                 if (err != error.PendingReadIo and failure == null) failure = err;
@@ -846,7 +879,7 @@ pub const Lane = struct {
             if (completed) try self.releaseItem(child.item);
         }
         if (failure) |err| return err;
-        return count;
+        return count +| lander_work;
     }
     fn releaseItem(self: *Lane, item: *Active) !void {
         const index = std.mem.indexOfScalar(*Active, self.active.items, item) orelse return error.ActiveItemMissing;
@@ -1734,11 +1767,11 @@ pub const Lane = struct {
         return queued < limit;
     }
     pub fn advance(self: *Lane, item: *Active, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) anyerror!bool {
-        return self.advanceIn(item, times, cancel, 0, null);
+        return self.advanceIn(item, times, cancel, 0, null, null);
     }
     /// `slot` selects the scratch arena (distinct per concurrent advance);
     /// `gate` orders the Lander handoff by batch position.
-    fn advanceIn(self: *Lane, item: *Active, times: supervisor.Times, cancel: *const std.atomic.Value(bool), slot: usize, gate: ?evm_driver.HandoffGate) anyerror!bool {
+    fn advanceIn(self: *Lane, item: *Active, times: supervisor.Times, cancel: *const std.atomic.Value(bool), slot: usize, gate: ?evm_driver.HandoffGate, lander_gate: ?evm_driver.HandoffGate) anyerror!bool {
         errdefer |err| {
             if (err != error.PendingReadIo and err != error.PendingIo) {
                 item.native_prepare_admitted = false;
@@ -1816,7 +1849,7 @@ pub const Lane = struct {
                 .default_ism_cache = &self.owner.evm_default_ism_cache,
                 .cache_context = .{ .domain_name = self.chain.name, .context_hash = self.context.? },
                 .ism_cache_configs = self.owner.settings.role.relayer.ism_cache_configs,
-            }, now, .{ .local_admission = .{ .context = &sender, .allowed_fn = Sender.localAdmission }, .origin_sender = .{ .context = &sender, .fetch_fn = Sender.evmFetch }, .private_estimator = if (self.protected_network != null) .{ .context = self, .estimate_fn = privateEstimate } else null, .executor = &self.owner.metadata_executor.executor, .batch_resolver = .{ .context = self, .estimate_fn = batchEstimate }, .cost_receipt_reader = .{ .context = self, .read_fn = finalizedCostReceipt }, .ccip_handler = if (ccip_build) |value| value.binding.handler() else null, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null, .cancel = cancel, .observation = if (self.validator_observation) |*value| value.observation() else null, .observation_clock = self.owner.options.observation_clock, .handoff_gate = gate });
+            }, now, .{ .local_admission = .{ .context = &sender, .allowed_fn = Sender.localAdmission }, .origin_sender = .{ .context = &sender, .fetch_fn = Sender.evmFetch }, .private_estimator = if (self.protected_network != null) .{ .context = self, .estimate_fn = privateEstimate } else null, .executor = &self.owner.metadata_executor.executor, .batch_resolver = .{ .context = self, .estimate_fn = batchEstimate }, .cost_receipt_reader = .{ .context = self, .read_fn = finalizedCostReceipt }, .ccip_handler = if (ccip_build) |value| value.binding.handler() else null, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null, .cancel = cancel, .observation = if (self.validator_observation) |*value| value.observation() else null, .observation_clock = self.owner.options.observation_clock, .handoff_gate = gate, .lander_gate = lander_gate });
             if (!was_confirming and state.value.confirmation_started and state.current_status == .Confirm and state.current_status.Confirm == .SubmittedBySelf) self.recordPhase(item, .submitted);
             const report = try outcome;
             if (!item.recovery_only and report.state == .delivered and try origin.store.markProcessedIfCanonical(message)) self.recordProcessed(item);
@@ -2042,6 +2075,7 @@ pub fn checkEndpointChain(a: A, transport: *curl.Client, url: []const u8, expect
 }
 /// Arena capacity kept across EVM polls; larger one-off outcomes are released.
 pub const poll_arena_retain_bytes: usize = 256 * 1024;
+const lander_tick_limits: lander.TickLimits = .{ .max_build = 4, .max_receipts = 16 };
 /// Most EVM advances one owner cycle runs concurrently (the batch quantum cap).
 const max_batch_slots = lane_fibers.Turnstile.max;
 /// One concurrent EVM batch: lives on the lane owner's stack for the cycle.
@@ -2051,7 +2085,19 @@ const AdvanceBatch = struct {
     fallback: supervisor.Times,
     loop: lane_fibers.Loop = .{},
     turnstile: lane_fibers.Turnstile,
+    /// Opens when this cycle's Lander tick (if any) released the Lander.
+    lander_idle: lane_fibers.Latch,
     children: [max_batch_slots]Child = undefined,
+    const LanderTick = struct {
+        batch: *AdvanceBatch,
+        times: supervisor.Times,
+        result: anyerror!lander.Report = error.LanderTickNotRun,
+        fn run(arg: *anyopaque) void {
+            const self: *LanderTick = @ptrCast(@alignCast(arg));
+            defer self.batch.lander_idle.open();
+            self.result = self.batch.lane.transactions.?.tick(self.times.unix_ms, lander_tick_limits);
+        }
+    };
     const Child = struct {
         batch: *AdvanceBatch,
         item: *Active,
@@ -2066,11 +2112,17 @@ const AdvanceBatch = struct {
                 self.result = err;
                 return;
             };
-            self.result = batch.lane.advanceIn(self.item, times, batch.cancel, self.position, .{ .context = self, .wait_fn = gateWait });
+            self.result = batch.lane.advanceIn(self.item, times, batch.cancel, self.position, .{ .context = self, .wait_fn = gateWait }, .{ .context = self, .wait_fn = landerWait });
         }
+        /// Lander handoff: after the tick released the Lander, in batch order.
         fn gateWait(context: *anyopaque) void {
             const self: *Child = @ptrCast(@alignCast(context));
+            self.batch.lander_idle.wait(self.position);
             self.batch.turnstile.wait(self.position);
+        }
+        fn landerWait(context: *anyopaque) void {
+            const self: *Child = @ptrCast(@alignCast(context));
+            self.batch.lander_idle.wait(self.position);
         }
     };
 };

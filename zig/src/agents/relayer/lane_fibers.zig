@@ -207,6 +207,30 @@ pub const Turnstile = struct {
     }
 };
 
+/// One-shot event for fibers of one Loop: `wait` parks until `open`.
+pub const Latch = struct {
+    opened: bool = false,
+    waiters: [Turnstile.max]?*fiber.Waiter = @splat(null),
+
+    pub fn wait(self: *Latch, slot: usize) void {
+        while (!self.opened) {
+            std.debug.assert(fiber.inFiber());
+            var waiter: fiber.Waiter = .{};
+            self.waiters[slot] = &waiter;
+            _ = waiter.waitTimeout(null);
+            self.waiters[slot] = null;
+        }
+    }
+
+    pub fn open(self: *Latch) void {
+        self.opened = true;
+        for (&self.waiters) |*slot| if (slot.*) |waiter| {
+            slot.* = null;
+            waiter.wake();
+        };
+    }
+};
+
 // -- tests ------------------------------------------------------------------------
 
 const Probe = struct {

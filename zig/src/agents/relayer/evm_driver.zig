@@ -56,6 +56,10 @@ pub const Callbacks = struct {
     /// position finished, so Lander payload order follows batch order
     /// rather than RPC completion order. Never performs I/O.
     handoff_gate: ?HandoffGate = null,
+    /// Concurrent batch beside a Lander tick: parks until that tick released
+    /// the Lander, before this step replays a sealed payload into it (the
+    /// replay holds the origin store lock; it must never wait inside it).
+    lander_gate: ?HandoffGate = null,
 };
 
 pub const HandoffGate = struct {
@@ -128,6 +132,7 @@ pub const Driver = struct {
             const uuid = value.record().payload.uuid;
             const replayed = self.replayed_payload != null and std.mem.eql(u8, &self.replayed_payload.?, &uuid) and actor.value.stage == .ready;
             if (!replayed) {
+                if (callbacks.lander_gate) |gate| gate.wait_fn(gate.context);
                 try value.replay(destination);
                 if (actor.value.stage != .denied) try actor.payloadEnqueued(value.record().generation, now);
                 self.replayed_payload = uuid;

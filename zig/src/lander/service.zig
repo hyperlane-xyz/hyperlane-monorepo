@@ -238,7 +238,7 @@ pub const Service = struct {
     /// Input is borrowed only for this call. The canonical payload, indexes and
     /// delivery metadata are synchronized before the UUID is returned.
     pub fn enqueue(self: *Service, input: EnqueueInput) !EnqueueResult {
-        self.mutex.lock();
+        self.lock();
         defer self.mutex.unlock();
         if (self.cancel.load(.acquire)) return error.Cancelled;
         if (std.mem.eql(u8, &input.payload.uuid, &types.nil_uuid)) return error.InvalidPayloadUuid;
@@ -267,7 +267,7 @@ pub const Service = struct {
     /// tick would only refresh the nonce boundary; owners may stop ticking
     /// until their next enqueue. Reads durable indexes, not in-memory counters.
     pub fn idle(self: *Service) !bool {
-        self.mutex.lock();
+        self.lock();
         defer self.mutex.unlock();
         if (!self.recovery_complete or !self.payload_reconcile_complete) return false;
         if (try self.store.reorgRange(self.allocator, self.config.signer.address) != null) return false;
@@ -287,8 +287,19 @@ pub const Service = struct {
         return true;
     }
 
+    /// A tick holds the mutex across its RPCs. When it runs on a fiber beside
+    /// its owner's other fibers (one thread), a sibling must not block that
+    /// thread on the mutex: it parks in short slices until the tick is done.
+    fn lock(self: *Service) void {
+        if (!@import("../runtime/fiber.zig").inFiber()) return self.mutex.lock();
+        while (!self.mutex.tryLock()) {
+            var nap: @import("../runtime/fiber.zig").Waiter = .{};
+            _ = nap.waitTimeout(@import("../runtime/fiber.zig").monoMs() + 1);
+        }
+    }
+
     pub fn tick(self: *Service, now_ms: u64, limits: TickLimits) !Report {
-        self.mutex.lock();
+        self.lock();
         defer self.mutex.unlock();
         if (self.cancel.load(.acquire)) return error.Cancelled;
         if (limits.max_transactions == 0 or limits.max_receipts == 0 or limits.max_payload_scan == 0) return error.InvalidTickLimits;
