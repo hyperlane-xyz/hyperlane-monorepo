@@ -43,6 +43,14 @@ pub fn main() !void {
             std.mem.doNotOptimizeAway(signed);
             checksum +%= signed[i % 65];
         }
+    } else if (std.mem.eql(u8, args[1], "sign-unverified")) {
+        // Signing without the production fault self-check, for attribution only.
+        for (0..count) |i| {
+            std.mem.doNotOptimizeAway(&digests);
+            const signed = try signature.benchmark.signWithoutFaultCheck(key, digests[i % 16], null);
+            std.mem.doNotOptimizeAway(signed);
+            checksum +%= signed[i % 65];
+        }
     } else return error.UnknownKernel;
     const elapsed = timer.read();
     const output = try std.json.Stringify.valueAlloc(a, .{ .kernel = args[1], .iterations = count, .elapsed_ns = elapsed, .checksum = checksum }, .{});

@@ -87,7 +87,23 @@ pub fn recoverCompatible(digest: Hash, r: Hash, s: Hash, v: u64) !Address {
 /// Byte-identical to std's EcdsaSecp256k1Sha256.signPrehashed followed by low-s
 /// normalisation, but keeps R=kG so the Ethereum recovery id comes from R.y
 /// parity (flipped when s is negated) instead of trial public-key recoveries.
+///
+/// Fault-attack countermeasure: with deterministic nonces a single faulted
+/// signature can reveal the key, so every signature is verified against
+/// Q = d*G (see `selfCheck`) and an inconsistent one is never returned.
 pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
+    const signature = try signUnverified(secret_key, digest, noise);
+    try selfCheck(secret_key, digest, signature);
+    return signature;
+}
+
+/// Benchmark/diagnostic access only. Production callers must use signDigest:
+/// these skip the fault self-check.
+pub const benchmark = struct {
+    pub const signWithoutFaultCheck = signUnverified;
+};
+
+fn signUnverified(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
     const d = try Scalar.fromBytes(secret_key, .big);
     if (d.isZero()) return error.InvalidSecretKey;
     const z = reducedHash(digest);
@@ -113,6 +129,27 @@ pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
     signature[32..64].* = s_bytes;
     signature[64] = 27 + parity;
     return signature;
+}
+
+/// Verifies the serialized signature against Q = d*G before release: the
+/// point s^-1(zG + rQ) must have x = r and y parity = v, i.e. exactly what
+/// `recover` would reconstruct, without the square root or address hash.
+/// Q comes from the constant-time comb; the double multiplication only sees
+/// public values (Q, z, r, s). Any mismatch (a fault in k*G, the scalar
+/// arithmetic or serialization) fails closed.
+fn selfCheck(secret_key: Hash, digest: Hash, signature: Signature) error{SignatureSelfCheckFailed}!void {
+    const fail = error.SignatureSelfCheckFailed;
+    const d = Scalar.fromBytes(secret_key, .big) catch return fail;
+    const q = secp256k1.mulBase(d.toBytes(.little)) catch return fail;
+    const r = Scalar.fromBytes(signature[0..32].*, .big) catch return fail;
+    const s = Scalar.fromBytes(signature[32..64].*, .big) catch return fail;
+    if (r.isZero() or s.isZero()) return fail;
+    const w = s.invert();
+    const z = reducedHash(digest);
+    const point = secp256k1.mulDoubleBasePublic(z.mul(w).toBytes(.little), q, r.mul(w).toBytes(.little)) catch return fail;
+    const affine = point.affine() catch return fail;
+    if (!std.mem.eql(u8, &affine.x.toBytes(), signature[0..32])) return fail;
+    if (@intFromBool(affine.y.isOdd()) != signature[64] -% 27) return fail;
 }
 
 /// std.crypto.sign.ecdsa deterministicScalar for secp256k1/HMAC-SHA256: the
@@ -408,4 +445,24 @@ test "derived recovery id recovers signer and matches trial-recovery signer byte
     }
     // Both recovery ids must be exercised for the parity derivation to be tested.
     try std.testing.expect(parities[0] > 100 and parities[1] > 100);
+}
+
+test "fault self-check rejects any corrupted signature component" {
+    const key = [_]u8{0x11} ** 32;
+    const digest = [_]u8{0x22} ** 32;
+    const good = try benchmark.signWithoutFaultCheck(key, digest, null);
+    try selfCheck(key, digest, good);
+    try std.testing.expectEqual(good, try signDigest(key, digest, null));
+    // Simulated faults: flipped bits in r, s and v, and a signature made under
+    // a different nonce (as a faulted k*G would produce) all fail closed.
+    for ([_]usize{ 0, 17, 31, 32, 50, 63, 64 }) |byte| {
+        var faulted = good;
+        faulted[byte] ^= 1;
+        try std.testing.expectError(error.SignatureSelfCheckFailed, selfCheck(key, digest, faulted));
+    }
+    const other_nonce = try benchmark.signWithoutFaultCheck(key, digest, .{0x33} ** 32);
+    var mixed = good;
+    mixed[0..32].* = other_nonce[0..32].*;
+    try std.testing.expectError(error.SignatureSelfCheckFailed, selfCheck(key, digest, mixed));
+    try std.testing.expectError(error.SignatureSelfCheckFailed, selfCheck(.{0x12} ** 32, digest, good));
 }
