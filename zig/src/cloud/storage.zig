@@ -250,12 +250,22 @@ pub const Store = struct {
 
     /// Pre-signed publication only. Caller must serialize/check its signing
     /// reservations before requesting an external KMS signature.
+    /// Raw input: one recovery against the configured signer.
     pub fn writeCheckpoint(self: *Store, signed: objects.SignedCheckpoint, unix_timestamp: u64, date: []const u8) !local.WriteResult {
+        const expected = self.options.signer orelse return error.MissingStoreSigner;
+        const verified = local.VerifiedCheckpoint.recoverFrom(signed, expected) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
+        return self.writeVerifiedCheckpoint(verified, unix_timestamp, date);
+    }
+
+    /// Verified input: the established signer must be the configured signer;
+    /// no recovery of the new object (an existing object is still recovered).
+    pub fn writeVerifiedCheckpoint(self: *Store, verified: local.VerifiedCheckpoint, unix_timestamp: u64, date: []const u8) !local.WriteResult {
         self.mutex.lock();
         defer self.mutex.unlock();
         try self.requireWrite();
         const expected = self.options.signer orelse return error.MissingStoreSigner;
-        if (!std.mem.eql(u8, &try signed.recover(), &expected)) return error.WrongStoreSigner;
+        verified.require(expected) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
+        const signed = verified.signed;
         var result: local.WriteResult = .written;
         if (try self.fetchCheckpoint(signed.value.index)) |previous| {
             if (std.mem.eql(u8, &try previous.recover(), &expected)) {

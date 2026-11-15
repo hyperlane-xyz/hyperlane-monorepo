@@ -7,6 +7,77 @@ const protocol = @import("../protocol/root.zig");
 const Allocator = std.mem.Allocator;
 pub const max_object_bytes = 50 * 1024;
 
+/// A signed checkpoint whose signer address was established by one of two
+/// paths only: a SigningKey's sign path (every signature is verified against
+/// the key's Q before release) or an actual ECDSA recovery. Consumers call
+/// `require(expected)` against their configured validator address, which also
+/// rejects any value not produced (or altered after production) by these
+/// constructors: `tag` is an HMAC under a process-random key that no other
+/// module can read. Requiring is two compares and one HMAC, never a recovery.
+pub const VerifiedCheckpoint = struct {
+    signed: objects.SignedCheckpoint,
+    signer: objects.Address,
+    tag: [32]u8,
+
+    /// Local keys: zero recoveries; the signature was checked against Q.
+    pub fn signWith(key: *const protocol.signature.SigningKey, value: objects.Checkpoint, noise: ?objects.Hash) !VerifiedCheckpoint {
+        const signed: objects.SignedCheckpoint = .{ .value = value, .signature = objects.Signature.fromBytes(try key.sign(value.digest(), noise)) };
+        return seal(signed, key.address);
+    }
+
+    /// Raw signatures (KMS/remote signers, storage reads): one recovery,
+    /// compared with the expected validator address.
+    pub fn recoverFrom(signed: objects.SignedCheckpoint, expected: objects.Address) !VerifiedCheckpoint {
+        if (@import("builtin").is_test) _ = test_recoveries.fetchAdd(1, .monotonic);
+        const recovered = try signed.recover();
+        if (!std.mem.eql(u8, &recovered, &expected)) return error.WrongSigner;
+        return seal(signed, recovered);
+    }
+
+    /// Fails unless this value came unmodified from a constructor above and
+    /// its established signer is the caller's configured validator address.
+    pub fn require(self: *const VerifiedCheckpoint, expected: objects.Address) !void {
+        const tag = mac(self.signed, self.signer);
+        if (!std.crypto.timing_safe.eql([32]u8, tag, self.tag)) return error.UnverifiedCheckpoint;
+        if (!std.mem.eql(u8, &self.signer, &expected)) return error.WrongSigner;
+    }
+
+    fn seal(signed: objects.SignedCheckpoint, signer: objects.Address) VerifiedCheckpoint {
+        return .{ .signed = signed, .signer = signer, .tag = mac(signed, signer) };
+    }
+
+    fn mac(signed: objects.SignedCheckpoint, signer: objects.Address) [32]u8 {
+        const Hmac = std.crypto.auth.hmac.sha2.HmacSha256;
+        seal_key_once.call();
+        var state = Hmac.init(&seal_key);
+        const c = signed.value;
+        state.update(&c.merkle_tree_hook_address);
+        var domain: [4]u8 = undefined;
+        std.mem.writeInt(u32, &domain, c.mailbox_domain, .big);
+        state.update(&domain);
+        state.update(&c.root);
+        var index: [4]u8 = undefined;
+        std.mem.writeInt(u32, &index, c.index, .big);
+        state.update(&index);
+        state.update(&c.message_id);
+        state.update(&signed.signature.bytes());
+        var v: [8]u8 = undefined;
+        std.mem.writeInt(u64, &v, signed.signature.v, .big);
+        state.update(&v);
+        state.update(&signer);
+        var out: [32]u8 = undefined;
+        state.final(&out);
+        return out;
+    }
+};
+var seal_key: [32]u8 = undefined;
+var seal_key_once = std.once(initSealKey);
+fn initSealKey() void {
+    std.crypto.random.bytes(&seal_key);
+}
+/// Test-only count of recoveries performed at the VerifiedCheckpoint boundary.
+pub var test_recoveries: std.atomic.Value(usize) = .init(0);
+
 pub const Options = struct {
     read_only: bool = true,
     signer: ?objects.Address = null,
@@ -162,14 +233,23 @@ pub const LocalStore = struct {
 
     /// Same-signer conflict is checked against durable state before publication.
     /// A different key's valid object may be overwritten, as in Rust submit.rs.
+    /// Raw input: one recovery against the configured signer.
     pub fn writeCheckpoint(self: *LocalStore, signed: objects.SignedCheckpoint, unix_timestamp: u64) !WriteResult {
+        const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
+        const verified = VerifiedCheckpoint.recoverFrom(signed, expected_signer) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
+        return self.writeVerifiedCheckpoint(verified, unix_timestamp);
+    }
+
+    /// Verified input: the established signer must be the configured signer;
+    /// no recovery.
+    pub fn writeVerifiedCheckpoint(self: *LocalStore, verified: VerifiedCheckpoint, unix_timestamp: u64) !WriteResult {
         self.mutex.lock();
         defer self.mutex.unlock();
         try self.requireWrite();
         const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
-        if (!std.mem.eql(u8, &try signed.recover(), &expected_signer)) return error.WrongStoreSigner;
-        const result = try self.inspectCheckpointLocked(signed.value, unix_timestamp);
-        if (result != .already_present) try self.writeCheckpointLocked(signed);
+        verified.require(expected_signer) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
+        const result = try self.inspectCheckpointLocked(verified.signed.value, unix_timestamp);
+        if (result != .already_present) try self.writeCheckpointLocked(verified.signed);
         return result;
     }
 
@@ -241,7 +321,7 @@ pub const LocalStore = struct {
         }
         const signed = try objects.SignedCheckpoint.parse(self.allocator, bytes);
         if (signed.value.index != index) return error.WrongCheckpointIndex;
-        if (!std.mem.eql(u8, &try signed.recover(), &expected_signer)) return error.WrongStoreSigner;
+        _ = VerifiedCheckpoint.recoverFrom(signed, expected_signer) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
     }
 
     /// Rust publishes the newest checkpoint before filling historical indices.
@@ -565,4 +645,58 @@ test "nested and absolute writer directories are created through durable parent 
     defer store.deinit();
     try store.writeMetadata("{}");
     try std.testing.expectError(error.StoreAlreadyLocked, LocalStore.open(allocator, std.fs.cwd(), absolute, options));
+}
+
+test "verified checkpoints come only from the checked signing path or a recovery and reject tampering" {
+    const allocator = std.testing.allocator;
+    _ = allocator;
+    var key = try protocol.signature.SigningKey.init(.{0x11} ** 32);
+    defer key.deinit();
+    const value: objects.Checkpoint = .{ .merkle_tree_hook_address = .{0x22} ** 32, .mailbox_domain = 1000, .root = .{0x44} ** 32, .index = 7, .message_id = .{0x33} ** 32 };
+    const signed = try VerifiedCheckpoint.signWith(&key, value, null);
+    try signed.require(key.address);
+    try std.testing.expectError(error.WrongSigner, signed.require(.{0x99} ** 20));
+    // Altering the value, signature or claimed signer invalidates the seal.
+    var altered = signed;
+    altered.signed.value.root[0] ^= 1;
+    try std.testing.expectError(error.UnverifiedCheckpoint, altered.require(key.address));
+    var relabelled = signed;
+    relabelled.signer = .{0x99} ** 20;
+    try std.testing.expectError(error.UnverifiedCheckpoint, relabelled.require(.{0x99} ** 20));
+    // A literal built from raw bytes has no valid seal.
+    const forged: VerifiedCheckpoint = .{ .signed = signed.signed, .signer = key.address, .tag = @splat(0) };
+    try std.testing.expectError(error.UnverifiedCheckpoint, forged.require(key.address));
+    // Raw signatures recover once and must match the expected address.
+    const before = test_recoveries.load(.monotonic);
+    const recovered = try VerifiedCheckpoint.recoverFrom(signed.signed, key.address);
+    try recovered.require(key.address);
+    try std.testing.expectEqual(before + 1, test_recoveries.load(.monotonic));
+    var other = try protocol.signature.SigningKey.init(.{0x12} ** 32);
+    defer other.deinit();
+    const foreign = try VerifiedCheckpoint.signWith(&other, value, null);
+    try std.testing.expectError(error.WrongSigner, VerifiedCheckpoint.recoverFrom(foreign.signed, key.address));
+    var bad_signature = signed.signed;
+    bad_signature.signature.s = 0;
+    try std.testing.expect(std.meta.isError(VerifiedCheckpoint.recoverFrom(bad_signature, key.address)));
+}
+
+test "verified checkpoint writes skip recovery but still require the configured signer" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const allocator = std.testing.allocator;
+    var store = try LocalStore.open(allocator, tmp.dir, "store", try testOptions(.{0x11} ** 32));
+    defer store.deinit();
+    var key = try protocol.signature.SigningKey.init(.{0x11} ** 32);
+    defer key.deinit();
+    var other = try protocol.signature.SigningKey.init(.{0x12} ** 32);
+    defer other.deinit();
+    const value = (try testCheckpoint(0, 1, .{0x11} ** 32)).value;
+    const before = test_recoveries.load(.monotonic);
+    try std.testing.expectEqual(WriteResult.written, try store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&key, value, null), 1));
+    try store.writeLatestIndex(0);
+    try std.testing.expectEqual(before, test_recoveries.load(.monotonic));
+    var next = value;
+    next.index = 1;
+    try std.testing.expectError(error.WrongStoreSigner, store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&other, next, null), 1));
+    try std.testing.expect(try store.fetchCheckpoint(1) == null);
 }

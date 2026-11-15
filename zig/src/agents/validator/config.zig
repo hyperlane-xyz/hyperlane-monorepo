@@ -73,8 +73,14 @@ pub const Resources = struct {
         const s: *digest_signer.DigestSigner = @ptrCast(@alignCast(ctx));
         return s.signDigest(&hash);
     }
-    fn checkpointSignature(ctx: *anyopaque, checkpoint: service.Checkpoint) !objects.SignedCheckpoint {
-        return .{ .value = checkpoint, .signature = objects.Signature.fromBytes(try rawSignature(ctx, checkpoint.digest())) };
+    /// Local key: SigningKey's checked sign path (no recovery). KMS: raw bytes
+    /// are recovered once against the resolved key address.
+    fn checkpointSignature(ctx: *anyopaque, checkpoint: service.Checkpoint) !service.Verified {
+        const s: *digest_signer.DigestSigner = @ptrCast(@alignCast(ctx));
+        return switch (s.backend) {
+            .local => |*key| service.Verified.signWith(key, checkpoint, null),
+            else => service.Verified.recoverFrom(.{ .value = checkpoint, .signature = objects.Signature.fromBytes(try s.signDigest(&checkpoint.digest())) }, s.address),
+        };
     }
     pub fn publisher(self: *Resources) service.Publisher {
         return switch (self.publisher_adapter) {
