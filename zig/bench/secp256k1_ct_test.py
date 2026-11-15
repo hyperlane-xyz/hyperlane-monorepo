@@ -2,7 +2,8 @@
 """Constant-time shape check for secp256k1 signing primitives on x86_64-v3.
 
 Compiles zig/src/protocol/secp256k1.zig's secret-handling entry points
-(comb k*G, field mul/add/sub/neg/select/inversion, mixed addition) to
+(comb k*G, field mul/add/sub/neg/select/inversion, mixed addition, safegcd
+nonce inversion) to
 assembly with $ZIG (skips if unset) and asserts that every conditional
 branch in them and their callees is a backward loop branch on a counter
 (flags set by cmp/add/sub/inc/dec against an immediate). Any data-dependent
@@ -42,8 +43,11 @@ export fn ct_add_mixed(p: *const secp.Point, q: *const secp.Affine, out: *secp.P
 export fn ct_affine_x(p: *const secp.Point, out: *[32]u8) void {
     out.* = p.x.mul(p.z.invert()).toBytes();
 }
+export fn ct_scalar_invert(k: *const u256, out: *u256) void {
+    out.* = secp.scalar_inverse(k.*);
+}
 '''
-EXPORTS = ["ct_mulbase", "ct_invert", "ct_field", "ct_add_mixed", "ct_affine_x"]
+EXPORTS = ["ct_mulbase", "ct_invert", "ct_field", "ct_add_mixed", "ct_affine_x", "ct_scalar_invert"]
 LABEL = re.compile(r'^"?([A-Za-z_.$][^:"]*)"?:\s*(#.*)?$')
 COUNTER = re.compile(r'^(cmp|add|sub)\s+\w+,\s*-?\d+$|^(inc|dec)\s+\w+$')
 

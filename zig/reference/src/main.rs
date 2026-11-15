@@ -105,6 +105,21 @@ fn bench(kernel: &str, iterations: u32, body_len: usize) -> Result<(), Box<dyn s
                 checksum = checksum.wrapping_add(1);
             }
         }
+        // Same-safety comparison for Zig's checked signer: k256 signing followed
+        // by verify_prehash against the signer's public key (Rust agents do not
+        // verify their own signatures).
+        "sign_with_verify" => {
+            use k256::ecdsa::signature::hazmat::PrehashVerifier;
+            let verifying_key = *signer.verifying_key();
+            for i in 0..iterations {
+                let digest = kernel_digest(i);
+                let (signature, recovery_id) =
+                    signer.sign_prehash_recoverable(black_box(&digest))?;
+                verifying_key.verify_prehash(&digest, &signature)?;
+                black_box((signature, recovery_id));
+                checksum = checksum.wrapping_add(1);
+            }
+        }
         "recover" => {
             for i in 0..iterations {
                 let slot = (i % 16) as usize;

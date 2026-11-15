@@ -76,31 +76,83 @@ pub fn recoverCompatible(digest: Hash, r: Hash, s: Hash, v: u64) !Address {
     return recover(digest, signature);
 }
 
-/// EIP-191 wrapping must happen before calling this function. Secret key bytes
-/// and optional fault-hardening noise are supplied by the caller; no global RNG
-/// is consulted, making deterministic simulation possible. Null noise produces
-/// a deterministic signature. No private keys are formatted or logged here.
-///
-/// Byte-identical to std's EcdsaSecp256k1Sha256.signPrehashed followed by low-s
-/// normalisation, but keeps R=kG so the Ethereum recovery id comes from R.y
-/// parity (flipped when s is negated) instead of trial public-key recoveries.
-///
-/// Fault-attack countermeasure: with deterministic nonces a single faulted
-/// signature can reveal the key, so every signature is verified against
-/// Q = d*G (see `selfCheck`) and an inconsistent one is never returned.
-pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
-    const signature = try signUnverified(secret_key, digest, noise);
-    try selfCheck(secret_key, digest, signature);
-    return signature;
-}
+/// A local secp256k1 signing identity. The public key Q = d*G (and its wNAF
+/// table) is derived once here; it is the signer's identity, used to verify
+/// every signature before release.
+pub const SigningKey = struct {
+    secret: Hash,
+    public_key: secp256k1.Affine,
+    public_table: secp256k1.WideTable,
+    address: Address,
 
-/// Benchmark/diagnostic access only. Production callers must use signDigest:
-/// these skip the fault self-check.
-pub const benchmark = struct {
-    pub const signWithoutFaultCheck = signUnverified;
+    pub fn init(secret_key: Hash) !SigningKey {
+        var d = try Scalar.fromBytes(secret_key, .big);
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
+        if (d.isZero()) return error.InvalidSecretKey;
+        var little = d.toBytes(.little);
+        defer std.crypto.secureZero(u8, &little);
+        const q = try secp256k1.mulBase(little);
+        const affine = try q.affine();
+        return .{
+            .secret = secret_key,
+            .public_key = affine,
+            .public_table = secp256k1.WideTable.init(secp256k1.Point.fromAffine(affine)),
+            .address = addressOfCoordinates(affine.x.toBytes(), affine.y.toBytes()),
+        };
+    }
+
+    pub fn deinit(self: *SigningKey) void {
+        std.crypto.secureZero(u8, &self.secret);
+    }
+
+    /// SEC1 compressed public key.
+    pub fn compressedPublicKey(self: *const SigningKey) [33]u8 {
+        var out: [33]u8 = undefined;
+        out[0] = 2 + @as(u8, @intFromBool(self.public_key.y.isOdd()));
+        out[1..33].* = self.public_key.x.toBytes();
+        return out;
+    }
+
+    /// EIP-191 wrapping must happen before calling this function. Optional
+    /// fault-hardening noise is supplied by the caller; no global RNG is
+    /// consulted. Null noise produces a deterministic signature.
+    ///
+    /// Byte-identical to std's EcdsaSecp256k1Sha256.signPrehashed followed by
+    /// low-s normalisation; the recovery id comes from R.y parity (flipped
+    /// when s is negated).
+    ///
+    /// Fault-attack countermeasure: with deterministic nonces one faulted
+    /// signature can reveal the key, so every signature is verified against
+    /// this key's Q (see `verifyBeforeRelease`) and never returned otherwise.
+    pub fn sign(self: *const SigningKey, digest: Hash, noise: ?[32]u8) !Signature {
+        const signed = try signCore(self.secret, digest, noise);
+        try verifyBeforeRelease(self, digest, signed.signature, signed.r_point);
+        return signed.signature;
+    }
 };
 
-fn signUnverified(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
+/// Convenience for one-off signing: derives the key (one extra d*G) per call.
+/// Long-lived signers should hold a SigningKey.
+pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
+    var key = try SigningKey.init(secret_key);
+    defer key.deinit();
+    return key.sign(digest, noise);
+}
+
+/// Signing without the fault self-check, for benchmark attribution only. It
+/// exists only when the executable root declares
+/// `kernel_bench_unverified_signing` (zig/bench/main.zig,
+/// zig/src/crypto_bench.zig); in any other build, including the agents, using
+/// it is a compile error.
+pub const benchmark = if (@hasDecl(@import("root"), "kernel_bench_unverified_signing")) struct {
+    pub fn signWithoutFaultCheck(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
+        return (try signCore(secret_key, digest, noise)).signature;
+    }
+} else struct {};
+
+const Signed = struct { signature: Signature, r_point: secp256k1.Affine };
+
+fn signCore(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
     // Secret intermediates (d, k, k bytes, k^-1, z + r*d) are wiped on return.
     var d = try Scalar.fromBytes(secret_key, .big);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
@@ -117,7 +169,8 @@ fn signUnverified(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
     if (std.mem.readInt(u256, &x, .big) >= Curve.scalar.field_order) return error.UnrepresentableRecoveryId;
     const r = try Scalar.fromBytes(x, .big);
     if (r.isZero()) return error.IdentityElement;
-    var k_inverse = k.invert();
+    // Constant-time safegcd inversion (secp256k1_scalar.zig).
+    var k_inverse = try Scalar.fromBytes(@bitCast(@import("secp256k1_scalar.zig").invert(@bitCast(k_bytes))), .little);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&k_inverse));
     var t = z.add(r.mul(d));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&t));
@@ -134,31 +187,28 @@ fn signUnverified(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
     signature[0..32].* = x;
     signature[32..64].* = s_bytes;
     signature[64] = 27 + parity;
-    return signature;
+    return .{ .signature = signature, .r_point = point };
 }
 
-/// Verifies the serialized signature against Q = d*G before release: the
-/// point s^-1(zG + rQ) must have x = r and y parity = v, i.e. exactly what
-/// `recover` would reconstruct, without the square root or address hash.
-/// Q comes from the constant-time comb; the double multiplication only sees
-/// public values (Q, z, r, s). Any mismatch (a fault in k*G, the scalar
-/// arithmetic or serialization) fails closed.
-fn selfCheck(secret_key: Hash, digest: Hash, signature: Signature) error{SignatureSelfCheckFailed}!void {
+/// Verifies the serialized (r, s, v) against the key's true Q, using the R
+/// computed while signing and no inversion: x(R) must equal r, R' (R with
+/// the y parity v names) must be R or -R, and s*R' == z*G + r*Q, checked as
+/// z*G + r*Q + (n - s)*R' == identity with one shared GLV/wNAF chain. This
+/// catches faults in d, k, k*G, s and serialization. Only public values
+/// enter the variable-time multiplication.
+fn verifyBeforeRelease(key: *const SigningKey, digest: Hash, signature: Signature, r_point: secp256k1.Affine) error{SignatureSelfCheckFailed}!void {
     const fail = error.SignatureSelfCheckFailed;
-    var d = Scalar.fromBytes(secret_key, .big) catch return fail;
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
-    var d_bytes = d.toBytes(.little);
-    defer std.crypto.secureZero(u8, &d_bytes);
-    const q = secp256k1.mulBase(d_bytes) catch return fail;
+    if (!std.mem.eql(u8, &r_point.x.toBytes(), signature[0..32])) return fail;
+    if (signature[64] != 27 and signature[64] != 28) return fail;
     const r = Scalar.fromBytes(signature[0..32].*, .big) catch return fail;
     const s = Scalar.fromBytes(signature[32..64].*, .big) catch return fail;
     if (r.isZero() or s.isZero()) return fail;
-    const w = s.invert();
+    const odd = signature[64] == 28;
+    const named: secp256k1.Affine = if (r_point.y.isOdd() == odd) r_point else r_point.neg();
+    const r_table = secp256k1.OddMultiples.init(secp256k1.Point.fromAffine(named));
     const z = reducedHash(digest);
-    const point = secp256k1.mulDoubleBasePublic(z.mul(w).toBytes(.little), q, r.mul(w).toBytes(.little)) catch return fail;
-    const affine = point.affine() catch return fail;
-    if (!std.mem.eql(u8, &affine.x.toBytes(), signature[0..32])) return fail;
-    if (@intFromBool(affine.y.isOdd()) != signature[64] -% 27) return fail;
+    const sum = secp256k1.multiMulPublicFixed(1, .{.{ .table = &key.public_table, .scalar = r.toBytes(.little) }}, 1, z.toBytes(.little), .{&r_table}, .{s.neg().toBytes(.little)}) catch return fail;
+    if (!sum.isIdentity()) return fail;
 }
 
 /// std.crypto.sign.ecdsa deterministicScalar for secp256k1/HMAC-SHA256: the
@@ -478,23 +528,35 @@ test "derived recovery id recovers signer and matches std-only reference signer 
 }
 
 test "fault self-check rejects any corrupted signature component" {
-    const key = [_]u8{0x11} ** 32;
+    var key = try SigningKey.init(.{0x11} ** 32);
+    defer key.deinit();
     const digest = [_]u8{0x22} ** 32;
-    const good = try benchmark.signWithoutFaultCheck(key, digest, null);
-    try selfCheck(key, digest, good);
-    try std.testing.expectEqual(good, try signDigest(key, digest, null));
-    // Simulated faults: flipped bits in r, s and v, and a signature made under
-    // a different nonce (as a faulted k*G would produce) all fail closed.
+    const good = try signCore(key.secret, digest, null);
+    try verifyBeforeRelease(&key, digest, good.signature, good.r_point);
+    try std.testing.expectEqual(good.signature, try key.sign(digest, null));
+    try std.testing.expectEqual(good.signature, try signDigest(key.secret, digest, null));
+    // Simulated faults: flipped bits in r, s and v; R from another nonce (a
+    // faulted k*G); and a signature checked against another key (a faulted d)
+    // all fail closed.
     for ([_]usize{ 0, 17, 31, 32, 50, 63, 64 }) |byte| {
-        var faulted = good;
+        var faulted = good.signature;
         faulted[byte] ^= 1;
-        try std.testing.expectError(error.SignatureSelfCheckFailed, selfCheck(key, digest, faulted));
+        try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key, digest, faulted, good.r_point));
     }
-    const other_nonce = try benchmark.signWithoutFaultCheck(key, digest, .{0x33} ** 32);
-    var mixed = good;
-    mixed[0..32].* = other_nonce[0..32].*;
-    try std.testing.expectError(error.SignatureSelfCheckFailed, selfCheck(key, digest, mixed));
-    try std.testing.expectError(error.SignatureSelfCheckFailed, selfCheck(.{0x12} ** 32, digest, good));
+    const other_nonce = try signCore(key.secret, digest, .{0x33} ** 32);
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key, digest, good.signature, other_nonce.r_point));
+    var mixed = good.signature;
+    mixed[0..32].* = other_nonce.signature[0..32].*;
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key, digest, mixed, other_nonce.r_point));
+    var other_key = try SigningKey.init(.{0x12} ** 32);
+    defer other_key.deinit();
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&other_key, digest, good.signature, good.r_point));
+    // A consistently faulted d (signature made with d' but checked against the
+    // true Q) is caught, unlike a (z + r*d)*G == s*R style check.
+    const faulted_d = try signCore(other_key.secret, digest, null);
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key, digest, faulted_d.signature, faulted_d.r_point));
+    try std.testing.expectEqualSlices(u8, &key.address, &try secretKeyAddress(key.secret));
+    try std.testing.expectEqualSlices(u8, &(try Curve.basePoint.mul(key.secret, .big)).toCompressedSec1(), &key.compressedPublicKey());
 }
 
 /// Random cases for the in-tree differential; reduced in Debug where std's

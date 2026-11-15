@@ -1,16 +1,23 @@
 {
-  "source_commit": "f5f55d65a6",
-  "previous_run": {
-    "source_commit": "c495cea5a6",
-    "cases": 1000000,
-    "failures": 0
-  },
+  "source_commit": "325a60a63e",
+  "previous_runs": [
+    {
+      "source_commit": "f5f55d65a6",
+      "cases": 1000000,
+      "failures": 0
+    },
+    {
+      "source_commit": "c495cea5a6",
+      "cases": 1000000,
+      "failures": 0
+    }
+  ],
   "command": "zig build-exe -O ReleaseFast zig/src/crypto_bench.zig && ./crypto_bench differential 1000000 20261115",
   "zig": "0.15.2",
   "host": "Apple M3 Pro (shared, loaded)",
   "optimize": "ReleaseFast",
   "reference": "zig/src/protocol/secp256k1_reference.zig: std.crypto only (EcdsaSecp256k1Sha256 signPrehashed + low-s + std-only trial recovery for v; Secp256k1.fromSec1/mulDoubleBasePublic recovery; std Keccak256)",
-  "checks": "per case: random key/digest, null or random noise alternating; production signDigest (with fault self-check) bytes equal reference; recover(signature) equal; random 65-byte signature (s top bit cleared, v 27/28) gives identical address or identical error",
+  "checks": "per case: random key/digest, null or random noise alternating; production signDigest (SigningKey with the pre-release verification against Q, safegcd nonce inversion) bytes equal the std-only reference; recover(signature) equal; random 65-byte signature (s top bit cleared, v 27/28) gives identical address or identical error",
   "result": {
     "kernel": "differential",
     "cases": 1000000,
@@ -20,8 +27,8 @@
     "matching_recoveries": 1000000,
     "random_signatures_rejected_identically": 500381,
     "failures": 0,
-    "elapsed_ns": 163804249209
+    "elapsed_ns": 205115068667
   },
-  "max_rss_bytes": 2129920,
+  "max_rss_bytes": 2310144,
   "note": "elapsed_ns is wall time on a loaded shared host, not a performance claim"
 }

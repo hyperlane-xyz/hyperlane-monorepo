@@ -2,6 +2,9 @@
 const std = @import("std");
 const protocol = @import("agents").protocol;
 const allocator = std.heap.smp_allocator;
+/// Opts this benchmark root into protocol.signature.benchmark (signing
+/// without the fault self-check, for attribution). Agent roots never declare it.
+pub const kernel_bench_unverified_signing = true;
 
 fn emit(comptime format: []const u8, args: anytype) !void {
     const output = try std.fmt.allocPrint(allocator, format, args);
@@ -31,6 +34,9 @@ fn benchmark(kernel: []const u8, iterations: u32, body_len: usize) !void {
     if (std.mem.eql(u8, kernel, "recover")) {
         for (&signatures, 0..) |*signed, i| signed.* = try protocol.signature.signDigest(signer, kernelDigest(@intCast(i)), null);
     }
+    // Production signers hold a SigningKey (Q derived once at construction).
+    var signing_key = try protocol.signature.SigningKey.init(signer);
+    defer signing_key.deinit();
     var timer = try std.time.Timer.start();
     if (std.mem.eql(u8, kernel, "message_id")) {
         for (0..iterations) |i| {
@@ -74,16 +80,18 @@ fn benchmark(kernel: []const u8, iterations: u32, body_len: usize) !void {
             std.mem.doNotOptimizeAway(root);
             checksum = std.mem.readInt(u64, root[0..8], .big);
         }
-    } else if (std.mem.eql(u8, kernel, "sign") or std.mem.eql(u8, kernel, "sign_unverified")) {
+    } else if (std.mem.eql(u8, kernel, "sign") or std.mem.eql(u8, kernel, "sign_unverified") or std.mem.eql(u8, kernel, "sign_with_verify")) {
         // Nonce schemes differ (std's RFC6979-with-noise vs k256 RFC6979), so
         // signature bytes differ; the checksum counts signatures in both.
         // "sign" is the production signer with the fault self-check.
-        const checked = std.mem.eql(u8, kernel, "sign");
+        // "sign_with_verify" is the same production signer, paired with Rust
+        // k256 sign + verify_prehash for a same-safety comparison.
+        const checked = !std.mem.eql(u8, kernel, "sign_unverified");
         for (0..iterations) |i| {
             const digest = kernelDigest(@intCast(i));
             std.mem.doNotOptimizeAway(&digest);
             const signed = if (checked)
-                try protocol.signature.signDigest(signer, digest, null)
+                try signing_key.sign(digest, null)
             else
                 try protocol.signature.benchmark.signWithoutFaultCheck(signer, digest, null);
             std.mem.doNotOptimizeAway(signed);

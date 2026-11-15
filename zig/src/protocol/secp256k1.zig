@@ -11,6 +11,7 @@
 //!   precomputed odd-multiple table for G.
 const std = @import("std");
 pub const field = @import("secp256k1_field.zig");
+pub const scalar_inverse = @import("secp256k1_scalar.zig").invert;
 const tables = @import("secp256k1_tables.zig");
 const scalar = std.crypto.ecc.Secp256k1.scalar;
 const Endomorphism = std.crypto.ecc.Secp256k1.Endormorphism;
@@ -120,57 +121,129 @@ fn half(r: [32]u8) error{GlvBound}!struct { value: u256, negative: bool } {
     return error.GlvBound;
 }
 
+/// Odd multiples P, 3P, ..., 15P and their endomorphism images, for width-5
+/// wNAF. Build once for a fixed public point (a signer's key) or per call.
+pub const OddMultiples = struct {
+    odd: [8]Point,
+    endo: [8]Point,
+
+    pub fn init(point: Point) OddMultiples {
+        var table: OddMultiples = undefined;
+        table.odd[0] = point;
+        const twice = point.dbl();
+        for (1..8) |i| table.odd[i] = table.odd[i - 1].add(twice);
+        for (table.odd, &table.endo) |p, *image| image.* = .{ .x = p.x.mul(beta), .y = p.y, .z = p.z };
+        return table;
+    }
+};
+
+/// Affine odd multiples P, 3P, ..., 127P of a fixed public point (a signer's
+/// own key) for width-8 wNAF, normalised with one inversion; endomorphism
+/// images are formed per use. Built once per key.
+pub const WideTable = struct {
+    odd: [64]Affine,
+
+    pub fn init(point: Point) WideTable {
+        var multiples: [64]Point = undefined;
+        multiples[0] = point;
+        const twice = point.dbl();
+        for (1..64) |i| multiples[i] = multiples[i - 1].add(twice);
+        // Batch normalisation: prefix products of Z, one inversion, unwind.
+        var prefix: [64]Fe = undefined;
+        prefix[0] = multiples[0].z;
+        for (1..64) |i| prefix[i] = prefix[i - 1].mul(multiples[i].z);
+        var inverse = prefix[63].invert();
+        var table: WideTable = undefined;
+        var i: usize = 63;
+        while (i > 0) : (i -= 1) {
+            const z_inverse = inverse.mul(prefix[i - 1]);
+            inverse = inverse.mul(multiples[i].z);
+            table.odd[i] = .{ .x = multiples[i].x.mul(z_inverse), .y = multiples[i].y.mul(z_inverse) };
+        }
+        table.odd[0] = .{ .x = multiples[0].x.mul(inverse), .y = multiples[0].y.mul(inverse) };
+        return table;
+    }
+};
+
+/// A fixed-point term for multiMulPublic: width-8 wNAF over a WideTable.
+pub const WideTerm = struct { table: *const WideTable, scalar: [32]u8 };
+
+/// Variable-time g_scalar*G + sum(scalars[i] * points[i]) for PUBLIC scalars
+/// and points (signature recovery and verification). Scalars are canonical
+/// little-endian. One shared 128-step doubling chain: the GLV endomorphism
+/// halves every scalar, G uses width-8 wNAF over the precomputed table and
+/// each point width-5 wNAF over its OddMultiples. May return the identity.
+pub fn multiMulPublic(comptime count: usize, g_scalar: [32]u8, points: [count]*const OddMultiples, scalars: [count][32]u8) !Point {
+    return multiMulPublicFixed(0, .{}, count, g_scalar, points, scalars);
+}
+
+/// Shared chain: `fixed` terms use width-8 wNAF over WideTables (mixed
+/// additions), `points` width-5 wNAF over projective OddMultiples.
+pub fn multiMulPublicFixed(comptime fixed_count: usize, fixed: [fixed_count]WideTerm, comptime count: usize, g_scalar: [32]u8, points: [count]*const OddMultiples, scalars: [count][32]u8) !Point {
+    const Half = @typeInfo(@typeInfo(@TypeOf(half)).@"fn".return_type.?).error_union.payload;
+    const g_split = try Endomorphism.splitScalar(g_scalar, .little);
+    const g_halves = [2]Half{ try half(g_split.r1), try half(g_split.r2) };
+    const g_naf = [2]WnafDigits{ wnaf(8, g_halves[0].value), wnaf(8, g_halves[1].value) };
+    var fixed_halves: [fixed_count][2]Half = undefined;
+    var fixed_nafs: [fixed_count][2]WnafDigits = undefined;
+    for (fixed, &fixed_halves, &fixed_nafs) |term, *h, *naf| {
+        const split = try Endomorphism.splitScalar(term.scalar, .little);
+        h.* = .{ try half(split.r1), try half(split.r2) };
+        naf.* = .{ wnaf(8, h[0].value), wnaf(8, h[1].value) };
+    }
+    var halves: [count][2]Half = undefined;
+    var nafs: [count][2]WnafDigits = undefined;
+    var top = @max(g_naf[0].len, g_naf[1].len);
+    for (fixed_nafs) |naf| top = @max(top, @max(naf[0].len, naf[1].len));
+    for (scalars, &halves, &nafs) |scalar_bytes, *h, *naf| {
+        const split = try Endomorphism.splitScalar(scalar_bytes, .little);
+        h.* = .{ try half(split.r1), try half(split.r2) };
+        naf.* = .{ wnaf(5, h[0].value), wnaf(5, h[1].value) };
+        top = @max(top, @max(naf[0].len, naf[1].len));
+    }
+    var q = Point.identity;
+    var pos = top;
+    while (pos > 0) {
+        pos -= 1;
+        q = q.dbl();
+        inline for (0..2) |part| {
+            const d = g_naf[part].digits[pos];
+            if (d != 0) {
+                const g = entry(&tables.odd[@abs(d) >> 1]);
+                const term: Affine = if (part == 0) g else .{ .x = g.x.mul(beta), .y = g.y };
+                q = q.addMixed(if ((d < 0) != g_halves[part].negative) term.neg() else term);
+            }
+        }
+        inline for (0..fixed_count) |i| {
+            inline for (0..2) |part| {
+                const d = fixed_nafs[i][part].digits[pos];
+                if (d != 0) {
+                    const base = fixed[i].table.odd[@abs(d) >> 1];
+                    const term: Affine = if (part == 0) base else .{ .x = base.x.mul(beta), .y = base.y };
+                    q = q.addMixed(if ((d < 0) != fixed_halves[i][part].negative) term.neg() else term);
+                }
+            }
+        }
+        inline for (0..count) |i| {
+            inline for (0..2) |part| {
+                const d = nafs[i][part].digits[pos];
+                if (d != 0) {
+                    const term = if (part == 0) points[i].odd[@abs(d) >> 1] else points[i].endo[@abs(d) >> 1];
+                    q = q.add(if ((d < 0) != halves[i][part].negative) term.neg() else term);
+                }
+            }
+        }
+    }
+    return q;
+}
+
 /// Variable-time u1*G + u2*r for PUBLIC scalars and point (signature
 /// recovery). Scalars are canonical little-endian. Returns error.IdentityElement
 /// for an identity input point or result.
 pub fn mulDoubleBasePublic(g_scalar: [32]u8, r: Point, r_scalar: [32]u8) !Point {
     if (r.isIdentity()) return error.IdentityElement;
-    const split1 = try Endomorphism.splitScalar(g_scalar, .little);
-    const split2 = try Endomorphism.splitScalar(r_scalar, .little);
-    const g1 = try half(split1.r1);
-    const g2 = try half(split1.r2);
-    const p1 = try half(split2.r1);
-    const p2 = try half(split2.r2);
-    const ng1 = wnaf(8, g1.value);
-    const ng2 = wnaf(8, g2.value);
-    const np1 = wnaf(5, p1.value);
-    const np2 = wnaf(5, p2.value);
-
-    // Odd multiples r, 3r, ..., 15r and their endomorphism images.
-    var odd_r: [8]Point = undefined;
-    odd_r[0] = r;
-    const r2 = r.dbl();
-    for (1..8) |i| odd_r[i] = odd_r[i - 1].add(r2);
-    var odd_lr: [8]Point = undefined;
-    for (odd_r, &odd_lr) |point, *image| image.* = .{ .x = point.x.mul(beta), .y = point.y, .z = point.z };
-
-    var q = Point.identity;
-    var pos = @max(@max(ng1.len, ng2.len), @max(np1.len, np2.len));
-    while (pos > 0) {
-        pos -= 1;
-        q = q.dbl();
-        if (ng1.digits[pos] != 0) {
-            const d = ng1.digits[pos];
-            const g = entry(&tables.odd[@abs(d) >> 1]);
-            q = q.addMixed(if ((d < 0) != g1.negative) g.neg() else g);
-        }
-        if (ng2.digits[pos] != 0) {
-            const d = ng2.digits[pos];
-            const g = entry(&tables.odd[@abs(d) >> 1]);
-            const image: Affine = .{ .x = g.x.mul(beta), .y = g.y };
-            q = q.addMixed(if ((d < 0) != g2.negative) image.neg() else image);
-        }
-        if (np1.digits[pos] != 0) {
-            const d = np1.digits[pos];
-            const point = odd_r[@abs(d) >> 1];
-            q = q.add(if ((d < 0) != p1.negative) point.neg() else point);
-        }
-        if (np2.digits[pos] != 0) {
-            const d = np2.digits[pos];
-            const point = odd_lr[@abs(d) >> 1];
-            q = q.add(if ((d < 0) != p2.negative) point.neg() else point);
-        }
-    }
+    const table = OddMultiples.init(r);
+    const q = try multiMulPublic(1, g_scalar, .{&table}, .{r_scalar});
     if (q.isIdentity()) return error.IdentityElement;
     return q;
 }
@@ -280,4 +353,28 @@ test "GLV half rejects values outside both 128-bit bands" {
     try std.testing.expectEqual(@as(u256, (1 << 128) - 1), (try half(scalarBytes((1 << 128) - 1))).value);
     const negative = try half(scalarBytes(n - ((1 << 128) - 1)));
     try std.testing.expect(negative.negative and negative.value == (1 << 128) - 1);
+}
+
+test "wide fixed-point table holds affine odd multiples and verification combination matches std" {
+    var prng = std.Random.DefaultPrng.init(0x77696465);
+    const n = scalar.field_order;
+    const reference_q = try Std.basePoint.mul(scalarBytes(prng.random().int(u256) % (n - 1) + 1), .little);
+    const q = try fromStd(reference_q);
+    const table = WideTable.init(q);
+    var multiple = reference_q;
+    const twice = reference_q.dbl();
+    for (&table.odd) |entry_q| {
+        try std.testing.expect(try sameAsStd(Point.fromAffine(entry_q), multiple));
+        multiple = multiple.add(twice);
+    }
+    for (0..50) |_| {
+        const a = prng.random().int(u256) % n;
+        const b = prng.random().int(u256) % n;
+        const c = prng.random().int(u256) % n;
+        const reference_r = try Std.basePoint.mul(scalarBytes(prng.random().int(u256) % (n - 1) + 1), .little);
+        const r_table = OddMultiples.init(try fromStd(reference_r));
+        const got = try multiMulPublicFixed(1, .{.{ .table = &table, .scalar = scalarBytes(b) }}, 1, scalarBytes(a), .{&r_table}, .{scalarBytes(c)});
+        const expected = (try Std.mulDoubleBasePublic(Std.basePoint, scalarBytes(a), reference_q, scalarBytes(b), .little)).add(try reference_r.mulPublic(scalarBytes(c), .little));
+        try std.testing.expect(try sameAsStd(got, expected));
+    }
 }

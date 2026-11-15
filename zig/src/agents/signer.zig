@@ -25,7 +25,8 @@ pub const DigestSigner = struct {
     address: [20]u8,
     public_key: [33]u8,
     backend: union(enum) {
-        local: [32]u8,
+        /// Q is derived once here and used to verify every signature.
+        local: signature.SigningKey,
         aws: struct { transport: cloud.http.Transport, config: cloud.kms.AwsConfig, amz_date: []const u8 },
         gcp: struct { transport: cloud.http.Transport, config: cloud.kms.GcpConfig },
     },
@@ -37,9 +38,10 @@ pub const DigestSigner = struct {
         const arena = self.arena.allocator();
         switch (config) {
             .hex_key => |key| {
-                self.address = try signature.secretKeyAddress(key);
-                self.public_key = (try std.crypto.ecc.Secp256k1.basePoint.mul(key, .big)).toCompressedSec1();
-                self.backend = .{ .local = key };
+                const local = try signature.SigningKey.init(key);
+                self.address = local.address;
+                self.public_key = local.compressedPublicKey();
+                self.backend = .{ .local = local };
             },
             .aws => |aws| {
                 const auth = credentials.aws orelse return error.MissingAwsCredentialLease;
@@ -68,7 +70,7 @@ pub const DigestSigner = struct {
     /// Raw digest only: callers apply the protocol's signing preimage/hash.
     pub fn signDigest(self: *DigestSigner, digest: *const [32]u8) ![65]u8 {
         return switch (self.backend) {
-            .local => |key| signature.signDigest(key, digest.*, null),
+            .local => |*key| key.sign(digest.*, null),
             .aws => |s| cloud.kms.awsSignDigest(self.allocator, s.transport, s.config, digest.*, s.amz_date),
             .gcp => |s| cloud.kms.gcpSignDigestRetrying(self.allocator, s.transport, s.config, digest.*),
         };
@@ -93,7 +95,7 @@ pub const DigestSigner = struct {
         }
     }
     pub fn deinit(self: *DigestSigner) void {
-        if (self.backend == .local) std.crypto.secureZero(u8, &self.backend.local);
+        if (self.backend == .local) self.backend.local.deinit();
         self.arena.deinit();
         const a = self.allocator;
         self.* = undefined;
