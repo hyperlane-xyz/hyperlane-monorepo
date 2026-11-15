@@ -114,40 +114,37 @@ pub const Store = struct {
         }
         return rows;
     }
-    /// One round trip: guarded insert, optional page link and the same
-    /// identity verification as knownBlock/knownTransaction, pipelined in one implicit
-    /// transaction. Concurrent winners are verified, never duplicated.
+    /// One statement in the common case: block-guarded insert, then links of
+    /// this transaction's own page rows by the inserted id. A transaction
+    /// stored concurrently by another writer (ON CONFLICT) is verified exactly
+    /// like knownTransaction and the page range linked, in a second round trip.
     pub fn persistTransaction(self: Store, block_id: i64, txn: enrich.Txn, link: ?enrich.LinkRange) !enrich.Persisted {
         if (block_id <= 0) return error.InvalidStoredScraperBlockId;
         const meta: enrich.Meta = .{ .block_number = txn.block_number, .block_hash = txn.block_hash, .tx_hash = txn.hash };
         var arena = std.heap.ArenaAllocator.init(self.connection.allocator);
         defer arena.deinit();
         const a = arena.allocator();
-        const hash = pg.Param.bytes(bytesTxn(&txn.hash));
-        const block = [_]pg.Param{ try integer(a, block_id), try domainParam(a, self.domain), pg.Param.bytes(&txn.block_hash), try integer(a, txn.block_number) };
-        const insert_params = [_]pg.Param{ hash, block[0], try numeric(a, txn.gas_limit), try numeric(a, txn.max_priority_fee), try numeric(a, txn.max_fee), try numeric(a, txn.gas_price), try numeric(a, txn.effective_gas_price), try integer(a, @as(i64, @bitCast(txn.nonce))), pg.Param.bytes(bytesAddress(&txn.sender)), .{ .value = if (txn.recipient) |*recipient| bytesAddress(recipient) else null, .oid = pg.Oid.bytea, .binary = true }, try numeric(a, txn.gas_used), try numeric(a, txn.cumulative_gas_used), .{ .value = txn.raw_input, .oid = pg.Oid.bytea, .binary = true }, block[1], block[2], block[3] };
-        const verify_params = [_]pg.Param{ hash, block[0], block[1], block[2], block[3] };
-        var statements: [3]pg.Statement = undefined;
-        var count: usize = 0;
-        statements[count] = .{ .sql = "INSERT INTO \"transaction\"(hash,block_id,gas_limit,max_priority_fee_per_gas,max_fee_per_gas,gas_price,effective_gas_price,nonce,sender,recipient,gas_used,cumulative_gas_used,raw_input_data,time_created) SELECT $1,b.id,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now() FROM block b WHERE b.id=$2 AND b.domain=$14 AND b.hash=$15 AND b.height=$16 ON CONFLICT(hash) DO NOTHING", .params = &insert_params };
-        count += 1;
-        const link_index = count;
-        if (link) |range| {
+        var params: std.ArrayList(pg.Param) = .empty;
+        try params.appendSlice(a, &.{ pg.Param.bytes(bytesTxn(&txn.hash)), try integer(a, block_id), try numeric(a, txn.gas_limit), try numeric(a, txn.max_priority_fee), try numeric(a, txn.max_fee), try numeric(a, txn.gas_price), try numeric(a, txn.effective_gas_price), try integer(a, @as(i64, @bitCast(txn.nonce))), pg.Param.bytes(bytesAddress(&txn.sender)), .{ .value = if (txn.recipient) |*recipient| bytesAddress(recipient) else null, .oid = pg.Oid.bytea, .binary = true }, try numeric(a, txn.gas_used), try numeric(a, txn.cumulative_gas_used), .{ .value = txn.raw_input, .oid = pg.Oid.bytea, .binary = true }, try domainParam(a, self.domain), pg.Param.bytes(&txn.block_hash), try integer(a, txn.block_number) });
+        const insert = "WITH b AS (SELECT id FROM block WHERE id=$2 AND domain=$14 AND hash=$15 AND height=$16), ins AS (INSERT INTO \"transaction\"(hash,block_id,gas_limit,max_priority_fee_per_gas,max_fee_per_gas,gas_price,effective_gas_price,nonce,sender,recipient,gas_used,cumulative_gas_used,raw_input_data,time_created) SELECT $1,b.id,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now() FROM b ON CONFLICT(hash) DO NOTHING RETURNING id)";
+        const sql = if (link) |range| blk: {
             if (range.after < 0 or range.through < range.after) return error.InvalidScraperReceiptPage;
-            statements[count] = .{ .sql = try linkSql(a, range.stream), .params = try a.dupe(pg.Param, &.{ try domainParam(a, self.domain), try integer(a, range.after), try integer(a, range.through) }) };
-            count += 1;
+            try params.appendSlice(a, &.{ try integer(a, range.after), try integer(a, range.through) });
+            break :blk try std.fmt.allocPrint(a, insert ++ ", link AS (UPDATE {s} e SET {s}=ins.id FROM ins WHERE e.domain=$14 AND e.id>$17 AND e.id<=$18 AND e.{s} IS NULL AND e.transaction_hash=$1 AND e.block_hash=$15 AND (e.block_number IS NULL OR e.block_number<=COALESCE((SELECT h.confirmed_height FROM scraper_head h WHERE h.domain=e.domain),9223372036854775807)) RETURNING 1) SELECT (SELECT count(*) FROM b) AS block_ok,(SELECT id FROM ins) AS inserted,(SELECT count(*) FROM link) AS linked", .{ table(range.stream), txColumn(range.stream), txColumn(range.stream) });
+        } else insert ++ " SELECT (SELECT count(*) FROM b) AS block_ok,(SELECT id FROM ins) AS inserted,0 AS linked";
+        var result = try self.connection.query(sql, params.items);
+        defer result.deinit();
+        if (try result.integer(0, "block_ok") == 0) return error.ScraperStoredBlockMismatch;
+        if (try result.value(0, try result.column("inserted")) != null) return .{ .id = try result.integer(0, "inserted"), .linked = try nonnegative(try result.integer(0, "linked")) };
+        // Lost the insert race: verify the winner's identity, then link.
+        const id = try self.knownTransaction(meta) orelse return error.ScraperTransactionNotPersisted;
+        var linked: u64 = 0;
+        if (link) |range| {
+            var update = try self.connection.query(try linkSql(a, range.stream), &.{ try domainParam(a, self.domain), try integer(a, range.after), try integer(a, range.through) });
+            defer update.deinit();
+            linked = try update.affected();
         }
-        const verify_index = count;
-        statements[count] = .{ .sql = "SELECT kt.id AS known_tx_id,ktb.domain AS known_tx_domain,ktb.hash AS known_tx_block_hash,ktb.height AS known_tx_height,EXISTS(SELECT 1 FROM block g WHERE g.id=$2 AND g.domain=$3 AND g.hash=$4 AND g.height=$5) AS block_ok FROM (SELECT 1) one LEFT JOIN \"transaction\" kt ON kt.hash=$1 LEFT JOIN block ktb ON ktb.id=kt.block_id", .params = &verify_params };
-        count += 1;
-        var results: [3]pg.Result = undefined;
-        try self.connection.pipeline(statements[0..count], results[0..count]);
-        defer for (results[0..count]) |*result| result.deinit();
-        const verified = results[verify_index];
-        if (!try verified.boolean(0, "block_ok")) return error.ScraperStoredBlockMismatch;
-        if (try verified.value(0, try verified.column("known_tx_id")) == null) return error.ScraperTransactionNotPersisted;
-        if (try unsignedDomain(try verified.integer(0, "known_tx_domain")) != self.domain or try nonnegative(try verified.integer(0, "known_tx_height")) != meta.block_number or !std.mem.eql(u8, &try hashBytes(a, verified, 0, "known_tx_block_hash"), &meta.block_hash)) return error.ScraperStoredTransactionMismatch;
-        return .{ .id = try verified.integer(0, "known_tx_id"), .linked = if (link != null) try results[link_index].affected() else 0 };
+        return .{ .id = id, .linked = linked };
     }
     /// Links the page and counts rows whose transaction is still unknown, in
     /// one statement (was 1 + 1 per row).

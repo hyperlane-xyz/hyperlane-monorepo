@@ -25,8 +25,15 @@ pub const Chain = struct {
     tip: ?u64 = null,
     tip_counts: ?[4]src.Tip = null,
     items: []const src.Event = &.{},
+    /// Expose uncached overlapped header batches, as the EVM source does.
+    overlap: bool = false,
+    batches: usize = 0,
     pub fn interface(self: *Chain) src.Source {
-        return .{ .context = self, .header_fn = header, .events_fn = events, .counts_fn = counts, .historical_counts = true, .tip_fn = indexingTip, .tip_counts_fn = tipCounts };
+        return .{ .context = self, .header_fn = header, .headers_fn = if (self.overlap) headers else null, .events_fn = events, .counts_fn = counts, .historical_counts = true, .tip_fn = indexingTip, .tip_counts_fn = tipCounts };
+    }
+    fn headers(context: *anyopaque, heights: []const u64, out: []src.Header) !void {
+        cast(context).batches += 1;
+        for (heights, out) |height, *value| value.* = try header(context, .{ .height = height }, true);
     }
     fn cast(context: *anyopaque) *Chain {
         return @ptrCast(@alignCast(context));
@@ -205,6 +212,34 @@ test "scraper source complete range counts publish and restart catches fork" {
     const after = try worker.cycle();
     try std.testing.expectEqual(@as(u64, 10), after.confirmed);
     try std.testing.expect(p.equal(store.current.hash, chain.at(12).hash));
+}
+
+test "scraper overlapped header batches fold rechecks and still catch forks" {
+    const events = fixtureEvents();
+    var chain: Chain = .{ .items = &events, .overlap = true };
+    var store = FakeStore.init();
+    var worker: runtime.Worker(FakeStore) = .{ .allocator = std.testing.allocator, .source = chain.interface(), .store = &store, .options = .{ .period = .{ .blocks = 2 }, .chunk_size = 10 } };
+    const outcome = try worker.cycle();
+    try std.testing.expectEqual(@as(u64, 10), outcome.indexed);
+    try std.testing.expectEqual(@as(u64, 8), outcome.confirmed);
+    // One ingest batch (event block, indexed and boundary rechecks) and one
+    // confirmation batch (boundary and indexed recheck).
+    try std.testing.expectEqual(@as(usize, 2), chain.batches);
+    chain.fork = 7;
+    chain.fork_after = 8;
+    chain.head = 12;
+    chain.tag = 12;
+    const after = try worker.cycle();
+    try std.testing.expectEqual(@as(u64, 10), after.confirmed);
+    try std.testing.expect(p.equal(store.current.hash, chain.at(12).hash));
+    // A reorg between the log read and the folded rechecks is still refused.
+    var forked: Chain = .{ .items = &events, .reorg_on_events = true, .overlap = true };
+    var fresh = FakeStore.init();
+    var reorged: runtime.Worker(FakeStore) = .{ .allocator = std.testing.allocator, .source = forked.interface(), .store = &fresh, .options = .{ .period = .latest, .chunk_size = 10 } };
+    const err = reorged.cycle();
+    try std.testing.expect(err == error.ScraperForkChanged or err == error.ScraperLogForkMismatch);
+    try std.testing.expectEqual(@as(u64, 0), fresh.current.indexed);
+    try std.testing.expectEqual(@as(u64, 0), fresh.current.confirmed);
 }
 
 test "scraper dropped tail never publishes and recovers without a new block" {

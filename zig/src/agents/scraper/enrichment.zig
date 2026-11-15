@@ -31,12 +31,15 @@ pub const Page = struct {
     through: i64,
     rows: []const Row,
     requests: []const Request,
+    /// Some row's transaction was already stored when planned.
+    cached: bool = false,
     pub fn deinit(self: *Page) void {
         self.arena.deinit();
         self.* = undefined;
     }
 };
 pub const Outcome = struct { more: bool, pending: usize, linked: u64 };
+pub const page_size = 100;
 pub const Lane = struct {
     stream: Stream,
     after: i64 = 0,
@@ -57,7 +60,9 @@ pub const Lane = struct {
         self.after = if (rows.len == 0) 0 else previous;
         var requests: std.ArrayList(Request) = .empty;
         var identities = std.AutoHashMap([64]u8, src.Hash).init(a);
+        var cached = false;
         for (candidates) |candidate| {
+            cached = cached or candidate.transaction_id != null;
             const row = candidate.row;
             if (std.mem.allEqual(u8, &row.meta.tx_hash, 0) or std.mem.allEqual(u8, &row.meta.block_hash, 0)) return error.InvalidPendingReceiptIdentity;
             const entry = try identities.getOrPut(row.meta.tx_hash);
@@ -70,7 +75,7 @@ pub const Lane = struct {
             if (candidate.transaction_id == null) try requests.append(a, .{ .meta = row.meta, .block_id = block });
         }
         const owned_requests = try requests.toOwnedSlice(a);
-        return .{ .arena = arena, .stream = self.stream, .after = start, .through = previous, .rows = rows, .requests = owned_requests };
+        return .{ .arena = arena, .stream = self.stream, .after = start, .through = previous, .rows = rows, .requests = owned_requests, .cached = cached };
     }
     pub fn finish(_: Lane, store: anytype, page: Page) !Outcome {
         if (page.through <= page.after) return .{ .more = false, .pending = 0, .linked = 0 };
