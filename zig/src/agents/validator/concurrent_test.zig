@@ -8,7 +8,7 @@ const Signer = struct {
     calls: std.atomic.Value(usize) = .init(0),
     active: std.atomic.Value(usize) = .init(0),
     peak: std.atomic.Value(usize) = .init(0),
-    fn sign(ctx: *anyopaque, checkpoint: service.Checkpoint) !objects.SignedCheckpoint {
+    fn sign(ctx: *anyopaque, checkpoint: service.Checkpoint) !service.Verified {
         const self: *Signer = @ptrCast(@alignCast(ctx));
         _ = self.calls.fetchAdd(1, .acq_rel);
         const active = self.active.fetchAdd(1, .acq_rel) + 1;
@@ -18,7 +18,9 @@ const Signer = struct {
             if (self.peak.cmpxchgWeak(previous, active, .acq_rel, .acquire)) |actual| previous = actual else break;
         }
         std.Thread.sleep(50 * std.time.ns_per_ms);
-        return objects.SignedCheckpoint.sign(checkpoint, @splat(0x11), null);
+        var key = try @import("../../protocol/root.zig").signature.SigningKey.init(@splat(0x11));
+        defer key.deinit();
+        return service.Verified.signWith(&key, checkpoint, null);
     }
     fn interface(self: *Signer) service.Signer {
         return .{ .parallel_safe = true, .context = self, .sign = sign };
@@ -42,9 +44,9 @@ const Publisher = struct {
         const base = cast(ctx).base;
         return base.is_reorged(base.context);
     }
-    fn checkpoint(ctx: *anyopaque, signed: objects.SignedCheckpoint, time: u64) !void {
+    fn checkpoint(ctx: *anyopaque, signed: service.Verified, time: u64) !void {
         const self = cast(ctx);
-        if (self.blocked_index == signed.value.index) {
+        if (self.blocked_index == signed.signed.value.index) {
             self.entered.post();
             self.release.wait();
         }

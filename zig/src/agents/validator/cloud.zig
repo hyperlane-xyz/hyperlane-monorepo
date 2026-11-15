@@ -28,9 +28,9 @@ pub const Publisher = struct {
         defer status.deinit();
         return status.exists;
     }
-    fn checkpoint(ctx: *anyopaque, s: objects.SignedCheckpoint, time: u64) !void {
+    fn checkpoint(ctx: *anyopaque, s: service.Verified, time: u64) !void {
         const self = selfOf(ctx);
-        _ = try self.store.writeCheckpoint(s, time, self.amz_date);
+        _ = try self.store.writeVerifiedCheckpoint(s, time, self.amz_date);
     }
     fn latest(ctx: *anyopaque, index: u32) !void {
         const self = selfOf(ctx);
@@ -57,10 +57,11 @@ pub const AwsSigner = struct {
         const self: *AwsSigner = @ptrCast(@alignCast(ctx));
         return cloud.kms.awsSignDigest(self.allocator, self.transport, self.config, hash, self.amz_date);
     }
-    fn sign(ctx: *anyopaque, c: service.Checkpoint) !objects.SignedCheckpoint {
+    /// Raw KMS bytes: one recovery against this key's resolved address.
+    fn sign(ctx: *anyopaque, c: service.Checkpoint) !service.Verified {
         const self: *AwsSigner = @ptrCast(@alignCast(ctx));
         const raw = try cloud.kms.awsSignDigest(self.allocator, self.transport, self.config, c.digest(), self.amz_date);
-        return .{ .value = c, .signature = objects.Signature.fromBytes(raw) };
+        return service.Verified.recoverFrom(.{ .value = c, .signature = objects.Signature.fromBytes(raw) }, self.config.public_key.address);
     }
 };
 pub const GcpSigner = struct {
@@ -74,9 +75,10 @@ pub const GcpSigner = struct {
         const self: *GcpSigner = @ptrCast(@alignCast(ctx));
         return cloud.kms.gcpSignDigestRetrying(self.allocator, self.transport, self.config, hash);
     }
-    fn sign(ctx: *anyopaque, c: service.Checkpoint) !objects.SignedCheckpoint {
+    /// Raw KMS bytes: one recovery against this key's resolved address.
+    fn sign(ctx: *anyopaque, c: service.Checkpoint) !service.Verified {
         const self: *GcpSigner = @ptrCast(@alignCast(ctx));
         const raw = try cloud.kms.gcpSignDigestRetrying(self.allocator, self.transport, self.config, c.digest());
-        return .{ .value = c, .signature = objects.Signature.fromBytes(raw) };
+        return service.Verified.recoverFrom(.{ .value = c, .signature = objects.Signature.fromBytes(raw) }, self.config.public_key.address);
     }
 };

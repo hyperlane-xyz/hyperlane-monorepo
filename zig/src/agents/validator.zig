@@ -19,7 +19,9 @@ pub const Signer = struct {
     parallel_safe: bool = false,
     cancel: ?*const std.atomic.Value(bool) = null,
     context: *anyopaque,
-    sign: *const fn (*anyopaque, Checkpoint) anyerror!objects.SignedCheckpoint,
+    /// Local keys sign via VerifiedCheckpoint.signWith (zero recoveries);
+    /// remote/KMS signers return VerifiedCheckpoint.recoverFrom (one).
+    sign: *const fn (*anyopaque, Checkpoint) anyerror!Verified,
     sign_digest: ?*const fn (*anyopaque, Hash) anyerror![65]u8 = null,
     pub fn digest(self: Signer, hash: Hash) ![65]u8 {
         const f = self.sign_digest orelse return error.MissingDigestSigner;
@@ -33,11 +35,12 @@ pub const Publisher = struct {
     fetch_checkpoint: *const fn (*anyopaque, u32) anyerror!?objects.SignedCheckpoint,
     is_reorged: *const fn (*anyopaque) anyerror!bool,
     write_announcement: ?*const fn (*anyopaque, objects.SignedAnnouncement) anyerror!void = null,
-    write_checkpoint: *const fn (*anyopaque, objects.SignedCheckpoint, u64) anyerror!void,
+    write_checkpoint: *const fn (*anyopaque, Verified, u64) anyerror!void,
     write_latest: *const fn (*anyopaque, u32) anyerror!void,
     write_snapshot: *const fn (*anyopaque, *const objects.Snapshot) anyerror!void,
     persist_reorg: *const fn (*anyopaque, objects.ReorgEvent) anyerror!void,
 };
+pub const Verified = @import("../storage/local.zig").VerifiedCheckpoint;
 const namespace = "zig_validator_v1/";
 const Record = struct { observation: Observation, root: Hash };
 pub const Service = struct {
@@ -115,7 +118,7 @@ pub const Service = struct {
         }
         if (self.signed_watermark) |index| {
             const signed = try self.signedCheckpoint(index) orelse return error.MissingSignedHistory;
-            try self.verifySigned(signed);
+            _ = try self.verifyStored(signed);
         }
         if (try self.reservation()) |reserved| {
             try self.validateReservation(reserved);
@@ -196,9 +199,21 @@ pub const Service = struct {
         defer self.allocator.free(bytes);
         return try objects.SignedCheckpoint.parse(self.allocator, bytes);
     }
-    fn verifySigned(self: *Service, signed: objects.SignedCheckpoint) !void {
+    /// Raw signed bytes (validator DB or publisher reads): one recovery.
+    fn verifyStored(self: *Service, signed: objects.SignedCheckpoint) !Verified {
         if (!same(signed.value, try self.checkpoint(signed.value.index))) return error.SignedCheckpointChanged;
-        if (!std.mem.eql(u8, &try signed.recover(), &self.options.signer_address)) return error.WrongSigner;
+        return Verified.recoverFrom(signed, self.options.signer_address);
+    }
+    /// Already verified (signing path or one recovery): no recovery. The
+    /// established signer must still be this validator's configured address.
+    fn verifySigned(self: *Service, verified: Verified) !void {
+        if (!same(verified.signed.value, try self.checkpoint(verified.signed.value.index))) return error.SignedCheckpointChanged;
+        try verified.require(self.options.signer_address);
+    }
+    /// Reads a publisher's existing object for this index: one recovery.
+    /// Another signer's object is not ours (null); an invalid one is an error.
+    fn existingOwn(self: *Service, stored: objects.SignedCheckpoint) !?Verified {
+        return Verified.recoverFrom(stored, self.options.signer_address) catch |err| if (err == error.WrongSigner) null else err;
     }
     pub fn observe(self: *Service, index: u32, observation: Observation, finalized_height: u64) !void {
         self.mutex.lock();
@@ -482,18 +497,19 @@ pub const Service = struct {
                 defer self.allocator.free(reserved);
                 if (!same(try decodeCheckpoint(reserved), candidate)) return error.ReservationChanged;
             }
-            const signed = try self.signedCheckpoint(candidate.index) orelse blk: {
-                var existing = try publisher.fetch_checkpoint(publisher.context, candidate.index);
-                if (existing) |stored| {
-                    const recovered = try stored.recover();
+            const signed: Verified = if (try self.signedCheckpoint(candidate.index)) |stored| try self.verifyStored(stored) else blk: {
+                var existing: ?Verified = null;
+                if (try publisher.fetch_checkpoint(publisher.context, candidate.index)) |stored| {
+                    const own = try self.existingOwn(stored);
                     const same_context = stored.value.mailbox_domain == candidate.mailbox_domain and std.mem.eql(u8, &stored.value.merkle_tree_hook_address, &candidate.merkle_tree_hook_address);
-                    if (std.mem.eql(u8, &recovered, &self.options.signer_address) and same_context) {
+                    if (own != null and same_context) {
                         if (!same(stored.value, candidate)) {
                             try self.halt(candidate.index, candidate.root, stored.value.root, unix_timestamp);
                             try self.publishReorgUnlocked(publisher);
                             return error.FinalizedHistoryConflict;
                         }
-                    } else existing = null;
+                        existing = own;
+                    }
                 }
                 if (existing == null and (self.fresh_verified_through == null or candidate.index > self.fresh_verified_through.?)) {
                     if (count > 0) break :publication;
@@ -501,8 +517,8 @@ pub const Service = struct {
                 }
                 const value = existing orelse try self.signSerial(signer, candidate);
                 try self.verifySigned(value);
-                if (!same(value.value, candidate)) return error.SignerChangedCheckpoint;
-                const json = try value.toJson(self.allocator);
+                if (!same(value.signed.value, candidate)) return error.SignerChangedCheckpoint;
+                const json = try value.signed.toJson(self.allocator);
                 defer self.allocator.free(json);
                 var batch = try self.typed.batch(self.allocator);
                 defer batch.deinit();
@@ -686,7 +702,7 @@ pub const Service = struct {
         if (!same(try decodeCheckpoint(reservation_bytes), candidate)) return error.ReservationChanged;
         if (require_fresh and (self.fresh_verified_through == null or candidate.index > self.fresh_verified_through.?)) return error.FreshAuthorizationRequired;
     }
-    fn signSerial(self: *Service, signer: Signer, checkpoint_: Checkpoint) !objects.SignedCheckpoint {
+    fn signSerial(self: *Service, signer: Signer, checkpoint_: Checkpoint) !Verified {
         var failure: anyerror = error.SignatureUnavailable;
         for (0..6) |attempt| {
             if (attempt > 0) std.Thread.sleep(100 * std.time.ns_per_ms);
@@ -702,7 +718,7 @@ pub const Service = struct {
         }
         return failure;
     }
-    fn signReserved(self: *Service, job: *PublicationJob) !objects.SignedCheckpoint {
+    fn signReserved(self: *Service, job: *PublicationJob) !Verified {
         var failure: anyerror = error.SignatureUnavailable;
         // Source performs five direct attempts then its singleton fallback. Our
         // pinned signer is already the sole identity; the final attempt retains
@@ -737,10 +753,14 @@ pub const Service = struct {
             return error.ValidatorHalted;
         }
         self.mutex.lock();
-        var signed = self.signedCheckpoint(job.checkpoint.index) catch |err| {
+        const stored_signed = self.signedCheckpoint(job.checkpoint.index) catch |err| {
             self.mutex.unlock();
             return err;
         };
+        var signed: ?Verified = if (stored_signed) |stored| self.verifyStored(stored) catch |err| {
+            self.mutex.unlock();
+            return err;
+        } else null;
         self.publicationGate(job.checkpoint, false) catch |err| {
             self.mutex.unlock();
             return err;
@@ -749,9 +769,9 @@ pub const Service = struct {
         if (signed == null) {
             const existing = try job.publisher.fetch_checkpoint(job.publisher.context, job.checkpoint.index);
             if (existing) |stored| {
-                const address = try stored.recover();
+                const own = try self.existingOwn(stored);
                 const context = stored.value.mailbox_domain == job.checkpoint.mailbox_domain and std.mem.eql(u8, &stored.value.merkle_tree_hook_address, &job.checkpoint.merkle_tree_hook_address);
-                if (std.mem.eql(u8, &address, &self.options.signer_address) and context) {
+                if (own != null and context) {
                     if (!same(stored.value, job.checkpoint)) {
                         self.mutex.lock();
                         const result = self.halt(job.checkpoint.index, job.checkpoint.root, stored.value.root, job.timestamp);
@@ -760,7 +780,7 @@ pub const Service = struct {
                         try self.publishReorg(job.publisher);
                         return error.FinalizedHistoryConflict;
                     }
-                    signed = stored;
+                    signed = own;
                 }
             }
             if (signed == null) {
@@ -776,8 +796,8 @@ pub const Service = struct {
             defer self.mutex.unlock();
             try self.publicationGate(job.checkpoint, false);
             try self.verifySigned(signed.?);
-            if (!same(signed.?.value, job.checkpoint)) return error.SignerChangedCheckpoint;
-            const wire = try signed.?.toJson(self.allocator);
+            if (!same(signed.?.signed.value, job.checkpoint)) return error.SignerChangedCheckpoint;
+            const wire = try signed.?.signed.toJson(self.allocator);
             defer self.allocator.free(wire);
             var batch = try self.typed.batch(self.allocator);
             defer batch.deinit();
@@ -1039,19 +1059,26 @@ pub const Service = struct {
         return processed;
     }
 };
+/// Q is derived once; every signature is verified against it before release.
 pub const LocalSigner = struct {
-    key: Hash,
+    key: protocol.signature.SigningKey,
     noise: ?Hash = null,
+    pub fn init(secret_key: Hash, noise: ?Hash) !LocalSigner {
+        return .{ .key = try protocol.signature.SigningKey.init(secret_key), .noise = noise };
+    }
+    pub fn deinit(self: *LocalSigner) void {
+        self.key.deinit();
+    }
     pub fn interface(self: *LocalSigner) Signer {
         return .{ .parallel_safe = true, .context = self, .sign = sign, .sign_digest = digest };
     }
     fn digest(ctx: *anyopaque, hash: Hash) ![65]u8 {
         const self: *LocalSigner = @ptrCast(@alignCast(ctx));
-        return protocol.signature.signDigest(self.key, hash, self.noise);
+        return self.key.sign(hash, self.noise);
     }
-    fn sign(ctx: *anyopaque, c: Checkpoint) !objects.SignedCheckpoint {
+    fn sign(ctx: *anyopaque, c: Checkpoint) !Verified {
         const self: *LocalSigner = @ptrCast(@alignCast(ctx));
-        return objects.SignedCheckpoint.sign(c, self.key, self.noise);
+        return Verified.signWith(&self.key, c, self.noise);
     }
 };
 pub const LocalPublisher = struct {
@@ -1077,9 +1104,9 @@ pub const LocalPublisher = struct {
         defer status.deinit();
         return status.exists;
     }
-    fn checkpoint(ctx: *anyopaque, s: objects.SignedCheckpoint, time: u64) !void {
+    fn checkpoint(ctx: *anyopaque, s: Verified, time: u64) !void {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
-        _ = try self.store.writeCheckpoint(s, time);
+        _ = try self.store.writeVerifiedCheckpoint(s, time);
     }
     fn latest(ctx: *anyopaque, index: u32) !void {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));

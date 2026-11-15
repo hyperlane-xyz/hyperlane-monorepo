@@ -21,10 +21,12 @@ const Fake = struct {
         self.checkpoints.deinit();
         self.order.deinit();
     }
-    fn sign(ctx: *anyopaque, c: validator.Checkpoint) !objects.SignedCheckpoint {
+    fn sign(ctx: *anyopaque, c: validator.Checkpoint) !validator.Verified {
         const self: *Fake = @ptrCast(@alignCast(ctx));
         self.sign_count += 1;
-        return objects.SignedCheckpoint.sign(c, key, null);
+        var signing = try protocol.signature.SigningKey.init(key);
+        defer signing.deinit();
+        return validator.Verified.signWith(&signing, c, null);
     }
     fn readSnapshot(ctx: *anyopaque) !?objects.Snapshot {
         const self: *Fake = @ptrCast(@alignCast(ctx));
@@ -38,8 +40,9 @@ const Fake = struct {
         const self: *Fake = @ptrCast(@alignCast(ctx));
         return self.reorged;
     }
-    fn put(ctx: *anyopaque, s: objects.SignedCheckpoint, _: u64) !void {
+    fn put(ctx: *anyopaque, verified: validator.Verified, _: u64) !void {
         const self: *Fake = @ptrCast(@alignCast(ctx));
+        const s = verified.signed;
         try self.checkpoints.put(s.value.index, s);
         try self.order.append(s.value.index);
     }
@@ -214,7 +217,8 @@ test "actual durable local checkpoint publisher latest-first snapshot and restar
     var store = try LocalStore.open(a, temp.dir, "checkpoints", .{ .read_only = false, .signer = opts.signer_address });
     defer store.deinit();
     var publisher: validator.LocalPublisher = .{ .store = &store };
-    var signer: validator.LocalSigner = .{ .key = key };
+    var signer = try validator.LocalSigner.init(key, null);
+    defer signer.deinit();
     _ = try service.authorize(&.{try service.checkpoint(3)}, 100);
     try std.testing.expectEqual(@as(usize, 1), try service.publishNext(signer.interface(), publisher.interface(), 101, 1));
     try std.testing.expectEqual(@as(?u32, 3), try store.latestIndex());
@@ -658,4 +662,98 @@ test "root-checked insertion leaf from a non-canonical log is never signed" {
     _ = try service.authorize(&.{ prefix, prefix }, 104);
     try std.testing.expect(try service.publishNext(fake.signer(), fake.publisher(), 105, 64) > 0);
     for (fake.order.items) |index| try std.testing.expect(index <= 1);
+}
+
+const KmsLikeSigner = struct {
+    secret: validator.Hash,
+    expected: [20]u8,
+    /// Raw bytes as a remote signer returns them; the only proof is recovery.
+    fn sign(ctx: *anyopaque, c: validator.Checkpoint) !validator.Verified {
+        const self: *KmsLikeSigner = @ptrCast(@alignCast(ctx));
+        const raw = try protocol.signature.signDigest(self.secret, c.digest(), null);
+        return validator.Verified.recoverFrom(.{ .value = c, .signature = objects.Signature.fromBytes(raw) }, self.expected);
+    }
+    fn interface(self: *KmsLikeSigner) validator.Signer {
+        return .{ .context = self, .sign = sign };
+    }
+};
+/// Forwards to a LocalPublisher and records boundary recoveries when the
+/// checkpoint reaches storage.
+const RecoveryProbe = struct {
+    base: validator.Publisher,
+    at_write: ?usize = null,
+    fn cast(ctx: *anyopaque) *RecoveryProbe {
+        return @ptrCast(@alignCast(ctx));
+    }
+    fn fetch(ctx: *anyopaque, index: u32) !?objects.SignedCheckpoint {
+        const b = cast(ctx).base;
+        return b.fetch_checkpoint(b.context, index);
+    }
+    fn guard(ctx: *anyopaque) !bool {
+        const b = cast(ctx).base;
+        return b.is_reorged(b.context);
+    }
+    fn checkpoint(ctx: *anyopaque, v: validator.Verified, time: u64) !void {
+        const self = cast(ctx);
+        self.at_write = local.test_recoveries.load(.monotonic);
+        try self.base.write_checkpoint(self.base.context, v, time);
+    }
+    fn latest(ctx: *anyopaque, index: u32) !void {
+        const b = cast(ctx).base;
+        try b.write_latest(b.context, index);
+    }
+    fn snapshot(ctx: *anyopaque, s: *const objects.Snapshot) !void {
+        const b = cast(ctx).base;
+        try b.write_snapshot(b.context, s);
+    }
+    fn reorg(ctx: *anyopaque, e: objects.ReorgEvent) !void {
+        const b = cast(ctx).base;
+        try b.persist_reorg(b.context, e);
+    }
+    fn interface(self: *RecoveryProbe) validator.Publisher {
+        return .{ .context = self, .fetch_checkpoint = fetch, .is_reorged = guard, .write_checkpoint = checkpoint, .write_latest = latest, .write_snapshot = snapshot, .persist_reorg = reorg };
+    }
+};
+const local = @import("../../storage/local.zig");
+/// Boundary recoveries between authorization and the checkpoint write, or
+/// null when the signature never reached storage.
+fn publishOnce(signer: validator.Signer, expect_published: bool) !?usize {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const p = try path(a, &temp);
+    defer a.free(p);
+    var db = try rocks.Database.open(a, p, .{});
+    defer db.deinit();
+    const opts = try options(1);
+    var service = try validator.Service.open(a, &db, opts);
+    defer service.deinit();
+    try observe(&service, 1);
+    var store = try local.LocalStore.open(a, temp.dir, "checkpoints", .{ .read_only = false, .signer = opts.signer_address });
+    defer store.deinit();
+    var publisher: validator.LocalPublisher = .{ .store = &store };
+    var probe: RecoveryProbe = .{ .base = publisher.interface() };
+    _ = try service.authorize(&.{try service.checkpoint(0)}, 100);
+    const before = local.test_recoveries.load(.monotonic);
+    if (!expect_published) {
+        try std.testing.expect(std.meta.isError(service.publishNext(signer, probe.interface(), 101, 1)));
+        try std.testing.expect(try store.fetchCheckpoint(0) == null);
+        try std.testing.expect(probe.at_write == null);
+        return null;
+    }
+    try std.testing.expectEqual(@as(usize, 1), try service.publishNext(signer, probe.interface(), 101, 1));
+    try std.testing.expect(try store.fetchCheckpoint(0) != null);
+    return probe.at_write.? - before;
+}
+
+test "local keys reach storage with zero recoveries and KMS-style raw signatures with exactly one" {
+    var signer = try validator.LocalSigner.init(key, null);
+    defer signer.deinit();
+    try std.testing.expectEqual(@as(?usize, 0), try publishOnce(signer.interface(), true));
+    const address = try protocol.signature.secretKeyAddress(key);
+    var kms: KmsLikeSigner = .{ .secret = key, .expected = address };
+    try std.testing.expectEqual(@as(?usize, 1), try publishOnce(kms.interface(), true));
+    // A remote signature from another key never reaches storage.
+    var forged: KmsLikeSigner = .{ .secret = @splat(0x22), .expected = address };
+    try std.testing.expectEqual(@as(?usize, null), try publishOnce(forged.interface(), false));
 }

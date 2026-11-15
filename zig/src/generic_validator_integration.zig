@@ -25,7 +25,7 @@ const Owner = struct {
 const Tracked = struct {
     base: validator.Signer,
     checkpoints: usize = 0,
-    fn sign(ctx: *anyopaque, c: validator.Checkpoint) !@import("storage/objects.zig").SignedCheckpoint {
+    fn sign(ctx: *anyopaque, c: validator.Checkpoint) !validator.Verified {
         const self: *Tracked = @ptrCast(@alignCast(ctx));
         self.checkpoints += 1;
         return self.base.sign(self.base.context, c);
