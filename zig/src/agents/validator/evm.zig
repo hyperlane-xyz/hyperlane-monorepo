@@ -81,6 +81,7 @@ pub const Role = struct {
     signed_announcement: ?objects.SignedAnnouncement = null,
     next_announcement_ms: u64 = 0,
     next_audit_ms: u64 = 0,
+    audit_clock_started: bool = false,
     round_results: ?[]votes.Result = null,
     /// Persistent vote transport: per-endpoint keep-alive across rounds.
     vote_engine: votes.Engine = .{},
@@ -275,10 +276,15 @@ pub const Role = struct {
         try self.cycle_clock.begin(now_ms);
         defer self.cycle_clock.end();
         self.index_due_ms = null;
-        // Rust submit.rs starts its idle audit clock at startup: the first
-        // periodic prefix audit is due one period later, not on the first
-        // signing tick. Disagreeing votes and recovery still force an audit.
-        if (self.next_audit_ms == 0) self.next_audit_ms = now_ms +| 60000;
+        // A fresh database has no persisted prefix to audit, so its first
+        // periodic audit is due one period after startup (Rust submit.rs
+        // starts its idle audit clock at startup) rather than on the first
+        // signing tick. A restart with a persisted verified/signed prefix
+        // keeps the immediate audit. Disagreeing votes still force one.
+        if (!self.audit_clock_started) {
+            self.audit_clock_started = true;
+            if (self.state.verified_through == null and self.state.signed_watermark == null) self.next_audit_ms = now_ms +| 60000;
+        }
         if (self.index_metrics) |*sink| sink.unix_seconds = unix_timestamp;
         var result = try self.tickInner(unix_timestamp, now_ms);
         if (self.index_due_ms) |due| result.next_delay_ms = due -| self.cycle_clock.now(now_ms);
