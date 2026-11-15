@@ -82,6 +82,8 @@ pub const Role = struct {
     next_announcement_ms: u64 = 0,
     next_audit_ms: u64 = 0,
     round_results: ?[]votes.Result = null,
+    /// Persistent vote transport: per-endpoint keep-alive across rounds.
+    vote_engine: votes.Engine = .{},
     /// Opens local state only; RPC chain checks and announcement I/O happen in tick.
     pub fn open(a: A, s: *const settings.Settings, database: *rocks.Database, runtime: Runtime) !*Role {
         if (s.role != .validator) return error.ExpectedValidatorSettings;
@@ -149,7 +151,7 @@ pub const Role = struct {
             .majority => .majority,
         } else null, .reorg_period = config.reorg_period });
         const owned = try slots.toOwnedSlice();
-        self.* = .{ .allocator = a, .settings = s, .chain = chain, .runtime = actual_runtime, .rpc_native = owned_native, .primary_metrics = primary_metrics, .quorum_metrics = quorum_metrics, .slots = owned, .state = state, .store = native.Store.init(a, database, chain.name), .sequence_store = undefined, .canonical = .init(a), .consensus = consensus };
+        self.* = .{ .allocator = a, .settings = s, .chain = chain, .runtime = actual_runtime, .rpc_native = owned_native, .primary_metrics = primary_metrics, .quorum_metrics = quorum_metrics, .slots = owned, .state = state, .store = native.Store.init(a, database, chain.name), .sequence_store = undefined, .canonical = .init(a), .consensus = consensus, .vote_engine = .{ .min_capacity = owned.len } };
         self.sequence_store = .{ .store = &self.store, .stream = .insertion };
         if (runtime.metrics) |registry| self.index_metrics = .{ .registry = registry, .chain = chain.name };
         if (primary_metrics) |sink| sink.providerCreated(owned.len);
@@ -175,6 +177,7 @@ pub const Role = struct {
         if (self.sequence_cursor) |*c| c.deinit();
         self.canonical.deinit();
         if (self.round_results) |results| self.allocator.free(results);
+        self.vote_engine.deinit();
         for (self.slots) |slot| {
             slot.client.deinit();
             self.allocator.destroy(slot.client);
@@ -389,7 +392,7 @@ pub const Role = struct {
         const endpoints = try self.allocator.alloc(votes.Endpoint, if (!self.consensus and self.chain.connection.ethereum.consensus == .single) 1 else self.slots.len);
         defer self.allocator.free(endpoints);
         for (endpoints, 0..) |*endpoint, i| endpoint.* = .{ .client = self.slots[i].client, .chain_checked = self.slots[i].indexer.chain_checked };
-        const results = try votes.collect(self.allocator, endpoints, .{ .recorder = self.quorum_metrics, .library_path = library, .chain_id = self.slots[0].indexer.config.chain_id, .domain = self.chain.domain, .hook = self.slots[0].indexer.config.hook, .hook_hash = self.chain.contracts.merkle_tree_hook, .reorg_period = self.slots[0].indexer.config.reorg_period, .timeout_ms = self.runtime.rpc_timeout_ms, .connect_timeout_ms = self.runtime.connect_timeout_ms, .cancel = self.runtime.cancel }, self, quorumReady);
+        const results = try votes.collect(self.allocator, &self.vote_engine, endpoints, .{ .recorder = self.quorum_metrics, .library_path = library, .chain_id = self.slots[0].indexer.config.chain_id, .domain = self.chain.domain, .hook = self.slots[0].indexer.config.hook, .hook_hash = self.chain.contracts.merkle_tree_hook, .reorg_period = self.slots[0].indexer.config.reorg_period, .timeout_ms = self.runtime.rpc_timeout_ms, .connect_timeout_ms = self.runtime.connect_timeout_ms, .cancel = self.runtime.cancel }, self, quorumReady);
         self.round_results = results;
         for (results, 0..) |result, i| {
             self.slots[i].indexer.chain_checked = result.chain_checked;
@@ -430,7 +433,7 @@ pub const Role = struct {
             for (endpoints, 0..) |*endpoint, i| endpoint.* = .{ .client = self.slots[i].client, .chain_checked = false };
             var config = self.voteConfig(library);
             config.identity_only = true;
-            const identities = try votes.collect(self.allocator, endpoints, config, self, identityReady);
+            const identities = try votes.collect(self.allocator, &self.vote_engine, endpoints, config, self, identityReady);
             defer self.allocator.free(identities);
             var selected: ?usize = null;
             for (0..length) |offset| {
@@ -449,7 +452,7 @@ pub const Role = struct {
             const index = (start + offset) % length;
             const slot = &self.slots[index];
             const endpoints = [_]votes.Endpoint{.{ .client = slot.client, .chain_checked = slot.indexer.chain_checked }};
-            const observed = try votes.collect(self.allocator, &endpoints, self.voteConfig(library), self, quorumReady);
+            const observed = try votes.collect(self.allocator, &self.vote_engine, &endpoints, self.voteConfig(library), self, quorumReady);
             defer self.allocator.free(observed);
             results[index] = observed[0];
             slot.indexer.chain_checked = observed[0].chain_checked;
