@@ -364,9 +364,12 @@ pub const Connection = struct {
     }
     /// Next libpq result (null ends one statement's results) once the socket
     /// has delivered it, within the shared absolute deadline.
+    /// PQisBusy inspects only libpq's buffer: a result already buffered (the
+    /// terminating null after a statement's result) costs no syscall, and a
+    /// pending one waits for readability before reading, never a speculative
+    /// recv that returns EAGAIN right after the send.
     fn nextResult(self: *Connection, handle: *PGconn, deadline_ns: u64) !?*PGresult {
         try self.io.check(deadline_ns);
-        if (PQconsumeInput(handle) == 0) return error.PostgresConnection;
         while (PQisBusy(handle) != 0) {
             try waitSocket(handle, std.posix.POLL.IN, self.io, deadline_ns);
             if (PQconsumeInput(handle) == 0) return error.PostgresConnection;
