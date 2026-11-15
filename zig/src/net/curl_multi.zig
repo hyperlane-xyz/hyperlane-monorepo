@@ -48,6 +48,19 @@ const cselect_err = 4;
 const socket_timeout: c_int = -1;
 const mcode_call_multi_perform = -1;
 const mcode_bad_socket = 5;
+// curl/curl.h easy options for connection socket lifetime callbacks.
+const opt_sockopt_function = 20148;
+const opt_sockopt_data = 10149;
+const opt_closesocket_function = 20208;
+const opt_closesocket_data = 10209;
+const socktype_ipcxn = 0;
+const SockoptCallback = *const fn (?*anyopaque, c_int, c_int) callconv(.c) c_int;
+const CloseCallback = *const fn (?*anyopaque, c_int) callconv(.c) c_int;
+/// Kernel interest of one libcurl connection socket, by descriptor number.
+/// SOCKOPTFUNCTION marks creation and CLOSESOCKETFUNCTION closure, so the
+/// state is exact: an idle keepalive socket can stay registered for reading
+/// and its reuse costs no epoll_ctl/kevent.
+const FdState = packed struct(u8) { kernel: u2 = 0, trust: u1 = 0, connection: bool = false, idle: bool = false, _: u3 = 0 };
 
 /// One readiness report: libcurl socket, CURL_CSELECT_* bits, trust cache.
 const Ready = struct { fd: c_int, mask: c_int, trust: u1 };
@@ -282,6 +295,13 @@ pub const Multi = struct {
     waits: u64 = 0,
     harvests: u64 = 0,
     dispatches: u64 = 0,
+    /// epoll_ctl/kevent registration changes.
+    registrations: u64 = 0,
+    /// Indexed by descriptor; only libcurl connection sockets are tracked.
+    fds: std.ArrayListUnmanaged(FdState) = .empty,
+    /// Connection sockets created over a still-tracked descriptor, i.e. a
+    /// close libcurl never reported. Expected zero; tests assert it.
+    unreported_closes: u64 = 0,
     reserved_bytes: usize = 0,
     last_ms: u64 = 0,
     first_trust: u1 = 0,
@@ -337,6 +357,8 @@ pub const Multi = struct {
         for (self.caches) |cache| {
             _ = self.api.multi_cleanup(cache.handle);
         }
+        // Cleanup closed every connection through onClose; fds outlived it.
+        self.fds.deinit(self.allocator);
         self.poller.deinit();
         self.client.deinit();
         self.allocator.free(self.slots);
@@ -349,18 +371,68 @@ pub const Multi = struct {
     }
     /// CURLMOPT_SOCKETFUNCTION: mirror libcurl's interest into the kernel set.
     /// socketp carries the registered CURL_POLL_* bits (never an address).
+    /// Connection sockets keep exact kernel state in `fds`: on REMOVE (idle in
+    /// libcurl's connection cache) a read-only registration stays, so reuse
+    /// re-registers nothing. Other sockets (resolver pairs) are mirrored eagerly.
     fn onSocket(_: ?*curl.Handle, fd: c_int, what: c_int, userp: ?*anyopaque, socketp: ?*anyopaque) callconv(.c) c_int {
         const cache: *Cache = @ptrCast(@alignCast(userp orelse return -1));
         const self = cache.owner;
-        const old: u2 = @intCast(@intFromPtr(socketp) & 3);
         const new: u2 = if (what == poll_remove) 0 else @intCast(what & 3);
-        if (old == new) return 0;
-        self.poller.update(fd, cache.trust, old, new) catch |err| {
-            if (self.callback_failure == null) self.callback_failure = err;
-            return -1;
+        if (self.fdState(fd)) |state| if (state.connection) {
+            const target: u2 = if (new == 0) state.kernel & poll_in else new;
+            if (state.kernel != target or state.trust != cache.trust) {
+                self.register(fd, cache.trust, state.kernel, target) catch return -1;
+                state.kernel = target;
+                state.trust = cache.trust;
+            }
+            state.idle = new == 0;
+            return 0;
         };
+        const old: u2 = @intCast(@intFromPtr(socketp) & 3);
+        if (old == new) return 0;
+        self.register(fd, cache.trust, old, new) catch return -1;
         if (what != poll_remove) _ = self.api.multi_assign(cache.handle, fd, if (new == 0) null else @ptrFromInt(new));
         return 0;
+    }
+    fn register(self: *Multi, fd: c_int, trust: u1, old: u2, new: u2) !void {
+        self.registrations += 1;
+        self.poller.update(fd, trust, old, new) catch |err| {
+            if (self.callback_failure == null) self.callback_failure = err;
+            return err;
+        };
+    }
+    fn fdState(self: *Multi, fd: c_int) ?*FdState {
+        if (fd < 0 or fd >= self.fds.items.len) return null;
+        return &self.fds.items[@intCast(fd)];
+    }
+    /// CURLOPT_SOCKOPTFUNCTION: a new connection socket, never registered yet.
+    /// Untracked when the table cannot grow; such a socket is mirrored eagerly.
+    fn onSockopt(clientp: ?*anyopaque, fd: c_int, purpose: c_int) callconv(.c) c_int {
+        const cache: *Cache = @ptrCast(@alignCast(clientp orelse return 0));
+        const self = cache.owner;
+        if (purpose != socktype_ipcxn or fd < 0) return 0;
+        const index: usize = @intCast(fd);
+        if (index >= self.fds.items.len) {
+            self.fds.appendNTimes(self.allocator, .{}, @max(index + 1, 2 * self.fds.items.len, 64) - self.fds.items.len) catch return 0;
+        }
+        if (self.fds.items[index].connection) self.unreported_closes += 1;
+        self.fds.items[index] = .{ .connection = true };
+        return 0;
+    }
+    /// CURLOPT_CLOSESOCKETFUNCTION. Deregister first: epoll keeps a socket
+    /// registered while any duplicate of it (e.g. in a child) stays open.
+    fn onClose(clientp: ?*anyopaque, fd: c_int) callconv(.c) c_int {
+        if (clientp) |pointer| {
+            const cache: *Cache = @ptrCast(@alignCast(pointer));
+            const self = cache.owner;
+            if (self.fdState(fd)) |state| {
+                // A failure is recorded in callback_failure and surfaces from
+                // the next socket action.
+                if (state.kernel != 0) self.register(fd, state.trust, state.kernel, 0) catch {};
+                state.* = .{};
+            }
+        }
+        return std.c.close(fd);
     }
     /// CURLMOPT_TIMERFUNCTION: -1 disarms; 0 asks for the timeout action soon.
     fn onTimer(_: ?*Native, timeout_ms: c_long, userp: ?*anyopaque) callconv(.c) c_int {
@@ -454,8 +526,16 @@ pub const Multi = struct {
                 try self.complete(slot, .{ .failure = error.LibcurlOptionFailed });
                 continue;
             }
-            // CURLOPT_PRIVATE maps DONE messages back to their slot without a scan.
-            if (self.client.api.easy_setopt(transfer.handle, 10103, @as(*anyopaque, slot)) != 0) {
+            // CURLOPT_PRIVATE maps DONE messages back to their slot without a
+            // scan; socket lifetime callbacks keep connection registrations exact.
+            const api = self.client.api;
+            const cache: *anyopaque = &self.caches[slot.trust];
+            if (api.easy_setopt(transfer.handle, 10103, @as(*anyopaque, slot)) != 0 or
+                api.easy_setopt(transfer.handle, opt_sockopt_function, @as(SockoptCallback, onSockopt)) != 0 or
+                api.easy_setopt(transfer.handle, opt_sockopt_data, cache) != 0 or
+                api.easy_setopt(transfer.handle, opt_closesocket_function, @as(CloseCallback, onClose)) != 0 or
+                api.easy_setopt(transfer.handle, opt_closesocket_data, cache) != 0)
+            {
                 try self.complete(slot, .{ .failure = error.LibcurlOptionFailed });
                 continue;
             }
@@ -512,7 +592,18 @@ pub const Multi = struct {
         }
         const ready_len = self.ready_len;
         self.ready_len = 0;
-        for (self.ready[0..ready_len]) |item| try self.act(item.trust, item.fd, item.mask);
+        for (self.ready[0..ready_len]) |item| {
+            // Readable while idle in libcurl's cache: the peer closed or sent
+            // unsolicited bytes. Stop watching; reuse checks the connection.
+            if (self.fdState(item.fd)) |state| if (state.connection and state.idle) {
+                if (state.kernel != 0) {
+                    try self.register(item.fd, state.trust, state.kernel, 0);
+                    state.kernel = 0;
+                }
+                continue;
+            };
+            try self.act(item.trust, item.fd, item.mask);
+        }
         const now_ns = self.monoNs();
         for (&self.caches) |*cache| if (cache.timer_ns) |deadline| if (now_ns >= deadline) {
             // libcurl re-arms its timer from inside the timeout action.
@@ -1044,6 +1135,8 @@ test "curl multi driver work per completed transfer does not scale with live tra
     thread.join();
     joined = true;
     if (fixture.failure) |err| return err;
+    // Every Connection: close socket was reported closed.
+    try std.testing.expectEqual(@as(u64, 0), multi.unreported_closes);
     const n = fast - 1;
     // Per completed transfer, 24 live idle transfers cost no more driver
     // iterations or socket dispatches than none: readiness drives the work.
@@ -1108,8 +1201,12 @@ test "curl multi reuses one keepalive connection across idle gaps between transf
     const url = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/kept", .{fixture.server.listen_address.getPort()});
     defer allocator.free(url);
     var timer = try std.time.Timer.start();
-    for (0..requests) |_| {
+    var first_registrations: u64 = 0;
+    for (0..requests) |index| {
         try driveFast(multi, url, &timer);
+        // The idle keepalive socket stays registered for reading: reuse
+        // makes no epoll_ctl/kevent change at all.
+        if (index == 0) first_registrations = multi.registrations else try std.testing.expectEqual(first_registrations, multi.registrations);
         // The idle cached connection is out of the kernel set: a wait with
         // no transfer blocks to its bound instead of spinning on the socket.
         const waits = multi.waits;
@@ -1117,6 +1214,69 @@ test "curl multi reuses one keepalive connection across idle gaps between transf
         try std.testing.expectEqual(waits + 1, multi.waits);
     }
     try std.testing.expectEqual(@as(usize, 1), fixture.accepted.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 0), multi.unreported_closes);
+    multi.deinit();
+    multi_open = false;
+    thread.join();
+    joined = true;
+    if (fixture.failure) |err| return err;
+}
+
+const ClosingFixture = struct {
+    server: std.net.Server,
+    failure: ?anyerror = null,
+    fn serve(self: *ClosingFixture) void {
+        self.run() catch |err| {
+            self.failure = err;
+        };
+    }
+    /// Two connections, each answering one keepalive request, then closing
+    /// while idle on the client.
+    fn run(self: *ClosingFixture) !void {
+        for (0..2) |_| {
+            const connection = try self.server.accept();
+            defer connection.stream.close();
+            var input: [4096]u8 = undefined;
+            var used: usize = 0;
+            while (std.mem.indexOf(u8, input[0..used], "\r\n\r\n") == null) {
+                if (used == input.len) return error.FixtureRequestTooLarge;
+                const got = try connection.stream.read(input[used..]);
+                if (got == 0) return error.FixtureUnexpectedEof;
+                used += got;
+            }
+            try connection.stream.writeAll("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        }
+    }
+};
+test "curl multi stops watching an idle keepalive socket its peer closed and reconnects" {
+    const allocator = std.testing.allocator;
+    const library = try nativeLibrary(allocator);
+    defer allocator.free(library);
+    var fixture: ClosingFixture = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}) };
+    defer fixture.server.deinit();
+    const thread = try std.Thread.spawn(.{}, ClosingFixture.serve, .{&fixture});
+    var joined = false;
+    defer if (!joined) thread.join();
+    const multi = try Multi.init(allocator, .{ .library_path = library, .max_concurrent = 2, .max_pending = 2 });
+    var multi_open = true;
+    defer if (multi_open) multi.deinit();
+    const url = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/closing", .{fixture.server.listen_address.getPort()});
+    defer allocator.free(url);
+    var timer = try std.time.Timer.start();
+    try driveFast(multi, url, &timer);
+    // The peer's FIN makes the idle socket readable once; it is then dropped
+    // from the kernel set instead of waking every later wait.
+    const waits = multi.waits;
+    const registrations = multi.registrations;
+    for (0..10) |_| {
+        try std.testing.expectEqual(@as(?Completion, null), try multi.poll(timer.read() / std.time.ns_per_ms));
+        try multi.wait(timer.read() / std.time.ns_per_ms, 20);
+    }
+    try std.testing.expect(multi.waits - waits == 10);
+    try std.testing.expectEqual(registrations + 1, multi.registrations);
+    try std.testing.expect(timer.read() >= 150 * std.time.ns_per_ms);
+    try driveFast(multi, url, &timer);
+    try std.testing.expectEqual(@as(u64, 0), multi.unreported_closes);
     multi.deinit();
     multi_open = false;
     thread.join();

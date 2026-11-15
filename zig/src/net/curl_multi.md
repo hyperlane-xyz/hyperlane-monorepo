@@ -15,7 +15,11 @@ libcurl's timer, the earliest request deadline, `wakeup` or its bound. `poll`
 dispatches only ready sockets (gathered by the last `wait`, else by one
 nonblocking harvest) and an expired libcurl timer; idle live transfers cost
 nothing. `advance` skips that harvest, for owners that always `wait` when idle
-(`evm/pool.zig`). Counters `waits`, `harvests` and `dispatches` expose the work.
+(`evm/pool.zig`). Connection sockets are tracked through
+`CURLOPT_SOCKOPTFUNCTION`/`CLOSESOCKETFUNCTION`: an idle keepalive socket keeps
+its read registration (dropped only if the peer closes it), so reuse makes no
+epoll_ctl/kevent change. Counters `waits`, `harvests`, `dispatches` and
+`registrations` expose the work.
 
 Submit copies URL/body/headers. Optional atomic cancellation flags remain
 borrowed until completion/cancel. Completion owns its response; call its deinit.
