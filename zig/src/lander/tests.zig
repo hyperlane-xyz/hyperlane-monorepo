@@ -187,6 +187,7 @@ const MockChain = struct {
     zks_calls: u64 = 0,
     rpc_calls: u64 = 0,
     code_calls: u64 = 0,
+    header_calls: u64 = 0,
 
     fn init(allocator: std.mem.Allocator) MockChain {
         return .{ .allocator = allocator, .receipts = std.AutoHashMap(types.Hash, chain.Receipt).init(allocator), .receipt_errors = std.AutoHashMap(types.Hash, anyerror).init(allocator), .receipt_calls = std.AutoHashMap(types.Hash, u64).init(allocator), .headers = std.AutoHashMap(u64, chain.Header).init(allocator) };
@@ -244,6 +245,7 @@ const MockChain = struct {
     }
     fn blockHeader(context: *anyopaque, number: u64) !chain.Header {
         const self: *MockChain = @ptrCast(@alignCast(context));
+        self.header_calls += 1;
         return self.headers.get(number) orelse error.MissingBlock;
     }
     fn sendRaw(context: *anyopaque, bytes: []const u8) !types.Hash {
@@ -659,6 +661,48 @@ test "included payload criterion uses current head not older finalized height" {
     try std.testing.expectEqual(@as(usize, 0), included.finalized);
     try std.testing.expectEqual(@as(usize, 1), included.reverted_payloads);
     try std.testing.expectEqual(@as(?u64, 5), mock.last_call_block);
+}
+
+test "receipt block membership is read only once the receipt can finalize" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .estimated_block_time_ms = 1 };
+    config.overrides.gas_price = 5;
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    defer running.deinit();
+    _ = try running.enqueue(legacyPayload(id(69)));
+    _ = try running.tick(1_000, .{});
+    _ = try running.tick(100_000, .{});
+    try std.testing.expectEqual(@as(usize, 1), mock.sent.items.len);
+    var tx_hash: types.Hash = undefined;
+    std.crypto.hash.sha3.Keccak256.hash(mock.sent.items[0], &tx_hash, .{});
+    const block_hash: types.Hash = @splat(0x53);
+    try mock.receipts.put(tx_hash, .{ .block_number = 5, .block_hash = block_hash });
+    mock.finalized_height = 1;
+    mock.next_nonce = 1;
+    // Above the finalized height: a provisional inclusion, no header read.
+    // (Ticks 100 ms apart: past the 50 ms recheck backoff of an aged
+    // transaction, within the 1 s resubmission guard.)
+    const included = try running.tick(100_100, .{});
+    try std.testing.expectEqual(@as(usize, 0), included.finalized);
+    try std.testing.expectEqual(@as(u64, 0), mock.header_calls);
+    try std.testing.expectEqual(@as(u64, 1), mock.receipt_calls.get(tx_hash).?);
+    // Now finalizable, but another block is canonical at its height.
+    try mock.headers.put(5, .{ .number = 5, .hash = @splat(0x54) });
+    mock.finalized_height = 5;
+    const reorged = try running.tick(100_200, .{});
+    try std.testing.expectEqual(@as(usize, 0), reorged.finalized);
+    try std.testing.expectEqual(@as(u64, 1), mock.header_calls);
+    try mock.headers.put(5, .{ .number = 5, .hash = block_hash });
+    const finalized = try running.tick(100_300, .{});
+    try std.testing.expectEqual(@as(usize, 1), finalized.finalized);
+    try std.testing.expectEqual(@as(u64, 2), mock.header_calls);
+    try std.testing.expectEqual(@as(usize, 1), mock.sent.items.len);
 }
 
 test "recovered finalized boundary does not clear reorg range before bounded drain" {

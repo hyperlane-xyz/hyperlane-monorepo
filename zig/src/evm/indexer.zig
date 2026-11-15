@@ -85,6 +85,10 @@ pub const Indexer = struct {
     client: *rpc.RpcClient,
     config: Config,
     chain_checked: bool = false,
+    /// EIP-1898 block-hash eth_call support, learned from the endpoint: an
+    /// endpoint that rejects it for a head proven canonical falls back to
+    /// number-pinned counts fenced immediately (the pre-1898 protocol).
+    pinned_calls: enum { unknown, supported, unsupported } = .unknown,
 
     pub fn init(allocator: Allocator, client: *rpc.RpcClient, config: Config) !Indexer {
         _ = try tag(config.reorg_period);
@@ -131,11 +135,28 @@ pub const Indexer = struct {
             .insertion => .{ self.config.hook, abi.selector("count()") },
             .gas, .delivery => return null,
         };
+        if (self.pinned_calls != .unsupported) {
+            if (self.countAtHash(target, &selector, head.hash)) |value| {
+                self.pinned_calls = .supported;
+                return value;
+            } else |err| if (err != error.RpcError or self.pinned_calls == .supported) return err;
+        }
+        // Number-pinned count, fenced now: the same guarantee without 1898.
+        const bytes = try self.client.ethCall(target, &selector, .{ .number = head.number });
+        defer self.allocator.free(bytes);
+        const value = try abi.uintWord(u32, bytes);
+        try self.verifyHead(head);
+        // The hash call failed for a head that is canonical: unsupported.
+        self.pinned_calls = .unsupported;
+        return value;
+    }
+
+    fn countAtHash(self: *Indexer, target: abi.Address, selector: []const u8, hash: Hash) !u32 {
         const to = try abi.hexAlloc(self.allocator, &target);
         defer self.allocator.free(to);
-        const data = try abi.hexAlloc(self.allocator, &selector);
+        const data = try abi.hexAlloc(self.allocator, selector);
         defer self.allocator.free(data);
-        const pinned = try abi.hexAlloc(self.allocator, &head.hash);
+        const pinned = try abi.hexAlloc(self.allocator, &hash);
         defer self.allocator.free(pinned);
         var response = try self.client.call("eth_call", .{ .{ .to = to, .data = data }, .{ .blockHash = pinned } });
         defer response.deinit();
@@ -143,7 +164,7 @@ pub const Indexer = struct {
         if (text.len != 66 or !std.mem.startsWith(u8, text, "0x")) return error.InvalidRpcResult;
         var word: [32]u8 = undefined;
         _ = try abi.decodeHex(&word, text);
-        return try abi.uintWord(u32, &word);
+        return abi.uintWord(u32, &word);
     }
 
     /// Fence: `head` is still the canonical header at its height.
@@ -160,11 +181,13 @@ pub const Indexer = struct {
         /// hash-fenced (for example the checkpoint round head). It replaces the
         /// leading fence read; the trailing fence after eth_getLogs is always read.
         leading: ?rpc.BlockHeader = null,
-        /// Validator insertion stream only. Logs at or below this height skip
-        /// the per-block header read and carry unknown (all-zero) provenance.
-        /// Sound only when every resulting leaf is bound by a Merkle root that a
-        /// quorum read at a fenced head >= this height before anything is signed
-        /// (Service.authorize); a non-canonical leaf then fails closed.
+        /// Insertion stream only. Logs at or below this height skip the
+        /// per-block header read and carry unknown (all-zero) provenance.
+        /// Sound only when every resulting leaf is bound by a trusted Merkle
+        /// root before use, so a non-canonical leaf fails closed: the validator
+        /// reads a quorum root at a fenced head >= this height before signing
+        /// (Service.authorize); the relayer proves each leaf against a
+        /// validator-signed checkpoint root (agents/origin.zig Origin.proof).
         root_checked_through: ?u64 = null,
     };
 

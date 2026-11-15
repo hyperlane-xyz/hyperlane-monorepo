@@ -256,3 +256,139 @@ test "origin bootstrap EVM actual count failures independent retries recovery an
 test "origin bootstrap EVM direct native physical request timeout consumes one completed attempt" {
     try evmBootstrap(true);
 }
+
+/// Scripted head for the round/fence tests: block n's hash is `n + salt`
+/// (repeated), its parent's hash `n - 1 + salt`.
+const HeadWire = struct {
+    latest: u64 = 5,
+    salt: u8 = 0x10,
+    reject_hash_calls: bool = false,
+    latest_reads: usize = 0,
+    number_reads: usize = 0,
+    hash_calls: usize = 0,
+    number_calls: usize = 0,
+    fn hash(self: *const HeadWire, a: A, n: u64) ![]u8 {
+        const byte: u8 = @truncate(n +% self.salt);
+        return @import("../../evm/codecs.zig").hexAlloc(a, &@as([32]u8, @splat(byte)));
+    }
+    fn read(context: *anyopaque, a: A, bytes: []const u8, _: rpc.Options) !rpc.WireResponse {
+        const self: *@This() = @ptrCast(@alignCast(context));
+        const abi = @import("../../evm/codecs.zig");
+        var arena = std.heap.ArenaAllocator.init(a);
+        defer arena.deinit();
+        const s = arena.allocator();
+        const value = (try std.json.parseFromSliceLeaky(std.json.Value, s, bytes, .{}));
+        const method = value.object.get("method").?.string;
+        const params = value.object.get("params").?.array.items;
+        const id = value.object.get("id").?;
+        if (std.mem.eql(u8, method, "eth_call")) {
+            if (params[1] == .object) {
+                self.hash_calls += 1;
+                if (self.reject_hash_calls) {
+                    const response = try std.json.Stringify.valueAlloc(a, .{ .jsonrpc = "2.0", .id = id, .@"error" = .{ .code = -32602, .message = "invalid block param" } }, .{});
+                    return .{ .bytes = response, .len = response.len };
+                }
+            } else self.number_calls += 1;
+            const response = try std.json.Stringify.valueAlloc(a, .{ .jsonrpc = "2.0", .id = id, .result = try abi.hexAlloc(s, &@as([32]u8, @splat(0))) }, .{});
+            return .{ .bytes = response, .len = response.len };
+        }
+        if (!std.mem.eql(u8, method, "eth_getBlockByNumber")) return error.UnexpectedOriginRpc;
+        const tag = params[0].string;
+        const latest = std.mem.eql(u8, tag, "latest");
+        const n = if (latest) self.latest else try abi.quantity(tag);
+        if (latest) self.latest_reads += 1 else self.number_reads += 1;
+        const header = .{ .number = try std.fmt.allocPrint(s, "0x{x}", .{n}), .hash = try self.hash(s, n), .parentHash = try self.hash(s, n - 1), .timestamp = "0x3e8" };
+        const response = try std.json.Stringify.valueAlloc(a, .{ .jsonrpc = "2.0", .id = id, .result = header }, .{});
+        return .{ .bytes = response, .len = response.len };
+    }
+};
+
+fn headFixture(a: A, database: *db.rocks.Database, chain: *const @import("../../settings/types.zig").Chain, client: *rpc.RpcClient) !*origin.Service {
+    const service = try a.create(origin.Service);
+    service.* = .{
+        .allocator = a,
+        .chain = chain,
+        .store = @import("../store.zig").Store.init(a, database, chain.name),
+        .history = undefined,
+        .indexer = try @import("../../evm/indexer.zig").Indexer.init(a, client, .{ .chain_id = 1, .domain = 10, .mailbox = .{0} ** 19 ++ .{1}, .hook = .{0} ** 19 ++ .{2}, .paymaster = .{0} ** 19 ++ .{3}, .reorg_period = .none }),
+        .progress = undefined,
+        .gas_enabled = false,
+    };
+    service.indexer.chain_checked = true;
+    service.history = @import("../origin.zig").Origin.init(a, &service.store, 10, @splat(2), null);
+    service.progress = .{ .{ .store = &service.store, .stream = .dispatch }, .{ .store = &service.store, .stream = .insertion } };
+    return service;
+}
+
+/// One rotation: both sequence streams at the same planned time.
+fn round(service: *origin.Service, now_ms: u64) !void {
+    _ = try service.tick(now_ms, null);
+    _ = try service.tick(now_ms, null);
+}
+
+test "EVM origin streams share a round head and settle idle count fences against the next one" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const base = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(base);
+    const path = try std.fs.path.join(a, &.{ base, "evm-round-head" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{});
+    defer database.deinit();
+    var chain: @import("../../settings/types.zig").Chain = undefined;
+    chain.name = "evm-round-head";
+    chain.index = .{ .from = 0, .chunk = 5, .interval = 1 };
+    var wire: HeadWire = .{};
+    var client = try rpc.RpcClient.init(a, "https://fixture", .{ .exchange = .{ .context = &wire, .fetch_fn = HeadWire.read } });
+    defer client.deinit();
+    const service = try headFixture(a, &database, &chain, &client);
+    defer service.deinit();
+
+    // First round: one head for both streams; each new cursor fences first.
+    try round(service, 0);
+    try std.testing.expectEqual([4]usize{ 1, 2, 2, 0 }, [4]usize{ wire.latest_reads, wire.number_reads, wire.hash_calls, wire.number_calls });
+    // Same head next round: the idle counts settle without a header read.
+    try round(service, 1000);
+    try std.testing.expectEqual([2]usize{ 2, 2 }, [2]usize{ wire.latest_reads, wire.number_reads });
+    // One block later: the new head's parent link proves the old one.
+    wire.latest = 6;
+    try round(service, 2000);
+    try std.testing.expectEqual([2]usize{ 3, 2 }, [2]usize{ wire.latest_reads, wire.number_reads });
+    // Several blocks later: one header read per stream at the old height.
+    wire.latest = 9;
+    try round(service, 3000);
+    try std.testing.expectEqual([2]usize{ 4, 4 }, [2]usize{ wire.latest_reads, wire.number_reads });
+    // The old head left the canonical chain: each cursor restarts, fenced.
+    wire.salt = 0x40;
+    try round(service, 4000);
+    try std.testing.expectEqual([2]usize{ 5, 6 }, [2]usize{ wire.latest_reads, wire.number_reads });
+    try std.testing.expect(service.cursors[0] != null and service.cursors[1] != null);
+    try std.testing.expectEqual(@as(usize, 0), wire.number_calls);
+}
+
+test "EVM origin counts fall back to number-pinned calls fenced at once without EIP-1898" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const base = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(base);
+    const path = try std.fs.path.join(a, &.{ base, "evm-no-1898" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{});
+    defer database.deinit();
+    var chain: @import("../../settings/types.zig").Chain = undefined;
+    chain.name = "evm-no-1898";
+    chain.index = .{ .from = 0, .chunk = 5, .interval = 1 };
+    var wire: HeadWire = .{ .reject_hash_calls = true };
+    var client = try rpc.RpcClient.init(a, "https://fixture", .{ .exchange = .{ .context = &wire, .fetch_fn = HeadWire.read } });
+    defer client.deinit();
+    const service = try headFixture(a, &database, &chain, &client);
+    defer service.deinit();
+    try round(service, 0);
+    try std.testing.expect(service.indexer.pinned_calls == .unsupported);
+    // One rejected hash call learns the endpoint; later counts go by number.
+    try std.testing.expectEqual([2]usize{ 1, 2 }, [2]usize{ wire.hash_calls, wire.number_calls });
+    try round(service, 1000);
+    try std.testing.expectEqual([2]usize{ 1, 4 }, [2]usize{ wire.hash_calls, wire.number_calls });
+}
