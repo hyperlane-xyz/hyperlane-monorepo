@@ -100,8 +100,7 @@ test "cooperative EVM source indexes eight healthy chains past eight stalled cha
     for (groups[0..8], 0..) |*group, i| {
         try std.testing.expectEqual(@as(u64, 0), group.indexed.load(.acquire));
         try std.testing.expectEqual(@as(u64, 0), (try scheduler.health(i)).failures);
-        // Stalled reads hold no worker: a fiber parks on its session (or a
-        // journal pass yields PendingReadIo off-fiber). Either way started.
+        // Stalled reads hold no worker: each fiber parks on its session.
         const health = try scheduler.health(i);
         try std.testing.expect(health.started >= 1 and health.completed == 0);
     }
@@ -124,7 +123,7 @@ fn onePass(cache: *replay.Replay, body: []const u8) !rpc.WireResponse {
         return err;
     };
 }
-test "cooperative absolute deadline survives repeated passes and async handles cancel before late completions" {
+test "cooperative absolute deadline and cancellation end a parked or driven read promptly" {
     const a = std.testing.allocator;
     const library = try fixture.nativeLibrary(a);
     defer a.free(library);
@@ -143,25 +142,41 @@ test "cooperative absolute deadline survives repeated passes and async handles c
     runtime.cancel(handle);
     runtime.cancel(handle);
     try std.testing.expectError(error.InvalidRpcHandle, runtime.poll(handle, a));
+    // The 30 ms absolute attempt clamps a 1 s request: one call, no replay.
     var cache = try replay.Replay.init(a, runtime, .{ .max_attempt_ms = 30 });
     defer cache.deinit();
     var timer = try std.time.Timer.start();
-    var passes: usize = 0;
-    while (true) {
-        if (onePass(&cache, body)) |unexpected| {
-            a.free(unexpected.bytes);
-            return error.UnexpectedReply;
-        } else |err| {
-            if (err == error.RequestDeadlineExceeded) break;
-            if (err != error.PendingReadIo) return err;
-        }
-        passes += 1;
-        std.Thread.sleep(std.time.ns_per_ms);
-        if (timer.read() > 300 * std.time.ns_per_ms) return error.ReadReplayDeadlineRefreshed;
-    }
-    try std.testing.expect(passes > 1);
+    if (onePass(&cache, body)) |unexpected| {
+        a.free(unexpected.bytes);
+        return error.UnexpectedReply;
+    } else |err| try std.testing.expectEqual(error.RequestDeadlineExceeded, err);
+    if (timer.read() > 900 * std.time.ns_per_ms) return error.ReadReplayDeadlineIgnored;
     try std.testing.expect(cache.started == null);
-    try std.testing.expectEqual(@as(usize, 0), cache.entries.items.len);
+    // A borrowed cancellation flipped while the read waits ends it promptly
+    // and closes the attempt.
+    cache.config.max_attempt_ms = 5000;
+    var cancel = std.atomic.Value(bool).init(false);
+    const Canceller = struct {
+        fn run(flag: *std.atomic.Value(bool)) void {
+            std.Thread.sleep(30 * std.time.ns_per_ms);
+            flag.store(true, .release);
+        }
+    };
+    const thread = try std.Thread.spawn(.{}, Canceller.run, .{&cancel});
+    timer.reset();
+    try cache.beginPass(&cancel);
+    const cancelled = cache.fetch(a, body, .{ .timeout_ms = 4000, .max_response_bytes = 8192 });
+    thread.join();
+    if (cancelled) |unexpected| {
+        a.free(unexpected.bytes);
+        cache.endPass(null);
+        return error.UnexpectedReply;
+    } else |err| {
+        cache.endPass(err);
+        try std.testing.expectEqual(error.RequestCancelled, err);
+    }
+    if (timer.read() > 2 * std.time.ns_per_s) return error.ReadReplayCancelIgnored;
+    try std.testing.expect(cache.started == null and cache.cancel == null);
     try server.check();
 }
 fn respondFork(a: A, body: []const u8) ![]u8 {
@@ -193,28 +208,21 @@ test "cooperative EVM source cannot replay the before-header as an after-header 
     defer group.client.deinit();
     group.evm = .{ .rpc_client = &group.client, .contracts = .{ .mailbox = .{0} ** 32, .hook = .{0} ** 32, .paymaster = .{0} ** 32 }, .domain = 1 };
     var cancel = std.atomic.Value(bool).init(false);
-    var timer = try std.time.Timer.start();
-    while (true) {
-        if (Group.run(&group, .{ .unix_ms = 0, .monotonic_ms = 0 }, &cancel)) |_| return error.UnauthenticatedFork else |err| {
-            if (err == error.ScraperFetchedReorg) break;
-            if (err != error.PendingReadIo) return err;
-        }
-        if (timer.read() > 2 * std.time.ns_per_s) return error.FixtureTimeout;
-        std.Thread.sleep(std.time.ns_per_ms);
-    }
+    // One pass: before and after headers are separate physical reads.
+    if (Group.run(&group, .{ .unix_ms = 0, .monotonic_ms = 0 }, &cancel)) |_| return error.UnauthenticatedFork else |err| try std.testing.expectEqual(error.ScraperFetchedReorg, err);
     try std.testing.expectEqual(@as(usize, 3), server.pathHits(0));
     try std.testing.expectEqual(@as(u64, 0), group.indexed.load(.acquire));
-    try std.testing.expectEqual(@as(usize, 0), group.replay.entries.items.len);
+    try std.testing.expect(group.replay.started == null);
     try server.check();
 }
 
-test "cooperative global replay quota fails closed and releases cached ownership on every terminal path" {
+test "cooperative global replay quota fails closed, bounds requests per section and releases on every terminal path" {
     const a = std.testing.allocator;
     const library = try fixture.nativeLibrary(a);
     defer a.free(library);
     const ok = [_]fixture.Reply{.{ .body = "" }};
     const behaviors = [_]fixture.Behavior{.{ .replies = &ok, .response_fn = respond }};
-    var server = try fixture.Fixture.init(4, &behaviors);
+    var server = try fixture.Fixture.init(8, &behaviors);
     try server.start();
     defer server.deinit();
     const url = try server.url(a, 0);
@@ -222,34 +230,41 @@ test "cooperative global replay quota fails closed and releases cached ownership
     const runtime = try Pool.Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{ .max_attempts = 1 } }, .max_response_bytes = 8192, .max_request_bytes = 16384, .max_reserved_bytes = 2 * 1024 * 1024, .max_sessions = 4, .max_concurrent = 4, .max_pending = 4 });
     defer runtime.deinit();
     var quota: replay.ByteBudget = .{ .maximum = 1 };
-    var cache = try replay.Replay.init(a, runtime, .{ .shared_budget = &quota });
+    var cache = try replay.Replay.init(a, runtime, .{ .shared_budget = &quota, .max_entries = 2 });
     defer cache.deinit();
     const body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getBlockByNumber\",\"params\":[\"latest\",false]}";
-    var timer = try std.time.Timer.start();
-    while (true) {
-        if (onePass(&cache, body)) |unexpected| {
-            a.free(unexpected.bytes);
-            return error.UnboundedReplayAccepted;
-        } else |err| {
-            if (err == error.ReadReplayGlobalByteBudgetExceeded) break;
-            if (err != error.PendingReadIo) return err;
-        }
-        if (timer.read() > 2 * std.time.ns_per_s) return error.FixtureTimeout;
-        std.Thread.sleep(std.time.ns_per_ms);
-    }
+    const options: rpc.Options = .{ .timeout_ms = 1000, .max_response_bytes = 8192 };
+    // The shared byte quota fails closed once the response arrives; the
+    // closed attempt keeps no reservation.
+    try std.testing.expectError(error.ReadReplayGlobalByteBudgetExceeded, onePass(&cache, body));
     try std.testing.expectEqual(@as(usize, 0), quota.used);
-    try std.testing.expectEqual(@as(usize, 0), cache.entries.items.len);
+    try std.testing.expectEqual(@as(usize, 1), server.pathHits(0));
     quota.maximum = 8192;
-    while (true) {
-        if (onePass(&cache, body)) |result| {
-            a.free(result.bytes);
-            break;
-        } else |err| if (err != error.PendingReadIo) return err;
-        if (timer.read() > 2 * std.time.ns_per_s) return error.FixtureTimeout;
+    // Two physical requests per section; the third is refused before any
+    // submission. A pending suspension keeps the count.
+    try cache.beginPass(null);
+    a.free((try cache.fetch(a, body, options)).bytes);
+    try std.testing.expect(quota.used > 0);
+    cache.endPass(error.PendingReadIo);
+    try std.testing.expect(quota.used > 0);
+    try cache.beginPass(null);
+    a.free((try cache.fetch(a, body, options)).bytes);
+    try std.testing.expectError(error.ReadReplayRequestLimit, cache.fetch(a, body, options));
+    try std.testing.expectEqual(@as(usize, 3), server.pathHits(0));
+    // A committed section releases its requests and bytes, not the deadline.
+    const started = cache.started;
+    try cache.commitReadSection();
+    try std.testing.expectEqual(@as(usize, 0), quota.used);
+    try std.testing.expectEqual(started, cache.started);
+    a.free((try cache.fetch(a, body, options)).bytes);
+    try std.testing.expectEqual(@as(usize, 4), server.pathHits(0));
+    cache.endPass(null);
+    try std.testing.expectEqual(@as(usize, 0), quota.used);
+    var timer = try std.time.Timer.start();
+    while (runtime.native.reserved_bytes != 0 or runtime.retained_bytes != 0) {
+        if (timer.read() > 2 * std.time.ns_per_s) return error.PoolBytesNotDrained;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    try std.testing.expectEqual(@as(usize, 0), quota.used);
-    try std.testing.expectEqual(@as(usize, 2), server.pathHits(0));
     try server.check();
 }
 
@@ -269,24 +284,17 @@ test "cooperative RPC completed native request timeout is ordinary with a live o
     var cache = try replay.Replay.init(a, runtime, .{ .max_attempt_ms = 2000 });
     defer cache.deinit();
     const body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}";
-    var timer = try std.time.Timer.start();
-    while (true) {
-        try cache.beginPass(null);
-        const result = cache.fetch(a, body, .{ .timeout_ms = 25, .connect_timeout_ms = 25, .max_response_bytes = 8192 });
-        if (result) |unexpected| {
-            a.free(unexpected.bytes);
-            cache.endPass(null);
-            return error.UnexpectedReply;
-        } else |err| {
-            cache.endPass(err);
-            if (err == error.UpstreamReadTimeout) break;
-            if (err != error.PendingReadIo) return err;
-        }
-        if (timer.read() > 1800 * std.time.ns_per_ms) return error.NativeTimeoutNotObserved;
-        std.Thread.sleep(std.time.ns_per_ms);
+    try cache.beginPass(null);
+    const result = cache.fetch(a, body, .{ .timeout_ms = 25, .connect_timeout_ms = 25, .max_response_bytes = 8192 });
+    if (result) |unexpected| {
+        a.free(unexpected.bytes);
+        cache.endPass(null);
+        return error.UnexpectedReply;
+    } else |err| {
+        cache.endPass(err);
+        try std.testing.expectEqual(error.UpstreamReadTimeout, err);
     }
     try std.testing.expect(cache.started == null);
-    try std.testing.expectEqual(@as(usize, 0), cache.entries.items.len);
     try server.check();
 }
 
@@ -296,7 +304,6 @@ const DirectRun = struct {
     result: ?anyerror = null,
     batch_ok: bool = false,
     fn run(self: *DirectRun) void {
-        @import("runtime/read_mode.zig").mode = .direct;
         // One pass, no PendingReadIo: every read waits inline on this thread.
         const report = Group.run(self.group, .{ .unix_ms = 0, .monotonic_ms = 0 }, &self.cancel) catch |err| {
             self.result = err;
@@ -321,7 +328,7 @@ const DirectRun = struct {
         self.batch_ok = std.mem.indexOf(u8, out[0].bytes[0..out[0].len], "\"id\":7") != null and std.mem.indexOf(u8, out[1].bytes[0..out[1].len], "\"id\":8") != null;
     }
 };
-test "direct read mode waits inline without journal replay, clone or identity hashing" {
+test "thread reads wait inline without replay, clone or identity hashing" {
     const a = std.testing.allocator;
     const library = try fixture.nativeLibrary(a);
     defer a.free(library);
@@ -347,7 +354,6 @@ test "direct read mode waits inline without journal replay, clone or identity ha
     try std.testing.expectEqual(@as(u64, 16), group.indexed.load(.acquire));
     // Header, logs, fresh header and the two batched reads: one request each.
     try std.testing.expectEqual(@as(usize, 5), server.acceptedCount());
-    try std.testing.expectEqual(@as(usize, 0), group.replay.entries.items.len);
     // Every owner pass ran on the reading thread (no owner-thread handoff).
     try std.testing.expectEqual(runtime.owner_iterations.load(.acquire), runtime.caller_passes.load(.acquire));
 }

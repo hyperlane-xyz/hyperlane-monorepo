@@ -1,7 +1,12 @@
 //! Bounded, type-erased metadata jobs. Waiting callers execute queued work too,
 //! so nested aggregations cannot strand every worker waiting for its children.
-//! PendingReadIo requeues the same job without retiring its source or operation.
+//! Worker-run jobs execute on stackful fibers: a job whose read parks frees
+//! its worker for other jobs and resumes when its response completes. A job
+//! that still yields (`.suspended`) re-runs on its own fiber after a short
+//! backoff park, without retiring its source or operation; off a fiber it is
+//! requeued for a worker.
 const std = @import("std");
+const fiber = @import("../runtime/fiber.zig");
 
 /// Owned ancestry for assisted nested jobs. A descendant can poll an ancestor's
 /// external cancellation even while that ancestor's caller executes queued work.
@@ -34,17 +39,35 @@ pub const Job = struct {
     next: ?*Job = null,
     due_ms: u64 = 0,
     run_fn: *const fn (*Job) RunResult,
+    /// Set by submit: the executor a worker fiber reports this job to.
+    executor: ?*Executor = null,
 };
 
 fn nowMs() u64 {
     return @intCast(std.time.milliTimestamp());
 }
 
+const WorkerState = struct {
+    executor: *Executor,
+    ready_head: ?*fiber.Fiber = null,
+    ready_tail: ?*fiber.Fiber = null,
+    timed: std.ArrayListUnmanaged(*fiber.Fiber) = .empty,
+    cond: std.Thread.Condition = .{},
+    idle: bool = false,
+    live: usize = 0,
+    interrupt: ?fiber.Interrupt = null,
+};
+
 pub const Executor = struct {
     allocator: std.mem.Allocator,
     config: Config,
     threads: [8]std.Thread = undefined,
     thread_count: usize = 0,
+    worker_states: [8]WorkerState = undefined,
+    /// Fiber parks (work-count evidence).
+    parks: std.atomic.Value(u64) = .init(0),
+    /// `.suspended` job returns (work-count evidence: each is a re-run).
+    suspensions: std.atomic.Value(u64) = .init(0),
     mutex: std.Thread.Mutex = .{},
     wake: std.Thread.Condition = .{},
     head: ?*Job = null,
@@ -63,11 +86,13 @@ pub const Executor = struct {
             self.mutex.lock();
             self.stopping = true;
             self.wake.broadcast();
+            for (self.worker_states[0..self.thread_count]) |*state| state.cond.signal();
             self.mutex.unlock();
             for (self.threads[0..self.thread_count]) |thread| thread.join();
         }
-        for (0..config.workers) |_| {
-            self.threads[self.thread_count] = try std.Thread.spawn(.{}, worker, .{self});
+        for (&self.worker_states) |*state| state.* = .{ .executor = self };
+        for (0..config.workers) |index| {
+            self.threads[self.thread_count] = try std.Thread.spawn(.{}, worker, .{ self, index });
             self.thread_count += 1;
         }
     }
@@ -86,8 +111,26 @@ pub const Executor = struct {
         if (self.retained_jobs >= self.config.max_retained_jobs) return error.MetadataExecutorSaturated;
         self.retained_jobs += 1;
         job.due_ms = nowMs();
+        job.executor = self;
         self.append(job);
+        self.wakeWorker();
+    }
+    /// Mutex held: wake one idle worker (claimed now, so a second submit before
+    /// it runs reaches a different worker), and the shared condition for
+    /// waits that are not fiber workers.
+    fn wakeWorker(self: *Executor) void {
         self.wake.signal();
+        for (self.worker_states[0..self.thread_count]) |*state| if (state.idle) {
+            state.idle = false;
+            state.cond.signal();
+            return;
+        };
+        // No idle worker: a fiber driving a socket wait on its thread must
+        // yield it so the queued job starts (a stalled read cannot hold it).
+        for (self.worker_states[0..self.thread_count]) |*state| if (state.interrupt) |interrupt| {
+            interrupt.call(interrupt.ctx);
+            return;
+        };
     }
 
     fn take(self: *Executor) ?*Job {
@@ -101,29 +144,63 @@ pub const Executor = struct {
         return job;
     }
 
+    fn retire(self: *Executor) void {
+        self.mutex.lock();
+        std.debug.assert(self.retained_jobs > 0);
+        self.retained_jobs -= 1;
+        self.mutex.unlock();
+    }
+
+    /// Off a fiber (assisting caller, or no fiber stack): a suspended job
+    /// returns to the queue for a worker fiber.
     fn run(self: *Executor, job: *Job) void {
         switch (job.run_fn(job)) {
-            .done => {
-                self.mutex.lock();
-                std.debug.assert(self.retained_jobs > 0);
-                self.retained_jobs -= 1;
-                self.mutex.unlock();
-            },
+            .done => self.retire(),
             .suspended => {
+                _ = self.suspensions.fetchAdd(1, .monotonic);
                 self.mutex.lock();
                 job.due_ms = nowMs() + 1;
                 self.append(job);
-                self.wake.signal();
+                self.wakeWorker();
                 self.mutex.unlock();
             },
         }
     }
 
+    /// First and last backoff of a suspended job on its fiber. Sources inside
+    /// metadata jobs park on their own completions; a remaining suspension is
+    /// contention without a notifier, so its re-runs back off.
+    const suspend_first_ms: i64 = 1;
+    const suspend_max_ms: i64 = 16;
+
+    /// On a worker fiber: re-run a suspended job in place after a timed park.
+    /// The fiber host runs other fibers and jobs meanwhile; nothing requeues.
+    fn runFiber(self: *Executor, job: *Job) void {
+        var backoff_ms = suspend_first_ms;
+        while (job.run_fn(job) == .suspended) {
+            _ = self.suspensions.fetchAdd(1, .monotonic);
+            var nap: fiber.Waiter = .{};
+            _ = nap.waitTimeout(fiber.monoMs() + backoff_ms);
+            backoff_ms = @min(backoff_ms * 2, suspend_max_ms);
+        }
+        self.retire();
+    }
+
     /// Execute one ready queued job. Delayed continuations remain retained.
+    /// Never on a fiber: an unrelated job could hold the caller's fiber behind
+    /// its own waits (a suspended job re-runs in place); the fiber's worker
+    /// starts queued jobs on their own fibers while the caller parks.
     pub fn assist(self: *Executor) bool {
+        if (fiber.inFiber()) return false;
         const job = self.take() orelse return false;
-        self.run(job);
+        self.runAssisted(job);
         return true;
+    }
+    /// A waiting caller runs queued work itself: on its fiber the job's reads
+    /// park it, off a fiber they wait inline (the caller is waiting anyway).
+    fn runAssisted(self: *Executor, job: *Job) void {
+        if (fiber.inFiber()) return self.runFiber(job);
+        self.run(job);
     }
 
     /// Priority discovery runs its prefix job, never an unrelated trailing job.
@@ -141,7 +218,7 @@ pub const Executor = struct {
                 if (self.tail == job) self.tail = previous;
                 job.next = null;
                 self.mutex.unlock();
-                self.run(job);
+                self.runAssisted(job);
                 return true;
             }
             previous = job;
@@ -151,26 +228,169 @@ pub const Executor = struct {
         return false;
     }
 
-    fn worker(self: *Executor) void {
+    /// Fiber host: runs ready fibers, expires timed parks, starts due jobs on
+    /// new fibers, and sleeps only when idle (until the next due time).
+    fn worker(self: *Executor, index: usize) void {
+        defer fiber.releaseThreadCache();
+        const state = &self.worker_states[index];
+        defer state.timed.deinit(self.allocator);
+        self.mutex.lock();
         while (true) {
-            self.mutex.lock();
-            while (self.head == null and !self.stopping) {
-                if (@import("builtin").is_test) self.test_parked_workers += 1;
-                self.wake.wait(&self.mutex);
-                if (@import("builtin").is_test) self.test_parked_workers -= 1;
+            if (popReady(state)) |f| {
+                dropTimed(state, f);
+                self.mutex.unlock();
+                self.step(state, f);
+                self.mutex.lock();
+                continue;
             }
-            if (self.head == null and self.stopping) {
+            var next_deadline: ?i64 = null;
+            if (state.timed.items.len != 0) {
+                const now = fiber.monoMs();
+                var i: usize = state.timed.items.len;
+                while (i > 0) {
+                    i -= 1;
+                    const f = state.timed.items[i];
+                    const parked = f.parked_on.waiter;
+                    const deadline = parked.deadline_ms.?;
+                    if (deadline > now) {
+                        next_deadline = @min(next_deadline orelse deadline, deadline);
+                        continue;
+                    }
+                    _ = state.timed.swapRemove(i);
+                    if (parked.w.expire(f)) {
+                        f.timed_out = true;
+                        pushReady(state, f);
+                    }
+                }
+                if (state.ready_head != null) continue;
+            }
+            if (self.head) |job| if (job.due_ms <= nowMs()) {
+                self.head = job.next;
+                if (self.head == null) self.tail = null;
+                job.next = null;
+                state.live += 1;
+                self.mutex.unlock();
+                const f = fiber.create(.{ .ctx = state, .wake = wakeFiber, .adopt = adoptFiber, .has_ready = hasReady, .set_interrupt = setInterrupt }, jobMain, job) catch {
+                    // No fiber stack: run the job on this thread (it may block).
+                    self.run(job);
+                    self.mutex.lock();
+                    state.live -= 1;
+                    continue;
+                };
+                self.step(state, f);
+                self.mutex.lock();
+                continue;
+            } else {
+                const due: i64 = @intCast(job.due_ms);
+                const due_mono = fiber.monoMs() + @max(due - @as(i64, @intCast(nowMs())), 0);
+                next_deadline = @min(next_deadline orelse due_mono, due_mono);
+            };
+            if (self.head == null and self.stopping and state.live == 0) {
                 self.mutex.unlock();
                 return;
             }
-            if (self.head.?.due_ms > nowMs()) {
-                self.wake.timedWait(&self.mutex, std.time.ns_per_ms) catch {};
-                self.mutex.unlock();
-                continue;
-            }
-            self.mutex.unlock();
-            _ = self.assist();
+            state.idle = true;
+            if (@import("builtin").is_test) self.test_parked_workers += 1;
+            if (next_deadline) |deadline| {
+                const left = deadline - fiber.monoMs();
+                if (left > 0) state.cond.timedWait(&self.mutex, @as(u64, @intCast(left)) * std.time.ns_per_ms) catch {};
+            } else state.cond.wait(&self.mutex);
+            if (@import("builtin").is_test) self.test_parked_workers -= 1;
+            state.idle = false;
         }
+    }
+    fn jobMain(arg: *anyopaque) void {
+        const job: *Job = @ptrCast(@alignCast(arg));
+        job.executor.?.runFiber(job);
+    }
+    fn step(self: *Executor, state: *WorkerState, f: *fiber.Fiber) void {
+        fiber.resumeFiber(f);
+        if (fiber.reap(f)) {
+            self.mutex.lock();
+            state.live -= 1;
+            self.mutex.unlock();
+            return;
+        }
+        _ = self.parks.fetchAdd(1, .monotonic);
+        switch (f.parked_on) {
+            .nothing => {
+                self.mutex.lock();
+                pushReady(state, f);
+                self.mutex.unlock();
+            },
+            .waiter => |parked| {
+                if (parked.w.publish(f)) {
+                    self.mutex.lock();
+                    pushReady(state, f);
+                    self.mutex.unlock();
+                } else if (parked.deadline_ms != null) {
+                    self.mutex.lock();
+                    state.timed.append(self.allocator, f) catch {
+                        // Cannot track the deadline: time the wait out now
+                        // (its caller rechecks). If a wake already took the
+                        // fiber, that waker makes it ready; never both.
+                        if (parked.w.expire(f)) {
+                            f.timed_out = true;
+                            pushReady(state, f);
+                        }
+                    };
+                    self.mutex.unlock();
+                }
+            },
+        }
+    }
+    fn wakeFiber(context: *anyopaque, f: *fiber.Fiber) void {
+        const state: *WorkerState = @ptrCast(@alignCast(context));
+        const self = state.executor;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        pushReady(state, f);
+        state.idle = false;
+        state.cond.signal();
+        if (state.interrupt) |interrupt| interrupt.call(interrupt.ctx);
+    }
+    fn adoptFiber(context: *anyopaque, f: *fiber.Fiber) void {
+        const state: *WorkerState = @ptrCast(@alignCast(context));
+        const self = state.executor;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        state.live += 1;
+        pushReady(state, f);
+        if (state.interrupt) |interrupt| interrupt.call(interrupt.ctx);
+    }
+    fn hasReady(context: *anyopaque) bool {
+        const state: *WorkerState = @ptrCast(@alignCast(context));
+        const self = state.executor;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (state.ready_head != null) return true;
+        const job = self.head orelse return false;
+        return job.due_ms <= nowMs();
+    }
+    fn setInterrupt(context: *anyopaque, interrupt: ?fiber.Interrupt) void {
+        const state: *WorkerState = @ptrCast(@alignCast(context));
+        const self = state.executor;
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        state.interrupt = interrupt;
+    }
+    fn pushReady(state: *WorkerState, f: *fiber.Fiber) void {
+        f.next_ready = null;
+        if (state.ready_tail) |tail| tail.next_ready = f else state.ready_head = f;
+        state.ready_tail = f;
+    }
+    fn popReady(state: *WorkerState) ?*fiber.Fiber {
+        const f = state.ready_head orelse return null;
+        state.ready_head = f.next_ready;
+        if (state.ready_head == null) state.ready_tail = null;
+        f.next_ready = null;
+        return f;
+    }
+    fn dropTimed(state: *WorkerState, f: *fiber.Fiber) void {
+        for (state.timed.items, 0..) |item, i| if (item == f) {
+            _ = state.timed.swapRemove(i);
+            return;
+        };
     }
 
     /// Queued callbacks still run so their operations can release owned state.
@@ -182,6 +402,7 @@ pub const Executor = struct {
         self.mutex.lock();
         self.stopping = true;
         self.wake.broadcast();
+        for (self.worker_states[0..self.thread_count]) |*state| state.cond.signal();
         self.mutex.unlock();
         for (self.threads[0..self.thread_count]) |thread| thread.join();
         std.debug.assert(self.head == null and self.retained_jobs == 0 and self.output_bytes == 0);

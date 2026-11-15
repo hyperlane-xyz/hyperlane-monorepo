@@ -140,28 +140,25 @@ fn announceResponse(allocator: A, body: []const u8) ![]u8 {
     return std.fmt.allocPrint(allocator, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"result\":\"0x{s}\"}}", .{ id, result.items });
 }
 
-const Maintain = struct {
+/// One discovery run as an executor job: its reads park its fiber.
+const Discover = struct {
     job: parallel.Job = .{ .run_fn = run },
     registry: *readers.Registry,
-    done: bool = false,
+    cancel: *const std.atomic.Value(bool),
+    done: std.atomic.Value(bool) = .init(false),
     failure: ?anyerror = null,
 
     fn run(job: *parallel.Job) parallel.RunResult {
-        const self: *Maintain = @alignCast(@fieldParentPtr("job", job));
-        if (self.registry.active == null) {
-            self.done = true;
-            return .done;
-        }
-        self.registry.maintain(null) catch |err| {
+        const self: *Discover = @alignCast(@fieldParentPtr("job", job));
+        self.registry.ensureValidators(&.{@splat(1)}, self.cancel) catch |err| {
             self.failure = err;
-            self.done = true;
-            return .done;
         };
-        return .suspended;
+        self.done.store(true, .release);
+        return .done;
     }
 };
 
-test "two independent discoveries make progress round robin and drain shared quota" {
+test "two independent discoveries progress on one fiber worker past a stalled origin and drain shared quota" {
     const a = std.testing.allocator;
     const library = try pool_fixture.nativeLibrary(a);
     defer a.free(library);
@@ -227,42 +224,49 @@ test "two independent discoveries make progress round robin and drain shared quo
         try readers.Registry.initSource(a, factories[1].interface(), &resources[1].native, engine, .{ .domain = 2, .discovery_timeout_ms = 20000 }),
     };
     defer for (&registries) |*registry| registry.deinit();
-    try std.testing.expectError(error.PendingReadIo, registries[0].ensureValidators(&.{@splat(1)}, null));
-    try std.testing.expectError(error.PendingReadIo, registries[1].ensureValidators(&.{@splat(1)}, null));
+    // One worker: both discoveries are fibers on it. The stalled origin's
+    // read parks its fiber; the healthy one completes meanwhile. The test
+    // thread never runs a job or a read itself.
     const root = try parallel.Root.start(a, .{ .workers = 1, .max_retained_jobs = 8 });
     var cancel_a = std.atomic.Value(bool).init(false);
-    defer {
+    var cancel_b = std.atomic.Value(bool).init(false);
+    var discoveries = [_]Discover{ .{ .registry = &registries[0], .cancel = &cancel_a }, .{ .registry = &registries[1], .cancel = &cancel_b } };
+    var drained = false;
+    defer if (!drained) {
         cancel_a.store(true, .release);
+        cancel_b.store(true, .release);
         registries[0].ensureValidators(&.{@splat(1)}, &cancel_a) catch {};
-        while (root.executor.retainedJobs() != 0) {
-            _ = root.executor.assist();
-            std.Thread.sleep(std.time.ns_per_ms);
-        }
+        while (root.executor.retainedJobs() != 0) std.Thread.sleep(std.time.ns_per_ms);
         root.deinit();
-    }
-    var maintains = [_]Maintain{ .{ .registry = &registries[0] }, .{ .registry = &registries[1] } };
-    try root.executor.submit(&maintains[0].job);
-    try root.executor.submit(&maintains[1].job);
+    };
+    try root.executor.submit(&discoveries[0].job);
+    try root.executor.submit(&discoveries[1].job);
     var timer = try std.time.Timer.start();
-    while (!maintains[1].done) {
-        _ = root.executor.assist();
+    while (!discoveries[1].done.load(.acquire)) {
         if (timer.read() > 15 * std.time.ns_per_s) return error.HealthyOriginStalled;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    if (maintains[1].failure) |err| return err;
-    if (maintains[0].failure) |err| return err;
-    if (maintains[0].done) return error.StalledMaintainCompleted;
-    if (registries[0].active == null) return error.StalledRegistryCompleted;
+    if (discoveries[1].failure) |err| return err;
+    if (discoveries[0].done.load(.acquire)) return error.StalledDiscoveryCompleted;
+    if (root.executor.parks.load(.acquire) == 0) return error.StalledReadDidNotPark;
+    try std.testing.expectEqual(@as(u64, 0), root.executor.suspensions.load(.acquire));
     if (registries[1].active != null) return error.HealthyRegistryIncomplete;
     try observer.expectClean();
     if (resources[1].cancel != null) return error.HealthyCancellationRetained;
     if (resources[1].read_replay) |replay| if (replay.cancel != null) return error.HealthyReplayCancellationRetained;
+    // A cancelled contender interrupts the parked read through the frame's
+    // token; the stalled job then retires with cancellation.
     cancel_a.store(true, .release);
     try std.testing.expectError(error.RequestCancelled, registries[0].ensureValidators(&.{@splat(1)}, &cancel_a));
+    timer.reset();
     while (root.executor.retainedJobs() != 0) {
-        _ = root.executor.assist();
+        if (timer.read() > 5 * std.time.ns_per_s) return error.StalledDiscoveryNotRetired;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    try std.testing.expect(maintains[0].done);
+    drained = true;
+    root.deinit();
+    try std.testing.expect(discoveries[0].done.load(.acquire));
+    try std.testing.expectEqual(error.RequestCancelled, discoveries[0].failure orelse return error.StalledDiscoveryCompleted);
+    if (registries[0].active != null) return error.CancelledRegistryRetained;
     try server.check();
 }

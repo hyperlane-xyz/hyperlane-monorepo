@@ -1,5 +1,6 @@
 //! Deterministic production Registry -> Factory -> Resources -> Replay races.
 //! Latches only control scheduling; actual reads use native configured Pool I/O.
+//! Contenders wait for the progression owner (never spin or re-run).
 const std = @import("std");
 const registry_mod = @import("../relayer/announced_readers.zig");
 const Factory = @import("announcement_source.zig").Factory;
@@ -91,6 +92,26 @@ const Call = struct {
         }
     }
 };
+/// A contender that waits for the progression owner on its own thread.
+const Contender = struct {
+    registry: *registry_mod.Registry,
+    validator: Address,
+    maintain: bool = false,
+    done: std.atomic.Value(bool) = .init(false),
+    failure: ?anyerror = null,
+    fn run(self: *Contender) void {
+        const result = if (self.maintain) self.registry.maintain(null) else self.registry.ensureValidators(&.{self.validator}, null);
+        result catch |err| {
+            self.failure = err;
+        };
+        self.done.store(true, .release);
+    }
+    /// Still waiting after the owner had ample time to admit it.
+    fn expectWaiting(self: *Contender) !void {
+        std.Thread.sleep(30 * std.time.ns_per_ms);
+        if (self.done.load(.acquire)) return error.ContenderDidNotWaitForOwner;
+    }
+};
 fn exercise(maintain: bool, cancellation: bool, caller_cancel: bool, deadline: bool) !void {
     const a = std.testing.allocator;
     const library = try fixture.nativeLibrary(a);
@@ -108,7 +129,7 @@ fn exercise(maintain: bool, cancellation: bool, caller_cancel: bool, deadline: b
     const resources = try source.Resources.open(a, &chain, &env, .{ .curl_library = library, .cooperative_reads = true, .read_budget = &budget, .rpc_parallelism = 4, .rpc_max_response_bytes = 32768, .rpc_max_reserved_bytes = 2 * 1024 * 1024 });
     defer resources.deinit();
     var factory = Factory.init(resources);
-    var gate: Gate = .{ .factory = &factory, .park_fetch = !cancellation and !caller_cancel and !deadline, .park_pending_end = cancellation, .park_success = caller_cancel or deadline };
+    var gate: Gate = .{ .factory = &factory, .park_fetch = !caller_cancel and !deadline, .park_pending_end = cancellation, .park_success = caller_cancel or deadline };
     const engine = try Engine.start(a, .{ .multi = .{ .library_path = library } });
     defer engine.deinit();
     var registry = try registry_mod.Registry.initSource(a, gate.interface(), &resources.native, engine, .{ .domain = 1, .discovery_timeout_ms = if (deadline) 500 else 120000 });
@@ -132,38 +153,56 @@ fn exercise(maintain: bool, cancellation: bool, caller_cancel: bool, deadline: b
         owner_cancel.store(true, .release);
         gate.resume_pass.store(true, .release);
     } else if (cancellation) {
-        // Observe the complete native request before cancelling its retained
-        // journal handle. The shared fixture intentionally treats an EOF before
-        // request headers as a server failure; that unrelated socket race must
-        // not replace the Registry cleanup handoff exercised here.
-        var request_timer = try std.time.Timer.start();
-        while (server.acceptedCount() == 0) {
-            if (request_timer.read() > 3 * std.time.ns_per_s) return error.AnnouncementRequestNotObserved;
-            std.Thread.sleep(std.time.ns_per_ms);
-        }
         // A cancelled contender must signal the in-flight provider without
         // detaching/resetting it or letting a new frame reuse that context.
         var cancel = std.atomic.Value(bool).init(true);
         try std.testing.expectError(error.RequestCancelled, registry.ensureValidators(&.{.{1} ** 20}, &cancel));
-        try std.testing.expectError(error.PendingReadIo, registry.ensureValidators(&.{.{2} ** 20}, null));
+        var other: Contender = .{ .registry = &registry, .validator = .{2} ** 20 };
+        const other_thread = try std.Thread.spawn(.{}, Contender.run, .{&other});
+        defer {
+            gate.resume_pass.store(true, .release);
+            gate.cleanup_resume.store(true, .release);
+            other_thread.join();
+        }
+        try other.expectWaiting();
         gate.resume_pass.store(true, .release);
-        // This hook runs from the old Active's final release. New callers must
-        // still yield while its retained Replay cancellation cleanup is parked.
+        // The owner's cancelled pass parks in its provider cleanup. New
+        // callers still wait while that cleanup owns the provider context.
         try Gate.wait(&gate.cleanup_entered);
-        try std.testing.expectError(error.PendingReadIo, registry.ensureValidators(&.{.{2} ** 20}, null));
-        try std.testing.expectError(error.PendingReadIo, registry.maintain(null));
+        var maintainer: Contender = .{ .registry = &registry, .validator = .{2} ** 20, .maintain = true };
+        const maintainer_thread = try std.Thread.spawn(.{}, Contender.run, .{&maintainer});
+        defer {
+            gate.resume_pass.store(true, .release);
+            gate.cleanup_resume.store(true, .release);
+            maintainer_thread.join();
+        }
+        try other.expectWaiting();
+        try maintainer.expectWaiting();
         try std.testing.expectEqual(@as(usize, 1), gate.begins.load(.acquire));
         gate.cleanup_resume.store(true, .release);
+        try Gate.wait(&other.done);
+        try Gate.wait(&maintainer.done);
+        if (other.failure) |err| return err;
+        if (maintainer.failure) |err| return err;
     } else {
-        if (maintain) try std.testing.expectError(error.PendingReadIo, registry.maintain(null)) else try std.testing.expectError(error.PendingReadIo, registry.ensureValidators(&.{.{1} ** 20}, null));
+        var contender: Contender = .{ .registry = &registry, .validator = .{1} ** 20, .maintain = maintain };
+        const contender_thread = try std.Thread.spawn(.{}, Contender.run, .{&contender});
+        defer {
+            gate.resume_pass.store(true, .release);
+            gate.cleanup_resume.store(true, .release);
+            contender_thread.join();
+        }
+        try contender.expectWaiting();
         try std.testing.expectEqual(@as(usize, 1), gate.begins.load(.acquire));
         try std.testing.expectEqual(@as(usize, 0), gate.ends.load(.acquire));
         try std.testing.expect(resources.read_replay.?.in_pass);
         gate.resume_pass.store(true, .release);
+        try Gate.wait(&contender.done);
+        if (contender.failure) |err| return err;
     }
     thread.join();
     joined = true;
-    try std.testing.expectEqual(@as(?anyerror, if (deadline) error.RequestDeadlineExceeded else if (cancellation or caller_cancel) error.RequestCancelled else error.PendingReadIo), first.failure);
+    try std.testing.expectEqual(@as(?anyerror, if (deadline) error.RequestDeadlineExceeded else if (cancellation or caller_cancel) error.RequestCancelled else null), first.failure);
     if (cancellation) try std.testing.expectEqual(@as(usize, 1), gate.cleanups.load(.acquire));
     if (caller_cancel or deadline) {
         try std.testing.expectEqual(@as(usize, 0), registry.cache.count());
@@ -184,7 +223,7 @@ fn exercise(maintain: bool, cancellation: bool, caller_cancel: bool, deadline: b
     }
     try std.testing.expect(registry.active == null);
     try std.testing.expect(!resources.read_replay.?.in_pass);
-    try std.testing.expectEqual(@as(usize, 0), resources.read_replay.?.entries.items.len);
+    try std.testing.expect(resources.read_replay.?.started == null);
     try std.testing.expectEqual(@as(usize, 0), budget.used);
     try std.testing.expect(server.acceptedCount() >= 2);
     // Zero-TTL freshness remains: a separate completed job re-fetches locations.
@@ -205,7 +244,7 @@ fn exercise(maintain: bool, cancellation: bool, caller_cancel: bool, deadline: b
 test "announcement replay one Registry serializes concurrent ensure callbacks through actual Factory Resources" {
     try exercise(false, false, false, false);
 }
-test "announcement replay maintenance yields while actual Factory Resources pass is owned" {
+test "announcement replay maintenance waits while actual Factory Resources pass is owned" {
     try exercise(true, false, false, false);
 }
 test "announcement replay cancellation and detached-frame cleanup cannot race a new provider pass" {

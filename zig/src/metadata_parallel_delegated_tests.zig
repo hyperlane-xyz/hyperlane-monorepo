@@ -1605,6 +1605,8 @@ test "native Pool yields eight stalled peers and verifies healthy EVM children t
     };
     try std.testing.expectEqual(@as(usize, 2), selected);
     try drainExecutor(root);
+    // Stalled reads parked their fibers; no job yielded and re-ran its reads.
+    try std.testing.expectEqual(@as(u64, 0), root.executor.suspensions.load(.acquire));
     for (8..16) |index| try std.testing.expect(server.pathHits(index) >= 8);
     try server.check();
 }
@@ -2236,6 +2238,8 @@ test "native shared Pool preserves cached verification across deterministic four
     }
     try std.testing.expectEqual(@as(usize, 2), selected);
     try drainExecutor(root);
+    // Session pressure waited inside the reads: no job yielded and re-ran.
+    try std.testing.expectEqual(@as(u64, 0), root.executor.suspensions.load(.acquire));
     try waitNativeMetadataPoolDrain(runtime);
     try observer.expectClean();
     // Join before reading schedule's server-owned non-atomic proof fields.

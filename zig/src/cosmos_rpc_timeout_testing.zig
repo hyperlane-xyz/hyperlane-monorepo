@@ -192,8 +192,8 @@ test "Cosmos RPC cooperative Resources full20s timeout reaches healthy second pe
     const h = try ResourceHarness.init(a, library, true, 120000);
     defer h.deinit();
     var timer = try std.time.Timer.start();
-    try std.testing.expectError(error.PendingReadIo, h.read(null));
-    var response = try h.finish(null);
+    // One call: the read waits through the first peer's full timeout.
+    var response = try h.read(null);
     defer response.deinit();
     try std.testing.expect(timer.read() >= 19500 * std.time.ns_per_ms);
     try std.testing.expectEqualStrings("42", response.value().object.get("height").?.string);
@@ -201,7 +201,7 @@ test "Cosmos RPC cooperative Resources full20s timeout reaches healthy second pe
     try std.testing.expectEqual(@as(usize, 1), h.server.pathHits(0));
     try std.testing.expectEqual(@as(usize, 1), h.server.pathHits(1));
     for (h.server.records[0..2]) |*record| try std.testing.expectEqualStrings(body, record.bodyText());
-    try std.testing.expectEqual(@as(usize, 0), h.network.read_replay.?.entries.items.len);
+    try std.testing.expect(h.network.read_replay.?.started == null);
     try h.drained();
 }
 
@@ -213,12 +213,11 @@ test "Cosmos RPC owner-clamped deadline expires on first peer without contacting
     defer h.deinit();
     var owner = try replay.Replay.init(a, h.pool, .{ .max_attempt_ms = 100, .use_owner_timeout = true });
     defer owner.deinit();
-    try std.testing.expectError(error.PendingReadIo, read(&owner, null));
+    try std.testing.expectError(error.RequestDeadlineExceeded, read(&owner, null));
     try h.accepted();
-    try std.testing.expectError(error.RequestDeadlineExceeded, finish(&owner, null));
     try h.drained();
     try std.testing.expectEqual(@as(usize, 0), h.server.pathHits(1));
-    try std.testing.expectEqual(@as(usize, 0), owner.entries.items.len);
+    try std.testing.expect(owner.started == null);
 }
 
 test "Cosmos RPC direct Resources full20s timeout preserves ordered120s actual owner deadline" {
@@ -279,13 +278,25 @@ test "Cosmos RPC cancellation after accepted first peer drains session and never
     var owner = try replay.Replay.init(a, h.pool, .{ .max_attempt_ms = 120000, .use_owner_timeout = true });
     defer owner.deinit();
     var cancel = std.atomic.Value(bool).init(false);
-    try std.testing.expectError(error.PendingReadIo, read(&owner, &cancel));
+    // Cancel from another thread once the first peer accepted the waiting read.
+    const Canceller = struct {
+        fn run(harness: *Harness, flag: *std.atomic.Value(bool)) void {
+            var timer = std.time.Timer.start() catch unreachable;
+            while (harness.server.pathHits(0) == 0 and timer.read() < 5 * std.time.ns_per_s) std.Thread.sleep(std.time.ns_per_ms);
+            flag.store(true, .release);
+        }
+    };
+    const thread = try std.Thread.spawn(.{}, Canceller.run, .{ h, &cancel });
+    const cancelled = read(&owner, &cancel);
+    thread.join();
+    if (cancelled) |unexpected| {
+        a.free(unexpected.bytes);
+        return error.CancelledReadSucceeded;
+    } else |err| try std.testing.expectEqual(error.RequestCancelled, err);
     try h.accepted();
-    cancel.store(true, .release);
-    try std.testing.expectError(error.RequestCancelled, read(&owner, &cancel));
     try h.drained();
     try std.testing.expectEqual(@as(usize, 0), h.server.pathHits(1));
-    try std.testing.expectEqual(@as(usize, 0), owner.entries.items.len);
+    try std.testing.expect(owner.started == null);
 }
 
 test "Cosmos RPC section commit preserves owner deadline and byte quota release" {
@@ -297,26 +308,20 @@ test "Cosmos RPC section commit preserves owner deadline and byte quota release"
     var budget: replay.ByteBudget = .{ .maximum = 1024 * 1024 };
     var owner = try replay.Replay.init(a, h.pool, .{ .max_attempt_ms = 100, .use_owner_timeout = true, .shared_budget = &budget });
     defer owner.deinit();
-    var saved_start: ?std.time.Instant = null;
-    while (true) {
-        try owner.beginPass(null);
-        const response = owner.fetch(a, body, options(null)) catch |err| {
-            owner.endPass(err);
-            if (err != error.PendingReadIo) return err;
-            std.Thread.sleep(std.time.ns_per_ms);
-            continue;
-        };
-        defer a.free(response.bytes);
-        saved_start = owner.started;
-        try std.testing.expect(budget.used > 0);
-        try owner.commitReadSection();
-        try std.testing.expectEqual(@as(usize, 0), budget.used);
-        try std.testing.expectEqual(saved_start, owner.started);
-        std.Thread.sleep(110 * std.time.ns_per_ms);
-        try std.testing.expectError(error.RequestDeadlineExceeded, owner.fetch(a, body, options(null)));
-        owner.endPass(error.RequestDeadlineExceeded);
-        break;
-    }
+    try owner.beginPass(null);
+    const response = owner.fetch(a, body, options(null)) catch |err| {
+        owner.endPass(err);
+        return err;
+    };
+    defer a.free(response.bytes);
+    const saved_start = owner.started;
+    try std.testing.expect(budget.used > 0);
+    try owner.commitReadSection();
+    try std.testing.expectEqual(@as(usize, 0), budget.used);
+    try std.testing.expectEqual(saved_start, owner.started);
+    std.Thread.sleep(110 * std.time.ns_per_ms);
+    try std.testing.expectError(error.RequestDeadlineExceeded, owner.fetch(a, body, options(null)));
+    owner.endPass(error.RequestDeadlineExceeded);
     try h.drained();
     try std.testing.expectEqual(@as(usize, 1), h.server.acceptedCount());
 }

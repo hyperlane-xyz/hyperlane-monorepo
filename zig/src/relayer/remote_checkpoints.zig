@@ -4,6 +4,7 @@
 //! Security tightening: unreadable guards make that peer unusable (diagnostic),
 //! whereas Rust's cached-backend recheck can assume no reorg after a read error.
 const std = @import("std");
+const fiber = @import("../runtime/fiber.zig");
 const multi = @import("../net/curl_multi.zig");
 const cloud = @import("../cloud/storage.zig");
 const http = @import("../cloud/http.zig");
@@ -95,6 +96,8 @@ const Session = struct {
     diagnostics: usize = 0,
     fatal: ?anyerror = null,
     finished: bool = false,
+    /// Session mutex: the parked fiber / blocked thread in ReadRequest.wait.
+    waiter: ?*fiber.Waiter = null,
     fn retain(self: *Session) void {
         _ = self.references.fetchAdd(1, .acq_rel);
     }
@@ -113,6 +116,27 @@ const Session = struct {
         self.arrivals[self.length] = value;
         self.length += 1;
         self.wake.signal();
+        self.wakeWaiterLocked();
+    }
+    /// Mutex held: wake (under it, so the Waiter is alive) a waiting reader.
+    fn wakeWaiterLocked(self: *Session) void {
+        const waiter = self.waiter orelse return;
+        self.waiter = null;
+        waiter.wake();
+    }
+    /// Register `waiter` unless an arrival or terminal state is already
+    /// visible; false means poll now.
+    fn armWaiter(self: *Session, waiter: *fiber.Waiter) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.fatal != null or self.finished or self.consumed < self.length) return false;
+        self.waiter = waiter;
+        return true;
+    }
+    fn disarmWaiter(self: *Session, waiter: *fiber.Waiter) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.waiter == waiter) self.waiter = null;
     }
     fn diagnostic(self: *Session) void {
         self.mutex.lock();
@@ -124,6 +148,7 @@ const Session = struct {
         self.fatal = err;
         self.closed.store(true, .release);
         self.wake.broadcast();
+        self.wakeWaiterLocked();
         self.mutex.unlock();
     }
     const Poll = union(enum) { pending, done, arrival: Arrival };
@@ -244,6 +269,22 @@ pub const ReadRequest = struct {
             }
         }
     }
+    /// Poll until terminal: a fiber parks (its worker runs other fibers) and a
+    /// thread blocks until an arrival, completion or failure wakes it. The
+    /// Engine enforces the session deadline; `cancel` has no notifier, so it
+    /// is rechecked on a slice.
+    pub fn wait(self: *ReadRequest, cancel: ?*const std.atomic.Value(bool)) !Poll {
+        while (true) {
+            const ready = try self.poll(cancel);
+            if (ready != .pending) return ready;
+            var waiter: fiber.Waiter = .{};
+            if (!self.session.armWaiter(&waiter)) continue;
+            const slice_ms: i64 = if (cancel != null) cancel_slice_ms else 1000;
+            _ = waiter.waitTimeout(fiber.monoMs() + slice_ms);
+            self.session.disarmWaiter(&waiter);
+        }
+    }
+    const cancel_slice_ms = 10;
     fn collectDiagnostics(self: *ReadRequest) void {
         self.session.mutex.lock();
         defer self.session.mutex.unlock();
@@ -651,6 +692,7 @@ pub const Engine = struct {
                     session.mutex.lock();
                     session.finished = true;
                     session.wake.broadcast();
+                    session.wakeWaiterLocked();
                     session.mutex.unlock();
                     self.mutex.lock();
                     self.sessions[index] = null;
