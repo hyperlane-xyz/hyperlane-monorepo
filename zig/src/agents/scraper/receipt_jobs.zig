@@ -145,6 +145,19 @@ pub fn Batch(comptime Network: type) type {
         completed: usize = 0,
         failures: usize = 0,
         last_failure: ?anyerror = null,
+        /// A fiber worker's read fork, recycled across its jobs. A job that
+        /// retired successfully closed every read pass (endReadPass reset its
+        /// journals), so the next job reuses the fork's clients instead of
+        /// opening and tearing down a fresh set per receipt. Failed jobs drop
+        /// theirs. The worker deinitializes it before the parent goes away.
+        pub const Spare = struct {
+            network: ?*Network = null,
+            parent: ?*Network = null,
+            pub fn deinit(self: *Spare) void {
+                if (self.network) |network| network.deinit();
+                self.* = .{};
+            }
+        };
         pub fn init(a: A, parent: *Network, limiter: *Limiter, domain: u32, requests: []const enrich.Request, deadline_ns: u64) !Self {
             if (requests.len > 100) return error.ScraperReceiptPageLimit;
             const jobs = try a.alloc(Job, requests.len);
@@ -171,7 +184,7 @@ pub fn Batch(comptime Network: type) type {
         /// Fiber mode: runs one claimed job to retirement. Reads park this
         /// fiber (siblings' reads overlap); the permit is handed over on release.
         /// Only OutOfMemory and cancellation abort the caller.
-        pub fn runJob(self: *Self, index: usize, io: pg.IoOptions, persist: anytype) !void {
+        pub fn runJob(self: *Self, index: usize, io: pg.IoOptions, persist: anytype, spare: *Spare) !void {
             const job = &self.jobs[index];
             self.limiter.acquireWait(self.domain, self.deadline_ns, io.cancel) catch |err| switch (err) {
                 error.ScraperReceiptDeadline => return self.failed(job, err),
@@ -181,12 +194,14 @@ pub fn Batch(comptime Network: type) type {
                 },
                 else => return err,
             };
-            job.network = self.parent.forkReadFor(self.allocator, .contract_sync) catch |err| {
+            if (spare.network != null and spare.parent != self.parent) spare.deinit();
+            job.network = spare.network orelse self.parent.forkReadFor(self.allocator, .contract_sync) catch |err| {
                 self.limiter.release(self.domain);
                 self.failed(job, err);
                 if (err == error.OutOfMemory) return err;
                 return;
             };
+            spare.* = .{};
             job.phase = .fetch;
             while (job.phase != .persist) {
                 if (try pg.nowNs() >= self.deadline_ns) return self.failed(job, error.ScraperReceiptDeadline);
@@ -208,7 +223,9 @@ pub fn Batch(comptime Network: type) type {
                 if (err == error.OutOfMemory or err == error.RequestCancelled) return err;
                 return;
             };
-            self.retire(job);
+            spare.* = .{ .network = job.network, .parent = self.parent };
+            job.network = null;
+            self.release(job, spare.network.?);
             job.phase = .done;
             self.completed += 1;
         }
@@ -224,7 +241,9 @@ pub fn Batch(comptime Network: type) type {
                 err: ?anyerror = null,
                 fn run(arg: *anyopaque) void {
                     const worker: *@This() = @ptrCast(@alignCast(arg));
-                    while (worker.batch.claim()) |index| worker.batch.runJob(index, worker.io, worker.persist) catch |err| {
+                    var spare: Spare = .{};
+                    defer spare.deinit();
+                    while (worker.batch.claim()) |index| worker.batch.runJob(index, worker.io, worker.persist, &spare) catch |err| {
                         worker.err = err;
                         return;
                     };
@@ -249,15 +268,24 @@ pub fn Batch(comptime Network: type) type {
             self.* = undefined;
         }
         fn retire(self: *Self, job: *Job) void {
+            const network = job.network orelse {
+                self.release(job, null);
+                return;
+            };
+            job.network = null;
+            self.release(job, network);
+            network.deinit();
+        }
+        /// Frees the job's value, read-budget charge and permit (held exactly
+        /// while it had a network); the caller keeps or closes `network`.
+        fn release(self: *Self, job: *Job, network: ?*Network) void {
             if (job.value) |*value| value.deinit();
             job.value = null;
-            if (job.network) |network| {
-                if (job.charged != 0) if (network.options.read_budget) |budget| budget.release(job.charged);
-                network.deinit();
+            if (network) |held| {
+                if (job.charged != 0) if (held.options.read_budget) |budget| budget.release(job.charged);
                 self.limiter.release(self.domain);
             }
             job.charged = 0;
-            job.network = null;
         }
         fn failed(self: *Self, job: *Job, err: anyerror) void {
             self.failures += 1;
@@ -526,7 +554,9 @@ test "receipt fiber workers claim each job once, retire every permit and keep fa
     try std.testing.expect(batch.claim() == null);
     try std.testing.expectEqual(@as(usize, 1), batch.failures);
     for (4..10) |id| try std.testing.expectEqual(@as(usize, if (id == 6) 0 else 1), persist.seen[id]);
-    try std.testing.expectEqual(@as(usize, 6), stats.forks);
+    // Off a fiber the first worker drains every job inline: it reuses one
+    // fork across successes and drops the fork of the failed job (id 6).
+    try std.testing.expectEqual(@as(usize, 2), stats.forks);
     try std.testing.expectEqual(stats.forks, stats.retired);
     try std.testing.expectEqual(@as(usize, 0), limiter.active);
     try std.testing.expectEqual(@as(usize, 0), budget.used);

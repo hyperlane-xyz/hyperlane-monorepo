@@ -377,6 +377,8 @@ const Lane = struct {
     /// job retires, plans the next page when every outstanding job is claimed,
     /// and finishes pages as they complete. Reads park; nothing else waits.
     fn receiptWorker(self: *Lane, io: pg.IoOptions) !void {
+        var spare: ReceiptBatch.Spare = .{};
+        defer spare.deinit();
         while (true) {
             if (io.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
             const next = self.claimReceiptJob() orelse blk: {
@@ -386,7 +388,7 @@ const Lane = struct {
                 break :blk self.claimReceiptJob() orelse continue;
             };
             const slot = &self.receipt_slots[next.slot].?;
-            try slot.batch.?.runJob(next.job, io, Persist{ .lane = self, .page = &slot.page });
+            try slot.batch.?.runJob(next.job, io, Persist{ .lane = self, .page = &slot.page }, &spare);
             try self.finishDoneReceiptSlots(io);
         }
     }
