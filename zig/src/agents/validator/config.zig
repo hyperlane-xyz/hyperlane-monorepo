@@ -67,7 +67,7 @@ pub const Resources = struct {
         }
     }
     pub fn signer(self: *Resources) service.Signer {
-        return .{ .parallel_safe = self.digest_signer.backend == .local or self.parallel_safe, .cancel = self.sign_cancel, .context = self.digest_signer, .sign = checkpointSignature, .sign_digest = rawSignature };
+        return .{ .parallel_safe = self.digest_signer.backend == .local or self.parallel_safe, .in_process = self.digest_signer.backend == .local, .cancel = self.sign_cancel, .context = self.digest_signer, .sign = checkpointSignature, .sign_digest = rawSignature };
     }
     fn rawSignature(ctx: *anyopaque, hash: service.Hash) ![65]u8 {
         const s: *digest_signer.DigestSigner = @ptrCast(@alignCast(ctx));

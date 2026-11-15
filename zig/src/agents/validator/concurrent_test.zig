@@ -210,3 +210,46 @@ test "guard precommit and ambiguous postcommit failures retain event retry fsync
         try std.testing.expectEqual(@as(usize, 1), signer.calls.load(.acquire));
     }
 }
+
+test "in-process key and files publish a batch on the caller without helper threads" {
+    const a = std.testing.allocator;
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+    const directory = try temporary.dir.realpathAlloc(a, ".");
+    defer a.free(directory);
+    const db_path = try std.fs.path.join(a, &.{ directory, "db" });
+    defer a.free(db_path);
+    const object_path = try std.fs.path.join(a, &.{ directory, "objects" });
+    defer a.free(object_path);
+    var database = try rocks.Database.open(a, db_path, .{});
+    defer database.deinit();
+    const address = try signature.secretKeyAddress(@splat(0x11));
+    const options: service.Options = .{ .domain_name = "inline-fixture", .domain = 3999999999, .hook = @splat(2), .signer_address = address, .endpoint_count = 1, .consensus = null };
+    var state = try service.Service.open(a, &database, options);
+    defer state.deinit();
+    var store = try local.LocalStore.open(a, std.fs.cwd(), object_path, .{ .read_only = false, .signer = address });
+    defer store.deinit();
+    var publisher: service.LocalPublisher = .{ .store = &store };
+    var signer = try service.LocalSigner.init(@splat(0x11), null);
+    defer signer.deinit();
+    try observe(&state, 0, 8);
+    try std.testing.expectEqual(@as(usize, 8), try state.publishConcurrent(signer.interface(), publisher.interface(), 100, 50));
+    try std.testing.expect(state.publication_workers == null);
+    try std.testing.expectEqual(@as(?u32, 7), try store.latestIndex());
+    try std.testing.expectEqual(@as(?u32, 7), state.latest_published);
+    try std.testing.expectEqual(@as(?u32, 7), state.signed_watermark);
+    try std.testing.expectEqual(@as(?u32, 7), state.snapshot_through);
+    for (0..8) |index| try std.testing.expect(try store.fetchCheckpoint(@intCast(index)) != null);
+    try std.testing.expect(!try state.hasPendingPublication());
+    // Newest first: the latest pointer moves with the batch's highest index;
+    // the remaining lower index is retired by the next batch.
+    try observe(&state, 8, 11);
+    try std.testing.expectEqual(@as(usize, 2), try state.publishConcurrent(signer.interface(), publisher.interface(), 101, 2));
+    try std.testing.expectEqual(@as(?u32, 10), try store.latestIndex());
+    try std.testing.expect(try state.hasPendingPublication());
+    try std.testing.expectEqual(@as(usize, 1), try state.publishConcurrent(signer.interface(), publisher.interface(), 102, 2));
+    try std.testing.expectEqual(@as(?u32, 10), state.latest_published);
+    try std.testing.expectEqual(@as(?u32, 10), state.snapshot_through);
+    try std.testing.expect(!try state.hasPendingPublication());
+    try std.testing.expect(state.publication_workers == null);
+}
