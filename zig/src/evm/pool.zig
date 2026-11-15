@@ -440,6 +440,8 @@ pub const Pool = struct {
     granted: bool = false,
     /// Passes run by blocking callers vs the owner thread (work-count evidence).
     caller_passes: std.atomic.Value(u64) = .init(0),
+    /// Returns of the idle owner from its condition wait (handoff evidence).
+    owner_wakes: std.atomic.Value(u64) = .init(0),
     thread: std.Thread,
     started: std.time.Instant,
 
@@ -816,7 +818,11 @@ pub const Pool = struct {
     /// Caller holds Pool.mutex. The idle owner waits on the condition; a busy
     /// owner blocks in the native epoll/kqueue wait, interrupted by its wakeup.
     fn wakeOwner(self: *Pool) void {
-        self.wake.signal();
+        // A driving caller or granted waiter progresses every session and
+        // hands remaining work over in releaseDriver (under this mutex), so a
+        // signal would only wake the idle owner to sleep again. The current
+        // driver's socket wait is interrupted either way.
+        if (!self.caller_driving and !self.granted) self.wake.signal();
         self.native.wakeup();
     }
     /// Caller holds Pool.mutex; consumed handles are never handed back.
@@ -1059,7 +1065,10 @@ pub const Pool = struct {
     fn run(self: *Pool) void {
         while (true) {
             self.mutex.lock();
-            while (!self.stopping.load(.acquire) and (self.caller_driving or self.granted or !self.needsDriverLocked())) self.wake.wait(&self.mutex);
+            while (!self.stopping.load(.acquire) and (self.caller_driving or self.granted or !self.needsDriverLocked())) {
+                self.wake.wait(&self.mutex);
+                _ = self.owner_wakes.fetchAdd(1, .monotonic);
+            }
             self.mutex.unlock();
             self.driver.lock();
             while (true) {
@@ -2598,6 +2607,53 @@ test "blocking fetch callers drive their own requests without owner thread hando
     // response), not one per pass or per live transfer.
     try std.testing.expectEqual(@as(u64, 0), owner.native.harvests);
     try std.testing.expect(owner.native.waits <= 4 * 20);
+}
+
+test "async submits and cancels during a caller's drive do not wake the idle owner thread" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const behaviors = [_]fixture.Behavior{.{ .replies = &.{.{ .body = "", .stall = true }} }};
+    var server = try fixture.Fixture.init(64, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{} } });
+    defer owner.deinit();
+    const Driver = struct {
+        fn run(pool: *Pool, result: *?anyerror) void {
+            const response = pool.fetch(std.testing.allocator, fixture.chain_id_body, 600, 500, null, 4096) catch |err| {
+                result.* = err;
+                return;
+            };
+            std.testing.allocator.free(response.bytes);
+        }
+    };
+    var result: ?anyerror = null;
+    const thread = try std.Thread.spawn(.{}, Driver.run, .{ owner, &result });
+    var timer = try std.time.Timer.start();
+    while (true) {
+        owner.mutex.lock();
+        const driving = owner.caller_driving;
+        owner.mutex.unlock();
+        if (driving and server.acceptedCount() > 0) break;
+        if (timer.read() > 2 * std.time.ns_per_s) {
+            thread.join();
+            return error.CallerNeverDrove;
+        }
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    const wakes = owner.owner_wakes.load(.acquire);
+    for (0..20) |_| owner.cancel(try owner.submit(fixture.chain_id_body, 5000, 1000, 4096));
+    const during = owner.owner_wakes.load(.acquire) - wakes;
+    thread.join();
+    try std.testing.expectEqual(@as(?anyerror, error.RequestDeadlineExceeded), result);
+    // The driving caller retires the cancelled sessions itself; previously
+    // each submit and cancel signalled the owner only for it to sleep again.
+    try std.testing.expectEqual(@as(u64, 0), during);
+    try server.check();
 }
 
 const ConcurrentFetch = struct {
