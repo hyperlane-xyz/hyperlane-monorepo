@@ -68,13 +68,18 @@ pub const Evm = struct {
         const hash = try abi.hexAlloc(allocator, meta.tx_hash[32..]);
         defer allocator.free(hash);
         try self.budget(deadline_ns);
-        var transaction = try self.rpc_client.call("eth_getTransactionByHash", .{hash});
-        defer transaction.deinit();
+        // Transaction and receipt are independent reads of the same hash:
+        // overlap them (one continuation, one round-trip latency) instead of
+        // two sequential calls. Each is still identity-checked below.
+        const params = try std.fmt.allocPrint(allocator, "[\"{s}\"]", .{hash});
+        defer allocator.free(params);
+        var responses: [2]rpc.RpcResponse = undefined;
+        try self.rpc_client.callMany(&.{ .{ .method = "eth_getTransactionByHash", .params_json = params }, .{ .method = "eth_getTransactionReceipt", .params_json = params } }, &responses);
+        defer for (&responses) |*response| response.deinit();
+        const transaction = responses[0];
+        const receipt = responses[1];
         if (transaction.value() == .null) return error.ScraperTransactionUnavailable;
         try validate(transaction.value(), meta, "hash");
-        try self.budget(deadline_ns);
-        var receipt = try self.rpc_client.call("eth_getTransactionReceipt", .{hash});
-        defer receipt.deinit();
         if (receipt.value() == .null) return error.ScraperReceiptUnavailable;
         try validate(receipt.value(), meta, "transactionHash");
         if (try nowNs() >= deadline_ns) return error.ScraperReceiptDeadline;

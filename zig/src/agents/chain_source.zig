@@ -206,6 +206,7 @@ pub const Resources = struct {
                 replay.* = try ReadReplay.Replay.init(a, self.rpc_pool.?, .{ .max_attempt_ms = options.read_attempt_timeout_ms, .shared_budget = options.read_budget, .use_owner_timeout = owner_fallback });
                 self.read_replay = replay;
                 r_options.exchange = replay.interface();
+                r_options.exchange.?.fetch_many_fn = replayFetchMany;
             } else r_options.exchange = if (owner_fallback) .{ .context = self, .fetch_fn = fallbackExchange, .fetch_many_fn = fallbackExchangeMany } else .{ .context = self.rpc_pool.?, .fetch_fn = exchange, .fetch_many_fn = exchangeMany };
         }
         self.clients = switch (self.chain.protocol) {
@@ -395,6 +396,30 @@ pub const Resources = struct {
     fn exchangeMany(context: *anyopaque, a: A, bodies: []const []const u8, options: rpc.Options, out: []rpc.WireResponse) !void {
         if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         return fetchMany(@ptrCast(@alignCast(context)), a, bodies, options, options.timeout_ms, out);
+    }
+    /// Cooperative overlap: every read of the batch is journaled (submitted)
+    /// in the same pass before the pass yields, so independent reads share one
+    /// continuation instead of one pass each. Replay order is unchanged.
+    fn replayFetchMany(context: *anyopaque, a: A, bodies: []const []const u8, options: rpc.Options, out: []rpc.WireResponse) !void {
+        const replay: *ReadReplay.Replay = @ptrCast(@alignCast(context));
+        if (bodies.len != out.len) return error.InvalidRpcBatch;
+        var filled: usize = 0;
+        defer if (filled != bodies.len) for (out[0..filled]) |wire| a.free(wire.bytes);
+        var pending = false;
+        for (bodies) |body| {
+            const wire = replay.fetch(a, body, options) catch |err| {
+                if (err != error.PendingReadIo) return err;
+                pending = true;
+                continue;
+            };
+            if (pending) {
+                a.free(wire.bytes);
+                continue;
+            }
+            out[filled] = wire;
+            filled += 1;
+        }
+        if (pending) return error.PendingReadIo;
     }
     fn fallbackExchangeMany(context: *anyopaque, a: A, bodies: []const []const u8, options: rpc.Options, out: []rpc.WireResponse) !void {
         const self: *Resources = @ptrCast(@alignCast(context));
