@@ -366,6 +366,10 @@ const Session = struct {
     failure: ?anyerror = null,
     finished: bool = false,
     taken: std.atomic.Value(bool) = .init(false),
+    /// Pool.mutex: a blocking `wait` caller sleeps on `wake` for this session.
+    blocking_waiter: bool = false,
+    /// Session.mutex: the departing driver handed the drive token to this waiter.
+    grant: bool = false,
 
     fn wire(self: *Session) *Request {
         return if (self.current) |*current| current else &self.original;
@@ -408,6 +412,15 @@ pub const Pool = struct {
     /// cooldown). Follow-up submissions happen in the next progress pass, so
     /// the owner must not block before running it.
     dirty: bool = false,
+    /// Drive token: whoever holds it runs owner passes (native multi, session
+    /// progress, retirement). A blocking `wait` caller takes it when free and
+    /// drives its own request, so an uncontended RPC needs no thread handoff.
+    driver: std.Thread.Mutex = .{},
+    /// Pool.mutex: a `wait` caller holds the token / a waiter was granted it.
+    caller_driving: bool = false,
+    granted: bool = false,
+    /// Passes run by blocking callers vs the owner thread (work-count evidence).
+    caller_passes: std.atomic.Value(u64) = .init(0),
     thread: std.Thread,
     started: std.time.Instant,
 
@@ -639,6 +652,10 @@ pub const Pool = struct {
         return self.submitObservedCached(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, false);
     }
     pub fn submitObservedCached(self: *Pool, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !Handle {
+        return self.submitSession(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, true);
+    }
+    /// `wake_owner` false: the caller drives the session itself in `wait`.
+    fn submitSession(self: *Pool, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool, wake_owner: bool) !Handle {
         if (observer_override) |observer| if (!observer.valid()) return error.InvalidRpcObserver;
         if (timeout_ms == 0 or connect_timeout_ms == 0 or max_response_bytes == 0 or max_response_bytes > self.config.max_response_bytes) return error.InvalidRpcLimit;
         const session = blk: {
@@ -690,7 +707,7 @@ pub const Pool = struct {
             return error.RpcPoolSessionsFull;
         };
         self.sessions[slot] = session;
-        self.wakeOwner();
+        if (wake_owner) self.wakeOwner();
         self.mutex.unlock();
 
         return .{ .id = session.id };
@@ -714,9 +731,13 @@ pub const Pool = struct {
         session.winner = null;
         session.taken.store(true, .release);
         session.mutex.unlock();
-        // Owner retires the taken session; otherwise it would hold a slot
-        // until unrelated socket activity and submit could see SessionsFull.
-        self.wakeOwner();
+        // Retire now when nobody drives (no thread handoff); otherwise the
+        // driver retires it on its next pass. A held slot must not linger
+        // until unrelated socket activity (submit could see SessionsFull).
+        if (self.driver.tryLock()) {
+            self.retireLocked();
+            self.driver.unlock();
+        } else self.native.wakeup();
         self.mutex.unlock();
         if (failure) |err| return err;
         const bytes = winner orelse return error.MissingRpcPoolResult;
@@ -757,7 +778,7 @@ pub const Pool = struct {
     }
     pub fn fetchObservedCached(self: *Pool, allocator: A, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, cancel_flag: ?*const std.atomic.Value(bool), max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !WireResponse {
         if (cancel_flag) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
-        const handle = try self.submitObservedCached(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache);
+        const handle = try self.submitSession(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, false);
         return self.wait(handle, allocator, self.now() +| timeout_ms, cancel_flag);
     }
     /// Block the calling thread until a submitted handle is terminal. Consumes
@@ -771,7 +792,14 @@ pub const Pool = struct {
             if (cancel_flag) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
             const now_ms = self.now();
             if (now_ms >= deadline_ms) return error.RequestDeadlineExceeded;
-            // Session completion broadcasts; a timed slice remains only for a
+            // Leader: nobody drives, so this thread runs owner passes until its
+            // own session is terminal (or its deadline/cancel), then hands off.
+            if (self.driver.tryLock()) {
+                try self.driveFor(handle, deadline_ms, cancel_flag);
+                continue;
+            }
+            // Follower: the current driver progresses this session; completion
+            // (or a drive grant) broadcasts. A timed slice remains only for a
             // borrowed cancel flag (no notifier) or an injected test clock.
             var slice_ms = deadline_ms - now_ms;
             if (cancel_flag != null) slice_ms = @min(slice_ms, caller_cancel_slice_ms);
@@ -781,13 +809,94 @@ pub const Pool = struct {
                 self.mutex.unlock();
                 return error.InvalidRpcHandle;
             };
+            session.blocking_waiter = true;
+            // The driver may be blocked in a socket wait without this session.
+            self.wakeOwner();
             session.mutex.lock();
             self.mutex.unlock();
             // This handle has one caller, so taken remains false until it polls
-            // or cancels. Owner cannot retire this session while waiting.
-            if (!session.finished) session.wake.timedWait(&session.mutex, slice_ms *| std.time.ns_per_ms) catch {};
+            // or cancels. No driver can retire this session while waiting.
+            if (!session.finished and !session.grant) session.wake.timedWait(&session.mutex, slice_ms *| std.time.ns_per_ms) catch {};
+            const granted = session.grant;
+            session.grant = false;
             session.mutex.unlock();
+            self.mutex.lock();
+            session.blocking_waiter = false;
+            if (granted) self.granted = false;
+            self.mutex.unlock();
+            // A granted waiter drives now; if the token was taken meanwhile,
+            // that holder drives instead. Either way no work is left undriven.
+            if (granted and self.driver.tryLock()) try self.driveFor(handle, deadline_ms, cancel_flag);
         }
+    }
+    /// Caller holds the drive token; released (and handed off) on return.
+    fn driveFor(self: *Pool, handle: Handle, deadline_ms: u64, cancel_flag: ?*const std.atomic.Value(bool)) !void {
+        self.mutex.lock();
+        self.caller_driving = true;
+        const own = self.findSession(handle);
+        self.mutex.unlock();
+        defer self.releaseDriver(true);
+        const session = own orelse return error.InvalidRpcHandle;
+        while (true) {
+            const pass_ = self.pass();
+            _ = self.caller_passes.fetchAdd(1, .monotonic);
+            // Only the driver finishes sessions, and this caller has not taken
+            // its own session, so it cannot be retired while driving.
+            if (session.finished) return;
+            if (cancel_flag) |flag| if (flag.load(.acquire)) return;
+            if (pass_.now_ms >= deadline_ms) return;
+            if (pass_.busy) continue;
+            var cap: u64 = deadline_ms - pass_.now_ms;
+            if (cancel_flag != null) cap = @min(cap, caller_cancel_slice_ms);
+            self.native.wait(pass_.now_ms, @intCast(@min(pass_.timeout, cap))) catch |err| {
+                self.wait_failure = err;
+            };
+        }
+    }
+    /// Drop the drive token, then give remaining work to a blocked waiter
+    /// (it must wake anyway) or else to the owner thread.
+    fn releaseDriver(self: *Pool, caller: bool) void {
+        self.driver.unlock();
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (caller) self.caller_driving = false;
+        if (!self.needsDriverLocked()) return;
+        for (self.sessions) |entry| if (entry) |session| {
+            if (!session.blocking_waiter) continue;
+            session.mutex.lock();
+            defer session.mutex.unlock();
+            if (session.finished or session.grant) continue;
+            session.grant = true;
+            self.granted = true;
+            session.wake.signal();
+            return;
+        };
+        self.wake.signal();
+    }
+    /// Pool.mutex held. Work exists that only a driver can advance: a probe,
+    /// an unfinished session, a taken session awaiting retirement, or stop.
+    fn needsDriverLocked(self: *Pool) bool {
+        for (self.probes) |entry| if (entry != null) return true;
+        for (self.sessions) |entry| if (entry) |session| {
+            if (self.stopping.load(.acquire) or session.taken.load(.acquire)) return true;
+            session.mutex.lock();
+            const finished = session.finished;
+            session.mutex.unlock();
+            if (!finished) return true;
+        };
+        return false;
+    }
+    /// Pool.mutex and the drive token held.
+    fn retireLocked(self: *Pool) void {
+        for (self.sessions) |*entry| if (entry.*) |session| {
+            const drained = for (session.peers) |peer| {
+                if (peer.native_id != null) break false;
+            } else true;
+            if (drained and !session.waiting_probe and (session.taken.load(.acquire) or self.stopping.load(.acquire))) {
+                entry.* = null;
+                self.destroySession(session);
+            }
+        };
     }
 
     fn preparePreflight(self: *Pool, session: *Session) !void {
@@ -812,75 +921,81 @@ pub const Pool = struct {
         session.phase_started_ms = session.started_ms;
     }
 
+    /// Owner thread: the fallback driver for asynchronous handles, retiring
+    /// sessions and shutdown. Idle while a `wait` caller holds the token.
     fn run(self: *Pool) void {
         while (true) {
-            var snapshot: [128]?*Session = @splat(null);
             self.mutex.lock();
-            for (self.sessions, snapshot[0..self.sessions.len]) |entry, *out| out.* = entry;
+            while (!self.stopping.load(.acquire) and (self.caller_driving or self.granted or !self.needsDriverLocked())) self.wake.wait(&self.mutex);
             self.mutex.unlock();
-            const now_ms = self.now();
-            _ = self.progressProbes(now_ms);
-            for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| {
-                if (self.stopping.load(.acquire) and !session.finished) self.finish(session, error.RpcPoolStopped);
-                if (session.closed.load(.acquire) and !session.finished) self.finish(session, if (self.stopping.load(.acquire)) error.RpcPoolStopped else error.RequestCancelled);
-                if (!session.finished and now_ms >= session.deadline_ms) self.finish(session, error.RequestDeadlineExceeded);
-                if (!session.finished) self.progress(session, now_ms) catch |err| self.finish(session, err);
-            };
-            var completed = false;
-            // Outcomes handled during progress (cache hits, cooldown skips)
-            // also need another pass before blocking.
-            const progressed = self.dirty;
-            self.dirty = false;
-            while (self.pollNative(now_ms) catch |err| blk: {
-                for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| if (!session.finished) self.finish(session, err);
-                break :blk null;
-            }) |value| {
-                var completion = value;
-                defer completion.deinit();
-                self.complete(snapshot[0..self.sessions.len], &completion, now_ms);
-                completed = true;
-            }
-            _ = self.owner_iterations.fetchAdd(1, .monotonic);
-            self.mutex.lock();
-            for (self.sessions) |*entry| if (entry.*) |session| {
-                const drained = for (session.peers) |peer| {
-                    if (peer.native_id != null) break false;
-                } else true;
-                if (drained and !session.waiting_probe and (session.taken.load(.acquire) or self.stopping.load(.acquire))) {
-                    entry.* = null;
-                    self.destroySession(session);
+            self.driver.lock();
+            while (true) {
+                const pass_ = self.pass();
+                if (pass_.empty and pass_.stopped) {
+                    self.driver.unlock();
+                    return;
                 }
-            };
-            const stopped = self.stopping.load(.acquire);
-            const empty_sessions = for (self.sessions) |entry| {
-                if (entry != null) break false;
-            } else true;
-            const empty_probes = for (self.probes) |entry| {
-                if (entry != null) break false;
-            } else true;
-            const empty = empty_sessions and empty_probes;
-            // Submit/cancel/shutdown signal this condition under the same
-            // mutex. Recheck the live queue, not the earlier owner snapshot:
-            // a submission between snapshot and wait must not lose its wake.
-            if (empty and !stopped) {
-                self.wake.wait(&self.mutex);
-            } else if (!empty and !completed and !progressed and !self.dirty) {
-                // Completions only mutate state; their follow-up submissions
-                // happen in the next progress pass, so loop before blocking.
-                // Otherwise block on sockets until activity, the next owner
-                // timer, or wakeOwner (curl_multi_wakeup is level-triggered).
-                // Live table under the mutex: the snapshot may name sessions
-                // retired above. A failed wait fails sessions on the next pass.
-                const timeout = self.nextWaitMs(self.sessions, now_ms);
-                self.mutex.unlock();
-                self.native.wait(now_ms, timeout) catch |err| {
+                if (!pass_.needs_driver) break;
+                if (pass_.busy) continue;
+                self.native.wait(pass_.now_ms, pass_.timeout) catch |err| {
                     self.wait_failure = err;
                 };
-                self.mutex.lock();
             }
-            self.mutex.unlock();
-            if (stopped and empty) return;
+            self.releaseDriver(false);
         }
+    }
+
+    const Pass = struct { now_ms: u64, empty: bool, stopped: bool, needs_driver: bool, busy: bool, timeout: u32 };
+    /// Drive token held. One owner pass: progress, drain native completions,
+    /// retire. `busy` means follow-up work exists; run another pass first.
+    fn pass(self: *Pool) Pass {
+        var snapshot: [128]?*Session = @splat(null);
+        self.mutex.lock();
+        for (self.sessions, snapshot[0..self.sessions.len]) |entry, *out| out.* = entry;
+        self.mutex.unlock();
+        const now_ms = self.now();
+        _ = self.progressProbes(now_ms);
+        for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| {
+            if (self.stopping.load(.acquire) and !session.finished) self.finish(session, error.RpcPoolStopped);
+            if (session.closed.load(.acquire) and !session.finished) self.finish(session, if (self.stopping.load(.acquire)) error.RpcPoolStopped else error.RequestCancelled);
+            if (!session.finished and now_ms >= session.deadline_ms) self.finish(session, error.RequestDeadlineExceeded);
+            if (!session.finished) self.progress(session, now_ms) catch |err| self.finish(session, err);
+        };
+        var completed = false;
+        // Outcomes handled during progress (cache hits, cooldown skips)
+        // also need another pass before blocking.
+        const progressed = self.dirty;
+        self.dirty = false;
+        while (self.pollNative(now_ms) catch |err| blk: {
+            for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| if (!session.finished) self.finish(session, err);
+            break :blk null;
+        }) |value| {
+            var completion = value;
+            defer completion.deinit();
+            self.complete(snapshot[0..self.sessions.len], &completion, now_ms);
+            completed = true;
+        }
+        _ = self.owner_iterations.fetchAdd(1, .monotonic);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.retireLocked();
+        const empty_sessions = for (self.sessions) |entry| {
+            if (entry != null) break false;
+        } else true;
+        const empty_probes = for (self.probes) |entry| {
+            if (entry != null) break false;
+        } else true;
+        // Live table under the mutex: the snapshot may name sessions retired
+        // above. Completions only mutate state; their follow-ups happen in the
+        // next progress pass, so a busy pass must not block.
+        return .{
+            .now_ms = now_ms,
+            .empty = empty_sessions and empty_probes,
+            .stopped = self.stopping.load(.acquire),
+            .needs_driver = self.needsDriverLocked(),
+            .busy = completed or progressed or self.dirty,
+            .timeout = self.nextWaitMs(self.sessions, now_ms),
+        };
     }
 
     fn pollNative(self: *Pool, now_ms: u64) !?multi.Completion {
@@ -2312,6 +2427,71 @@ test "native RPC owner runs the next fallback peer after a cooldown skip resolve
     try std.testing.expectEqual(@as(usize, 1), server.pathHits(0));
     try std.testing.expectEqual(@as(usize, 2), server.pathHits(1));
 }
+test "blocking fetch callers drive their own requests without owner thread handoffs" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const behaviors = [_]fixture.Behavior{.{ .replies = &.{.{ .body = fixture.chain_id_ok }} }};
+    var server = try fixture.Fixture.init(20, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{} } });
+    defer owner.deinit();
+    for (0..20) |_| {
+        const response = try owner.fetch(a, fixture.chain_id_body, 5000, 1000, null, 4096);
+        defer a.free(response.bytes);
+        try std.testing.expectEqualStrings(fixture.chain_id_ok, response.bytes);
+    }
+    // Every pass ran on the calling thread; the owner thread never woke.
+    const total = owner.owner_iterations.load(.acquire);
+    try std.testing.expect(total >= 20);
+    try std.testing.expectEqual(total, owner.caller_passes.load(.acquire));
+}
+
+const ConcurrentFetch = struct {
+    owner: *Pool,
+    body: []const u8,
+    expected: []const u8,
+    failures: std.atomic.Value(usize) = .init(0),
+    fn run(self: *ConcurrentFetch) void {
+        for (0..10) |_| {
+            const response = self.owner.fetch(std.testing.allocator, self.body, 5000, 1000, null, 4096) catch {
+                _ = self.failures.fetchAdd(1, .acq_rel);
+                continue;
+            };
+            defer std.testing.allocator.free(response.bytes);
+            if (!std.mem.eql(u8, response.bytes, self.expected)) _ = self.failures.fetchAdd(1, .acq_rel);
+        }
+    }
+};
+test "concurrent blocking callers share one drive token and all complete" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    // Mixed delays force followers, grants and owner fallback to interleave.
+    const behaviors = [_]fixture.Behavior{.{ .replies = &.{ .{ .body = fixture.chain_id_ok, .delay_ms = 20 }, .{ .body = fixture.chain_id_ok }, .{ .body = fixture.chain_id_ok, .delay_ms = 5 } } }};
+    var server = try fixture.Fixture.init(81, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{} } });
+    defer owner.deinit();
+    var work: ConcurrentFetch = .{ .owner = owner, .body = fixture.chain_id_body, .expected = fixture.chain_id_ok };
+    var threads: [8]std.Thread = undefined;
+    for (&threads) |*thread| thread.* = try std.Thread.spawn(.{}, ConcurrentFetch.run, .{&work});
+    for (threads) |thread| thread.join();
+    try std.testing.expectEqual(@as(usize, 0), work.failures.load(.acquire));
+    // Async handles still progress through the owner thread fallback.
+    const handle = try owner.submit(fixture.chain_id_body, 5000, 1000, 4096);
+    const response = try owner.wait(handle, a, owner.now() + 5000, null);
+    a.free(response.bytes);
+}
+
 test "native RPC owner notices delayed responses without any further submit" {
     const a = std.testing.allocator;
     const fixture = @import("pool_testing.zig");
