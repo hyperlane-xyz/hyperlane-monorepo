@@ -4,6 +4,7 @@ const std = @import("std");
 const enrich = @import("enrichment.zig");
 const source = @import("source.zig");
 const pg = @import("../../db/postgres.zig");
+const fiber = @import("../../runtime/fiber.zig");
 const A = std.mem.Allocator;
 pub const Limiter = struct {
     allocator: A,
@@ -51,10 +52,17 @@ pub const Limiter = struct {
         count.* -= 1;
     }
 };
+pub const max_workers = 16;
+const permit_nap_ms = 2;
+/// Parks the current fiber (siblings run) for about `ms` milliseconds.
+pub fn nap(ms: i64) void {
+    var waiter: fiber.Waiter = .{};
+    _ = waiter.waitTimeout(fiber.monoMs() + ms);
+}
 pub fn Batch(comptime Network: type) type {
     return struct {
         const Self = @This();
-        const Job = struct { request: enrich.Request, phase: enum { waiting, fetch, header, persist, done } = .waiting, network: ?*Network = null, value: ?enrich.OwnedTxn = null, header: ?source.Header = null, charged: usize = 0 };
+        const Job = struct { request: enrich.Request, phase: enum { waiting, fetch, header, persist, done } = .waiting, network: ?*Network = null, value: ?enrich.OwnedTxn = null, header: ?source.Header = null, charged: usize = 0, claimed: bool = false };
         allocator: A,
         parent: *Network,
         limiter: *Limiter,
@@ -70,11 +78,97 @@ pub fn Batch(comptime Network: type) type {
             for (jobs, requests) |*job, request| job.* = .{ .request = request };
             return .{ .allocator = a, .parent = parent, .limiter = limiter, .domain = domain, .deadline_ns = deadline_ns, .jobs = jobs };
         }
-        /// Jobs not yet admitted by the limiter.
+        /// Jobs not yet admitted by the limiter (or claimed by a fiber worker).
         pub fn waiting(self: Self) usize {
             var count: usize = 0;
-            for (self.jobs) |job| count += @intFromBool(job.phase == .waiting);
+            for (self.jobs) |job| count += @intFromBool(job.phase == .waiting and !job.claimed);
             return count;
+        }
+        pub fn done(self: Self) bool {
+            return self.completed == self.jobs.len;
+        }
+        /// Fiber mode: hands the next unclaimed job to exactly one worker.
+        pub fn claim(self: *Self) ?usize {
+            for (self.jobs, 0..) |*job, index| if (job.phase == .waiting and !job.claimed) {
+                job.claimed = true;
+                return index;
+            };
+            return null;
+        }
+        /// Fiber mode: runs one claimed job to retirement. Reads park this
+        /// fiber (siblings' reads overlap); the permit is awaited by napping.
+        /// Only OutOfMemory and cancellation abort the caller.
+        pub fn runJob(self: *Self, index: usize, io: pg.IoOptions, persist: anytype) !void {
+            const job = &self.jobs[index];
+            while (!try self.limiter.acquire(self.domain)) {
+                if (io.cancel) |cancel| if (cancel.load(.acquire)) {
+                    self.failed(job, error.RequestCancelled);
+                    return error.RequestCancelled;
+                };
+                if (try pg.nowNs() >= self.deadline_ns) return self.failed(job, error.ScraperReceiptDeadline);
+                nap(permit_nap_ms);
+            }
+            job.network = self.parent.forkReadFor(self.allocator, .contract_sync) catch |err| {
+                self.limiter.release(self.domain);
+                self.failed(job, err);
+                if (err == error.OutOfMemory) return err;
+                return;
+            };
+            job.phase = .fetch;
+            while (job.phase != .persist) {
+                if (try pg.nowNs() >= self.deadline_ns) return self.failed(job, error.ScraperReceiptDeadline);
+                self.read(job, io.cancel) catch |err| {
+                    // Pool pressure can still yield; retry within the deadline.
+                    if (err == error.PendingReadIo) {
+                        nap(1);
+                        continue;
+                    }
+                    self.failed(job, err);
+                    if (err == error.OutOfMemory or err == error.RequestCancelled) return err;
+                    return;
+                };
+            }
+            var bounded = io;
+            bounded.deadline_ns = self.deadline_ns;
+            persist.store(job.request, job.value.?.value, job.header, bounded) catch |err| {
+                self.failed(job, err);
+                if (err == error.OutOfMemory or err == error.RequestCancelled) return err;
+                return;
+            };
+            self.retire(job);
+            job.phase = .done;
+            self.completed += 1;
+        }
+        /// Fiber mode: `workers` sibling fibers drain the batch, each claiming
+        /// the next job as soon as its previous one retires (no barrier per
+        /// round). Off a fiber the children run inline, i.e. serially.
+        pub fn runFibers(self: *Self, io: pg.IoOptions, persist: anytype, workers: usize) !void {
+            const Worker = struct {
+                batch: *Self,
+                io: pg.IoOptions,
+                persist: @TypeOf(persist),
+                child: fiber.Child = .{},
+                err: ?anyerror = null,
+                fn run(arg: *anyopaque) void {
+                    const worker: *@This() = @ptrCast(@alignCast(arg));
+                    while (worker.batch.claim()) |index| worker.batch.runJob(index, worker.io, worker.persist) catch |err| {
+                        worker.err = err;
+                        return;
+                    };
+                }
+            };
+            var pool: [max_workers]Worker = undefined;
+            var group: fiber.Group = .{};
+            const count = @min(workers, max_workers);
+            var spawned: usize = 0;
+            defer group.wait();
+            for (pool[0..count]) |*worker| {
+                worker.* = .{ .batch = self, .io = io, .persist = persist };
+                try group.spawn(&worker.child, Worker.run, worker);
+                spawned += 1;
+            }
+            group.wait();
+            for (pool[0..spawned]) |worker| if (worker.err) |err| return err;
         }
         pub fn deinit(self: *Self) void {
             for (self.jobs) |*job| self.retire(job);
@@ -287,6 +381,35 @@ test "receipt batches retain four stalled peers while healthy domains persist ne
     try std.testing.expectEqual(@as(usize, 0), limiter.active);
     try std.testing.expectEqual(@as(usize, 12), stats.forks);
     try std.testing.expectEqual(stats.forks, stats.retired);
+    try std.testing.expectEqual(@as(usize, 0), budget.used);
+}
+
+test "receipt fiber workers claim each job once, retire every permit and keep failures per job" {
+    const a = std.testing.allocator;
+    var limiter = try Limiter.init(a, &.{1});
+    defer limiter.deinit();
+    var budget: @import("../../net/read_replay.zig").ByteBudget = .{ .maximum = 1024 * 1024 };
+    var stats: FakeNetwork.Stats = .{};
+    var parent: FakeNetwork = .{ .allocator = a, .stats = &stats, .options = .{ .read_budget = &budget } };
+    var requests: [6]enrich.Request = undefined;
+    for (&requests, 0..) |*request, i| {
+        var tx: [64]u8 = @splat(0);
+        tx[63] = @intCast(i + 4);
+        request.* = .{ .meta = .{ .tx_hash = tx, .block_hash = @splat(2), .block_number = 5 }, .block_id = 1 };
+    }
+    var batch = try Batch(FakeNetwork).init(a, &parent, &limiter, 1, &requests, (try pg.nowNs()) + 10 * std.time.ns_per_s);
+    defer batch.deinit();
+    var persist: FakePersist = .{};
+    // Off a fiber the workers run inline; the claim/retire protocol is the same.
+    try batch.runFibers(.{}, &persist, 4);
+    try std.testing.expect(batch.done());
+    try std.testing.expectEqual(@as(usize, 0), batch.waiting());
+    try std.testing.expect(batch.claim() == null);
+    try std.testing.expectEqual(@as(usize, 1), batch.failures);
+    for (4..10) |id| try std.testing.expectEqual(@as(usize, if (id == 6) 0 else 1), persist.seen[id]);
+    try std.testing.expectEqual(@as(usize, 6), stats.forks);
+    try std.testing.expectEqual(stats.forks, stats.retired);
+    try std.testing.expectEqual(@as(usize, 0), limiter.active);
     try std.testing.expectEqual(@as(usize, 0), budget.used);
 }
 

@@ -33,6 +33,11 @@ const ReceiptSlot = struct {
     }
 };
 const HeadOwner = @import("../../runtime/lane_owner.zig").Owner;
+const fiber = @import("../../runtime/fiber.zig");
+/// Receipt workers per delivery/gas lane: the 4 per-domain permits stay busy.
+const receipt_workers = 4;
+/// Reconciliation enrichment workers: Rust's buffer_unordered(8).
+const reconcile_workers = 8;
 const A = std.mem.Allocator;
 pub const Options = struct {
     curl_library: []const u8,
@@ -122,6 +127,8 @@ const Lane = struct {
     /// The last planned page was full and its sweep continues past it.
     receipt_more: bool = false,
     receipt_linked: u64 = 0,
+    /// Links reported by pages finished inside the current fiber run.
+    receipt_window_linked: u64 = 0,
     /// A head wake consumed while receipt pages were in flight; the next
     /// page starts immediately.
     rewake: bool = false,
@@ -156,6 +163,7 @@ const Lane = struct {
         };
         self.receipt_more = false;
         self.receipt_linked = 0;
+        self.receipt_window_linked = 0;
         if (self.reconcile_page) |*page| page.plan.deinit();
         self.reconcile_page = null;
         if (self.ccr_page) |*page| {
@@ -346,25 +354,95 @@ const Lane = struct {
         const batch = if (kept == 0) null else try ReceiptBatch.init(self.owner.allocator, self.resources.?, &self.owner.receipt_limit, self.chain.configured.domain, page.requests, deadline);
         self.receipt_slots[index] = .{ .page = page, .batch = batch };
     }
+    fn finishReceiptSlot(self: *Lane, entry: *?ReceiptSlot, io: pg.IoOptions) !u64 {
+        const slot = &entry.*.?;
+        if (slot.batch) |batch| if (batch.failures > 0) std.log.warn("scraper chain={s} lane={s} receipt_failures={d} last={s}", .{ self.chain.configured.name, @tagName(self.kind), batch.failures, @errorName(batch.last_failure.?) });
+        var db = try self.database(io);
+        defer db.deinit();
+        const result = try self.receipt_lane.finish(db.store, slot.page);
+        // A page with unresolved rows ends the immediate sweep, as before.
+        if (result.pending != 0) self.receipt_more = false;
+        slot.deinit();
+        entry.* = null;
+        return result.linked;
+    }
+    /// New pages only within the first third of the attempt budget, so a run
+    /// drains its in-flight pages well before its supervisor timeout.
+    fn receiptPlanningOpen(self: *const Lane, io: pg.IoOptions) !bool {
+        const budget = self.owner.options.auxiliary_timeout_ms *| std.time.ns_per_ms;
+        return (try pg.nowNs()) +| budget / 3 * 2 < io.deadline_ns.?;
+    }
+    /// Fiber mode: `receipt_workers` sibling fibers share the window. Each
+    /// claims the next waiting job across all pages as soon as its previous
+    /// job retires, plans the next page when every outstanding job is claimed,
+    /// and finishes pages as they complete. Reads park; nothing else waits.
+    fn receiptWorker(self: *Lane, io: pg.IoOptions) !void {
+        while (true) {
+            if (io.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
+            const next = self.claimReceiptJob() orelse blk: {
+                if (!self.receipt_more or !self.receiptWindowDrained() or self.receiptSlots() == receipt_window or !try self.receiptPlanningOpen(io)) return;
+                try self.planReceiptSlot(io);
+                try self.finishDoneReceiptSlots(io);
+                break :blk self.claimReceiptJob() orelse continue;
+            };
+            const slot = &self.receipt_slots[next.slot].?;
+            try slot.batch.?.runJob(next.job, io, Persist{ .lane = self, .page = &slot.page });
+            try self.finishDoneReceiptSlots(io);
+        }
+    }
+    fn claimReceiptJob(self: *Lane) ?struct { slot: usize, job: usize } {
+        for (&self.receipt_slots, 0..) |*entry, index| if (entry.*) |*slot| if (slot.batch) |*batch| if (batch.claim()) |job| return .{ .slot = index, .job = job };
+        return null;
+    }
+    fn finishDoneReceiptSlots(self: *Lane, io: pg.IoOptions) !void {
+        for (&self.receipt_slots) |*entry| if (entry.*) |slot| {
+            const complete = if (slot.batch) |batch| batch.done() else true;
+            if (complete) self.receipt_window_linked +|= try self.finishReceiptSlot(entry, io);
+        };
+    }
+    fn receiptsFibers(self: *Lane, io: pg.IoOptions) !supervisor.Report {
+        if (self.receiptSlots() == 0) try self.planReceiptSlot(io);
+        try self.finishDoneReceiptSlots(io);
+        const Worker = struct {
+            lane: *Lane,
+            io: pg.IoOptions,
+            child: fiber.Child = .{},
+            err: ?anyerror = null,
+            fn run(arg: *anyopaque) void {
+                const worker: *@This() = @ptrCast(@alignCast(arg));
+                worker.lane.receiptWorker(worker.io) catch |err| {
+                    worker.err = err;
+                };
+            }
+        };
+        var workers: [receipt_workers]Worker = undefined;
+        var group: fiber.Group = .{};
+        var spawned: usize = 0;
+        defer group.wait();
+        for (&workers) |*worker| {
+            worker.* = .{ .lane = self, .io = io };
+            try group.spawn(&worker.child, Worker.run, worker);
+            spawned += 1;
+        }
+        group.wait();
+        for (workers[0..spawned]) |worker| if (worker.err) |err| return err;
+        try self.finishDoneReceiptSlots(io);
+        const linked = self.receipt_window_linked +| self.receipt_linked;
+        self.receipt_window_linked = 0;
+        self.receipt_linked = 0;
+        const again = self.receiptSlots() != 0 or self.receipt_more or self.rewake;
+        return .{ .work = linked, .next_delay_ms = if (again) 0 else self.pollInterval() };
+    }
     fn receipts(self: *Lane, _: supervisor.Times, io: pg.IoOptions) !supervisor.Report {
+        if (fiber.inFiber()) return self.receiptsFibers(io);
         if (self.receiptSlots() == 0 or (self.receipt_more and self.receiptWindowDrained())) try self.planReceiptSlot(io);
         var finished = false;
         var linked: u64 = 0;
         for (&self.receipt_slots) |*entry| {
             if (entry.* == null) continue;
             const slot = &entry.*.?;
-            if (slot.batch) |*batch| {
-                if (!try batch.step(io, Persist{ .lane = self, .page = &slot.page })) continue;
-                if (batch.failures > 0) std.log.warn("scraper chain={s} lane={s} receipt_failures={d} last={s}", .{ self.chain.configured.name, @tagName(self.kind), batch.failures, @errorName(batch.last_failure.?) });
-            }
-            var db = try self.database(io);
-            defer db.deinit();
-            const result = try self.receipt_lane.finish(db.store, slot.page);
-            linked +|= result.linked;
-            // A page with unresolved rows ends the immediate sweep, as before.
-            if (result.pending != 0) self.receipt_more = false;
-            slot.deinit();
-            entry.* = null;
+            if (slot.batch) |*batch| if (!try batch.step(io, Persist{ .lane = self, .page = &slot.page })) continue;
+            linked +|= try self.finishReceiptSlot(entry, io);
             finished = true;
             // Refill as soon as a slot frees.
             if (self.receipt_more and self.receiptWindowDrained()) try self.planReceiptSlot(io);
@@ -394,7 +472,11 @@ const Lane = struct {
         // behind delivery/gas receipts during catch-up.
         const limit = if (self.kind == .reconciliation) &self.owner.reconcile_limit else &self.owner.receipt_limit;
         if (self.receipt_batch == null) self.receipt_batch = try ReceiptBatch.init(self.owner.allocator, self.resources.?, limit, self.chain.configured.domain, requests, io.deadline_ns.?);
-        if (!try self.receipt_batch.?.step(io, Persist{ .lane = self })) return error.PendingReadIo;
+        // On a fiber, reads park: run the jobs on sibling fibers so they
+        // overlap (each claims the next job when its previous one retires).
+        if (fiber.inFiber()) {
+            try self.receipt_batch.?.runFibers(io, Persist{ .lane = self }, if (self.kind == .reconciliation) reconcile_workers else receipt_workers);
+        } else if (!try self.receipt_batch.?.step(io, Persist{ .lane = self })) return error.PendingReadIo;
         if (self.receipt_batch.?.failures > 0) std.log.warn("scraper chain={s} lane={s} receipt_failures={d} last={s}", .{ self.chain.configured.name, @tagName(self.kind), self.receipt_batch.?.failures, @errorName(self.receipt_batch.?.last_failure.?) });
         self.receipt_batch.?.deinit();
         self.receipt_batch = null;
