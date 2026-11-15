@@ -198,6 +198,117 @@ test "invalid scalar recovery ID and high s signatures rejected" {
     try std.testing.expectError(error.NonCanonical, recover(digest, invalid));
     try std.testing.expectError(error.InvalidSecretKey, secretKeyAddress(.{0} ** 32));
     try std.testing.expectError(error.InvalidSecretKey, signDigest(.{0} ** 32, digest, null));
+    const n = Curve.scalar.field_order;
+    for ([_]u8{ 1, 26, 29, 35, 37, 255 }) |v| {
+        invalid = signature;
+        invalid[64] = v;
+        try std.testing.expectError(error.InvalidRecoveryId, recover(digest, invalid));
+    }
+    for ([_]u256{ n, n + 1, std.math.maxInt(u256) }) |value| {
+        invalid = signature;
+        std.mem.writeInt(u256, invalid[0..32], value, .big);
+        try std.testing.expectError(error.NonCanonical, recover(digest, invalid));
+        invalid = signature;
+        std.mem.writeInt(u256, invalid[32..64], value, .big);
+        try std.testing.expectError(error.NonCanonical, recover(digest, invalid));
+    }
+    // s = n/2 is the largest accepted low s; n/2 + 1 is rejected.
+    invalid = signature;
+    std.mem.writeInt(u256, invalid[32..64], n / 2 + 1, .big);
+    try std.testing.expectError(error.HighSignatureS, recover(digest, invalid));
+    invalid = signature;
+    std.mem.writeInt(u256, invalid[32..64], n / 2, .big);
+    _ = recover(digest, invalid) catch |err| try std.testing.expect(err != error.HighSignatureS);
+    // r = 5 is not the x coordinate of a curve point (5^3 + 7 is a non-residue).
+    invalid = signature;
+    std.mem.writeInt(u256, invalid[0..32], 5, .big);
+    try std.testing.expectError(error.NotSquare, recover(digest, invalid));
+}
+
+test "high-s compatibility recovery equals strict low-s recovery" {
+    var prng = std.Random.DefaultPrng.init(0x68696768);
+    for (0..64) |_| {
+        var key: Hash = undefined;
+        prng.random().bytes(&key);
+        var digest: Hash = undefined;
+        prng.random().bytes(&digest);
+        const signed = signDigest(key, digest, null) catch continue;
+        const expected = try recover(digest, signed);
+        const high_s = (try Scalar.fromBytes(signed[32..64].*, .big)).neg().toBytes(.big);
+        const parity = signed[64] - 27;
+        // ethers accepts the malleated (high-s, flipped v) form and normalises it.
+        try std.testing.expectEqual(expected, try recoverCompatible(digest, signed[0..32].*, high_s, parity ^ 1));
+        try std.testing.expectEqual(expected, try recoverCompatible(digest, signed[0..32].*, signed[32..64].*, 27 + parity));
+        try std.testing.expectEqual(expected, try recoverCompatible(digest, signed[0..32].*, signed[32..64].*, 35 + 2 * 5 + parity));
+        // Strict recovery rejects the malleated form.
+        var malleated = signed;
+        malleated[32..64].* = high_s;
+        malleated[64] = 27 + (parity ^ 1);
+        try std.testing.expectError(error.HighSignatureS, recover(digest, malleated));
+    }
+}
+
+test "Wycheproof secp256k1 ECDSA vectors agree with recovery-based verification" {
+    const Case = struct { id: u32, low_s_required: bool, x: []const u8, y: []const u8, digest: []const u8, der_valid: bool, r: []const u8, s: []const u8, result: []const u8 };
+    const parsed = try @import("../testing/fixture.zig").parse(struct { cases: []const Case }, std.testing.allocator, @embedFile("fixtures/wycheproof-secp256k1.json.gz"), .{ .ignore_unknown_fields = true });
+    defer parsed.deinit();
+    const n = Curve.scalar.field_order;
+    var counts = struct { valid: usize = 0, invalid: usize = 0, unrepresentable_x: usize = 0 }{};
+    for (parsed.value.cases) |case| {
+        const expected_valid = std.mem.eql(u8, case.result, "valid");
+        var x: [32]u8 = undefined;
+        var y: [32]u8 = undefined;
+        var digest: Hash = undefined;
+        _ = try std.fmt.hexToBytes(&x, case.x);
+        _ = try std.fmt.hexToBytes(&y, case.y);
+        _ = try std.fmt.hexToBytes(&digest, case.digest);
+        const signer = addressOfCoordinates(x, y);
+        var accepted = false;
+        const representable = case.der_valid and !std.mem.eql(u8, case.r, "out_of_range") and !std.mem.eql(u8, case.s, "out_of_range");
+        if (representable) {
+            var r: Hash = undefined;
+            var s: Hash = undefined;
+            std.mem.writeInt(u256, &r, try std.fmt.parseInt(u256, case.r, 10), .big);
+            std.mem.writeInt(u256, &s, try std.fmt.parseInt(u256, case.s, 10), .big);
+            for ([_]u8{ 27, 28 }) |v| {
+                var signature: Signature = undefined;
+                signature[0..32].* = r;
+                signature[32..64].* = s;
+                signature[64] = v;
+                // Bitcoin-profile vectors require low s, like strict `recover`;
+                // the plain profile accepts either s, like `recoverCompatible`.
+                const recovered = (if (case.low_s_required) recover(digest, signature) else recoverCompatible(digest, r, s, v)) catch continue;
+                if (std.mem.eql(u8, &recovered, &signer)) accepted = true;
+            }
+        }
+        if (accepted == expected_valid) {
+            if (accepted) counts.valid += 1 else counts.invalid += 1;
+            continue;
+        }
+        // Never accept a signature Wycheproof rejects.
+        if (accepted) {
+            std.debug.print("wycheproof case {d} accepted but expected invalid\n", .{case.id});
+            return error.AcceptedInvalidSignature;
+        }
+        // The only tolerated miss: ECDSA-valid signatures whose R.x >= n, which
+        // Ethereum's v = 27/28 cannot encode. Confirm with std arithmetic.
+        const r = try Scalar.fromBytes(@bitCast(std.mem.nativeToBig(u256, try std.fmt.parseInt(u256, case.r, 10))), .big);
+        const s = try Scalar.fromBytes(@bitCast(std.mem.nativeToBig(u256, try std.fmt.parseInt(u256, case.s, 10))), .big);
+        const w = s.invert();
+        var sec1: [65]u8 = undefined;
+        sec1[0] = 4;
+        sec1[1..33].* = x;
+        sec1[33..65].* = y;
+        const big_r = try Curve.mulDoubleBasePublic(Curve.basePoint, reducedHash(digest).mul(w).toBytes(.big), try Curve.fromSec1(&sec1), r.mul(w).toBytes(.big), .big);
+        const rx = std.mem.readInt(u256, &big_r.affineCoordinates().x.toBytes(.big), .big);
+        if (rx < n) {
+            std.debug.print("wycheproof case {d} rejected but expected valid\n", .{case.id});
+            return error.RejectedValidSignature;
+        }
+        counts.unrepresentable_x += 1;
+    }
+    try std.testing.expectEqual(parsed.value.cases.len, counts.valid + counts.invalid + counts.unrepresentable_x);
+    try std.testing.expect(counts.valid > 300 and counts.invalid > 600 and counts.unrepresentable_x < 8);
 }
 
 test "quorum requires configured threshold ordered unique signers" {

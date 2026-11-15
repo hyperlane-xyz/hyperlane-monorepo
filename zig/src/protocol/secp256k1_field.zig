@@ -16,6 +16,16 @@ comptime {
 }
 const c: u256 = 0x1000003D1;
 
+/// Returns `bit` (0 or 1) through an empty asm barrier: the compiler cannot
+/// know its value, so selects and carry corrections stay arithmetic instead
+/// of being turned into secret-dependent branches.
+pub inline fn opaqueMask(bit: u1) u64 {
+    return asm (""
+        : [ret] "=r" (-> u64),
+        : [in] "0" (@as(u64, bit)),
+    );
+}
+
 /// Full 512-bit product as little-endian limbs (schoolbook, column order).
 fn mulWide(a: u256, b: u256) [8]u64 {
     const x: [4]u64 = @bitCast(a);
@@ -65,7 +75,15 @@ pub const Fe = struct {
     }
 
     pub fn isZero(a: Fe) bool {
-        return a.canonical() == 0;
+        return a.isZeroBit() == 1;
+    }
+
+    /// Constant-time zero test: OR-folds the limbs and derives the bit with
+    /// arithmetic only, so secret-derived operands never reach a comparison.
+    pub fn isZeroBit(a: Fe) u1 {
+        const limbs: [4]u64 = @bitCast(a.canonical());
+        const any = limbs[0] | limbs[1] | limbs[2] | limbs[3];
+        return @truncate(((any | (0 -% any)) >> 63) ^ 1);
     }
 
     pub fn equivalent(a: Fe, b: Fe) bool {
@@ -76,9 +94,11 @@ pub const Fe = struct {
         return a.canonical() & 1 == 1;
     }
 
-    /// Constant-time: a if bit == 0, b if bit == 1.
+    /// Constant-time: a if bit == 0, b if bit == 1. The mask passes through
+    /// an optimisation barrier so LLVM cannot rewrite the select as a branch.
     fn select(bit: u1, a: u256, b: u256) u256 {
-        const mask = @as(u256, 0) -% bit;
+        const m = 0 -% opaqueMask(bit);
+        const mask: u256 = @bitCast([4]u64{ m, m, m, m });
         return (a & ~mask) | (b & mask);
     }
 
@@ -89,16 +109,16 @@ pub const Fe = struct {
     pub fn add(a: Fe, b: Fe) Fe {
         const s = @addWithOverflow(a.v, b.v);
         // 2^256 = C (mod p). A second carry leaves s2 < C, so s2 + C fits.
-        const s2 = @addWithOverflow(s[0], c * s[1]);
-        return .{ .v = s2[0] + c * s2[1] };
+        const s2 = @addWithOverflow(s[0], c * opaqueMask(s[1]));
+        return .{ .v = s2[0] +% c * opaqueMask(s2[1]) };
     }
 
     pub fn sub(a: Fe, b: Fe) Fe {
         const d = @subWithOverflow(a.v, b.v);
         // A borrow means d = a - b + 2^256 = a - b + C (mod p): remove C.
-        const d2 = @subWithOverflow(d[0], c * d[1]);
+        const d2 = @subWithOverflow(d[0], c * opaqueMask(d[1]));
         // A second borrow means d2 >= 2^256 - C, so removing C cannot borrow.
-        return .{ .v = d2[0] - c * d2[1] };
+        return .{ .v = d2[0] -% c * opaqueMask(d2[1]) };
     }
 
     pub fn neg(a: Fe) Fe {
@@ -121,7 +141,7 @@ pub const Fe = struct {
         }
         const s = @addWithOverflow(@as(u256, @bitCast(r)), @as(u256, fold) * c);
         // A carry leaves s < 2^67, so adding C cannot carry.
-        return .{ .v = s[0] + c * s[1] };
+        return .{ .v = s[0] +% c * opaqueMask(s[1]) };
     }
 
     pub fn sq(a: Fe) Fe {
@@ -300,7 +320,7 @@ pub const Point = struct {
         z3 = z3.mul(t4);
         z3 = z3.add(t0);
         var r: Point = .{ .x = x3, .y = y3, .z = z3 };
-        const is_identity: u1 = @intFromBool(b.x.isZero());
+        const is_identity = b.x.isZeroBit();
         r.x.cMov(a.x, is_identity);
         r.y.cMov(a.y, is_identity);
         r.z.cMov(a.z, is_identity);
@@ -318,9 +338,17 @@ pub const Point = struct {
 test "field arithmetic matches big-integer reference" {
     var prng = std.Random.DefaultPrng.init(0x6665);
     const random = prng.random();
-    const edges = [_]u256{ 0, 1, 2, c - 1, c, c + 1, p - 2, p - 1, p, p + 1, std.math.maxInt(u256) - 1, std.math.maxInt(u256), 1 << 255, (1 << 128) - 1 };
+    const max = std.math.maxInt(u256);
+    const max64: u256 = std.math.maxInt(u64);
+    const edges = [_]u256{
+        0,                       1,                         2,                            c - 1,                       c,                             c + 1,
+        2 * c,                   p - 2,                     p - 1,                        p,                           p + 1,                         max - 2,
+        max - 1,                 max,                       1 << 255,                     (1 << 255) - 1,              max64,                         (1 << 128) - 1,
+        (1 << 192) - 1,          max - max64,               max64 | (max64 << 128),       (max64 << 64) | (max64 << 192), (1 << 64),                   (1 << 128),
+        (1 << 192),              p - (1 << 32),             max - (1 << 128) + 1,         (p - 1) / 2,
+    };
     const P: u512 = p;
-    for (0..4000) |i| {
+    for (0..edges.len * edges.len + 4000) |i| {
         const a: u256 = if (i < edges.len * edges.len) edges[i % edges.len] else random.int(u256);
         const b: u256 = if (i < edges.len * edges.len) edges[i / edges.len] else random.int(u256);
         const fa: Fe = .{ .v = a };

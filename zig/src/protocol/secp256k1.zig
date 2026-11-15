@@ -35,9 +35,10 @@ fn signedWindows(s: [32]u8) [65]i8 {
     }
     var carry: i8 = 0;
     for (e[0..64]) |*digit| {
-        digit.* += carry;
-        carry = (digit.* + 8) >> 4;
-        digit.* -= carry * 16;
+        // Digits stay within [-8, 16]; wrapping ops avoid safety-check branches.
+        digit.* +%= carry;
+        carry = (digit.* +% 8) >> 4;
+        digit.* -%= carry *% 16;
     }
     e[64] = carry;
     return e;
@@ -46,25 +47,40 @@ fn signedWindows(s: [32]u8) [65]i8 {
 /// Constant-time k*G. `k` is a canonical little-endian scalar; zero yields
 /// error.IdentityElement like std's `mul`.
 pub fn mulBase(k: [32]u8) error{IdentityElement}!Point {
+    const q = mulBaseUnchecked(k);
+    // Only k = 0 (rejected before signing) yields the identity; this branch
+    // depends on no secret for valid nonces and keys.
+    if (q.isIdentity()) return error.IdentityElement;
+    return q;
+}
+
+/// Constant-time core of `mulBase`: fixed loop counts, every comb entry of a
+/// row scanned with masked selection, no secret-dependent branch or index.
+pub fn mulBaseUnchecked(k: [32]u8) Point {
     const e = signedWindows(k);
     var q = Point.identity;
     for (e, &tables.comb) |digit, *row| {
         const bits: u8 = @bitCast(digit);
         const negative: u1 = @truncate(bits >> 7);
         const magnitude: u8 = (bits ^ (0 -% @as(u8, negative))) +% negative;
-        var selected = Affine.identity;
+        // Scan all eight entries; each is masked in or out, so the memory
+        // access pattern and instruction stream are independent of the digit.
+        var x: [4]u64 = .{ 0, 0, 0, 0 };
+        var y: [4]u64 = .{ 1, 0, 0, 0 }; // affine identity marker (0, 1)
         inline for (row, 1..) |*candidate, j| {
-            // 1 iff magnitude == j, without branching on the secret digit.
+            // 1 iff magnitude == j, computed arithmetically.
             const hit: u1 = @truncate((@as(u16, magnitude ^ @as(u8, j)) -% 1) >> 15);
-            const value = entry(candidate);
-            selected.x.cMov(value.x, hit);
-            selected.y.cMov(value.y, hit);
+            const mask = 0 -% field.opaqueMask(hit);
+            inline for (0..4) |l| {
+                x[l] = (x[l] & ~mask) | (candidate[0][l] & mask);
+                y[l] = (y[l] & ~mask) | (candidate[1][l] & mask);
+            }
         }
+        var selected: Affine = .{ .x = .{ .v = @bitCast(x) }, .y = .{ .v = @bitCast(y) } };
         selected.y.cMov(selected.y.neg(), negative);
         // addMixed returns q unchanged for the affine identity marker.
         q = q.addMixed(selected);
     }
-    if (q.isIdentity()) return error.IdentityElement;
     return q;
 }
 
@@ -229,4 +245,22 @@ test "mulDoubleBasePublic matches std double-base multiplication" {
     const ug = n - (ur * c) % n;
     try std.testing.expectError(error.IdentityElement, mulDoubleBasePublic(scalarBytes(ug), point, scalarBytes(ur)));
     try std.testing.expectError(error.IdentityElement, mulDoubleBasePublic(scalarBytes(1), Point.identity, scalarBytes(1)));
+}
+
+test "GLV split halves stay below 2^128 and recombine to the scalar" {
+    const n = scalar.field_order;
+    const lambda: u256 = 37718080363155996902926221483475020450927657555482586988616620542887997980018;
+    var prng = std.Random.DefaultPrng.init(0x676c76);
+    const edges = [_]u256{ 0, 1, 2, n - 1, n - 2, n / 2, (n / 2) + 1, lambda, n - lambda, 1 << 128, (1 << 128) - 1, (1 << 255), repeated(0xff) % n, repeated(0x80) };
+    for (0..edges.len + 100_000) |i| {
+        const k: u256 = if (i < edges.len) edges[i] else prng.random().int(u256) % n;
+        const split = try Endomorphism.splitScalar(scalarBytes(k), .little);
+        const h1 = half(split.r1);
+        const h2 = half(split.r2);
+        try std.testing.expect(h1.value < 1 << 128 and h2.value < 1 << 128);
+        // k = (+-h1) + (+-h2) * lambda (mod n)
+        const a1: u512 = if (h1.negative) n - h1.value else h1.value;
+        const a2: u512 = if (h2.negative) n - h2.value else h2.value;
+        try std.testing.expectEqual(@as(u512, k), (a1 + a2 * lambda) % n);
+    }
 }
