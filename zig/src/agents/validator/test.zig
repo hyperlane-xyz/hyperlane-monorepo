@@ -214,7 +214,8 @@ test "actual durable local checkpoint publisher latest-first snapshot and restar
     var store = try LocalStore.open(a, temp.dir, "checkpoints", .{ .read_only = false, .signer = opts.signer_address });
     defer store.deinit();
     var publisher: validator.LocalPublisher = .{ .store = &store };
-    var signer: validator.LocalSigner = .{ .key = key };
+    var signer = try validator.LocalSigner.init(key, null);
+    defer signer.deinit();
     _ = try service.authorize(&.{try service.checkpoint(3)}, 100);
     try std.testing.expectEqual(@as(usize, 1), try service.publishNext(signer.interface(), publisher.interface(), 101, 1));
     try std.testing.expectEqual(@as(?u32, 3), try store.latestIndex());

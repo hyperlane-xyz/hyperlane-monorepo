@@ -1039,19 +1039,26 @@ pub const Service = struct {
         return processed;
     }
 };
+/// Q is derived once; every signature is verified against it before release.
 pub const LocalSigner = struct {
-    key: Hash,
+    key: protocol.signature.SigningKey,
     noise: ?Hash = null,
+    pub fn init(secret_key: Hash, noise: ?Hash) !LocalSigner {
+        return .{ .key = try protocol.signature.SigningKey.init(secret_key), .noise = noise };
+    }
+    pub fn deinit(self: *LocalSigner) void {
+        self.key.deinit();
+    }
     pub fn interface(self: *LocalSigner) Signer {
         return .{ .parallel_safe = true, .context = self, .sign = sign, .sign_digest = digest };
     }
     fn digest(ctx: *anyopaque, hash: Hash) ![65]u8 {
         const self: *LocalSigner = @ptrCast(@alignCast(ctx));
-        return protocol.signature.signDigest(self.key, hash, self.noise);
+        return self.key.sign(hash, self.noise);
     }
     fn sign(ctx: *anyopaque, c: Checkpoint) !objects.SignedCheckpoint {
         const self: *LocalSigner = @ptrCast(@alignCast(ctx));
-        return objects.SignedCheckpoint.sign(c, self.key, self.noise);
+        return .{ .value = c, .signature = objects.Signature.fromBytes(try self.key.sign(c.digest(), self.noise)) };
     }
 };
 pub const LocalPublisher = struct {
