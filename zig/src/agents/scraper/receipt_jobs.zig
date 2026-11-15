@@ -14,6 +14,20 @@ pub const Limiter = struct {
     peak: usize = 0,
     global_max: usize = 16,
     domain_max: u8 = 4,
+    /// FIFO of parked acquirers. A release hands its permit straight to the
+    /// first eligible one, so no queued waiter is ever eligible while a
+    /// permit sits free (fresh acquirers never barge past an eligible one).
+    head: ?*Wait = null,
+    tail: ?*Wait = null,
+    /// One parked acquirer; lives on the waiting fiber's stack.
+    pub const Wait = struct {
+        waiter: fiber.Waiter = .{},
+        domain: u32,
+        granted: bool = false,
+        linked: bool = false,
+        prev: ?*Wait = null,
+        next: ?*Wait = null,
+    };
     pub fn init(a: A, domains: []const u32) !Limiter {
         return initBounded(a, domains, 16, 4);
     }
@@ -30,18 +44,70 @@ pub const Limiter = struct {
         return self;
     }
     pub fn deinit(self: *Limiter) void {
-        std.debug.assert(self.active == 0);
+        std.debug.assert(self.active == 0 and self.head == null);
         self.domains.deinit(self.allocator);
     }
     pub fn acquire(self: *Limiter, domain: u32) !bool {
         self.mutex.lock();
         defer self.mutex.unlock();
-        const count = self.domains.getPtr(domain) orelse return error.UnknownReceiptDomain;
+        return self.takeLocked(try self.countLocked(domain));
+    }
+    fn countLocked(self: *Limiter, domain: u32) !*u8 {
+        return self.domains.getPtr(domain) orelse error.UnknownReceiptDomain;
+    }
+    fn takeLocked(self: *Limiter, count: *u8) bool {
         if (self.active >= self.global_max or count.* >= self.domain_max) return false;
         self.active += 1;
         self.peak = @max(self.peak, self.active);
         count.* += 1;
         return true;
+    }
+    /// Blocks (parks a fiber) until a permit is handed over, cancellation, or
+    /// `deadline_ns` (pg.nowNs clock). A release wakes the waiter directly;
+    /// the bounded slice only re-checks cancellation, which has no wake hook.
+    pub fn acquireWait(self: *Limiter, domain: u32, deadline_ns: u64, cancel: ?*const std.atomic.Value(bool)) !void {
+        var wait: Wait = .{ .domain = domain };
+        {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.takeLocked(try self.countLocked(domain))) return;
+            self.linkLocked(&wait);
+        }
+        while (true) {
+            const now = try pg.nowNs();
+            const remaining_ms = std.math.divCeil(u64, deadline_ns -| now, std.time.ns_per_ms) catch unreachable;
+            const stopped = if (cancel) |flag| flag.load(.acquire) else false;
+            if (!stopped and remaining_ms != 0) _ = wait.waiter.waitTimeout(fiber.monoMs() + @as(i64, @intCast(@min(remaining_ms, cancel_slice_ms))));
+            // The releaser wakes under this mutex: once held, the Waiter is
+            // no longer touched and `wait` may leave this stack frame.
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (wait.granted) return;
+            const cancelled = if (cancel) |flag| flag.load(.acquire) else false;
+            if (cancelled or try pg.nowNs() >= deadline_ns) {
+                self.unlinkLocked(&wait);
+                return if (cancelled) error.RequestCancelled else error.ScraperReceiptDeadline;
+            }
+            // A slice expired: re-arm the one-shot Waiter (no wake can race:
+            // a grant happens only under this mutex and sets `granted`).
+            wait.waiter = .{};
+        }
+    }
+    const cancel_slice_ms = 25;
+    fn linkLocked(self: *Limiter, wait: *Wait) void {
+        wait.prev = self.tail;
+        wait.next = null;
+        if (self.tail) |tail| tail.next = wait else self.head = wait;
+        self.tail = wait;
+        wait.linked = true;
+    }
+    fn unlinkLocked(self: *Limiter, wait: *Wait) void {
+        if (!wait.linked) return;
+        if (wait.prev) |prev| prev.next = wait.next else self.head = wait.next;
+        if (wait.next) |next| next.prev = wait.prev else self.tail = wait.prev;
+        wait.prev = null;
+        wait.next = null;
+        wait.linked = false;
     }
     pub fn release(self: *Limiter, domain: u32) void {
         self.mutex.lock();
@@ -50,10 +116,17 @@ pub const Limiter = struct {
         std.debug.assert(self.active > 0 and count.* > 0);
         self.active -= 1;
         count.* -= 1;
+        var next = self.head;
+        while (next) |wait| : (next = wait.next) {
+            if (!self.takeLocked(self.domains.getPtr(wait.domain).?)) continue;
+            self.unlinkLocked(wait);
+            wait.granted = true;
+            wait.waiter.wake();
+            return;
+        }
     }
 };
 pub const max_workers = 16;
-const permit_nap_ms = 2;
 /// Parks the current fiber (siblings run) for about `ms` milliseconds.
 pub fn nap(ms: i64) void {
     var waiter: fiber.Waiter = .{};
@@ -96,18 +169,18 @@ pub fn Batch(comptime Network: type) type {
             return null;
         }
         /// Fiber mode: runs one claimed job to retirement. Reads park this
-        /// fiber (siblings' reads overlap); the permit is awaited by napping.
+        /// fiber (siblings' reads overlap); the permit is handed over on release.
         /// Only OutOfMemory and cancellation abort the caller.
         pub fn runJob(self: *Self, index: usize, io: pg.IoOptions, persist: anytype) !void {
             const job = &self.jobs[index];
-            while (!try self.limiter.acquire(self.domain)) {
-                if (io.cancel) |cancel| if (cancel.load(.acquire)) {
-                    self.failed(job, error.RequestCancelled);
-                    return error.RequestCancelled;
-                };
-                if (try pg.nowNs() >= self.deadline_ns) return self.failed(job, error.ScraperReceiptDeadline);
-                nap(permit_nap_ms);
-            }
+            self.limiter.acquireWait(self.domain, self.deadline_ns, io.cancel) catch |err| switch (err) {
+                error.ScraperReceiptDeadline => return self.failed(job, err),
+                error.RequestCancelled => {
+                    self.failed(job, err);
+                    return err;
+                },
+                else => return err,
+            };
             job.network = self.parent.forkReadFor(self.allocator, .contract_sync) catch |err| {
                 self.limiter.release(self.domain);
                 self.failed(job, err);
@@ -293,6 +366,52 @@ test "receipt limiter enforces16 global4 per domain and releases admission witho
     for (1..5) |domain| for (0..if (domain == 1) @as(usize, 3) else @as(usize, 4)) |_| limit.release(@intCast(domain));
     limit.release(5);
     try std.testing.expectEqual(@as(usize, 16), limit.peak);
+}
+
+test "receipt limiter hands a released permit to the parked eligible acquirer and honours deadline and cancellation" {
+    const a = std.testing.allocator;
+    var limit = try Limiter.initBounded(a, &.{ 1, 2 }, 2, 1);
+    defer limit.deinit();
+    try std.testing.expect(try limit.acquire(1));
+    try std.testing.expect(try limit.acquire(2));
+    try std.testing.expectError(error.ScraperReceiptDeadline, limit.acquireWait(1, (try pg.nowNs()) + 30 * std.time.ns_per_ms, null));
+    var cancelled = std.atomic.Value(bool).init(true);
+    try std.testing.expectError(error.RequestCancelled, limit.acquireWait(1, (try pg.nowNs()) + std.time.ns_per_s, &cancelled));
+    try std.testing.expectError(error.UnknownReceiptDomain, limit.acquireWait(9, (try pg.nowNs()) + std.time.ns_per_s, null));
+    try std.testing.expect(limit.head == null);
+    const Parked = struct {
+        fn run(limiter: *Limiter, outcome: *?anyerror) void {
+            const deadline = (pg.nowNs() catch unreachable) + 10 * std.time.ns_per_s;
+            limiter.acquireWait(1, deadline, null) catch |err| {
+                outcome.* = err;
+                return;
+            };
+            outcome.* = null;
+        }
+    };
+    var outcome: ?anyerror = error.NotRun;
+    const thread = try std.Thread.spawn(.{}, Parked.run, .{ &limit, &outcome });
+    while (true) {
+        limit.mutex.lock();
+        const parked = limit.head != null;
+        limit.mutex.unlock();
+        if (parked) break;
+        std.Thread.yield() catch {};
+    }
+    // Domain 1 is still full: the freed global permit is not the waiter's,
+    // so a fresh domain-2 acquirer takes it without barging past anyone.
+    limit.release(2);
+    try std.testing.expect(limit.head != null);
+    try std.testing.expect(try limit.acquire(2));
+    limit.release(2);
+    limit.release(1);
+    thread.join();
+    try std.testing.expectEqual(@as(?anyerror, null), outcome);
+    try std.testing.expect(limit.head == null);
+    try std.testing.expectEqual(@as(usize, 1), limit.active);
+    try std.testing.expect(!try limit.acquire(1));
+    limit.release(1);
+    try std.testing.expectEqual(@as(usize, 0), limit.active);
 }
 
 const FakeNetwork = struct {
