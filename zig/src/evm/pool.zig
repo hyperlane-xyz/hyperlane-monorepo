@@ -208,9 +208,14 @@ const ParsedResponse = struct {
 
     fn parse(allocator: A, body: []const u8, expected_id: i64, max_bytes: usize) !ParsedResponse {
         if (body.len > max_bytes) return error.ResponseTooLarge;
-        try json_bounds.validate(body);
-        const bytes = try allocator.dupe(u8, body);
+        return parseOwned(allocator, try allocator.dupe(u8, body), expected_id, max_bytes);
+    }
+
+    /// Takes ownership of `bytes` (allocated by `allocator`), freed on error.
+    fn parseOwned(allocator: A, bytes: []u8, expected_id: i64, max_bytes: usize) !ParsedResponse {
         errdefer allocator.free(bytes);
+        if (bytes.len > max_bytes) return error.ResponseTooLarge;
+        try json_bounds.validate(bytes);
         var parsed = try std.json.parseFromSlice(Value, allocator, bytes, .{ .allocate = .alloc_always, .duplicate_field_behavior = .@"error", .parse_numbers = false, .max_value_len = max_bytes });
         errdefer parsed.deinit();
         if (parsed.value != .object) return error.InvalidRpcEnvelope;
@@ -824,7 +829,7 @@ pub const Pool = struct {
             }) |value| {
                 var completion = value;
                 defer completion.deinit();
-                self.complete(snapshot[0..self.sessions.len], completion, now_ms);
+                self.complete(snapshot[0..self.sessions.len], &completion, now_ms);
                 completed = true;
             }
             _ = self.owner_iterations.fetchAdd(1, .monotonic);
@@ -905,7 +910,7 @@ pub const Pool = struct {
         return @intCast(@min(@max(next -| now_ms, 1), std.math.maxInt(u32)));
     }
 
-    fn complete(self: *Pool, sessions: []?*Session, completion: multi.Completion, now_ms: u64) void {
+    fn complete(self: *Pool, sessions: []?*Session, completion: *multi.Completion, now_ms: u64) void {
         for (self.probes, 0..) |entry, index| {
             const probe = entry orelse continue;
             const id = probe.native_id orelse continue;
@@ -937,7 +942,7 @@ pub const Pool = struct {
                         var outcome: Outcome = .{ .classification = .retryable, .failure = err };
                         self.dispatchOutcome(session, index, &outcome, now_ms);
                     },
-                    .response => |response| {
+                    .response => |*response| {
                         if (response.status == 429) {
                             self.reportUpstream(session, index, false, false);
                             var outcome: Outcome = .{ .classification = .rate_limited, .failure = error.RpcRateLimited };
@@ -950,7 +955,8 @@ pub const Pool = struct {
                             self.dispatchOutcome(session, index, &outcome, now_ms);
                             return;
                         }
-                        var parsed = ParsedResponse.parse(self.allocator, response.body, session.wire().id, session.max_response_bytes) catch |err| {
+                        // Same allocator: the parsed response adopts the native body.
+                        var parsed = ParsedResponse.parseOwned(self.allocator, response.takeBody(), session.wire().id, session.max_response_bytes) catch |err| {
                             self.reportUpstream(session, index, false, false);
                             if (err == error.OutOfMemory) {
                                 self.finish(session, err);
