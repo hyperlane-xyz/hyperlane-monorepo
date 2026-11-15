@@ -442,6 +442,13 @@ pub const Pool = struct {
     caller_passes: std.atomic.Value(u64) = .init(0),
     /// Returns of the idle owner from its condition wait (handoff evidence).
     owner_wakes: std.atomic.Value(u64) = .init(0),
+    /// Drive-token counters (diagnostics): native waits by calling drivers and
+    /// by the owner thread, waits whose bound was the caller cancel slice,
+    /// and drives a fiber left because a sibling became runnable.
+    drive_waits: u64 = 0,
+    owner_waits: u64 = 0,
+    slice_bounded: u64 = 0,
+    sibling_yields: u64 = 0,
     thread: std.Thread,
     started: std.time.Instant,
 
@@ -571,6 +578,9 @@ pub const Pool = struct {
         for (self.sessions) |entry| if (entry) |session| self.destroySession(session);
         std.debug.assert(self.retained_bytes == 0);
         for (self.probes) |entry| if (entry) |probe| probe.deinit(self.allocator);
+        var extra: [256]u8 = undefined;
+        self.native.reportStats("evm.pool", std.fmt.bufPrint(&extra, ",\"drive_waits\":{d},\"owner_waits\":{d},\"slice_bounded\":{d},\"sibling_yields\":{d},\"owner_wakes\":{d},\"caller_passes\":{d},\"owner_iterations\":{d}", .{ self.drive_waits, self.owner_waits, self.slice_bounded, self.sibling_yields, self.owner_wakes.load(.monotonic), self.caller_passes.load(.monotonic), self.owner_iterations.load(.monotonic) }) catch "");
+        self.native.stats_reported = true;
         self.native.deinit();
         for (self.endpoints, 0..) |*item, index| {
             self.emit(.{ .kind = .provider_dropped, .endpoint_index = @intCast(index) });
@@ -979,10 +989,15 @@ pub const Pool = struct {
             if (cancel_flag.raised()) return;
             if (pass_.now_ms >= deadline_ms) return;
             // A fiber driver yields its thread as soon as a sibling is runnable.
-            if (fiber.siblingReady()) return;
+            if (fiber.siblingReady()) {
+                self.sibling_yields += 1;
+                return;
+            }
             if (pass_.busy) continue;
             var cap: u64 = deadline_ms - pass_.now_ms;
             if (cancel_flag.present()) cap = @min(cap, caller_cancel_slice_ms);
+            self.drive_waits += 1;
+            if (cap < pass_.timeout and cap == caller_cancel_slice_ms) self.slice_bounded += 1;
             self.native.wait(pass_.now_ms, @intCast(@min(pass_.timeout, cap))) catch |err| {
                 self.wait_failure = err;
             };
@@ -1079,6 +1094,7 @@ pub const Pool = struct {
                 }
                 if (!pass_.needs_driver) break;
                 if (pass_.busy) continue;
+                self.owner_waits += 1;
                 self.native.wait(pass_.now_ms, pass_.timeout) catch |err| {
                     self.wait_failure = err;
                 };
