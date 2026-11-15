@@ -92,7 +92,10 @@ pub const Resources = struct {
     receipt_binding: ?*receipt_factory.Factory = null,
     source_cache: ?src.Source = null,
     cancel: ?*const std.atomic.Value(bool) = null,
-    receipt_identity_checked: bool = false,
+    /// Receipt chain identity is a property of the shared endpoint pool, so
+    /// one successful check on any fork covers the parent and every sibling.
+    receipt_identity_flag: std.atomic.Value(bool) = .init(false),
+    receipt_identity: ?*std.atomic.Value(bool) = null,
     owned_provider_metrics: usize = 0,
     pub fn open(a: A, chain: *const types.Chain, env: *const std.process.EnvMap, options: Options) !*Resources {
         if (options.indexer_tip_cache and chain.protocol == .ethereum and options.dynamic_tip_cache == null) return error.SharedDynamicTipCacheRequired;
@@ -326,6 +329,7 @@ pub const Resources = struct {
         // CCIP responses; its own configured upper wire bound remains unchanged.
         const child = try Resources.open(a, &chain, env, options);
         child.owned_environment = env;
+        child.receipt_identity = self.receipt_identity orelse &self.receipt_identity_flag;
         if (operation == .relayer_metadata and child.chain.protocol == .ethereum) if (child.rpc_client) |*client| {
             client.options.max_response_bytes = @min(32768, client.options.max_response_bytes);
         };
@@ -396,9 +400,10 @@ pub const Resources = struct {
         return self.source_cache.?;
     }
     pub fn receipts(self: *Resources) !@import("scraper/enrichment.zig").Fetcher {
-        if (!self.receipt_identity_checked) {
+        const identity = self.receipt_identity orelse &self.receipt_identity_flag;
+        if (!identity.load(.acquire)) {
             if (self.clients == .ethereum) try self.clients.ethereum.checkChain(try std.fmt.parseInt(u256, self.chain.chain_id, if (std.mem.startsWith(u8, self.chain.chain_id, "0x")) 0 else 10));
-            self.receipt_identity_checked = true;
+            identity.store(true, .release);
         }
         if (self.receipt_binding == null) {
             const clients: receipt_factory.Clients = switch (self.clients) {

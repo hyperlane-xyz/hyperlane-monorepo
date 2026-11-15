@@ -37,6 +37,10 @@ pub const Options = struct {
     writer_id: ?[]const u8 = null,
 };
 const Kind = enum { head, delivery, gas, reconciliation, ccr };
+/// Per-endpoint sessions of the chain's shared pool: head reads (up to 8
+/// overlapped), <=4 receipt jobs per domain plus their cancelled retirements,
+/// reconciliation and CCR all fit without one lane exhausting another's slots.
+const shared_rpc_parallelism: u16 = 32;
 const Chain = struct {
     configured: *const types.Chain,
     writer: []u8,
@@ -49,6 +53,25 @@ const Chain = struct {
     wake_delivery: std.atomic.Value(bool) = .init(false),
     wake_gas: std.atomic.Value(bool) = .init(false),
     wake_reconciliation: std.atomic.Value(bool) = .init(false),
+    /// One lazily opened RPC endpoint pool (owner thread, connection cache,
+    /// byte budget) shared by every lane of this chain, as Rust shares one
+    /// provider. Lanes keep their own clients, journals and metric labels.
+    shared_rpc: ?*chain_source.Resources = null,
+    shared_mutex: std.Thread.Mutex = .{},
+    fn sharedPool(self: *Chain, owner: *const TaskSet) !?*@import("../../evm/pool.zig").Pool {
+        switch (self.configured.protocol) {
+            .ethereum, .sealevel, .cosmos, .cosmosnative => {},
+            else => return null,
+        }
+        self.shared_mutex.lock();
+        defer self.shared_mutex.unlock();
+        if (self.shared_rpc == null) self.shared_rpc = try chain_source.Resources.open(owner.allocator, self.configured, owner.environment, .{ .curl_library = owner.options.curl_library, .request_timeout_ms = owner.options.request_timeout_ms, .allow_insecure_loopback = owner.options.allow_insecure_loopback, .metrics = owner.options.metrics, .dynamic_tip_cache = owner.dynamic_tip_cache, .rpc_parallelism = shared_rpc_parallelism, .operation = .contract_sync });
+        return self.shared_rpc.?.rpc_pool;
+    }
+    fn deinitShared(self: *Chain) void {
+        if (self.shared_rpc) |resources| resources.deinit();
+        self.shared_rpc = null;
+    }
     fn wakeFor(self: *Chain, kind: Kind) ?*std.atomic.Value(bool) {
         return switch (kind) {
             .delivery => &self.wake_delivery,
@@ -125,7 +148,9 @@ const Lane = struct {
         self.backoff.deinit();
     }
     fn sourceResources(self: *Lane, cancel: *const std.atomic.Value(bool)) !*chain_source.Resources {
-        if (self.resources == null) self.resources = try chain_source.Resources.open(self.owner.allocator, self.chain.configured, self.owner.environment, .{ .curl_library = self.owner.options.curl_library, .request_timeout_ms = self.owner.options.request_timeout_ms, .allow_insecure_loopback = self.owner.options.allow_insecure_loopback, .metrics = self.owner.options.metrics, .http_runtime = self.owner.http_runtime, .read_budget = &self.owner.read_budget, .dynamic_tip_cache = self.owner.dynamic_tip_cache, .indexer_tip_cache = self.kind == .head, .rpc_parallelism = 8, .operation = if (self.kind == .head or self.kind == .delivery or self.kind == .gas) .contract_sync else .unattributed });
+        if (self.resources == null) self.resources = try chain_source.Resources.open(self.owner.allocator, self.chain.configured, self.owner.environment, .{ .borrowed_rpc_pool = try self.chain.sharedPool(self.owner), .curl_library = self.owner.options.curl_library, .request_timeout_ms = self.owner.options.request_timeout_ms, .allow_insecure_loopback = self.owner.options.allow_insecure_loopback, .metrics = self.owner.options.metrics, .http_runtime = self.owner.http_runtime, .read_budget = &self.owner.read_budget, .dynamic_tip_cache = self.owner.dynamic_tip_cache, .indexer_tip_cache = self.kind == .head, .rpc_parallelism = 8, .operation = if (self.kind == .head or self.kind == .delivery or self.kind == .gas) .contract_sync else .unattributed });
+        // Lanes share the root's endpoint pool, hence its receipt chain-id proof.
+        if (self.chain.shared_rpc) |root| self.resources.?.receipt_identity = &root.receipt_identity_flag;
         self.resources.?.setCancellation(cancel);
         return self.resources.?;
     }
@@ -479,6 +504,7 @@ pub const TaskSet = struct {
             for (lanes[0..self.initialized_lanes]) |*lane| if (lane.head_owner) |*owner| owner.requestStop();
             for (lanes[0..self.initialized_lanes]) |*lane| if (lane.head_owner) |*owner| owner.deinit();
             for (lanes[0..self.initialized_lanes]) |*lane| lane.deinit();
+            for (chains[0..self.initialized_chains]) |*chain| chain.deinitShared();
             for (chains[0..self.initialized_chains]) |chain| {
                 a.free(chain.writer);
                 a.free(chain.routers);
@@ -525,6 +551,7 @@ pub const TaskSet = struct {
         for (self.lanes) |*lane| if (lane.head_owner) |*owner| owner.requestStop();
         for (self.lanes) |*lane| if (lane.head_owner) |*owner| owner.deinit();
         for (self.lanes) |*lane| lane.deinit();
+        for (self.chains) |*chain| chain.deinitShared();
         self.receipt_limit.deinit();
         if (self.dynamic_tip_cache) |value| value.deinit();
         self.http_runtime.deinit();
