@@ -1,1 +1,1 @@
-{ "workloads": ["validator-majority-safe"], "pairs": 1 }
+{ "workloads": ["all"], "pairs": 5 }
