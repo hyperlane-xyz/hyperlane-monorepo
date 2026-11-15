@@ -481,3 +481,28 @@ test "supervisor resumes an owner-backed task on its publish only, not on I/O or
     control.store(false, .release);
     scheduler.stop();
 }
+
+test "an unwired owner polled by a pooled task publishes through the I/O generation" {
+    var fixture: CadenceFixture = .{ .delay_ms = 100000 };
+    fixture.owner = try Owner.init(&fixture, CadenceFixture.run, .{ .timeout_ms = 10000 });
+    defer fixture.owner.deinit();
+    const scheduler = try supervisor.Supervisor.start(std.testing.allocator, &.{.{ .context = &fixture, .run = CadenceFixture.poll, .interval_ms = 60000, .timeout_ms = 10000 }});
+    defer scheduler.deinit();
+    const io_before = wake_notifier.ioGeneration();
+    _ = try scheduler.tick(.{ .unix_ms = 0, .monotonic_ms = 0 });
+    var timer = try std.time.Timer.start();
+    // The pooled poll returns PendingReadIo: the task suspends on I/O.
+    while ((try scheduler.health(0)).suspended == 0) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.TestTaskDidNotSuspend;
+        std.Thread.sleep(std.time.ns_per_ms);
+        _ = try scheduler.tick(.{ .unix_ms = 1, .monotonic_ms = 1 });
+    }
+    while (!fixture.owner.published.load(.acquire)) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.TestOwnerDidNotPublish;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // Publish bumped the I/O generation: resumable after resume spacing,
+    // not only on the poll_slice backstop.
+    try std.testing.expect(wake_notifier.ioGeneration() != io_before);
+    try std.testing.expect(scheduler.nextDelayMs(1) <= supervisor.resume_spacing_ms);
+}
