@@ -208,10 +208,16 @@ pub const Registry = struct {
             const room = self.render_scratch.allocatedSlice();
             var writer = std.Io.Writer.fixed(room[0..@min(room.len, limit)]);
             if (self.renderFamilies(&writer)) return writer.buffered() else |_| {}
-            // Overflow: grow (re-rendering from the start) until the limit.
-            const capacity = self.render_scratch.capacity;
-            if (capacity >= limit) return error.MetricsRenderLimit;
-            try self.render_scratch.ensureTotalCapacityPrecise(self.allocator, @min(limit, @max(64 * 1024, capacity *| 2)));
+            if (room.len >= limit) return error.MetricsRenderLimit;
+            // Too small: count the exposition once and size the buffer to it
+            // (plus headroom for new series), so growth touches only the
+            // pages one render needs instead of a doubling sequence.
+            var chunk: [256]u8 = undefined;
+            var counter = std.Io.Writer.Discarding.init(&chunk);
+            self.renderFamilies(&counter.writer) catch return error.MetricsRenderLimit;
+            const needed = std.math.cast(usize, counter.fullCount()) orelse return error.MetricsRenderLimit;
+            if (needed > limit) return error.MetricsRenderLimit;
+            try self.render_scratch.ensureTotalCapacityPrecise(self.allocator, @min(limit, @max(needed +| needed / 4, room.len + 1)));
         }
     }
     fn renderFamilies(self: *Registry, writer: *std.Io.Writer) !void {
