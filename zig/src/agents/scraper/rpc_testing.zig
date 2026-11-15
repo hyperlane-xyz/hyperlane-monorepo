@@ -5,6 +5,10 @@ const rpc = @import("../../evm/provider.zig");
 const abi = @import("../../evm/codecs.zig");
 const receipt = @import("receipts_evm.zig");
 const enrich = @import("enrichment.zig");
+/// Generous absolute receipt budget: loaded CI hosts must not turn a slow
+/// loopback round trip into a deadline failure. Deadline expiry itself is
+/// covered by explicit already-expired cases.
+const fixture_budget_ns = 10 * std.time.ns_per_s;
 const Step = struct { method: []const u8, response: []const u8, rpc: bool = true, path: ?[]const u8 = null };
 const Fixture = struct {
     server: std.net.Server,
@@ -12,13 +16,24 @@ const Fixture = struct {
     expected_hash: src.Hash,
     filter_addresses: usize = 3,
     filter_topics: usize = 4,
+    idle_timeout_ms: u32 = 5000,
+    /// Exits on its own when the client gives up (deadline, cancellation or a
+    /// failed request) so `defer thread.join()` can never wait forever; the
+    /// client-side assertions report that failure. Fixture assertions panic.
     fn serve(self: *Fixture) void {
-        self.run() catch @panic("scraper EVM fixture failed");
+        self.run() catch |err| switch (err) {
+            error.FixtureAcceptTimeout, error.FixtureEof, error.WouldBlock, error.ConnectionResetByPeer, error.BrokenPipe => {},
+            else => @panic("scraper EVM fixture failed"),
+        };
     }
     fn run(self: *Fixture) !void {
         for (self.steps) |step| {
+            var ready = [_]std.posix.pollfd{.{ .fd = self.server.stream.handle, .events = std.posix.POLL.IN, .revents = 0 }};
+            if (try std.posix.poll(&ready, @intCast(self.idle_timeout_ms)) == 0) return error.FixtureAcceptTimeout;
             const connection = try self.server.accept();
             defer connection.stream.close();
+            const timeout: std.posix.timeval = .{ .sec = @intCast(self.idle_timeout_ms / 1000), .usec = @intCast(self.idle_timeout_ms % 1000 * 1000) };
+            try std.posix.setsockopt(connection.stream.handle, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout));
             var buffer: [32768]u8 = undefined;
             var used: usize = 0;
             var id: i64 = 0;
@@ -123,13 +138,28 @@ test "scraper EVM receipt fetch binds transaction block and shared absolute budg
     const meta: enrich.Meta = .{ .block_number = 2, .block_hash = boundary, .tx_hash = .{0} ** 32 ++ txhash };
     const thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
     defer thread.join();
-    var owned = try fetcher.interface().fetch(std.testing.allocator, meta, (try receipt.nowNs()) + 1000000000);
+    var owned = try fetcher.interface().fetch(std.testing.allocator, meta, (try receipt.nowNs()) + fixture_budget_ns);
     defer owned.deinit();
     try std.testing.expectEqual(@as(u256, 21000), owned.value.gas_limit);
     try std.testing.expectEqual(@as(u256, 20480), owned.value.gas_used);
     try std.testing.expectEqualSlices(u8, &.{ 1, 2 }, owned.value.raw_input.?);
     try std.testing.expectEqual(@as(u32, 30000), client.options.timeout_ms);
     try std.testing.expectError(error.ScraperReceiptDeadline, fetcher.interface().fetch(std.testing.allocator, meta, (try receipt.nowNs()) - 1));
+}
+
+test "scraper RPC fixture exits on its own when the client never connects or gives up" {
+    var fixture: Fixture = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}), .steps = &.{.{ .method = "eth_chainId", .response = "\"0x1\"" }}, .expected_hash = hash(0), .idle_timeout_ms = 50 };
+    defer fixture.server.deinit();
+    var thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
+    thread.join(); // no client: accept times out
+    thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
+    const silent = try std.net.tcpConnectToAddress(fixture.server.listen_address);
+    thread.join(); // connected client that never sends: read times out
+    silent.close();
+    thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
+    const closing = try std.net.tcpConnectToAddress(fixture.server.listen_address);
+    closing.close(); // client that gives up before its request
+    thread.join();
 }
 
 const CcrLog = struct { address: []const u8, topics: []const []const u8, data: []const u8, blockNumber: []const u8 = "0x2", blockHash: []const u8, transactionHash: []const u8, transactionIndex: []const u8 = "0x0", logIndex: []const u8 };
@@ -200,7 +230,7 @@ test "scraper Tron concrete receipt uses production JSON RPC pool with owned bou
     const meta: enrich.Meta = .{ .block_number = 2, .block_hash = boundary, .tx_hash = .{0} ** 32 ++ txhash };
     const thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
     defer thread.join();
-    var result = try fetcher.interface().fetch(std.testing.allocator, meta, try receipt.nowNs() + 1000000000);
+    var result = try fetcher.interface().fetch(std.testing.allocator, meta, try receipt.nowNs() + fixture_budget_ns);
     defer result.deinit();
     try std.testing.expectEqual(@as(u256, 21000), result.value.gas_limit);
     try std.testing.expectEqual(@as(u256, 20480), result.value.gas_used);
@@ -231,7 +261,7 @@ test "scraper Sealevel concrete receipt fetch requests parsed finalized transact
     var fetcher: @import("receipts_sealevel.zig").Sealevel = .{ .client = &client, .programs = &programs, .native_decimals = 9, .allow_std_fixture = true };
     const thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
     defer thread.join();
-    var result = try fetcher.interface().fetch(std.testing.allocator, meta, try receipt.nowNs() + std.time.ns_per_s);
+    var result = try fetcher.interface().fetch(std.testing.allocator, meta, try receipt.nowNs() + fixture_budget_ns);
     defer result.deinit();
     try std.testing.expectEqual(@as(u256, 204784), result.value.gas_limit);
     try std.testing.expectEqual(@as(u32, 30000), client.rpc_client.options.timeout_ms);
@@ -260,7 +290,7 @@ test "scraper Cosmos concrete receipt fetch uses Tendermint base64 transaction q
     const meta: enrich.Meta = .{ .block_number = 2, .block_hash = hash(2), .tx_hash = .{0} ** 32 ++ hash_ };
     const thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
     defer thread.join();
-    var result = try fetcher.interface().fetch(std.testing.allocator, meta, try receipt.nowNs() + std.time.ns_per_s);
+    var result = try fetcher.interface().fetch(std.testing.allocator, meta, try receipt.nowNs() + fixture_budget_ns);
     defer result.deinit();
     try std.testing.expectEqual(@as(u64, 7), result.value.nonce);
     try std.testing.expectEqual(@as(u32, 30000), client.options.timeout_ms);
@@ -291,7 +321,7 @@ test "scraper Radix concrete receipt fetch uses actual Gateway committed route a
     const meta: enrich.Meta = .{ .block_number = 100, .block_hash = block_hash, .tx_hash = .{0} ** 32 ++ intent_hash };
     const thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
     defer thread.join();
-    var result = try fetcher.interface().fetch(std.testing.allocator, meta, try receipt.nowNs() + std.time.ns_per_s);
+    var result = try fetcher.interface().fetch(std.testing.allocator, meta, try receipt.nowNs() + fixture_budget_ns);
     defer result.deinit();
     try std.testing.expectEqual(@as(u256, 23), result.value.gas_limit);
     try std.testing.expect(fetcher.client.transport.context == owner.interface().context);
