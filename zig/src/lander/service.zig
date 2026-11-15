@@ -242,21 +242,21 @@ pub const Service = struct {
         defer self.mutex.unlock();
         if (self.cancel.load(.acquire)) return error.Cancelled;
         if (std.mem.eql(u8, &input.payload.uuid, &types.nil_uuid)) return error.InvalidPayloadUuid;
-        var replacement: records.OwnedJson = .init(self.allocator);
-        defer replacement.deinit();
-        try records.createPayload(&replacement, input.payload);
-        if (try self.store.loadPayload(self.allocator, input.payload.uuid)) |existing_value| {
-            var existing = existing_value;
-            defer existing.deinit();
-            if (!try records.samePayloadIdentity(self.allocator, existing.value(), replacement.root)) return error.PayloadAssociationConflict;
+        const canonical = try records.payloadJson(self.allocator, input.payload);
+        defer self.allocator.free(canonical);
+        if (try self.store.loadPayloadBytes(self.allocator, input.payload.uuid)) |existing_bytes| {
+            defer self.allocator.free(existing_bytes);
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const existing = try records.PayloadView.parse(arena.allocator(), existing_bytes);
+            const replacement = try records.PayloadView.parse(arena.allocator(), canonical);
+            if (!try records.samePayloadIdentity(self.allocator, existing, replacement)) return error.PayloadAssociationConflict;
             var stored_delivery = try self.store.delivery(self.allocator, input.payload.uuid);
             defer if (stored_delivery) |*value| value.deinit(self.allocator);
             if (!deliveryMatches(stored_delivery, input.delivery)) return error.DeliveryAssociationConflict;
             const index = (try self.store.payloadIndex(self.allocator, input.payload.uuid)) orelse return error.MissingPayloadIndex;
             return .{ .uuid = input.payload.uuid, .index = index, .created = false };
         }
-        const canonical = try replacement.stringify(self.allocator);
-        defer self.allocator.free(canonical);
         const index = try self.store.writePayload(self.allocator, input.payload.uuid, canonical, canonical, input.delivery);
         self.pending_payloads +|= 1;
         return .{ .uuid = input.payload.uuid, .index = index, .created = true };
@@ -359,13 +359,14 @@ pub const Service = struct {
             const index = self.payload_reconcile_cursor;
             self.payload_reconcile_cursor -= 1;
             const uuid = (try self.store.payloadUuidByIndex(self.allocator, index)) orelse continue;
-            var record = (try self.store.loadPayload(self.allocator, uuid)) orelse continue;
-            defer record.deinit();
-            const status = try types.field(record.value(), "status");
+            const json = (try self.store.loadPayloadBytes(self.allocator, uuid)) orelse continue;
+            defer self.allocator.free(json);
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const view = try records.PayloadView.parse(arena.allocator(), json);
+            const status = try view.statusValue(arena.allocator());
             const pending = (status == .string and std.mem.eql(u8, status.string, "ReadyToSubmit")) or (status == .object and status.object.contains("Retry"));
             if (pending) self.pending_payloads +|= 1;
-            const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-            defer self.allocator.free(json);
             try self.store.reconcilePendingEntry(self.allocator, index, json, pending);
         }
         if (self.payload_reconcile_cursor == 0) {
@@ -680,7 +681,7 @@ pub const Service = struct {
         const updates = try allocator.alloc(storage.PayloadUpdate, payload_uuids.len);
         const outcomes = try allocator.alloc(observer.PayloadOutcome, payload_uuids.len);
         const previous_reverted = report.reverted_payloads;
-        const payloads = try allocator.alloc(storage.JsonRecord, payload_uuids.len);
+        const payloads = try allocator.alloc(records.PayloadView, payload_uuids.len);
         const delivered_flags = try allocator.alloc(bool, payload_uuids.len);
         // Success criteria are independent reads at one height: one
         // overlapped round instead of one round trip per payload.
@@ -688,9 +689,9 @@ pub const Service = struct {
         const check_of = try allocator.alloc(?usize, payload_uuids.len);
         var check_count: usize = 0;
         for (payload_uuids, payloads, check_of) |payload_uuid, *payload, *slot| {
-            payload.* = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
+            payload.* = try self.loadPayloadView(allocator, payload_uuid);
             slot.* = null;
-            if (try self.deliveryCall(allocator, payload.value())) |check| {
+            if (try self.deliveryCall(allocator, payload.*)) |check| {
                 checks[check_count] = check;
                 slot.* = check_count;
                 check_count += 1;
@@ -706,23 +707,20 @@ pub const Service = struct {
         // Still included, every payload still delivered and already stored
         // with that status: the records carry exactly this outcome. Skip the
         // re-encode and fsync that only refreshed last_status_check.
+        const target = try records.payloadStatusText(allocator, observed);
         if (unchanged and observed == .included and all_delivered and self.recovery_complete) {
-            const target = try std.json.Stringify.valueAlloc(allocator, try types.payloadStatusJson(allocator, observed), .{});
             const stored = for (payloads) |payload| {
-                const current = types.field(payload.value(), "status") catch break false;
-                if (!std.mem.eql(u8, target, try std.json.Stringify.valueAlloc(allocator, current, .{}))) break false;
+                if (!std.mem.eql(u8, target, payload.status)) {
+                    const current = try std.json.Stringify.valueAlloc(allocator, try payload.statusValue(allocator), .{});
+                    if (!std.mem.eql(u8, target, current)) break false;
+                }
             } else true;
             if (stored) return;
         }
-        for (payload_uuids, payloads, delivered_flags, 0..) |payload_uuid, *payload, delivered, i| {
-            if (!delivered) {
-                try records.setPayloadReverted(&payload.parsed.value, allocator);
-                report.reverted_payloads += 1;
-            } else {
-                try records.setPayloadStatus(&payload.parsed.value, allocator, observed);
-            }
-            updates[i] = .{ .uuid = payload_uuid, .canonical_json = try std.json.Stringify.valueAlloc(allocator, payload.value(), .{}) };
-            outcomes[i] = .{ .uuid = payload_uuid, .delivered = delivered, .estimated_gas = (try types.optionalUint(payload.value(), "gas_limit")) orelse 0 };
+        for (payload_uuids, payloads, delivered_flags, 0..) |payload_uuid, payload, delivered, i| {
+            if (!delivered) report.reverted_payloads += 1;
+            updates[i] = .{ .uuid = payload_uuid, .canonical_json = try payload.withStatus(allocator, if (delivered) target else records.payload_reverted_status) };
+            outcomes[i] = .{ .uuid = payload_uuid, .delivered = delivered, .estimated_gas = try payload.gasLimit(allocator) };
         }
         if (observed == .finalized) try self.emitFinalizedOutcome(record, winning, outcomes);
         const projection = if (observed == .finalized) try finalizedProjection(record, winning) else null;
@@ -767,21 +765,26 @@ pub const Service = struct {
         });
     }
 
-    fn payloadDelivered(self: *Service, allocator: std.mem.Allocator, payload: std.json.Value, block: u64) !bool {
+    fn loadPayloadView(self: *Service, allocator: std.mem.Allocator, uuid: types.Uuid) !records.PayloadView {
+        const bytes = (try self.store.loadPayloadBytes(allocator, uuid)) orelse return error.MissingPayload;
+        return records.PayloadView.parse(allocator, bytes);
+    }
+
+    fn payloadDelivered(self: *Service, allocator: std.mem.Allocator, payload: records.PayloadView, block: u64) !bool {
         const check = (try self.deliveryCall(allocator, payload)) orelse return true;
         return abi.decodeBool(try self.chain.call(allocator, check, block));
     }
 
     /// The read that decides whether `payload` was delivered (null: no
     /// criteria, delivered by inclusion). Allocations live in `allocator`.
-    fn deliveryCall(self: *Service, allocator: std.mem.Allocator, payload: std.json.Value) !?chain.Call {
-        const uuid = try records.payloadUuid(payload);
+    fn deliveryCall(self: *Service, allocator: std.mem.Allocator, payload: records.PayloadView) !?chain.Call {
+        const uuid = try payload.uuid(allocator);
         if (try self.store.delivery(allocator, uuid)) |owned_value| {
             const owned = owned_value;
             switch (owned.value) {
                 .none => {},
                 .mailbox_message => |id| {
-                    const to = try abi.fixedHex(32, try types.stringField(payload, "to"));
+                    const to = try abi.fixedHex(32, try payload.toText(allocator));
                     if (!std.mem.allEqual(u8, to[0..12], 0)) return error.InvalidMailboxAddress;
                     const calldata = try allocator.dupe(u8, &abi.hashCall("delivered(bytes32)", id));
                     return .{ .from = self.config.signer.address, .to = to[12..32].*, .calldata = calldata };
@@ -789,10 +792,7 @@ pub const Service = struct {
                 .contract => |call| return .{ .from = self.config.signer.address, .to = call.to, .calldata = call.calldata },
             }
         }
-        const details = try types.field(payload, "details");
-        const criteria = types.optionalField(details, "success_criteria") orelse return null;
-        if (criteria == .null) return null;
-        const bytes = try jsonBytes(allocator, criteria);
+        const bytes = (try payload.successCriteriaBytes(allocator)) orelse return null;
         const parsed = try std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{});
         if (parsed != .array or parsed.array.items.len != 2) return error.InvalidSuccessCriteria;
         const request = try types.parseRequest(allocator, parsed.array.items[0]);
@@ -809,8 +809,9 @@ pub const Service = struct {
         if (payload_uuids.len == 0) return false;
         const height = self.chain.finalizedHeight() catch return false;
         for (payload_uuids) |uuid| {
-            var payload = (try self.store.loadPayload(allocator, uuid)) orelse return false;
-            const status_value = try types.field(payload.value(), "status");
+            const payload_bytes = (try self.store.loadPayloadBytes(allocator, uuid)) orelse return false;
+            const payload = try records.PayloadView.parse(allocator, payload_bytes);
+            const status_value = try payload.statusValue(allocator);
             if (status_value == .object and status_value.object.contains("Dropped")) {
                 const reason = status_value.object.get("Dropped").?;
                 if (reason == .string and std.mem.eql(u8, reason.string, "Reverted")) return false;
@@ -823,11 +824,10 @@ pub const Service = struct {
             if (try self.store.delivery(allocator, uuid)) |proof| {
                 if (proof.value == .none) return false;
             } else {
-                const details = try types.field(payload.value(), "details");
-                const criteria = types.optionalField(details, "success_criteria") orelse return false;
-                if (criteria == .null) return false;
+                const criteria = payload.success_criteria orelse return false;
+                if (std.mem.eql(u8, criteria, "null")) return false;
             }
-            if (!try self.payloadDelivered(allocator, payload.value(), height)) return false;
+            if (!try self.payloadDelivered(allocator, payload, height)) return false;
         }
         return true;
     }
@@ -939,8 +939,8 @@ pub const Service = struct {
         const protected = self.config.mev_submission orelse return self.chain;
         const payload_uuids = try records.payloadTransactionUuids(allocator, record.value());
         for (payload_uuids) |payload_uuid| {
-            var payload = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
-            const data = try jsonBytes(allocator, try types.field(payload.value(), "data"));
+            const payload = try self.loadPayloadView(allocator, payload_uuid);
+            const data = try payload.dataBytes(allocator);
             if (try mev.matchesPayload(protected.policy, data, allocator)) return protected.protected_chain;
         }
         return self.chain;
@@ -964,23 +964,22 @@ pub const Service = struct {
         const latest = try submission.latestBlock();
         const raw = try submission.call(allocator, .{ .from = self.config.signer.address, .to = to, .calldata = request.owned_data, .value = value }, latest.number);
         const results = try multicall.decode(allocator, raw, details.array.items.len);
-        const payloads = try allocator.alloc(std.json.Value, details.array.items.len);
-        const survivors = try allocator.alloc(std.json.Value, details.array.items.len);
+        const payloads = try allocator.alloc(records.PayloadView, details.array.items.len);
+        const survivors = try allocator.alloc(records.PayloadView, details.array.items.len);
         const calls = try allocator.alloc(multicall.Call, details.array.items.len);
         var survivor_count: usize = 0;
         var failed_count: usize = 0;
         var floor: u256 = 0;
         for (details.array.items, results, 0..) |detail, result, i| {
-            payloads[i] = (try self.store.loadPayload(allocator, try types.parseUuid(try types.stringField(detail, "uuid")))).?.value();
+            payloads[i] = try self.loadPayloadView(allocator, try types.parseUuid(try types.stringField(detail, "uuid")));
             if (!result.success) {
                 failed_count += 1;
                 continue;
             }
             survivors[survivor_count] = payloads[i];
             survivor_count += 1;
-            floor = gas.satAdd(floor, (try types.optionalUint(payloads[i], "gas_limit")) orelse 0);
-            const data_bytes = try jsonBytes(allocator, try types.field(payloads[i], "data"));
-            const tuple = try std.json.parseFromSliceLeaky(std.json.Value, allocator, data_bytes, .{});
+            floor = gas.satAdd(floor, try payloads[i].gasLimit(allocator));
+            const tuple = try payloads[i].dataTuple(allocator);
             const member = try types.parseRequest(allocator, tuple.array.items[0]);
             calls[survivor_count - 1] = switch (member.request) {
                 .legacy => |tx| .{ .to = tx.to orelse return error.InvalidBatchCall, .value = tx.value, .data = tx.data },
@@ -992,11 +991,9 @@ pub const Service = struct {
             const failed_uuid = try records.transactionUuid(record.value());
             try records.setStatus(&record.parsed.value, allocator, .{ .dropped = .{ .other = "Non-retryable error: simulation failed" } });
             const failed = try allocator.alloc(storage.PayloadUpdate, details.array.items.len);
-            for (details.array.items, 0..) |detail, i| {
+            for (details.array.items, payloads, 0..) |detail, payload, i| {
                 const payload_uuid = try types.parseUuid(try types.stringField(detail, "uuid"));
-                var payload = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
-                try records.setPayloadSimulationFailed(&payload.parsed.value, allocator);
-                failed[i] = .{ .uuid = payload_uuid, .canonical_json = try std.json.Stringify.valueAlloc(allocator, payload.value(), .{}) };
+                failed[i] = .{ .uuid = payload_uuid, .canonical_json = try payload.withStatus(allocator, records.payload_simulation_failed_status) };
             }
             const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
             defer self.allocator.free(json);
@@ -1035,12 +1032,10 @@ pub const Service = struct {
         vm_slot.* = retained.object.get("vm_specific_data").?;
         const failed = try allocator.alloc(storage.PayloadUpdate, failed_count);
         var failed_index: usize = 0;
-        for (details.array.items, results) |detail, result| {
+        for (details.array.items, results, payloads) |detail, result, payload| {
             if (result.success) continue;
             const payload_uuid = try types.parseUuid(try types.stringField(detail, "uuid"));
-            var payload = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
-            try records.setPayloadSimulationFailed(&payload.parsed.value, allocator);
-            failed[failed_index] = .{ .uuid = payload_uuid, .canonical_json = try std.json.Stringify.valueAlloc(allocator, payload.value(), .{}) };
+            failed[failed_index] = .{ .uuid = payload_uuid, .canonical_json = try payload.withStatus(allocator, records.payload_simulation_failed_status) };
             failed_index += 1;
         }
         const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
@@ -1119,10 +1114,9 @@ pub const Service = struct {
         // Members and the batch estimate independently: one overlapped round.
         const requests = try allocator.alloc(types.Request, payload_uuids.len + 1);
         for (payload_uuids, requests[0..payload_uuids.len]) |payload_uuid, *member| {
-            var payload = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
-            floor = gas.satAdd(floor, (try types.optionalUint(payload.value(), "gas_limit")) orelse 0);
-            const bytes = try jsonBytes(allocator, try types.field(payload.value(), "data"));
-            const tuple = try std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{});
+            const payload = try self.loadPayloadView(allocator, payload_uuid);
+            floor = gas.satAdd(floor, try payload.gasLimit(allocator));
+            const tuple = try payload.dataTuple(allocator);
             member.* = (try types.parseRequest(allocator, tuple.array.items[0])).request;
         }
         requests[payload_uuids.len] = request;
@@ -1207,19 +1201,16 @@ pub const Service = struct {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const allocator = arena.allocator();
-        var payload = try std.json.parseFromSlice(std.json.Value, allocator, payload_json, .{ .duplicate_field_behavior = .@"error" });
-        defer payload.deinit();
-        const payload_uuid = try records.payloadUuid(payload.value);
+        const payload = try records.PayloadView.parse(allocator, payload_json);
+        const payload_uuid = try payload.uuid(allocator);
         try self.checkAssociation(allocator, payload_uuid);
         const uuid = types.newUuid();
         var transaction: records.OwnedJson = .init(self.allocator);
         defer transaction.deinit();
-        try records.createTransaction(&transaction, payload.value, uuid, self.config.signer.address, self.config.chain_id, try records.timestamp(allocator, now_ms));
-        try records.setPayloadStatus(&payload.value, allocator, .pending_inclusion);
+        try records.createTransaction(&transaction, payload, uuid, self.config.signer.address, self.config.chain_id, try records.timestamp(allocator, now_ms));
         const transaction_json = try transaction.stringify(self.allocator);
         defer self.allocator.free(transaction_json);
-        const payload_updated = try std.json.Stringify.valueAlloc(self.allocator, payload.value, .{});
-        defer self.allocator.free(payload_updated);
+        const payload_updated = try payload.withStatus(allocator, try records.payloadStatusText(allocator, .pending_inclusion));
         const update = [_]storage.PayloadUpdate{.{ .uuid = payload_uuid, .canonical_json = payload_updated }};
         _ = try self.store.writeBuiltTransaction(self.allocator, uuid, transaction_json, &update);
     }
@@ -1229,17 +1220,15 @@ pub const Service = struct {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const allocator = arena.allocator();
-        const payloads = try allocator.alloc(std.json.Value, group.len);
+        const payloads = try allocator.alloc(records.PayloadView, group.len);
         const calls = try allocator.alloc(multicall.Call, group.len);
         var floor: u256 = 0;
         for (group, 0..) |json, i| {
-            payloads[i] = try std.json.parseFromSliceLeaky(std.json.Value, allocator, json, .{ .duplicate_field_behavior = .@"error" });
-            const payload_uuid = try records.payloadUuid(payloads[i]);
+            payloads[i] = try records.PayloadView.parse(allocator, json);
+            const payload_uuid = try payloads[i].uuid(allocator);
             try self.checkAssociation(allocator, payload_uuid);
-            floor = gas.satAdd(floor, (try types.optionalUint(payloads[i], "gas_limit")) orelse 0);
-            const data = try types.field(payloads[i], "data");
-            const bytes = try jsonBytes(allocator, data);
-            const tuple = try std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{});
+            floor = gas.satAdd(floor, try payloads[i].gasLimit(allocator));
+            const tuple = try payloads[i].dataTuple(allocator);
             const request = try types.parseRequest(allocator, tuple.array.items[0]);
             calls[i] = switch (request.request) {
                 .legacy => |tx| .{ .to = tx.to orelse return error.InvalidBatchCall, .value = tx.value, .data = tx.data },
@@ -1260,9 +1249,9 @@ pub const Service = struct {
         defer transaction.deinit();
         try records.createBatchTransaction(&transaction, payloads, uuid, self.config.signer.address, self.config.chain_id, try records.timestamp(allocator, now_ms), batch_address, encoded.calldata, encoded.value);
         const updates = try allocator.alloc(storage.PayloadUpdate, payloads.len);
+        const pending_status = try records.payloadStatusText(allocator, .pending_inclusion);
         for (payloads, 0..) |payload, i| {
-            try records.setPayloadStatus(&payloads[i], allocator, .pending_inclusion);
-            updates[i] = .{ .uuid = try records.payloadUuid(payload), .canonical_json = try std.json.Stringify.valueAlloc(allocator, payloads[i], .{}) };
+            updates[i] = .{ .uuid = try payload.uuid(allocator), .canonical_json = try payload.withStatus(allocator, pending_status) };
         }
         const transaction_json = try transaction.stringify(self.allocator);
         defer self.allocator.free(transaction_json);
@@ -1303,16 +1292,6 @@ fn deliveryMatches(stored: ?storage.OwnedDelivery, requested: storage.Delivery) 
             else => false,
         },
     };
-}
-
-fn jsonBytes(allocator: std.mem.Allocator, value: std.json.Value) ![]u8 {
-    if (value != .array) return error.InvalidLanderRecord;
-    const bytes = try allocator.alloc(u8, value.array.items.len);
-    for (value.array.items, 0..) |byte, i| {
-        if (byte != .integer or byte.integer < 0 or byte.integer > 255) return error.InvalidLanderRecord;
-        bytes[i] = @intCast(byte.integer);
-    }
-    return bytes;
 }
 
 fn requestNonce(request: types.Request) ?u256 {

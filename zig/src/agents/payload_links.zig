@@ -67,9 +67,7 @@ fn validate(a: A, value: Record) !void {
     if (value.delivery != .mailbox_message or !std.mem.eql(u8, &value.delivery.mailbox_message, &value.message_id)) return error.PayloadDeliveryIdentityMismatch;
     // Validate through the same canonical production payload decoder that the
     // real destination owner uses. This allocates no nonce or signatures.
-    var canonical = lander.records.OwnedJson.init(a);
-    defer canonical.deinit();
-    try lander.records.createPayload(&canonical, value.payload);
+    try lander.records.validatePayload(a, value.payload);
 }
 
 pub fn load(a: A, store: *native.Store, message_id: Hash, context: Hash) !?Link {

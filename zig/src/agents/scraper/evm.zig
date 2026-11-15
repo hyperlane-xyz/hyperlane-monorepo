@@ -12,7 +12,7 @@ pub const Evm = struct {
     domain: u32,
     max_events: usize = 100000,
     pub fn interface(self: *Evm) src.Source {
-        return .{ .context = self, .transaction_fn = transactionEvents, .cancel_fn = bindCancellation, .header_fn = header, .headers_fn = headers, .events_fn = events, .counts_fn = counts, .historical_counts = true };
+        return .{ .context = self, .transaction_fn = transactionEvents, .proven_transaction_fn = provenTransactionEvents, .cancel_fn = bindCancellation, .header_fn = header, .headers_fn = headers, .events_fn = events, .counts_fn = counts, .historical_counts = true };
     }
     fn bindCancellation(context: *anyopaque, cancel: ?*const std.atomic.Value(bool)) void {
         cast(context).rpc_client.options.cancel = cancel;
@@ -112,7 +112,12 @@ pub const Evm = struct {
         return .{ .arena = arena, .events = owned_events, .through = through };
     }
     fn transactionEvents(context: *anyopaque, allocator: std.mem.Allocator, transaction: [64]u8) !src.Batch {
-        const self = cast(context);
+        return cast(context).receiptEvents(allocator, transaction, null);
+    }
+    fn provenTransactionEvents(context: *anyopaque, allocator: std.mem.Allocator, transaction: [64]u8, proven: src.ProvenBlock) !src.Batch {
+        return cast(context).receiptEvents(allocator, transaction, proven);
+    }
+    fn receiptEvents(self: *Evm, allocator: std.mem.Allocator, transaction: [64]u8, proven: ?src.ProvenBlock) !src.Batch {
         if (!std.mem.allEqual(u8, transaction[0..32], 0)) return error.InvalidEvmTransactionId;
         if (self.rpc_client.options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         var arena = std.heap.ArenaAllocator.init(allocator);
@@ -133,8 +138,11 @@ pub const Evm = struct {
         // One canonical read after the receipt binds its block; the logs are
         // then checked locally against it (a second read of the same height
         // with no network step in between proved nothing more). Rust reads
-        // only the receipt.
-        const before = try self.rpc_client.blockHeader(.{ .number = height });
+        // only the receipt. A receipt in exactly the block the caller already
+        // proved canonical needs no read; any other block reads as usual.
+        const known = if (proven) |block| block.number == height and std.mem.eql(u8, &block.hash, &block_hash) else false;
+        // Only number and hash of `before` are consulted below.
+        const before: rpc.BlockHeader = if (known) .{ .number = height, .hash = block_hash, .parent_hash = @splat(0), .timestamp = 0 } else try self.rpc_client.blockHeader(.{ .number = height });
         if (!std.mem.eql(u8, &before.hash, &block_hash)) return error.NoncanonicalTransactionReceipt;
         const logs = try json.field(receipt, "logs");
         if (logs != .array or logs.array.items.len > self.max_events) return error.ScraperEventLimit;

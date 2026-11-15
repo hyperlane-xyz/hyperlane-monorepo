@@ -222,6 +222,12 @@ pub const Store = struct {
     }
 
     pub fn storeMessage(self: *Store, message: protocol.Message, block_number: u64, transaction: ?[64]u8) !bool {
+        return self.storeMessageAt(message, block_number, null, transaction);
+    }
+
+    /// `storeMessage` for a dispatch whose block the caller proved canonical:
+    /// `block_hash` rides the receipt notification (see tx_id_observer).
+    pub fn storeMessageAt(self: *Store, message: protocol.Message, block_number: u64, block_hash: ?[32]u8, transaction: ?[64]u8) !bool {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (try self.messageByNonce(message.nonce)) |owned| {
@@ -236,18 +242,24 @@ pub const Store = struct {
             if (try self.get(u64, .message_dispatched_block_number, message.nonce) == null) try self.put(&batch, .message_dispatched_block_number, message.nonce, block_number);
             if (transaction) |hash| if (!std.mem.allEqual(u8, &hash, 0)) try self.put(&batch, .message_dispatched_tx_hash, message.id(), hash);
             try batch.commit();
-            if (std.mem.eql(u8, &existing.value.id(), &message.id())) try self.notifyDispatch((try self.messageBlock(existing.value.nonce)) orelse block_number, transaction);
+            if (std.mem.eql(u8, &existing.value.id(), &message.id())) {
+                const stored = (try self.messageBlock(existing.value.nonce)) orelse block_number;
+                try self.notifyDispatchAt(stored, if (stored == block_number) block_hash else null, transaction);
+            }
             return false;
         }
         try self.upsert(message, block_number, transaction);
-        try self.notifyDispatch(block_number, transaction);
+        try self.notifyDispatchAt(block_number, block_hash, transaction);
         return true;
     }
     pub fn notifyDispatch(self: *Store, block_number: u64, transaction: ?[64]u8) !void {
+        return self.notifyDispatchAt(block_number, null, transaction);
+    }
+    fn notifyDispatchAt(self: *Store, block_number: u64, block_hash: ?[32]u8, transaction: ?[64]u8) !void {
         const sink = self.dispatch_notifications orelse return;
         const tx = transaction orelse return;
         if (std.mem.allEqual(u8, &tx, 0)) return;
-        try sink.notify(.{ .transaction = tx, .block_number = block_number });
+        try sink.notify(.{ .transaction = tx, .block_number = block_number, .block_hash = block_hash });
     }
 
     pub fn upsertMessage(self: *Store, message: protocol.Message, block_number: u64, transaction: ?[64]u8) !void {

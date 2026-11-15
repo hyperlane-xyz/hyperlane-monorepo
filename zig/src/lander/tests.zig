@@ -12,6 +12,10 @@ const Message = @import("../protocol/message.zig").Message;
 const abi = @import("../evm/codecs.zig");
 const observer = @import("observer.zig");
 
+test {
+    _ = @import("json_view.zig");
+}
+
 const DbFixture = struct {
     temp: std.testing.TmpDir,
     database: rocks.Database,
@@ -629,6 +633,62 @@ test "canonical pending rebuild is paged and legacy missing gas limit builds" {
     const third = try restarted.tick(3_000, .{ .max_payload_scan = 1 });
     try std.testing.expectEqual(@as(usize, 1), third.built);
     try std.testing.expectEqual(@as(u32, 2), try fixture.store().highestTransactionIndex(allocator));
+}
+
+/// Pending index rows as one canonical text (key and value per row).
+fn pendingIndex(allocator: std.mem.Allocator, store: storage.Store) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    var rows = try store.typed.prefix(allocator, storage.pending_payload_by_index);
+    defer rows.deinit();
+    while (try rows.next(allocator)) |entry_value| {
+        var entry = entry_value;
+        defer entry.deinit();
+        try out.print(allocator, "{s}={s}\n", .{ entry.key, entry.value });
+    }
+    return out.toOwnedSlice(allocator);
+}
+
+test "unsynced pending checkpoint lost or stale at a crash rebuilds the same pending index" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    const config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer() };
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    for ([_]u8{ 70, 71, 72 }) |byte| _ = try running.enqueue(legacyPayload(id(byte)));
+    // One payload leaves the pending index by being built.
+    _ = try running.tick(1_000, .{ .max_build = 1 });
+    running.deinit();
+    const expected = try pendingIndex(allocator, fixture.store());
+    defer allocator.free(expected);
+    try std.testing.expectEqual(@as(usize, 2), std.mem.count(u8, expected, "\n"));
+    // A crash after the synced payload rows but before the unsynced marker:
+    // the checkpoint is missing, or an older value survived.
+    for ([_]?u64{ null, 1 }) |surviving| {
+        var crash = try fixture.store().typed.batch(allocator);
+        defer crash.deinit();
+        if (surviving) |sequence| {
+            var bytes: [8]u8 = undefined;
+            std.mem.writeInt(u64, &bytes, sequence, .big);
+            try crash.put(storage.pending_payload_index_checkpoint, &.{0}, &bytes);
+        } else try crash.delete(storage.pending_payload_index_checkpoint, &.{0});
+        try crash.commitSync();
+        var restarted = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+        defer restarted.deinit();
+        _ = try restarted.tick(2_000, .{ .max_build = 0 });
+        try std.testing.expect(restarted.payload_reconcile_complete);
+        const rebuilt = try pendingIndex(allocator, fixture.store());
+        defer allocator.free(rebuilt);
+        try std.testing.expectEqualStrings(expected, rebuilt);
+        try std.testing.expectEqual(@as(u64, 2), restarted.pending_payloads);
+        const checkpoint = (try fixture.store().typed.get(allocator, storage.pending_payload_index_checkpoint, &.{0})).?;
+        defer allocator.free(checkpoint);
+        try std.testing.expect(std.mem.readInt(u64, checkpoint[0..8], .big) > 1);
+    }
 }
 
 test "included payload criterion uses current head not older finalized height" {

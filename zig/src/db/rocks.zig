@@ -215,10 +215,21 @@ pub const Batch = struct {
 
     /// Force WAL fsync for this batch without changing shared DB write options.
     pub fn commitSync(self: *Batch) !void {
+        return self.commitWithSync(true);
+    }
+
+    /// WAL write without fsync, even on a sync=true Database. Only for rows
+    /// that are hints whose loss is safe: the WAL is ordered, so any later
+    /// synced commit also persists this record.
+    pub fn commitUnsynced(self: *Batch) !void {
+        return self.commitWithSync(false);
+    }
+
+    fn commitWithSync(self: *Batch, sync: bool) !void {
         const handle = self.handle orelse return error.ClosedBatch;
         const options = c.rocksdb_writeoptions_create() orelse return error.NativeAllocation;
         defer c.rocksdb_writeoptions_destroy(options);
-        c.rocksdb_writeoptions_set_sync(options, 1);
+        c.rocksdb_writeoptions_set_sync(options, @intFromBool(sync));
         c.rocksdb_writeoptions_disable_WAL(options, 0);
         var native_error: ?[*:0]u8 = null;
         c.rocksdb_write(self.database.handle, options, handle, &native_error);
@@ -382,6 +393,10 @@ pub const TypedBatch = struct {
 
     pub fn commitSync(self: *TypedBatch) !void {
         try self.batch.commitSync();
+    }
+
+    pub fn commitUnsynced(self: *TypedBatch) !void {
+        try self.batch.commitUnsynced();
     }
 
     pub fn commit(self: *TypedBatch) !void {

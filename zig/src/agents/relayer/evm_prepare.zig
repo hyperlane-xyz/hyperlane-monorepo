@@ -396,9 +396,7 @@ pub fn Preparer(comptime Origin: type) type {
                 .to = self.config.mailbox,
                 .value = null,
             };
-            var validation: lander.records.OwnedJson = .init(a);
-            defer validation.deinit();
-            lander.records.createPayload(&validation, payload) catch |err| return retryDiagnostics(outcome, .payload_validation, err, state, null, diagnostics);
+            lander.records.validatePayload(a, payload) catch |err| return retryDiagnostics(outcome, .payload_validation, err, state, null, diagnostics);
             outcome.value = .{ .ready = .{
                 .payload = payload,
                 .metadata_bytes = try a.dupe(u8, metadata_bytes),

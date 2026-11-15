@@ -1,6 +1,7 @@
 const std = @import("std");
 const abi = @import("../evm/codecs.zig");
 const types = @import("types.zig");
+const json_view = @import("json_view.zig");
 
 pub const OwnedJson = struct {
     arena: std.heap.ArenaAllocator,
@@ -65,20 +66,142 @@ pub fn createPayload(owned: *OwnedJson, input: PayloadInput) !void {
     owned.root = .{ .object = root };
 }
 
+/// The checks `createPayload` applies to its input, without building the
+/// record: both JSON tuples must decode to an EVM request.
+pub fn validatePayload(scratch: std.mem.Allocator, input: PayloadInput) !void {
+    var arena = std.heap.ArenaAllocator.init(scratch);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const data = try std.json.parseFromSliceLeaky(std.json.Value, allocator, input.data_json, .{ .duplicate_field_behavior = .@"error" });
+    if (data != .array or data.array.items.len != 2) return error.InvalidEvmPayload;
+    _ = try types.parseRequest(allocator, data.array.items[0]);
+    if (input.success_criteria_json) |criteria| {
+        const parsed = try std.json.parseFromSliceLeaky(std.json.Value, allocator, criteria, .{ .duplicate_field_behavior = .@"error" });
+        if (parsed != .array or parsed.array.items.len != 2) return error.InvalidSuccessCriteria;
+        _ = try types.parseRequest(allocator, parsed.array.items[0]);
+    }
+}
+
+/// The canonical payload row `createPayload` + stringify produce, written
+/// directly (no per-byte JSON values). Validates the input first.
+pub fn payloadJson(allocator: std.mem.Allocator, input: PayloadInput) ![]u8 {
+    try validatePayload(allocator, input);
+    var out: std.ArrayList(u8) = .empty;
+    errdefer out.deinit(allocator);
+    const uuid_text = try types.uuidText(allocator, input.uuid);
+    defer allocator.free(uuid_text);
+    try out.appendSlice(allocator, "{\"details\":{\"uuid\":\"");
+    try out.appendSlice(allocator, uuid_text);
+    try out.appendSlice(allocator, "\",\"metadata\":");
+    const metadata = try std.json.Stringify.valueAlloc(allocator, input.metadata, .{});
+    defer allocator.free(metadata);
+    try out.appendSlice(allocator, metadata);
+    try out.appendSlice(allocator, ",\"success_criteria\":");
+    if (input.success_criteria_json) |criteria| try json_view.writeByteArray(&out, allocator, criteria) else try out.appendSlice(allocator, "null");
+    try out.appendSlice(allocator, "},\"data\":");
+    try json_view.writeByteArray(&out, allocator, input.data_json);
+    try out.print(allocator, ",\"gas_limit\":\"0x{x}\",\"to\":\"0x{s}\",\"status\":\"ReadyToSubmit\",\"value\":", .{ input.gas_limit, &std.fmt.bytesToHex(input.to, .lower) });
+    if (input.value) |value| try out.print(allocator, "\"0x{x}\"", .{value}) else try out.appendSlice(allocator, "null");
+    try out.appendSlice(allocator, ",\"inclusion_soft_deadline\":null}");
+    return out.toOwnedSlice(allocator);
+}
+
+/// Borrowed view of a stored payload row. Fields are raw JSON value slices of
+/// `json`; the per-byte `data` and `success_criteria` arrays are decoded on
+/// demand straight to bytes. Rewrites splice only the status value.
+pub const PayloadView = struct {
+    json: []const u8,
+    details: []const u8,
+    data: []const u8,
+    gas_limit: ?[]const u8,
+    to: ?[]const u8,
+    status: []const u8,
+    value: ?[]const u8,
+    inclusion_soft_deadline: ?[]const u8,
+    uuid_raw: []const u8,
+    metadata: []const u8,
+    success_criteria: ?[]const u8,
+
+    pub fn parse(scratch: std.mem.Allocator, json: []const u8) !PayloadView {
+        const top = try json_view.fields(7, scratch, json, .{ "details", "data", "gas_limit", "to", "status", "value", "inclusion_soft_deadline" });
+        const details = top[0] orelse return error.InvalidLanderRecord;
+        const inner = try json_view.fields(3, scratch, details, .{ "uuid", "metadata", "success_criteria" });
+        return .{
+            .json = json,
+            .details = details,
+            .data = top[1] orelse return error.InvalidLanderRecord,
+            .gas_limit = top[2],
+            .to = top[3],
+            .status = top[4] orelse return error.InvalidLanderRecord,
+            .value = top[5],
+            .inclusion_soft_deadline = top[6],
+            .uuid_raw = inner[0] orelse return error.InvalidLanderRecord,
+            .metadata = inner[1] orelse return error.InvalidLanderRecord,
+            .success_criteria = inner[2],
+        };
+    }
+
+    pub fn uuid(self: PayloadView, scratch: std.mem.Allocator) !types.Uuid {
+        return types.parseUuid(try json_view.string(scratch, self.uuid_raw));
+    }
+
+    /// `gas_limit` as `optionalUint` reads it (absent or null: 0).
+    pub fn gasLimit(self: PayloadView, scratch: std.mem.Allocator) !u256 {
+        const raw = self.gas_limit orelse return 0;
+        return (try types.uintOf(try json_view.parseValue(scratch, raw))) orelse 0;
+    }
+
+    pub fn toText(self: PayloadView, scratch: std.mem.Allocator) ![]const u8 {
+        return json_view.string(scratch, self.to orelse return error.InvalidLanderRecord);
+    }
+
+    pub fn dataBytes(self: PayloadView, allocator: std.mem.Allocator) ![]u8 {
+        return json_view.byteArray(allocator, self.data);
+    }
+
+    /// Null when absent or JSON null.
+    pub fn successCriteriaBytes(self: PayloadView, allocator: std.mem.Allocator) !?[]u8 {
+        const raw = self.success_criteria orelse return null;
+        if (std.mem.eql(u8, raw, "null")) return null;
+        return try json_view.byteArray(allocator, raw);
+    }
+
+    pub fn statusValue(self: PayloadView, scratch: std.mem.Allocator) !std.json.Value {
+        return json_view.parseValue(scratch, self.status);
+    }
+
+    /// The row with its status value replaced by `status_json`.
+    pub fn withStatus(self: PayloadView, allocator: std.mem.Allocator, status_json: []const u8) ![]u8 {
+        return json_view.splice(allocator, self.json, self.status, status_json);
+    }
+
+    /// The EVM request tuple stored in `data`.
+    pub fn dataTuple(self: PayloadView, allocator: std.mem.Allocator) !std.json.Value {
+        const bytes = try self.dataBytes(allocator);
+        const tuple = try std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{});
+        if (tuple != .array or tuple.array.items.len != 2) return error.InvalidEvmPayload;
+        return tuple;
+    }
+};
+
+/// Compact JSON text of a payload's `InTransaction` status.
+pub fn payloadStatusText(allocator: std.mem.Allocator, new_status: types.Status) ![]u8 {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    return std.json.Stringify.valueAlloc(allocator, try types.payloadStatusJson(arena.allocator(), new_status), .{});
+}
+
+pub const payload_reverted_status = "{\"Dropped\":\"Reverted\"}";
+pub const payload_simulation_failed_status = "{\"Dropped\":\"FailedSimulation\"}";
+
 pub fn payloadUuid(value: std.json.Value) !types.Uuid {
     const details = try types.field(value, "details");
     return types.parseUuid(try types.stringField(details, "uuid"));
 }
 
-pub fn createTransaction(owned: *OwnedJson, payload: std.json.Value, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8) !void {
+pub fn createTransaction(owned: *OwnedJson, payload: PayloadView, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8) !void {
     const allocator = owned.allocator();
-    const data_bytes = try types.field(payload, "data");
-    if (data_bytes != .array) return error.InvalidEvmPayload;
-    const bytes = try allocator.alloc(u8, data_bytes.array.items.len);
-    for (data_bytes.array.items, 0..) |byte, i| {
-        if (byte != .integer or byte.integer < 0 or byte.integer > 255) return error.InvalidEvmPayload;
-        bytes[i] = @intCast(byte.integer);
-    }
+    const bytes = json_view.byteArray(allocator, payload.data) catch return error.InvalidEvmPayload;
     const data = try std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{ .duplicate_field_behavior = .@"error" });
     if (data != .array or data.array.items.len != 2) return error.InvalidEvmPayload;
     var tx = data.array.items[0];
@@ -87,7 +210,7 @@ pub fn createTransaction(owned: *OwnedJson, payload: std.json.Value, uuid: types
         if (actual != .null and try types.uintField(tx, "chainId") != chain_id) return error.WrongChain;
     }
     if (tx == .object) try tx.object.put("chainId", .{ .string = try types.quantity(allocator, chain_id) });
-    const floor = (try types.optionalUint(payload, "gas_limit")) orelse 0;
+    const floor = try payload.gasLimit(allocator);
     if (floor != 0) {
         const gas = (try types.optionalUint(tx, "gas")) orelse 0;
         if (tx == .object) try tx.object.put("gas", .{ .string = try types.quantity(allocator, @max(floor, gas)) });
@@ -97,9 +220,8 @@ pub fn createTransaction(owned: *OwnedJson, payload: std.json.Value, uuid: types
     try precursor.put("function", data.array.items[1]);
     var evm = std.json.ObjectMap.init(allocator);
     try evm.put("Evm", .{ .object = precursor });
-    const details = try types.field(payload, "details");
     const details_items = try allocator.alloc(std.json.Value, 1);
-    details_items[0] = details;
+    details_items[0] = try json_view.parseValue(allocator, payload.details);
     const hash_items = try allocator.alloc(std.json.Value, 0);
     var root = std.json.ObjectMap.init(allocator);
     try root.put("uuid", .{ .string = try types.uuidText(allocator, uuid) });
@@ -114,12 +236,12 @@ pub fn createTransaction(owned: *OwnedJson, payload: std.json.Value, uuid: types
     owned.root = .{ .object = root };
 }
 
-pub fn createBatchTransaction(owned: *OwnedJson, payloads: []const std.json.Value, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8, batch_address: types.Address, calldata: []const u8, value: u256) !void {
+pub fn createBatchTransaction(owned: *OwnedJson, payloads: []const PayloadView, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8, batch_address: types.Address, calldata: []const u8, value: u256) !void {
     if (payloads.len < 2) return error.InvalidBatch;
     try createTransaction(owned, payloads[0], uuid, signer, chain_id, timestamp_text);
     const allocator = owned.allocator();
     const details = try allocator.alloc(std.json.Value, payloads.len);
-    for (payloads, 0..) |payload, i| details[i] = try types.field(payload, "details");
+    for (payloads, 0..) |payload, i| details[i] = try json_view.parseValue(allocator, payload.details);
     try owned.root.object.put("payload_details", .{ .array = .{ .items = details, .capacity = details.len, .allocator = allocator } });
     const tx = try types.requestPtr(&owned.root);
     try tx.object.put("to", .{ .string = try abi.hexAlloc(allocator, &batch_address) });
@@ -230,37 +352,85 @@ pub fn timestamp(allocator: std.mem.Allocator, now_ms: u64) ![]const u8 {
     });
 }
 
-pub fn samePayloadIdentity(allocator: std.mem.Allocator, existing: std.json.Value, replacement: std.json.Value) !bool {
-    if (((try types.optionalUint(existing, "gas_limit")) orelse 0) != ((try types.optionalUint(replacement, "gas_limit")) orelse 0)) return false;
-    const existing_details = try types.field(existing, "details");
-    const replacement_details = try types.field(replacement, "details");
-    if (!std.mem.eql(u8, try types.stringField(existing_details, "uuid"), try types.stringField(replacement_details, "uuid"))) return false;
-    if (!std.mem.eql(u8, try types.stringField(existing_details, "metadata"), try types.stringField(replacement_details, "metadata"))) return false;
-    const existing_criteria = try std.json.Stringify.valueAlloc(allocator, types.optionalField(existing_details, "success_criteria") orelse .null, .{});
-    defer allocator.free(existing_criteria);
-    const replacement_criteria = try std.json.Stringify.valueAlloc(allocator, types.optionalField(replacement_details, "success_criteria") orelse .null, .{});
-    defer allocator.free(replacement_criteria);
-    if (!std.mem.eql(u8, existing_criteria, replacement_criteria)) return false;
-    const names = [_][]const u8{ "data", "to", "value", "inclusion_soft_deadline" };
-    for (names) |name| {
-        const left = try std.json.Stringify.valueAlloc(allocator, try types.field(existing, name), .{});
-        defer allocator.free(left);
-        const right = try std.json.Stringify.valueAlloc(allocator, try types.field(replacement, name), .{});
-        defer allocator.free(right);
-        if (!std.mem.eql(u8, left, right)) return false;
+/// Same identity as a re-enqueued payload: compared field by field after
+/// decoding, so equal values written with different JSON spacing match.
+pub fn samePayloadIdentity(scratch: std.mem.Allocator, existing: PayloadView, replacement: PayloadView) !bool {
+    var arena = std.heap.ArenaAllocator.init(scratch);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    if (try existing.gasLimit(allocator) != try replacement.gasLimit(allocator)) return false;
+    if (!std.mem.eql(u8, try json_view.string(allocator, existing.uuid_raw), try json_view.string(allocator, replacement.uuid_raw))) return false;
+    if (!std.mem.eql(u8, try json_view.string(allocator, existing.metadata), try json_view.string(allocator, replacement.metadata))) return false;
+    if (!try sameCanonical(allocator, existing.success_criteria orelse "null", replacement.success_criteria orelse "null")) return false;
+    if (!try sameCanonical(allocator, existing.data, replacement.data)) return false;
+    const pairs = [_][2]?[]const u8{ .{ existing.to, replacement.to }, .{ existing.value, replacement.value }, .{ existing.inclusion_soft_deadline, replacement.inclusion_soft_deadline } };
+    for (pairs) |pair| {
+        const left = pair[0] orelse return error.InvalidLanderRecord;
+        const right = pair[1] orelse return error.InvalidLanderRecord;
+        if (!try sameCanonical(allocator, left, right)) return false;
     }
     return true;
 }
 
+/// Equal raw values, or equal after re-encoding (byte arrays compare decoded).
+fn sameCanonical(allocator: std.mem.Allocator, left: []const u8, right: []const u8) !bool {
+    if (std.mem.eql(u8, left, right)) return true;
+    if (left.len > 0 and left[0] == '[' and right.len > 0 and right[0] == '[') {
+        const a = json_view.byteArray(allocator, left) catch null;
+        const b = json_view.byteArray(allocator, right) catch null;
+        if (a != null and b != null) return std.mem.eql(u8, a.?, b.?);
+    }
+    const a = try std.json.Stringify.valueAlloc(allocator, try json_view.parseValue(allocator, left), .{});
+    const b = try std.json.Stringify.valueAlloc(allocator, try json_view.parseValue(allocator, right), .{});
+    return std.mem.eql(u8, a, b);
+}
+
 test "canonical payload and transaction records retain EVM JSON" {
-    var payload: OwnedJson = .init(std.testing.allocator);
-    defer payload.deinit();
+    const a = std.testing.allocator;
     const data = "[{\"type\":\"0x02\",\"from\":null,\"to\":\"0x3535353535353535353535353535353535353535\",\"gas\":\"0x5208\",\"value\":\"0x0\",\"data\":\"0x\",\"nonce\":null,\"chainId\":\"0x1\",\"maxFeePerGas\":\"0x2\",\"maxPriorityFeePerGas\":\"0x1\",\"accessList\":[]},{\"name\":\"process\",\"inputs\":[],\"outputs\":[],\"constant\":null,\"stateMutability\":\"nonpayable\"}]";
-    try createPayload(&payload, .{ .uuid = @splat(1), .metadata = "message", .data_json = data, .to = @splat(2) });
-    var transaction: OwnedJson = .init(std.testing.allocator);
-    defer transaction.deinit();
-    try createTransaction(&transaction, payload.root, @splat(3), @splat(4), 1, "2026-01-02T03:04:05.006Z");
-    const tx_hashes = try hashes(std.testing.allocator, transaction.root);
-    defer std.testing.allocator.free(tx_hashes);
-    try std.testing.expectEqual(@as(usize, 0), tx_hashes.len);
+    const inputs = [_]PayloadInput{
+        .{ .uuid = @splat(1), .metadata = "message", .data_json = data, .to = @splat(2) },
+        .{ .uuid = @splat(0xab), .metadata = "q\"\\\u{7f}\u{e9}\n", .data_json = data, .gas_limit = 77777, .success_criteria_json = data, .to = @splat(0xfe), .value = 1 << 200 },
+    };
+    for (inputs) |input| {
+        var payload: OwnedJson = .init(a);
+        defer payload.deinit();
+        try createPayload(&payload, input);
+        const reference = try payload.stringify(a);
+        defer a.free(reference);
+        const direct = try payloadJson(a, input);
+        defer a.free(direct);
+        try std.testing.expectEqualStrings(reference, direct);
+        var arena = std.heap.ArenaAllocator.init(a);
+        defer arena.deinit();
+        const view = try PayloadView.parse(arena.allocator(), direct);
+        try std.testing.expectEqual(input.uuid, try view.uuid(arena.allocator()));
+        try std.testing.expectEqual(input.gas_limit, try view.gasLimit(arena.allocator()));
+        try std.testing.expectEqualStrings(input.data_json, try view.dataBytes(arena.allocator()));
+        if (input.success_criteria_json) |criteria| try std.testing.expectEqualStrings(criteria, (try view.successCriteriaBytes(arena.allocator())).?) else try std.testing.expect(try view.successCriteriaBytes(arena.allocator()) == null);
+        try std.testing.expect(try samePayloadIdentity(a, view, view));
+        // Status splice equals the parse/set/stringify rewrite.
+        for ([_]types.Status{ .pending_inclusion, .included, .finalized, .{ .dropped = .{ .other = "x" } } }) |next_status| {
+            try setPayloadStatus(&payload.root, payload.allocator(), next_status);
+            const expected = try payload.stringify(a);
+            defer a.free(expected);
+            const text = try payloadStatusText(a, next_status);
+            defer a.free(text);
+            const spliced = try view.withStatus(a, text);
+            defer a.free(spliced);
+            try std.testing.expectEqualStrings(expected, spliced);
+        }
+        try setPayloadReverted(&payload.root, payload.allocator());
+        const reverted = try payload.stringify(a);
+        defer a.free(reverted);
+        const spliced = try view.withStatus(a, payload_reverted_status);
+        defer a.free(spliced);
+        try std.testing.expectEqualStrings(reverted, spliced);
+        var transaction: OwnedJson = .init(a);
+        defer transaction.deinit();
+        try createTransaction(&transaction, view, @splat(3), @splat(4), 1, "2026-01-02T03:04:05.006Z");
+        const tx_hashes = try hashes(a, transaction.root);
+        defer a.free(tx_hashes);
+        try std.testing.expectEqual(@as(usize, 0), tx_hashes.len);
+    }
 }
