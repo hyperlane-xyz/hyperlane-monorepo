@@ -57,16 +57,34 @@ pub fn recoverDer(digest: Hash, der: []const u8, expected: PublicKey) !Signature
     const scalar_s = try Curve.scalar.Scalar.fromBytes(s, .big);
     if (scalar_r.isZero() or scalar_s.isZero()) return error.InvalidKmsSignature;
     if (std.mem.readInt(u256, &s, .big) > Curve.scalar.field_order / 2) s = scalar_s.neg().toBytes(.big);
-    const raw: Scheme.Signature = .{ .r = r, .s = s };
-    try raw.verifyPrehashed(digest, expected.key);
     var signature: Signature = undefined;
-    signature[0..64].* = raw.toBytes();
-    for ([_]u8{ 27, 28 }) |v| {
-        signature[64] = v;
-        const recovered = protocol.signature.recover(digest, signature) catch continue;
-        if (std.mem.eql(u8, &recovered, &expected.address)) return signature;
-    }
-    return error.KmsSignerMismatch;
+    signature[0..32].* = r;
+    signature[32..64].* = s;
+    signature[64] = 27 + try verifiedParity(digest, r, s, expected);
+    return signature;
+}
+
+/// ECDSA verification against the KMS key's known public point that also
+/// yields the recovery id: R = (z/s)G + (r/s)Q must have x(R) == r exactly
+/// (x >= n is unrepresentable as v=27/28 and fails closed), and v encodes
+/// R.y's parity. One shared multiplication replaces std verification plus
+/// up to two trial recoveries. Public inputs only (variable time is fine).
+fn verifiedParity(digest: Hash, r: Hash, s: Hash, expected: PublicKey) !u8 {
+    const secp = protocol.secp256k1;
+    const Scalar = Curve.scalar.Scalar;
+    var wide: [48]u8 = .{0} ** 48;
+    wide[16..48].* = digest;
+    const z = Scalar.fromBytes48(wide, .big);
+    const scalar_s = try Scalar.fromBytes(s, .big);
+    const s_inverse = try Scalar.fromBytes(@bitCast(secp.scalar_inverse(@bitCast(scalar_s.toBytes(.little)))), .little);
+    const scalar_r = try Scalar.fromBytes(r, .big);
+    const sec1 = expected.key.toUncompressedSec1();
+    const q: secp.Affine = .{ .x = secp.Fe.fromBytes(sec1[1..33].*) catch return error.KmsSignerMismatch, .y = secp.Fe.fromBytes(sec1[33..65].*) catch return error.KmsSignerMismatch };
+    const table = secp.OddMultiples.init(secp.Point.fromAffine(q));
+    const point = secp.multiMulPublic(1, z.mul(s_inverse).toBytes(.little), .{&table}, .{scalar_r.mul(s_inverse).toBytes(.little)}) catch return error.KmsSignerMismatch;
+    const affine = point.affine() catch return error.KmsSignerMismatch;
+    if (!std.mem.eql(u8, &affine.x.toBytes(), &r)) return error.KmsSignerMismatch;
+    return @intFromBool(affine.y.isOdd());
 }
 
 fn base64(allocator: Allocator, bytes: []const u8) ![]u8 {
@@ -216,6 +234,29 @@ test "KMS DER signatures normalize low s and bind raw digest to configured publi
     for ([_][]const u8{ &.{}, &.{ 0x30, 6, 2, 1, 0x80, 2, 1, 1 }, &.{ 0x30, 7, 2, 2, 0, 1, 2, 1, 1 }, &.{ 0x30, 6, 2, 0, 2, 2, 1, 1 } }) |invalid|
         try std.testing.expectError(error.InvalidKmsDer, recoverDer(digest, invalid, public_key));
     try std.testing.expectEqual(@as(u32, 0xe3069283), crc32c("123456789"));
+}
+
+test "KMS recovery id from one verification matches signing and recovery for both parities" {
+    var parities: [2]usize = .{ 0, 0 };
+    for (0..64) |i| {
+        var key: Hash = .{0x41} ** 32;
+        key[31] = @intCast(i);
+        var digest: Hash = undefined;
+        std.crypto.hash.sha2.Sha256.hash(&key, &digest, .{});
+        const signature = try protocol.signature.signDigest(key, digest, null);
+        const der = try fixtureDer(std.testing.allocator, signature);
+        defer std.testing.allocator.free(der);
+        const public_key = try fixturePublicKey(key);
+        const derived = try recoverDer(digest, der, public_key);
+        try std.testing.expectEqual(signature, derived);
+        try std.testing.expectEqualSlices(u8, &public_key.address, &try protocol.signature.recover(digest, derived));
+        parities[derived[64] - 27] += 1;
+        // A different digest or tampered s never verifies against Q.
+        var other = digest;
+        other[0] ^= 1;
+        try std.testing.expectError(error.KmsSignerMismatch, recoverDer(other, der, public_key));
+    }
+    try std.testing.expect(parities[0] > 0 and parities[1] > 0);
 }
 
 const mock = @import("testing.zig");
