@@ -74,7 +74,7 @@ pub const Limiter = struct {
             self.linkLocked(&wait);
         }
         while (true) {
-            const now = try pg.nowNs();
+            const now = pg.nowNs() catch |err| return self.abandon(&wait, err);
             const remaining_ms = std.math.divCeil(u64, deadline_ns -| now, std.time.ns_per_ms) catch unreachable;
             const stopped = if (cancel) |flag| flag.load(.acquire) else false;
             if (!stopped and remaining_ms != 0) _ = wait.waiter.waitTimeout(fiber.monoMs() + @as(i64, @intCast(@min(remaining_ms, cancel_slice_ms))));
@@ -84,7 +84,11 @@ pub const Limiter = struct {
             defer self.mutex.unlock();
             if (wait.granted) return;
             const cancelled = if (cancel) |flag| flag.load(.acquire) else false;
-            if (cancelled or try pg.nowNs() >= deadline_ns) {
+            const expired = if (pg.nowNs()) |current| current >= deadline_ns else |err| {
+                self.unlinkLocked(&wait);
+                return err;
+            };
+            if (cancelled or expired) {
                 self.unlinkLocked(&wait);
                 return if (cancelled) error.RequestCancelled else error.ScraperReceiptDeadline;
             }
@@ -94,6 +98,15 @@ pub const Limiter = struct {
         }
     }
     const cancel_slice_ms = 25;
+    /// Leaves the queue on an unexpected error; a grant that won the race
+    /// is kept (the caller then owns the permit as on success).
+    fn abandon(self: *Limiter, wait: *Wait, err: anyerror) anyerror!void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (wait.granted) return;
+        self.unlinkLocked(wait);
+        return err;
+    }
     fn linkLocked(self: *Limiter, wait: *Wait) void {
         wait.prev = self.tail;
         wait.next = null;
