@@ -50,6 +50,7 @@ const ccs_signer = @import("relayer/ccs_signer.zig");
 const evm_accounting = @import("relayer/evm_accounting.zig");
 const payload_links = @import("payload_links.zig");
 const lane_owner = @import("../runtime/lane_owner.zig");
+const lane_fibers = @import("relayer/lane_fibers.zig");
 const stream_bridge = @import("stream/relayer_bridge.zig");
 const stream_wire = @import("stream/protocol.zig");
 const A = std.mem.Allocator;
@@ -191,9 +192,10 @@ pub const Lane = struct {
     native_group_gc_cursor: [32]u8 = @splat(0),
     native_group_current_first: bool = false,
     native_group_deadline_ns: ?u64 = null,
-    /// Scratch for one EVM advance (operation record, links, Lander status
-    /// JSON, prepare outcome). Reset, not freed piecemeal, after each poll.
-    poll_arena: ?std.heap.ArenaAllocator = null,
+    /// Scratch per concurrent EVM advance slot (operation record, links,
+    /// Lander status JSON, prepare outcome). Reset, not freed piecemeal,
+    /// after each poll; slot 0 also serves sequential advances.
+    poll_arenas: [max_batch_slots]?std.heap.ArenaAllocator = @splat(null),
     native_group_senders: std.AutoHashMapUnmanaged([32]u8, SenderState) = .empty,
     native_group_last_error: ?anyerror = null,
     native_group_epoch: ?u64 = null,
@@ -203,7 +205,7 @@ pub const Lane = struct {
 
     fn deinit(self: *Lane) void {
         self.worker.deinit();
-        if (self.poll_arena) |*arena| arena.deinit();
+        for (&self.poll_arenas) |*slot| if (slot.*) |*arena| arena.deinit();
         if (self.endpoint_chain_checked) |checked| self.owner.allocator.free(checked);
         for (self.active.items) |item| {
             self.finishActiveMetrics(item, .cancelled);
@@ -756,19 +758,7 @@ pub const Lane = struct {
         // EVM: spend the quantum only on due items. Lander waiters and
         // confirmation windows are long-lived non-due items; visiting them by
         // position would delay a due item by one owner cycle per waiter.
-        var advanced: usize = 0;
-        while (self.chain.protocol == .ethereum and advanced < quantum and self.active.items.len > 0) : (advanced += 1) {
-            const current_times: supervisor.Times = if (self.owner.options.observation_clock) |clock| updated: {
-                const observed = try clock.now();
-                break :updated .{ .unix_ms = observed.unix_ms, .monotonic_ms = observed.monotonic_ms };
-            } else times;
-            const index = firstDue(self.active.items, self.next_active, current_times.monotonic_ms) orelse break;
-            self.next_active = (index + 1) % self.active.items.len;
-            if (try self.advance(self.active.items[index], current_times, cancel)) {
-                try self.releaseCompleted(index);
-            }
-            work +|= 1;
-        }
+        if (self.chain.protocol == .ethereum) work +|= try self.advanceDue(quantum, times, cancel);
         var remaining = if (self.chain.protocol == .ethereum) 0 else @min(quantum, self.active.items.len);
         while (remaining > 0 and self.active.items.len > 0) : (remaining -= 1) {
             self.next_active %= self.active.items.len;
@@ -793,6 +783,73 @@ pub const Lane = struct {
             delay_ms = @min(delay_ms, item.next_ms - times.monotonic_ms);
         };
         return .{ .work = work, .next_delay_ms = delay_ms };
+    }
+    fn currentTimes(self: *Lane, fallback: supervisor.Times) !supervisor.Times {
+        const clock = self.owner.options.observation_clock orelse return fallback;
+        const observed = try clock.now();
+        return .{ .unix_ms = observed.unix_ms, .monotonic_ms = observed.monotonic_ms };
+    }
+    /// Advances up to `quantum` distinct due EVM items, round-robin. Two or
+    /// more run as sibling fibers hosted by this lane thread, as Source
+    /// prepares a popped batch concurrently: each has its own scratch arena,
+    /// durable transitions stay per message, and the Lander handoff follows
+    /// batch order. Items are released only after every fiber joined; an item
+    /// whose advance yielded PendingReadIo (shared-reader contention) stays
+    /// due for the next cycle without failing its siblings.
+    fn advanceDue(self: *Lane, quantum: usize, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !u64 {
+        if (self.active.items.len == 0) return 0;
+        const now = try self.currentTimes(times);
+        const limit = @min(quantum, max_batch_slots);
+        var selected: [max_batch_slots]*Active = undefined;
+        var count: usize = 0;
+        var last: usize = 0;
+        for (0..self.active.items.len) |offset| {
+            if (count == limit) break;
+            const index = (self.next_active + offset) % self.active.items.len;
+            const item = self.active.items[index];
+            if (item.next_ms > now.monotonic_ms) continue;
+            selected[count] = item;
+            count += 1;
+            last = index;
+        }
+        if (count == 0) return 0;
+        self.next_active = (last + 1) % self.active.items.len;
+        // A protected estimate swaps its client's exchange for a scoped
+        // deadline, so that client cannot serve overlapping advances.
+        if (count == 1 or self.protected_network != null) {
+            for (selected[0..count]) |item| {
+                if (try self.advanceIn(item, try self.currentTimes(times), cancel, 0, null)) try self.releaseItem(item);
+            }
+            return count;
+        }
+        var batch: AdvanceBatch = .{ .lane = self, .cancel = cancel, .fallback = times, .turnstile = lane_fibers.Turnstile.init(count) };
+        var spawned: usize = 0;
+        var failure: ?anyerror = null;
+        for (selected[0..count], 0..) |item, position| {
+            batch.children[position] = .{ .batch = &batch, .item = item, .position = position };
+            batch.loop.spawn(AdvanceBatch.Child.run, &batch.children[position]) catch |err| {
+                failure = err;
+                break;
+            };
+            spawned += 1;
+        }
+        // Unspawned positions never hold a spawned handoff back.
+        for (spawned..count) |position| batch.turnstile.finish(position);
+        // Join before any unwind: children borrow this frame and the lane.
+        batch.loop.run();
+        for (batch.children[0..spawned]) |child| {
+            const completed = child.result catch |err| {
+                if (err != error.PendingReadIo and failure == null) failure = err;
+                continue;
+            };
+            if (completed) try self.releaseItem(child.item);
+        }
+        if (failure) |err| return err;
+        return count;
+    }
+    fn releaseItem(self: *Lane, item: *Active) !void {
+        const index = std.mem.indexOfScalar(*Active, self.active.items, item) orelse return error.ActiveItemMissing;
+        try self.releaseCompleted(index);
     }
     /// Origin indexers bump their generation after committing rows. Recheck
     /// only parked items whose origin advanced, with local reads, and wake
@@ -1676,6 +1733,11 @@ pub const Lane = struct {
         return queued < limit;
     }
     pub fn advance(self: *Lane, item: *Active, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) anyerror!bool {
+        return self.advanceIn(item, times, cancel, 0, null);
+    }
+    /// `slot` selects the scratch arena (distinct per concurrent advance);
+    /// `gate` orders the Lander handoff by batch position.
+    fn advanceIn(self: *Lane, item: *Active, times: supervisor.Times, cancel: *const std.atomic.Value(bool), slot: usize, gate: ?evm_driver.HandoffGate) anyerror!bool {
         errdefer |err| {
             if (err != error.PendingReadIo and err != error.PendingIo) {
                 item.native_prepare_admitted = false;
@@ -1719,9 +1781,10 @@ pub const Lane = struct {
             // Everything allocated from scratch dies with this advance: the
             // operation, its links and the prepare outcome. Driver, Lander and
             // RPC state keep their own allocators.
-            if (self.poll_arena == null) self.poll_arena = std.heap.ArenaAllocator.init(self.owner.allocator);
-            defer _ = self.poll_arena.?.reset(.{ .retain_with_limit = poll_arena_retain_bytes });
-            const scratch = self.poll_arena.?.allocator();
+            const arena = &self.poll_arenas[slot];
+            if (arena.* == null) arena.* = std.heap.ArenaAllocator.init(self.owner.allocator);
+            defer _ = arena.*.?.reset(.{ .retain_with_limit = poll_arena_retain_bytes });
+            const scratch = arena.*.?.allocator();
             var state = try operation.Operation.open(scratch, origin.store, .{
                 .id = message.id(),
                 .context = evmContext(self.context.?, origin.chain),
@@ -1752,7 +1815,7 @@ pub const Lane = struct {
                 .default_ism_cache = &self.owner.evm_default_ism_cache,
                 .cache_context = .{ .domain_name = self.chain.name, .context_hash = self.context.? },
                 .ism_cache_configs = self.owner.settings.role.relayer.ism_cache_configs,
-            }, now, .{ .local_admission = .{ .context = &sender, .allowed_fn = Sender.localAdmission }, .origin_sender = .{ .context = &sender, .fetch_fn = Sender.evmFetch }, .private_estimator = if (self.protected_network != null) .{ .context = self, .estimate_fn = privateEstimate } else null, .executor = &self.owner.metadata_executor.executor, .batch_resolver = .{ .context = self, .estimate_fn = batchEstimate }, .cost_receipt_reader = .{ .context = self, .read_fn = finalizedCostReceipt }, .ccip_handler = if (ccip_build) |value| value.binding.handler() else null, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null, .cancel = cancel, .observation = if (self.validator_observation) |*value| value.observation() else null, .observation_clock = self.owner.options.observation_clock });
+            }, now, .{ .local_admission = .{ .context = &sender, .allowed_fn = Sender.localAdmission }, .origin_sender = .{ .context = &sender, .fetch_fn = Sender.evmFetch }, .private_estimator = if (self.protected_network != null) .{ .context = self, .estimate_fn = privateEstimate } else null, .executor = &self.owner.metadata_executor.executor, .batch_resolver = .{ .context = self, .estimate_fn = batchEstimate }, .cost_receipt_reader = .{ .context = self, .read_fn = finalizedCostReceipt }, .ccip_handler = if (ccip_build) |value| value.binding.handler() else null, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null, .cancel = cancel, .observation = if (self.validator_observation) |*value| value.observation() else null, .observation_clock = self.owner.options.observation_clock, .handoff_gate = gate });
             if (!was_confirming and state.value.confirmation_started and state.current_status == .Confirm and state.current_status.Confirm == .SubmittedBySelf) self.recordPhase(item, .submitted);
             const report = try outcome;
             if (!item.recovery_only and report.state == .delivered and try origin.store.markProcessedIfCanonical(message)) self.recordProcessed(item);
@@ -1978,6 +2041,38 @@ pub fn checkEndpointChain(a: A, transport: *curl.Client, url: []const u8, expect
 }
 /// Arena capacity kept across EVM polls; larger one-off outcomes are released.
 pub const poll_arena_retain_bytes: usize = 256 * 1024;
+/// Most EVM advances one owner cycle runs concurrently (the batch quantum cap).
+const max_batch_slots = lane_fibers.Turnstile.max;
+/// One concurrent EVM batch: lives on the lane owner's stack for the cycle.
+const AdvanceBatch = struct {
+    lane: *Lane,
+    cancel: *const std.atomic.Value(bool),
+    fallback: supervisor.Times,
+    loop: lane_fibers.Loop = .{},
+    turnstile: lane_fibers.Turnstile,
+    children: [max_batch_slots]Child = undefined,
+    const Child = struct {
+        batch: *AdvanceBatch,
+        item: *Active,
+        position: usize,
+        result: anyerror!bool = false,
+        fn run(arg: *anyopaque) void {
+            const self: *Child = @ptrCast(@alignCast(arg));
+            const batch = self.batch;
+            // Every exit passes this position's handoff turn on.
+            defer batch.turnstile.finish(self.position);
+            const times = batch.lane.currentTimes(batch.fallback) catch |err| {
+                self.result = err;
+                return;
+            };
+            self.result = batch.lane.advanceIn(self.item, times, batch.cancel, self.position, .{ .context = self, .wait_fn = gateWait });
+        }
+        fn gateWait(context: *anyopaque) void {
+            const self: *Child = @ptrCast(@alignCast(context));
+            self.batch.turnstile.wait(self.position);
+        }
+    };
+};
 /// Upper bound on an origin-index wait between index generation wakes; the
 /// first Source retry step, so an unseen commit costs no more than before.
 pub const index_wait_fallback_ms: u64 = 5_000;
@@ -2931,4 +3026,7 @@ test "native finalized Lane callback preserves destination registry contract" {
     const unchanged = try registry.render(a);
     defer a.free(unchanged);
     try std.testing.expectEqualStrings(wire, unchanged);
+}
+test {
+    _ = lane_fibers;
 }

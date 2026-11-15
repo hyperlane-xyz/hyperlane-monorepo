@@ -52,6 +52,15 @@ pub const Callbacks = struct {
     cancel: ?*const std.atomic.Value(bool) = null,
     observation_clock: ?agents_operation.ObservationClock = null,
     observation: ?@import("../../relayer/metadata.zig").Observation = null,
+    /// Concurrent batch preparation: parks until every earlier batch
+    /// position finished, so Lander payload order follows batch order
+    /// rather than RPC completion order. Never performs I/O.
+    handoff_gate: ?HandoffGate = null,
+};
+
+pub const HandoffGate = struct {
+    context: *anyopaque,
+    wait_fn: *const fn (*anyopaque) void,
 };
 
 pub const State = enum {
@@ -316,6 +325,7 @@ pub const Driver = struct {
         switch (outcome.value) {
             .ready => |ready| {
                 try self.updateRetryState(ready.retry_state, null);
+                if (callbacks.handoff_gate) |gate| gate.wait_fn(gate.context);
                 // Source Lander rechecks current deny rules after payload RPC
                 // and immediately before handoff. A rule can change during
                 // metadata/gas estimation; no new link/UUID may escape it.
