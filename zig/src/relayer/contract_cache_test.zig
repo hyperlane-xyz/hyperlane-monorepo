@@ -12,8 +12,17 @@ fn context(domain: []const u8, marker: u8) cache_module.Context {
     return .{ .domain_name = domain, .context_hash = @splat(marker) };
 }
 
+const bodies: [256]u8 = blk: {
+    var out: [256]u8 = undefined;
+    for (&out, 0..) |*byte, i| byte.* = i;
+    break :blk out;
+};
+
 fn message(nonce: u32) protocol.Message {
-    return .{ .version = 3, .nonce = nonce, .origin = nonce % 3, .destination = 2000, .sender = @splat(1), .recipient = @splat(2), .body = &.{@truncate(nonce)} };
+    // The body must outlive this call: a `&.{runtime}` literal dangles on
+    // return and Debug builds reuse that stack, changing message IDs.
+    const index: u8 = @truncate(nonce);
+    return .{ .version = 3, .nonce = nonce, .origin = nonce % 3, .destination = 2000, .sender = @splat(1), .recipient = @splat(2), .body = bodies[index..][0..1] };
 }
 
 fn options() cache_module.Options {
