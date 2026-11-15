@@ -20,6 +20,10 @@ pub const Registry = struct {
     by_series: std.StringHashMapUnmanaged(usize) = .empty,
     bytes: usize = 0,
     mutex: std.Thread.Mutex = .{},
+    /// Retained exposition buffer (guarded by `mutex`): grows by doubling up
+    /// to max_render_bytes and is reused by every scrape, so a scrape touches
+    /// only the bytes it renders instead of a fresh max-size buffer.
+    render_scratch: std.ArrayList(u8) = .empty,
     pub fn init(a: A, role: Role, options: Options) !*Registry {
         if (options.max_series == 0 or options.max_label_bytes == 0 or options.max_storage_bytes == 0 or options.max_render_bytes == 0 or options.base_version.len == 0) return error.InvalidMetricsLimit;
         const self = try a.create(Registry);
@@ -60,6 +64,7 @@ pub const Registry = struct {
     pub fn deinit(self: *Registry) void {
         for (self.series.items) |*series| series.arena.deinit();
         self.series.deinit(self.allocator);
+        self.render_scratch.deinit(self.allocator);
         self.by_name.deinit(self.allocator);
         self.by_series.deinit(self.allocator);
         self.allocator.free(self.descriptors);
@@ -178,11 +183,38 @@ pub const Registry = struct {
         return true;
     }
     pub fn render(self: *Registry, a: A) ![]u8 {
-        const buffer = try a.alloc(u8, self.options.max_render_bytes);
-        defer a.free(buffer);
-        var writer = std.Io.Writer.fixed(buffer);
+        var rendered = try self.renderShared();
+        defer rendered.release();
+        return a.dupe(u8, rendered.text);
+    }
+    /// Exposition text borrowed from the retained buffer; the registry stays
+    /// locked (metric writers wait) until `release`.
+    pub const Rendered = struct {
+        registry: *Registry,
+        text: []const u8,
+        pub fn release(self: *Rendered) void {
+            self.registry.mutex.unlock();
+            self.* = undefined;
+        }
+    };
+    pub fn renderShared(self: *Registry) !Rendered {
         self.mutex.lock();
-        defer self.mutex.unlock();
+        errdefer self.mutex.unlock();
+        return .{ .registry = self, .text = try self.renderLocked() };
+    }
+    fn renderLocked(self: *Registry) ![]const u8 {
+        const limit = self.options.max_render_bytes;
+        while (true) {
+            const room = self.render_scratch.allocatedSlice();
+            var writer = std.Io.Writer.fixed(room[0..@min(room.len, limit)]);
+            if (self.renderFamilies(&writer)) return writer.buffered() else |_| {}
+            // Overflow: grow (re-rendering from the start) until the limit.
+            const capacity = self.render_scratch.capacity;
+            if (capacity >= limit) return error.MetricsRenderLimit;
+            try self.render_scratch.ensureTotalCapacityPrecise(self.allocator, @min(limit, @max(64 * 1024, capacity *| 2)));
+        }
+    }
+    fn renderFamilies(self: *Registry, writer: *std.Io.Writer) !void {
         for (self.descriptors, 0..) |descriptor, index| {
             var present = false;
             for (self.series.items) |series| if (series.metric == index) {
@@ -190,9 +222,8 @@ pub const Registry = struct {
                 break;
             };
             if (!present) continue;
-            self.renderFamily(&writer, descriptor, index) catch return error.MetricsRenderLimit;
+            try self.renderFamily(writer, descriptor, index);
         }
-        return a.dupe(u8, writer.buffered());
     }
     fn renderFamily(self: *Registry, w: *std.Io.Writer, descriptor: schema.Descriptor, index: usize) !void {
         try w.print("# HELP {s} ", .{descriptor.name});
