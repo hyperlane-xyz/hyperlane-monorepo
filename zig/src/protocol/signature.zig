@@ -298,12 +298,19 @@ test "high-s compatibility recovery equals strict low-s recovery" {
     }
 }
 
-test "Wycheproof secp256k1 ECDSA vectors agree with recovery-based verification" {
+/// Furthest stage a Wycheproof case reaches in `recover`/`recoverCompatible`.
+const WycheproofStage = enum(u3) { not_der, unencodable, scalar_rejected, high_s_rejected, not_on_curve, curve_reached };
+
+test "Wycheproof secp256k1 ECDSA vectors by rejection stage" {
     const Case = struct { id: u32, low_s_required: bool, x: []const u8, y: []const u8, digest: []const u8, der_valid: bool, r: []const u8, s: []const u8, result: []const u8 };
     const parsed = try @import("../testing/fixture.zig").parse(struct { cases: []const Case }, std.testing.allocator, @embedFile("fixtures/wycheproof-secp256k1.json.gz"), .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
     const n = Curve.scalar.field_order;
-    var counts = struct { valid: usize = 0, invalid: usize = 0, unrepresentable_x: usize = 0 }{};
+    // [stage][expected valid]
+    var counts: [6][2]usize = @splat(.{ 0, 0 });
+    var curve_valid_accepted: usize = 0;
+    var curve_invalid_rejected: usize = 0;
+    var unrepresentable_x: usize = 0;
     for (parsed.value.cases) |case| {
         const expected_valid = std.mem.eql(u8, case.result, "valid");
         var x: [32]u8 = undefined;
@@ -313,9 +320,10 @@ test "Wycheproof secp256k1 ECDSA vectors agree with recovery-based verification"
         _ = try std.fmt.hexToBytes(&y, case.y);
         _ = try std.fmt.hexToBytes(&digest, case.digest);
         const signer = addressOfCoordinates(x, y);
+        var stage: WycheproofStage = .not_der;
         var accepted = false;
-        const representable = case.der_valid and !std.mem.eql(u8, case.r, "out_of_range") and !std.mem.eql(u8, case.s, "out_of_range");
-        if (representable) {
+        if (case.der_valid) stage = .unencodable;
+        if (case.der_valid and !std.mem.eql(u8, case.r, "out_of_range") and !std.mem.eql(u8, case.s, "out_of_range")) {
             var r: Hash = undefined;
             var s: Hash = undefined;
             std.mem.writeInt(u256, &r, try std.fmt.parseInt(u256, case.r, 10), .big);
@@ -327,19 +335,31 @@ test "Wycheproof secp256k1 ECDSA vectors agree with recovery-based verification"
                 signature[64] = v;
                 // Bitcoin-profile vectors require low s, like strict `recover`;
                 // the plain profile accepts either s, like `recoverCompatible`.
-                const recovered = (if (case.low_s_required) recover(digest, signature) else recoverCompatible(digest, r, s, v)) catch continue;
-                if (std.mem.eql(u8, &recovered, &signer)) accepted = true;
+                const outcome = if (case.low_s_required) recover(digest, signature) else recoverCompatible(digest, r, s, v);
+                const reached: WycheproofStage = if (outcome) |recovered| reached: {
+                    if (std.mem.eql(u8, &recovered, &signer)) accepted = true;
+                    break :reached .curve_reached;
+                } else |err| switch (err) {
+                    error.NonCanonical, error.InvalidSignature => .scalar_rejected,
+                    error.HighSignatureS => .high_s_rejected,
+                    error.NotSquare => .not_on_curve,
+                    error.IdentityElement => .curve_reached,
+                    else => return err,
+                };
+                if (@intFromEnum(reached) > @intFromEnum(stage)) stage = reached;
             }
         }
-        if (accepted == expected_valid) {
-            if (accepted) counts.valid += 1 else counts.invalid += 1;
-            continue;
-        }
+        counts[@intFromEnum(stage)][@intFromBool(expected_valid)] += 1;
         // Never accept a signature Wycheproof rejects.
-        if (accepted) {
+        if (accepted and !expected_valid) {
             std.debug.print("wycheproof case {d} accepted but expected invalid\n", .{case.id});
             return error.AcceptedInvalidSignature;
         }
+        if (stage == .curve_reached) {
+            if (accepted) curve_valid_accepted += 1;
+            if (!expected_valid) curve_invalid_rejected += 1;
+        }
+        if (!expected_valid or accepted) continue;
         // The only tolerated miss: ECDSA-valid signatures whose R.x >= n, which
         // Ethereum's v = 27/28 cannot encode. Confirm with std arithmetic.
         const r = try Scalar.fromBytes(@bitCast(std.mem.nativeToBig(u256, try std.fmt.parseInt(u256, case.r, 10))), .big);
@@ -355,10 +375,25 @@ test "Wycheproof secp256k1 ECDSA vectors agree with recovery-based verification"
             std.debug.print("wycheproof case {d} rejected but expected valid\n", .{case.id});
             return error.RejectedValidSignature;
         }
-        counts.unrepresentable_x += 1;
+        unrepresentable_x += 1;
     }
-    try std.testing.expectEqual(parsed.value.cases.len, counts.valid + counts.invalid + counts.unrepresentable_x);
-    try std.testing.expect(counts.valid > 300 and counts.invalid > 600 and counts.unrepresentable_x < 8);
+    // Snapshot of the fixture (940 cases); a change means behaviour changed.
+    // Indexed [stage][expected valid]: valid cases must all reach the curve.
+    const expected_counts = [6][2]usize{
+        .{ 383, 0 }, // not strict DER
+        .{ 83, 0 }, // r or s negative or wider than 256 bits
+        .{ 102, 0 }, // r or s zero or >= n
+        .{ 4, 0 }, // high s under the low-s (bitcoin) profile
+        .{ 11, 0 }, // r is not an x coordinate for either parity
+        .{ 27, 330 }, // reached the curve arithmetic
+    };
+    try std.testing.expectEqual(expected_counts, counts);
+    // Every curve-reaching invalid case recovered a different signer, and every
+    // curve-reaching valid case recovered the signer except the R.x >= n ones.
+    try std.testing.expectEqual(@as(usize, 27), curve_invalid_rejected);
+    try std.testing.expectEqual(@as(usize, 327), curve_valid_accepted);
+    try std.testing.expectEqual(@as(usize, 3), unrepresentable_x);
+    try std.testing.expectEqual(counts[5][1], curve_valid_accepted + unrepresentable_x);
 }
 
 test "quorum requires configured threshold ordered unique signers" {
