@@ -97,6 +97,10 @@ rule, not the scheduling.
   its socket with its unsent bytes or buffered body, like Node. Exception: a
   WebSocket handshake abort response waits for writability on its poller
   thread if the socket buffer is full.
+- **Listen backlog:** TS listens with Node's default of 511; the port asks
+  for 4096 (the kernel clamps it to `net.core.somaxconn`). Under connection
+  overload, clients queue in the accept queue instead of seeing SYN drops
+  and the 1 s SYN retransmit. Otherwise identical.
 - **Header count:** like Node's `maxHeadersCount` (2000), extra request
   headers are ignored, not rejected (they still count towards the 16 KiB
   limit).

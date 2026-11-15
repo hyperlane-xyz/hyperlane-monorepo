@@ -300,7 +300,10 @@ pub const Pool = struct {
     idle: usize = 0,
     threads: usize = 0,
     stopping: bool = false,
-    idle_ms: u64 = 30_000,
+    /// Short: a burst of blocking tasks (hundreds of subscribes awaiting their
+    /// live-start reads) must not leave its threads behind for the next load;
+    /// steady work keeps `min_idle` workers.
+    idle_ms: u64 = 2_000,
     min_idle: usize = 4,
     /// Workers started by `start` never exit before `deinit`, so a failed
     /// spawn under thread/memory pressure can always queue its job.

@@ -187,15 +187,13 @@ pub fn releaseThreadCache() void {
 
 // -- running ----------------------------------------------------------------------
 
-/// Tests: the next `create` fails (as when stacks run out).
-pub var test_fail_create: bool = false;
+/// Tests: the next `create` fails with `error.TestInjectedFailure` (as when
+/// stacks run out; its own name, so a log tells it from a real failure).
+pub var test_fail_create: std.atomic.Value(bool) = .init(false);
 
 /// A fiber that will run `entry(arg)` when first resumed.
 pub fn create(sched: Scheduler, entry: *const fn (arg: *anyopaque) void, arg: *anyopaque) !*Fiber {
-    if (builtin.is_test and test_fail_create) {
-        test_fail_create = false;
-        return error.OutOfMemory;
-    }
+    if (builtin.is_test and test_fail_create.swap(false, .acq_rel)) return error.TestInjectedFailure;
     const f = try allocFiber();
     f.entry = entry;
     f.arg = arg;

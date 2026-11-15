@@ -78,7 +78,11 @@ pub const Options = struct {
     /// Poller thread stack (virtual; touched pages only). Debug 20 MiB,
     /// release 8 MiB: see `loop.poller_stack_bytes`.
     thread_stack_bytes: usize = loop_mod.poller_stack_bytes,
-    kernel_backlog: u31 = 511,
+    /// listen() backlog; the kernel clamps it to net.core.somaxconn. Above
+    /// Node's 511 (DEVIATIONS.md): one loop accepts 60-80k connections/s,
+    /// so 511 slots overflow on a brief lag and clients wait out the 1 s
+    /// SYN retransmit instead of queueing.
+    kernel_backlog: u31 = 4096,
     /// Fiber mode: event loops, one pinned thread each, sharing the listen
     /// socket (one registration per loop; on Linux EPOLLEXCLUSIVE wakes one
     /// loop per connection burst). Thread mode always runs one.

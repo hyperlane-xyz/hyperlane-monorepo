@@ -17,6 +17,28 @@ const posix = std.posix;
 
 /// A 300 ms handler wait. On a fiber it parks (as every real wait does there);
 /// otherwise it blocks the thread, announced to core.blocking when `hooked`.
+/// "?gated" handlers wait while this is closed (at most 3 s), so a test can
+/// check what gets answered before them without a wall-clock bound.
+var gate_open = std.atomic.Value(bool).init(true);
+/// "?gated" handlers that finished waiting.
+var gated_done = std.atomic.Value(u32).init(0);
+
+fn gateWait(hooked: bool) void {
+    const until = std.time.milliTimestamp() + 3_000;
+    while (!gate_open.load(.acquire) and std.time.milliTimestamp() < until) slowWait(5, hooked);
+    _ = gated_done.fetchAdd(1, .acq_rel);
+}
+
+/// Closes the gate for one test (`defer openGate()`).
+fn closeGate() void {
+    gated_done.store(0, .release);
+    gate_open.store(false, .release);
+}
+
+fn openGate() void {
+    gate_open.store(true, .release);
+}
+
 fn slowWait(ms: i64, hooked: bool) void {
     if (server_mod.fibers and core.fiber.inFiber()) {
         var w: core.fiber.Waiter = .{};
@@ -87,6 +109,8 @@ const Echo = struct {
         self.mutex.unlock();
         // A slow handler: input arriving meanwhile is merged into one edge.
         if (std.mem.eql(u8, req.query, "sleep")) slowWait(300, false);
+        if (std.mem.eql(u8, req.query, "gated")) gateWait(false);
+        if (std.mem.eql(u8, req.query, "gated-hooked")) gateWait(true);
         // A wait announced like a DB wait (core.blocking): handed off at once.
         // A short unannounced stall (caught by the monitor, not core.blocking).
         if (std.mem.eql(u8, req.query, "stall")) std.Thread.sleep(20 * std.time.ns_per_ms);
@@ -488,10 +512,12 @@ test "a request that gets no fiber is answered 503 and its handler never runs on
     const handled = h.echo.snapshot().handled;
     var c = try h.connect();
     defer c.close();
-    core.fiber.test_fail_create = true;
-    defer core.fiber.test_fail_create = false;
+    core.fiber.test_fail_create.store(true, .release);
+    defer core.fiber.test_fail_create.store(false, .release);
     const r = try c.request(arena.allocator(), "GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n");
     try testing.expectEqual(@as(u16, 503), r.status);
+    // The 503 came from the injected failure (it can't stay armed).
+    try testing.expect(!core.fiber.test_fail_create.load(.acquire));
     try testing.expectEqual(handled, h.echo.snapshot().handled);
     // The next connection is served normally.
     var c2 = try h.connect();
@@ -1004,21 +1030,24 @@ test "blocked requests in one accept batch never hold up later accepts" {
             defer cl.close();
             var ar = std.heap.ArenaAllocator.init(std.heap.page_allocator);
             defer ar.deinit();
-            const r = cl.request(ar.allocator(), "GET /graphql?sleep HTTP/1.1\r\nHost: a\r\n\r\n") catch return;
+            const r = cl.request(ar.allocator(), "GET /graphql?gated HTTP/1.1\r\nHost: a\r\n\r\n") catch return;
             status.* = r.status;
         }
     };
+    closeGate();
+    defer openGate();
     var threads: [24]std.Thread = undefined;
     var statuses = [_]u16{0} ** 24;
     for (&threads, &statuses) |*t, *st| t.* = try std.Thread.spawn(.{}, Slow.run, .{ h.server.port(), st });
     std.Thread.sleep(50 * std.time.ns_per_ms);
-    const t0 = std.time.milliTimestamp();
     var c = try h.connect();
     defer c.close();
     const r = try c.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
     try testing.expectEqual(@as(u16, 404), r.status);
-    // Each slow request sleeps 300 ms; the accept must not wait for them.
-    try testing.expect(std.time.milliTimestamp() - t0 < 150);
+    // The slow requests wait on the gate: the later accept was answered
+    // while they all still waited (not after the gate's 3 s cap).
+    try testing.expectEqual(@as(u32, 0), gated_done.load(.acquire));
+    openGate();
     for (threads) |t| t.join();
     for (statuses) |st| try testing.expectEqual(@as(u16, 200), st);
 }
@@ -1038,12 +1067,14 @@ test "requests behind a DB-style wait in the same batch are served promptly" {
     defer fast.close();
     for (&slow) |*cl| _ = try cl.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
     _ = try fast.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
-    for (&slow) |*cl| try cl.send("GET /graphql?hooked HTTP/1.1\r\nHost: a\r\n\r\n");
-    const t0 = std.time.milliTimestamp();
+    closeGate();
+    defer openGate();
+    for (&slow) |*cl| try cl.send("GET /graphql?gated-hooked HTTP/1.1\r\nHost: a\r\n\r\n");
     const r = try fast.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
     try testing.expectEqual(@as(u16, 404), r.status);
-    // Each hooked wait is 300 ms; nothing may queue behind them.
-    try testing.expect(std.time.milliTimestamp() - t0 < 100);
+    // The hooked waits hold until the gate opens: nothing queued behind them.
+    try testing.expectEqual(@as(u32, 0), gated_done.load(.acquire));
+    openGate();
     for (&slow) |*cl| try testing.expectEqual(@as(u16, 200), (try cl.read(a, false)).status);
 }
 

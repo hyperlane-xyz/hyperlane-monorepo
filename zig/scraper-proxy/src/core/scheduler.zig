@@ -240,10 +240,12 @@ test "one-shot timers fire in deadline order, FIFO on ties; cancel removes" {
     var b: TestCtx = .{ .log = &log, .tag = 'b' };
     var c: TestCtx = .{ .log = &log, .tag = 'c' };
     var d: TestCtx = .{ .log = &log, .tag = 'd' };
-    _ = try scheduler.schedule(30, &c, TestCtx.fire);
+    // Deadlines are relative to each call: a and b first (equal delays, FIFO),
+    // then c and d with a margin far above any descheduling under load.
     _ = try scheduler.schedule(10, &a, TestCtx.fire);
     _ = try scheduler.schedule(10, &b, TestCtx.fire);
-    const cancelled = try scheduler.schedule(20, &d, TestCtx.fire);
+    _ = try scheduler.schedule(300, &c, TestCtx.fire);
+    const cancelled = try scheduler.schedule(200, &d, TestCtx.fire);
     try testing.expect(scheduler.cancel(cancelled));
     try testing.expect(!scheduler.cancel(cancelled));
     try waitFor(&log, 3);

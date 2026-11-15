@@ -89,7 +89,14 @@ const App = struct {
     }
 };
 
+/// glibc's mallopt (M_ARENA_MAX = -8).
+extern "c" fn mallopt(param: c_int, value: c_int) c_int;
+
 pub fn main() !void {
+    // At most 4 glibc malloc arenas: every thread that mallocs (e.g. a burst
+    // of live task workers) otherwise gets its own, whose pages stay
+    // resident after the thread exits. Not on musl or macOS.
+    if (comptime builtin.os.tag == .linux and builtin.abi.isGnu()) _ = mallopt(-8, 4);
     const gpa = std.heap.c_allocator;
     var env = try std.process.getEnvMap(gpa);
     defer env.deinit();
