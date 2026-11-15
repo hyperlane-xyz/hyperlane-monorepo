@@ -90,6 +90,9 @@ pub const Role = struct {
     poll_cadence: @import("stream_cadence.zig").Cadence = .{},
     /// Primary-only insertion-count discovery read; at most once per interval.
     next_probe_ms: u64 = 0,
+    /// Startup reads failed against the retained round's primary; the next
+    /// interval re-runs the round (and its failover) instead of reusing it.
+    round_stale: bool = false,
     /// Opens local state only; RPC chain checks and announcement I/O happen in tick.
     pub fn open(a: A, s: *const settings.Settings, database: *rocks.Database, runtime: Runtime) !*Role {
         if (s.role != .validator) return error.ExpectedValidatorSettings;
@@ -301,9 +304,14 @@ pub const Role = struct {
                 return err;
             };
             self.poll_cadence.attemptedAt(now_ms +| elapsed.read() / std.time.ns_per_ms, interval_ms);
+            self.round_stale = false;
             round_refreshed = true;
         }
-        if (!try self.startup(now_ms)) return .{ .announcement_pending = true };
+        const started = self.startup(now_ms) catch |err| {
+            self.round_stale = true;
+            return err;
+        };
+        if (!started) return .{ .announcement_pending = true };
         if (!try self.initializeInsertionCursor(now_ms)) return .{};
         const indexed = try self.indexOneRange(now_ms);
         // Same gate as the websocket path: an authenticated sample with no new
@@ -344,13 +352,17 @@ pub const Role = struct {
         // Without the native vote transport collectRound is a no-op and every
         // tick reads votes directly (tests/std transport only).
         if (self.runtime.multi_library_path == null) return true;
-        if (self.round_results) |results| {
-            // Announcement startup only needs one authenticated primary.
-            if (!self.announcement_ready) for (results) |result| if (result.ready) return false;
-        }
+        if (self.round_results) |results| if (reuseForAnnouncement(results, self.announcement_ready, self.round_stale)) return false;
         const next_leaf = try self.store.insertionByIndex(self.state.nextVerificationIndex()) != null;
         if (self.poll_cadence.due(now_ms, false, next_leaf, self.state.tree.count)) return true;
         return self.probeAdvanced(now_ms);
+    }
+    /// Announcement startup only needs one authenticated primary; a failed
+    /// startup read marks the round stale so the next round can fail over.
+    fn reuseForAnnouncement(results: []const votes.Result, announcement_ready: bool, round_stale: bool) bool {
+        if (announcement_ready or round_stale) return false;
+        for (results) |result| if (result.ready) return true;
+        return false;
     }
     fn probeAdvanced(self: *Role, now_ms: u64) bool {
         // Never accelerate checkpoint reads beyond the configured interval.
@@ -1011,6 +1023,14 @@ test "vote early completion preserves higher mixed-height quorum and tolerates s
     try std.testing.expect(!Role.canAdvance(&.{ old, higher, failed }, 2, 9));
     try std.testing.expect(Role.canAdvance(&.{ old, pending, pending }, 2, null));
     try std.testing.expect(!Role.canAdvance(&.{ old, failed, failed }, 2, null));
+}
+
+test "announcement startup reuses a retained round only until a startup read fails" {
+    const ready: votes.Result = .{ .ready = true, .count = 0 };
+    try std.testing.expect(Role.reuseForAnnouncement(&.{ .{}, ready }, false, false));
+    try std.testing.expect(!Role.reuseForAnnouncement(&.{ .{}, ready }, false, true));
+    try std.testing.expect(!Role.reuseForAnnouncement(&.{ .{}, ready }, true, false));
+    try std.testing.expect(!Role.reuseForAnnouncement(&.{ .{}, .{ .failure = error.WrongChain } }, false, false));
 }
 
 test "classic fallback does not wait for a stalled redundant slot" {
