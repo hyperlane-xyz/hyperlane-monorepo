@@ -51,6 +51,46 @@ pub fn convertCell(a: Allocator, oid: u32, text: []const u8, ownership: TextOwne
     };
 }
 
+/// How `convertRows` handles a column, decided once per result from its OID.
+/// `bool`/`int`: converted straight from libpq's text (no copy). `text`:
+/// `convertCell`'s default branch (a string of the cell text, which must be
+/// copied out of the PGresult). `other`: `convertCell` itself.
+pub const ColumnKind = enum { bool, int, text, other };
+
+pub fn columnKind(oid: u32) ColumnKind {
+    return switch (oid) {
+        16 => .bool,
+        21, 23, 26 => .int,
+        700, 701, 114, 3802, 1184, 1082, 1000, 1005, 1007, 1028, 1021, 1022, 1231, 1016, 1001, 199, 3807, 1115, 1182, 1185 => .other,
+        651, 1008, 1009, 1014, 1015, 1040, 1041, 3907, 2951, 791, 1183, 1270 => .other,
+        else => .text,
+    };
+}
+
+/// `convertCell` for a `.bool` column: PostgreSQL prints exactly "t" or "f".
+pub fn fastBool(text: []const u8) bool {
+    if (text.len == 1 and (text[0] == 't' or text[0] == 'f')) return text[0] == 't';
+    return parseBool(text);
+}
+
+/// `convertCell` for an `.int` column (int2/int4/oid): PostgreSQL prints an
+/// optional '-' and 1–10 digits; anything else takes `parseInt`.
+pub fn fastInt(text: []const u8) f64 {
+    var i: usize = 0;
+    const negative = text.len > 0 and text[0] == '-';
+    if (negative) i = 1;
+    if (text.len <= i or text.len - i > 10) return parseInt(text);
+    var v: u64 = 0;
+    while (i < text.len) : (i += 1) {
+        const d = text[i] -% '0';
+        if (d > 9) return parseInt(text);
+        v = v * 10 + d;
+    }
+    const f: f64 = @floatFromInt(v);
+    // parseInt goes through i64: "-0" is +0.
+    return if (negative and v != 0) -f else f;
+}
+
 fn keep(a: Allocator, text: []const u8, ownership: TextOwnership) Allocator.Error![]const u8 {
     return switch (ownership) {
         .copy => try a.dupe(u8, text),
@@ -667,4 +707,50 @@ test "exceedsJsStack follows TS's measured limits" {
     try testing.expect(!try exceedsJsStack(a, &.{try nested.objects(a, 1766)}));
     try testing.expect(try exceedsJsStack(a, &.{try nested.objects(a, 1767)}));
     try testing.expect(!try exceedsJsStack(a, &.{ .{ .string = "x" }, .null, try nested.arrays(a, 10) }));
+}
+
+test "fast bool/int conversion equals convertCell (edge values and random)" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const ints = [_][]const u8{ "0", "-0", "1", "-1", "7", "32767", "-32768", "2147483647", "-2147483648", "4294967295", "00012", "-00", "9999999999", "99999999999", "12345678901", " 5", "5 ", "+5", "", "-", "1e3", "0x10", "١٢" };
+    for (ints) |t| for ([_]u32{ 21, 23, 26 }) |oid| {
+        const want = try convertCell(a, oid, t, .copy);
+        const got: Value = .{ .number = fastInt(t) };
+        try std.testing.expectEqualStrings(try core.json.stringifyAlloc(a, want), try core.json.stringifyAlloc(a, got));
+        try std.testing.expectEqual(std.math.signbit(want.number), std.math.signbit(got.number));
+    };
+    const bools = [_][]const u8{ "t", "f", "TRUE", "true", "y", "yes", "on", "1", "0", "", "T", "F", "false", "tt" };
+    for (bools) |t| try std.testing.expectEqual((try convertCell(a, 16, t, .copy)).bool, fastBool(t));
+    var prng = std.Random.DefaultPrng.init(0x5eed);
+    const rnd = prng.random();
+    var buf: [16]u8 = undefined;
+    for (0..20_000) |_| {
+        const v = rnd.intRangeAtMost(i64, -2147483648, 4294967295);
+        const t = std.fmt.bufPrint(&buf, "{d}", .{v}) catch unreachable;
+        try std.testing.expectEqual((try convertCell(a, 23, t, .copy)).number, fastInt(t));
+    }
+}
+
+test "columnKind agrees with convertCell's branches" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    // Inputs at least one special branch turns into something other than
+    // the same string.
+    const probes = [_][]const u8{ "{\"a\":1}", "1.5", "2020-01-01", "{1,2}", "t" };
+    var oid: u32 = 0;
+    while (oid < 10_000) : (oid += 1) {
+        var identity = true;
+        for (probes) |p| {
+            const v = try convertCell(a, oid, p, .copy);
+            if (v != .string or !std.mem.eql(u8, v.string, p)) identity = false;
+        }
+        switch (columnKind(oid)) {
+            .text => try std.testing.expect(identity),
+            .other => try std.testing.expect(!identity),
+            .bool => try std.testing.expectEqual(@as(u32, 16), oid),
+            .int => try std.testing.expect(oid == 21 or oid == 23 or oid == 26),
+        }
+    }
 }

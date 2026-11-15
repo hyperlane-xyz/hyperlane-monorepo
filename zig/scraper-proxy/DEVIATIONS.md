@@ -238,6 +238,14 @@ rule, not the scheduling.
   served strictly in arrival order (FIFO). Responses and errors are
   unchanged. Which connections stay idle long enough to be closed, and so
   the pool gauges over time, can differ.
+- **Waiter order with several event loops (`-Dhttp-loops` > 1; not
+  client-visible).** pg-pool serves queued checkouts strictly in arrival
+  order. With more than one loop, a released connection goes to the oldest
+  waiter on the loop that last used it, ahead of an older waiter on another
+  loop, but only while that older waiter has waited less than 1 ms; thread
+  waiters are never passed over. Each waiter's checkout deadline, timeout
+  error and text are unchanged. With one loop (the default) the order is
+  pg-pool's.
 
 ## WebSockets (`/agents`, `/messages`)
 

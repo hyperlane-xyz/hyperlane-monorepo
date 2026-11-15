@@ -39,7 +39,8 @@ pub const ParkedOn = union(enum) {
     /// `park()` without a wait (the caller arranges the resume).
     nothing,
     /// `fresh`: see `waitFdAfterSend` (no level check before parking).
-    fd: struct { fd: posix.fd_t, events: u32, deadline_ms: ?i64, fresh: bool = false },
+    /// `owner`: see `waitFdOwned`.
+    fd: struct { fd: posix.fd_t, events: u32, deadline_ms: ?i64, fresh: bool = false, owner: u64 = 0 },
     waiter: struct { w: *Waiter, deadline_ms: ?i64 },
     /// `offFiber`: the scheduler runs `func(ctx)` on its own stack, outside
     /// any fiber, then resumes this fiber at once.
@@ -264,7 +265,25 @@ pub fn park() void {
 /// Safe after any partial read: before parking, the loop checks the socket's
 /// level once (a poll(0)), since bytes the reader left behind raise no edge.
 pub fn waitFd(fd: posix.fd_t, events: u32, deadline_ms: ?i64) error{Timeout}!void {
-    return parkOnFd(fd, events, deadline_ms, false);
+    return parkOnFd(fd, events, deadline_ms, false, 0);
+}
+
+/// A never-reused owner id for `waitFdOwned` (one per socket's lifetime,
+/// e.g. per database connection; never 0).
+pub fn newOwner() u64 {
+    return next_owner.fetchAdd(1, .monotonic);
+}
+
+var next_owner: std.atomic.Value(u64) = .init(1);
+
+/// `waitFd` for an fd that belongs to `owner` (`newOwner`): the loop keeps
+/// one registration per fd number, and if the number's record was made for
+/// another owner (its socket was closed without `forgetFd`, e.g. by a
+/// library, and the number reused) it registers again instead of waiting on
+/// a registration the kernel dropped with the old socket. Costs one syscall
+/// pair on an owner's first wait; nothing after.
+pub fn waitFdOwned(owner: u64, fd: posix.fd_t, events: u32, deadline_ms: ?i64) error{Timeout}!void {
+    return parkOnFd(fd, events, deadline_ms, false, owner);
 }
 
 /// `waitFd` for input that can only arrive after the caller sent something
@@ -273,13 +292,18 @@ pub fn waitFd(fd: posix.fd_t, events: u32, deadline_ms: ?i64) error{Timeout}!voi
 /// syscall). Edges already seen still resume at once. Do not use it to wait
 /// for the rest of a reply the reader may have only partly read.
 pub fn waitFdAfterSend(fd: posix.fd_t, events: u32, deadline_ms: ?i64) error{Timeout}!void {
-    return parkOnFd(fd, events, deadline_ms, true);
+    return parkOnFd(fd, events, deadline_ms, true, 0);
 }
 
-fn parkOnFd(fd: posix.fd_t, events: u32, deadline_ms: ?i64, fresh: bool) error{Timeout}!void {
+/// `waitFdAfterSend` with an owner (see `waitFdOwned`).
+pub fn waitFdAfterSendOwned(owner: u64, fd: posix.fd_t, events: u32, deadline_ms: ?i64) error{Timeout}!void {
+    return parkOnFd(fd, events, deadline_ms, true, owner);
+}
+
+fn parkOnFd(fd: posix.fd_t, events: u32, deadline_ms: ?i64, fresh: bool, owner: u64) error{Timeout}!void {
     const f = running.?;
     f.timed_out = false;
-    f.parked_on = .{ .fd = .{ .fd = fd, .events = events, .deadline_ms = deadline_ms, .fresh = fresh } };
+    f.parked_on = .{ .fd = .{ .fd = fd, .events = events, .deadline_ms = deadline_ms, .fresh = fresh, .owner = owner } };
     park();
     if (f.timed_out) return error.Timeout;
 }
@@ -412,13 +436,45 @@ pub fn setEventLoopThread(on: bool) void {
     event_loop_thread = on;
 }
 
+/// Set by the event loop: `readiness`'s lookup.
+pub var fd_readiness: ?*const fn (fd: posix.fd_t) ?*const std.atomic.Value(u32) = null;
+
+/// The readiness bits of an fd fibers have waited on: an edge (`Events`)
+/// seen since the last fiber wait consumed it, kept up to date by the loop
+/// that watches the fd whether or not anything waits. Null when no fiber has
+/// waited on `fd` (nothing watches it: poll instead). Look it up once (it
+/// takes a lock) and keep it while `fd` is open; drop it before
+/// `forgetFd(fd)`.
+pub fn readiness(fd: posix.fd_t) ?*const std.atomic.Value(u32) {
+    const lookup = fd_readiness orelse return null;
+    return lookup(fd);
+}
+
+/// Input or hangup seen on a `readiness` word (one atomic load; may be
+/// stale-true after the reader already drained it, never stale-false for
+/// an edge the loop has processed).
+pub fn inputSeen(bits: *const std.atomic.Value(u32)) bool {
+    return bits.load(.acquire) & Events.read != 0;
+}
+
 /// Set by the event loop: drop the registration for `fd` (the owner is
 /// about to close it; the number may be reused).
 pub var fd_closing: ?*const fn (fd: posix.fd_t) void = null;
 
+/// Set by the event loop: `fd_closing` for an fd already closed.
+pub var fd_closed: ?*const fn (fd: posix.fd_t) void = null;
+
 /// Call before closing an fd that `waitFd` may have registered.
 pub fn forgetFd(fd: posix.fd_t) void {
     if (fd_closing) |f| f(fd);
+}
+
+/// `forgetFd` for an fd something else already closed (e.g. libpq on a
+/// transport error): drops the record without a kernel call, which could
+/// hit whatever socket took the number since (the close already removed
+/// the kernel's registration).
+pub fn forgetClosedFd(fd: posix.fd_t) void {
+    if (fd_closed) |f| f(fd);
 }
 
 // -- test scheduler -----------------------------------------------------------------

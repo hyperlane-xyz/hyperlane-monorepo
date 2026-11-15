@@ -37,6 +37,10 @@ pub const Options = struct {
     /// Timer thread for the idle reaper; null uses the process scheduler
     /// (`core.scheduler.current()`) or, without one (tests), a private thread.
     scheduler: ?*Scheduler = null,
+    /// Fiber loops (`-Dhttp-loops` > 1): a released connection goes to the
+    /// oldest waiter on its own loop ahead of an older waiter on another
+    /// loop only while that older waiter has waited less than this.
+    affinity_bound_ms: u32 = 1,
 };
 
 pub const Stats = struct { total: u32, idle: u32, waiting: u32 };
@@ -50,8 +54,10 @@ pub const HoldHistogram = struct {
     /// (`Conn.home`; pool mutex held when counted): an idle connection of
     /// its loop, another idle one (moves loops unless never waited on), a
     /// release hand-off from the same or another loop, or off a fiber.
-    affinity: [5]std.atomic.Value(u64) = @splat(.init(0)),
-    pub const Affinity = enum { own, other, handoff_same, handoff_other, thread };
+    affinity: [@typeInfo(Affinity).@"enum".fields.len]std.atomic.Value(u64) = @splat(.init(0)),
+    /// `handoff_starved`: the oldest waiter (another loop's) got the
+    /// connection because it had waited `affinity_bound_ms`.
+    pub const Affinity = enum { own, other, handoff_same, handoff_other, thread, handoff_starved };
 
     fn count(self: *HoldHistogram, a: Affinity) void {
         _ = self.affinity[@intFromEnum(a)].fetchAdd(1, .monotonic);
@@ -83,8 +89,10 @@ const Waiter = struct {
     conn: ?pq.Conn = null,
     slot: bool = false,
     next: ?*Waiter = null,
-    /// The waiting fiber's event loop (`hold_stats` affinity counts only).
+    /// A fiber waiter's event loop (null: a thread) and when it queued
+    /// (`Pool.handoffWaiter`).
     loop: ?*anyopaque = null,
+    queued_ns: i128 = 0,
 
     /// Pool mutex held.
     fn signal(self: *Waiter) void {
@@ -311,7 +319,8 @@ pub const Pool = struct {
         // or the checkout deadline (`waitTimeout`).
         if (core.fiber.inFiber()) {
             const mono: ?i64 = if (deadline) |d| core.fiber.monoMs() + (d - pq.nowMs()) else null;
-            if (hold_stats) waiter.loop = core.fiber.current().?.sched.ctx;
+            waiter.loop = core.fiber.current().?.sched.ctx;
+            waiter.queued_ns = std.time.nanoTimestamp();
             while (waiter.conn == null and !waiter.slot and !self.closed) {
                 var fw: core.fiber.Waiter = .{};
                 waiter.fiber = &fw;
@@ -376,6 +385,35 @@ pub const Pool = struct {
         return w;
     }
 
+    /// The waiter a released connection goes to. pg-pool serves waiters
+    /// FIFO. With several fiber loops, the oldest waiter on the connection's
+    /// loop (`home`) goes first, so the socket need not move between loops,
+    /// unless the oldest waiter overall is a thread, has waited
+    /// `affinity_bound_ms`, or no waiter of that loop is ahead of the first
+    /// thread waiter. With one loop every fiber waiter is on `home`: plain
+    /// FIFO. Deadlines are untouched (a skipped waiter times out as before).
+    /// Mutex held.
+    fn handoffWaiter(self: *Pool, home: ?*anyopaque) ?*Waiter {
+        const head = self.head orelse return null;
+        const h = home orelse return self.popWaiter();
+        if (head.loop == null or head.loop == h) return self.popWaiter();
+        if (std.time.nanoTimestamp() - head.queued_ns >= @as(i128, self.options.affinity_bound_ms) * std.time.ns_per_ms) {
+            if (hold_stats) self.hold.count(.handoff_starved);
+            return self.popWaiter();
+        }
+        var prev = head;
+        while (prev.next) |c| : (prev = c) {
+            if (c.loop == null) break; // threads are never passed over
+            if (c.loop == h) {
+                prev.next = c.next;
+                if (self.tail == c) self.tail = prev;
+                c.next = null;
+                return c;
+            }
+        }
+        return self.popWaiter();
+    }
+
     /// A slot freed up: let the oldest waiter open a connection.
     fn wakeOne(self: *Pool) void {
         if (self.total >= self.options.max) return;
@@ -400,7 +438,7 @@ pub const Pool = struct {
             conn.deinit();
             return;
         }
-        if (self.popWaiter()) |w| {
+        if (self.handoffWaiter(conn.home)) |w| {
             if (hold_stats) {
                 self.hold.count(if (w.loop == null) .thread else if (w.loop == conn.home) .handoff_same else .handoff_other);
             }
@@ -493,3 +531,51 @@ pub const Pool = struct {
         }
     }
 };
+
+test "hand-off: own loop first within the bound, FIFO otherwise, threads never passed over" {
+    const p = try Pool.init(std.testing.allocator, .{ .conn = .{ .conninfo = "postgresql://unused" }, .idle_timeout_ms = 0 });
+    defer p.deinit();
+    var loop_a: u8 = 0;
+    var loop_b: u8 = 0;
+    const now = std.time.nanoTimestamp();
+    const Q = struct {
+        fn set(pool: *Pool, ws: []Waiter) void {
+            pool.head = null;
+            pool.tail = null;
+            for (ws) |*w| {
+                w.next = null;
+                if (pool.tail) |t| t.next = w else pool.head = w;
+                pool.tail = w;
+            }
+        }
+    };
+    p.mutex.lock();
+    defer p.mutex.unlock();
+    // b (oldest, fresh), a, a: the first waiter of loop a goes first.
+    var ws = [_]Waiter{ .{ .loop = &loop_b, .queued_ns = now }, .{ .loop = &loop_a, .queued_ns = now }, .{ .loop = &loop_a, .queued_ns = now } };
+    Q.set(p, &ws);
+    try std.testing.expectEqual(&ws[1], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&ws[0], p.head.?);
+    try std.testing.expectEqual(&ws[2], p.head.?.next.?);
+    try std.testing.expectEqual(&ws[2], p.tail.?);
+    // The last waiter can be taken too (tail fix-up).
+    try std.testing.expectEqual(&ws[2], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&ws[0], p.tail.?);
+    // No waiter of the connection's loop: FIFO.
+    try std.testing.expectEqual(&ws[0], p.handoffWaiter(&loop_a).?);
+    try std.testing.expect(p.head == null and p.tail == null);
+    // The oldest waited past the bound: FIFO.
+    var starved = [_]Waiter{ .{ .loop = &loop_b, .queued_ns = now - 2 * std.time.ns_per_ms }, .{ .loop = &loop_a, .queued_ns = now } };
+    Q.set(p, &starved);
+    try std.testing.expectEqual(&starved[0], p.handoffWaiter(&loop_a).?);
+    // A thread waiter is never passed over, at the head or further back.
+    var threads = [_]Waiter{ .{ .loop = &loop_b, .queued_ns = now }, .{ .loop = null }, .{ .loop = &loop_a, .queued_ns = now } };
+    Q.set(p, &threads);
+    try std.testing.expectEqual(&threads[0], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&threads[1], p.handoffWaiter(&loop_a).?);
+    // A connection no fiber waited on (no home), or one loop only: FIFO.
+    var one = [_]Waiter{ .{ .loop = &loop_a, .queued_ns = now }, .{ .loop = &loop_a, .queued_ns = now } };
+    Q.set(p, &one);
+    try std.testing.expectEqual(&one[0], p.handoffWaiter(null).?);
+    try std.testing.expectEqual(&one[1], p.handoffWaiter(&loop_a).?);
+}

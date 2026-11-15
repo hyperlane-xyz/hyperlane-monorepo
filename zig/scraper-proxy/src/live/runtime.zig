@@ -369,7 +369,10 @@ pub const Pool = struct {
             self.threads += 1;
         }
         self.queue.append(self.allocator, job) catch return false;
-        self.condition.broadcast();
+        // One job, one wakeup (as `enqueue`): a broadcast would restart every
+        // idle thread's `idle_ms` wait, and the heartbeat's parallel flush
+        // every 30 s would then keep surplus threads alive for good.
+        self.condition.signal();
         return true;
     }
 

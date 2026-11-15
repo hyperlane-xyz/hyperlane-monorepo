@@ -2,10 +2,12 @@
 //! Mock-driven TS scenarios use `DbService.backend`; tests needing a real
 //! server read SCRAPER_PROXY_TEST_DATABASE_URL (skipped when unset).
 const std = @import("std");
+const builtin = @import("builtin");
 const core = @import("core");
 const root = @import("root.zig");
 const service = @import("service.zig");
 const pq = @import("pq.zig");
+const convert = @import("convert.zig");
 const pool_mod = @import("pool.zig");
 const listener_mod = @import("listener.zig");
 
@@ -861,6 +863,56 @@ test "libpq: listenUnlogged leaves the listening line to logListening" {
     for (LogCapture.infos.items) |m| if (std.mem.startsWith(u8, m, "listening on")) try testing.expectEqualStrings("listening on db_quiet_a, db_quiet_b", m);
 }
 
+test "libpq: row conversion is byte-equal to convertCell on every column type's edge values" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    // Each row: a SQL expression of some type. The same values as text
+    // (`::text`) through convertCell are the old path's result.
+    const exprs = [_][]const u8{
+        "0::int2",                 "(-32768)::int2",       "32767::int2",           "0::int4",               "(-2147483648)::int4",
+        "2147483647::int4",        "4294967295::oid",      "0::oid",                "true",                  "false",
+        "9223372036854775807::int8", "(-9223372036854775808)::int8", "12345678901234567890.000100::numeric", "'NaN'::numeric", "1e-30::numeric",
+        "''::text",                "E'\\u2028\\u2029 \\U0001F600 \"\\\\ \\t\\n'::text", "'v'::varchar", "'x'::name",
+        "'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid", "1.5::float8", "(-0.0)::float8", "'Infinity'::float4", "'{\"b\":[1,2.50]}'::jsonb",
+        "'{\"b\": 1}'::json",     "'\\x00ff'::bytea",    "'2020-02-29'::date",    "'2020-02-29 12:34:56.789+02'::timestamptz", "'{1,NULL,3}'::int4[]",
+        "'{t,f}'::bool[]",          "'{\"a b\",c}'::text[]", "NULL::int4",            "NULL::text",            "NULL::bool",
+    };
+    var sql: std.ArrayList(u8) = .empty;
+    var sql_text: std.ArrayList(u8) = .empty;
+    try sql.appendSlice(a, "SELECT ");
+    try sql_text.appendSlice(a, "SELECT ");
+    for (exprs, 0..) |e, i| {
+        if (i > 0) {
+            try sql.appendSlice(a, ", ");
+            try sql_text.appendSlice(a, ", ");
+        }
+        try sql.print(a, "{s} AS c{d}", .{ e, i });
+        try sql_text.print(a, "({s})::text AS c{d}, pg_typeof({s})::oid::int4 AS t{d}", .{ e, i, e, i });
+    }
+    const typed = try p.query(a, sql.items, &.{}, null);
+    const texts = try p.query(a, sql_text.items, &.{}, null);
+    for (exprs, 0..) |e, i| {
+        var name_buf: [8]u8 = undefined;
+        const name = try std.fmt.bufPrint(&name_buf, "c{d}", .{i});
+        var oid_buf: [8]u8 = undefined;
+        const oid_name = try std.fmt.bufPrint(&oid_buf, "t{d}", .{i});
+        const got = typed.rows[0].get(name).?;
+        const raw = texts.rows[0].get(name).?;
+        const want: core.json.Value = if (raw == .null) .null else try convert.convertCell(a, @intFromFloat(texts.rows[0].get(oid_name).?.number), raw.string, .copy);
+        const got_json = try core.json.stringifyAlloc(a, got);
+        const want_json = try core.json.stringifyAlloc(a, want);
+        if (!std.mem.eql(u8, got_json, want_json)) std.debug.print("{s}: got {s} want {s}\n", .{ e, got_json, want_json });
+        try testing.expectEqualStrings(want_json, got_json);
+    }
+    // bpchar keeps its padding as a plain string (`::text` would trim it).
+    const padded = try p.query(a, "SELECT 'pad'::char(6) AS c", &.{}, null);
+    try testing.expectEqualStrings("pad   ", padded.rows[0].get("c").?.string);
+}
+
 test "libpq: idle connection killed by the server is replaced and reported" {
     const url = testUrl() orelse return error.SkipZigTest;
     const Hook = struct {
@@ -880,10 +932,165 @@ test "libpq: idle connection killed by the server is replaced and reported" {
     const killer = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
     defer killer.deinit();
     _ = try killer.query(a, "SELECT pg_terminate_backend($1)", &.{.{ .number = pid }}, null);
-    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try waitIdleReadable(p);
     const again = try p.query(a, "SELECT 1 AS one", &.{}, null);
     try testing.expectEqual(@as(f64, 1), again.rows[0].get("one").?.number);
     try testing.expectEqual(@as(u32, 1), Hook.count.load(.monotonic));
+}
+
+/// Waits (event, not a fixed sleep) until the server has closed the pool's
+/// only idle connection (its FATAL may arrive before the FIN, and libpq only
+/// sees an idle connection die at EOF).
+fn waitIdleReadable(p: *pool_mod.Pool) !void {
+    p.mutex.lock();
+    const fd = p.idle.items[0].conn.socket();
+    p.mutex.unlock();
+    if (builtin.os.tag == .linux) {
+        // POLLRDHUP (0x2000); Zig 0.15.2's std.os.linux.POLL doesn't define it.
+        const pollrdhup: i16 = 0x2000;
+        var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = pollrdhup, .revents = 0 }};
+        try testing.expect(try std.posix.poll(&fds, 5_000) == 1);
+        return;
+    }
+    // kqueue reports EV_EOF on the read filter once the FIN is in, even with
+    // unread data before it.
+    const kq = try std.posix.kqueue();
+    defer std.posix.close(kq);
+    const change = [_]std.posix.Kevent{.{ .ident = @intCast(fd), .filter = std.c.EVFILT.READ, .flags = std.c.EV.ADD, .fflags = 0, .data = 0, .udata = 0 }};
+    _ = try std.posix.kevent(kq, &change, &.{}, null);
+    const deadline = std.time.milliTimestamp() + 5_000;
+    while (std.time.milliTimestamp() < deadline) {
+        var events: [1]std.posix.Kevent = undefined;
+        const ts: std.posix.timespec = .{ .sec = 0, .nsec = 50 * std.time.ns_per_ms };
+        const n = try std.posix.kevent(kq, &.{}, &events, &ts);
+        if (n == 1 and events[0].flags & std.c.EV.EOF != 0) return;
+    }
+    return error.TestUnexpectedResult;
+}
+
+test "libpq: a socket libpq closed itself leaves no fiber-loop record under its number" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    // Stand-ins for the HTTP loop's registry hooks, logged in order.
+    const Rec = struct {
+        const Kind = enum { closed, forget };
+        var mutex: std.Thread.Mutex = .{};
+        var events: [32]struct { kind: Kind, fd: std.posix.fd_t } = undefined;
+        var len: usize = 0;
+        fn add(kind: Kind, fd: std.posix.fd_t) void {
+            mutex.lock();
+            defer mutex.unlock();
+            if (len < events.len) events[len] = .{ .kind = kind, .fd = fd };
+            len += 1;
+        }
+        fn onClosed(fd: std.posix.fd_t) void {
+            add(.closed, fd);
+        }
+        fn onForget(fd: std.posix.fd_t) void {
+            add(.forget, fd);
+        }
+        /// The first hook call for `fd` since `reset`.
+        fn first(fd: std.posix.fd_t) ?Kind {
+            mutex.lock();
+            defer mutex.unlock();
+            for (events[0..@min(len, events.len)]) |e| if (e.fd == fd) return e.kind;
+            return null;
+        }
+        fn reset() void {
+            mutex.lock();
+            defer mutex.unlock();
+            len = 0;
+        }
+    };
+    Rec.reset();
+    core.fiber.fd_closed = Rec.onClosed;
+    core.fiber.fd_closing = Rec.onForget;
+    defer core.fiber.fd_closed = null;
+    defer core.fiber.fd_closing = null;
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const r = try p.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null);
+    const pid = r.rows[0].get("pid").?.number;
+    p.mutex.lock();
+    const old_fd = p.idle.items[0].conn.socket();
+    p.mutex.unlock();
+    // A new socket starts by clearing any registration under its number.
+    try testing.expectEqual(@as(?Rec.Kind, .forget), Rec.first(old_fd));
+    Rec.reset();
+    const killer = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer killer.deinit();
+    _ = try killer.query(a, "SELECT pg_terminate_backend($1)", &.{.{ .number = pid }}, null);
+    try waitIdleReadable(p);
+    // Checkout meets EOF, libpq closes the socket, the pool reconnects.
+    const again = try p.query(a, "SELECT 1 AS one", &.{}, null);
+    try testing.expectEqual(@as(f64, 1), again.rows[0].get("one").?.number);
+    // The dead socket's number left the registry at once, without a kernel
+    // unregister (a later forget is the new socket's own, if it reused it).
+    try testing.expectEqual(@as(?Rec.Kind, .closed), Rec.first(old_fd));
+}
+
+test "libpq on a fiber: idle checks skip the socket until the loop saw input; a killed idle backend is still replaced" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    // Stands in for the HTTP loop's readiness word (`core.fiber.readiness`).
+    const Loop = struct {
+        var bits: std.atomic.Value(u32) = .init(0);
+        fn readiness(_: std.posix.fd_t) ?*const std.atomic.Value(u32) {
+            return &bits;
+        }
+    };
+    Loop.bits.store(0, .release);
+    core.fiber.fd_readiness = Loop.readiness;
+    defer core.fiber.fd_readiness = null;
+    const Hook = struct {
+        var count: std.atomic.Value(u32) = .init(0);
+        fn call(_: *anyopaque, _: []const u8) void {
+            _ = count.fetchAdd(1, .monotonic);
+        }
+    };
+    var dummy: u8 = 0;
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1, .on_idle_error = .{ .ctx = &dummy, .func = Hook.call } });
+    defer p.deinit();
+    const Ctx = struct {
+        pool: *pool_mod.Pool,
+        pid: f64 = 0,
+        err: ?anyerror = null,
+        fn run(arg: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(arg));
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            // A fiber wait: the connection picks up its readiness word.
+            const r = self.pool.query(arena.allocator(), "SELECT pg_backend_pid() AS pid, pg_sleep(0.02)", &.{}, null) catch |e| {
+                self.err = e;
+                return;
+            };
+            self.pid = r.rows[0].get("pid").?.number;
+        }
+    };
+    var ctx: Ctx = .{ .pool = p };
+    try core.fiber.testing.run(Ctx.run, &ctx);
+    try testing.expect(ctx.err == null);
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    // Nothing arrived since the last exchange: checkout makes no syscall.
+    const before = pq.Conn.idle_socket_checks.load(.monotonic);
+    _ = try p.query(a, "SELECT 1", &.{}, null);
+    try testing.expectEqual(before, pq.Conn.idle_socket_checks.load(.monotonic));
+    // The server terminates the idle backend; the loop records the edge.
+    const killer = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer killer.deinit();
+    _ = try killer.query(a, "SELECT pg_terminate_backend($1)", &.{.{ .number = ctx.pid }}, null);
+    try waitIdleReadable(p);
+    Loop.bits.store(core.fiber.Events.read, .release);
+    // As pg-pool: the dead connection is dropped and reported once, and the
+    // request gets a fresh one.
+    const again = try p.query(a, "SELECT 1 AS one", &.{}, null);
+    try testing.expectEqual(@as(f64, 1), again.rows[0].get("one").?.number);
+    try testing.expect(pq.Conn.idle_socket_checks.load(.monotonic) > before);
+    try testing.expectEqual(@as(u32, 1), Hook.count.load(.monotonic));
+    try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 
 test "libpq: close stops listeners, then the live and main pools" {
@@ -1150,7 +1357,8 @@ test "regression: a queued request's connect timeout counts its queue time" {
     defer std.posix.close(stalled.fd);
     var url_buf: [128]u8 = undefined;
     const url = try std.fmt.bufPrint(&url_buf, "postgresql://u:p@127.0.0.1:{d}/x?sslmode=disable", .{stalled.port});
-    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .connect_timeout_ms = 500 }, .max = 1 });
+    const timeout_ms = 1_000;
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .connect_timeout_ms = timeout_ms }, .max = 1 });
     defer p.deinit();
     const Attempt = struct {
         fn run(pool: *pool_mod.Pool, elapsed: *i64, message: *[96]u8) void {
@@ -1168,14 +1376,19 @@ test "regression: a queued request's connect timeout counts its queue time" {
     var e2: i64 = 0;
     var m1: [96]u8 = @splat(0);
     var m2: [96]u8 = @splat(0);
+    // Gate on pool state, not sleeps: the first request holds the only slot
+    // (connecting) before the second starts, and the second is queued.
     const t1 = try std.Thread.spawn(.{}, Attempt.run, .{ p, &e1, &m1 });
-    std.Thread.sleep(100 * std.time.ns_per_ms);
+    while (p.stats().total == 0) std.Thread.sleep(std.time.ns_per_ms);
     const t2 = try std.Thread.spawn(.{}, Attempt.run, .{ p, &e2, &m2 });
+    while (p.stats().waiting == 0 and e2 == 0) std.Thread.sleep(std.time.ns_per_ms);
     t1.join();
     t2.join();
     try testing.expect(std.mem.startsWith(u8, &m1, "Connection terminated due to connection timeout"));
     try testing.expect(std.mem.startsWith(u8, &m2, "timeout exceeded when trying to connect"));
-    try testing.expect(e2 < 800); // not queue wait + a fresh 500ms connect
+    // Its timer runs from its own call (about timeout_ms), not queue wait
+    // plus a fresh connect (nearly 2 x timeout_ms): half a timeout of slack.
+    try testing.expect(e2 < timeout_ms + timeout_ms / 2);
 }
 
 test "libpq: start warms five primary connections concurrently" {
@@ -1432,4 +1645,104 @@ test "libpq on a fiber: checkout prefers the newest idle connection of the fiber
     try testing.expect(ctx.own_waited);
     try testing.expect(ctx.picked_own);
     try testing.expect(ctx.picked_top);
+}
+
+test "libpq on fibers: a waiter on another loop passed over for affinity keeps its deadline and text" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    // Two fiber "loops": a testing.run scheduler on each of two threads.
+    const timeout_ms = 300;
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .connect_timeout_ms = timeout_ms }, .max = 1, .affinity_bound_ms = 60_000 });
+    defer p.deinit();
+    const State = struct {
+        pool: *pool_mod.Pool,
+        holder_done: std.atomic.Value(bool) = .init(false),
+        b_err: ?anyerror = null,
+        b_message: [96]u8 = @splat(0),
+        b_elapsed: i64 = 0,
+        a2_got: std.atomic.Value(bool) = .init(false),
+        err: ?anyerror = null,
+
+        fn waitFor(pool: *pool_mod.Pool, waiting: u32) void {
+            while (pool.stats().waiting < waiting) std.Thread.sleep(std.time.ns_per_ms);
+        }
+        // Loop A, fiber 1: checks out the connection (its home becomes A),
+        // and releases it once the other loop's waiter and A's second
+        // waiter are both queued.
+        fn holder(arg: *anyopaque) void {
+            const st: *@This() = @ptrCast(@alignCast(arg));
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            var conn = st.pool.acquire(arena.allocator(), null) catch |e| {
+                st.err = e;
+                return;
+            };
+            _ = conn.query(arena.allocator(), "SELECT pg_sleep(0.01)", &.{}, null) catch |e| {
+                st.err = e;
+            };
+            core.fiber.spawn(second, st) catch |e| {
+                st.err = e;
+            };
+            // Off-fiber wait for the queue to fill (testing.run runs the
+            // spawned fiber only when this one parks: park via a short query).
+            while (st.pool.stats().waiting < 2) _ = conn.query(arena.allocator(), "SELECT pg_sleep(0.005)", &.{}, null) catch {};
+            st.pool.release(conn);
+            st.holder_done.store(true, .release);
+        }
+        // Loop A, fiber 2: newer than B's waiter but on the connection's
+        // loop: served first. Holds the connection well past B's deadline.
+        fn second(arg: *anyopaque) void {
+            const st: *@This() = @ptrCast(@alignCast(arg));
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            // Queue only after B (FIFO position matters).
+            while (st.pool.stats().waiting < 1) _ = st.pool.stats();
+            var conn = st.pool.acquire(arena.allocator(), null) catch |e| {
+                st.err = e;
+                return;
+            };
+            st.a2_got.store(true, .release);
+            _ = conn.query(arena.allocator(), "SELECT pg_sleep(0.9)", &.{}, null) catch {};
+            st.pool.release(conn);
+        }
+        // Loop B: the oldest waiter, passed over for A's second waiter.
+        fn other(arg: *anyopaque) void {
+            const st: *@This() = @ptrCast(@alignCast(arg));
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            var failure: root.Failure = .{};
+            const t0 = std.time.milliTimestamp();
+            if (st.pool.acquire(arena.allocator(), &failure)) |conn| {
+                st.pool.release(conn);
+            } else |e| {
+                st.b_err = e;
+                const n = @min(failure.message.len, st.b_message.len);
+                @memcpy(st.b_message[0..n], failure.message[0..n]);
+            }
+            st.b_elapsed = std.time.milliTimestamp() - t0;
+        }
+        fn runA(st: *@This()) void {
+            core.fiber.testing.run(holder, st) catch |e| {
+                st.err = e;
+            };
+        }
+        fn runB(st: *@This()) void {
+            core.fiber.testing.run(other, st) catch |e| {
+                st.err = e;
+            };
+        }
+    };
+    var st: State = .{ .pool = p };
+    const a = try std.Thread.spawn(.{}, State.runA, .{&st});
+    // B queues once A holds the connection.
+    while (p.stats().total == 0 or p.stats().idle != 0) std.Thread.sleep(std.time.ns_per_ms);
+    const b = try std.Thread.spawn(.{}, State.runB, .{&st});
+    b.join();
+    a.join();
+    try testing.expect(st.err == null);
+    try testing.expect(st.a2_got.load(.acquire));
+    // B never got the connection and failed at its own deadline, with
+    // node-pg's text, as without the affinity rule.
+    try testing.expectEqual(@as(?anyerror, error.ConnectionFailed), st.b_err);
+    try testing.expect(std.mem.startsWith(u8, &st.b_message, "timeout exceeded when trying to connect"));
+    try testing.expect(st.b_elapsed >= timeout_ms - 5 and st.b_elapsed < 3 * timeout_ms);
 }

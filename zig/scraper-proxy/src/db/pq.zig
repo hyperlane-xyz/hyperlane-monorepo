@@ -2,6 +2,7 @@
 //! deadlines, so connect and query timeouts are enforced in milliseconds.
 //! A `Conn` has a single owner at a time (pool checkout or listener thread).
 const std = @import("std");
+const builtin = @import("builtin");
 const core = @import("core");
 const root = @import("root.zig");
 const convert = @import("convert.zig");
@@ -354,6 +355,16 @@ pub const Conn = struct {
     /// wait registers it on (or moves it to) the fiber's loop. The pool
     /// prefers handing it to that loop again (`Pool.takeIdle`).
     home: ?*anyopaque = null,
+    /// The fiber loop's readiness word for the socket (`core.fiber.readiness`),
+    /// looked up once after the first fiber wait: edges are recorded there
+    /// while the connection is idle, so `checkIdle` needs no syscall when
+    /// none arrived. Valid until `forgetFd` (`deinit`).
+    readiness: ?*const std.atomic.Value(u32) = null,
+    /// The socket libpq opened (-1 once handled after libpq dropped it).
+    sock: std.posix.fd_t = -1,
+    /// This connection's identity for fiber-loop registrations
+    /// (`core.fiber.newOwner`; never reused, unlike `pg` or `sock`).
+    owner: u64 = 0,
     /// Named statements (`Plan.custom`/`.reusable`), allocated on first use.
     statements: ?*Statements = null,
     plan_mode: PlanMode = .custom,
@@ -409,6 +420,7 @@ pub const Conn = struct {
         if (existingOption(conninfo, "gssencmode") == null and std.posix.getenv("PGGSSENCMODE") == null)
             Kw.add(&kw_buf, &val_buf, &n_kw, "gssencmode", "disable");
         const pg = PQconnectStartParams(&kw_buf, &val_buf, 1) orelse return error.OutOfMemory;
+        const owner = core.fiber.newOwner();
         errdefer {
             const fd = PQsocket(pg);
             if (fd >= 0) core.fiber.forgetFd(fd);
@@ -429,7 +441,7 @@ pub const Conn = struct {
                 },
                 else => {
                     const events: i16 = if (state == PGRES_POLLING_READING) std.posix.POLL.IN else std.posix.POLL.OUT;
-                    if (!waitSocket(PQsocket(pg), events, deadline)) {
+                    if (!waitSocketMode(PQsocket(pg), events, deadline, false, owner)) {
                         setFailure(failure, arena, "Connection terminated due to connection timeout", null);
                         return error.ConnectionFailed;
                     }
@@ -443,16 +455,36 @@ pub const Conn = struct {
             setFailure(failure, arena, trimMessage(std.mem.span(PQerrorMessage(pg))), null);
             return error.ConnectionFailed;
         }
-        return .{ .pg = pg, .query_timeout_ms = opts.query_timeout_ms };
+        const sock = PQsocket(pg);
+        // Start clean: drop any fiber-loop registration under this number
+        // (left by a socket closed without telling the loop, or by our own
+        // connect if it waited on a fiber); the socket is open and ours.
+        core.fiber.forgetFd(sock);
+        return .{ .pg = pg, .query_timeout_ms = opts.query_timeout_ms, .sock = sock, .owner = owner };
     }
 
     pub fn deinit(self: *Conn) void {
         if (self.statements) |s| s.deinit();
         self.statements = null;
         // A fiber loop may hold a registration for this socket number.
-        const fd = PQsocket(self.pg);
-        if (fd >= 0) core.fiber.forgetFd(fd);
+        self.noteDropped();
+        self.readiness = null;
+        if (self.sock >= 0) core.fiber.forgetFd(self.sock);
+        self.sock = -1;
         PQfinish(self.pg);
+    }
+
+    /// libpq closes the socket itself when it meets EOF or a transport
+    /// error (pqDropConnection). A fiber loop watching that descriptor would
+    /// keep a stale registration under a number the next socket may reuse
+    /// (whose waits would then never wake): drop it at once, without
+    /// touching the kernel (close already did, and the number may be taken).
+    /// Call after any libpq call that can fail on the transport.
+    fn noteDropped(self: *Conn) void {
+        if (self.sock < 0 or PQsocket(self.pg) == self.sock) return;
+        self.readiness = null;
+        core.fiber.forgetClosedFd(self.sock);
+        self.sock = -1;
     }
 
     pub fn socket(self: *const Conn) std.posix.fd_t {
@@ -463,10 +495,20 @@ pub const Conn = struct {
         return !self.broken and PQstatus(self.pg) == CONNECTION_OK;
     }
 
+    /// Test-only: `checkIdle` calls that looked at the socket.
+    pub var idle_socket_checks: std.atomic.Value(u64) = .init(0);
+
     /// For an idle connection: consume anything the server sent (e.g. an
     /// admin-shutdown error or EOF) and report whether it is still usable.
+    /// pg-pool drops an idle client on its 'error' event and never hands out
+    /// a dead one. With a fiber loop watching the socket, input or hangup
+    /// since the last exchange shows in its readiness word, so the socket is
+    /// only polled when something arrived (an edge the loop has not processed
+    /// yet is missed, as TS only sees it at its next poll phase).
     pub fn checkIdle(self: *Conn, arena: std.mem.Allocator, failure: ?*Failure) bool {
         if (!self.ok()) return false;
+        if (self.readiness) |bits| if (!core.fiber.inputSeen(bits)) return true;
+        if (builtin.is_test) _ = idle_socket_checks.fetchAdd(1, .monotonic);
         var rounds: usize = 0;
         while (rounds < 4) : (rounds += 1) {
             var fds = [_]std.posix.pollfd{.{ .fd = self.socket(), .events = std.posix.POLL.IN, .revents = 0 }};
@@ -475,6 +517,7 @@ pub const Conn = struct {
             if (PQconsumeInput(self.pg) == 0 or PQstatus(self.pg) != CONNECTION_OK) {
                 if (failure) |f| if (f.message.len == 0) setFailure(failure, arena, idleMessage(self.pg), null);
                 self.broken = true;
+                self.noteDropped();
                 return false;
             }
             // An idle connection only receives an error when the server is
@@ -777,6 +820,12 @@ pub const Conn = struct {
     /// `PQconsumeInput`, plus (TLS only) what OpenSSL already decrypted
     /// (see `tls`). False on a transport error.
     fn consumeAll(self: *Conn, mode: ConsumeMode) bool {
+        const consumed = self.consumeAllInner(mode);
+        if (!consumed) self.noteDropped();
+        return consumed;
+    }
+
+    fn consumeAllInner(self: *Conn, mode: ConsumeMode) bool {
         if (PQconsumeInput(self.pg) == 0) return false;
         if (PQsslInUse(self.pg) == 0) return true;
         if (tls.pendingFn()) |pending| {
@@ -805,9 +854,11 @@ pub const Conn = struct {
     /// registered it on (`home`; a hint: only after a wait that returned
     /// ready, and a failed registration polls inline without moving it).
     fn waitOwn(self: *Conn, events: i16, deadline: ?i64, after_send: bool) bool {
-        const ready = waitSocketMode(self.socket(), events, deadline, after_send);
+        const ready = waitSocketMode(self.socket(), events, deadline, after_send, self.owner);
         if (ready) if (core.fiber.current()) |f| {
             self.home = f.sched.ctx;
+            // The wait registered the socket with a loop (one locked lookup).
+            if (self.readiness == null) self.readiness = core.fiber.readiness(self.socket());
         };
         return ready;
     }
@@ -832,6 +883,7 @@ pub const Conn = struct {
 
     fn transportFailure(self: *Conn, arena: std.mem.Allocator, failure: ?*Failure) Error {
         self.broken = true;
+        self.noteDropped();
         setFailure(failure, arena, "Connection terminated unexpectedly", null);
         return error.ConnectionFailed;
     }
@@ -897,12 +949,14 @@ fn convertRows(arena: std.mem.Allocator, res: *PGresult) Error![]Value {
     if (n_rows == 0) return rows;
     const names = try arena.alloc([]const u8, n_cols);
     const oids = try arena.alloc(u32, n_cols);
+    const kinds = try arena.alloc(convert.ColumnKind, n_cols);
     // Column slot for each field: duplicates share the first position.
     const slots = try arena.alloc(usize, n_cols);
     var width: usize = 0;
     for (0..n_cols) |c| {
         names[c] = try arena.dupe(u8, std.mem.span(PQfname(res, @intCast(c))));
         oids[c] = PQftype(res, @intCast(c));
+        kinds[c] = convert.columnKind(oids[c]);
         slots[c] = width;
         for (0..c) |prev| {
             if (std.mem.eql(u8, names[prev], names[c])) {
@@ -912,8 +966,9 @@ fn convertRows(arena: std.mem.Allocator, res: *PGresult) Error![]Value {
         }
         if (slots[c] == width) width += 1;
     }
-    // Copy cell text into large arena chunks (not one allocation per
-    // string), then convert in place: string results alias the chunk.
+    // Numbers and booleans are read straight from libpq's text. Other cells
+    // are copied into large arena chunks (not one allocation per string),
+    // then converted in place: string results alias the chunk.
     const members = try arena.alloc(core.json.Member, n_rows * width);
     var chunk: []u8 = &.{};
     for (0..n_rows) |r| {
@@ -925,11 +980,17 @@ fn convertRows(arena: std.mem.Allocator, res: *PGresult) Error![]Value {
             const len = PQgetlength(res, ri, ci);
             const value: Value = if (len == 0 and PQgetisnull(res, ri, ci) != 0) .null else blk: {
                 const n: usize = @intCast(len);
+                const text = PQgetvalue(res, ri, ci)[0..n];
+                switch (kinds[c]) {
+                    .bool => break :blk .{ .bool = convert.fastBool(text) },
+                    .int => break :blk .{ .number = convert.fastInt(text) },
+                    .text, .other => {},
+                }
                 if (chunk.len < n) chunk = try arena.alloc(u8, @max(n, 16 * 1024));
                 const cell = chunk[0..n];
                 chunk = chunk[n..];
-                @memcpy(cell, PQgetvalue(res, ri, ci)[0..n]);
-                break :blk try convert.convertCell(arena, oids[c], cell, .borrow);
+                @memcpy(cell, text);
+                break :blk if (kinds[c] == .text) .{ .string = cell } else try convert.convertCell(arena, oids[c], cell, .borrow);
             };
             row[slots[c]] = .{ .key = names[c], .value = value };
         }
@@ -969,12 +1030,15 @@ fn optionBuf() []u8 {
 
 /// poll() until `fd` is ready for `events` or the deadline passes.
 pub fn waitSocket(fd: std.posix.fd_t, events: i16, deadline: ?i64) bool {
-    return waitSocketMode(fd, events, deadline, false);
+    return waitSocketMode(fd, events, deadline, false, 0);
 }
 
 /// `waitSocket`; `after_send`: the input can only arrive after our send and
 /// all earlier input was read, so a fiber parks without a level check.
-fn waitSocketMode(fd: std.posix.fd_t, events: i16, deadline: ?i64, after_send: bool) bool {
+/// `owner` (`Conn.owner`, never reused; 0 = none): a fiber loop
+/// re-registers the descriptor when its number last belonged to another
+/// owner (a socket closed without telling the loop).
+fn waitSocketMode(fd: std.posix.fd_t, events: i16, deadline: ?i64, after_send: bool, owner: u64) bool {
     if (deadline) |d| if (d - nowMs() <= 0) return false;
     if (core.fiber.inFiber()) {
         // Park the request's fiber; its loop resumes it on readiness. waitFd
@@ -985,7 +1049,11 @@ fn waitSocketMode(fd: std.posix.fd_t, events: i16, deadline: ?i64, after_send: b
         if (events & std.posix.POLL.IN != 0) ev |= core.fiber.Events.read;
         if (events & std.posix.POLL.OUT != 0) ev |= core.fiber.Events.write;
         const mono: ?i64 = if (deadline) |d| core.fiber.monoMs() + (d - nowMs()) else null;
-        (if (after_send) core.fiber.waitFdAfterSend(fd, ev, mono) else core.fiber.waitFd(fd, ev, mono)) catch return false;
+        if (owner != 0) {
+            (if (after_send) core.fiber.waitFdAfterSendOwned(owner, fd, ev, mono) else core.fiber.waitFdOwned(owner, fd, ev, mono)) catch return false;
+        } else {
+            (if (after_send) core.fiber.waitFdAfterSend(fd, ev, mono) else core.fiber.waitFd(fd, ev, mono)) catch return false;
+        }
         return true;
     }
     var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = events, .revents = 0 }};

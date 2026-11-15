@@ -196,11 +196,12 @@ const Frame = struct {
     /// Counted in `bufferedAmount` (frames are; the 101 response is not, as
     /// `ws` writes it before the socket is a WebSocket).
     charged: bool = true,
-    /// A ping, pong or close frame (counted in `Snapshot.control` too).
-    control: bool = false,
 };
 
 const max_batch = 16;
+
+/// One Node write request: frames not yet written, control bytes it carries.
+const WriteRequest = struct { open: bool = false, frames: u32 = 0, control: usize = 0 };
 
 pub const Conn = struct {
     gpa: std.mem.Allocator,
@@ -223,8 +224,17 @@ pub const Conn = struct {
     delivering: std.ArrayList(Frame) = .empty,
     deliver_mutex: std.Thread.Mutex = .{},
     buffered: usize = 0,
-    /// The part of `buffered` that is control frames (ping/pong/close).
+    /// Control-frame (ping/pong/close) bytes Node would still count in
+    /// `bufferedAmount`: those of write requests not yet complete
+    /// (`req_flight` + `req_next`).
     control_buffered: usize = 0,
+    /// Node's write requests over the queue: frames queued while nothing is
+    /// outstanding are the request in flight; frames queued while it is
+    /// outstanding join the next batch, written as one request after it. A
+    /// request ends at the end of the writer pass that wrote its last byte
+    /// (Node keeps a queued ping counted until its whole batch is out).
+    req_flight: WriteRequest = .{},
+    req_next: WriteRequest = .{},
     state: ReadyState = .open,
     close_frame_sent: bool = false,
     close_frame_received: bool = false,
@@ -288,6 +298,7 @@ pub const Conn = struct {
             self.gpa.free(tail);
             return false;
         };
+        self.noteQueuedLocked(0);
         return true;
     }
 
@@ -400,6 +411,7 @@ pub const Conn = struct {
                     break :locked;
                 };
                 self.buffered += tail.len;
+                self.noteQueuedLocked(0);
                 queued_tail = true;
             }
         }
@@ -508,6 +520,7 @@ pub const Conn = struct {
             for (buffers[0..allocated], written..) |bytes, i| {
                 self.queue.appendAssumeCapacity(.{ .bytes = bytes, .off = if (i == written) partial_off else 0, .cb = callbacks[i], .is_close = false });
                 self.buffered += bytes.len;
+                self.noteQueuedLocked(0);
             }
             queued = allocated;
             schedule = self.server != null;
@@ -529,10 +542,12 @@ pub const Conn = struct {
     pub const Snapshot = struct {
         ready_state: ReadyState,
         buffered_amount: usize,
-        /// Bytes of queued ping, pong and close frames (part of
-        /// `buffered_amount`): what `ws` queues for itself (auto-pongs) or
-        /// with no data callback, which an owner tracking its own frames'
-        /// bytes cannot see.
+        /// Bytes of ping, pong and close frames that Node still counts in
+        /// `bufferedAmount`: queued ones until the write request carrying
+        /// them is complete (a ping behind an in-flight write stays counted
+        /// until its whole batch is out, even once its own bytes are). What
+        /// `ws` sends for itself (auto-pongs) or with no data callback, which
+        /// an owner tracking its own frames' bytes cannot see.
         control: usize,
     };
 
@@ -661,7 +676,32 @@ pub const Conn = struct {
             self.gpa.free(bytes);
             return error.OutOfMemory;
         };
+        self.noteQueuedLocked(0);
         self.head_len = 0;
+    }
+
+    /// A frame joins the queue (lock held, or before `attach`).
+    fn noteQueuedLocked(self: *Conn, control: usize) void {
+        const r = if (self.req_flight.open) &self.req_next else &self.req_flight;
+        r.open = true;
+        r.frames += 1;
+        r.control += control;
+        self.control_buffered += control;
+    }
+
+    /// A queued frame was fully written (lock held): frames go in order.
+    fn noteWrittenLocked(self: *Conn) void {
+        if (self.req_flight.frames > 0) self.req_flight.frames -= 1 else self.req_next.frames -= 1;
+    }
+
+    /// End of a writer pass (lock held): complete requests leave, and the
+    /// next batch takes the place of an ended one.
+    fn endRequestsLocked(self: *Conn) void {
+        while (self.req_flight.open and self.req_flight.frames == 0) {
+            self.control_buffered -= self.req_flight.control;
+            self.req_flight = self.req_next;
+            self.req_next = .{};
+        }
     }
 
     fn frameHeader(header: *[10]u8, opcode: u8, len: usize) usize {
@@ -721,7 +761,7 @@ pub const Conn = struct {
             return error.OutOfMemory;
         };
         const control = opcode >= 0x8;
-        self.queue.append(self.gpa, .{ .bytes = bytes, .off = off, .cb = cb, .is_close = is_close, .control = control }) catch {
+        self.queue.append(self.gpa, .{ .bytes = bytes, .off = off, .cb = cb, .is_close = is_close }) catch {
             self.unlockConn();
             self.gpa.free(bytes);
             // Part of a frame may be out: the stream is unrecoverable.
@@ -729,7 +769,7 @@ pub const Conn = struct {
             return error.OutOfMemory;
         };
         self.buffered += bytes.len;
-        if (control) self.control_buffered += bytes.len;
+        self.noteQueuedLocked(if (control) bytes.len else 0);
         const attached = self.server != null;
         self.unlockConn();
         if (attached) self.scheduleFlush();
@@ -874,6 +914,9 @@ pub const Conn = struct {
         while (true) {
             if (builtin.mode == .Debug) tls_w_held = true;
             const drained = self.writePass();
+            self.lockConn();
+            self.endRequestsLocked();
+            self.unlockConn();
             // Completions leave with the pass; the next writer's wait here
             // (it holds W by then) keeps passes in order.
             const done = self.pass_done.items.len > 0;
@@ -990,7 +1033,7 @@ pub const Conn = struct {
                 self.pass_done.appendAssumeCapacity(f.*);
                 self.queue_head += 1;
                 if (f.charged) self.buffered -= f.bytes.len;
-                if (f.charged and f.control) self.control_buffered -= f.bytes.len;
+                self.noteWrittenLocked();
                 if (f.is_close) {
                     self.close_frame_sent = true;
                     if ((self.close_frame_received or self.receiver_failed) and !self.destroyed) posix.shutdown(self.fd, .send) catch {};
@@ -1020,6 +1063,8 @@ pub const Conn = struct {
         self.queue_head = 0;
         self.buffered = 0;
         self.control_buffered = 0;
+        self.req_flight = .{};
+        self.req_next = .{};
         self.unlockConn();
         for (leftovers) |f| {
             self.gpa.free(f.bytes);

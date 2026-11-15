@@ -68,10 +68,14 @@ const FdWait = struct {
     /// The loop whose epoll/kqueue holds the registration (`Loop.id`); the
     /// slot below belongs to it. A wait from another loop moves both.
     owner: u8,
+    /// Who the registration was made for (`core.fiber.waitFdOwned`): a wait
+    /// by another owner means the number was reused, so it re-registers.
+    /// 0: unowned waits only.
+    token: u64 = 0,
     index: u32,
     gen: u32,
     /// Readiness seen since the last wait consumed it (edge-triggered).
-    ready: u32 = 0,
+    ready: std.atomic.Value(u32) = .init(0),
     fiber: ?*fiber_mod.Fiber = null,
     wanted: u32 = 0,
 };
@@ -286,6 +290,8 @@ pub const Stats = struct {
     /// fd registrations moved here from another loop (a pooled DB socket
     /// last waited on elsewhere).
     fiber_migrations: std.atomic.Value(u64) = .init(0),
+    /// Registrations redone because the fd number had a new owner.
+    fiber_reregisters: std.atomic.Value(u64) = .init(0),
 
     fn bump(counter: *std.atomic.Value(u64), n: u64) void {
         _ = counter.fetchAdd(n, .monotonic);
@@ -480,14 +486,27 @@ pub const Group = struct {
         return self.current().runFiber(f);
     }
 
-    /// `core.fiber.forgetFd`: the fd is about to close (its number may be reused).
-    pub fn forgetFd(self: *Group, fd: posix.fd_t) void {
+    /// `core.fiber.readiness`: `fd`'s readiness bits (`core.fiber.Events`
+    /// seen since the last fiber wait consumed them), null if no fiber has
+    /// waited on it. Valid until `forgetFd(fd)`: records are never freed
+    /// while the group runs, and a move to another loop keeps the record.
+    pub fn readiness(self: *Group, fd: posix.fd_t) ?*const std.atomic.Value(u32) {
+        self.fd_mutex.lock();
+        defer self.fd_mutex.unlock();
+        const w = self.fd_waits.get(fd) orelse return null;
+        return &w.ready;
+    }
+
+    /// `core.fiber.forgetFd`: the fd is about to close (its number may be
+    /// reused); `closed`: it already did (`forgetClosedFd`), so no kernel
+    /// call (the number may belong to another socket by now).
+    pub fn forgetFd(self: *Group, fd: posix.fd_t, closed: bool) void {
         self.fd_mutex.lock();
         defer self.fd_mutex.unlock();
         const kv = self.fd_waits.fetchRemove(fd) orelse return;
         const w = kv.value;
         const l = &self.loops[w.owner];
-        l.unregister(fd, true);
+        if (!closed) l.unregister(fd, true);
         w.mutex.lock();
         const index = w.index;
         w.gen = none; // stale events now miss
@@ -509,7 +528,7 @@ pub const Group = struct {
             w.owner = owner_id;
             w.index = index;
             w.gen = gen;
-            w.ready = 0;
+            w.ready.store(0, .release);
             w.fiber = null;
             w.wanted = 0;
             return w;
@@ -609,9 +628,9 @@ pub const Loop = struct {
             st.unparks.load(.monotonic),       st.spawns.load(.monotonic), st.parks.load(.monotonic),  st.exits.load(.monotonic),  st.monitor_starts.load(.monotonic),
             st.monitor_ticks.load(.monotonic), st.stalls.load(.monotonic), st.stolen.load(.monotonic),
         });
-        if (st.fiber_resumes.load(.monotonic) > 0) core.log.child("Http").debug("loop {d} fiber stats resumes={d} ready_hits={d} fresh_parks={d} level_checks={d} level_hits={d} migrations={d}", .{
+        if (st.fiber_resumes.load(.monotonic) > 0) core.log.child("Http").debug("loop {d} fiber stats resumes={d} ready_hits={d} fresh_parks={d} level_checks={d} level_hits={d} migrations={d} reregisters={d}", .{
             self.id,                                st.fiber_resumes.load(.monotonic),    st.fiber_ready_hits.load(.monotonic), st.fiber_fresh_parks.load(.monotonic),
-            st.fiber_level_checks.load(.monotonic), st.fiber_level_hits.load(.monotonic), st.fiber_migrations.load(.monotonic),
+            st.fiber_level_checks.load(.monotonic), st.fiber_level_hits.load(.monotonic), st.fiber_migrations.load(.monotonic), st.fiber_reregisters.load(.monotonic),
         });
     }
 
@@ -724,6 +743,12 @@ pub const Loop = struct {
         switch (linux.E.init(rc)) {
             .SUCCESS => {},
             .NOMEM, .NOSPC => return error.SystemResources,
+            // Removing an fd the kernel already dropped (closed): fine.
+            .NOENT, .BADF => if (op == linux.EPOLL.CTL_DEL) return error.NotRegistered else {
+                log.warn("epoll_ctl failed: {s}", .{@tagName(linux.E.init(rc))});
+                return error.Unexpected;
+            },
+            .EXIST => return error.AlreadyRegistered,
             else => |e| {
                 log.warn("epoll_ctl failed: {s}", .{@tagName(e)});
                 return error.Unexpected;
@@ -734,7 +759,8 @@ pub const Loop = struct {
     fn kev(self: *Loop, changes: []const posix.Kevent) !void {
         var none_out: [0]posix.Kevent = .{};
         _ = posix.kevent(self.fd, changes, &none_out, null) catch |e| {
-            log.warn("kevent failed: {s}", .{@errorName(e)});
+            // Deleting a filter the kernel already dropped (fd closed): fine.
+            if (e != error.EventNotFound) log.warn("kevent failed: {s}", .{@errorName(e)});
             return e;
         };
     }
@@ -1041,7 +1067,7 @@ pub const Loop = struct {
                     break :blk true;
                 },
                 .waiter => |p| self.publishWaiter(f, p.w, p.deadline_ms),
-                .fd => |p| self.publishFdWait(f, p.fd, p.events, p.deadline_ms, p.fresh),
+                .fd => |p| self.publishFdWait(f, p.fd, p.events, p.deadline_ms, p.fresh, p.owner),
             };
             if (!ready) return null;
         }
@@ -1049,16 +1075,19 @@ pub const Loop = struct {
 
     /// The fd's registration, created on (or moved to) this loop. Only the
     /// waiting fiber uses a socket, so nothing waits on it elsewhere now.
-    fn fdWaitFor(self: *Loop, fd: posix.fd_t) !*FdWait {
+    fn fdWaitFor(self: *Loop, fd: posix.fd_t, token: u64) !*FdWait {
         const g = self.group;
         g.fd_mutex.lock();
         defer g.fd_mutex.unlock();
         if (g.fd_waits.get(fd)) |w| {
-            if (w.owner == self.id) return w;
-            // Last waited on from another loop: move the registration. Its
-            // old slot is freed (a new generation), so events the old set
-            // already reported are dropped; adding to this set reports
-            // input that is already there.
+            const reused = token != 0 and w.token != token;
+            if (w.owner == self.id and !reused) return w;
+            // Last waited on from another loop, or the number now belongs to
+            // another owner (its old socket was closed without `forgetFd`,
+            // which dropped the kernel's registration): register again. The
+            // old slot is freed (a new generation), so events the old
+            // registration already reported are dropped; adding the fd
+            // reports input that is already there.
             const old = &g.loops[w.owner];
             old.unregister(fd, true);
             old.freeSlot(w.index);
@@ -1067,10 +1096,11 @@ pub const Loop = struct {
             w.owner = self.id;
             w.index = sl.index;
             w.gen = sl.gen;
-            w.ready = 0;
+            w.token = token;
+            w.ready.store(0, .release);
             w.mutex.unlock();
             _ = release(self.slots.get(sl.index), R, 0);
-            Stats.bump(&self.stats.fiber_migrations, 1);
+            Stats.bump(if (reused) &self.stats.fiber_reregisters else &self.stats.fiber_migrations, 1);
             self.registerFiberFd(fd, sl.index, sl.gen) catch |e| {
                 _ = g.fd_waits.remove(fd);
                 w.mutex.lock();
@@ -1092,6 +1122,7 @@ pub const Loop = struct {
             return e;
         };
         self.slots.get(sl.index).ptr = w;
+        w.token = token;
         self.registerFiberFd(fd, sl.index, sl.gen) catch |e| {
             w.mutex.lock();
             w.gen = none;
@@ -1108,7 +1139,14 @@ pub const Loop = struct {
 
     fn registerFiberFd(self: *Loop, fd: posix.fd_t, index: u32, gen: u32) !void {
         if (is_linux) {
-            try self.epollCtl(linux.EPOLL.CTL_ADD, fd, linux.EPOLL.IN | linux.EPOLL.OUT | linux.EPOLL.RDHUP | linux.EPOLL.ET, udataOf(index, gen));
+            const events = linux.EPOLL.IN | linux.EPOLL.OUT | linux.EPOLL.RDHUP | linux.EPOLL.ET;
+            self.epollCtl(linux.EPOLL.CTL_ADD, fd, events, udataOf(index, gen)) catch |e| switch (e) {
+                // Still registered here under a record dropped without a
+                // kernel call (`forgetClosedFd` on an fd that was in fact
+                // open): point it at the new slot (kqueue's ADD does that).
+                error.AlreadyRegistered => try self.epollCtl(linux.EPOLL.CTL_MOD, fd, events, udataOf(index, gen)),
+                else => return e,
+            };
         } else {
             try self.kev(&.{
                 .{ .ident = @intCast(fd), .filter = std.c.EVFILT.READ, .flags = std.c.EV.ADD | std.c.EV.CLEAR, .fflags = 0, .data = 0, .udata = udataOf(index, gen) },
@@ -1118,8 +1156,8 @@ pub const Loop = struct {
     }
 
     /// True when `events` already happened since the last wait (resume now).
-    fn publishFdWait(self: *Loop, f: *fiber_mod.Fiber, fd: posix.fd_t, events: u32, deadline_ms: ?i64, fresh: bool) bool {
-        const w = self.fdWaitFor(fd) catch |e| {
+    fn publishFdWait(self: *Loop, f: *fiber_mod.Fiber, fd: posix.fd_t, events: u32, deadline_ms: ?i64, fresh: bool, token: u64) bool {
+        const w = self.fdWaitFor(fd, token) catch |e| {
             // No registration (out of memory or descriptors): fail this wait
             // as timed out rather than block the whole loop in poll(). Clients
             // see the caller's timeout error (e.g. "Query read timeout"), with
@@ -1129,8 +1167,8 @@ pub const Loop = struct {
             return true;
         };
         w.mutex.lock();
-        if (w.ready & events != 0) {
-            w.ready &= ~events;
+        if (w.ready.load(.acquire) & events != 0) {
+            _ = w.ready.fetchAnd(~events, .acq_rel);
             w.mutex.unlock();
             Stats.bump(&self.stats.fiber_ready_hits, 1);
             return true;
@@ -1200,12 +1238,12 @@ pub const Loop = struct {
             w.mutex.unlock();
             return;
         }
-        w.ready |= bits;
+        const ready = w.ready.fetchOr(bits, .acq_rel) | bits;
         var f: ?*fiber_mod.Fiber = null;
-        if (w.fiber != null and w.ready & w.wanted != 0) {
+        if (w.fiber != null and ready & w.wanted != 0) {
             f = w.fiber;
             w.fiber = null;
-            w.ready &= ~w.wanted;
+            _ = w.ready.fetchAnd(~w.wanted, .acq_rel);
         }
         w.mutex.unlock();
         const fib = f orelse return;

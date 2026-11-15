@@ -43,6 +43,8 @@ noinline fn deepStack(levels: usize, depth: usize) usize {
 }
 
 var shared_fd: std.atomic.Value(posix.fd_t) = .init(-1);
+/// Owner for the "shared" handler's waits (`waitFdOwned`); 0: none.
+var shared_owner: std.atomic.Value(u64) = .init(0);
 
 const Echo = struct {
     mutex: std.Thread.Mutex = .{},
@@ -121,7 +123,13 @@ const Echo = struct {
             while (true) {
                 const n = posix.read(fd, &b) catch |e| switch (e) {
                     error.WouldBlock => {
-                        core.fiber.waitFd(fd, core.fiber.Events.read, core.fiber.monoMs() + 5_000) catch return reply.sendText("timeout");
+                        const deadline = core.fiber.monoMs() + 5_000;
+                        const owner = shared_owner.load(.acquire);
+                        const waited = if (owner != 0)
+                            core.fiber.waitFdOwned(owner, fd, core.fiber.Events.read, deadline)
+                        else
+                            core.fiber.waitFd(fd, core.fiber.Events.read, deadline);
+                        waited catch return reply.sendText("timeout");
                         continue;
                     },
                     else => return reply.sendText("read failed"),
@@ -843,6 +851,108 @@ test "two loops share the listener: parked requests from many connections all co
     for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Worker.run, .{ h.server.port(), &failures });
     for (threads) |t| t.join();
     try testing.expectEqual(@as(u32, 0), failures.load(.monotonic));
+}
+
+test "an fd number reused after a close behind the registry's back is registered again" {
+    try fdReuse(.owned);
+}
+
+test "forgetClosedFd: a record whose socket closed elsewhere gives way to the number's next socket" {
+    try fdReuse(.forget_closed);
+}
+
+/// A fiber waits on a socket; it closes without `forgetFd` and a new socket
+/// takes its number. `.owned`: each socket's waits name their owner, so the
+/// loop notices on its own. `.forget_closed`: unowned waits, with the
+/// closer calling `forgetClosedFd`. Either way the new socket's wait wakes.
+fn fdReuse(mode: enum { owned, forget_closed }) !void {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const nonblock = struct {
+        fn set(fd: posix.fd_t) !void {
+            const flags = try posix.fcntl(fd, posix.F.GETFL, 0);
+            _ = try posix.fcntl(fd, posix.F.SETFL, flags | @as(usize, 1 << @bitOffsetOf(posix.O, "NONBLOCK")));
+        }
+    };
+    // First owner: a fiber waits on the fd (the loop registers it).
+    var a: [2]posix.socket_t = undefined;
+    if (std.c.socketpair(posix.AF.UNIX, posix.SOCK.STREAM, 0, &a) != 0) return error.SocketPair;
+    defer posix.close(a[1]);
+    try nonblock.set(a[0]);
+    const number = a[0];
+    shared_fd.store(number, .release);
+    if (mode == .owned) shared_owner.store(core.fiber.newOwner(), .release);
+    defer {
+        shared_fd.store(-1, .release);
+        shared_owner.store(0, .release);
+        core.fiber.forgetFd(number);
+        posix.close(number);
+    }
+    var c = try h.connect();
+    defer c.close();
+    try c.send("GET /graphql?shared HTTP/1.1\r\nHost: a\r\n\r\n");
+    std.Thread.sleep(5 * std.time.ns_per_ms);
+    _ = try posix.write(a[1], "x");
+    try testing.expectEqualStrings("got", (try c.read(arena.allocator(), false)).body);
+    // The owner's socket closes without forgetFd (as when libpq drops a
+    // connection itself); a new socket takes the same number.
+    var b: [2]posix.socket_t = undefined;
+    if (std.c.socketpair(posix.AF.UNIX, posix.SOCK.STREAM, 0, &b) != 0) return error.SocketPair;
+    defer posix.close(b[1]);
+    try posix.dup2(b[0], number); // closes the old socket at `number`
+    posix.close(b[0]);
+    try nonblock.set(number);
+    switch (mode) {
+        .owned => shared_owner.store(core.fiber.newOwner(), .release),
+        .forget_closed => core.fiber.forgetClosedFd(number),
+    }
+    // The new owner's wait must see its own socket's input.
+    try c.send("GET /graphql?shared HTTP/1.1\r\nHost: a\r\n\r\n");
+    std.Thread.sleep(5 * std.time.ns_per_ms);
+    _ = try posix.write(b[1], "y");
+    const t0 = std.time.milliTimestamp();
+    try testing.expectEqualStrings("got", (try c.read(arena.allocator(), false)).body);
+    try testing.expect(std.time.milliTimestamp() - t0 < 2_000);
+}
+
+test "readiness: an fd fibers waited on reports later input without a waiter" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var pair: [2]posix.socket_t = undefined;
+    if (std.c.socketpair(posix.AF.UNIX, posix.SOCK.STREAM, 0, &pair) != 0) return error.SocketPair;
+    defer posix.close(pair[1]);
+    const flags = try posix.fcntl(pair[0], posix.F.GETFL, 0);
+    _ = try posix.fcntl(pair[0], posix.F.SETFL, flags | @as(usize, 1 << @bitOffsetOf(posix.O, "NONBLOCK")));
+    shared_fd.store(pair[0], .release);
+    defer {
+        shared_fd.store(-1, .release);
+        core.fiber.forgetFd(pair[0]);
+        posix.close(pair[0]);
+    }
+    // Not waited on yet: nothing watches it.
+    try testing.expect(core.fiber.readiness(pair[0]) == null);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    try c.send("GET /graphql?shared HTTP/1.1\r\nHost: a\r\n\r\n");
+    std.Thread.sleep(5 * std.time.ns_per_ms);
+    _ = try posix.write(pair[1], "x");
+    try testing.expectEqualStrings("got", (try c.read(arena.allocator(), false)).body);
+    const bits = core.fiber.readiness(pair[0]) orelse return error.NotRegistered;
+    // The wait consumed its edge; nothing new yet.
+    try testing.expect(!core.fiber.inputSeen(bits));
+    // Input with no fiber waiting is still seen.
+    _ = try posix.write(pair[1], "y");
+    var waited: u32 = 0;
+    while (!core.fiber.inputSeen(bits) and waited < 200) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+    try testing.expect(core.fiber.inputSeen(bits));
 }
 
 test "two loops: a socket fibers wait on in turn follows the waiting loop" {
@@ -2126,6 +2236,63 @@ test "snapshot: queued ping and close frames are reported as control bytes" {
     const drained = conn.snapshot();
     try testing.expectEqual(@as(usize, 0), drained.buffered_amount);
     try testing.expectEqual(@as(usize, 0), drained.control);
+}
+
+test "a ping queued behind an in-flight write stays in control until its whole batch is written (Node)" {
+    // Mirrors live's real-Node trace (tools/node-heartbeat.mjs): an 8 MB
+    // frame is in flight with the reader paused; ping + a 30 MB frame are
+    // sent; at the 8 MB frame's callback Node's bufferedAmount is 30000012
+    // (ping 2 + 30000010) although the ping's bytes went out first; at the
+    // 30 MB frame's callback it is 0.
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    const Seen = struct {
+        conn: *ws.Conn,
+        control: std.atomic.Value(usize) = .init(std.math.maxInt(usize)),
+        fn func(ctx: *anyopaque, _: *ws.Conn, ok: bool) void {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            if (ok) self.control.store(self.conn.snapshot().control, .release);
+        }
+        fn cb(self: *@This()) ws.SendCallback {
+            return .{ .ctx = self, .func = func };
+        }
+    };
+    // Small buffers on both ends (macOS loopback defaults, as in the trace):
+    // the 8 MB frame must still be in flight when the ping is sent.
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    try posix.setsockopt(c.fd, posix.SOL.SOCKET, posix.SO.RCVBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    var f1: Seen = .{ .conn = conn };
+    var heartbeat: Seen = .{ .conn = conn };
+    const big = try a.alloc(u8, 8_000_000);
+    @memset(big, 'a');
+    try conn.send(big, false, f1.cb());
+    std.Thread.sleep(100 * std.time.ns_per_ms);
+    conn.ping();
+    const huge = try a.alloc(u8, 30_000_000);
+    @memset(huge, 'h');
+    try conn.send(huge, false, heartbeat.cb());
+    try testing.expectEqual(@as(usize, 2), conn.snapshot().control);
+    // Read everything: 8000010 + 2 + 30000010 bytes.
+    var buf: [256 * 1024]u8 = undefined;
+    var got: usize = 0;
+    while (got < 8_000_010 + 2 + 30_000_010) {
+        const n = try posix.read(c.fd, &buf);
+        if (n == 0) break;
+        got += n;
+    }
+    var waited: u32 = 0;
+    while (heartbeat.control.load(.acquire) == std.math.maxInt(usize) and waited < 400) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+    try testing.expectEqual(@as(usize, 2), f1.control.load(.acquire));
+    try testing.expectEqual(@as(usize, 0), heartbeat.control.load(.acquire));
+    try testing.expectEqual(@as(usize, 0), conn.snapshot().control);
 }
 
 test "sendInlineCorked: the frames before `required` go out or queue together, in order" {

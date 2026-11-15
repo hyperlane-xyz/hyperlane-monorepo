@@ -101,7 +101,16 @@ pub const fibers = true;
 var fiber_group: ?*Group = null;
 
 fn fiberFdClosing(fd: posix.fd_t) void {
-    if (fiber_group) |g| g.forgetFd(fd);
+    if (fiber_group) |g| g.forgetFd(fd, false);
+}
+
+fn fiberFdClosed(fd: posix.fd_t) void {
+    if (fiber_group) |g| g.forgetFd(fd, true);
+}
+
+fn fiberFdReadiness(fd: posix.fd_t) ?*const std.atomic.Value(u32) {
+    const g = fiber_group orelse return null;
+    return g.readiness(fd);
 }
 
 /// A request arena with a stable address (requests keep `*ArenaBox` across
@@ -223,6 +232,8 @@ pub const Server = struct {
         if (fibers) {
             fiber_group = &self.loop;
             core.fiber.fd_closing = fiberFdClosing;
+            core.fiber.fd_closed = fiberFdClosed;
+            core.fiber.fd_readiness = fiberFdReadiness;
         }
         // Process-wide: pollers wait this long for a short DB reply before
         // handing off (the database calls `core.blocking.graceWait`).

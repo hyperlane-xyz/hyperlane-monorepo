@@ -219,6 +219,19 @@ const direct_cases = struct {
     const validation = "{\"query\":\"{ domain { idx name } }\"}";
 };
 
+/// Rows as `pq.convertRows` builds them: every row's keys are the same
+/// slices (one allocation per column name per result).
+fn shareKeys(rows: []Value) void {
+    if (rows.len == 0 or rows[0] != .object) return;
+    const first = rows[0].object;
+    for (rows[1..]) |row| {
+        if (row != .object or row.object.len != first.len) continue;
+        for (row.object, first) |*m, f| {
+            if (std.mem.eql(u8, m.key, f.key)) m.key = f.key;
+        }
+    }
+}
+
 const Fixture = struct {
     arena: std.heap.ArenaAllocator,
     db: Db,
@@ -226,22 +239,31 @@ const Fixture = struct {
     route: route_mod.GraphqlRoute,
     route1: route_mod.GraphqlRoute,
     route_seq: route_mod.GraphqlRoute,
+    /// ~10 domain rows (the `domains (reused)` bench row returns ~1 KB).
+    domains_db: Db,
+    route_domains: route_mod.GraphqlRoute,
 
     fn init(self: *Fixture, gpa: Allocator) !void {
         self.arena = std.heap.ArenaAllocator.init(gpa);
         const rows = try core.json.parse(self.arena.allocator(), @embedFile("testdata/rows100.json"), .{});
+        shareKeys(rows.array);
         self.db = .{ .rows = rows.array };
         self.one = .{ .rows = rows.array[0..1] };
         const schema = schema_mod.testing.scraper();
         self.route = route_mod.GraphqlRoute.init(gpa, schema, .{ .db = scraperdb.Service.init(.{ .ctx = &self.db, .queryFn = Db.query }) }, .{ .max_active_requests = 1 << 20, .max_active_uploads = 1 << 20 });
         self.route1 = route_mod.GraphqlRoute.init(gpa, schema, .{ .db = scraperdb.Service.init(.{ .ctx = &self.one, .queryFn = Db.query }) }, .{ .max_active_requests = 1 << 20, .max_active_uploads = 1 << 20 });
         self.route_seq = route_mod.GraphqlRoute.init(gpa, schema, .{ .db = scraperdb.Service.init(.{ .ctx = &self.one, .queryFn = Db.query }) }, .{ .max_active_requests = 1 << 20, .max_active_uploads = 1 << 20, .root_field_threads = 0 });
+        const domains = try core.json.parse(self.arena.allocator(), "[{\"id\": 1, \"name\": \"chain1\", \"chain_id\": \"1001\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": false, \"is_deprecated\": false}, {\"id\": 2, \"name\": \"chain2\", \"chain_id\": \"1002\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": false, \"is_deprecated\": false}, {\"id\": 3, \"name\": \"chain3\", \"chain_id\": \"1003\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": true, \"is_deprecated\": false}, {\"id\": 4, \"name\": \"chain4\", \"chain_id\": \"1004\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": false, \"is_deprecated\": false}, {\"id\": 5, \"name\": \"chain5\", \"chain_id\": \"1005\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": false, \"is_deprecated\": false}, {\"id\": 6, \"name\": \"chain6\", \"chain_id\": \"1006\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": true, \"is_deprecated\": false}, {\"id\": 7, \"name\": \"chain7\", \"chain_id\": \"1007\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": false, \"is_deprecated\": false}, {\"id\": 8, \"name\": \"chain8\", \"chain_id\": \"1008\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": false, \"is_deprecated\": false}, {\"id\": 9, \"name\": \"chain9\", \"chain_id\": \"1009\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": true, \"is_deprecated\": false}, {\"id\": 10, \"name\": \"chain10\", \"chain_id\": \"1010\", \"native_token\": \"{\\\"name\\\":\\\"Ether\\\",\\\"symbol\\\":\\\"ETH\\\",\\\"decimals\\\":18}\", \"is_test_net\": false, \"is_deprecated\": false}]", .{});
+        shareKeys(domains.array);
+        self.domains_db = .{ .rows = domains.array };
+        self.route_domains = route_mod.GraphqlRoute.init(gpa, schema, .{ .db = scraperdb.Service.init(.{ .ctx = &self.domains_db, .queryFn = Db.query }) }, .{ .max_active_requests = 1 << 20, .max_active_uploads = 1 << 20 });
     }
 
     fn deinit(self: *Fixture) void {
         self.route.deinit();
         self.route1.deinit();
         self.route_seq.deinit();
+        self.route_domains.deinit();
         self.arena.deinit();
     }
 };
@@ -256,7 +278,7 @@ test "graphql route direct cost (opt-in)" {
     defer f.deinit();
     try direct(f.route.route(), "message_view list 100 rows", direct_cases.list100, 5_000);
     try direct(f.route1.route(), "by_pk-like single row", direct_cases.by_pk, 50_000);
-    try direct(f.route1.route(), "domains-like (no vars)", direct_cases.domains, 50_000);
+    try direct(f.route_domains.route(), "domains (10 rows, no vars)", direct_cases.domains, 50_000);
     try direct(f.route1.route(), "cache hit small", direct_cases.hit_small, 100_000);
     try direct(f.route.route(), "cache hit 100 rows", direct_cases.hit_large, 100_000);
     try direct(f.route.route(), "cache hit keyed on variable", direct_cases.hit_vars, 100_000);
@@ -317,4 +339,23 @@ test "graphql route contention (opt-in)" {
         }
         try std.testing.expectEqual(@as(u32, 0), failed.load(.monotonic));
     }
+}
+
+// Long loop of one case for an external sampler (`sample`/perf), e.g.
+// GRAPHQL_PROFILE=domains ./build.sh test-graphql -Doptimize=ReleaseFast -Dtest-filter=profile
+test "graphql route profile loop (opt-in GRAPHQL_PROFILE)" {
+    const which = std.posix.getenv("GRAPHQL_PROFILE") orelse return error.SkipZigTest;
+    // For the sampler: this process's pid.
+    if (std.posix.getenv("GRAPHQL_PROFILE_PID_FILE")) |path| {
+        var buf: [16]u8 = undefined;
+        const pid_text = try std.fmt.bufPrint(&buf, "{d}\n", .{std.c.getpid()});
+        try std.fs.cwd().writeFile(.{ .sub_path = path, .data = pid_text });
+    }
+    const gpa = std.heap.c_allocator;
+    core.metrics.init();
+    core.log.setLevel(.@"error");
+    var f: Fixture = undefined;
+    try f.init(gpa);
+    defer f.deinit();
+    if (std.mem.eql(u8, which, "domains")) try direct(f.route_domains.route(), "domains profile loop", direct_cases.domains, 5_000_000);
 }

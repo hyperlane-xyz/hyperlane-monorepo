@@ -183,7 +183,7 @@ pub const Executor = struct {
         nodes: []const []const *const ast.Field,
         defs: []const ?*const schema_mod.Field,
         /// Row member index where each field was last found (rows share column order).
-        hints: []usize,
+        hints: []Hint,
         /// Default resolver without arguments (`source[name]`): no coercion or call.
         plain: []const bool,
     };
@@ -221,7 +221,7 @@ pub const Executor = struct {
             const path: Path = .{ .prev = null, .segment = .{ .key = name } };
             const def = self.schema.fieldDef(root, nodes[0].name.value) orelse continue;
             try self.writeKey(name);
-            var hint: usize = 0;
+            var hint: Hint = .{};
             self.writeFieldDef(root, def, .null, nodes, &path, &hint) catch |err| switch (err) {
                 error.OutOfMemory => return error.OutOfMemory,
                 error.Raw => unreachable,
@@ -301,7 +301,7 @@ pub const Executor = struct {
                 t.oom = true;
                 return;
             };
-            var hint: usize = 0;
+            var hint: Hint = .{};
             sub.writeFieldDef(t.root, def, .null, t.nodes, &path, &hint) catch |err| switch (err) {
                 error.OutOfMemory => {
                     t.oom = true;
@@ -482,7 +482,7 @@ pub const Executor = struct {
 
     /// Writes the field's completed value; a field error writes `null` (or
     /// propagates through a non-null type).
-    fn writeFieldDef(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *usize) Err!void {
+    fn writeFieldDef(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *Hint) Err!void {
         const mark = self.out.writer.end;
         self.resolveAndWrite(parent, def, source, nodes, path, hint) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
@@ -498,7 +498,7 @@ pub const Executor = struct {
     /// `Collected.plain`). Scalars that serialize without error are written
     /// directly; everything else (objects, lists, enums, failures) takes the
     /// general path.
-    fn writePlainField(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *usize) Err!void {
+    fn writePlainField(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *Hint) Err!void {
         const resolved = lookup(source, def.name, hint);
         const non_null = def.type.* == .non_null;
         const t = if (non_null) def.type.non_null else def.type;
@@ -539,7 +539,7 @@ pub const Executor = struct {
         return true;
     }
 
-    fn resolveAndWrite(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *usize) Err!void {
+    fn resolveAndWrite(self: *Executor, parent: *const NamedType, def: *const schema_mod.Field, source: Value, nodes: []const *const ast.Field, path: *const Path, hint: *Hint) Err!void {
         const first = nodes[0];
         const info: Info = .{ .field_name = def.name, .parent_type = parent, .field_nodes = nodes, .fragments = &self.fragments };
         if (def.args.len == 0 and !self.hasCustomResolvers(parent)) {
@@ -642,7 +642,7 @@ pub const Executor = struct {
         const keys = try self.a.alloc([]const u8, count);
         const nodes = try self.a.alloc([]const *const ast.Field, count);
         const defs = try self.a.alloc(?*const schema_mod.Field, count);
-        const hints = try self.a.alloc(usize, count);
+        const hints = try self.a.alloc(Hint, count);
         const plain = try self.a.alloc(bool, count);
         const custom = self.hasCustomResolvers(named);
         for (fields.names.items, keys, nodes, defs, hints, plain) |name, *key_text, *slot, *def, *hint, *is_plain| {
@@ -652,7 +652,7 @@ pub const Executor = struct {
             key_text.* = text.written();
             slot.* = fields.entries.get(name).?.items;
             def.* = self.schema.fieldDef(named, slot.*[0].name.value);
-            hint.* = 0;
+            hint.* = .{};
             is_plain.* = if (def.*) |d| d.args.len == 0 and !custom and !std.mem.eql(u8, d.name, "__typename") else false;
         }
         const c = try self.a.create(Collected);
@@ -764,13 +764,29 @@ pub const Executor = struct {
     }
 };
 
+/// Where a field was last found in its rows. Rows of one database result
+/// share key order and the key slices themselves (`pq.convertRows`
+/// allocates each column name once), so a later row whose key at `index` is
+/// the very slice that matched before needs no string comparison.
+const Hint = struct {
+    index: usize = 0,
+    /// The matching key's bytes (same pointer and length = same text).
+    key: ?[*]const u8 = null,
+};
+
 /// `source[name]` with a position hint (rows of one result share key order).
-fn lookup(source: Value, name: []const u8, hint: *usize) ?Value {
+fn lookup(source: Value, name: []const u8, hint: *Hint) ?Value {
     if (source != .object) return null;
     const members = source.object;
-    if (hint.* < members.len and std.mem.eql(u8, members[hint.*].key, name)) return members[hint.*].value;
+    if (hint.index < members.len) {
+        const m = members[hint.index];
+        if (m.key.len == name.len and (m.key.ptr == hint.key or std.mem.eql(u8, m.key, name))) {
+            hint.key = m.key.ptr;
+            return m.value;
+        }
+    }
     for (members, 0..) |m, i| if (std.mem.eql(u8, m.key, name)) {
-        hint.* = i;
+        hint.* = .{ .index = i, .key = m.key.ptr };
         return m.value;
     };
     return null;
@@ -784,4 +800,31 @@ fn toNumber(r: Value) ?f64 {
         .string => |s| if (s.len == 0) null else js.stringToNumber(s),
         else => null,
     };
+}
+
+test "lookup hint: shared keys skip the compare; other shapes and orders still resolve" {
+    const id = "id";
+    const name = "name";
+    // Rows 0-1 share key slices (as pq.convertRows builds them).
+    var r0 = [_]Member{ .{ .key = id, .value = .{ .number = 1 } }, .{ .key = name, .value = .{ .string = "a" } } };
+    var r1 = [_]Member{ .{ .key = id, .value = .{ .number = 2 } }, .{ .key = name, .value = .{ .string = "b" } } };
+    // Row 2: equal text in other slices, reversed order.
+    const id2 = try std.testing.allocator.dupe(u8, "id");
+    defer std.testing.allocator.free(id2);
+    const name2 = try std.testing.allocator.dupe(u8, "name");
+    defer std.testing.allocator.free(name2);
+    var r2 = [_]Member{ .{ .key = name2, .value = .{ .string = "c" } }, .{ .key = id2, .value = .{ .number = 3 } } };
+    // Row 3: a different shape (missing `name`, an extra key of the same length at its index).
+    var r3 = [_]Member{ .{ .key = id, .value = .{ .number = 4 } }, .{ .key = "nome", .value = .{ .string = "x" } } };
+    var id_hint: Hint = .{};
+    var name_hint: Hint = .{};
+    const rows = [_]Value{ .{ .object = &r0 }, .{ .object = &r1 }, .{ .object = &r2 }, .{ .object = &r3 }, .{ .object = &r1 } };
+    const want_ids = [_]f64{ 1, 2, 3, 4, 2 };
+    for (rows, want_ids) |row, want| try std.testing.expectEqual(want, lookup(row, "id", &id_hint).?.number);
+    try std.testing.expectEqualStrings("a", lookup(rows[0], "name", &name_hint).?.string);
+    try std.testing.expectEqualStrings("b", lookup(rows[1], "name", &name_hint).?.string);
+    try std.testing.expectEqualStrings("c", lookup(rows[2], "name", &name_hint).?.string);
+    try std.testing.expect(lookup(rows[3], "name", &name_hint) == null);
+    try std.testing.expectEqualStrings("b", lookup(rows[4], "name", &name_hint).?.string);
+    try std.testing.expect(lookup(.null, "id", &id_hint) == null);
 }
