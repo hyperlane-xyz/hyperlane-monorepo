@@ -84,6 +84,12 @@ pub const Role = struct {
     round_results: ?[]votes.Result = null,
     /// Persistent vote transport: per-endpoint keep-alive across rounds.
     vote_engine: votes.Engine = .{},
+    /// Polling-mode checkpoint sample cadence (same Rust submit.rs rules as the
+    /// websocket path): rounds never run faster than the interval, waiting
+    /// samples refresh at 30 s and verified idle frontiers audit at 60 s.
+    poll_cadence: @import("stream_cadence.zig").Cadence = .{},
+    /// Primary-only insertion-count discovery read; at most once per interval.
+    next_probe_ms: u64 = 0,
     /// Opens local state only; RPC chain checks and announcement I/O happen in tick.
     pub fn open(a: A, s: *const settings.Settings, database: *rocks.Database, runtime: Runtime) !*Role {
         if (s.role != .validator) return error.ExpectedValidatorSettings;
@@ -266,6 +272,10 @@ pub const Role = struct {
         try self.cycle_clock.begin(now_ms);
         defer self.cycle_clock.end();
         self.index_due_ms = null;
+        // Rust submit.rs starts its idle audit clock at startup: the first
+        // periodic prefix audit is due one period later, not on the first
+        // signing tick. Disagreeing votes and recovery still force an audit.
+        if (self.next_audit_ms == 0) self.next_audit_ms = now_ms +| 60000;
         if (self.index_metrics) |*sink| sink.unix_seconds = unix_timestamp;
         var result = try self.tickInner(unix_timestamp, now_ms);
         if (self.index_due_ms) |due| result.next_delay_ms = due -| self.cycle_clock.now(now_ms);
@@ -280,12 +290,25 @@ pub const Role = struct {
         if (self.runtime.cancel) |flag| {
             if (flag.load(.acquire)) return error.Cancelled;
         }
-        self.canonical.clearRetainingCapacity();
-        for (self.slots) |*slot| slot.last_vote = null;
-        try self.collectRound();
+        var round_refreshed = false;
+        if (try self.pollRoundDue(now_ms)) {
+            var elapsed = try std.time.Timer.start();
+            const interval_ms = self.settings.role.validator.interval *| 1000;
+            self.canonical.clearRetainingCapacity();
+            for (self.slots) |*slot| slot.last_vote = null;
+            self.collectRound() catch |err| {
+                self.poll_cadence.attemptedAt(now_ms +| elapsed.read() / std.time.ns_per_ms, interval_ms);
+                return err;
+            };
+            self.poll_cadence.attemptedAt(now_ms +| elapsed.read() / std.time.ns_per_ms, interval_ms);
+            round_refreshed = true;
+        }
         if (!try self.startup(now_ms)) return .{ .announcement_pending = true };
         if (!try self.initializeInsertionCursor(now_ms)) return .{};
         const indexed = try self.indexOneRange(now_ms);
+        // Same gate as the websocket path: an authenticated sample with no new
+        // local leaf and no pending publication has nothing to authorize.
+        if (!round_refreshed and self.poll_cadence.verified() and try self.store.insertionByIndex(self.state.nextVerificationIndex()) == null and !try self.state.hasPendingPublication()) return .{ .indexed_range = indexed };
         var progress = driver.tick(&self.state, .{ .context = self, .finalized_height = finalizedHeight, .insertion = insertion, .checkpoint = checkpoint }, self.runtime.signer, self.runtime.publisher, unix_timestamp, .{ .publications = self.settings.role.validator.max_sign_concurrency }) catch |err| {
             if (self.state.halted) try self.state.publishReorg(self.runtime.publisher) else if (err == error.NonmonotonicHistory or err == error.UnverifiedSuffixChanged) _ = try self.auditSignedPrefix(unix_timestamp, now_ms, true);
             return err;
@@ -298,11 +321,64 @@ pub const Role = struct {
             }
             progress.unavailable_endpoints = if (self.consensus) unavailable else if (available > 0) 0 else 1;
         }
+        var empty_ready: usize = 0;
+        if (self.round_results) |results| for (results) |result| {
+            if (result.ready and result.count == 0) empty_ready += 1;
+        };
+        const required = if (self.state.options.consensus) |consensus| try consensus.required(self.state.options.endpoint_count) else 1;
+        self.poll_cadence.processed(self.state.fresh_verified_through != null, progress.more_observations, self.state.tree.count == 0 and empty_ready >= required);
         if (try self.auditSignedPrefix(unix_timestamp, now_ms, false)) {
             progress.more_observations = true;
             progress.recovery_reset = true;
+            self.poll_cadence.sample = .none;
         }
-        return .{ .indexed_range = indexed, .progress = progress };
+        const more_cached = progress.more_observations and try self.store.insertionByIndex(self.state.nextVerificationIndex()) != null;
+        return .{ .indexed_range = indexed or more_cached or progress.published == self.settings.role.validator.max_sign_concurrency, .progress = progress };
+    }
+    /// Polling-mode checkpoint round gate. Rust submit.rs reads checkpoint
+    /// samples only for new local insertions, unverified samples (30 s) or the
+    /// idle audit (60 s). Insertions are discovered here by one primary-only
+    /// count read per interval; a changed count escalates to a full
+    /// per-endpoint round in the same tick, so freshness is unchanged.
+    fn pollRoundDue(self: *Role, now_ms: u64) !bool {
+        // Without the native vote transport collectRound is a no-op and every
+        // tick reads votes directly (tests/std transport only).
+        if (self.runtime.multi_library_path == null) return true;
+        if (self.round_results) |results| {
+            // Announcement startup only needs one authenticated primary.
+            if (!self.announcement_ready) for (results) |result| if (result.ready) return false;
+        }
+        const next_leaf = try self.store.insertionByIndex(self.state.nextVerificationIndex()) != null;
+        if (self.poll_cadence.due(now_ms, false, next_leaf, self.state.tree.count)) return true;
+        return self.probeAdvanced(now_ms);
+    }
+    fn probeAdvanced(self: *Role, now_ms: u64) bool {
+        // Never accelerate checkpoint reads beyond the configured interval.
+        if (now_ms < self.poll_cadence.next_attempt_ms or now_ms < self.next_probe_ms) return false;
+        const results = self.round_results orelse return true;
+        const index = self.primary orelse return true;
+        const known = results[index].count orelse return true;
+        // The retained authenticated tip still has unfetched leaves.
+        if (self.sequence_cursor) |c| if (c.forward.sequence < known) return false;
+        self.next_probe_ms = now_ms +| self.settings.role.validator.interval *| 1000;
+        const slot = &self.slots[index];
+        const observed = probeCount(slot) catch |err| {
+            // The full round owns failover and per-endpoint failure accounting.
+            slot.last_error = err;
+            return true;
+        };
+        return observed != known;
+    }
+    /// Discovery only: a changed value triggers a fenced per-endpoint round;
+    /// the value itself never reaches cursor, votes or authorization.
+    fn probeCount(slot: *Slot) !u32 {
+        const client = slot.client;
+        const hook = slot.indexer.config.hook;
+        return switch (slot.indexer.config.reorg_period) {
+            .none => client.count(hook, .latest),
+            .blocks => |depth| client.count(hook, .{ .number = (try client.blockNumber()) -| depth }),
+            .tag => |value| client.count(hook, try rpc.BlockRef.fromTag(value)),
+        };
     }
     fn tickStream(self: *Role, timestamp: u64, now_ms: u64) !Tick {
         if (self.state.halted) {
@@ -538,6 +614,10 @@ pub const Role = struct {
         client.options.dynamic_tip_cache = self.runtime.dynamic_tip_cache;
         client.options.native_cache_observer = if (self.primary_metrics) |sink| sink.nativeCacheObserver() else null;
     }
+    fn roundTip(result: votes.Result) !indexing.CountTip {
+        const head = result.head orelse return error.MissingEvmHead;
+        return .{ .count = result.count, .tip = std.math.cast(u32, head.number) orelse return error.IndexHeightOutOfRange, .block_hash = head.hash };
+    }
     fn indexedCountTip(self: *Role, index: usize) !indexing.CountTip {
         const slot = &self.slots[index];
         const saved = slot.client.options;
@@ -574,7 +654,9 @@ pub const Role = struct {
                 failure = actual;
                 continue;
             };
-            const tip = self.indexedCountTip(index) catch |err| {
+            // A ready round result already carries this endpoint's fenced
+            // head and count; re-reading them would only repeat the round.
+            const tip = if (self.round_results) |results| try roundTip(results[index]) else self.indexedCountTip(index) catch |err| {
                 const actual = self.physicalFailure(self.slots[index].client, err);
                 if (!fetch_observation.retryable(actual)) return err;
                 failure = actual;
@@ -597,7 +679,7 @@ pub const Role = struct {
             const primary = try self.primarySlot();
             const index = self.primary.?;
             const result = results[index];
-            tip = .{ .count = result.count, .tip = std.math.cast(u32, result.head.?.number) orelse return error.IndexHeightOutOfRange, .block_hash = result.head.?.hash };
+            tip = try roundTip(result);
             selected = index;
             _ = primary;
         } else {
