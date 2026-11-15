@@ -112,13 +112,13 @@ def perf_binary() -> str | None:
     return str(found[-1]) if found else None
 
 
-def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str) -> str:
+def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str, call_graph: str = "dwarf,32768") -> str:
     """Shell lines that attach a profiler to the wrapper's own pid ($$) before it execs the agent."""
     stem = f"{profdir}/{impl}-{role}-$$"
     if kind == "perf":
         perf = perf_binary()
         assert perf, "perf not installed (linux-tools-generic)"
-        return (f"{perf} record -q -F 499 --call-graph dwarf,32768 -p $$ -o {stem}.perf.data >/dev/null 2>&1 &\n"
+        return (f"{perf} record -q -F 499 --call-graph {call_graph} -p $$ -o {stem}.perf.data >/dev/null 2>&1 &\n"
                 f"{perf} stat -e task-clock,context-switches,cpu-migrations,page-faults,cycles,instructions "
                 f"-p $$ -o {stem}.perf-stat.txt >/dev/null 2>&1 &\nsleep 0.3\n")
     strace = shutil.which("strace")
@@ -135,12 +135,15 @@ def make_wrappers(bins: pathlib.Path, mode: str, agent_cpus: list[int], work: pa
     zig_dir = {"ReleaseSafe": "zig-safe", "ReleaseFast": "zig-fast"}[mode]
     out: dict[str, dict[str, pathlib.Path]] = {"rust": {}, "zig": {}}
     for impl, sub in (("rust", "rust"), ("zig", zig_dir)):
+        # Zig 0.15 keeps frame pointers on x86_64 in every release mode (production binaries are
+        # profiled as-is); dwarf unwinding of the Zig agents yields kernel-only stacks, fp works.
+        call_graph = "fp" if impl == "zig" else "dwarf,32768"
         for role in ("relayer", "validator", "scraper"):
             real = (bins / sub / role).resolve(strict=True)
             wrapper = work / ("wrap" if profile is None else f"wrap-{profile[0]}") / impl / role
             wrapper.parent.mkdir(parents=True, exist_ok=True)
             env = f"HYP_LOG_LEVEL={RUST_LOG_LEVEL} HYP_LOG_FORMAT=json " if impl == "rust" else ""
-            prelude = profiler_prelude(profile[0], profile[1], impl, role) if profile else ""
+            prelude = profiler_prelude(profile[0], profile[1], impl, role, call_graph) if profile else ""
             wrapper.write_text(f'#!/bin/sh\n{prelude}{env}exec {taskset} -c {cpu_spec(agent_cpus)} {real} "$@"\n')
             wrapper.chmod(0o755)
             out[impl][role] = wrapper

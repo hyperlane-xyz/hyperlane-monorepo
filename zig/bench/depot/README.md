@@ -14,7 +14,7 @@ zig/bench/depot/run.sh --fetch <run-id>        # re-download an existing run
 Options:
 
 - `--ref <sha>`: bench another commit. The script builds a temporary worktree on a temporary branch, copies the current harness over it (`zig/bench/depot/**`, the workflow, the `validator`/`scraper`/`relayer` harnesses and the `zig/integration` helpers), and triggers from there; both sides of an A/B therefore share one harness. Depot bases unknown branches on `origin/main`, which makes the patch about 80 MB. That is fine: provenance verifies the resulting tree.
-- `--profile`: after the measured pairs, run one extra pair per workload under `perf record` (dwarf call graphs, 499 Hz, both arms) plus `perf stat`, and another under `strace -c -f`. Neither pair is counted in the stats. Outputs land in `<workload>/profiles/{perf,strace}/`: `<impl>-<role>.folded` (flamegraph-ready, e.g. `flamegraph.pl x.folded > x.svg`), `*.report.txt` (top symbols), `*.perf-stat.txt` (task-clock, context switches, migrations, faults, cycles, instructions) and `*.strace.txt`. The folded stacks include kernel frames; the `__perf_event_task_sched_in` wedge is perf's own context-switch overhead.
+- `--profile`: after the measured pairs, run one extra pair per workload under `perf record` at 499 Hz on both arms. The Zig arm uses frame-pointer call graphs: Zig 0.15 keeps frame pointers on x86_64 in every release mode, so the production binaries are profiled as-is, and dwarf unwinding of the agents yields kernel-only stacks. The Rust arm uses dwarf call graphs. plus `perf stat`, and another under `strace -c -f`. Neither pair is counted in the stats. Outputs land in `<workload>/profiles/{perf,strace}/`: `<impl>-<role>.folded` (flamegraph-ready, e.g. `flamegraph.pl x.folded > x.svg`), `*.report.txt` (top symbols), `*.perf-stat.txt` (task-clock, context switches, migrations, faults, cycles, instructions) and `*.strace.txt`. The folded stacks include kernel frames; the `__perf_event_task_sched_in` wedge is perf's own context-switch overhead.
 
 Provenance: `run.json` and the summary header record:
 
@@ -70,6 +70,10 @@ A Depot sandbox is the compute behind a CI job, and there is no standalone creat
 zig/bench/depot/sandbox.py start --hours 4      # ~2-3 min to ready
 zig/bench/depot/sandbox.py push <rev> <name>    # git bundle -> worktree ~/zb/<name>, ~5 s, no push to origin
 zig/bench/depot/sandbox.py exec -C ~/zb/<name> -- 'python3 zig/bench/run.py --zig "$ZIG" ...'
+zig/bench/depot/sandbox.py exec -- 'bash zig/bench/depot/build.sh'                # once: Rust/native/helpers into $REPO/.zb
+zig/bench/depot/sandbox.py exec -- 'bash zig/bench/depot/sandbox_build.sh ~/zb/<name>'   # Zig-only build for a pushed rev
+zig/bench/depot/sandbox.py exec -C '~/zb/<name>' -- 'python3 zig/bench/depot/bench.py --workload scraper-safe --pairs 2 --bins .zb/out --output /tmp/x'
+zig/bench/depot/sandbox.py put zig/bench/depot                # uncommitted local files into $REPO
 zig/bench/depot/sandbox.py pull ~/zb/out zig/bench/results/depot/x
 zig/bench/depot/sandbox.py stop
 ```

@@ -11,6 +11,7 @@ caches restored, idles until stopped) and records its sandbox/session ids.
   sandbox.py exec -C /path -- CMD   # run in another directory
   sandbox.py push REV NAME          # ship local commit REV as worktree ~/zb/NAME (no push to origin)
   sandbox.py pull REMOTE LOCAL      # copy a remote file/dir back (tar)
+  sandbox.py put [-C DIR] PATH...   # copy local repo paths (incl. uncommitted) into $REPO or DIR
   sandbox.py status | stop
 
 In remote shells, /tmp/sandbox-env.sh exports PATH, ZIG, REPO and the bench build flags.
@@ -101,6 +102,9 @@ def main() -> int:
     p = sub.add_parser("pull")
     p.add_argument("remote_path")
     p.add_argument("local_path", type=pathlib.Path)
+    p = sub.add_parser("put")
+    p.add_argument("-C", "--dest", default="$REPO")
+    p.add_argument("paths", nargs="+")
     sub.add_parser("status")
     sub.add_parser("stop")
     args = parser.parse_args()
@@ -139,6 +143,17 @@ def main() -> int:
             bundle.wait()
         finally:
             subprocess.run(["git", "update-ref", "-d", ref], cwd=ROOT, check=True)
+        return 0
+    if args.command == "put":
+        # exec-pipe can drop stdin sent before the remote command starts, so ship base64 chunks as arguments.
+        import base64
+        tar = subprocess.run(["tar", "czf", "-", "--exclude", "__pycache__", "--exclude", "provenance.json", *args.paths],
+                             cwd=ROOT, check=True, capture_output=True).stdout
+        text = base64.b64encode(tar).decode()
+        remote(state, "rm -f /tmp/put.b64")
+        for i in range(0, len(text), 60000):
+            remote(state, f"printf %s {text[i:i + 60000]} >> /tmp/put.b64")
+        remote(state, f"source /tmp/sandbox-env.sh && mkdir -p {args.dest} && base64 -d /tmp/put.b64 | tar xzf - -C {args.dest} && echo put {len(tar)} bytes into {args.dest}")
         return 0
     if args.command == "pull":
         args.local_path.mkdir(parents=True, exist_ok=True)
