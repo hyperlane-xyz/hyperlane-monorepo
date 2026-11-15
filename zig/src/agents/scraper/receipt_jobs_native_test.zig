@@ -127,7 +127,6 @@ test "native receipt forks that never replay share one chain-id proof across thr
         err: ?anyerror = null,
         fn run(self: *@This()) void {
             // A dedicated thread waits inline: reads never replay.
-            @import("../../runtime/read_mode.zig").mode = .direct;
             self.batch.runFibers(.{}, &self.persist, 1) catch |err| {
                 self.err = err;
             };

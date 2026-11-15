@@ -16,7 +16,6 @@ const grpc = @import("../cosmos/grpc.zig");
 const GrpcCurl = @import("../cosmos/curl_grpc.zig").CurlTransport;
 const GrpcFallback = @import("../cosmos/fallback_grpc.zig");
 const fiber = @import("../runtime/fiber.zig");
-const read_mode = @import("../runtime/read_mode.zig");
 const A = std.mem.Allocator;
 pub const HttpReplay = @import("../net/http_replay.zig");
 pub const HttpRuntime = @import("../net/http_runtime.zig");
@@ -487,7 +486,7 @@ pub const Resources = struct {
     }
     pub fn receipts(self: *Resources) !@import("scraper/enrichment.zig").Fetcher {
         const identity = self.receipt_identity orelse &self.receipt_identity_flag;
-        if (self.receipt_identity_needed == null and (fiber.inFiber() or read_mode.direct())) {
+        if (self.receipt_identity_needed == null) {
             try self.proveReceiptChain(identity);
             self.receipt_identity_needed = false;
         }
