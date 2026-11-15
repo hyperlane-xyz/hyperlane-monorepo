@@ -40,11 +40,11 @@ fn benchmark(kernel: []const u8, iterations: u32, body_len: usize) !void {
             std.mem.doNotOptimizeAway(&message);
             const encoded = try message.encodeAlloc(allocator);
             defer allocator.free(encoded);
-            var decoded = try protocol.Message.decode(encoded);
-            // Match Rust's independently owned decoded body, not the borrowed fast path.
-            const owned_body = try allocator.dupe(u8, decoded.body);
-            defer allocator.free(owned_body);
-            decoded.body = owned_body;
+            // Production ownership (agents/store.zig OwnedMessage, built the same
+            // way in relayer/control.zig): the decoded message owns the exact-size
+            // encoded buffer and its body borrows it. One allocation, no body copy;
+            // Rust's HyperlaneMessage copies the body into a second Vec.
+            const decoded = try protocol.Message.decode(encoded);
             std.mem.doNotOptimizeAway(&decoded);
             const id = decoded.id();
             std.mem.doNotOptimizeAway(id);

@@ -3,12 +3,7 @@ const Hash = [32]u8;
 pub const depth = 32;
 
 pub fn hashConcat(left: Hash, right: Hash) Hash {
-    var bytes: [64]u8 = undefined;
-    bytes[0..32].* = left;
-    bytes[32..64].* = right;
-    var digest: Hash = undefined;
-    std.crypto.hash.sha3.Keccak256.hash(&bytes, &digest, .{});
-    return digest;
+    return @import("keccak.zig").hashPair(&left, &right);
 }
 
 pub const zero_hashes: [depth + 1]Hash = blk: {
