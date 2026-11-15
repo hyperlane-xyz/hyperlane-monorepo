@@ -96,6 +96,10 @@ pub const Resources = struct {
     /// one successful check on any fork covers the parent and every sibling.
     receipt_identity_flag: std.atomic.Value(bool) = .init(false),
     receipt_identity: ?*std.atomic.Value(bool) = null,
+    /// Decided once per Resources: a cooperative replay must issue the same
+    /// reads on every pass, so a sibling's later proof cannot drop a check
+    /// this fork already journaled (that would leave it pending forever).
+    receipt_identity_needed: ?bool = null,
     owned_provider_metrics: usize = 0,
     pub fn open(a: A, chain: *const types.Chain, env: *const std.process.EnvMap, options: Options) !*Resources {
         if (options.indexer_tip_cache and chain.protocol == .ethereum and options.dynamic_tip_cache == null) return error.SharedDynamicTipCacheRequired;
@@ -436,9 +440,11 @@ pub const Resources = struct {
     }
     pub fn receipts(self: *Resources) !@import("scraper/enrichment.zig").Fetcher {
         const identity = self.receipt_identity orelse &self.receipt_identity_flag;
-        if (!identity.load(.acquire)) {
+        if (self.receipt_identity_needed == null) self.receipt_identity_needed = !identity.load(.acquire);
+        if (self.receipt_identity_needed.?) {
             if (self.clients == .ethereum) try self.clients.ethereum.checkChain(try std.fmt.parseInt(u256, self.chain.chain_id, if (std.mem.startsWith(u8, self.chain.chain_id, "0x")) 0 else 10));
             identity.store(true, .release);
+            self.receipt_identity_needed = false;
         }
         if (self.receipt_binding == null) {
             const clients: receipt_factory.Clients = switch (self.clients) {
