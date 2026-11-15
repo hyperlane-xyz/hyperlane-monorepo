@@ -16,10 +16,7 @@ const DbService = service.DbService;
 const primary_url = "postgresql://scraper-proxy-test";
 const replica_url = "postgresql://scraper-proxy-replica-test";
 
-const ready_schema = [_][]const u8{
-    "cursor_exists",         "cursor_readable",        "cursor_trigger_exists", "head_exists",
-    "head_readable",         "legacy_boundary_exists", "range_index_exists",    "scraper_head_exists",
-};
+const ready_schema = [_][]const u8{ "scraper_head_exists", "scraper_head_readable" };
 
 fn schemaRow(a: std.mem.Allocator, false_name: ?[]const u8, drop: bool) ![]Value {
     var b: core.json.ObjectBuilder = .{};
@@ -37,6 +34,7 @@ const LogCapture = struct {
     var mutex: std.Thread.Mutex = .{};
     var warnings: std.ArrayList([]u8) = .empty;
     var debugs: usize = 0;
+    var infos: std.ArrayList([]u8) = .empty;
 
     fn sink(_: ?*anyopaque, level: core.log.Level, _: []const u8, msg: []const u8) void {
         mutex.lock();
@@ -44,6 +42,7 @@ const LogCapture = struct {
         switch (level) {
             .warn => warnings.append(testing.allocator, testing.allocator.dupe(u8, msg) catch return) catch {},
             .debug => debugs += 1,
+            .info => infos.append(testing.allocator, testing.allocator.dupe(u8, msg) catch return) catch {},
             else => {},
         }
     }
@@ -51,6 +50,8 @@ const LogCapture = struct {
     fn reset() void {
         for (warnings.items) |w| testing.allocator.free(w);
         warnings.clearAndFree(testing.allocator);
+        for (infos.items) |i| testing.allocator.free(i);
+        infos.clearAndFree(testing.allocator);
         debugs = 0;
     }
 };
@@ -230,11 +231,9 @@ test "times out stalled replica connections" {
 const SchemaFake = struct {
     false_name: ?[]const u8 = null,
     drop: bool = false,
-    saw_trigger_query: bool = false,
 
-    fn query(ctx: *anyopaque, _: service.Backend.Which, _: []const u8, arena: std.mem.Allocator, sql: []const u8, _: []const Value, _: ?*root.Failure) root.Error!root.Result {
+    fn query(ctx: *anyopaque, _: service.Backend.Which, _: []const u8, arena: std.mem.Allocator, _: []const u8, _: []const Value, _: ?*root.Failure) root.Error!root.Result {
         const self: *SchemaFake = @ptrCast(@alignCast(ctx));
-        if (contains(sql, "tgname = 'gas_payment_stream_cursor_assign'") and contains(sql, "tgenabled IN ('O', 'A')")) self.saw_trigger_query = true;
         return .{ .rows = schemaRow(arena, self.false_name, self.drop) catch return error.OutOfMemory, .row_count = 1 };
     }
 };
@@ -258,20 +257,6 @@ test "fails startup on false or missing stream schema checks" {
             try testing.expect(std.mem.startsWith(u8, failure.message, "Event stream schema is not ready: "));
         }
     }
-}
-
-test "requires an enabled gas cursor assignment trigger at startup" {
-    setTestConfig(false);
-    var fake: SchemaFake = .{ .false_name = "cursor_trigger_exists" };
-    const svc = try DbService.init(testing.allocator, null);
-    defer svc.deinit();
-    svc.backend = .{ .ctx = &fake, .query = SchemaFake.query };
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    var failure: root.Failure = .{};
-    try testing.expectError(error.QueryFailed, svc.start(&failure, arena_state.allocator()));
-    try testing.expect(fake.saw_trigger_query);
-    try testing.expectEqualStrings("Event stream schema is not ready: cursor_trigger_exists", failure.message);
 }
 
 // ---------------------------------------------------------------------------
@@ -728,334 +713,6 @@ test "libpq on a fiber: an exhausted pool times out with node-pg's text" {
     try testing.expect(waited >= 190 and waited < 1_000);
 }
 
-test "libpq: early queries: read later, idle-only, cancel cleanly" {
-    const url = testUrl() orelse return error.SkipZigTest;
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    const a = arena_state.allocator();
-    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .query_timeout_ms = 300 }, .max = 2 });
-    defer p.deinit();
-    var failure: root.Failure = .{};
-    const sql = "SELECT g AS n FROM generate_series(1, $1::int) g";
-    // Below max with nothing idle: nothing is opened for an early query.
-    try testing.expect((try p.begin(a, sql, &.{.{ .number = 1 }}, null)) == null);
-    try testing.expectEqual(@as(u32, 0), p.stats().total);
-    const expected = try core.json.stringifyAlloc(a, .{ .array = (try p.query(a, sql, &.{.{ .number = 3 }}, &failure)).rows });
-    // Read later than the client query timeout: it counts from `finish`.
-    var early = (try p.begin(a, sql, &.{.{ .number = 3 }}, &failure)).?;
-    std.Thread.sleep(400 * std.time.ns_per_ms);
-    try testing.expectEqualStrings(expected, try core.json.stringifyAlloc(a, .{ .array = (try early.finish(a, &failure)).rows }));
-    // Server errors keep their message; the connection survives.
-    var bad = (try p.begin(a, "SELECT 1 / $1::int AS x", &.{.{ .number = 0 }}, &failure)).?;
-    try testing.expectError(error.QueryFailed, bad.finish(a, &failure));
-    try testing.expectEqualStrings("division by zero", failure.message);
-    try testing.expectEqual(@as(u32, 1), p.stats().idle);
-    // Cancel after the reply arrived keeps the connection; mid-query drops it
-    // without waiting.
-    var done = (try p.begin(a, sql, &.{.{ .number = 2 }}, &failure)).?;
-    std.Thread.sleep(100 * std.time.ns_per_ms);
-    done.cancel();
-    try testing.expectEqual(@as(u32, 1), p.stats().idle);
-    var slow = (try p.begin(a, "SELECT pg_sleep($1::float8)", &.{.{ .number = 2 }}, &failure)).?;
-    const started = pq.nowMs();
-    slow.cancel();
-    try testing.expect(pq.nowMs() - started < 500);
-    try testing.expectEqual(@as(u32, 0), p.stats().total);
-    // Exhausted with a request queued: the early query gets nothing and the
-    // queued request is served first.
-    const c1 = try p.acquire(a, null);
-    const c2 = try p.acquire(a, null);
-    const Waiting = struct {
-        fn run(pool: *pool_mod.Pool, got: *bool) void {
-            var arena = std.heap.ArenaAllocator.init(testing.allocator);
-            defer arena.deinit();
-            const conn = pool.acquire(arena.allocator(), null) catch return;
-            got.* = true;
-            pool.release(conn);
-        }
-    };
-    var got = false;
-    const t = try std.Thread.spawn(.{}, Waiting.run, .{ p, &got });
-    while (p.stats().waiting == 0) std.Thread.sleep(std.time.ns_per_ms);
-    try testing.expect((try p.begin(a, sql, &.{.{ .number = 1 }}, null)) == null);
-    p.release(c1);
-    t.join();
-    try testing.expect(got);
-    p.release(c2);
-}
-
-test "libpq: a polled early query keeps a large reply flowing and frees its connection" {
-    const url = testUrl() orelse return error.SkipZigTest;
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    const a = arena_state.allocator();
-    // Several MB of rows under a short statement timeout: unread, the
-    // backend would block on the full socket and time out.
-    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .statement_timeout_ms = 1000 }, .max = 1 });
-    defer p.deinit();
-    var failure: root.Failure = .{};
-    _ = try p.query(a, "SELECT 1", &.{}, &failure);
-    const sql = "SELECT g, repeat('x', 1000) AS pad FROM generate_series(1, $1::int) g";
-    var early = (try p.begin(a, sql, &.{.{ .number = 8000 }}, &failure)).?;
-    const sent = pq.nowMs();
-    // The caller works for 2 s (well past the statement timeout), polling.
-    while (pq.nowMs() - sent < 2000) {
-        _ = early.poll();
-        std.Thread.sleep(2 * std.time.ns_per_ms);
-    }
-    // The reply completed long ago and the connection is back in the pool.
-    try testing.expect(early.conn == null);
-    try testing.expectEqual(@as(u32, 1), p.stats().idle);
-    try testing.expect(early.arrived_ms - sent < 500);
-    const rows = try early.finish(a, &failure);
-    try testing.expectEqual(@as(usize, 8000), rows.rows.len);
-}
-
-/// Shrinks the send buffer of the pool's (single) idle connection so a large
-/// message cannot be written at once.
-fn shrinkSendBuffer(p: *pool_mod.Pool, a: std.mem.Allocator) !void {
-    const conn = try p.acquire(a, null);
-    defer p.release(conn);
-    try std.posix.setsockopt(conn.socket(), std.posix.SOL.SOCKET, std.posix.SO.SNDBUF, std.mem.asBytes(&@as(c_int, 4096)));
-}
-
-test "libpq: an early query never waits to send; poll or finish writes the rest" {
-    const url = testUrl() orelse return error.SkipZigTest;
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    const a = arena_state.allocator();
-    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .query_timeout_ms = 5000 }, .max = 1 });
-    defer p.deinit();
-    var failure: root.Failure = .{};
-    _ = try p.query(a, "SELECT 1", &.{}, &failure);
-    try shrinkSendBuffer(p, a);
-    const big = try a.alloc(u8, 4 << 20);
-    @memset(big, 'x');
-    const sql = "SELECT length($1::text) AS n";
-    const params = [_]Value{.{ .string = big }};
-    // finish writes what begin left.
-    var early = (try p.begin(a, sql, &params, &failure)).?;
-    try testing.expect(early.wantsWrite());
-    const r = try early.finish(a, &failure);
-    try testing.expectEqual(@as(f64, 4 << 20), r.rows[0].get("n").?.number);
-    try testing.expectEqual(@as(u32, 1), p.stats().idle);
-    // poll writes it too when waiting for writability.
-    var polled = (try p.begin(a, sql, &params, &failure)).?;
-    try testing.expect(polled.wantsWrite());
-    while (polled.socket()) |fd| {
-        const events: i16 = if (polled.wantsWrite()) std.posix.POLL.IN | std.posix.POLL.OUT else std.posix.POLL.IN;
-        var fds = [_]std.posix.pollfd{.{ .fd = fd, .events = events, .revents = 0 }};
-        _ = try std.posix.poll(&fds, 1000);
-        if (polled.poll()) break;
-    }
-    try testing.expectEqual(@as(u32, 1), p.stats().idle);
-    try testing.expectEqual(@as(f64, 4 << 20), (try polled.finish(a, &failure)).rows[0].get("n").?.number);
-}
-
-test "libpq: the prefetch reader finishes sending a large early query" {
-    const url = testUrl() orelse return error.SkipZigTest;
-    core.config.set(.{ .database_url = url });
-    const svc = try DbService.init(testing.allocator, null);
-    defer svc.deinit();
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    const a = arena_state.allocator();
-    _ = try svc.queryLive(a, "SELECT 1", &.{}, null);
-    try shrinkSendBuffer(svc.live_pool.?, a);
-    const big = try a.alloc(u8, 4 << 20);
-    @memset(big, 'x');
-    const q = svc.beginLive(a, "SELECT length($1::text) AS n", &.{.{ .string = big }}).?;
-    try testing.expect(q.pending != null);
-    var waited: usize = 0;
-    while (q.arrivedMs() == null and waited < 400) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
-    try testing.expect(q.arrivedMs() != null);
-    var failure: root.Failure = .{};
-    const rows = try q.finish(&failure);
-    try testing.expectEqual(@as(f64, 4 << 20), rows[0].get("n").?.number);
-}
-
-test "libpq: beginLive matches queryLive, reruns what only an early read hit, counts once" {
-    const url = testUrl() orelse return error.SkipZigTest;
-    core.config.set(.{ .database_url = url, .database_statement_timeout_ms = 1000 });
-    const svc = try DbService.init(testing.allocator, null);
-    defer svc.deinit();
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    const a = arena_state.allocator();
-    var failure: root.Failure = .{};
-    const sql = "SELECT g AS n, 'x' || g AS t FROM generate_series(1, $1::int) g";
-    const params = [_]Value{.{ .number = 4 }};
-    const direct = try core.json.stringifyAlloc(a, .{ .array = try svc.queryLive(a, sql, &params, &failure) });
-    const early = svc.beginLive(a, sql, &params).?;
-    try testing.expect(early.pending != null);
-    try testing.expectEqualStrings(direct, try core.json.stringifyAlloc(a, .{ .array = try early.finish(&failure) }));
-    // A statement timeout seen by the early read is not trusted (unread, a
-    // large reply can block the backend into it): finish runs the query
-    // again at its read point, and only that run counts.
-    svc.stats_mutex.lock();
-    const before = svc.stats;
-    svc.stats_mutex.unlock();
-    const timed_out = svc.beginLive(a, "SELECT pg_sleep($1::float8)", &.{.{ .number = 1.5 }}).?;
-    try testing.expect(timed_out.pending != null);
-    try testing.expect(timed_out.arrivedMs() == null);
-    // The prefetch reader picks up the statement timeout by itself.
-    std.Thread.sleep(1300 * std.time.ns_per_ms);
-    try testing.expect(timed_out.arrivedMs() != null);
-    try testing.expect(timed_out.failedEarly());
-    try testing.expectError(error.QueryFailed, timed_out.finish(&failure));
-    try testing.expectEqualStrings("canceling statement due to statement timeout", failure.message);
-    svc.stats_mutex.lock();
-    try testing.expectEqual(before.queries + 1, svc.stats.queries);
-    try testing.expectEqual(before.errors + 1, svc.stats.errors);
-    svc.stats_mutex.unlock();
-    // The reader frees a connection as soon as the reply is in, without the
-    // caller ever polling: the live pool is idle before finish.
-    const quick = svc.beginLive(a, sql, &params).?;
-    var waited: usize = 0;
-    while (quick.arrivedMs() == null and waited < 200) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
-    svc.mutex.lock();
-    const live_idle = svc.live_pool.?.stats().idle;
-    const live_total = svc.live_pool.?.stats().total;
-    svc.mutex.unlock();
-    try testing.expectEqual(live_total, live_idle);
-    _ = try quick.finish(&failure);
-    // A cancelled query still on its way is drained by the reader and its
-    // connection reused (no reconnect); it counts nowhere.
-    const total_before = blk: {
-        svc.mutex.lock();
-        defer svc.mutex.unlock();
-        break :blk svc.live_pool.?.stats().total;
-    };
-    const dropped = svc.beginLive(a, "SELECT pg_sleep($1::float8)", &.{.{ .number = 0.2 }}).?;
-    try testing.expect(dropped.pending != null);
-    dropped.cancel();
-    waited = 0;
-    while (waited < 200) : (waited += 1) {
-        svc.mutex.lock();
-        const st = svc.live_pool.?.stats();
-        svc.mutex.unlock();
-        if (st.idle == st.total) break;
-        std.Thread.sleep(5 * std.time.ns_per_ms);
-    }
-    svc.mutex.lock();
-    try testing.expectEqual(total_before, svc.live_pool.?.stats().total);
-    try testing.expectEqual(total_before, svc.live_pool.?.stats().idle);
-    svc.mutex.unlock();
-    svc.stats_mutex.lock();
-    try testing.expectEqual(before.queries + 2, svc.stats.queries);
-    svc.stats_mutex.unlock();
-    // Errors read like queryLive's.
-    const bad = svc.beginLive(a, "SELECT 1 / $1::int AS x", &.{.{ .number = 0 }}).?;
-    try testing.expectError(error.QueryFailed, bad.finish(&failure));
-    try testing.expectEqualStrings("division by zero", failure.message);
-    // With nothing in flight the reader thread exits (no idle thread) and
-    // the next early query starts it again.
-    std.Thread.sleep(1300 * std.time.ns_per_ms);
-    svc.prefetch.mutex.lock();
-    try testing.expect(svc.prefetch.thread == null);
-    svc.prefetch.mutex.unlock();
-    const again = svc.beginLive(a, sql, &params).?;
-    try testing.expect(again.pending != null);
-    try testing.expectEqualStrings(direct, try core.json.stringifyAlloc(a, .{ .array = try again.finish(&failure) }));
-    // After close nothing is sent early; finish fails like queryLive.
-    try svc.close();
-    const closed = svc.beginLive(a, sql, &params).?;
-    try testing.expect(closed.pending == null);
-    try testing.expectError(error.PoolClosed, closed.finish(&failure));
-}
-
-test "libpq: without a query timeout a cancelled early query still drains and returns its connection" {
-    const url = testUrl() orelse return error.SkipZigTest;
-    core.config.set(.{ .database_url = url, .database_query_timeout_ms = 0 });
-    const svc = try DbService.init(testing.allocator, null);
-    defer svc.deinit();
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    const a = arena_state.allocator();
-    _ = try svc.queryLive(a, "SELECT 1", &.{}, null);
-    const q = svc.beginLive(a, "SELECT pg_sleep($1::float8)", &.{.{ .number = 0.3 }}).?;
-    try testing.expect(q.pending != null);
-    q.cancel();
-    var waited: usize = 0;
-    while (waited < 200) : (waited += 1) {
-        svc.mutex.lock();
-        const st = svc.live_pool.?.stats();
-        svc.mutex.unlock();
-        if (st.idle == 1 and st.total == 1) break;
-        std.Thread.sleep(5 * std.time.ns_per_ms);
-    }
-    svc.mutex.lock();
-    defer svc.mutex.unlock();
-    try testing.expectEqual(@as(u32, 1), svc.live_pool.?.stats().total);
-    try testing.expectEqual(@as(u32, 1), svc.live_pool.?.stats().idle);
-}
-
-test "libpq: when the prefetch reader runs out of memory, early queries rerun at their read point" {
-    const url = testUrl() orelse return error.SkipZigTest;
-    core.config.set(.{ .database_url = url });
-    const svc = try DbService.init(testing.allocator, null);
-    defer svc.deinit();
-    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena_state.deinit();
-    const a = arena_state.allocator();
-    var failure: root.Failure = .{};
-    const sql = "SELECT g AS n FROM generate_series(1, $1::int) g";
-    const params = [_]Value{.{ .number = 3 }};
-    const direct = try core.json.stringifyAlloc(a, .{ .array = try svc.queryLive(a, sql, &params, &failure) });
-    _ = try svc.queryLive(a, sql, &params, &failure); // a second idle connection
-    DbService.failPrefetchAllocForTest(true);
-    defer DbService.failPrefetchAllocForTest(false);
-    svc.stats_mutex.lock();
-    const before = svc.stats.queries;
-    svc.stats_mutex.unlock();
-    const kept = svc.beginLive(a, sql, &params).?;
-    const dropped = svc.beginLive(a, "SELECT pg_sleep($1::float8)", &.{.{ .number = 0.2 }}).?;
-    std.Thread.sleep(50 * std.time.ns_per_ms);
-    try testing.expect(kept.failedEarly());
-    try testing.expectEqualStrings(direct, try core.json.stringifyAlloc(a, .{ .array = try kept.finish(&failure) }));
-    dropped.cancel();
-    svc.stats_mutex.lock();
-    try testing.expectEqual(before + 1, svc.stats.queries);
-    svc.stats_mutex.unlock();
-    // Nothing leaked or stuck: every connection is back (the dropped one
-    // was closed), and close does not wait.
-    svc.mutex.lock();
-    const st = svc.live_pool.?.stats();
-    svc.mutex.unlock();
-    try testing.expectEqual(st.total, st.idle);
-    const started = pq.nowMs();
-    try svc.close();
-    try testing.expect(pq.nowMs() - started < 1_000);
-}
-
-test "libpq: prefetched TLS replies are read in the background on both input checks (opt-in SCRAPER_PROXY_TEST_TLS_URL)" {
-    const url = std.posix.getenv("SCRAPER_PROXY_TEST_TLS_URL") orelse return error.SkipZigTest;
-    for ([_]bool{ false, true }) |fallback| {
-        pq.forceTlsFallback(fallback);
-        defer pq.forceTlsFallback(false);
-        core.config.set(.{ .database_url = url });
-        const svc = try DbService.init(testing.allocator, null);
-        defer svc.deinit();
-        var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
-        defer arena_state.deinit();
-        const a = arena_state.allocator();
-        var failure: root.Failure = .{};
-        _ = try svc.queryLive(a, "SELECT 1", &.{}, &failure);
-        const sql = "SELECT g, repeat(md5(g::text), 32) AS pad FROM generate_series(1, $1::int) g";
-        const q = svc.beginLive(a, sql, &.{.{ .number = 8000 }}).?;
-        try testing.expect(q.pending != null);
-        const started = pq.nowMs();
-        // The caller never polls; the reader alone completes the reply.
-        while (q.arrivedMs() == null and pq.nowMs() - started < 3_000) std.Thread.sleep(5 * std.time.ns_per_ms);
-        try testing.expect(q.arrivedMs() != null);
-        svc.mutex.lock();
-        const st = svc.live_pool.?.stats();
-        svc.mutex.unlock();
-        try testing.expectEqual(st.total, st.idle);
-        try testing.expectEqual(@as(usize, 8000), (try q.finish(&failure)).len);
-    }
-}
-
 test "libpq: pool waiters are served FIFO and capped at max" {
     const url = testUrl() orelse return error.SkipZigTest;
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 2 });
@@ -1158,14 +815,50 @@ test "libpq: LISTEN round trip, disconnect and unlisten inside on_disconnect" {
     }.f);
     try testing.expectEqualStrings("hello", capture.payloads.items[0]);
     try testing.expectEqualStrings("", capture.payloads.items[1]);
-    // Kill the listener backend: on_disconnect fires once and unlistens.
-    _ = try svc.queryLive(a, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE 'LISTEN%' AND pid <> pg_backend_pid()", &.{}, &failure);
+    // Kill this listener's backend (matched by its own channel only, so other
+    // suites' listeners on the same server survive): on_disconnect fires once
+    // and unlistens.
+    _ = try svc.queryLive(a, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE '%LISTEN \"Mixed\"\"Case\";%' AND pid <> pg_backend_pid()", &.{}, &failure);
     try capture.waitFor(struct {
         fn f(c: *NotifyCapture) bool {
             return c.disconnected;
         }
     }.f);
     try testing.expectEqual(@as(f64, 0), svc.metricsSnapshot().listeners);
+}
+
+test "libpq: listenUnlogged leaves the listening line to logListening" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    core.config.set(.{ .database_url = url });
+    core.log.setSink(LogCapture.sink, null);
+    defer core.log.setSink(null, null);
+    defer LogCapture.reset();
+    const svc = try DbService.init(testing.allocator, null);
+    defer svc.deinit();
+    var capture: NotifyCapture = .{ .svc = svc };
+    defer capture.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const channels = [_][]const u8{ "db_quiet_a", "db_quiet_b" };
+    const l = try svc.listenUnlogged(&channels, .{ .ctx = &capture, .on_notification = NotifyCapture.onNotification, .on_disconnect = NotifyCapture.onDisconnect }, arena_state.allocator(), null);
+    defer svc.unlisten(l);
+    const listening = struct {
+        fn count() usize {
+            LogCapture.mutex.lock();
+            defer LogCapture.mutex.unlock();
+            var n: usize = 0;
+            for (LogCapture.infos.items) |m| {
+                if (std.mem.startsWith(u8, m, "listening on")) n += 1;
+            }
+            return n;
+        }
+    };
+    try testing.expectEqual(@as(usize, 0), listening.count());
+    svc.logListening(&channels);
+    try testing.expectEqual(@as(usize, 1), listening.count());
+    LogCapture.mutex.lock();
+    defer LogCapture.mutex.unlock();
+    for (LogCapture.infos.items) |m| if (std.mem.startsWith(u8, m, "listening on")) try testing.expectEqualStrings("listening on db_quiet_a, db_quiet_b", m);
 }
 
 test "libpq: idle connection killed by the server is replaced and reported" {

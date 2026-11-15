@@ -56,8 +56,8 @@ rule, not the scheduling.
   notification arriving between a worker timer firing and its drain starting
   can join the current batch instead of the next; a timer-fired drain that
   already finished is not "joined" by a later `flush()` (it runs a fresh,
-  usually empty, drain). Per-stream ordering, cursors and gap checks are
-  unchanged; only cross-event ordering inside those windows can differ.
+  usually empty, drain). Per-stream ordering is unchanged; only cross-event
+  ordering inside those windows can differ.
 - **Diagnostics stream bursts.** Node never fires a timer between two
   synchronous calls (e.g. several `notify()`s); here the 25 ms drain timer
   can fire between them, so a burst may split into two reads. Each read
@@ -211,30 +211,6 @@ rule, not the scheduling.
   Other resolvers' V8 limits differ by a few levels, so their exact boundary
   may differ slightly; the response at and beyond it is the same. Query logs
   show parameters nested deeper than 64 levels as "…".
-- **Replay page prefetch.** When a catch-up page comes back full, the next
-  page's query (the same SQL and parameters TS sends next) is sent at once on
-  a live connection that is idle right then (never opening one, queueing or
-  overtaking a waiter), so the read runs up to one page's delivery ahead of
-  TS. At the point where TS sends that query (after the page's last row) the
-  early result is used only if its parameters equal TS's, it was sent at most
-  50 ms earlier, and the domain's replay epoch is unchanged. The epoch moves
-  with every `scraper_head` and `scraper_event` notification for the domain,
-  and for all domains on a listener disconnect or adoption and when clients
-  are closed. Otherwise the early result is discarded and the query is sent
-  at TS's point. A background reader reads early replies as they arrive,
-  drains discarded ones and returns their connections to the pool (no
-  reconnect). An early read that failed in a way TS would not have seen at
-  its read point (connection lost, client or statement timeout) is rerun
-  there. Only the query used at the read point counts in query metrics,
-  stats and logs, once; a discarded one counts nowhere, though PostgreSQL
-  sees it. Visible differences: while a prefetch is in flight, the live
-  pool's `database_pool_connections` gauge shows one more `active` and one
-  fewer `idle` connection (the total is unchanged), and a prefetched query's
-  duration runs from its send to the reply as observed by the reader, an
-  upper bound by the reader's wake latency (at most 50 ms on TLS builds
-  without OpenSSL's `SSL_pending`). Tests: a head rollback, an event
-  notification for the domain, or a send older than the cap discards the
-  early page; a notification for another domain does not.
 - **Idle connection errors** are detected at checkout (pg-pool reacts to
   the socket event at once); the log line and replacement behaviour match.
 - **Inputs GraphQL coercion cannot produce** are handled deterministically
@@ -265,11 +241,9 @@ rule, not the scheduling.
 
 ## WebSockets (`/agents`, `/messages`)
 
-- **Integer ranges.** Notification ids/heights and row cursors are i128 (TS:
-  unbounded BigInt). Client cursors beyond i128 keep their exact text
-  (echoed in `subscribed` and errors) and compare as larger than any stored
-  bigint, so behaviour is unchanged; notification payloads beyond i128 are
-  rejected as invalid (unreachable from int8 columns).
+- **Integer ranges.** Notification ids and heights and row ids are i128 (TS:
+  unbounded BigInt); notification payloads beyond i128 are rejected as
+  invalid (unreachable from int8 columns).
 - **Inline write errors** are detected during the send (the socket is
   terminated and `send_error` counted then); TS learns of a synchronous
   write error in the next tick's callback. Same termination, same single
@@ -281,14 +255,10 @@ rule, not the scheduling.
   so are `bufferedAmount`, `outbound_pending_bytes`, limit decisions and
   write-callback order as seen from outside the tick (no `/metrics` read or
   other event runs inside a tick; a randomized differential test checks this
-  against one write per frame). Only TCP segment boundaries differ.
-  Catch-up rows that TS awaits one at a time are written the same way while
-  nothing is queued on the socket: each frame's checks are decided against
-  the state Node would see, and a frame the kernel only partly takes is
-  awaited before the rest (a differential checks this against per-row
-  awaited writes). With many corked sockets, the end-of-tick writes run on
-  several threads; each socket's order is unchanged and all bookkeeping runs
-  in order afterwards, so only which socket is written first differs.
+  against one write per frame). Only TCP segment boundaries differ. With
+  many corked sockets, the end-of-tick writes run on several threads; each
+  socket's order is unchanged and all bookkeeping runs in order afterwards,
+  so only which socket is written first differs.
 - **Heartbeat `serverTime`** is computed once per heartbeat sweep (TS: per
   client, within the same millisecond in practice).
 - **Upgrades after `stop()`.** TS removes its 'upgrade' listener, so Node
@@ -299,9 +269,9 @@ rule, not the scheduling.
   validate the code (`ws` throws); the proxy only passes valid codes and
   short reasons, so this is unreachable.
 - **Limits are not configurable beyond TS's env surface.** TS tests pass
-  `maxExplorerClients`, `heartbeatMs` and sub-minimum `maxCatchUpMs` to the
-  server constructor; the port's tests do the same through `live.Limits`,
-  and neither binary exposes them.
+  `maxExplorerClients` and `heartbeatMs` to the server constructor; the
+  port's tests do the same through `live.Limits`, and neither binary exposes
+  them.
 
 ## Metrics, logs, process
 

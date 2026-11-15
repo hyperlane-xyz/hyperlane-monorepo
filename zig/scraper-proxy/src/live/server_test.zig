@@ -269,60 +269,8 @@ const FakeDb = struct {
     /// Called before each query, without any lock (the loop mutex is released).
     before_query: ?struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque, sql: []const u8) void } = null,
 
-    /// Split queries: `begin` runs the query at once (a snapshot), `finish`
-    /// returns that result, `cancel` drops it. Off unless `split` is set.
-    split: bool = false,
-    begun: usize = 0,
-    finished: usize = 0,
-    cancelled: usize = 0,
-
-    const Early = struct { rows: ?[]const u8, failed: bool, arena: std.mem.Allocator };
-
     fn db(self: *FakeDb) es.Db {
-        if (!self.split) return .{ .ctx = self, .query = query };
-        return .{ .ctx = self, .query = query, .begin = begin, .finish = finish, .cancel = cancel };
-    }
-
-    fn match(self: *FakeDb, sql: []const u8, params: []const json.Value) ?Rule {
-        for (self.rules.items, 0..) |rule, index| {
-            if (std.mem.indexOf(u8, sql, rule.contains) == null) continue;
-            if (rule.domain) |domain| if (params.len == 0 or params[0] != .number or params[0].number != domain) continue;
-            if (!rule.persistent) _ = self.rules.orderedRemove(index);
-            return rule;
-        }
-        return null;
-    }
-
-    fn begin(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) ?*anyopaque {
-        const self: *FakeDb = @ptrCast(@alignCast(ctx));
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        self.begun += 1;
-        self.queries.append(a, a.dupe(u8, sql) catch unreachable) catch unreachable;
-        const early = a.create(Early) catch unreachable;
-        const rule = self.match(sql, params);
-        early.* = .{ .rows = if (rule) |r| r.rows else null, .failed = if (rule) |r| r.fail else false, .arena = arena };
-        return early;
-    }
-
-    fn finish(ctx: *anyopaque, handle: *anyopaque) anyerror![]json.Value {
-        const self: *FakeDb = @ptrCast(@alignCast(ctx));
-        const early: *Early = @ptrCast(@alignCast(handle));
-        defer a.destroy(early);
-        self.mutex.lock();
-        self.finished += 1;
-        self.mutex.unlock();
-        if (early.failed) return runtime.fail("permission denied for table", .{});
-        const text = early.rows orelse return &.{};
-        return (try json.parse(early.arena, text, .{})).array;
-    }
-
-    fn cancel(ctx: *anyopaque, handle: *anyopaque) void {
-        const self: *FakeDb = @ptrCast(@alignCast(ctx));
-        self.mutex.lock();
-        self.cancelled += 1;
-        self.mutex.unlock();
-        a.destroy(@as(*Early, @ptrCast(@alignCast(handle))));
+        return .{ .ctx = self, .query = query };
     }
 
     fn query(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) anyerror![]json.Value {
@@ -367,15 +315,31 @@ const FakeListen = struct {
     fail: bool = false,
     stopped: usize = 0,
     listens: usize = 0,
+    /// Connects without the "listening on" line (the early LISTEN).
+    unlogged: usize = 0,
+    /// "listening on" lines: one per logged `listen` plus `log_listening`.
+    logged: usize = 0,
 
     fn api(self: *FakeListen) live.Listen {
-        return .{ .ctx = self, .listen = listen, .unlisten = unlisten };
+        return .{ .ctx = self, .listen = listen, .listen_unlogged = listenUnlogged, .log_listening = logListening, .unlisten = unlisten };
+    }
+    fn listenUnlogged(ctx: *anyopaque, channels: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {
+        const self: *FakeListen = @ptrCast(@alignCast(ctx));
+        self.unlogged += 1;
+        const handle = try listen(ctx, channels, handler);
+        self.logged -= 1;
+        return handle;
+    }
+    fn logListening(ctx: *anyopaque, _: []const []const u8) void {
+        const self: *FakeListen = @ptrCast(@alignCast(ctx));
+        self.logged += 1;
     }
     fn listen(ctx: *anyopaque, _: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {
         const self: *FakeListen = @ptrCast(@alignCast(ctx));
         self.listens += 1;
         if (self.fail) return error.ConnectionFailed;
         self.handler = handler;
+        self.logged += 1;
         return self;
     }
     fn unlisten(ctx: *anyopaque, _: *anyopaque) void {
@@ -470,8 +434,6 @@ fn defaultLimits() live.Limits {
         .heartbeat_ms = 250,
         .max_agent_clients = 2,
         .max_buffered_bytes = 1_048_576,
-        .max_catch_up_ms = 60_000,
-        .max_concurrent_catch_ups = 1,
         .max_explorer_clients = 8,
         .max_total_buffered_bytes = 33_554_432,
     };
@@ -484,20 +446,126 @@ test "agent negotiation: ready, ping, errors and duplicate subscriptions" {
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
     try testing.expectEqualStrings(
-        \\{"confirmations":{"unit":"blocks","liveOnly":true},"eventTypes":["dispatch","delivery","gas_payment","merkle_tree_insertion","blocks"],"historicalStreaming":true,"streamCursorVersions":{"gas_payment":3},"type":"ready"}
+        \\{"confirmations":{"unit":"blocks","liveOnly":true},"eventTypes":["dispatch","delivery","gas_payment","merkle_tree_insertion","blocks"],"historicalStreaming":false,"liveStartVersion":1,"type":"ready"}
     , s.frame(0));
     h.server.onMessage(peer, "{\"type\":\"ping\"}");
     h.server.onMessage(peer, "nope");
-    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1,2,1]},{\"eventType\":\"gas_payment\",\"domains\":[5],\"streamCursorVersion\":3}]}");
-    try h.waitFrames(s, 4);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1,2,1]},{\"eventType\":\"gas_payment\",\"domains\":[5]}]}");
+    // subscribed, then one live start per requested domain (no checkpoints).
+    try h.waitFrames(s, 7);
     try testing.expectEqualStrings("{\"type\":\"pong\"}", s.frame(1));
     try testing.expectEqualStrings("{\"error\":\"Invalid JSON message\",\"type\":\"error\"}", s.frame(2));
     try testing.expectEqualStrings(
-        \\{"streams":[{"domains":[1,2],"eventType":"dispatch"},{"domains":[5],"eventType":"gas_payment","streamCursorVersion":3}],"type":"subscribed"}
+        \\{"streams":[{"domains":[1,2],"eventType":"dispatch"},{"domains":[5],"eventType":"gas_payment"}],"type":"subscribed"}
     , s.frame(3));
+    try testing.expectEqualStrings(
+        \\{"type":"live_start_unavailable","domain":1,"eventTypes":["dispatch"],"reason":"No healthy live-start scraper checkpoint"}
+    , s.frame(4));
+    try testing.expectEqualStrings(
+        \\{"type":"live_start_unavailable","domain":2,"eventTypes":["dispatch"],"reason":"No healthy live-start scraper checkpoint"}
+    , s.frame(5));
+    try testing.expectEqualStrings(
+        \\{"type":"live_start_unavailable","domain":5,"eventTypes":["gas_payment"],"reason":"No healthy live-start scraper checkpoint"}
+    , s.frame(6));
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"delivery\"}]}");
-    try h.waitFrames(s, 5);
-    try testing.expectEqualStrings("{\"error\":\"Already subscribed\",\"type\":\"error\"}", s.frame(4));
+    try h.waitFrames(s, 8);
+    try testing.expectEqualStrings("{\"error\":\"Already subscribed\",\"type\":\"error\"}", s.frame(7));
+}
+
+test "rejects agent backfills without reads and starts live on every connection" {
+    var h: Harness = .{};
+    try h.init(defaultLimits());
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","streams":[{"eventType":"gas_payment","domains":[1],"streamCursorVersion":3,"cursors":[{"address":"0x0000000000000000000000000000000000000001","domain":1,"afterStreamCursor":"0"}]}]}
+    );
+    try h.waitFrames(s, 2);
+    try testing.expectEqualStrings(
+        \\{"error":"Agent streams are live-only; replay cursors are unsupported. Recover history through RPC.","type":"error"}
+    , s.frame(1));
+    try testing.expectEqual(@as(usize, 0), queryCount(&h));
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"gas_payment\",\"domains\":[1]}]}");
+    try h.waitFrames(s, 4);
+    try testing.expectEqualStrings("{\"streams\":[{\"domains\":[1],\"eventType\":\"gas_payment\"}],\"type\":\"subscribed\"}", s.frame(2));
+    try testing.expectEqualStrings(
+        \\{"type":"live_start_unavailable","domain":1,"eventTypes":["gas_payment"],"reason":"No healthy live-start scraper checkpoint"}
+    , s.frame(3));
+    // One primary boundary read, no history.
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    try testing.expectEqual(@as(usize, 1), h.db.queries.items.len);
+    try testing.expect(std.mem.indexOf(u8, h.db.queries.items[0], "JOIN scraper_checkpoint") != null);
+}
+
+test "live starts: custom streams in request order, then canonical boundaries in row order" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    const checkpoint = "\"hash\":\"" ++ "AB" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"";
+    // Custom heads: domain 1 has a checkpoint at or below its frontier, 2 none.
+    h.db.on("SELECT h.domain, h.head_height",
+        "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":\"17\"," ++ checkpoint ++ "}," ++
+            "{\"domain\":2,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":null,\"hash\":null,\"mailbox\":null,\"merkle_tree_hook\":null,\"interchain_gas_paymaster\":null}]");
+    // Canonical boundaries in database row order (no ORDER BY).
+    h.db.on("JOIN scraper_checkpoint c", "[{\"domain\":3,\"height\":\"15\"," ++ checkpoint ++ "},{\"domain\":-2,\"height\":\"9007199254740993\"," ++ checkpoint ++ "}]");
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","streams":[{"eventType":"dispatch","confirmations":3,"domains":[1,2]},{"eventType":"gas_payment","domains":[4294967294,3]}]}
+    );
+    try h.waitFrames(s, 6);
+    try testing.expectEqualStrings(
+        \\{"streams":[{"confirmations":3,"domains":[1,2],"eventType":"dispatch"},{"domains":[4294967294,3],"eventType":"gas_payment"}],"type":"subscribed"}
+    , s.frame(1));
+    try testing.expectEqualStrings("{\"type\":\"live_start\",\"domain\":1,\"confirmations\":3,\"height\":\"17\",\"hash\":\"0x" ++ "ab" ** 32 ++ "\",\"streams\":[{\"eventType\":\"dispatch\",\"address\":\"0x" ++ "11" ** 20 ++ "\"}]}", s.frame(2));
+    try testing.expectEqualStrings(
+        \\{"type":"live_start_unavailable","domain":2,"confirmations":3,"eventTypes":["dispatch"],"reason":"No healthy live-start scraper checkpoint"}
+    , s.frame(3));
+    try testing.expectEqualStrings("{\"type\":\"live_start\",\"domain\":3,\"height\":\"15\",\"hash\":\"0x" ++ "ab" ** 32 ++ "\",\"streams\":[{\"eventType\":\"gas_payment\",\"address\":\"0x" ++ "33" ** 32 ++ "\"}]}", s.frame(4));
+    try testing.expectEqualStrings("{\"type\":\"live_start\",\"domain\":4294967294,\"height\":\"9007199254740993\",\"hash\":\"0x" ++ "ab" ** 32 ++ "\",\"streams\":[{\"eventType\":\"gas_payment\",\"address\":\"0x" ++ "33" ** 32 ++ "\"}]}", s.frame(5));
+    h.settle();
+    try testing.expectEqual(@as(usize, 6), s.count());
+    // The canonical read names exactly the canonical streams' domains.
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    var boundary_reads: usize = 0;
+    for (h.db.queries.items) |query| {
+        if (std.mem.indexOf(u8, query, "JOIN scraper_checkpoint c") == null) continue;
+        boundary_reads += 1;
+        try testing.expect(std.mem.indexOf(u8, query, "AND h.domain=ANY($1::integer[])") != null);
+    }
+    try testing.expectEqual(@as(usize, 1), boundary_reads);
+}
+
+test "custom streams with the same confirmations and domains share one heads snapshot" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .rows = "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":null}]" });
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","streams":[{"eventType":"dispatch","confirmations":2,"domains":[1,2]},{"eventType":"delivery","confirmations":2,"domains":[2,1]},{"eventType":"merkle_tree_insertion","confirmations":5,"domains":[1]}]}
+    );
+    // Domain 2 has no head: the first stream fails negotiation.
+    try h.waitFrames(s, 2);
+    try testing.expectEqualStrings("{\"error\":\"Custom confirmations unavailable for domain 2\",\"type\":\"error\"}", s.frame(1));
+    try waitClosed(s);
+    h.settle();
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    var reads: usize = 0;
+    for (h.db.queries.items) |query| {
+        if (std.mem.indexOf(u8, query, "SELECT h.domain, h.head_height") != null) reads += 1;
+    }
+    // (2, [1,2]) once for both streams, (5, [1]) once.
+    try testing.expectEqual(@as(usize, 2), reads);
 }
 
 test "agent message rate limit closes with 1008" {
@@ -536,7 +604,7 @@ test "live dispatch notification publishes the event frame" {
     defer h.deinit();
     const s, const peer = h.agent();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
-    try h.waitFrames(s, 2);
+    try h.waitFrames(s, 3);
     h.db.on("\"confirmed_raw_message_dispatch\" AS \"event_row\" WHERE \"event_row\".\"id\" = ANY",
         \\[{"notification_id":"7","destination_domain":-1,"id":"7","msg_body":"\\x00","msg_id":"\\xab","nonce":4,"origin_block_hash":"\\x01","origin_block_height":"10","origin_domain":1,"origin_mailbox":"\\x0000000000000000000000000000000000000001","origin_tx_hash":"\\x02","recipient":"\\x03","sender":"\\x04","time_created":"2024-01-01T00:00:00"}]
     );
@@ -544,46 +612,10 @@ test "live dispatch notification publishes the event frame" {
     h.listen.notify(live.EVENT_CHANNEL, "{\"eventType\":\"dispatch\",\"id\":\"8\",\"domain\":2}");
     h.listen.notify(live.EVENT_CHANNEL, "{\"eventType\":\"dispatch\",\"id\":\"7\",\"domain\":1}");
     h.t.fake.tick(100);
-    try h.waitFrames(s, 3);
+    try h.waitFrames(s, 4);
     try testing.expectEqualStrings(
-        \\{"data":{"destination_domain":4294967295,"id":"7","msg_body":"\\x00","msg_id":"\\xab","nonce":4,"origin_block_hash":"\\x01","origin_block_height":"10","origin_domain":1,"origin_mailbox":"\\x0000000000000000000000000000000000000001","origin_tx_hash":"\\x02","recipient":"\\x03","sender":"\\x04","time_created":"2024-01-01T00:00:00"},"domain":1,"eventType":"dispatch","sequence":"4","type":"event"}
-    , s.frame(2));
-}
-
-test "sequence catch-up replays then hands off, and a gap closes with 1013" {
-    var h: Harness = .{};
-    try h.init(defaultLimits());
-    defer h.deinit();
-    const s, const peer = h.agent();
-    h.db.on("COALESCE(MIN(\"nonce\")", "[{\"first\":\"0\",\"last\":\"3\"}]");
-    h.db.on("\"nonce\" > $3::bigint",
-        \\[{"origin_domain":1,"destination_domain":2,"origin_mailbox":"\\x0000000000000000000000000000000000000001","nonce":2},{"origin_domain":1,"destination_domain":2,"origin_mailbox":"\\x0000000000000000000000000000000000000001","nonce":3}]
-    );
-    h.server.onMessage(peer,
-        \\{"type":"subscribe","streams":[{"eventType":"dispatch","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"1"}]}]}
-    );
-    try h.waitFrames(s, 5);
-    try testing.expectEqualStrings(
-        \\{"streams":[{"cursors":[{"address":"0x0000000000000000000000000000000000000001","afterSequence":"1","domain":1}],"domains":[1],"eventType":"dispatch"}],"type":"subscribed"}
-    , s.frame(1));
-    try testing.expectEqualStrings(
-        \\{"data":{"origin_domain":1,"destination_domain":2,"origin_mailbox":"\\x0000000000000000000000000000000000000001","nonce":2},"domain":1,"eventType":"dispatch","sequence":"2","type":"event"}
-    , s.frame(2));
-    try testing.expectEqualStrings(
-        \\{"address":"0x0000000000000000000000000000000000000001","domain":1,"eventType":"dispatch","type":"caught_up","sequence":"3"}
-    , s.frame(4));
-    // Live row with a gap (expected 4).
-    h.db.on("\"event_row\".\"id\" = ANY",
-        \\[{"notification_id":"9","origin_domain":1,"destination_domain":2,"origin_mailbox":"\\x0000000000000000000000000000000000000001","nonce":6}]
-    );
-    h.listen.notify(live.EVENT_CHANNEL, "{\"eventType\":\"dispatch\",\"id\":\"9\",\"domain\":1}");
-    h.t.fake.tick(100);
-    for (0..10_000) |_| {
-        if (s.close_code != null) break;
-        std.Thread.sleep(std.time.ns_per_ms);
-    }
-    try testing.expectEqual(@as(?u16, 1013), s.close_code);
-    try testing.expectEqualStrings("dispatch sequence gap: expected 4, received 6", s.reason());
+        \\{"type":"event","eventType":"dispatch","domain":1,"data":{"destination_domain":4294967295,"id":"7","msg_body":"\\x00","msg_id":"\\xab","nonce":4,"origin_block_hash":"\\x01","origin_block_height":"10","origin_domain":1,"origin_mailbox":"\\x0000000000000000000000000000000000000001","origin_tx_hash":"\\x02","recipient":"\\x03","sender":"\\x04","time_created":"2024-01-01T00:00:00"},"sequence":"4"}
+    , s.frame(3));
 }
 
 test "explorer negotiation: ready frames, validation and per-IP limits" {
@@ -703,7 +735,7 @@ test "confirmed head ranges publish agent events and queue Explorer ids" {
     defer h.deinit();
     const agent, const peer = h.agent();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"delivery\",\"domains\":[1]}]}");
-    try h.waitFrames(agent, 2);
+    try h.waitFrames(agent, 3);
     const explorer, _ = h.explorer("/messages", "1.2.3.4");
     try h.waitFrames(explorer, 1);
     const id = "cd" ** 32;
@@ -715,12 +747,12 @@ test "confirmed head ranges publish agent events and queue Explorer ids" {
     h.db.on("FROM \"message_view\"", "[{\"msg_id\":\"\\\\x" ++ id ++ "\"}]");
     h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"10\",\"previousConfirmedHeight\":\"8\"}");
     h.t.fake.tick(100);
-    try h.waitFrames(agent, 3);
+    try h.waitFrames(agent, 4);
     try testing.expectEqualStrings(
-        \\{"data":{"time_created":"t","msg_id":"\\x
+        \\{"type":"event","eventType":"delivery","domain":1,"data":{"time_created":"t","msg_id":"\\x
     ++ id ++
-        \\","domain":1,"destination_mailbox":"\\x01","destination_tx_id":"5","sequence":"3"},"domain":1,"eventType":"delivery","type":"event"}
-    , agent.frame(2));
+        \\","domain":1,"destination_mailbox":"\\x01","destination_tx_id":"5","sequence":"3"}}
+    , agent.frame(3));
     for (0..200) |_| {
         h.t.fake.tick(100);
         if (explorer.count() >= 2) break;
@@ -953,39 +985,29 @@ test "rejects out-of-range heartbeat intervals without starting timers (69)" {
     }
 }
 
-test "paces historical sends by send completion (24)" {
+test "paces live starts by send completion" {
     var h: Harness = .{};
     try h.init(defaultLimits());
     defer h.deinit();
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
     h.settle();
-    h.db.on("COALESCE(MIN(\"leaf_index\")", "[{\"first\":\"0\",\"last\":\"1\"}]");
-    h.db.on("\"leaf_index\" > $3::bigint",
-        \\[{"domain":1,"merkle_tree_hook":"\\x0000000000000000000000000000000000000001","leaf_index":0,"message_id":"\\xaa","block_number":5},{"domain":1,"merkle_tree_hook":"\\x0000000000000000000000000000000000000001","leaf_index":1,"message_id":"\\xbb","block_number":6}]
-    );
     s.hold = true;
-    h.server.onMessage(peer,
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
-    );
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1,2]}]}");
     try h.waitFrames(s, 3);
     h.settle();
-    try testing.expectEqual(@as(usize, 3), s.count()); // ready, subscribed, event 0
-    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"sequence\":\"0\"") != null);
-    try testing.expectEqual(@as(usize, 2), s.heldCount()); // subscribed + event 0
+    try testing.expectEqual(@as(usize, 3), s.count()); // ready, subscribed, live start 1
+    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"domain\":1") != null);
+    try testing.expectEqual(@as(usize, 2), s.heldCount()); // subscribed + live start 1
     try testing.expect(s.releaseOne()); // subscribed
     h.settle();
-    try testing.expectEqual(@as(usize, 3), s.count()); // still paced on event 0
-    try testing.expect(s.releaseOne()); // event 0
+    try testing.expectEqual(@as(usize, 3), s.count()); // still awaiting live start 1
+    try testing.expect(s.releaseOne()); // live start 1
     try h.waitFrames(s, 4);
     h.settle();
     try testing.expectEqual(@as(usize, 4), s.count());
-    try testing.expect(std.mem.indexOf(u8, s.frame(3), "\"sequence\":\"1\"") != null);
+    try testing.expect(std.mem.indexOf(u8, s.frame(3), "\"domain\":2") != null);
     s.releaseHeld(null);
-    try h.waitFrames(s, 5);
-    try testing.expectEqualStrings(
-        \\{"address":"0x0000000000000000000000000000000000000001","domain":1,"eventType":"merkle_tree_insertion","type":"caught_up","sequence":"1"}
-    , s.frame(4));
 }
 
 test "keeps one failing frontier domain from blocking another, then disconnects only its subscribers (49, 50)" {
@@ -998,8 +1020,8 @@ test "keeps one failing frontier domain from blocking another, then disconnects 
     const two, const two_peer = h.agent();
     h.server.onMessage(both_peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"delivery\",\"domains\":[1,2]}]}");
     h.server.onMessage(two_peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"delivery\",\"domains\":[2]}]}");
-    try h.waitFrames(both, 2);
-    try h.waitFrames(two, 2);
+    try h.waitFrames(both, 4); // ready, subscribed, two live starts
+    try h.waitFrames(two, 3);
     const frontier = "\"confirmed_delivered_message\" AS \"frontier_row\"";
     h.db.add(.{ .contains = frontier, .domain = 1, .persistent = true, .fail = true });
     h.db.add(.{ .contains = frontier, .domain = 2, .persistent = true, .rows = 
@@ -1009,8 +1031,8 @@ test "keeps one failing frontier domain from blocking another, then disconnects 
     h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":2,\"confirmedHeight\":\"10\",\"previousConfirmedHeight\":\"8\"}");
     h.t.fake.tick(100);
     // Domain 2 is published despite domain 1 failing first.
-    try h.waitFrames(both, 3);
-    try h.waitFrames(two, 3);
+    try h.waitFrames(both, 5);
+    try h.waitFrames(two, 4);
     try testing.expect(FakeSocket.isOpen(both));
     // Second and third failures retry after LISTENER_RETRY_MS.
     for (0..2) |_| {
@@ -1022,81 +1044,9 @@ test "keeps one failing frontier domain from blocking another, then disconnects 
     try testing.expectEqualStrings("Event stream read failed", both.reason());
     h.settle();
     try testing.expect(FakeSocket.isOpen(two));
-    try testing.expectEqual(@as(usize, 3), two.count());
+    try testing.expectEqual(@as(usize, 4), two.count());
     const metrics = metricsOf(&h);
     try testing.expectEqual(@as(f64, 1), metrics.connections.agent);
-}
-
-fn subscribeMerkleCursor(h: *Harness, peer: *live.Peer) void {
-    h.db.on("COALESCE(MIN(\"leaf_index\")", "[{\"first\":\"0\",\"last\":\"0\"}]");
-    h.db.on("\"leaf_index\" > $3::bigint",
-        \\[{"domain":1,"merkle_tree_hook":"\\x0000000000000000000000000000000000000001","leaf_index":0,"message_id":"\\xaa","block_number":5}]
-    );
-    h.server.onMessage(peer,
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
-    );
-}
-
-test "queues catch-ups at the concurrency limit and cancels waiters on disconnect (25)" {
-    var h: Harness = .{};
-    var limits = defaultLimits();
-    limits.heartbeat_ms = 1_000_000;
-    try h.init(limits);
-    defer h.deinit();
-    const first, const first_peer = h.agent();
-    const second, const second_peer = h.agent();
-    try h.waitFrames(first, 1);
-    try h.waitFrames(second, 1);
-    h.settle();
-    first.hold = true;
-    subscribeMerkleCursor(&h, first_peer);
-    try h.waitFrames(first, 3); // subscribed + event 0, write pending
-    subscribeMerkleCursor(&h, second_peer);
-    try h.waitFrames(second, 2); // subscribed only: waiting for the slot
-    h.settle();
-    try testing.expectEqual(@as(usize, 2), second.count());
-    try testing.expectEqual(@as(f64, 1), metricsOf(&h).catchUps);
-    // A waiting catch-up is cancelled by disconnect without taking the slot.
-    const aborted = core.metrics.websocket_catch_ups.get(.{"aborted"});
-    h.server.onClose(second_peer);
-    h.peers.items[1] = h.peers.items[0];
-    _ = h.peers.pop();
-    h.settle();
-    try testing.expectEqual(aborted, core.metrics.websocket_catch_ups.get(.{"aborted"}));
-    const success = core.metrics.websocket_catch_ups.get(.{"success"});
-    first.releaseHeld(null);
-    try h.waitFrames(first, 4);
-    try testing.expectEqualStrings(
-        \\{"address":"0x0000000000000000000000000000000000000001","domain":1,"eventType":"merkle_tree_insertion","type":"caught_up","sequence":"0"}
-    , first.frame(3));
-    h.settle();
-    try testing.expectEqual(success + 1, core.metrics.websocket_catch_ups.get(.{"success"}));
-    try testing.expectEqual(@as(f64, 0), metricsOf(&h).catchUps);
-}
-
-test "a queued catch-up starts when the slot is released (25)" {
-    var h: Harness = .{};
-    var limits = defaultLimits();
-    limits.heartbeat_ms = 1_000_000;
-    try h.init(limits);
-    defer h.deinit();
-    const first, const first_peer = h.agent();
-    const second, const second_peer = h.agent();
-    try h.waitFrames(first, 1);
-    try h.waitFrames(second, 1);
-    h.settle();
-    first.hold = true;
-    subscribeMerkleCursor(&h, first_peer);
-    try h.waitFrames(first, 3);
-    subscribeMerkleCursor(&h, second_peer);
-    try h.waitFrames(second, 2);
-    h.settle();
-    try testing.expectEqual(@as(usize, 2), second.count());
-    first.releaseHeld(null);
-    try h.waitFrames(first, 4);
-    try h.waitFrames(second, 4);
-    try testing.expect(std.mem.indexOf(u8, second.frame(2), "\"sequence\":\"0\"") != null);
-    try testing.expect(std.mem.indexOf(u8, second.frame(3), "caught_up") != null);
 }
 
 fn advisoryTest(comptime available: bool) !void {
@@ -1107,15 +1057,19 @@ fn advisoryTest(comptime available: bool) !void {
     defer h.deinit();
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
-    h.db.on("SELECT domain, head_height, indexed_height, confirmed_height", if (available)
+    h.db.on("SELECT h.domain, h.head_height", if (available)
         "[{\"domain\":1,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"5\"}]"
     else
         "[]");
     h.server.onMessage(peer,
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","includeZeroConfirmations":true,"cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"},{"domain":2,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
+        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","includeZeroConfirmations":true,"domains":[1,2]}]}
     );
-    // ready, subscribed, two caught_up frames (no history): no rejection.
-    try h.waitFrames(s, 4);
+    // ready, subscribed, zero-confirmation then canonical live starts for
+    // both domains (no checkpoints): no rejection.
+    try h.waitFrames(s, 6);
+    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"domain\":1,\"confirmations\":0") != null);
+    try testing.expect(std.mem.indexOf(u8, s.frame(3), "\"domain\":2,\"confirmations\":0") != null);
+    try testing.expect(std.mem.indexOf(u8, s.frame(4), "\"domain\":1,\"eventTypes\"") != null);
     try testing.expect(std.mem.indexOf(u8, s.frame(1), "\"includeZeroConfirmations\":true") != null);
     for ([_][]const u8{ "1", "2" }) |domain| {
         var payload: [160]u8 = undefined;
@@ -1135,11 +1089,11 @@ fn advisoryTest(comptime available: bool) !void {
     try testing.expect(FakeSocket.isOpen(s));
 }
 
-test "preserves canonical replay with no advisory near-head coverage (#10026)" {
+test "preserves canonical live events with no advisory near-head coverage (#10026)" {
     try advisoryTest(false);
 }
 
-test "preserves canonical replay with partial advisory near-head coverage (#10026)" {
+test "preserves canonical live events with partial advisory near-head coverage (#10026)" {
     try advisoryTest(true);
 }
 
@@ -1168,7 +1122,7 @@ test "agent notification queue: coalesces at the 10k cap, then fails the stream 
     defer h.deinit();
     const s, const peer = h.agent();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"delivery\",\"domains\":[1]}]}");
-    try h.waitFrames(s, 2);
+    try h.waitFrames(s, 3);
     var payload: [96]u8 = undefined;
     for (0..10_000) |id| h.listen.notify(live.EVENT_CHANNEL, try std.fmt.bufPrint(&payload, "{{\"eventType\":\"delivery\",\"id\":\"{d}\",\"domain\":1}}", .{id}));
     // A repeat of a queued id coalesces at the cap instead of overflowing.
@@ -1190,7 +1144,7 @@ test "agent notification queue drains 10k ids in 1000-id batches in order" {
     defer h.deinit();
     const s, const peer = h.agent();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"delivery\",\"domains\":[1]}]}");
-    try h.waitFrames(s, 2);
+    try h.waitFrames(s, 3);
     var payload: [96]u8 = undefined;
     for (0..10_000) |id| h.listen.notify(live.EVENT_CHANNEL, try std.fmt.bufPrint(&payload, "{{\"eventType\":\"delivery\",\"id\":\"{d}\",\"domain\":1}}", .{id}));
     h.t.fake.tick(100);
@@ -1222,24 +1176,18 @@ test "a heartbeat fired long after its deadline pings, then terminates a silent 
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).connections.agent);
 }
 
-test "inline writes: catch-up completes without send callbacks" {
+test "inline writes: live starts complete without send callbacks" {
     var h: Harness = .{};
     try h.init(defaultLimits());
     defer h.deinit();
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
     h.settle();
-    s.hold = true; // any queued send would stall the replay
+    s.hold = true; // any queued send would stall the awaited live starts
     s.inline_mode = .written;
-    h.db.on("COALESCE(MIN(\"leaf_index\")", "[{\"first\":\"0\",\"last\":\"1\"}]");
-    h.db.on("\"leaf_index\" > $3::bigint",
-        \\[{"domain":1,"merkle_tree_hook":"\\x0000000000000000000000000000000000000001","leaf_index":0,"message_id":"\\xaa","block_number":5},{"domain":1,"merkle_tree_hook":"\\x0000000000000000000000000000000000000001","leaf_index":1,"message_id":"\\xbb","block_number":6}]
-    );
-    h.server.onMessage(peer,
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
-    );
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1,2,3]}]}");
     try h.waitFrames(s, 5);
-    try testing.expect(std.mem.indexOf(u8, s.frame(4), "caught_up") != null);
+    try testing.expect(std.mem.indexOf(u8, s.frame(4), "\"domain\":3") != null);
     try testing.expectEqual(@as(usize, 0), s.heldCount());
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
 }
@@ -1372,7 +1320,7 @@ const three_dispatch_rows =
 fn subscribeLiveDispatch(h: *Harness) struct { *FakeSocket, *live.Peer } {
     const s, const peer = h.agent();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
-    h.waitFrames(s, 2) catch unreachable;
+    h.waitFrames(s, 3) catch unreachable; // ready, subscribed, live start
     h.settle();
     return .{ s, peer };
 }
@@ -1397,12 +1345,12 @@ test "frames published to a peer in one turn are written with one syscall, in or
         s.flushes = 0;
     }
     notifyThreeDispatches(&h);
-    try h.waitFrames(first, 5);
-    try h.waitFrames(second, 5);
+    try h.waitFrames(first, 6);
+    try h.waitFrames(second, 6);
     h.settle();
     for ([_]*FakeSocket{ first, second }) |s| {
         try testing.expectEqual(@as(usize, 1), s.flushes);
-        for (s.frames.items[2..5], [_][]const u8{ "\"sequence\":\"4\"", "\"sequence\":\"5\"", "\"sequence\":\"6\"" }) |frame, needle|
+        for (s.frames.items[3..6], [_][]const u8{ "\"sequence\":\"4\"", "\"sequence\":\"5\"", "\"sequence\":\"6\"" }) |frame, needle|
             try testing.expect(std.mem.indexOf(u8, frame, needle) != null);
     }
     // Fully written frames are released at the end of the turn.
@@ -1421,13 +1369,13 @@ test "corked frames are decided against the real bufferedAmount once their bound
     s.inline_mode = .written;
     s.flushes = 0;
     notifyThreeDispatches(&h);
-    try h.waitFrames(s, 5);
+    try h.waitFrames(s, 6);
     h.settle();
     // ws: each frame reached the kernel, bufferedAmount stayed 0, nothing
     // tripped: the third frame flushed the first two and was checked exactly.
     try testing.expect(!s.terminated);
     try testing.expectEqual(@as(usize, 1), s.flushes);
-    try testing.expectEqual(@as(usize, 5), s.count());
+    try testing.expectEqual(@as(usize, 6), s.count());
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
 }
 
@@ -1439,105 +1387,15 @@ test "a corked frame the socket cannot take whole stays charged until written" {
     s.inline_mode = .partial;
     s.hold = true;
     notifyThreeDispatches(&h);
-    try h.waitFrames(s, 5);
+    try h.waitFrames(s, 6);
     h.settle();
     var expected: f64 = 0;
-    for (s.frames.items[2..5]) |frame| expected += @floatFromInt(frame.len);
+    for (s.frames.items[3..6]) |frame| expected += @floatFromInt(frame.len);
     try testing.expectEqual(expected, metricsOf(&h).outboundPendingBytes);
     s.releaseHeld(true);
     h.settle();
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
     try testing.expect(!s.terminated);
-}
-
-fn merkleRow(comptime leaf: []const u8, comptime message: []const u8) []const u8 {
-    return "{\"domain\":1,\"merkle_tree_hook\":\"\\\\x0000000000000000000000000000000000000001\",\"leaf_index\":" ++ leaf ++ ",\"message_id\":\"\\\\x" ++ message ++ "\",\"block_number\":5}";
-}
-
-/// Replay of leaves 0..3 in pages of two. The second page is sent ahead of
-/// its turn (when the first one arrives) and snapshots the "old" rows; the
-/// query run at its turn returns "new" rows. A head notification for
-/// `head_domain` arrives while the first page is being delivered.
-const WindowResult = struct { frames: [4][]const u8, begun: usize, cancelled: usize, finished: usize };
-
-fn replayWithNotificationInWindow(channel: []const u8, notification: []const u8) !WindowResult {
-    return replayWindow(channel, notification, .{});
-}
-
-const WindowOptions = struct {
-    /// Loop time that passes while the first page's write is held.
-    tick_ms: u64 = 0,
-    /// `EventStore.prefetch_age_ms`.
-    age_cap_ms: i64 = 60_000,
-};
-
-fn replayWindow(channel: []const u8, notification: []const u8, options: WindowOptions) !WindowResult {
-    var h: Harness = .{ .db = .{ .split = true } };
-    try h.initBatch(defaultLimits(), 2);
-    defer h.deinit();
-    h.server.store.prefetch_age_ms = options.age_cap_ms;
-    const s, const peer = h.agent();
-    try h.waitFrames(s, 1);
-    h.db.on("COALESCE(MIN(\"leaf_index\")", "[{\"first\":\"0\",\"last\":\"3\"}]");
-    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("0", "a0") ++ "," ++ merkleRow("1", "a1") ++ "]");
-    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("2", "01d") ++ "," ++ merkleRow("3", "01d") ++ "]"); // the early snapshot
-    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("2", "2e") ++ "," ++ merkleRow("3", "3e") ++ "]"); // read at TS's turn
-    // Hold the first replayed frame's write: the replay waits mid-page.
-    s.hold = true;
-    h.server.onMessage(peer,
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
-    );
-    for (0..10_000) |_| {
-        if (s.heldCount() >= 2) break; // subscribed + first event
-        std.Thread.sleep(std.time.ns_per_ms);
-    }
-    try testing.expect(s.heldCount() >= 2);
-    h.listen.notify(channel, notification);
-    if (options.tick_ms > 0) h.t.fake.tick(@intCast(options.tick_ms));
-    s.releaseHeld(true);
-    try h.waitFrames(s, 7); // ready, subscribed, 4 events, caught_up
-    h.settle();
-    var frames: [4][]const u8 = undefined;
-    for (&frames, 2..) |*frame, index| frame.* = try a.dupe(u8, s.frame(index));
-    return .{ .frames = frames, .begun = h.db.begun, .cancelled = h.db.cancelled, .finished = h.db.finished };
-}
-
-test "a replay page read ahead is dropped when a head notification for its domain is processed first" {
-    const result = try replayWithNotificationInWindow(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"1\"}");
-    defer for (result.frames) |frame| a.free(frame);
-    // The prefetched (old) rows were discarded; the page was read again at its turn.
-    try testing.expectEqual(@as(usize, 1), result.begun);
-    try testing.expectEqual(@as(usize, 1), result.cancelled);
-    try testing.expectEqual(@as(usize, 0), result.finished);
-    try testing.expect(std.mem.indexOf(u8, result.frames[2], "\\\\x2e") != null);
-    try testing.expect(std.mem.indexOf(u8, result.frames[3], "\\\\x3e") != null);
-}
-
-test "a replay page read ahead is used when only another domain's head moved" {
-    const result = try replayWithNotificationInWindow(live.HEAD_CHANNEL, "{\"domain\":2,\"confirmedHeight\":\"1\"}");
-    defer for (result.frames) |frame| a.free(frame);
-    try testing.expectEqual(@as(usize, 1), result.begun);
-    try testing.expectEqual(@as(usize, 0), result.cancelled);
-    try testing.expectEqual(@as(usize, 1), result.finished);
-    try testing.expect(std.mem.indexOf(u8, result.frames[2], "\\\\x01d") != null);
-}
-
-test "a replay page read ahead is dropped when a row for its domain is committed first" {
-    // e.g. a backfilled row inside the replay range (TS reads after it).
-    const result = try replayWithNotificationInWindow(live.EVENT_CHANNEL, "{\"eventType\":\"merkle_tree_insertion\",\"id\":\"77\",\"domain\":1}");
-    defer for (result.frames) |frame| a.free(frame);
-    try testing.expectEqual(@as(usize, 1), result.begun);
-    try testing.expectEqual(@as(usize, 1), result.cancelled);
-    try testing.expectEqual(@as(usize, 0), result.finished);
-}
-
-test "a replay page read ahead is dropped when it was sent longer ago than the age cap" {
-    const result = try replayWindow(live.HEAD_CHANNEL, "{\"domain\":2,\"confirmedHeight\":\"1\"}", .{ .tick_ms = 60, .age_cap_ms = 50 }); // (under the 250 ms heartbeat)
-    defer for (result.frames) |frame| a.free(frame);
-    try testing.expectEqual(@as(usize, 1), result.begun);
-    try testing.expectEqual(@as(usize, 1), result.cancelled);
-    try testing.expectEqual(@as(usize, 0), result.finished);
-    try testing.expect(std.mem.indexOf(u8, result.frames[2], "\\\\x2e") != null);
 }
 
 /// `listenEarly`, then wait for the early connection (no `start` yet).
@@ -1570,16 +1428,20 @@ test "notifications on the early listener before start change nothing" {
     h.t.fake.tick(1_000); // any batch timer would fire
     h.settle();
     try testing.expectEqual(@as(usize, 0), queryCount(&h));
-    try testing.expectEqual(@as(u64, 0), h.server.replayEpoch(1));
     try h.server.start();
     defer h.deinit();
     // Adopted: the same connection, now delivering.
     try testing.expectEqual(@as(usize, 1), h.listen.listens);
     try testing.expectEqual(early.ctx, h.listen.handler.?.ctx);
-    const before = h.server.replayEpoch(1);
-    _, _ = h.explorer("/messages", "1.2.3.4");
-    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"1\"}");
-    try testing.expect(h.server.replayEpoch(1) != before);
+    const s, _ = h.explorer("/messages", "1.2.3.4");
+    try h.waitFrames(s, 1);
+    h.listen.notify(live.EXPLORER_CHANNEL, "{\"messageId\":\"" ++ "01" ** 32 ++ "\"}");
+    h.t.fake.tick(100);
+    for (0..10_000) |_| {
+        if (queryCount(&h) > 0) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expectEqual(@as(usize, 1), queryCount(&h));
 }
 
 test "an early listener lost before start is replaced by a fresh connect, silently" {
@@ -1616,20 +1478,258 @@ test "an awaited frame completed before its sender looked still resumes like an 
     // The completion ran (another thread) before `sendAndWait` checked: the
     // frames after it on the socket must not stay held.
     var h: Harness = .{};
-    try h.initBatch(defaultLimits(), 2);
+    try h.init(defaultLimits());
     defer h.deinit();
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
     s.complete_in_send = true;
-    h.db.on("COALESCE(MIN(\"leaf_index\")", "[{\"first\":\"0\",\"last\":\"3\"}]");
-    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("0", "a0") ++ "," ++ merkleRow("1", "a1") ++ "]");
-    h.db.on("\"leaf_index\" > $3::bigint", comptime "[" ++ merkleRow("2", "a2") ++ "," ++ merkleRow("3", "a3") ++ "]");
     h.server.onMessage(peer,
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]},{"eventType":"dispatch","domains":[1]}]}
+        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","domains":[1,2,3]},{"eventType":"dispatch","domains":[1]}]}
     );
-    try h.waitFrames(s, 7); // ready, subscribed, 4 events, caught_up
+    try h.waitFrames(s, 5); // ready, subscribed, 3 awaited live starts
     notifyThreeDispatches(&h);
-    try h.waitFrames(s, 10);
+    try h.waitFrames(s, 8);
     h.settle();
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
+}
+
+/// Holds every query whose SQL contains `contains` until `open`.
+const QueryGate = struct {
+    contains: []const u8,
+    started: std.Thread.ResetEvent = .{},
+    released: std.Thread.ResetEvent = .{},
+
+    fn before(ctx: *anyopaque, sql: []const u8) void {
+        const self: *QueryGate = @ptrCast(@alignCast(ctx));
+        if (std.mem.indexOf(u8, sql, self.contains) == null) return;
+        self.started.set();
+        self.released.wait();
+    }
+};
+
+fn countFrames(s: *FakeSocket, needle: []const u8) usize {
+    s.mutex.lock();
+    defer s.mutex.unlock();
+    var total: usize = 0;
+    for (s.frames.items) |item| {
+        if (std.mem.indexOf(u8, item, needle) != null) total += 1;
+    }
+    return total;
+}
+
+test "closes a failed boundary snapshot without claiming a live start" {
+    var h: Harness = .{};
+    try h.init(defaultLimits());
+    defer h.deinit();
+    h.db.add(.{ .contains = "JOIN scraper_checkpoint", .fail = true });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
+    try waitClosed(s);
+    try testing.expect(s.terminated);
+    try testing.expectEqual(@as(usize, 1), countFrames(s, "\"type\":\"subscribed\""));
+    try testing.expectEqual(@as(usize, 0), countFrames(s, "live_start"));
+}
+
+test "registers live delivery before reading the boundary" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    var gate: QueryGate = .{ .contains = "JOIN scraper_checkpoint" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    h.db.add(.{ .contains = "JOIN scraper_checkpoint", .rows = "[{\"domain\":1,\"height\":\"100\",\"hash\":\"" ++ "ab" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]" });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1]}]}");
+    gate.started.wait();
+    try h.waitFrames(s, 2);
+    h.db.on("\"confirmed_merkle_tree_insertion\" AS \"event_row\" WHERE",
+        \\[{"notification_id":"21","domain":1,"merkle_tree_hook":"\\x0000000000000000000000000000000000000001","leaf_index":0,"message_id":"\\xaa","block_number":101}]
+    );
+    h.listen.notify(live.EVENT_CHANNEL, "{\"eventType\":\"merkle_tree_insertion\",\"id\":\"21\",\"domain\":1}");
+    h.t.fake.tick(100);
+    try h.waitFrames(s, 3);
+    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"type\":\"event\"") != null);
+    gate.released.set();
+    try h.waitFrames(s, 4);
+    try testing.expect(std.mem.startsWith(u8, s.frame(3), "{\"type\":\"live_start\",\"domain\":1,\"height\":\"100\""));
+}
+
+fn cancelsSetupDuringBlockSnapshot(comptime route: live.Route) !void {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    var gate: QueryGate = .{ .contains = "encode(indexed_hash, 'hex')" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    const s, const peer = if (route == .agent) h.agent() else h.explorer("/messages?blocks=true&confirmations=0&domains=1", "1.2.3.4");
+    if (route == .agent) {
+        try h.waitFrames(s, 1);
+        h.server.onMessage(peer,
+            \\{"type":"subscribe","streams":[{"eventType":"blocks","domains":[1]},{"eventType":"dispatch","domains":[1],"confirmations":0}]}
+        );
+    }
+    gate.started.wait();
+    h.server.onClose(peer);
+    _ = h.peers.pop();
+    gate.released.set();
+    h.settle();
+    const snapshot = metricsOf(&h);
+    try testing.expectEqual(@as(f64, 0), snapshot.connections.agent + snapshot.connections.messages);
+    // No stream was initialized: no heads read, nothing acknowledged.
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    for (h.db.queries.items) |query| try testing.expect(std.mem.indexOf(u8, query, "confirmed_height") == null);
+    // Agents saw only `ready`; Explorer never got its `ready`.
+    try testing.expectEqual(@as(usize, if (route == .agent) 1 else 0), s.count());
+}
+
+test "agents cancels confirmation setup when disconnected during the block snapshot" {
+    try cancelsSetupDuringBlockSnapshot(.agent);
+}
+
+test "messages cancels confirmation setup when disconnected during the block snapshot" {
+    try cancelsSetupDuringBlockSnapshot(.explorer);
+}
+
+/// `confirmationHeads(…, 2)` rows for domain 1: before (P) and after (P2) an
+/// indexed-height rollback from 100 to 99 (TS 493's fixture).
+const heads_before = "[{\"domain\":1,\"head_height\":\"102\",\"indexed_height\":\"100\",\"confirmed_height\":\"90\",\"height\":\"100\",\"hash\":\"" ++ "ab" ** 32 ++
+    "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
+const heads_after = "[{\"domain\":1,\"head_height\":\"101\",\"indexed_height\":\"99\",\"confirmed_height\":\"90\",\"height\":\"99\",\"hash\":\"" ++ "cd" ** 32 ++
+    "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
+const rollback_head = "{\"domain\":1,\"confirmedHeight\":\"90\",\"previousConfirmedHeight\":\"90\",\"indexedHeight\":\"99\",\"previousIndexedHeight\":\"100\",\"headHeight\":\"101\"}";
+const two_custom_streams =
+    \\{"type":"subscribe","streams":[{"eventType":"dispatch","domains":[1],"confirmations":2},{"eventType":"delivery","domains":[1],"confirmations":2}]}
+;
+
+fn headsReads(h: *Harness) usize {
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    var reads: usize = 0;
+    for (h.db.queries.items) |query| {
+        if (std.mem.indexOf(u8, query, "SELECT h.domain, h.head_height") != null) reads += 1;
+    }
+    return reads;
+}
+
+fn revisionOf(h: *Harness) u64 {
+    h.t.loop.lock();
+    defer h.t.loop.unlock();
+    return h.server.confirmation_revision;
+}
+
+fn liveStartOf(s: *FakeSocket, comptime event_type: []const u8) ?[]const u8 {
+    s.mutex.lock();
+    defer s.mutex.unlock();
+    for (s.frames.items) |item| {
+        if (std.mem.startsWith(u8, item, "{\"type\":\"live_start") and std.mem.indexOf(u8, item, "\"" ++ event_type ++ "\"") != null) return item;
+    }
+    return null;
+}
+
+test "custom streams sharing a snapshot both retry on a fresh one when a rollback lands during the read" {
+    // TS 493 (rollback): both streams await the same read; the rollback bumps
+    // both revisions, so both read again and share the fresh snapshot.
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    var gate: QueryGate = .{ .contains = "SELECT h.domain, h.head_height" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    h.db.on("SELECT h.domain, h.head_height", heads_before);
+    h.db.on("SELECT h.domain, h.head_height", heads_after);
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, two_custom_streams);
+    gate.started.wait();
+    h.listen.notify(live.HEAD_CHANNEL, rollback_head);
+    for (0..10_000) |_| {
+        if (revisionOf(&h) == 1) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expectEqual(@as(u64, 1), revisionOf(&h));
+    // The retry's read must not wait for the gate again.
+    h.db.before_query = null;
+    gate.released.set();
+    try h.waitFrames(s, 4);
+    h.settle();
+    try testing.expectEqual(@as(usize, 2), headsReads(&h));
+    for ([_]?[]const u8{ liveStartOf(s, "dispatch"), liveStartOf(s, "delivery") }) |frame| {
+        try testing.expect(std.mem.indexOf(u8, frame.?, "{\"type\":\"live_start\",\"domain\":1,\"confirmations\":2,\"height\":\"99\",\"hash\":\"0x" ++ "cd" ** 32) != null);
+    }
+    try testing.expect(FakeSocket.isOpen(s));
+}
+
+test "custom streams sharing a snapshot both keep it when a rollback lands after it resolved" {
+    // Both streams continue from the same read before anything else runs
+    // (the promise's reactions), and `subscribed` plus the first live start
+    // follow in the same burst. A rollback can land only once that send is
+    // awaited: it clears both live starts, so the second stream reports
+    // unavailable, and neither reads again.
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    h.db.on("SELECT h.domain, h.head_height", heads_before);
+    h.db.on("SELECT h.domain, h.head_height", heads_after);
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.settle();
+    s.hold = true;
+    h.server.onMessage(peer, two_custom_streams);
+    try h.waitFrames(s, 3); // subscribed, then the first live start (awaited)
+    h.settle();
+    try testing.expectEqual(@as(usize, 3), s.count());
+    h.listen.notify(live.HEAD_CHANNEL, rollback_head);
+    for (0..10_000) |_| {
+        if (revisionOf(&h) == 1) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    s.releaseHeld(null);
+    for (0..10_000) |_| {
+        if (liveStartOf(s, "delivery") != null) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    h.settle();
+    s.releaseHeld(null);
+    try testing.expectEqual(@as(usize, 1), headsReads(&h));
+    try testing.expect(std.mem.startsWith(u8, liveStartOf(s, "dispatch").?, "{\"type\":\"live_start\",\"domain\":1,\"confirmations\":2,\"height\":\"100\",\"hash\":\"0x" ++ "ab" ** 32));
+    try testing.expectEqualStrings(
+        \\{"type":"live_start_unavailable","domain":1,"confirmations":2,"eventTypes":["delivery"],"reason":"No healthy live-start scraper checkpoint"}
+    , liveStartOf(s, "delivery").?);
+    // Both streams expose the rollback (they reserved through height 100).
+    try testing.expectEqual(@as(usize, 2), countFrames(s, "\"type\":\"rollback\""));
+    try testing.expect(FakeSocket.isOpen(s));
+}
+
+test "an early listener logs \"listening on\" only when start adopts it, like TS's db.listen" {
+    var h: Harness = .{};
+    try initEarly(&h);
+    // Connected ahead of start (db.start may still fail): nothing logged yet.
+    try testing.expectEqual(@as(usize, 1), h.listen.unlogged);
+    try testing.expectEqual(@as(usize, 0), h.listen.logged);
+    try h.server.start();
+    defer h.deinit();
+    try testing.expectEqual(@as(usize, 1), h.listen.listens);
+    try testing.expectEqual(@as(usize, 1), h.listen.logged);
+}
+
+test "an early listener lost before start is replaced by a logged connect" {
+    var h: Harness = .{};
+    try initEarly(&h);
+    h.listen.handler.?.on_disconnect(h.listen.handler.?.ctx, "terminated");
+    try h.server.start();
+    defer h.deinit();
+    // The fresh connect logs; the lost early one never did.
+    try testing.expectEqual(@as(usize, 2), h.listen.listens);
+    try testing.expectEqual(@as(usize, 1), h.listen.logged);
 }

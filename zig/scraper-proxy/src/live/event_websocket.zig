@@ -47,9 +47,11 @@ pub const EventWebSocketServer = struct {
         errdefer self.scheduler.deinit();
         self.loop = .{ .allocator = gpa, .pool = &self.pool, .scheduler = self.scheduler.scheduler() };
         const config = core.config.get();
-        self.server = try live.Server.create(gpa, &self.loop, .{ .ctx = self, .query = query, .begin = beginQuery, .issued = queryIssued, .failed_early = queryFailedEarly, .finish = finishQuery, .cancel = cancelQuery }, .{
+        self.server = try live.Server.create(gpa, &self.loop, .{ .ctx = self, .query = query }, .{
             .ctx = self,
             .listen = listen,
+            .listen_unlogged = listenUnlogged,
+            .log_listening = logListening,
             .unlisten = unlisten,
         }, .{
             .limits = live.Limits.fromConfig(config),
@@ -268,43 +270,29 @@ pub const EventWebSocketServer = struct {
             runtime.fail("{s}", .{core.log.formatError(err, if (failure.message.len > 0) failure.message else null)});
     }
 
-    /// `DbService.beginLive` (a replay page sent ahead of its turn).
-    /// The pending query is db's: `finish`/`cancel` free it (null: out of
-    /// memory, the page is read at its turn instead).
-    fn beginQuery(ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const core.json.Value) ?*anyopaque {
-        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
-        return self.db.beginLive(arena, sql, params);
-    }
-
-    fn pendingQuery(handle: *anyopaque) *db.DbService.PendingQuery {
-        return @ptrCast(@alignCast(handle));
-    }
-
-    fn queryIssued(_: *anyopaque, handle: *anyopaque) bool {
-        return pendingQuery(handle).pending != null;
-    }
-
-    fn queryFailedEarly(_: *anyopaque, handle: *anyopaque) bool {
-        return pendingQuery(handle).failedEarly();
-    }
-
-    fn finishQuery(_: *anyopaque, handle: *anyopaque) anyerror![]core.json.Value {
-        const query_ = pendingQuery(handle);
-        var failure: db.Failure = .{};
-        return query_.finish(&failure) catch |err|
-            runtime.fail("{s}", .{core.log.formatError(err, if (failure.message.len > 0) failure.message else null)});
-    }
-
-    fn cancelQuery(_: *anyopaque, handle: *anyopaque) void {
-        pendingQuery(handle).cancel();
-    }
-
     fn listen(ctx: *anyopaque, channels: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        const listener = try self.openListener(channels, handler);
+        self.db.logListening(channels);
+        return listener;
+    }
+
+    /// The early LISTEN: TS has not called `listen` yet, so no log line here.
+    fn listenUnlogged(ctx: *anyopaque, channels: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        return self.openListener(channels, handler);
+    }
+
+    fn logListening(ctx: *anyopaque, channels: []const []const u8) void {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        self.db.logListening(channels);
+    }
+
+    fn openListener(self: *EventWebSocketServer, channels: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {
         var arena = std.heap.ArenaAllocator.init(self.gpa);
         defer arena.deinit();
         var failure: db.Failure = .{};
-        const listener = self.db.listen(channels, .{
+        const listener = self.db.listenUnlogged(channels, .{
             .ctx = handler.ctx,
             .on_notification = handler.on_notification,
             .on_disconnect = handler.on_disconnect,

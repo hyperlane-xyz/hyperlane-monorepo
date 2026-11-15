@@ -29,7 +29,13 @@ pub fn endOfHeight(height: i128) Position {
     return .{ .height = height, .source = 3, .id = END_OF_HEIGHT };
 }
 
-pub const ConfirmationHead = struct { head: i128, indexed: i128, confirmed: i128 };
+pub const ConfirmationHead = struct {
+    head: i128,
+    indexed: i128,
+    confirmed: i128,
+    /// Custom agent streams: the checkpoint the stream starts after.
+    live_start: ?protocol.LiveStartBoundary = null,
+};
 pub const Heads = std.AutoArrayHashMapUnmanaged(u32, ConfirmationHead);
 /// Domain → exposed height, in JS Map insertion order.
 pub const Frontiers = std.AutoArrayHashMapUnmanaged(u32, i128);
@@ -101,6 +107,7 @@ pub const Io = struct {
 };
 
 const DomainState = struct {
+    live_start: ?protocol.LiveStartBoundary = null,
     position: Position,
     target: i128,
     through: i128,
@@ -178,27 +185,48 @@ pub const ConfirmationStream = struct {
     /// Notifications can arrive during negotiation. Retry the snapshot, before
     /// sending ready/subscribed, if its ancestry may already have changed.
     pub fn initialize(self: *ConfirmationStream, read_heads: ReadHeads, allow_canonical: bool) !void {
-        while (self.io.active(self.io.ctx)) {
-            const revision = self.revision;
+        while (self.initializeRead()) |revision| {
             var heads = try read_heads.read(read_heads.ctx, self.allocator);
             defer heads.deinit(self.allocator);
-            if (revision != self.revision) continue;
-            for (self.domains) |domain| {
-                const head = heads.get(domain) orelse {
-                    if (allow_canonical) continue;
-                    self.unavailable_domain = domain;
-                    return error.ConfirmationUnavailable;
-                };
-                const height = confirmationHeight(head.head, head.indexed, self.confirmations);
-                try self.confirmed.put(self.allocator, domain, head.confirmed);
-                try self.states.put(self.allocator, domain, .{
-                    .position = endOfHeight(height),
-                    .target = height,
-                    .through = height,
-                });
-            }
-            return;
+            if (try self.initializeWith(revision, &heads, allow_canonical)) return;
         }
+    }
+
+    /// `initialize`'s loop head: the revision to read heads at, or null once
+    /// the stream is inactive (`initialize` returns).
+    pub fn initializeRead(self: *ConfirmationStream) ?u64 {
+        if (!self.io.active(self.io.ctx)) return null;
+        return self.revision;
+    }
+
+    /// `initialize` after its read resolved with `heads`: false when the
+    /// ancestry changed meanwhile (read again).
+    pub fn initializeWith(self: *ConfirmationStream, revision: u64, heads: *const Heads, allow_canonical: bool) !bool {
+        if (revision != self.revision) return false;
+        for (self.domains) |domain| {
+            const head = heads.get(domain) orelse {
+                if (allow_canonical) continue;
+                self.unavailable_domain = domain;
+                return error.ConfirmationUnavailable;
+            };
+            const target = confirmationHeight(head.head, head.indexed, self.confirmations);
+            // `BigInt(liveStart.height)`: at most 20 digits, within i128.
+            const height = if (head.live_start) |boundary| std.fmt.parseInt(i128, boundary.height(), 10) catch unreachable else target;
+            try self.confirmed.put(self.allocator, domain, head.confirmed);
+            try self.states.put(self.allocator, domain, .{
+                .live_start = head.live_start,
+                .position = endOfHeight(height),
+                .target = target,
+                .through = height,
+            });
+        }
+        return true;
+    }
+
+    /// `liveStart(domain)`.
+    pub fn liveStart(self: *const ConfirmationStream, domain: u32) ?protocol.LiveStartBoundary {
+        const state = self.states.getPtr(domain) orelse return null;
+        return state.live_start;
     }
 
     /// Domains with a provisional reader, in snapshot order.
@@ -257,6 +285,8 @@ pub const ConfirmationStream = struct {
         }
         if (rollback) {
             self.revision += 1;
+            // Never authorize handoff using a snapshot from before a rollback.
+            state.live_start = null;
             // through is reserved BEFORE reading/sending a range. It covers partial
             // pages, events without a public height, and pending send callbacks.
             const exposed_rollback = self.started and state.through > to;

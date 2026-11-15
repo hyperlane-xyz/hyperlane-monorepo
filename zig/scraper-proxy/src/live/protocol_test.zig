@@ -83,38 +83,6 @@ test "parses indexed block hashes without losing large heights" {
     try testing.expectEqual(@as(?[]const u8, null), missing.indexed_hash);
 }
 
-test "parses native sequence catch-up cursors" {
-    var f = Fixture.init();
-    defer f.deinit();
-    const streams = try f.subscribe(
-        \\{"type":"subscribe","streams":[{"eventType":"dispatch","cursors":[
-        \\{"address":"0x0000000000000000000000000000000000000001","allowReplay":true,"afterSequence":"9007199254740993","domain":1},
-        \\{"address":"\\x0000000000000000000000000000000000000002","domain":42161}]},
-        \\{"eventType":"merkle_tree_insertion"}]}
-    );
-    const cursor = streams[0].cursors.?[0];
-    try testing.expectEqual(@as(i128, 9_007_199_254_740_993), cursor.after.?.value);
-    try testing.expectEqualStrings("9007199254740993", cursor.after.?.text);
-    try testing.expectEqualStrings("\\x0000000000000000000000000000000000000001", cursor.address);
-    try testing.expectEqual(@as(?bool, true), cursor.allow_replay);
-    try testing.expectEqualStrings("\\x0000000000000000000000000000000000000002", streams[0].cursors.?[1].address);
-    try testing.expectEqualSlices(u32, &.{ 1, 42161 }, streams[0].domains.?);
-    try testing.expect(streams[1].cursors == null);
-}
-
-test "canonicalizes padded 20-byte sequence cursor addresses for every VM" {
-    var f = Fixture.init();
-    defer f.deinit();
-    const hook = "48e6c30b97748d1e2e03bf3e9fbe3890ca5f8cca";
-    const streams = try f.subscribe(
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"address":"0x
-    ++ "00" ** 12 ++ hook ++
-        \\","afterSequence":"-1","domain":1}]}]}
-    );
-    try testing.expectEqualStrings("\\x" ++ hook, streams[0].cursors.?[0].address);
-    try testing.expectEqual(@as(i128, -1), streams[0].cursors.?[0].after.?.value);
-}
-
 test "accepts application pings" {
     var f = Fixture.init();
     defer f.deinit();
@@ -129,77 +97,13 @@ test "rejects duplicate streams" {
     , "Duplicate eventType");
 }
 
-test "rejects stream-level row IDs and cursors on unsupported streams" {
-    var f = Fixture.init();
-    defer f.deinit();
-    try f.rejects(
-        \\{"type":"subscribe","streams":[{"eventType":"dispatch","afterId":"1"}]}
-    , "cursor positions must be specified within a cursor");
-    try f.rejects(
-        \\{"type":"subscribe","streams":[{"eventType":"delivery","cursors":[{"address":"0x0000000000000000000000000000000000000001","afterId":"1","domain":1}]}]}
-    , "cursors are unsupported for this stream");
-}
-
-test "parses negotiated per-domain gas payment stream cursors" {
-    var f = Fixture.init();
-    defer f.deinit();
-    const streams = try f.subscribe(
-        \\{"streams":[{"cursors":[{"address":"0x0000000000000000000000000000000000000001","afterStreamCursor":"9007199254740993","domain":1}],"eventType":"gas_payment","streamCursorVersion":3}],"type":"subscribe"}
-    );
-    const cursor = streams[0].cursors.?[0];
-    try testing.expectEqual(p.CursorKind.gas_payment, cursor.kind);
-    try testing.expectEqual(@as(i128, 9_007_199_254_740_993), cursor.after.?.value);
-    try testing.expectEqualSlices(u32, &.{1}, streams[0].domains.?);
-    try testing.expectEqual(@as(?u8, 3), streams[0].stream_cursor_version);
-}
-
-test "accepts legacy non-cursored gas payment subscriptions" {
+test "accepts live gas payment subscriptions" {
     var f = Fixture.init();
     defer f.deinit();
     const streams = try f.subscribe(
         \\{"streams":[{"domains":[1],"eventType":"gas_payment"}],"type":"subscribe"}
     );
     try testing.expectEqualSlices(u32, &.{1}, streams[0].domains.?);
-    try testing.expectEqual(@as(?u8, null), streams[0].stream_cursor_version);
-    try testing.expect(streams[0].cursors == null);
-}
-
-test "rejects physical row ID and unversioned gas cursors" {
-    var f = Fixture.init();
-    defer f.deinit();
-    try f.rejects(
-        \\{"streams":[{"cursors":[{"address":"0x0000000000000000000000000000000000000001","afterId":"1","domain":1}],"eventType":"gas_payment","streamCursorVersion":3}],"type":"subscribe"}
-    , "afterId is unsupported; use negotiated afterStreamCursor semantics");
-    try f.rejects(
-        \\{"streams":[{"cursors":[{"address":"0x0000000000000000000000000000000000000001","afterStreamCursor":"1","domain":1}],"eventType":"gas_payment"}],"type":"subscribe"}
-    , "gas_payment cursors require streamCursorVersion 3");
-}
-
-test "rejects native sequence fields on gas payment cursors" {
-    var f = Fixture.init();
-    defer f.deinit();
-    for ([_][]const u8{ "\"afterSequence\":\"1\"", "\"allowReplay\":true" }) |field| {
-        const raw = try std.fmt.allocPrint(f.arena.allocator(),
-            \\{{"streams":[{{"cursors":[{{"address":"0x0000000000000000000000000000000000000001","domain":1,{s}}}],"eventType":"gas_payment","streamCursorVersion":3}}],"type":"subscribe"}}
-        , .{field});
-        try f.rejects(raw, "native sequence fields");
-    }
-}
-
-test "rejects the previous gas payment wire version" {
-    var f = Fixture.init();
-    defer f.deinit();
-    try f.rejects(
-        \\{"streams":[{"cursors":[{"address":"0x0000000000000000000000000000000000000001","afterStreamCursor":"1","domain":1}],"eventType":"gas_payment","streamCursorVersion":2}],"type":"subscribe"}
-    , "requires streamCursorVersion 3");
-}
-
-test "requires explicit domains to match cursor domains" {
-    var f = Fixture.init();
-    defer f.deinit();
-    try f.rejects(
-        \\{"type":"subscribe","streams":[{"eventType":"dispatch","domains":[1,42161],"cursors":[{"address":"0x0000000000000000000000000000000000000001","domain":1}]}]}
-    , "exactly match");
 }
 
 test "rejects unknown event types and invalid domains" {
@@ -211,22 +115,6 @@ test "rejects unknown event types and invalid domains" {
     try f.rejects(
         \\{"type":"subscribe","streams":[{"eventType":"dispatch","domains":[-1]}]}
     , "domains must contain valid domain IDs");
-}
-
-test "rejects malformed sequence cursor addresses" {
-    var f = Fixture.init();
-    defer f.deinit();
-    _ = try f.subscribe(
-        \\{"streams":[{"cursors":[{"address":"0x
-    ++ "ab" ** 32 ++
-        \\","domain":1}],"eventType":"dispatch"}],"type":"subscribe"}
-    );
-    for ([_][]const u8{ "0xabc", "0x" ++ "ab" ** 19, "0x" ++ "ab" ** 21, "0x" ++ "ab" ** 31, "0x" ++ "ab" ** 33 }) |address| {
-        const raw = try std.fmt.allocPrint(f.arena.allocator(),
-            \\{{"streams":[{{"cursors":[{{"address":"{s}","domain":1}}],"eventType":"dispatch"}}],"type":"subscribe"}}
-        , .{address});
-        try f.rejects(raw, "Invalid sequence cursor address");
-    }
 }
 
 test "accepts more than 100 domains" {
@@ -349,7 +237,7 @@ test "validates zero-confirmation opt-in for every event type" {
     , "includeZeroConfirmations must be a boolean");
     try f.rejects(
         \\{"type":"subscribe","streams":[{"eventType":"dispatch","includeZeroConfirmations":true}]}
-    , "includeZeroConfirmations requires explicit domains or cursors");
+    , "includeZeroConfirmations requires explicit domains");
     try f.rejects(
         \\{"type":"subscribe","streams":[{"eventType":"blocks","domains":[1],"includeZeroConfirmations":true}]}
     , "blocks supports live heads only");
@@ -370,9 +258,6 @@ test "validates live-only confirmations on both endpoints" {
     try f.rejects(
         \\{"type":"subscribe","streams":[{"eventType":"dispatch","confirmations":0}]}
     , "confirmations requires explicit domains");
-    try f.rejects(
-        \\{"type":"subscribe","streams":[{"eventType":"dispatch","confirmations":0,"domains":[1],"cursors":[{"domain":1,"address":"0x0101010101010101010101010101010101010101"}]}]}
-    , "live streams only");
     const a = f.arena.allocator();
     const custom = (try p.parseExplorerConfirmations(a, &try f.params("confirmations=2&domains=1,2"), &f.diag)).?;
     try testing.expectEqual(@as(u64, 2), custom.confirmations);
@@ -402,19 +287,47 @@ test "client message envelope errors" {
     try testing.expectEqualSlices(u32, &.{ 1000, 1 }, streams[0].domains.?);
 }
 
-test "BigInt cursor values keep canonical text" {
+test "rejects replay options for every agent event stream" {
     var f = Fixture.init();
     defer f.deinit();
-    const streams = try f.subscribe(
-        \\{"type":"subscribe","streams":[{"eventType":"dispatch","cursors":[{"address":"0x0000000000000000000000000000000000000001","afterSequence":"000123456789012345678901234567890123456789012","domain":1},{"address":"0x0000000000000000000000000000000000000002","afterSequence":5,"domain":1}]}]}
-    );
-    const big = streams[0].cursors.?[0].after.?;
-    try testing.expectEqualStrings("123456789012345678901234567890123456789012", big.text);
-    try testing.expectEqual(@as(i128, std.math.maxInt(i128)), big.value);
-    try testing.expectEqualStrings("5", streams[0].cursors.?[1].after.?.text);
+    const message = "Agent streams are live-only; replay cursors are unsupported. Recover history through RPC.";
+    for (p.SUBSCRIPTION_TYPES) |event_type| {
+        for ([_][]const u8{
+            \\"cursors":[{"domain":1,"address":"0x0101010101010101010101010101010101010101","afterSequence":"-1"}]
+            ,
+            \\"cursors":[]
+            ,
+            \\"cursors":null
+            ,
+            \\"streamCursorVersion":3
+            ,
+            \\"afterId":"1"
+            ,
+            \\"afterSequence":"1"
+            ,
+            \\"afterStreamCursor":"1"
+            ,
+            \\"allowReplay":false
+            ,
+        }) |replay| {
+            const raw = try std.fmt.allocPrint(f.arena.allocator(),
+                \\{{"type":"subscribe","streams":[{{"eventType":"{s}","domains":[1],{s}}}]}}
+            , .{ event_type, replay });
+            try f.rejects(raw, message);
+            try testing.expectEqualStrings(message, f.diag.message);
+        }
+    }
+    // Checked before the domains and the blocks options.
     try f.rejects(
-        \\{"type":"subscribe","streams":[{"eventType":"dispatch","cursors":[{"address":"0x0000000000000000000000000000000000000001","afterSequence":"-2","domain":1}]}]}
-    , "afterSequence must be an integer string greater than or equal to -1");
+        \\{"type":"subscribe","streams":[{"eventType":"blocks","domains":[],"confirmations":1,"allowReplay":true}]}
+    , message);
+    // Domains are now validated before the blocks options.
+    try f.rejects(
+        \\{"type":"subscribe","streams":[{"eventType":"blocks","domains":[],"confirmations":1}]}
+    , "domains must contain valid domain IDs");
+    try f.rejects(
+        \\{"type":"subscribe","streams":[{"eventType":"blocks","confirmations":1}]}
+    , "blocks supports live heads only, without confirmations");
 }
 
 test "node net.isIP vectors" {
@@ -493,8 +406,8 @@ test "deeply nested client messages are handled like their shallow equivalents (
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    // Close to /agents maxPayload (1 MiB): ~500k levels.
-    const depth = 500_000;
+    // Close to /agents maxPayload (64 KiB): ~32k levels.
+    const depth = 32_000;
     const cases = [_]struct { deep: []const u8, shallow: []const u8 }{
         .{ .deep = try deep(a, "", depth, '[', ']', "1", ""), .shallow = "[1]" },
         .{ .deep = try deep(a, "{\"type\":\"ping\",\"x\":", depth, '[', ']', "", "}"), .shallow = "{\"type\":\"ping\",\"x\":[]}" },

@@ -343,6 +343,28 @@ test "streams snapshots end to end from LISTEN wakeups through the pool" {
             }
             return error.Timeout;
         }
+        /// Wait for a frame starting with `prefix` and containing `needle`.
+        /// Other frames may come first: a listener another suite's backend
+        /// killer terminates reports `diagnostics_unavailable`, and its
+        /// reconnect resyncs (the NOTIFY itself may be lost meanwhile).
+        fn waitFor(self: *@This(), prefix: []const u8, needle: []const u8) !void {
+            var waited: usize = 0;
+            while (waited < 15_000) : (waited += 1) {
+                self.mutex.lock();
+                for (self.list.items) |frame| {
+                    if (std.mem.startsWith(u8, frame, prefix) and std.mem.indexOf(u8, frame, needle) != null) {
+                        self.mutex.unlock();
+                        return;
+                    }
+                }
+                self.mutex.unlock();
+                std.Thread.sleep(std.time.ns_per_ms);
+            }
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            for (self.list.items) |frame| std.debug.print("frame: {s}\n", .{frame});
+            return error.Timeout;
+        }
     };
     var frames: Frames = .{};
     defer {
@@ -357,22 +379,20 @@ test "streams snapshots end to end from LISTEN wakeups through the pool" {
     }
     try frames.waitCount(1);
     // Wait for LISTEN before notifying (the listener connects asynchronously).
+    // (`stream.listener` is set only after LISTEN was acknowledged:
+    // `db.Listener.start` returns once its LISTEN query completed.)
     var waited: usize = 0;
-    while (waited < 5000) : (waited += 1) {
+    var ready = false;
+    while (waited < 5000 and !ready) : (waited += 1) {
         stream.mutex.lock();
-        const ready = stream.listener != null;
+        ready = stream.listener != null;
         stream.mutex.unlock();
-        if (ready) break;
-        std.Thread.sleep(std.time.ns_per_ms);
+        if (!ready) std.Thread.sleep(std.time.ns_per_ms);
     }
+    try testing.expect(ready);
     _ = try conn.query(arena, insert_sql, &.{ .{ .number = 2 }, .{ .string = message_hex }, .{ .string = "{\"type\":\"delivered\"}" } }, null);
     _ = try conn.query(arena, "SELECT pg_notify('message_activity_insert', $1)", &.{.{ .string = message_hex }}, null);
-    try frames.waitCount(2);
-    frames.mutex.lock();
-    defer frames.mutex.unlock();
-    const last = frames.list.items[frames.list.items.len - 1];
-    try testing.expect(std.mem.startsWith(u8, last, "{\"type\":\"diagnostics\",\"data\":{\"version\":1,\"message_id\":\"" ++ message_id ++ "\",\"partial\":false"));
-    try testing.expect(std.mem.indexOf(u8, last, "\"phase\":\"delivered\"") != null);
+    try frames.waitFor("{\"type\":\"diagnostics\",\"data\":{\"version\":1,\"message_id\":\"" ++ message_id ++ "\",\"partial\":false", "\"phase\":\"delivered\"");
 }
 
 test "converts real rows like node-pg (bytes from testdata/pg-oracle.ts)" {

@@ -28,19 +28,19 @@ async function run(name, fn) {
   } else await result;
 }
 const types = ['dispatch', 'delivery', 'gas_payment', 'merkle_tree_insertion'];
-const seq = {
-  kind: 'sequence',
-  domain: 4294967295,
-  address: '\\x' + '01'.repeat(20),
-};
-const gas = {
-  kind: 'gas_payment',
-  domain: 1,
-  address: '\\x' + '02'.repeat(32),
-};
 await run('blockHeads', () => store.blockHeads());
 await run('blockHeads:domains', () =>
   store.blockHeads(new Set([1, 4294967295])),
+);
+await run('liveStartBoundaries', () => store.liveStartBoundaries());
+await run('liveStartBoundaries:domains', () =>
+  store.liveStartBoundaries(new Set([1, 4294967295])),
+);
+await run('confirmationHeads', () =>
+  store.confirmationHeads(new Set([1, 4294967295])),
+);
+await run('confirmationHeads:confirmations', () =>
+  store.confirmationHeads(new Set([1, 4294967295]), 3),
 );
 await run('canonicalMessages', () =>
   store.canonicalMessages(['\\x' + 'ab'.repeat(32)]),
@@ -51,12 +51,6 @@ for (const t of types) {
   await run(`confirmationEventRows:${t}`, () =>
     store.confirmationEventRows(t, 1, [3n, 0, 7n], 10n, 2),
   );
-  if (t !== 'delivery')
-    await run(`confirmationEventRows:${t}:addresses`, () =>
-      store.confirmationEventRows(t, 1, [3n, 0, 7n], 10n, 0, [
-        '\\x' + 'aa'.repeat(20),
-      ]),
-    );
 }
 await run('confirmationMessageRows', () =>
   store.confirmationMessageRows(2147483648, [3n, 1, 7n], 10n, new Map(), 0),
@@ -80,15 +74,4 @@ await run('provisionalMessages', () =>
     ]),
   ),
 );
-for (const t of ['dispatch', 'merkle_tree_insertion']) {
-  await run(`sequenceRows:${t}`, () => store.sequenceRows(t, seq, 5n, 10n));
-  await run(`sequenceBounds:${t}`, () => store.sequenceBounds(t, seq));
-}
-await run('gasPaymentRows:legacy', () =>
-  store.gasPaymentRows(gas, 1n, 2n, true),
-);
-await run('gasPaymentRows:mapped', () =>
-  store.gasPaymentRows(gas, 1n, 2n, false),
-);
-await run('gasPaymentCursorBounds', () => store.gasPaymentCursorBounds(gas));
 process.stdout.write(JSON.stringify(cases, null, 1) + '\n');

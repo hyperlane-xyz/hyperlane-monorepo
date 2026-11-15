@@ -337,12 +337,10 @@ pub const DatabaseMetricsSnapshot = struct {
 };
 
 pub const RouteCounts = struct { agent: f64 = 0, messages: f64 = 0 };
-pub const SubscriptionCounts = struct { catchingUp: f64 = 0, live: f64 = 0 };
 
 /// `WebSocketMetricsSnapshot`; `subscriptions` field order matches the TS
 /// object literal (delivery, dispatch, gas_payment, merkle_tree_insertion).
 pub const WebSocketMetricsSnapshot = struct {
-    catchUps: f64 = 0,
     connections: RouteCounts = .{},
     explorerPendingBytes: f64 = 0,
     explorerPendingMessages: f64 = 0,
@@ -352,31 +350,25 @@ pub const WebSocketMetricsSnapshot = struct {
     messageMaxConnectionsPerIp: f64 = 0,
     limits: struct {
         agentConnections: f64 = 0,
-        catchUpMs: f64 = 0,
         clientMessagesPerMinute: f64 = 0,
-        concurrentCatchUps: f64 = 0,
         explorerPendingBytes: f64 = 0,
         explorerPendingMessages: f64 = 0,
         messageConnections: f64 = 0,
         messageConnectionsPerIp: f64 = 0,
         notificationEvents: f64 = 0,
-        pendingEvents: f64 = 0,
         socketBufferedBytes: f64 = 0,
         totalPendingBytes: f64 = 0,
     } = .{},
     listenerReady: bool = false,
-    maxCatchUpDurationMs: f64 = 0,
-    maxCatchUpRows: f64 = 0,
     maxClientBufferedBytes: f64 = 0,
-    maxPendingCatchUpEvents: f64 = 0,
     notificationQueue: RouteCounts = .{},
     outboundPendingBytes: f64 = 0,
-    pendingCatchUpEvents: f64 = 0,
+    /// Live agent subscriptions per event type.
     subscriptions: struct {
-        delivery: SubscriptionCounts = .{},
-        dispatch: SubscriptionCounts = .{},
-        gas_payment: SubscriptionCounts = .{},
-        merkle_tree_insertion: SubscriptionCounts = .{},
+        delivery: f64 = 0,
+        dispatch: f64 = 0,
+        gas_payment: f64 = 0,
+        merkle_tree_insertion: f64 = 0,
     } = .{},
 };
 
@@ -429,7 +421,6 @@ pub var database_query_duration = Histogram(&.{ "outcome", "role" }, &.{ 0.005, 
 pub var database_rows = Counter(&.{"role"}).init("database_rows_total", "Database rows returned by fixed workload role.");
 pub var websocket_connections = Counter(&.{"route"}).init("websocket_connections_total", "Accepted WebSocket connections by route.");
 pub var websocket_connection_rejections = Counter(&.{ "reason", "route" }).init("websocket_connection_rejections_total", "Rejected WebSocket connections by route and reason.");
-pub var websocket_catch_ups = Counter(&.{"outcome"}).init("websocket_catch_ups_total", "Historical WebSocket catch-ups by outcome.");
 pub var websocket_client_message_rejections = Counter(&.{}).init("websocket_client_message_rejections_total", "Agent WebSocket messages rejected by the per-client rate limit.");
 pub var websocket_send_failures = Counter(&.{"reason"}).init("websocket_send_failures_total", "WebSocket send failures by reason.");
 pub var websocket_notification_queue_overflows = Counter(&.{"route"}).init("websocket_notification_queue_overflows_total", "PostgreSQL notification queue overflows by isolated route.");
@@ -448,7 +439,6 @@ fn initMetrics() void {
         for ([_][]const u8{ "error", "success" }) |outcome| database_queries.inc(.{ outcome, role }, 0);
         database_rows.inc(.{role}, 0);
     }
-    for ([_][]const u8{ "aborted", "capacity_rejected", "failure", "success" }) |outcome| websocket_catch_ups.inc(.{outcome}, 0);
     for ([_][]const u8{ "buffer_limit", "notification_queue_limit", "queue_limit", "send_error" }) |reason| websocket_send_failures.inc(.{reason}, 0);
     for ([_][]const u8{ "agent", "messages" }) |route| {
         for ([_][]const u8{ "connection_limit", "listener_unavailable" }) |reason| websocket_connection_rejections.inc(.{ reason, route }, 0);
@@ -489,7 +479,6 @@ pub fn renderTo(w: *std.Io.Writer) std.Io.Writer.Error!void {
     try w.writeAll("\n\n");
     try websocket_connection_rejections.render(w);
     try w.writeAll("\n\n");
-    try websocket_catch_ups.render(w);
     try w.writeAll("\n\n");
     try websocket_client_message_rejections.render(w);
     try w.writeAll("\n\n");
@@ -563,25 +552,13 @@ fn renderSnapshotGauges(w: *std.Io.Writer) !void {
     try snapshotGauge(w, "websocket_message_connection_limit_per_ip", "Maximum /messages WebSocket connections per client IP.", &none, &.{.{ .value = s.limits.messageConnectionsPerIp }}, has);
     try snapshotGauge(w, "websocket_message_max_connections_per_ip", "Largest current /messages connection count for one client IP.", &none, &.{.{ .value = s.messageMaxConnectionsPerIp }}, has);
     try snapshotGauge(w, "websocket_listener_ready", "Whether the database event listener is ready.", &none, &.{.{ .value = if (s.listenerReady) 1 else 0 }}, has);
-    try snapshotGauge(w, "websocket_catch_ups", "Current historical WebSocket catch-ups.", &none, &.{.{ .value = s.catchUps }}, has);
-    try snapshotGauge(w, "websocket_catch_up_concurrency_limit", "Maximum concurrent historical WebSocket catch-ups.", &none, &.{.{ .value = s.limits.concurrentCatchUps }}, has);
-    try snapshotGauge(w, "websocket_max_catch_up_rows", "Largest current row count delivered by one historical catch-up.", &none, &.{.{ .value = s.maxCatchUpRows }}, has);
-    try snapshotGauge(w, "websocket_catch_up_duration_limit_seconds", "Maximum duration of one historical WebSocket catch-up in seconds.", &none, &.{.{ .value = s.limits.catchUpMs / 1_000 }}, has);
-    try snapshotGauge(w, "websocket_max_catch_up_duration_seconds", "Longest current historical WebSocket catch-up duration in seconds.", &none, &.{.{ .value = s.maxCatchUpDurationMs / 1_000 }}, has);
-    try snapshotGauge(w, "websocket_pending_catch_up_events", "Current live events buffered behind historical catch-ups.", &none, &.{.{ .value = s.pendingCatchUpEvents }}, has);
-    try snapshotGauge(w, "websocket_pending_catch_up_event_limit", "Maximum live events buffered behind one historical catch-up.", &none, &.{.{ .value = s.limits.pendingEvents }}, has);
-    try snapshotGauge(w, "websocket_max_pending_catch_up_events", "Largest current live-event buffer behind one historical catch-up.", &none, &.{.{ .value = s.maxPendingCatchUpEvents }}, has);
     try snapshotGauge(w, "websocket_client_message_limit_per_minute", "Maximum agent messages accepted per client per minute.", &none, &.{.{ .value = s.limits.clientMessagesPerMinute }}, has);
     const sub = s.subscriptions;
-    try snapshotGauge(w, "websocket_subscriptions", "Current agent subscriptions by event type and state.", &.{ "event_type", "state" }, &.{
-        .{ .labels = &.{ "delivery", "catching_up" }, .value = sub.delivery.catchingUp },
-        .{ .labels = &.{ "delivery", "live" }, .value = sub.delivery.live },
-        .{ .labels = &.{ "dispatch", "catching_up" }, .value = sub.dispatch.catchingUp },
-        .{ .labels = &.{ "dispatch", "live" }, .value = sub.dispatch.live },
-        .{ .labels = &.{ "gas_payment", "catching_up" }, .value = sub.gas_payment.catchingUp },
-        .{ .labels = &.{ "gas_payment", "live" }, .value = sub.gas_payment.live },
-        .{ .labels = &.{ "merkle_tree_insertion", "catching_up" }, .value = sub.merkle_tree_insertion.catchingUp },
-        .{ .labels = &.{ "merkle_tree_insertion", "live" }, .value = sub.merkle_tree_insertion.live },
+    try snapshotGauge(w, "websocket_subscriptions", "Current live agent subscriptions by event type.", &.{"event_type"}, &.{
+        .{ .labels = &.{"delivery"}, .value = sub.delivery },
+        .{ .labels = &.{"dispatch"}, .value = sub.dispatch },
+        .{ .labels = &.{"gas_payment"}, .value = sub.gas_payment },
+        .{ .labels = &.{"merkle_tree_insertion"}, .value = sub.merkle_tree_insertion },
     }, has);
     try snapshotGauge(w, "websocket_notification_queue", "Current queued database notifications by route.", &route, &.{
         .{ .labels = &.{"agent"}, .value = s.notificationQueue.agent },
@@ -760,7 +737,6 @@ const TestProviders = struct {
     }
     fn ws(_: *anyopaque) WebSocketMetricsSnapshot {
         return .{
-            .catchUps = 2,
             .connections = .{ .agent = 3, .messages = 4 },
             .explorerPendingBytes = 1_024,
             .explorerPendingMessages = 9,
@@ -770,31 +746,24 @@ const TestProviders = struct {
             .messageMaxConnectionsPerIp = 3,
             .limits = .{
                 .agentConnections = 100,
-                .catchUpMs = 60_000,
                 .clientMessagesPerMinute = 30,
-                .concurrentCatchUps = 5,
                 .explorerPendingBytes = 16_777_216,
                 .explorerPendingMessages = 2_000,
                 .messageConnections = 400,
                 .messageConnectionsPerIp = 5,
                 .notificationEvents = 10_000,
-                .pendingEvents = 5_000,
                 .socketBufferedBytes = 1_024,
                 .totalPendingBytes = 4_096,
             },
             .listenerReady = true,
-            .maxCatchUpDurationMs = 3_000,
-            .maxCatchUpRows = 500,
             .maxClientBufferedBytes = 128,
-            .maxPendingCatchUpEvents = 5,
             .notificationQueue = .{ .agent = 6, .messages = 7 },
             .outboundPendingBytes = 256,
-            .pendingCatchUpEvents = 8,
             .subscriptions = .{
-                .delivery = .{ .catchingUp = 0, .live = 1 },
-                .dispatch = .{ .catchingUp = 1, .live = 2 },
-                .gas_payment = .{ .catchingUp = 0, .live = 0 },
-                .merkle_tree_insertion = .{ .catchingUp = 1, .live = 0 },
+                .delivery = 1,
+                .dispatch = 2,
+                .gas_payment = 0,
+                .merkle_tree_insertion = 0,
             },
         };
     }
@@ -818,20 +787,21 @@ test "serves current usage and limits (metrics.test.ts)" {
     const p = prefix;
     try expectContains(output, p ++ "websocket_connections{route=\"agent\"} 3\n");
     try expectContains(output, p ++ "websocket_connection_limit{route=\"messages\"} 400\n");
-    try expectContains(output, p ++ "websocket_subscriptions{event_type=\"dispatch\",state=\"catching_up\"} 1\n");
+    try expectContains(output, p ++ "websocket_subscriptions{event_type=\"dispatch\"} 2\n");
     try expectContains(output, p ++ "websocket_outbound_pending_bytes 256\n");
     try expectContains(output, p ++ "websocket_explorer_pending_messages 9\n");
     try expectContains(output, p ++ "websocket_explorer_pending_bytes 1024\n");
     try expectContains(output, p ++ "websocket_notification_queue_limit{route=\"agent\"} 10000\n");
-    try expectContains(output, p ++ "websocket_catch_up_duration_limit_seconds 60\n");
-    try expectContains(output, p ++ "websocket_max_catch_up_duration_seconds 3\n");
     for ([_][]const u8{ "buffer_limit", "notification_queue_limit", "queue_limit", "send_error" }) |reason| {
         var buf: [256]u8 = undefined;
         try expectContains(output, try std.fmt.bufPrint(&buf, "websocket_send_failures_total{{reason=\"{s}\"}} 0\n", .{reason}));
     }
-    for ([_][]const u8{ "aborted", "capacity_rejected", "failure", "success" }) |outcome| {
-        var buf: [256]u8 = undefined;
-        try expectContains(output, try std.fmt.bufPrint(&buf, "websocket_catch_ups_total{{outcome=\"{s}\"}} 0\n", .{outcome}));
+    // #10040 removed the catch-up series and the subscription state label.
+    for ([_][]const u8{ "websocket_catch_up", "state=\"catching_up\"", "state=\"live\"" }) |gone| {
+        if (std.mem.indexOf(u8, output, gone) != null) {
+            std.debug.print("unexpected: {s}\n", .{gone});
+            return error.TestUnexpectedSeries;
+        }
     }
     for ([_][]const u8{ "agent", "messages" }) |route| {
         var buf: [256]u8 = undefined;

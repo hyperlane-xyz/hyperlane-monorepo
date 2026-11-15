@@ -16,10 +16,6 @@ pub const EventType = enum {
         return @tagName(self);
     }
 
-    pub fn isSequenced(self: EventType) bool {
-        return self == .dispatch or self == .merkle_tree_insertion;
-    }
-
     pub fn parse(value: []const u8) ?EventType {
         inline for (all) |eventType| {
             if (std.mem.eql(u8, value, @tagName(eventType))) return eventType;
@@ -30,26 +26,35 @@ pub const EventType = enum {
 
 /// `SUBSCRIPTION_TYPES`: event types plus `blocks`.
 pub const SUBSCRIPTION_TYPES = [_][]const u8{ "dispatch", "delivery", "gas_payment", "merkle_tree_insertion", "blocks" };
-pub const GAS_PAYMENT_STREAM_CURSOR_VERSION: u8 = 3;
+/// TS `LiveStartBoundary`: a healthy confirmed checkpoint and the contract
+/// each event type streams from. A value type (fixed buffers): heights are
+/// bigint text (at most 20 digits), hashes and addresses `0x` + 40 or 64
+/// lowercase hex digits.
+pub const LiveStartBoundary = struct {
+    height_buf: [20]u8 = undefined,
+    height_len: u8 = 0,
+    hash_buf: [66]u8 = undefined,
+    /// mailbox (dispatch, delivery), merkle tree hook, gas paymaster.
+    address_buf: [3][66]u8 = undefined,
+    address_len: [3]u8 = .{ 0, 0, 0 },
 
-/// A JS BigInt parsed from a client or database value. `value` saturates at
-/// `maxInt(i128)` (larger than any stored bigint, so comparisons with database
-/// values are unchanged); `text` is the canonical `BigInt#toString()` form.
-pub const BigInt = struct {
-    value: i128,
-    text: []const u8,
-};
+    pub fn height(self: *const LiveStartBoundary) []const u8 {
+        return self.height_buf[0..self.height_len];
+    }
 
-pub const CursorKind = enum { sequence, gas_payment };
+    pub fn hash(self: *const LiveStartBoundary) []const u8 {
+        return &self.hash_buf;
+    }
 
-pub const StreamCursor = struct {
-    kind: CursorKind,
-    /// Normalized `\x...` lowercase address (padded 20-byte form stripped).
-    address: []const u8,
-    domain: u32,
-    allow_replay: ?bool = null,
-    /// `afterSequence` (sequence) or `afterStreamCursor` (gas_payment).
-    after: ?BigInt = null,
+    /// `contracts[eventType]`.
+    pub fn contract(self: *const LiveStartBoundary, event_type: EventType) []const u8 {
+        const index: usize = switch (event_type) {
+            .dispatch, .delivery => 0,
+            .merkle_tree_insertion => 1,
+            .gas_payment => 2,
+        };
+        return self.address_buf[index][0..self.address_len[index]];
+    }
 };
 
 pub const StreamKind = enum {
@@ -71,10 +76,8 @@ pub const StreamRequest = struct {
     kind: StreamKind,
     include_zero_confirmations: ?bool = null,
     confirmations: ?u64 = null,
-    cursors: ?[]const StreamCursor = null,
     /// JS `Set` order: first occurrence.
     domains: ?[]const u32 = null,
-    stream_cursor_version: ?u8 = null,
 
     pub fn hasDomain(self: *const StreamRequest, domain: u32) bool {
         const domains = self.domains orelse return true;
@@ -150,92 +153,47 @@ pub fn parseClientMessage(arena: std.mem.Allocator, raw: []const u8, diag: *Diag
     return .{ .subscribe = streams };
 }
 
+/// Keys of the removed replay protocol; any of them rejects the stream.
+const REPLAY_KEYS = [_][]const u8{ "cursors", "streamCursorVersion", "afterId", "afterSequence", "afterStreamCursor", "allowReplay" };
+
 fn parseStream(arena: std.mem.Allocator, value: json.Value, diag: *Diag) Error!StreamRequest {
     if (value != .object) return diag.fail("Invalid eventType");
     const object = value;
     const kind = streamKind(object.get("eventType")) orelse return diag.fail("Invalid eventType");
-    if (has(object, "afterId") or has(object, "afterStreamCursor"))
-        return diag.fail("cursor positions must be specified within a cursor");
+    for (REPLAY_KEYS) |key| if (has(object, key))
+        return diag.fail("Agent streams are live-only; replay cursors are unsupported. Recover history through RPC.");
+    const domains = try parseDomains(arena, object.get("domains"), diag);
     if (kind == .blocks) {
-        if (has(object, "includeZeroConfirmations") or has(object, "confirmations") or
-            has(object, "cursors") or has(object, "streamCursorVersion"))
-            return diag.fail("blocks supports live heads only, without confirmations or cursors");
-        return .{ .kind = .blocks, .domains = try parseDomains(arena, object.get("domains"), diag) };
-    }
-    const event_type = kind.eventType().?;
-    var stream_cursor_version: ?u8 = null;
-    const version = object.get("streamCursorVersion");
-    if (event_type == .gas_payment) {
-        const is_current = if (version) |v| numberEquals(v, GAS_PAYMENT_STREAM_CURSOR_VERSION) else false;
-        if (version != null and !is_current)
-            return diag.fail("gas_payment requires streamCursorVersion 3");
-        if (has(object, "cursors") and !is_current)
-            return diag.fail("gas_payment cursors require streamCursorVersion 3");
-        if (is_current) stream_cursor_version = GAS_PAYMENT_STREAM_CURSOR_VERSION;
-    } else if (version != null) {
-        return diag.fail("streamCursorVersion is unsupported for this stream");
-    }
-
-    var domains = try parseDomains(arena, object.get("domains"), diag);
-    var cursors: ?[]StreamCursor = null;
-    if (object.get("cursors")) |cursor_values| {
-        if (cursor_values != .array or cursor_values.array.len == 0)
-            return diag.fail("cursors must be a non-empty array");
-        const items = cursor_values.array;
-        const parsed = try arena.alloc(StreamCursor, items.len);
-        if (event_type.isSequenced()) {
-            for (items, parsed) |item, *cursor| cursor.* = try parseSequenceCursor(arena, item, diag);
-        } else if (event_type == .gas_payment) {
-            for (items, parsed) |item, *cursor| cursor.* = try parseGasPaymentCursor(arena, item, diag);
-        } else {
-            return diag.fail("cursors are unsupported for this stream");
-        }
-        for (parsed, 0..) |cursor, index| {
-            for (parsed[0..index]) |previous| {
-                if (previous.domain == cursor.domain and std.mem.eql(u8, previous.address, cursor.address))
-                    return diag.fail("Duplicate stream cursor");
-            }
-        }
-        var cursor_domains: std.ArrayList(u32) = .empty;
-        for (parsed) |cursor| {
-            if (std.mem.indexOfScalar(u32, cursor_domains.items, cursor.domain) == null)
-                try cursor_domains.append(arena, cursor.domain);
-        }
-        if (domains) |explicit| {
-            if (!setEquality(explicit, cursor_domains.items))
-                return diag.fail("domains must exactly match cursor domains");
-        } else domains = cursor_domains.items;
-        cursors = parsed;
+        if (has(object, "includeZeroConfirmations") or has(object, "confirmations"))
+            return diag.fail("blocks supports live heads only, without confirmations");
+        return .{ .kind = .blocks, .domains = domains };
     }
     var include_zero_confirmations: ?bool = null;
     if (object.get("includeZeroConfirmations")) |flag| {
         if (flag != .bool) return diag.fail("includeZeroConfirmations must be a boolean");
         include_zero_confirmations = flag.bool;
         if (flag.bool and domains == null)
-            return diag.fail("includeZeroConfirmations requires explicit domains or cursors");
+            return diag.fail("includeZeroConfirmations requires explicit domains");
     }
     return .{
         .kind = kind,
         .include_zero_confirmations = include_zero_confirmations,
-        .confirmations = try parseConfirmations(object.get("confirmations"), domains, cursors != null, diag),
-        .cursors = cursors,
+        .confirmations = try parseConfirmations(object.get("confirmations"), domains, diag),
         .domains = domains,
-        .stream_cursor_version = stream_cursor_version,
     };
 }
 
 /// `parseConfirmations`; `value == null` means `undefined`.
-pub fn parseConfirmations(value: ?json.Value, domains: ?[]const u32, has_cursors: bool, diag: *Diag) Failure!?u64 {
+pub fn parseConfirmations(value: ?json.Value, domains: ?[]const u32, diag: *Diag) Failure!?u64 {
     const present = value orelse return null;
     const number = asNumber(present) orelse return diag.fail("confirmations must be a non-negative safe integer");
-    return try confirmationsNumber(number, domains, has_cursors, diag);
+    return try confirmationsNumber(number, domains, diag);
 }
 
-fn confirmationsNumber(number: f64, domains: ?[]const u32, has_cursors: bool, diag: *Diag) Failure!u64 {
+fn confirmationsNumber(number: f64, domains: ?[]const u32, diag: *Diag) Failure!u64 {
     if (!isSafeInteger(number) or number < 0)
         return diag.fail("confirmations must be a non-negative safe integer");
     if (domains == null or domains.?.len == 0) return diag.fail("confirmations requires explicit domains");
-    if (has_cursors) return diag.fail("Custom confirmations supports live streams only");
     return @intFromFloat(number);
 }
 
@@ -249,74 +207,6 @@ fn parseDomains(arena: std.mem.Allocator, value: ?json.Value, diag: *Diag) Error
         if (std.mem.indexOfScalar(u32, domains.items, domain) == null) try domains.append(arena, domain);
     }
     return domains.items;
-}
-
-fn parseSequenceCursor(arena: std.mem.Allocator, value: json.Value, diag: *Diag) Error!StreamCursor {
-    if (value != .object) return diag.fail("Invalid sequence cursor domain");
-    const object = value;
-    const domain = asDomain(object.get("domain") orelse .null) orelse return diag.fail("Invalid sequence cursor domain");
-    const address = cursorAddress(object.get("address")) orelse return diag.fail("Invalid sequence cursor address");
-    var allow_replay: ?bool = null;
-    if (object.get("allowReplay")) |flag| {
-        if (flag != .bool) return diag.fail("allowReplay must be a boolean");
-        allow_replay = flag.bool;
-    }
-    if (has(object, "afterId") or has(object, "afterStreamCursor"))
-        return diag.fail("stream cursor fields are unsupported for sequence cursors");
-    return .{
-        .kind = .sequence,
-        .address = try normalizeSequenceAddress(arena, address),
-        .allow_replay = allow_replay,
-        .after = if (object.get("afterSequence")) |after|
-            try parseInteger(arena, after, -1, "afterSequence must be an integer string greater than or equal to -1", diag)
-        else
-            null,
-        .domain = domain,
-    };
-}
-
-fn parseGasPaymentCursor(arena: std.mem.Allocator, value: json.Value, diag: *Diag) Error!StreamCursor {
-    if (value != .object) return diag.fail("Invalid gas payment cursor domain");
-    const object = value;
-    const domain = asDomain(object.get("domain") orelse .null) orelse return diag.fail("Invalid gas payment cursor domain");
-    const address = cursorAddress(object.get("address")) orelse return diag.fail("Invalid gas payment cursor address");
-    if (has(object, "afterSequence") or has(object, "allowReplay"))
-        return diag.fail("native sequence fields are unsupported for gas cursors");
-    if (has(object, "afterId"))
-        return diag.fail("afterId is unsupported; use negotiated afterStreamCursor semantics");
-    return .{
-        .kind = .gas_payment,
-        .address = try normalizeSequenceAddress(arena, address),
-        .after = if (object.get("afterStreamCursor")) |after|
-            try parseInteger(arena, after, 0, "afterStreamCursor must be a non-negative integer string", diag)
-        else
-            null,
-        .domain = domain,
-    };
-}
-
-/// `parseInteger(value, min, error)` for `min` in {-1, 0}.
-pub fn parseInteger(arena: std.mem.Allocator, value: json.Value, comptime min: comptime_int, message: []const u8, diag: *Diag) Error!BigInt {
-    if (asNumber(value)) |number| {
-        if (isSafeInteger(number) and number >= min) {
-            const integer: i128 = @intFromFloat(number);
-            return .{ .value = integer, .text = try std.fmt.allocPrint(arena, "{d}", .{integer}) };
-        }
-        return diag.fail(message);
-    }
-    if (value != .string) return diag.fail(message);
-    const text = value.string;
-    if (min < 0 and std.mem.eql(u8, text, "-1")) return .{ .value = -1, .text = "-1" };
-    if (!isDigits(text)) return diag.fail(message);
-    return try bigFromDigits(arena, text);
-}
-
-/// Canonical BigInt for an unsigned decimal digit string.
-fn bigFromDigits(arena: std.mem.Allocator, digits: []const u8) std.mem.Allocator.Error!BigInt {
-    const trimmed = std.mem.trimLeft(u8, digits, "0");
-    const text = if (trimmed.len == 0) "0" else try arena.dupe(u8, trimmed);
-    const value = std.fmt.parseInt(i128, text, 10) catch std.math.maxInt(i128);
-    return .{ .value = value, .text = text };
 }
 
 /// `parseId` for notification payloads (trusted database bigint values).
@@ -460,7 +350,7 @@ pub fn parseExplorerConfirmations(arena: std.mem.Allocator, params: *const Query
     }
     if (!valid) return diag.fail("Invalid domains");
     const number = std.fmt.parseFloat(f64, count.?) catch unreachable;
-    const confirmations = try confirmationsNumber(number, domains.items, false, diag);
+    const confirmations = try confirmationsNumber(number, domains.items, diag);
     return .{ .confirmations = confirmations, .domains = domains.items };
 }
 
@@ -682,27 +572,11 @@ pub fn normalizeAddress(arena: std.mem.Allocator, value: []const u8) std.mem.All
     return out;
 }
 
-pub fn normalizeSequenceAddress(arena: std.mem.Allocator, value: []const u8) std.mem.Allocator.Error![]const u8 {
-    const normalized = try normalizeAddress(arena, value);
-    const padding = "\\x" ++ "00" ** 12;
-    if (normalized.len == 66 and std.mem.startsWith(u8, normalized, padding))
-        return std.fmt.allocPrint(arena, "\\x{s}", .{normalized[padding.len..]});
-    return normalized;
-}
-
 /// `displayAddress`: `0x` + normalized body.
 pub fn displayAddress(arena: std.mem.Allocator, value: []const u8) std.mem.Allocator.Error![]const u8 {
     const normalized = try normalizeAddress(arena, value);
     @constCast(normalized)[0] = '0';
     return normalized;
-}
-
-fn cursorAddress(value: ?json.Value) ?[]const u8 {
-    const present = value orelse return null;
-    if (present != .string) return null;
-    const body = stripAddressPrefix(present.string);
-    if (!isHex(body, 40) and !isHex(body, 64)) return null;
-    return present.string;
 }
 
 // ---------------------------------------------------------------------------
@@ -728,11 +602,6 @@ pub fn asNumber(value: json.Value) ?f64 {
     };
 }
 
-fn numberEquals(value: json.Value, expected: f64) bool {
-    const number = asNumber(value) orelse return false;
-    return number == expected;
-}
-
 pub fn isSafeInteger(number: f64) bool {
     return std.math.isFinite(number) and @floor(number) == number and @abs(number) <= 9007199254740991;
 }
@@ -742,12 +611,6 @@ fn asDomain(value: json.Value) ?u32 {
     const number = asNumber(value) orelse return null;
     if (!std.math.isFinite(number) or @floor(number) != number or number < 0 or number > 0xffff_ffff) return null;
     return @intFromFloat(number);
-}
-
-fn setEquality(a: []const u32, b: []const u32) bool {
-    if (a.len != b.len) return false;
-    for (a) |item| if (std.mem.indexOfScalar(u32, b, item) == null) return false;
-    return true;
 }
 
 pub fn isDigits(text: []const u8) bool {

@@ -41,9 +41,9 @@ pub fn build(b: *std.Build) void {
     // level). Off by default: the shipped build logs nothing TS does not.
     const loop_stats = b.option(bool, "loop-stats", "Log HTTP event-loop counters at close") orelse false;
     http_options.addOption(bool, "loop_stats", loop_stats);
-    // Diagnostics only (bench): live loop mutex hold-time histograms and
-    // replay prefetch outcomes, logged at info. Off by default.
-    const loop_hold_stats = b.option(bool, "loop-hold-stats", "Record and log live loop mutex hold times and replay prefetch outcomes") orelse false;
+    // Diagnostics only (bench): live loop mutex hold- and wait-time
+    // histograms, logged at info. Off by default.
+    const loop_hold_stats = b.option(bool, "loop-hold-stats", "Record and log live loop mutex hold and wait times") orelse false;
     const live_options = b.addOptions();
     live_options.addOption(bool, "loop_hold_stats", loop_hold_stats);
 

@@ -1,5 +1,5 @@
-//! Port of `event-store.ts`: database reads shared by live publication and
-//! historical replay, plus row shaping. SQL text is byte-identical to TS
+//! Port of `event-store.ts`: database reads for live publication, live-start
+//! boundaries and confirmation streams, plus row shaping. SQL text is byte-identical to TS
 //! (asserted by event_store_test.zig against testdata/sql.json).
 //!
 //! Methods require the loop mutex; queries release it while blocking.
@@ -24,66 +24,17 @@ pub const Row = Value;
 pub const Db = struct {
     ctx: *anyopaque,
     query: *const fn (ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const Value) anyerror![]Value,
-    /// Optional split query (`DbService.beginLive`): send now, read later.
-    /// `arena` (which also receives the rows), `sql` and `params` stay alive
-    /// until `finish` or `cancel` (exactly one) and, for the rows, after it.
-    /// The database reads the reply as it arrives and frees the connection
-    /// then (`finish`/`cancel` never wait for the replay task). Null: not
-    /// sent (out of memory); the page is read at its turn.
-    begin: ?*const fn (ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const Value) ?*anyopaque = null,
-    finish: ?*const fn (ctx: *anyopaque, handle: *anyopaque) anyerror![]Value = null,
-    cancel: ?*const fn (ctx: *anyopaque, handle: *anyopaque) void = null,
-    /// Whether the query was actually sent early (an idle connection).
-    issued: ?*const fn (ctx: *anyopaque, handle: *anyopaque) bool = null,
-    /// The early read failed in a way TS would not have seen (`finish`
-    /// reruns it).
-    failed_early: ?*const fn (ctx: *anyopaque, handle: *anyopaque) bool = null,
-};
-
-/// Read-ahead outcomes at TS's read point (debug log at stop).
-pub const PrefetchStats = struct {
-    pub const Outcome = enum { used, dropped_epoch, dropped_age, dropped_mismatch, dropped_failed_early, not_issued, abandoned };
-    counts: [@typeInfo(Outcome).@"enum".fields.len]std.atomic.Value(u64) = @splat(.init(0)),
-
-    pub fn count(self: *PrefetchStats, outcome: Outcome) void {
-        _ = self.counts[@intFromEnum(outcome)].fetchAdd(1, .monotonic);
-    }
-
-    pub fn get(self: *const PrefetchStats, outcome: Outcome) u64 {
-        return self.counts[@intFromEnum(outcome)].load(.monotonic);
-    }
-};
-
-/// A replay page query sent ahead of its turn (`EventStore.prefetchReplay`).
-pub const Prefetch = struct {
-    handle: *anyopaque,
-    /// Owns the parameters and the rows (`release` after using them). On the
-    /// heap: the database keeps its allocator until `finish`/`cancel`.
-    arena: *std.heap.ArenaAllocator,
-    after: i128,
-    through: i128,
-    legacy: bool,
-    /// Loop time the query was sent (freshness is measured from here).
-    sent_ms: i64,
-    /// Dropped early (`cancelPrefetch`): its arena is gone, never used.
-    cancelled: bool = false,
-
-    pub fn release(self: *Prefetch, gpa: Allocator) void {
-        self.arena.deinit();
-        gpa.destroy(self.arena);
-    }
 };
 
 // ---------------------------------------------------------------------------
 // Stream configuration
 
-pub const Sequence = struct { address: []const u8, value: []const u8 };
-
 pub const Stream = struct {
     table: []const u8,
     domain: []const u8,
     columns: []const []const u8,
-    sequence: ?Sequence = null,
+    /// Native sequence column (`eventMessage.sequence`).
+    sequence: ?[]const u8 = null,
 };
 
 const raw_message_dispatch_columns = [_][]const u8{ "destination_domain", "id", "msg_body", "msg_id", "nonce", "origin_block_hash", "origin_block_height", "origin_domain", "origin_mailbox", "origin_tx_hash", "recipient", "sender", "time_created" };
@@ -94,7 +45,7 @@ pub fn stream(comptime event_type: EventType) Stream {
             .table = "confirmed_raw_message_dispatch",
             .domain = "origin_domain",
             .columns = &raw_message_dispatch_columns,
-            .sequence = .{ .address = "origin_mailbox", .value = "nonce" },
+            .sequence = "nonce",
         },
         .delivery => .{
             .table = "confirmed_delivered_message",
@@ -110,7 +61,7 @@ pub fn stream(comptime event_type: EventType) Stream {
             .table = "confirmed_merkle_tree_insertion",
             .domain = "domain",
             .columns = &.{ "domain", "merkle_tree_hook", "leaf_index", "message_id", "block_number" },
-            .sequence = .{ .address = "merkle_tree_hook", .value = "leaf_index" },
+            .sequence = "leaf_index",
         },
     };
 }
@@ -130,9 +81,6 @@ fn eventDomainColumns(event_type: EventType) []const []const u8 {
     };
 }
 
-const GAS_PAYMENT_STREAM_CURSOR = "gas_payment_stream_cursor";
-const GAS_PAYMENT_STREAM_HEAD = "gas_payment_stream_head";
-pub const STREAM_CURSOR_COLUMN = "scraper_stream_cursor";
 const GAS_PAYMENT_TRANSACTION = "event_transaction";
 const GAS_PAYMENT_BLOCK = "event_block";
 pub const FRONTIER_ID = "frontier_id";
@@ -170,23 +118,12 @@ pub const gas_payment_metadata_joins = " LEFT JOIN \"transaction\" AS " ++ q(GAS
     q(GAS_PAYMENT_TRANSACTION) ++ ".\"id\" = \"event_row\".\"tx_id\" LEFT JOIN \"block\" AS " ++ q(GAS_PAYMENT_BLOCK) ++
     " ON " ++ q(GAS_PAYMENT_BLOCK) ++ ".\"id\" = " ++ q(GAS_PAYMENT_TRANSACTION) ++ ".\"block_id\"";
 
-const CursorMode = enum { none, mapped, legacy };
 const QueryParts = struct { projection: []const u8, joins: []const u8 };
 
-fn eventQueryParts(comptime event_type: EventType, comptime cursor: CursorMode) QueryParts {
+fn eventQueryParts(comptime event_type: EventType) QueryParts {
     const s = stream(event_type);
     if (event_type != .gas_payment) return .{ .projection = columns(s, "event_row"), .joins = "" };
-    const position = if (cursor == .legacy)
-        "COALESCE(\"event_cursor\".\"stream_cursor\", \"event_row\".\"id\")"
-    else
-        "\"event_cursor\".\"stream_cursor\"";
-    return .{
-        .projection = gasPaymentColumns(s) ++ (if (cursor != .none) ", " ++ position ++ " AS " ++ q(STREAM_CURSOR_COLUMN) else ""),
-        .joins = gas_payment_metadata_joins ++ (if (cursor != .none)
-            " LEFT JOIN " ++ q(GAS_PAYMENT_STREAM_CURSOR) ++ " AS \"event_cursor\" ON \"event_cursor\".\"gas_payment_id\" = \"event_row\".\"id\""
-        else
-            ""),
-    };
+    return .{ .projection = gasPaymentColumns(s), .joins = gas_payment_metadata_joins };
 }
 
 fn heightColumn(comptime event_type: EventType) []const u8 {
@@ -198,12 +135,12 @@ fn Sql(comptime event_type: EventType) type {
     const height = heightColumn(event_type);
     return struct {
         const notified = blk: {
-            const parts = eventQueryParts(event_type, .legacy);
+            const parts = eventQueryParts(event_type);
             break :blk "SELECT \"event_row\".\"id\" AS \"notification_id\", " ++ parts.projection ++ " FROM " ++ q(s.table) ++
                 " AS \"event_row\"" ++ parts.joins ++ " WHERE \"event_row\".\"id\" = ANY($1::bigint[]) ORDER BY \"event_row\".\"id\" ASC";
         };
         const head_events = blk: {
-            const parts = eventQueryParts(event_type, .mapped);
+            const parts = eventQueryParts(event_type);
             const fh = "\"frontier_row\"." ++ q(height);
             break :blk "SELECT " ++ parts.projection ++ ", \"event_row\".\"id\" AS " ++ q(FRONTIER_ID) ++ ", \"event_row\"." ++ q(height) ++
                 " AS " ++ q(FRONTIER_HEIGHT) ++ " FROM (SELECT * FROM " ++ q(s.table) ++ " AS \"frontier_row\" WHERE \"frontier_row\"." ++
@@ -211,30 +148,16 @@ fn Sql(comptime event_type: EventType) type {
                 "=$4::bigint AND \"frontier_row\".\"id\">$5::bigint)) ORDER BY " ++ fh ++ ", \"frontier_row\".\"id\" LIMIT $6) AS \"event_row\"" ++
                 parts.joins ++ " ORDER BY \"event_row\"." ++ q(height) ++ ", \"event_row\".\"id\"";
         };
-        fn confirmation(comptime with_addresses: bool) []const u8 {
-            const parts = eventQueryParts(event_type, .none);
+        const confirmation_events = blk: {
+            const parts = eventQueryParts(event_type);
             const table = s.table["confirmed_".len..];
             const block_hash = if (event_type == .merkle_tree_insertion) ", event_row.block_hash" else "";
-            const address_filter = if (!with_addresses) "" else " AND " ++
-                q(if (event_type == .gas_payment) "interchain_gas_paymaster" else s.sequence.?.address) ++ "=ANY($6::bytea[])";
-            return "/* confirmation_events */ SELECT " ++ parts.projection ++ block_hash ++ ", event_row.id AS frontier_id, event_row." ++
+            break :blk "/* confirmation_events */ SELECT " ++ parts.projection ++ block_hash ++ ", event_row.id AS frontier_id, event_row." ++
                 q(height) ++ " AS frontier_height\n         FROM (SELECT * FROM " ++ q(table) ++ " WHERE " ++ q(s.domain) ++ "=$1" ++
-                address_filter ++ "\n           AND (" ++ q(height) ++ ", id)>($2::bigint,$3::bigint) AND " ++ q(height) ++
+                "\n           AND (" ++ q(height) ++ ", id)>($2::bigint,$3::bigint) AND " ++ q(height) ++
                 "<=$4::bigint\n           ORDER BY " ++ q(height) ++ ", id LIMIT $5) event_row" ++ parts.joins ++
                 "\n         ORDER BY event_row." ++ q(height) ++ ", event_row.id";
-        }
-        const confirmation_events = confirmation(false);
-        const confirmation_events_by_address = if (event_type == .delivery) "" else confirmation(true);
-        const sequence_rows = if (s.sequence) |seq|
-            "SELECT " ++ columns(s, null) ++ " FROM " ++ q(s.table) ++ " WHERE " ++ q(s.domain) ++ " = $1 AND " ++ q(seq.address) ++
-                " = $2::bytea AND " ++ q(seq.value) ++ " > $3::bigint AND " ++ q(seq.value) ++ " <= $4::bigint ORDER BY " ++ q(seq.value) ++ " ASC LIMIT $5"
-        else
-            "";
-        const sequence_bounds = if (s.sequence) |seq|
-            "SELECT COALESCE(MIN(" ++ q(seq.value) ++ "), 0)::text AS first, COALESCE(MAX(" ++ q(seq.value) ++ "), -1)::text AS last FROM " ++
-                q(s.table) ++ " WHERE " ++ q(s.domain) ++ " = $1 AND " ++ q(seq.address) ++ " = $2::bytea"
-        else
-            "";
+        };
     };
 }
 
@@ -256,6 +179,17 @@ pub const sql = struct {
     pub const canonical_messages = "SELECT " ++ canonical_message_columns ++
         " FROM \"message_view\" WHERE \"msg_id\" = ANY($1::bytea[]) AND \"send_occurred_at\" IS NOT NULL";
     pub const confirmation_heads = "SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])";
+    const live_start_columns = "encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster";
+    /// `confirmationHeads(domains, confirmations)`: the last retained
+    /// checkpoint at or below each domain's confirmation frontier.
+    pub const confirmation_heads_live_start = "SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,\n                  c.height::text AS height, " ++
+        live_start_columns ++ "\n           FROM scraper_head h LEFT JOIN LATERAL (\n             SELECT height, hash FROM scraper_checkpoint\n" ++
+        "             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-$2::bigint)\n             ORDER BY height DESC LIMIT 1\n" ++
+        "           ) c ON h.healthy AND NOT h.halted\n           WHERE h.domain=ANY($1::integer[])";
+    const live_start_boundaries_prefix = "SELECT h.domain, c.height::text AS height, " ++ live_start_columns ++
+        "\n       FROM scraper_head h JOIN scraper_checkpoint c\n         ON c.domain=h.domain AND c.height=h.confirmed_height\n       WHERE h.healthy AND NOT h.halted\n         ";
+    pub const live_start_boundaries = live_start_boundaries_prefix;
+    pub const live_start_boundaries_filtered = live_start_boundaries_prefix ++ "AND h.domain=ANY($1::integer[])";
     pub fn confirmationMessages(comptime filter: bool) []const u8 {
         const f = if (filter) " AND msg_id = ANY($7::bytea[])" else "";
         return "/* confirmation_messages */ SELECT * FROM (\n" ++
@@ -264,19 +198,6 @@ pub const sql = struct {
             "          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint" ++ f ++ "\n" ++
             "        ) changes WHERE (height, source, id)>($2::bigint,$3::integer,$4::bigint) ORDER BY height, source, id LIMIT $6";
     }
-    const gas = stream(.gas_payment);
-    pub fn gasPaymentRows(comptime legacy: bool) []const u8 {
-        const source = if (legacy)
-            "(SELECT * FROM " ++ q(gas.table) ++ " WHERE " ++ q(gas.domain) ++ " = $1 AND \"interchain_gas_paymaster\" = $2::bytea AND \"id\" > $3::bigint AND \"id\" <= $4::bigint ORDER BY \"id\" ASC LIMIT $5) AS \"event_row\""
-        else
-            "(SELECT \"gas_payment_id\", \"stream_cursor\" FROM " ++ q(GAS_PAYMENT_STREAM_CURSOR) ++ " WHERE \"domain\" = $1 AND \"interchain_gas_paymaster\" = $2::bytea AND \"stream_cursor\" > $3::bigint AND \"stream_cursor\" <= $4::bigint ORDER BY \"stream_cursor\" ASC LIMIT $5) AS \"event_cursor\" INNER JOIN " ++ q(gas.table) ++ " AS \"event_row\" ON \"event_row\".\"id\" = \"event_cursor\".\"gas_payment_id\"";
-        const position = if (legacy) "\"event_row\".\"id\"" else "\"event_cursor\".\"stream_cursor\"";
-        return "SELECT " ++ gasPaymentColumns(gas) ++ ", " ++ position ++ " AS " ++ q(STREAM_CURSOR_COLUMN) ++ " FROM " ++ source ++
-            gas_payment_metadata_joins ++ " ORDER BY " ++ position ++ " ASC";
-    }
-    pub const gas_payment_cursor_bounds = "SELECT COALESCE(\"legacy_max_id\", 0)::text AS legacy_max_id, COALESCE(\"last_cursor\", 0)::text AS last_cursor FROM " ++
-        q(GAS_PAYMENT_STREAM_HEAD) ++ " WHERE \"domain\" = $1 AND \"interchain_gas_paymaster\" = $2::bytea";
-
     pub fn notifiedEvents(event_type: EventType) []const u8 {
         return switch (event_type) {
             inline else => |tag| Sql(tag).notified,
@@ -287,19 +208,9 @@ pub const sql = struct {
             inline else => |tag| Sql(tag).head_events,
         };
     }
-    pub fn confirmationEvents(event_type: EventType, with_addresses: bool) []const u8 {
+    pub fn confirmationEvents(event_type: EventType) []const u8 {
         return switch (event_type) {
-            inline else => |tag| if (with_addresses) Sql(tag).confirmation_events_by_address else Sql(tag).confirmation_events,
-        };
-    }
-    pub fn sequenceRows(event_type: EventType) []const u8 {
-        return switch (event_type) {
-            inline else => |tag| Sql(tag).sequence_rows,
-        };
-    }
-    pub fn sequenceBounds(event_type: EventType) []const u8 {
-        return switch (event_type) {
-            inline else => |tag| Sql(tag).sequence_bounds,
+            inline else => |tag| Sql(tag).confirmation_events,
         };
     }
 };
@@ -374,12 +285,9 @@ fn setMember(arena: Allocator, row: *Value, key: []const u8, value: Value) Alloc
     row.* = .{ .object = members };
 }
 
-/// `eventData`: drop the gas stream cursor and normalize stored domains.
+/// `eventData`: normalize stored domains (`{ ...data, [column]: domain }`).
 pub fn eventData(arena: Allocator, event_type: EventType, row: Value) !Value {
-    var data = if (event_type == .gas_payment)
-        try without(arena, row, &.{STREAM_CURSOR_COLUMN})
-    else
-        try without(arena, row, &.{});
+    var data = try without(arena, row, &.{});
     for (eventDomainColumns(event_type)) |column| {
         const domain = try rowDomain(data, column);
         const current = data.get(column).?;
@@ -389,59 +297,127 @@ pub fn eventData(arena: Allocator, event_type: EventType, row: Value) !Value {
     return data;
 }
 
-pub const Cursor = struct { address: []const u8, value: i128 };
-
-fn rowSequence(arena: Allocator, event_type: EventType, row: Value) !?Cursor {
-    const seq = switch (event_type) {
-        .dispatch => comptime stream(.dispatch).sequence.?,
-        .merkle_tree_insertion => comptime stream(.merkle_tree_insertion).sequence.?,
-        else => return null,
-    };
-    const address = row.get(seq.address) orelse return fail("Invalid {s} in event row", .{seq.address});
-    if (address != .string) return fail("Invalid {s} in event row", .{seq.address});
-    return .{
-        .address = try protocol.normalizeSequenceAddress(arena, address.string),
-        .value = rowInteger(row.get(seq.value), -1) orelse return fail("Invalid event sequence", .{}),
-    };
+/// `rowSequence`: the native sequence (dispatch nonce, Merkle leaf index).
+fn rowSequence(event_type: EventType, row: Value) !?i128 {
+    const column = switch (event_type) {
+        inline else => |tag| comptime stream(tag).sequence,
+    } orelse return null;
+    return try parseId(row.get(column));
 }
 
-fn gasPaymentStreamCursor(arena: Allocator, row: Value) !Cursor {
-    const address = row.get("interchain_gas_paymaster") orelse return fail("Invalid interchain_gas_paymaster in event row", .{});
-    if (address != .string) return fail("Invalid interchain_gas_paymaster in event row", .{});
-    return .{
-        .address = try protocol.normalizeSequenceAddress(arena, address.string),
-        .value = try parseId(row.get(STREAM_CURSOR_COLUMN)),
-    };
+/// Write `eventMessage(eventType, row)`'s members into `o`:
+/// `type, eventType, domain, data, sequence?, rowId?`.
+pub fn eventMessageMembers(o: *frames.Object, arena: Allocator, event_type: EventType, row: Value) !void {
+    const domain = try rowDomain(row, domainColumn(event_type));
+    const data = try eventData(arena, event_type, row);
+    const sequence = try rowSequence(event_type, row);
+    const row_id: ?i128 = if (event_type == .gas_payment) try parseId(row.get("id")) else null;
+    try o.string("type", "event");
+    try o.string("eventType", event_type.name());
+    try o.int("domain", domain);
+    try o.val("data", data);
+    try o.optBigString("sequence", sequence);
+    try o.optBigString("rowId", row_id);
 }
 
-pub fn rowCursor(arena: Allocator, event_type: EventType, row: Value) !?Cursor {
-    if (event_type == .gas_payment) return try gasPaymentStreamCursor(arena, row);
-    return rowSequence(arena, event_type, row);
+/// `serialize(eventMessage(eventType, row))`.
+pub fn eventMessage(arena: Allocator, event_type: EventType, row: Value) ![]const u8 {
+    var out: std.Io.Writer.Allocating = .init(arena);
+    var o = try frames.Object.begin(&out.writer);
+    try eventMessageMembers(&o, arena, event_type, row);
+    try o.end();
+    return out.written();
 }
 
-/// `sequenceKey(domain, address)` for an already-normalized address.
-pub fn cursorKey(arena: Allocator, domain: u32, normalized_address: []const u8) Allocator.Error![]const u8 {
-    return std.fmt.allocPrint(arena, "{d}:{s}", .{ domain, normalized_address });
-}
-
-pub fn rowCursorKey(arena: Allocator, event_type: EventType, domain: u32, row: Value) !?[]const u8 {
-    const cursor = try rowCursor(arena, event_type, row) orelse return null;
-    return try cursorKey(arena, domain, cursor.address);
-}
-
-/// `rows.sort(compareRows)`: a stable sort whose comparator throws on rows
-/// without a cursor; V8 calls it for every element once there are two.
+/// `rows.sort((a, b) => compareRows(eventType, a, b))`: a stable sort by row
+/// id (gas payments) or native sequence; delivery rows compare equal. The
+/// comparator throws on a row without a valid key; V8 calls it for every
+/// element once there are two.
 pub fn sortRows(arena: Allocator, event_type: EventType, rows: []Value) !void {
     if (rows.len < 2 or event_type == .delivery) return;
     const Keyed = struct { key: i128, row: Value };
     const keyed = try arena.alloc(Keyed, rows.len);
-    for (rows, keyed) |row, *entry| entry.* = .{ .key = (try rowCursor(arena, event_type, row)).?.value, .row = row };
+    for (rows, keyed) |row, *entry| entry.* = .{
+        .key = if (event_type == .gas_payment) try parseId(row.get("id")) else (try rowSequence(event_type, row)).?,
+        .row = row,
+    };
     std.mem.sort(Keyed, keyed, {}, struct {
         fn lessThan(_: void, a: Keyed, b: Keyed) bool {
             return a.key < b.key;
         }
     }.lessThan);
     for (rows, keyed) |*row, entry| row.* = entry.row;
+}
+
+/// Deep copy of a row value. Iterative (an explicit stack in the arena):
+/// database JSON can nest as deep as its size allows.
+pub fn clone(a: Allocator, value: Value) Allocator.Error!Value {
+    const Work = struct { source: Value, dest: *Value };
+    var root: Value = undefined;
+    var stack: std.ArrayList(Work) = .empty;
+    try stack.append(a, .{ .source = value, .dest = &root });
+    while (stack.pop()) |work| {
+        work.dest.* = switch (work.source) {
+            .null, .bool, .number => work.source,
+            .raw => |text| .{ .raw = try a.dupe(u8, text) },
+            .string => |text| .{ .string = try a.dupe(u8, text) },
+            .array => |items| blk: {
+                const out = try a.alloc(Value, items.len);
+                for (items, out) |item, *dest| try stack.append(a, .{ .source = item, .dest = dest });
+                break :blk .{ .array = out };
+            },
+            .object => |members| blk: {
+                const out = try a.alloc(json.Member, members.len);
+                for (members, out) |member, *dest| {
+                    dest.key = try a.dupe(u8, member.key);
+                    try stack.append(a, .{ .source = member.value, .dest = &dest.value });
+                }
+                break :blk .{ .object = out };
+            },
+        };
+    }
+    return root;
+}
+
+/// `liveStartBoundary(row)`: null unless the row carries a 32-byte hash, a
+/// decimal height and contract addresses of 20 or 32 bytes.
+pub fn liveStartBoundary(row: Value) ?protocol.LiveStartBoundary {
+    var boundary: protocol.LiveStartBoundary = .{};
+    const hash = row.get("hash") orelse return null;
+    if (hash != .string or hash.string.len != 64) return null;
+    for (hash.string) |char| if (!std.ascii.isHex(char)) return null;
+    boundary.hash_buf[0] = '0';
+    boundary.hash_buf[1] = 'x';
+    for (hash.string, boundary.hash_buf[2..]) |char, *dest| dest.* = std.ascii.toLower(char);
+    const height = row.get("height") orelse return null;
+    if (height != .string or !protocol.isDigits(height.string)) return null;
+    for ([_][]const u8{ "mailbox", "merkle_tree_hook", "interchain_gas_paymaster" }) |column| {
+        const value = row.get(column) orelse return null;
+        if (value != .string) return null;
+    }
+    for ([_][]const u8{ "mailbox", "merkle_tree_hook", "interchain_gas_paymaster" }, 0..) |column, index| {
+        // displayAddress, then /^0x(?:[a-f0-9]{40}|[a-f0-9]{64})$/.
+        const text = row.get(column).?.string;
+        const body = if (std.mem.startsWith(u8, text, "0x") or std.mem.startsWith(u8, text, "\\x")) text[2..] else text;
+        if (body.len != 40 and body.len != 64) return null;
+        const dest = &boundary.address_buf[index];
+        dest[0] = '0';
+        dest[1] = 'x';
+        for (body, dest[2..][0..body.len]) |char, *out| {
+            const lower = std.ascii.toLower(char);
+            if (!std.ascii.isDigit(lower) and (lower < 'a' or lower > 'f')) return null;
+            out.* = lower;
+        }
+        boundary.address_len[index] = @intCast(body.len + 2);
+    }
+    // `parseId(row.height).toString()`: canonical decimal. A bigint column
+    // never exceeds 19 digits.
+    const trimmed = std.mem.trimLeft(u8, height.string, "0");
+    const digits = if (trimmed.len == 0) "0" else trimmed;
+    if (digits.len > boundary.height_buf.len) return null;
+    @memcpy(boundary.height_buf[0..digits.len], digits);
+    boundary.height_len = @intCast(digits.len);
+    return boundary;
 }
 
 // ---------------------------------------------------------------------------
@@ -481,12 +457,6 @@ pub const HeadRow = struct { domain: u32, head: Value, indexed: Value, hash: Val
 pub const EventStore = struct {
     allocator: Allocator,
     loop: *runtime.Loop,
-    /// A page read ahead is used only if it was sent at most this long
-    /// before TS would have sent the query: a write committed after the read
-    /// whose notification has not been processed yet is a window of this
-    /// size, the same order as the notification delivery (tests raise it).
-    prefetch_age_ms: i64 = 50,
-    prefetch_stats: PrefetchStats = .{},
     db: Db,
     batch_size: u64,
     cache: std.StringArrayHashMapUnmanaged(*Provisional) = .empty,
@@ -537,10 +507,37 @@ pub const EventStore = struct {
         return self.query(arena, sql.notifiedEvents(event_type), &.{try stringArray(arena, ids)});
     }
 
-    pub fn confirmationHeads(self: *EventStore, allocator: Allocator, domains: []const u32) !cs.Heads {
+    /// `liveStartBoundaries(domains?)`: every healthy domain's confirmed
+    /// checkpoint, in row order (no ORDER BY). Malformed rows are skipped.
+    pub fn liveStartBoundaries(self: *EventStore, domains: ?[]const u32) !std.AutoArrayHashMapUnmanaged(u32, protocol.LiveStartBoundary) {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
-        const rows = try self.query(arena.allocator(), sql.confirmation_heads, &.{try domainArray(arena.allocator(), domains)});
+        const a = arena.allocator();
+        const rows = if (domains) |list|
+            try self.query(a, sql.live_start_boundaries_filtered, &.{try domainArray(a, list)})
+        else
+            try self.query(a, sql.live_start_boundaries, &.{});
+        var boundaries: std.AutoArrayHashMapUnmanaged(u32, protocol.LiveStartBoundary) = .empty;
+        errdefer boundaries.deinit(self.allocator);
+        for (rows) |row| {
+            const boundary = liveStartBoundary(row) orelse continue;
+            var diag: protocol.Diag = .{};
+            const domain = protocol.parseDatabaseDomain(row.get("domain"), "", &diag) catch return fail("Invalid live-start domain", .{});
+            try boundaries.put(self.allocator, domain, boundary);
+        }
+        return boundaries;
+    }
+
+    /// `confirmationHeads(domains, confirmations?)`. With confirmations, each
+    /// head carries the live start of its custom stream.
+    pub fn confirmationHeads(self: *EventStore, allocator: Allocator, domains: []const u32, confirmations: ?u64) !cs.Heads {
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const rows = if (confirmations) |count|
+            try self.query(a, sql.confirmation_heads_live_start, &.{ try domainArray(a, domains), json.int(count) })
+        else
+            try self.query(a, sql.confirmation_heads, &.{try domainArray(a, domains)});
         var heads: cs.Heads = .empty;
         errdefer heads.deinit(allocator);
         for (rows) |row| {
@@ -551,6 +548,7 @@ pub const EventStore = struct {
                 .head = try parseId(row.get("head_height")),
                 .indexed = try parseId(row.get("indexed_height")),
                 .confirmed = try parseId(row.get("confirmed_height")),
+                .live_start = liveStartBoundary(row),
             });
         }
         return heads;
@@ -666,93 +664,6 @@ pub const EventStore = struct {
         return messages;
     }
 
-    pub fn sequenceRows(self: *EventStore, arena: Allocator, event_type: EventType, cursor: protocol.StreamCursor, after: i128, through: i128) ![]Value {
-        return self.query(arena, sql.sequenceRows(event_type), &try replayValues(self, arena, cursor, after, through));
-    }
-
-    /// Send the replay page query that `sequenceRows`/`gasPaymentRows` would
-    /// send for (`after`, `through`), without waiting: same SQL, same
-    /// parameters. Null when the database cannot split queries.
-    pub fn prefetchReplay(self: *EventStore, event_type: EventType, cursor: protocol.StreamCursor, after: i128, through: i128, legacy: bool) !?Prefetch {
-        const begin = self.db.begin orelse return null;
-        const arena = try self.allocator.create(std.heap.ArenaAllocator);
-        errdefer self.allocator.destroy(arena);
-        arena.* = .init(self.allocator);
-        errdefer arena.deinit();
-        const a = arena.allocator();
-        const text = if (event_type == .gas_payment)
-            (if (legacy) comptime sql.gasPaymentRows(true) else comptime sql.gasPaymentRows(false))
-        else
-            sql.sequenceRows(event_type);
-        const params = try a.dupe(Value, &try replayValues(self, a, cursor, after, through));
-        const handle = begin(self.db.ctx, a, text, params) orelse {
-            arena.deinit();
-            self.allocator.destroy(arena);
-            return null;
-        };
-        return .{ .handle = handle, .arena = arena, .after = after, .through = through, .legacy = legacy, .sent_ms = self.loop.now() };
-    }
-
-    /// Read a prefetched page (`await` like `query`: the mutex is released).
-    /// The rows live in `prefetch.arena`.
-    pub fn finishPrefetch(self: *EventStore, prefetch: *Prefetch) ![]Value {
-        runtime.assertMayBlock();
-        self.loop.unlock();
-        defer self.loop.lock();
-        return self.db.finish.?(self.db.ctx, prefetch.handle);
-    }
-
-    /// Read what has arrived of a prefetched page without waiting.
-    pub fn prefetchIssued(self: *EventStore, prefetch: *Prefetch) bool {
-        const issued = self.db.issued orelse return true;
-        return issued(self.db.ctx, prefetch.handle);
-    }
-
-    pub fn prefetchFailedEarly(self: *EventStore, prefetch: *Prefetch) bool {
-        const failed = self.db.failed_early orelse return false;
-        return failed(self.db.ctx, prefetch.handle);
-    }
-
-    /// Drop a prefetched page (its query counts nowhere; the database drains
-    /// a reply still in flight). Idempotent; needs no loop mutex.
-    pub fn cancelPrefetch(self: *EventStore, prefetch: *Prefetch) void {
-        if (prefetch.cancelled) return;
-        prefetch.cancelled = true;
-        self.db.cancel.?(self.db.ctx, prefetch.handle);
-        prefetch.release(self.allocator);
-    }
-
-    pub fn sequenceBounds(self: *EventStore, event_type: EventType, cursor: protocol.StreamCursor) !struct { first: i128, last: i128 } {
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const rows = try self.query(arena.allocator(), sql.sequenceBounds(event_type), &.{ storedDomainValue(cursor.domain), .{ .string = cursor.address } });
-        const row: ?Value = if (rows.len > 0) rows[0] else null;
-        return .{
-            .first = if (row) |r| rowInteger(r.get("first"), -1) orelse return fail("Invalid event sequence", .{}) else 0,
-            .last = if (row) |r| rowInteger(r.get("last"), -1) orelse return fail("Invalid event sequence", .{}) else -1,
-        };
-    }
-
-    pub fn gasPaymentRows(self: *EventStore, arena: Allocator, cursor: protocol.StreamCursor, after: i128, through: i128, legacy: bool) ![]Value {
-        const text = if (legacy) comptime sql.gasPaymentRows(true) else comptime sql.gasPaymentRows(false);
-        return self.query(arena, text, &try replayValues(self, arena, cursor, after, through));
-    }
-
-    pub fn gasPaymentCursorBounds(self: *EventStore, cursor: protocol.StreamCursor) !struct { last_cursor: i128, legacy_max_id: i128 } {
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const rows = try self.query(arena.allocator(), sql.gas_payment_cursor_bounds, &.{ storedDomainValue(cursor.domain), .{ .string = cursor.address } });
-        const row: ?Value = if (rows.len > 0) rows[0] else null;
-        return .{
-            .last_cursor = if (row) |r| try parseId(r.get("last_cursor")) else 0,
-            .legacy_max_id = if (row) |r| try parseId(r.get("legacy_max_id")) else 0,
-        };
-    }
-
-    fn replayValues(self: *EventStore, arena: Allocator, cursor: protocol.StreamCursor, after: i128, through: i128) ![5]Value {
-        return .{ storedDomainValue(cursor.domain), .{ .string = cursor.address }, try bigText(arena, after), try bigText(arena, through), self.batch() };
-    }
-
     // -- headEvents ----------------------------------------------------------
 
     /// `headEvents` async generator: pages of rows sorted by cursor.
@@ -822,7 +733,6 @@ pub const EventStore = struct {
         domain: u32,
         through: i128,
         confirmations: u64,
-        addresses: ?[]const []const u8,
         position: cs.Position,
         page: std.heap.ArenaAllocator,
         frame: std.heap.ArenaAllocator,
@@ -841,16 +751,14 @@ pub const EventStore = struct {
                 if (self.fetched and self.rows.len < self.store.batch_size) return null;
                 _ = self.page.reset(.retain_capacity);
                 const a = self.page.allocator();
-                var params: std.ArrayList(Value) = .empty;
-                try params.appendSlice(a, &.{
+                const params = [_]Value{
                     storedDomainValue(self.domain),
                     try bigText(a, self.position.height),
                     try bigText(a, self.position.id),
                     try bigText(a, self.through),
                     self.store.batch(),
-                });
-                if (self.addresses) |addresses| try params.append(a, try stringArray(a, addresses));
-                self.rows = try self.store.query(a, sql.confirmationEvents(self.event_type, self.addresses != null), params.items);
+                };
+                self.rows = try self.store.query(a, sql.confirmationEvents(self.event_type), &params);
                 self.fetched = true;
                 self.index = 0;
                 if (self.rows.len == 0) return null;
@@ -868,20 +776,13 @@ pub const EventStore = struct {
             self.position = position;
             const block_hash = row.get("block_hash");
             const rest = try without(a, row, &.{ FRONTIER_ID, FRONTIER_HEIGHT, "block_hash" });
-            const data = try eventData(a, self.event_type, rest);
-            const sequence = try rowSequence(a, self.event_type, rest);
-            const row_id: ?i128 = if (self.event_type == .gas_payment) try parseId(rest.get("id")) else null;
+            // `{ ...eventMessage(eventType, row), confirmations, height, blockHash }`.
             var out: std.Io.Writer.Allocating = .init(a);
             var o = try frames.Object.begin(&out.writer);
-            try o.string("type", "event");
-            try o.string("eventType", self.event_type.name());
-            try o.int("domain", self.domain);
+            try eventMessageMembers(&o, a, self.event_type, rest);
             try o.int("confirmations", self.confirmations);
             try o.bigString("height", position.height);
             if (block_hash) |hash| try o.val("blockHash", hash);
-            try o.val("data", data);
-            if (sequence) |s| try o.bigString("sequence", s.value);
-            try o.optBigString("rowId", row_id);
             try o.end();
             return .{ .position = position, .message = .{ .frame = out.written() } };
         }
@@ -889,10 +790,6 @@ pub const EventStore = struct {
         fn deinit(ptr: *anyopaque) void {
             const self: *EventRows = @ptrCast(@alignCast(ptr));
             const allocator = self.store.allocator;
-            if (self.addresses) |addresses| {
-                for (addresses) |address| allocator.free(address);
-                allocator.free(addresses);
-            }
             self.page.deinit();
             self.frame.deinit();
             allocator.destroy(self);
@@ -907,9 +804,7 @@ pub const EventStore = struct {
         after: cs.Position,
         through: i128,
         confirmations: u64,
-        addresses: ?[]const []const u8,
     ) !cs.Reader {
-        if (addresses != null and event_type == .delivery) return fail("Stream has no native sequence", .{});
         const reader = try self.allocator.create(EventRows);
         errdefer self.allocator.destroy(reader);
         reader.* = .{
@@ -918,7 +813,6 @@ pub const EventStore = struct {
             .domain = domain,
             .through = through,
             .confirmations = confirmations,
-            .addresses = if (addresses) |list| try dupeStrings(self.allocator, list) else null,
             .position = after,
             .page = .init(self.allocator),
             .frame = .init(self.allocator),

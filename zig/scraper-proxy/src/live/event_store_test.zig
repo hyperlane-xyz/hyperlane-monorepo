@@ -48,14 +48,24 @@ test "event store SQL and parameters match TS byte for byte" {
     defer t.loop.unlock();
 
     const types = [_]protocol.EventType{ .dispatch, .delivery, .gas_payment, .merkle_tree_insertion };
-    const seq: protocol.StreamCursor = .{ .kind = .sequence, .domain = 4294967295, .address = "\\x" ++ "01" ** 20 };
-    const gas: protocol.StreamCursor = .{ .kind = .gas_payment, .domain = 1, .address = "\\x" ++ "02" ** 32 };
     var names: std.ArrayList([]const u8) = .empty;
 
     try names.append(a, "blockHeads");
     _ = try store.blockHeads(a, null);
     try names.append(a, "blockHeads:domains");
     _ = try store.blockHeads(a, &.{ 1, 4294967295 });
+    try names.append(a, "liveStartBoundaries");
+    var boundaries = try store.liveStartBoundaries(null);
+    boundaries.deinit(testing.allocator);
+    try names.append(a, "liveStartBoundaries:domains");
+    boundaries = try store.liveStartBoundaries(&.{ 1, 4294967295 });
+    boundaries.deinit(testing.allocator);
+    try names.append(a, "confirmationHeads");
+    var heads = try store.confirmationHeads(testing.allocator, &.{ 1, 4294967295 }, null);
+    heads.deinit(testing.allocator);
+    try names.append(a, "confirmationHeads:confirmations");
+    heads = try store.confirmationHeads(testing.allocator, &.{ 1, 4294967295 }, 3);
+    heads.deinit(testing.allocator);
     try names.append(a, "canonicalMessages");
     _ = try store.canonicalMessages(a, &.{"\\x" ++ "ab" ** 32});
     for (types) |event_type| {
@@ -66,11 +76,7 @@ test "event store SQL and parameters match TS byte for byte" {
         defer head_events.deinit();
         try testing.expect((try head_events.next()) == null);
         try names.append(a, try std.fmt.allocPrint(a, "confirmationEventRows:{s}", .{event_type.name()}));
-        try drain(try store.confirmationEventRows(event_type, 1, .{ .height = 3, .source = 0, .id = 7 }, 10, 2, null));
-        if (event_type != .delivery) {
-            try names.append(a, try std.fmt.allocPrint(a, "confirmationEventRows:{s}:addresses", .{event_type.name()}));
-            try drain(try store.confirmationEventRows(event_type, 1, .{ .height = 3, .source = 0, .id = 7 }, 10, 0, &.{"\\x" ++ "aa" ** 20}));
-        }
+        try drain(try store.confirmationEventRows(event_type, 1, .{ .height = 3, .source = 0, .id = 7 }, 10, 2));
     }
     var frontiers: cs.Frontiers = .empty;
     defer frontiers.deinit(testing.allocator);
@@ -83,21 +89,6 @@ test "event store SQL and parameters match TS byte for byte" {
     try frontiers.put(testing.allocator, 1, 7);
     const provisional = try store.provisionalMessages(&.{ "\\xbb", "\\xaa", "\\xbb" }, &frontiers);
     store.releaseProvisional(provisional);
-    for ([_]protocol.EventType{ .dispatch, .merkle_tree_insertion }) |event_type| {
-        try names.append(a, try std.fmt.allocPrint(a, "sequenceRows:{s}", .{event_type.name()}));
-        _ = try store.sequenceRows(a, event_type, seq, 5, 10);
-        try names.append(a, try std.fmt.allocPrint(a, "sequenceBounds:{s}", .{event_type.name()}));
-        const bounds = try store.sequenceBounds(event_type, seq);
-        try testing.expectEqual(@as(i128, 0), bounds.first);
-        try testing.expectEqual(@as(i128, -1), bounds.last);
-    }
-    try names.append(a, "gasPaymentRows:legacy");
-    _ = try store.gasPaymentRows(a, gas, 1, 2, true);
-    try names.append(a, "gasPaymentRows:mapped");
-    _ = try store.gasPaymentRows(a, gas, 1, 2, false);
-    try names.append(a, "gasPaymentCursorBounds");
-    _ = try store.gasPaymentCursorBounds(gas);
-
     const corpus = try json.parse(a, @embedFile("testdata/sql.json"), .{});
     try testing.expectEqual(corpus.array.len, recorder.queries.items.len);
     for (corpus.array, recorder.queries.items, names.items) |expected, actual, name| {
@@ -115,7 +106,7 @@ test "event store SQL and parameters match TS byte for byte" {
 }
 
 test "includes block identity only in the provisional Merkle projection" {
-    const text = es.sql.confirmationEvents(.merkle_tree_insertion, false);
+    const text = es.sql.confirmationEvents(.merkle_tree_insertion);
     try testing.expect(std.mem.indexOf(u8, text, ", event_row.block_hash, event_row.id") != null);
     for (es.stream(.merkle_tree_insertion).columns) |column| try testing.expect(!std.mem.eql(u8, column, "block_hash"));
 }
@@ -137,12 +128,28 @@ test "filters confirmation dispatch, delivery and gas rows in SQL before enrichm
     try testing.expectEqual(@as(usize, 0), recorder.queries.items.len);
 }
 
-test "filters zero-confirmation reads by mailbox, hook or paymaster" {
-    for ([_]struct { protocol.EventType, []const u8 }{
-        .{ .dispatch, "\"origin_mailbox\"=ANY($6::bytea[])" },
-        .{ .merkle_tree_insertion, "\"merkle_tree_hook\"=ANY($6::bytea[])" },
-        .{ .gas_payment, "\"interchain_gas_paymaster\"=ANY($6::bytea[])" },
-    }) |case| try testing.expect(std.mem.indexOf(u8, es.sql.confirmationEvents(case[0], true), case[1]) != null);
+test "live-start and confirmation SQL match TS main byte for byte" {
+    // Captured from TS main (#10040, #10043) by db (szig-scratch/db-port/main-sql.json).
+    try testing.expectEqualStrings(
+        "SELECT h.domain, c.height::text AS height, encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster\n       FROM scraper_head h JOIN scraper_checkpoint c\n         ON c.domain=h.domain AND c.height=h.confirmed_height\n       WHERE h.healthy AND NOT h.halted\n         ",
+        es.sql.live_start_boundaries,
+    );
+    try testing.expectEqualStrings(
+        "SELECT h.domain, c.height::text AS height, encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster\n       FROM scraper_head h JOIN scraper_checkpoint c\n         ON c.domain=h.domain AND c.height=h.confirmed_height\n       WHERE h.healthy AND NOT h.halted\n         AND h.domain=ANY($1::integer[])",
+        es.sql.live_start_boundaries_filtered,
+    );
+    try testing.expectEqualStrings(
+        "SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])",
+        es.sql.confirmation_heads,
+    );
+    try testing.expectEqualStrings(
+        "SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,\n                  c.height::text AS height, encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster\n           FROM scraper_head h LEFT JOIN LATERAL (\n             SELECT height, hash FROM scraper_checkpoint\n             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-$2::bigint)\n             ORDER BY height DESC LIMIT 1\n           ) c ON h.healthy AND NOT h.halted\n           WHERE h.domain=ANY($1::integer[])",
+        es.sql.confirmation_heads_live_start,
+    );
+    try testing.expectEqualStrings(
+        "/* confirmation_events */ SELECT \"event_row\".\"domain\", \"event_row\".\"merkle_tree_hook\", \"event_row\".\"leaf_index\", \"event_row\".\"message_id\", \"event_row\".\"block_number\", event_row.block_hash, event_row.id AS frontier_id, event_row.\"block_number\" AS frontier_height\n         FROM (SELECT * FROM \"merkle_tree_insertion\" WHERE \"domain\"=$1\n           AND (\"block_number\", id)>($2::bigint,$3::bigint) AND \"block_number\"<=$4::bigint\n           ORDER BY \"block_number\", id LIMIT $5) event_row\n         ORDER BY event_row.\"block_number\", event_row.id",
+        es.sql.confirmationEvents(.merkle_tree_insertion),
+    );
 }
 
 test "raw_message_dispatch columns match the scraperdb table spec" {
@@ -153,32 +160,92 @@ test "raw_message_dispatch columns match the scraperdb table spec" {
     for (expected, actual) |x, y| try testing.expectEqualStrings(x, y);
 }
 
-test "row shaping mirrors eventData and compareRows" {
+test "row shaping mirrors eventData, eventMessage and compareRows" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
     const row = try json.parse(a,
-        \\{"id":"5","domain":-1,"origin":"7","destination":3,"interchain_gas_paymaster":"\\xAB","scraper_stream_cursor":"9"}
+        \\{"id":"5","domain":-1,"origin":"7","destination":3,"interchain_gas_paymaster":"\\xAB","sequence":"9"}
     , .{});
     const data = try es.eventData(a, .gas_payment, row);
     try testing.expectEqualStrings(
-        \\{"id":"5","domain":4294967295,"origin":7,"destination":3,"interchain_gas_paymaster":"\\xAB"}
+        \\{"id":"5","domain":4294967295,"origin":7,"destination":3,"interchain_gas_paymaster":"\\xAB","sequence":"9"}
     , try json.stringifyAlloc(a, data));
-    const cursor = (try es.rowCursor(a, .gas_payment, row)).?;
-    try testing.expectEqual(@as(i128, 9), cursor.value);
-    try testing.expectEqualStrings("\\xab", cursor.address);
+    // `type, eventType, domain, data, sequence?, rowId?`: gas payments carry
+    // their row id, never a stream cursor.
+    try testing.expectEqualStrings(
+        \\{"type":"event","eventType":"gas_payment","domain":4294967295,"data":{"id":"5","domain":4294967295,"origin":7,"destination":3,"interchain_gas_paymaster":"\\xAB","sequence":"9"},"rowId":"5"}
+    , try es.eventMessage(a, .gas_payment, row));
+    const dispatch = try json.parse(a,
+        \\{"origin_domain":"1","destination_domain":2,"nonce":"007"}
+    , .{});
+    try testing.expectEqualStrings(
+        \\{"type":"event","eventType":"dispatch","domain":1,"data":{"origin_domain":1,"destination_domain":2,"nonce":"007"},"sequence":"7"}
+    , try es.eventMessage(a, .dispatch, dispatch));
+    const delivery = try json.parse(a, "{\"domain\":3,\"sequence\":\"x\"}", .{});
+    try testing.expectEqualStrings(
+        \\{"type":"event","eventType":"delivery","domain":3,"data":{"domain":3,"sequence":"x"}}
+    , try es.eventMessage(a, .delivery, delivery));
+    // A native sequence must be a non-negative id (-1 is no longer valid).
+    const negative = try json.parse(a, "{\"domain\":1,\"leaf_index\":-1}", .{});
+    try testing.expectError(error.Failed, es.eventMessage(a, .merkle_tree_insertion, negative));
     // One row never invokes the comparator; two invalid rows do.
     var single = [_]json.Value{try json.parse(a, "{\"interchain_gas_paymaster\":\"\\\\x01\"}", .{})};
     try es.sortRows(a, .gas_payment, &single);
     var pair = [_]json.Value{ single[0], single[0] };
     try testing.expectError(error.Failed, es.sortRows(a, .gas_payment, &pair));
     var sequenced = [_]json.Value{
-        try json.parse(a, "{\"origin_mailbox\":\"\\\\x01\",\"nonce\":3,\"tag\":\"a\"}", .{}),
-        try json.parse(a, "{\"origin_mailbox\":\"\\\\x01\",\"nonce\":1,\"tag\":\"b\"}", .{}),
-        try json.parse(a, "{\"origin_mailbox\":\"\\\\x02\",\"nonce\":1,\"tag\":\"c\"}", .{}),
+        try json.parse(a, "{\"nonce\":3,\"tag\":\"a\"}", .{}),
+        try json.parse(a, "{\"nonce\":1,\"tag\":\"b\"}", .{}),
+        try json.parse(a, "{\"nonce\":2,\"tag\":\"c\"}", .{}),
     };
     try es.sortRows(a, .dispatch, &sequenced);
     try testing.expectEqualStrings("b", sequenced[0].get("tag").?.string);
     try testing.expectEqualStrings("c", sequenced[1].get("tag").?.string);
     try testing.expectEqualStrings("a", sequenced[2].get("tag").?.string);
+    var gas_rows = [_]json.Value{
+        try json.parse(a, "{\"id\":\"10\",\"tag\":\"a\"}", .{}),
+        try json.parse(a, "{\"id\":9,\"tag\":\"b\"}", .{}),
+    };
+    try es.sortRows(a, .gas_payment, &gas_rows);
+    try testing.expectEqualStrings("b", gas_rows[0].get("tag").?.string);
+}
+
+test "live-start boundaries follow liveStartBoundary" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const row = try json.parse(a,
+        \\{"domain":1,"height":"0100","hash":"
+    ++ "AB" ** 32 ++
+        \\","mailbox":"
+    ++ "11" ** 20 ++
+        \\","merkle_tree_hook":"
+    ++ "22" ** 32 ++
+        \\","interchain_gas_paymaster":"
+    ++ "Cc" ** 32 ++
+        \\"}
+    , .{});
+    const boundary = es.liveStartBoundary(row).?;
+    try testing.expectEqualStrings("100", boundary.height());
+    try testing.expectEqualStrings("0x" ++ "ab" ** 32, boundary.hash());
+    try testing.expectEqualStrings("0x" ++ "11" ** 20, boundary.contract(.dispatch));
+    try testing.expectEqualStrings("0x" ++ "11" ** 20, boundary.contract(.delivery));
+    try testing.expectEqualStrings("0x" ++ "22" ** 32, boundary.contract(.merkle_tree_insertion));
+    try testing.expectEqualStrings("0x" ++ "cc" ** 32, boundary.contract(.gas_payment));
+    const Mutation = struct { key: []const u8, value: json.Value };
+    for ([_]Mutation{
+        .{ .key = "hash", .value = .{ .string = "ab" ** 31 } },
+        .{ .key = "hash", .value = .null },
+        .{ .key = "height", .value = .null },
+        .{ .key = "height", .value = .{ .string = "-1" } },
+        .{ .key = "height", .value = json.int(100) },
+        .{ .key = "mailbox", .value = .{ .string = "11" ** 16 } },
+        .{ .key = "merkle_tree_hook", .value = .null },
+        .{ .key = "interchain_gas_paymaster", .value = .{ .string = "zz" ** 20 } },
+    }) |mutation| {
+        var copy = try es.clone(a, row);
+        copy.getPtr(mutation.key).?.* = mutation.value;
+        try testing.expect(es.liveStartBoundary(copy) == null);
+    }
 }

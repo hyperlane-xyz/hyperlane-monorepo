@@ -28,7 +28,7 @@ fn framed(len: usize) usize {
 }
 
 const KernelSocket = struct {
-    /// Replay tasks write from pool threads while the test thread refreshes.
+    /// Stream tasks write from pool threads while the test thread refreshes.
     mutex: std.Thread.Mutex = .{},
     /// Bytes the kernel takes before the client reads again.
     capacity: usize = 0,
@@ -459,8 +459,6 @@ const Scenario = struct {
             .heartbeat_ms = 1_000_000,
             .max_agent_clients = 10,
             .max_buffered_bytes = r.intRangeAtMost(u64, 1_024, 12_000),
-            .max_catch_up_ms = 1_800_000,
-            .max_concurrent_catch_ups = 1,
             .max_total_buffered_bytes = r.intRangeAtMost(u64, 1_024, 24_000),
         };
         const clients = r.intRangeAtMost(usize, 1, if (seed % 2 == 1) max_clients else 6);
@@ -647,7 +645,7 @@ test "the drain's next frame shares its predecessor's write" {
     var db: MessageDb = .{};
     for (&db.sizes) |*size| size.* = 300;
     var listen: NullListen = .{};
-    const limits: live.Limits = .{ .heartbeat_ms = 1_000_000, .max_agent_clients = 10, .max_buffered_bytes = 1_048_576, .max_catch_up_ms = 1_800_000, .max_concurrent_catch_ups = 1, .max_total_buffered_bytes = 33_554_432 };
+    const limits: live.Limits = .{ .heartbeat_ms = 1_000_000, .max_agent_clients = 10, .max_buffered_bytes = 1_048_576, .max_total_buffered_bytes = 33_554_432 };
     const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = 500 }, null);
     try server.start();
     var socket: KernelSocket = .{ .capacity = 1_000_000 };
@@ -681,7 +679,7 @@ test "a client close arriving mid-tick takes effect after the tick's frames are 
     var db: MessageDb = .{};
     for (&db.sizes) |*size| size.* = 300;
     var listen: NullListen = .{};
-    const limits: live.Limits = .{ .heartbeat_ms = 1_000_000, .max_agent_clients = 10, .max_buffered_bytes = 1_048_576, .max_catch_up_ms = 1_800_000, .max_concurrent_catch_ups = 1, .max_total_buffered_bytes = 33_554_432 };
+    const limits: live.Limits = .{ .heartbeat_ms = 1_000_000, .max_agent_clients = 10, .max_buffered_bytes = 1_048_576, .max_total_buffered_bytes = 33_554_432 };
     const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = 500 }, null);
     try server.start();
     var socket: KernelSocket = .{ .capacity = 1_000_000 };
@@ -714,132 +712,138 @@ test "a client close arriving mid-tick takes effect after the tick's frames are 
 }
 
 // ---------------------------------------------------------------------------
-// Replay: batched awaited row writes vs one awaited write per row.
+// Custom confirmation streams: awaited row writes (TS `sendAndWait`) beside
+// corked live rows, heartbeats and awaited live starts, on one or several
+// clients. The reference writes every frame inline; both must agree on every
+// client-visible outcome, and live's accounting must equal Node's view at
+// every settled point.
 
-/// Merkle (leaf_index) and dispatch (nonce) history for hook/mailbox 0x…01 on
-/// domain 1: rows `0..last`, with `missing` absent (a gap), each row's
-/// message id `sizes[n % 16]` hex digits long. Live dispatch rows by id.
-const ReplayDb = struct {
-    last: u32,
-    missing: ?u32,
+/// Domain 1 for a zero-confirmation merkle stream: rows 1..H (block n, leaf
+/// n) up to the head a `head` step announces, paged by `batch`; message ids
+/// `sizes[n % 16]` hex digits long. Live dispatch rows by notification id
+/// (`sizes[(id + 8) % 16]`). No live-start checkpoints: every live start is
+/// `live_start_unavailable`, and the stream starts at the snapshot's head.
+const StreamDb = struct {
     sizes: [16]usize,
     /// Fixed per run so both servers page alike.
     batch: u64,
-    /// Live dispatch rows extend the dispatch history: row `last + id` is
-    /// live notification `id` (ids 1..`appended` exist). Otherwise live rows
-    /// sit far above the replayed range and history stays fixed.
-    grow: bool = false,
-    appended: std.atomic.Value(u32) = .init(0),
 
-    fn db(self: *ReplayDb) es.Db {
+    fn db(self: *StreamDb) es.Db {
         return .{ .ctx = self, .query = query };
     }
 
     fn query(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) anyerror![]json.Value {
-        const self: *ReplayDb = @ptrCast(@alignCast(ctx));
+        const self: *StreamDb = @ptrCast(@alignCast(ctx));
         var rows: std.ArrayList(json.Value) = .empty;
-        const merkle = std.mem.indexOf(u8, sql, "leaf_index") != null;
-        const last = self.last + if (self.grow and !merkle) self.appended.load(.acquire) else 0;
-        if (std.mem.indexOf(u8, sql, "COALESCE(MIN(") != null) {
-            const text = try std.fmt.allocPrint(arena, "{{\"first\":\"0\",\"last\":\"{d}\"}}", .{last});
-            try rows.append(arena, try json.parse(arena, text, .{}));
+        if (std.mem.indexOf(u8, sql, "SELECT h.domain, h.head_height") != null) {
+            try rows.append(arena, try json.parse(arena, "{\"domain\":1,\"head_height\":\"0\",\"indexed_height\":\"0\",\"confirmed_height\":\"0\",\"height\":null}", .{}));
             return rows.items;
         }
         if (std.mem.indexOf(u8, sql, "\"event_row\".\"id\" = ANY") != null) {
-            // Live dispatch notifications (see `grow`).
             for (params[0].array) |id_value| {
                 const id = std.fmt.parseInt(u32, id_value.string, 10) catch unreachable;
-                try rows.append(arena, try self.row(arena, false, if (self.grow) self.last + id else 1_000_000 + id, id));
+                try rows.append(arena, try self.dispatchRow(arena, id));
             }
             return rows.items;
         }
-        if (std.mem.indexOf(u8, sql, "> $3::bigint") == null) return &.{};
-        const after = try std.fmt.parseInt(i64, params[2].string, 10);
-        const through = try std.fmt.parseInt(i64, params[3].string, 10);
+        if (std.mem.indexOf(u8, sql, "confirmation_events") == null) return &.{};
+        const after = try std.fmt.parseInt(u32, params[1].string, 10);
+        const through = try std.fmt.parseInt(u32, params[3].string, 10);
         var n = after + 1;
-        var count: u64 = 0;
-        while (n <= @min(through, last) and count < self.batch) : (n += 1) {
-            if (merkle) if (self.missing) |m| if (n == m) continue;
-            try rows.append(arena, try self.row(arena, merkle, @intCast(n), null));
-            count += 1;
-        }
+        while (n <= through and rows.items.len < self.batch) : (n += 1) try rows.append(arena, try self.merkleRow(arena, n));
         return rows.items;
     }
 
-    fn row(self: *ReplayDb, arena: std.mem.Allocator, merkle: bool, n: u32, notification: ?u32) !json.Value {
+    fn hex(self: *StreamDb, arena: std.mem.Allocator, n: u32) ![]u8 {
         const id = try arena.alloc(u8, self.sizes[n % 16]);
         for (id, 0..) |*c, i| c.* = "0123456789abcdef"[(n + i) % 16];
-        const text = if (merkle)
-            try std.fmt.allocPrint(arena, "{{\"domain\":1,\"merkle_tree_hook\":\"\\\\x0000000000000000000000000000000000000001\",\"leaf_index\":{d},\"message_id\":\"\\\\x{s}\",\"block_number\":5}}", .{ n, id })
-        else if (notification) |note|
-            try std.fmt.allocPrint(arena, "{{\"notification_id\":\"{d}\",\"origin_domain\":1,\"destination_domain\":2,\"origin_mailbox\":\"\\\\x0000000000000000000000000000000000000001\",\"nonce\":{d},\"msg_id\":\"\\\\x{s}\"}}", .{ note, n, id })
-        else
-            try std.fmt.allocPrint(arena, "{{\"origin_domain\":1,\"destination_domain\":2,\"origin_mailbox\":\"\\\\x0000000000000000000000000000000000000001\",\"nonce\":{d},\"msg_id\":\"\\\\x{s}\"}}", .{ n, id });
+        return id;
+    }
+
+    fn merkleRow(self: *StreamDb, arena: std.mem.Allocator, n: u32) !json.Value {
+        const text = try std.fmt.allocPrint(arena, "{{\"domain\":1,\"merkle_tree_hook\":\"\\\\x0000000000000000000000000000000000000001\",\"leaf_index\":{d},\"message_id\":\"\\\\x{s}\",\"block_number\":{d},\"block_hash\":null,\"frontier_id\":\"{d}\",\"frontier_height\":\"{d}\"}}", .{ n, try self.hex(arena, n), n, n, n });
+        return json.parse(arena, text, .{});
+    }
+
+    fn dispatchRow(self: *StreamDb, arena: std.mem.Allocator, id: u32) !json.Value {
+        const text = try std.fmt.allocPrint(arena, "{{\"notification_id\":\"{d}\",\"origin_domain\":1,\"destination_domain\":2,\"origin_mailbox\":\"\\\\x0000000000000000000000000000000000000001\",\"nonce\":{d},\"msg_id\":\"\\\\x{s}\"}}", .{ id, 1_000_000 + id, try self.hex(arena, id + 8) });
         return json.parse(arena, text, .{});
     }
 };
 
-const ReplayScenario = struct {
+const SUBSCRIBE_STREAM =
+    \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","domains":[1],"confirmations":0},{"eventType":"dispatch","domains":[1]}]}
+;
+
+const MAX_STREAM_CLIENTS = 3;
+
+const StreamScenario = struct {
     seed: u64,
+    clients: usize,
     limits: live.Limits,
-    db: ReplayDb,
-    /// Also replay dispatch on the same socket (two catch-ups at once).
-    concurrent: bool,
+    db: StreamDb,
+    /// Corks to many peers are written from pool threads.
+    parallel: bool,
     steps: []const Step,
 
     const Step = union(enum) {
-        refresh: u32,
-        fail,
+        /// `client == clients`: every client reads.
+        refresh: struct { client: usize, bytes: u32 },
+        fail: usize,
+        /// The stream's head moves to this height (rows up to it are read).
+        head: u32,
         /// Live dispatch notifications (ids), then the agent batch drain.
         live: struct { first: u32, count: u8 },
-        /// Loop time passes (the catch-up's time budget runs).
+        /// Loop time passes (heartbeats; every client pongs afterwards).
         tick: u32,
     };
 
-    fn generate(seed: u64, steps: *std.ArrayList(Step), concurrent: bool) ReplayScenario {
+    fn generate(seed: u64, steps: *std.ArrayList(Step)) StreamScenario {
         var prng = std.Random.DefaultPrng.init(seed);
         const r = prng.random();
         var sizes: [16]usize = undefined;
         for (&sizes) |*size| size.* = 2 * r.intRangeAtMost(usize, 1, 600);
+        const clients: usize = if (seed % 4 == 0) r.intRangeAtMost(usize, 2, MAX_STREAM_CLIENTS) else 1;
         const limits: live.Limits = .{
-            // Every third seed: heartbeats (ping + frame) during the replay,
-            // as the clock steps (the client pongs after each step, so the
-            // heartbeat never terminates it). The model's ping/pong follow
-            // real Node (live-c4/tools/node-pong.mjs: an inline control frame
-            // leaves bufferedAmount at once; a queued one counts until it is
-            // written).
+            // Every third seed: heartbeats (ping + frame) as the clock steps
+            // (clients pong after each step, so none is terminated). The
+            // model's ping/pong follow real Node (live-c4/tools/node-pong.mjs:
+            // an inline control frame leaves bufferedAmount at once; a queued
+            // one counts until it is written).
             .heartbeat_ms = if (seed % 3 == 1) 500 + (seed % 7) * 100 else 1_000_000,
             .max_agent_clients = 10,
-            .max_buffered_bytes = if (concurrent) 1 << 30 else r.intRangeAtMost(u64, 1_024, 8_000),
-            .max_catch_up_ms = if (concurrent) 1_800_000 else r.intRangeAtMost(u64, 100, 3_000),
-            .max_concurrent_catch_ups = 2,
-            .max_total_buffered_bytes = if (concurrent) 1 << 30 else r.intRangeAtMost(u64, 1_024, 16_000),
+            .max_buffered_bytes = r.intRangeAtMost(u64, 1_024, 8_000),
+            .max_total_buffered_bytes = r.intRangeAtMost(u64, 1_024, 16_000) * clients,
         };
-        const last = r.intRangeAtMost(u32, 0, 60);
-        const missing: ?u32 = if (!concurrent and r.intRangeLessThan(u8, 0, 4) == 0) r.intRangeAtMost(u32, 0, last) else null;
+        // The live starts go out first: one awaiting task per client after.
+        steps.append(a, .{ .refresh = .{ .client = clients, .bytes = 1_000_000 } }) catch unreachable;
         const count = r.intRangeAtMost(usize, 3, 40);
         var live_id: u32 = 1;
+        var head: u32 = 0;
         for (0..count) |_| {
-            const step: Step = switch (r.intRangeLessThan(u8, 0, 10)) {
-                0...5 => .{ .refresh = r.intRangeAtMost(u32, 0, 4_000) },
-                // Live dispatch frames need a live dispatch stream (the
-                // concurrent scenario replays dispatch instead).
-                6, 7 => if (concurrent) Step{ .refresh = 500 } else blk: {
+            const step: Step = switch (r.intRangeLessThan(u8, 0, 12)) {
+                0...4 => .{ .refresh = .{ .client = r.intRangeAtMost(usize, 0, clients), .bytes = r.intRangeAtMost(u32, 0, 4_000) } },
+                5, 6 => blk: {
+                    head += r.intRangeAtMost(u32, 1, 12);
+                    break :blk .{ .head = head };
+                },
+                7, 8 => blk: {
                     const n = r.intRangeAtMost(u8, 1, 3);
                     defer live_id += n;
                     break :blk .{ .live = .{ .first = live_id, .count = n } };
                 },
-                8 => if (concurrent) Step{ .refresh = 1_000 } else .fail,
-                else => if (concurrent) Step{ .refresh = 2_000 } else .{ .tick = r.intRangeAtMost(u32, 1, 600) },
+                9 => .{ .fail = r.intRangeLessThan(usize, 0, clients) },
+                else => .{ .tick = r.intRangeAtMost(u32, 1, 600) },
             };
             steps.append(a, step) catch unreachable;
         }
-        steps.append(a, .{ .refresh = 1_000_000 }) catch unreachable;
+        steps.append(a, .{ .refresh = .{ .client = clients, .bytes = 1_000_000 } }) catch unreachable;
         return .{
             .seed = seed,
+            .clients = clients,
             .limits = limits,
-            .db = .{ .last = last, .missing = missing, .sizes = sizes, .batch = r.intRangeAtMost(u64, 1, 12) },
-            .concurrent = concurrent,
+            .db = .{ .sizes = sizes, .batch = r.intRangeAtMost(u64, 1, 12) },
+            .parallel = clients > 1 and seed % 8 == 0,
             .steps = steps.items,
         };
     }
@@ -896,7 +900,7 @@ const Stability = struct {
     fn settled(self: *Stability, now_settled: bool) bool {
         const now = std.time.nanoTimestamp();
         if (self.deadline == 0) self.deadline = now + settle_limit_s * std.time.ns_per_s;
-        if (now > self.deadline) @panic("replay did not settle");
+        if (now > self.deadline) @panic("stream did not settle");
         if (!now_settled) {
             self.since = null;
             self.checks = 0;
@@ -911,157 +915,190 @@ const Stability = struct {
     }
 };
 
-fn runReplay(scenario: ReplayScenario, coalesce: bool, trace: *Trace) !void {
+/// Every pool thread is idle or parked on an awaited frame (queued, or
+/// written while the rest of its Node request is not), and nothing is queued.
+fn quiesceAll(t: *TestLoop, server: *live.Server, sockets: []const *KernelSocket) void {
+    var stable: Stability = .{};
+    var waiters: std.AutoHashMapUnmanaged(*anyopaque, void) = .empty;
+    defer waiters.deinit(a);
+    var peers: std.AutoArrayHashMapUnmanaged(*live.Peer, void) = .empty;
+    defer peers.deinit(a);
+    while (true) {
+        t.loop.lock();
+        waiters.clearRetainingCapacity();
+        // (Peers still connected, and those of frames still queued.)
+        peers.clearRetainingCapacity();
+        for (server.clients.keys()) |peer| peers.put(a, peer, {}) catch unreachable;
+        for (sockets) |socket| {
+            socket.mutex.lock();
+            for (socket.queue.items) |item| {
+                if (item.job) |job| peers.put(a, job.peer, {}) catch unreachable;
+            }
+            socket.mutex.unlock();
+        }
+        for (peers.keys()) |peer| {
+            for (peer.requests.items) |request| for (request.jobs.items) |job| {
+                if (job.kind == .waiter) waiters.put(a, @ptrCast(job.kind.waiter), {}) catch unreachable;
+            };
+        }
+        t.pool.mutex.lock();
+        const idle_exactly = t.pool.head == t.pool.queue.items.len and t.pool.idle + waiters.count() == t.pool.threads;
+        t.pool.mutex.unlock();
+        t.loop.unlock();
+        if (stable.settled(idle_exactly)) return;
+    }
+}
+
+fn notifyHead(listen: *NullListen, height: u32) !void {
+    var payload: [128]u8 = undefined;
+    const text = try std.fmt.bufPrint(&payload, "{{\"domain\":1,\"confirmedHeight\":\"0\",\"headHeight\":\"{d}\",\"indexedHeight\":\"{d}\"}}", .{ height, height });
+    listen.handler.?.on_notification(listen.handler.?.ctx, live.HEAD_CHANNEL, text);
+}
+
+fn notifyDispatch(listen: *NullListen, id: usize) !void {
+    var payload: [96]u8 = undefined;
+    const text = try std.fmt.bufPrint(&payload, "{{\"eventType\":\"dispatch\",\"id\":\"{d}\",\"domain\":1}}", .{id});
+    listen.handler.?.on_notification(listen.handler.?.ctx, live.EVENT_CHANNEL, text);
+}
+
+/// The head drain (`confirmationUpdates`) and the agent drain, now.
+fn flushWorkers(loop: *TestLoop, server: *live.Server) void {
+    loop.loop.lock();
+    server.confirmation_updates.flush();
+    server.agent_notifications.flush();
+    loop.loop.unlock();
+}
+
+fn runStream(scenario: StreamScenario, coalesce: bool, trace: *Trace) !void {
     var loop: TestLoop = undefined;
     loop.init();
     var db = scenario.db;
     var listen: NullListen = .{};
     const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = scenario.limits, .batch_size = db.batch }, null);
     server.coalesce = coalesce;
+    if (scenario.parallel) server.parallel_flush_min = 1;
     try server.start();
-    var socket: KernelSocket = .{ .capacity = 1_000_000 };
-    const peer = server.connectAgent(socket.socket());
-    socket.capacity = 0;
-    const subscribe = if (scenario.concurrent)
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]},{"eventType":"dispatch","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
-    else
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]},{"eventType":"dispatch","domains":[1]}]}
-    ;
-    server.onMessage(peer, subscribe);
-    quiesce(&loop, server, &socket);
+    const n = scenario.clients;
+    var sockets: [MAX_STREAM_CLIENTS]KernelSocket = @splat(.{});
+    var socket_ptrs: [MAX_STREAM_CLIENTS]*KernelSocket = undefined;
+    var peers: [MAX_STREAM_CLIENTS]*live.Peer = undefined;
+    for (0..n) |i| {
+        socket_ptrs[i] = &sockets[i];
+        sockets[i].capacity = 1_000_000; // the ready frame
+        peers[i] = server.connectAgent(sockets[i].socket());
+        sockets[i].capacity = 0;
+    }
+    const all = socket_ptrs[0..n];
+    for (peers[0..n]) |peer| server.onMessage(peer, SUBSCRIBE_STREAM);
+    quiesceAll(&loop, server, all);
     const w = trace.text.writer(a);
     const failures = &core.metrics.websocket_send_failures;
-    const catch_ups = &core.metrics.websocket_catch_ups;
-    const base = .{ failures.get(.{"buffer_limit"}), failures.get(.{"send_error"}), catch_ups.get(.{"success"}), catch_ups.get(.{"failure"}), catch_ups.get(.{"aborted"}) };
+    const base = .{ failures.get(.{"buffer_limit"}), failures.get(.{"send_error"}) };
     for (scenario.steps, 0..) |step, step_index| {
         switch (step) {
-            .refresh => |bytes| socket.refresh(bytes),
-            .fail => socket.fail_next = true,
-            .tick => |ms| {
-                loop.fake.tick(ms);
-                server.onPong(peer);
+            .refresh => |r| if (r.client == n) {
+                for (all) |socket| socket.refresh(r.bytes);
+            } else sockets[r.client].refresh(r.bytes),
+            .fail => |client| sockets[client].fail_next = true,
+            .head => |height| {
+                try notifyHead(&listen, height);
+                flushWorkers(&loop, server);
             },
             .live => |l| {
-                for (l.first..l.first + l.count) |id| {
-                    var payload: [96]u8 = undefined;
-                    const text = try std.fmt.bufPrint(&payload, "{{\"eventType\":\"dispatch\",\"id\":\"{d}\",\"domain\":1}}", .{id});
-                    listen.handler.?.on_notification(listen.handler.?.ctx, live.EVENT_CHANNEL, text);
-                }
-                loop.loop.lock();
-                server.agent_notifications.flush();
-                loop.loop.unlock();
+                for (l.first..l.first + l.count) |id| try notifyDispatch(&listen, id);
+                flushWorkers(&loop, server);
+            },
+            .tick => |ms| {
+                loop.fake.tick(ms);
+                for (peers[0..n]) |peer| server.onPong(peer);
             },
         }
-        quiesce(&loop, server, &socket);
-        try expectNodeView(server, &.{peer}, &.{&socket});
-        if (scenario.concurrent) continue; // only the final per-stream sequences
+        quiesceAll(&loop, server, all);
+        try expectNodeView(server, peers[0..n], all);
         loop.loop.lock();
         const snapshot = server.metricsSnapshot();
-        try w.print("step {d} pending={d} delivered={d} buffered={d} open={} destroyed={} close={?d}:{s} failures={d}/{d} catchups={d}/{d}/{d}\n", .{
+        try w.print("step {d} pending={d} connections={d} failures={d}/{d}\n", .{
             step_index,
             snapshot.outboundPendingBytes,
-            socket.delivered.items.len,
-            socket.buffered,
-            socket.open,
-            socket.destroyed,
-            socket.close_code,
-            socket.close_reason.items,
+            snapshot.connections.agent,
             failures.get(.{"buffer_limit"}) - base[0],
             failures.get(.{"send_error"}) - base[1],
-            catch_ups.get(.{"success"}) - base[2],
-            catch_ups.get(.{"failure"}) - base[3],
-            catch_ups.get(.{"aborted"}) - base[4],
+        });
+        for (all, 0..) |s, i| try w.print("  client {d} delivered={d} buffered={d} open={} destroyed={} close={?d}:{s}\n", .{
+            i, s.delivered.items.len, s.buffered, s.open, s.destroyed, s.close_code, s.close_reason.items,
         });
         loop.loop.unlock();
     }
-    // Every catch-up has finished (or the socket is gone) before comparing.
-    for (0..400_000) |_| {
-        loop.loop.lock();
-        var busy = false;
-        if (peer.in_clients) for (peer.agent.subscriptions.values) |entry| if (entry) |subscription| {
-            if (subscription.state != .live) busy = true;
-        };
-        loop.loop.unlock();
-        if (!busy) break;
-        socket.refresh(1_000_000);
-        std.Thread.sleep(50 * std.time.ns_per_us);
-    }
-    quiesce(&loop, server, &socket);
-    // Frames: in full order for one catch-up, per stream when two share the socket.
-    for ([_][]const u8{ "merkle_tree_insertion", "dispatch\",\"sequence", "dispatch\",\"type" }) |stream| {
-        try w.print("{s}:", .{stream});
-        for (socket.delivered.items) |payload| {
-            if (scenario.concurrent and std.mem.indexOf(u8, payload, stream) == null) continue;
-            try w.print(" {x}", .{std.hash.Wyhash.hash(0, payload)});
-        }
+    // Delivered frames per client, in order.
+    for (all, 0..) |s, i| {
+        try w.print("client {d} frames:", .{i});
+        for (s.delivered.items) |payload| try w.print(" {x}", .{std.hash.Wyhash.hash(0, payload)});
         try w.writeByte('\n');
-        if (!scenario.concurrent) break;
     }
-    socket.destroyed = true;
-    socket.refresh(0);
-    quiesce(&loop, server, &socket);
+    for (all) |s| {
+        s.destroyed = true;
+        s.refresh(0);
+    }
+    quiesceAll(&loop, server, all);
     server.stop();
-    server.onClose(peer);
+    for (peers[0..n]) |peer| server.onClose(peer);
     loop.pool.deinit();
     server.destroy();
     loop.loop.deinit();
     loop.fake.deinit();
-    socket.deinit();
+    for (all) |s| s.deinit();
 }
 
-fn checkReplaySeed(seed: u64, concurrent: bool) !void {
-    var steps: std.ArrayList(ReplayScenario.Step) = .empty;
+fn checkStreamSeed(seed: u64) !void {
+    var steps: std.ArrayList(StreamScenario.Step) = .empty;
     defer steps.deinit(a);
-    const scenario = ReplayScenario.generate(seed, &steps, concurrent);
+    const scenario = StreamScenario.generate(seed, &steps);
     var reference: Trace = .{};
     defer reference.deinit();
     var candidate: Trace = .{};
     defer candidate.deinit();
-    const same = std.process.hasEnvVarConstant("LIVE_REPLAY_SELFCHECK");
-    runReplay(scenario, false, &reference) catch |err| {
-        std.debug.print("replay seed {d} concurrent={} (reference)\n", .{ seed, concurrent });
+    const same = std.process.hasEnvVarConstant("LIVE_STREAM_SELFCHECK");
+    runStream(scenario, false, &reference) catch |err| {
+        std.debug.print("stream seed {d} (reference)\n", .{seed});
         return err;
     };
-    runReplay(scenario, !same, &candidate) catch |err| {
-        std.debug.print("replay seed {d} concurrent={} (batched)\n", .{ seed, concurrent });
+    runStream(scenario, !same, &candidate) catch |err| {
+        std.debug.print("stream seed {d} (coalescing)\n", .{seed});
         return err;
     };
     if (!std.mem.eql(u8, reference.text.items, candidate.text.items)) {
-        std.debug.print("batched replay differs from per-row writes, seed {d} concurrent={}\n--- scenario\n", .{ seed, concurrent });
-        printReplayScenario(scenario);
-        std.debug.print("--- reference\n{s}\n--- batched\n{s}\n", .{ reference.text.items, candidate.text.items });
+        std.debug.print("coalesced stream writes differ from inline writes, seed {d}\n--- scenario\n", .{seed});
+        printStreamScenario(scenario);
+        std.debug.print("--- reference\n{s}\n--- coalescing\n{s}\n", .{ reference.text.items, candidate.text.items });
         return error.TestUnexpectedResult;
     }
 }
 
-fn printReplayScenario(scenario: ReplayScenario) void {
+fn printStreamScenario(scenario: StreamScenario) void {
     const l = scenario.limits;
-    std.debug.print("limits buffered={d} total={d} catchUpMs={d}; db last={d} missing={?d} batch={d} sizes={any}\n", .{ l.max_buffered_bytes, l.max_total_buffered_bytes, l.max_catch_up_ms, scenario.db.last, scenario.db.missing, scenario.db.batch, scenario.db.sizes });
+    std.debug.print("clients={d} parallel={} limits buffered={d} total={d} heartbeat={d}; batch={d} sizes={any}\n", .{ scenario.clients, scenario.parallel, l.max_buffered_bytes, l.max_total_buffered_bytes, l.heartbeat_ms, scenario.db.batch, scenario.db.sizes });
     for (scenario.steps, 0..) |step, i| std.debug.print("step {d}: {any}\n", .{ i, step });
 }
 
-test "batched replay writes are indistinguishable from per-row awaited writes (random scenarios)" {
+test "custom stream writes, live rows and heartbeats: coalesced equals inline (random scenarios)" {
     core.log.setSink(discard, null);
     defer core.log.setSink(null, null);
-    const seeds: u64 = if (std.process.getEnvVarOwned(a, "LIVE_REPLAY_SEEDS")) |text| blk: {
+    const seeds: u64 = if (std.process.getEnvVarOwned(a, "LIVE_STREAM_SEEDS")) |text| blk: {
         defer a.free(text);
         break :blk std.fmt.parseInt(u64, text, 10) catch 300;
     } else |_| 300;
-    // LIVE_REPLAY_ONLY=<seed>[,<repeat>]: that seed only (reproducing a failure).
-    if (std.process.getEnvVarOwned(a, "LIVE_REPLAY_ONLY")) |text| {
+    // LIVE_STREAM_ONLY=<seed>[,<repeat>]: that seed only (reproducing a failure).
+    if (std.process.getEnvVarOwned(a, "LIVE_STREAM_ONLY")) |text| {
         defer a.free(text);
         var parts = std.mem.splitScalar(u8, text, ',');
         const seed = try std.fmt.parseInt(u64, parts.first(), 10);
         const repeat = if (parts.next()) |r| try std.fmt.parseInt(u64, r, 10) else 1;
-        for (0..repeat) |_| try checkReplaySeed(seed, false);
-        std.debug.print("replay differential: seed {d} clean {d} times\n", .{ seed, repeat });
+        for (0..repeat) |_| try checkStreamSeed(seed);
+        std.debug.print("stream differential: seed {d} clean {d} times\n", .{ seed, repeat });
         return;
     } else |_| {}
-    for (0..seeds) |seed| {
-        try checkReplaySeed(seed, false);
-        if (seed % 4 == 0) try checkReplaySeed(seed, true);
-    }
-    std.debug.print("replay differential: {d} seeds clean (0..{d}; concurrent every 4th)\n", .{ seeds, seeds -| 1 });
+    for (0..seeds) |seed| try checkStreamSeed(seed);
+    std.debug.print("stream differential: {d} seeds clean (0..{d}; several clients every 4th)\n", .{ seeds, seeds -| 1 });
 }
 
 test "a lookahead frame written early does not count against another drain's check" {
@@ -1079,332 +1116,6 @@ test "a lookahead frame written early does not count against another drain's che
     try testing.expectEqual(reference.delivered, coalesced.delivered);
     try testing.expectEqual(reference.destroyed, coalesced.destroyed);
     try testing.expectEqual(@as(f64, 0), coalesced.pending);
-}
-
-// ---------------------------------------------------------------------------
-// Replay with several clients: concurrent catch-ups (two per client, more
-// than there are catch-up slots) while live dispatch rows arrive. Which
-// catch-up runs when is up to thread scheduling, so both servers are compared
-// on what cannot depend on it: per client, the merkle frames in order (its
-// `caught_up` included), the dispatch events in order (live rows extend the
-// dispatch history, so every row must arrive once, contiguous, whether the
-// subscription read it from the database or buffered it), how many dispatch
-// `caught_up` frames arrived (their `sequence` is when the head was read),
-// the close code/reason and the other frames as a multiset. A client closed
-// by a merkle gap stops its dispatch replay at a scheduling-dependent point:
-// there one run's dispatch events must be a prefix of the other's.
-
-const MAX_MULTI_CLIENTS = 3;
-
-const MultiScenario = struct {
-    seed: u64,
-    clients: usize,
-    limits: live.Limits,
-    db: ReplayDb,
-    /// Live frames to many peers are flushed from pool threads.
-    parallel: bool,
-    after_merkle: [MAX_MULTI_CLIENTS]i64,
-    after_dispatch: [MAX_MULTI_CLIENTS]i64,
-    live_rows: u32,
-    steps: []const Step,
-
-    const Step = union(enum) {
-        /// `client == clients`: every client reads.
-        refresh: struct { client: usize, bytes: u32 },
-        live: struct { first: u32, count: u8 },
-    };
-
-    fn generate(seed: u64, steps: *std.ArrayList(Step)) MultiScenario {
-        var prng = std.Random.DefaultPrng.init(seed);
-        const r = prng.random();
-        var sizes: [16]usize = undefined;
-        for (&sizes) |*size| size.* = 2 * r.intRangeAtMost(usize, 1, 600);
-        const clients = r.intRangeAtMost(usize, 2, MAX_MULTI_CLIENTS);
-        const limits: live.Limits = .{
-            .heartbeat_ms = 1_000_000,
-            .max_agent_clients = 10,
-            .max_buffered_bytes = 1 << 30,
-            .max_catch_up_ms = 1_800_000,
-            .max_concurrent_catch_ups = r.intRangeAtMost(u64, 1, 3),
-            .max_total_buffered_bytes = 1 << 30,
-        };
-        const last = r.intRangeAtMost(u32, 0, 40);
-        const missing: ?u32 = if (r.intRangeLessThan(u8, 0, 3) == 0) r.intRangeAtMost(u32, 0, last) else null;
-        var after_merkle: [MAX_MULTI_CLIENTS]i64 = @splat(-1);
-        var after_dispatch: [MAX_MULTI_CLIENTS]i64 = @splat(-1);
-        for (0..clients) |i| {
-            after_merkle[i] = r.intRangeAtMost(i64, -1, last);
-            after_dispatch[i] = r.intRangeAtMost(i64, -1, last);
-        }
-        const count = r.intRangeAtMost(usize, 5, 50);
-        var live_id: u32 = 1;
-        for (0..count) |_| {
-            const step: Step = switch (r.intRangeLessThan(u8, 0, 10)) {
-                0...6 => .{ .refresh = .{ .client = r.intRangeAtMost(usize, 0, clients), .bytes = r.intRangeAtMost(u32, 0, 4_000) } },
-                else => blk: {
-                    const n = r.intRangeAtMost(u8, 1, 3);
-                    defer live_id += n;
-                    break :blk .{ .live = .{ .first = live_id, .count = n } };
-                },
-            };
-            steps.append(a, step) catch unreachable;
-        }
-        steps.append(a, .{ .refresh = .{ .client = clients, .bytes = 1_000_000 } }) catch unreachable;
-        return .{
-            .seed = seed,
-            .clients = clients,
-            .limits = limits,
-            .db = .{ .last = last, .missing = missing, .sizes = sizes, .batch = r.intRangeAtMost(u64, 1, 12), .grow = true },
-            .parallel = seed % 2 == 1,
-            .after_merkle = after_merkle,
-            .after_dispatch = after_dispatch,
-            .live_rows = live_id - 1,
-            .steps = steps.items,
-        };
-    }
-
-    /// Whether client `i`'s merkle replay reaches the missing row.
-    fn gaps(self: MultiScenario, i: usize) bool {
-        const m = self.db.missing orelse return false;
-        return m > self.after_merkle[i];
-    }
-};
-
-const ClientOutcome = struct {
-    /// Close state, merkle frames, other frames (sorted), dispatch
-    /// `caught_up` count unless closed.
-    text: std.ArrayList(u8) = .empty,
-    /// Dispatch event frames, in order.
-    dispatch: std.ArrayList(u64) = .empty,
-    merkle_events: usize = 0,
-    dispatch_caught_up: usize = 0,
-    others: usize = 0,
-    /// Closed by the server: dispatch is compared as a prefix.
-    closed: bool = false,
-
-    fn deinit(self: *ClientOutcome) void {
-        self.text.deinit(a);
-        self.dispatch.deinit(a);
-    }
-};
-
-/// Waits until the server is exactly idle: nothing is queued on the pool and
-/// every task thread is accounted for as idle, parked on the one awaited
-/// write it queued (a waiter job in one of its peer's Node requests; it was
-/// queued under the loop mutex, so its turn, flushes included, is over) or waiting
-/// for a catch-up slot. Checked under the loop mutex, then the pool mutex
-/// (their lock order), so no task runs meanwhile; a thread that just
-/// finished its task counts as busy until it is idle again. `Stability` only
-/// adds a short re-check and the deadline.
-fn quiesceAll(t: *TestLoop, server: *live.Server, sockets: []const *KernelSocket) void {
-    var stable: Stability = .{};
-    var waiters: std.AutoHashMapUnmanaged(*anyopaque, void) = .empty;
-    defer waiters.deinit(a);
-    var peers: std.AutoArrayHashMapUnmanaged(*live.Peer, void) = .empty;
-    defer peers.deinit(a);
-    while (true) {
-        t.loop.lock();
-        waiters.clearRetainingCapacity();
-        // Awaited frames not yet released (queued, or written while the
-        // rest of their Node request is not): their tasks are parked.
-        // (Peers still connected, and those of frames still queued.)
-        peers.clearRetainingCapacity();
-        for (server.clients.keys()) |peer| peers.put(a, peer, {}) catch unreachable;
-        for (sockets) |socket| {
-            socket.mutex.lock();
-            for (socket.queue.items) |item| {
-                if (item.job) |job| peers.put(a, job.peer, {}) catch unreachable;
-            }
-            socket.mutex.unlock();
-        }
-        for (peers.keys()) |peer| {
-            for (peer.requests.items) |request| for (request.jobs.items) |job| {
-                if (job.kind == .waiter) waiters.put(a, @ptrCast(job.kind.waiter), {}) catch unreachable;
-            };
-        }
-        const slot_waiting = server.catch_up_waiters.items.len;
-        t.pool.mutex.lock();
-        const idle_exactly = t.pool.head == t.pool.queue.items.len and t.pool.idle + waiters.count() + slot_waiting == t.pool.threads;
-        t.pool.mutex.unlock();
-        t.loop.unlock();
-        if (stable.settled(idle_exactly)) return;
-    }
-}
-
-fn runMulti(scenario: MultiScenario, coalesce: bool, outcomes: []ClientOutcome) !void {
-    var loop: TestLoop = undefined;
-    loop.init();
-    var db = scenario.db;
-    var listen: NullListen = .{};
-    const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = scenario.limits, .batch_size = db.batch }, null);
-    server.coalesce = coalesce;
-    if (scenario.parallel) server.parallel_flush_min = 1;
-    try server.start();
-    const n = scenario.clients;
-    var sockets: [MAX_MULTI_CLIENTS]KernelSocket = @splat(.{});
-    var socket_ptrs: [MAX_MULTI_CLIENTS]*KernelSocket = undefined;
-    var peers: [MAX_MULTI_CLIENTS]*live.Peer = undefined;
-    for (0..n) |i| {
-        socket_ptrs[i] = &sockets[i];
-        sockets[i].capacity = 1_000_000;
-        peers[i] = server.connectAgent(sockets[i].socket());
-        sockets[i].capacity = 0;
-    }
-    const all = socket_ptrs[0..n];
-    for (0..n) |i| {
-        var buf: [600]u8 = undefined;
-        const subscribe = try std.fmt.bufPrint(&buf,
-            \\{{"type":"subscribe","streams":[{{"eventType":"merkle_tree_insertion","cursors":[{{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"{d}"}}]}},{{"eventType":"dispatch","cursors":[{{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"{d}"}}]}}]}}
-        , .{ scenario.after_merkle[i], scenario.after_dispatch[i] });
-        server.onMessage(peers[i], subscribe);
-    }
-    quiesceAll(&loop, server, all);
-    for (scenario.steps) |step| {
-        switch (step) {
-            .refresh => |r| if (r.client >= n) {
-                for (all) |socket| socket.refresh(r.bytes);
-            } else sockets[r.client].refresh(r.bytes),
-            .live => |l| {
-                for (l.first..l.first + l.count) |id| {
-                    // The row is committed before its notification.
-                    db.appended.store(@intCast(id), .release);
-                    var payload: [96]u8 = undefined;
-                    const text = try std.fmt.bufPrint(&payload, "{{\"eventType\":\"dispatch\",\"id\":\"{d}\",\"domain\":1}}", .{id});
-                    listen.handler.?.on_notification(listen.handler.?.ctx, live.EVENT_CHANNEL, text);
-                }
-                loop.loop.lock();
-                server.agent_notifications.flush();
-                loop.loop.unlock();
-            },
-        }
-        quiesceAll(&loop, server, all);
-        try expectNodeView(server, peers[0..n], all);
-    }
-    // Every catch-up has finished (or its socket is gone) before comparing.
-    for (0..400_000) |_| {
-        loop.loop.lock();
-        var busy = false;
-        for (0..n) |i| {
-            if (!peers[i].in_clients or !sockets[i].open) continue;
-            for (peers[i].agent.subscriptions.values) |entry| if (entry) |subscription| {
-                if (subscription.state != .live) busy = true;
-            };
-        }
-        loop.loop.unlock();
-        if (!busy) break;
-        for (all) |socket| socket.refresh(1_000_000);
-        std.Thread.sleep(50 * std.time.ns_per_us);
-    }
-    quiesceAll(&loop, server, all);
-    loop.loop.lock();
-    for (0..n) |i| {
-        const socket = &sockets[i];
-        const out = &outcomes[i];
-        const w = out.text.writer(a);
-        out.closed = socket.close_code != null or socket.destroyed;
-        try w.print("close={?d}:{s} open={} destroyed={}\nmerkle:", .{ socket.close_code, socket.close_reason.items, socket.open, socket.destroyed });
-        var others: std.ArrayList(u64) = .empty;
-        defer others.deinit(a);
-        for (socket.delivered.items) |payload| {
-            const hash = std.hash.Wyhash.hash(0, payload);
-            if (std.mem.indexOf(u8, payload, "\"eventType\":\"merkle_tree_insertion\"") != null) {
-                try w.print(" {x}", .{hash});
-                if (std.mem.indexOf(u8, payload, "\"type\":\"event\"") != null) out.merkle_events += 1;
-            } else if (std.mem.indexOf(u8, payload, "\"eventType\":\"dispatch\"") != null) {
-                if (std.mem.indexOf(u8, payload, "\"type\":\"caught_up\"") != null)
-                    out.dispatch_caught_up += 1
-                else
-                    try out.dispatch.append(a, hash);
-            } else try others.append(a, hash);
-        }
-        std.mem.sort(u64, others.items, {}, std.sort.asc(u64));
-        out.others = others.items.len;
-        try w.writeAll("\nothers:");
-        for (others.items) |hash| try w.print(" {x}", .{hash});
-        if (!out.closed) try w.print("\ndispatch caught_up: {d}", .{out.dispatch_caught_up});
-        try w.writeByte('\n');
-    }
-    loop.loop.unlock();
-    for (all) |socket| {
-        socket.destroyed = true;
-        socket.refresh(0);
-    }
-    quiesceAll(&loop, server, all);
-    server.stop();
-    for (peers[0..n]) |peer| server.onClose(peer);
-    loop.pool.deinit();
-    server.destroy();
-    loop.loop.deinit();
-    loop.fake.deinit();
-    for (all) |socket| socket.deinit();
-}
-
-/// What every run must show whatever the scheduling: all rows, once.
-fn expectComplete(scenario: MultiScenario, i: usize, out: ClientOutcome) !void {
-    if (!scenario.gaps(i)) {
-        try testing.expect(!out.closed);
-        try testing.expectEqual(@as(usize, @intCast(@as(i64, scenario.db.last) - scenario.after_merkle[i])), out.merkle_events);
-    }
-    if (out.closed) return;
-    try testing.expectEqual(@as(usize, @intCast(@as(i64, scenario.db.last + scenario.live_rows) - scenario.after_dispatch[i])), out.dispatch.items.len);
-    try testing.expectEqual(@as(usize, 1), out.dispatch_caught_up);
-}
-
-fn isPrefix(shorter: []const u64, longer: []const u64) bool {
-    return shorter.len <= longer.len and std.mem.eql(u64, shorter, longer[0..shorter.len]);
-}
-
-fn checkMultiSeed(seed: u64) !void {
-    var steps: std.ArrayList(MultiScenario.Step) = .empty;
-    defer steps.deinit(a);
-    const scenario = MultiScenario.generate(seed, &steps);
-    var reference: [MAX_MULTI_CLIENTS]ClientOutcome = @splat(.{});
-    var candidate: [MAX_MULTI_CLIENTS]ClientOutcome = @splat(.{});
-    defer for (&reference, &candidate) |*r, *c| {
-        r.deinit();
-        c.deinit();
-    };
-    const same = std.process.hasEnvVarConstant("LIVE_REPLAY_SELFCHECK");
-    const n = scenario.clients;
-    runMulti(scenario, false, reference[0..n]) catch |err| {
-        std.debug.print("multi-client replay seed {d} (reference)\n", .{seed});
-        return err;
-    };
-    runMulti(scenario, !same, candidate[0..n]) catch |err| {
-        std.debug.print("multi-client replay seed {d} (batched)\n", .{seed});
-        return err;
-    };
-    for (0..n) |i| {
-        const r = reference[i];
-        const c = candidate[i];
-        const dispatch_ok = if (r.closed)
-            isPrefix(r.dispatch.items, c.dispatch.items) or isPrefix(c.dispatch.items, r.dispatch.items)
-        else
-            std.mem.eql(u64, r.dispatch.items, c.dispatch.items);
-        if (!std.mem.eql(u8, r.text.items, c.text.items) or !dispatch_ok) {
-            std.debug.print("multi-client replay differs, seed {d} client {d}\n--- reference ({d} dispatch)\n{s}\n--- batched ({d} dispatch)\n{s}\n", .{ seed, i, r.dispatch.items.len, r.text.items, c.dispatch.items.len, c.text.items });
-            return error.TestUnexpectedResult;
-        }
-        expectComplete(scenario, i, r) catch |err| {
-            std.debug.print("multi-client replay incomplete (reference), seed {d} client {d}\n{s}\n", .{ seed, i, r.text.items });
-            return err;
-        };
-        expectComplete(scenario, i, c) catch |err| {
-            std.debug.print("multi-client replay incomplete (batched), seed {d} client {d}\n{s}\n", .{ seed, i, c.text.items });
-            return err;
-        };
-    }
-}
-
-test "concurrent catch-ups with live rows: same rows per client, batched or not (random scenarios)" {
-    core.log.setSink(discard, null);
-    defer core.log.setSink(null, null);
-    const seeds: u64 = if (std.process.getEnvVarOwned(a, "LIVE_MULTI_SEEDS")) |text| blk: {
-        defer a.free(text);
-        break :blk std.fmt.parseInt(u64, text, 10) catch 150;
-    } else |_| 150;
-    for (0..seeds) |seed| try checkMultiSeed(seed);
-    std.debug.print("multi-client replay differential: {d} seeds clean (0..{d})\n", .{ seeds, seeds -| 1 });
 }
 
 // ---------------------------------------------------------------------------
@@ -1437,7 +1148,7 @@ fn runDrains(setup: DrainSetup) !DrainResult {
     var db: MessageDb = .{};
     for (&db.sizes, 0..) |*size, i| size.* = if (i < 4) setup.sizes[i] else 10;
     var listen: NullListen = .{};
-    const limits: live.Limits = .{ .heartbeat_ms = 1_000_000, .max_agent_clients = 10, .max_buffered_bytes = setup.max_buffered, .max_catch_up_ms = 1_800_000, .max_concurrent_catch_ups = 1, .max_total_buffered_bytes = setup.max_total };
+    const limits: live.Limits = .{ .heartbeat_ms = 1_000_000, .max_agent_clients = 10, .max_buffered_bytes = setup.max_buffered, .max_total_buffered_bytes = setup.max_total };
     const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = 500 }, null);
     server.coalesce = setup.coalesce;
     server.parallel_flush_min = 1;
@@ -1532,14 +1243,16 @@ test "a partly written lookahead finished by ws before the callbacks is released
 
 // ---------------------------------------------------------------------------
 // Node's write requests, checked against real Node (node-order.mjs; see
-// IMPLEMENTATION.md "Node's write requests"): a catch-up's awaited row f1 is
-// in flight, live frames f2 and f3 are sent meanwhile (one batch behind it),
-// then the client reads. What the row's continuation (its next send) sees of
-// bufferedAmount and pendingBytes must be what Node's continuation sees.
+// IMPLEMENTATION.md "Node's write requests"): a custom stream's awaited row
+// f1 is in flight, live frames f2 and f3 are sent meanwhile (one batch behind
+// it), then the client reads. What the row's continuation (its next send)
+// sees of bufferedAmount and pendingBytes must be what Node's continuation
+// sees.
 
 const NodeCase = struct {
-    /// Payload sizes: merkle rows 0, 1 (f1, then the next row) and the
-    /// live dispatch rows f2, f3 (`ReplayDb` sizes by n % 16).
+    /// Payload sizes: stream rows 1, 2 (f1, then the next row; row 3 is
+    /// small) and the
+    /// live dispatch rows f2, f3 (`StreamDb` sizes).
     f1: usize,
     f2: usize,
     f3: usize,
@@ -1592,13 +1305,13 @@ fn runNodeCase(case: NodeCase) !NodeCaseResult {
     var loop: TestLoop = undefined;
     loop.init();
     var sizes: [16]usize = @splat(100);
-    sizes[0] = case.f1;
     sizes[1] = case.f1;
-    sizes[2] = case.f2;
-    sizes[3] = case.f3;
-    var db: ReplayDb = .{ .last = 1, .missing = null, .sizes = sizes, .batch = 8, .grow = true };
+    sizes[2] = case.f1;
+    sizes[9] = case.f2; // dispatch notification 1
+    sizes[10] = case.f3; // dispatch notification 2
+    var db: StreamDb = .{ .sizes = sizes, .batch = 8 };
     var listen: NullListen = .{};
-    const limits: live.Limits = .{ .heartbeat_ms = 1_000_000, .max_agent_clients = 10, .max_buffered_bytes = 1 << 30, .max_catch_up_ms = 1_800_000, .max_concurrent_catch_ups = 2, .max_total_buffered_bytes = 1 << 30 };
+    const limits: live.Limits = .{ .heartbeat_ms = 1_000_000, .max_agent_clients = 10, .max_buffered_bytes = 1 << 30, .max_total_buffered_bytes = 1 << 30 };
     const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = db.batch }, null);
     server.coalesce = case.coalesce;
     var observer: Observer = .{};
@@ -1607,22 +1320,21 @@ fn runNodeCase(case: NodeCase) !NodeCaseResult {
     try server.start();
     var socket: KernelSocket = .{ .capacity = 1_000_000 };
     const peer = server.connectAgent(socket.socket());
-    // f1: the catch-up's first row, sent with the kernel full (in flight
-    // alone: ready and subscribed went out whole).
-    socket.stall_at = 2;
-    server.onMessage(peer,
-        \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]},{"eventType":"dispatch","domains":[1]}]}
-    );
+    // ready, subscribed and the live starts go out whole.
+    server.onMessage(peer, SUBSCRIBE_STREAM);
+    quiesce(&loop, server, &socket);
+    // f1: the stream's first row, sent with the kernel full (in flight alone).
+    // Rows 2 and 3 follow, each from its predecessor's continuation (the
+    // observed sends).
+    socket.mutex.lock();
+    socket.capacity = 0;
+    socket.mutex.unlock();
+    try notifyHead(&listen, 3);
+    flushWorkers(&loop, server);
     quiesce(&loop, server, &socket);
     // f2, f3: live rows sent while f1 is in flight.
-    for (1..3) |id| {
-        db.appended.store(@intCast(id), .release);
-        var payload: [96]u8 = undefined;
-        listen.handler.?.on_notification(listen.handler.?.ctx, live.EVENT_CHANNEL, try std.fmt.bufPrint(&payload, "{{\"eventType\":\"dispatch\",\"id\":\"{d}\",\"domain\":1}}", .{id}));
-    }
-    loop.loop.lock();
-    server.agent_notifications.flush();
-    loop.loop.unlock();
+    for (1..3) |id| try notifyDispatch(&listen, id);
+    flushWorkers(&loop, server);
     quiesce(&loop, server, &socket);
     var result: NodeCaseResult = .{};
     socket.mutex.lock();
@@ -1713,7 +1425,7 @@ test "Node cont: a frame sent while the batch is in flight is released with it w
     core.log.setSink(discard, null);
     defer core.log.setSink(null, null);
     for ([_]bool{ false, true }) |coalesce| {
-        // node-order2.mjs cont: f4 (here the next row) is written as soon as
+        // node-order2.mjs cont: f4 (here the stream's next row) is written as soon as
         // the batch ends; its continuation sees nothing left.
         const r = try runNodeCase(.{ .f1 = 4000, .f2 = 3000, .f3 = 3000, .drain = .into_f2, .then_all = true, .coalesce = coalesce });
         try testing.expectEqual(NodeObservation{ .buffered = r.batch_framed, .pending = r.batch_payload }, r.seen[0].?);
@@ -1726,7 +1438,7 @@ test "Node destroy: every queued frame fails in order, nothing stays counted" {
     defer core.log.setSink(null, null);
     for ([_]bool{ false, true }) |coalesce| {
         // node-order2.mjs destroy: callbacks with errors, continuation 0/0
-        // (no next send: the catch-up fails); one send failure.
+        // (no next send: the stream stops); one send failure.
         const r = try runNodeCase(.{ .f1 = 4000, .f2 = 100, .f3 = 3000, .drain = .all, .destroy = true, .coalesce = coalesce });
         try testing.expect(r.seen[0] == null);
         try testing.expectEqual(@as(usize, 0), r.pending_after);
@@ -1736,27 +1448,30 @@ test "Node destroy: every queued frame fails in order, nothing stays counted" {
 
 test "a timer due when an awaited frame completes runs after that frame's continuation" {
     // Node runs the continuations a macrotask resolved (microtasks) before
-    // any timer: the rows the catch-up sends on resuming precede the
+    // any timer: the rows a custom stream sends on resuming precede the
     // heartbeat that fell due at the same moment.
     core.log.setSink(discard, null);
     defer core.log.setSink(null, null);
     for ([_]bool{ false, true }) |coalesce| {
         var loop: TestLoop = undefined;
         loop.init();
-        var db: ReplayDb = .{ .last = 3, .missing = null, .sizes = @splat(300), .batch = 8 };
+        var db: StreamDb = .{ .sizes = @splat(300), .batch = 8 };
         var listen: NullListen = .{};
-        const limits: live.Limits = .{ .heartbeat_ms = 1_000, .max_agent_clients = 10, .max_buffered_bytes = 1 << 30, .max_catch_up_ms = 1_800_000, .max_concurrent_catch_ups = 2, .max_total_buffered_bytes = 1 << 30 };
+        const limits: live.Limits = .{ .heartbeat_ms = 1_000, .max_agent_clients = 10, .max_buffered_bytes = 1 << 30, .max_total_buffered_bytes = 1 << 30 };
         const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = db.batch }, null);
         server.coalesce = coalesce;
         try server.start();
         var socket: KernelSocket = .{ .capacity = 1_000_000 };
         const peer = server.connectAgent(socket.socket());
-        socket.stall_at = 2; // ready, subscribed; then row 0 waits
-        server.onMessage(peer,
-            \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
-        );
+        server.onMessage(peer, SUBSCRIBE_STREAM);
         quiesce(&loop, server, &socket);
-        socket.refresh(1 << 20); // row 0 written: its continuation is due
+        socket.mutex.lock();
+        socket.capacity = 0; // row 1 waits
+        socket.mutex.unlock();
+        try notifyHead(&listen, 3);
+        flushWorkers(&loop, server);
+        quiesce(&loop, server, &socket);
+        socket.refresh(1 << 20); // row 1 written: its continuation is due
         loop.fake.tick(1_000); // and so is the heartbeat
         quiesce(&loop, server, &socket);
         var heartbeat: ?usize = null;
@@ -1777,8 +1492,8 @@ test "a timer due when an awaited frame completes runs after that frame's contin
     }
 }
 
-test "a heartbeat while a catch-up row is partly written queues behind it, in Node's order and counts" {
-    // Fake clock: the catch-up's first row is in flight (partly written);
+test "a heartbeat while a stream row is partly written queues behind it, in Node's order and counts" {
+    // Fake clock: a custom stream's first row is in flight (partly written);
     // the heartbeat's ping and frame are sent meanwhile (behind it, one
     // batch in Node). The client then reads up to the end of the row, then
     // everything: the wire order, and live's bufferedAmount / pendingBytes
@@ -1796,48 +1511,51 @@ test "a heartbeat while a catch-up row is partly written queues behind it, in No
     for ([_]bool{ false, true }) |coalesce| {
         var loop: TestLoop = undefined;
         loop.init();
-        var db: ReplayDb = .{ .last = 3, .missing = null, .sizes = @splat(2000), .batch = 8 };
+        var db: StreamDb = .{ .sizes = @splat(2000), .batch = 8 };
         var listen: NullListen = .{};
-        const limits: live.Limits = .{ .heartbeat_ms = 1_000, .max_agent_clients = 10, .max_buffered_bytes = 1 << 30, .max_catch_up_ms = 1_800_000, .max_concurrent_catch_ups = 2, .max_total_buffered_bytes = 1 << 30 };
+        const limits: live.Limits = .{ .heartbeat_ms = 1_000, .max_agent_clients = 10, .max_buffered_bytes = 1 << 30, .max_total_buffered_bytes = 1 << 30 };
         const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = db.batch }, null);
         server.coalesce = coalesce;
         try server.start();
         var socket: KernelSocket = .{ .capacity = 1_000_000 };
         const peer = server.connectAgent(socket.socket());
-        socket.stall_at = 2; // ready, subscribed; the kernel then takes 100 bytes of row 0
-        server.onMessage(peer,
-            \\{"type":"subscribe","streams":[{"eventType":"merkle_tree_insertion","cursors":[{"domain":1,"address":"0x0000000000000000000000000000000000000001","afterSequence":"-1"}]}]}
-        );
+        server.onMessage(peer, SUBSCRIBE_STREAM);
+        quiesce(&loop, server, &socket);
+        socket.mutex.lock();
+        socket.capacity = 0; // the kernel then takes 100 bytes of row 1
+        socket.mutex.unlock();
+        try notifyHead(&listen, 3);
+        flushWorkers(&loop, server);
         quiesce(&loop, server, &socket);
         try expectNodeView(server, &.{peer}, &.{&socket});
-        socket.refresh(100); // row 0 partly written, still in flight
+        socket.refresh(100); // row 1 partly written, still in flight
         quiesce(&loop, server, &socket);
-        loop.fake.tick(1_000); // heartbeat: ping + frame, behind row 0
+        loop.fake.tick(1_000); // heartbeat: ping + frame, behind row 1
         quiesce(&loop, server, &socket);
         try expectNodeView(server, &.{peer}, &.{&socket});
         socket.mutex.lock();
         try testing.expectEqual(@as(usize, 1), socket.pings);
-        try testing.expectEqual(@as(usize, 3), socket.queue.items.len); // row 0, ping, heartbeat
+        try testing.expectEqual(@as(usize, 3), socket.queue.items.len); // row 1, ping, heartbeat
         const row_rest = socket.queue.items[0].total - socket.queue.items[0].off;
         socket.mutex.unlock();
-        socket.refresh(row_rest); // row 0 done; the batch (ping, heartbeat) not started
+        socket.refresh(row_rest); // row 1 done; the batch (ping, heartbeat) not started
         quiesce(&loop, server, &socket);
         try expectNodeView(server, &.{peer}, &.{&socket});
         server.onPong(peer);
         socket.refresh(1 << 30); // everything
         quiesce(&loop, server, &socket);
         try expectNodeView(server, &.{peer}, &.{&socket});
-        // Wire order: row 0, the heartbeat, then the rows sent after row 0
+        // Wire order: row 1, the heartbeat, then the rows sent after row 1
         // completed (they wait behind the batch).
         var heartbeat: ?usize = null;
-        var row0: ?usize = null;
         var row1: ?usize = null;
+        var row2: ?usize = null;
         for (socket.delivered.items, 0..) |payload, i| {
             if (heartbeat == null and std.mem.indexOf(u8, payload, "\"type\":\"heartbeat\"") != null) heartbeat = i;
-            if (std.mem.indexOf(u8, payload, "\"leaf_index\":0") != null) row0 = i;
-            if (std.mem.indexOf(u8, payload, "\"leaf_index\":1") != null) row1 = i;
+            if (std.mem.indexOf(u8, payload, "\"leaf_index\":1,") != null) row1 = i;
+            if (std.mem.indexOf(u8, payload, "\"leaf_index\":2,") != null) row2 = i;
         }
-        try testing.expect(row0.? < heartbeat.? and heartbeat.? < row1.?);
+        try testing.expect(row1.? < heartbeat.? and heartbeat.? < row2.?);
         try testing.expect(!socket.destroyed);
         server.stop();
         server.onClose(peer);

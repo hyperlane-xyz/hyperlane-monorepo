@@ -13,8 +13,6 @@ pub const Config = struct {
     database_url: []const u8 = "",
     diagnostics_database_url: ?[]const u8 = null,
     event_stream_batch_size: u64 = 500,
-    event_stream_history_max_concurrent: u64 = 2,
-    event_stream_history_max_ms: u64 = 1_800_000,
     event_stream_max_agent_clients: u64 = 100,
     event_stream_max_buffered_bytes: u64 = 1_048_576,
     event_stream_max_total_buffered_bytes: u64 = 33_554_432,
@@ -50,8 +48,6 @@ const rules = [_]Rule{
     .{ .str = .{ .env = "DATABASE_URL", .field = "database_url", .optional = false } },
     .{ .str = .{ .env = "DIAGNOSTICS_DATABASE_URL", .field = "diagnostics_database_url", .optional = true } },
     .{ .int = .{ .env = "EVENT_STREAM_BATCH_SIZE", .field = "event_stream_batch_size", .min = 1, .max = 5_000 } },
-    .{ .int = .{ .env = "EVENT_STREAM_HISTORY_MAX_CONCURRENT", .field = "event_stream_history_max_concurrent", .min = 1, .max = 10 } },
-    .{ .int = .{ .env = "EVENT_STREAM_HISTORY_MAX_MS", .field = "event_stream_history_max_ms", .min = 1_000 } },
     .{ .int = .{ .env = "EVENT_STREAM_MAX_AGENT_CLIENTS", .field = "event_stream_max_agent_clients", .min = 1, .max = 10_000 } },
     .{ .int = .{ .env = "EVENT_STREAM_MAX_BUFFERED_BYTES", .field = "event_stream_max_buffered_bytes", .min = 1_024 } },
     .{ .int = .{ .env = "EVENT_STREAM_MAX_TOTAL_BUFFERED_BYTES", .field = "event_stream_max_total_buffered_bytes", .min = 1_024 } },
@@ -453,6 +449,8 @@ test "defaults and coercion" {
 
 test "zod 4 issues match TS output" {
     // Expected JSON captured from Node 26 + zod 4.5.4 for the same environment.
+    // EVENT_STREAM_HISTORY_* were removed from the schema (#10040): zod strips
+    // unknown keys, so even invalid values are ignored.
     var env = try envOf(&.{
         .{ "EVENT_STREAM_BATCH_SIZE", "Infinity" },
         .{ "EVENT_STREAM_HISTORY_MAX_CONCURRENT", "1e20" },
@@ -475,9 +473,6 @@ test "zod 4 issues match TS output" {
             "{\"origin\":\"string\",\"code\":\"too_small\",\"minimum\":1,\"inclusive\":true,\"path\":[\"DATABASE_READ_REPLICA_URL\"],\"message\":\"Too small: expected string to have >=1 characters\"}," ++
             "{\"expected\":\"string\",\"code\":\"invalid_type\",\"path\":[\"DATABASE_URL\"],\"message\":\"Invalid input: expected string, received undefined\"}," ++
             "{\"expected\":\"number\",\"code\":\"invalid_type\",\"received\":\"Infinity\",\"path\":[\"EVENT_STREAM_BATCH_SIZE\"],\"message\":\"Invalid input: expected number, received Infinity\"}," ++
-            "{\"code\":\"too_big\",\"maximum\":9007199254740991,\"note\":\"Integers must be within the safe integer range.\",\"origin\":\"int\",\"inclusive\":true,\"path\":[\"EVENT_STREAM_HISTORY_MAX_CONCURRENT\"],\"message\":\"Too big: expected int to be <=9007199254740991\"}," ++
-            "{\"origin\":\"number\",\"code\":\"too_big\",\"maximum\":10,\"inclusive\":true,\"path\":[\"EVENT_STREAM_HISTORY_MAX_CONCURRENT\"],\"message\":\"Too big: expected number to be <=10\"}," ++
-            "{\"origin\":\"number\",\"code\":\"too_small\",\"minimum\":1000,\"inclusive\":true,\"path\":[\"EVENT_STREAM_HISTORY_MAX_MS\"],\"message\":\"Too small: expected number to be >=1000\"}," ++
             "{\"origin\":\"number\",\"code\":\"too_small\",\"minimum\":1,\"inclusive\":true,\"path\":[\"EVENT_STREAM_MAX_AGENT_CLIENTS\"],\"message\":\"Too small: expected number to be >=1\"}," ++
             "{\"code\":\"too_big\",\"maximum\":9007199254740991,\"note\":\"Integers must be within the safe integer range.\",\"origin\":\"int\",\"inclusive\":true,\"path\":[\"GRAPHQL_MAX_ACTIVE_UPLOADS\"],\"message\":\"Too big: expected int to be <=9007199254740991\"}," ++
             "{\"expected\":\"number\",\"code\":\"invalid_type\",\"received\":\"NaN\",\"path\":[\"PORT\"],\"message\":\"Invalid input: expected number, received NaN\"}]",
