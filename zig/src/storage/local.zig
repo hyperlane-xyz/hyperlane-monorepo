@@ -149,6 +149,14 @@ pub const LocalStore = struct {
     /// Atomic rename after file fsync, followed by parent-directory fsync.
     /// An ambiguous I/O failure poisons the handle until reopen and readback.
     fn atomicWrite(self: *LocalStore, name: []const u8, bytes: []const u8) !void {
+        try self.renameSynced(name, bytes);
+        try std.posix.fsync(self.dir.fd);
+        self.poisoned = false;
+    }
+
+    /// File data fsync, then atomic rename. The rename is durable only after
+    /// the caller's directory fsync; until then the handle stays poisoned.
+    fn renameSynced(self: *LocalStore, name: []const u8, bytes: []const u8) !void {
         if (bytes.len >= self.options.max_bytes) return error.ObjectTooLarge;
         self.poisoned = true;
         var atomic = try self.dir.atomicFile(name, .{ .mode = 0o600, .write_buffer = &.{} });
@@ -156,8 +164,6 @@ pub const LocalStore = struct {
         try atomic.file_writer.file.writeAll(bytes);
         try atomic.file_writer.file.sync();
         try atomic.renameIntoPlace();
-        try std.posix.fsync(self.dir.fd);
-        self.poisoned = false;
     }
 
     /// Same-signer conflict is checked against durable state before publication.
@@ -178,8 +184,45 @@ pub const LocalStore = struct {
         const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
         verified.require(expected_signer) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
         const result = try self.inspectCheckpointLocked(verified.signed.value, unix_timestamp);
-        if (result != .already_present) try self.writeCheckpointLocked(verified);
+        // An identical object may have been renamed by a writer that died
+        // before its directory fsync: make it durable before reporting it.
+        if (result == .already_present) try std.posix.fsync(self.dir.fd) else try self.writeCheckpointLocked(verified);
         return result;
+    }
+
+    /// Batch form of writeVerifiedCheckpoint for one directory: every object
+    /// still gets its own data fsync and atomic rename, then ONE directory
+    /// fsync persists all of the renames before this returns. Callers must
+    /// not take any dependent durable step (latest index, snapshot, WAL
+    /// completion) before it returns; any error leaves the handle poisoned.
+    pub fn writeVerifiedCheckpoints(self: *LocalStore, batch: []const VerifiedCheckpoint, unix_timestamp: u64) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        try self.requireWrite();
+        const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
+        for (batch) |verified| verified.require(expected_signer) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
+        var renamed: u32 = 0;
+        for (batch) |verified| {
+            if (try self.inspectCheckpointLocked(verified.signed.value, unix_timestamp) == .already_present) continue;
+            const bytes = try verified.signed.toJson(self.allocator);
+            defer self.allocator.free(bytes);
+            var name_buffer: [40]u8 = undefined;
+            const name = try std.fmt.bufPrint(&name_buffer, "{d}_with_id.json", .{verified.signed.value.index});
+            try self.renameSynced(name, bytes);
+            renamed += 1;
+            if (@import("builtin").is_test) if (TestBatchFault.fail_after_renames.load(.acquire) == renamed) {
+                TestBatchFault.fail_after_renames.store(0, .release);
+                return error.InjectedDirectorySyncFailure;
+            };
+        }
+        if (batch.len == 0) return;
+        if (@import("builtin").is_test) if (TestBatchFault.before_directory_sync.swap(false, .acq_rel)) return error.InjectedDirectorySyncFailure;
+        // Always, even if every object was already present: a replay after a
+        // crash between rename and directory fsync must not skip the fsync.
+        try std.posix.fsync(self.dir.fd);
+        if (@import("builtin").is_test) _ = TestBatchFault.directory_syncs.fetchAdd(1, .acq_rel);
+        self.poisoned = false;
+        for (batch) |verified| self.recent.record(verified);
     }
 
     /// Local signing is serialized with durable conflict inspection: the new
@@ -305,6 +348,15 @@ pub const LocalStore = struct {
         try self.atomicWrite("reorg_flag.json", bytes);
     }
 };
+
+/// Fault injection exists only in test binaries: production batch writes
+/// always reach the directory fsync.
+pub const TestBatchFault = if (@import("builtin").is_test) struct {
+    pub var before_directory_sync: std.atomic.Value(bool) = .init(false);
+    /// Nonzero: fail after this many renames, before the directory fsync.
+    pub var fail_after_renames: std.atomic.Value(u32) = .init(0);
+    pub var directory_syncs: std.atomic.Value(usize) = .init(0);
+} else void;
 
 /// Persist each newly created directory entry before descending into it. File
 /// fsync plus final-directory fsync alone does not persist that directory's own

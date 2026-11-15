@@ -17,6 +17,8 @@ fn hashesConflict(a: Hash, b: Hash) bool {
 pub const Options = struct { halt_signal: ?*std.atomic.Value(bool) = null, readiness: ?*@import("validator/readiness.zig").State = null, domain_name: []const u8, domain: u32, hook: Hash, signer_address: [20]u8, endpoint_count: usize, consensus: ?Consensus = .majority, reorg_period: objects.ReorgPeriod = .none };
 pub const Signer = struct {
     parallel_safe: bool = false,
+    /// Signs in-process (local key): no network wait worth overlapping.
+    in_process: bool = false,
     cancel: ?*const std.atomic.Value(bool) = null,
     context: *anyopaque,
     /// Local keys sign via VerifiedCheckpoint.signWith (zero recoveries);
@@ -30,12 +32,17 @@ pub const Signer = struct {
 };
 pub const Publisher = struct {
     parallel_safe: bool = false,
+    /// Local files: writes serialize on the store, so overlap buys nothing.
+    in_process: bool = false,
     context: *anyopaque,
     read_snapshot: ?*const fn (*anyopaque) anyerror!?objects.Snapshot = null,
     fetch_checkpoint: *const fn (*anyopaque, u32) anyerror!?objects.SignedCheckpoint,
     is_reorged: *const fn (*anyopaque) anyerror!bool,
     write_announcement: ?*const fn (*anyopaque, objects.SignedAnnouncement) anyerror!void = null,
     write_checkpoint: *const fn (*anyopaque, Verified, u64) anyerror!void,
+    /// Optional same-directory batch: per-object data fsync + rename, then
+    /// one directory fsync before returning (all or error).
+    write_checkpoints: ?*const fn (*anyopaque, []const Verified, u64) anyerror!void = null,
     write_latest: *const fn (*anyopaque, u32) anyerror!void,
     write_snapshot: *const fn (*anyopaque, *const objects.Snapshot) anyerror!void,
     persist_reorg: *const fn (*anyopaque, objects.ReorgEvent) anyerror!void,
@@ -441,9 +448,21 @@ pub const Service = struct {
         defer self.mutex.unlock();
         self.fresh_verified_through = null;
     }
+    /// Quorum authorization plus the serial path's single reservation.
     pub fn authorize(self: *Service, votes: []const ?Checkpoint, unix_timestamp: u64) !?Checkpoint {
         self.mutex.lock();
         defer self.mutex.unlock();
+        try self.authorizeUnlocked(votes, unix_timestamp);
+        return self.reserveNextUnlocked();
+    }
+    /// Quorum authorization only: batch publication durably reserves its own
+    /// indices, so the driver skips the legacy single-reservation WAL commit.
+    pub fn authorizeQuorum(self: *Service, votes: []const ?Checkpoint, unix_timestamp: u64) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        try self.authorizeUnlocked(votes, unix_timestamp);
+    }
+    fn authorizeUnlocked(self: *Service, votes: []const ?Checkpoint, unix_timestamp: u64) !void {
         if (self.halted) return error.ValidatorHalted;
         self.fresh_verified_through = null;
         if (votes.len != self.options.endpoint_count) return error.EndpointPoolChanged;
@@ -485,7 +504,6 @@ pub const Service = struct {
                 self.verified_through = target;
             }
         }
-        return self.reserveNextUnlocked();
     }
     fn reserveNextUnlocked(self: *Service) !?Checkpoint {
         if (try self.reservation()) |r| {
@@ -641,57 +659,75 @@ pub const Service = struct {
             }
         }
     }
-    /// Persistent publication workers. Threads are spawned lazily, only when a
-    /// batch needs more concurrency than already exists, never beyond the
-    /// configured limit, and are reused for every later batch (never joined
-    /// and respawned per round). At most `limit` jobs run at once.
+    /// Persistent helpers for adapters whose calls wait on network I/O (KMS
+    /// signing, cloud objects). Threads are spawned lazily, never beyond the
+    /// configured limit, and reused for every later batch. The coordinator
+    /// drains jobs itself: at most `limit` runners (it plus helpers) at once.
+    /// Only as many helpers as there are spare jobs are signalled; there is
+    /// no broadcast and no per-job wake.
     pub const PublicationWorkers = struct {
         allocator: std.mem.Allocator,
         mutex: std.Thread.Mutex = .{},
         wake: std.Thread.Condition = .{},
-        done: std.Thread.Condition = .{},
+        idle: std.Thread.Condition = .{},
         threads: std.ArrayList(std.Thread) = .empty,
-        jobs: []PublicationJob = &.{},
-        next: usize = 0,
-        remaining: usize = 0,
-        active: usize = 0,
-        limit: usize = 0,
+        task: ?Task = null,
+        next: std.atomic.Value(usize) = .init(0),
+        /// Helper slots still claimable for the current task.
+        tickets: usize = 0,
+        /// Helpers currently draining the current task.
+        helping: usize = 0,
         stopping: bool = false,
-        fn run(self: *PublicationWorkers, jobs: []PublicationJob, limit: usize) !void {
-            const wanted = @min(jobs.len, limit);
-            try self.threads.ensureTotalCapacity(self.allocator, wanted);
-            while (self.threads.items.len < wanted) {
-                const thread = std.Thread.spawn(.{ .stack_size = 256 * 1024, .allocator = self.allocator }, worker, .{self}) catch |err| {
-                    if (self.threads.items.len == 0) return err;
-                    break;
-                };
+        const Task = struct { context: *anyopaque, count: usize, run: *const fn (*anyopaque, usize) void };
+        fn run(self: *PublicationWorkers, task: Task, limit: usize) void {
+            if (task.count == 0) return;
+            const helpers = @min(task.count, limit) - 1;
+            self.threads.ensureTotalCapacity(self.allocator, helpers) catch {};
+            while (self.threads.items.len < @min(helpers, self.threads.capacity)) {
+                const thread = std.Thread.spawn(.{ .stack_size = 256 * 1024, .allocator = self.allocator }, worker, .{self}) catch break;
                 self.threads.appendAssumeCapacity(thread);
             }
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            self.jobs = jobs;
-            self.next = 0;
-            self.remaining = jobs.len;
-            self.limit = limit;
-            self.wake.broadcast();
-            while (self.remaining > 0) self.done.wait(&self.mutex);
-            self.jobs = &.{};
+            const available = @min(helpers, self.threads.items.len);
+            self.next.store(0, .monotonic);
+            if (available > 0) {
+                self.mutex.lock();
+                self.task = task;
+                self.tickets = available;
+                for (0..available) |_| self.wake.signal();
+                self.mutex.unlock();
+            }
+            drain(&self.next, task);
+            if (available > 0) {
+                self.mutex.lock();
+                defer self.mutex.unlock();
+                // Unclaimed slots are revoked; every claimed one has finished
+                // before the jobs slice can be released by the caller.
+                self.tickets = 0;
+                while (self.helping > 0) self.idle.wait(&self.mutex);
+                self.task = null;
+            }
+        }
+        fn drain(next: *std.atomic.Value(usize), task: Task) void {
+            while (true) {
+                const index = next.fetchAdd(1, .monotonic);
+                if (index >= task.count) return;
+                task.run(task.context, index);
+            }
         }
         fn worker(self: *PublicationWorkers) void {
             self.mutex.lock();
             defer self.mutex.unlock();
             while (true) {
-                while (!self.stopping and (self.next >= self.jobs.len or self.active >= self.limit)) self.wake.wait(&self.mutex);
+                while (!self.stopping and self.tickets == 0) self.wake.wait(&self.mutex);
                 if (self.stopping) return;
-                const job = &self.jobs[self.next];
-                self.next += 1;
-                self.active += 1;
+                self.tickets -= 1;
+                self.helping += 1;
+                const task = self.task.?;
                 self.mutex.unlock();
-                job.run();
+                drain(&self.next, task);
                 self.mutex.lock();
-                self.active -= 1;
-                self.remaining -= 1;
-                if (self.remaining == 0) self.done.signal() else self.wake.signal();
+                self.helping -= 1;
+                if (self.helping == 0 and self.tickets == 0) self.idle.signal();
             }
         }
         pub fn threadCount(self: *const PublicationWorkers) usize {
@@ -706,21 +742,138 @@ pub const Service = struct {
             self.threads.deinit(self.allocator);
         }
     };
+    const Step = enum { submission, latest, persistence };
     const PublicationJob = struct {
+        checkpoint: Checkpoint,
+        signed: ?Verified = null,
+        /// Obtained this batch (signer or own backend object): WAL-record it.
+        record: bool = false,
+        may_sign: bool = false,
+        conflict_root: ?Hash = null,
+        latest_written: bool = false,
+        written: bool = false,
+        /// False while an in-process signer's reservation is still pending
+        /// in the batch's signature commit.
+        reserved: bool = true,
+        result: ?anyerror = null,
+    };
+    /// One publication batch. Service-state transitions run on the caller
+    /// under one mutex hold per phase with one WAL commit each; only the
+    /// adapter calls (fetch/sign, then write) fan out, and only to helpers
+    /// when the adapters wait on network I/O.
+    const PublicationBatch = struct {
         service: *Service,
         signer: Signer,
         publisher: Publisher,
-        checkpoint: Checkpoint,
-        highest: u32,
         timestamp: u64,
-        result: ?anyerror = null,
-        published: bool = false,
-        fn run(self: *PublicationJob) void {
-            self.service.publishReserved(self) catch |err| {
-                self.result = err;
-                return;
+        highest: u32,
+        jobs: []PublicationJob,
+        snapshot_failure: ?anyerror = null,
+        fn fail(self: *PublicationBatch, job: *PublicationJob, err: anyerror, step: Step) void {
+            job.result = err;
+            const status = self.service.options.readiness orelse return;
+            var buffer: [80]u8 = undefined;
+            const operation = switch (step) {
+                .submission => std.fmt.bufPrint(&buffer, "checkpoint_submission[{d}]", .{job.checkpoint.index}) catch unreachable,
+                .latest => "checkpoint_latest_index",
+                .persistence => "checkpoint_persistence",
             };
-            self.published = true;
+            status.blocked(operation) catch |e| std.log.warn("validator readiness update failed: {s}", .{@errorName(e)});
+        }
+        /// Jobs whose signature or reservation rode in a failed commit.
+        fn failRecorded(self: *PublicationBatch, err: anyerror) void {
+            for (self.jobs) |*job| if (job.result == null and (job.record or !job.reserved)) self.fail(job, err, .submission);
+        }
+        fn retires(self: *const PublicationBatch, index: u32) bool {
+            for (self.jobs) |job| if (job.result == null and job.written and job.checkpoint.index == index) return true;
+            return false;
+        }
+        fn failLive(self: *PublicationBatch, err: anyerror, step: Step) void {
+            for (self.jobs) |*job| if (job.result == null) self.fail(job, err, step);
+        }
+        fn cancelled(self: *const PublicationBatch) bool {
+            const cancel = self.signer.cancel orelse return false;
+            return cancel.load(.acquire);
+        }
+        fn resolveAt(context: *anyopaque, index: usize) void {
+            const self: *PublicationBatch = @ptrCast(@alignCast(context));
+            const job = &self.jobs[index];
+            if (job.result != null or job.signed != null) return;
+            self.resolve(job) catch |err| self.fail(job, err, .submission);
+        }
+        /// Adopt this signer's existing backend object or sign; no service
+        /// mutex unless a signing attempt must be retried.
+        fn resolve(self: *PublicationBatch, job: *PublicationJob) !void {
+            if (self.cancelled()) return error.RequestCancelled;
+            if (try self.publisher.fetch_checkpoint(self.publisher.context, job.checkpoint.index)) |stored| {
+                const own = try self.service.existingOwn(stored);
+                const context = stored.value.mailbox_domain == job.checkpoint.mailbox_domain and std.mem.eql(u8, &stored.value.merkle_tree_hook_address, &job.checkpoint.merkle_tree_hook_address);
+                if (own != null and context) {
+                    if (!same(stored.value, job.checkpoint)) {
+                        job.conflict_root = stored.value.root;
+                        return error.FinalizedHistoryConflict;
+                    }
+                    job.signed = own;
+                    job.record = true;
+                    return;
+                }
+            }
+            if (!job.may_sign) return error.FreshAuthorizationRequired;
+            job.signed = try self.sign(job);
+            job.record = true;
+        }
+        fn sign(self: *PublicationBatch, job: *PublicationJob) !Verified {
+            var failure: anyerror = error.SignatureUnavailable;
+            // Source performs five direct attempts then its singleton fallback. Our
+            // pinned signer is already the sole identity; the final attempt retains
+            // that same authority rather than introducing another credential chain.
+            // The first attempt is gated by the caller's phase check.
+            for (0..6) |attempt| {
+                if (attempt > 0) {
+                    std.Thread.sleep(100 * std.time.ns_per_ms);
+                    if (self.cancelled()) return error.RequestCancelled;
+                    self.service.mutex.lock();
+                    defer self.service.mutex.unlock();
+                    try self.service.jobGate(job, true);
+                }
+                return self.signer.sign(self.signer.context, job.checkpoint) catch |err| {
+                    failure = err;
+                    continue;
+                };
+            }
+            return failure;
+        }
+        fn writeAt(context: *anyopaque, index: usize) void {
+            const self: *PublicationBatch = @ptrCast(@alignCast(context));
+            const job = &self.jobs[index];
+            if (job.result != null) return;
+            self.write(job) catch |err| self.fail(job, err, if (job.written) .latest else .submission);
+        }
+        /// Checkpoint object first; the batch's highest index then publishes
+        /// the latest pointer before lower indices complete (latest-first).
+        fn write(self: *PublicationBatch, job: *PublicationJob) !void {
+            if (self.cancelled()) return error.RequestCancelled;
+            try self.publisher.write_checkpoint(self.publisher.context, job.signed.?, self.timestamp);
+            job.written = true;
+            if (self.service.options.readiness) |status| {
+                var buffer: [80]u8 = undefined;
+                status.ready(std.fmt.bufPrint(&buffer, "checkpoint_submission[{d}]", .{job.checkpoint.index}) catch unreachable);
+            }
+            if (job.checkpoint.index != self.highest) return;
+            if (self.cancelled()) return error.RequestCancelled;
+            const availability = blk: {
+                self.service.mutex.lock();
+                defer self.service.mutex.unlock();
+                try self.service.jobGate(job, false);
+                break :blk @max(self.service.latest_published orelse self.highest, self.highest);
+            };
+            try self.publisher.write_latest(self.publisher.context, availability);
+            job.latest_written = true;
+            if (self.service.options.readiness) |status| status.ready("checkpoint_latest_index");
+        }
+        fn forEach(self: *PublicationBatch, workers: ?*PublicationWorkers, limit: usize, run: *const fn (*anyopaque, usize) void) void {
+            if (workers) |pool| return pool.run(.{ .context = self, .count = self.jobs.len, .run = run }, limit);
+            for (0..self.jobs.len) |index| run(self, index);
         }
     };
     fn ensurePublicationWorkers(self: *Service) !*PublicationWorkers {
@@ -745,28 +898,62 @@ pub const Service = struct {
         defer self.mutex.unlock();
         self.publication_running = false;
     }
+    /// Publishes up to `limit` reserved indices as one batch: reservations,
+    /// fresh signatures and completions are each one WAL commit. In-process
+    /// adapters (local key, local files) run on the caller: their calls are
+    /// CPU or serialize on the store, so helper threads would only add
+    /// handoffs. Network-bound parallel-safe adapters overlap up to `limit`.
     pub fn publishConcurrent(self: *Service, signer: Signer, publisher: Publisher, timestamp: u64, limit: usize) !usize {
         if (limit == 0 or limit > 1000) return error.InvalidPublicationLimit;
         try self.beginPublication();
         defer self.endPublication();
-        if (limit == 1 or !signer.parallel_safe or !publisher.parallel_safe) return self.publishSerial(signer, publisher, timestamp, limit);
-        const candidates = try self.reservePublicationBatch(limit);
+        // An in-process signature cannot leave the process before the batch's
+        // signature commit, so its reservations ride in that same commit. A
+        // remote signer's reservations are durable before any signing request.
+        const candidates = try self.reservePublicationBatch(limit, !signer.in_process);
         defer self.allocator.free(candidates);
-        if (candidates.len <= 1) return self.publishSerial(signer, publisher, timestamp, limit);
+        if (candidates.len == 0) return self.publishSerial(signer, publisher, timestamp, limit);
+        // At most `limit` (max_sign_concurrency) jobs per batch: a pooled
+        // batch's sign-then-write barrier waits on at most that many signatures.
+        const pooled = candidates.len > 1 and limit > 1 and signer.parallel_safe and publisher.parallel_safe and !(signer.in_process and publisher.in_process);
+        return self.publishBatch(signer, publisher, timestamp, limit, candidates, if (pooled) try self.ensurePublicationWorkers() else null);
+    }
+    fn publishBatch(self: *Service, signer: Signer, publisher: Publisher, timestamp: u64, limit: usize, candidates: []const Checkpoint, workers: ?*PublicationWorkers) !usize {
         const jobs = try self.allocator.alloc(PublicationJob, candidates.len);
         defer self.allocator.free(jobs);
         var highest: u32 = 0;
-        for (candidates) |candidate| highest = @max(highest, candidate.index);
-        for (jobs, candidates) |*job, candidate| job.* = .{ .service = self, .signer = signer, .publisher = publisher, .checkpoint = candidate, .highest = highest, .timestamp = timestamp };
-        try (try self.ensurePublicationWorkers()).run(jobs, limit);
-        var published: usize = 0;
-        var failure: ?anyerror = null;
-        for (jobs) |job| {
-            if (job.published) published += 1;
-            if (job.result) |err| if (failure == null) {
-                failure = err;
-            };
+        for (jobs, candidates) |*job, candidate| {
+            job.* = .{ .checkpoint = candidate, .reserved = !signer.in_process };
+            highest = @max(highest, candidate.index);
         }
+        var batch: PublicationBatch = .{ .service = self, .signer = signer, .publisher = publisher, .timestamp = timestamp, .highest = highest, .jobs = jobs };
+        if (batch.cancelled()) return error.RequestCancelled;
+        const reorged = publisher.is_reorged(publisher.context) catch |err| {
+            if (self.options.readiness) |status| status.blocked("checkpoint_backend_guard") catch |e| std.log.warn("validator readiness update failed: {s}", .{@errorName(e)});
+            return err;
+        };
+        if (reorged) {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            try self.haltFromBackend();
+            return error.ValidatorHalted;
+        }
+        if (self.options.readiness) |status| status.ready("checkpoint_backend_guard");
+        {
+            // Durable signatures are reused; signing is allowed only within
+            // the fresh quorum authorization.
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            for (jobs) |*job| {
+                self.prepareJob(job) catch |err| batch.fail(job, err, .submission);
+            }
+        }
+        batch.forEach(workers, limit, PublicationBatch.resolveAt);
+        self.recordSignatures(&batch);
+        if (publisher.in_process) {
+            if (publisher.write_checkpoints) |many| self.writeInProcess(&batch, many) else batch.forEach(null, limit, PublicationBatch.writeAt);
+        } else batch.forEach(workers, limit, PublicationBatch.writeAt);
+        const published = self.completePublications(&batch);
         self.mutex.lock();
         const halted = self.halted;
         self.mutex.unlock();
@@ -774,15 +961,203 @@ pub const Service = struct {
             try self.publishReorg(publisher);
             return error.ValidatorHalted;
         }
-        // All worker callbacks have actually returned before snapshot creation
+        // All adapter callbacks have actually returned before snapshot creation
         // or any error escapes. A deadline never grants early context reuse.
-        if (failure) |err| return err;
+        for (jobs) |job| if (job.result) |err| return err;
+        if (batch.snapshot_failure) |err| return err;
         self.mutex.lock();
         defer self.mutex.unlock();
         try self.snapshotIfCovered(publisher);
         return published;
     }
-    fn reservePublicationBatch(self: *Service, limit: usize) ![]Checkpoint {
+    /// Highest index first (object, then latest pointer), then every lower
+    /// object in one store batch that ends with a single directory fsync.
+    /// Nothing below depends on a lower object until that call returns.
+    fn writeInProcess(self: *Service, batch: *PublicationBatch, many: *const fn (*anyopaque, []const Verified, u64) anyerror!void) void {
+        for (batch.jobs, 0..) |job, index| if (job.checkpoint.index == batch.highest) PublicationBatch.writeAt(batch, index);
+        const lower = self.allocator.alloc(Verified, batch.jobs.len) catch |err| {
+            for (batch.jobs) |*job| if (job.result == null and !job.written) batch.fail(job, err, .submission);
+            return;
+        };
+        defer self.allocator.free(lower);
+        var count: usize = 0;
+        for (batch.jobs) |job| if (job.result == null and !job.written) {
+            lower[count] = job.signed.?;
+            count += 1;
+        };
+        if (count == 0) return;
+        const written = if (batch.cancelled()) error.RequestCancelled else many(batch.publisher.context, lower[0..count], batch.timestamp);
+        for (batch.jobs) |*job| if (job.result == null and !job.written) {
+            if (written) |_| {
+                job.written = true;
+                if (self.options.readiness) |status| {
+                    var buffer: [80]u8 = undefined;
+                    status.ready(std.fmt.bufPrint(&buffer, "checkpoint_submission[{d}]", .{job.checkpoint.index}) catch unreachable);
+                }
+            } else |err| batch.fail(job, err, .submission);
+        };
+    }
+    /// publicationGate, except that a reservation still pending in this
+    /// batch's signature commit is checked in memory (reservePublicationBatch
+    /// validated any older durable one against the same checkpoint).
+    fn jobGate(self: *Service, job: *const PublicationJob, require_fresh: bool) !void {
+        if (job.reserved) return self.publicationGate(job.checkpoint, require_fresh);
+        if (self.halted) return error.ValidatorHalted;
+        try self.validateReservation(job.checkpoint);
+        if (require_fresh) {
+            const fresh = self.fresh_verified_through orelse return error.FreshAuthorizationRequired;
+            if (job.checkpoint.index > fresh) return error.FreshAuthorizationRequired;
+        }
+    }
+    fn prepareJob(self: *Service, job: *PublicationJob) !void {
+        if (try self.signedCheckpoint(job.checkpoint.index)) |stored| job.signed = try self.verifyStored(stored);
+        try self.jobGate(job, false);
+        if (self.fresh_verified_through) |fresh| job.may_sign = job.checkpoint.index <= fresh;
+    }
+    /// Every signature obtained this batch is durable (one WAL commit) before
+    /// any of them is published. A conflicting own object halts instead.
+    fn recordSignatures(self: *Service, batch: *PublicationBatch) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        for (batch.jobs) |*job| if (job.conflict_root) |root| {
+            self.halt(job.checkpoint.index, job.checkpoint.root, root, batch.timestamp) catch |err| {
+                job.result = err;
+            };
+            break;
+        };
+        var wal = self.typed.batch(self.allocator) catch |err| {
+            batch.failLive(err, .submission);
+            return;
+        };
+        defer wal.deinit();
+        var watermark = self.signed_watermark;
+        var pending: usize = 0;
+        for (batch.jobs) |*job| {
+            if (job.result != null) continue;
+            self.recordSignature(&wal, job, &watermark) catch |err| {
+                batch.fail(job, err, .submission);
+                continue;
+            };
+            if (job.record or !job.reserved) pending += 1;
+        }
+        if (pending == 0) return;
+        if (@import("builtin").is_test) if (TestPublicationFault.before_signatures.swap(false, .acq_rel)) return batch.failRecorded(error.InjectedSignatureCommitFailure);
+        self.commitSignatures(&wal, watermark) catch |err| return batch.failRecorded(err);
+        self.signed_watermark = watermark;
+        for (batch.jobs) |*job| if (job.result == null) {
+            job.reserved = true;
+        };
+    }
+    fn commitSignatures(self: *Service, wal: *rocks.TypedBatch, watermark: ?u32) !void {
+        if (watermark) |value| try self.putNumber(wal, "signed-watermark", value);
+        try wal.commitSync();
+    }
+    fn recordSignature(self: *Service, wal: *rocks.TypedBatch, job: *PublicationJob, watermark: *?u32) !void {
+        try self.jobGate(job, false);
+        const signed = job.signed.?;
+        try self.verifySigned(signed);
+        if (!same(signed.signed.value, job.checkpoint)) return error.SignerChangedCheckpoint;
+        if (!job.reserved) try self.put(wal, "reservations", &indexKey(job.checkpoint.index), &encodeCheckpoint(job.checkpoint));
+        if (!job.record) return;
+        const wire = try signed.signed.toJson(self.allocator);
+        defer self.allocator.free(wire);
+        try self.put(wal, "signed", &indexKey(job.checkpoint.index), wire);
+        watermark.* = @max(watermark.* orelse 0, job.checkpoint.index);
+    }
+    /// One WAL commit retires every written index (and advances latest when
+    /// the highest index's pointer was published).
+    fn completePublications(self: *Service, batch: *PublicationBatch) usize {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (@import("builtin").is_test) if (TestPublicationFault.before_completion.swap(false, .acq_rel)) {
+            batch.failLive(error.InjectedCompletionFailure, .persistence);
+            return 0;
+        };
+        var wal = self.typed.batch(self.allocator) catch |err| {
+            batch.failLive(err, .persistence);
+            return 0;
+        };
+        defer wal.deinit();
+        const legacy = self.reservation() catch |err| {
+            batch.failLive(err, .persistence);
+            return 0;
+        };
+        var latest = self.latest_published;
+        var pointer_written = false;
+        var completed: usize = 0;
+        for (batch.jobs) |*job| {
+            if (job.result != null) continue;
+            self.retire(&wal, job, legacy) catch |err| {
+                batch.fail(job, err, .persistence);
+                continue;
+            };
+            if (job.latest_written) {
+                latest = @max(latest orelse 0, batch.highest);
+                pointer_written = true;
+            }
+            completed += 1;
+        }
+        if (completed == 0) return 0;
+        const snapshot = if (pointer_written) self.snapshotInBatch(batch, latest) else null;
+        self.commitCompletions(&wal, latest, snapshot) catch |err| {
+            batch.failLive(err, .persistence);
+            return 0;
+        };
+        self.latest_published = latest;
+        if (self.options.readiness) |status| status.ready("checkpoint_persistence");
+        if (snapshot) |index| {
+            self.snapshot_through = index;
+            if (self.options.readiness) |status| status.ready("checkpoint_snapshot");
+        }
+        return completed;
+    }
+    /// The batch just published the latest pointer. When every index at or
+    /// below it is either already complete or retired by this batch (all of
+    /// whose objects are durable), the snapshot is written now and its
+    /// snapshot-through rides in the completion commit.
+    fn snapshotInBatch(self: *Service, batch: *PublicationBatch, latest: ?u32) ?u32 {
+        const target = latest orelse return null;
+        if (self.snapshot_through) |through| if (through >= target) return null;
+        const covered = self.coveredByBatch(batch, target) catch |err| {
+            batch.snapshot_failure = err;
+            return null;
+        };
+        if (!covered) return null;
+        self.writeSnapshot(batch.publisher, target) catch |err| {
+            batch.snapshot_failure = err;
+            if (self.options.readiness) |status| status.blocked("checkpoint_snapshot") catch |e| std.log.warn("validator readiness update failed: {s}", .{@errorName(e)});
+            return null;
+        };
+        return target;
+    }
+    fn coveredByBatch(self: *Service, batch: *const PublicationBatch, target: u32) !bool {
+        if (!self.repair_complete) return false;
+        for ([_][]const u8{ "unpublished", "repair-unpublished" }) |name| {
+            var upper = target;
+            while (try self.pendingAtOrBelow(name, upper)) |pending| {
+                if (!batch.retires(pending)) return false;
+                if (pending == 0) break;
+                upper = pending - 1;
+            }
+        }
+        return true;
+    }
+    fn commitCompletions(self: *Service, wal: *rocks.TypedBatch, latest: ?u32, snapshot: ?u32) !void {
+        if (latest) |value| try self.putNumber(wal, "latest", value);
+        if (snapshot) |value| try self.putNumber(wal, "snapshot-through", value);
+        try wal.commitSync();
+    }
+    fn retire(self: *Service, wal: *rocks.TypedBatch, job: *PublicationJob, legacy: ?Checkpoint) !void {
+        try self.jobGate(job, false);
+        const key = indexKey(job.checkpoint.index);
+        try self.delete(wal, "unpublished", &key);
+        try self.delete(wal, "repair-unpublished", &key);
+        try self.delete(wal, "reservations", &key);
+        if (legacy) |reserved| if (reserved.index == job.checkpoint.index) try self.delete(wal, "reservation", "");
+    }
+    /// `durable`: commit the reservations now. Otherwise the caller carries
+    /// them in its signature commit (in-process signers only).
+    fn reservePublicationBatch(self: *Service, limit: usize, durable: bool) ![]Checkpoint {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.halted) return error.ValidatorHalted;
@@ -805,10 +1180,12 @@ pub const Service = struct {
             if (index == 0) break;
             upper = index - 1;
         }
-        var batch = try self.typed.batch(self.allocator);
-        defer batch.deinit();
-        for (candidates.items) |candidate| try self.put(&batch, "reservations", &indexKey(candidate.index), &encodeCheckpoint(candidate));
-        try batch.commitSync();
+        if (durable and candidates.items.len > 0) {
+            var batch = try self.typed.batch(self.allocator);
+            defer batch.deinit();
+            for (candidates.items) |candidate| try self.put(&batch, "reservations", &indexKey(candidate.index), &encodeCheckpoint(candidate));
+            try batch.commitSync();
+        }
         return candidates.toOwnedSlice(self.allocator);
     }
     fn publicationGate(self: *Service, candidate: Checkpoint, require_fresh: bool) !void {
@@ -834,138 +1211,6 @@ pub const Service = struct {
             return value;
         }
         return failure;
-    }
-    fn signReserved(self: *Service, job: *PublicationJob) !Verified {
-        var failure: anyerror = error.SignatureUnavailable;
-        // Source performs five direct attempts then its singleton fallback. Our
-        // pinned signer is already the sole identity; the final attempt retains
-        // that same authority rather than introducing another credential chain.
-        for (0..6) |attempt| {
-            if (attempt > 0) std.Thread.sleep(100 * std.time.ns_per_ms);
-            if (job.signer.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
-            self.mutex.lock();
-            self.publicationGate(job.checkpoint, true) catch |err| {
-                self.mutex.unlock();
-                return err;
-            };
-            self.mutex.unlock();
-            const value = job.signer.sign(job.signer.context, job.checkpoint) catch |err| {
-                failure = err;
-                continue;
-            };
-            return value;
-        }
-        return failure;
-    }
-    fn publishReserved(self: *Service, job: *PublicationJob) !void {
-        if (job.signer.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
-        var buffer: [80]u8 = undefined;
-        const submission = try std.fmt.bufPrint(&buffer, "checkpoint_submission[{d}]", .{job.checkpoint.index});
-        var operation: []const u8 = submission;
-        errdefer if (self.options.readiness) |status| status.blocked(operation) catch |err| std.log.warn("validator readiness update failed: {s}", .{@errorName(err)});
-        if (try job.publisher.is_reorged(job.publisher.context)) {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            try self.haltFromBackend();
-            return error.ValidatorHalted;
-        }
-        self.mutex.lock();
-        const stored_signed = self.signedCheckpoint(job.checkpoint.index) catch |err| {
-            self.mutex.unlock();
-            return err;
-        };
-        var signed: ?Verified = if (stored_signed) |stored| self.verifyStored(stored) catch |err| {
-            self.mutex.unlock();
-            return err;
-        } else null;
-        self.publicationGate(job.checkpoint, false) catch |err| {
-            self.mutex.unlock();
-            return err;
-        };
-        self.mutex.unlock();
-        if (signed == null) {
-            const existing = try job.publisher.fetch_checkpoint(job.publisher.context, job.checkpoint.index);
-            if (existing) |stored| {
-                const own = try self.existingOwn(stored);
-                const context = stored.value.mailbox_domain == job.checkpoint.mailbox_domain and std.mem.eql(u8, &stored.value.merkle_tree_hook_address, &job.checkpoint.merkle_tree_hook_address);
-                if (own != null and context) {
-                    if (!same(stored.value, job.checkpoint)) {
-                        self.mutex.lock();
-                        const result = self.halt(job.checkpoint.index, job.checkpoint.root, stored.value.root, job.timestamp);
-                        self.mutex.unlock();
-                        try result;
-                        try self.publishReorg(job.publisher);
-                        return error.FinalizedHistoryConflict;
-                    }
-                    signed = own;
-                }
-            }
-            if (signed == null) {
-                self.mutex.lock();
-                self.publicationGate(job.checkpoint, true) catch |err| {
-                    self.mutex.unlock();
-                    return err;
-                };
-                self.mutex.unlock();
-                signed = try self.signReserved(job);
-            }
-            self.mutex.lock();
-            defer self.mutex.unlock();
-            try self.publicationGate(job.checkpoint, false);
-            try self.verifySigned(signed.?);
-            if (!same(signed.?.signed.value, job.checkpoint)) return error.SignerChangedCheckpoint;
-            const wire = try signed.?.signed.toJson(self.allocator);
-            defer self.allocator.free(wire);
-            var batch = try self.typed.batch(self.allocator);
-            defer batch.deinit();
-            try self.put(&batch, "signed", &indexKey(job.checkpoint.index), wire);
-            const watermark = @max(self.signed_watermark orelse 0, job.checkpoint.index);
-            try self.putNumber(&batch, "signed-watermark", watermark);
-            try batch.commitSync();
-            self.signed_watermark = watermark;
-        }
-        self.mutex.lock();
-        self.publicationGate(job.checkpoint, false) catch |err| {
-            self.mutex.unlock();
-            return err;
-        };
-        self.verifySigned(signed.?) catch |err| {
-            self.mutex.unlock();
-            return err;
-        };
-        self.mutex.unlock();
-        if (job.signer.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
-        try job.publisher.write_checkpoint(job.publisher.context, signed.?, job.timestamp);
-        if (self.options.readiness) |status| status.ready(submission);
-        const owns_latest = job.checkpoint.index == job.highest;
-        if (owns_latest) {
-            if (job.signer.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
-            self.mutex.lock();
-            self.publicationGate(job.checkpoint, false) catch |err| {
-                self.mutex.unlock();
-                return err;
-            };
-            const availability = @max(self.latest_published orelse job.highest, job.highest);
-            self.mutex.unlock();
-            operation = "checkpoint_latest_index";
-            try job.publisher.write_latest(job.publisher.context, availability);
-            if (self.options.readiness) |status| status.ready(operation);
-        }
-        operation = "checkpoint_persistence";
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        try self.publicationGate(job.checkpoint, false);
-        var batch = try self.typed.batch(self.allocator);
-        defer batch.deinit();
-        try self.delete(&batch, "unpublished", &indexKey(job.checkpoint.index));
-        try self.delete(&batch, "repair-unpublished", &indexKey(job.checkpoint.index));
-        try self.delete(&batch, "reservations", &indexKey(job.checkpoint.index));
-        if (try self.reservation()) |legacy| if (legacy.index == job.checkpoint.index) try self.delete(&batch, "reservation", "");
-        const latest = if (owns_latest) @max(self.latest_published orelse 0, job.highest) else self.latest_published;
-        if (latest) |value| try self.putNumber(&batch, "latest", value);
-        try batch.commitSync();
-        self.latest_published = latest;
-        if (self.options.readiness) |status| status.ready("checkpoint_persistence");
     }
     /// The accumulated tree can extend beyond the quorum-committed prefix.
     /// Source wake/cadence decisions inspect the next committed leaf, not just
@@ -1187,7 +1432,7 @@ pub const LocalSigner = struct {
         self.key.deinit();
     }
     pub fn interface(self: *LocalSigner) Signer {
-        return .{ .parallel_safe = true, .context = self, .sign = sign, .sign_digest = digest };
+        return .{ .parallel_safe = true, .in_process = true, .context = self, .sign = sign, .sign_digest = digest };
     }
     fn digest(ctx: *anyopaque, hash: Hash) ![65]u8 {
         const self: *LocalSigner = @ptrCast(@alignCast(ctx));
@@ -1201,7 +1446,7 @@ pub const LocalSigner = struct {
 pub const LocalPublisher = struct {
     store: *@import("../storage/local.zig").LocalStore,
     pub fn interface(self: *LocalPublisher) Publisher {
-        return .{ .parallel_safe = true, .context = self, .write_announcement = announcement, .read_snapshot = readSnapshot, .fetch_checkpoint = fetch, .is_reorged = guard, .write_checkpoint = checkpoint, .write_latest = latest, .write_snapshot = snapshot, .persist_reorg = reorg };
+        return .{ .parallel_safe = true, .in_process = true, .context = self, .write_announcement = announcement, .read_snapshot = readSnapshot, .fetch_checkpoint = fetch, .is_reorged = guard, .write_checkpoint = checkpoint, .write_checkpoints = checkpoints, .write_latest = latest, .write_snapshot = snapshot, .persist_reorg = reorg };
     }
     fn announcement(ctx: *anyopaque, value: objects.SignedAnnouncement) !void {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
@@ -1225,6 +1470,10 @@ pub const LocalPublisher = struct {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
         _ = try self.store.writeVerifiedCheckpoint(s, time);
     }
+    fn checkpoints(ctx: *anyopaque, batch: []const Verified, time: u64) !void {
+        const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
+        try self.store.writeVerifiedCheckpoints(batch, time);
+    }
     fn latest(ctx: *anyopaque, index: u32) !void {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
         try self.store.writeLatestIndex(index);
@@ -1238,6 +1487,14 @@ pub const LocalPublisher = struct {
         try self.store.persistReorg(e);
     }
 };
+
+/// Test-only crash boundaries: before the batch's signature (+ in-process
+/// reservation) commit, and after every object write before the completion
+/// WAL commit.
+pub const TestPublicationFault = if (@import("builtin").is_test) struct {
+    pub var before_signatures: std.atomic.Value(bool) = .init(false);
+    pub var before_completion: std.atomic.Value(bool) = .init(false);
+} else void;
 
 /// Fault injection exists only in test binaries; production guard writes always
 /// call the actual RocksDB WAL+fsync implementation without an override.
