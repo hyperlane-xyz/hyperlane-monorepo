@@ -123,7 +123,9 @@ pub fn ingest(allocator: std.mem.Allocator, source: src.Source, store: anytype, 
         }
     }
     // Group sparse event blocks. Empty boundary blocks still advance checkpoints.
-    std.mem.sort(src.Event, batch.events, {}, lessEvent);
+    // Adapters normally return sorted batches; only an unsorted one pays for
+    // the stable block sort (and its 512-Event stack cache).
+    if (!std.sort.isSorted(src.Event, batch.events, {}, lessEvent)) std.mem.sort(src.Event, batch.events, {}, lessEvent);
     var blocks: std.ArrayList(src.Block) = .empty;
     defer blocks.deinit(allocator);
     var offset: usize = 0;

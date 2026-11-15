@@ -104,7 +104,9 @@ pub const Evm = struct {
             if (log.block_number < from or log.block_number > through or log.log_index > std.math.maxInt(i64)) return error.ScraperEventOutsideRange;
             if (try self.decode(log, a)) |event| try result.append(a, event);
         }
-        std.mem.sort(src.Event, result.items, {}, less);
+        // Equal positions are rejected below, so stability is irrelevant;
+        // pdq keeps the frame small (block sort caches 512 Events on stack).
+        std.mem.sortUnstable(src.Event, result.items, {}, less);
         var positions = std.AutoHashMap(struct { hash: src.Hash, tx: [64]u8 }, u64).init(a);
         for (result.items, 0..) |event, index| {
             if (index > 0 and samePosition(result.items[index - 1], event)) return error.ScraperDuplicateEventPosition;
@@ -160,7 +162,8 @@ pub const Evm = struct {
                 try result.append(a, event);
             }
         }
-        std.mem.sort(src.Event, result.items, {}, less);
+        // One transaction's logs with distinct log indices: keys are unique.
+        std.mem.sortUnstable(src.Event, result.items, {}, less);
         return .{ .arena = arena, .events = try result.toOwnedSlice(a), .through = height };
     }
     pub fn decode(self: *Evm, log: rpc.Log, allocator: std.mem.Allocator) !?src.Event {
