@@ -935,6 +935,61 @@ test "lane sleeps on a Lander-owned payload until Lander reports activity" {
     try runtime.rpc.expectDone();
 }
 
+fn simulatePolls(waiting: driver.Report, lander_active_every_cycle: bool) usize {
+    const tasks = @import("../relayer_task.zig");
+    var polls: usize = 0;
+    var schedule = tasks.evmPollSchedule(waiting, 0, 0);
+    var last_advance: u64 = 0;
+    var now_ms: u64 = 0;
+    while (now_ms < 10_000) {
+        if (lander_active_every_cycle and schedule.awaiting_lander) {
+            schedule.awaiting_lander = false;
+            schedule.next_ms = @min(schedule.next_ms, tasks.wakeAt(last_advance, now_ms));
+        }
+        var worked = false;
+        if (schedule.next_ms <= now_ms) {
+            polls += 1;
+            worked = true;
+            last_advance = now_ms;
+            schedule = tasks.evmPollSchedule(waiting, 0, now_ms);
+        }
+        // Owner cadence from cycleInner: 10ms after work, else up to 100ms.
+        now_ms += @min(if (worked) @as(u64, 10) else 100, schedule.next_ms -| now_ms);
+    }
+    return polls;
+}
+
+test "lane poll count for a Lander-owned payload over 10s" {
+    const tasks = @import("../relayer_task.zig");
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = readySteps();
+    var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .blocks = 1 });
+    defer runtime.deinit();
+    _ = try runtime.prepareStep();
+    const waiting = try runtime.step();
+    try std.testing.expect(tasks.awaitingLander(waiting, runtime.actor.value.next_attempt_ms, 0));
+    // Fixed 100ms polling before: 99 polls after the first advance at t=0.
+    // Idle Lander: only the 1s fallback (t=1s..9s).
+    try std.testing.expectEqual(@as(usize, 9), simulatePolls(waiting, false));
+    // Lander reading receipts every tick never polls faster than before.
+    try std.testing.expect(simulatePolls(waiting, true) <= 100);
+    try runtime.rpc.expectDone();
+}
+
+test "EVM lane quantum reaches a due item behind non-due waiters in one cycle" {
+    const tasks = @import("../relayer_task.zig");
+    const Item = struct { next_ms: u64 };
+    const items = [_]Item{ .{ .next_ms = 900 }, .{ .next_ms = 1_000 }, .{ .next_ms = 600_000 }, .{ .next_ms = 0 } };
+    try std.testing.expectEqual(@as(?usize, 3), tasks.firstDue(&items, 0, 100));
+    try std.testing.expectEqual(@as(?usize, 3), tasks.firstDue(&items, 3, 100));
+    try std.testing.expectEqual(@as(?usize, 1), tasks.firstDue(&items, 1, 1_000));
+    try std.testing.expectEqual(@as(?usize, 0), tasks.firstDue(&[_]Item{ .{ .next_ms = 900 }, .{ .next_ms = 5_000 } }, 1, 950));
+    try std.testing.expectEqual(@as(?usize, null), tasks.firstDue(&[_]Item{.{ .next_ms = 5 }}, 0, 4));
+    try std.testing.expectEqual(@as(?usize, null), tasks.firstDue(&[_]Item{}, 0, 4));
+}
+
 test "native batch uses surviving payload estimate sum for source ratio" {
     const a = std.testing.allocator;
     var fixture = try Fixture.init(a);

@@ -736,7 +736,23 @@ pub const Lane = struct {
         // Ready/signed/confirm actors still run even when this batch is held.
         try self.beginNativePreparationBatch(times, cancel, quantum);
         defer self.native_batch_admission = null;
-        var remaining = @min(quantum, self.active.items.len);
+        // EVM: spend the quantum only on due items. Lander waiters and
+        // confirmation windows are long-lived non-due items; visiting them by
+        // position would delay a due item by one owner cycle per waiter.
+        var advanced: usize = 0;
+        while (self.chain.protocol == .ethereum and advanced < quantum and self.active.items.len > 0) : (advanced += 1) {
+            const current_times: supervisor.Times = if (self.owner.options.observation_clock) |clock| updated: {
+                const observed = try clock.now();
+                break :updated .{ .unix_ms = observed.unix_ms, .monotonic_ms = observed.monotonic_ms };
+            } else times;
+            const index = firstDue(self.active.items, self.next_active, current_times.monotonic_ms) orelse break;
+            self.next_active = (index + 1) % self.active.items.len;
+            if (try self.advance(self.active.items[index], current_times, cancel)) {
+                try self.releaseCompleted(index);
+            }
+            work +|= 1;
+        }
+        var remaining = if (self.chain.protocol == .ethereum) 0 else @min(quantum, self.active.items.len);
         while (remaining > 0 and self.active.items.len > 0) : (remaining -= 1) {
             self.next_active %= self.active.items.len;
             const index = self.next_active;
@@ -764,7 +780,7 @@ pub const Lane = struct {
     fn wakeLanderWaiters(self: *Lane, now_ms: u64) void {
         for (self.active.items) |item| if (item.awaiting_lander) {
             item.awaiting_lander = false;
-            item.next_ms = @min(item.next_ms, now_ms);
+            item.next_ms = @min(item.next_ms, wakeAt(item.now_monotonic_ms, now_ms));
         };
     }
     fn groupTime(self: *Lane, fallback: operation.Times) !operation.Times {
@@ -1669,9 +1685,9 @@ pub const Lane = struct {
                 else => {},
             }
             self.syncActiveMetrics(item, state.current_status);
-            item.next_ms = @max(times.monotonic_ms +| 100, state.value.next_attempt_ms);
-            item.awaiting_lander = awaitingLander(report, state.value.next_attempt_ms, times.monotonic_ms);
-            if (item.awaiting_lander) item.next_ms = times.monotonic_ms +| lander_wait_fallback_ms;
+            const schedule = evmPollSchedule(report, state.value.next_attempt_ms, times.monotonic_ms);
+            item.next_ms = schedule.next_ms;
+            item.awaiting_lander = schedule.awaiting_lander;
             return switch (report.state) {
                 .delivered, .not_contract, .denied => true,
                 else => false,
@@ -1869,6 +1885,26 @@ pub fn landerActivity(report: lander.Report) bool {
 /// its own; only Lander progress (or an admin command) can change the result.
 pub fn awaitingLander(report: evm_driver.Report, next_attempt_ms: u64, now_ms: u64) bool {
     return report.state == .existing_payload and report.failure == null and next_attempt_ms <= now_ms;
+}
+pub const PollSchedule = struct { next_ms: u64, awaiting_lander: bool };
+/// Next EVM poll after a step: the operation deadline, at least 100ms out,
+/// or an event-driven Lander wait bounded by the fallback.
+pub fn evmPollSchedule(report: evm_driver.Report, next_attempt_ms: u64, now_ms: u64) PollSchedule {
+    if (awaitingLander(report, next_attempt_ms, now_ms)) return .{ .next_ms = now_ms +| lander_wait_fallback_ms, .awaiting_lander = true };
+    return .{ .next_ms = @max(now_ms +| 100, next_attempt_ms), .awaiting_lander = false };
+}
+/// A Lander wake never polls sooner than 100ms after the last advance, so a
+/// Lander that reads receipts every tick costs no more than fixed polling.
+pub fn wakeAt(last_advance_ms: u64, now_ms: u64) u64 {
+    return @max(now_ms, last_advance_ms +| 100);
+}
+/// First item at or after `start` (circular) whose `next_ms` is due.
+pub fn firstDue(items: anytype, start: usize, now_ms: u64) ?usize {
+    for (0..items.len) |offset| {
+        const index = (start + offset) % items.len;
+        if (items[index].next_ms <= now_ms) return index;
+    }
+    return null;
 }
 fn contextHash(chain: *const settings.Chain, signer: [20]u8) [32]u8 {
     var state = std.crypto.hash.sha2.Sha256.init(.{});
