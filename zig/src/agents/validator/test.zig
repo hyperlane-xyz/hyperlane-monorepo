@@ -611,3 +611,51 @@ test "unknown stream header hash transitions to canonical RPC within the same bl
     try std.testing.expectError(error.FinalizedHistoryConflict, known.observe(1, .{ .message_id = @splat(2), .block_height = 100, .block_hash = @splat(0xbb) }, 100));
     try std.testing.expect(known.halted);
 }
+
+test "root-checked insertion leaf from a non-canonical log is never signed" {
+    // Below the quorum-fenced head the EVM indexer skips per-block header reads
+    // and records unknown provenance. Safety then rests on this property: the
+    // local root rebuilt from those leaves must equal a quorum root first.
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const p = try path(a, &temp);
+    defer a.free(p);
+    var db = try rocks.Database.open(a, p, .{});
+    defer db.deinit();
+    var service = try validator.Service.open(a, &db, try options(2));
+    var canonical = protocol.IncrementalMerkle.init();
+    for (0..3) |i| {
+        var id: validator.Hash = @splat(0);
+        std.mem.writeInt(u32, id[0..4], @intCast(i), .big);
+        try canonical.ingest(id);
+        // Leaf 2 comes from an orphaned block: different message, no provenance.
+        var observed = id;
+        if (i == 2) observed[31] = 0xff;
+        try service.observe(@intCast(i), .{ .message_id = observed, .block_height = i + 100, .block_hash = @splat(0) }, 200);
+    }
+    var vote = try service.checkpoint(2);
+    try std.testing.expect(!std.mem.eql(u8, &vote.root, &canonical.root()));
+    vote.root = canonical.root();
+    var fake = Fake.init(a);
+    defer fake.deinit();
+    try std.testing.expectEqual(@as(?validator.Checkpoint, null), try service.authorize(&.{ vote, vote }, 100));
+    try std.testing.expectEqual(@as(?u32, null), service.verified_through);
+    try std.testing.expectEqual(@as(?u32, null), service.fresh_verified_through);
+    const published = service.publishNext(fake.signer(), fake.publisher(), 101, 64) catch |err| blk: {
+        try std.testing.expectEqual(error.FreshAuthorizationRequired, err);
+        break :blk 0;
+    };
+    try std.testing.expectEqual(@as(usize, 0), published);
+    try std.testing.expectEqual(@as(usize, 0), fake.sign_count);
+    try std.testing.expectEqual(@as(usize, 0), fake.checkpoints.count());
+    // The canonical prefix still authorizes; the bad leaf never does.
+    const prefix = try service.checkpoint(1);
+    _ = try service.authorize(&.{ prefix, prefix }, 102);
+    try std.testing.expectEqual(@as(?u32, 1), service.verified_through);
+    _ = try service.authorize(&.{ vote, vote }, 103);
+    try std.testing.expectEqual(@as(?u32, 1), service.verified_through);
+    _ = try service.authorize(&.{ prefix, prefix }, 104);
+    try std.testing.expect(try service.publishNext(fake.signer(), fake.publisher(), 105, 64) > 0);
+    for (fake.order.items) |index| try std.testing.expect(index <= 1);
+}

@@ -719,7 +719,12 @@ pub const Role = struct {
             return false;
         }
         if (self.fetch_retry.retryEligible(query.range, observed_now)) if (self.indexObserver()) |sink| sink.notify(.{ .fetch_backoff = .{ .stream = .insertion, .delay_ms = 0 } });
-        var batch = self.fetchInsertionRange(index, query.range, tip.tip) catch |err| {
+        // Only new (forward) leaves, which the driver authorizes against a
+        // quorum root before signing, may skip per-block membership reads.
+        // History repair halts on a root mismatch, so backfill and repair
+        // keep full canonical membership and its retryable NoncanonicalLog.
+        const root_checked = query.direction == .forward and self.state.repair_complete;
+        var batch = self.fetchInsertionRange(index, query.range, tip.tip, root_checked) catch |err| {
             try c.failed(query.token);
             if (!fetch_observation.retryable(err)) return err;
             const completed_now = self.cycle_clock.now(observed_now);
@@ -754,8 +759,9 @@ pub const Role = struct {
     }
     /// One logical range failure is recorded only after ordinary errors from
     /// every eligible event reader. Checkpoint voting stays per endpoint.
-    fn fetchInsertionRange(self: *Role, preferred: usize, range: cursor.Range, finalized_height: u64) !indexing.Batch {
+    fn fetchInsertionRange(self: *Role, preferred: usize, range: cursor.Range, finalized_height: u64, root_checked: bool) !indexing.Batch {
         var failure: anyerror = error.NoHealthyEvmEndpoint;
+        const root_checked_through = if (root_checked) try self.quorumFencedHead() else null;
         for (0..self.slots.len) |offset| {
             if (self.runtime.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
             const index = (preferred + offset) % self.slots.len;
@@ -775,7 +781,7 @@ pub const Role = struct {
             const saved = slot.client.options;
             defer slot.client.options = saved;
             self.indexedOptions(slot.client);
-            const batch = slot.indexer.fetchFenced(.insertion, range, finalized_height, .{ .leading = leading }) catch |err| {
+            const batch = slot.indexer.fetchFenced(.insertion, range, finalized_height, .{ .leading = leading, .root_checked_through = root_checked_through }) catch |err| {
                 const actual = self.physicalFailure(slot.client, err);
                 if (!fetch_observation.retryable(actual)) return err;
                 slot.last_error = actual;
@@ -787,6 +793,27 @@ pub const Role = struct {
             return batch;
         }
         return failure;
+    }
+    /// Highest height at or below which the required number of endpoints
+    /// returned a hash-fenced head this round. Every insertion leaf at or below
+    /// it is bound by Merkle roots those endpoints reported at their fenced
+    /// heads: Service.authorize signs nothing unless the local root rebuilt from
+    /// these leaves equals a quorum root, so a non-canonical log cannot be
+    /// signed and per-block header reads below this height are redundant.
+    fn quorumFencedHead(self: *Role) !?u64 {
+        const results = self.round_results orelse return null;
+        const required = if (!self.consensus) 1 else if (self.state.options.consensus) |c| try c.required(self.state.options.endpoint_count) else 1;
+        if (required == 0 or required > results.len) return null;
+        var heads: [256]u64 = undefined;
+        var count: usize = 0;
+        for (results) |result| {
+            if (!result.ready) continue;
+            heads[count] = (result.head orelse continue).number;
+            count += 1;
+        }
+        if (count < required) return null;
+        std.mem.sort(u64, heads[0..count], {}, std.sort.desc(u64));
+        return heads[required - 1];
     }
     fn auditSignedPrefix(self: *Role, timestamp: u64, now_ms: u64, force: bool) !bool {
         const required = if (self.state.options.consensus) |c| try c.required(self.state.options.endpoint_count) else 1;
