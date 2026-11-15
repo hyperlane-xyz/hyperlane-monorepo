@@ -130,12 +130,19 @@ def main() -> int:
         sha = subprocess.run(["git", "rev-parse", "--verify", f"{args.rev}^{{commit}}"], cwd=ROOT, check=True,
                              capture_output=True, text=True).stdout.strip()
         ref = f"refs/zb-bench/{args.name}"
+        dest = f"$HOME/zb/{args.name}"
+        ahead = subprocess.run(["git", "rev-list", "--count", f"origin/feat/zig-agent-rewrite..{sha}"], cwd=ROOT,
+                               capture_output=True, text=True).stdout.strip()
+        if ahead == "0":  # already on the remote: the sandbox clone has it
+            remote(state, f"source /tmp/sandbox-env.sh && git fetch -q origin && mkdir -p $HOME/zb && "
+                          f"(git worktree remove --force {dest} 2>/dev/null; true) && git worktree add -q --detach {dest} {sha} && "
+                          f"echo {dest} at $(git -C {dest} rev-parse --short HEAD)")
+            return 0
         # Bundles need a ref name; a private namespace ref is created and removed (no branch/index change).
         subprocess.run(["git", "update-ref", ref, sha], cwd=ROOT, check=True)
         try:
             bundle = subprocess.Popen(["git", "bundle", "create", "-", f"origin/feat/zig-agent-rewrite..{ref}"],
                                       cwd=ROOT, stdout=subprocess.PIPE)
-            dest = f"$HOME/zb/{args.name}"
             remote(state, f"source /tmp/sandbox-env.sh && cat > /tmp/{args.name}.bundle && "
                           f"git fetch -q /tmp/{args.name}.bundle {ref}:{ref} && mkdir -p $HOME/zb && "
                           f"(git worktree remove --force {dest} 2>/dev/null; true) && git worktree add -q --detach {dest} {sha} && "
