@@ -15,6 +15,8 @@ const src = @import("scraper/source.zig");
 const grpc = @import("../cosmos/grpc.zig");
 const GrpcCurl = @import("../cosmos/curl_grpc.zig").CurlTransport;
 const GrpcFallback = @import("../cosmos/fallback_grpc.zig");
+const fiber = @import("../runtime/fiber.zig");
+const read_mode = @import("../runtime/read_mode.zig");
 const A = std.mem.Allocator;
 pub const HttpReplay = @import("../net/http_replay.zig");
 pub const HttpRuntime = @import("../net/http_runtime.zig");
@@ -94,8 +96,8 @@ pub const Resources = struct {
     cancel: ?*const std.atomic.Value(bool) = null,
     /// Receipt chain identity is a property of the shared endpoint pool, so
     /// one successful check on any fork covers the parent and every sibling.
-    receipt_identity_flag: std.atomic.Value(bool) = .init(false),
-    receipt_identity: ?*std.atomic.Value(bool) = null,
+    receipt_identity_flag: std.atomic.Value(ReceiptIdentity) = .init(.unproven),
+    receipt_identity: ?*std.atomic.Value(ReceiptIdentity) = null,
     /// Decided once per Resources: a cooperative replay must issue the same
     /// reads on every pass, so a sibling's later proof cannot drop a check
     /// this fork already journaled (that would leave it pending forever).
@@ -438,7 +440,12 @@ pub const Resources = struct {
         return client.interface().call(a, request);
     }
     pub fn source(self: *Resources) !src.Source {
-        if (self.factory == null) self.factory = try source_factory.Factory.init(self.allocator, self.clients, &self.chain);
+        if (self.factory == null) {
+            self.factory = try source_factory.Factory.init(self.allocator, self.clients, &self.chain);
+            // The Ethereum source factory just proved eth_chainId over this
+            // same endpoint pool: that is the receipt identity proof too.
+            if (self.clients == .ethereum) (self.receipt_identity orelse &self.receipt_identity_flag).store(.proven, .release);
+        }
         if (self.source_cache == null) {
             self.source_cache = try self.factory.?.interface();
             if (self.options.cooperative_reads) self.source_cache.?.read_section = .{ .context = self, .commit_fn = sourceCommit, .reservation = if (self.options.read_budget) |budget| .{ .context = budget, .reserve_fn = sourceReserve, .release_fn = sourceRelease } else null };
@@ -446,12 +453,48 @@ pub const Resources = struct {
         self.source_cache.?.bindCancellation(self.cancel);
         return self.source_cache.?;
     }
+    pub const ReceiptIdentity = enum(u8) { unproven, checking, proven };
+    fn checkReceiptChain(self: *Resources) !void {
+        if (self.clients == .ethereum) try self.clients.ethereum.checkChain(try std.fmt.parseInt(u256, self.chain.chain_id, if (std.mem.startsWith(u8, self.chain.chain_id, "0x")) 0 else 10));
+    }
+    /// Reads that never replay (fiber or dedicated thread) single-flight the
+    /// proof: one fork checks while concurrently starting siblings wait for
+    /// its outcome instead of each issuing its own eth_chainId.
+    fn proveReceiptChain(self: *Resources, identity: *std.atomic.Value(ReceiptIdentity)) !void {
+        var nap_ms: i64 = 1;
+        while (true) {
+            switch (identity.load(.acquire)) {
+                .proven => return,
+                .unproven => if (identity.cmpxchgStrong(.unproven, .checking, .acq_rel, .acquire) == null) {
+                    self.checkReceiptChain() catch |err| {
+                        _ = identity.cmpxchgStrong(.checking, .unproven, .acq_rel, .acquire);
+                        return err;
+                    };
+                    identity.store(.proven, .release);
+                    return;
+                },
+                .checking => {
+                    // Bounded by this fork's own RPC owner clock and cancel.
+                    if (self.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+                    if (self.rpc_deadline_ns) |deadline| _ = try (http.RpcReadOwner{ .deadline_ns = deadline }).remaining(self.cancel);
+                    if (self.http.rpc_read_owner) |owner| _ = try owner.remaining(self.cancel);
+                    var nap: fiber.Waiter = .{};
+                    _ = nap.waitTimeout(fiber.monoMs() + nap_ms); // parks a fiber, sleeps a thread
+                    nap_ms = @min(25, nap_ms * 2);
+                },
+            }
+        }
+    }
     pub fn receipts(self: *Resources) !@import("scraper/enrichment.zig").Fetcher {
         const identity = self.receipt_identity orelse &self.receipt_identity_flag;
-        if (self.receipt_identity_needed == null) self.receipt_identity_needed = !identity.load(.acquire);
+        if (self.receipt_identity_needed == null and (fiber.inFiber() or read_mode.direct())) {
+            try self.proveReceiptChain(identity);
+            self.receipt_identity_needed = false;
+        }
+        if (self.receipt_identity_needed == null) self.receipt_identity_needed = identity.load(.acquire) != .proven;
         if (self.receipt_identity_needed.?) {
-            if (self.clients == .ethereum) try self.clients.ethereum.checkChain(try std.fmt.parseInt(u256, self.chain.chain_id, if (std.mem.startsWith(u8, self.chain.chain_id, "0x")) 0 else 10));
-            identity.store(true, .release);
+            try self.checkReceiptChain();
+            identity.store(.proven, .release);
             self.receipt_identity_needed = false;
         }
         if (self.receipt_binding == null) {

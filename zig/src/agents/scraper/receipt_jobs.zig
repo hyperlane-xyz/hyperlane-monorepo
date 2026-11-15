@@ -14,6 +14,20 @@ pub const Limiter = struct {
     peak: usize = 0,
     global_max: usize = 16,
     domain_max: u8 = 4,
+    /// FIFO of parked acquirers. A release hands its permit straight to the
+    /// first eligible one, so no queued waiter is ever eligible while a
+    /// permit sits free (fresh acquirers never barge past an eligible one).
+    head: ?*Wait = null,
+    tail: ?*Wait = null,
+    /// One parked acquirer; lives on the waiting fiber's stack.
+    pub const Wait = struct {
+        waiter: fiber.Waiter = .{},
+        domain: u32,
+        granted: bool = false,
+        linked: bool = false,
+        prev: ?*Wait = null,
+        next: ?*Wait = null,
+    };
     pub fn init(a: A, domains: []const u32) !Limiter {
         return initBounded(a, domains, 16, 4);
     }
@@ -30,18 +44,83 @@ pub const Limiter = struct {
         return self;
     }
     pub fn deinit(self: *Limiter) void {
-        std.debug.assert(self.active == 0);
+        std.debug.assert(self.active == 0 and self.head == null);
         self.domains.deinit(self.allocator);
     }
     pub fn acquire(self: *Limiter, domain: u32) !bool {
         self.mutex.lock();
         defer self.mutex.unlock();
-        const count = self.domains.getPtr(domain) orelse return error.UnknownReceiptDomain;
+        return self.takeLocked(try self.countLocked(domain));
+    }
+    fn countLocked(self: *Limiter, domain: u32) !*u8 {
+        return self.domains.getPtr(domain) orelse error.UnknownReceiptDomain;
+    }
+    fn takeLocked(self: *Limiter, count: *u8) bool {
         if (self.active >= self.global_max or count.* >= self.domain_max) return false;
         self.active += 1;
         self.peak = @max(self.peak, self.active);
         count.* += 1;
         return true;
+    }
+    /// Blocks (parks a fiber) until a permit is handed over, cancellation, or
+    /// `deadline_ns` (pg.nowNs clock). A release wakes the waiter directly;
+    /// the bounded slice only re-checks cancellation, which has no wake hook.
+    pub fn acquireWait(self: *Limiter, domain: u32, deadline_ns: u64, cancel: ?*const std.atomic.Value(bool)) !void {
+        var wait: Wait = .{ .domain = domain };
+        {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (self.takeLocked(try self.countLocked(domain))) return;
+            self.linkLocked(&wait);
+        }
+        while (true) {
+            const now = pg.nowNs() catch |err| return self.abandon(&wait, err);
+            const remaining_ms = std.math.divCeil(u64, deadline_ns -| now, std.time.ns_per_ms) catch unreachable;
+            const stopped = if (cancel) |flag| flag.load(.acquire) else false;
+            if (!stopped and remaining_ms != 0) _ = wait.waiter.waitTimeout(fiber.monoMs() + @as(i64, @intCast(@min(remaining_ms, cancel_slice_ms))));
+            // The releaser wakes under this mutex: once held, the Waiter is
+            // no longer touched and `wait` may leave this stack frame.
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            if (wait.granted) return;
+            const cancelled = if (cancel) |flag| flag.load(.acquire) else false;
+            const expired = if (pg.nowNs()) |current| current >= deadline_ns else |err| {
+                self.unlinkLocked(&wait);
+                return err;
+            };
+            if (cancelled or expired) {
+                self.unlinkLocked(&wait);
+                return if (cancelled) error.RequestCancelled else error.ScraperReceiptDeadline;
+            }
+            // A slice expired: re-arm the one-shot Waiter (no wake can race:
+            // a grant happens only under this mutex and sets `granted`).
+            wait.waiter = .{};
+        }
+    }
+    const cancel_slice_ms = 25;
+    /// Leaves the queue on an unexpected error; a grant that won the race
+    /// is kept (the caller then owns the permit as on success).
+    fn abandon(self: *Limiter, wait: *Wait, err: anyerror) anyerror!void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (wait.granted) return;
+        self.unlinkLocked(wait);
+        return err;
+    }
+    fn linkLocked(self: *Limiter, wait: *Wait) void {
+        wait.prev = self.tail;
+        wait.next = null;
+        if (self.tail) |tail| tail.next = wait else self.head = wait;
+        self.tail = wait;
+        wait.linked = true;
+    }
+    fn unlinkLocked(self: *Limiter, wait: *Wait) void {
+        if (!wait.linked) return;
+        if (wait.prev) |prev| prev.next = wait.next else self.head = wait.next;
+        if (wait.next) |next| next.prev = wait.prev else self.tail = wait.prev;
+        wait.prev = null;
+        wait.next = null;
+        wait.linked = false;
     }
     pub fn release(self: *Limiter, domain: u32) void {
         self.mutex.lock();
@@ -50,10 +129,17 @@ pub const Limiter = struct {
         std.debug.assert(self.active > 0 and count.* > 0);
         self.active -= 1;
         count.* -= 1;
+        var next = self.head;
+        while (next) |wait| : (next = wait.next) {
+            if (!self.takeLocked(self.domains.getPtr(wait.domain).?)) continue;
+            self.unlinkLocked(wait);
+            wait.granted = true;
+            wait.waiter.wake();
+            return;
+        }
     }
 };
 pub const max_workers = 16;
-const permit_nap_ms = 2;
 /// Parks the current fiber (siblings run) for about `ms` milliseconds.
 pub fn nap(ms: i64) void {
     var waiter: fiber.Waiter = .{};
@@ -72,6 +158,19 @@ pub fn Batch(comptime Network: type) type {
         completed: usize = 0,
         failures: usize = 0,
         last_failure: ?anyerror = null,
+        /// A fiber worker's read fork, recycled across its jobs. A job that
+        /// retired successfully closed every read pass (endReadPass reset its
+        /// journals), so the next job reuses the fork's clients instead of
+        /// opening and tearing down a fresh set per receipt. Failed jobs drop
+        /// theirs. The worker deinitializes it before the parent goes away.
+        pub const Spare = struct {
+            network: ?*Network = null,
+            parent: ?*Network = null,
+            pub fn deinit(self: *Spare) void {
+                if (self.network) |network| network.deinit();
+                self.* = .{};
+            }
+        };
         pub fn init(a: A, parent: *Network, limiter: *Limiter, domain: u32, requests: []const enrich.Request, deadline_ns: u64) !Self {
             if (requests.len > 100) return error.ScraperReceiptPageLimit;
             const jobs = try a.alloc(Job, requests.len);
@@ -96,24 +195,26 @@ pub fn Batch(comptime Network: type) type {
             return null;
         }
         /// Fiber mode: runs one claimed job to retirement. Reads park this
-        /// fiber (siblings' reads overlap); the permit is awaited by napping.
+        /// fiber (siblings' reads overlap); the permit is handed over on release.
         /// Only OutOfMemory and cancellation abort the caller.
-        pub fn runJob(self: *Self, index: usize, io: pg.IoOptions, persist: anytype) !void {
+        pub fn runJob(self: *Self, index: usize, io: pg.IoOptions, persist: anytype, spare: *Spare) !void {
             const job = &self.jobs[index];
-            while (!try self.limiter.acquire(self.domain)) {
-                if (io.cancel) |cancel| if (cancel.load(.acquire)) {
-                    self.failed(job, error.RequestCancelled);
-                    return error.RequestCancelled;
-                };
-                if (try pg.nowNs() >= self.deadline_ns) return self.failed(job, error.ScraperReceiptDeadline);
-                nap(permit_nap_ms);
-            }
-            job.network = self.parent.forkReadFor(self.allocator, .contract_sync) catch |err| {
+            self.limiter.acquireWait(self.domain, self.deadline_ns, io.cancel) catch |err| switch (err) {
+                error.ScraperReceiptDeadline => return self.failed(job, err),
+                error.RequestCancelled => {
+                    self.failed(job, err);
+                    return err;
+                },
+                else => return err,
+            };
+            if (spare.network != null and spare.parent != self.parent) spare.deinit();
+            job.network = spare.network orelse self.parent.forkReadFor(self.allocator, .contract_sync) catch |err| {
                 self.limiter.release(self.domain);
                 self.failed(job, err);
                 if (err == error.OutOfMemory) return err;
                 return;
             };
+            spare.* = .{};
             job.phase = .fetch;
             while (job.phase != .persist) {
                 if (try pg.nowNs() >= self.deadline_ns) return self.failed(job, error.ScraperReceiptDeadline);
@@ -135,7 +236,9 @@ pub fn Batch(comptime Network: type) type {
                 if (err == error.OutOfMemory or err == error.RequestCancelled) return err;
                 return;
             };
-            self.retire(job);
+            spare.* = .{ .network = job.network, .parent = self.parent };
+            job.network = null;
+            self.release(job, spare.network.?);
             job.phase = .done;
             self.completed += 1;
         }
@@ -151,7 +254,9 @@ pub fn Batch(comptime Network: type) type {
                 err: ?anyerror = null,
                 fn run(arg: *anyopaque) void {
                     const worker: *@This() = @ptrCast(@alignCast(arg));
-                    while (worker.batch.claim()) |index| worker.batch.runJob(index, worker.io, worker.persist) catch |err| {
+                    var spare: Spare = .{};
+                    defer spare.deinit();
+                    while (worker.batch.claim()) |index| worker.batch.runJob(index, worker.io, worker.persist, &spare) catch |err| {
                         worker.err = err;
                         return;
                     };
@@ -176,15 +281,24 @@ pub fn Batch(comptime Network: type) type {
             self.* = undefined;
         }
         fn retire(self: *Self, job: *Job) void {
+            const network = job.network orelse {
+                self.release(job, null);
+                return;
+            };
+            job.network = null;
+            self.release(job, network);
+            network.deinit();
+        }
+        /// Frees the job's value, read-budget charge and permit (held exactly
+        /// while it had a network); the caller keeps or closes `network`.
+        fn release(self: *Self, job: *Job, network: ?*Network) void {
             if (job.value) |*value| value.deinit();
             job.value = null;
-            if (job.network) |network| {
-                if (job.charged != 0) if (network.options.read_budget) |budget| budget.release(job.charged);
-                network.deinit();
+            if (network) |held| {
+                if (job.charged != 0) if (held.options.read_budget) |budget| budget.release(job.charged);
                 self.limiter.release(self.domain);
             }
             job.charged = 0;
-            job.network = null;
         }
         fn failed(self: *Self, job: *Job, err: anyerror) void {
             self.failures += 1;
@@ -293,6 +407,52 @@ test "receipt limiter enforces16 global4 per domain and releases admission witho
     for (1..5) |domain| for (0..if (domain == 1) @as(usize, 3) else @as(usize, 4)) |_| limit.release(@intCast(domain));
     limit.release(5);
     try std.testing.expectEqual(@as(usize, 16), limit.peak);
+}
+
+test "receipt limiter hands a released permit to the parked eligible acquirer and honours deadline and cancellation" {
+    const a = std.testing.allocator;
+    var limit = try Limiter.initBounded(a, &.{ 1, 2 }, 2, 1);
+    defer limit.deinit();
+    try std.testing.expect(try limit.acquire(1));
+    try std.testing.expect(try limit.acquire(2));
+    try std.testing.expectError(error.ScraperReceiptDeadline, limit.acquireWait(1, (try pg.nowNs()) + 30 * std.time.ns_per_ms, null));
+    var cancelled = std.atomic.Value(bool).init(true);
+    try std.testing.expectError(error.RequestCancelled, limit.acquireWait(1, (try pg.nowNs()) + std.time.ns_per_s, &cancelled));
+    try std.testing.expectError(error.UnknownReceiptDomain, limit.acquireWait(9, (try pg.nowNs()) + std.time.ns_per_s, null));
+    try std.testing.expect(limit.head == null);
+    const Parked = struct {
+        fn run(limiter: *Limiter, outcome: *?anyerror) void {
+            const deadline = (pg.nowNs() catch unreachable) + 10 * std.time.ns_per_s;
+            limiter.acquireWait(1, deadline, null) catch |err| {
+                outcome.* = err;
+                return;
+            };
+            outcome.* = null;
+        }
+    };
+    var outcome: ?anyerror = error.NotRun;
+    const thread = try std.Thread.spawn(.{}, Parked.run, .{ &limit, &outcome });
+    while (true) {
+        limit.mutex.lock();
+        const parked = limit.head != null;
+        limit.mutex.unlock();
+        if (parked) break;
+        std.Thread.yield() catch {};
+    }
+    // Domain 1 is still full: the freed global permit is not the waiter's,
+    // so a fresh domain-2 acquirer takes it without barging past anyone.
+    limit.release(2);
+    try std.testing.expect(limit.head != null);
+    try std.testing.expect(try limit.acquire(2));
+    limit.release(2);
+    limit.release(1);
+    thread.join();
+    try std.testing.expectEqual(@as(?anyerror, null), outcome);
+    try std.testing.expect(limit.head == null);
+    try std.testing.expectEqual(@as(usize, 1), limit.active);
+    try std.testing.expect(!try limit.acquire(1));
+    limit.release(1);
+    try std.testing.expectEqual(@as(usize, 0), limit.active);
 }
 
 const FakeNetwork = struct {
@@ -407,7 +567,9 @@ test "receipt fiber workers claim each job once, retire every permit and keep fa
     try std.testing.expect(batch.claim() == null);
     try std.testing.expectEqual(@as(usize, 1), batch.failures);
     for (4..10) |id| try std.testing.expectEqual(@as(usize, if (id == 6) 0 else 1), persist.seen[id]);
-    try std.testing.expectEqual(@as(usize, 6), stats.forks);
+    // Off a fiber the first worker drains every job inline: it reuses one
+    // fork across successes and drops the fork of the failed job (id 6).
+    try std.testing.expectEqual(@as(usize, 2), stats.forks);
     try std.testing.expectEqual(stats.forks, stats.retired);
     try std.testing.expectEqual(@as(usize, 0), limiter.active);
     try std.testing.expectEqual(@as(usize, 0), budget.used);

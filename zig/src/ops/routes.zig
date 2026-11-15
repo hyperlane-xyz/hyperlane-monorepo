@@ -29,10 +29,10 @@ pub const Routes = struct {
         }
         if (!std.mem.eql(u8, request.method, "GET") and !std.mem.eql(u8, request.method, "HEAD"))
             return http.Response.init(a, 405, &.{.{ .name = "allow", .value = "GET,HEAD" }}, "");
-        const body = self.registry.render(a) catch return http.Response.init(a, 500, &.{}, "Failed to gather metrics");
-        defer a.free(body);
+        var rendered = self.registry.renderShared() catch return http.Response.init(a, 500, &.{}, "Failed to gather metrics");
+        defer rendered.release();
         // The HTTP serializer handles HEAD: retain the GET representation's
         // content length while suppressing response-body bytes on the wire.
-        return http.Response.init(a, 200, &.{.{ .name = "content-type", .value = "text/plain; charset=utf-8" }}, body);
+        return http.Response.init(a, 200, &.{.{ .name = "content-type", .value = "text/plain; charset=utf-8" }}, rendered.text);
     }
 };

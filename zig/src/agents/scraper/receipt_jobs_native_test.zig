@@ -93,3 +93,64 @@ test "native receipt fanout eight stalled jobs leave eight healthy jobs progress
     try std.testing.expectEqual(@as(usize, 0), budget.used);
     try server.check();
 }
+test "native receipt forks that never replay share one chain-id proof across threads and reuse worker forks" {
+    const a = std.testing.allocator;
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const fast = [_]fixture.Reply{.{ .body = "" }};
+    const behaviors = [_]fixture.Behavior{.{ .replies = &fast, .response_fn = respond }};
+    var server = try fixture.Fixture.init(128, &behaviors);
+    try server.start();
+    defer server.deinit();
+    var limiter = try jobs.Limiter.init(a, &.{1});
+    defer limiter.deinit();
+    var budget: source.ReadReplay.ByteBudget = .{ .maximum = 4 * 1024 * 1024 };
+    var env = std.process.EnvMap.init(a);
+    defer env.deinit();
+    var arena = std.heap.ArenaAllocator.init(a);
+    defer arena.deinit();
+    const urls = try arena.allocator().alloc([]const u8, 1);
+    urls[0] = try server.url(arena.allocator(), 0);
+    var chain = @import("../chain_source_testing.zig").chainFor(urls);
+    chain.domain = 1;
+    const parent = try source.Resources.open(a, &chain, &env, .{ .curl_library = library, .rpc_parallelism = 8, .rpc_max_response_bytes = 8192, .read_budget = &budget });
+    defer parent.deinit();
+    var requests: [8]enrich.Request = undefined;
+    for (&requests, 0..) |*request, i| {
+        var tx: [64]u8 = @splat(0);
+        tx[63] = @intCast(i + 8);
+        request.* = .{ .meta = .{ .tx_hash = tx, .block_hash = @splat(2), .block_number = 5 }, .block_id = 1 };
+    }
+    const Worker = struct {
+        batch: jobs.Batch(source.Resources),
+        persist: Persist = .{},
+        err: ?anyerror = null,
+        fn run(self: *@This()) void {
+            // A dedicated thread waits inline: reads never replay.
+            @import("../../runtime/read_mode.zig").mode = .direct;
+            self.batch.runFibers(.{}, &self.persist, 1) catch |err| {
+                self.err = err;
+            };
+        }
+    };
+    const deadline = (try pg.nowNs()) + 20 * std.time.ns_per_s;
+    var workers: [4]Worker = undefined;
+    var initialized: usize = 0;
+    defer for (workers[0..initialized]) |*worker| worker.batch.deinit();
+    for (&workers, 0..) |*worker, i| {
+        worker.* = .{ .batch = try jobs.Batch(source.Resources).init(a, parent, &limiter, 1, requests[i * 2 ..][0..2], deadline) };
+        initialized += 1;
+    }
+    var threads: [4]std.Thread = undefined;
+    for (&threads, &workers) |*thread, *worker| thread.* = try std.Thread.spawn(.{}, Worker.run, .{worker});
+    for (threads) |thread| thread.join();
+    for (&workers, 0..) |*worker, i| {
+        try std.testing.expectEqual(@as(?anyerror, null), worker.err);
+        try std.testing.expectEqual(@as(usize, 0), worker.batch.failures);
+        for (worker.persist.seen[8 + i * 2 ..][0..2]) |count| try std.testing.expectEqual(@as(u8, 1), count);
+    }
+    // Two reads per receipt plus exactly one eth_chainId for every fork.
+    try std.testing.expectEqual(@as(usize, 2 * requests.len + 1), server.pathHits(0));
+    try std.testing.expectEqual(@as(usize, 0), limiter.active);
+    try server.check();
+}
