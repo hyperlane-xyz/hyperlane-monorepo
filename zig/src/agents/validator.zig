@@ -660,6 +660,10 @@ pub const Service = struct {
             self.published = true;
         }
     };
+    /// Created once, sized by the configured publication limit (the signer's
+    /// max concurrency), and reused for every batch: worker threads are never
+    /// respawned per round or per batch. A larger limit (configuration change
+    /// in tests) is the only reason to rebuild it.
     fn ensurePublicationPool(self: *Service, threads: usize) !*std.Thread.Pool {
         if (self.publication_pool) |pool| {
             if (self.publication_threads >= threads) return pool;
@@ -702,7 +706,7 @@ pub const Service = struct {
         var highest: u32 = 0;
         for (candidates) |candidate| highest = @max(highest, candidate.index);
         for (jobs, candidates) |*job, candidate| job.* = .{ .service = self, .signer = signer, .publisher = publisher, .checkpoint = candidate, .highest = highest, .timestamp = timestamp };
-        const pool = try self.ensurePublicationPool(candidates.len);
+        const pool = try self.ensurePublicationPool(limit);
         var wait: std.Thread.WaitGroup = .{};
         for (jobs) |*job| pool.spawnWg(&wait, PublicationJob.run, .{job});
         wait.wait();
