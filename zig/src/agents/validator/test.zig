@@ -757,3 +757,44 @@ test "local keys reach storage with zero recoveries and KMS-style raw signatures
     var forged: KmsLikeSigner = .{ .secret = @splat(0x22), .expected = address };
     try std.testing.expectEqual(@as(?usize, null), try publishOnce(forged.interface(), false));
 }
+
+test "batched new-leaf observation matches per-leaf observe and commits the valid prefix before an error" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const p = try path(a, &temp);
+    defer a.free(p);
+    var db = try rocks.Database.open(a, p, .{});
+    defer db.deinit();
+    var single = try validator.Service.open(a, &db, try options(1));
+    try observe(&single, 6);
+    const expected = single.tree.root();
+    var other_temp = std.testing.tmpDir(.{});
+    defer other_temp.cleanup();
+    const q = try path(a, &other_temp);
+    defer a.free(q);
+    var other_db = try rocks.Database.open(a, q, .{});
+    defer other_db.deinit();
+    var batched = try validator.Service.open(a, &other_db, try options(1));
+    var leaves: [6]validator.Observation = undefined;
+    for (&leaves, 0..) |*leaf, i| {
+        var id: validator.Hash = @splat(0);
+        std.mem.writeInt(u32, id[0..4], @intCast(i), .big);
+        leaf.* = .{ .message_id = id, .block_height = i + 100, .block_hash = @splat(@truncate(i)) };
+    }
+    try std.testing.expectEqual(@as(usize, 4), try batched.observeNew(0, leaves[0..4], 106));
+    try std.testing.expectError(error.MissingInsertion, batched.observeNew(5, leaves[5..6], 106));
+    // Leaf 5 goes backwards in height: leaf 4 is committed, then the error.
+    var regressed = leaves;
+    regressed[5].block_height = 50;
+    try std.testing.expectError(error.NonmonotonicHistory, batched.observeNew(4, regressed[4..6], 106));
+    try std.testing.expectEqual(@as(u32, 5), batched.tree.count);
+    try std.testing.expectError(error.UnfinalizedObservation, batched.observeNew(5, leaves[5..6], 104));
+    try std.testing.expectEqual(@as(usize, 1), try batched.observeNew(5, leaves[5..6], 106));
+    try std.testing.expectEqualSlices(u8, &expected, &batched.tree.root());
+    for (0..6) |i| try std.testing.expectEqual(try single.checkpoint(@intCast(i)), try batched.checkpoint(@intCast(i)));
+    // The batched frontier survives reopen exactly like per-leaf commits.
+    var reopened = try validator.Service.open(a, &other_db, try options(1));
+    try std.testing.expectEqual(@as(u32, 6), reopened.tree.count);
+    try std.testing.expectEqualSlices(u8, &expected, &reopened.tree.root());
+}
