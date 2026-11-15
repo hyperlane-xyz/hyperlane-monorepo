@@ -2,6 +2,7 @@
 //! context has at most one retained job, including after owner-side timeout.
 const std = @import("std");
 const io = @import("io_pool.zig");
+const fiber = @import("fiber.zig");
 const wake_notifier = @import("wake.zig");
 const A = std.mem.Allocator;
 pub const Times = struct { unix_ms: u64, monotonic_ms: u64 };
@@ -48,21 +49,51 @@ pub const Health = struct {
 };
 const Input = struct { index: usize, times: Times };
 const Output = struct { index: usize, report: Report };
+/// A worker job whose run reports more work due now (next_delay_ms 0) runs
+/// again on its fiber, without a completion, service tick and resubmission,
+/// for at most this long and a quarter of its timeout.
+pub const max_held_ms: u64 = 1000;
 const Context = struct {
     tasks: []const Task,
+    /// Runs repeated on a worker fiber without a supervisor round trip.
+    held_runs: std.atomic.Value(u64) = .init(0),
     fn run(self: *Context, input: Input, cancel: *const std.atomic.Value(bool)) !Output {
         const task = self.tasks[input.index];
         if (cancel.load(.acquire)) return error.RequestCancelled;
-        const report = task.run(task.context, input.times, cancel) catch |err| {
-            if (task.failure) |classify| switch (classify(err)) {
-                .halt_all => self.stopRetained(),
-                .halt_task => if (task.stop_fn) |stop| stop(task.context),
-                .retry => {},
+        // Only worker fibers hold: inline (supervisor thread) runs return.
+        const hold = fiber.inFiber();
+        var since = if (hold) std.time.Timer.start() catch null else null;
+        const hold_ns: u64 = @as(u64, @min(max_held_ms, task.timeout_ms / 4)) * std.time.ns_per_ms;
+        var total: Report = .{};
+        var times = input.times;
+        while (true) {
+            const report = task.run(task.context, times, cancel) catch |err| {
+                if (task.failure) |classify| switch (classify(err)) {
+                    .halt_all => self.stopRetained(),
+                    .halt_task => if (task.stop_fn) |stop| stop(task.context),
+                    .retry => {},
+                };
+                return err;
             };
-            return err;
-        };
-        if (report.halt) if (task.stop_fn) |stop| stop(task.context);
-        return .{ .index = input.index, .report = report };
+            total.work +|= report.work;
+            total.halt = report.halt;
+            total.next_delay_ms = report.next_delay_ms;
+            if (report.halt) {
+                if (task.stop_fn) |stop| stop(task.context);
+                break;
+            }
+            const timer = if (since) |*value| value else break;
+            if (report.next_delay_ms != 0 or cancel.load(.acquire)) break;
+            const elapsed = timer.read();
+            if (elapsed >= hold_ns) break;
+            // Busy catch-up must not starve the other jobs on this worker.
+            if (fiber.siblingReady()) fiber.yieldNow();
+            if (cancel.load(.acquire)) break;
+            const elapsed_ms = timer.read() / std.time.ns_per_ms;
+            times = .{ .unix_ms = input.times.unix_ms +| elapsed_ms, .monotonic_ms = input.times.monotonic_ms +| elapsed_ms };
+            _ = self.held_runs.fetchAdd(1, .monotonic);
+        }
+        return .{ .index = input.index, .report = total };
     }
     fn stopRetained(self: *Context) void {
         for (self.tasks) |task| if (task.stop_fn) |stop| stop(task.context);
@@ -558,4 +589,40 @@ test "supervisor cooperative reads resume without consuming failures retries or 
     try std.testing.expectEqual(@as(u64, 3), health_.work);
     try std.testing.expect(health_.last_error == null);
     try std.testing.expectEqual(@as(usize, 3), state.calls.load(.acquire));
+}
+
+test "a worker job with more work due now reruns on its fiber without a supervisor round trip" {
+    const Busy = struct {
+        calls: std.atomic.Value(u32) = .init(0),
+        busy_runs: u32 = 5,
+        fn run(context: *anyopaque, _: Times, _: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            const call = self.calls.fetchAdd(1, .acq_rel) + 1;
+            return .{ .work = 1, .next_delay_ms = if (call <= self.busy_runs) 0 else 60000 };
+        }
+    };
+    var state: Busy = .{};
+    const owner = try Supervisor.start(std.testing.allocator, &.{.{ .context = &state, .run = Busy.run, .interval_ms = 60000, .timeout_ms = 10000 }});
+    defer owner.deinit();
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 })).started);
+    var attempts: usize = 0;
+    while ((try owner.health(0)).completed == 0) : (attempts += 1) {
+        if (attempts > 5000) return error.HeldJobDidNotComplete;
+        std.Thread.sleep(std.time.ns_per_ms);
+        _ = try owner.tick(.{ .unix_ms = 1, .monotonic_ms = 1 });
+    }
+    // Six runs, one submission and one completion: five held reruns.
+    const health_ = try owner.health(0);
+    try std.testing.expectEqual(@as(u64, 1), health_.started);
+    try std.testing.expectEqual(@as(u64, 1), health_.completed);
+    try std.testing.expectEqual(@as(u64, 6), health_.work);
+    try std.testing.expectEqual(@as(u32, 6), state.calls.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 5), owner.context.held_runs.load(.acquire));
+    // Inline (nonblocking) runs on the supervisor thread never hold.
+    var inline_state: Busy = .{ .busy_runs = 100 };
+    const inline_owner = try Supervisor.start(std.testing.allocator, &.{.{ .context = &inline_state, .run = Busy.run, .interval_ms = 60000, .timeout_ms = 10000, .nonblocking = true }});
+    defer inline_owner.deinit();
+    _ = try inline_owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 });
+    try std.testing.expectEqual(@as(u32, 1), inline_state.calls.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 0), inline_owner.context.held_runs.load(.acquire));
 }
