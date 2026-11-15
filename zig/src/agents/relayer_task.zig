@@ -2398,7 +2398,9 @@ pub const TaskSet = struct {
             lane.lander_metrics = if (options.metrics) |registry| .{ .registry = registry, .destination = chain.name } else null;
             lane.initialization_metrics = if (options.metrics) |registry| .{ .registry = registry, .chain = chain.name, .role = .destination } else null;
             lane.critical_state = self.criticalForDomain(chain.domain);
-            lane.worker = lane_owner.Owner.init(lane, Lane.cycle, .{ .timeout_ms = options.job_timeout_ms }) catch |err| {
+            // Busy lanes (next cycle due within 10 ms) keep cycling on their
+            // owner thread; idle lanes hand back to the supervisor.
+            lane.worker = lane_owner.Owner.init(lane, Lane.cycle, .{ .timeout_ms = options.job_timeout_ms, .continue_below_ms = if (options.job_timeout_ms > 10) 10 else 0 }) catch |err| {
                 control.deinit();
                 a.free(per_origin);
                 return err;
