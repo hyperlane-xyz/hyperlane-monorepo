@@ -59,7 +59,10 @@ pub const Batch = struct {
                     if (event != .dispatch) return error.UnexpectedStreamEvent;
                     const message = try protocol.Message.decode(event.dispatch.message);
                     if (message.origin != self.domain) return error.WrongMessageOrigin;
-                    if (write) if (try database.storeMessage(message, log.block_number, transaction)) if (observer) |sink| sink.notify(.{ .stored = .{ .stream = self.stream } });
+                    // fetchFenced proved every dispatch log's block canonical
+                    // at or below finality (dispatch is never root-checked).
+                    const proven: ?Hash = if (std.mem.allEqual(u8, &log.block_hash, 0)) null else log.block_hash;
+                    if (write) if (try database.storeMessageAt(message, log.block_number, proven, transaction)) if (observer) |sink| sink.notify(.{ .stored = .{ .stream = self.stream } });
                     positions.appendAssumeCapacity(.{ .sequence = message.nonce, .block = std.math.cast(u32, log.block_number) orelse return error.IndexHeightOutOfRange });
                 },
                 .insertion => {

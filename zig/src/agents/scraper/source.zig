@@ -6,6 +6,9 @@ pub const Event = db.Event;
 pub const EventData = db.EventData;
 pub const Block = db.Block;
 pub const Contracts = db.Contracts;
+/// A block its producer already proved canonical (fenced, at or below
+/// finality): the hash at `number`.
+pub const ProvenBlock = struct { number: u64, hash: Hash };
 /// Actual protocol emitters and position namespace for transaction events.
 /// EVM keeps global log indices; Aleo mapping counters are per emitter/stream.
 pub const TransactionAuthority = struct {
@@ -43,6 +46,9 @@ pub const Source = struct {
     stream_tip_fn: ?*const fn (*anyopaque, usize) anyerror!Tip = null,
     raw_sequence_fn: ?*const fn (*anyopaque, std.mem.Allocator, usize, u32, u32) anyerror!Batch = null,
     transaction_fn: ?*const fn (*anyopaque, std.mem.Allocator, [64]u8) anyerror!Batch = null,
+    /// transaction_fn given the transaction's block already proven canonical
+    /// by its caller: a receipt in exactly that block needs no header read.
+    proven_transaction_fn: ?*const fn (*anyopaque, std.mem.Allocator, [64]u8, ProvenBlock) anyerror!Batch = null,
     transaction_authority_fn: ?*const fn (*anyopaque) anyerror!TransactionAuthority = null,
     cancel_fn: ?*const fn (*anyopaque, ?*const std.atomic.Value(bool)) void = null,
     /// Optional overlapped header reads (independent heights, same checks as
@@ -76,6 +82,11 @@ pub const Source = struct {
     pub fn transactionEvents(self: Source, allocator: std.mem.Allocator, transaction: [64]u8) !Batch {
         if (self.transaction_fn) |call| return call(self.context, allocator, transaction);
         return .{ .arena = std.heap.ArenaAllocator.init(allocator), .events = &.{}, .through = 0 };
+    }
+    /// `transactionEvents` with an optional proven block (see ProvenBlock).
+    pub fn transactionEventsIn(self: Source, allocator: std.mem.Allocator, transaction: [64]u8, proven: ?ProvenBlock) !Batch {
+        if (proven) |block| if (self.proven_transaction_fn) |call| return call(self.context, allocator, transaction, block);
+        return self.transactionEvents(allocator, transaction);
     }
     pub fn rawSequence(self: Source, allocator: std.mem.Allocator, stream: usize, from: u32, through: u32) !Batch {
         if (!self.sequence_mode or stream >= 4 or from > through) return error.InvalidScraperSequenceRange;

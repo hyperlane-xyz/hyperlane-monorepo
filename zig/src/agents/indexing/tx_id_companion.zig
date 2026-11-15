@@ -113,7 +113,9 @@ pub const Companion = struct {
             var elapsed: clock.Clock = .{};
             try elapsed.begin(now_ms);
             defer elapsed.end();
-            work.batch = source.transactionEvents(self.allocator, work.lease.notice.transaction) catch |err| {
+            const notice = work.lease.notice;
+            const proven: ?src.ProvenBlock = if (notice.block_hash) |hash| .{ .number = notice.block_number, .hash = hash } else null;
+            work.batch = source.transactionEventsIn(self.allocator, notice.transaction, proven) catch |err| {
                 if (err == error.PendingReadIo) return .{ .pending_read = true, .failure = err, .next_delay_ms = 10 };
                 if (control(err)) {
                     self.abort(now_ms);

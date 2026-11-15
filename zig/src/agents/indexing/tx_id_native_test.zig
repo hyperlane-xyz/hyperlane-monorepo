@@ -30,6 +30,7 @@ const Wire = struct {
     count: usize,
     failures: [2]?anyerror = @splat(null),
     receipt_reads: [2]usize = @splat(0),
+    header_reads: usize = 0,
     fn value(a: A, input: anytype) !std.json.Value {
         const encoded = try std.json.Stringify.valueAlloc(a, input, .{});
         return (try std.json.parseFromSlice(std.json.Value, a, encoded, .{ .allocate = .alloc_always })).value;
@@ -72,7 +73,10 @@ const Wire = struct {
         defer request.deinit();
         const method = request.value.object.get("method").?.string;
         const params = request.value.object.get("params").?.array.items;
-        const result: std.json.Value = if (std.mem.eql(u8, method, "eth_getBlockByNumber")) self.header else if (std.mem.eql(u8, method, "eth_call")) result: {
+        const result: std.json.Value = if (std.mem.eql(u8, method, "eth_getBlockByNumber")) result: {
+            self.header_reads += 1;
+            break :result self.header;
+        } else if (std.mem.eql(u8, method, "eth_call")) result: {
             var count: [32]u8 = @splat(0);
             count[31] = @intCast(self.count);
             break :result .{ .string = try abi.hexAlloc(a, &count) };
@@ -171,7 +175,10 @@ test "transaction-ID EVM recovers omitted range gas and tree from actual receipt
     try std.testing.expect((try self.payment(0)) == null);
     try std.testing.expect((try self.service.store.insertionByIndex(0)) == null);
     const watermark = try self.service.store.gasWatermark();
+    // The fenced dispatch fetch proved block 5: its receipt needs no header.
+    const headers = self.wire.header_reads;
     _ = try self.companion.tick(100, &self.cancel);
+    try std.testing.expectEqual(headers, self.wire.header_reads);
     try std.testing.expectEqual(@as(u256, 500), (try self.payment(0)).?.payment);
     try std.testing.expectEqual(@as(u256, 1000), (try self.payment(0)).?.gas_amount);
     try std.testing.expectEqual(self.wire.messages[0].id(), (try self.service.store.insertionByIndex(0)).?.message_id);
@@ -187,6 +194,30 @@ test "transaction-ID EVM recovers omitted range gas and tree from actual receipt
     _ = try self.companion.tick(1001, &self.cancel);
     try std.testing.expectEqual(@as(usize, 1), self.wire.receipt_reads[0]);
     try std.testing.expectEqual(@as(u256, 500), (try self.payment(0)).?.payment);
+}
+test "transaction-ID receipt reads its block header unless that exact block was proven" {
+    const self = try Harness.init(std.testing.allocator, 1, 2);
+    defer self.deinit();
+    const source = self.adapter.interface();
+    const cases = [_]struct { proven: ?src.ProvenBlock, reads: usize }{
+        .{ .proven = null, .reads = 1 },
+        .{ .proven = .{ .number = 5, .hash = hash(6) }, .reads = 1 },
+        .{ .proven = .{ .number = 4, .hash = hash(5) }, .reads = 1 },
+        .{ .proven = .{ .number = 5, .hash = hash(5) }, .reads = 0 },
+    };
+    for (cases) |case| {
+        const before = self.wire.header_reads;
+        var batch = try source.transactionEventsIn(std.testing.allocator, pad(10), case.proven);
+        defer batch.deinit();
+        try std.testing.expectEqual(case.reads, self.wire.header_reads - before);
+        try std.testing.expectEqual(@as(u64, 5), batch.through);
+        try std.testing.expectEqual(@as(usize, 3), batch.events.len);
+    }
+    // A proven hash never overrides the canonical check: a receipt whose
+    // block the header contradicts still fails after its read.
+    self.wire.header = try Wire.value(self.wire.arena.allocator(), .{ .number = "0x5", .hash = try abi.hexAlloc(self.wire.arena.allocator(), &hash(9)), .parentHash = try abi.hexAlloc(self.wire.arena.allocator(), &hash(4)), .timestamp = "0x3e8" });
+    try std.testing.expectError(error.NoncanonicalTransactionReceipt, source.transactionEventsIn(std.testing.allocator, pad(10), .{ .number = 5, .hash = hash(6) }));
+    try std.testing.expectError(error.NoncanonicalTransactionReceipt, source.transactionEventsIn(std.testing.allocator, pad(10), null));
 }
 test "transaction-ID receipt failure rotates to healthy queued transaction and retries missing neighbor" {
     const self = try Harness.init(std.testing.allocator, 2, 2);
