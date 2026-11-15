@@ -49,7 +49,8 @@ pub fn recover(digest: Hash, signature: Signature) !Address {
     const point_r = try secp256k1.Point.fromX(try secp256k1.Fe.fromBytes(signature[0..32].*), signature[64] == 28);
     const z = reducedHash(digest);
     // Q = (-z/r)G + (s/r)R. Both scalars are public signature/digest data.
-    const inverse_r = r.invert();
+    // safegcd inversion (secp256k1_scalar.zig), ~4x cheaper than std's divstep.
+    const inverse_r = try Scalar.fromBytes(@bitCast(secp256k1.scalar_inverse(@bitCast(r.toBytes(.little)))), .little);
     const public_key = try secp256k1.mulDoubleBasePublic(z.mul(inverse_r).neg().toBytes(.little), point_r, s.mul(inverse_r).toBytes(.little));
     return address(public_key);
 }
