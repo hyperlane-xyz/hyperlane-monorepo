@@ -10,6 +10,7 @@ pub const signature = @import("signature.zig");
 pub const keccak = @import("keccak.zig");
 pub const secp256k1 = @import("secp256k1.zig");
 pub const secp256k1_scalar = @import("secp256k1_scalar.zig");
+pub const sha256 = @import("sha256.zig");
 pub const Hash = [32]u8;
 
 test {

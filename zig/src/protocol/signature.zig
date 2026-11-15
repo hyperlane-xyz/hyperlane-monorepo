@@ -214,13 +214,15 @@ fn verifyBeforeRelease(key: *const SigningKey, digest: Hash, signature: Signatur
 
 /// std.crypto.sign.ecdsa deterministicScalar for secp256k1/HMAC-SHA256: the
 /// RFC6979-with-additional-randomness construction, replicated exactly so
-/// signatures remain byte-identical to the std signer.
+/// signatures remain byte-identical to the std signer. Uses protocol/sha256.zig
+/// HMAC with reusable key states (18 compressions instead of std's 24, and
+/// no dependence on the SHA extensions absent from x86-64-v3).
 fn deterministicNonce(h: Hash, secret_key: Hash, noise: ?[32]u8) Scalar {
-    const Prf = std.crypto.auth.hmac.sha2.HmacSha256;
-    // HMAC key/state and the message buffer (which holds the secret key) are
-    // wiped on return; the returned scalar is wiped by the caller.
-    var k: [32]u8 = .{0} ** 32;
-    defer std.crypto.secureZero(u8, &k);
+    const Hmac = @import("sha256.zig").HmacKey;
+    // The initial all-zero HMAC key's pad states are constant.
+    const zero_key = comptime Hmac.init(&(.{0} ** 32));
+    // HMAC keys/states and the message buffer (which holds the secret key)
+    // are wiped on return; the returned scalar is wiped by the caller.
     var m: [32 + 1 + 32 + 32 + 32]u8 = .{0} ** (32 + 1 + 32 + 32 + 32);
     defer std.crypto.secureZero(u8, &m);
     const m_v = m[0..32];
@@ -229,17 +231,22 @@ fn deterministicNonce(h: Hash, secret_key: Hash, noise: ?[32]u8) Scalar {
     if (noise) |n| m[33..65].* = n;
     m[65..97].* = secret_key;
     m[97..129].* = h;
-    Prf.create(&k, &m, &k);
-    Prf.create(m_v, m_v, &k);
+    var k = zero_key.mac(&m);
+    defer std.crypto.secureZero(u8, &k);
+    var key = Hmac.init(&k);
+    defer key.wipe();
+    m_v.* = key.mac(m_v);
     m_i.* = 0x01;
-    Prf.create(&k, &m, &k);
-    Prf.create(m_v, m_v, &k);
+    k = key.mac(&m);
+    key = Hmac.init(&k);
+    m_v.* = key.mac(m_v);
     while (true) {
-        Prf.create(m_v, m_v, &k);
+        m_v.* = key.mac(m_v);
         if (Scalar.fromBytes(m_v.*, .big)) |scalar| return scalar else |_| {}
         m_i.* = 0x00;
-        Prf.create(&k, m[0..33], &k);
-        Prf.create(m_v, m_v, &k);
+        k = key.mac(m[0..33]);
+        key = Hmac.init(&k);
+        m_v.* = key.mac(m_v);
     }
 }
 
