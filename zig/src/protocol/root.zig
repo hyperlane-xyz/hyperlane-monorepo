@@ -7,6 +7,7 @@ pub const domainHash = @import("checkpoint.zig").domainHash;
 pub const ethSignedMessageHash = @import("checkpoint.zig").ethSignedMessageHash;
 pub const metadata = @import("metadata.zig");
 pub const signature = @import("signature.zig");
+pub const keccak = @import("keccak.zig");
 pub const Hash = [32]u8;
 
 test {

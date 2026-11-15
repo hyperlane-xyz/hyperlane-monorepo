@@ -1,4 +1,5 @@
 const std = @import("std");
+const keccak = @import("keccak.zig");
 const Keccak256 = std.crypto.hash.sha3.Keccak256;
 
 /// Canonical Hyperlane wire message. Decode borrows the input body; the caller
@@ -30,22 +31,20 @@ pub const Message = struct {
         return prefix_len + self.body.len;
     }
 
-    fn header(self: Message) [prefix_len]u8 {
-        var bytes: [prefix_len]u8 = undefined;
+    fn writeHeader(self: Message, bytes: *[prefix_len]u8) void {
         bytes[0] = self.version;
         std.mem.writeInt(u32, bytes[1..5], self.nonce, .big);
         std.mem.writeInt(u32, bytes[5..9], self.origin, .big);
         bytes[9..41].* = self.sender;
         std.mem.writeInt(u32, bytes[41..45], self.destination, .big);
         bytes[45..77].* = self.recipient;
-        return bytes;
     }
 
     /// The output buffer must not overlap self.body. No allocation.
     pub fn encode(self: Message, out: []u8) error{BufferTooSmall}![]u8 {
         if (out.len < prefix_len or out.len - prefix_len < self.body.len)
             return error.BufferTooSmall;
-        out[0..prefix_len].* = self.header();
+        self.writeHeader(out[0..prefix_len]);
         @memcpy(out[prefix_len..][0..self.body.len], self.body);
         return out[0..self.encodedLen()];
     }
@@ -58,13 +57,14 @@ pub const Message = struct {
         return self.encode(bytes);
     }
 
+    /// keccak256 of the canonical encoding without materialising it: the
+    /// header is written straight into the sponge's block buffer.
     pub fn id(self: Message) [32]u8 {
-        var hasher = Keccak256.init(.{});
-        hasher.update(&self.header());
+        var hasher = keccak.Keccak256.init(.{});
+        self.writeHeader(hasher.buf[0..prefix_len]);
+        hasher.len = prefix_len;
         hasher.update(self.body);
-        var digest: [32]u8 = undefined;
-        hasher.final(&digest);
-        return digest;
+        return hasher.finalResult();
     }
 };
 
