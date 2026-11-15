@@ -316,8 +316,9 @@ pub const Store = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         try self.requireWrite();
-        const signed = (try self.fetchCheckpoint(snapshot.index)) orelse return error.SnapshotCheckpointMissing;
-        _ = try snapshot.authenticatedRestore(signed, self.options.signer orelse return error.MissingStoreSigner, signed.value.mailbox_domain, signed.value.merkle_tree_hook_address);
+        const expected = self.options.signer orelse return error.MissingStoreSigner;
+        const signed = self.ownCheckpointLocked(snapshot.index, expected, error.SnapshotCheckpointMissing) catch |err| return if (err == error.WrongStoreSigner) error.SnapshotSignerMismatch else err;
+        _ = try snapshot.authenticatedRestoreVerified(signed, expected, signed.signed.value.mailbox_domain, signed.signed.value.merkle_tree_hook_address);
         const bytes = try snapshot.toJson(self.allocator);
         defer self.allocator.free(bytes);
         try self.putRaw(.snapshot, bytes, date);
@@ -495,13 +496,13 @@ test "GCS checkpoint publication snapshot announcement and reorg serialization" 
         .{ .method = .POST, .suffix = "/o?uploadType=media&name=gcsReorgFlagKey", .request_body = guard },
     } };
     var store = try Store.init(allocator, transport.transport(), .{ .gcs = .{ .endpoint = "https://storage.example.invalid", .bucket = "public-fixture", .bearer_token = "fixture-token" } }, .{ .read_only = false, .signer = signer });
-    // Raw publication recovers once; the latest index re-reads the identical
-    // object and reuses that verification.
+    // Raw publication recovers once; the latest index and snapshot re-read
+    // the identical object and reuse that verification.
     const recoveries = local.test_recoveries.load(.monotonic);
     try std.testing.expectEqual(local.WriteResult.written, try store.writeCheckpoint(signed, 1, fixture_date));
     try store.writeLatestIndex(0, fixture_date);
-    try std.testing.expectEqual(recoveries + 1, local.test_recoveries.load(.monotonic));
     try store.writeSnapshot(&snapshot, fixture_date);
+    try std.testing.expectEqual(recoveries + 1, local.test_recoveries.load(.monotonic));
     try std.testing.expectEqual(snapshot, (try store.readSnapshot()).?);
     try store.writeAnnouncement(announcement, fixture_date);
     try store.writeReorgRpcResponses("public evidence", fixture_date);

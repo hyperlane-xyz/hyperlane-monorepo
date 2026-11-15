@@ -257,8 +257,9 @@ pub const LocalStore = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         try self.requireWrite();
-        const checkpoint = (try self.fetchCheckpoint(snapshot.index)) orelse return error.SnapshotCheckpointMissing;
-        _ = try snapshot.authenticatedRestore(checkpoint, self.options.signer orelse return error.MissingStoreSigner, checkpoint.value.mailbox_domain, checkpoint.value.merkle_tree_hook_address);
+        const expected = self.options.signer orelse return error.MissingStoreSigner;
+        const checkpoint = self.ownCheckpointLocked(snapshot.index, expected, error.SnapshotCheckpointMissing) catch |err| return if (err == error.WrongStoreSigner) error.SnapshotSignerMismatch else err;
+        _ = try snapshot.authenticatedRestoreVerified(checkpoint, expected, checkpoint.signed.value.mailbox_domain, checkpoint.signed.value.merkle_tree_hook_address);
         const bytes = try snapshot.toJson(self.allocator);
         defer self.allocator.free(bytes);
         try self.atomicWrite("merkle_snapshot.json", bytes);
@@ -604,20 +605,20 @@ test "verified checkpoint writes skip recovery but still require the configured 
     try tree.ingest(.{0x33} ** 32);
     const value: objects.Checkpoint = .{ .merkle_tree_hook_address = .{0x22} ** 32, .mailbox_domain = 1000, .root = tree.root(), .index = 0, .message_id = .{0x33} ** 32 };
     const snapshot = try objects.Snapshot.capture(&tree);
-    // Publication and latest index of a locally signed checkpoint: zero
-    // recoveries (the latest re-read matches the verified object).
+    // Publication, latest index and snapshot of a locally signed checkpoint:
+    // zero recoveries (the snapshot re-read matches the verified object).
     const before = test_recoveries.load(.monotonic);
     try std.testing.expectEqual(WriteResult.written, try store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&key, value, null), 1));
     try store.writeLatestIndex(0);
-    try std.testing.expectEqual(before, test_recoveries.load(.monotonic));
     try store.writeSnapshot(&snapshot);
+    try std.testing.expectEqual(before, test_recoveries.load(.monotonic));
     // A replaced on-disk object is recovered again and rejected.
     const replaced = try (try VerifiedCheckpoint.signWith(&other, value, null)).signed.toJson(allocator);
     defer allocator.free(replaced);
     try store.dir.writeFile(.{ .sub_path = "0_with_id.json", .data = replaced });
     try std.testing.expectError(error.SnapshotSignerMismatch, store.writeSnapshot(&snapshot));
     try std.testing.expectError(error.WrongStoreSigner, store.writeLatestIndex(0));
-    try std.testing.expectEqual(before + 1, test_recoveries.load(.monotonic));
+    try std.testing.expectEqual(before + 2, test_recoveries.load(.monotonic));
     var next = value;
     next.index = 1;
     try std.testing.expectError(error.WrongStoreSigner, store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&other, next, null), 1));

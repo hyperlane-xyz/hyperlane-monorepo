@@ -273,10 +273,22 @@ pub const Snapshot = struct {
         return protocol.IncrementalMerkle.restore(&self.tree, self.index, self.root);
     }
 
+    /// Raw checkpoint (e.g. read from storage): one recovery.
     pub fn authenticatedRestore(self: *const Snapshot, signed: SignedCheckpoint, expected_signer: Address, domain: u32, hook: Hash) !protocol.IncrementalMerkle {
-        if (signed.value.index != self.index or !std.mem.eql(u8, &signed.value.root, &self.root) or signed.value.mailbox_domain != domain or !std.mem.eql(u8, &signed.value.merkle_tree_hook_address, &hook)) return error.SnapshotCheckpointMismatch;
-        if (!std.mem.eql(u8, &try signed.recover(), &expected_signer)) return error.SnapshotSignerMismatch;
+        try self.matchesCheckpoint(signed, domain, hook);
+        const verified = VerifiedCheckpoint.recoverFrom(signed, expected_signer) catch |err| return if (err == error.WrongSigner) error.SnapshotSignerMismatch else err;
+        return self.authenticatedRestoreVerified(verified, expected_signer, domain, hook);
+    }
+
+    /// Already verified checkpoint: no recovery.
+    pub fn authenticatedRestoreVerified(self: *const Snapshot, verified: VerifiedCheckpoint, expected_signer: Address, domain: u32, hook: Hash) !protocol.IncrementalMerkle {
+        try self.matchesCheckpoint(verified.signed, domain, hook);
+        verified.require(expected_signer) catch |err| return if (err == error.WrongSigner) error.SnapshotSignerMismatch else err;
         return self.restore();
+    }
+
+    fn matchesCheckpoint(self: *const Snapshot, signed: SignedCheckpoint, domain: u32, hook: Hash) !void {
+        if (signed.value.index != self.index or !std.mem.eql(u8, &signed.value.root, &self.root) or signed.value.mailbox_domain != domain or !std.mem.eql(u8, &signed.value.merkle_tree_hook_address, &hook)) return error.SnapshotCheckpointMismatch;
     }
 
     pub fn toJson(self: *const Snapshot, allocator: Allocator) ![]u8 {
