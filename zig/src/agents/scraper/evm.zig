@@ -134,6 +134,10 @@ pub const Evm = struct {
         const height = try abi.quantity(try rpc.string(try json.field(receipt, "blockNumber")));
         const block_hash = try abi.fixedHex(32, try rpc.string(try json.field(receipt, "blockHash")));
         const tx_index = try abi.quantity(try rpc.string(try json.field(receipt, "transactionIndex")));
+        // One canonical read after the receipt binds its block; the logs are
+        // then checked locally against it (a second read of the same height
+        // with no network step in between proved nothing more). Rust reads
+        // only the receipt.
         const before = try self.rpc_client.blockHeader(.{ .number = height });
         if (!std.mem.eql(u8, &before.hash, &block_hash)) return error.NoncanonicalTransactionReceipt;
         const logs = try json.field(receipt, "logs");
@@ -156,8 +160,6 @@ pub const Evm = struct {
                 try result.append(a, event);
             }
         }
-        const after = try self.rpc_client.blockHeader(.{ .number = height });
-        if (!std.mem.eql(u8, &before.hash, &after.hash)) return error.NoncanonicalTransactionReceipt;
         std.mem.sort(src.Event, result.items, {}, less);
         return .{ .arena = arena, .events = try result.toOwnedSlice(a), .through = height };
     }
