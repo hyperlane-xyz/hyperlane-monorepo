@@ -1283,3 +1283,49 @@ test "curl multi stops watching an idle keepalive socket its peer closed and rec
     joined = true;
     if (fixture.failure) |err| return err;
 }
+
+test "curl multi starts a freshly added transfer within the owner call without a timer tick" {
+    const allocator = std.testing.allocator;
+    const library = try nativeLibrary(allocator);
+    defer allocator.free(library);
+    var fixture: SerialFixture = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}), .total = 1 };
+    defer fixture.server.deinit();
+    const thread = try std.Thread.spawn(.{}, SerialFixture.serve, .{&fixture});
+    var joined = false;
+    defer if (!joined) {
+        fixture.abort();
+        thread.join();
+    };
+    const multi = try Multi.init(allocator, .{ .library_path = library, .max_concurrent = 2, .max_pending = 2 });
+    var multi_open = true;
+    defer if (multi_open) multi.deinit();
+    const url = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/fast", .{fixture.server.listen_address.getPort()});
+    defer allocator.free(url);
+    var timer = try std.time.Timer.start();
+    const id = try multi.submit(.{ .url = url, .method = .get, .timeout_ms = 3000, .max_response_bytes = 32 }, 0);
+    // One owner call, no wait: add_handle's zero-delay libcurl timer runs in
+    // that same call, so the transfer has already issued its first socket
+    // (connect, or the resolver's notifier where IP literals are resolved).
+    try std.testing.expectEqual(@as(?Completion, null), try multi.advance(0));
+    try std.testing.expectEqual(@as(u64, 1), multi.dispatches);
+    try std.testing.expect(multi.registrations >= 1);
+    try std.testing.expectEqual(@as(u64, 0), multi.waits);
+    while (true) {
+        if (try multi.advance(timer.read() / std.time.ns_per_ms)) |value| {
+            var completion = value;
+            defer completion.deinit();
+            try std.testing.expectEqual(id, completion.id);
+            try std.testing.expectEqualStrings("ok", completion.result.response.body);
+            break;
+        }
+        try multi.wait(timer.read() / std.time.ns_per_ms, 1000);
+        if (timer.read() > 3 * std.time.ns_per_s) return error.FixtureCompletionTimeout;
+    }
+    // Each wait ended on readiness or libcurl's own short timer.
+    try std.testing.expect(multi.waits <= 6);
+    multi.deinit();
+    multi_open = false;
+    thread.join();
+    joined = true;
+    if (fixture.failure) |err| return err;
+}
