@@ -281,11 +281,15 @@ pub const Store = struct {
         return index;
     }
 
+    /// The checkpoint is a hint (as Rust's, which it writes unsynced): a
+    /// stale or missing one only makes a reader re-validate or rebuild the
+    /// pending index, and open always rebuilds it. Every row it describes was
+    /// already committed with fsync.
     fn markPayloadCheckpoint(self: Store, allocator: std.mem.Allocator) !void {
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
         try putInt(&batch, u64, pending_payload_index_checkpoint, &singleton, self.typed.database.sequence());
-        try batch.commitSync();
+        try batch.commitUnsynced();
     }
 
     fn putPayloadPending(self: Store, batch: *rocks.TypedBatch, index: u32, pending_json: ?[]const u8) !void {
