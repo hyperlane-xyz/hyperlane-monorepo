@@ -50,7 +50,8 @@ pub const Runtime = struct {
     announcer: ?Announcer = null,
 };
 pub const Tick = struct { next_delay_ms: ?u64 = null, announcement_pending: bool = false, indexed_range: bool = false, progress: ?driver.Progress = null };
-const Slot = struct { client: *rpc.RpcClient, indexer: indexing.Indexer, last_error: ?anyerror = null, last_vote: ?service.Checkpoint = null };
+/// `hash_pin` stays true until the endpoint rejects EIP-1898 pinned reads.
+const Slot = struct { client: *rpc.RpcClient, indexer: indexing.Indexer, last_error: ?anyerror = null, last_vote: ?service.Checkpoint = null, hash_pin: bool = true };
 pub const Role = struct {
     allocator: A,
     settings: *const settings.Settings,
@@ -81,7 +82,19 @@ pub const Role = struct {
     signed_announcement: ?objects.SignedAnnouncement = null,
     next_announcement_ms: u64 = 0,
     next_audit_ms: u64 = 0,
+    audit_clock_started: bool = false,
     round_results: ?[]votes.Result = null,
+    /// Persistent vote transport: per-endpoint keep-alive across rounds.
+    vote_engine: votes.Engine = .{},
+    /// Polling-mode checkpoint sample cadence (same Rust submit.rs rules as the
+    /// websocket path): rounds never run faster than the interval, waiting
+    /// samples refresh at 30 s and verified idle frontiers audit at 60 s.
+    poll_cadence: @import("stream_cadence.zig").Cadence = .{},
+    /// Primary-only insertion-count discovery read; at most once per interval.
+    next_probe_ms: u64 = 0,
+    /// Startup reads failed against the retained round's primary; the next
+    /// interval re-runs the round (and its failover) instead of reusing it.
+    round_stale: bool = false,
     /// Opens local state only; RPC chain checks and announcement I/O happen in tick.
     pub fn open(a: A, s: *const settings.Settings, database: *rocks.Database, runtime: Runtime) !*Role {
         if (s.role != .validator) return error.ExpectedValidatorSettings;
@@ -149,7 +162,7 @@ pub const Role = struct {
             .majority => .majority,
         } else null, .reorg_period = config.reorg_period });
         const owned = try slots.toOwnedSlice();
-        self.* = .{ .allocator = a, .settings = s, .chain = chain, .runtime = actual_runtime, .rpc_native = owned_native, .primary_metrics = primary_metrics, .quorum_metrics = quorum_metrics, .slots = owned, .state = state, .store = native.Store.init(a, database, chain.name), .sequence_store = undefined, .canonical = .init(a), .consensus = consensus };
+        self.* = .{ .allocator = a, .settings = s, .chain = chain, .runtime = actual_runtime, .rpc_native = owned_native, .primary_metrics = primary_metrics, .quorum_metrics = quorum_metrics, .slots = owned, .state = state, .store = native.Store.init(a, database, chain.name), .sequence_store = undefined, .canonical = .init(a), .consensus = consensus, .vote_engine = .{ .min_capacity = owned.len } };
         self.sequence_store = .{ .store = &self.store, .stream = .insertion };
         if (runtime.metrics) |registry| self.index_metrics = .{ .registry = registry, .chain = chain.name };
         if (primary_metrics) |sink| sink.providerCreated(owned.len);
@@ -175,6 +188,7 @@ pub const Role = struct {
         if (self.sequence_cursor) |*c| c.deinit();
         self.canonical.deinit();
         if (self.round_results) |results| self.allocator.free(results);
+        self.vote_engine.deinit();
         for (self.slots) |slot| {
             slot.client.deinit();
             self.allocator.destroy(slot.client);
@@ -263,6 +277,15 @@ pub const Role = struct {
         try self.cycle_clock.begin(now_ms);
         defer self.cycle_clock.end();
         self.index_due_ms = null;
+        // A fresh database has no persisted prefix to audit, so its first
+        // periodic audit is due one period after startup (Rust submit.rs
+        // starts its idle audit clock at startup) rather than on the first
+        // signing tick. A restart with a persisted verified/signed prefix
+        // keeps the immediate audit. Disagreeing votes still force one.
+        if (!self.audit_clock_started) {
+            self.audit_clock_started = true;
+            if (self.state.verified_through == null and self.state.signed_watermark == null) self.next_audit_ms = now_ms +| 60000;
+        }
         if (self.index_metrics) |*sink| sink.unix_seconds = unix_timestamp;
         var result = try self.tickInner(unix_timestamp, now_ms);
         if (self.index_due_ms) |due| result.next_delay_ms = due -| self.cycle_clock.now(now_ms);
@@ -277,12 +300,30 @@ pub const Role = struct {
         if (self.runtime.cancel) |flag| {
             if (flag.load(.acquire)) return error.Cancelled;
         }
-        self.canonical.clearRetainingCapacity();
-        for (self.slots) |*slot| slot.last_vote = null;
-        try self.collectRound();
-        if (!try self.startup(now_ms)) return .{ .announcement_pending = true };
+        var round_refreshed = false;
+        if (try self.pollRoundDue(now_ms)) {
+            var elapsed = try std.time.Timer.start();
+            const interval_ms = self.settings.role.validator.interval *| 1000;
+            self.canonical.clearRetainingCapacity();
+            for (self.slots) |*slot| slot.last_vote = null;
+            self.collectRound() catch |err| {
+                self.poll_cadence.attemptedAt(now_ms +| elapsed.read() / std.time.ns_per_ms, interval_ms);
+                return err;
+            };
+            self.poll_cadence.attemptedAt(now_ms +| elapsed.read() / std.time.ns_per_ms, interval_ms);
+            self.round_stale = false;
+            round_refreshed = true;
+        }
+        const started = self.startup(now_ms) catch |err| {
+            self.round_stale = true;
+            return err;
+        };
+        if (!started) return .{ .announcement_pending = true };
         if (!try self.initializeInsertionCursor(now_ms)) return .{};
         const indexed = try self.indexOneRange(now_ms);
+        // Same gate as the websocket path: an authenticated sample with no new
+        // local leaf and no pending publication has nothing to authorize.
+        if (!round_refreshed and self.poll_cadence.verified() and try self.store.insertionByIndex(self.state.nextVerificationIndex()) == null and !try self.state.hasPendingPublication()) return .{ .indexed_range = indexed };
         var progress = driver.tick(&self.state, .{ .context = self, .finalized_height = finalizedHeight, .insertion = insertion, .checkpoint = checkpoint }, self.runtime.signer, self.runtime.publisher, unix_timestamp, .{ .publications = self.settings.role.validator.max_sign_concurrency }) catch |err| {
             if (self.state.halted) try self.state.publishReorg(self.runtime.publisher) else if (err == error.NonmonotonicHistory or err == error.UnverifiedSuffixChanged) _ = try self.auditSignedPrefix(unix_timestamp, now_ms, true);
             return err;
@@ -295,11 +336,68 @@ pub const Role = struct {
             }
             progress.unavailable_endpoints = if (self.consensus) unavailable else if (available > 0) 0 else 1;
         }
+        var empty_ready: usize = 0;
+        if (self.round_results) |results| for (results) |result| {
+            if (result.ready and result.count == 0) empty_ready += 1;
+        };
+        const required = if (self.state.options.consensus) |consensus| try consensus.required(self.state.options.endpoint_count) else 1;
+        self.poll_cadence.processed(self.state.fresh_verified_through != null, progress.more_observations, self.state.tree.count == 0 and empty_ready >= required);
         if (try self.auditSignedPrefix(unix_timestamp, now_ms, false)) {
             progress.more_observations = true;
             progress.recovery_reset = true;
+            self.poll_cadence.sample = .none;
         }
-        return .{ .indexed_range = indexed, .progress = progress };
+        const more_cached = progress.more_observations and try self.store.insertionByIndex(self.state.nextVerificationIndex()) != null;
+        return .{ .indexed_range = indexed or more_cached or progress.published == self.settings.role.validator.max_sign_concurrency, .progress = progress };
+    }
+    /// Polling-mode checkpoint round gate. Rust submit.rs reads checkpoint
+    /// samples only for new local insertions, unverified samples (30 s) or the
+    /// idle audit (60 s). Insertions are discovered here by one primary-only
+    /// count read per interval; a changed count escalates to a full
+    /// per-endpoint round in the same tick, so freshness is unchanged.
+    fn pollRoundDue(self: *Role, now_ms: u64) !bool {
+        // Without the native vote transport collectRound is a no-op and every
+        // tick reads votes directly (tests/std transport only).
+        if (self.runtime.multi_library_path == null) return true;
+        if (self.round_results) |results| if (reuseForAnnouncement(results, self.announcement_ready, self.round_stale)) return false;
+        const next_leaf = try self.store.insertionByIndex(self.state.nextVerificationIndex()) != null;
+        if (self.poll_cadence.due(now_ms, false, next_leaf, self.state.tree.count)) return true;
+        return self.probeAdvanced(now_ms);
+    }
+    /// Announcement startup only needs one authenticated primary; a failed
+    /// startup read marks the round stale so the next round can fail over.
+    fn reuseForAnnouncement(results: []const votes.Result, announcement_ready: bool, round_stale: bool) bool {
+        if (announcement_ready or round_stale) return false;
+        for (results) |result| if (result.ready) return true;
+        return false;
+    }
+    fn probeAdvanced(self: *Role, now_ms: u64) bool {
+        // Never accelerate checkpoint reads beyond the configured interval.
+        if (now_ms < self.poll_cadence.next_attempt_ms or now_ms < self.next_probe_ms) return false;
+        const results = self.round_results orelse return true;
+        const index = self.primary orelse return true;
+        const known = results[index].count orelse return true;
+        // The retained authenticated tip still has unfetched leaves.
+        if (self.sequence_cursor) |c| if (c.forward.sequence < known) return false;
+        self.next_probe_ms = now_ms +| self.settings.role.validator.interval *| 1000;
+        const slot = &self.slots[index];
+        const observed = probeCount(slot) catch |err| {
+            // The full round owns failover and per-endpoint failure accounting.
+            slot.last_error = err;
+            return true;
+        };
+        return observed != known;
+    }
+    /// Discovery only: a changed value triggers a fenced per-endpoint round;
+    /// the value itself never reaches cursor, votes or authorization.
+    fn probeCount(slot: *Slot) !u32 {
+        const client = slot.client;
+        const hook = slot.indexer.config.hook;
+        return switch (slot.indexer.config.reorg_period) {
+            .none => client.count(hook, .latest),
+            .blocks => |depth| client.count(hook, .{ .number = (try client.blockNumber()) -| depth }),
+            .tag => |value| client.count(hook, try rpc.BlockRef.fromTag(value)),
+        };
     }
     fn tickStream(self: *Role, timestamp: u64, now_ms: u64) !Tick {
         if (self.state.halted) {
@@ -388,10 +486,11 @@ pub const Role = struct {
         if (!self.consensus) return self.collectClassic(library);
         const endpoints = try self.allocator.alloc(votes.Endpoint, if (!self.consensus and self.chain.connection.ethereum.consensus == .single) 1 else self.slots.len);
         defer self.allocator.free(endpoints);
-        for (endpoints, 0..) |*endpoint, i| endpoint.* = .{ .client = self.slots[i].client, .chain_checked = self.slots[i].indexer.chain_checked };
-        const results = try votes.collect(self.allocator, endpoints, .{ .recorder = self.quorum_metrics, .library_path = library, .chain_id = self.slots[0].indexer.config.chain_id, .domain = self.chain.domain, .hook = self.slots[0].indexer.config.hook, .hook_hash = self.chain.contracts.merkle_tree_hook, .reorg_period = self.slots[0].indexer.config.reorg_period, .timeout_ms = self.runtime.rpc_timeout_ms, .connect_timeout_ms = self.runtime.connect_timeout_ms, .cancel = self.runtime.cancel }, self, quorumReady);
+        for (endpoints, 0..) |*endpoint, i| endpoint.* = .{ .client = self.slots[i].client, .chain_checked = self.slots[i].indexer.chain_checked, .hash_pin = self.slots[i].hash_pin };
+        const results = try votes.collect(self.allocator, &self.vote_engine, endpoints, .{ .recorder = self.quorum_metrics, .library_path = library, .chain_id = self.slots[0].indexer.config.chain_id, .domain = self.chain.domain, .hook = self.slots[0].indexer.config.hook, .hook_hash = self.chain.contracts.merkle_tree_hook, .reorg_period = self.slots[0].indexer.config.reorg_period, .timeout_ms = self.runtime.rpc_timeout_ms, .connect_timeout_ms = self.runtime.connect_timeout_ms, .cancel = self.runtime.cancel }, self, quorumReady);
         self.round_results = results;
         for (results, 0..) |result, i| {
+            if (result.hash_pin_rejected) self.slots[i].hash_pin = false;
             self.slots[i].indexer.chain_checked = result.chain_checked;
             self.slots[i].last_vote = if (result.ready) result.checkpoint else null;
             self.slots[i].last_error = result.failure;
@@ -430,7 +529,7 @@ pub const Role = struct {
             for (endpoints, 0..) |*endpoint, i| endpoint.* = .{ .client = self.slots[i].client, .chain_checked = false };
             var config = self.voteConfig(library);
             config.identity_only = true;
-            const identities = try votes.collect(self.allocator, endpoints, config, self, identityReady);
+            const identities = try votes.collect(self.allocator, &self.vote_engine, endpoints, config, self, identityReady);
             defer self.allocator.free(identities);
             var selected: ?usize = null;
             for (0..length) |offset| {
@@ -448,9 +547,10 @@ pub const Role = struct {
         for (0..length) |offset| {
             const index = (start + offset) % length;
             const slot = &self.slots[index];
-            const endpoints = [_]votes.Endpoint{.{ .client = slot.client, .chain_checked = slot.indexer.chain_checked }};
-            const observed = try votes.collect(self.allocator, &endpoints, self.voteConfig(library), self, quorumReady);
+            const endpoints = [_]votes.Endpoint{.{ .client = slot.client, .chain_checked = slot.indexer.chain_checked, .hash_pin = slot.hash_pin }};
+            const observed = try votes.collect(self.allocator, &self.vote_engine, &endpoints, self.voteConfig(library), self, quorumReady);
             defer self.allocator.free(observed);
+            if (observed[0].hash_pin_rejected) slot.hash_pin = false;
             results[index] = observed[0];
             slot.indexer.chain_checked = observed[0].chain_checked;
             slot.last_error = observed[0].failure;
@@ -535,6 +635,10 @@ pub const Role = struct {
         client.options.dynamic_tip_cache = self.runtime.dynamic_tip_cache;
         client.options.native_cache_observer = if (self.primary_metrics) |sink| sink.nativeCacheObserver() else null;
     }
+    fn roundTip(result: votes.Result) !indexing.CountTip {
+        const head = result.head orelse return error.MissingEvmHead;
+        return .{ .count = result.count, .tip = std.math.cast(u32, head.number) orelse return error.IndexHeightOutOfRange, .block_hash = head.hash };
+    }
     fn indexedCountTip(self: *Role, index: usize) !indexing.CountTip {
         const slot = &self.slots[index];
         const saved = slot.client.options;
@@ -571,7 +675,9 @@ pub const Role = struct {
                 failure = actual;
                 continue;
             };
-            const tip = self.indexedCountTip(index) catch |err| {
+            // A ready round result already carries this endpoint's fenced
+            // head and count; re-reading them would only repeat the round.
+            const tip = if (self.round_results) |results| try roundTip(results[index]) else self.indexedCountTip(index) catch |err| {
                 const actual = self.physicalFailure(self.slots[index].client, err);
                 if (!fetch_observation.retryable(actual)) return err;
                 failure = actual;
@@ -594,7 +700,7 @@ pub const Role = struct {
             const primary = try self.primarySlot();
             const index = self.primary.?;
             const result = results[index];
-            tip = .{ .count = result.count, .tip = std.math.cast(u32, result.head.?.number) orelse return error.IndexHeightOutOfRange, .block_hash = result.head.?.hash };
+            tip = try roundTip(result);
             selected = index;
             _ = primary;
         } else {
@@ -634,7 +740,12 @@ pub const Role = struct {
             return false;
         }
         if (self.fetch_retry.retryEligible(query.range, observed_now)) if (self.indexObserver()) |sink| sink.notify(.{ .fetch_backoff = .{ .stream = .insertion, .delay_ms = 0 } });
-        var batch = self.fetchInsertionRange(index, query.range, tip.tip) catch |err| {
+        // Only new (forward) leaves, which the driver authorizes against a
+        // quorum root before signing, may skip per-block membership reads.
+        // History repair halts on a root mismatch, so backfill and repair
+        // keep full canonical membership and its retryable NoncanonicalLog.
+        const root_checked = query.direction == .forward and self.state.repair_complete;
+        var batch = self.fetchInsertionRange(index, query.range, tip.tip, root_checked) catch |err| {
             try c.failed(query.token);
             if (!fetch_observation.retryable(err)) return err;
             const completed_now = self.cycle_clock.now(observed_now);
@@ -669,13 +780,17 @@ pub const Role = struct {
     }
     /// One logical range failure is recorded only after ordinary errors from
     /// every eligible event reader. Checkpoint voting stays per endpoint.
-    fn fetchInsertionRange(self: *Role, preferred: usize, range: cursor.Range, finalized_height: u64) !indexing.Batch {
+    fn fetchInsertionRange(self: *Role, preferred: usize, range: cursor.Range, finalized_height: u64, root_checked: bool) !indexing.Batch {
         var failure: anyerror = error.NoHealthyEvmEndpoint;
+        const root_checked_through = if (root_checked) try self.quorumFencedHead() else null;
         for (0..self.slots.len) |offset| {
             if (self.runtime.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
             const index = (preferred + offset) % self.slots.len;
+            var leading: ?rpc.BlockHeader = null;
             if (self.round_results) |results| {
                 if (!results[index].ready or results[index].head.?.number < range.to) continue;
+                // This endpoint's own fenced round head serves as the leading fence.
+                if (results[index].head.?.number == range.to) leading = results[index].head.?;
             }
             const slot = self.checked(index) catch |err| {
                 const actual = self.physicalFailure(self.slots[index].client, err);
@@ -687,7 +802,7 @@ pub const Role = struct {
             const saved = slot.client.options;
             defer slot.client.options = saved;
             self.indexedOptions(slot.client);
-            const batch = slot.indexer.fetch(.insertion, range, finalized_height) catch |err| {
+            const batch = slot.indexer.fetchFenced(.insertion, range, finalized_height, .{ .leading = leading, .root_checked_through = root_checked_through }) catch |err| {
                 const actual = self.physicalFailure(slot.client, err);
                 if (!fetch_observation.retryable(actual)) return err;
                 slot.last_error = actual;
@@ -699,6 +814,27 @@ pub const Role = struct {
             return batch;
         }
         return failure;
+    }
+    /// Highest height at or below which the required number of endpoints
+    /// returned a hash-fenced head this round. Every insertion leaf at or below
+    /// it is bound by Merkle roots those endpoints reported at their fenced
+    /// heads: Service.authorize signs nothing unless the local root rebuilt from
+    /// these leaves equals a quorum root, so a non-canonical log cannot be
+    /// signed and per-block header reads below this height are redundant.
+    fn quorumFencedHead(self: *Role) !?u64 {
+        const results = self.round_results orelse return null;
+        const required = if (!self.consensus) 1 else if (self.state.options.consensus) |c| try c.required(self.state.options.endpoint_count) else 1;
+        if (required == 0 or required > results.len) return null;
+        var heads: [256]u64 = undefined;
+        var count: usize = 0;
+        for (results) |result| {
+            if (!result.ready) continue;
+            heads[count] = (result.head orelse continue).number;
+            count += 1;
+        }
+        if (count < required) return null;
+        std.mem.sort(u64, heads[0..count], {}, std.sort.desc(u64));
+        return heads[required - 1];
     }
     fn auditSignedPrefix(self: *Role, timestamp: u64, now_ms: u64, force: bool) !bool {
         const required = if (self.state.options.consensus) |c| try c.required(self.state.options.endpoint_count) else 1;
@@ -896,6 +1032,14 @@ test "vote early completion preserves higher mixed-height quorum and tolerates s
     try std.testing.expect(!Role.canAdvance(&.{ old, higher, failed }, 2, 9));
     try std.testing.expect(Role.canAdvance(&.{ old, pending, pending }, 2, null));
     try std.testing.expect(!Role.canAdvance(&.{ old, failed, failed }, 2, null));
+}
+
+test "announcement startup reuses a retained round only until a startup read fails" {
+    const ready: votes.Result = .{ .ready = true, .count = 0 };
+    try std.testing.expect(Role.reuseForAnnouncement(&.{ .{}, ready }, false, false));
+    try std.testing.expect(!Role.reuseForAnnouncement(&.{ .{}, ready }, false, true));
+    try std.testing.expect(!Role.reuseForAnnouncement(&.{ .{}, ready }, true, false));
+    try std.testing.expect(!Role.reuseForAnnouncement(&.{ .{}, .{ .failure = error.WrongChain } }, false, false));
 }
 
 test "classic fallback does not wait for a stalled redundant slot" {

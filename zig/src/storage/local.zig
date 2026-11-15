@@ -37,6 +37,14 @@ pub const LocalStore = struct {
     halted: bool = false,
     poisoned: bool = false,
     mutex: std.Thread.Mutex = .{},
+    /// SHA-256 of the exact checkpoint bytes this writer recently wrote after
+    /// establishing their signer. writeLatestIndex re-reads the target object
+    /// and skips a second ECDSA recovery only when the on-disk bytes are
+    /// identical; any difference falls back to full parse + signer recovery.
+    written: [16]Written = @splat(.{}),
+    written_next: usize = 0,
+
+    const Written = struct { index: ?u32 = null, digest: [32]u8 = @splat(0) };
 
     /// Opens its own directory handle; the caller retains ownership of parent.
     /// Read-only readers neither create paths nor participate in writer locking.
@@ -196,12 +204,44 @@ pub const LocalStore = struct {
         return result;
     }
 
+    /// Callers have established `signed` recovers to this writer's signer.
     fn writeCheckpointLocked(self: *LocalStore, signed: objects.SignedCheckpoint) !void {
         const bytes = try signed.toJson(self.allocator);
         defer self.allocator.free(bytes);
         var name_buffer: [40]u8 = undefined;
         const name = try std.fmt.bufPrint(&name_buffer, "{d}_with_id.json", .{signed.value.index});
         try self.atomicWrite(name, bytes);
+        var entry: Written = .{ .index = signed.value.index };
+        std.crypto.hash.sha2.Sha256.hash(bytes, &entry.digest, .{});
+        for (&self.written) |*slot| if (slot.index == signed.value.index) {
+            slot.* = entry;
+            return;
+        };
+        self.written[self.written_next] = entry;
+        self.written_next = (self.written_next + 1) % self.written.len;
+    }
+
+    fn writtenDigest(self: *const LocalStore, index: u32) ?[32]u8 {
+        for (self.written) |slot| if (slot.index == index) return slot.digest;
+        return null;
+    }
+
+    /// The pointer target must exist and be signed by this writer. Bytes that
+    /// are identical to an object this writer just verified and wrote need no
+    /// second recovery; anything else is parsed and recovered (fail closed).
+    fn requireOwnCheckpointLocked(self: *LocalStore, index: u32, expected_signer: objects.Address) !void {
+        var name_buffer: [40]u8 = undefined;
+        const name = try std.fmt.bufPrint(&name_buffer, "{d}_with_id.json", .{index});
+        const bytes = (try self.readObject(name)) orelse return error.CheckpointPublicationGap;
+        defer self.allocator.free(bytes);
+        if (self.writtenDigest(index)) |expected| {
+            var actual: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(bytes, &actual, .{});
+            if (std.mem.eql(u8, &actual, &expected)) return;
+        }
+        const signed = try objects.SignedCheckpoint.parse(self.allocator, bytes);
+        if (signed.value.index != index) return error.WrongCheckpointIndex;
+        if (!std.mem.eql(u8, &try signed.recover(), &expected_signer)) return error.WrongStoreSigner;
     }
 
     /// Rust publishes the newest checkpoint before filling historical indices.
@@ -216,8 +256,7 @@ pub const LocalStore = struct {
             if (index < old) return error.LatestIndexRegression;
         }
         const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
-        const checkpoint = (try self.fetchCheckpoint(index)) orelse return error.CheckpointPublicationGap;
-        if (!std.mem.eql(u8, &try checkpoint.recover(), &expected_signer)) return error.WrongStoreSigner;
+        try self.requireOwnCheckpointLocked(index, expected_signer);
         if (previous == index) return;
         var buffer: [10]u8 = undefined;
         const bytes = try std.fmt.bufPrint(&buffer, "{d}", .{index});
@@ -397,6 +436,13 @@ test "latest-first publication validates target while historical checkpoints fil
     defer allocator.free(wrong_signer);
     try store.dir.writeFile(.{ .sub_path = "3_with_id.json", .data = wrong_signer });
     try std.testing.expectError(error.WrongStoreSigner, store.writeLatestIndex(3));
+    // A verified own write followed by on-disk replacement must not reuse the
+    // earlier verification: the changed bytes are recovered and rejected.
+    _ = try store.writeCheckpoint(try testCheckpoint(4, 5, key), 1);
+    const replaced = try (try testCheckpoint(4, 5, .{0x22} ** 32)).toJson(allocator);
+    defer allocator.free(replaced);
+    try store.dir.writeFile(.{ .sub_path = "4_with_id.json", .data = replaced });
+    try std.testing.expectError(error.WrongStoreSigner, store.writeLatestIndex(4));
     const snapshot = try objects.Snapshot.capture(&tree);
     try store.writeSnapshot(&snapshot);
     const announcement = try objects.SignedAnnouncement.sign(.{ .validator = options.signer.?, .mailbox_address = .{0x22} ** 32, .mailbox_domain = 1000, .storage_location = "file:///public-fixture" }, key, null);

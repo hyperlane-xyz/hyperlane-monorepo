@@ -14,7 +14,9 @@ const evm = @import("../../evm/root.zig");
 const A = std.mem.Allocator;
 pub const Credentials = struct { context: *anyopaque, lease: *const fn (*anyopaque, u64) anyerror!config.Credentials };
 pub const ChainSigner = struct { context: *anyopaque, load: *const fn (*anyopaque, config.Credentials) anyerror!lander.Signer };
-pub const Options = struct { curl_library: []const u8, request_timeout_ms: u32 = 20000, job_timeout_ms: u64 = 120000, environment: ?*const std.process.EnvMap = null, allow_insecure_loopback: bool = false };
+/// `concurrent_svm_estimates` requires a thread-safe allocator; the owner
+/// states it explicitly instead of the worker sniffing allocator vtables.
+pub const Options = struct { curl_library: []const u8, request_timeout_ms: u32 = 20000, job_timeout_ms: u64 = 120000, environment: ?*const std.process.EnvMap = null, allow_insecure_loopback: bool = false, concurrent_svm_estimates: bool };
 pub const Worker = struct {
     allocator: A,
     settings: *const settings.Settings,
@@ -123,6 +125,10 @@ pub const Worker = struct {
             defer transactions.cancel = &self.idle_cancel;
             // Recover prior persisted transactions before accepting this request.
             try self.checkEffects();
+            // Observed on chain and nothing left to submit, confirm or reorg:
+            // ticking would only re-read the account nonce boundary. A restart
+            // already skips the lander entirely in this state (see above).
+            if (request.wire.complete and try transactions.idle()) return .{};
             _ = try transactions.tick(times.unix_ms, .{});
             if (!request.wire.complete and (self.loaded_digest == null or !std.mem.eql(u8, &self.loaded_digest.?, &request.digest) or self.loaded_revision != request.wire.revision)) {
                 try self.checkEffects();
@@ -141,7 +147,7 @@ pub const Worker = struct {
                 self.native_owner = null;
             }
             const environment = self.options.environment orelse &self.empty_environment;
-            self.native_owner = try native_announcement.Owner.open(self.allocator, try self.database.get(cancel), chain, environment, chain.signer orelse return error.MissingNativeChainSigner, credentials, signed.value.value, .{ .initialization_clock = .{ .unix_ms = times.unix_ms, .deadline_ns = deadline, .cancel = cancel, .halt = self.halt_signal }, .clients = .{ .curl_library = self.options.curl_library, .request_timeout_ms = self.options.request_timeout_ms, .allow_insecure_loopback = self.options.allow_insecure_loopback }, .destination = .{ .starknet_crypto_library = environment.get("HYPERLANE_STARKNET_CRYPTO_LIBRARY"), .aleo_parameter_home = environment.get("HYPERLANE_ALEO_PARAMETER_HOME"), .allow_fixture_transport = self.options.allow_insecure_loopback, .concurrent_svm_estimates = self.allocator.vtable == std.heap.smp_allocator.vtable }, .interval_ms = @max(1, self.settings.role.validator.interval *| 1000), .revision = request.wire.revision });
+            self.native_owner = try native_announcement.Owner.open(self.allocator, try self.database.get(cancel), chain, environment, chain.signer orelse return error.MissingNativeChainSigner, credentials, signed.value.value, .{ .initialization_clock = .{ .unix_ms = times.unix_ms, .deadline_ns = deadline, .cancel = cancel, .halt = self.halt_signal }, .clients = .{ .curl_library = self.options.curl_library, .request_timeout_ms = self.options.request_timeout_ms, .allow_insecure_loopback = self.options.allow_insecure_loopback }, .destination = .{ .starknet_crypto_library = environment.get("HYPERLANE_STARKNET_CRYPTO_LIBRARY"), .aleo_parameter_home = environment.get("HYPERLANE_ALEO_PARAMETER_HOME"), .allow_fixture_transport = self.options.allow_insecure_loopback, .concurrent_svm_estimates = self.options.concurrent_svm_estimates }, .interval_ms = @max(1, self.settings.role.validator.interval *| 1000), .revision = request.wire.revision });
             self.loaded_digest = request.digest;
             self.loaded_revision = request.wire.revision;
         }

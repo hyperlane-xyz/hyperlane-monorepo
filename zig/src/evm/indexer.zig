@@ -121,8 +121,28 @@ pub const Indexer = struct {
     }
 
     pub fn fetch(self: *Indexer, stream: Stream, range: sequence.Range, finalized_height: u64) !Batch {
+        return self.fetchFenced(stream, range, finalized_height, .{});
+    }
+
+    pub const Fencing = struct {
+        /// A header at `range.to` this same endpoint already returned and
+        /// hash-fenced (for example the checkpoint round head). It replaces the
+        /// leading fence read; the trailing fence after eth_getLogs is always read.
+        leading: ?rpc.BlockHeader = null,
+        /// Validator insertion stream only. Logs at or below this height skip
+        /// the per-block header read and carry unknown (all-zero) provenance.
+        /// Sound only when every resulting leaf is bound by a Merkle root that a
+        /// quorum read at a fenced head >= this height before anything is signed
+        /// (Service.authorize); a non-canonical leaf then fails closed.
+        root_checked_through: ?u64 = null,
+    };
+
+    pub fn fetchFenced(self: *Indexer, stream: Stream, range: sequence.Range, finalized_height: u64, fencing: Fencing) !Batch {
         if (!self.chain_checked) return error.ChainNotChecked;
         if (range.from > range.to or range.to > finalized_height) return error.RangeBeyondFinality;
+        if (fencing.root_checked_through != null and stream != .insertion) return error.UnsupportedRootCheckedStream;
+        const leading = fencing.leading;
+        if (leading) |known| if (known.number != range.to) return error.InvalidLeadingFence;
         const address = switch (stream) {
             .dispatch, .delivery => self.config.mailbox,
             .insertion => self.config.hook,
@@ -134,7 +154,7 @@ pub const Indexer = struct {
             .gas => abi.gas_payment_topic,
             .delivery => abi.process_id_topic,
         };
-        const fence = try self.client.blockHeader(.{ .number = range.to });
+        const fence = leading orelse try self.client.blockHeader(.{ .number = range.to });
         var response = try self.client.getLogs(address, range.from, range.to, topic);
         defer response.deinit();
         var logs: std.ArrayList(rpc.Log) = .empty;
@@ -171,9 +191,24 @@ pub const Indexer = struct {
         }
         logs.shrinkRetainingCapacity(unique);
         var header: ?rpc.BlockHeader = null;
-        for (logs.items) |log| {
-            if (header == null or header.?.number != log.block_number) header = try self.client.blockHeader(.{ .number = log.block_number });
-            if (!log.matchesHeader(header.?)) return error.NoncanonicalLog;
+        for (logs.items) |*log| {
+            // The leading fence and its committed parent hash prove membership
+            // for the last two heights (the trailing fence below proves the
+            // fence stayed canonical across eth_getLogs); deeper heights read
+            // their own header after eth_getLogs unless root-checked.
+            const canonical = if (log.block_number == fence.number)
+                std.mem.eql(u8, &log.block_hash, &fence.hash)
+            else if (log.block_number +| 1 == fence.number)
+                std.mem.eql(u8, &log.block_hash, &fence.parent_hash)
+            else if (fencing.root_checked_through != null and log.block_number <= fencing.root_checked_through.?) blk: {
+                // Unverified block identity is never recorded as provenance.
+                log.block_hash = @splat(0);
+                break :blk true;
+            } else blk: {
+                if (header == null or header.?.number != log.block_number) header = try self.client.blockHeader(.{ .number = log.block_number });
+                break :blk log.matchesHeader(header.?);
+            };
+            if (!canonical) return error.NoncanonicalLog;
             if (stream == .dispatch) {
                 const message = try protocol.Message.decode((try log.event()).dispatch.message);
                 if (message.origin != self.config.domain) return error.WrongMessageOrigin;

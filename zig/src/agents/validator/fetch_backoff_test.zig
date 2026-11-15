@@ -373,8 +373,12 @@ fn evmTransport(comptime Role: type, comptime indexOneRange: anytype, comptime i
     role.primary = 0;
     role.read_preferred = 0;
     role.round_results = &round;
+    role.consensus = false;
     try std.testing.expect(try indexOneRange(&role, 0));
-    try std.testing.expectEqual(@as(usize, if (fault != null and fault.?.header != null) 0 else 1), endpoints[0].calls.load(.acquire));
+    // The backfill range ends at the round head, so that endpoint's fenced round
+    // header is the leading fence: eth_getLogs runs once and a malformed header
+    // is rejected by the trailing fence read, still before any storage.
+    try std.testing.expectEqual(@as(usize, 1), endpoints[0].calls.load(.acquire));
     try std.testing.expectEqual(@as(usize, 1), endpoints[1].calls.load(.acquire));
     try std.testing.expectEqual(@as(u32, 0), role.fetch_retry.consecutive_failures);
     try std.testing.expectEqual(@as(?usize, 1), role.primary);
@@ -410,10 +414,13 @@ fn evmTransport(comptime Role: type, comptime indexOneRange: anytype, comptime i
     try std.testing.expect(try indexOneRange(&role, retry_at + 10000));
     try std.testing.expectEqual(@as(u32, 0), role.fetch_retry.consecutive_failures);
     try expectMetric(registry, "hyperlane_contract_sync_fetch_backoff_seconds{data_type=\"merkle_tree_hook\",chain=\"evm-native-init\",agent=\"validator\",hyperlane_baselib_version=\"3.0.0\"}", 0);
-    // Exact Source initialization reads latest count/tip, tries the next healthy
+    // A ready round result already carries each endpoint's fenced head/count,
+    // so initialization reads nothing then. Without a round (std transport),
+    // exact Source initialization reads latest count/tip, tries the next healthy
     // endpoint within one attempt, and has a separate bounded startup policy.
     role.sequence_cursor.?.deinit();
     role.sequence_cursor = null;
+    role.round_results = null;
     endpoints[0].tip_failing.store(true, .release);
     role.read_preferred = 0;
     try std.testing.expect(!critical.published);

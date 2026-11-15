@@ -208,6 +208,31 @@ pub const Service = struct {
         return .{ .uuid = input.payload.uuid, .index = index, .created = true };
     }
 
+    /// True once recovery finished and the durable store holds no pending
+    /// payload, active (unfinalized) transaction or reorged nonce range. Such a
+    /// tick would only refresh the nonce boundary; owners may stop ticking
+    /// until their next enqueue. Reads durable indexes, not in-memory counters.
+    pub fn idle(self: *Service) !bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (!self.recovery_complete or !self.payload_reconcile_complete) return false;
+        if (try self.store.reorgRange(self.allocator, self.config.signer.address) != null) return false;
+        var start: [4]u8 = @splat(0);
+        if (try self.store.typed.atOrAfter(self.allocator, storage.active_tx_by_index, &start)) |entry_value| {
+            var entry = entry_value;
+            entry.deinit();
+            return false;
+        }
+        var pending = try self.store.typed.prefix(self.allocator, storage.pending_payload_by_index);
+        defer pending.deinit();
+        if (try pending.next(self.allocator)) |entry_value| {
+            var entry = entry_value;
+            entry.deinit();
+            return false;
+        }
+        return true;
+    }
+
     pub fn tick(self: *Service, now_ms: u64, limits: TickLimits) !Report {
         self.mutex.lock();
         defer self.mutex.unlock();
