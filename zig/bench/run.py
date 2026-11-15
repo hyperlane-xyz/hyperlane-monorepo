@@ -207,6 +207,10 @@ def main():
     parser.add_argument("--clean-build", action="store_true", help="Use fresh task-owned target and compiler cache directories (downloads remain cached)")
     parser.add_argument("--only-differential", action="store_true")
     parser.add_argument("--output", type=Path, default=ROOT / "zig/bench/results")
+    parser.add_argument("--cpu-policy", choices=["native", "production"], default="native",
+                        help="native: both sides target the host CPU. production: shipped image flags on x86_64 "
+                             "(zig/Dockerfile -mcpu=x86_64_v3+pclmul; rust/Dockerfile sets no target-cpu); "
+                             "other architectures have no production image and stay native")
     args = parser.parse_args()
     if args.samples < 1:
         parser.error("--samples must be positive")
@@ -219,7 +223,9 @@ def main():
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)
-    env["RUSTFLAGS"] = "-C target-cpu=native"
+    production_cpu = args.cpu_policy == "production" and platform.machine() in ("x86_64", "AMD64")
+    env["RUSTFLAGS"] = "" if production_cpu else "-C target-cpu=native"
+    zig_cpu = "x86_64_v3+pclmul" if production_cpu else "native"
     rust = ROOT / "zig/reference/target/release/ziggy-rust-reference"
     zig = ROOT / "zig/zig-out/bin" / f"zig-agent-bench-{args.optimize.lower()}"
     build_stats = []
@@ -232,8 +238,8 @@ def main():
     rust_cmd = ["cargo", f"+{args.rust_toolchain}", "build", "--manifest-path", "zig/reference/Cargo.toml", "--release", "--locked", "-j", "4"]
     if temporary:
         rust_cmd += ["--target-dir", str(Path(temporary.name) / "rust")]
-    zig_cmd = [args.zig, "build-exe", "-O", args.optimize, "--dep", "agents",
-               "-Mroot=zig/bench/main.zig", "-O", args.optimize,
+    zig_cmd = [args.zig, "build-exe", "-O", args.optimize, f"-mcpu={zig_cpu}", "--dep", "agents",
+               "-Mroot=zig/bench/main.zig", "-O", args.optimize, f"-mcpu={zig_cpu}",
                "-Magents=zig/src/root.zig", "-lc", f"-femit-bin={zig}"]
     if temporary:
         zig_cmd += ["--cache-dir", str(Path(temporary.name) / "zig-local"),
@@ -280,7 +286,7 @@ def main():
         "cpu": command(["sysctl", "-n", "machdep.cpu.brand_string"]).stdout.strip() if sys.platform == "darwin" else platform.processor(),
         "zig_version": command([args.zig, "version"]).stdout.strip(),
         "rust_version": command(["rustc", f"+{args.rust_toolchain}", "--version"]).stdout.strip(),
-        "builds": build_stats, "rustflags": env["RUSTFLAGS"], "reference_lock": {"path": "zig/reference/Cargo.lock", "bytes": len(reference_lock_wire),
+        "builds": build_stats, "rustflags": env["RUSTFLAGS"], "cpu_policy": args.cpu_policy, "zig_cpu": zig_cpu,"reference_lock": {"path": "zig/reference/Cargo.lock", "bytes": len(reference_lock_wire),
                            "sha256_chunks": digest_chunks(reference_lock_wire),
                            "restored_by": "zig/tools/fixture_pack.py restore-locks"}, "zig_optimize": args.optimize, "rust_release_overflow_checks": False,
         "allocator": {"rust": "Rust system allocator", "zig": "std.heap.smp_allocator"},
@@ -300,7 +306,7 @@ def main():
         metadata["load_average_after"] = os.getloadavg()
         lines = [f"# Protocol kernels: Zig {args.optimize}", "",
                  "Production Rust core versus partial Zig protocol implementation; no whole-agent speedup claim.", "",
-                 f"{args.samples} measured samples per language/case; median inner-loop ns/op; native Apple M3 Pro.", "",
+                 f"{args.samples} measured samples per language/case; median inner-loop ns/op; {metadata['cpu']}; CPU policy {args.cpu_policy} (Zig -mcpu={zig_cpu}; RUSTFLAGS={env['RUSTFLAGS'] or 'none'}).", "",
                  "| Kernel | Body bytes | Rust ns/op | Zig ns/op | Rust/Zig |",
                  "| --- | ---: | ---: | ---: | ---: |"]
         for row in metadata["benchmarks"]:
