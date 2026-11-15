@@ -99,17 +99,8 @@ pub const Store = struct {
     pub fn configure(self: Store, timeout_ms: u32) !void {
         try self.connection.configureSessionTimeouts(timeout_ms);
     }
-    pub fn pendingReceipts(self: Store, allocator: Allocator, stream: enrich.Stream, after: i64, limit: usize) ![]enrich.Row {
-        if (after < 0 or limit == 0 or limit > 100) return error.InvalidScraperReceiptPage;
-        const sql = try std.fmt.allocPrint(allocator, "SELECT id,block_number,block_hash,transaction_hash FROM confirmed_{s} WHERE domain=$1 AND {s} IS NULL AND id>$2 AND block_hash IS NOT NULL AND transaction_hash IS NOT NULL ORDER BY id LIMIT $3", .{ table(stream), txColumn(stream) });
-        var result = try self.connection.query(sql, &.{ try domainParam(allocator, self.domain), try integer(allocator, after), try integer(allocator, limit) });
-        defer result.deinit();
-        const rows = try allocator.alloc(enrich.Row, result.rows());
-        for (rows, 0..) |*row, index| row.* = .{ .id = try result.integer(index, "id"), .meta = .{ .block_number = try nonnegative(try result.integer(index, "block_number")), .block_hash = try hashBytes(allocator, result, index, "block_hash"), .tx_hash = try txBytes(allocator, result, index, "transaction_hash") } };
-        return rows;
-    }
-    /// pendingReceipts plus each row's retained block and known transaction,
-    /// identity-checked, in one round trip (was 1 + 2 per row).
+    /// Pending confirmed receipt rows plus each row's retained block and known
+    /// transaction, identity-checked, in one round trip.
     pub fn receiptCandidates(self: Store, allocator: Allocator, stream: enrich.Stream, after: i64, limit: usize) ![]enrich.Candidate {
         if (after < 0 or limit == 0 or limit > 100) return error.InvalidScraperReceiptPage;
         const sql = try std.fmt.allocPrint(allocator, "SELECT e.id,e.block_number,e.block_hash,e.transaction_hash," ++ known_columns ++ " FROM (SELECT id,block_number,block_hash,transaction_hash FROM confirmed_{s} WHERE domain=$1 AND {s} IS NULL AND id>$2 AND block_hash IS NOT NULL AND transaction_hash IS NOT NULL ORDER BY id LIMIT $3) e" ++ comptime knownJoins("e.block_hash", "e.transaction_hash") ++ " ORDER BY e.id", .{ table(stream), txColumn(stream) });
@@ -124,7 +115,7 @@ pub const Store = struct {
         return rows;
     }
     /// One round trip: guarded insert, optional page link and the same
-    /// identity verification as storeTransaction, pipelined in one implicit
+    /// identity verification as knownBlock/knownTransaction, pipelined in one implicit
     /// transaction. Concurrent winners are verified, never duplicated.
     pub fn persistTransaction(self: Store, block_id: i64, txn: enrich.Txn, link: ?enrich.LinkRange) !enrich.Persisted {
         if (block_id <= 0) return error.InvalidStoredScraperBlockId;
@@ -219,27 +210,8 @@ pub const Store = struct {
         if (result.rows() != 1 or try unsignedDomain(try result.integer(0, "domain")) != self.domain or try nonnegative(try result.integer(0, "height")) != meta.block_number or !std.mem.eql(u8, &try hashBytes(a, result, 0, "hash"), &meta.block_hash)) return error.ScraperStoredTransactionMismatch;
         return try result.integer(0, "id");
     }
-    pub fn storeTransaction(self: Store, block_id: i64, txn: enrich.Txn) !void {
-        if (block_id <= 0) return error.InvalidStoredScraperBlockId;
-        const meta: enrich.Meta = .{ .block_number = txn.block_number, .block_hash = txn.block_hash, .tx_hash = txn.hash };
-        if (try self.knownBlock(meta) != block_id) return error.ScraperStoredBlockMismatch;
-        var arena = std.heap.ArenaAllocator.init(self.connection.allocator);
-        defer arena.deinit();
-        const a = arena.allocator();
-        try self.connection.execute("INSERT INTO \"transaction\"(hash,block_id,gas_limit,max_priority_fee_per_gas,max_fee_per_gas,gas_price,effective_gas_price,nonce,sender,recipient,gas_used,cumulative_gas_used,raw_input_data,time_created) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now()) ON CONFLICT(hash) DO NOTHING", &.{ pg.Param.bytes(bytesTxn(&txn.hash)), try integer(a, block_id), try numeric(a, txn.gas_limit), try numeric(a, txn.max_priority_fee), try numeric(a, txn.max_fee), try numeric(a, txn.gas_price), try numeric(a, txn.effective_gas_price), try integer(a, @as(i64, @bitCast(txn.nonce))), pg.Param.bytes(bytesAddress(&txn.sender)), .{ .value = if (txn.recipient) |*recipient| bytesAddress(recipient) else null, .oid = pg.Oid.bytea, .binary = true }, try numeric(a, txn.gas_used), try numeric(a, txn.cumulative_gas_used), .{ .value = txn.raw_input, .oid = pg.Oid.bytea, .binary = true } });
-        _ = try self.knownTransaction(meta) orelse return error.ScraperTransactionNotPersisted;
-    }
     fn linkSql(a: Allocator, stream: enrich.Stream) ![]const u8 {
         return std.fmt.allocPrint(a, "UPDATE {s} e SET {s}=t.id FROM \"transaction\" t JOIN block b ON b.id=t.block_id WHERE e.domain=$1 AND e.id>$2 AND e.id<=$3 AND (e.block_number IS NULL OR e.block_number<=COALESCE((SELECT h.confirmed_height FROM scraper_head h WHERE h.domain=e.domain),9223372036854775807)) AND e.{s} IS NULL AND t.hash=e.transaction_hash AND b.domain=e.domain AND b.hash=e.block_hash", .{ table(stream), txColumn(stream), txColumn(stream) });
-    }
-    pub fn linkReceipts(self: Store, stream: enrich.Stream, after: i64, through: i64) !u64 {
-        if (after < 0 or through < after) return error.InvalidScraperReceiptPage;
-        var arena = std.heap.ArenaAllocator.init(self.connection.allocator);
-        defer arena.deinit();
-        const a = arena.allocator();
-        var result = try self.connection.query(try linkSql(a, stream), &.{ try domainParam(a, self.domain), try integer(a, after), try integer(a, through) });
-        defer result.deinit();
-        return result.affected();
     }
     pub fn pendingAge(self: Store, stream: enrich.Stream) !f64 {
         var arena = std.heap.ArenaAllocator.init(self.connection.allocator);

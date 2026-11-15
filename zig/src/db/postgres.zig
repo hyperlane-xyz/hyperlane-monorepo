@@ -252,6 +252,8 @@ pub const Connection = struct {
     diagnostic: ?*Diagnostic,
     poisoned: bool = false,
     io: IoOptions = .{},
+    /// Network round trips sent: one per query, one per pipeline.
+    round_trips: u64 = 0,
 
     pub fn connect(allocator: Allocator, conninfo: []const u8, diagnostic: ?*Diagnostic) !Connection {
         return connectWithOptions(allocator, conninfo, diagnostic, .{});
@@ -385,6 +387,7 @@ pub const Connection = struct {
         var completed = false;
         errdefer if (!completed) self.poison();
         try self.flushAll(handle, deadline_ns);
+        self.round_trips += 1;
         var result: ?*PGresult = null;
         errdefer if (result) |value| PQclear(value);
         var query_error = false;
@@ -433,6 +436,7 @@ pub const Connection = struct {
         for (prepared) |statement| try self.send(handle, statement);
         if (PQpipelineSync(handle) == 0) return error.PostgresConnection;
         try self.flushAll(handle, deadline_ns);
+        self.round_trips += 1;
         var filled: usize = 0;
         errdefer for (results[0..filled]) |*result| result.deinit();
         var failed = false;

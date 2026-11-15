@@ -83,7 +83,9 @@ test "scraper native PG complete worker publishes then independently enriches re
     try std.testing.expectError(error.ScraperStoredBlockMismatch, enrich.persistFetched(enrichment_store, wrong_block, fetched.value, null, link));
     try std.testing.expectEqual(@as(u64, 0), try rows(&connection, "SELECT count(*) AS count FROM \"transaction\" t JOIN block b ON b.id=t.block_id WHERE b.domain=99991"));
     // Insert, page link and identity verification share one round trip.
+    const trips = connection.round_trips;
     const persisted = try enrich.persistFetched(enrichment_store, delivery_page.requests[0], fetched.value, null, link);
+    try std.testing.expectEqual(trips + 1, connection.round_trips);
     try std.testing.expectEqual(@as(u64, 1), persisted.linked);
     try std.testing.expectEqual(@as(u64, 1), try rows(&connection, "SELECT count(*) AS count FROM delivered_message WHERE domain=99991 AND destination_tx_id IS NOT NULL"));
     // Replay verifies the existing row instead of duplicating it.

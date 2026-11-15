@@ -92,7 +92,10 @@ test "actual scraper schema stage four streams confirm frontier cursor and atomi
     try store.observe(state, anchor, empty);
     state = (try store.state()).?;
     const events = blockEvents(first, 0);
+    var trips = connection.round_trips;
     try store.append(state, &.{ .{ .header = first, .events = &events }, .{ .header = empty, .events = &.{} } });
+    // BEGIN+guard, then every insert, the frontier update and COMMIT.
+    try std.testing.expectEqual(trips + 2, connection.round_trips);
     state = (try store.state()).?;
     try store.validateCheckpoints();
     try std.testing.expectEqual(@as(u64, 102), state.indexed);
@@ -103,7 +106,9 @@ test "actual scraper schema stage four streams confirm frontier cursor and atomi
     try std.testing.expectEqual(@as(u64, 102), try store.confirmationBoundary(100, 102));
     try std.testing.expectEqual(@as(u64, 0), try count(&connection, "SELECT count(*) AS count FROM confirmed_raw_message_dispatch WHERE origin_domain=1"));
     try std.testing.expectEqual(@as(u64, 0), try count(&connection, "SELECT count(*) AS count FROM gas_payment_stream_cursor WHERE domain=1"));
+    trips = connection.round_trips;
     try std.testing.expectEqualSlices(u64, &.{ 1, 1, 1, 1 }, &try store.confirm(state, first, 90));
+    try std.testing.expectEqual(trips + 2, connection.round_trips);
     inline for (.{ .{ "confirmed_raw_message_dispatch", "origin_domain" }, .{ "confirmed_delivered_message", "domain" }, .{ "confirmed_gas_payment", "domain" }, .{ "confirmed_merkle_tree_insertion", "domain" } }) |table|
         try std.testing.expectEqual(@as(u64, 1), try count(&connection, "SELECT count(*) AS count FROM " ++ table[0] ++ " WHERE " ++ table[1] ++ "=1"));
     try std.testing.expectEqual(@as(u64, 1), try count(&connection, "SELECT count(*) AS count FROM gas_payment_stream_cursor WHERE domain=1"));
@@ -458,6 +463,50 @@ test "native Postgres lost COMMIT response returns unknown outcome and never rep
     if (fixture.failure) |err| return err;
     try std.testing.expect(fixture.committed_response.load(.acquire));
     try std.testing.expectEqual(@as(u64, 1), try count(&observer, "SELECT count(*) AS count FROM ziggy_deadline_commit"));
+}
+
+test "native Postgres lost pipelined COMMIT response returns unknown outcome and never replays the committed transaction" {
+    const info = try std.process.getEnvVarOwned(allocator, "ZIGGY_PG_FIXTURE");
+    defer allocator.free(info);
+    if (!std.mem.startsWith(u8, info, "host=127.0.0.1 port=") or std.mem.indexOf(u8, info, " dbname=ziggy user=ziggy ") == null) return error.NotIsolatedPostgresFixture;
+    const start = "host=127.0.0.1 port=".len;
+    const end = std.mem.indexOfScalarPos(u8, info, start, ' ') orelse return error.InvalidFixtureConnection;
+    const target = try std.net.Address.parseIp4("127.0.0.1", try std.fmt.parseInt(u16, info[start..end], 10));
+    var observer = try connect(null);
+    defer observer.deinit();
+    try observer.execute("CREATE TABLE ziggy_pipelined_commit(value INTEGER)", &.{});
+    defer observer.execute("DROP TABLE ziggy_pipelined_commit", &.{}) catch {};
+    var fixture: CommitProxy = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}), .target = target };
+    defer fixture.server.deinit();
+    const thread = try std.Thread.spawn(.{}, CommitProxy.serve, .{&fixture});
+    var joined = false;
+    defer if (!joined) {
+        fixture.stop.store(true, .release);
+        thread.join();
+    };
+    const proxied = try std.fmt.allocPrint(allocator, "{s} port={d} sslmode=disable", .{ info, fixture.server.listen_address.getPort() });
+    defer allocator.free(proxied);
+    var connection = try pg.Connection.connectWithOptions(allocator, proxied, null, .{ .timeout_ms = 2000 });
+    defer connection.deinit();
+    var lead: [1]pg.Result = undefined;
+    var transaction = try connection.beginPipeline(&.{.{ .sql = "SELECT 1 AS guard" }}, &lead);
+    lead[0].deinit();
+    defer transaction.deinit();
+    connection.io.deadline_ns = (try pg.nowNs()) + 120 * std.time.ns_per_ms;
+    var timer = try std.time.Timer.start();
+    // The proxy withholds every response after it forwards COMMIT, including
+    // the INSERT that shares its round trip.
+    var trail: [1]pg.Result = undefined;
+    try std.testing.expectError(error.CommitOutcomeUnknown, transaction.commitPipeline(&.{.{ .sql = "INSERT INTO ziggy_pipelined_commit(value) VALUES(1)" }}, &trail));
+    try std.testing.expect(timer.read() < std.time.ns_per_s);
+    try std.testing.expect(connection.poisoned);
+    try std.testing.expect(!transaction.active);
+    fixture.stop.store(true, .release);
+    thread.join();
+    joined = true;
+    if (fixture.failure) |err| return err;
+    try std.testing.expect(fixture.committed_response.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 1), try count(&observer, "SELECT count(*) AS count FROM ziggy_pipelined_commit"));
 }
 
 test "native Postgres hostname resolver preconnect preserves configured host and shares the full connect deadline" {
