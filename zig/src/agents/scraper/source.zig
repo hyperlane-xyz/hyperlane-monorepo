@@ -46,7 +46,8 @@ pub const Source = struct {
     transaction_authority_fn: ?*const fn (*anyopaque) anyerror!TransactionAuthority = null,
     cancel_fn: ?*const fn (*anyopaque, ?*const std.atomic.Value(bool)) void = null,
     /// Optional overlapped header reads (independent heights, same checks as
-    /// header_fn). Absent: headers() reads them one by one.
+    /// header_fn). Must not serve from any cache: freshHeaders relies on it.
+    /// Absent: headers()/freshHeaders() read them one by one.
     headers_fn: ?*const fn (*anyopaque, []const u64, []Header) anyerror!void = null,
     historical_counts: bool = false,
     sequence_mode: bool = false,
@@ -98,6 +99,12 @@ pub const Source = struct {
         if (heights.len != out.len or heights.len > 16) return error.InvalidScraperHeaderBatch;
         if (self.headers_fn) |call| if (heights.len > 1) return call(self.context, heights, out);
         for (heights, out) |height, *header_| header_.* = try self.header(.{ .height = height });
+    }
+    /// Uncached headers for every height (at most 16), overlapped when supported.
+    pub fn freshHeaders(self: Source, heights: []const u64, out: []Header) !void {
+        if (heights.len != out.len or heights.len > 16) return error.InvalidScraperHeaderBatch;
+        if (self.headers_fn) |call| if (heights.len > 1) return call(self.context, heights, out);
+        for (heights, out) |height, *header_| header_.* = try self.freshHeader(.{ .height = height });
     }
     pub fn freshHeader(self: Source, selector: Selector) !Header {
         return self.header_fn(self.context, selector, true);

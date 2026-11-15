@@ -137,28 +137,39 @@ pub fn ingest(allocator: std.mem.Allocator, source: src.Source, store: anytype, 
     }
     // Event-block headers are independent reads: fetch them 8 at a time, as
     // Rust's buffered(8), then check every log against its canonical header.
+    // With uncached overlapped reads, the post-fetch rechecks of the indexed
+    // frontier and the boundary ride in the same batches (both still happen
+    // after the logs were read and before anything is stored).
+    const fold = source.headers_fn != null;
+    var targets: std.ArrayList(struct { height: u64, slot: usize }) = .empty;
+    defer targets.deinit(allocator);
+    for (blocks.items, 0..) |block, slot| if (block.header.height != end) try targets.append(allocator, .{ .height = block.header.height, .slot = slot });
+    const indexed_slot = std.math.maxInt(usize);
+    const boundary_slot = indexed_slot - 1;
+    if (fold) try targets.appendSlice(allocator, &.{ .{ .height = current.indexed, .slot = indexed_slot }, .{ .height = boundary.height, .slot = boundary_slot } });
     var pending: [8]u64 = undefined;
-    var slots: [8]usize = undefined;
     var fetched: [8]src.Header = undefined;
     var index: usize = 0;
-    while (index < blocks.items.len) {
-        var count: usize = 0;
-        while (index < blocks.items.len and count < pending.len) : (index += 1) {
-            if (blocks.items[index].header.height == end) continue;
-            pending[count] = blocks.items[index].header.height;
-            slots[count] = index;
-            count += 1;
-        }
-        try source.headers(pending[0..count], fetched[0..count]);
-        for (slots[0..count], fetched[0..count]) |slot, header| blocks.items[slot].header = header;
+    while (index < targets.items.len) {
+        const round = targets.items[index..@min(targets.items.len, index + pending.len)];
+        for (round, pending[0..round.len]) |target, *height| height.* = target.height;
+        if (fold) try source.freshHeaders(pending[0..round.len], fetched[0..round.len]) else try source.headers(pending[0..round.len], fetched[0..round.len]);
+        for (round, fetched[0..round.len]) |target, header| switch (target.slot) {
+            indexed_slot => if (!equal(header.hash, current.hash)) return error.ScraperForkChanged,
+            boundary_slot => if (!equal(header.hash, boundary.hash)) return error.ScraperForkChanged,
+            else => blocks.items[target.slot].header = header,
+        };
+        index += round.len;
     }
     for (blocks.items) |block| for (@constCast(block.events)) |*event| {
         if (!std.mem.allEqual(u8, &event.block_hash, 0) and !equal(event.block_hash, block.header.hash)) return error.ScraperLogForkMismatch;
         event.block_hash = block.header.hash;
     };
     if (blocks.items.len == 0 or blocks.items[blocks.items.len - 1].header.height != end) try blocks.append(allocator, .{ .header = boundary, .events = &.{} });
-    if (!equal((try source.freshHeader(.{ .height = current.indexed })).hash, current.hash)) return error.ScraperForkChanged;
-    try verify(source, boundary);
+    if (!fold) {
+        if (!equal((try source.freshHeader(.{ .height = current.indexed })).hash, current.hash)) return error.ScraperForkChanged;
+        try verify(source, boundary);
+    }
     try store.append(current, blocks.items);
     cache.boundary = .{ .hash = boundary.hash, .counts = advanced };
     if (end_counts != null) cache.proven_through = end;
@@ -191,8 +202,14 @@ pub fn confirm(source: src.Source, store: anytype, period: src.Period, lease_sec
     const page = try store.confirmationBoundary(current.confirmed, target);
     if (page <= current.confirmed) return .{};
     const checkpoint = try store.checkpointBetween(current.confirmed, page);
-    const boundary = if (tagged != null and tagged.?.height == page) tagged.? else try source.rangeEnd(if (checkpoint) |height| height -| 1 else current.confirmed, page, page, true);
+    // A plain fresh boundary read and the indexed-frontier recheck are
+    // independent: overlap them when the source reads uncached headers.
+    const overlap = !(tagged != null and tagged.?.height == page) and source.range_fn == null and source.headers_fn != null;
+    var reads: [2]src.Header = undefined;
+    if (overlap) try source.freshHeaders(&.{ page, current.indexed }, &reads);
+    const boundary = if (overlap) reads[0] else if (tagged != null and tagged.?.height == page) tagged.? else try source.rangeEnd(if (checkpoint) |height| height -| 1 else current.confirmed, page, page, true);
     if (try store.hash(boundary.height)) |stored| if (!equal(stored, boundary.hash)) return error.ScraperConfirmationForkMismatch;
-    if (!equal((try source.freshHeader(.{ .height = current.indexed })).hash, current.hash)) return error.ScraperForkChanged;
+    const indexed = if (overlap) reads[1] else try source.freshHeader(.{ .height = current.indexed });
+    if (!equal(indexed.hash, current.hash)) return error.ScraperForkChanged;
     return .{ .counts = try store.confirm(current, boundary, lease_seconds), .page_limited = boundary.height < target };
 }
