@@ -814,7 +814,7 @@ pub const Pool = struct {
         session.mutex.unlock();
     }
     /// Caller holds Pool.mutex. The idle owner waits on the condition; a busy
-    /// owner blocks in native socket wait, interrupted by curl_multi_wakeup.
+    /// owner blocks in the native epoll/kqueue wait, interrupted by its wakeup.
     fn wakeOwner(self: *Pool) void {
         self.wake.signal();
         self.native.wakeup();
@@ -1137,7 +1137,9 @@ pub const Pool = struct {
             self.wait_failure = null;
             return err;
         }
-        return self.native.poll(now_ms);
+        // Every driver blocks in native.wait whenever a pass is not busy, so
+        // readiness is gathered there: a pass makes no kernel call of its own.
+        return self.native.advance(now_ms);
     }
     /// Owner thread, after progress. Over-approximates every owner timer: an
     /// early wake costs one pass, a missed timer would stall a session.
@@ -2591,6 +2593,11 @@ test "blocking fetch callers drive their own requests without owner thread hando
     const total = owner.owner_iterations.load(.acquire);
     try std.testing.expect(total >= 20);
     try std.testing.expectEqual(total, owner.caller_passes.load(.acquire));
+    // So only this thread touched the native multi. Passes make no kernel
+    // call of their own; each fetch costs a few readiness waits (connect,
+    // response), not one per pass or per live transfer.
+    try std.testing.expectEqual(@as(u64, 0), owner.native.harvests);
+    try std.testing.expect(owner.native.waits <= 4 * 20);
 }
 
 const ConcurrentFetch = struct {
