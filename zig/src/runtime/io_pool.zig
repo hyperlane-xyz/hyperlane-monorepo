@@ -208,6 +208,8 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                     self.mutex.lock();
                     slot.state = .free;
                     self.mutex.unlock();
+                    // Retirement of an abandoned job frees its supervisor entry.
+                    if (self.notify_completion) wake_notifier.notify();
                     continue;
                 }
                 slot.state = .running;

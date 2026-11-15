@@ -76,6 +76,8 @@ const Entry = struct {
     timed_out: bool = false,
     deadline_ms: u64 = 0,
     submitted_ms: u64 = 0,
+    /// Tick that observed the PendingReadIo return; spacing starts here.
+    suspended_ms: u64 = 0,
     /// Last run returned PendingReadIo; resume on an I/O notification.
     suspended: bool = false,
     io_generation: u32 = 0,
@@ -110,6 +112,7 @@ pub const Supervisor = struct {
     }
     pub fn deinit(self: *Supervisor) void {
         self.workers.deinit();
+        for (self.entries) |*entry| setSuspended(entry, false);
         const a = self.allocator;
         a.free(self.context.tasks);
         a.free(self.entries);
@@ -163,7 +166,7 @@ pub const Supervisor = struct {
                     entry.health.last_error = null;
                     entry.health.halted = output.report.halt or self.terminal_error != null;
                     entry.next_ms = now.monotonic_ms +| (output.report.next_delay_ms orelse task.interval_ms);
-                    entry.suspended = false;
+                    setSuspended(entry, false);
                     result.completed += 1;
                 },
                 .failure => |err| {
@@ -174,13 +177,14 @@ pub const Supervisor = struct {
                         result.suspended += 1;
                         // Resume on the I/O completion it awaits (notifyIo), or
                         // on the backstop for sources without a notifier.
-                        entry.suspended = true;
-                        entry.next_ms = entry.submitted_ms +| poll_slice_ms;
+                        setSuspended(entry, true);
+                        entry.suspended_ms = now.monotonic_ms;
+                        entry.next_ms = now.monotonic_ms +| poll_slice_ms;
                         entry.timed_out = self.workers.retained(completion.id);
                         if (!entry.timed_out) entry.active = null;
                         continue;
                     }
-                    entry.suspended = false;
+                    setSuspended(entry, false);
                     entry.health.last_error = err;
                     entry.health.failures +|= 1;
                     result.failures += 1;
@@ -235,7 +239,12 @@ pub const Supervisor = struct {
         return result;
     }
     fn resumable(_: *const Supervisor, entry: *const Entry, now_ms: u64) bool {
-        return entry.suspended and wake_notifier.ioGeneration() != entry.io_generation and now_ms >= entry.submitted_ms +| resume_spacing_ms;
+        return entry.suspended and wake_notifier.ioGeneration() != entry.io_generation and now_ms >= entry.suspended_ms +| resume_spacing_ms;
+    }
+    fn setSuspended(entry: *Entry, suspended: bool) void {
+        if (entry.suspended == suspended) return;
+        entry.suspended = suspended;
+        wake_notifier.taskSuspended(suspended);
     }
     /// Milliseconds until the next tick can do work, assuming no notification
     /// (runtime/wake.zig) arrives first. Job completions and I/O completions
@@ -250,7 +259,7 @@ pub const Supervisor = struct {
             }
             if (self.stopping) continue;
             next = @min(next, entry.next_ms);
-            if (entry.suspended and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, entry.submitted_ms +| resume_spacing_ms);
+            if (entry.suspended and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, entry.suspended_ms +| resume_spacing_ms);
             if (task.wake != null and !task.wake_notified) next = @min(next, now_ms +| poll_slice_ms);
         }
         return next -| now_ms;
@@ -408,28 +417,29 @@ test "supervisor resumes a suspended read on I/O notification and sleeps to the 
         std.Thread.sleep(std.time.ns_per_ms);
     }
     try std.testing.expect(wake_notifier.current() != generation); // job completion notified
-    // Suspended without I/O: backstop poll_slice_ms after submission.
-    try std.testing.expectEqual(@as(u64, poll_slice_ms - 1), owner.nextDelayMs(1));
+    // Suspended (observed at 1) without I/O: backstop poll_slice_ms later.
+    try std.testing.expectEqual(poll_slice_ms, owner.nextDelayMs(1));
     try std.testing.expectEqual(@as(usize, 0), (try owner.tick(.{ .unix_ms = 10, .monotonic_ms = 10 })).started);
     wake_notifier.notifyIo();
-    try std.testing.expectEqual(@as(u64, resume_spacing_ms - 5), owner.nextDelayMs(5));
-    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 10, .monotonic_ms = 10 })).started);
+    // Notified: resume once resume_spacing_ms has passed since suspension.
+    try std.testing.expectEqual(@as(u64, 1 + resume_spacing_ms - 5), owner.nextDelayMs(5));
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 11, .monotonic_ms = 11 })).started);
     attempts = 0;
-    while ((try owner.tick(.{ .unix_ms = 11, .monotonic_ms = 11 })).suspended == 0) : (attempts += 1) {
+    while ((try owner.tick(.{ .unix_ms = 12, .monotonic_ms = 12 })).suspended == 0) : (attempts += 1) {
         if (attempts > 5000) return error.SuspensionNotObserved;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    // No notification: resumes only at the backstop (submitted 10 + 20).
-    try std.testing.expectEqual(@as(usize, 0), (try owner.tick(.{ .unix_ms = 29, .monotonic_ms = 29 })).started);
-    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 30, .monotonic_ms = 30 })).started);
+    // No notification: resumes only at the backstop (suspended 12 + 20).
+    try std.testing.expectEqual(@as(usize, 0), (try owner.tick(.{ .unix_ms = 31, .monotonic_ms = 31 })).started);
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 32, .monotonic_ms = 32 })).started);
     attempts = 0;
     while ((try owner.health(0)).completed == 0) : (attempts += 1) {
         if (attempts > 5000) return error.CompletionNotObserved;
-        _ = try owner.tick(.{ .unix_ms = 31, .monotonic_ms = 31 });
+        _ = try owner.tick(.{ .unix_ms = 33, .monotonic_ms = 33 });
         std.Thread.sleep(std.time.ns_per_ms);
     }
     // Idle until the 60 s interval: one bounded wait instead of 50 Hz ticks.
-    try std.testing.expectEqual(max_wait_ms, owner.nextDelayMs(31));
+    try std.testing.expectEqual(max_wait_ms, owner.nextDelayMs(33));
     try std.testing.expectEqual(@as(u64, 3), state.calls.load(.acquire));
 }
 

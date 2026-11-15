@@ -7,36 +7,49 @@ const std = @import("std");
 var generation = std.atomic.Value(u32).init(0);
 var waiters = std.atomic.Value(u32).init(0);
 var io_generation = std.atomic.Value(u32).init(0);
+/// Supervisor tasks currently suspended on PendingReadIo. I/O completions wake
+/// the service loop only while one exists (blocking fetches need no wake).
+var suspended_tasks = std.atomic.Value(u32).init(0);
 /// Total notifications, for focused work-count evidence.
 pub var notifications = std.atomic.Value(u64).init(0);
 
 pub fn notify() void {
-    _ = generation.fetchAdd(1, .release);
+    // seq_cst pairs this increment-then-load with waitFrom's
+    // register-then-wait so neither side can miss the other.
+    _ = generation.fetchAdd(1, .seq_cst);
     _ = notifications.fetchAdd(1, .monotonic);
-    if (waiters.load(.acquire) != 0) std.Thread.Futex.wake(&generation, std.math.maxInt(u32));
+    if (waiters.load(.seq_cst) != 0) std.Thread.Futex.wake(&generation, std.math.maxInt(u32));
 }
 
 /// An awaited read/IO result completed: suspended (PendingReadIo) tasks may
 /// resume. Distinct from `notify` so a task's own PendingReadIo return (a job
 /// completion) does not immediately resume it.
 pub fn notifyIo() void {
-    _ = io_generation.fetchAdd(1, .release);
-    notify();
+    _ = io_generation.fetchAdd(1, .seq_cst);
+    if (suspended_tasks.load(.seq_cst) != 0) notify();
+}
+
+pub fn taskSuspended(suspended: bool) void {
+    if (suspended) {
+        _ = suspended_tasks.fetchAdd(1, .seq_cst);
+    } else {
+        _ = suspended_tasks.fetchSub(1, .seq_cst);
+    }
 }
 
 pub fn ioGeneration() u32 {
-    return io_generation.load(.acquire);
+    return io_generation.load(.seq_cst);
 }
 
 pub fn current() u32 {
-    return generation.load(.acquire);
+    return generation.load(.seq_cst);
 }
 
 /// Returns once the generation differs from `seen` or after `timeout_ns`.
 pub fn waitFrom(seen: u32, timeout_ns: u64) void {
     if (timeout_ns == 0) return;
-    _ = waiters.fetchAdd(1, .acq_rel);
-    defer _ = waiters.fetchSub(1, .acq_rel);
+    _ = waiters.fetchAdd(1, .seq_cst);
+    defer _ = waiters.fetchSub(1, .seq_cst);
     std.Thread.Futex.timedWait(&generation, seen, timeout_ns) catch {};
 }
 
