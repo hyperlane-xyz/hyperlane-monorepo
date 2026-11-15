@@ -3,6 +3,7 @@ const rocks = @import("../db/rocks.zig");
 const codec = @import("../db/codec.zig");
 const keys = @import("../db/keys.zig");
 const types = @import("types.zig");
+const json_view = @import("json_view.zig");
 
 pub const transaction_by_uuid = "transaction_by_uuid_";
 pub const tx_index_by_uuid = "tx_index_by_uuid_";
@@ -113,10 +114,18 @@ pub const Store = struct {
         return self.loadJson(allocator, payload_by_uuid, &uuid);
     }
 
+    /// The stored payload row, undecoded (see records.PayloadView).
+    pub fn loadPayloadBytes(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid) !?[]u8 {
+        return self.typed.get(allocator, payload_by_uuid, &uuid);
+    }
+
     pub fn transactionStatus(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid) !?OwnedStatus {
-        var record = (try self.loadTransaction(allocator, uuid)) orelse return null;
-        defer record.deinit();
-        var status = try types.statusFromJson(try types.field(record.value(), "status"));
+        const bytes = (try self.typed.get(allocator, transaction_by_uuid, &uuid)) orelse return null;
+        defer allocator.free(bytes);
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const raw = (try json_view.field(arena.allocator(), bytes, "status")) orelse return error.InvalidLanderRecord;
+        var status = try types.statusFromJson(try json_view.parseValue(arena.allocator(), raw));
         const reason = switch (status) {
             .dropped => |drop| switch (drop) {
                 .other => |text| try allocator.dupe(u8, text),
@@ -195,15 +204,12 @@ pub const Store = struct {
         return (try self.getInt(u64, allocator, nonce_availability_generation, &singleton)) orelse 0;
     }
 
-    fn bumpAvailabilityIfChanged(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, uuid: types.Uuid, new_json: []const u8) !void {
+    /// Bumps the nonce availability generation when a write flips whether the
+    /// stored transaction is dropped. Only the rows' status fields are decoded.
+    fn bumpAvailabilityIfChanged(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, uuid: types.Uuid, new_status: StatusTag) !void {
         const old_bytes = (try self.typed.get(allocator, transaction_by_uuid, &uuid)) orelse return;
         defer allocator.free(old_bytes);
-        var old_parsed = try std.json.parseFromSlice(std.json.Value, allocator, old_bytes, .{});
-        defer old_parsed.deinit();
-        var new_parsed = try std.json.parseFromSlice(std.json.Value, allocator, new_json, .{});
-        defer new_parsed.deinit();
-        const old_status = try types.statusFromJson(try types.field(old_parsed.value, "status"));
-        const new_status = try types.statusFromJson(try types.field(new_parsed.value, "status"));
+        const old_status = try statusTag(allocator, old_bytes);
         if ((old_status == .dropped) == (new_status == .dropped)) return;
         const next = try std.math.add(u64, try self.availabilityGeneration(allocator), 1);
         try putInt(batch, u64, nonce_availability_generation, &singleton, next);
@@ -236,12 +242,9 @@ pub const Store = struct {
         try batch.commitSync();
     }
 
-    fn updateActive(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, uuid: types.Uuid, json: []const u8) !void {
+    fn updateActive(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, uuid: types.Uuid, status: StatusTag) !void {
         const index = (try self.transactionIndex(allocator, uuid)) orelse return;
-        var parsed = try std.json.parseFromSlice(std.json.Value, allocator, json, .{});
-        defer parsed.deinit();
-        const status = try types.statusFromJson(try types.field(parsed.value, "status"));
-        try putActive(batch, index, uuid, status.isActive());
+        try putActive(batch, index, uuid, status != .dropped and status != .finalized);
     }
 
     fn getInt(self: Store, comptime T: type, allocator: std.mem.Allocator, prefix: []const u8, key: []const u8) !?T {
@@ -304,8 +307,9 @@ pub const Store = struct {
             std.mem.writeInt(u32, &encoded, index, .big);
             try batch.put(tx_uuid_by_index, &encoded, &uuid);
         }
-        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, transaction_json);
-        try self.updateActive(&batch, allocator, uuid, transaction_json);
+        const status = try statusTag(allocator, transaction_json);
+        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
+        try self.updateActive(&batch, allocator, uuid, status);
         if (existing == null) try putActive(&batch, index, uuid, true);
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         for (payloads) |payload| {
@@ -321,15 +325,13 @@ pub const Store = struct {
     }
 
     pub fn writeTransaction(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8) !void {
-        var parsed = try std.json.parseFromSlice(std.json.Value, allocator, transaction_json, .{});
-        defer parsed.deinit();
-        const status = try types.statusFromJson(try types.field(parsed.value, "status"));
+        const status = try statusTag(allocator, transaction_json);
         if (status == .finalized) return error.MissingFinalizedReceipt;
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
         try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
-        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, transaction_json);
-        try self.updateActive(&batch, allocator, uuid, transaction_json);
+        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
+        try self.updateActive(&batch, allocator, uuid, status);
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         try batch.commitSync();
     }
@@ -339,16 +341,14 @@ pub const Store = struct {
     }
 
     pub fn writeTransactionAndPayloadsWithReceipt(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, payloads: []const PayloadUpdate, receipt: ?FinalizedReceipt) !void {
-        var parsed = try std.json.parseFromSlice(std.json.Value, allocator, transaction_json, .{});
-        defer parsed.deinit();
-        const status = try types.statusFromJson(try types.field(parsed.value, "status"));
+        const status = try statusTag(allocator, transaction_json);
         if (status == .finalized and receipt == null) return error.MissingFinalizedReceipt;
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
         try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
         if (receipt) |value| try putFinalizedReceipt(&batch, value);
-        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, transaction_json);
-        try self.updateActive(&batch, allocator, uuid, transaction_json);
+        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
+        try self.updateActive(&batch, allocator, uuid, status);
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         for (payloads) |payload| {
             const payload_index = (try self.payloadIndex(allocator, payload.uuid)) orelse return error.MissingPayload;
@@ -410,15 +410,13 @@ pub const Store = struct {
     }
 
     pub fn writeSubmission(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, attempt: ?struct { hash: types.Hash, nonce: u256, bytes: []const u8 }) !void {
-        var parsed = try std.json.parseFromSlice(std.json.Value, allocator, transaction_json, .{});
-        defer parsed.deinit();
-        const status = try types.statusFromJson(try types.field(parsed.value, "status"));
+        const status = try statusTag(allocator, transaction_json);
         if (status == .finalized) return error.MissingFinalizedReceipt;
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
         try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
-        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, transaction_json);
-        try self.updateActive(&batch, allocator, uuid, transaction_json);
+        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
+        try self.updateActive(&batch, allocator, uuid, status);
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         if (attempt) |value| try putAttempt(&batch, uuid, value.hash, value.nonce, value.bytes);
         try batch.commitSync();
@@ -557,6 +555,16 @@ pub const Store = struct {
         };
     }
 };
+
+pub const StatusTag = std.meta.Tag(types.Status);
+
+/// The status of a stored transaction row, decoding only its status field.
+pub fn statusTag(allocator: std.mem.Allocator, json: []const u8) !StatusTag {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const raw = (try json_view.field(arena.allocator(), json, "status")) orelse return error.InvalidLanderRecord;
+    return std.meta.activeTag(try types.statusFromJson(try json_view.parseValue(arena.allocator(), raw)));
+}
 
 fn nonceSignerKey(nonce: u256, signer: types.Address) [52]u8 {
     var key: [52]u8 = undefined;

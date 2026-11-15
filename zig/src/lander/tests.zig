@@ -12,6 +12,10 @@ const Message = @import("../protocol/message.zig").Message;
 const abi = @import("../evm/codecs.zig");
 const observer = @import("observer.zig");
 
+test {
+    _ = @import("json_view.zig");
+}
+
 const DbFixture = struct {
     temp: std.testing.TmpDir,
     database: rocks.Database,

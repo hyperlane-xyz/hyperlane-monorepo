@@ -175,7 +175,12 @@ pub fn uintField(value: std.json.Value, name: []const u8) !u256 {
 }
 
 pub fn optionalUint(value: std.json.Value, name: []const u8) !?u256 {
-    const actual = optionalField(value, name) orelse return null;
+    return uintOf(optionalField(value, name));
+}
+
+/// `optionalUint` of an already selected (possibly absent) field value.
+pub fn uintOf(maybe: ?std.json.Value) !?u256 {
+    const actual = maybe orelse return null;
     if (actual == .null) return null;
     if (actual == .integer) {
         if (actual.integer < 0) return error.InvalidLanderRecord;
