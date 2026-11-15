@@ -190,6 +190,7 @@ class HeldProbeDiagnosticsTests(unittest.TestCase):
                        'rpc_snapshot':lambda proxy:{'observations':[]},
                        'prepared_batch_snapshot':lambda *args:{'ready':True,'operations':[]},
                        'prepared_batch_probe':check, 'rust_probe':lambda *args:probe,
+                       'metric_observation':lambda *args:{'value':9},
                        'urllib':SimpleNamespace(request=SimpleNamespace(urlopen=lambda *args,**kwargs:contextlib.nullcontext(SimpleNamespace(read=lambda:b'[]')))),
                        'DESTINATION':9913372, 'evm':SimpleNamespace(TEST_SIGNER='fixture-public-signer')}
                 exec(compile(ast.Module(body=nodes,type_ignores=[]),str(SOURCE),'exec'),api)
@@ -198,6 +199,33 @@ class HeldProbeDiagnosticsTests(unittest.TestCase):
                 self.assertEqual(events,['saved-before-validation'])
                 self.assertEqual(len(agents),1)
                 self.assertIn('maxSubmitQueueLength',json.loads((config/'public.json').read_text())['chains']['test2'])
+
+    def test_ready_preparation_waits_for_every_indexed_gas_payment(self):
+        source = SOURCE.read_text()
+        names = {'hold_batch_preparation', 'persist_progress', 'write_snapshot', 'existing_snapshot'}
+        nodes = [node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name in names]
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory); config = root/'config'; config.mkdir()
+            messages, _, probe = fixture(); stored = iter([None, 8, 9]); results = []; observed = []
+            def wait(predicate,*args):
+                for _ in range(3): results.append(predicate())
+            def observation(body,name,labels):
+                observed.append((name,labels)); return {'value':next(stored)}
+            api = {'copy':copy, 'json':json, 'pathlib':pathlib, 'os':os, 'time':time,
+                   'launch':lambda *args:SimpleNamespace(), 'stop':lambda process:{'exit':0},
+                   'wait_role_ready':lambda *args:None, 'wait':wait,
+                   'rpc_snapshot':lambda proxy:{'observations':[]},
+                   'prepared_batch_snapshot':lambda *args:{'ready':True,'operations':[]},
+                   'prepared_batch_probe':lambda *args:[], 'rust_probe':lambda *args:probe,
+                   'metric_observation':observation,
+                   'urllib':SimpleNamespace(request=SimpleNamespace(urlopen=lambda *args,**kwargs:contextlib.nullcontext(SimpleNamespace(read=lambda:b'[]')))),
+                   'DESTINATION':9913372, 'evm':SimpleNamespace(TEST_SIGNER='fixture-public-signer')}
+            exec(compile(ast.Module(body=nodes,type_ignores=[]),str(SOURCE),'exec'),api)
+            result = api['hold_batch_preparation'](None,config,{'chains':{'test2':{'maxBatchSize':4}},'metricsPort':1},root/'db',root/'role.log',messages,9,SimpleNamespace(rpc=lambda *args:7),None,None,[],root/'proof.json')
+            self.assertEqual(results,[False,False,True])
+            self.assertEqual(result['admin']['stored_gas_payments'],9)
+            self.assertEqual({name for name,_ in observed},{'hyperlane_contract_sync_stored_events'})
+            self.assertTrue(all('data_type="gas_payments"' in labels and 'chain="test1"' in labels for _,labels in observed))
 
 
 class CompactSnapshotControls(unittest.TestCase):
