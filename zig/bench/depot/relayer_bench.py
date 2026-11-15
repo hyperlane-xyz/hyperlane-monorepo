@@ -43,6 +43,78 @@ ROOT = rb.ROOT
 ORIGIN, DESTINATION, DESTINATION_ALT = rb.ORIGIN, rb.DESTINATION, rb.DESTINATION_ALT
 
 
+class ShapeProxy:
+    """Optional pass-through between a CountingProxy and Anvil that counts JSON-RPC
+    request *shapes* (method + coarse params), e.g. eth_getBlockByNumber by block tag
+    and full-tx flag, to attribute repeated reads to their callers. Diagnostic passes only."""
+
+    def __init__(self, target):
+        import collections
+        self.target = target
+        self.shapes = collections.Counter()
+        self.lock = threading.Lock()
+
+    @staticmethod
+    def shape(request):
+        method = request.get("method", "invalid")
+        params = request.get("params") or []
+        if method in ("eth_getBlockByNumber", "eth_getBlockByHash") and params:
+            tag = params[0] if isinstance(params[0], str) else "?"
+            tag = tag if tag in ("latest", "pending", "finalized", "safe", "earliest") else "number"
+            return f"{method}({tag},full={bool(params[1]) if len(params) > 1 else None})"
+        if method == "eth_call" and params and isinstance(params[0], dict):
+            data = params[0].get("data") or params[0].get("input") or ""
+            return f"eth_call(selector={data[:10]},block={params[1] if len(params) > 1 and isinstance(params[1], str) and not params[1].startswith('0x') else 'number'})"
+        if method == "eth_getLogs" and params and isinstance(params[0], dict):
+            return f"eth_getLogs(topics={len(params[0].get('topics') or [])})"
+        return method
+
+    def __enter__(self):
+        import http.server
+        import urllib.request
+        owner = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def do_POST(self):
+                data = self.rfile.read(int(self.headers.get("content-length", "0")))
+                try:
+                    decoded = json.loads(data)
+                    with owner.lock:
+                        for request in decoded if isinstance(decoded, list) else [decoded]:
+                            owner.shapes[owner.shape(request)] += 1
+                    with urllib.request.urlopen(urllib.request.Request(owner.target, data, {"Content-Type": "application/json"}), timeout=20) as response:
+                        body, status = response.read(), response.status
+                    self.send_response(status)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except (OSError, ValueError):
+                    self.close_connection = True
+
+            def log_message(self, *args):
+                pass
+
+        class Server(http.server.ThreadingHTTPServer):
+            daemon_threads = True
+
+        self.server = Server(("127.0.0.1", 0), Handler)
+        self.thread = threading.Thread(target=lambda: self.server.serve_forever(poll_interval=0.01), daemon=True)
+        self.thread.start()
+        self.url = f"http://127.0.0.1:{self.server.server_port}"
+        return self
+
+    def __exit__(self, *args):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def snapshot(self):
+        with self.lock:
+            return dict(self.shapes.most_common())
+
+
 def start_anvil(log):
     port = rb.free_port()
     proc = subprocess.Popen(["anvil", "--host", "127.0.0.1", "--port", str(port), "--chain-id", "31337", "--silent"],
@@ -170,9 +242,15 @@ def run_attempt(name, sample, order, args, output):
             validating = rb.MeasuredProcess(args.checkpoint_validator, temporary, rb.environment("rust", validator_file, validator_config))
             rb.wait_for(validating, lambda: validator.checkpoint_objects(checkpoints, args.catchup) is not None, args.deadline, "validator backlog")
 
-            origin_rpc = rb.CountingProxy(chain.url, "anvil-1").__enter__(); proxies.append(origin_rpc)
-            destination_rpc = rb.CountingProxy(chain.url, "anvil-1").__enter__(); proxies.append(destination_rpc)
-            destination_alt_rpc = rb.CountingProxy(chain_alt.url, "anvil-2").__enter__(); proxies.append(destination_alt_rpc)
+            shape_proxies = {}
+            if args.rpc_shapes:
+                for label, url in (("origin", chain.url), ("destination-1", chain.url), ("destination-2", chain_alt.url)):
+                    shape_proxies[label] = ShapeProxy(url).__enter__(); proxies.append(shape_proxies[label])
+            upstream = {label: (shape_proxies[label].url if label in shape_proxies else url)
+                        for label, url in (("origin", chain.url), ("destination-1", chain.url), ("destination-2", chain_alt.url))}
+            origin_rpc = rb.CountingProxy(upstream["origin"], "anvil-1").__enter__(); proxies.append(origin_rpc)
+            destination_rpc = rb.CountingProxy(upstream["destination-1"], "anvil-1").__enter__(); proxies.append(destination_rpc)
+            destination_alt_rpc = rb.CountingProxy(upstream["destination-2"], "anvil-2").__enter__(); proxies.append(destination_alt_rpc)
 
             def rpc_snapshot():
                 return [p.snapshot() for p in (origin_rpc, destination_rpc, destination_alt_rpc)]
@@ -324,6 +402,7 @@ def run_attempt(name, sample, order, args, output):
                           "unique_transaction_count": len(unique), "unmined_attempts": unmined,
                           "mined_unique_nonces": len(nonces), "nonce_delta": {k: nonce_after[k] - nonce_before[k] for k in nonce_after},
                           "batch_membership": batch},
+                "rpc_shapes": {label: proxy.snapshot() for label, proxy in shape_proxies.items()} or None,
                 "load_average": os.getloadavg(),
             }
         finally:
@@ -355,6 +434,7 @@ def main():
     parser.add_argument("--max-batch-size", type=int, default=1)
     parser.add_argument("--deadline", type=float, default=120)
     parser.add_argument("--stall", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--rpc-shapes", action="store_true", help="count JSON-RPC request shapes per endpoint (extra proxy hop; diagnostic passes only)")
     parser.add_argument("--log-level", default="error", help="`tracing.level` in the shared config (Zig); Rust level comes from HYP_LOG_LEVEL set by bench.py")
     parser.add_argument("--output", type=pathlib.Path, required=True)
     args = parser.parse_args()

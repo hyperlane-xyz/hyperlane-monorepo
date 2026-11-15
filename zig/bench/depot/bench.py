@@ -218,14 +218,14 @@ def run_scraper(spec: dict, pairs: int, wrappers, bins: pathlib.Path, raw: pathl
     return code, json.loads(path.read_text()) if path.is_file() else None
 
 
-def run_relayer(spec: dict, pairs: int, wrappers, bins: pathlib.Path, raw: pathlib.Path) -> tuple[int, dict | None]:
+def run_relayer(spec: dict, pairs: int, wrappers, bins: pathlib.Path, raw: pathlib.Path, extra: tuple[str, ...] = ()) -> tuple[int, dict | None]:
     p = spec["params"]
     argv = [sys.executable, str(HERE / "relayer_bench.py"),
             "--rust", str(wrappers["rust"]["relayer"]), "--zig", str(wrappers["zig"]["relayer"]),
             "--checkpoint-validator", str((bins / "rust/validator").resolve()),
             "--samples", str(pairs), "--catchup", str(p["catchup"]), "--steady", str(p["steady"]),
             "--steady-interval-ms", str(p["steady_interval_ms"]), "--max-batch-size", str(p["max_batch_size"]),
-            "--output", str(raw)]
+            "--output", str(raw), *extra]
     code = run_harness(argv, raw.parent / "harness.log")
     path = raw / "relayer.json"
     return code, json.loads(path.read_text()) if path.is_file() else None
@@ -512,7 +512,11 @@ def main() -> int:
                 elif spec["role"] == "scraper":
                     pcode, _ = run_scraper(spec, 1, prof_wrappers, bins, praw, work, fixture_cpus, args.workload + "-" + kind)
                 else:
-                    pcode, _ = run_relayer(spec, 1, prof_wrappers, bins, praw)
+                    # strace pass also counts RPC request shapes (who issues the repeated reads).
+                    pcode, pdata = run_relayer(spec, 1, prof_wrappers, bins, praw, ("--rpc-shapes",) if kind == "strace" else ())
+                    if kind == "strace" and pdata:
+                        shapes = {r["implementation"]: r.get("rpc_shapes") for r in pdata.get("raw_samples", [])}
+                        (profdir / "rpc-shapes.json").write_text(json.dumps(shapes, indent=2) + "\n")
                 info = postprocess_profiles(profdir) if kind == "perf" else {"files": sorted(p.name for p in profdir.iterdir())}
                 result["profiles"][kind] = {"harness_exit_code": pcode, **info}
             except Exception as error:  # profiling is diagnostic; never fail the measured run
