@@ -13,21 +13,32 @@ fn reducedHash(digest: Hash) Scalar {
     return Scalar.fromBytes48(wide, .big);
 }
 
-fn address(point: Curve) Address {
-    const sec1 = point.toUncompressedSec1();
-    const hash = @import("keccak.zig").keccak256(sec1[1..]);
+fn addressOfCoordinates(x: [32]u8, y: [32]u8) Address {
+    const hash = @import("keccak.zig").keccak256(&(x ++ y));
     return hash[12..32].*;
+}
+
+fn address(point: secp256k1.Point) !Address {
+    const affine = try point.affine();
+    return addressOfCoordinates(affine.x.toBytes(), affine.y.toBytes());
+}
+
+/// std.crypto-only address derivation; test oracle independent of secp256k1.zig.
+fn stdAddress(point: Curve) Address {
+    const sec1 = point.toUncompressedSec1();
+    return addressOfCoordinates(sec1[1..33].*, sec1[33..65].*);
 }
 
 pub fn secretKeyAddress(secret_key: Hash) !Address {
     const scalar = try Scalar.fromBytes(secret_key, .big);
     if (scalar.isZero()) return error.InvalidSecretKey;
-    return address(try secp256k1.mulBase(scalar.toBytes(.little)));
+    return try address(try secp256k1.mulBase(scalar.toBytes(.little)));
 }
 
 /// Security boundary: Ethereum's v=27/28, nonzero canonical r and low-s only.
-/// ECDSA recovery uses Q=r^-1(sR-zG); field, scalar and point formulas come
-/// from Zig std.crypto, the GLV/wNAF joint multiplication from secp256k1.zig.
+/// ECDSA recovery uses Q=r^-1(sR-zG); scalar arithmetic comes from Zig
+/// std.crypto, field/point arithmetic and the GLV/wNAF joint multiplication
+/// from secp256k1.zig.
 /// This is public-input variable-time verification, never secret scalar
 /// multiplication. Transaction chain-ID recovery values are rejected.
 pub fn recover(digest: Hash, signature: Signature) !Address {
@@ -37,15 +48,12 @@ pub fn recover(digest: Hash, signature: Signature) !Address {
     if (r.isZero() or s.isZero()) return error.InvalidSignature;
     if (std.mem.readInt(u256, signature[32..64], .big) > Curve.scalar.field_order / 2)
         return error.HighSignatureS;
-    var compressed: [33]u8 = undefined;
-    compressed[0] = 2 + signature[64] - 27;
-    compressed[1..33].* = signature[0..32].*;
-    const point_r = try Curve.fromSec1(&compressed);
+    // r < n < p, so r is always a canonical x coordinate.
+    const point_r = try secp256k1.Point.fromX(try secp256k1.Fe.fromBytes(signature[0..32].*), signature[64] == 28);
     const z = reducedHash(digest);
     // Q = (-z/r)G + (s/r)R. Both scalars are public signature/digest data.
     const inverse_r = r.invert();
     const public_key = try secp256k1.mulDoubleBasePublic(z.mul(inverse_r).neg().toBytes(.little), point_r, s.mul(inverse_r).toBytes(.little));
-    try public_key.rejectIdentity();
     return address(public_key);
 }
 
@@ -84,8 +92,8 @@ pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
     if (d.isZero()) return error.InvalidSecretKey;
     const z = reducedHash(digest);
     const k = deterministicNonce(digest, secret_key, noise);
-    const point = (try secp256k1.mulBase(k.toBytes(.little))).affineCoordinates();
-    const x = point.x.toBytes(.big);
+    const point = try (try secp256k1.mulBase(k.toBytes(.little))).affine();
+    const x = point.x.toBytes();
     // Ethereum v=27/28 cannot encode the exceedingly rare x>=curve order case.
     // Fail closed; caller may retry with fresh signing noise.
     if (std.mem.readInt(u256, &x, .big) >= Curve.scalar.field_order) return error.UnrepresentableRecoveryId;
@@ -256,7 +264,7 @@ fn signDigestByTrialRecovery(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Si
         raw.s = (try Scalar.fromBytes(raw.s, .big)).neg().toBytes(.big);
     var signature: Signature = undefined;
     signature[0..64].* = raw.toBytes();
-    const expected = address(key_pair.public_key.p);
+    const expected = stdAddress(key_pair.public_key.p);
     for ([_]u8{ 27, 28 }) |v| {
         signature[64] = v;
         const recovered = recover(digest, signature) catch continue;
@@ -281,7 +289,7 @@ test "derived recovery id recovers signer and matches trial-recovery signer byte
         const noise: ?[32]u8 = if (i % 2 == 0) null else noise_bytes;
         const signed = try signDigest(key, digest, noise);
         // Oracle: std's own base multiplication, independent of secp256k1.zig.
-        const expected = address(try Curve.basePoint.mul(key, .big));
+        const expected = stdAddress(try Curve.basePoint.mul(key, .big));
         try std.testing.expectEqualSlices(u8, &expected, &try secretKeyAddress(key));
         try std.testing.expectEqualSlices(u8, &expected, &try recover(digest, signed));
         try std.testing.expectEqualSlices(u8, &try signDigestByTrialRecovery(key, digest, noise), &signed);

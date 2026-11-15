@@ -1,5 +1,6 @@
-//! secp256k1 scalar multiplications for signing and recovery, built on
-//! std.crypto's field and complete point formulas (Renes-Costello-Batina).
+//! secp256k1 scalar multiplications for signing and recovery on the
+//! specialised field in secp256k1_field.zig; scalar arithmetic and the GLV
+//! split come from std.crypto.
 //!
 //! - `mulBase`: constant-time k*G from a precomputed comb of affine multiples
 //!   (65 mixed additions, no doublings) instead of std's 252 doublings plus 64
@@ -9,14 +10,20 @@
 //!   the doubling chain, width-5 wNAF for R and width-8 wNAF over a
 //!   precomputed odd-multiple table for G.
 const std = @import("std");
-const Curve = std.crypto.ecc.Secp256k1;
-const Fe = Curve.Fe;
-const scalar = Curve.scalar;
+const field = @import("secp256k1_field.zig");
 const tables = @import("secp256k1_tables.zig");
+const scalar = std.crypto.ecc.Secp256k1.scalar;
+const Endomorphism = std.crypto.ecc.Secp256k1.Endormorphism;
 
-pub const Affine = @TypeOf(Curve.basePoint.affineCoordinates());
+pub const Fe = field.Fe;
+pub const Point = field.Point;
+pub const Affine = Point.Affine;
 
-const beta = Fe.fromInt(55594575648329892869085402983802832744385952214688224221778511981742606582254) catch unreachable;
+const beta: Fe = .{ .v = 55594575648329892869085402983802832744385952214688224221778511981742606582254 };
+
+fn entry(e: *const tables.Entry) Affine {
+    return .{ .x = .{ .v = @bitCast(e[0]) }, .y = .{ .v = @bitCast(e[1]) } };
+}
 
 /// Signed 4-bit windows: digits in [-8, 8], 65 of them for a canonical scalar.
 /// Branch-free arithmetic, so safe for secret scalars.
@@ -38,25 +45,26 @@ fn signedWindows(s: [32]u8) [65]i8 {
 
 /// Constant-time k*G. `k` is a canonical little-endian scalar; zero yields
 /// error.IdentityElement like std's `mul`.
-pub fn mulBase(k: [32]u8) !Curve {
+pub fn mulBase(k: [32]u8) error{IdentityElement}!Point {
     const e = signedWindows(k);
-    var q = Curve.identityElement;
+    var q = Point.identity;
     for (e, &tables.comb) |digit, *row| {
         const bits: u8 = @bitCast(digit);
         const negative: u1 = @truncate(bits >> 7);
         const magnitude: u8 = (bits ^ (0 -% @as(u8, negative))) +% negative;
-        var selected = Affine.identityElement;
-        inline for (row, 1..) |entry, j| {
+        var selected = Affine.identity;
+        inline for (row, 1..) |*candidate, j| {
             // 1 iff magnitude == j, without branching on the secret digit.
-            const hit: u1 = @truncate(((@as(u16, magnitude ^ @as(u8, j))) -% 1) >> 15);
-            selected.x.cMov(entry.x, hit);
-            selected.y.cMov(entry.y, hit);
+            const hit: u1 = @truncate((@as(u16, magnitude ^ @as(u8, j)) -% 1) >> 15);
+            const value = entry(candidate);
+            selected.x.cMov(value.x, hit);
+            selected.y.cMov(value.y, hit);
         }
         selected.y.cMov(selected.y.neg(), negative);
-        // addMixed returns q unchanged for the affine identity (x = 0).
+        // addMixed returns q unchanged for the affine identity marker.
         q = q.addMixed(selected);
     }
-    try q.rejectIdentity();
+    if (q.isIdentity()) return error.IdentityElement;
     return q;
 }
 
@@ -89,29 +97,13 @@ fn half(r: [32]u8) struct { value: u256, negative: bool } {
     return .{ .value = std.mem.readInt(u256, &negated, .little), .negative = true };
 }
 
-fn endo(p: Curve) Curve {
-    return .{ .x = p.x.mul(beta), .y = p.y, .z = p.z };
-}
-
-fn endoAffine(p: Affine) Affine {
-    return .{ .x = p.x.mul(beta), .y = p.y };
-}
-
-fn addSigned(q: Curve, p: Curve, negate: bool) Curve {
-    return if (negate) q.sub(p) else q.add(p);
-}
-
-fn addSignedAffine(q: Curve, p: Affine, negate: bool) Curve {
-    return if (negate) q.subMixed(p) else q.addMixed(p);
-}
-
 /// Variable-time u1*G + u2*r for PUBLIC scalars and point (signature
 /// recovery). Scalars are canonical little-endian. Returns error.IdentityElement
-/// for an identity result, matching std's mulDoubleBasePublic.
-pub fn mulDoubleBasePublic(g_scalar: [32]u8, r: Curve, r_scalar: [32]u8) !Curve {
-    try r.rejectIdentity();
-    const split1 = try Curve.Endormorphism.splitScalar(g_scalar, .little);
-    const split2 = try Curve.Endormorphism.splitScalar(r_scalar, .little);
+/// for an identity input point or result.
+pub fn mulDoubleBasePublic(g_scalar: [32]u8, r: Point, r_scalar: [32]u8) !Point {
+    if (r.isIdentity()) return error.IdentityElement;
+    const split1 = try Endomorphism.splitScalar(g_scalar, .little);
+    const split2 = try Endomorphism.splitScalar(r_scalar, .little);
     const g1 = half(split1.r1);
     const g2 = half(split1.r2);
     const p1 = half(split2.r1);
@@ -122,38 +114,45 @@ pub fn mulDoubleBasePublic(g_scalar: [32]u8, r: Curve, r_scalar: [32]u8) !Curve 
     const np2 = wnaf(5, p2.value);
 
     // Odd multiples r, 3r, ..., 15r and their endomorphism images.
-    var odd_r: [8]Curve = undefined;
+    var odd_r: [8]Point = undefined;
     odd_r[0] = r;
     const r2 = r.dbl();
     for (1..8) |i| odd_r[i] = odd_r[i - 1].add(r2);
-    var odd_lr: [8]Curve = undefined;
-    for (odd_r, &odd_lr) |p, *lp| lp.* = endo(p);
+    var odd_lr: [8]Point = undefined;
+    for (odd_r, &odd_lr) |point, *image| image.* = .{ .x = point.x.mul(beta), .y = point.y, .z = point.z };
 
-    var q = Curve.identityElement;
+    var q = Point.identity;
     var pos = @max(@max(ng1.len, ng2.len), @max(np1.len, np2.len));
     while (pos > 0) {
         pos -= 1;
         q = q.dbl();
         if (ng1.digits[pos] != 0) {
             const d = ng1.digits[pos];
-            q = addSignedAffine(q, tables.odd[@abs(d) >> 1], (d < 0) != g1.negative);
+            const g = entry(&tables.odd[@abs(d) >> 1]);
+            q = q.addMixed(if ((d < 0) != g1.negative) g.neg() else g);
         }
         if (ng2.digits[pos] != 0) {
             const d = ng2.digits[pos];
-            q = addSignedAffine(q, endoAffine(tables.odd[@abs(d) >> 1]), (d < 0) != g2.negative);
+            const g = entry(&tables.odd[@abs(d) >> 1]);
+            const image: Affine = .{ .x = g.x.mul(beta), .y = g.y };
+            q = q.addMixed(if ((d < 0) != g2.negative) image.neg() else image);
         }
         if (np1.digits[pos] != 0) {
             const d = np1.digits[pos];
-            q = addSigned(q, odd_r[@abs(d) >> 1], (d < 0) != p1.negative);
+            const point = odd_r[@abs(d) >> 1];
+            q = q.add(if ((d < 0) != p1.negative) point.neg() else point);
         }
         if (np2.digits[pos] != 0) {
             const d = np2.digits[pos];
-            q = addSigned(q, odd_lr[@abs(d) >> 1], (d < 0) != p2.negative);
+            const point = odd_lr[@abs(d) >> 1];
+            q = q.add(if ((d < 0) != p2.negative) point.neg() else point);
         }
     }
-    try q.rejectIdentity();
+    if (q.isIdentity()) return error.IdentityElement;
     return q;
 }
+
+const Std = std.crypto.ecc.Secp256k1;
 
 fn scalarBytes(v: u256) [32]u8 {
     var out: [32]u8 = undefined;
@@ -166,22 +165,31 @@ fn repeated(comptime byte: u8) u256 {
     return @as(u256, byte) * (std.math.maxInt(u256) / 0xff);
 }
 
+fn sameAsStd(mine: Point, reference: Std) !bool {
+    const a = try mine.affine();
+    const b = reference.affineCoordinates();
+    return std.mem.eql(u8, &a.x.toBytes(), &b.x.toBytes(.big)) and std.mem.eql(u8, &a.y.toBytes(), &b.y.toBytes(.big));
+}
+
+fn fromStd(reference: Std) !Point {
+    const a = reference.affineCoordinates();
+    return Point.fromAffine(.{ .x = try Fe.fromBytes(a.x.toBytes(.big)), .y = try Fe.fromBytes(a.y.toBytes(.big)) });
+}
+
 test "generator tables match std arithmetic" {
-    var base = Curve.basePoint;
+    var base = Std.basePoint;
     for (&tables.comb) |*row| {
-        var acc = Curve.identityElement;
-        for (row) |entry| {
+        var acc = Std.identityElement;
+        for (row) |*e| {
             acc = acc.add(base);
-            const affine = acc.affineCoordinates();
-            try std.testing.expect(affine.x.equivalent(entry.x) and affine.y.equivalent(entry.y));
+            try std.testing.expect(try sameAsStd(Point.fromAffine(entry(e)), acc));
         }
         base = base.dbl().dbl().dbl().dbl();
     }
-    const two_g = Curve.basePoint.dbl();
-    var acc = Curve.basePoint;
-    for (&tables.odd) |entry| {
-        const affine = acc.affineCoordinates();
-        try std.testing.expect(affine.x.equivalent(entry.x) and affine.y.equivalent(entry.y));
+    const two_g = Std.basePoint.dbl();
+    var acc = Std.basePoint;
+    for (&tables.odd) |*e| {
+        try std.testing.expect(try sameAsStd(Point.fromAffine(entry(e)), acc));
         acc = acc.add(two_g);
     }
 }
@@ -194,8 +202,7 @@ test "mulBase matches std base multiplication" {
         const k: u256 = if (i < edges.len) edges[i] else prng.random().int(u256) % n;
         if (k == 0) continue;
         const bytes = scalarBytes(k);
-        const expected = try Curve.basePoint.mul(bytes, .little);
-        try std.testing.expect((try mulBase(bytes)).equivalent(expected));
+        try std.testing.expect(try sameAsStd(try mulBase(bytes), try Std.basePoint.mul(bytes, .little)));
     }
     try std.testing.expectError(error.IdentityElement, mulBase(scalarBytes(0)));
 }
@@ -207,17 +214,19 @@ test "mulDoubleBasePublic matches std double-base multiplication" {
     for (0..200) |i| {
         const ug: u256 = if (i < edges.len) edges[i] else prng.random().int(u256) % n;
         const ur: u256 = if (i < edges.len) edges[edges.len - 1 - i] else prng.random().int(u256) % n;
-        const point = try Curve.basePoint.mul(scalarBytes(prng.random().int(u256) % (n - 1) + 1), .little);
-        const expected = Curve.mulDoubleBasePublic(Curve.basePoint, scalarBytes(ug), point, scalarBytes(ur), .little) catch {
+        const reference_point = try Std.basePoint.mul(scalarBytes(prng.random().int(u256) % (n - 1) + 1), .little);
+        const point = try fromStd(reference_point);
+        const expected = Std.mulDoubleBasePublic(Std.basePoint, scalarBytes(ug), reference_point, scalarBytes(ur), .little) catch {
             try std.testing.expectError(error.IdentityElement, mulDoubleBasePublic(scalarBytes(ug), point, scalarBytes(ur)));
             continue;
         };
-        try std.testing.expect((try mulDoubleBasePublic(scalarBytes(ug), point, scalarBytes(ur))).equivalent(expected));
+        try std.testing.expect(try sameAsStd(try mulDoubleBasePublic(scalarBytes(ug), point, scalarBytes(ur)), expected));
     }
     // ug*G + ur*(cG) is the identity when ug = -ur*c.
     const c: u256 = 12345;
-    const point = try Curve.basePoint.mul(scalarBytes(c), .little);
+    const point = try mulBase(scalarBytes(c));
     const ur: u256 = 777;
     const ug = n - (ur * c) % n;
     try std.testing.expectError(error.IdentityElement, mulDoubleBasePublic(scalarBytes(ug), point, scalarBytes(ur)));
+    try std.testing.expectError(error.IdentityElement, mulDoubleBasePublic(scalarBytes(1), Point.identity, scalarBytes(1)));
 }
