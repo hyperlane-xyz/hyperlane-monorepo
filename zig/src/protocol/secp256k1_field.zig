@@ -341,11 +341,11 @@ test "field arithmetic matches big-integer reference" {
     const max = std.math.maxInt(u256);
     const max64: u256 = std.math.maxInt(u64);
     const edges = [_]u256{
-        0,                       1,                         2,                            c - 1,                       c,                             c + 1,
-        2 * c,                   p - 2,                     p - 1,                        p,                           p + 1,                         max - 2,
-        max - 1,                 max,                       1 << 255,                     (1 << 255) - 1,              max64,                         (1 << 128) - 1,
-        (1 << 192) - 1,          max - max64,               max64 | (max64 << 128),       (max64 << 64) | (max64 << 192), (1 << 64),                   (1 << 128),
-        (1 << 192),              p - (1 << 32),             max - (1 << 128) + 1,         (p - 1) / 2,
+        0,              1,             2,                      c - 1,                          c,         c + 1,
+        2 * c,          p - 2,         p - 1,                  p,                              p + 1,     max - 2,
+        max - 1,        max,           1 << 255,               (1 << 255) - 1,                 max64,     (1 << 128) - 1,
+        (1 << 192) - 1, max - max64,   max64 | (max64 << 128), (max64 << 64) | (max64 << 192), (1 << 64), (1 << 128),
+        (1 << 192),     p - (1 << 32), max - (1 << 128) + 1,   (p - 1) / 2,
     };
     const P: u512 = p;
     for (0..edges.len * edges.len + 4000) |i| {
