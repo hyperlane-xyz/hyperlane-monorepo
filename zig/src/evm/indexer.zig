@@ -120,6 +120,37 @@ pub const Indexer = struct {
         return .{ .count = value, .tip = std.math.cast(u32, head.number) orelse return error.IndexHeightOutOfRange, .block_hash = head.hash };
     }
 
+    /// Stream count at `head`, pinned to its block hash (EIP-1898): the value
+    /// is exactly that block's state. It is canonical only once a later fence
+    /// at `head.number` matches `head.hash` (the trailing fence of the fetch it
+    /// plans, or `verifyHead`), so no separate post-count header is read.
+    pub fn countAt(self: *Indexer, stream: Stream, head: rpc.BlockHeader) !?u32 {
+        if (!self.chain_checked) return error.ChainNotChecked;
+        const target, const selector = switch (stream) {
+            .dispatch => .{ self.config.mailbox, abi.selector("nonce()") },
+            .insertion => .{ self.config.hook, abi.selector("count()") },
+            .gas, .delivery => return null,
+        };
+        const to = try abi.hexAlloc(self.allocator, &target);
+        defer self.allocator.free(to);
+        const data = try abi.hexAlloc(self.allocator, &selector);
+        defer self.allocator.free(data);
+        const pinned = try abi.hexAlloc(self.allocator, &head.hash);
+        defer self.allocator.free(pinned);
+        var response = try self.client.call("eth_call", .{ .{ .to = to, .data = data }, .{ .blockHash = pinned } });
+        defer response.deinit();
+        const text = try rpc.string(response.value());
+        if (text.len != 66 or !std.mem.startsWith(u8, text, "0x")) return error.InvalidRpcResult;
+        var word: [32]u8 = undefined;
+        _ = try abi.decodeHex(&word, text);
+        return try abi.uintWord(u32, &word);
+    }
+
+    /// Fence: `head` is still the canonical header at its height.
+    pub fn verifyHead(self: *Indexer, head: rpc.BlockHeader) !void {
+        if (!std.mem.eql(u8, &(try self.client.blockHeader(.{ .number = head.number })).hash, &head.hash)) return error.IndexingReorg;
+    }
+
     pub fn fetch(self: *Indexer, stream: Stream, range: sequence.Range, finalized_height: u64) !Batch {
         return self.fetchFenced(stream, range, finalized_height, .{});
     }

@@ -42,6 +42,12 @@ pub const Service = struct {
     critical: ?*critical_metrics.Tracker = null,
     bootstrap: [3]bootstrap.State = @splat(.{}),
     cycle_clock: tick_clock.Clock = .{},
+    /// One finalized-head observation shared by the streams of one rotation:
+    /// a stream already served by this head starts a new round.
+    round_head: ?rpc.BlockHeader = null,
+    round_served: [3]bool = @splat(false),
+    /// Finalized height the pending gas range was fetched against.
+    gas_fetch_tip: u32 = 0,
     initialization_observer: ?initialization.Observer = null,
     indexer_init_ns: ?u64 = null,
     prover_init_ns: ?u64 = null,
@@ -129,6 +135,7 @@ pub const Service = struct {
             const selected = self.selected_stream;
             if (err == error.TxIdQueueFull) return .{ .next_delay_ms = 10 };
             if (err != error.PendingReadIo) {
+                self.round_head = null;
                 self.abortRetained();
                 self.selected_stream = null;
                 self.round_time_ms = null;
@@ -215,6 +222,8 @@ pub const Service = struct {
             self.next_stream = (candidate + 1) % streams;
             if (self.enabled_streams[candidate] and self.due[candidate] <= now_ms) break candidate;
         } else {
+            // Nothing due: the next stream to run starts a fresh round.
+            self.round_head = null;
             report.prover_leaves = try self.history.sync(64);
             var due: u64 = std.math.maxInt(u64);
             for (self.due[0..streams], 0..) |value, i| if (self.enabled_streams[i]) {
@@ -232,13 +241,30 @@ pub const Service = struct {
         self.due[selected] = planned_ms +| self.chain.index.interval *| 1000;
         if (selected < 2) {
             const stream: native.Stream = if (selected == 0) .dispatch else .insertion;
-            const tip = try self.indexer.countTip(stream);
-            const count = tip.count orelse return error.MissingEvmCount;
+            const head = try self.roundHead(selected);
+            const tip_height = std.math.cast(u32, head.number) orelse return error.IndexHeightOutOfRange;
+            const count = (try self.indexer.countAt(stream, head)) orelse return error.MissingEvmCount;
             observed = true;
             observed_count = count;
-            if (self.cursors[selected] == null) self.cursors[selected] = try sequence.Cursor.init(self.allocator, count, tip.tip, .{ .chunk = self.chain.index.chunk, .lowest = self.chain.index.from, .idle_ms = self.chain.index.interval *| 1000 });
+            if (self.cursors[selected] == null) {
+                // A new cursor starts from this count: fence it first.
+                try self.indexer.verifyHead(head);
+                self.cursors[selected] = try sequence.Cursor.init(self.allocator, count, tip_height, .{ .chunk = self.chain.index.chunk, .lowest = self.chain.index.from, .idle_ms = self.chain.index.interval *| 1000 });
+            }
             const cursor = &self.cursors[selected].?;
-            const action = try cursor.plan(count, tip.tip, planned_ms, self.progress[selected].interface());
+            const action = try cursor.plan(count, tip_height, planned_ms, self.progress[selected].interface());
+            if (action != .query) {
+                // No fetch fences this hash-pinned count: fence it here. A head
+                // reorged since its read restarts the cursor from durable
+                // progress, as at startup, instead of keeping a tip it planned.
+                self.indexer.verifyHead(head) catch |err| {
+                    if (err == error.IndexingReorg) {
+                        cursor.deinit();
+                        self.cursors[selected] = null;
+                    }
+                    return err;
+                };
+            }
             self.bootstrap[selected].succeeded(self.critical, selected);
             self.due[selected] = switch (action) {
                 .sleep_until_ms => |ready| ready,
@@ -253,7 +279,16 @@ pub const Service = struct {
                     observation.completed(self.observer, stream, cursor, null, count, now_ms);
                     return .{ .next_delay_ms = std.mem.min(u64, &self.due) -| now_ms };
                 }
-                const batch = self.indexer.fetch(stream, action.query.range, tip.tip) catch |err| {
+                // The fetch's trailing fence at the range end proves the head
+                // (and so the hash-pinned count) canonical; the round head is
+                // its leading fence. Insertion leaves are later bound by
+                // validator-signed checkpoint roots (Origin.proof fails closed
+                // on a mismatch), so they skip per-block membership reads.
+                const range = action.query.range;
+                const batch = self.indexer.fetchFenced(stream, range, tip_height, .{
+                    .leading = if (range.to == head.number) head else null,
+                    .root_checked_through = if (stream == .insertion) range.to else null,
+                }) catch |err| {
                     cursor.failed(action.query.token) catch {};
                     return self.failedFetch(selected, action.query.range, now_ms, err);
                 };
@@ -271,7 +306,7 @@ pub const Service = struct {
                 self.due[selected] = ready;
                 break :gas;
             };
-            const head = try self.indexer.finalized();
+            const head = try self.roundHead(selected);
             observed = true;
             const tip = std.math.cast(u32, head.number) orelse return error.IndexHeightOutOfRange;
             if (self.gas == null) {
@@ -295,7 +330,7 @@ pub const Service = struct {
                     observation.completed(self.observer, .gas, null, cursor, null, now_ms);
                     return .{ .next_delay_ms = std.mem.min(u64, &self.due) -| now_ms };
                 }
-                var batch = self.indexer.fetch(.gas, action.query, tip) catch |err| {
+                var batch = self.indexer.fetchFenced(.gas, action.query, tip, .{ .leading = if (action.query.to == head.number) head else null }) catch |err| {
                     cursor.failed();
                     return self.failedFetch(selected, action.query, now_ms, err);
                 };
@@ -307,6 +342,7 @@ pub const Service = struct {
                 // This completed read section has committed. Resume directly
                 // at the fresh-tip stage if the next physical read suspends.
                 self.gas_refresh = true;
+                self.gas_fetch_tip = tip;
                 self.gas_stored_payments = batch.logs.len;
                 try self.indexer.client.commitReadSection();
                 try self.finishGas(now_ms, &report);
@@ -317,9 +353,23 @@ pub const Service = struct {
         report.next_delay_ms = if (report.prover_leaves == 64) 0 else std.mem.min(u64, self.due[0..streams]) -| now_ms;
         return report;
     }
+    /// The round's finalized head, read once per rotation (Source reads one
+    /// head per tick and shares it across its indexers).
+    fn roundHead(self: *Service, selected: usize) !rpc.BlockHeader {
+        if (self.round_head) |head| if (!self.round_served[selected]) {
+            self.round_served[selected] = true;
+            return head;
+        };
+        self.round_head = null;
+        const head = try self.indexer.finalized();
+        self.round_head = head;
+        self.round_served = @splat(false);
+        self.round_served[selected] = true;
+        return head;
+    }
     fn finishGas(self: *Service, now_ms: u64, report: *Report) !void {
-        const refreshed = try self.indexer.finalized();
-        try self.gas.?.update(std.math.cast(u32, refreshed.number) orelse return error.IndexHeightOutOfRange, now_ms);
+        // The fenced tip of the stored range; a newer head is read next round.
+        try self.gas.?.update(self.gas_fetch_tip, now_ms);
         self.gas_refresh = false;
         report.ranges += 1;
         report.payments = self.gas_stored_payments;
