@@ -2,6 +2,7 @@ const std = @import("std");
 const Curve = std.crypto.ecc.Secp256k1;
 const Scalar = Curve.scalar.Scalar;
 const Ecdsa = std.crypto.sign.ecdsa.EcdsaSecp256k1Sha256;
+const secp256k1 = @import("secp256k1.zig");
 const Hash = [32]u8;
 pub const Address = [20]u8;
 pub const Signature = [65]u8;
@@ -21,13 +22,14 @@ fn address(point: Curve) Address {
 pub fn secretKeyAddress(secret_key: Hash) !Address {
     const scalar = try Scalar.fromBytes(secret_key, .big);
     if (scalar.isZero()) return error.InvalidSecretKey;
-    return address(try Curve.basePoint.mul(secret_key, .big));
+    return address(try secp256k1.mulBase(scalar.toBytes(.little)));
 }
 
 /// Security boundary: Ethereum's v=27/28, nonzero canonical r and low-s only.
-/// ECDSA recovery uses Q=r^-1(sR-zG); all group and scalar operations come from
-/// Zig std.crypto. This is public-input variable-time verification, never secret
-/// scalar multiplication. Transaction chain-ID recovery values are rejected.
+/// ECDSA recovery uses Q=r^-1(sR-zG); field, scalar and point formulas come
+/// from Zig std.crypto, the GLV/wNAF joint multiplication from secp256k1.zig.
+/// This is public-input variable-time verification, never secret scalar
+/// multiplication. Transaction chain-ID recovery values are rejected.
 pub fn recover(digest: Hash, signature: Signature) !Address {
     if (signature[64] != 27 and signature[64] != 28) return error.InvalidRecoveryId;
     const r = try Scalar.fromBytes(signature[0..32].*, .big);
@@ -40,11 +42,9 @@ pub fn recover(digest: Hash, signature: Signature) !Address {
     compressed[1..33].* = signature[0..32].*;
     const point_r = try Curve.fromSec1(&compressed);
     const z = reducedHash(digest);
-    // Q = (s/r)R + (-z/r)G. Both scalars are public signature/digest data.
-    // Use the standard curve's joint multiplication instead of computing
-    // sR, zG and then multiplying their difference a third time.
+    // Q = (-z/r)G + (s/r)R. Both scalars are public signature/digest data.
     const inverse_r = r.invert();
-    const public_key = try Curve.mulDoubleBasePublic(point_r, s.mul(inverse_r).toBytes(.big), Curve.basePoint, z.mul(inverse_r).neg().toBytes(.big), .big);
+    const public_key = try secp256k1.mulDoubleBasePublic(z.mul(inverse_r).neg().toBytes(.little), point_r, s.mul(inverse_r).toBytes(.little));
     try public_key.rejectIdentity();
     return address(public_key);
 }
@@ -84,7 +84,7 @@ pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
     if (d.isZero()) return error.InvalidSecretKey;
     const z = reducedHash(digest);
     const k = deterministicNonce(digest, secret_key, noise);
-    const point = (try Curve.basePoint.mul(k.toBytes(.big), .big)).affineCoordinates();
+    const point = (try secp256k1.mulBase(k.toBytes(.little))).affineCoordinates();
     const x = point.x.toBytes(.big);
     // Ethereum v=27/28 cannot encode the exceedingly rare x>=curve order case.
     // Fail closed; caller may retry with fresh signing noise.
@@ -280,7 +280,10 @@ test "derived recovery id recovers signer and matches trial-recovery signer byte
         random.bytes(&noise_bytes);
         const noise: ?[32]u8 = if (i % 2 == 0) null else noise_bytes;
         const signed = try signDigest(key, digest, noise);
-        try std.testing.expectEqualSlices(u8, &try secretKeyAddress(key), &try recover(digest, signed));
+        // Oracle: std's own base multiplication, independent of secp256k1.zig.
+        const expected = address(try Curve.basePoint.mul(key, .big));
+        try std.testing.expectEqualSlices(u8, &expected, &try secretKeyAddress(key));
+        try std.testing.expectEqualSlices(u8, &expected, &try recover(digest, signed));
         try std.testing.expectEqualSlices(u8, &try signDigestByTrialRecovery(key, digest, noise), &signed);
         parities[signed[64] - 27] += 1;
     }
