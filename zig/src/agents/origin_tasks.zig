@@ -18,6 +18,7 @@ const indexing_metrics = @import("../ops/indexing_metrics.zig");
 const initialization = @import("../ops/init_metrics.zig");
 const critical_metrics = @import("../ops/critical_metrics.zig");
 const authority = @import("../runtime/authority_gate.zig");
+const fiber = @import("../runtime/fiber.zig");
 const tx_queue = @import("indexing/tx_id_queue.zig");
 const tx_companion = @import("indexing/tx_id_companion.zig");
 
@@ -241,25 +242,25 @@ pub const Slot = struct {
         // Drain/rotate receipt work BEFORE a retained producer retries a full
         // notification queue. Separate borrowed journals preserve healthy range
         // progress while an individual receipt read suspends.
-        const companion_report = try self.runCompanion(times.monotonic_ms, cancel);
-        var report = switch (self.implementation) {
-            .none => unreachable,
-            .ethereum => |value| result: {
-                if (!value.hasEnabledStreams()) {
-                    const leaves = try value.history.sync(64);
-                    break :result supervisor.Report{ .work = leaves, .next_delay_ms = if (leaves == 64) 0 else 100 };
-                }
-                const tick = try value.tick(times.monotonic_ms, cancel);
-                break :result supervisor.Report{ .work = tick.messages + tick.insertions + tick.payments + tick.prover_leaves, .next_delay_ms = tick.next_delay_ms };
-            },
-            .generic => |value| result: {
-                if (!value.indexer.hasEnabledStreams()) {
-                    const leaves = try value.history.sync(64);
-                    break :result supervisor.Report{ .work = leaves, .next_delay_ms = if (leaves == 64) 0 else 100 };
-                }
-                const tick = try value.tick(times.monotonic_ms, cancel);
-                break :result supervisor.Report{ .work = tick.messages + tick.insertions + tick.payments + tick.prover_leaves, .next_delay_ms = tick.next_delay_ms };
-            },
+        // On a fiber the indexer tick runs as a sibling of the companion: the
+        // companion still runs first (until its first read parks), then both
+        // reads are in flight together, as journal passes overlapped them.
+        // Separate forks/journals keep their clients independent.
+        var report: supervisor.Report = undefined;
+        const companion_report = if (fiber.inFiber() and self.transaction_companion != null) overlap: {
+            var job: IndexerTick = .{ .slot = self, .now_ms = times.monotonic_ms, .cancel = cancel };
+            var group: fiber.Group = .{};
+            try group.spawn(&job.child, IndexerTick.run, &job);
+            const companion = self.runCompanion(times.monotonic_ms, cancel);
+            // The child borrows this frame and the slot: always join first.
+            group.wait();
+            const companion_report = try companion;
+            report = try job.result;
+            break :overlap companion_report;
+        } else sequential: {
+            const companion_report = try self.runCompanion(times.monotonic_ms, cancel);
+            report = try self.indexerTick(times.monotonic_ms, cancel);
+            break :sequential companion_report;
         };
         report.work +|= companion_report.work;
         report.next_delay_ms = @min(report.next_delay_ms orelse self.chain.index.interval *| 1000, companion_report.next_delay_ms);
@@ -267,6 +268,38 @@ pub const Slot = struct {
         if (report.work != 0) _ = self.index_generation.fetchAdd(1, .release);
         if (!self.migration.?.migrationComplete()) report.next_delay_ms = 0;
         return report;
+    }
+    const IndexerTick = struct {
+        child: fiber.Child = .{},
+        slot: *Slot,
+        now_ms: u64,
+        cancel: *const std.atomic.Value(bool),
+        result: anyerror!supervisor.Report = error.IndexerTickNotRun,
+        fn run(arg: *anyopaque) void {
+            const job: *IndexerTick = @ptrCast(@alignCast(arg));
+            job.result = job.slot.indexerTick(job.now_ms, job.cancel);
+        }
+    };
+    fn indexerTick(self: *Slot, now_ms: u64, cancel: *const std.atomic.Value(bool)) !supervisor.Report {
+        return switch (self.implementation) {
+            .none => unreachable,
+            .ethereum => |value| result: {
+                if (!value.hasEnabledStreams()) {
+                    const leaves = try value.history.sync(64);
+                    break :result supervisor.Report{ .work = leaves, .next_delay_ms = if (leaves == 64) 0 else 100 };
+                }
+                const tick = try value.tick(now_ms, cancel);
+                break :result supervisor.Report{ .work = tick.messages + tick.insertions + tick.payments + tick.prover_leaves, .next_delay_ms = tick.next_delay_ms };
+            },
+            .generic => |value| result: {
+                if (!value.indexer.hasEnabledStreams()) {
+                    const leaves = try value.history.sync(64);
+                    break :result supervisor.Report{ .work = leaves, .next_delay_ms = if (leaves == 64) 0 else 100 };
+                }
+                const tick = try value.tick(now_ms, cancel);
+                break :result supervisor.Report{ .work = tick.messages + tick.insertions + tick.payments + tick.prover_leaves, .next_delay_ms = tick.next_delay_ms };
+            },
+        };
     }
     fn runCompanion(self: *Slot, now_ms: u64, cancel: *const std.atomic.Value(bool)) anyerror!tx_companion.Report {
         const companion = if (self.transaction_companion) |*value| value else return .{ .next_delay_ms = std.math.maxInt(u64) };
