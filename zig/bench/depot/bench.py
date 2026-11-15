@@ -29,6 +29,7 @@ import os
 import pathlib
 import platform
 import shutil
+import signal
 import statistics
 import subprocess
 import sys
@@ -169,15 +170,37 @@ def binary_identity(bins: pathlib.Path) -> dict:
 
 # ------------------------------------------------------------------ runners
 
+# (kind, profdir) for profile kinds that attach to the harness process tree instead of each agent:
+# inheritance follows every child, so agents start with no pre-exec attach delay.
+HARNESS_ATTACH: tuple[str, pathlib.Path] | None = None
+
+
 def run_harness(argv: list[str], log: pathlib.Path, env: dict | None = None) -> int:
     print("+", " ".join(argv), flush=True)
     with log.open("w") as stream:
         proc = subprocess.Popen(argv, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+        tracer = None
+        if HARNESS_ATTACH:
+            kind, profdir = HARNESS_ATTACH
+            if kind == "schedh":
+                cmd = [perf_binary(), "record", "-q", "-e", "sched:sched_switch", "--call-graph", "fp",
+                       "-p", str(proc.pid), "-o", str(profdir / f"harness-{proc.pid}.sched.perf.data")]
+            else:  # startuph
+                cmd = [shutil.which("strace"), "-f", "-ttt", "-T", "-q", "-p", str(proc.pid),
+                       "-o", str(profdir / f"harness-{proc.pid}.startup-strace.txt")]
+            tracer = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         assert proc.stdout is not None
         for line in proc.stdout:
             sys.stdout.write(line)
             stream.write(line)
-        return proc.wait()
+        code = proc.wait()
+        if tracer is not None:
+            tracer.send_signal(signal.SIGINT)
+            try:
+                tracer.wait(timeout=120)
+            except subprocess.TimeoutExpired:
+                tracer.kill()
+        return code
 
 
 def run_validator(spec: dict, pairs: int, wrappers, bins: pathlib.Path, raw: pathlib.Path) -> tuple[int, dict | None]:
@@ -378,6 +401,33 @@ def normalise_relayer(data: dict) -> list[dict]:
     return rows
 
 
+def fold_sched_timeline(text: str) -> dict[str, int]:
+    """perf script sched_switch timeline -> {'comm/pid/tid;root;...;leaf': switches} (user + kernel frames)."""
+    folded: dict[str, int] = {}
+    head, frames = None, []
+
+    def flush():
+        if head is not None:
+            key = ";".join([head, *reversed(frames)]) if frames else head
+            folded[key] = folded.get(key, 0) + 1
+
+    for line in text.splitlines():
+        if not line.strip():
+            flush(); head, frames = None, []
+        elif not line[0].isspace():
+            flush()
+            parts = line.split()
+            # comm may contain spaces; pid/tid is the token before the timestamp ("NNN.NNN:")
+            idx = next((i for i, t in enumerate(parts) if t.endswith(":") and t[:-1].replace(".", "").isdigit()), 2)
+            comm = " ".join(parts[:idx - 1]).replace(";", ":")
+            head, frames = f"{comm}/{parts[idx - 1]}", []
+        else:
+            sym = line.strip().split(" ", 1)[1] if " " in line.strip() else "[unknown]"
+            frames.append(sym.split("+0x")[0].replace(";", ":"))
+    flush()
+    return folded
+
+
 def parse_perf_folded(text: str) -> dict[str, int]:
     """`perf report --sort comm -g folded,0,caller,count` -> {'comm;root;...;leaf': samples}."""
     folded: dict[str, int] = {}
@@ -398,22 +448,24 @@ def parse_perf_folded(text: str) -> dict[str, int]:
 
 def postprocess_profiles(profdir: pathlib.Path) -> dict:
     """Wait for attached profilers, then fold perf data per impl/role and keep text reports."""
+    clock_offset = time.time() - time.monotonic()  # perf timestamps are CLOCK_MONOTONIC seconds
     deadline = time.monotonic() + 120
     while time.monotonic() < deadline and subprocess.run(["pgrep", "-f", f"-o {profdir}"], capture_output=True).returncode == 0:
         time.sleep(1)
     perf = perf_binary()
-    summary: dict = {"files": sorted(p.name for p in profdir.iterdir())}
+    summary: dict = {"files": sorted(p.name for p in profdir.iterdir()), "wall_minus_monotonic_s": clock_offset}
     groups: dict[str, dict[str, int]] = {}
     flats: dict[str, dict[str, int]] = {}
     for data in sorted(profdir.glob("*.perf.data")):
         sched = ".sched." in data.name
         impl_role = "-".join(data.name.split("-")[:2]) + (".faults" if ".faults." in data.name else ".sched" if sched else "")
         # sched folded stacks are keyed per thread (comm + tid) so switches are attributable by thread and site.
-        script = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "--sort", "comm,tid" if sched else "comm",
-                                 "-g", "folded,0,caller,count"], capture_output=True, text=True, timeout=900)
-        folded = groups.setdefault(impl_role, {})
-        for k, v in parse_perf_folded(script.stdout).items():
-            folded[k] = folded.get(k, 0) + v
+        if not sched:
+            script = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "--sort", "comm",
+                                     "-g", "folded,0,caller,count"], capture_output=True, text=True, timeout=900)
+            folded = groups.setdefault(impl_role, {})
+            for k, v in parse_perf_folded(script.stdout).items():
+                folded[k] = folded.get(k, 0) + v
         # Flat self-time profile: always complete, even where user-space dwarf unwinding fails
         # (observed for the multi-threaded Zig agents: callchains then carry kernel frames only).
         flat = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "-n", "-g", "none",
@@ -428,6 +480,16 @@ def postprocess_profiles(profdir: pathlib.Path) -> dict:
         report = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "--sort", "dso,sym",
                                  "--percent-limit", "0.5"], capture_output=True, text=True, timeout=900)
         (profdir / f"{data.stem}.report.txt").write_text(report.stdout[-200000:] + report.stderr[-4000:])
+        if sched:
+            # Timestamped switch timeline (CLOCK_MONOTONIC; wall-clock offset in profiles.json) for startup analysis,
+            # and per-thread folded stacks built from it (perf report -g folded yields nothing for tracepoints).
+            import gzip
+            timeline = subprocess.run([perf, "script", "-i", str(data), "-F", "comm,pid,tid,time,event,ip,sym"],
+                                      capture_output=True, text=True, timeout=1800)
+            (profdir / f"{data.stem}.timeline.txt.gz").write_bytes(gzip.compress(timeline.stdout.encode()))
+            folded = groups.setdefault(impl_role, {})
+            for k, v in fold_sched_timeline(timeline.stdout).items():
+                folded[k] = folded.get(k, 0) + v
         data.unlink()  # raw dwarf data is large; folded + report are kept
     for impl_role, folded in groups.items():
         (profdir / f"{impl_role}.folded").write_text("".join(f"{k} {v}\n" for k, v in sorted(folded.items(), key=lambda kv: -kv[1])))
@@ -465,7 +527,8 @@ def main() -> int:
     parser.add_argument("--profile", action="store_true", help="after measuring, one extra pair per profile kind (both arms)")
     parser.add_argument("--profile-kinds", default=os.environ.get("BENCH_PROFILE_KINDS") or "perf,strace,sched",
                         help="comma list: perf (cycles + page faults + perf stat), strace (-c counts, relayer rpc-shapes), "
-                             "sched (sched_switch call graphs per thread), startup (strace -f -ttt timeline)")
+                             "sched (sched_switch call graphs per thread), startup (strace -f -ttt timeline); "
+                             "schedh/startuph attach to the harness tree instead (no pre-exec delay; whole tree traced)")
     args = parser.parse_args()
     spec = catalogue.WORKLOADS[args.workload]
     out = args.output.resolve()
@@ -517,11 +580,14 @@ def main() -> int:
     if args.profile:
         # Separate one-pair passes; profiler overhead never touches the measured rows above.
         result["profiles"] = {}
-        for kind in args.profile_kinds.split(","):
+        for index, kind in enumerate(args.profile_kinds.split(",")):
             profdir = out / "profiles" / kind
             profdir.mkdir(parents=True, exist_ok=True)
-            prof_wrappers = make_wrappers(bins, spec["mode"], agent_cpus, work, (kind, profdir))
-            praw = out / "profiles" / f"{kind}-run" / "raw"
+            global HARNESS_ATTACH
+            harness_kind = kind in ("schedh", "startuph")
+            HARNESS_ATTACH = (kind, profdir) if harness_kind else None
+            prof_wrappers = wrappers if harness_kind else make_wrappers(bins, spec["mode"], agent_cpus, work, (kind, profdir))
+            praw = out / "profiles" / f"{kind}-run{index}" / "raw"  # repeated kinds keep separate harness output
             praw.mkdir(parents=True, exist_ok=True)
             try:
                 if spec["role"] == "validator":
@@ -534,7 +600,8 @@ def main() -> int:
                     if kind == "strace" and pdata:
                         shapes = {r["implementation"]: r.get("rpc_shapes") for r in pdata.get("raw_samples", [])}
                         (profdir / "rpc-shapes.json").write_text(json.dumps(shapes, indent=2) + "\n")
-                info = postprocess_profiles(profdir) if kind in ("perf", "sched") else {"files": sorted(p.name for p in profdir.iterdir())}
+                HARNESS_ATTACH = None
+                info = postprocess_profiles(profdir) if kind in ("perf", "sched", "schedh") else {"files": sorted(p.name for p in profdir.iterdir())}
                 result["profiles"][kind] = {"harness_exit_code": pcode, **info}
             except Exception as error:  # profiling is diagnostic; never fail the measured run
                 result["profiles"][kind] = {"error": str(error)[-2000:]}

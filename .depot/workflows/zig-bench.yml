@@ -214,6 +214,8 @@ jobs:
           if [ "${{ needs.plan.outputs.profile }}" = "true" ]; then
             sudo apt-get install -y -q --no-install-recommends linux-tools-generic strace
             sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0
+            # sched:sched_switch tracepoints need tracefs readable by the runner user.
+            sudo chmod -R o+rx /sys/kernel/tracing; sudo chmod o+rx /sys/kernel/debug
           fi
           # Warm solc + OpenZeppelin downloads outside measured runs.
           pnpm dlx solc@0.8.33 --version
