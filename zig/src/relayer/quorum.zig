@@ -58,32 +58,34 @@ pub const Collector = struct {
         if (!std.mem.eql(u8, &signer, &self.validators[arrival.validator_index])) return null;
         self.accepted[self.accepted_len] = arrival;
         self.accepted_len += 1;
-        var matches: [256]Arrival = undefined;
+        // Positions in `accepted` (bounded by 256 validators), not copies: a
+        // copied Arrival array would put ~45 KiB on the caller's stack.
+        var matches: [256]u8 = undefined;
         var count: usize = 0;
-        for (self.accepted[0..self.accepted_len]) |other| {
+        for (self.accepted[0..self.accepted_len], 0..) |other, position| {
             if (std.mem.eql(u8, &other.signed.value.root, &arrival.signed.value.root)) {
-                matches[count] = other;
+                matches[count] = @intCast(position);
                 count += 1;
             }
         }
         if (count < self.threshold) return null;
-        std.mem.sort(Arrival, matches[0..count], {}, struct {
-            fn less(_: void, left: Arrival, right: Arrival) bool {
-                return left.validator_index < right.validator_index;
+        std.mem.sort(u8, matches[0..count], &self.accepted, struct {
+            fn less(accepted: *const [256]Arrival, left: u8, right: u8) bool {
+                return accepted[left].validator_index < accepted[right].validator_index;
             }
         }.less);
-        const checkpoint = matches[0].signed.value;
-        for (matches[1..count]) |other| {
+        const checkpoint = self.accepted[matches[0]].signed.value;
+        for (matches[1..count]) |position| {
             // Rust groups by root, then TryFrom requires the complete value to
             // match. Do not silently discard the poisoned group and try another.
-            if (!std.meta.eql(checkpoint, other.signed.value)) return error.InconsistentCheckpoints;
+            if (!std.meta.eql(checkpoint, self.accepted[position].signed.value)) return error.InconsistentCheckpoints;
         }
         const signatures = try self.allocator.alloc(objects.Signature, if (self.destination == .aleo) self.validators.len else count);
         if (self.destination == .aleo) {
             @memset(signatures, .{ .r = 1, .s = 1, .v = 1 });
-            for (matches[0..count]) |entry| signatures[entry.validator_index] = entry.signed.signature;
+            for (matches[0..count]) |position| signatures[self.accepted[position].validator_index] = self.accepted[position].signed.signature;
         } else {
-            for (matches[0..count], signatures) |entry, *signature| signature.* = entry.signed.signature;
+            for (matches[0..count], signatures) |position, *signature| signature.* = self.accepted[position].signed.signature;
         }
         self.complete = true;
         return .{ .checkpoint = checkpoint, .signatures = signatures, .allocator = self.allocator };
