@@ -80,11 +80,13 @@ fn benchmark(kernel: []const u8, iterations: u32, body_len: usize) !void {
             std.mem.doNotOptimizeAway(root);
             checksum = std.mem.readInt(u64, root[0..8], .big);
         }
-    } else if (std.mem.eql(u8, kernel, "sign") or std.mem.eql(u8, kernel, "sign_unverified")) {
+    } else if (std.mem.eql(u8, kernel, "sign") or std.mem.eql(u8, kernel, "sign_unverified") or std.mem.eql(u8, kernel, "sign_with_verify")) {
         // Nonce schemes differ (std's RFC6979-with-noise vs k256 RFC6979), so
         // signature bytes differ; the checksum counts signatures in both.
         // "sign" is the production signer with the fault self-check.
-        const checked = std.mem.eql(u8, kernel, "sign");
+        // "sign_with_verify" is the same production signer, paired with Rust
+        // k256 sign + verify_prehash for a same-safety comparison.
+        const checked = !std.mem.eql(u8, kernel, "sign_unverified");
         for (0..iterations) |i| {
             const digest = kernelDigest(@intCast(i));
             std.mem.doNotOptimizeAway(&digest);

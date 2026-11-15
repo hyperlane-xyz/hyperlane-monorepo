@@ -170,7 +170,9 @@ def benchmark(rust, zig, samples):
              ("merkle_ingest", 100_000, 0), ("merkle_ingest_root", 10_000, 0),
              # secp256k1: Zig "sign" includes the production fault self-check;
              # "sign_unverified" omits it. Rust (k256) has no self-check.
-             ("sign", 2_000, 0), ("sign_unverified", 2_000, 0), ("recover", 2_000, 0)]
+             # "sign_with_verify" pairs it with Rust sign + verify_prehash.
+             ("sign", 2_000, 0), ("sign_unverified", 2_000, 0), ("sign_with_verify", 2_000, 0),
+             ("recover", 2_000, 0)]
     binaries = {"rust": rust, "zig": zig}
     output = []
     for kernel, iterations, body_len in cases:
