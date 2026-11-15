@@ -10,7 +10,7 @@
 //!   the doubling chain, width-5 wNAF for R and width-8 wNAF over a
 //!   precomputed odd-multiple table for G.
 const std = @import("std");
-const field = @import("secp256k1_field.zig");
+pub const field = @import("secp256k1_field.zig");
 const tables = @import("secp256k1_tables.zig");
 const scalar = std.crypto.ecc.Secp256k1.scalar;
 const Endomorphism = std.crypto.ecc.Secp256k1.Endormorphism;

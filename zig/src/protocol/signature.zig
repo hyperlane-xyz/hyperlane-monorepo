@@ -1,8 +1,8 @@
 const std = @import("std");
 const Curve = std.crypto.ecc.Secp256k1;
 const Scalar = Curve.scalar.Scalar;
-const Ecdsa = std.crypto.sign.ecdsa.EcdsaSecp256k1Sha256;
 const secp256k1 = @import("secp256k1.zig");
+const reference = @import("secp256k1_reference.zig");
 const Hash = [32]u8;
 pub const Address = [20]u8;
 pub const Signature = [65]u8;
@@ -21,12 +21,6 @@ fn addressOfCoordinates(x: [32]u8, y: [32]u8) Address {
 fn address(point: secp256k1.Point) !Address {
     const affine = try point.affine();
     return addressOfCoordinates(affine.x.toBytes(), affine.y.toBytes());
-}
-
-/// std.crypto-only address derivation; test oracle independent of secp256k1.zig.
-fn stdAddress(point: Curve) Address {
-    const sec1 = point.toUncompressedSec1();
-    return addressOfCoordinates(sec1[1..33].*, sec1[33..65].*);
 }
 
 pub fn secretKeyAddress(secret_key: Hash) !Address {
@@ -422,25 +416,7 @@ test "recovery acceptance matches exact production ethers revision fixture" {
     }
 }
 
-/// Previous signer: std ECDSA plus trial recovery. Test-only oracle proving the
-/// derived recovery id and byte-identical signatures.
-fn signDigestByTrialRecovery(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
-    const key_pair = try Ecdsa.KeyPair.fromSecretKey(try Ecdsa.SecretKey.fromBytes(secret_key));
-    var raw = try key_pair.signPrehashed(digest, noise);
-    if (std.mem.readInt(u256, &raw.s, .big) > Curve.scalar.field_order / 2)
-        raw.s = (try Scalar.fromBytes(raw.s, .big)).neg().toBytes(.big);
-    var signature: Signature = undefined;
-    signature[0..64].* = raw.toBytes();
-    const expected = stdAddress(key_pair.public_key.p);
-    for ([_]u8{ 27, 28 }) |v| {
-        signature[64] = v;
-        const recovered = recover(digest, signature) catch continue;
-        if (std.mem.eql(u8, &recovered, &expected)) return signature;
-    }
-    return error.UnrepresentableRecoveryId;
-}
-
-test "derived recovery id recovers signer and matches trial-recovery signer bytes" {
+test "derived recovery id recovers signer and matches std-only reference signer bytes" {
     var prng = std.Random.DefaultPrng.init(0x5349474e);
     const random = prng.random();
     var parities = [2]usize{ 0, 0 };
@@ -455,11 +431,11 @@ test "derived recovery id recovers signer and matches trial-recovery signer byte
         random.bytes(&noise_bytes);
         const noise: ?[32]u8 = if (i % 2 == 0) null else noise_bytes;
         const signed = try signDigest(key, digest, noise);
-        // Oracle: std's own base multiplication, independent of secp256k1.zig.
-        const expected = stdAddress(try Curve.basePoint.mul(key, .big));
+        // Oracle: std.crypto only (secp256k1_reference.zig).
+        const expected = try reference.secretKeyAddress(key);
         try std.testing.expectEqualSlices(u8, &expected, &try secretKeyAddress(key));
         try std.testing.expectEqualSlices(u8, &expected, &try recover(digest, signed));
-        try std.testing.expectEqualSlices(u8, &try signDigestByTrialRecovery(key, digest, noise), &signed);
+        try std.testing.expectEqualSlices(u8, &try reference.sign(key, digest, noise), &signed);
         parities[signed[64] - 27] += 1;
     }
     // Both recovery ids must be exercised for the parity derivation to be tested.
@@ -484,4 +460,93 @@ test "fault self-check rejects any corrupted signature component" {
     mixed[0..32].* = other_nonce[0..32].*;
     try std.testing.expectError(error.SignatureSelfCheckFailed, selfCheck(key, digest, mixed));
     try std.testing.expectError(error.SignatureSelfCheckFailed, selfCheck(.{0x12} ** 32, digest, good));
+}
+
+/// Random cases for the in-tree differential; reduced in Debug where std's
+/// reference arithmetic is ~20x slower.
+const differential_cases: usize = if (@import("builtin").mode == .Debug) 1_000 else 10_000;
+
+test "sign/recover differential against std-only reference, with edge vectors" {
+    const n = Curve.scalar.field_order;
+    const p = secp256k1.field.p;
+    const repeated = struct {
+        fn f(byte: u8) u256 {
+            return @as(u256, byte) * (std.math.maxInt(u256) / 0xff);
+        }
+    }.f;
+    // Keys/digests/r/s that drive scalar and field reductions through carry
+    // and borrow paths: limits of n and p, all-ones limbs, single high bits.
+    const key_edges = [_]u256{ 1, 2, 3, n - 1, n - 2, n / 2, n / 2 + 1, 1 << 128, (1 << 128) - 1, 1 << 255, repeated(0x7f), repeated(0x80) % n, std.math.maxInt(u64), (1 << 192) - 1 };
+    const digest_edges = [_]u256{ 0, 1, n - 1, n, n + 1, p - 1, p, std.math.maxInt(u256), 1 << 255, repeated(0x80), (1 << 128) - 1, std.math.maxInt(u256) - n };
+    const r_edges = [_]u256{ 1, 2, 3, 4, n - 1, n - 2, (1 << 128), (1 << 255), n / 2, std.math.maxInt(u64) };
+    const s_edges = [_]u256{ 1, 2, n / 2, n / 2 + 1, n - 1, (1 << 128) - 1, std.math.maxInt(u64) };
+    var prng = std.Random.DefaultPrng.init(0x64696666);
+    const random = prng.random();
+    var counts = struct { signed: usize = 0, recovered: usize = 0, garbage: usize = 0 }{};
+    for (0..differential_cases) |i| {
+        var key: Hash = undefined;
+        var digest: Hash = undefined;
+        if (i < key_edges.len * digest_edges.len) {
+            std.mem.writeInt(u256, &key, key_edges[i % key_edges.len], .big);
+            std.mem.writeInt(u256, &digest, digest_edges[i / key_edges.len], .big);
+        } else {
+            random.bytes(&key);
+            random.bytes(&digest);
+        }
+        var noise_bytes: [32]u8 = undefined;
+        random.bytes(&noise_bytes);
+        const noise: ?[32]u8 = if (i % 3 == 0) noise_bytes else null;
+        const mine = signDigest(key, digest, noise);
+        const theirs = reference.sign(key, digest, noise);
+        if (mine) |signed| {
+            try std.testing.expectEqual(try theirs, signed);
+            try std.testing.expect(reference.sameOutcome(recover(digest, signed), reference.recover(digest, signed)));
+            try std.testing.expectEqual(try reference.secretKeyAddress(key), try recover(digest, signed));
+            counts.signed += 1;
+            counts.recovered += 1;
+        } else |_| {
+            // Only invalid keys may fail; the reference must reject them too.
+            try std.testing.expect(std.meta.isError(theirs));
+        }
+        // Arbitrary and edge (r, s, v) triples: identical address or error.
+        var garbage: Signature = undefined;
+        random.bytes(&garbage);
+        if (i % 4 == 1) std.mem.writeInt(u256, garbage[0..32], r_edges[(i / 4) % r_edges.len], .big);
+        if (i % 4 == 2) std.mem.writeInt(u256, garbage[32..64], s_edges[(i / 4) % s_edges.len], .big);
+        if (i % 2 == 0) garbage[32] &= 0x7f;
+        garbage[64] = 27 + (garbage[64] & 1);
+        try std.testing.expect(reference.sameOutcome(recover(digest, garbage), reference.recover(digest, garbage)));
+        counts.garbage += 1;
+    }
+    try std.testing.expect(counts.signed > differential_cases - 64);
+
+    // Field level: specialised field vs std.crypto's fiat field on canonical
+    // edge and random values (std requires canonical inputs).
+    const Fe = secp256k1.Fe;
+    const StdFe = Curve.Fe;
+    const max64: u256 = std.math.maxInt(u64);
+    const field_edges = [_]u256{ 0, 1, 2, 3, p - 1, p - 2, p - 3, 0x1000003D1, 0x1000003D0, 0x1000003D2, max64, max64 << 64, max64 << 128, max64 << 192, (1 << 255), (1 << 255) - 1, p - (1 << 32), (1 << 128) - 1, max64 | (max64 << 128), (max64 << 64) | (max64 << 192), p - max64, (p - 1) / 2 };
+    for (0..field_edges.len * field_edges.len + differential_cases) |i| {
+        const a: u256 = if (i < field_edges.len * field_edges.len) field_edges[i % field_edges.len] else random.int(u256) % p;
+        const b: u256 = if (i < field_edges.len * field_edges.len) field_edges[i / field_edges.len] else random.int(u256) % p;
+        var a_bytes: [32]u8 = undefined;
+        var b_bytes: [32]u8 = undefined;
+        std.mem.writeInt(u256, &a_bytes, a, .big);
+        std.mem.writeInt(u256, &b_bytes, b, .big);
+        const fa = try Fe.fromBytes(a_bytes);
+        const fb = try Fe.fromBytes(b_bytes);
+        const sa = try StdFe.fromBytes(a_bytes, .big);
+        const sb = try StdFe.fromBytes(b_bytes, .big);
+        try std.testing.expectEqual(sa.mul(sb).toBytes(.big), fa.mul(fb).toBytes());
+        try std.testing.expectEqual(sa.add(sb).toBytes(.big), fa.add(fb).toBytes());
+        try std.testing.expectEqual(sa.sub(sb).toBytes(.big), fa.sub(fb).toBytes());
+        try std.testing.expectEqual(sa.neg().toBytes(.big), fa.neg().toBytes());
+        if (i % 16 == 0) {
+            try std.testing.expectEqual(sa.invert().toBytes(.big), fa.invert().toBytes());
+            const std_root = sa.sqrt();
+            const my_root = fa.sqrt();
+            try std.testing.expectEqual(std.meta.isError(std_root), std.meta.isError(my_root));
+            if (my_root) |root| try std.testing.expect(root.sq().equivalent(fa)) else |_| {}
+        }
+    }
 }
