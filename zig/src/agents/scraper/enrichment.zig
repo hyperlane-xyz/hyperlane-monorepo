@@ -18,6 +18,12 @@ pub const OwnedTxn = struct {
     }
 };
 pub const Request = struct { meta: Meta, block_id: ?i64 };
+/// A pending row plus its retained block and already-known transaction.
+pub const Candidate = struct { row: Row, block_id: ?i64, transaction_id: ?i64 };
+/// Page range linked atomically with each persisted transaction.
+pub const LinkRange = struct { stream: Stream, after: i64, through: i64 };
+pub const Persisted = struct { id: i64, linked: u64 };
+pub const Linked = struct { linked: u64, pending: usize };
 pub const Page = struct {
     arena: std.heap.ArenaAllocator,
     stream: Stream,
@@ -39,17 +45,20 @@ pub const Lane = struct {
         errdefer arena.deinit();
         const a = arena.allocator();
         const start = self.after;
-        const rows = try store.pendingReceipts(a, self.stream, start, 100);
-        if (rows.len > 100) return error.ScraperReceiptPageLimit;
+        const candidates = try store.receiptCandidates(a, self.stream, start, 100);
+        if (candidates.len > 100) return error.ScraperReceiptPageLimit;
+        const rows = try a.alloc(Row, candidates.len);
         var previous = start;
-        for (rows) |row| {
-            if (row.id <= previous) return error.UnorderedReceiptPage;
-            previous = row.id;
+        for (candidates, rows) |candidate, *row| {
+            if (candidate.row.id <= previous) return error.UnorderedReceiptPage;
+            previous = candidate.row.id;
+            row.* = candidate.row;
         }
         self.after = if (rows.len == 0) 0 else previous;
         var requests: std.ArrayList(Request) = .empty;
         var identities = std.AutoHashMap([64]u8, src.Hash).init(a);
-        for (rows) |row| {
+        for (candidates) |candidate| {
+            const row = candidate.row;
             if (std.mem.allEqual(u8, &row.meta.tx_hash, 0) or std.mem.allEqual(u8, &row.meta.block_hash, 0)) return error.InvalidPendingReceiptIdentity;
             const entry = try identities.getOrPut(row.meta.tx_hash);
             if (entry.found_existing) {
@@ -57,20 +66,16 @@ pub const Lane = struct {
                 continue;
             }
             entry.value_ptr.* = row.meta.block_hash;
-            const block = try store.knownBlock(row.meta);
-            if (block == null) return error.MissingRetainedReceiptBlock;
-            if (try store.knownTransaction(row.meta) == null) try requests.append(a, .{ .meta = row.meta, .block_id = block.? });
+            const block = candidate.block_id orelse return error.MissingRetainedReceiptBlock;
+            if (candidate.transaction_id == null) try requests.append(a, .{ .meta = row.meta, .block_id = block });
         }
         const owned_requests = try requests.toOwnedSlice(a);
         return .{ .arena = arena, .stream = self.stream, .after = start, .through = previous, .rows = rows, .requests = owned_requests };
     }
     pub fn finish(_: Lane, store: anytype, page: Page) !Outcome {
-        const linked = if (page.through > page.after) try store.linkReceipts(page.stream, page.after, page.through) else 0;
-        var pending: usize = 0;
-        for (page.rows) |row| {
-            if (try store.knownTransaction(row.meta) == null) pending += 1;
-        }
-        return .{ .more = page.rows.len == 100 and pending == 0, .pending = pending, .linked = linked };
+        if (page.through <= page.after) return .{ .more = false, .pending = 0, .linked = 0 };
+        const result: Linked = try store.linkReceiptPage(page.stream, page.after, page.through, page.rows);
+        return .{ .more = page.rows.len == 100 and result.pending == 0, .pending = result.pending, .linked = result.linked };
     }
 };
 pub const Fetcher = struct {
@@ -92,18 +97,19 @@ pub fn fetchAndPersist(allocator: std.mem.Allocator, store: anytype, fetcher: Fe
         if (header.height != request.meta.block_number or !std.mem.eql(u8, &header.hash, &request.meta.block_hash)) return error.ScraperReceiptIdentityMismatch;
         break :blk try store.ensureBlock(header);
     };
-    try store.storeTransaction(block_id, result.value);
+    _ = try store.persistTransaction(block_id, result.value, null);
 }
 
 /// Persist a completed RPC result without retaining a database lease while the
 /// chain fetch runs. Optional missing-block header was fetched before the lease.
-pub fn persistFetched(store: anytype, request: Request, value: Txn, header: ?src.Header) !void {
+/// A concurrently stored transaction is verified, not duplicated; `link`
+/// links the page in the same round trip so a stalled sibling cannot defer it.
+pub fn persistFetched(store: anytype, request: Request, value: Txn, header: ?src.Header, link: ?LinkRange) !Persisted {
     if (!std.mem.eql(u8, &value.hash, &request.meta.tx_hash) or !std.mem.eql(u8, &value.block_hash, &request.meta.block_hash) or value.block_number != request.meta.block_number) return error.ScraperReceiptIdentityMismatch;
-    if (try store.knownTransaction(request.meta) != null) return;
     const block_id = request.block_id orelse try store.knownBlock(request.meta) orelse blk: {
         const block = header orelse return error.MissingRetainedReceiptBlock;
         if (block.height != request.meta.block_number or !std.mem.eql(u8, &block.hash, &request.meta.block_hash)) return error.ScraperReceiptIdentityMismatch;
         break :blk try store.ensureBlock(block);
     };
-    try store.storeTransaction(block_id, value);
+    return store.persistTransaction(block_id, value, link);
 }

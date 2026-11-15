@@ -75,6 +75,24 @@ test "scraper native PG complete worker publishes then independently enriches re
     try std.testing.expectEqual(@as(usize, 1), gas_page.requests.len);
     var context: u8 = 0;
     phase = "persist transaction";
+    var fetched = try Fetch.fetch(&context, allocator, delivery_page.requests[0].meta, 1);
+    defer fetched.deinit();
+    const link: enrich.LinkRange = .{ .stream = .delivery, .after = delivery_page.after, .through = delivery_page.through };
+    var wrong_block = delivery_page.requests[0];
+    wrong_block.block_id = wrong_block.block_id.? + 1000;
+    try std.testing.expectError(error.ScraperStoredBlockMismatch, enrich.persistFetched(enrichment_store, wrong_block, fetched.value, null, link));
+    try std.testing.expectEqual(@as(u64, 0), try rows(&connection, "SELECT count(*) AS count FROM \"transaction\" t JOIN block b ON b.id=t.block_id WHERE b.domain=99991"));
+    // Insert, page link and identity verification share one round trip.
+    const persisted = try enrich.persistFetched(enrichment_store, delivery_page.requests[0], fetched.value, null, link);
+    try std.testing.expectEqual(@as(u64, 1), persisted.linked);
+    try std.testing.expectEqual(@as(u64, 1), try rows(&connection, "SELECT count(*) AS count FROM delivered_message WHERE domain=99991 AND destination_tx_id IS NOT NULL"));
+    // Replay verifies the existing row instead of duplicating it.
+    const replayed = try enrich.persistFetched(enrichment_store, delivery_page.requests[0], fetched.value, null, link);
+    try std.testing.expectEqual(persisted.id, replayed.id);
+    try std.testing.expectEqual(@as(u64, 0), replayed.linked);
+    const known_ids = try enrichment_store.knownTransactions(allocator, &.{ delivery_page.requests[0].meta, gas_page.rows[0].meta });
+    defer allocator.free(known_ids);
+    try std.testing.expectEqual(@as(?i64, persisted.id), known_ids[0]);
     try enrich.fetchAndPersist(allocator, enrichment_store, .{ .context = &context, .fetch_fn = Fetch.fetch }, delivery_page.requests[0], 1);
     phase = "link receipts";
     try std.testing.expectEqual(@as(usize, 0), (try delivery.finish(enrichment_store, delivery_page)).pending);

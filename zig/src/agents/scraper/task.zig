@@ -44,6 +44,24 @@ const Chain = struct {
     critical: critical_metrics.Tracker = .{},
     initialized_mask: std.atomic.Value(u8) = .init(0),
     required_mask: u8 = 15,
+    /// Event-driven stage handoff: a head confirmation that published rows
+    /// wakes the lanes consuming them instead of waiting for their poll.
+    wake_delivery: std.atomic.Value(bool) = .init(false),
+    wake_gas: std.atomic.Value(bool) = .init(false),
+    wake_reconciliation: std.atomic.Value(bool) = .init(false),
+    fn wakeFor(self: *Chain, kind: Kind) ?*std.atomic.Value(bool) {
+        return switch (kind) {
+            .delivery => &self.wake_delivery,
+            .gas => &self.wake_gas,
+            .reconciliation => &self.wake_reconciliation,
+            .head, .ccr => null,
+        };
+    }
+    fn published(self: *Chain, counts: [4]u64) void {
+        if (counts[0] > 0) self.wake_reconciliation.store(true, .release);
+        if (counts[1] > 0) self.wake_delivery.store(true, .release);
+        if (counts[2] > 0) self.wake_gas.store(true, .release);
+    }
 };
 const Lane = struct {
     owner: *TaskSet,
@@ -60,6 +78,9 @@ const Lane = struct {
     receipt_batch: ?ReceiptBatch = null,
     receipt_page: ?enrich.Page = null,
     receipt_linked: u64 = 0,
+    /// A head wake consumed while a receipt page was in flight; the next
+    /// page starts immediately after the current one completes.
+    rewake: bool = false,
     reconcile_page: ?struct { plan: reconcile.Plan, selected: reconcile.Lane, times: supervisor.Times, started_ns: u64 } = null,
     ccr_page: ?struct { plan: ccr.Plan, requests: []enrich.Request, range: ccr.Range } = null,
     attempt_deadline_ns: ?u64 = null,
@@ -110,6 +131,13 @@ const Lane = struct {
     }
     fn run(context: *anyopaque, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !supervisor.Report {
         const self: *Lane = @ptrCast(@alignCast(context));
+        // Consume the mailbox before anything fallible, so a failing lane is
+        // not resubmitted every supervisor tick by a stale wake.
+        if (self.chain.wakeFor(self.kind)) |flag| if (flag.swap(false, .acq_rel)) {
+            if (self.schedule) |*schedule| schedule.requestDiscovery(times.monotonic_ms) else if (self.kind != .reconciliation) {
+                self.rewake = true;
+            }
+        };
         if (self.head_owner) |*owner| return (owner.poll(times, cancel) catch |err| {
             if (err == error.LaneOwnerDeadline) self.chain.critical.record(self.criticalReason());
             return err;
@@ -191,6 +219,7 @@ const Lane = struct {
         self.head_healthy = !result.ingestion_failed;
         const source_critical = if (result.ingestion_failed) self.failures.record(true, now_ms, 60000) else false;
         if (update.critical or source_critical) self.chain.critical.record(self.criticalReason());
+        self.chain.published(result.published);
         const names = [_][]const u8{ "message_dispatch", "message_delivery", "gas_payment", "merkle_tree_insertion" };
         var work: u64 = 0;
         for (result.published, names, 0..) |count, name, index| {
@@ -222,6 +251,8 @@ const Lane = struct {
     }
     fn receipts(self: *Lane, _: supervisor.Times, io: pg.IoOptions) !supervisor.Report {
         if (self.receipt_page == null) {
+            // This snapshot covers every row confirmed before the wake.
+            self.rewake = false;
             var db = try self.database(io);
             defer db.deinit();
             self.receipt_page = try self.receipt_lane.plan(self.owner.allocator, db.store);
@@ -235,16 +266,17 @@ const Lane = struct {
         self.receipt_linked = 0;
         page.deinit();
         self.receipt_page = null;
-        return .{ .work = result.linked, .next_delay_ms = if (result.more) 0 else self.pollInterval() };
+        return .{ .work = result.linked, .next_delay_ms = if (result.more or self.rewake) 0 else self.pollInterval() };
     }
     const Persist = struct {
         lane: *Lane,
         pub fn store(self: Persist, request: enrich.Request, value: enrich.Txn, header: ?src.Header, io: pg.IoOptions) !void {
             var db = try self.lane.database(io);
             defer db.deinit();
-            try enrich.persistFetched(db.store, request, value, header);
-            // A stalled sibling must not defer already available receipt links.
-            if (self.lane.receipt_page) |page| self.lane.receipt_linked +|= try db.store.linkReceipts(page.stream, page.after, page.through);
+            // A stalled sibling must not defer already available receipt links:
+            // the page links in the same round trip as the transaction insert.
+            const link: ?enrich.LinkRange = if (self.lane.receipt_page) |page| .{ .stream = page.stream, .after = page.after, .through = page.through } else null;
+            self.lane.receipt_linked +|= (try enrich.persistFetched(db.store, request, value, header, link)).linked;
         }
     };
     fn fetchRequests(self: *Lane, requests: []const enrich.Request, io: pg.IoOptions) !void {
@@ -370,7 +402,9 @@ const Lane = struct {
         var db = try self.database(io);
         defer db.deinit();
         // Every candidate's transaction must be present before advancing CCR.
-        for (retained.requests) |request| if (try db.store.knownTransaction(request.meta) == null) return error.CcrMissingTransaction;
+        const metas = try arena.allocator().alloc(enrich.Meta, retained.requests.len);
+        for (retained.requests, metas) |request, *meta| meta.* = request.meta;
+        for (try db.store.knownTransactions(arena.allocator(), metas)) |id| if (id == null) return error.CcrMissingTransaction;
         const work = try self.ccr_lane.?.commit(db.store, retained.range, swaps.items);
         retained.plan.deinit();
         self.owner.allocator.free(retained.requests);
@@ -470,7 +504,7 @@ pub const TaskSet = struct {
                 const i = self.initialized_lanes;
                 lanes[i] = .{ .owner = self, .chain = owned, .kind = kind, .receipt_lane = .{ .stream = if (kind == .gas) .gas else .delivery }, .backoff = .{ .allocator = a } };
                 if (kind == .head) lanes[i].head_owner = try HeadOwner.init(&lanes[i], Lane.cycle, .{ .timeout_ms = options.head_timeout_ms });
-                tasks[i] = .{ .context = &lanes[i], .run = Lane.run, .failure = classify, .interval_ms = if (kind == .head) @max(1, @min(60000, chain.index.interval *| 1000)) else if (kind == .delivery or kind == .gas) @max(1, chain.index.interval *| 1000) else 5000, .timeout_ms = if (kind == .head) options.head_timeout_ms else options.auxiliary_timeout_ms };
+                tasks[i] = .{ .context = &lanes[i], .run = Lane.run, .failure = classify, .wake = owned.wakeFor(kind), .interval_ms = if (kind == .head) @max(1, @min(60000, chain.index.interval *| 1000)) else if (kind == .delivery or kind == .gas) @max(1, chain.index.interval *| 1000) else 5000, .timeout_ms = if (kind == .head) options.head_timeout_ms else options.auxiliary_timeout_ms };
                 self.initialized_lanes += 1;
             }
         }
@@ -692,8 +726,10 @@ test "scraper explicit published reorg and critical invariant errors still halt 
 const ReconciledMetricStore = struct {
     committed: [2]bool = .{ false, true },
     fail_commit: bool = false,
-    pub fn knownTransaction(_: *@This(), _: enrich.Meta) !?i64 {
-        return 1;
+    pub fn knownTransactions(_: *@This(), a: std.mem.Allocator, metas: []const enrich.Meta) ![]?i64 {
+        const ids = try a.alloc(?i64, metas.len);
+        @memset(ids, 1);
+        return ids;
     }
     pub fn storeMessages(self: *@This(), _: src.Hash, messages: []const storage.Storable) !u64 {
         if (self.fail_commit) return error.InjectedScraperCommitFailure;
@@ -739,9 +775,20 @@ test "scraper head publishes raw dispatch without claiming enriched messages" {
     try std.testing.expectEqual(@as(?u64, null), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "message_dispatch"));
     try std.testing.expectEqual(@as(?u64, null), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "message_dispatch_reconciled"));
     try std.testing.expectEqual(@as(?u64, 10), try publicationTestMetric(registry, "hyperlane_contract_sync_block_height{", "message_dispatch"));
+    // Published dispatch/delivery/gas rows wake exactly their consumer lanes.
+    try std.testing.expect(chain.wake_reconciliation.load(.acquire) and chain.wake_delivery.load(.acquire) and chain.wake_gas.load(.acquire));
+    chain.wake_reconciliation.store(false, .release);
+    chain.wake_delivery.store(false, .release);
+    chain.wake_gas.store(false, .release);
     var zero = published;
     zero.published = .{0} ** 4;
     try std.testing.expectEqual(@as(u64, 0), (try lane.headReport(zero, 1)).work);
+    try std.testing.expect(!chain.wake_reconciliation.load(.acquire) and !chain.wake_delivery.load(.acquire) and !chain.wake_gas.load(.acquire));
+    var only_gas = published;
+    only_gas.published = .{ 0, 0, 1, 0 };
+    _ = try lane.headReport(only_gas, 2);
+    try std.testing.expect(!chain.wake_reconciliation.load(.acquire) and !chain.wake_delivery.load(.acquire) and chain.wake_gas.load(.acquire));
+    try std.testing.expect(chain.wakeFor(.head) == null and chain.wakeFor(.ccr) == null);
     try std.testing.expectEqual(@as(?u64, 2), try publicationTestMetric(registry, "hyperlane_contract_sync_stored_events{", "raw_message_dispatch"));
 }
 test "scraper reconciliation publishes committed rows excluding failed insertions and replay" {

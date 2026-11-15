@@ -88,7 +88,7 @@ pub fn planPage(allocator: std.mem.Allocator, store: anytype, backoff: Backoff, 
     errdefer arena.deinit();
     const a = arena.allocator();
     const rows = try store.rawPage(a, after, through, 100);
-    return buildPlan(&arena, store, backoff, rows, now_seconds, &.{});
+    return buildPlan(&arena, backoff, rows, now_seconds, &.{});
 }
 pub fn planRetry(allocator: std.mem.Allocator, store: anytype, backoff: Backoff, ids: []const i64, now_seconds: i64) !Plan {
     if (ids.len > 100) return error.InvalidReconciliationRetryLimit;
@@ -97,9 +97,10 @@ pub fn planRetry(allocator: std.mem.Allocator, store: anytype, backoff: Backoff,
     const a = arena.allocator();
     const copied = try a.dupe(i64, ids);
     const rows = try store.rawByIds(a, copied);
-    return buildPlan(&arena, store, backoff, rows, now_seconds, copied);
+    return buildPlan(&arena, backoff, rows, now_seconds, copied);
 }
-fn buildPlan(arena: *std.heap.ArenaAllocator, store: anytype, backoff: Backoff, rows: []const storage.RawDispatch, now_seconds: i64, ids: []const i64) !Plan {
+/// Rows carry the page query's identity-checked retained block/transaction.
+fn buildPlan(arena: *std.heap.ArenaAllocator, backoff: Backoff, rows: []const storage.RawDispatch, now_seconds: i64, ids: []const i64) !Plan {
     const a = arena.allocator();
     if (rows.len > 100) return error.InvalidReconciliationPage;
     const eligible = try a.alloc(bool, rows.len);
@@ -108,14 +109,14 @@ fn buildPlan(arena: *std.heap.ArenaAllocator, store: anytype, backoff: Backoff, 
     for (rows, eligible) |row, *attempt| {
         attempt.* = backoff.shouldAttempt(row.id, now_seconds);
         if (!attempt.* or unfetchable(row.meta)) continue;
-        if (try store.knownTransaction(row.meta) != null) continue;
+        if (row.transaction_id != null) continue;
         const entry = try unique.getOrPut(row.meta.tx_hash);
         if (entry.found_existing) {
             if (!std.mem.eql(u8, entry.value_ptr, &row.meta.block_hash)) return error.InconsistentReceiptBlock;
             continue;
         }
         entry.value_ptr.* = row.meta.block_hash;
-        try requests.append(a, .{ .meta = row.meta, .block_id = try store.knownBlock(row.meta) });
+        try requests.append(a, .{ .meta = row.meta, .block_id = row.block_id });
     }
     const owned_requests = try requests.toOwnedSlice(a);
     return .{ .arena = arena.*, .rows = rows, .eligible = eligible, .requests = owned_requests, .requested_ids = ids };
@@ -129,6 +130,15 @@ pub fn finish(store: anytype, mailbox: [32]u8, plan: *Plan, backoff: *Backoff, c
     var resolved: std.ArrayList(i64) = .empty;
     var missing: std.ArrayList(storage.RawDispatch) = .empty;
     var result: PageResult = .{ .candidate_count = plan.rows.len };
+    // One batched identity-checked lookup for every attempted row.
+    const metas = try a.alloc(enrich.Meta, plan.rows.len);
+    var lookups: usize = 0;
+    for (plan.rows, plan.eligible) |row, attempt| if (attempt and !unfetchable(row.meta)) {
+        metas[lookups] = row.meta;
+        lookups += 1;
+    };
+    const known = try store.knownTransactions(a, metas[0..lookups]);
+    var next_known: usize = 0;
     for (plan.rows, plan.eligible) |row, attempt| {
         result.next_after_id = @max(result.next_after_id, row.id);
         if (!attempt) {
@@ -136,7 +146,10 @@ pub fn finish(store: anytype, mailbox: [32]u8, plan: *Plan, backoff: *Backoff, c
             continue;
         }
         result.attempted_count += 1;
-        const transaction = if (unfetchable(row.meta)) null else try store.knownTransaction(row.meta);
+        const transaction = if (unfetchable(row.meta)) null else blk: {
+            next_known += 1;
+            break :blk known[next_known - 1];
+        };
         if (transaction != null or unfetchable(row.meta)) {
             try messages.append(a, .{ .message = row.message, .transaction_id = transaction, .id_override = row.message_id });
             try resolved.append(a, row.id);
@@ -174,6 +187,10 @@ pub const Schedule = struct {
     next_sweep_ms: u64,
     retry_not_before_ms: u64,
     global_not_before_ms: u64,
+    /// Head published new confirmed dispatches while a discovery scan was in
+    /// flight; its successor starts at completion instead of after 5 s.
+    discovery_requested: bool = false,
+    discovery_failed_until_ms: u64 = 0,
     pub fn init(watermark: i64, now_ms: u64, global_not_before_ms: u64) Schedule {
         return .{ .discovery_watermark = watermark, .next_discovery_ms = now_ms, .next_sweep_ms = now_ms, .retry_not_before_ms = now_ms, .global_not_before_ms = global_not_before_ms };
     }
@@ -198,8 +215,19 @@ pub const Schedule = struct {
         const sweep = if (self.discovery != null) std.math.maxInt(u64) else if (self.sweep) |scan| scan.next_ms -| now_ms else self.next_sweep_ms -| now_ms;
         return @max(self.global_not_before_ms -| now_ms, @min(@as(u64, 30000), @min(retry, @min(discovery, sweep))));
     }
+    /// Event-driven handoff from a head confirmation that published dispatches.
+    /// Only the idle 5 s discovery poll is skipped: global/failed-lane
+    /// cooldowns and the 2 s page delay still apply through due().
+    pub fn requestDiscovery(self: *Schedule, now_ms: u64) void {
+        if (self.discovery != null) {
+            self.discovery_requested = true;
+            return;
+        }
+        self.next_discovery_ms = @min(self.next_discovery_ms, @max(now_ms, self.discovery_failed_until_ms));
+    }
     pub fn startDiscovery(self: *Schedule, frontier: i64, now_ms: u64) !void {
         if (self.discovery != null) return error.ReconciliationLaneBusy;
+        self.discovery_requested = false;
         self.discovery = Scan.create(self.discovery_watermark, frontier, now_ms);
         if (self.discovery == null) self.next_discovery_ms = now_ms +| 5000;
     }
@@ -213,7 +241,8 @@ pub const Schedule = struct {
         if (try scan.complete(result, now_ms)) {
             self.discovery_watermark = @max(self.discovery_watermark, scan.through);
             self.discovery = null;
-            self.next_discovery_ms = now_ms +| 5000;
+            self.next_discovery_ms = if (self.discovery_requested) now_ms else now_ms +| 5000;
+            self.discovery_requested = false;
         } else self.discovery = scan;
     }
     pub fn completeSweep(self: *Schedule, result: PageResult, now_ms: u64) !void {
@@ -227,8 +256,12 @@ pub const Schedule = struct {
         const next = now_ms +| 4000;
         switch (lane) {
             .retry => self.retry_not_before_ms = next,
-            .discovery_frontier => self.next_discovery_ms = next,
+            .discovery_frontier => {
+                self.next_discovery_ms = next;
+                self.discovery_failed_until_ms = next;
+            },
             .discovery_page => {
+                self.discovery_failed_until_ms = next;
                 if (self.discovery) |*scan| scan.next_ms = next else return error.MissingReconciliationScan;
             },
             .sweep_frontier => self.next_sweep_ms = next,
@@ -238,6 +271,35 @@ pub const Schedule = struct {
         }
     }
 };
+
+test "reconciliation head wake skips only the idle discovery poll" {
+    var schedule = Schedule.init(0, 0, 0);
+    try schedule.startSweep(0, 0); // next sweep in 30 min
+    try schedule.startDiscovery(0, 0); // empty frontier: idle 5 s poll
+    try std.testing.expect(schedule.due(100, false) == null);
+    schedule.requestDiscovery(100);
+    try std.testing.expectEqual(Lane.discovery_frontier, schedule.due(100, false).?);
+    // A wake during an in-flight scan starts its successor at completion.
+    try schedule.startDiscovery(5, 100);
+    schedule.requestDiscovery(150);
+    try schedule.completeDiscovery(.{ .candidate_count = 5, .next_after_id = 5 }, 200);
+    try std.testing.expectEqual(Lane.discovery_frontier, schedule.due(200, false).?);
+    // Without a wake the successor waits the full poll.
+    try schedule.startDiscovery(6, 200);
+    try schedule.completeDiscovery(.{ .candidate_count = 1, .next_after_id = 6 }, 300);
+    try std.testing.expect(schedule.due(300, false) == null);
+    // Failure cooldowns are never bypassed by a wake.
+    try schedule.failed(.discovery_frontier, 300);
+    schedule.requestDiscovery(301);
+    try std.testing.expect(schedule.due(2300, false) == null);
+    try std.testing.expectEqual(Lane.discovery_frontier, schedule.due(4300, false).?);
+    // Full pages keep their 2 s page delay.
+    try schedule.startDiscovery(500, 4300);
+    try schedule.completeDiscovery(.{ .candidate_count = 100, .next_after_id = 100 }, 4400);
+    schedule.requestDiscovery(4400);
+    try std.testing.expect(schedule.due(4401, false) == null);
+    try std.testing.expectEqual(Lane.discovery_page, schedule.due(6400, false).?);
+}
 
 test "reconciliation first page is immediately due after frontier and domains have independent cadence" {
     var first = Schedule.init(0, 0, 0);

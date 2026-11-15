@@ -310,6 +310,23 @@ const ReceiptStore = struct {
         }
         return self.linked;
     }
+    pub fn receiptCandidates(self: *ReceiptStore, a: std.mem.Allocator, stream: @import("enrichment.zig").Stream, after: i64, limit: usize) ![]@import("enrichment.zig").Candidate {
+        const rows = try self.pendingReceipts(a, stream, after, limit);
+        const out = try a.alloc(@import("enrichment.zig").Candidate, rows.len);
+        for (rows, out) |row, *candidate| candidate.* = .{ .row = row, .block_id = try self.knownBlock(row.meta), .transaction_id = try self.knownTransaction(row.meta) };
+        return out;
+    }
+    pub fn persistTransaction(self: *ReceiptStore, block: i64, value: @import("enrichment.zig").Txn, link: ?@import("enrichment.zig").LinkRange) !@import("enrichment.zig").Persisted {
+        try self.storeTransaction(block, value);
+        return .{ .id = @as(i64, value.hash[63]) + 10, .linked = if (link) |range| try self.linkReceipts(range.stream, range.after, range.through) else 0 };
+    }
+    pub fn linkReceiptPage(self: *ReceiptStore, stream: @import("enrichment.zig").Stream, after: i64, through: i64, rows: []const @import("enrichment.zig").Row) !@import("enrichment.zig").Linked {
+        var pending: usize = 0;
+        for (rows) |row| {
+            if (try self.knownTransaction(row.meta) == null) pending += 1;
+        }
+        return .{ .linked = try self.linkReceipts(stream, after, through), .pending = pending };
+    }
 };
 const ReceiptFetcher = struct {
     fn fetch(_: *anyopaque, a: std.mem.Allocator, meta: @import("enrichment.zig").Meta, _: u64) !@import("enrichment.zig").OwnedTxn {
