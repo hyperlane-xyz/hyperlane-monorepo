@@ -20,7 +20,7 @@ const http_api = @import("validator/http.zig");
 const readiness = @import("validator/readiness.zig");
 pub const Credentials = AnnouncementWorker.Credentials;
 pub const ChainSigner = AnnouncementWorker.ChainSigner;
-pub const Options = struct { url_library: []const u8 = Url.defaultPath(), metadata_host: ?metadata.HostNormalizer = null, curl_library: []const u8, request_timeout_ms: u32 = 20000, job_timeout_ms: u64 = 120000, metrics: ?*metrics.Registry = null, environment: ?*const std.process.EnvMap = null, allow_insecure_loopback: bool = false, git_sha: []const u8 = @import("validator/metadata.zig").unknown_git_sha };
+pub const Options = struct { url_library: []const u8 = Url.defaultPath(), metadata_host: ?metadata.HostNormalizer = null, curl_library: []const u8, request_timeout_ms: u32 = 20000, job_timeout_ms: u64 = 120000, metrics: ?*metrics.Registry = null, environment: ?*const std.process.EnvMap = null, allow_insecure_loopback: bool = false, git_sha: []const u8 = @import("validator/metadata.zig").unknown_git_sha, concurrent_svm_estimates: bool = true };
 pub const Task = struct {
     allocator: A,
     settings: *const settings.Settings,
@@ -61,7 +61,7 @@ pub const Task = struct {
         self.* = .{ .allocator = a, .settings = s, .options = options, .http = cloud.http.HttpTransport.init(a), .credentials = credentials, .database_owner = database_owner, .mailbox = .{ .allocator = a, .database = database_owner, .chain_name = chain.name }, .readiness = readiness.State.init(a), .api = undefined, .announcement = undefined, .empty_environment = std.process.EnvMap.init(a), .critical = .{ .registry = options.metrics, .chain = chain.name } };
         self.api = .{ .readiness = &self.readiness, .merkle = .{ .context = self, .list_fn = listInsertions } };
         self.http.allow_insecure_loopback = options.allow_insecure_loopback;
-        self.announcement = try AnnouncementWorker.Worker.init(a, s, database_owner, &self.mailbox, .{ .curl_library = options.curl_library, .request_timeout_ms = options.request_timeout_ms, .job_timeout_ms = options.job_timeout_ms, .environment = options.environment, .allow_insecure_loopback = options.allow_insecure_loopback });
+        self.announcement = try AnnouncementWorker.Worker.init(a, s, database_owner, &self.mailbox, .{ .curl_library = options.curl_library, .request_timeout_ms = options.request_timeout_ms, .job_timeout_ms = options.job_timeout_ms, .environment = options.environment, .allow_insecure_loopback = options.allow_insecure_loopback, .concurrent_svm_estimates = options.concurrent_svm_estimates });
         self.announcement.halt_signal = &self.effects_halted;
         self.announcement.startup_ready = &self.metadata_ready;
         self.announcement.setProviders(null, chain_signer);
