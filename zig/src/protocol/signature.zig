@@ -76,24 +76,63 @@ pub fn recoverCompatible(digest: Hash, r: Hash, s: Hash, v: u64) !Address {
 /// and optional fault-hardening noise are supplied by the caller; no global RNG
 /// is consulted, making deterministic simulation possible. Null noise produces
 /// a deterministic signature. No private keys are formatted or logged here.
+///
+/// Byte-identical to std's EcdsaSecp256k1Sha256.signPrehashed followed by low-s
+/// normalisation, but keeps R=kG so the Ethereum recovery id comes from R.y
+/// parity (flipped when s is negated) instead of trial public-key recoveries.
 pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
-    const scalar = try Scalar.fromBytes(secret_key, .big);
-    if (scalar.isZero()) return error.InvalidSecretKey;
-    const key_pair = try Ecdsa.KeyPair.fromSecretKey(try Ecdsa.SecretKey.fromBytes(secret_key));
-    var raw = try key_pair.signPrehashed(digest, noise);
-    if (std.mem.readInt(u256, &raw.s, .big) > Curve.scalar.field_order / 2)
-        raw.s = (try Scalar.fromBytes(raw.s, .big)).neg().toBytes(.big);
-    var signature: Signature = undefined;
-    signature[0..64].* = raw.toBytes();
-    const expected = address(key_pair.public_key.p);
-    for ([_]u8{ 27, 28 }) |v| {
-        signature[64] = v;
-        const recovered = recover(digest, signature) catch continue;
-        if (std.mem.eql(u8, &recovered, &expected)) return signature;
-    }
+    const d = try Scalar.fromBytes(secret_key, .big);
+    if (d.isZero()) return error.InvalidSecretKey;
+    const z = reducedHash(digest);
+    const k = deterministicNonce(digest, secret_key, noise);
+    const point = (try Curve.basePoint.mul(k.toBytes(.big), .big)).affineCoordinates();
+    const x = point.x.toBytes(.big);
     // Ethereum v=27/28 cannot encode the exceedingly rare x>=curve order case.
     // Fail closed; caller may retry with fresh signing noise.
-    return error.UnrepresentableRecoveryId;
+    if (std.mem.readInt(u256, &x, .big) >= Curve.scalar.field_order) return error.UnrepresentableRecoveryId;
+    const r = try Scalar.fromBytes(x, .big);
+    if (r.isZero()) return error.IdentityElement;
+    var s = k.invert().mul(z.add(r.mul(d)));
+    if (s.isZero()) return error.IdentityElement;
+    var parity: u8 = @intFromBool(point.y.isOdd());
+    var s_bytes = s.toBytes(.big);
+    if (std.mem.readInt(u256, &s_bytes, .big) > Curve.scalar.field_order / 2) {
+        s = s.neg();
+        s_bytes = s.toBytes(.big);
+        parity ^= 1;
+    }
+    var signature: Signature = undefined;
+    signature[0..32].* = x;
+    signature[32..64].* = s_bytes;
+    signature[64] = 27 + parity;
+    return signature;
+}
+
+/// std.crypto.sign.ecdsa deterministicScalar for secp256k1/HMAC-SHA256: the
+/// RFC6979-with-additional-randomness construction, replicated exactly so
+/// signatures remain byte-identical to the std signer.
+fn deterministicNonce(h: Hash, secret_key: Hash, noise: ?[32]u8) Scalar {
+    const Prf = std.crypto.auth.hmac.sha2.HmacSha256;
+    var k: [32]u8 = .{0} ** 32;
+    var m: [32 + 1 + 32 + 32 + 32]u8 = .{0} ** (32 + 1 + 32 + 32 + 32);
+    const m_v = m[0..32];
+    const m_i = &m[32];
+    @memset(m_v, 0x01);
+    if (noise) |n| m[33..65].* = n;
+    m[65..97].* = secret_key;
+    m[97..129].* = h;
+    Prf.create(&k, &m, &k);
+    Prf.create(m_v, m_v, &k);
+    m_i.* = 0x01;
+    Prf.create(&k, &m, &k);
+    Prf.create(m_v, m_v, &k);
+    while (true) {
+        Prf.create(m_v, m_v, &k);
+        if (Scalar.fromBytes(m_v.*, .big)) |scalar| return scalar else |_| {}
+        m_i.* = 0x00;
+        Prf.create(&k, m[0..33], &k);
+        Prf.create(m_v, m_v, &k);
+    }
 }
 
 /// Ordered validator-subsequence verification matches AbstractMultisigISM:
@@ -207,4 +246,45 @@ test "recovery acceptance matches exact production ethers revision fixture" {
             return error.ExpectedRecoveryRejection;
         } else |_| {}
     }
+}
+
+/// Previous signer: std ECDSA plus trial recovery. Test-only oracle proving the
+/// derived recovery id and byte-identical signatures.
+fn signDigestByTrialRecovery(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
+    const key_pair = try Ecdsa.KeyPair.fromSecretKey(try Ecdsa.SecretKey.fromBytes(secret_key));
+    var raw = try key_pair.signPrehashed(digest, noise);
+    if (std.mem.readInt(u256, &raw.s, .big) > Curve.scalar.field_order / 2)
+        raw.s = (try Scalar.fromBytes(raw.s, .big)).neg().toBytes(.big);
+    var signature: Signature = undefined;
+    signature[0..64].* = raw.toBytes();
+    const expected = address(key_pair.public_key.p);
+    for ([_]u8{ 27, 28 }) |v| {
+        signature[64] = v;
+        const recovered = recover(digest, signature) catch continue;
+        if (std.mem.eql(u8, &recovered, &expected)) return signature;
+    }
+    return error.UnrepresentableRecoveryId;
+}
+
+test "derived recovery id recovers signer and matches trial-recovery signer bytes" {
+    var prng = std.Random.DefaultPrng.init(0x5349474e);
+    const random = prng.random();
+    var parities = [2]usize{ 0, 0 };
+    for (0..512) |i| {
+        var key: Hash = undefined;
+        random.bytes(&key);
+        const d = Scalar.fromBytes(key, .big) catch continue;
+        if (d.isZero()) continue;
+        var digest: Hash = undefined;
+        random.bytes(&digest);
+        var noise_bytes: [32]u8 = undefined;
+        random.bytes(&noise_bytes);
+        const noise: ?[32]u8 = if (i % 2 == 0) null else noise_bytes;
+        const signed = try signDigest(key, digest, noise);
+        try std.testing.expectEqualSlices(u8, &try secretKeyAddress(key), &try recover(digest, signed));
+        try std.testing.expectEqualSlices(u8, &try signDigestByTrialRecovery(key, digest, noise), &signed);
+        parities[signed[64] - 27] += 1;
+    }
+    // Both recovery ids must be exercised for the parity derivation to be tested.
+    try std.testing.expect(parities[0] > 100 and parities[1] > 100);
 }
