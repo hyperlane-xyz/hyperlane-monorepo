@@ -82,7 +82,7 @@ pub fn recoverCompatible(digest: Hash, r: Hash, s: Hash, v: u64) !Address {
 pub const SigningKey = struct {
     secret: Hash,
     public_key: secp256k1.Affine,
-    public_table: secp256k1.OddMultiples,
+    public_table: secp256k1.WideTable,
     address: Address,
 
     pub fn init(secret_key: Hash) !SigningKey {
@@ -96,7 +96,7 @@ pub const SigningKey = struct {
         return .{
             .secret = secret_key,
             .public_key = affine,
-            .public_table = secp256k1.OddMultiples.init(secp256k1.Point.fromAffine(affine)),
+            .public_table = secp256k1.WideTable.init(secp256k1.Point.fromAffine(affine)),
             .address = addressOfCoordinates(affine.x.toBytes(), affine.y.toBytes()),
         };
     }
@@ -207,7 +207,7 @@ fn verifyBeforeRelease(key: *const SigningKey, digest: Hash, signature: Signatur
     const named: secp256k1.Affine = if (r_point.y.isOdd() == odd) r_point else r_point.neg();
     const r_table = secp256k1.OddMultiples.init(secp256k1.Point.fromAffine(named));
     const z = reducedHash(digest);
-    const sum = secp256k1.multiMulPublic(2, z.toBytes(.little), .{ &key.public_table, &r_table }, .{ r.toBytes(.little), s.neg().toBytes(.little) }) catch return fail;
+    const sum = secp256k1.multiMulPublicFixed(1, .{.{ .table = &key.public_table, .scalar = r.toBytes(.little) }}, 1, z.toBytes(.little), .{&r_table}, .{s.neg().toBytes(.little)}) catch return fail;
     if (!sum.isIdentity()) return fail;
 }
 
