@@ -12,6 +12,9 @@ pub const Options = struct {
     /// on the same worker when woken: no callback replay, no worker blocking.
     fibers: bool = false,
     notify_completion: bool = false,
+    /// Thread workers only: start no threads up front; submit starts one
+    /// (up to `workers`) only when no idle worker can take the job.
+    lazy_workers: bool = false,
 };
 
 pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type, comptime workers: usize, comptime capacity: usize) type {
@@ -47,6 +50,13 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         free_output: *const fn (*Context, Output) void,
         slots: [capacity]Slot = @splat(.{}),
         threads: [workers]std.Thread = undefined,
+        /// Started worker threads (threads[0..spawned]).
+        spawned: usize = 0,
+        /// Thread workers waiting on `wake`, and wakes already sent to them
+        /// (pool mutex): a submit claims an idle worker or starts a new one.
+        idle_workers: usize = 0,
+        pending_wakes: usize = 0,
+        lazy: bool = false,
         mutex: std.Thread.Mutex = .{},
         wake: std.Thread.Condition = .{},
         stopping: bool = false,
@@ -72,23 +82,24 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         pub fn startWith(allocator: std.mem.Allocator, context: *Context, run_fn: *const fn (*Context, Input, *const std.atomic.Value(bool)) anyerror!Output, free_input: *const fn (*Context, Input) void, free_output: *const fn (*Context, Output) void, options: Options) !*Self {
             const self = try allocator.create(Self);
             errdefer allocator.destroy(self);
-            self.* = .{ .allocator = allocator, .context = context, .run_fn = run_fn, .free_input = free_input, .free_output = free_output, .fibers = options.fibers, .notify_completion = options.notify_completion };
+            if (options.lazy_workers and options.fibers) return error.InvalidIoPoolOptions;
+            self.* = .{ .allocator = allocator, .context = context, .run_fn = run_fn, .free_input = free_input, .free_output = free_output, .fibers = options.fibers, .notify_completion = options.notify_completion, .lazy = options.lazy_workers };
             for (&self.worker_states) |*state| {
                 state.* = .{ .pool = self };
                 state.timed = .initBuffer(&state.timed_storage);
             }
             for (&self.slot_fibers, 0..) |*slot_fiber, index| slot_fiber.* = .{ .pool = self, .index = index };
-            var started: usize = 0;
+            if (options.lazy_workers) return self;
             errdefer {
                 self.mutex.lock();
                 self.stopping = true;
                 self.wakeAll();
                 self.mutex.unlock();
-                for (self.threads[0..started]) |thread| thread.join();
+                for (self.threads[0..self.spawned]) |thread| thread.join();
             }
             for (&self.threads, 0..) |*thread, index| {
                 thread.* = if (options.fibers) try std.Thread.spawn(.{}, fiberWorker, .{ self, index }) else try std.Thread.spawn(.{}, worker, .{self});
-                started += 1;
+                self.spawned += 1;
             }
             return self;
         }
@@ -101,12 +112,26 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             if (self.sequence == std.math.maxInt(u64)) return error.IoSequenceExhausted;
             for (&self.slots, 0..) |*slot, index| {
                 if (slot.state != .free) continue;
+                // A lazy pool with no thread yet must start one or refuse.
+                const first = self.lazy and self.spawned == 0;
+                if (first) try self.spawnLocked();
                 self.sequence += 1;
                 slot.* = .{ .state = .queued, .sequence = self.sequence, .deadline_ms = deadline_ms, .input = input };
-                self.wakeOne();
+                if (first) {
+                    // The new worker finds this job before it first waits.
+                } else if (self.lazy and self.idle_workers <= self.pending_wakes and self.spawned < workers) {
+                    // Every started worker is busy: a new one takes this job.
+                    // Failure leaves it queued for a busy worker's next pass.
+                    self.spawnLocked() catch {};
+                } else self.wakeOne();
                 return .{ .slot = @intCast(index), .sequence = self.sequence };
             }
             return error.IoPoolFull;
+        }
+        /// Pool mutex held.
+        fn spawnLocked(self: *Self) !void {
+            self.threads[self.spawned] = try std.Thread.spawn(.{}, worker, .{self});
+            self.spawned += 1;
         }
 
         /// Poll with an injected monotonic clock. Expired work is retained in its
@@ -214,8 +239,9 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                 if (slot.state == .running) slot.state = .abandoned_running;
             }
             self.wakeAll();
+            const spawned = self.spawned;
             self.mutex.unlock();
-            for (self.threads) |thread| thread.join();
+            for (self.threads[0..spawned]) |thread| thread.join();
             for (self.slots) |slot| {
                 if (slot.state == .done and slot.result == .value) self.free_output(self.context, slot.result.value);
             }
@@ -236,7 +262,10 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                         self.mutex.unlock();
                         return;
                     }
+                    self.idle_workers += 1;
                     self.wake.wait(&self.mutex);
+                    self.idle_workers -= 1;
+                    if (self.pending_wakes > 0) self.pending_wakes -= 1;
                 };
                 const slot = &self.slots[index];
                 const input = slot.input;
@@ -279,7 +308,10 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         }
         /// Pool mutex held: one worker should look for queued work.
         fn wakeOne(self: *Self) void {
-            if (!self.fibers) return self.wake.signal();
+            if (!self.fibers) {
+                if (self.idle_workers > self.pending_wakes) self.pending_wakes += 1;
+                return self.wake.signal();
+            }
             // Claim the idle worker now: a second submit before it wakes must
             // signal a different worker, not the same one twice.
             for (&self.worker_states) |*state| if (state.idle) {

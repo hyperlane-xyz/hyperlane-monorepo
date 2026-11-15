@@ -14,7 +14,13 @@ pub const Routes = struct {
         self.extra = handler_;
     }
     pub fn handler(self: *Routes) http.Handler {
-        return .{ .context = self, .handle_fn = respond };
+        return .{ .context = self, .handle_fn = respond, .inline_fn = nonblocking };
+    }
+
+    /// /metrics renders the registry (bounded CPU, no I/O): the HTTP socket
+    /// owner serves it itself. Every other route may block (admin commands).
+    fn nonblocking(_: *anyopaque, request: *const http.Request) bool {
+        return std.mem.eql(u8, request.path, "/metrics");
     }
 
     fn respond(context: *anyopaque, a: std.mem.Allocator, request: http.Request, cancel: *const std.atomic.Value(bool)) !http.Response {
