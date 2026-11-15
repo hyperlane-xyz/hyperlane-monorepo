@@ -50,7 +50,8 @@ pub const Runtime = struct {
     announcer: ?Announcer = null,
 };
 pub const Tick = struct { next_delay_ms: ?u64 = null, announcement_pending: bool = false, indexed_range: bool = false, progress: ?driver.Progress = null };
-const Slot = struct { client: *rpc.RpcClient, indexer: indexing.Indexer, last_error: ?anyerror = null, last_vote: ?service.Checkpoint = null };
+/// `hash_pin` stays true until the endpoint rejects EIP-1898 pinned reads.
+const Slot = struct { client: *rpc.RpcClient, indexer: indexing.Indexer, last_error: ?anyerror = null, last_vote: ?service.Checkpoint = null, hash_pin: bool = true };
 pub const Role = struct {
     allocator: A,
     settings: *const settings.Settings,
@@ -485,10 +486,11 @@ pub const Role = struct {
         if (!self.consensus) return self.collectClassic(library);
         const endpoints = try self.allocator.alloc(votes.Endpoint, if (!self.consensus and self.chain.connection.ethereum.consensus == .single) 1 else self.slots.len);
         defer self.allocator.free(endpoints);
-        for (endpoints, 0..) |*endpoint, i| endpoint.* = .{ .client = self.slots[i].client, .chain_checked = self.slots[i].indexer.chain_checked };
+        for (endpoints, 0..) |*endpoint, i| endpoint.* = .{ .client = self.slots[i].client, .chain_checked = self.slots[i].indexer.chain_checked, .hash_pin = self.slots[i].hash_pin };
         const results = try votes.collect(self.allocator, &self.vote_engine, endpoints, .{ .recorder = self.quorum_metrics, .library_path = library, .chain_id = self.slots[0].indexer.config.chain_id, .domain = self.chain.domain, .hook = self.slots[0].indexer.config.hook, .hook_hash = self.chain.contracts.merkle_tree_hook, .reorg_period = self.slots[0].indexer.config.reorg_period, .timeout_ms = self.runtime.rpc_timeout_ms, .connect_timeout_ms = self.runtime.connect_timeout_ms, .cancel = self.runtime.cancel }, self, quorumReady);
         self.round_results = results;
         for (results, 0..) |result, i| {
+            if (result.hash_pin_rejected) self.slots[i].hash_pin = false;
             self.slots[i].indexer.chain_checked = result.chain_checked;
             self.slots[i].last_vote = if (result.ready) result.checkpoint else null;
             self.slots[i].last_error = result.failure;
@@ -545,9 +547,10 @@ pub const Role = struct {
         for (0..length) |offset| {
             const index = (start + offset) % length;
             const slot = &self.slots[index];
-            const endpoints = [_]votes.Endpoint{.{ .client = slot.client, .chain_checked = slot.indexer.chain_checked }};
+            const endpoints = [_]votes.Endpoint{.{ .client = slot.client, .chain_checked = slot.indexer.chain_checked, .hash_pin = slot.hash_pin }};
             const observed = try votes.collect(self.allocator, &self.vote_engine, &endpoints, self.voteConfig(library), self, quorumReady);
             defer self.allocator.free(observed);
+            if (observed[0].hash_pin_rejected) slot.hash_pin = false;
             results[index] = observed[0];
             slot.indexer.chain_checked = observed[0].chain_checked;
             slot.last_error = observed[0].failure;

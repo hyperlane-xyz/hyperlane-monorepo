@@ -19,6 +19,9 @@ const Fixture = struct {
     count_calls: std.atomic.Value(usize) = .init(0),
     other_calls: std.atomic.Value(usize) = .init(0),
     pinned_mismatch: std.atomic.Value(bool) = .init(false),
+    /// EIP-1898 handling: enforce (error unless canonical) or reject the form.
+    pin: enum { enforce, reject } = .enforce,
+    pinned_calls: std.atomic.Value(usize) = .init(0),
 
     fn handle(context: *anyopaque, alloc: std.mem.Allocator, request: http.Request, _: *const std.atomic.Value(bool)) !http.Response {
         const self: *Fixture = @ptrCast(@alignCast(context));
@@ -38,8 +41,20 @@ const Fixture = struct {
             defer alloc.free(hash);
             bytes = try std.json.Stringify.valueAlloc(alloc, .{ .jsonrpc = "2.0", .id = id, .result = .{ .number = "0x10", .hash = hash, .parentHash = hash, .timestamp = "0x1" } }, .{});
         } else if (std.mem.eql(u8, method, "eth_call")) {
-            if (!std.mem.eql(u8, params[1].string, "0x10")) self.pinned_mismatch.store(true, .release);
             const data = params[0].object.get("data").?.string;
+            if (params[1] == .object) {
+                _ = self.pinned_calls.fetchAdd(1, .monotonic);
+                const block = params[1].object;
+                const head = try abi.hexAlloc(alloc, &@as([32]u8, @splat(7)));
+                defer alloc.free(head);
+                if (!std.mem.eql(u8, block.get("blockHash").?.string, head) or !block.get("requireCanonical").?.bool) self.pinned_mismatch.store(true, .release);
+                // An enforcing node refuses a head that a reorg replaced.
+                if (self.pin == .reject or self.reorg_fence) {
+                    bytes = try std.json.Stringify.valueAlloc(alloc, .{ .jsonrpc = "2.0", .id = id, .@"error" = .{ .code = -32602, .message = "invalid block parameter" } }, .{});
+                    defer alloc.free(bytes);
+                    return http.Response.init(alloc, 200, &.{.{ .name = "Content-Type", .value = "application/json" }}, bytes);
+                }
+            } else if (!std.mem.eql(u8, params[1].string, "0x10")) self.pinned_mismatch.store(true, .release);
             const latest = try abi.hexAlloc(alloc, &abi.selector("latestCheckpoint()"));
             defer alloc.free(latest);
             if (std.mem.eql(u8, data, latest)) {
@@ -106,7 +121,10 @@ const Harness = struct {
         self.server.deinit();
     }
     fn round(self: *Harness) !votes.Result {
-        const endpoints = [_]votes.Endpoint{.{ .client = &self.client, .chain_checked = true }};
+        return self.roundPinned(false);
+    }
+    fn roundPinned(self: *Harness, hash_pin: bool) !votes.Result {
+        const endpoints = [_]votes.Endpoint{.{ .client = &self.client, .chain_checked = true, .hash_pin = hash_pin }};
         var unused: u8 = 0;
         const results = try votes.collect(a, &self.engine, &endpoints, .{ .library_path = self.path, .chain_id = 1, .domain = 1, .hook = @splat(2), .hook_hash = @splat(0), .reorg_period = .none, .timeout_ms = 3000, .connect_timeout_ms = 1000 }, &unused, never);
         defer a.free(results);
@@ -169,4 +187,51 @@ test "transport error and post-read reorg fail the vote instead of producing an 
     try std.testing.expect(!reorged.ready);
     try std.testing.expectEqual(@as(?anyerror, error.IndexingReorg), reorged.failure);
     try std.testing.expect(reorged.checkpoint == null);
+}
+
+test "EIP-1898 canonical-pinned reads replace the fence: head plus one call per round" {
+    var fixture: Fixture = .{};
+    var harness: Harness = undefined;
+    try harness.init(&fixture);
+    defer harness.deinit();
+    for (0..2) |_| {
+        const result = try harness.roundPinned(true);
+        try std.testing.expect(result.ready);
+        try std.testing.expect(!result.hash_pin_rejected);
+        try std.testing.expectEqual(@as(?u32, 5), result.count);
+    }
+    try std.testing.expectEqual(@as(usize, 2), fixture.head_calls.load(.acquire));
+    try std.testing.expectEqual(@as(usize, 2), fixture.pinned_calls.load(.acquire));
+    try std.testing.expectEqual(@as(usize, 0), fixture.fence_calls.load(.acquire));
+    try std.testing.expect(!fixture.pinned_mismatch.load(.acquire));
+    // Empty tree: the pinned revert is confirmed by a pinned count() of zero.
+    fixture.checkpoint = .revert;
+    fixture.count = 0;
+    const empty = try harness.roundPinned(true);
+    try std.testing.expect(empty.ready);
+    try std.testing.expectEqual(@as(?u32, 0), empty.count);
+    try std.testing.expectEqual(@as(usize, 0), fixture.fence_calls.load(.acquire));
+}
+
+test "EIP-1898 rejection falls back to number plus fence and a non-canonical head fails the vote" {
+    var fixture: Fixture = .{ .pin = .reject };
+    var harness: Harness = undefined;
+    try harness.init(&fixture);
+    defer harness.deinit();
+    const fallback = try harness.roundPinned(true);
+    try std.testing.expect(fallback.ready);
+    try std.testing.expect(fallback.hash_pin_rejected);
+    try std.testing.expectEqual(@as(?u32, 5), fallback.count);
+    try std.testing.expectEqual(@as(usize, 2), fixture.pinned_calls.load(.acquire));
+    try std.testing.expectEqual(@as(usize, 1), fixture.fence_calls.load(.acquire));
+    // Head replaced after it was read: the enforcing node refuses both pinned
+    // reads, the unpinned fallback hits the fence and the vote fails without
+    // demoting the endpoint's pinning.
+    fixture.pin = .enforce;
+    fixture.reorg_fence = true;
+    const reorged = try harness.roundPinned(true);
+    try std.testing.expect(!reorged.ready);
+    try std.testing.expectEqual(@as(?anyerror, error.IndexingReorg), reorged.failure);
+    try std.testing.expect(reorged.checkpoint == null);
+    try std.testing.expect(!reorged.hash_pin_rejected);
 }

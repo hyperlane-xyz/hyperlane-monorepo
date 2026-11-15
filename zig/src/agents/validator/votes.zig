@@ -10,11 +10,17 @@ const abi = @import("../../evm/codecs.zig");
 const objects = @import("../../storage/objects.zig");
 const protocol = @import("../../protocol/root.zig");
 const A = std.mem.Allocator;
-pub const Result = struct { identity_ready: bool = false, checkpoint: ?protocol.Checkpoint = null, head: ?rpc.BlockHeader = null, count: ?u32 = null, chain_checked: bool = false, ready: bool = false, failure: ?anyerror = null };
-pub const Endpoint = struct { client: *rpc.RpcClient, chain_checked: bool };
+/// `hash_pin_rejected`: neither EIP-1898 block-hash-pinned read succeeded, so
+/// this round fell back to number + hash fence; the caller stops pinning.
+pub const Result = struct { identity_ready: bool = false, checkpoint: ?protocol.Checkpoint = null, head: ?rpc.BlockHeader = null, count: ?u32 = null, chain_checked: bool = false, ready: bool = false, failure: ?anyerror = null, hash_pin_rejected: bool = false };
+/// `hash_pin`: pin contract reads to the head's hash with requireCanonical
+/// (EIP-1898). The node then executes on exactly that block and errors if it
+/// is not canonical at execution, which replaces the trailing hash fence.
+/// Endpoints that reject the pinned form use number + fence per round.
+pub const Endpoint = struct { client: *rpc.RpcClient, chain_checked: bool, hash_pin: bool = false };
 pub const Config = struct { identity_only: bool = false, recorder: ?*@import("../../ops/rpc_metrics.zig").Recorder = null, library_path: []const u8, chain_id: u256, domain: u32, hook: abi.Address, hook_hash: [32]u8, reorg_period: objects.ReorgPeriod, timeout_ms: u32 = 20000, connect_timeout_ms: u32 = 5000, cancel: ?*const std.atomic.Value(bool) = null, max_response_bytes: usize = 8 * 1024 * 1024 };
 const Phase = enum { chain, tip, head, count, checkpoint, fence, done };
-const Slot = struct { observation: ?observation.Pending = null, phase: Phase, id: ?multi.Id = null, rpc_id: i64 = 0, deadline_ms: u64, number: ?u64 = null, result: Result };
+const Slot = struct { observation: ?observation.Pending = null, phase: Phase, id: ?multi.Id = null, rpc_id: i64 = 0, deadline_ms: u64, number: ?u64 = null, pinned: bool = false, result: Result };
 /// Role-lifetime vote transport. Owner thread only. Reusing one multi keeps
 /// per-endpoint connections alive across rounds instead of reconnecting (and
 /// re-handshaking TLS) every round.
@@ -105,9 +111,15 @@ const Runner = struct {
                 defer self.a.free(call_data);
                 const to = try abi.hexAlloc(self.a, &self.config.hook);
                 defer self.a.free(to);
-                const tag = try abi.quantityAlloc(self.a, slot.result.head.?.number);
-                defer self.a.free(tag);
-                try self.request(index, "eth_call", .{ .{ .to = to, .data = call_data }, tag }, now);
+                if (slot.pinned) {
+                    const hash = try abi.hexAlloc(self.a, &slot.result.head.?.hash);
+                    defer self.a.free(hash);
+                    try self.request(index, "eth_call", .{ .{ .to = to, .data = call_data }, .{ .blockHash = hash, .requireCanonical = true } }, now);
+                } else {
+                    const tag = try abi.quantityAlloc(self.a, slot.result.head.?.number);
+                    defer self.a.free(tag);
+                    try self.request(index, "eth_call", .{ .{ .to = to, .data = call_data }, tag }, now);
+                }
             },
             .fence => {
                 const tag = try abi.quantityAlloc(self.a, slot.result.head.?.number);
@@ -133,9 +145,21 @@ const Runner = struct {
             // latestCheckpoint() reverts (count()-1 underflow) on an empty
             // tree. Never infer emptiness from an error: read count() at the
             // same pinned block; only an explicit zero is an empty vote.
-            if (slot.phase != .checkpoint) return error.RpcError;
-            slot.phase = .count;
-            return self.submit(index, now);
+            if (slot.phase == .checkpoint) {
+                slot.phase = .count;
+                return self.submit(index, now);
+            }
+            if (slot.phase == .count and slot.pinned) {
+                // Both pinned reads failed: the endpoint rejects EIP-1898
+                // block hashes, or the head stopped being canonical. Either
+                // way re-read by number and require the hash fence; a reorg
+                // then fails the vote at the fence.
+                slot.pinned = false;
+                slot.result.hash_pin_rejected = true;
+                slot.phase = .checkpoint;
+                return self.submit(index, now);
+            }
+            return error.RpcError;
         }
         const value = parsed.value.object.get("result").?;
         switch (slot.phase) {
@@ -165,14 +189,14 @@ const Runner = struct {
                 // Reached only after latestCheckpoint() failed at this block.
                 if (count != 0) return error.CheckpointReadFailed;
                 slot.result.count = 0;
-                slot.phase = .fence;
+                self.afterReads(slot);
             },
             .checkpoint => {
                 const bytes = try abi.fixedHex(64, try rpc.string(value));
                 const checkpoint = try abi.decodeCheckpoint(&bytes);
                 slot.result.count = std.math.add(u32, checkpoint.index, 1) catch return error.CheckpointCountMismatch;
                 slot.result.checkpoint = .{ .mailbox_domain = self.config.domain, .merkle_tree_hook_address = self.config.hook_hash, .root = checkpoint.root, .index = checkpoint.index, .message_id = @splat(0) };
-                slot.phase = .fence;
+                self.afterReads(slot);
             },
             .fence => {
                 const head = try rpc.BlockHeader.parse(value);
@@ -184,10 +208,21 @@ const Runner = struct {
         }
         if (slot.phase != .done) try self.submit(index, now);
     }
+    /// A canonical-pinned read is already bound to the head hash; unpinned
+    /// reads by number need the trailing hash fence.
+    fn afterReads(_: *Runner, slot: *Slot) void {
+        if (slot.pinned) {
+            slot.result.ready = true;
+            slot.phase = .done;
+        } else slot.phase = .fence;
+    }
     fn fail(self: *Runner, index: usize, err: anyerror) void {
         self.slots[index].result.failure = err;
         if (err == error.WrongChain) self.slots[index].result.chain_checked = false;
         self.slots[index].result.checkpoint = null;
+        // Demote pinning only when the unpinned fallback proved the head
+        // canonical; a failed fallback (e.g. reorg) says nothing about support.
+        self.slots[index].result.hash_pin_rejected = false;
         self.slots[index].phase = .done;
     }
 };
@@ -206,7 +241,7 @@ pub fn collect(a: A, owner: *Engine, endpoints: []const Endpoint, config: Config
     var runner: Runner = .{ .a = a, .engine = engine, .endpoints = endpoints, .slots = slots, .config = config, .owner = owner };
     const started = owner.nowMs();
     for (slots, endpoints, 0..) |*slot, endpoint, i| {
-        slot.* = .{ .phase = if (endpoint.chain_checked and !config.identity_only) .head else .chain, .deadline_ms = started +| config.timeout_ms, .result = .{ .chain_checked = endpoint.chain_checked } };
+        slot.* = .{ .phase = if (endpoint.chain_checked and !config.identity_only) .head else .chain, .deadline_ms = started +| config.timeout_ms, .pinned = endpoint.hash_pin and !config.identity_only, .result = .{ .chain_checked = endpoint.chain_checked } };
         if (endpoint.chain_checked and !config.identity_only) runner.afterChain(i);
         runner.submit(i, started) catch |err| runner.fail(i, err);
     }
