@@ -198,14 +198,6 @@ pub fn reap(f: *Fiber) bool {
     return true;
 }
 
-/// On a fiber: let runnable siblings run first (requeued at the back of its
-/// loop's ready queue). Off a fiber: no-op.
-pub fn yieldNow() void {
-    const f = running orelse return;
-    f.parked_on = .nothing;
-    park();
-}
-
 /// Parks the running fiber; returns when the scheduler resumes it.
 pub fn park() void {
     const f = running.?;

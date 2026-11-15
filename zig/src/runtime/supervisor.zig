@@ -86,9 +86,10 @@ const Context = struct {
             if (report.next_delay_ms != 0 or cancel.load(.acquire)) break;
             const elapsed = timer.read();
             if (elapsed >= hold_ns) break;
-            // Busy catch-up must not starve the other jobs on this worker.
-            if (fiber.siblingReady()) fiber.yieldNow();
-            if (cancel.load(.acquire)) break;
+            // Busy catch-up must not starve this worker's other fibers or
+            // queued jobs: hand back (a yield would re-pop this fiber before
+            // the worker claims a queued slot).
+            if (fiber.siblingReady()) break;
             const elapsed_ms = timer.read() / std.time.ns_per_ms;
             times = .{ .unix_ms = input.times.unix_ms +| elapsed_ms, .monotonic_ms = input.times.monotonic_ms +| elapsed_ms };
             _ = self.held_runs.fetchAdd(1, .monotonic);
@@ -332,7 +333,7 @@ pub const Supervisor = struct {
     /// poll_slice_ms.
     pub fn nextDelayMs(self: *const Supervisor, now_ms: u64) u64 {
         var next = now_ms +| max_wait_ms;
-        for (self.entries, self.context.tasks, 0..) |*entry, task, index| {
+        for (self.entries, self.context.tasks) |*entry, task| {
             if (entry.health.halted and entry.active == null) continue;
             if (entry.active != null) {
                 if (!entry.timed_out) next = @min(next, entry.deadline_ms);
@@ -340,10 +341,11 @@ pub const Supervisor = struct {
             }
             if (self.stopping) continue;
             next = @min(next, entry.next_ms);
-            // Owner-backed: a publish, or (owner idle) a wake flag left set
-            // by the owner's own drain, is due now. Other tasks keep their
-            // flag semantics (a flag their run may not clear cannot spin).
-            if (entry.owned and self.woken(index)) next = now_ms;
+            // An owner publish is due now. A wake flag left set is not: its
+            // writers notify, and a flag its run cannot clear must not spin.
+            if (task.owner_wake) |flag| if (flag.load(.acquire)) {
+                next = now_ms;
+            };
             if (entry.suspended and !entry.owned and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, if (entry.inline_task) now_ms else entry.suspended_ms +| resume_spacing_ms);
             if (task.wake != null and !task.wake_notified) next = @min(next, now_ms +| poll_slice_ms);
         }
@@ -625,4 +627,51 @@ test "a worker job with more work due now reruns on its fiber without a supervis
     _ = try inline_owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 });
     try std.testing.expectEqual(@as(u32, 1), inline_state.calls.load(.acquire));
     try std.testing.expectEqual(@as(u64, 0), inline_owner.context.held_runs.load(.acquire));
+}
+
+test "a held busy job hands its worker back when another job is queued" {
+    const Jobs = struct {
+        release: std.Thread.Semaphore = .{},
+        entered: std.Thread.Semaphore = .{},
+        busy_calls: std.atomic.Value(u32) = .init(0),
+        quick_done: std.atomic.Value(bool) = .init(false),
+        fn block(context: *anyopaque, _: Times, cancel: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.entered.post();
+            while (!cancel.load(.acquire)) {
+                self.release.timedWait(std.time.ns_per_ms) catch continue;
+                break;
+            }
+            return .{ .next_delay_ms = 60000 };
+        }
+        fn busy(context: *anyopaque, _: Times, _: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            _ = self.busy_calls.fetchAdd(1, .acq_rel);
+            return .{ .work = 1, .next_delay_ms = 0 };
+        }
+        fn quick(context: *anyopaque, _: Times, _: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.quick_done.store(true, .release);
+            return .{ .work = 1, .next_delay_ms = 60000 };
+        }
+    };
+    var jobs: Jobs = .{};
+    var tasks: [9]Task = undefined;
+    // Seven workers block; the eighth runs the busy job; the quick job queues.
+    for (tasks[0..7]) |*task| task.* = .{ .context = &jobs, .run = Jobs.block, .interval_ms = 60000, .timeout_ms = 60000 };
+    tasks[7] = .{ .context = &jobs, .run = Jobs.busy, .interval_ms = 60000, .timeout_ms = 60000 };
+    tasks[8] = .{ .context = &jobs, .run = Jobs.quick, .interval_ms = 60000, .timeout_ms = 60000 };
+    const owner = try Supervisor.start(std.testing.allocator, &tasks);
+    defer owner.deinit();
+    defer for (0..7) |_| jobs.release.post();
+    _ = try owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 });
+    var timer = try std.time.Timer.start();
+    while (!jobs.quick_done.load(.acquire)) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.QueuedJobStarvedByHeldJob;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // Handed back as soon as the job queued, not after the 1 s hold window
+    // (a re-popped yield ran millions of busy cycles first).
+    try std.testing.expect(jobs.busy_calls.load(.acquire) < 100_000);
+    owner.stop();
 }

@@ -14,6 +14,10 @@ pub const Config = struct {
     /// supervisor's next poll; an error, halt, stop, cancellation or expiry
     /// ends the loop at once. Zero: one run per poll.
     hold_ms: u64 = 0,
+    /// Publish through wake.notifyIo (a supervisor task suspended on this
+    /// owner resumes on the I/O generation). False: the task sets
+    /// Task.owner_wake = ownerWake() and a publish is one wake.notify().
+    notify_io: bool = true,
 };
 pub const Owner = struct {
     context: *anyopaque,
@@ -39,6 +43,10 @@ pub const Owner = struct {
     kick_source: ?*const std.atomic.Value(bool) = null,
     /// A kick since the current run started (mutex).
     kicked: bool = false,
+    /// `kick_source` when the current run started (mutex): only a source
+    /// that became set during the run skips the wait. One left set (work
+    /// the run could not take yet) must not turn the cadence into a spin.
+    source_at_start: bool = false,
     /// Between continued runs (mutex): no callback runs, so no deadline.
     waiting: bool = false,
     /// Runs continued on the owner thread without a supervisor handoff.
@@ -117,8 +125,9 @@ pub const Owner = struct {
             self.state = .done;
             self.published.store(true, .release);
             self.mutex.unlock();
-            // Ends the service loop's wait; its tick sees `published`.
-            wake_notifier.notify();
+            // Ends the service loop's wait; its tick sees `published` (or,
+            // unwired, the I/O generation).
+            if (self.config.notify_io) wake_notifier.notifyIo() else wake_notifier.notify();
             self.mutex.lock();
         }
         self.mutex.unlock();
@@ -126,7 +135,7 @@ pub const Owner = struct {
     fn pendingKick(self: *const Owner) bool {
         if (self.kicked) return true;
         const source = self.kick_source orelse return false;
-        return source.load(.acquire);
+        return !self.source_at_start and source.load(.acquire);
     }
     /// Mutex held on entry and return. Runs once, then keeps running while
     /// the next run is due within the hold window. Each run restarts the
@@ -140,6 +149,7 @@ pub const Owner = struct {
             const elapsed_ms = since.read() / std.time.ns_per_ms;
             const times: supervisor.Times = .{ .unix_ms = base.unix_ms +| elapsed_ms, .monotonic_ms = base.monotonic_ms +| elapsed_ms };
             self.kicked = false;
+            self.source_at_start = if (self.kick_source) |source| source.load(.acquire) else false;
             self.mutex.unlock();
             const outcome = self.run_fn(self.context, times, &self.cancel);
             self.mutex.lock();
@@ -384,7 +394,7 @@ test "due owner loop ends on caller cancellation and on stop" {
 const CadenceFixture = struct {
     owner: Owner = undefined,
     calls: std.atomic.Value(u32) = .init(0),
-    delay_ms: u64 = 900,
+    delay_ms: u64 = 500,
     block: std.atomic.Value(bool) = .init(false),
     fn run(context: *anyopaque, _: supervisor.Times, cancel: *const std.atomic.Value(bool)) !supervisor.Report {
         const self: *@This() = @ptrCast(@alignCast(context));
@@ -406,21 +416,22 @@ test "idle cadence waits on the owner thread and a kick or queued work ends the 
     var cancel: std.atomic.Value(bool) = .init(false);
     try std.testing.expect((try fixture.owner.poll(.{ .unix_ms = 0, .monotonic_ms = 0 }, &cancel)) == null);
     try waitCount(&fixture.calls, 1);
-    // Waiting out its 900 ms cadence inside the hold window: no hand-back.
+    // Waiting out its 500 ms cadence inside the hold window: no hand-back.
     fixture.owner.kick();
     try waitCount(&fixture.calls, 2);
-    // Sticky source: set while the owner waits, then kicked by its writer.
+    // A source set while the owner waits, then kicked by its writer: runs.
     pending.store(true, .release);
     fixture.owner.kick();
-    try waitCount(&fixture.calls, 4);
-    pending.store(false, .release);
+    try waitCount(&fixture.calls, 3);
+    // Left set (work the run could not take): the cadence wait resumes; a
+    // level-triggered source would rerun without waiting, thousands of times.
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try std.testing.expectEqual(@as(u32, 3), fixture.calls.load(.acquire));
     fixture.owner.mutex.lock();
     const continued = fixture.owner.continued_runs;
-    const published = fixture.owner.published.load(.acquire);
     fixture.owner.mutex.unlock();
-    try std.testing.expect(continued >= 3);
-    // Each kicked run restarted its window; still not past the 1 s hold.
-    if (!published) try std.testing.expect(fixture.owner.state != .done);
+    try std.testing.expectEqual(@as(u64, 2), continued);
+    pending.store(false, .release);
     var timer = try std.time.Timer.start();
     fixture.owner.requestStop();
     fixture.owner.deinit();
@@ -428,7 +439,7 @@ test "idle cadence waits on the owner thread and a kick or queued work ends the 
 }
 test "supervisor resumes an owner-backed task on its publish only, not on I/O or its control wake" {
     var fixture: CadenceFixture = .{ .delay_ms = 100000 };
-    fixture.owner = try Owner.init(&fixture, CadenceFixture.run, .{ .timeout_ms = 10000, .hold_ms = 1000 });
+    fixture.owner = try Owner.init(&fixture, CadenceFixture.run, .{ .timeout_ms = 10000, .hold_ms = 1000, .notify_io = false });
     defer fixture.owner.deinit();
     var control: std.atomic.Value(bool) = .init(false);
     const scheduler = try supervisor.Supervisor.start(std.testing.allocator, &.{.{ .context = &fixture, .run = CadenceFixture.poll, .interval_ms = 100, .timeout_ms = 10000, .wake = &control, .wake_notified = true, .owner_wake = fixture.owner.ownerWake(), .nonblocking = true }});
@@ -449,10 +460,11 @@ test "supervisor resumes an owner-backed task on its publish only, not on I/O or
     try std.testing.expectEqual(@as(usize, 1), resumed.completed);
     try std.testing.expect(!fixture.owner.published.load(.acquire));
     try std.testing.expectEqual(@as(u64, 1), (try scheduler.health(0)).work);
-    // Idle owner: due at its report's delay; a set control wake: due now.
+    // Idle owner: due at its report's delay. A control wake's writer
+    // notifies; the woken tick runs it at once without making it "due".
     try std.testing.expectEqual(supervisor.max_wait_ms, scheduler.nextDelayMs(1));
     control.store(true, .release);
-    try std.testing.expectEqual(@as(u64, 0), scheduler.nextDelayMs(1));
+    try std.testing.expectEqual(supervisor.max_wait_ms, scheduler.nextDelayMs(1));
     fixture.block.store(true, .release);
     const second = try scheduler.tick(.{ .unix_ms = 2, .monotonic_ms = 2 });
     try std.testing.expectEqual(@as(usize, 1), second.started);

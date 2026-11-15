@@ -2401,7 +2401,7 @@ pub const TaskSet = struct {
             // Lanes keep their cycle cadence on their owner thread and hand
             // one aggregated report back at least every max_wait_ms; queued
             // control commands kick the owner out of its cadence wait.
-            lane.worker = lane_owner.Owner.init(lane, Lane.cycle, .{ .timeout_ms = options.job_timeout_ms, .hold_ms = supervisor.max_wait_ms }) catch |err| {
+            lane.worker = lane_owner.Owner.init(lane, Lane.cycle, .{ .timeout_ms = options.job_timeout_ms, .hold_ms = supervisor.max_wait_ms, .notify_io = false }) catch |err| {
                 control.deinit();
                 a.free(per_origin);
                 return err;
