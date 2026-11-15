@@ -46,6 +46,14 @@ pub const Service = struct {
     /// a stream already served by this head starts a new round.
     round_head: ?rpc.BlockHeader = null,
     round_served: [3]bool = @splat(false),
+    /// Planned time of the round's first stream. Every stream the round head
+    /// serves schedules from it, so their next ticks fall due together and
+    /// share one head again instead of drifting apart by processing time.
+    round_started_ms: u64 = 0,
+    /// Per sequence stream: the hash-pinned count of this head planned the
+    /// cursor, but no fence proved the head canonical yet. Settled against
+    /// the stream's next round head before that cursor plans again.
+    unfenced: [2]?rpc.BlockHeader = .{ null, null },
     /// Finalized height the pending gas range was fetched against.
     gas_fetch_tip: u32 = 0,
     initialization_observer: ?initialization.Observer = null,
@@ -160,6 +168,8 @@ pub const Service = struct {
         };
         self.selected_stream = null;
         self.round_time_ms = null;
+        // The burst of due streams ended: the next one reads a fresh head.
+        if (report.next_delay_ms != 0) self.round_head = null;
         return report;
     }
     fn abortRetained(self: *Service) void {
@@ -241,7 +251,10 @@ pub const Service = struct {
         self.due[selected] = planned_ms +| self.chain.index.interval *| 1000;
         if (selected < 2) {
             const stream: native.Stream = if (selected == 0) .dispatch else .insertion;
-            const head = try self.roundHead(selected);
+            const head = try self.roundHead(selected, planned_ms);
+            const round_ms = self.round_started_ms;
+            self.due[selected] = round_ms +| self.chain.index.interval *| 1000;
+            if (self.unfenced[selected]) |previous| try self.settleFence(selected, previous, head);
             const tip_height = std.math.cast(u32, head.number) orelse return error.IndexHeightOutOfRange;
             const count = (try self.indexer.countAt(stream, head)) orelse return error.MissingEvmCount;
             observed = true;
@@ -252,19 +265,16 @@ pub const Service = struct {
                 self.cursors[selected] = try sequence.Cursor.init(self.allocator, count, tip_height, .{ .chunk = self.chain.index.chunk, .lowest = self.chain.index.from, .idle_ms = self.chain.index.interval *| 1000 });
             }
             const cursor = &self.cursors[selected].?;
-            const action = try cursor.plan(count, tip_height, planned_ms, self.progress[selected].interface());
-            if (action != .query) {
-                // No fetch fences this hash-pinned count: fence it here. A head
-                // reorged since its read restarts the cursor from durable
-                // progress, as at startup, instead of keeping a tip it planned.
-                self.indexer.verifyHead(head) catch |err| {
-                    if (err == error.IndexingReorg) {
-                        cursor.deinit();
-                        self.cursors[selected] = null;
-                    }
-                    return err;
-                };
-            }
+            // Backward (gap/backfill) planning can persist progress: fence its
+            // count first. Otherwise planning only moves in-memory positions.
+            const fenced_first = cursor.backward != null;
+            if (fenced_first) try self.indexer.verifyHead(head);
+            const action = try cursor.plan(count, tip_height, round_ms, self.progress[selected].interface());
+            // A fetch ending at the head proves it with its trailing fence.
+            // Otherwise the next round settles it before this cursor plans
+            // again (a parent link or equal hash costs no read).
+            const proven_by_fetch = action == .query and action.query.range.to == head.number;
+            if (!fenced_first and !proven_by_fetch) self.unfenced[selected] = head;
             self.bootstrap[selected].succeeded(self.critical, selected);
             self.due[selected] = switch (action) {
                 .sleep_until_ms => |ready| ready,
@@ -306,7 +316,9 @@ pub const Service = struct {
                 self.due[selected] = ready;
                 break :gas;
             };
-            const head = try self.roundHead(selected);
+            const head = try self.roundHead(selected, planned_ms);
+            const round_ms = self.round_started_ms;
+            self.due[selected] = round_ms +| self.chain.index.interval *| 1000;
             observed = true;
             const tip = std.math.cast(u32, head.number) orelse return error.IndexHeightOutOfRange;
             if (self.gas == null) {
@@ -315,7 +327,7 @@ pub const Service = struct {
                 if (self.initialization_observer) |sink| if (timer) |*clock| sink.completed(.interchain_gas_payment_sync, clock.read());
             }
             const cursor = &self.gas.?;
-            const action = try cursor.plan(tip, planned_ms);
+            const action = try cursor.plan(tip, round_ms);
             self.bootstrap[selected].succeeded(self.critical, selected);
             self.due[selected] = switch (action) {
                 .sleep_until_ms => |ready| ready,
@@ -353,9 +365,25 @@ pub const Service = struct {
         report.next_delay_ms = if (report.prover_leaves == 64) 0 else std.mem.min(u64, self.due[0..streams]) -| now_ms;
         return report;
     }
+    /// Settle a head an earlier plan used unfenced, against this round's head:
+    /// equal hash, or this head's parent link, proves it canonical without a
+    /// read; otherwise read its height. A head that left the canonical chain
+    /// restarts the cursor from durable progress, as at startup.
+    fn settleFence(self: *Service, selected: usize, previous: rpc.BlockHeader, head: rpc.BlockHeader) !void {
+        const canonical = if (head.number == previous.number)
+            std.mem.eql(u8, &head.hash, &previous.hash)
+        else if (head.number == previous.number +| 1)
+            std.mem.eql(u8, &head.parent_hash, &previous.hash)
+        else
+            std.mem.eql(u8, &(try self.indexer.client.blockHeader(.{ .number = previous.number })).hash, &previous.hash);
+        self.unfenced[selected] = null;
+        if (canonical) return;
+        if (self.cursors[selected]) |*cursor| cursor.deinit();
+        self.cursors[selected] = null;
+    }
     /// The round's finalized head, read once per rotation (Source reads one
     /// head per tick and shares it across its indexers).
-    fn roundHead(self: *Service, selected: usize) !rpc.BlockHeader {
+    fn roundHead(self: *Service, selected: usize, planned_ms: u64) !rpc.BlockHeader {
         if (self.round_head) |head| if (!self.round_served[selected]) {
             self.round_served[selected] = true;
             return head;
@@ -365,6 +393,7 @@ pub const Service = struct {
         self.round_head = head;
         self.round_served = @splat(false);
         self.round_served[selected] = true;
+        self.round_started_ms = planned_ms;
         return head;
     }
     fn finishGas(self: *Service, now_ms: u64, report: *Report) !void {
