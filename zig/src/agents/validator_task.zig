@@ -1,6 +1,7 @@
 //! Native operational validator job. Credential and signer factories are
 //! injected by the process owner; local jobs perform no identity discovery.
 const std = @import("std");
+const wake = @import("../runtime/wake.zig");
 const settings = @import("../settings/root.zig");
 const config = @import("validator/config.zig");
 const role = @import("validator/evm.zig");
@@ -89,7 +90,7 @@ pub const Task = struct {
         return if (chain.domain == domain) &self.critical else null;
     }
     pub fn descriptor(self: *Task) supervisor.Task {
-        return .{ .context = self, .run = run, .failure = failure, .interval_ms = @max(1, self.settings.role.validator.interval *| 1000), .timeout_ms = self.options.job_timeout_ms, .wake = if (self.settings.role.validator.websocket_url != null) &self.stream_wake else null };
+        return .{ .context = self, .run = run, .failure = failure, .interval_ms = @max(1, self.settings.role.validator.interval *| 1000), .timeout_ms = self.options.job_timeout_ms, .wake = if (self.settings.role.validator.websocket_url != null) &self.stream_wake else null, .wake_notified = true };
     }
     pub fn descriptors(self: *Task) [2]supervisor.Task {
         return .{ self.descriptor(), self.announcement.descriptor() };
@@ -196,6 +197,7 @@ pub const Task = struct {
         self.metadata_ready.store(true, .release);
         // Wake the independent descriptor without touching its durable mailbox.
         self.mailbox.pending.store(true, .release);
+        wake.notify();
     }
     /// Detach the route and drain HTTP workers before deinitializing this Task.
     /// Called after all role jobs join, before teardown, for shutdown diagnostics.

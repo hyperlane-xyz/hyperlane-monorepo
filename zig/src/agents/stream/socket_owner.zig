@@ -2,6 +2,7 @@
 //! checkpoint and signer state remain on the consuming agent worker. A wake flag
 //! schedules that worker only after an owned event enters this bounded mailbox.
 const std = @import("std");
+const service_wake = @import("../../runtime/wake.zig");
 const transport = @import("../../net/websocket/transport.zig");
 const A = std.mem.Allocator;
 pub const Config = struct {
@@ -209,6 +210,7 @@ pub const Owner = struct {
         self.retained_events += 1;
         self.retained_bytes += bytes;
         self.config.wake.store(true, .release);
+        service_wake.notify();
     }
     fn commandsPending(self: *Owner) bool {
         self.mutex.lock();

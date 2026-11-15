@@ -1,6 +1,7 @@
 //! One bounded durable request slot between independent checkpoint/announcement
 //! jobs. Callbacks copy public bytes only. No mutable transaction owner is shared.
 const std = @import("std");
+const wake = @import("../../runtime/wake.zig");
 const native = @import("../store.zig");
 const DatabaseOwner = @import("../origin_tasks.zig").DatabaseOwner;
 const objects = @import("../../storage/objects.zig");
@@ -97,6 +98,7 @@ pub const Mailbox = struct {
                     defer self.allocator.free(reopened);
                     try self.store(reopened, cancel);
                     self.pending.store(true, .release);
+        wake.notify();
                 }
                 return;
             }
@@ -104,6 +106,7 @@ pub const Mailbox = struct {
         }
         try self.store(bytes, cancel);
         self.pending.store(true, .release);
+        wake.notify();
     }
     fn store(self: *Mailbox, bytes: []const u8, cancel: *const std.atomic.Value(bool)) !void {
         const database = try self.database.get(cancel);
@@ -124,6 +127,7 @@ pub const Mailbox = struct {
         defer self.allocator.free(bytes);
         try self.store(bytes, cancel);
         self.pending.store(true, .release);
+        wake.notify();
     }
 };
 

@@ -61,7 +61,7 @@ pub const Worker = struct {
         self.allocator.destroy(self);
     }
     pub fn descriptor(self: *Worker) supervisor.Task {
-        return .{ .context = self, .run = run, .failure = failure, .interval_ms = @max(1, self.settings.role.validator.interval *| 1000), .timeout_ms = self.options.job_timeout_ms, .wake = &self.mailbox.pending };
+        return .{ .context = self, .run = run, .failure = failure, .interval_ms = @max(1, self.settings.role.validator.interval *| 1000), .timeout_ms = self.options.job_timeout_ms, .wake = &self.mailbox.pending, .wake_notified = true };
     }
     fn failure(err: anyerror) supervisor.FailureAction {
         return switch (err) {
