@@ -51,31 +51,36 @@ pub const Evm = struct {
             header_.* = .{ .height = value.number, .timestamp = value.timestamp, .hash = value.hash, .parent = value.parent_hash };
         }
     }
-    fn count(self: *Evm, contract: src.Hash, signature: []const u8, hash: src.Hash) !u32 {
-        const allocator = self.rpc_client.allocator;
-        const to = try abi.hexAlloc(allocator, &try address(contract));
-        defer allocator.free(to);
-        const calldata = try abi.hexAlloc(allocator, &abi.selector(signature));
-        defer allocator.free(calldata);
-        const tag_text = try abi.hexAlloc(allocator, &hash);
-        defer allocator.free(tag_text);
-        const tag = .{ .blockHash = tag_text };
-        // Production ethers BlockId::Hash serializes as an EIP-1898 object.
-        // Empty code before deployment proves the zero count.
-        var response = try self.rpc_client.call("eth_call", .{ .{ .to = to, .data = calldata }, tag });
-        defer response.deinit();
-        const encoded = try rpc.string(response.value());
-        if (std.mem.eql(u8, encoded, "0x")) {
-            var code = try self.rpc_client.call("eth_getCode", .{ to, tag });
-            defer code.deinit();
-            if (std.mem.eql(u8, try rpc.string(code.value()), "0x")) return 0;
-            return error.InvalidContractSequenceCount;
-        }
-        return abi.uintWord(u32, &try abi.fixedHex(32, encoded));
-    }
+    /// Mailbox nonce() and hook count() pinned to one block hash, the two
+    /// eth_calls overlapped. Production ethers BlockId::Hash serializes as an
+    /// EIP-1898 object. Empty code before deployment proves the zero count.
     fn counts(context: *anyopaque, hash: src.Hash) !?[2]u32 {
         const self = cast(context);
-        return .{ try self.count(self.contracts.mailbox, "nonce()", hash), try self.count(self.contracts.hook, "count()", hash) };
+        var arena = std.heap.ArenaAllocator.init(self.rpc_client.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const tag = .{ .blockHash = try abi.hexAlloc(a, &hash) };
+        const targets = [2]struct { contract: src.Hash, signature: []const u8 }{ .{ .contract = self.contracts.mailbox, .signature = "nonce()" }, .{ .contract = self.contracts.hook, .signature = "count()" } };
+        var to: [2][]const u8 = undefined;
+        var calls: [2]rpc.RawCall = undefined;
+        for (targets, &to, &calls) |target, *address_, *call_| {
+            address_.* = try abi.hexAlloc(a, &try address(target.contract));
+            call_.* = .{ .method = "eth_call", .params_json = try std.json.Stringify.valueAlloc(a, .{ .{ .to = address_.*, .data = try abi.hexAlloc(a, &abi.selector(target.signature)) }, tag }, .{}) };
+        }
+        var responses: [2]rpc.RpcResponse = undefined;
+        try self.rpc_client.callMany(&calls, &responses);
+        defer for (&responses) |*response| response.deinit();
+        var result: [2]u32 = undefined;
+        for (responses, to, &result) |response, address_, *value| {
+            const encoded = try rpc.string(response.value());
+            if (std.mem.eql(u8, encoded, "0x")) {
+                var code = try self.rpc_client.call("eth_getCode", .{ address_, tag });
+                defer code.deinit();
+                if (!std.mem.eql(u8, try rpc.string(code.value()), "0x")) return error.InvalidContractSequenceCount;
+                value.* = 0;
+            } else value.* = try abi.uintWord(u32, &try abi.fixedHex(32, encoded));
+        }
+        return result;
     }
     fn events(context: *anyopaque, allocator: std.mem.Allocator, from: u64, through: u64, _: [4]u32) !src.Batch {
         const self = cast(context);
