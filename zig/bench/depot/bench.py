@@ -119,6 +119,8 @@ def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str, cal
         perf = perf_binary()
         assert perf, "perf not installed (linux-tools-generic)"
         return (f"{perf} record -q -F 499 --call-graph {call_graph} -p $$ -o {stem}.perf.data >/dev/null 2>&1 &\n"
+                # Every minor/major fault with its call graph (cycles samples cannot attribute faults).
+                f"{perf} record -q -e page-faults -c 1 --call-graph {call_graph} -p $$ -o {stem}.faults.perf.data >/dev/null 2>&1 &\n"
                 f"{perf} stat -e task-clock,context-switches,cpu-migrations,page-faults,cycles,instructions "
                 f"-p $$ -o {stem}.perf-stat.txt >/dev/null 2>&1 &\nsleep 0.3\n")
     strace = shutil.which("strace")
@@ -394,7 +396,7 @@ def postprocess_profiles(profdir: pathlib.Path) -> dict:
     groups: dict[str, dict[str, int]] = {}
     flats: dict[str, dict[str, int]] = {}
     for data in sorted(profdir.glob("*.perf.data")):
-        impl_role = "-".join(data.name.split("-")[:2])
+        impl_role = "-".join(data.name.split("-")[:2]) + (".faults" if ".faults." in data.name else "")
         script = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "--sort", "comm",
                                  "-g", "folded,0,caller,count"], capture_output=True, text=True, timeout=900)
         folded = groups.setdefault(impl_role, {})
