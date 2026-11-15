@@ -168,6 +168,28 @@ test "metrics keepalive bounded pipelining and HEAD preserve request data" {
     try std.testing.expectEqualStrings("fixture_metric 1\n", third.body());
 }
 
+test "idle and keep-alive server owner blocks instead of polling every 5 ms" {
+    const a = std.testing.allocator;
+    var echo: Echo = .{};
+    const server = try start(&echo, .{ .address = try loopback(), .keep_alive_timeout_ms = 60_000, .request_timeout_ms = 60_000 });
+    defer server.deinit();
+    const idle = server.owner_iterations.load(.acquire);
+    std.Thread.sleep(200 * std.time.ns_per_ms);
+    // The former 5 ms poll made ~40 passes here.
+    try std.testing.expect(server.owner_iterations.load(.acquire) - idle <= 2);
+    var client = try Client.connect(a, server.address());
+    defer client.deinit();
+    for (0..3) |_| {
+        try client.writeAll("GET /metrics HTTP/1.1\r\nHost: fixture\r\n\r\n");
+        var reply = try expectReply(&client, false, 200);
+        reply.deinit();
+    }
+    // An open keep-alive connection waits on its socket and its deadline only.
+    const open = server.owner_iterations.load(.acquire);
+    std.Thread.sleep(200 * std.time.ns_per_ms);
+    try std.testing.expect(server.owner_iterations.load(.acquire) - open <= 2);
+}
+
 fn serveGetHeadAndStop(allocator: A, address: std.net.Address) !void {
     var echo: Echo = .{};
     const server = try start(&echo, .{ .address = address });

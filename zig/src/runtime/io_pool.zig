@@ -4,6 +4,8 @@
 const std = @import("std");
 const wake_notifier = @import("wake.zig");
 
+pub const Hook = struct { context: *anyopaque, call_fn: *const fn (*anyopaque) void };
+
 pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type, comptime workers: usize, comptime capacity: usize) type {
     comptime {
         if (workers == 0 or capacity < workers or capacity > 65535) @compileError("invalid I/O pool bounds");
@@ -28,6 +30,9 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         /// Set before submissions by the service supervisor: completions and
         /// retirements end its timed wait (runtime/wake.zig).
         notify_completion: bool = false,
+        /// Optional owner wake after a completion or retirement, called on the
+        /// worker without the pool mutex. Set before the first submission.
+        completion_hook: ?Hook = null,
         sequence: u64 = 0,
         completions: u64 = 0,
 
@@ -209,7 +214,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                     slot.state = .free;
                     self.mutex.unlock();
                     // Retirement of an abandoned job frees its supervisor entry.
-                    if (self.notify_completion) wake_notifier.notify();
+                    self.completed();
                     continue;
                 }
                 slot.state = .running;
@@ -233,8 +238,12 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                     slot.state = .done;
                 }
                 self.mutex.unlock();
-                if (self.notify_completion) wake_notifier.notify();
+                self.completed();
             }
+        }
+        fn completed(self: *Self) void {
+            if (self.notify_completion) wake_notifier.notify();
+            if (self.completion_hook) |hook| hook.call_fn(hook.context);
         }
     };
 }

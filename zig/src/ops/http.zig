@@ -249,6 +249,13 @@ pub const Server = struct {
     pool: *Worker,
     connections: []Connection,
     polls: []std.posix.pollfd,
+    /// polls[2..] -> connection index for the open connections polled this pass.
+    poll_connections: []usize,
+    /// Self-pipe: job completion and stop end the owner's blocking poll.
+    wake_read: std.posix.fd_t,
+    wake_write: std.posix.fd_t,
+    /// Owner poll passes, for focused work-count evidence.
+    owner_iterations: std.atomic.Value(u64) = .init(0),
     thread: std.Thread,
     stopping: std.atomic.Value(bool) = .init(false),
     stop_mutex: std.Thread.Mutex = .{},
@@ -268,8 +275,12 @@ pub const Server = struct {
         const connections = try allocator.alloc(Connection, options.max_connections);
         errdefer allocator.free(connections);
         @memset(connections, .{});
-        const polls = try allocator.alloc(std.posix.pollfd, options.max_connections + 1);
+        const polls = try allocator.alloc(std.posix.pollfd, options.max_connections + 2);
         errdefer allocator.free(polls);
+        const poll_connections = try allocator.alloc(usize, options.max_connections);
+        errdefer allocator.free(poll_connections);
+        const pipe = try std.posix.pipe2(.{ .CLOEXEC = true, .NONBLOCK = true });
+        errdefer for (pipe) |fd| std.posix.close(fd);
         self.* = .{
             .allocator = allocator,
             .options = options,
@@ -280,11 +291,15 @@ pub const Server = struct {
             .pool = undefined,
             .connections = connections,
             .polls = polls,
+            .poll_connections = poll_connections,
+            .wake_read = pipe[0],
+            .wake_write = pipe[1],
             .thread = undefined,
         };
         self.job_context.budget = &self.budget;
         self.pool = try Worker.start(allocator, &self.job_context, JobContext.run, JobContext.freeInput, JobContext.freeOutput);
         errdefer self.pool.deinit();
+        self.pool.completion_hook = .{ .context = self, .call_fn = wakeOwner };
         self.thread = try std.Thread.spawn(.{}, ownerMain, .{self});
         return self;
     }
@@ -311,6 +326,7 @@ pub const Server = struct {
         defer self.stop_mutex.unlock();
         if (self.joined) return;
         self.stopping.store(true, .release);
+        wakeOwner(self);
         self.thread.join();
         self.joined = true;
     }
@@ -319,6 +335,9 @@ pub const Server = struct {
         self.stop();
         self.allocator.free(self.connections);
         self.allocator.free(self.polls);
+        self.allocator.free(self.poll_connections);
+        std.posix.close(self.wake_read);
+        std.posix.close(self.wake_write);
         const allocator = self.allocator;
         allocator.destroy(self);
     }
@@ -329,6 +348,20 @@ pub const Server = struct {
         self.failure_mutex.unlock();
     }
 };
+
+/// Thread-safe, nonblocking. A full pipe already guarantees a pending wake.
+fn wakeOwner(context: *anyopaque) void {
+    const self: *Server = @ptrCast(@alignCast(context));
+    _ = std.posix.write(self.wake_write, "x") catch {};
+}
+
+fn drainWake(self: *Server) void {
+    var buffer: [64]u8 = undefined;
+    while (true) {
+        const count = std.posix.read(self.wake_read, &buffer) catch return;
+        if (count < buffer.len) return;
+    }
+}
 
 fn ownerMain(self: *Server) void {
     run(self) catch |err| self.recordFailure(err);
@@ -346,21 +379,35 @@ fn run(self: *Server) !void {
     while (!self.stopping.load(.acquire)) {
         const now = timer.read() / std.time.ns_per_ms;
         collectJobs(self, now);
+        // Poll only the listener, the wake pipe and open connections, and
+        // block until readiness, a completion/stop wake, or the earliest
+        // connection deadline (request, keep-alive, write or job timeout).
         self.polls[0] = .{ .fd = self.listener.stream.handle, .events = if (freeConnection(self) != null) std.posix.POLL.IN else 0, .revents = 0 };
-        for (self.connections, self.polls[1..]) |*connection, *poll| {
-            poll.* = .{ .fd = connection.fd, .events = 0, .revents = 0 };
+        self.polls[1] = .{ .fd = self.wake_read, .events = std.posix.POLL.IN, .revents = 0 };
+        var polled: usize = 0;
+        var next_deadline: ?u64 = null;
+        for (self.connections, 0..) |*connection, index| {
             if (connection.fd < 0) continue;
+            var events: i16 = 0;
             if (connection.output.len != 0) {
-                poll.events = std.posix.POLL.OUT;
+                events = std.posix.POLL.OUT;
             } else if (!connection.read_closed and !connection.close_after_write and connection.input.items.len < self.options.inputLimit()) {
-                poll.events = std.posix.POLL.IN;
+                events = std.posix.POLL.IN;
             }
+            self.polls[2 + polled] = .{ .fd = connection.fd, .events = events, .revents = 0 };
+            self.poll_connections[polled] = index;
+            polled += 1;
+            if (connection.deadline_ms != 0) next_deadline = @min(next_deadline orelse connection.deadline_ms, connection.deadline_ms);
         }
-        _ = try std.posix.poll(self.polls, 5);
+        const timeout: i32 = if (next_deadline) |deadline| @intCast(@min(deadline -| now, std.math.maxInt(i32))) else -1;
+        _ = self.owner_iterations.fetchAdd(1, .monotonic);
+        _ = try std.posix.poll(self.polls[0 .. 2 + polled], timeout);
         const after = timer.read() / std.time.ns_per_ms;
         if (self.polls[0].revents & std.posix.POLL.NVAL != 0) return error.HttpListenerClosed;
-        if (self.polls[0].revents & std.posix.POLL.IN != 0) try acceptConnections(self, after);
-        for (self.connections, self.polls[1..]) |*connection, poll| {
+        if (self.polls[1].revents != 0) drainWake(self);
+        // Connections polled this pass, before accepting new ones into slots.
+        for (self.polls[2 .. 2 + polled], self.poll_connections[0..polled]) |poll, index| {
+            const connection = &self.connections[index];
             if (connection.fd < 0) continue;
             if (poll.revents & std.posix.POLL.NVAL != 0) {
                 closeConnection(self, connection);
@@ -370,6 +417,7 @@ fn run(self: *Server) !void {
             if (connection.fd >= 0 and poll.revents & (std.posix.POLL.IN | std.posix.POLL.HUP | std.posix.POLL.ERR) != 0) readConnection(self, connection, after);
             if (connection.fd >= 0) advanceConnection(self, connection, after);
         }
+        if (self.polls[0].revents & std.posix.POLL.IN != 0) try acceptConnections(self, after);
         collectJobs(self, timer.read() / std.time.ns_per_ms);
     }
 }
