@@ -98,7 +98,7 @@ pub const Mailbox = struct {
                     defer self.allocator.free(reopened);
                     try self.store(reopened, cancel);
                     self.pending.store(true, .release);
-        wake.notify();
+                    wake.notify();
                 }
                 return;
             }
