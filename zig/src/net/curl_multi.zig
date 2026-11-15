@@ -17,6 +17,8 @@ const Api = struct {
     multi_perform: *const fn (*Native, *c_int) callconv(.c) c_int,
     multi_info_read: *const fn (*Native, *c_int) callconv(.c) ?*Message,
     multi_setopt: *const fn (*Native, c_int, ...) callconv(.c) c_int,
+    multi_poll: *const fn (*Native, ?*anyopaque, c_uint, c_int, ?*c_int) callconv(.c) c_int,
+    multi_wakeup: *const fn (*Native) callconv(.c) c_int,
     fn load(library: *std.DynLib) !Api {
         var api: Api = undefined;
         inline for (std.meta.fields(Api)) |field| @field(api, field.name) = library.lookup(field.type, "curl_" ++ field.name) orelse return error.MissingLibcurlMultiSymbol;
@@ -69,6 +71,13 @@ pub const Multi = struct {
     sequence: u64 = 0,
     completions: u64 = 0,
     active: usize = 0,
+    active_by_trust: [2]usize = .{ 0, 0 },
+    queued: usize = 0,
+    done: usize = 0,
+    /// One past the highest non-free slot; every owner scan is bounded by it.
+    high: usize = 0,
+    /// Owner-thread counters for wakeup/wait evidence in focused tests.
+    waits: u64 = 0,
     reserved_bytes: usize = 0,
     last_ms: u64 = 0,
     first_trust: usize = 0,
@@ -139,6 +148,8 @@ pub const Multi = struct {
         self.sequence += 1;
         self.slots[index] = .{ .state = .queued, .sequence = self.sequence, .deadline_ms = now_ms +| request.timeout_ms, .transfer = transfer, .reserved_bytes = reserved, .trust = @intFromBool(request.public_only) };
         self.reserved_bytes += reserved;
+        self.queued += 1;
+        self.high = @max(self.high, index + 1);
         return .{ .slot = @intCast(index), .sequence = self.sequence };
     }
     fn selected(self: *Multi, id: Id) !*Slot {
@@ -159,10 +170,16 @@ pub const Multi = struct {
         try self.complete(slot, .{ .failure = error.RequestCancelled });
     }
     fn complete(self: *Multi, slot: *Slot, result: Result) !void {
-        if (slot.state == .active) {
-            if (self.api.multi_remove_handle(self.handles[slot.trust], slot.transfer.?.handle) != 0) return error.CurlMultiRemoveFailed;
-            self.active -= 1;
+        switch (slot.state) {
+            .active => {
+                if (self.api.multi_remove_handle(self.handles[slot.trust], slot.transfer.?.handle) != 0) return error.CurlMultiRemoveFailed;
+                self.active -= 1;
+                self.active_by_trust[slot.trust] -= 1;
+            },
+            .queued => self.queued -= 1,
+            .free, .done => unreachable,
         }
+        self.done += 1;
         slot.transfer.?.deinit();
         slot.transfer = null;
         self.completions += 1;
@@ -171,7 +188,7 @@ pub const Multi = struct {
         slot.state = .done;
     }
     fn pending(self: *Multi, now_ms: u64) !void {
-        for (self.slots) |*slot| {
+        for (self.slots[0..self.high]) |*slot| {
             if (slot.state != .queued and slot.state != .active) continue;
             const request = slot.transfer.?.request;
             if (request.cancel) |cancel_| if (cancel_.load(.acquire)) {
@@ -180,9 +197,9 @@ pub const Multi = struct {
             };
             if (now_ms >= slot.deadline_ms) try self.complete(slot, .{ .failure = error.RequestDeadlineExceeded });
         }
-        while (self.active < self.config.max_concurrent) {
+        while (self.queued != 0 and self.active < self.config.max_concurrent) {
             var selected_slot: ?*Slot = null;
-            for (self.slots) |*slot| if (slot.state == .queued and (selected_slot == null or slot.sequence < selected_slot.?.sequence)) {
+            for (self.slots[0..self.high]) |*slot| if (slot.state == .queued and (selected_slot == null or slot.sequence < selected_slot.?.sequence)) {
                 selected_slot = slot;
             };
             const slot = selected_slot orelse break;
@@ -192,12 +209,19 @@ pub const Multi = struct {
                 try self.complete(slot, .{ .failure = error.LibcurlOptionFailed });
                 continue;
             }
+            // CURLOPT_PRIVATE maps DONE messages back to their slot without a scan.
+            if (self.client.api.easy_setopt(transfer.handle, 10103, @as(*anyopaque, slot)) != 0) {
+                try self.complete(slot, .{ .failure = error.LibcurlOptionFailed });
+                continue;
+            }
             if (self.api.multi_add_handle(self.handles[slot.trust], transfer.handle) != 0) {
                 try self.complete(slot, .{ .failure = error.CurlMultiAddFailed });
                 continue;
             }
             slot.state = .active;
+            self.queued -= 1;
             self.active += 1;
+            self.active_by_trust[slot.trust] += 1;
         }
     }
     /// Nonblocking. Completion order follows libcurl's DONE queue within each
@@ -215,9 +239,7 @@ pub const Multi = struct {
             var remaining: c_int = 0;
             while (self.api.multi_info_read(self.handles[trust], &remaining)) |message| {
                 if (message.kind != 1) return error.InvalidCurlMultiMessage;
-                const slot = for (self.slots) |*slot| {
-                    if (slot.state == .active and slot.transfer.?.handle == message.easy) break slot;
-                } else return error.UnknownCurlMultiHandle;
+                const slot = try self.messageSlot(message.easy);
                 const result: Result = if (slot.transfer.?.finish(message.data.result)) |response| .{ .response = response } else |err| .{ .failure = err };
                 self.complete(slot, result) catch |err| {
                     var cleanup = result;
@@ -227,8 +249,9 @@ pub const Multi = struct {
             }
         }
         self.first_trust = (self.first_trust + 1) % 2;
+        if (self.done == 0) return null;
         var ready: ?*Slot = null;
-        for (self.slots) |*slot| if (slot.state == .done and (ready == null or slot.completion_sequence < ready.?.completion_sequence)) {
+        for (self.slots[0..self.high]) |*slot| if (slot.state == .done and (ready == null or slot.completion_sequence < ready.?.completion_sequence)) {
             ready = slot;
         };
         const slot = ready orelse return null;
@@ -236,9 +259,51 @@ pub const Multi = struct {
         const completion: Completion = .{ .id = .{ .slot = @intCast(index), .sequence = slot.sequence }, .result = slot.result };
         self.reserved_bytes -= slot.reserved_bytes;
         slot.* = .{};
+        self.done -= 1;
+        while (self.high != 0 and self.slots[self.high - 1].state == .free) self.high -= 1;
         return completion;
     }
+    fn messageSlot(self: *Multi, easy: *curl.Handle) !*Slot {
+        var private: ?*anyopaque = null;
+        if (self.client.api.easy_getinfo(easy, 0x100015, &private) != 0) return error.UnknownCurlMultiHandle; // CURLINFO_PRIVATE
+        const address = @intFromPtr(private orelse return error.UnknownCurlMultiHandle);
+        const base = @intFromPtr(self.slots.ptr);
+        if (address < base or address >= base + self.high * @sizeOf(Slot) or (address - base) % @sizeOf(Slot) != 0) return error.UnknownCurlMultiHandle;
+        const slot = &self.slots[(address - base) / @sizeOf(Slot)];
+        if (slot.state != .active or slot.transfer.?.handle != easy) return error.UnknownCurlMultiHandle;
+        return slot;
+    }
+    /// Owner thread only. Block until native socket activity, libcurl's own
+    /// timer, the earliest slot deadline, `wakeup`, or `max_wait_ms`. Returns
+    /// immediately when poll has work (unconsumed completion, startable queued
+    /// request, or a raised cancel flag). Call poll afterwards. A borrowed
+    /// request cancel flag raised by another thread is observed only after
+    /// `wakeup` or `max_wait_ms`; such callers must do one or bound the wait.
+    pub fn wait(self: *Multi, now_ms: u64, max_wait_ms: u32) !void {
+        try self.clock(now_ms);
+        if (self.done != 0) return;
+        if (self.queued != 0 and self.active < self.config.max_concurrent) return;
+        var timeout: u64 = max_wait_ms;
+        for (self.slots[0..self.high]) |slot| {
+            if (slot.state != .queued and slot.state != .active) continue;
+            if (slot.transfer.?.request.cancel) |flag| if (flag.load(.acquire)) return;
+            timeout = @min(timeout, slot.deadline_ms -| now_ms);
+        }
+        if (timeout == 0) return;
+        // curl_multi_poll watches one native handle. The trusted cache is
+        // primary; a public-only-active owner waits on the public cache. When
+        // both carry transfers, the other one is bounded by a short slice.
+        const trust: usize = if (self.active_by_trust[0] == 0 and self.active_by_trust[1] != 0) 1 else 0;
+        if (self.active_by_trust[1 - trust] != 0) timeout = @min(timeout, mixed_trust_slice_ms);
+        self.waits += 1;
+        if (self.api.multi_poll(self.handles[trust], null, 0, @intCast(@min(timeout, std.math.maxInt(c_int))), null) != 0) return error.CurlMultiPollFailed;
+    }
+    /// Thread-safe: interrupt a current or the next `wait` on either cache.
+    pub fn wakeup(self: *Multi) void {
+        for (self.handles) |handle| _ = self.api.multi_wakeup(handle);
+    }
 };
+const mixed_trust_slice_ms: u64 = 5;
 test "curl multi rejects invalid capacities without loading a native library" {
     try std.testing.expectError(error.InvalidCurlMultiConfig, Multi.init(std.testing.allocator, .{ .library_path = "/never/load", .max_concurrent = 0 }));
     try std.testing.expectError(error.InvalidCurlMultiConfig, Multi.init(std.testing.allocator, .{ .library_path = "/never/load", .max_concurrent = 10, .max_pending = 9 }));
@@ -326,9 +391,12 @@ test "curl multi starts healthy validators beyond eight stalled requests and can
             try std.testing.expect(completion.result == .response);
             try std.testing.expectEqualStrings("ok", completion.result.response.body);
             received += 1;
-        } else std.Thread.sleep(std.time.ns_per_ms);
+        } else try multi.wait(timer.read() / std.time.ns_per_ms, 2000);
         if (timer.read() > 2 * std.time.ns_per_s) return error.HealthyFanoutStalled;
     }
+    // Socket-driven: eight stalled transfers stay in flight, yet the owner
+    // blocks per readiness event instead of per millisecond.
+    try std.testing.expect(multi.waits <= 64);
     try std.testing.expectEqual(@as(usize, 16), fixture.accepted.load(.acquire));
     for (ids[0..8]) |id| try multi.cancel(id);
     received = 0;
@@ -428,7 +496,7 @@ const ReplyFixture = struct {
 fn waitOne(multi: *Multi, timer: *std.time.Timer) !Completion {
     while (timer.read() < 3 * std.time.ns_per_s) {
         if (try multi.poll(timer.read() / std.time.ns_per_ms)) |completion| return completion;
-        std.Thread.sleep(std.time.ns_per_ms);
+        try multi.wait(timer.read() / std.time.ns_per_ms, 1000);
     }
     return error.FixtureCompletionTimeout;
 }
@@ -482,4 +550,44 @@ fn reservation(request_bytes: usize, response_bytes: usize) !usize {
 /// Actual application payload reservation charged by submit, without native IO.
 pub fn reservationBound(request: curl.Request) !usize {
     return reservation(try requestSize(request), request.max_response_bytes);
+}
+
+test "curl multi wait blocks on sockets until wakeup and returns early for owner work" {
+    const allocator = std.testing.allocator;
+    const library = try nativeLibrary(allocator);
+    defer allocator.free(library);
+    const multi = try Multi.init(allocator, .{ .library_path = library, .max_concurrent = 1, .max_pending = 2 });
+    defer multi.deinit();
+    var server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{});
+    defer server.deinit();
+    const url = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/stall", .{server.listen_address.getPort()});
+    defer allocator.free(url);
+    var timer = try std.time.Timer.start();
+    const id = try multi.submit(.{ .url = url, .method = .get, .timeout_ms = 10000, .max_response_bytes = 16 }, 0);
+    // A startable queued request makes wait return without blocking.
+    try multi.wait(0, 5000);
+    try std.testing.expectEqual(@as(u64, 0), multi.waits);
+    try std.testing.expectEqual(@as(?Completion, null), try multi.poll(timer.read() / std.time.ns_per_ms));
+    const Waker = struct {
+        fn run(target: *Multi) void {
+            std.Thread.sleep(50 * std.time.ns_per_ms);
+            target.wakeup();
+        }
+    };
+    const thread = try std.Thread.spawn(.{}, Waker.run, .{multi});
+    const before = timer.read();
+    // The server never answers: only the cross-thread wakeup ends this wait.
+    try multi.wait(timer.read() / std.time.ns_per_ms, 5000);
+    thread.join();
+    try std.testing.expect(timer.read() - before < 4 * std.time.ns_per_s);
+    try std.testing.expect(multi.waits >= 1);
+    try multi.cancel(id);
+    // An unconsumed completion also returns immediately.
+    const waits = multi.waits;
+    try multi.wait(timer.read() / std.time.ns_per_ms, 5000);
+    try std.testing.expectEqual(waits, multi.waits);
+    var completion = (try multi.poll(timer.read() / std.time.ns_per_ms)).?;
+    defer completion.deinit();
+    try std.testing.expectEqual(error.RequestCancelled, completion.result.failure);
+    try std.testing.expectEqual(@as(usize, 0), multi.high);
 }
