@@ -914,12 +914,17 @@ pub const Service = struct {
         }
         var batch: PublicationBatch = .{ .service = self, .signer = signer, .publisher = publisher, .timestamp = timestamp, .highest = highest, .jobs = jobs };
         if (batch.cancelled()) return error.RequestCancelled;
-        if (try publisher.is_reorged(publisher.context)) {
+        const reorged = publisher.is_reorged(publisher.context) catch |err| {
+            if (self.options.readiness) |status| status.blocked("checkpoint_backend_guard") catch |e| std.log.warn("validator readiness update failed: {s}", .{@errorName(e)});
+            return err;
+        };
+        if (reorged) {
             self.mutex.lock();
             defer self.mutex.unlock();
             try self.haltFromBackend();
             return error.ValidatorHalted;
         }
+        if (self.options.readiness) |status| status.ready("checkpoint_backend_guard");
         {
             // Durable signatures are reused; signing is allowed only within
             // the fresh quorum authorization.

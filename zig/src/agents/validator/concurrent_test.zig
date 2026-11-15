@@ -307,7 +307,7 @@ const FaultPublisher = struct {
         return .{ .parallel_safe = true, .in_process = true, .context = self, .fetch_checkpoint = fetch, .is_reorged = guard, .write_checkpoint = checkpoint, .write_checkpoints = if (self.base.write_checkpoints != null) checkpoints else null, .write_latest = latest, .write_snapshot = snapshot, .persist_reorg = reorg };
     }
 };
-const Boundary = enum { after_signatures, before_directory_sync, before_completion };
+const Boundary = enum { after_signatures, mid_batch_renames, before_directory_sync, before_completion };
 fn expectDurablePrefix(store: *local.LocalStore) !void {
     // The latest pointer never names an index whose object is not durable.
     if (try store.latestIndex()) |latest| try std.testing.expect(try store.fetchCheckpoint(latest) != null);
@@ -335,6 +335,8 @@ test "batched publication restarts at each crash boundary without resigning or c
         try observe(&state, 0, 6);
         switch (boundary) {
             .after_signatures => publisher.fail_checkpoints = true,
+            // Two of the five lower objects renamed, none directory-synced.
+            .mid_batch_renames => local.TestBatchFault.fail_after_renames.store(2, .release),
             .before_directory_sync => local.TestBatchFault.before_directory_sync.store(true, .release),
             .before_completion => service.TestPublicationFault.before_completion.store(true, .release),
         }
@@ -364,8 +366,12 @@ test "batched publication restarts at each crash boundary without resigning or c
         _ = try state.authorize(&.{try state.checkpoint(5)}, 101);
         // The highest index (object + pointer) completed before the lower
         // store batch failed short of its directory fsync.
-        const remaining: usize = if (boundary == .before_directory_sync) 5 else 6;
+        const remaining: usize = if (boundary == .before_directory_sync or boundary == .mid_batch_renames) 5 else 6;
+        const syncs = local.TestBatchFault.directory_syncs.load(.acquire);
         try std.testing.expectEqual(remaining, try state.publishConcurrent(signer.interface(), publisher.interface(), 101, 50));
+        // Replayed objects (already present, possibly never directory-synced)
+        // still get the batch directory fsync before completion commits.
+        if (remaining == 5) try std.testing.expectEqual(syncs + 1, local.TestBatchFault.directory_syncs.load(.acquire));
         try std.testing.expectEqual(@as(usize, 6), signer.calls);
         for (wire, 0..) |bytes, index| {
             const published = (try store.fetchCheckpoint(@intCast(index))).?;

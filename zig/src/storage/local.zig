@@ -184,7 +184,9 @@ pub const LocalStore = struct {
         const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
         verified.require(expected_signer) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
         const result = try self.inspectCheckpointLocked(verified.signed.value, unix_timestamp);
-        if (result != .already_present) try self.writeCheckpointLocked(verified);
+        // An identical object may have been renamed by a writer that died
+        // before its directory fsync: make it durable before reporting it.
+        if (result == .already_present) try std.posix.fsync(self.dir.fd) else try self.writeCheckpointLocked(verified);
         return result;
     }
 
@@ -199,7 +201,7 @@ pub const LocalStore = struct {
         try self.requireWrite();
         const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
         for (batch) |verified| verified.require(expected_signer) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
-        var renamed: usize = 0;
+        var renamed: u32 = 0;
         for (batch) |verified| {
             if (try self.inspectCheckpointLocked(verified.signed.value, unix_timestamp) == .already_present) continue;
             const bytes = try verified.signed.toJson(self.allocator);
@@ -208,10 +210,17 @@ pub const LocalStore = struct {
             const name = try std.fmt.bufPrint(&name_buffer, "{d}_with_id.json", .{verified.signed.value.index});
             try self.renameSynced(name, bytes);
             renamed += 1;
+            if (@import("builtin").is_test) if (TestBatchFault.fail_after_renames.load(.acquire) == renamed) {
+                TestBatchFault.fail_after_renames.store(0, .release);
+                return error.InjectedDirectorySyncFailure;
+            };
         }
-        if (renamed == 0) return;
+        if (batch.len == 0) return;
         if (@import("builtin").is_test) if (TestBatchFault.before_directory_sync.swap(false, .acq_rel)) return error.InjectedDirectorySyncFailure;
+        // Always, even if every object was already present: a replay after a
+        // crash between rename and directory fsync must not skip the fsync.
         try std.posix.fsync(self.dir.fd);
+        if (@import("builtin").is_test) _ = TestBatchFault.directory_syncs.fetchAdd(1, .acq_rel);
         self.poisoned = false;
         for (batch) |verified| self.recent.record(verified);
     }
@@ -344,6 +353,9 @@ pub const LocalStore = struct {
 /// always reach the directory fsync.
 pub const TestBatchFault = if (@import("builtin").is_test) struct {
     pub var before_directory_sync: std.atomic.Value(bool) = .init(false);
+    /// Nonzero: fail after this many renames, before the directory fsync.
+    pub var fail_after_renames: std.atomic.Value(u32) = .init(0);
+    pub var directory_syncs: std.atomic.Value(usize) = .init(0);
 } else void;
 
 /// Persist each newly created directory entry before descending into it. File
