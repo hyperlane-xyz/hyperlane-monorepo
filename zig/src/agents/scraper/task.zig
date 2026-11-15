@@ -324,7 +324,12 @@ const Lane = struct {
         var page = blk: {
             var db = try self.database(io);
             defer db.deinit();
-            break :blk try self.receipt_lane.plan(self.owner.allocator, db.store);
+            var planned = try self.receipt_lane.plan(self.owner.allocator, db.store);
+            errdefer planned.deinit();
+            // Rows whose transaction is already stored link now: a stalled
+            // sibling job must not defer them until this page finishes.
+            if (planned.cached and planned.through > planned.after) self.receipt_linked +|= (try db.store.linkReceiptPage(planned.stream, planned.after, planned.through, &.{})).linked;
+            break :blk planned;
         };
         errdefer page.deinit();
         self.receipt_more = page.rows.len == enrich.page_size;
