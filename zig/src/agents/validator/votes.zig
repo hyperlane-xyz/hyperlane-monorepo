@@ -129,7 +129,14 @@ const Runner = struct {
         const slot = &self.slots[index];
         const code = try rpc.validateEnvelope(parsed.value, slot.rpc_id);
         self.endpoints[index].client.last_rpc_error_code = code;
-        if (code != null) return error.RpcError;
+        if (code != null) {
+            // latestCheckpoint() reverts (count()-1 underflow) on an empty
+            // tree. Never infer emptiness from an error: read count() at the
+            // same pinned block; only an explicit zero is an empty vote.
+            if (slot.phase != .checkpoint) return error.RpcError;
+            slot.phase = .count;
+            return self.submit(index, now);
+        }
         const value = parsed.value.object.get("result").?;
         switch (slot.phase) {
             .chain => {
@@ -148,18 +155,22 @@ const Runner = struct {
                     if (head.number != n) return error.WrongBlock;
                 }
                 slot.result.head = head;
-                slot.phase = .count;
+                // count() is implied by latestCheckpoint().index + 1 at the
+                // same block; it is read only to confirm an empty tree.
+                slot.phase = .checkpoint;
             },
             .count => {
                 const bytes = try abi.fixedHex(32, try rpc.string(value));
                 const count = try abi.uintWord(u32, &bytes);
-                slot.result.count = count;
-                slot.phase = if (count == 0) .fence else .checkpoint;
+                // Reached only after latestCheckpoint() failed at this block.
+                if (count != 0) return error.CheckpointReadFailed;
+                slot.result.count = 0;
+                slot.phase = .fence;
             },
             .checkpoint => {
                 const bytes = try abi.fixedHex(64, try rpc.string(value));
                 const checkpoint = try abi.decodeCheckpoint(&bytes);
-                if (@as(u64, checkpoint.index) + 1 != slot.result.count.?) return error.CheckpointCountMismatch;
+                slot.result.count = std.math.add(u32, checkpoint.index, 1) catch return error.CheckpointCountMismatch;
                 slot.result.checkpoint = .{ .mailbox_domain = self.config.domain, .merkle_tree_hook_address = self.config.hook_hash, .root = checkpoint.root, .index = checkpoint.index, .message_id = @splat(0) };
                 slot.phase = .fence;
             },
