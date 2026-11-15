@@ -11,6 +11,10 @@ const Fixture = struct {
     flagged: ?usize = null,
     failed_guard: ?usize = null,
     guards: std.atomic.Value(usize) = .init(0),
+    /// A checkpoint read already followed a complete guard round. Requests of
+    /// a session cancelled after quorum may still be queued in this serial
+    /// fixture's backlog when a test resets `guards` for its next round.
+    checkpoint_guarded: std.atomic.Value(bool) = .init(false),
     reads: std.atomic.Value(usize) = .init(0),
     stop: std.atomic.Value(bool) = .init(false),
     failure: ?anyerror = null,
@@ -65,7 +69,10 @@ const Fixture = struct {
                     body = "<Code>NoSuchKey</Code>";
                 }
             } else {
-                if (self.guards.load(.acquire) != self.values.len) return error.CheckpointStartedBeforeGlobalGuard;
+                const latest_read = std.mem.eql(u8, name, "checkpoint_latest_index.json");
+                if (self.guards.load(.acquire) == self.values.len) {
+                    if (!latest_read) self.checkpoint_guarded.store(true, .release);
+                } else if (latest_read or !self.checkpoint_guarded.load(.acquire)) return error.CheckpointStartedBeforeGlobalGuard;
                 _ = self.reads.fetchAdd(1, .release);
                 if (std.mem.eql(u8, name, "checkpoint_latest_index.json")) body = "3" else if (std.mem.eql(u8, name, "checkpoint_3_with_id.json")) {
                     if (peer < self.slow) {
@@ -722,5 +729,39 @@ test "remote checkpoint owner sleeps through a slow local read instead of pollin
     defer result.deinit();
     std.debug.print("\nremote checkpoint owner passes during a 200ms local read: {d}\n", .{stalled});
     // A 1ms poll made ~200 passes; disk completions now end the wait.
+    try std.testing.expect(stalled <= 10);
+}
+
+test "remote checkpoint owner waits on sockets while every HTTP read stalls instead of polling" {
+    const a = std.testing.allocator;
+    const library = try nativeLibrary(a);
+    defer a.free(library);
+    var arena = std.heap.ArenaAllocator.init(a);
+    defer arena.deinit();
+    var validators: [4]engine.Address = undefined;
+    const values = try signed(arena.allocator(), 1, 4, &validators);
+    var fixture: Fixture = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}), .values = values, .slow = 4 };
+    defer fixture.server.deinit();
+    const thread = try std.Thread.spawn(.{}, Fixture.serve, .{&fixture});
+    defer {
+        fixture.stop.store(true, .release);
+        thread.join();
+    }
+    const e = try engine.Engine.start(a, .{ .multi = .{ .library_path = library }, .timeout_ms = 5000, .allow_insecure_loopback = true });
+    defer e.deinit();
+    try register(e, a, &fixture, 1, &validators, false);
+    const request = try e.submitQuorum(1, a, &validators, 4, 3);
+    defer request.deinit();
+    var timer = try std.time.Timer.start();
+    while (fixture.reads.load(.acquire) < 4) {
+        if (timer.read() > 2 * std.time.ns_per_s) return error.FixtureReadsNotStarted;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    const before = e.loop_iterations.load(.monotonic);
+    std.Thread.sleep(200 * std.time.ns_per_ms);
+    const stalled = e.loop_iterations.load(.monotonic) - before;
+    try std.testing.expect(try request.poll(null) == .pending);
+    // The former 1 ms sleep made ~200 passes; the socket wait is bounded at
+    // 50 ms only so caller closes and session deadlines are observed.
     try std.testing.expect(stalled <= 10);
 }

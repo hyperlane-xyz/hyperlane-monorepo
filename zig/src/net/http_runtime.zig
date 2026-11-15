@@ -232,7 +232,9 @@ pub const Runtime = struct {
     }
     fn pollNative(self: *Runtime, now_ms: u64) !?multi.Completion {
         if (self.wait_failure) |err| return err;
-        return self.native.poll(now_ms);
+        // The owner waits on native sockets whenever a pass completes
+        // nothing, so readiness is gathered there.
+        return self.native.advance(now_ms);
     }
     fn run(self: *Runtime) void {
         while (true) {
@@ -315,7 +317,7 @@ pub const Runtime = struct {
                 // Completions are delivered above; loop once more before
                 // blocking so freed capacity admits queued sessions. Otherwise
                 // block on sockets, the earliest unsubmitted session deadline,
-                // or wakeOwner (level-triggered curl_multi_wakeup).
+                // or wakeOwner (level-triggered native wakeup).
                 // Live table under the mutex: the snapshot may name retired sessions.
                 var next: u64 = std.math.maxInt(u32);
                 for (self.sessions) |entry| if (entry) |session| {
