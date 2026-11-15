@@ -4,6 +4,7 @@ const std = @import("std");
 const protocol = @import("../protocol/root.zig");
 const quorum = @import("quorum.zig");
 const metadata_parallel = @import("metadata_parallel.zig");
+const fiber = @import("../runtime/fiber.zig");
 const objects = @import("../storage/objects.zig");
 pub const Observation = @import("../ops/validator_observability.zig").Observation;
 pub const Address = [20]u8;
@@ -188,6 +189,9 @@ pub fn Builder(comptime Source: type) type {
             parent_link: ?metadata_parallel.CancelLink = null,
             mutex: std.Thread.Mutex = .{},
             changed: std.Thread.Condition = .{},
+            /// Mutex: the owner waits on a fiber (executor worker); woken
+            /// with `changed` so the worker runs its sibling fibers meanwhile.
+            fiber_waiter: ?*fiber.Waiter = null,
             stopped: bool = false,
             completion_head: ?*JobState = null,
             completion_tail: ?*JobState = null,
@@ -324,6 +328,7 @@ pub fn Builder(comptime Source: type) type {
                     if (self.completion_tail) |tail| tail.completion_next = job else self.completion_head = job;
                     self.completion_tail = job;
                 }
+                self.wakeFiberLocked();
                 self.mutex.unlock();
                 self.changed.broadcast();
                 if (!retain_result) self.freeResult(result);
@@ -334,8 +339,15 @@ pub fn Builder(comptime Source: type) type {
                 self.stopped = true;
                 self.parent_cancel = null;
                 self.cancel.store(true, .release);
+                self.wakeFiberLocked();
                 self.mutex.unlock();
                 self.changed.broadcast();
+            }
+            /// Mutex held: wake (under it, so the Waiter is alive) a parked owner.
+            fn wakeFiberLocked(self: *Operation) void {
+                const waiter = self.fiber_waiter orelse return;
+                self.fiber_waiter = null;
+                waiter.wake();
             }
 
             fn wait(self: *Operation, expected: ?*JobState) !void {
@@ -350,6 +362,20 @@ pub fn Builder(comptime Source: type) type {
                     if (assisted) continue;
                     self.mutex.lock();
                     const still_waiting = if (expected) |job| !job.completed else self.completion_head == null and self.finished != self.scheduled;
+                    if (still_waiting and fiber.inFiber()) {
+                        // A blocking wait here would stall this worker's other
+                        // fibers, which may be the very children awaited. Park;
+                        // completion wakes it, and a slice rechecks the parent
+                        // cancellation flag (no notifier) and new queued work.
+                        var waiter: fiber.Waiter = .{};
+                        self.fiber_waiter = &waiter;
+                        self.mutex.unlock();
+                        _ = waiter.waitTimeout(fiber.monoMs() + 10);
+                        self.mutex.lock();
+                        if (self.fiber_waiter == &waiter) self.fiber_waiter = null;
+                        self.mutex.unlock();
+                        continue;
+                    }
                     if (still_waiting) self.changed.timedWait(&self.mutex, std.time.ns_per_ms) catch {};
                     self.mutex.unlock();
                 }
