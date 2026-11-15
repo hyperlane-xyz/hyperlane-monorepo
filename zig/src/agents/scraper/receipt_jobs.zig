@@ -11,8 +11,16 @@ pub const Limiter = struct {
     mutex: std.Thread.Mutex = .{},
     active: usize = 0,
     peak: usize = 0,
+    global_max: usize = 16,
+    domain_max: u8 = 4,
     pub fn init(a: A, domains: []const u32) !Limiter {
-        var self: Limiter = .{ .allocator = a };
+        return initBounded(a, domains, 16, 4);
+    }
+    /// Rust's receipt streams share 16 global / 4 per-domain RPC permits;
+    /// raw-dispatch reconciliation enriches with its own 8-wide concurrency.
+    pub fn initBounded(a: A, domains: []const u32, global_max: usize, domain_max: u8) !Limiter {
+        if (global_max == 0 or domain_max == 0) return error.InvalidReceiptLimit;
+        var self: Limiter = .{ .allocator = a, .global_max = global_max, .domain_max = domain_max };
         errdefer self.domains.deinit(a);
         for (domains) |domain| {
             const entry = try self.domains.getOrPut(a, domain);
@@ -28,7 +36,7 @@ pub const Limiter = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         const count = self.domains.getPtr(domain) orelse return error.UnknownReceiptDomain;
-        if (self.active >= 16 or count.* >= 4) return false;
+        if (self.active >= self.global_max or count.* >= self.domain_max) return false;
         self.active += 1;
         self.peak = @max(self.peak, self.active);
         count.* += 1;

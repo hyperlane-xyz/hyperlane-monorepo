@@ -39,9 +39,10 @@ pub const Options = struct {
 };
 const Kind = enum { head, delivery, gas, reconciliation, ccr };
 /// Per-endpoint sessions of the chain's shared pool: head reads (up to 8
-/// overlapped), <=4 receipt jobs per domain plus their cancelled retirements,
-/// reconciliation and CCR all fit without one lane exhausting another's slots.
-const shared_rpc_parallelism: u16 = 32;
+/// overlapped), 4 receipt + 8 reconciliation jobs per domain with two
+/// overlapped reads each, their cancelled retirements, and CCR, all fit
+/// without one lane exhausting another's slots (sessions are not buffers).
+const shared_rpc_parallelism: u16 = 64;
 const Chain = struct {
     configured: *const types.Chain,
     writer: []u8,
@@ -308,7 +309,11 @@ const Lane = struct {
     };
     fn fetchRequests(self: *Lane, requests: []const enrich.Request, io: pg.IoOptions) !void {
         if (requests.len == 0) return;
-        if (self.receipt_batch == null) self.receipt_batch = try ReceiptBatch.init(self.owner.allocator, self.resources.?, &self.owner.receipt_limit, self.chain.configured.domain, requests, io.deadline_ns.?);
+        // Receipt streams share Rust's 4-per-domain permits; reconciliation
+        // has Rust's separate 8-wide enrichment so dispatch links don't queue
+        // behind delivery/gas receipts during catch-up.
+        const limit = if (self.kind == .reconciliation) &self.owner.reconcile_limit else &self.owner.receipt_limit;
+        if (self.receipt_batch == null) self.receipt_batch = try ReceiptBatch.init(self.owner.allocator, self.resources.?, limit, self.chain.configured.domain, requests, io.deadline_ns.?);
         if (!try self.receipt_batch.?.step(io, Persist{ .lane = self })) return error.PendingReadIo;
         if (self.receipt_batch.?.failures > 0) std.log.warn("scraper chain={s} lane={s} receipt_failures={d} last={s}", .{ self.chain.configured.name, @tagName(self.kind), self.receipt_batch.?.failures, @errorName(self.receipt_batch.?.last_failure.?) });
         self.receipt_batch.?.deinit();
@@ -453,6 +458,7 @@ pub const TaskSet = struct {
     read_budget: chain_source.ReadReplay.ByteBudget = .{},
     dynamic_tip_cache: ?*dynamic_tip_cache.Cache = null,
     receipt_limit: receipt_jobs.Limiter,
+    reconcile_limit: receipt_jobs.Limiter,
     chains: []Chain,
     lanes: []Lane,
     tasks: []supervisor.Task,
@@ -475,6 +481,8 @@ pub const TaskSet = struct {
         for (configured.chains, domains) |chain, *domain| domain.* = chain.domain;
         var receipt_limit = try receipt_jobs.Limiter.init(a, domains);
         errdefer receipt_limit.deinit();
+        var reconcile_limit = try receipt_jobs.Limiter.initBounded(a, domains, try std.math.mul(usize, 8, domains.len), 8);
+        errdefer reconcile_limit.deinit();
         const chains = try a.alloc(Chain, configured.chains.len);
         errdefer a.free(chains);
         var count: usize = configured.chains.len * 4;
@@ -489,7 +497,7 @@ pub const TaskSet = struct {
         errdefer a.free(lanes);
         const tasks = try a.alloc(supervisor.Task, count);
         errdefer a.free(tasks);
-        self.* = .{ .allocator = a, .settings = configured, .environment = env, .options = options, .resolver = resolver, .database = db, .http_runtime = http_runtime, .receipt_limit = receipt_limit, .chains = chains, .lanes = lanes, .tasks = tasks };
+        self.* = .{ .allocator = a, .settings = configured, .environment = env, .options = options, .resolver = resolver, .database = db, .http_runtime = http_runtime, .receipt_limit = receipt_limit, .reconcile_limit = reconcile_limit, .chains = chains, .lanes = lanes, .tasks = tasks };
         self.dynamic_tip_cache = try dynamic_tip_cache.Cache.init(a, .{});
         errdefer self.dynamic_tip_cache.?.deinit();
         db.config.resolver = &self.resolver;
@@ -555,6 +563,7 @@ pub const TaskSet = struct {
         for (self.lanes) |*lane| lane.deinit();
         for (self.chains) |*chain| chain.deinitShared();
         self.receipt_limit.deinit();
+        self.reconcile_limit.deinit();
         if (self.dynamic_tip_cache) |value| value.deinit();
         self.http_runtime.deinit();
         self.database.deinit();
