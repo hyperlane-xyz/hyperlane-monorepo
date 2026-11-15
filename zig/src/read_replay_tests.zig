@@ -216,38 +216,55 @@ test "cooperative EVM source cannot replay the before-header as an after-header 
     try server.check();
 }
 
-test "cooperative waiting reads retain no shared quota and drain Pool bytes on every terminal path" {
+test "cooperative global replay quota fails closed, bounds requests per section and releases on every terminal path" {
     const a = std.testing.allocator;
     const library = try fixture.nativeLibrary(a);
     defer a.free(library);
-    const ok = [_]fixture.Reply{ .{ .body = "" }, .{ .body = "", .stall = true } };
+    const ok = [_]fixture.Reply{.{ .body = "" }};
     const behaviors = [_]fixture.Behavior{.{ .replies = &ok, .response_fn = respond }};
-    var server = try fixture.Fixture.init(4, &behaviors);
+    var server = try fixture.Fixture.init(8, &behaviors);
     try server.start();
     defer server.deinit();
     const url = try server.url(a, 0);
     defer a.free(url);
     const runtime = try Pool.Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{ .max_attempts = 1 } }, .max_response_bytes = 8192, .max_request_bytes = 16384, .max_reserved_bytes = 2 * 1024 * 1024, .max_sessions = 4, .max_concurrent = 4, .max_pending = 4 });
     defer runtime.deinit();
-    // A one-byte shared quota cannot veto a read that retains nothing.
     var quota: replay.ByteBudget = .{ .maximum = 1 };
-    var cache = try replay.Replay.init(a, runtime, .{ .shared_budget = &quota, .max_attempt_ms = 5000 });
+    var cache = try replay.Replay.init(a, runtime, .{ .shared_budget = &quota, .max_entries = 2 });
     defer cache.deinit();
     const body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_getBlockByNumber\",\"params\":[\"latest\",false]}";
-    const result = try onePass(&cache, body);
-    a.free(result.bytes);
+    const options: rpc.Options = .{ .timeout_ms = 1000, .max_response_bytes = 8192 };
+    // The shared byte quota fails closed once the response arrives; the
+    // closed attempt keeps no reservation.
+    try std.testing.expectError(error.ReadReplayGlobalByteBudgetExceeded, onePass(&cache, body));
     try std.testing.expectEqual(@as(usize, 0), quota.used);
-    // Error path: the stalled second read times out; its session retires.
-    cache.config.max_attempt_ms = 50;
-    try std.testing.expectError(error.RequestDeadlineExceeded, onePass(&cache, body));
+    try std.testing.expectEqual(@as(usize, 1), server.pathHits(0));
+    quota.maximum = 8192;
+    // Two physical requests per section; the third is refused before any
+    // submission. A pending suspension keeps the count.
+    try cache.beginPass(null);
+    a.free((try cache.fetch(a, body, options)).bytes);
+    try std.testing.expect(quota.used > 0);
+    cache.endPass(error.PendingReadIo);
+    try std.testing.expect(quota.used > 0);
+    try cache.beginPass(null);
+    a.free((try cache.fetch(a, body, options)).bytes);
+    try std.testing.expectError(error.ReadReplayRequestLimit, cache.fetch(a, body, options));
+    try std.testing.expectEqual(@as(usize, 3), server.pathHits(0));
+    // A committed section releases its requests and bytes, not the deadline.
+    const started = cache.started;
+    try cache.commitReadSection();
     try std.testing.expectEqual(@as(usize, 0), quota.used);
-    try std.testing.expectEqual(@as(usize, 2), server.pathHits(0));
+    try std.testing.expectEqual(started, cache.started);
+    a.free((try cache.fetch(a, body, options)).bytes);
+    try std.testing.expectEqual(@as(usize, 4), server.pathHits(0));
+    cache.endPass(null);
+    try std.testing.expectEqual(@as(usize, 0), quota.used);
     var timer = try std.time.Timer.start();
     while (runtime.native.reserved_bytes != 0 or runtime.retained_bytes != 0) {
         if (timer.read() > 2 * std.time.ns_per_s) return error.PoolBytesNotDrained;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    try std.testing.expect(cache.started == null);
     try server.check();
 }
 

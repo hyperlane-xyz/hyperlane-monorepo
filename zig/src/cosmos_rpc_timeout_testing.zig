@@ -299,7 +299,7 @@ test "Cosmos RPC cancellation after accepted first peer drains session and never
     try std.testing.expect(owner.started == null);
 }
 
-test "Cosmos RPC section commit preserves owner deadline and retains no byte quota" {
+test "Cosmos RPC section commit preserves owner deadline and byte quota release" {
     const a = std.testing.allocator;
     const library = try fixture.nativeLibrary(a);
     defer a.free(library);
@@ -315,9 +315,9 @@ test "Cosmos RPC section commit preserves owner deadline and retains no byte quo
     };
     defer a.free(response.bytes);
     const saved_start = owner.started;
-    // The waiting read retained nothing, so nothing is reserved.
-    try std.testing.expectEqual(@as(usize, 0), budget.used);
+    try std.testing.expect(budget.used > 0);
     try owner.commitReadSection();
+    try std.testing.expectEqual(@as(usize, 0), budget.used);
     try std.testing.expectEqual(saved_start, owner.started);
     std.Thread.sleep(110 * std.time.ns_per_ms);
     try std.testing.expectError(error.RequestDeadlineExceeded, owner.fetch(a, body, options(null)));

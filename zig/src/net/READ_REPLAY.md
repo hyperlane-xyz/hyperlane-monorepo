@@ -25,7 +25,7 @@ const result = readOnlyWork() catch |err| {
 keeps the absolute attempt start; every other result closes the attempt.
 Repeated passes never extend the budget. The cancellation pointer is borrowed
 only during the pass and is observed by a waiting read. `hasPending()` is
-always false and `commitReadSection()` is a no-op inside a pass. Destroy the
+always false; `commitReadSection()` releases the section's quota. Destroy the
 Replay before its Pool/Runtime.
 
 `chain_source.Resources` offers the same API through `beginReadPass(cancel)`,
@@ -38,8 +38,13 @@ authenticated against the request. Equal before/after header calls are
 separate physical transfers. Session pressure waits for a slot within the same
 attempt deadline and cancellation.
 
-`Config.shared_budget` is accepted for callers that share one quota across read
-owners; waiting reads retain no responses, so nothing is reserved from it.
+Each attempt (or committed section) is bounded: `max_entries` physical requests
+(counted at submission, failed ones included; the next one fails closed with
+`ReadReplayRequestLimit` before it is sent) and `max_cached_bytes` response
+bytes (`ReadReplayByteBudgetExceeded`). Response bytes are also reserved from
+the optional `shared_budget`, shared across concurrently executing forks
+(`ReadReplayGlobalByteBudgetExceeded`). A suspension keeps the counts;
+`commitReadSection()` and every other terminal result release them exactly.
 Native Pool/Runtime reservations keep their own limits.
 
 Evidence: `src/read_replay_tests.zig` runs sixteen EVM Source lanes on eight

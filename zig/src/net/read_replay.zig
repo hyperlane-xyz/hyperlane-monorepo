@@ -2,7 +2,9 @@
 //! fetch submits one session and waits for it: a fiber parks (its worker runs
 //! other fibers), a thread drives the session inline. The callback is never
 //! replayed, so nothing is journaled, hashed or cloned. beginPass/endPass keep
-//! one absolute attempt deadline and borrow the caller's cancellation.
+//! one absolute attempt deadline and borrow the caller's cancellation. Each
+//! attempt (or committed section) is bounded in physical requests and response
+//! bytes, the bytes also against an optional budget shared across forks.
 //! Never attach to signing, broadcasting, database or other mutation clients.
 const std = @import("std");
 const pool = @import("../evm/pool.zig");
@@ -13,17 +15,45 @@ const V = std.json.Value;
 pub const ByteBudget = @import("byte_budget.zig").Budget;
 
 pub const Config = struct {
-    /// Accepted for callers that share one quota across read owners. Waiting
-    /// reads retain no responses, so nothing is reserved from it.
+    /// Response bytes of every live attempt are reserved here too, so
+    /// concurrently executing forks share one bound.
     shared_budget: ?*ByteBudget = null,
     max_attempt_ms: u32 = 120000,
+    /// Physical requests one attempt (or committed section) may submit.
+    max_entries: usize = 512,
     max_request_bytes: usize = 1024 * 1024,
+    /// Response bytes one attempt (or committed section) may receive.
+    max_cached_bytes: usize = 128 * 1024 * 1024,
     /// Opt-in fallback sessions consume this retained owner's remaining budget;
     /// the Pool must separately bound each physical endpoint request.
     use_owner_timeout: bool = false,
 };
 /// Largest independent read batch overlapped by `Replay.fetchMany`.
 pub const max_batch = 64;
+/// Per-attempt read bounds shared by the RPC and HTTP read owners. Requests
+/// count at submission (failed ones too); response bytes count on arrival and
+/// are reserved from the shared budget until the section or attempt closes.
+pub const Quota = struct {
+    max_requests: usize,
+    max_bytes: usize,
+    shared: ?*ByteBudget,
+    requests: usize = 0,
+    bytes: usize = 0,
+    pub fn admit(self: *Quota) !void {
+        if (self.requests >= self.max_requests) return error.ReadReplayRequestLimit;
+        self.requests += 1;
+    }
+    pub fn charge(self: *Quota, bytes: usize) !void {
+        if (bytes > self.max_bytes -| self.bytes) return error.ReadReplayByteBudgetExceeded;
+        if (self.shared) |budget| try budget.reserve(bytes);
+        self.bytes += bytes;
+    }
+    pub fn release(self: *Quota) void {
+        if (self.shared) |budget| budget.release(self.bytes);
+        self.requests = 0;
+        self.bytes = 0;
+    }
+};
 pub const Replay = struct {
     allocator: A,
     pool: *pool.Pool,
@@ -31,10 +61,11 @@ pub const Replay = struct {
     started: ?std.time.Instant = null,
     in_pass: bool = false,
     cancel: ?*const std.atomic.Value(bool) = null,
+    quota: Quota,
     pub fn init(a: A, runtime: *pool.Pool, config: Config) !Replay {
-        if (config.max_attempt_ms == 0 or config.max_attempt_ms > 300000 or config.max_request_bytes == 0) return error.InvalidReadReplayLimit;
+        if (config.max_attempt_ms == 0 or config.max_attempt_ms > 300000 or config.max_entries == 0 or config.max_entries > 4096 or config.max_request_bytes == 0 or config.max_cached_bytes == 0) return error.InvalidReadReplayLimit;
         if (config.use_owner_timeout and (runtime.config.strategy != .fallback or runtime.config.strategy.fallback.attempt_timeout_ms == null)) return error.MissingReadReplayPhysicalTimeout;
-        return .{ .allocator = a, .pool = runtime, .config = config };
+        return .{ .allocator = a, .pool = runtime, .config = config, .quota = .{ .max_requests = config.max_entries, .max_bytes = config.max_cached_bytes, .shared = config.shared_budget } };
     }
     pub fn deinit(self: *Replay) void {
         self.reset();
@@ -57,7 +88,7 @@ pub const Replay = struct {
         self.in_pass = true;
     }
     /// A pass suspended by another source (PendingReadIo) keeps the absolute
-    /// attempt deadline; every other result closes the attempt.
+    /// attempt deadline and quota; every other result closes the attempt.
     pub fn endPass(self: *Replay, failure: ?anyerror) void {
         self.cancel = null;
         self.in_pass = false;
@@ -68,11 +99,14 @@ pub const Replay = struct {
     pub fn hasPending(_: *const Replay) bool {
         return false;
     }
-    /// Nothing is retained between reads, so a section boundary is a no-op.
+    /// Closes a read section: its request/byte quota is released while the
+    /// absolute attempt deadline is kept.
     pub fn commitReadSection(self: *Replay) !void {
         if (!self.in_pass) return error.ReadReplayPassNotActive;
+        self.quota.release();
     }
     pub fn reset(self: *Replay) void {
+        self.quota.release();
         self.started = null;
         self.in_pass = false;
         self.cancel = null;
@@ -121,6 +155,7 @@ pub const Replay = struct {
     }
     fn submit(self: *Replay, a: A, body: []const u8, options: rpc.Options, remaining: u32) !pool.Handle {
         _ = try requireReadOnly(a, body, self.config.max_request_bytes);
+        try self.quota.admit();
         const timeout = if (self.config.use_owner_timeout) remaining else @min(options.timeout_ms, remaining);
         while (true) {
             return self.pool.submitDeferred(body, timeout, @min(options.connect_timeout_ms, timeout), options.max_response_bytes, options.pool_observer, options.indexer_tip_cache) catch |err| {
@@ -140,6 +175,10 @@ pub const Replay = struct {
         const timeout = if (self.config.use_owner_timeout) remaining else @min(options.timeout_ms, remaining);
         const owner_limited = self.config.use_owner_timeout or remaining <= options.timeout_ms;
         const response = self.pool.waitCancels(handle, a, self.pool.now() +| timeout, .{ .first = self.cancel, .second = options.cancel }) catch |err| return self.completedFailure(err, owner_limited, options.cancel);
+        self.quota.charge(response.len) catch |err| {
+            a.free(response.bytes);
+            return err;
+        };
         return .{ .bytes = response.bytes, .len = response.len };
     }
     /// Independent reads of one callback: submit every session, then wait for
@@ -223,6 +262,25 @@ test "cooperative RPC read policy keeps exact ids, forbids writes and malformed 
     try std.testing.expectError(error.InvalidRpcEnvelope, validateResponse(a, "{\"jsonrpc\":\"2.0\",\"id\":1}", 1));
 }
 
+test "cooperative read quota bounds requests and bytes per section and releases shared reservations" {
+    var shared: ByteBudget = .{ .maximum = 10 };
+    var quota: Quota = .{ .max_requests = 2, .max_bytes = 8, .shared = &shared };
+    try quota.admit();
+    try quota.admit();
+    try std.testing.expectError(error.ReadReplayRequestLimit, quota.admit());
+    try quota.charge(5);
+    try std.testing.expectError(error.ReadReplayByteBudgetExceeded, quota.charge(4));
+    try std.testing.expectEqual(@as(usize, 5), shared.used);
+    var other: Quota = .{ .max_requests = 2, .max_bytes = 8, .shared = &shared };
+    try std.testing.expectError(error.ReadReplayGlobalByteBudgetExceeded, other.charge(6));
+    quota.release();
+    try std.testing.expectEqual(@as(usize, 0), shared.used);
+    try quota.admit();
+    try other.charge(6);
+    other.release();
+    try std.testing.expectEqual(@as(usize, 0), shared.used);
+}
+
 test "cooperative shared replay byte budget rejects overflow and releases exact reservations" {
     var budget: ByteBudget = .{ .maximum = 8 };
     try budget.reserve(5);
@@ -244,7 +302,7 @@ test "cooperative JSON read policy and response validation free every partial al
 test "cooperative RPC completed timeout preserves owner clamp expiry cancellation and injected clocks" {
     var runtime: pool.Pool = undefined;
     runtime.config.clock = null;
-    var value: Replay = .{ .allocator = std.testing.allocator, .pool = &runtime, .config = .{ .max_attempt_ms = 1000 }, .started = try std.time.Instant.now() };
+    var value: Replay = .{ .allocator = std.testing.allocator, .pool = &runtime, .config = .{ .max_attempt_ms = 1000 }, .started = try std.time.Instant.now(), .quota = .{ .max_requests = 1, .max_bytes = 1, .shared = null } };
     try std.testing.expectEqual(error.UpstreamReadTimeout, value.completedFailure(error.RequestDeadlineExceeded, false, null));
     // Even with positive remainingMs, an owner-clamped request is control. This
     // covers equal limits and the sub-millisecond ceil at the owner boundary.

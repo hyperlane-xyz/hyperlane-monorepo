@@ -8,9 +8,10 @@ const rpc_replay = @import("read_replay.zig");
 const metrics = @import("../ops/rpc_metrics.zig");
 const fiber = @import("../runtime/fiber.zig");
 const A = std.mem.Allocator;
-/// `shared_budget` is accepted for callers sharing one quota; waiting reads
-/// retain no responses, so nothing is reserved from it.
-pub const Config = struct { max_attempt_ms: u32 = 120000, max_request_bytes: usize = 1024 * 1024, shared_budget: ?*rpc_replay.ByteBudget = null, recorder: ?*metrics.Recorder = null };
+/// Each attempt (or committed section) is bounded by `max_entries` physical
+/// requests and `max_cached_bytes` response bytes, the bytes also reserved
+/// from `shared_budget` (read_replay.Quota).
+pub const Config = struct { max_attempt_ms: u32 = 120000, max_entries: usize = 512, max_request_bytes: usize = 1024 * 1024, max_cached_bytes: usize = 128 * 1024 * 1024, shared_budget: ?*rpc_replay.ByteBudget = null, recorder: ?*metrics.Recorder = null };
 pub const Replay = struct {
     allocator: A,
     owner: *runtime.Runtime,
@@ -18,9 +19,10 @@ pub const Replay = struct {
     started: ?std.time.Instant = null,
     in_pass: bool = false,
     cancel: ?*const std.atomic.Value(bool) = null,
+    quota: rpc_replay.Quota,
     pub fn init(a: A, owner: *runtime.Runtime, config: Config) !Replay {
-        if (config.max_attempt_ms == 0 or config.max_attempt_ms > 300000 or config.max_request_bytes == 0) return error.InvalidHttpReplayLimit;
-        return .{ .allocator = a, .owner = owner, .config = config };
+        if (config.max_attempt_ms == 0 or config.max_attempt_ms > 300000 or config.max_entries == 0 or config.max_entries > 4096 or config.max_request_bytes == 0 or config.max_cached_bytes == 0) return error.InvalidHttpReplayLimit;
+        return .{ .allocator = a, .owner = owner, .config = config, .quota = .{ .max_requests = config.max_entries, .max_bytes = config.max_cached_bytes, .shared = config.shared_budget } };
     }
     pub fn deinit(self: *Replay) void {
         self.reset();
@@ -40,7 +42,8 @@ pub const Replay = struct {
         self.cancel = cancel;
         self.in_pass = true;
     }
-    /// A pass suspended by another source keeps the absolute attempt deadline.
+    /// A pass suspended by another source keeps the absolute attempt deadline
+    /// and quota.
     pub fn endPass(self: *Replay, failure: ?anyerror) void {
         self.in_pass = false;
         self.cancel = null;
@@ -48,6 +51,7 @@ pub const Replay = struct {
         self.reset();
     }
     pub fn reset(self: *Replay) void {
+        self.quota.release();
         self.started = null;
         self.in_pass = false;
         self.cancel = null;
@@ -56,9 +60,11 @@ pub const Replay = struct {
     pub fn hasPending(_: *const Replay) bool {
         return false;
     }
-    /// Nothing is retained between reads, so a section boundary is a no-op.
+    /// Closes a read section: its request/byte quota is released while the
+    /// absolute attempt deadline is kept.
     pub fn commitReadSection(self: *Replay) !void {
         if (!self.in_pass) return error.ReadReplayPassNotActive;
+        self.quota.release();
     }
     fn remaining(self: *Replay) !u32 {
         const elapsed = (try std.time.Instant.now()).since(self.started orelse return error.ReadReplayPassNotActive);
@@ -81,6 +87,7 @@ pub const Replay = struct {
         if (original.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         const remaining_ms = try self.remaining();
         const id = try requestPolicy(a, original, self.config.max_request_bytes);
+        try self.quota.admit();
         var request = original;
         request.timeout_ms = @min(request.timeout_ms, remaining_ms);
         request.connect_timeout_ms = @min(request.connect_timeout_ms, request.timeout_ms);
@@ -111,13 +118,18 @@ pub const Replay = struct {
         if (a.ptr == response.allocator.ptr and a.vtable == response.allocator.vtable) {
             errdefer response.deinit();
             try checkDirectResponse(self.allocator, response, id, original.max_response_bytes);
+            try self.quota.charge(try responseBytes(response));
             return response;
         }
         defer response.deinit();
         try checkDirectResponse(self.allocator, response, id, original.max_response_bytes);
+        try self.quota.charge(try responseBytes(response));
         return cloneResponse(a, response, original.max_response_bytes);
     }
 };
+fn responseBytes(response: curl.Response) !usize {
+    return std.math.add(usize, response.body.len, try std.math.add(usize, response.header_storage.len, try std.math.mul(usize, response.headers.len, @sizeOf(curl.Header))));
+}
 fn checkDirectResponse(a: A, response: curl.Response, id: ?i64, maximum: usize) !void {
     if (id) |value| if (response.status == 200) try rpc_replay.validateResponse(a, response.body, value);
     if (response.body.len > maximum) return error.ResponseTooLarge;
