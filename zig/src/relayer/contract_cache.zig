@@ -71,6 +71,8 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
             recipient_ism: Hash,
             default_ism,
             offchain_lookup: Self.OffchainQuery,
+            /// Source `is_contract` for a message recipient (default TTL).
+            is_contract: Hash,
 
             pub fn moduleType(ism: Address) Self.Query {
                 return .{ .module_type = ism };
@@ -90,6 +92,9 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
             pub fn offchainLookup(ism: Address, message: protocol.Message) Self.Query {
                 return .{ .offchain_lookup = .{ .ism = ism, .message = message } };
             }
+            pub fn isContract(recipient: Hash) Self.Query {
+                return .{ .is_contract = recipient };
+            }
         };
 
         pub const Value = union(enum) {
@@ -98,6 +103,7 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
             members: metadata.ModuleMembers(Address),
             validators: metadata.Members,
             offchain_lookup: ccip.Lookup,
+            is_contract: bool,
 
             pub fn deinit(self: *Self.Value, allocator: Allocator) void {
                 switch (self.*) {
@@ -116,6 +122,7 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
                     .members => |value| .{ .members = .{ .addresses = try allocator.dupe(Address, value.addresses), .threshold = value.threshold } },
                     .validators => |value| .{ .validators = .{ .addresses = try allocator.dupe(EvmAddress, value.addresses), .threshold = value.threshold } },
                     .offchain_lookup => |value| .{ .offchain_lookup = try cloneLookup(allocator, value) },
+                    .is_contract => |value| .{ .is_contract = value },
                 };
             }
 
@@ -126,6 +133,7 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
                     .members => |value| 1 + value.addresses.len * @sizeOf(Address),
                     .validators => |value| 1 + value.addresses.len * @sizeOf(EvmAddress),
                     .offchain_lookup => |value| value.encoded.len + value.urls.len * @sizeOf([]const u8),
+                    .is_contract => 1,
                 };
             }
         };
@@ -156,7 +164,7 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
                         result.validators = members.validators;
                         if (members.policy == .message_specific) result.subject = members.message.id();
                     },
-                    .recipient_ism => |recipient| result.subject = recipient,
+                    .recipient_ism, .is_contract => |recipient| result.subject = recipient,
                     .default_ism => {},
                     .offchain_lookup => |lookup| {
                         result.ism = lookup.ism;
@@ -216,6 +224,7 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
                     .members_query => |v| if (v.validators) "validators_and_threshold" else "modules_and_threshold",
                     .recipient_ism => "recipient_ism",
                     .offchain_lookup => "get_offchain_verify_info",
+                    .is_contract => "is_contract",
                     .default_ism => null,
                 };
             }
@@ -239,6 +248,7 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
                     .members => |v| std.json.Stringify.value(v, .{}, &counter.writer) catch unreachable,
                     .validators => |v| std.json.Stringify.value(v, .{}, &counter.writer) catch unreachable,
                     .offchain_lookup => |v| std.json.Stringify.value(.{ .sender = v.sender, .urls = v.urls, .call_data = v.call_data, .callback_function = v.callback_function, .extra_data = v.extra_data }, .{}, &counter.writer) catch unreachable,
+                    .is_contract => |v| std.json.Stringify.value(v, .{}, &counter.writer) catch unreachable,
                 }
                 return counter.fullCount();
             }
@@ -465,6 +475,7 @@ pub fn CacheFor(comptime ModuleAddress: type) type {
                 .route_query, .recipient_ism, .default_ism => value == .address,
                 .members_query => |members| if (members.validators) value == .validators else value == .members,
                 .offchain_lookup => value == .offchain_lookup,
+                .is_contract => value == .is_contract,
             };
         }
 

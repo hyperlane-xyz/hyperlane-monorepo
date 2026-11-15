@@ -1170,6 +1170,42 @@ test "destination endpoint chain check verifies, fails closed and defers" {
     }
 }
 
+test "recipient contract check is cached like Source is_contract" {
+    const contract_cache = @import("../../relayer/contract_cache.zig");
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const ready = readySteps();
+    var second_message = fixture.message;
+    second_message.nonce = 8;
+    // Second prepare of another message to the same recipient: no eth_getCode.
+    const second = [_]Step{ ready[0], ready[1], ready[3], ready[7], ready[8] };
+    const steps = ready ++ second;
+    var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .blocks = 1 });
+    defer runtime.deinit();
+    var cache = try contract_cache.Cache.init(a, .{ .max_bytes = 1024 * 1024 });
+    defer cache.deinit();
+    var default_cache = try contract_cache.Cache.init(a, .{ .max_entries = 1, .max_bytes = 64 * 1024 });
+    defer default_cache.deinit();
+    var config = runtime.config();
+    config.metadata_cache = &cache;
+    config.default_ism_cache = &default_cache;
+    config.cache_context = .{ .domain_name = "destination", .context_hash = @splat(8) };
+    const first = try runtime.value.step(a, &runtime.destination, &runtime.actor, &runtime.origin, &runtime.policy, fixture.message, &runtime.client, config, now(), .{ .cancel = &runtime.cancel });
+    try std.testing.expectEqual(driver.State.prepared, first.state);
+    try runtime.store.upsertMessage(second_message, 1, null);
+    var actor = try operation.Operation.open(a, &runtime.store, .{ .id = second_message.id(), .context = @splat(8), .nonce = second_message.nonce, .destination = second_message.destination, .policy = .{ .confirm_delay_ms = 0 } }, now());
+    defer actor.deinit();
+    var other = driver.Driver.init(a);
+    defer other.deinit();
+    const report = try other.step(a, &runtime.destination, &actor, &runtime.origin, &runtime.policy, second_message, &runtime.client, config, now(), .{ .cancel = &runtime.cancel });
+    try std.testing.expectEqual(driver.State.prepared, report.state);
+    var get_code: usize = 0;
+    for (runtime.rpc.requests.items) |request| get_code += @intFromBool(std.mem.indexOf(u8, request, "eth_getCode") != null);
+    try std.testing.expectEqual(@as(usize, 1), get_code);
+    try runtime.rpc.expectDone();
+}
+
 test "native batch uses surviving payload estimate sum for source ratio" {
     const a = std.testing.allocator;
     var fixture = try Fixture.init(a);

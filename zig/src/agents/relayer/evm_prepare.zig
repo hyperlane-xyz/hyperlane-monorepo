@@ -254,8 +254,8 @@ pub fn Preparer(comptime Origin: type) type {
                 outcome.value = .{ .finality_wait = .{ .retry_state = state, .delivered = finalized, .observed_at = observed_at } };
                 return outcome;
             }
-            const code = getCode(self.client, a, lowAddress(input.message.recipient)) catch |err| return retry(&outcome, .recipient_contract, err, state, null);
-            if (code.len == 0) {
+            const is_contract = recipientIsContract(self, a, input) catch |err| return retry(&outcome, .recipient_contract, err, state, null);
+            if (!is_contract) {
                 outcome.value = .{ .not_contract = .{ .retry_state = state } };
                 return outcome;
             }
@@ -418,6 +418,17 @@ pub fn Preparer(comptime Origin: type) type {
             return publicEstimate(self, outcome.allocator(), calldata, diagnostics);
         }
     };
+}
+
+/// Source caches `is_contract` per recipient for the default TTL (120s) in
+/// the relayer contract cache; the same cache and policy apply here.
+fn recipientIsContract(self: anytype, a: Allocator, input: Input) !bool {
+    const cache = self.metadata_cache orelse return (try getCode(self.client, a, lowAddress(input.message.recipient))).len != 0;
+    const context = self.cache_context orelse return error.MissingContractCacheContext;
+    if (try cache.get(context, .isContract(input.message.recipient), input.now_ms)) |cached| return cached.is_contract;
+    const result = (try getCode(self.client, a, lowAddress(input.message.recipient))).len != 0;
+    _ = try cache.put(context, .isContract(input.message.recipient), &.{ .is_contract = result }, input.now_ms);
+    return result;
 }
 
 fn buildMetadata(self: anytype, a: Allocator, message: protocol.Message, now_ms: u64, diagnostics: *Diagnostics) ![]u8 {
