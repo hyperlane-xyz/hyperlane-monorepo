@@ -73,7 +73,12 @@ pub const Exchange = struct {
     context: *anyopaque,
     fetch_fn: *const fn (*anyopaque, Allocator, []const u8, Options) anyerror!WireResponse,
     commit_read_section_fn: ?*const fn (*anyopaque) anyerror!void = null,
+    /// Independent requests overlapped by the owner. All-or-error: on error
+    /// no `out` entry remains allocated. Absent: callMany runs serially.
+    fetch_many_fn: ?*const fn (*anyopaque, Allocator, []const []const u8, Options, []WireResponse) anyerror!void = null,
 };
+/// One JSON-RPC call whose params are already serialized JSON.
+pub const RawCall = struct { method: []const u8, params_json: []const u8 };
 pub const Options = struct {
     /// Shared transport protocol identity. Ethereum decodes JSON-RPC on every
     /// HTTP status except 429, preserving revert data required by EIP-3668.
@@ -184,14 +189,75 @@ pub const RpcClient = struct {
     /// Validate the full envelope but retain structured errors for contracts
     /// whose read protocol intentionally reverts (EIP-3668).
     pub fn callEnvelope(self: *RpcClient, method: []const u8, params: anytype) !RpcResponse {
+        const id = try self.nextId(method);
+        const body = try std.json.Stringify.valueAlloc(self.allocator, .{ .jsonrpc = "2.0", .id = id, .method = method, .params = params }, .{});
+        defer self.allocator.free(body);
+        const fetched = try self.fetchOne(body);
+        return self.decodeEnvelope(method, body, id, fetched);
+    }
+    fn nextId(self: *RpcClient, method: []const u8) !i64 {
         if (method.len == 0 or method.len > 128) return error.InvalidRpcMethod;
         if (self.next_id == std.math.maxInt(i64)) return error.RpcIdExhausted;
         const id = self.next_id;
         self.next_id += 1;
         self.last_rpc_error_code = null;
-        const body = try std.json.Stringify.valueAlloc(self.allocator, .{ .jsonrpc = "2.0", .id = id, .method = method, .params = params }, .{});
-        defer self.allocator.free(body);
-        const fetched = if (self.options.exchange) |exchange| try exchange.fetch_fn(exchange.context, self.allocator, body, self.options) else if (self.options.native_transport) |native| try self.fetchNative(native, body) else try self.fetchStd(body);
+        return id;
+    }
+    fn fetchOne(self: *RpcClient, body: []const u8) !WireResponse {
+        return if (self.options.exchange) |exchange| try exchange.fetch_fn(exchange.context, self.allocator, body, self.options) else if (self.options.native_transport) |native| try self.fetchNative(native, body) else try self.fetchStd(body);
+    }
+    /// Same body bytes as callEnvelope, with params already serialized.
+    fn rawBody(self: *RpcClient, id: i64, raw: RawCall) ![]u8 {
+        const method = try std.json.Stringify.valueAlloc(self.allocator, raw.method, .{});
+        defer self.allocator.free(method);
+        return std.fmt.allocPrint(self.allocator, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":{s},\"params\":{s}}}", .{ id, method, raw.params_json });
+    }
+    /// Independent calls, overlapped when the exchange supports it; every
+    /// envelope is validated exactly as call() (RpcError on any error object).
+    /// All-or-error: on error no `out` entry remains allocated.
+    pub fn callMany(self: *RpcClient, calls: []const RawCall, out: []RpcResponse) !void {
+        if (calls.len != out.len) return error.InvalidRpcBatch;
+        var filled: usize = 0;
+        errdefer for (out[0..filled]) |*response| response.deinit();
+        const many = if (self.options.exchange) |exchange| exchange.fetch_many_fn else null;
+        if (many == null or calls.len < 2) {
+            for (calls, out) |raw, *slot| {
+                const id = try self.nextId(raw.method);
+                const body = try self.rawBody(id, raw);
+                defer self.allocator.free(body);
+                slot.* = try self.decodeEnvelope(raw.method, body, id, try self.fetchOne(body));
+                filled += 1;
+                if (slot.isError()) return error.RpcError;
+            }
+            return;
+        }
+        const ids = try self.allocator.alloc(i64, calls.len);
+        defer self.allocator.free(ids);
+        const bodies = try self.allocator.alloc([]const u8, calls.len);
+        var built: usize = 0;
+        defer {
+            for (bodies[0..built]) |body| self.allocator.free(body);
+            self.allocator.free(bodies);
+        }
+        for (calls, ids, bodies) |raw, *id, *body| {
+            id.* = try self.nextId(raw.method);
+            body.* = try self.rawBody(id.*, raw);
+            built += 1;
+        }
+        const wires = try self.allocator.alloc(WireResponse, calls.len);
+        defer self.allocator.free(wires);
+        try many.?(self.options.exchange.?.context, self.allocator, bodies, self.options, wires);
+        var consumed: usize = 0;
+        errdefer for (wires[consumed..]) |wire| self.allocator.free(wire.bytes);
+        for (calls, ids, bodies, wires, out) |raw, id, body, wire, *slot| {
+            consumed += 1;
+            slot.* = try self.decodeEnvelope(raw.method, body, id, wire);
+            filled += 1;
+        }
+        for (out) |response| if (response.isError()) return error.RpcError;
+    }
+    /// Takes ownership of `fetched` on every return.
+    fn decodeEnvelope(self: *RpcClient, method: []const u8, body: []const u8, id: i64, fetched: WireResponse) !RpcResponse {
         errdefer self.allocator.free(fetched.bytes);
         if (fetched.len > fetched.bytes.len or fetched.len > self.options.max_response_bytes) return error.RpcResponseTooLarge;
         var parsed = std.json.parseFromSlice(Value, self.allocator, fetched.bytes[0..fetched.len], .{ .duplicate_field_behavior = .@"error", .max_value_len = self.options.max_response_bytes }) catch |err| return @import("pool.zig").responseDecodeError(self.options.protocol, err);
@@ -609,6 +675,66 @@ test "JSON-RPC errors retain only safe error code" {
     var parsed = try std.json.parseFromSlice(Value, std.testing.allocator, "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32000,\"message\":\"private endpoint detail\"}}", .{});
     defer parsed.deinit();
     try std.testing.expectEqual(@as(?i64, -32000), try validateEnvelope(parsed.value, 1));
+}
+
+const ManyFixture = struct {
+    calls: usize = 0,
+    many_calls: usize = 0,
+    /// Index of the response replaced by a JSON-RPC error object, if any.
+    error_at: ?usize = null,
+    fn reply(a: Allocator, body: []const u8, rpc_error: bool) !WireResponse {
+        var request = try std.json.parseFromSlice(Value, a, body, .{});
+        defer request.deinit();
+        const id = request.value.object.get("id").?.integer;
+        const bytes = if (rpc_error)
+            try std.fmt.allocPrint(a, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"error\":{{\"code\":3,\"message\":\"x\"}}}}", .{id})
+        else
+            try std.fmt.allocPrint(a, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"result\":\"0x{x}\"}}", .{ id, id });
+        return .{ .bytes = bytes, .len = bytes.len };
+    }
+    fn fetch(context: *anyopaque, a: Allocator, body: []const u8, _: Options) anyerror!WireResponse {
+        const self: *ManyFixture = @ptrCast(@alignCast(context));
+        self.calls += 1;
+        return reply(a, body, false);
+    }
+    fn fetchMany(context: *anyopaque, a: Allocator, bodies: []const []const u8, _: Options, out: []WireResponse) anyerror!void {
+        const self: *ManyFixture = @ptrCast(@alignCast(context));
+        self.many_calls += 1;
+        var filled: usize = 0;
+        errdefer for (out[0..filled]) |wire| a.free(wire.bytes);
+        for (bodies, out, 0..) |body, *slot, index| {
+            slot.* = try reply(a, body, self.error_at == index);
+            filled += 1;
+        }
+    }
+};
+
+fn callManyExercise(a: Allocator, error_at: ?usize) !void {
+    var fixture: ManyFixture = .{ .error_at = error_at };
+    var client = try RpcClient.init(a, "http://fixture/rpc", .{ .exchange = .{ .context = &fixture, .fetch_fn = ManyFixture.fetch, .fetch_many_fn = ManyFixture.fetchMany } });
+    defer client.deinit();
+    const calls = [_]RawCall{ .{ .method = "eth_chainId", .params_json = "[]" }, .{ .method = "eth_blockNumber", .params_json = "[]" }, .{ .method = "eth_gasPrice", .params_json = "[]" } };
+    var out: [3]RpcResponse = undefined;
+    try client.callMany(&calls, &out);
+    defer for (&out) |*response| response.deinit();
+    try std.testing.expectEqual(@as(usize, 1), fixture.many_calls);
+    try std.testing.expectEqual(@as(usize, 0), fixture.calls);
+    for (out, [_][]const u8{ "0x1", "0x2", "0x3" }) |response, expected| try std.testing.expectEqualStrings(expected, response.value().string);
+}
+
+test "RPC callMany overlaps through fetch_many, keeps id order, and frees everything on error" {
+    try callManyExercise(std.testing.allocator, null);
+    try std.testing.expectError(error.RpcError, callManyExercise(std.testing.allocator, 1));
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, callManyExercise, .{null});
+    // Without fetch_many the same calls run serially through fetch_fn.
+    var fixture: ManyFixture = .{};
+    var client = try RpcClient.init(std.testing.allocator, "http://fixture/rpc", .{ .exchange = .{ .context = &fixture, .fetch_fn = ManyFixture.fetch } });
+    defer client.deinit();
+    var out: [2]RpcResponse = undefined;
+    try client.callMany(&.{ .{ .method = "eth_chainId", .params_json = "[]" }, .{ .method = "eth_chainId", .params_json = "[1]" } }, &out);
+    defer for (&out) |*response| response.deinit();
+    try std.testing.expectEqual(@as(usize, 2), fixture.calls);
+    try std.testing.expectEqualStrings("0x2", out[1].value().string);
 }
 
 test "RPC configuration and invalid log ranges reject before network access" {
