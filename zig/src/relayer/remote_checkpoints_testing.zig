@@ -11,10 +11,6 @@ const Fixture = struct {
     flagged: ?usize = null,
     failed_guard: ?usize = null,
     guards: std.atomic.Value(usize) = .init(0),
-    /// A checkpoint read already followed a complete guard round. Requests of
-    /// a session cancelled after quorum may still be queued in this serial
-    /// fixture's backlog when a test resets `guards` for its next round.
-    checkpoint_guarded: std.atomic.Value(bool) = .init(false),
     reads: std.atomic.Value(usize) = .init(0),
     stop: std.atomic.Value(bool) = .init(false),
     failure: ?anyerror = null,
@@ -45,6 +41,9 @@ const Fixture = struct {
                 if (got == 0) continue :requests;
                 used += got;
             }
+            // A request of a cancelled transfer can still sit in this serial
+            // fixture's backlog; its client already closed. Not a request.
+            if (clientClosed(connection.stream)) continue :requests;
             var words = std.mem.tokenizeScalar(u8, input[0..used], ' ');
             try std.testing.expectEqualStrings("GET", words.next().?);
             const path = words.next().?;
@@ -69,10 +68,7 @@ const Fixture = struct {
                     body = "<Code>NoSuchKey</Code>";
                 }
             } else {
-                const latest_read = std.mem.eql(u8, name, "checkpoint_latest_index.json");
-                if (self.guards.load(.acquire) == self.values.len) {
-                    if (!latest_read) self.checkpoint_guarded.store(true, .release);
-                } else if (latest_read or !self.checkpoint_guarded.load(.acquire)) return error.CheckpointStartedBeforeGlobalGuard;
+                if (self.guards.load(.acquire) != self.values.len) return error.CheckpointStartedBeforeGlobalGuard;
                 _ = self.reads.fetchAdd(1, .release);
                 if (std.mem.eql(u8, name, "checkpoint_latest_index.json")) body = "3" else if (std.mem.eql(u8, name, "checkpoint_3_with_id.json")) {
                     if (peer < self.slow) {
@@ -91,6 +87,26 @@ const Fixture = struct {
         }
     }
 };
+fn clientClosed(stream: std.net.Stream) bool {
+    var byte: [1]u8 = undefined;
+    const got = std.posix.system.recv(stream.handle, &byte, 1, std.posix.MSG.PEEK | std.posix.MSG.DONTWAIT);
+    return got == 0;
+}
+/// Every former session is retired, so its cancelled transfers' sockets are
+/// closed: a test may reset fixture counters for its next round.
+fn waitDrained(e: *engine.Engine) !void {
+    var timer = try std.time.Timer.start();
+    while (true) {
+        e.mutex.lock();
+        const live = for (e.sessions) |entry| {
+            if (entry != null) break true;
+        } else false;
+        e.mutex.unlock();
+        if (!live) return;
+        if (timer.read() > 2 * std.time.ns_per_s) return error.EngineSessionsNotDrained;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+}
 fn nativeLibrary(a: A) ![]u8 {
     return std.process.getEnvVarOwned(a, "HYPERLANE_CURL_LIBRARY") catch |err| switch (err) {
         error.EnvironmentVariableNotFound => error.SkipZigTest,
@@ -146,6 +162,7 @@ test "remote checkpoint engine fans out beyond eight stalled peers and checks ev
     try std.testing.expect(timer.read() < 2 * std.time.ns_per_s);
     try std.testing.expectEqual(@as(usize, 16), fixture.guards.load(.acquire));
     try std.testing.expectEqual(@as(usize, 0), errors);
+    try waitDrained(e);
     fixture.guards.store(0, .release);
     var latest: [16]?u32 = undefined;
     try e.latestIndices(1, &validators, &latest, &errors, null);
@@ -177,8 +194,10 @@ test "remote checkpoint global guard rejects a late malformed flag and ignore sk
     var errors: usize = 0;
     try std.testing.expectError(error.ValidatorReorg, e.fetchQuorum(1, a, &validators, 2, 3, &errors, null));
     try std.testing.expectEqual(@as(usize, 0), fixture.reads.load(.acquire));
-    // Reset guard counters only after all former calls completed. The registry
-    // replacement itself can occur while owner cleanup still drains cancellation.
+    // Reset guard counters only after all former calls completed and the
+    // owner retired them. The registry replacement itself could occur while
+    // owner cleanup still drains cancellation.
+    try waitDrained(e);
     fixture.guards.store(0, .release);
     try register(e, a, &fixture, 1, &validators, true);
     var result = (try e.fetchQuorum(1, a, &validators, 2, 3, &errors, null)).?;
@@ -356,6 +375,7 @@ test "remote checkpoint engine serves concurrent origins and cancels one without
     wt.join();
     callers_joined = true;
     try std.testing.expectError(error.RequestCancelled, waiting.result);
+    try waitDrained(e);
     fast.guards.store(0, .release);
     var errors: usize = 0;
     var later = (try e.fetchQuorum(2, a, &validators, 2, 3, &errors, null)).?;
@@ -621,7 +641,8 @@ test "remote checkpoint async retained request polls without blocking beyond eig
     try register(e, a, &fixture, 1, &validators, false);
     var borrowed = validators;
     const request = try e.submitQuorum(1, a, &borrowed, 2, 3);
-    defer request.deinit();
+    var request_open = true;
+    defer if (request_open) request.deinit();
     @memset(&borrowed, .{0} ** 20);
     var timer = try std.time.Timer.start();
     var pending: usize = 0;
@@ -644,6 +665,11 @@ test "remote checkpoint async retained request polls without blocking beyond eig
     try std.testing.expectEqual(@as(usize, 16), fixture.guards.load(.acquire));
     try std.testing.expectEqual(@as(usize, 0), request.storage_errors);
     try std.testing.expectError(error.RemoteReadAlreadyConsumed, request.poll(null));
+    // Retire the quorum session (its slow transfers are cancelled) before the
+    // next guard round reuses the fixture counters.
+    request.deinit();
+    request_open = false;
+    try waitDrained(e);
     fixture.guards.store(0, .release);
     const latest = try e.submitLatest(1, &validators);
     defer latest.deinit();
