@@ -169,7 +169,8 @@ fn signCore(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
     if (std.mem.readInt(u256, &x, .big) >= Curve.scalar.field_order) return error.UnrepresentableRecoveryId;
     const r = try Scalar.fromBytes(x, .big);
     if (r.isZero()) return error.IdentityElement;
-    var k_inverse = k.invert();
+    // Constant-time safegcd inversion (secp256k1_scalar.zig).
+    var k_inverse = try Scalar.fromBytes(@bitCast(@import("secp256k1_scalar.zig").invert(@bitCast(k_bytes))), .little);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&k_inverse));
     var t = z.add(r.mul(d));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&t));

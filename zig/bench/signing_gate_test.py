@@ -41,12 +41,12 @@ export fn attribution(out: *[65]u8) void {
 '''
 
 
-def build(scratch, source, emit):
+def build(scratch, source, *emit):
     root = Path(scratch) / "root.zig"
     root.write_text(source)
     module = ["-O", "ReleaseSafe"]
     return subprocess.run([os.environ["ZIG"], "build-obj", *module, "--dep", "agents", f"-Mroot={root}",
-                           *module, f"-Magents={AGENTS}", "-lc", emit, "--cache-dir", str(Path(scratch) / "cache")],
+                           *module, f"-Magents={AGENTS}", "-lc", *emit, "--cache-dir", str(Path(scratch) / "cache")],
                           capture_output=True, text=True)
 
 
@@ -61,7 +61,7 @@ class UnverifiedSigningGate(unittest.TestCase):
     def test_production_signing_object_has_no_unverified_entry_point(self):
         with tempfile.TemporaryDirectory(prefix="sign-gate-") as scratch:
             asm = Path(scratch) / "out.s"
-            result = build(scratch, PRODUCTION_SIGN, f"-femit-asm={asm}")
+            result = build(scratch, PRODUCTION_SIGN, f"-femit-asm={asm}", "-fno-emit-bin")
             self.assertEqual(result.returncode, 0, result.stderr)
             text = asm.read_text()
             self.assertIn("verifyBeforeRelease", text)
@@ -70,7 +70,7 @@ class UnverifiedSigningGate(unittest.TestCase):
     def test_benchmark_root_opts_in(self):
         with tempfile.TemporaryDirectory(prefix="sign-gate-") as scratch:
             asm = Path(scratch) / "out.s"
-            result = build(scratch, BENCH_REACH, f"-femit-asm={asm}")
+            result = build(scratch, BENCH_REACH, f"-femit-asm={asm}", "-fno-emit-bin")
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("signWithoutFaultCheck", asm.read_text())
 
