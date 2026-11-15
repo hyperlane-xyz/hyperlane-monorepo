@@ -52,7 +52,7 @@ test "protected estimate sequence shares one deadline and restores its client's 
             try std.testing.expect(options.timeout_ms <= self.last_timeout);
             self.last_timeout = options.timeout_ms;
             self.calls += 1;
-            if (self.calls == 1) std.Thread.sleep(20 * std.time.ns_per_ms);
+            if (self.calls == 1) std.Thread.sleep(300 * std.time.ns_per_ms);
             const bytes = try a.dupe(u8, "{}");
             return .{ .bytes = bytes, .len = bytes.len };
         }
@@ -62,7 +62,9 @@ test "protected estimate sequence shares one deadline and restores its client's 
     var client = try rpc.RpcClient.init(std.testing.allocator, "https://fixture.invalid/rpc", .{ .exchange = exchange });
     defer client.deinit();
     {
-        var scope = try Scope.init(&client, 10);
+        // Generous budget: a loaded host may deschedule this thread before the
+        // first fetch; only the slower mock reply must exhaust the deadline.
+        var scope = try Scope.init(&client, 200);
         scope.attach();
         defer scope.deinit();
         try std.testing.expectError(error.ProtectedEstimateDeadline, client.options.exchange.?.fetch_fn(&scope, std.testing.allocator, "{}", client.options));
