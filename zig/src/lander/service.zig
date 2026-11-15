@@ -157,6 +157,9 @@ pub const Service = struct {
     /// In-memory schedule of active transactions (fast path only). A not-due
     /// transaction is skipped before its JSON record is loaded.
     checks: std.AutoHashMapUnmanaged(types.Uuid, Check) = .empty,
+    /// Source caches Multicall code existence for the adapter's lifetime; a
+    /// configured batch contract that has code is not re-read per batch.
+    batch_contract_present: bool = false,
 
     pub fn open(allocator: std.mem.Allocator, store: storage.Store, chain_adapter: chain.Chain, config: Config, cancel: *const std.atomic.Value(bool)) !Service {
         if (config.max_batch_size == 0 or config.domain_name.len == 0 or config.estimated_block_time_ms == 0) return error.InvalidLanderConfig;
@@ -190,6 +193,13 @@ pub const Service = struct {
             return backoff.ready(block_time_ms, now_ms, self.creation_ms, self.last_ms);
         }
     };
+
+    fn batchContractPresent(self: *Service, allocator: std.mem.Allocator, address: types.Address) !bool {
+        if (self.batch_contract_present) return true;
+        const code = try self.chain.getCode(allocator, address);
+        self.batch_contract_present = code.len != 0;
+        return self.batch_contract_present;
+    }
 
     fn rememberPersistedCheck(self: *Service, uuid: types.Uuid, value: std.json.Value) void {
         const creation = (rfc3339(types.stringField(value, "creation_timestamp") catch return) catch return) * 1000;
@@ -957,8 +967,7 @@ pub const Service = struct {
                 const buffered = gas.bufferGasLimit(floor, self.config.arbitrum_nitro);
                 _ = try gas.capGasLimit(buffered, buffered, latest.gas_limit, self.config.overrides);
             }
-            const code = try self.chain.getCode(allocator, batch_address);
-            if (code.len == 0) return error.SimulationFailed;
+            if (!try self.batchContractPresent(allocator, batch_address)) return error.SimulationFailed;
             const encoded = try multicall.encode(allocator, calls[0..survivor_count]);
             try records.createBatchTransaction(&rebuilt, survivors[0..survivor_count], uuid, self.config.signer.address, self.config.chain_id, timestamp, batch_address, encoded.calldata, encoded.value);
         }
@@ -1185,8 +1194,7 @@ pub const Service = struct {
             const buffered = gas.bufferGasLimit(floor, self.config.arbitrum_nitro);
             _ = try gas.capGasLimit(buffered, buffered, latest.gas_limit, self.config.overrides);
         }
-        const code = try self.chain.getCode(allocator, batch_address);
-        if (code.len == 0) return error.BatchContractNotFound;
+        if (!try self.batchContractPresent(allocator, batch_address)) return error.BatchContractNotFound;
         const encoded = try multicall.encode(allocator, calls);
         const uuid = types.newUuid();
         var transaction: records.OwnedJson = .init(self.allocator);

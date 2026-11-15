@@ -186,6 +186,7 @@ const MockChain = struct {
     last_call_value: ?u256 = null,
     zks_calls: u64 = 0,
     rpc_calls: u64 = 0,
+    code_calls: u64 = 0,
 
     fn init(allocator: std.mem.Allocator) MockChain {
         return .{ .allocator = allocator, .receipts = std.AutoHashMap(types.Hash, chain.Receipt).init(allocator), .receipt_errors = std.AutoHashMap(types.Hash, anyerror).init(allocator), .receipt_calls = std.AutoHashMap(types.Hash, u64).init(allocator), .headers = std.AutoHashMap(u64, chain.Header).init(allocator) };
@@ -266,6 +267,7 @@ const MockChain = struct {
     }
     fn getCode(context: *anyopaque, allocator: std.mem.Allocator, _: types.Address) ![]u8 {
         const self: *MockChain = @ptrCast(@alignCast(context));
+        self.code_calls += 1;
         return allocator.dupe(u8, self.code);
     }
     fn zksFee(context: *anyopaque, _: types.Request, _: types.Address) !chain.ZksFee {
@@ -1878,4 +1880,25 @@ test "idle lander refreshes the nonce boundary rarely and immediately once work 
     _ = try running.enqueue(legacyPayload(id(78)));
     _ = try running.tick(61_000, .{});
     try std.testing.expect(mock.rpc_calls > startup);
+}
+
+test "multicall code existence is read once like Source" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .max_batch_size = 2, .batch_contract_address = @splat(0x35), .bypass_batch_simulation = true };
+    config.overrides.gas_price = 5;
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    defer running.deinit();
+    _ = try running.enqueue(legacyPayload(id(92)));
+    _ = try running.enqueue(legacyPayload(id(93)));
+    try std.testing.expectEqual(@as(usize, 1), (try running.tick(1_000, .{})).built);
+    _ = try running.enqueue(legacyPayload(id(94)));
+    _ = try running.enqueue(legacyPayload(id(95)));
+    try std.testing.expectEqual(@as(usize, 1), (try running.tick(2_000, .{})).built);
+    try std.testing.expectEqual(@as(u64, 1), mock.code_calls);
 }
