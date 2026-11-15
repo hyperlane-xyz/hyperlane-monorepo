@@ -2,6 +2,9 @@
 const std = @import("std");
 const protocol = @import("agents").protocol;
 const allocator = std.heap.smp_allocator;
+/// Opts this benchmark root into protocol.signature.benchmark (signing
+/// without the fault self-check, for attribution). Agent roots never declare it.
+pub const kernel_bench_unverified_signing = true;
 
 fn emit(comptime format: []const u8, args: anytype) !void {
     const output = try std.fmt.allocPrint(allocator, format, args);
@@ -31,6 +34,9 @@ fn benchmark(kernel: []const u8, iterations: u32, body_len: usize) !void {
     if (std.mem.eql(u8, kernel, "recover")) {
         for (&signatures, 0..) |*signed, i| signed.* = try protocol.signature.signDigest(signer, kernelDigest(@intCast(i)), null);
     }
+    // Production signers hold a SigningKey (Q derived once at construction).
+    var signing_key = try protocol.signature.SigningKey.init(signer);
+    defer signing_key.deinit();
     var timer = try std.time.Timer.start();
     if (std.mem.eql(u8, kernel, "message_id")) {
         for (0..iterations) |i| {
@@ -83,7 +89,7 @@ fn benchmark(kernel: []const u8, iterations: u32, body_len: usize) !void {
             const digest = kernelDigest(@intCast(i));
             std.mem.doNotOptimizeAway(&digest);
             const signed = if (checked)
-                try protocol.signature.signDigest(signer, digest, null)
+                try signing_key.sign(digest, null)
             else
                 try protocol.signature.benchmark.signWithoutFaultCheck(signer, digest, null);
             std.mem.doNotOptimizeAway(signed);

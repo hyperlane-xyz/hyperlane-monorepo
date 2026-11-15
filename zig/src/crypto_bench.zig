@@ -9,6 +9,8 @@ const std = @import("std");
 const signature = @import("protocol/signature.zig");
 const Reference = @import("protocol/secp256k1_reference.zig");
 const sameOutcome = Reference.sameOutcome;
+/// Opts this benchmark root into protocol.signature.benchmark.
+pub const kernel_bench_unverified_signing = true;
 
 pub fn main() !void {
     const a = std.heap.smp_allocator;
@@ -39,9 +41,12 @@ pub fn main() !void {
             checksum +%= recovered[i % 20];
         }
     } else if (std.mem.eql(u8, args[1], "sign")) {
+        // Production path: a long-lived SigningKey with the fault self-check.
+        var signing_key = try signature.SigningKey.init(key);
+        defer signing_key.deinit();
         for (0..count) |i| {
             std.mem.doNotOptimizeAway(&digests);
-            const signed = try signature.signDigest(key, digests[i % 16], null);
+            const signed = try signing_key.sign(digests[i % 16], null);
             std.mem.doNotOptimizeAway(signed);
             checksum +%= signed[i % 65];
         }
