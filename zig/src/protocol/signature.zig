@@ -14,8 +14,7 @@ fn reducedHash(digest: Hash) Scalar {
 
 fn address(point: Curve) Address {
     const sec1 = point.toUncompressedSec1();
-    var hash: Hash = undefined;
-    std.crypto.hash.sha3.Keccak256.hash(sec1[1..], &hash, .{});
+    const hash = @import("keccak.zig").keccak256(sec1[1..]);
     return hash[12..32].*;
 }
 

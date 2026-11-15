@@ -1,5 +1,5 @@
 const std = @import("std");
-const Keccak256 = std.crypto.hash.sha3.Keccak256;
+const Keccak256 = @import("keccak.zig").Keccak256;
 
 pub fn domainHash(hook: [32]u8, domain: u32) [32]u8 {
     var bytes: [45]u8 = undefined;
