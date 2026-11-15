@@ -138,7 +138,7 @@ def crypto_differential(rust, zig, output):
         assert all(row["recovered"] is None for row in rows), (label, rows)
     summary = {"passed": True, "fixture_cases": len(cases), "cross_implementation_recoveries": checked,
                "invalid_signatures_per_implementation": len(invalid), "seed": "0x5349474e",
-               "rust_crypto": "k256 0.13.4", "zig_crypto": "std.crypto Secp256k1",
+               "rust_crypto": "k256 0.13.4", "zig_crypto": "protocol/secp256k1.zig field+points; std.crypto scalars, GLV split, HMAC-DRBG",
                "policy": "Compare cross-recovery/address, not nonce-dependent signature byte equality"}
     (output / "crypto-differential.json").write_text(json.dumps(summary, indent=2) + "\n")
     return summary
