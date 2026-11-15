@@ -185,6 +185,7 @@ const MockChain = struct {
     last_call_block: ?u64 = null,
     last_call_value: ?u256 = null,
     zks_calls: u64 = 0,
+    rpc_calls: u64 = 0,
 
     fn init(allocator: std.mem.Allocator) MockChain {
         return .{ .allocator = allocator, .receipts = std.AutoHashMap(types.Hash, chain.Receipt).init(allocator), .receipt_errors = std.AutoHashMap(types.Hash, anyerror).init(allocator), .receipt_calls = std.AutoHashMap(types.Hash, u64).init(allocator), .headers = std.AutoHashMap(u64, chain.Header).init(allocator) };
@@ -205,6 +206,7 @@ const MockChain = struct {
 
     fn latestBlock(context: *anyopaque) !chain.LatestBlock {
         const self: *MockChain = @ptrCast(@alignCast(context));
+        self.rpc_calls += 1;
         return self.latest;
     }
     fn feeHistory(context: *anyopaque, allocator: std.mem.Allocator, _: u64) !chain.FeeHistory {
@@ -217,14 +219,17 @@ const MockChain = struct {
     }
     fn accountNonce(context: *anyopaque, _: types.Address) !u256 {
         const self: *MockChain = @ptrCast(@alignCast(context));
+        self.rpc_calls += 1;
         return self.next_nonce;
     }
     fn finalizedHeight(context: *anyopaque) !u64 {
         const self: *MockChain = @ptrCast(@alignCast(context));
+        self.rpc_calls += 1;
         return self.finalized_height;
     }
     fn receipt(context: *anyopaque, hash: types.Hash) !?chain.Receipt {
         const self: *MockChain = @ptrCast(@alignCast(context));
+        self.rpc_calls += 1;
         const calls = try self.receipt_calls.getOrPut(hash);
         if (!calls.found_existing) calls.value_ptr.* = 0;
         calls.value_ptr.* += 1;
@@ -250,6 +255,7 @@ const MockChain = struct {
     }
     fn call(context: *anyopaque, allocator: std.mem.Allocator, request: chain.Call, block: u64) ![]u8 {
         const self: *MockChain = @ptrCast(@alignCast(context));
+        self.rpc_calls += 1;
         self.last_call_block = block;
         self.last_call_value = request.value;
         if (self.simulation_results) |results| return allocator.dupe(u8, results);
@@ -1809,4 +1815,67 @@ test "paged malformed older receipt cannot win included replacement after restar
 
 test "paged malformed older receipt cannot win finalized replacement after restart" {
     try canonicalWinnerAfterMalformedReceipt(true, true);
+}
+
+test "included transaction awaiting finality is polled per block time without rewrites" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    mock.latest.number = 5;
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .estimated_block_time_ms = 1_000 };
+    config.overrides.gas_price = 5;
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    defer running.deinit();
+    var input = legacyPayload(id(77));
+    input.payload.success_criteria_json = input.payload.data_json;
+    _ = try running.enqueue(input);
+    _ = try running.tick(1_000, .{});
+    _ = try running.tick(100_000, .{});
+    var tx_hash: types.Hash = undefined;
+    std.crypto.hash.sha3.Keccak256.hash(mock.sent.items[0], &tx_hash, .{});
+    const block_hash: types.Hash = @splat(0x77);
+    try mock.receipts.put(tx_hash, .{ .block_number = 5, .block_hash = block_hash });
+    try mock.headers.put(5, .{ .number = 5, .hash = block_hash });
+    mock.finalized_height = 1;
+    mock.next_nonce = 1;
+    _ = try running.tick(101_000, .{});
+    // Lane cadence: 100 ticks 10ms apart inside one estimated block time.
+    const writes = fixture.database.sequence();
+    const rpc = mock.rpc_calls;
+    var now_ms: u64 = 101_010;
+    while (now_ms < 102_000) : (now_ms += 10) _ = try running.tick(now_ms, .{});
+    std.debug.print("\nincluded wait over 1 block: {d} RPC, {d} DB writes\n", .{ mock.rpc_calls - rpc, fixture.database.sequence() - writes });
+    try std.testing.expect(mock.rpc_calls - rpc <= 6);
+    try std.testing.expectEqual(writes, fixture.database.sequence());
+    // Finality still lands on the next block-time check.
+    mock.finalized_height = 5;
+    const finalized = try running.tick(102_100, .{});
+    try std.testing.expectEqual(@as(usize, 1), finalized.finalized);
+}
+
+test "idle lander refreshes the nonce boundary rarely and immediately once work arrives" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .estimated_block_time_ms = 1_000 };
+    config.overrides.gas_price = 5;
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    defer running.deinit();
+    _ = try running.tick(1_000, .{});
+    const startup = mock.rpc_calls;
+    var now_ms: u64 = 1_100;
+    while (now_ms < 61_000) : (now_ms += 100) _ = try running.tick(now_ms, .{});
+    // One idle minute at 100ms ticks: previously one nonce read per block.
+    try std.testing.expectEqual(startup, mock.rpc_calls);
+    _ = try running.enqueue(legacyPayload(id(78)));
+    _ = try running.tick(61_000, .{});
+    try std.testing.expect(mock.rpc_calls > startup);
 }

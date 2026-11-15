@@ -13,6 +13,7 @@ const multicall = @import("multicall.zig");
 const mev = @import("mev.zig");
 const observer = @import("observer.zig");
 const backoff = @import("backoff.zig");
+pub const idle_boundary_refresh_ms: u64 = 300_000;
 
 pub const Signer = struct {
     context: *anyopaque,
@@ -143,6 +144,7 @@ pub const Service = struct {
     active_cursor: u32 = 0,
     past_old_boundary: bool = false,
     next_boundary_refresh_ms: u64 = 0,
+    boundary_refreshed_ms: u64 = 0,
     payload_reconcile_cursor: u32,
     payload_reconcile_complete: bool,
     queued_transactions: u32 = 0,
@@ -152,6 +154,9 @@ pub const Service = struct {
     reorg_cursor: ?u256 = null,
     reorg_active: ?storage.ReorgRange = null,
     receipt_progress: std.AutoHashMap(types.Uuid, ReceiptProgress),
+    /// In-memory schedule of active transactions (fast path only). A not-due
+    /// transaction is skipped before its JSON record is loaded.
+    checks: std.AutoHashMapUnmanaged(types.Uuid, Check) = .empty,
 
     pub fn open(allocator: std.mem.Allocator, store: storage.Store, chain_adapter: chain.Chain, config: Config, cancel: *const std.atomic.Value(bool)) !Service {
         if (config.max_batch_size == 0 or config.domain_name.len == 0 or config.estimated_block_time_ms == 0) return error.InvalidLanderConfig;
@@ -174,10 +179,45 @@ pub const Service = struct {
         };
     }
 
+    const Check = struct {
+        creation_ms: u64,
+        last_ms: u64,
+        included: bool,
+        /// Included transactions await finality once per block, as Source's
+        /// finality stage; others keep the age-based inclusion backoff.
+        fn due(self: Check, block_time_ms: u64, now_ms: u64) bool {
+            if (self.included) return now_ms -| self.last_ms >= block_time_ms;
+            return backoff.ready(block_time_ms, now_ms, self.creation_ms, self.last_ms);
+        }
+    };
+
+    fn rememberPersistedCheck(self: *Service, uuid: types.Uuid, value: std.json.Value) void {
+        const creation = (rfc3339(types.stringField(value, "creation_timestamp") catch return) catch return) * 1000;
+        const last = types.optionalField(value, "last_status_check") orelse return;
+        if (last != .string) return;
+        const last_ms = (rfc3339(last.string) catch return) * 1000;
+        // Allocation failure only loses the skip; the next tick loads again.
+        self.checks.put(self.allocator, uuid, .{ .creation_ms = creation, .last_ms = last_ms, .included = false }) catch {};
+    }
+
+    fn rememberCheck(self: *Service, uuid: types.Uuid, value: std.json.Value, now_ms: u64) void {
+        const status = records.status(value) catch {
+            _ = self.checks.remove(uuid);
+            return;
+        };
+        if (!status.isActive()) {
+            _ = self.checks.remove(uuid);
+            return;
+        }
+        const creation = (rfc3339(types.stringField(value, "creation_timestamp") catch return) catch return) * 1000;
+        self.checks.put(self.allocator, uuid, .{ .creation_ms = creation, .last_ms = now_ms, .included = status == .included }) catch {};
+    }
+
     pub fn deinit(self: *Service) void {
         var iterator = self.receipt_progress.iterator();
         while (iterator.next()) |entry| self.allocator.free(entry.value_ptr.items);
         self.receipt_progress.deinit();
+        self.checks.deinit(self.allocator);
         self.* = undefined;
     }
 
@@ -243,7 +283,13 @@ pub const Service = struct {
         self.oldest_unchecked_age_seconds = 0;
         try self.reconcilePendingPage(limits.max_payload_scan);
         var boundary_ready = true;
-        if (now_ms >= self.next_boundary_refresh_ms) {
+        // The finalized-nonce boundary only matters for building, submitting
+        // or recovering transactions. When idle, refresh it rarely (as
+        // Source's nonce poll backs off to 5 minutes) instead of every block.
+        const has_work = self.pending_payloads != 0 or self.queued_transactions != 0 or !self.recovery_complete or !self.payload_reconcile_complete or self.reorg_active != null;
+        if (!has_work and self.next_boundary_refresh_ms != 0 and now_ms -| self.boundary_refreshed_ms < idle_boundary_refresh_ms) {
+            // Idle: boundary stays valid; nothing will consume it this tick.
+        } else if (now_ms >= self.next_boundary_refresh_ms) {
             const account_nonce = self.chain.accountNonceFinalized(self.config.signer.address) catch {
                 self.metric(.{ .call_retries = .{ .name = "account_nonce" } });
                 report.deferred += 1;
@@ -256,11 +302,14 @@ pub const Service = struct {
             };
             if (boundary_ready) {
                 self.next_boundary_refresh_ms = now_ms + self.config.estimated_block_time_ms;
+                self.boundary_refreshed_ms = now_ms;
                 self.metric(.{ .finalized_nonce = .{ .signer = self.config.signer.address, .value = if (account_nonce == 0) 0 else account_nonce - 1 } });
                 if (self.store.upperNonce(self.allocator, self.config.signer.address)) |upper| self.metric(.{ .upper_nonce = .{ .signer = self.config.signer.address, .value = upper } }) else |_| {}
             }
         }
         try self.processReorg(limits.max_reorg, &report);
+        // Reorg handling can reactivate or rewrite transactions: reschedule all.
+        if (report.reprocessed != 0) self.checks.clearRetainingCapacity();
         try self.scanTransactions(now_ms, limits, boundary_ready, &report);
         try self.buildPending(now_ms, limits, &report);
         self.tickMetrics(&report, started_ms);
@@ -416,6 +465,12 @@ pub const Service = struct {
             const index = std.mem.readInt(u32, entry.key[0..4], .big);
             self.active_cursor = if (index == std.math.maxInt(u32)) 0 else index + 1;
             const uuid = entry.value[0..16].*;
+            if (self.recovery_complete) if (self.checks.get(uuid)) |check| if (!check.due(self.config.estimated_block_time_ms, now_ms)) {
+                self.oldest_unchecked_age_seconds = @max(self.oldest_unchecked_age_seconds, now_ms / 1000 -| check.last_ms / 1000);
+                report.transactions_scanned += 1;
+                scanned += 1;
+                continue;
+            };
             var record = (try self.store.loadTransaction(self.allocator, uuid)) orelse {
                 try self.store.setActive(self.allocator, index, uuid, false);
                 continue;
@@ -433,6 +488,7 @@ pub const Service = struct {
                 if (status == .included) self.included_transactions +|= 1;
             }
             if (self.recovery_complete and status != .included and !readyForProcessing(record.value(), self.config.estimated_block_time_ms, now_ms)) {
+                self.rememberPersistedCheck(uuid, record.value());
                 scanned += 1;
                 continue;
             }
@@ -442,6 +498,7 @@ pub const Service = struct {
                 report.deferred += 1;
                 break :blk false;
             };
+            if (completed and self.recovery_complete) self.rememberCheck(uuid, record.value(), now_ms);
             scanned += 1;
             if (!completed and !self.recovery_complete) {
                 self.recovery_blocked = true;
@@ -468,7 +525,7 @@ pub const Service = struct {
         if (observed == .included or observed == .finalized) {
             const finalized_height = try self.chain.finalizedHeight();
             const delivery_height = if (observed == .included) (try self.chain.latestBlock()).number else finalized_height;
-            try self.writePayloadOutcomes(record, allocator, observed, delivery_height, observation.winning, report);
+            try self.writePayloadOutcomes(record, allocator, observed, delivery_height, observation.winning, report, sameStatus(previous_status, observed));
             if (observed == .finalized) {
                 try self.clearProgress(uuid);
                 self.queued_transactions -|= 1;
@@ -477,9 +534,13 @@ pub const Service = struct {
             }
             return true;
         }
-        const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-        defer self.allocator.free(json);
-        try self.store.writeTransaction(self.allocator, uuid, json);
+        // An unchanged status only advanced last_status_check, which the
+        // in-memory schedule now owns; skip the rewrite and its fsync.
+        if (!(self.recovery_complete and sameStatus(previous_status, observed))) {
+            const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
+            defer self.allocator.free(json);
+            try self.store.writeTransaction(self.allocator, uuid, json);
+        }
         if (observed == .dropped) {
             try self.clearProgress(uuid);
             self.queued_transactions -|= 1;
@@ -570,15 +631,32 @@ pub const Service = struct {
         if (self.receipt_progress.fetchRemove(uuid)) |removed| self.allocator.free(removed.value.items);
     }
 
-    fn writePayloadOutcomes(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, observed: types.Status, finalized_height: u64, winning: ?WinningReceipt, report: *Report) !void {
+    fn writePayloadOutcomes(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, observed: types.Status, finalized_height: u64, winning: ?WinningReceipt, report: *Report, unchanged: bool) !void {
         const uuid = try records.transactionUuid(record.value());
         const payload_uuids = try records.payloadTransactionUuids(allocator, record.value());
         const updates = try allocator.alloc(storage.PayloadUpdate, payload_uuids.len);
         const outcomes = try allocator.alloc(observer.PayloadOutcome, payload_uuids.len);
         const previous_reverted = report.reverted_payloads;
-        for (payload_uuids, 0..) |payload_uuid, i| {
-            var payload = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
-            const delivered = try self.payloadDelivered(allocator, payload.value(), finalized_height);
+        const payloads = try allocator.alloc(storage.JsonRecord, payload_uuids.len);
+        const delivered_flags = try allocator.alloc(bool, payload_uuids.len);
+        var all_delivered = true;
+        for (payload_uuids, payloads, delivered_flags) |payload_uuid, *payload, *delivered| {
+            payload.* = (try self.store.loadPayload(allocator, payload_uuid)) orelse return error.MissingPayload;
+            delivered.* = try self.payloadDelivered(allocator, payload.value(), finalized_height);
+            all_delivered = all_delivered and delivered.*;
+        }
+        // Still included, every payload still delivered and already stored
+        // with that status: the records carry exactly this outcome. Skip the
+        // re-encode and fsync that only refreshed last_status_check.
+        if (unchanged and observed == .included and all_delivered and self.recovery_complete) {
+            const target = try std.json.Stringify.valueAlloc(allocator, try types.payloadStatusJson(allocator, observed), .{});
+            const stored = for (payloads) |payload| {
+                const current = types.field(payload.value(), "status") catch break false;
+                if (!std.mem.eql(u8, target, try std.json.Stringify.valueAlloc(allocator, current, .{}))) break false;
+            } else true;
+            if (stored) return;
+        }
+        for (payload_uuids, payloads, delivered_flags, 0..) |payload_uuid, *payload, delivered, i| {
             if (!delivered) {
                 try records.setPayloadReverted(&payload.parsed.value, allocator);
                 report.reverted_payloads += 1;
@@ -1132,6 +1210,11 @@ pub const Service = struct {
         self.oldest_unchecked_age_seconds = @max(self.oldest_unchecked_age_seconds, now_ms / 1000 -| timestamp);
     }
 };
+
+fn sameStatus(left: types.Status, right: types.Status) bool {
+    if (left == .dropped or right == .dropped) return false;
+    return std.meta.activeTag(left) == std.meta.activeTag(right);
+}
 
 fn readyForProcessing(value: std.json.Value, block_time_ms: u64, now_ms: u64) bool {
     const creation = (rfc3339(types.stringField(value, "creation_timestamp") catch return true) catch return true) * 1000;
