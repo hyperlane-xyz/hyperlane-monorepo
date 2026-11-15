@@ -186,6 +186,9 @@ pub const Lane = struct {
     native_group_gc_cursor: [32]u8 = @splat(0),
     native_group_current_first: bool = false,
     native_group_deadline_ns: ?u64 = null,
+    /// Scratch for one EVM advance (operation record, links, Lander status
+    /// JSON, prepare outcome). Reset, not freed piecemeal, after each poll.
+    poll_arena: ?std.heap.ArenaAllocator = null,
     native_group_senders: std.AutoHashMapUnmanaged([32]u8, SenderState) = .empty,
     native_group_last_error: ?anyerror = null,
     native_group_epoch: ?u64 = null,
@@ -195,6 +198,7 @@ pub const Lane = struct {
 
     fn deinit(self: *Lane) void {
         self.worker.deinit();
+        if (self.poll_arena) |*arena| arena.deinit();
         for (self.active.items) |item| {
             self.finishActiveMetrics(item, .cancelled);
             self.owner.release(item.retained_bytes);
@@ -1672,7 +1676,13 @@ pub const Lane = struct {
         if (self.chain.protocol == .ethereum) {
             // Read before any origin row: a commit racing this prepare wakes it.
             const index_generation = self.owner.origins.slots[item.origin_index].index_generation.load(.acquire);
-            var state = try operation.Operation.open(self.owner.allocator, origin.store, .{
+            // Everything allocated from scratch dies with this advance: the
+            // operation, its links and the prepare outcome. Driver, Lander and
+            // RPC state keep their own allocators.
+            if (self.poll_arena == null) self.poll_arena = std.heap.ArenaAllocator.init(self.owner.allocator);
+            defer _ = self.poll_arena.?.reset(.{ .retain_with_limit = poll_arena_retain_bytes });
+            const scratch = self.poll_arena.?.allocator();
+            var state = try operation.Operation.open(scratch, origin.store, .{
                 .id = message.id(),
                 .context = evmContext(self.context.?, origin.chain),
                 .nonce = message.nonce,
@@ -1695,7 +1705,7 @@ pub const Lane = struct {
             var prepare_config = try evm_prepare.Config.fromSettings(self.chain, self.signer.?.address, self.owner.settings.role.relayer.transaction_gas_limit, self.owner.settings.role.relayer.skip_transaction_gas_limit_for);
             prepare_config.metadata_observer = metadataObserverFor(item);
             const was_confirming = state.value.confirmation_started;
-            const outcome = item.evm_driver.?.step(self.owner.allocator, &self.transactions.?, &state, origin.history, &self.origins[item.origin_index].policy.?, message, &self.network.?.rpc_client.?, .{
+            const outcome = item.evm_driver.?.step(scratch, &self.transactions.?, &state, origin.history, &self.origins[item.origin_index].policy.?, message, &self.network.?.rpc_client.?, .{
                 .source = prepare_config,
                 .metadata_cache = &self.owner.evm_cache,
                 .default_ism_cache = &self.owner.evm_default_ism_cache,
@@ -1904,6 +1914,8 @@ pub const Lane = struct {
 /// Upper bound on an event-driven Lander wait, covering any status change
 /// that a tick report does not count. Lander activity wakes waiters earlier.
 pub const lander_wait_fallback_ms: u64 = 1_000;
+/// Arena capacity kept across EVM polls; larger one-off outcomes are released.
+pub const poll_arena_retain_bytes: usize = 256 * 1024;
 /// Upper bound on an origin-index wait between index generation wakes; the
 /// first Source retry step, so an unseen commit costs no more than before.
 pub const index_wait_fallback_ms: u64 = 5_000;

@@ -80,6 +80,8 @@ pub const Driver = struct {
     cached_metadata: ?[]u8 = null,
     /// In-memory only: a restart simply prepares again.
     index_wait_since_ms: ?u64 = null,
+    /// Sealed payload already replayed into Lander by this process.
+    replayed_payload: ?payload_links.Uuid = null,
 
     pub fn init(allocator: Allocator) Driver {
         return .{ .allocator = allocator };
@@ -111,9 +113,17 @@ pub const Driver = struct {
         var link = try payload_links.load(allocator, actor.store, message.id(), actor.options.context);
         defer if (link) |*value| value.deinit();
         if (link) |*value| {
-            try value.replay(destination);
-            if (actor.value.stage != .denied) try actor.payloadEnqueued(value.record().generation, now);
-        }
+            // Replay closes the seal/enqueue crash window once per process;
+            // Lander keeps the payload durably, so later polls of the same
+            // ready payload skip the canonical re-encode and enqueue check.
+            const uuid = value.record().payload.uuid;
+            const replayed = self.replayed_payload != null and std.mem.eql(u8, &self.replayed_payload.?, &uuid) and actor.value.stage == .ready;
+            if (!replayed) {
+                try value.replay(destination);
+                if (actor.value.stage != .denied) try actor.payloadEnqueued(value.record().generation, now);
+                self.replayed_payload = uuid;
+            }
+        } else self.replayed_payload = null;
 
         const inherited = try payload_links.inheritedUuids(allocator, actor.store, message.id());
         defer allocator.free(inherited);
@@ -148,21 +158,19 @@ pub const Driver = struct {
         linked_uuid: ?payload_links.Uuid,
         native_link: ?*const payload_links.Link,
     ) !Report {
-        _ = self;
         const statuses = try allocator.alloc(PayloadDisposition, inherited.len);
         defer allocator.free(statuses);
         var unknown = false;
         for (inherited, statuses) |uuid, *disposition| {
-            var record = (try destination.store.loadPayload(allocator, uuid)) orelse {
+            disposition.* = try payloadStatus(allocator, destination.store, uuid) orelse {
                 unknown = true;
                 disposition.* = .unknown;
                 continue;
             };
-            defer record.deinit();
-            if (!std.mem.eql(u8, &try lander.records.payloadUuid(record.value()), &uuid)) return error.PayloadRecordIdentityMismatch;
-            disposition.* = try payloadDisposition(record.value());
         }
         if (unknown) {
+            // Lander no longer knows a linked payload: replay it again.
+            self.replayed_payload = null;
             if (!actor.value.confirmation_started and (actor.value.stage == .preparing or actor.value.stage == .ready)) {
                 _ = try actor.apply(.{ .delay = .{ .generation = actor.value.generation, .now_ms = now.monotonic_ms, .delay_ms = config.payload_retry_delay_ms } }, now, .ErrorRetrievingPayloadStatus);
             }
@@ -405,8 +413,20 @@ fn observationTime(callbacks: Callbacks, fallback: agents_operation.Times) !agen
 
 const PayloadDisposition = enum { unknown, active, included, failed, finalized };
 
-fn payloadDisposition(value: std.json.Value) !PayloadDisposition {
-    const status = try lander.types.field(value, "status");
+/// Only identity and status of a stored Lander payload. Its EVM data and
+/// criteria are byte arrays (one JSON integer per byte); a typed parse skips
+/// them instead of materializing a Value per byte on every poll.
+fn payloadStatus(allocator: Allocator, store: lander.store.Store, uuid: lander.types.Uuid) !?PayloadDisposition {
+    const bytes = (try store.typed.get(allocator, lander.store.payload_by_uuid, &uuid)) orelse return null;
+    defer allocator.free(bytes);
+    const Head = struct { details: struct { uuid: []const u8 }, status: std.json.Value };
+    var head = try std.json.parseFromSlice(Head, allocator, bytes, .{ .ignore_unknown_fields = true, .duplicate_field_behavior = .@"error" });
+    defer head.deinit();
+    if (!std.mem.eql(u8, &try lander.types.parseUuid(head.value.details.uuid), &uuid)) return error.PayloadRecordIdentityMismatch;
+    return try statusDisposition(head.value.status);
+}
+
+fn statusDisposition(status: std.json.Value) !PayloadDisposition {
     if (status == .string) {
         if (std.mem.eql(u8, status.string, "ReadyToSubmit")) return .active;
         return error.InvalidLanderRecord;

@@ -1045,6 +1045,82 @@ test "only unindexed leaf and payment retries become index waits" {
     try std.testing.expect(driver.Driver.indexWait(unmet) == null);
 }
 
+const CountingAllocator = struct {
+    parent: A,
+    allocations: usize = 0,
+    fn allocator(self: *CountingAllocator) A {
+        return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
+    }
+    fn alloc(context: *anyopaque, len: usize, alignment: std.mem.Alignment, ret: usize) ?[*]u8 {
+        const self: *CountingAllocator = @ptrCast(@alignCast(context));
+        self.allocations += 1;
+        return self.parent.rawAlloc(len, alignment, ret);
+    }
+    fn resize(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, len: usize, ret: usize) bool {
+        const self: *CountingAllocator = @ptrCast(@alignCast(context));
+        return self.parent.rawResize(memory, alignment, len, ret);
+    }
+    fn remap(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, len: usize, ret: usize) ?[*]u8 {
+        const self: *CountingAllocator = @ptrCast(@alignCast(context));
+        return self.parent.rawRemap(memory, alignment, len, ret);
+    }
+    fn free(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret: usize) void {
+        const self: *CountingAllocator = @ptrCast(@alignCast(context));
+        self.parent.rawFree(memory, alignment, ret);
+    }
+};
+
+fn pollAllocations(runtime: *Runtime, poll_allocator: A, reset: ?*std.heap.ArenaAllocator) !void {
+    runtime.actor.deinit();
+    runtime.actor = try operation.Operation.open(poll_allocator, &runtime.store, .{
+        .id = runtime.fixture.message.id(),
+        .context = @splat(8),
+        .nonce = runtime.fixture.message.nonce,
+        .destination = runtime.fixture.message.destination,
+        .policy = .{ .confirm_delay_ms = 0 },
+    }, now());
+    const report = try runtime.value.step(poll_allocator, &runtime.destination, &runtime.actor, &runtime.origin, &runtime.policy, runtime.fixture.message, &runtime.client, runtime.config(), now(), .{ .cancel = &runtime.cancel });
+    try std.testing.expectEqual(driver.State.existing_payload, report.state);
+    if (reset) |arena| {
+        // Mirror Lane.advance: the operation dies before the arena resets.
+        runtime.actor.deinit();
+        runtime.actor = try operation.Operation.open(runtime.allocator, &runtime.store, .{
+            .id = runtime.fixture.message.id(),
+            .context = @splat(8),
+            .nonce = runtime.fixture.message.nonce,
+            .destination = runtime.fixture.message.destination,
+            .policy = .{ .confirm_delay_ms = 0 },
+        }, now());
+        _ = arena.reset(.{ .retain_with_limit = @import("../relayer_task.zig").poll_arena_retain_bytes });
+    }
+}
+
+test "EVM lane poll scratch arena removes per-poll heap allocations" {
+    var counting: CountingAllocator = .{ .parent = std.testing.allocator };
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = readySteps();
+    var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .blocks = 1 });
+    defer runtime.deinit();
+    _ = try runtime.prepareStep();
+    // Piecemeal: every poll allocates and frees on the general allocator.
+    const piecemeal_start = counting.allocations;
+    for (0..10) |_| try pollAllocations(runtime, counting.allocator(), null);
+    const piecemeal = (counting.allocations - piecemeal_start) / 10;
+    // Scratch arena reset per poll: after warm-up, no general allocations.
+    var arena = std.heap.ArenaAllocator.init(counting.allocator());
+    defer arena.deinit();
+    try pollAllocations(runtime, arena.allocator(), &arena);
+    const arena_start = counting.allocations;
+    for (0..10) |_| try pollAllocations(runtime, arena.allocator(), &arena);
+    std.debug.print("\nEVM poll heap allocations: piecemeal {d}/poll, arena {d} over 10 polls\n", .{ piecemeal, counting.allocations - arena_start });
+    try std.testing.expect(piecemeal > 20);
+    try std.testing.expect(arena.queryCapacity() < @import("../relayer_task.zig").poll_arena_retain_bytes);
+    try std.testing.expectEqual(arena_start, counting.allocations);
+    try runtime.rpc.expectDone();
+}
+
 test "native batch uses surviving payload estimate sum for source ratio" {
     const a = std.testing.allocator;
     var fixture = try Fixture.init(a);
