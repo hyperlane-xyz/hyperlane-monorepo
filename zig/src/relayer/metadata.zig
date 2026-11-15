@@ -358,6 +358,7 @@ pub fn Builder(comptime Source: type) type {
                     self.mutex.unlock();
                     if (ready) return;
                     if (self.parentCancelled()) return error.RequestCancelled;
+                    // On a fiber assist() runs nothing (see Executor.assist).
                     const assisted = if (expected) |job| self.executor.assistJob(&job.job) else self.executor.assist();
                     if (assisted) continue;
                     self.mutex.lock();
@@ -376,7 +377,9 @@ pub fn Builder(comptime Source: type) type {
                         self.mutex.unlock();
                         continue;
                     }
-                    if (still_waiting) self.changed.timedWait(&self.mutex, std.time.ns_per_ms) catch {};
+                    // Completion broadcasts `changed`; the slice only rechecks
+                    // the parent cancellation flag, which has no notifier.
+                    if (still_waiting) self.changed.timedWait(&self.mutex, 10 * std.time.ns_per_ms) catch {};
                     self.mutex.unlock();
                 }
             }

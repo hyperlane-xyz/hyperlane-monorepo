@@ -87,8 +87,7 @@ test "health provider Sealevel finalized slot and processed wallet balance prese
     mock.result = "{\"context\":{\"slot\":100},\"value\":234}";
     var chain: types.Chain = undefined;
     try std.testing.expectEqual(@as(u256, 234), try health.queryBalance(a, .{ .sealevel = &client }, &chain, "11111111111111111111111111111111"));
-    var identity = try @import("../net/read_replay.zig").requestIdentity(a, "{\"jsonrpc\":\"2.0\",\"method\":\"getBalance\",\"params\":[],\"id\":1}", 1024);
-    _ = &identity;
+    _ = try @import("../net/read_replay.zig").requireReadOnly(a, "{\"jsonrpc\":\"2.0\",\"method\":\"getBalance\",\"params\":[],\"id\":1}", 1024);
 }
 
 test "health provider Cosmos and CosmosNative use latest Tendermint block, canonical asset ABCI protobuf" {
@@ -231,7 +230,8 @@ test "health native monitor construction reads no key/network, cooperative compl
         };
         completed += @intCast(report.work);
     }
-    try std.testing.expect(pending >= 2);
+    // Reads wait for their responses: no step yields or replays a read.
+    try std.testing.expectEqual(@as(usize, 0), pending);
     try std.testing.expectEqual(@as(usize, 2), server.acceptedCount());
     try std.testing.expectEqual(@as(usize, 0), budget.used);
     const rendered = try registry.render(a);

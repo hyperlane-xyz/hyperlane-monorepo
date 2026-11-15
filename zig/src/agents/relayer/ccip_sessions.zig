@@ -351,6 +351,21 @@ pub const Owner = struct {
         }
     }
 
+    /// Real runtime only: park/block on the active request; the handle is
+    /// consumed on every return, so its accounting is released either way.
+    fn asyncWait(context: *anyopaque, cancel: ?*const std.atomic.Value(bool)) !?curl.Response {
+        const entry: *Entry = @ptrCast(@alignCast(context));
+        const self = entry.owner.?;
+        const runtime = entry.runtime.?;
+        // The request's own native timeout ends it; this only caps the wait.
+        const result = runtime.wait(entry.async_handle.?, runtime.now() +| max_wait_ms, cancel, null);
+        self.mutex.lock();
+        self.finishAsyncLocked(entry);
+        self.mutex.unlock();
+        return try result;
+    }
+    const max_wait_ms = 300_000;
+
     fn asyncCancel(context: *anyopaque) void {
         const entry: *Entry = @ptrCast(@alignCast(context));
         const self = entry.owner.?;
@@ -360,7 +375,7 @@ pub const Owner = struct {
     }
 
     fn asyncTransport(entry: *Entry) ccip.AsyncTransport {
-        return .{ .context = entry, .has_active_fn = asyncHasActive, .submit_fn = asyncSubmit, .poll_fn = asyncPoll, .cancel_fn = asyncCancel };
+        return .{ .context = entry, .has_active_fn = asyncHasActive, .submit_fn = asyncSubmit, .poll_fn = asyncPoll, .cancel_fn = asyncCancel, .wait_fn = if (entry.runtime != null) asyncWait else null };
     }
 
     fn step(self: *Owner, entry: *Entry, bound: *Binding, origin_tx_hash: ?[]const u8) !ccip.Step {

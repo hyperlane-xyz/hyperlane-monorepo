@@ -1,11 +1,13 @@
-//! Per-fork cooperative checkpoint reads. Exact arguments plus occurrence retain
-//! one Engine request/result across PendingReadIo replays; no caller stack lives here.
+//! Per-fork checkpoint reads. A pending Engine request is awaited in place (a
+//! fiber parks, a thread blocks), so the caller's earlier reads never re-run.
+//! Exact arguments plus occurrence retain each result for the attempt.
 const std = @import("std");
 const protocol = @import("../protocol/root.zig");
 const objects = @import("../storage/objects.zig");
 const remote = @import("../relayer/remote_checkpoints.zig");
 const quorum = @import("../relayer/quorum.zig");
 const budget = @import("../net/byte_budget.zig");
+const fiber = @import("../runtime/fiber.zig");
 const A = std.mem.Allocator;
 const Address = [20]u8;
 
@@ -124,6 +126,15 @@ pub fn Session(comptime Origin: type) type {
             return &self.entries.items[self.entries.items.len - 1];
         }
 
+        /// Engine sessions are full until one retires; it has no slot
+        /// notifier, so park with a bounded backoff (cancel rechecked).
+        fn awaitSessionSlot(self: *Self, backoff_ms: *i64) !void {
+            if (self.cancel.load(.acquire)) return error.RequestCancelled;
+            var nap: fiber.Waiter = .{};
+            _ = nap.waitTimeout(fiber.monoMs() + backoff_ms.*);
+            backoff_ms.* = @min(backoff_ms.* * 2, 16);
+        }
+
         fn discover(self: *Self, entry: *Entry, validators: []const Address) !void {
             if (entry.discovery_done) return;
             if (self.origin.discovery) |discovery| try discovery.ensure(discovery.context, validators, self.cancel);
@@ -135,14 +146,18 @@ pub fn Session(comptime Origin: type) type {
             try self.discover(entry, validators);
             if (!entry.done) {
                 if (self.origin.checkpoint_pool) |engine| {
-                    if (entry.request == null) {
+                    var backoff_ms: i64 = 1;
+                    while (entry.request == null) {
                         entry.request = engine.submitQuorum(self.origin.domain, self.allocator, validators, threshold, index) catch |err| switch (err) {
-                            error.RemoteCheckpointSessionsFull => return error.PendingReadIo,
+                            error.RemoteCheckpointSessionsFull => {
+                                try self.awaitSessionSlot(&backoff_ms);
+                                continue;
+                            },
                             else => return err,
                         };
                     }
-                    switch (try entry.request.?.poll(self.cancel)) {
-                        .pending => return error.PendingReadIo,
+                    switch (try entry.request.?.wait(self.cancel)) {
+                        .pending => unreachable,
                         .latest => return error.WrongRemoteReadKind,
                         .quorum => |found| {
                             entry.quorum = found;
@@ -167,14 +182,18 @@ pub fn Session(comptime Origin: type) type {
             try self.discover(entry, validators);
             if (!entry.done) {
                 if (self.origin.checkpoint_pool) |engine| {
-                    if (entry.request == null) {
+                    var backoff_ms: i64 = 1;
+                    while (entry.request == null) {
                         entry.request = engine.submitLatest(self.origin.domain, validators) catch |err| switch (err) {
-                            error.RemoteCheckpointSessionsFull => return error.PendingReadIo,
+                            error.RemoteCheckpointSessionsFull => {
+                                try self.awaitSessionSlot(&backoff_ms);
+                                continue;
+                            },
                             else => return err,
                         };
                     }
-                    switch (try entry.request.?.poll(self.cancel)) {
-                        .pending => return error.PendingReadIo,
+                    switch (try entry.request.?.wait(self.cancel)) {
+                        .pending => unreachable,
                         .quorum => return error.WrongRemoteReadKind,
                         .latest => |latest| {
                             const owned = try self.allocator.dupe(?u32, latest);

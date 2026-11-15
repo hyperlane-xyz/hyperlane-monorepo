@@ -65,9 +65,8 @@ pub const Owner = struct {
         return null;
     }
     fn worker(self: *Owner) void {
-        // Dedicated thread for one retained callback: reads wait inline
-        // (driving their own pool session) instead of journal replay.
-        @import("read_mode.zig").mode = .direct;
+        // Dedicated thread for one retained callback: its reads wait inline,
+        // driving their own pool sessions.
         self.mutex.lock();
         while (true) {
             while (!self.stopping and self.state != .queued) self.changed.wait(&self.mutex);

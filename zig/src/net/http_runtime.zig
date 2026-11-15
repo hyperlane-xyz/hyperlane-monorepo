@@ -37,7 +37,7 @@ const Session = struct {
     reported: bool = false,
     /// Runtime.mutex: a parked fiber / blocked thread waiting in `wait`.
     waiter: ?*fiber.Waiter = null,
-    /// Completion notifies the supervisor (journal readers poll later);
+    /// Completion notifies the supervisor (polling readers resume later);
     /// off for sessions consumed by `wait`, whose waiter is woken directly.
     notify_io: bool = true,
     fn deinit(self: *Session, a: A) void {

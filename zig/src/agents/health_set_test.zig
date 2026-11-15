@@ -295,13 +295,15 @@ fn sharedRuntimeFixture(fail_before_shutdown: bool) !void {
     while (true) {
         _ = try owner.tick(.{ .monotonic_ms = 60_000, .unix_ms = 60_000 });
         const state = try owner.health(0);
-        if (server.acceptedCount() == 4 and state.suspended > 0) break;
+        // The run is in flight: its fiber waits on the stalled read (parked,
+        // or driving the session while its worker has nothing else to run).
+        if (server.acceptedCount() == 4 and state.started > state.completed + state.failures) break;
         if (timer.read() > 3 * std.time.ns_per_s) return error.HealthRoleFixtureTimeout;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    // Fourth physical request is genuinely stalled with an external retained
-    // read journal. Stop its common-monitor cancel flag, drain Supervisor jobs,
-    // then provider teardown must cancel/drain the still-owned native request.
+    // Fourth physical request is genuinely stalled under a waiting task fiber.
+    // Stop its common-monitor cancel flag, drain Supervisor jobs, then
+    // provider teardown must cancel/drain any still-owned native request.
     if (fail_before_shutdown) return error.InjectedHealthFixtureFailure;
     owner.stop();
     while (!owner.drained()) _ = try owner.tick(.{ .monotonic_ms = 60_000, .unix_ms = 60_000 });

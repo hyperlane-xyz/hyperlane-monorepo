@@ -9,6 +9,9 @@ const remote = @import("../relayer/remote_checkpoints.zig");
 const quorum = @import("../relayer/quorum.zig");
 const observability = @import("../ops/validator_observability.zig");
 const metrics = @import("../ops/metrics.zig");
+const pool_fixture = @import("../evm/pool_testing.zig");
+const Pool = @import("../evm/pool.zig");
+const read_replay = @import("../net/read_replay.zig");
 const A = std.mem.Allocator;
 const Address = [20]u8;
 
@@ -103,6 +106,10 @@ const RemoteFixture = struct {
     slow: usize,
     failed_guard: ?usize = null,
     guards: std.atomic.Value(usize) = .init(0),
+    /// Guards counted before the current phase's session: its own reads must
+    /// follow its own complete guard round. A previous phase's cancelled
+    /// stragglers may still arrive after a new phase starts.
+    guard_base: std.atomic.Value(usize) = .init(0),
     checkpoint_reads: std.atomic.Value(usize) = .init(0),
     checkpoint_reads_by_peer: [256]std.atomic.Value(usize) = [_]std.atomic.Value(usize){.init(0)} ** 256,
     latest_reads: std.atomic.Value(usize) = .init(0),
@@ -159,6 +166,7 @@ const RemoteFixture = struct {
             } else {
                 if (self.guards.load(.acquire) < self.values.len) return error.CheckpointStartedBeforeGlobalGuard;
                 if (std.mem.eql(u8, name, "checkpoint_latest_index.json")) {
+                    if (self.guards.load(.acquire) - self.guard_base.load(.acquire) < self.values.len) return error.CheckpointStartedBeforeGlobalGuard;
                     _ = self.latest_reads.fetchAdd(1, .acq_rel);
                     body = "3";
                 } else if (std.mem.eql(u8, name, "checkpoint_3_with_id.json")) {
@@ -412,7 +420,7 @@ test "native session returns 27-peer quorum and latest without replay refetch" {
         if (previous_signer) |previous| try std.testing.expect(configured_signer.? > previous);
         previous_signer = configured_signer;
     }
-    fixture.guards.store(0, .release);
+    fixture.guard_base.store(fixture.guards.load(.acquire), .release);
     errors = 0;
     var latest: [27]?u32 = undefined;
     while (true) {
@@ -652,4 +660,118 @@ test "parent cancel returns promptly and children never reuse the caller flag" {
 
 test "parent cancellation fixture cancels and joins before early error unwind" {
     try std.testing.expectError(error.DeliberateCancellationFixtureFailure, parentCancellationExercise(std.testing.allocator, true));
+}
+
+fn chainIdReply(a: A, body: []const u8) ![]u8 {
+    const parsed = try std.json.parseFromSlice(std.json.Value, a, body, .{});
+    defer parsed.deinit();
+    return std.json.Stringify.valueAlloc(a, .{ .jsonrpc = "2.0", .id = parsed.value.object.get("id").?, .result = "0x1" }, .{});
+}
+
+/// A metadata-shaped job: one Replay RPC read, then a remote checkpoint quorum.
+/// Any PendingReadIo would re-run it from the start (as the executor does).
+const MixedJob = struct {
+    job: parallel.Job = .{ .run_fn = run },
+    replay: *read_replay.Replay,
+    session: *session_module.Session(FakeOrigin),
+    validators: []const Address,
+    cancel: *const std.atomic.Value(bool),
+    runs: std.atomic.Value(usize) = .init(0),
+    done: std.atomic.Value(bool) = .init(false),
+    failure: ?anyerror = null,
+    found: ?quorum.Quorum = null,
+
+    fn run(job: *parallel.Job) parallel.RunResult {
+        const self: *MixedJob = @alignCast(@fieldParentPtr("job", job));
+        _ = self.runs.fetchAdd(1, .acq_rel);
+        if (self.pass()) |found| {
+            self.found = found;
+        } else |err| {
+            if (err == error.PendingReadIo) return .suspended;
+            self.failure = err;
+        }
+        self.done.store(true, .release);
+        return .done;
+    }
+    fn pass(self: *MixedJob) !?quorum.Quorum {
+        try self.replay.beginPass(self.cancel);
+        self.session.beginPass(self.cancel) catch |err| {
+            self.replay.endPass(err);
+            return err;
+        };
+        const result = self.reads();
+        const failure: ?anyerror = if (result) |_| null else |err| err;
+        self.session.endPass(failure);
+        self.replay.endPass(failure);
+        return result;
+    }
+    fn reads(self: *MixedJob) !?quorum.Quorum {
+        const wire = try self.replay.fetch(std.testing.allocator, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}", .{ .timeout_ms = 5000, .connect_timeout_ms = 5000, .max_response_bytes = 4096 });
+        std.testing.allocator.free(wire.bytes);
+        var errors: usize = 0;
+        return self.session.fetchQuorum(std.testing.allocator, self.validators, 2, 3, &errors);
+    }
+};
+
+test "fiber metadata job awaits a late checkpoint quorum without re-issuing its earlier RPC read" {
+    const a = std.testing.allocator;
+    const library = std.process.getEnvVarOwned(a, "HYPERLANE_CURL_LIBRARY") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => return error.SkipZigTest,
+        else => return err,
+    };
+    defer a.free(library);
+    var arena = std.heap.ArenaAllocator.init(a);
+    defer arena.deinit();
+    var validators: [4]Address = undefined;
+    const values = try signed(arena.allocator(), 1, &validators);
+    // Peer 0 never answers its checkpoint: the quorum completes only after
+    // several native completions, so a polling source would yield first.
+    var fixture: RemoteFixture = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}), .values = values, .slow = 1 };
+    defer fixture.server.deinit();
+    const thread = try std.Thread.spawn(.{}, RemoteFixture.serve, .{&fixture});
+    defer {
+        fixture.stop.store(true, .release);
+        thread.join();
+    }
+    const engine = try remote.Engine.start(a, .{ .multi = .{ .library_path = library, .max_concurrent = 16 }, .timeout_ms = 20000, .allow_insecure_loopback = true });
+    defer engine.deinit();
+    try register(engine, a, &fixture, &validators);
+    const behaviors = [_]pool_fixture.Behavior{.{ .replies = &.{.{ .body = "" }}, .response_fn = chainIdReply }};
+    var server = try pool_fixture.Fixture.init(8, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const pool = try Pool.Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{ .max_attempts = 1 } }, .max_response_bytes = 8192, .max_request_bytes = 16384 });
+    defer pool.deinit();
+    var replay = try read_replay.Replay.init(a, pool, .{ .max_attempt_ms = 20000 });
+    defer replay.deinit();
+    var origin: FakeOrigin = .{ .allocator = a, .checkpoint_pool = engine };
+    var cancel = std.atomic.Value(bool).init(false);
+    var session = session_module.Session(FakeOrigin).init(a, &origin, &cancel);
+    defer session.deinit();
+    const root = try parallel.Root.start(a, .{ .workers = 1 });
+    defer root.deinit();
+    var job: MixedJob = .{ .replay = &replay, .session = &session, .validators = &validators, .cancel = &cancel };
+    try root.executor.submit(&job.job);
+    var timer = try std.time.Timer.start();
+    while (!job.done.load(.acquire)) {
+        if (timer.read() > 15 * std.time.ns_per_s) {
+            cancel.store(true, .release);
+            return error.MixedJobTimeout;
+        }
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    if (job.failure) |err| return err;
+    var found = job.found orelse return error.MixedJobQuorumMissing;
+    defer found.deinit();
+    try std.testing.expectEqual(@as(usize, 2), found.signatures.len);
+    // One pass, one physical RPC: the checkpoint wait parked the fiber
+    // instead of yielding a re-run that would repeat the eth_chainId read.
+    try std.testing.expectEqual(@as(usize, 1), job.runs.load(.acquire));
+    try std.testing.expectEqual(@as(u64, 0), root.executor.suspensions.load(.acquire));
+    try std.testing.expect(root.executor.parks.load(.acquire) > 0);
+    try std.testing.expectEqual(@as(usize, 1), server.pathHits(0));
+    try server.check();
+    if (fixture.failure) |err| return err;
 }

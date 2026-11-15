@@ -2,6 +2,7 @@
 //! refusals before selecting threshold. Views own independent read continuations.
 const std = @import("std");
 const parallel = @import("../relayer/metadata_parallel.zig");
+const fiber = @import("../runtime/fiber.zig");
 const metadata = @import("../relayer/metadata.zig");
 const protocol = @import("../protocol/root.zig");
 const Spec = @import("instructions.zig").MetadataSpec;
@@ -62,7 +63,12 @@ pub const InlineExecutor = struct {
                 finished += 1;
             };
             if (finished == scheduled) break;
-            if (!self.executor.assist()) std.Thread.sleep(std.time.ns_per_ms);
+            if (!self.executor.assist()) {
+                // Parks a fiber (its worker keeps running the children);
+                // sleeps a thread.
+                var nap: fiber.Waiter = .{};
+                _ = nap.waitTimeout(fiber.monoMs() + 1);
+            }
         }
         // Every child has retired its view before publishing done. Even when a
         // refusal arrives early, source join_all keeps all other child results.

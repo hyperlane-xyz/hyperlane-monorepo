@@ -100,8 +100,7 @@ test "shared HTTP runtime sixteen actual Starknet providers progress past eight 
     }
     for (0..8) |i| {
         try std.testing.expectEqual(@as(u64, 0), (try supervisor.health(i)).failures);
-        // Stalled reads hold no worker: a fiber parks on its HTTP session
-        // (or a journal pass yields PendingReadIo off-fiber). Either way started.
+        // Stalled reads hold no worker: each fiber parks on its HTTP session.
         const health = try supervisor.health(i);
         try std.testing.expect(health.started >= 1 and health.completed == 0);
     }

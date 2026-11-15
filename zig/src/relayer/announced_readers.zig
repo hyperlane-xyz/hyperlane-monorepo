@@ -7,6 +7,7 @@ const reader = @import("checkpoint_reader.zig");
 const engine = @import("remote_checkpoints.zig");
 const Curl = @import("../net/curl.zig");
 const origin = @import("../agents/origin.zig");
+const fiber = @import("../runtime/fiber.zig");
 const Allocator = std.mem.Allocator;
 const Address = [20]u8;
 pub const Locations = evm.announce.Locations;
@@ -102,10 +103,14 @@ pub const Registry = struct {
     checked: bool = false,
     active: ?*Active = null,
     mutex: std.Thread.Mutex = .{},
-    /// One retained provider/replay context is shared by every discovery frame.
-    /// Keep ownership through Active.release: cancellation cleanup can reset the
-    /// journal after advance returns. This lock never waits on another caller.
+    /// One retained provider/read context is shared by every discovery frame,
+    /// so one caller progresses it at a time, across its reads. Others wait in
+    /// enterProgress (a fiber parks, a thread blocks) until leaveProgress.
     progress: std.Thread.Mutex = .{},
+    /// Guards `progress_waiters`; `progress` is released under it.
+    gate: std.Thread.Mutex = .{},
+    progress_waiters: ?*ProgressWaiter = null,
+    const ProgressWaiter = struct { waiter: fiber.Waiter = .{}, next: ?*ProgressWaiter = null };
 
     pub fn init(allocator: Allocator, client: *evm.RpcClient, native: *Curl.Client, owner: *engine.Engine, options: Options) !Registry {
         if (options.max_cache_entries == 0 or options.max_cache_bytes == 0 or options.discovery_timeout_ms == 0 or client.options.native_transport == null) return error.InvalidAnnouncementRegistry;
@@ -159,22 +164,56 @@ pub const Registry = struct {
         self.bytes += cached.bytes;
     }
 
+    /// State only: never held across a read or a park.
     fn lock(self: *Registry) !void {
-        if (!self.mutex.tryLock()) return error.PendingReadIo;
+        self.mutex.lock();
     }
 
     fn enterProgress(self: *Registry, cancel: ?*const std.atomic.Value(bool)) !void {
-        if (self.progress.tryLock()) return;
-        if (cancel) |flag| if (flag.load(.acquire)) {
-            // The progression owner alone detaches/releases the frame and
-            // resets its provider. A cancelled contender can still interrupt
-            // native I/O immediately through the frame's stable atomic token.
-            self.mutex.lock();
-            if (self.active) |active| active.cancel.store(true, .release);
-            self.mutex.unlock();
-            return error.RequestCancelled;
-        };
-        return error.PendingReadIo;
+        while (true) {
+            if (self.progress.tryLock()) return;
+            if (cancel) |flag| if (flag.load(.acquire)) {
+                // The progression owner alone detaches/releases the frame and
+                // resets its provider. A cancelled contender can still interrupt
+                // native I/O immediately through the frame's stable atomic token.
+                self.mutex.lock();
+                if (self.active) |active| active.cancel.store(true, .release);
+                self.mutex.unlock();
+                return error.RequestCancelled;
+            };
+            var node: ProgressWaiter = .{};
+            self.gate.lock();
+            if (self.progress.tryLock()) {
+                self.gate.unlock();
+                return;
+            }
+            node.next = self.progress_waiters;
+            self.progress_waiters = &node;
+            self.gate.unlock();
+            // The caller's cancel flag has no notifier: recheck on a slice.
+            _ = node.waiter.waitTimeout(fiber.monoMs() + @as(i64, if (cancel != null) 10 else 1000));
+            self.gate.lock();
+            var link = &self.progress_waiters;
+            while (link.*) |current| : (link = &current.next) if (current == &node) {
+                link.* = node.next;
+                break;
+            };
+            self.gate.unlock();
+        }
+    }
+
+    fn leaveProgress(self: *Registry) void {
+        self.gate.lock();
+        defer self.gate.unlock();
+        self.progress.unlock();
+        var waiting = self.progress_waiters;
+        self.progress_waiters = null;
+        // Woken under the gate: a waiter unlinks itself under it, so each
+        // node (on its waiter's stack) is alive here.
+        while (waiting) |node| {
+            waiting = node.next;
+            node.waiter.wake();
+        }
     }
 
     fn startOrAcquire(self: *Registry, validators: []const Address) !?*Active {
@@ -334,7 +373,7 @@ pub const Registry = struct {
     pub fn ensureValidators(self: *Registry, validators: []const Address, cancel: ?*const std.atomic.Value(bool)) !void {
         if (validators.len > 256) return error.InvalidValidatorCount;
         try self.enterProgress(cancel);
-        defer self.progress.unlock();
+        defer self.leaveProgress();
         if (cancel) |flag| if (flag.load(.acquire)) {
             self.mutex.lock();
             if (self.active) |active| {
@@ -353,7 +392,7 @@ pub const Registry = struct {
     /// OriginTask calls between index cycles. Never starts new discovery.
     pub fn maintain(self: *Registry, cancel: ?*const std.atomic.Value(bool)) !void {
         try self.enterProgress(cancel);
-        defer self.progress.unlock();
+        defer self.leaveProgress();
         try self.lock();
         const active = self.active orelse {
             self.mutex.unlock();

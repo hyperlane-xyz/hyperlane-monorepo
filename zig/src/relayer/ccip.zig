@@ -4,6 +4,7 @@ const std = @import("std");
 const abi = @import("../evm/codecs.zig");
 const protocol = @import("../protocol/root.zig");
 const curl = @import("../net/curl.zig");
+const fiber = @import("../runtime/fiber.zig");
 const Allocator = std.mem.Allocator;
 pub const Address = [20]u8;
 pub const Hash = [32]u8;
@@ -256,6 +257,9 @@ pub const AsyncTransport = struct {
     submit_fn: *const fn (*anyopaque, curl.Request) anyerror!void,
     poll_fn: *const fn (*anyopaque) anyerror!?curl.Response,
     cancel_fn: *const fn (*anyopaque) void,
+    /// Await the active request in place (a fiber parks, a thread blocks)
+    /// instead of yielding PendingReadIo; consumes it on every return.
+    wait_fn: ?*const fn (*anyopaque, ?*const std.atomic.Value(bool)) anyerror!?curl.Response = null,
 };
 
 pub fn prepare(allocator: Allocator, lookup: Lookup, template: []const u8, origin_tx_hash: ?[]const u8, cache: ?*SignatureCache, signer: ?Signer, cancel: ?*const std.atomic.Value(bool)) !PreparedRequest {
@@ -415,15 +419,29 @@ pub const Session = struct {
                 return if (self.attempt.url_index == self.lookup.urls.len) .exhausted else .{ .retry_at_ms = now_ms };
             };
             defer request.deinit();
-            transport.submit_fn(transport.context, request.request) catch |err| {
-                if (err == error.OutOfMemory or err == error.RequestCancelled or err == error.PendingReadIo or err == error.CcipSessionMemoryLimit) return err;
-                if (err == error.HttpRuntimeSessionsFull or err == error.HttpRuntimeByteBudgetExceeded) return error.PendingReadIo;
-                self.attempt.hardFailure();
-                return if (self.attempt.url_index == self.lookup.urls.len) .exhausted else .{ .retry_at_ms = now_ms };
-            };
-            return error.PendingReadIo;
+            var backoff_ms: i64 = 1;
+            while (true) {
+                transport.submit_fn(transport.context, request.request) catch |err| {
+                    if (err == error.OutOfMemory or err == error.RequestCancelled or err == error.PendingReadIo or err == error.CcipSessionMemoryLimit) return err;
+                    if (err == error.HttpRuntimeSessionsFull or err == error.HttpRuntimeByteBudgetExceeded) {
+                        if (transport.wait_fn == null) return error.PendingReadIo;
+                        // Retiring sessions own slots until native drain; the
+                        // runtime has no slot notifier: bounded backoff park.
+                        if (cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+                        var nap: fiber.Waiter = .{};
+                        _ = nap.waitTimeout(fiber.monoMs() + backoff_ms);
+                        backoff_ms = @min(backoff_ms * 2, 16);
+                        continue;
+                    }
+                    self.attempt.hardFailure();
+                    return if (self.attempt.url_index == self.lookup.urls.len) .exhausted else .{ .retry_at_ms = now_ms };
+                };
+                break;
+            }
+            if (transport.wait_fn == null) return error.PendingReadIo;
         }
-        var response = transport.poll_fn(transport.context) catch |err| {
+        const awaited: anyerror!?curl.Response = if (transport.wait_fn) |wait| wait(transport.context, cancel) else transport.poll_fn(transport.context);
+        var response = awaited catch |err| {
             if (err == error.OutOfMemory or err == error.RequestCancelled or err == error.PendingReadIo) return err;
             self.attempt.hardFailure();
             return if (self.attempt.url_index == self.lookup.urls.len) .exhausted else .{ .retry_at_ms = now_ms };
