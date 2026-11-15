@@ -57,7 +57,8 @@ pub fn mulBase(k: [32]u8) error{IdentityElement}!Point {
 /// Constant-time core of `mulBase`: fixed loop counts, every comb entry of a
 /// row scanned with masked selection, no secret-dependent branch or index.
 pub fn mulBaseUnchecked(k: [32]u8) Point {
-    const e = signedWindows(k);
+    var e = signedWindows(k);
+    defer std.crypto.secureZero(i8, &e);
     var q = Point.identity;
     for (e, &tables.comb) |digit, *row| {
         const bits: u8 = @bitCast(digit);
@@ -80,6 +81,10 @@ pub fn mulBaseUnchecked(k: [32]u8) Point {
         selected.y.cMov(selected.y.neg(), negative);
         // addMixed returns q unchanged for the affine identity marker.
         q = q.addMixed(selected);
+        // The selected entry identifies a secret digit.
+        std.crypto.secureZero(u64, &x);
+        std.crypto.secureZero(u64, &y);
+        std.crypto.secureZero(u8, std.mem.asBytes(&selected));
     }
     return q;
 }

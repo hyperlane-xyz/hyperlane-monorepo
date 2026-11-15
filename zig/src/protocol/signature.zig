@@ -30,9 +30,12 @@ fn stdAddress(point: Curve) Address {
 }
 
 pub fn secretKeyAddress(secret_key: Hash) !Address {
-    const scalar = try Scalar.fromBytes(secret_key, .big);
+    var scalar = try Scalar.fromBytes(secret_key, .big);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&scalar));
     if (scalar.isZero()) return error.InvalidSecretKey;
-    return try address(try secp256k1.mulBase(scalar.toBytes(.little)));
+    var little = scalar.toBytes(.little);
+    defer std.crypto.secureZero(u8, &little);
+    return try address(try secp256k1.mulBase(little));
 }
 
 /// Security boundary: Ethereum's v=27/28, nonzero canonical r and low-s only.
@@ -104,18 +107,27 @@ pub const benchmark = struct {
 };
 
 fn signUnverified(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
-    const d = try Scalar.fromBytes(secret_key, .big);
+    // Secret intermediates (d, k, k bytes, k^-1, z + r*d) are wiped on return.
+    var d = try Scalar.fromBytes(secret_key, .big);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
     if (d.isZero()) return error.InvalidSecretKey;
     const z = reducedHash(digest);
-    const k = deterministicNonce(digest, secret_key, noise);
-    const point = try (try secp256k1.mulBase(k.toBytes(.little))).affine();
+    var k = deterministicNonce(digest, secret_key, noise);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&k));
+    var k_bytes = k.toBytes(.little);
+    defer std.crypto.secureZero(u8, &k_bytes);
+    const point = try (try secp256k1.mulBase(k_bytes)).affine();
     const x = point.x.toBytes();
     // Ethereum v=27/28 cannot encode the exceedingly rare x>=curve order case.
     // Fail closed; caller may retry with fresh signing noise.
     if (std.mem.readInt(u256, &x, .big) >= Curve.scalar.field_order) return error.UnrepresentableRecoveryId;
     const r = try Scalar.fromBytes(x, .big);
     if (r.isZero()) return error.IdentityElement;
-    var s = k.invert().mul(z.add(r.mul(d)));
+    var k_inverse = k.invert();
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&k_inverse));
+    var t = z.add(r.mul(d));
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&t));
+    var s = k_inverse.mul(t);
     if (s.isZero()) return error.IdentityElement;
     var parity: u8 = @intFromBool(point.y.isOdd());
     var s_bytes = s.toBytes(.big);
@@ -139,8 +151,11 @@ fn signUnverified(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
 /// arithmetic or serialization) fails closed.
 fn selfCheck(secret_key: Hash, digest: Hash, signature: Signature) error{SignatureSelfCheckFailed}!void {
     const fail = error.SignatureSelfCheckFailed;
-    const d = Scalar.fromBytes(secret_key, .big) catch return fail;
-    const q = secp256k1.mulBase(d.toBytes(.little)) catch return fail;
+    var d = Scalar.fromBytes(secret_key, .big) catch return fail;
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
+    var d_bytes = d.toBytes(.little);
+    defer std.crypto.secureZero(u8, &d_bytes);
+    const q = secp256k1.mulBase(d_bytes) catch return fail;
     const r = Scalar.fromBytes(signature[0..32].*, .big) catch return fail;
     const s = Scalar.fromBytes(signature[32..64].*, .big) catch return fail;
     if (r.isZero() or s.isZero()) return fail;
@@ -157,8 +172,12 @@ fn selfCheck(secret_key: Hash, digest: Hash, signature: Signature) error{Signatu
 /// signatures remain byte-identical to the std signer.
 fn deterministicNonce(h: Hash, secret_key: Hash, noise: ?[32]u8) Scalar {
     const Prf = std.crypto.auth.hmac.sha2.HmacSha256;
+    // HMAC key/state and the message buffer (which holds the secret key) are
+    // wiped on return; the returned scalar is wiped by the caller.
     var k: [32]u8 = .{0} ** 32;
+    defer std.crypto.secureZero(u8, &k);
     var m: [32 + 1 + 32 + 32 + 32]u8 = .{0} ** (32 + 1 + 32 + 32 + 32);
+    defer std.crypto.secureZero(u8, &m);
     const m_v = m[0..32];
     const m_i = &m[32];
     @memset(m_v, 0x01);
