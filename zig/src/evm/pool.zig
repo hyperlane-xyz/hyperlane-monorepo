@@ -404,6 +404,10 @@ pub const Pool = struct {
     /// Owner loop passes; evidence that the owner blocks on sockets/timers.
     owner_iterations: std.atomic.Value(u64) = .init(0),
     wait_failure: ?anyerror = null,
+    /// Owner-only: an outcome was handled this pass (completion, cache hit,
+    /// cooldown). Follow-up submissions happen in the next progress pass, so
+    /// the owner must not block before running it.
+    dirty: bool = false,
     thread: std.Thread,
     started: std.time.Instant,
 
@@ -823,6 +827,10 @@ pub const Pool = struct {
                 if (!session.finished) self.progress(session, now_ms) catch |err| self.finish(session, err);
             };
             var completed = false;
+            // Outcomes handled during progress (cache hits, cooldown skips)
+            // also need another pass before blocking.
+            const progressed = self.dirty;
+            self.dirty = false;
             while (self.pollNative(now_ms) catch |err| blk: {
                 for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| if (!session.finished) self.finish(session, err);
                 break :blk null;
@@ -856,7 +864,7 @@ pub const Pool = struct {
             // a submission between snapshot and wait must not lose its wake.
             if (empty and !stopped) {
                 self.wake.wait(&self.mutex);
-            } else if (!empty and !completed) {
+            } else if (!empty and !completed and !progressed and !self.dirty) {
                 // Completions only mutate state; their follow-up submissions
                 // happen in the next progress pass, so loop before blocking.
                 // Otherwise block on sockets until activity, the next owner
@@ -1011,6 +1019,7 @@ pub const Pool = struct {
     }
 
     fn dispatchOutcome(self: *Pool, session: *Session, index: usize, outcome: *Outcome, now_ms: u64) void {
+        self.dirty = true;
         const peer = &session.peers[index];
         if (peer.cache_eligible and peer.cache_upstream_reported) {
             var stored = false;
@@ -1051,6 +1060,7 @@ pub const Pool = struct {
     }
 
     fn handleOutcome(self: *Pool, session: *Session, index: usize, outcome: *Outcome, now_ms: u64) void {
+        self.dirty = true;
         if (outcome.classification != .success and !outcome.svm_unresolvable) session.all_svm_failures_unresolvable = false;
         if (!outcome.expected_absence) self.recordOutcomeFailure(session, index, outcome.classification, now_ms);
         switch (outcome.classification) {
@@ -2274,4 +2284,63 @@ test "native RPC owner blocks on sockets while a request stalls and wakes on can
         std.Thread.sleep(std.time.ns_per_ms);
     }
     try server.check();
+}
+test "native RPC owner runs the next fallback peer after a cooldown skip resolved during progress" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const behaviors = [_]fixture.Behavior{ .{ .replies = &.{.{ .status = 429, .body = "" }} }, .{ .replies = &.{.{ .body = fixture.chain_id_ok }} } };
+    var server = try fixture.Fixture.init(3, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const first = try server.url(a, 0);
+    defer a.free(first);
+    const second = try server.url(a, 1);
+    defer a.free(second);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{ first, second }, .strategy = .{ .fallback = .{} } });
+    defer owner.deinit();
+    // Endpoint 0 rate-limits and enters cooldown; endpoint 1 answers.
+    const warm = try owner.fetch(a, fixture.chain_id_body, 5000, 1000, null, 4096);
+    a.free(warm.bytes);
+    // Endpoint 0 is now skipped inside progress (no native completion). The
+    // owner must take another pass instead of sleeping to the 5 s deadline.
+    var timer = try std.time.Timer.start();
+    const response = try owner.fetch(a, fixture.chain_id_body, 5000, 1000, null, 4096);
+    a.free(response.bytes);
+    try std.testing.expect(timer.read() < 2 * std.time.ns_per_s);
+    try std.testing.expectEqual(@as(usize, 1), server.pathHits(0));
+    try std.testing.expectEqual(@as(usize, 2), server.pathHits(1));
+}
+test "native RPC owner notices delayed responses without any further submit" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    // Concurrent delayed replies on one pool; nothing else wakes the owner.
+    const behaviors = [_]fixture.Behavior{.{ .replies = &.{.{ .body = fixture.chain_id_ok, .delay_ms = 150 }} }};
+    var server = try fixture.Fixture.init(32, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{} } });
+    defer owner.deinit();
+    for (0..4) |_| {
+        var handles: [8]Handle = undefined;
+        for (&handles) |*handle| handle.* = try owner.submit(fixture.chain_id_body, 10000, 5000, 32768);
+        var timer = try std.time.Timer.start();
+        var done: usize = 0;
+        var finished: [8]bool = @splat(false);
+        while (done < handles.len) {
+            for (handles, &finished) |handle, *flag| if (!flag.*) if (try owner.poll(handle, a)) |response| {
+                a.free(response.bytes);
+                flag.* = true;
+                done += 1;
+            };
+            // 150 ms server delay; a lost socket wake stalls until the deadline.
+            if (timer.read() > 3 * std.time.ns_per_s) return error.DelayedResponseNotNoticed;
+            std.Thread.sleep(std.time.ns_per_ms);
+        }
+    }
 }
