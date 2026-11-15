@@ -58,19 +58,17 @@ pub const Service = struct {
     repair_waiting_for_insertion: ?u32 = null,
     snapshot_through: ?u32 = null,
     mutex: std.Thread.Mutex = .{},
-    publication_pool: ?*std.Thread.Pool = null,
-    publication_threads: usize = 0,
+    publication_workers: ?*PublicationWorkers = null,
     publication_running: bool = false,
     pending_reorg: ?objects.ReorgEvent = null,
     guard_local_pending: bool = false,
     guard_backend_pending: bool = false,
     pub fn deinit(self: *Service) void {
-        if (self.publication_pool) |pool| {
-            pool.deinit();
-            self.allocator.destroy(pool);
+        if (self.publication_workers) |workers| {
+            workers.deinit();
+            self.allocator.destroy(workers);
         }
-        self.publication_pool = null;
-        self.publication_threads = 0;
+        self.publication_workers = null;
     }
     pub fn persistedHalt(a: std.mem.Allocator, database: *rocks.Database, domain_name: []const u8) !bool {
         const typed: rocks.Typed = .{ .database = database, .domain_name = domain_name };
@@ -643,6 +641,71 @@ pub const Service = struct {
             }
         }
     }
+    /// Persistent publication workers. Threads are spawned lazily, only when a
+    /// batch needs more concurrency than already exists, never beyond the
+    /// configured limit, and are reused for every later batch (never joined
+    /// and respawned per round). At most `limit` jobs run at once.
+    pub const PublicationWorkers = struct {
+        allocator: std.mem.Allocator,
+        mutex: std.Thread.Mutex = .{},
+        wake: std.Thread.Condition = .{},
+        done: std.Thread.Condition = .{},
+        threads: std.ArrayList(std.Thread) = .empty,
+        jobs: []PublicationJob = &.{},
+        next: usize = 0,
+        remaining: usize = 0,
+        active: usize = 0,
+        limit: usize = 0,
+        stopping: bool = false,
+        fn run(self: *PublicationWorkers, jobs: []PublicationJob, limit: usize) !void {
+            const wanted = @min(jobs.len, limit);
+            try self.threads.ensureTotalCapacity(self.allocator, wanted);
+            while (self.threads.items.len < wanted) {
+                const thread = std.Thread.spawn(.{ .stack_size = 256 * 1024, .allocator = self.allocator }, worker, .{self}) catch |err| {
+                    if (self.threads.items.len == 0) return err;
+                    break;
+                };
+                self.threads.appendAssumeCapacity(thread);
+            }
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            self.jobs = jobs;
+            self.next = 0;
+            self.remaining = jobs.len;
+            self.limit = limit;
+            self.wake.broadcast();
+            while (self.remaining > 0) self.done.wait(&self.mutex);
+            self.jobs = &.{};
+        }
+        fn worker(self: *PublicationWorkers) void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            while (true) {
+                while (!self.stopping and (self.next >= self.jobs.len or self.active >= self.limit)) self.wake.wait(&self.mutex);
+                if (self.stopping) return;
+                const job = &self.jobs[self.next];
+                self.next += 1;
+                self.active += 1;
+                self.mutex.unlock();
+                job.run();
+                self.mutex.lock();
+                self.active -= 1;
+                self.remaining -= 1;
+                if (self.remaining == 0) self.done.signal() else self.wake.signal();
+            }
+        }
+        pub fn threadCount(self: *const PublicationWorkers) usize {
+            return self.threads.items.len;
+        }
+        fn deinit(self: *PublicationWorkers) void {
+            self.mutex.lock();
+            self.stopping = true;
+            self.wake.broadcast();
+            self.mutex.unlock();
+            for (self.threads.items) |thread| thread.join();
+            self.threads.deinit(self.allocator);
+        }
+    };
     const PublicationJob = struct {
         service: *Service,
         signer: Signer,
@@ -660,23 +723,12 @@ pub const Service = struct {
             self.published = true;
         }
     };
-    /// Created once, sized by the configured publication limit (the signer's
-    /// max concurrency), and reused for every batch: worker threads are never
-    /// respawned per round or per batch. A larger limit (configuration change
-    /// in tests) is the only reason to rebuild it.
-    fn ensurePublicationPool(self: *Service, threads: usize) !*std.Thread.Pool {
-        if (self.publication_pool) |pool| {
-            if (self.publication_threads >= threads) return pool;
-            pool.deinit();
-            self.allocator.destroy(pool);
-            self.publication_pool = null;
-        }
-        const pool = try self.allocator.create(std.Thread.Pool);
-        errdefer self.allocator.destroy(pool);
-        try pool.init(.{ .allocator = self.allocator, .n_jobs = threads, .stack_size = 256 * 1024 });
-        self.publication_pool = pool;
-        self.publication_threads = threads;
-        return pool;
+    fn ensurePublicationWorkers(self: *Service) !*PublicationWorkers {
+        if (self.publication_workers) |workers| return workers;
+        const workers = try self.allocator.create(PublicationWorkers);
+        workers.* = .{ .allocator = self.allocator };
+        self.publication_workers = workers;
+        return workers;
     }
     /// Owned immutable/native adapters may overlap signing and publication.
     /// Coordinator state and every signature are WAL-synced under the service
@@ -706,10 +758,7 @@ pub const Service = struct {
         var highest: u32 = 0;
         for (candidates) |candidate| highest = @max(highest, candidate.index);
         for (jobs, candidates) |*job, candidate| job.* = .{ .service = self, .signer = signer, .publisher = publisher, .checkpoint = candidate, .highest = highest, .timestamp = timestamp };
-        const pool = try self.ensurePublicationPool(limit);
-        var wait: std.Thread.WaitGroup = .{};
-        for (jobs) |*job| pool.spawnWg(&wait, PublicationJob.run, .{job});
-        wait.wait();
+        try (try self.ensurePublicationWorkers()).run(jobs, limit);
         var published: usize = 0;
         var failure: ?anyerror = null;
         for (jobs) |job| {

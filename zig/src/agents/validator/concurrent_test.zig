@@ -138,11 +138,14 @@ test "concurrent native publication bound latest-first covering snapshot and fai
     try std.testing.expectEqual(@as(usize, 4), try coordinator.result.?);
     try std.testing.expect(signer.peak.load(.acquire) >= 2 and signer.peak.load(.acquire) <= 4);
     publisher.blocked_index = null;
-    // One pool, sized by the configured limit, is reused by every batch.
-    const pool = state.publication_pool.?;
-    try std.testing.expectEqual(@as(usize, 4), state.publication_threads);
+    // Workers persist across batches; threads are only added up to the
+    // batch's need and the configured limit, never respawned.
+    const workers = state.publication_workers.?;
+    const threads = workers.threadCount();
+    try std.testing.expect(threads >= 2 and threads <= 4);
     try std.testing.expectEqual(@as(usize, 4), try state.publishConcurrent(signer.interface(), publisher.interface(), 101, 4));
-    try std.testing.expectEqual(pool, state.publication_pool.?);
+    try std.testing.expectEqual(workers, state.publication_workers.?);
+    try std.testing.expect(workers.threadCount() >= threads and workers.threadCount() <= 4);
     try std.testing.expectEqual(@as(usize, 8), signer.calls.load(.acquire));
     try std.testing.expectEqual(@as(?u32, 7), state.snapshot_through);
     try observe(&state, 8, 12);
