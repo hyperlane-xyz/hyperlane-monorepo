@@ -1,6 +1,61 @@
 # ReleaseSafe functional validation
 
-## Current canonical functional acceptance — 6 November 2026
+## Current fixture acceptance — 6 November 2026, 17:55 UTC
+
+Fresh fixture gates passed at `f7bdda8cf6`, against the unchanged production
+runtime and measured products at `8872c5e470`. All five actual execution manifests
+share the same 660 selected physical-input maps before/after and at readback.
+The Safe eleven-check rollup combines three independent executions; it is not an
+additional run or a benchmark observation. Full source, worker, library and
+component provenance: [current fixture validation](zig-agent-rewrite/final-fixture-functional-validation.md).
+
+| Gate                  |                                     Safe |                                   Fast |
+| --------------------- | ---------------------------------------: | -------------------------------------: |
+| Default               |                   745 passed, zero skips |                 745 passed, zero skips |
+| Native DB aggregate   |   1,055 passed, one existing opt-in skip | 1,055 passed, one existing opt-in skip |
+| PostgreSQL            |       21 migrations; 11 functional cases |                                      — |
+| RPC producers         |                               410 passed |                                      — |
+| Operator regex        |                                56 passed |                                      — |
+| WS/WSS                |                                22 passed |                                      — |
+| Socket ownership      |                                 4 passed |                                      — |
+| Role builds and helps | All three built and help commands passed |                                      — |
+
+Both default suites execute the exact matching-mode measured Aleo workers.
+Correctness-build help binaries are separately emitted generic-CPU products;
+they do not replace the timed native-CPU binaries. All raw logs and manifests
+remain unchanged in the [new archive](../zig/bench/results/global-fixture-acceptance-20261106/manifest.json).
+Six exact-binary, production-duration process proofs and final paired timings
+remain separate open gates. Counts across roots/modes overlap and must not be
+summed as unique coverage. All earlier accepted and failed observations remain
+below with their original provenance.
+
+## Earlier original post-matrix functional acceptance — 6 November 2026
+
+All eleven Safe gates passed after the final build matrix. Fast default and native DB gates also passed. All three runs kept the same **650 selected source mappings** unchanged before/after; every mapped file matched current bytes when sealed. Each run used the **four freshly built matrix SDK bridges, its matching Safe/Fast Aleo worker, and all seven matrix native archives**, with exact paths and hashes checked against the [build-matrix readback](../zig/bench/results/build-matrix-final/artifact-readback.json.gz).
+
+| Gate                 | Mode | Passed | Skipped | Failed | Evidence                                                                                        |
+| -------------------- | ---- | -----: | ------: | -----: | ----------------------------------------------------------------------------------------------- |
+| Default              | Safe |    745 |       0 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/default.log.gz)          |
+| Native DB aggregate  | Safe |  1,027 |       1 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/native-db.log.gz)        |
+| PostgreSQL aggregate | Safe |    440 |       0 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/postgres.log.gz)         |
+| Three role builds    | Safe | exit 0 |       — |      — | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/roles-build.log.gz)      |
+| Validator help       | Safe | exit 0 |       — |      — | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/validator-help.log.gz)   |
+| Relayer help         | Safe | exit 0 |       — |      — | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/relayer-help.log.gz)     |
+| Scraper help         | Safe | exit 0 |       — |      — | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/scraper-help.log.gz)     |
+| RPC producers        | Safe |    410 |       0 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/rpc-producers.log.gz)    |
+| Operator regex       | Safe |     56 |       0 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/operator-regex.log.gz)   |
+| WS/WSS               | Safe |     22 |       0 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/ws-wss.log.gz)           |
+| Socket ownership     | Safe |      4 |       0 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-safe/socket-owner.log.gz)     |
+| Default              | Fast |    745 |       0 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-fast-default/default.log.gz)  |
+| Native DB aggregate  | Fast |  1,027 |       1 |      0 | [Log](../zig/bench/results/global-matrix-acceptance-20261106/1255-fast-native/native-db.log.gz) |
+
+The sole native skip in each mode remains `evm_prepare_delegated_tests.test.opt-in loopback prepares actual repo Solidity without delivery or nonce mutation`. Its coverage is not inferred. PostgreSQL 16.15 applied all 21 production migrations, passed 11 persistence functional cases and five SQL smoke probes, and passed the 440-test aggregate. Modes and roots share imports; these counts must not be summed as unique tests.
+
+The [sealed manifest](../zig/bench/results/global-matrix-acceptance-20261106/manifest.json) and [verification](../zig/bench/results/global-matrix-acceptance-20261106/verification.json) bind all 22 original manifests/logs, five exact ignored JSON mirrors, runtime SDKs/workers, oracle/libcrypto, native archives and three re-emitted Safe help-role binaries. Every recorded artifact matched its actual size/hash when sealed. Binaries and libraries stayed local and preserved; none were copied into the archive or deleted. The re-emitted help-role binaries are separate artifacts from the timed matrix role binaries.
+
+This closes the rebuilt-library functional gate for the final matrix. It does not substitute for the exact matrix role binaries' 600-second relayer functional proofs, agent process benchmarks or container acceptance. Durations/RSS in these functional logs are diagnostic only. The earlier accepted and failed snapshots remain below with their original scopes.
+
+## Earlier pre-matrix canonical acceptance — 6 November 2026
 
 The completed 11:10 Safe run passed all eleven checks. The 11:10 Fast default and 11:15 Fast native runs also passed. All three kept the same **650 selected source mappings** unchanged before/after; every mapped file matched current bytes when sealed. This is selected-source functional acceptance, not an inferred exhaustive repository or comparative performance result.
 
@@ -144,3 +199,7 @@ Read-only inspection of [pre-commit](../.husky/pre-commit), [lint-staged](../.li
 - The hook prints a changeset reminder. Repository instructions require changesets for changes to published TypeScript packages and prohibit `Co-Authored-By` trailers.
 
 `gitleaks` and `pnpm` were found on PATH. No hook, staging, commit, compiler or test command was run for this archive task. Actual commit-hook acceptance remains a separate gate.
+
+## Later integration guard correction
+
+After the post-matrix gates, `baf14145ae` corrected three standalone Python process fixtures and added one pure guard test. The ten new and28existing pure controls passed in independent runs. The completed650-file maps above describe their original snapshots. Production build inputs and all22matrix products remain unchanged; new process proofs bind the corrected harness separately. Rust prebinds the processed counter and nonce gauge while Zig creates them on first update; both keep the confirmed-operation counter lazy. Absence remains explicit in the corrected guard and does not satisfy retirement.

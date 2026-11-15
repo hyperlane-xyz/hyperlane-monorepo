@@ -38,6 +38,19 @@ runner. It does not alter system SDKs, compiler files, or shell configuration.
 Default tests do not use production keys, cloud accounts, databases, or RPC URLs.
 Native transport/database integrations are explicit and use disposable fixtures.
 
+Native validators also require the pinned Rust URL normalization library for
+startup metadata. Its parser graph matches the reference agents; the agent
+control flow remains Zig. Build it separately, then pass its actual library path:
+
+```sh
+export HYPERLANE_URL_LIBRARY="$(python3 zig/src/net/native-url/locked.py --toolchain 1.98.0)"
+```
+
+The helper restores its committed lock, builds the library and collects its
+license notices. Docker images include it in every runtime variant. This is the
+fifth retained Rust library, alongside regex, Starknet crypto and two Aleo
+libraries; dependency-inclusive build measurements must count it.
+
 ## Local EVM integration
 
 Requires `anvil`, `cast`, Node/pnpm and network access for pinned Solidity compiler

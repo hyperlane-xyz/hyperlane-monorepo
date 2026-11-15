@@ -21,7 +21,7 @@
         "--rust",
         "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/scraper",
         "--zig",
-        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/scraper",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-batch-lifetime-20261106T1630Z/zig-out-ReleaseSafe/bin/scraper",
         "--migration-bin",
         "/Users/pbio/work/ziggy/rust/main/target/release/init-db",
         "--zig-toolchain",
@@ -44,9 +44,9 @@
         "120",
         "--quiet-host",
         "--output",
-        "zig/bench/results/scraper-process-final-releasesafe"
+        "zig/bench/results/scraper-process-lifetime-final-releasesafe"
       ],
-      "shell": "python3 zig/bench/scraper.py --rust /Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/scraper --zig /Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseSafe/bin/scraper --migration-bin /Users/pbio/work/ziggy/rust/main/target/release/init-db --zig-toolchain /tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig --image postgres:16.15 --samples 5 --catchup 100 --fresh 10 --fresh-interval-ms 250 --chunk 50 --interval 1 --deadline 120 --quiet-host --output zig/bench/results/scraper-process-final-releasesafe",
+      "shell": "python3 zig/bench/scraper.py --rust /Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/scraper --zig /Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-batch-lifetime-20261106T1630Z/zig-out-ReleaseSafe/bin/scraper --migration-bin /Users/pbio/work/ziggy/rust/main/target/release/init-db --zig-toolchain /tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig --image postgres:16.15 --samples 5 --catchup 100 --fresh 10 --fresh-interval-ms 250 --chunk 50 --interval 1 --deadline 120 --quiet-host --output zig/bench/results/scraper-process-lifetime-final-releasesafe",
       "executed": false
     },
     {
@@ -57,7 +57,7 @@
         "--rust",
         "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/scraper",
         "--zig",
-        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/scraper",
+        "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-batch-lifetime-20261106T1630Z/zig-out-ReleaseFast/bin/scraper",
         "--migration-bin",
         "/Users/pbio/work/ziggy/rust/main/target/release/init-db",
         "--zig-toolchain",
@@ -80,9 +80,9 @@
         "120",
         "--quiet-host",
         "--output",
-        "zig/bench/results/scraper-process-final-releasefast"
+        "zig/bench/results/scraper-process-lifetime-final-releasefast"
       ],
-      "shell": "python3 zig/bench/scraper.py --rust /Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/scraper --zig /Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/zig-out-ReleaseFast/bin/scraper --migration-bin /Users/pbio/work/ziggy/rust/main/target/release/init-db --zig-toolchain /tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig --image postgres:16.15 --samples 5 --catchup 100 --fresh 10 --fresh-interval-ms 250 --chunk 50 --interval 1 --deadline 120 --quiet-host --output zig/bench/results/scraper-process-final-releasefast",
+      "shell": "python3 zig/bench/scraper.py --rust /Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z/rust-target/release/scraper --zig /Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-batch-lifetime-20261106T1630Z/zig-out-ReleaseFast/bin/scraper --migration-bin /Users/pbio/work/ziggy/rust/main/target/release/init-db --zig-toolchain /tmp/ziggy-toolchain/zig-aarch64-macos-0.15.2/zig --image postgres:16.15 --samples 5 --catchup 100 --fresh 10 --fresh-interval-ms 250 --chunk 50 --interval 1 --deadline 120 --quiet-host --output zig/bench/results/scraper-process-lifetime-final-releasefast",
       "executed": false
     }
   ],
@@ -115,5 +115,9 @@
     "Retain every failure and previous nonquiet snapshot; no selective successful sample replacement.",
     "Do not equate fresh database/process with cold filesystem/native-library caches; build timing is a separate matrix."
   ],
-  "build_matrix_results": "zig/bench/results/build-matrix-final/results.json"
+  "build_matrix_results": "zig/bench/results/build-matrix-final/results.json",
+  "runtime_source_commit": "8872c5e470f1a096f8cd32a3661d0d69c0a3aa0b",
+  "runtime_matrix_root": "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-batch-lifetime-20261106T1630Z",
+  "reused_dependency_matrix_root": "/Users/pbio/work/ziggy/zig/bench/.cache/build-matrix-20261105T224238Z",
+  "lifetime_rebind_qualification": "Only Zig emitted role paths and fresh output directories changed; Rust baseline, flags, sampling, corpus, metrics, clocks, migration helper and PostgreSQL16.15 remain identical. All6 exact-native V5 functional proofs and task quiet are prerequisites before ANY paired run."
 }

@@ -1,6 +1,314 @@
 # Benchmark results and historical snapshots
 
-Final matched whole-agent measurements remain pending. Historical tables retain improvements, regressions and their original scope.
+Current feature head: `e4318cacd8`. Three independently checked Linux cold trials completed at `dfc74532d4`; final timing acceptance remains held. Both SDK modes and the matching helper/tools/writers passed producer qualification. All six standalone proof groups passed within their stated source/product scope. The first Linux Cosmos-native retry exited successfully, but lacked a retained final proof and a timed restart window; the fresh run failed after six successful prerequisite phases, with its inner cause still unclassified. Metadata for ten paired runtime workloads and five pairs is prepared; no current paired timing main has run. Remaining native cases, final source checks and a quiet host still gate measurement. See [execution status](status.md). Numeric tables below retain their historical scope; no final comparison is claimed.
+
+## Earlier execution snapshot — 2026-11-07 12:36 UTC
+
+The current feature branch is pushed at `43e6466ca0`. Three fresh, full-feature Linux cold trials are scheduled; the first is running and no new timing is accepted yet. Matched runtime measurements remain held behind functional acceptance. The latest WSS attempt completed its 600-second retirement checks but failed the no-RPC-polling assertion because the fixture omitted the real publisher heartbeat. The corrected fixture passed 21 controls; a fresh proof is running. See [execution status](status.md) for the exact runtime/test-only source qualification and CI state. All numeric tables below retain their historical source and sample scope.
+
+Latest committed production source is `3c545589de`. Fresh gas subscriptions now
+explicitly request cursor zero. The new controller regression failed against the
+old code, then passed in ReleaseSafe and ReleaseFast; wire/allocation checks also
+passed in both modes. Both fresh compiler phases and independent eight-artifact
+readback passed. All 22 broad correctness phases and independent readback passed,
+including the actual native bridge fixture in both modes. The fresh WSS proof
+passed v3 live delivery and restart message delivery, then failed waiting for
+restart subscriptions. A fresh diagnostic captured a fixture scenario-slot race:
+an unsubscribed transport consumed the restart slot before a healthy connection
+subscribed and replayed. That original timeout remains preserved. Native/process and
+paired-runtime acceptance remain pending. These correctness checks receive no
+performance credit.
+
+Preceding production source `57710ae024` fixed shared announcement
+replay progression after the standalone batch-preparation failure. Focused
+regressions passed in both modes. Both fresh compiler phases exited zero; a
+separate postflight accepted the eight artifacts after the supervisor's final
+idle check failed. The first default ReleaseSafe command passed 757/757 tests;
+its supervisor stopped at another global idle check. That failure is retained.
+The corrected supervisor subsequently passed all 20 commands in both modes,
+with independent source, product, dependency and process readback. The refreshed
+fixture helper also passed its six commands, including Clippy. These correctness
+builds receive no performance credit. Native/process and paired-runtime acceptance must use the
+replacement products. Earlier results below retain their original source scope.
+
+The replacement Cosmos-native ReleaseSafe case passed all eight deliveries,
+production-duration confirmation, native signature/SQL/Rust readback and
+same-database restart checks. The first complete standalone ReleaseSafe recovery
+proof also passed, including four-message batch replay and injected WAL-crash
+recovery without duplicate submission. After correcting fixture startup scenario
+sequencing, the WSS rerun exposed a production gas-stream bootstrap defect:
+fresh Zig subscriptions omitted cursor zero and tailed existing gas history.
+A bounded diagnostic confirmed the actual request/marker/authority behavior;
+the fix and focused regressions are committed as described above. These are correctness results;
+current paired-runtime measurements remain pending.
+
+Prior production source `d51ca8d668` passed fresh
+role/worker builds and all 20 correctness checks. The fourth Cosmos-native run
+passed the initial 600-second and stopped-storage checks, then exposed a Rust
+helper log-reader deadlock during restart. Its owned processes were stopped and
+the helper correction passed its focused tests, build and Clippy. The fifth run
+committed eight native relayer transactions but failed the observer's strict
+sampling bound and was stopped cleanly. Native-node acceptance, full-duration
+process proofs and matched runtime measurements remain pending. Failed attempts are
+retained as diagnostic evidence. See the [current correctness report](combined-production-correctness-d51.md).
+
+The sixth Cosmos-native ReleaseSafe case passed delivery, production-duration
+confirmation, stopped-storage and same-database restart checks. Eight agent and
+three fixture parent waits returned zero; cleanup left no owned resources.
+The corresponding standalone proof passed its initial stages, then failed batch
+preparation and prompted the `57710ae024` fix. These remain correctness results
+for the original products. Final paired measurements remain pending.
+
+The tables below describe **historical candidates**. They do not establish
+current performance or complete parity. URL normalization now retains a fifth
+Rust native library; the final dependency-inclusive build trial must include its
+cost. Keep all historical improvements, regressions and scope qualifications.
+See [current acceptance status](status.md) for the active candidate.
+
+## Latest lifetime-fixed build observations
+
+Build and worker-sensitive functional gates passed for the reviewed runtime.
+The V5 full proof failed a fixture batch-membership assumption after its initial
+and batch settlement substages passed; [the failed attempt](final-relayer-batch-membership-diagnostic.md)
+remains preserved. The deterministic test/fixture correction is committed at
+`f7bdda8cf6`, with fresh broad gates. Production binaries and timings remain the
+actual measured `8872c5e470` artifacts. No full process or paired-runtime acceptance
+is implied by these rows. Full provenance and preserved historical snapshots:
+[build matrix](final-lifetime-build-matrix.md),
+[functional validation](final-lifetime-functional-validation.md).
+
+All phases: n=1, shared Apple Silicon host, jobs=2, native CPU. New Zig build source: `8872c5e470f1a096f8cd32a3661d0d69c0a3aa0b`. Rust/native prerequisites are reused measurements at `516bdf42909cd258f6f9cf423878c7ea8bea1683`; mixed totals are arithmetic, not a new dependency-inclusive trial.
+
+| Scope                                            | Reused Rust release | New Zig ReleaseSafe | New Zig ReleaseFast |
+| ------------------------------------------------ | ------------------: | ------------------: | ------------------: |
+| Compiler-cold measured wall (s; scopes differ)   |            2090.970 |             118.230 |             115.070 |
+| Separately measured native/FFI prerequisites (s) |   Included by Cargo |             728.987 |             728.987 |
+| Mixed-run dependency-inclusive wall (s)          |            2090.970 |             847.218 |             844.057 |
+| Rust / mixed-run Zig wall                        |               1.00× |               2.47× |               2.48× |
+| Mixed-run user + system CPU (s)                  |            3944.320 |            1443.814 |            1464.506 |
+| No-change wall (s)                               |               2.386 |               0.519 |               0.492 |
+
+Compiler-cold Rust includes its Cargo dependency work; new Zig phases reuse the seven static archives and four bridge DSOs. Fresh Zig phases also build the Aleo VM worker. Downloads, SDK/toolchain installation, Aleo parameter downloads and runtime proving are excluded.
+
+| Phase / provenance                   | Wall (s) | User / system CPU (s) | Max child RSS (MiB) | Sampled tree peak (MiB) | Samples |
+| ------------------------------------ | -------: | --------------------: | ------------------: | ----------------------: | ------: |
+| native-sdk-cold (reused 516)         |  246.051 |      359.771 / 28.591 |               631.3 |                  1211.1 |     995 |
+| regex-cold (reused 516)              |    9.971 |        11.982 / 0.315 |               350.5 |                   580.5 |      42 |
+| starknet-cold (reused 516)           |   30.151 |        45.214 / 2.729 |               671.8 |                   708.3 |     127 |
+| aleo-crypto-cold (reused 516)        |   61.621 |       105.052 / 7.478 |               417.9 |                   734.0 |     259 |
+| aleo-vm-cold (reused 516)            |  381.194 |      651.051 / 23.659 |              3231.0 |                  3344.5 |    1583 |
+| Rust cold (reused 516)               | 2090.970 |    3797.981 / 146.339 |              4276.7 |                  7218.2 |    8621 |
+| Rust no-change (reused 516)          |    2.386 |         0.486 / 0.607 |               343.5 |                   341.8 |      10 |
+| Zig ReleaseSafe-cold (new 8872)      |  118.230 |      195.597 / 12.375 |              2832.2 |                  3735.6 |     488 |
+| Zig ReleaseSafe-no-change (new 8872) |    0.519 |         0.124 / 0.262 |                30.5 |                    54.4 |       2 |
+| Zig ReleaseFast-cold (new 8872)      |  115.070 |      215.776 / 12.888 |              2883.5 |                  4579.0 |     467 |
+| Zig ReleaseFast-no-change (new 8872) |    0.492 |         0.133 / 0.273 |                30.5 |                    49.9 |       2 |
+
+Max-child RSS is wait4/rusage, not the sum of processes. Tree RSS is sampled every 200 ms and can miss a peak; no-change phases have only two samples. Phase CPU totals can be added; phase memory peaks cannot.
+
+| Phase / provenance                   | Load1 before → after | Free disk before → after (GiB) |
+| ------------------------------------ | -------------------: | -----------------------------: |
+| native-sdk-cold (reused 516)         |         6.37 → 46.37 |                40.830 → 40.595 |
+| regex-cold (reused 516)              |        46.37 → 39.78 |                40.776 → 40.745 |
+| starknet-cold (reused 516)           |        39.78 → 25.77 |                40.776 → 40.632 |
+| aleo-crypto-cold (reused 516)        |        25.77 → 13.58 |                40.798 → 40.467 |
+| aleo-vm-cold (reused 516)            |         13.13 → 4.59 |                40.777 → 39.977 |
+| Rust cold (reused 516)               |          4.59 → 6.05 |                40.571 → 35.806 |
+| Rust no-change (reused 516)          |          6.05 → 5.64 |                35.806 → 35.805 |
+| Zig ReleaseSafe-cold (new 8872)      |         15.14 → 5.54 |                32.351 → 32.116 |
+| Zig ReleaseSafe-no-change (new 8872) |          5.54 → 5.42 |                32.116 → 32.116 |
+| Zig ReleaseFast-cold (new 8872)      |          5.42 → 8.09 |                32.325 → 32.049 |
+| Zig ReleaseFast-no-change (new 8872) |          8.09 → 8.09 |                32.049 → 32.049 |
+
+All three load averages are retained in raw results. Load is observed shared-host context, not a controlled workload or a correction factor. The later Zig-only run launched with 32.351GiB free under its reviewed 16 GiB floor; the original native/Rust trial retains its 40 GiB floor. All four 2 GiB runtime guards remained clear.
+
+| Installed artifact                       | Reused Rust bytes | New Safe bytes | New Fast bytes |
+| ---------------------------------------- | ----------------: | -------------: | -------------: |
+| relayer                                  |       184,851,248 |     15,004,648 |     14,935,992 |
+| validator                                |       158,046,144 |     13,623,240 |     13,591,416 |
+| scraper                                  |        74,778,368 |      3,247,352 |      3,212,824 |
+| Three roles total                        |       417,675,760 |     31,875,240 |     31,740,232 |
+| Aleo VM worker                           |          In agent |        403,672 |        188,232 |
+| Listed roles + worker + four bridge DSOs |       417,675,760 |     84,874,496 |     84,524,048 |
+
+Byte sizes are installed file sizes, without stripping or normalization. The last row is not a complete deployment bundle: system libraries, configuration, parameters and other runtime assets are excluded.
+
+| Reused standalone prerequisite |      Bytes |
+| ------------------------------ | ---------: |
+| libbz2.a                       |     70,328 |
+| liblz4.a                       |    171,664 |
+| librocksdb.a                   | 23,612,472 |
+| libsnappy.a                    |     46,848 |
+| libz.a                         |     85,440 |
+| libziggy_rocks_abi.a           |      2,248 |
+| libzstd.a                      |    913,048 |
+| libziggy_aleo_crypto.dylib     |    884,096 |
+| libziggy_aleo_vm.dylib         | 49,766,864 |
+| libziggy_regex.dylib           |  1,328,224 |
+| libziggy_starknet_crypto.dylib |    616,400 |
+
+| Untimed reclamation                         | Free bytes recovered | Elapsed (s) | Preserved roles/worker |
+| ------------------------------------------- | -------------------: | ----------: | ---------------------: |
+| After zig-ReleaseSafe-three-agent-no-change |          224,059,392 |       0.197 |     4 hashes unchanged |
+| After zig-ReleaseFast-three-agent-no-change |          237,166,592 |       0.192 |     4 hashes unchanged |
+
+Only the marked follow-up local/global compiler caches were reclaimed after each no-change phase. Both installed paths and hardlink pins remain. User-global cache was untouched. These reclamation intervals are excluded from build timings.
+
+Both matching-mode rebuilt workers passed745default tests with zero skips. Earlier516/e0timings and raw artifacts remain below and in their original archives. Shared-host load differs between observations; no timing change is attributed solely to a code fix.
+
+## Admission-fix build observations (historical failed V4 snapshot)
+
+The canonical admission fix, broad acceptance and supplemental exact-worker gates
+passed before the new process proofs began. These build rows are complete;
+process-proof and paired-runtime acceptance remain open. The complete source and
+artifact readback is in [the build report](final-admission-build-matrix.md).
+
+All phases: n=1, shared Apple Silicon host, jobs=2, native CPU. New Zig build source: `e0b95ebf0189e3cc75c3ae1e48a2d9581006e8d0`. Rust/native prerequisites are reused measurements at `516bdf42909cd258f6f9cf423878c7ea8bea1683`; mixed totals are arithmetic, not a new dependency-inclusive trial.
+
+| Scope                                            | Reused Rust release | New Zig ReleaseSafe | New Zig ReleaseFast |
+| ------------------------------------------------ | ------------------: | ------------------: | ------------------: |
+| Compiler-cold measured wall (s; scopes differ)   |            2090.970 |             131.128 |             121.737 |
+| Separately measured native/FFI prerequisites (s) |   Included by Cargo |             728.987 |             728.987 |
+| Mixed-run dependency-inclusive wall (s)          |            2090.970 |             860.116 |             850.724 |
+| Rust / mixed-run Zig wall                        |               1.00× |               2.43× |               2.46× |
+| Mixed-run user + system CPU (s)                  |            3944.320 |            1466.857 |            1475.971 |
+| No-change wall (s)                               |               2.386 |               0.491 |               0.492 |
+
+Compiler-cold Rust includes its Cargo dependency work; new Zig phases reuse the seven static archives and four bridge DSOs. Fresh Zig phases also build the Aleo VM worker. Downloads, SDK/toolchain installation, Aleo parameter downloads and runtime proving are excluded.
+
+| Phase / provenance                 | Wall (s) | User / system CPU (s) | Max child RSS (MiB) | Sampled tree peak (MiB) | Samples |
+| ---------------------------------- | -------: | --------------------: | ------------------: | ----------------------: | ------: |
+| native-sdk-cold (reused516)        |  246.051 |      359.771 / 28.591 |               631.3 |                  1211.1 |     995 |
+| regex-cold (reused516)             |    9.971 |        11.982 / 0.315 |               350.5 |                   580.5 |      42 |
+| starknet-cold (reused516)          |   30.151 |        45.214 / 2.729 |               671.8 |                   708.3 |     127 |
+| aleo-crypto-cold (reused516)       |   61.621 |       105.052 / 7.478 |               417.9 |                   734.0 |     259 |
+| aleo-vm-cold (reused516)           |  381.194 |      651.051 / 23.659 |              3231.0 |                  3344.5 |    1583 |
+| Rust cold (reused516)              | 2090.970 |    3797.981 / 146.339 |              4276.7 |                  7218.2 |    8621 |
+| Rust no-change (reused516)         |    2.386 |         0.486 / 0.607 |               343.5 |                   341.8 |      10 |
+| Zig ReleaseSafe-cold (new e0)      |  131.128 |      216.509 / 14.506 |              2801.3 |                  3809.2 |     523 |
+| Zig ReleaseSafe-no-change (new e0) |    0.491 |         0.126 / 0.260 |                30.6 |                    54.8 |       2 |
+| Zig ReleaseFast-cold (new e0)      |  121.737 |      226.437 / 13.692 |              2911.3 |                  4600.1 |     495 |
+| Zig ReleaseFast-no-change (new e0) |    0.492 |         0.130 / 0.269 |                30.5 |                    49.4 |       2 |
+
+Max-child RSS is wait4/rusage, not the sum of processes. Tree RSS is sampled every200ms and can miss a peak; no-change phases have only two samples. Phase CPU totals can be added; phase memory peaks cannot.
+
+| Phase / provenance                 | Load1 before → after | Free disk before → after (GiB) |
+| ---------------------------------- | -------------------: | -----------------------------: |
+| native-sdk-cold (reused516)        |         6.37 → 46.37 |                40.830 → 40.595 |
+| regex-cold (reused516)             |        46.37 → 39.78 |                40.776 → 40.745 |
+| starknet-cold (reused516)          |        39.78 → 25.77 |                40.776 → 40.632 |
+| aleo-crypto-cold (reused516)       |        25.77 → 13.58 |                40.798 → 40.467 |
+| aleo-vm-cold (reused516)           |         13.13 → 4.59 |                40.777 → 39.977 |
+| Rust cold (reused516)              |          4.59 → 6.05 |                40.571 → 35.806 |
+| Rust no-change (reused516)         |          6.05 → 5.64 |                35.806 → 35.805 |
+| Zig ReleaseSafe-cold (new e0)      |         5.29 → 11.98 |                34.151 → 33.900 |
+| Zig ReleaseSafe-no-change (new e0) |        11.98 → 11.98 |                33.900 → 33.900 |
+| Zig ReleaseFast-cold (new e0)      |        11.98 → 15.97 |                34.109 → 33.838 |
+| Zig ReleaseFast-no-change (new e0) |        15.97 → 15.17 |                33.838 → 33.838 |
+
+All three load averages are retained in raw results. Load is observed shared-host context, not a controlled workload or a correction factor. The later Zig-only run launched with 34.152GiB free under its reviewed16GiB floor; the original native/Rust trial retains its40GiB floor. All four2GiB runtime guards remained clear.
+
+| Installed artifact                       | Reused Rust bytes | New Safe bytes | New Fast bytes |
+| ---------------------------------------- | ----------------: | -------------: | -------------: |
+| relayer                                  |       184,851,248 |     15,004,440 |     14,935,784 |
+| validator                                |       158,046,144 |     13,623,032 |     13,591,208 |
+| scraper                                  |        74,778,368 |      3,247,336 |      3,212,808 |
+| Three roles total                        |       417,675,760 |     31,874,808 |     31,739,800 |
+| Aleo VM worker                           |          In agent |        403,656 |        188,232 |
+| Listed roles + worker + four bridge DSOs |       417,675,760 |     84,874,048 |     84,523,616 |
+
+Byte sizes are installed file sizes, without stripping or normalization. The last row is not a complete deployment bundle: system libraries, configuration, parameters and other runtime assets are excluded.
+
+| Reused standalone prerequisite |      Bytes |
+| ------------------------------ | ---------: |
+| libbz2.a                       |     70,328 |
+| liblz4.a                       |    171,664 |
+| librocksdb.a                   | 23,612,472 |
+| libsnappy.a                    |     46,848 |
+| libz.a                         |     85,440 |
+| libziggy_rocks_abi.a           |      2,248 |
+| libzstd.a                      |    913,048 |
+| libziggy_aleo_crypto.dylib     |    884,096 |
+| libziggy_aleo_vm.dylib         | 49,766,864 |
+| libziggy_regex.dylib           |  1,328,224 |
+| libziggy_starknet_crypto.dylib |    616,400 |
+
+| Untimed reclamation                         | Free bytes recovered | Elapsed (s) | Preserved roles/worker |
+| ------------------------------------------- | -------------------: | ----------: | ---------------------: |
+| After zig-ReleaseSafe-three-agent-no-change |          224,141,312 |       0.184 |     4 hashes unchanged |
+| After zig-ReleaseFast-three-agent-no-change |          237,502,464 |       0.323 |     4 hashes unchanged |
+
+Only the marked follow-up local/global compiler caches were reclaimed after each no-change phase. Both installed paths and hardlink pins remain. User-global cache was untouched. These reclamation intervals are excluded from build timings.
+
+The earlier Zig build observations appear in the original matrix below. Both rebuilt workers passed their actual authorization/proving/sandbox suites through all745default tests per mode, with zero skips. Neither this build table nor those unit suites replace the six exact-binary600-second process proofs.
+
+## Original cold and no-change build matrix (historical)
+
+[Reproduction, artifact hashes and qualifications](final-build-matrix.md). All 11 phases passed with unchanged selected source hashes. Rust explicitly enabled Aleo for all three roles. Both builds used native CPU targeting and two jobs. Zig Safe and Fast differ from Rust release in safety checks. Cached downloads and toolchains are excluded; compiler caches were fresh. The five prerequisites were built once and reused across modes. No-change means the same command without source edits; it does not measure rebuilding an edited source file.
+
+All values: n=1 per phase, shared host; no uncertainty interval. Dependency-inclusive Zig = five standalone prerequisites + mode agent phase.
+
+| Build scope                                      |      Rust release | Zig ReleaseSafe | Zig ReleaseFast |
+| ------------------------------------------------ | ----------------: | --------------: | --------------: |
+| Agent phase wall (s; Rust includes dependencies) |           2090.97 |          107.45 |          112.87 |
+| Separately measured native/FFI prerequisites (s) | Included by Cargo |          728.99 |          728.99 |
+| Dependency-inclusive cold wall (s)               |           2090.97 |          836.44 |          841.86 |
+| Rust / dependency-inclusive Zig wall             |             1.00× |           2.50× |           2.48× |
+| Dependency-inclusive user + system CPU (s)       |           3944.32 |         1449.49 |         1462.44 |
+| No-change wall (s)                               |             2.386 |           0.510 |           0.501 |
+
+| Phase                                 | Wall (s) | User / system CPU (s) | Max child RSS (MiB) | Sampled tree peak (MiB) |
+| ------------------------------------- | -------: | --------------------: | ------------------: | ----------------------: |
+| native-sdk-cold                       |   246.05 |        359.77 / 28.59 |               631.3 |                  1211.1 |
+| optional-regex-cold                   |     9.97 |          11.98 / 0.32 |               350.5 |                   580.5 |
+| optional-starknet-cold                |    30.15 |          45.21 / 2.73 |               671.8 |                   708.3 |
+| optional-aleo-crypto-cold             |    61.62 |         105.05 / 7.48 |               417.9 |                   734.0 |
+| optional-aleo-vm-cold                 |   381.19 |        651.05 / 23.66 |              3231.0 |                  3344.5 |
+| rust-three-agent-cold                 |  2090.97 |      3797.98 / 146.34 |              4276.7 |                  7218.2 |
+| rust-three-agent-no-change            |     2.39 |           0.49 / 0.61 |               343.5 |                   341.8 |
+| zig-ReleaseSafe-three-agent-cold      |   107.45 |        200.37 / 13.28 |              2824.4 |                  4529.5 |
+| zig-ReleaseSafe-three-agent-no-change |     0.51 |           0.13 / 0.27 |                30.5 |                    54.2 |
+| zig-ReleaseFast-three-agent-cold      |   112.87 |        213.80 / 12.80 |              2904.7 |                  4612.1 |
+| zig-ReleaseFast-three-agent-no-change |     0.50 |           0.13 / 0.25 |                30.5 |                    73.8 |
+
+| Installed executable                    | Rust release bytes | Zig Safe bytes | Zig Fast bytes |
+| --------------------------------------- | -----------------: | -------------: | -------------: |
+| relayer                                 |        184,851,248 |     14,986,280 |     14,917,784 |
+| validator                               |        158,046,144 |     13,622,696 |     13,590,872 |
+| scraper                                 |         74,778,368 |      3,247,320 |      3,212,792 |
+| Three roles total                       |        417,675,760 |     31,856,296 |     31,721,448 |
+| Aleo VM worker                          |           In agent |        403,640 |        188,216 |
+| Three roles + worker + four bridge DSOs |        417,675,760 |     84,855,520 |     84,505,248 |
+
+| Standalone Zig prerequisite artifact |      Bytes |
+| ------------------------------------ | ---------: |
+| libbz2.a                             |     70,328 |
+| liblz4.a                             |    171,664 |
+| librocksdb.a                         | 23,612,472 |
+| libsnappy.a                          |     46,848 |
+| libz.a                               |     85,440 |
+| libziggy_rocks_abi.a                 |      2,248 |
+| libzstd.a                            |    913,048 |
+| libziggy_aleo_crypto.dylib           |    884,096 |
+| libziggy_aleo_vm.dylib               | 49,766,864 |
+| libziggy_regex.dylib                 |  1,328,224 |
+| libziggy_starknet_crypto.dylib       |    616,400 |
+
+| Phase                                 | 1-minute load before / after | Free disk before / after (GiB) | RSS samples |
+| ------------------------------------- | ---------------------------: | -----------------------------: | ----------: |
+| native-sdk-cold                       |                 6.37 / 46.37 |                  40.83 / 40.59 |         995 |
+| optional-regex-cold                   |                46.37 / 39.78 |                  40.78 / 40.75 |          42 |
+| optional-starknet-cold                |                39.78 / 25.77 |                  40.78 / 40.63 |         127 |
+| optional-aleo-crypto-cold             |                25.77 / 13.58 |                  40.80 / 40.47 |         259 |
+| optional-aleo-vm-cold                 |                 13.13 / 4.59 |                  40.78 / 39.98 |        1583 |
+| rust-three-agent-cold                 |                  4.59 / 6.05 |                  40.57 / 35.81 |        8621 |
+| rust-three-agent-no-change            |                  6.05 / 5.64 |                  35.81 / 35.80 |          10 |
+| zig-ReleaseSafe-three-agent-cold      |                  5.64 / 4.55 |                  39.96 / 39.72 |         440 |
+| zig-ReleaseSafe-three-agent-no-change |                  4.55 / 4.55 |                  39.72 / 39.72 |           2 |
+| zig-ReleaseFast-three-agent-cold      |                  4.55 / 4.24 |                  39.92 / 39.67 |         463 |
+| zig-ReleaseFast-three-agent-no-change |                  4.24 / 4.24 |                  39.67 / 39.67 |           2 |
+
+The shared-host load varied; a recorded snapshot included unrelated `system_profiler`, Warp and WindowServer activity. Its effect is unmeasured. Max-child and sampled tree RSS are separate observations; tree RSS can double-count shared pages and miss short peaks. Serial phase peaks must not be summed. Bundle bytes exclude system libraries, proving parameters, credentials and database contents. The seven static native archives are build inputs, not additional installed runtime bytes. Native/FFI dependencies remain; no zero-dependency claim applies.
 
 ## Protocol kernels
 
@@ -137,6 +445,52 @@ Each build row is one attempt. Protocol sizes are harness binaries from the kern
 | Configured three-agent build peak RSS (bytes) | 2,886,713,344 |            — | [Succeeded; reused target; default features; not cold](../../zig/bench/results/rust-full-build-configured.json)                 |
 | Wrong-CWD build peak RSS (bytes)              | 2,543,108,096 |            — | [Failed exit101; invocation error, no successful baseline](../../zig/bench/results/rust-root-cwd-attempt.json)                  |
 | Normal-dependency union package count         |         1,120 |            — | [Default-feature relayer/validator/scraper union, including roots/local crates](../../zig/bench/results/rust-dependencies.json) |
+
+## Latest source inventory
+
+The [8872inventory](final-lifetime-source-inventory.md) covers2,430files and all38
+preserved/current product hashes. Classifications remain physical/lexical, with
+no equivalent-feature LOC ratio. Prior snapshots remain separately archived.
+
+| Scoped category                                                | e0 snapshot | 8872 snapshot |
+| -------------------------------------------------------------- | ----------: | ------------: |
+| All Zig-tree source files                                      |         648 |           650 |
+| All physical lines                                             |     148,645 |       149,170 |
+| Implementation-labelled physical lines, including inline tests |      98,608 |        98,832 |
+| Dedicated test/benchmark/integration physical lines            |      42,106 |        42,407 |
+| Native lock union entries, not a runtime dependency graph      |         446 |           446 |
+| External entries in that union                                 |         440 |           440 |
+| Public proving parameter bytes, separate assets                |  79,506,114 |    79,506,114 |
+
+## Admission-fix source and dependency inventory (historical snapshot)
+
+Snapshot at `e0b95ebf01`; physical lines and lexical test blocks. These categories
+are not equivalent feature scopes, so no Rust/Zig LOC reduction ratio is claimed.
+The [full inventory](final-admission-source-inventory.md) retains all file hashes,
+classification rules, per-crate counts and prior snapshots.
+
+| Scope                                                                 | Files / entries |          Physical lines / bytes |
+| --------------------------------------------------------------------- | --------------: | ------------------------------: |
+| Tracked Rust-main Rust source                                         |       832 files |                   223,043 lines |
+| Generated untracked Rust-main ABI source, separately identified       |        36 files |                    21,770 lines |
+| Zig implementation-labelled source                                    |       373 files |                    98,608 lines |
+| Inline test blocks within that implementation category                |  Included above |                    16,652 lines |
+| Implementation category outside inline test blocks, including helpers |  Included above |                    81,956 lines |
+| Zig dedicated tests, benchmarks and integration                       |       224 files |                    42,106 lines |
+| Zig build and operational tools                                       |         9 files |                     1,546 lines |
+| Independent reference harness                                         |        31 files |                     4,607 lines |
+| Native helper source                                                  |        10 files |                     1,625 lines |
+| Native vendored source                                                |          1 file |                       153 lines |
+| All Zig source categories                                             |       648 files |                   148,645 lines |
+| Native lockfile union, not a target-runtime dependency graph          |    21 lockfiles | 446 unique entries;440 external |
+| Public Aleo proving parameters, separate external assets              |         9 files |                79,506,114 bytes |
+
+The runtime rewrite retains native database/compression libraries and four Rust
+SDK/regex bridge DSOs. The new roles and workers use the corrected source; the
+unchanged SDK products retain their original build provenance. This is not a
+zero-dependency implementation. The complete658-file selected input maps include
+ignored vendored dependency inputs; tracked inputs bind to the commit, and other
+inputs bind to their exact recorded hashes and setup/lock evidence.
 
 ## Validation evidence
 

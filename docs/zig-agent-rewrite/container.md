@@ -16,18 +16,19 @@ final stage aliases `runtime-core`, so omitting `--target`
 also produces the minimal image rather than pulling optional SDKs.
 
 ```sh
-docker build --target runtime-core --tag hyperlane-zig-agents:alpha-core -f zig/Dockerfile .
-docker build --target runtime-starknet --tag hyperlane-zig-agents:alpha-starknet -f zig/Dockerfile .
-docker build --target runtime-aleo --tag hyperlane-zig-agents:alpha-aleo -f zig/Dockerfile .
-docker build --target runtime-full-sdk --tag hyperlane-zig-agents:alpha-full-sdk -f zig/Dockerfile .
+AGENT_GIT_SHA="$(git rev-parse HEAD)"
+docker build --build-arg GIT_SHA="$AGENT_GIT_SHA" --target runtime-core --tag hyperlane-zig-agents:alpha-core -f zig/Dockerfile .
+docker build --build-arg GIT_SHA="$AGENT_GIT_SHA" --target runtime-starknet --tag hyperlane-zig-agents:alpha-starknet -f zig/Dockerfile .
+docker build --build-arg GIT_SHA="$AGENT_GIT_SHA" --target runtime-aleo --tag hyperlane-zig-agents:alpha-aleo -f zig/Dockerfile .
+docker build --build-arg GIT_SHA="$AGENT_GIT_SHA" --target runtime-full-sdk --tag hyperlane-zig-agents:alpha-full-sdk -f zig/Dockerfile .
 ```
 
-| Target             | Included native SDK surface                           | Qualification                                                |
-| ------------------ | ----------------------------------------------------- | ------------------------------------------------------------ |
-| `runtime-core`     | Three agents, RocksDB bundle, libcurl, OpenSSL, libpq | Default; no Starknet/Aleo crypto claimed                     |
-| `runtime-starknet` | Core plus pinned `starknet-crypto` bridge             | Adds the separate Rust crypto dependency                     |
-| `runtime-aleo`     | Core plus Aleo crypto/VM bridges and isolated worker  | Proving still requires an explicit external parameter bundle |
-| `runtime-full-sdk` | Both preceding SDK variants                           | Not a claim that every VM service factory is complete        |
+| Target             | Included native SDK surface                                                     | Qualification                                                |
+| ------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `runtime-core`     | Three agents, RocksDB bundle, libcurl, OpenSSL, libpq, Rust regex/URL libraries | Default; no Starknet/Aleo crypto claimed                     |
+| `runtime-starknet` | Core plus pinned `starknet-crypto` bridge                                       | Adds the separate Rust crypto dependency                     |
+| `runtime-aleo`     | Core plus Aleo crypto/VM bridges and isolated worker                            | Proving still requires an explicit external parameter bundle |
+| `runtime-full-sdk` | Both preceding SDK variants                                                     | Not a claim that every VM service factory is complete        |
 
 All targets use nonroot UID/GID `10001`, default to `relayer`, and accept only
 `relayer`, `validator`, or `scraper` as the role. Arguments are passed directly
@@ -49,6 +50,14 @@ docker run --rm \
 paths. Mount configuration separately from writable database state. Do not put
 credentials in an image build argument or layer.
 
+`HYPERLANE_URL_LIBRARY` points to the required packaged Rust URL normalizer in
+every image. Validators publish their compiled Git identity and hashed RPC
+metadata before announcement or checkpoint work. Build frozen source with its
+exact commit; Git-less builds without an explicit identity use
+`VERGEN_IDEMPOTENT_OUTPUT`. Runtime environment variables cannot replace that
+compiled identity. Earlier image evidence predates this producer and does not
+validate the changed image.
+
 ## Cold native dependencies versus agent compilation
 
 The Dockerfile performs a clean native build with at most four Cargo jobs. The
@@ -56,6 +65,7 @@ two operations can also be run independently on Linux:
 
 ```sh
 export ZIG="$(python3 zig/tools/bootstrap.py)"
+export HYPERLANE_URL_LIBRARY="$(python3 zig/src/net/native-url/locked.py --toolchain 1.98.0)"
 python3 zig/tools/native_deps.py --jobs 4 \
   --target-dir "$PWD/zig/native/rocks/target-container" \
   --output "$PWD/zig/native/rocks/out-container" --format json
@@ -115,6 +125,14 @@ run does not establish that an unfiltered native suite cannot reach these tests.
   (`regex-automata` 0.4.7 / `regex-syntax` 0.8.4). This separate third-party
   regex dependency preserves body-match semantics instead of disabling them.
   Native CI runs `ops_tests.zig` against the actual Linux library.
+- `HYPERLANE_URL_LIBRARY` loads the required `url`2.5.4 host-normalization
+  library, using the reference Rust lock's IDNA/ICU versions. Its 35 external
+  locked packages and own crate are counted separately; package counts across
+  libraries overlap. The image bundles their license notices. This preserves
+  metadata hashes for IDNA, numeric IPv4 and IPv6 without changing RPC transport
+  URL acceptance. Alongside regex, Starknet crypto and two Aleo libraries, it is
+  the fifth retained Rust library. Rust standard-library code remains inside
+  those native libraries; this is not a zero-Rust-dependency runtime.
 - Starknet adds its separately counted pinned native-crypto lock (94 packages in
   the adapter documentation). Aleo separately counts native-crypto (229) and
   native-VM (398) lock entries. These third-party protocol crypto/decode/proving

@@ -1304,14 +1304,15 @@
     "eth_getLogs": 198,
     "eth_call": 396
   },
-  "paused": true,
+  "paused": false,
   "fatal": null,
   "captured_blocks": 1571,
   "dispatches": 147,
   "insertions": 147,
   "unmatched_initial_insertions": 0,
-  "elapsed_wall_seconds": 19024.71681295801,
-  "active_observation_seconds": 19024.71681295801,
-  "latest_update_utc": "2026-11-05T22:59:24.848566+00:00",
-  "last_transport_error": "EndpointError"
+  "elapsed_wall_seconds": 342210.4999876248,
+  "active_observation_seconds": 19024.749495083932,
+  "latest_update_utc": "2026-11-09T18:03:15.321550+00:00",
+  "last_transport_error": "EndpointError",
+  "finished_at_utc": "2026-11-09T18:03:15.321539+00:00"
 }
