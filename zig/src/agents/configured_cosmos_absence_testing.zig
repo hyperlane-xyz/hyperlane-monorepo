@@ -320,7 +320,9 @@ test "configured Cosmos transaction absence shared cooperative read fork resumes
                 break;
             }
         }
-        try std.testing.expect(pending >= 2);
+        // Fork reads wait in place: each typed envelope arrives in its first
+        // pass, one upstream request per read.
+        try std.testing.expectEqual(@as(usize, 0), pending);
         try std.testing.expectEqual(@as(usize, 2), server.acceptedCount());
         try std.testing.expectEqual(@as(usize, 2), counts.upstream_errors.load(.acquire));
         try std.testing.expectEqual(@as(usize, 0), counts.provider_failures.load(.acquire));

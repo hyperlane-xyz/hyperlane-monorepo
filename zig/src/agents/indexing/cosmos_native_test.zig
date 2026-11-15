@@ -104,6 +104,7 @@ test "native Cosmos cooperative quantum32 finishes admitted range before cadence
     var completed: usize = 0;
     var suspended: usize = 0;
     var primed = false;
+    var ticks: usize = 0;
     var timer = try std.time.Timer.start();
     while (completed < 2) {
         try journal.beginPass(null);
@@ -117,15 +118,20 @@ test "native Cosmos cooperative quantum32 finishes admitted range before cadence
         };
         journal.endPass(null);
         primed = true;
+        ticks += 1;
         if (report.ranges != 0) {
             completed += 1;
+            // The admitted 1..33 range finishes in the first primed pass.
+            if (completed == 1) try std.testing.expectEqual(@as(usize, 2), ticks);
             try std.testing.expectEqual(@as(usize, 1), report.payments);
             try std.testing.expectEqual(@as(u32, if (completed == 1) 33 else 34), driver.indexer.gas_block.?.next);
         }
         if (timer.read() > 8 * std.time.ns_per_s) return error.CosmosQuantumCadenceRegression;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    try std.testing.expect(suspended >= 33);
+    // Reads wait in place: no pass yields PendingReadIo or re-runs a fetch.
+    try std.testing.expectEqual(@as(usize, 0), suspended);
+    try std.testing.expectEqual(@as(usize, 3), ticks);
     for (result_counts[1..]) |*count| try std.testing.expectEqual(@as(usize, 1), count.load(.monotonic));
     try std.testing.expectEqual(@as(u32, 1999), driver.indexer.gas_block.?.options.chunk);
     try std.testing.expectEqual(@as(?u32, 1), try driver.store.gasWatermark());

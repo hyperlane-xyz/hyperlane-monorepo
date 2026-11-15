@@ -189,9 +189,22 @@ test "native generic cooperative origins sixteen SDK readers bypass eight stalle
         if (now > 8000) return error.HealthyGenericOriginStarved;
         std.Thread.sleep(std.time.ns_per_ms);
     }
+    // Reads wait in place: each stalled origin's one run stays parked on its
+    // fiber (never re-run, never failed). With eight supervisor workers and
+    // eight parked runs, the healthy origins above could only finish because
+    // parked fibers do not pin worker threads.
     for (0..8) |i| {
-        try std.testing.expectEqual(@as(u64, 0), (try scheduled.health(i)).failures);
-        try std.testing.expect((try scheduled.health(i)).suspended > 0);
+        const health = try scheduled.health(i);
+        try std.testing.expectEqual(@as(u64, 1), health.started);
+        try std.testing.expectEqual(@as(u64, 0), health.completed);
+        try std.testing.expectEqual(@as(u64, 0), health.failures);
+        try std.testing.expectEqual(@as(u64, 0), health.timeouts);
+        try std.testing.expectEqual(@as(u64, 0), health.suspended);
+    }
+    for (8..16) |i| {
+        const health = try scheduled.health(i);
+        try std.testing.expectEqual(@as(u64, 1), health.started);
+        try std.testing.expectEqual(@as(u64, 1), health.completed);
     }
     scheduled.stop();
     scheduled.deinit();
