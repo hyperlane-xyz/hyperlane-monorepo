@@ -248,7 +248,9 @@ pub fn collect(a: A, owner: *Engine, endpoints: []const Endpoint, config: Config
         if (config.cancel) |flag| {
             if (flag.load(.acquire)) return error.Cancelled;
         }
-        while (try engine.poll(owner.nowMs())) |completion_value| {
+        // Every idle iteration waits on the sockets below, which gathers
+        // readiness: advance makes no kernel call of its own.
+        while (try engine.advance(owner.nowMs())) |completion_value| {
             var completion = completion_value;
             defer completion.deinit();
             const index = for (slots, 0..) |slot, i| {
@@ -289,7 +291,8 @@ fn drain(owner: *Engine, engine: *multi.Multi, slots: []Slot) void {
         };
     }
     if (!outstanding) return;
-    while (engine.poll(owner.nowMs()) catch {
+    // Cancellation completes in the owner call itself; no socket work.
+    while (engine.advance(owner.nowMs()) catch {
         owner.reset();
         return;
     }) |completion_value| {

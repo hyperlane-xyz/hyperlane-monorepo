@@ -75,7 +75,8 @@ pub fn collect(a: A, slots: []const Slot, config: Config, context: *anyopaque, r
         }
         if (ready(context, results) or completed == slots.len) return results;
         var progressed = false;
-        while (try engine.poll(timer.read() / std.time.ns_per_ms)) |value| {
+        // An iteration without progress waits on the sockets below.
+        while (try engine.advance(timer.read() / std.time.ns_per_ms)) |value| {
             var completion = value;
             defer completion.deinit();
             var consumed = false;

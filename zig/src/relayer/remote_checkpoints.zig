@@ -304,6 +304,9 @@ pub const ReadRequest = struct {
 };
 
 const disk_wait_ns: u64 = 50 * std.time.ns_per_ms;
+/// Bound on a socket wait, so caller closes (which have no notifier) and
+/// session deadlines are still observed while HTTP transfers are in flight.
+const http_wait_ms: u64 = disk_wait_ns / std.time.ns_per_ms;
 
 pub const Engine = struct {
     allocator: A,
@@ -319,6 +322,8 @@ pub const Engine = struct {
     stopping: std.atomic.Value(bool) = .init(false),
     /// Disk completion or a new session since the loop last waited (mutex).
     kicked: bool = false,
+    /// A failed socket wait, reported to live sessions like a failed poll.
+    http_wait_failure: ?anyerror = null,
     /// Owner loop passes, for work-count evidence.
     loop_iterations: std.atomic.Value(u64) = .init(0),
     thread: std.Thread,
@@ -352,6 +357,7 @@ pub const Engine = struct {
         self.mutex.lock();
         self.wake.signal();
         self.mutex.unlock();
+        self.http_owner.wakeup();
         self.thread.join();
         self.disk.deinit();
         self.http_owner.deinit();
@@ -522,6 +528,7 @@ pub const Engine = struct {
         self.sessions[slot] = session;
         self.kicked = true;
         self.wake.signal();
+        self.http_owner.wakeup();
         return session;
     }
     /// Nonblocking submission; current ordered registrations are retained once
@@ -551,6 +558,7 @@ pub const Engine = struct {
         defer {
             session.closed.store(true, .release);
             session.release();
+            self.http_owner.wakeup();
         }
         defer {
             session.mutex.lock();
@@ -580,6 +588,7 @@ pub const Engine = struct {
         defer {
             session.closed.store(true, .release);
             session.release();
+            self.http_owner.wakeup();
         }
         defer {
             session.mutex.lock();
@@ -633,6 +642,16 @@ pub const Engine = struct {
         defer self.mutex.unlock();
         self.kicked = true;
         self.wake.signal();
+        self.http_owner.wakeup();
+    }
+    fn httpNext(self: *Engine, now_ms: u64) !?multi.Completion {
+        if (self.http_wait_failure) |err| {
+            self.http_wait_failure = null;
+            return err;
+        }
+        // The loop waits on sockets whenever transfers are pending and a pass
+        // progressed nothing, so readiness is gathered by that wait.
+        return self.http_owner.advance(now_ms);
     }
     fn run(self: *Engine) void {
         while (true) {
@@ -646,16 +665,22 @@ pub const Engine = struct {
             }
             self.mutex.unlock();
             var any = false;
+            // Completions mutate session state whose follow-up runs in the next
+            // pass's progress: such a pass loops again instead of waiting.
+            var progressed = false;
+            var next_deadline: u64 = std.math.maxInt(u64);
             const now_ms = self.now();
             for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| {
                 any = true;
                 if (self.stopping.load(.acquire)) session.fail(error.RemoteCheckpointEngineStopped);
                 self.progress(session, now_ms) catch |err| session.fail(err);
+                next_deadline = @min(next_deadline, session.deadline_ms);
             };
-            while (self.http_owner.poll(now_ms) catch |err| blk: {
+            while (self.httpNext(now_ms) catch |err| blk: {
                 for (snapshot) |entry| if (entry) |session| session.fail(err);
                 break :blk null;
             }) |value| {
+                progressed = true;
                 var completion = value;
                 defer completion.deinit();
                 for (snapshot) |entry| if (entry) |session| {
@@ -669,7 +694,7 @@ pub const Engine = struct {
                     if (found) break;
                 };
             }
-            while (self.disk.poll(now_ms)) |completion| switch (completion.result) {
+            while (self.disk.poll(now_ms)) |completion| : (progressed = true) switch (completion.result) {
                 .value => |output| {
                     output.session.peers[output.peer].disk_id = null;
                     self.acceptResult(output.session, output.peer, output.guard, output.result) catch |err| output.session.fail(err);
@@ -711,8 +736,14 @@ pub const Engine = struct {
                 self.kicked = false;
                 self.mutex.unlock();
             } else if (http_pending) {
-                // HTTP transfers progress only through http_owner.poll.
-                std.Thread.sleep(std.time.ns_per_ms);
+                // Block on sockets, libcurl timers and transfer deadlines; a
+                // kick (new session, disk completion, stop) wakes the multi.
+                if (!progressed) {
+                    const wait_ms = self.now();
+                    self.http_owner.wait(wait_ms, @intCast(@min(http_wait_ms, next_deadline -| wait_ms))) catch |err| {
+                        self.http_wait_failure = err;
+                    };
+                }
             } else {
                 // Disk-only sessions: sleep until a disk completion or new
                 // session (bounded, so session deadlines and closes are seen).
