@@ -86,7 +86,11 @@ pub const Queue = struct {
         const at = free orelse return error.TxIdQueueFull;
         self.generation +%= 1;
         self.entries[at] = .{ .notice = value, .mask = wanted, .generation = self.generation };
-        if (self.wake) |flag| flag.store(true, .release);
+        if (self.wake) |flag| {
+            flag.store(true, .release);
+            // The flag is a supervisor Task.wake with wake_notified set.
+            @import("../../runtime/wake.zig").notify();
+        }
     }
     pub fn take(self: *Queue, now_ms: u64) ?Lease {
         self.mutex.lock();
@@ -204,7 +208,13 @@ test "transaction-ID queue bounds admission deduplicates full IDs and rotates fa
     b.transaction[0] = 2; // preserve the high half, not only EVM low32.
     var c = a;
     c.transaction[0] = 3;
+    var wake: std.atomic.Value(bool) = .init(false);
+    queue.wake = &wake;
+    const seen = @import("../../runtime/wake.zig").current();
     try queue.admit(a);
+    // The origin task's wake_notified contract: set and notify together.
+    try std.testing.expect(wake.load(.acquire));
+    try std.testing.expect(@import("../../runtime/wake.zig").current() != seen);
     try queue.admit(a);
     try queue.admit(b);
     try std.testing.expectEqual(@as(usize, 2), queue.count());

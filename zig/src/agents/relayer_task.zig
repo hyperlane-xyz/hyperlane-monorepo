@@ -2398,13 +2398,16 @@ pub const TaskSet = struct {
             lane.lander_metrics = if (options.metrics) |registry| .{ .registry = registry, .destination = chain.name } else null;
             lane.initialization_metrics = if (options.metrics) |registry| .{ .registry = registry, .chain = chain.name, .role = .destination } else null;
             lane.critical_state = self.criticalForDomain(chain.domain);
-            // Busy lanes (next cycle due within 10 ms) keep cycling on their
-            // owner thread; idle lanes hand back to the supervisor.
-            lane.worker = lane_owner.Owner.init(lane, Lane.cycle, .{ .timeout_ms = options.job_timeout_ms, .continue_below_ms = if (options.job_timeout_ms > 10) 10 else 0 }) catch |err| {
+            // Lanes keep their cycle cadence on their owner thread and hand
+            // one aggregated report back at least every max_wait_ms; queued
+            // control commands kick the owner out of its cadence wait.
+            lane.worker = lane_owner.Owner.init(lane, Lane.cycle, .{ .timeout_ms = options.job_timeout_ms, .hold_ms = supervisor.max_wait_ms }) catch |err| {
                 control.deinit();
                 a.free(per_origin);
                 return err;
             };
+            lane.worker.kick_source = control.wake;
+            control.queue.on_queue = .{ .context = &lane.worker, .call_fn = lane_owner.Owner.kickHook };
             initialized += 1;
             for (per_origin, configured.chains) |*origin, source| {
                 if (self.metric_tracker) |tracker| origin.metrics = try relayer_metrics.Adapter.init(a, tracker, source.name, chain.name);
@@ -2415,7 +2418,7 @@ pub const TaskSet = struct {
         const destination_end = origin_tasks.len + lanes.len;
         self.tasks = try a.alloc(supervisor.Task, destination_end + 1 + @intFromBool(self.websocket_bridge != null));
         @memcpy(self.tasks[0..origin_tasks.len], origin_tasks);
-        for (lanes, self.tasks[origin_tasks.len..destination_end]) |*lane, *task| task.* = .{ .context = lane, .run = Lane.run, .failure = Lane.classify, .interval_ms = 100, .timeout_ms = options.job_timeout_ms, .wake = lane.control.wake, .stop_fn = Lane.stop, .nonblocking = true };
+        for (lanes, self.tasks[origin_tasks.len..destination_end]) |*lane, *task| task.* = .{ .context = lane, .run = Lane.run, .failure = Lane.classify, .interval_ms = 100, .timeout_ms = options.job_timeout_ms, .wake = lane.control.wake, .wake_notified = true, .owner_wake = lane.worker.ownerWake(), .stop_fn = Lane.stop, .nonblocking = true };
         self.tasks[destination_end] = .{ .context = self, .run = pollDenylist, .interval_ms = @max(1, configured.role.relayer.runtime_denylist_poll_interval_seconds *| 1000), .timeout_ms = 45000 };
         if (self.websocket_bridge) |bridge| {
             self.tasks[destination_end + 1] = bridge.descriptor();

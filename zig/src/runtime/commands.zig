@@ -2,7 +2,10 @@
 //! response allocations belong to this queue's allocator. Timeout relinquishes
 //! only the caller reference: queued/running jobs retain their own cancel token.
 const std = @import("std");
+const wake_notifier = @import("wake.zig");
 const A = std.mem.Allocator;
+/// Called (queue mutex held, must not take it) when a command is queued.
+pub const Hook = struct { context: *anyopaque, call_fn: *const fn (*anyopaque) void };
 pub fn Queue(comptime Request: type, comptime Response: type) type {
     return struct {
         const Self = @This();
@@ -22,7 +25,13 @@ pub fn Queue(comptime Request: type, comptime Response: type) type {
         queued: std.ArrayList(*Entry) = .empty,
         retained: usize = 0,
         closed: bool = false,
+        /// Commands are queued. Every store of true is followed by
+        /// wake.notify() and `on_queue`, so a supervisor Task may set
+        /// wake_notified for this flag.
         wake: std.atomic.Value(bool) = .init(false),
+        /// Optional: kicks the serialized owner (e.g. lane_owner.Owner.kick)
+        /// so a queued command ends its cadence wait. Set before first call.
+        on_queue: ?Hook = null,
         pub fn init(a: A, maximum: usize, drop_request: *const fn (A, *Request) void, drop_response: *const fn (A, *Response) void) !Self {
             if (maximum == 0 or maximum > 256) return error.InvalidCommandCapacity;
             return .{ .allocator = a, .maximum = maximum, .drop_request = drop_request, .drop_response = drop_response };
@@ -52,6 +61,8 @@ pub fn Queue(comptime Request: type, comptime Response: type) type {
             transferred = true;
             self.wake.store(true, .release);
             self.changed.broadcast();
+            wake_notifier.notify();
+            if (self.on_queue) |hook| hook.call_fn(hook.context);
             while (entry.state != .done) {
                 const elapsed = timer.read();
                 const failure: ?anyerror = if (self.closed) error.CommandQueueStopped else if (caller_cancel.load(.acquire)) error.RequestCancelled else if (elapsed >= duration) error.CommandDeadline else null;
@@ -73,6 +84,8 @@ pub fn Queue(comptime Request: type, comptime Response: type) type {
             const entry = if (self.queued.items.len > 0) self.queued.orderedRemove(0) else return null;
             entry.state = .running;
             if (self.closed) entry.cancel.store(true, .release);
+            // Owner side (no notify): the owner that took one command sees the
+            // rest through this flag before it next waits.
             self.wake.store(self.queued.items.len > 0, .release);
             return entry;
         }
@@ -176,5 +189,28 @@ test "cancelled queued command has no owner mutation and shutdown retires its ow
     thread.join();
     try std.testing.expectEqual(error.RequestCancelled, caller.failure.?);
     try std.testing.expectEqual(@as(usize, 1), queue.retained);
+    queue.deinit();
+}
+test "a queued command notifies the service loop and kicks its owner" {
+    var queue = try TestQueue.init(std.testing.allocator, 2, dropRequest, dropResponse);
+    const Kick = struct {
+        count: std.atomic.Value(u32) = .init(0),
+        fn call(context: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            _ = self.count.fetchAdd(1, .acq_rel);
+        }
+    };
+    var kick: Kick = .{};
+    queue.on_queue = .{ .context = &kick, .call_fn = Kick.call };
+    const seen = wake_notifier.current();
+    var caller: Caller = .{ .queue = &queue };
+    const thread = try std.Thread.spawn(.{}, Caller.run, .{&caller});
+    while (kick.count.load(.acquire) == 0) std.Thread.sleep(std.time.ns_per_ms);
+    // wake_notified contract: the flag's writer set it, notified and kicked.
+    try std.testing.expect(queue.wake.load(.acquire));
+    try std.testing.expect(wake_notifier.current() != seen);
+    try std.testing.expectEqual(@as(u32, 1), kick.count.load(.acquire));
+    caller.cancel.store(true, .release);
+    thread.join();
     queue.deinit();
 }

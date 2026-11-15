@@ -28,6 +28,12 @@ pub const Task = struct {
     /// Nonblocking, thread-safe and idempotent. Cancels external retained work
     /// even after its polling callback yielded and no pool JobId remains active.
     stop_fn: ?*const fn (*anyopaque) void = null,
+    /// Owner-backed task (runtime/lane_owner.zig): its owner sets this flag
+    /// and calls wake.notify() when it publishes a result. While the task is
+    /// suspended on that owner it resumes only on this flag (or the
+    /// max_wait_ms backstop): I/O notifications and `wake` do not re-poll it,
+    /// since the owner itself handles kicks while it runs.
+    owner_wake: ?*const std.atomic.Value(bool) = null,
 };
 pub const Health = struct {
     started: u64 = 0,
@@ -86,6 +92,8 @@ const Entry = struct {
     suspended: bool = false,
     /// Copied from Task.nonblocking: resumption costs no worker handoff.
     inline_task: bool = false,
+    /// Task.owner_wake != null: suspension is not an I/O wait.
+    owned: bool = false,
     io_generation: u32 = 0,
 };
 pub const Tick = struct { started: usize = 0, completed: usize = 0, suspended: usize = 0, failures: usize = 0, timeouts: usize = 0, retired: usize = 0 };
@@ -115,7 +123,7 @@ pub const Supervisor = struct {
         const entries = try a.alloc(Entry, tasks.len);
         errdefer a.free(entries);
         @memset(entries, .{});
-        for (entries, tasks) |*entry, task| entry.inline_task = task.nonblocking;
+        for (entries, tasks) |*entry, task| entry.* = .{ .inline_task = task.nonblocking, .owned = task.owner_wake != null };
         self.* = .{ .allocator = a, .context = .{ .tasks = copied }, .entries = entries, .workers = undefined };
         self.workers = try Workers.startWith(a, &self.context, Context.run, Context.freeInput, Context.freeOutput, .{ .fibers = true, .notify_completion = true });
         return self;
@@ -180,7 +188,7 @@ pub const Supervisor = struct {
             const index = self.next_task;
             self.next_task = (index + 1) % self.entries.len;
             const entry = &self.entries[index];
-            const awake = (if (self.context.tasks[index].wake) |wake| wake.load(.acquire) else false) or self.resumable(entry, now.monotonic_ms);
+            const awake = self.woken(index) or self.resumable(entry, now.monotonic_ms);
             if (entry.active != null or entry.health.halted or (now.monotonic_ms < entry.next_ms and !awake)) continue;
             const io_generation = wake_notifier.ioGeneration();
             const deadline_ms = now.monotonic_ms +| self.context.tasks[index].timeout_ms;
@@ -235,7 +243,9 @@ pub const Supervisor = struct {
                     // on the backstop for sources without a notifier.
                     setSuspended(entry, true);
                     entry.suspended_ms = now.monotonic_ms;
-                    entry.next_ms = now.monotonic_ms +| poll_slice_ms;
+                    // An owner publishes through Task.owner_wake; the
+                    // backstop only bounds deadline/cancel observation.
+                    entry.next_ms = now.monotonic_ms +| if (entry.owned) max_wait_ms else poll_slice_ms;
                     entry.timed_out = if (id) |job| self.workers.retained(job) else false;
                     if (!entry.timed_out) entry.active = null;
                     return;
@@ -265,21 +275,33 @@ pub const Supervisor = struct {
             },
         }
     }
+    /// A wake flag is set that this entry honours now: an owner-backed task
+    /// suspended on its owner follows only `owner_wake`.
+    fn woken(self: *const Supervisor, index: usize) bool {
+        const entry = &self.entries[index];
+        const task = self.context.tasks[index];
+        if (task.owner_wake) |flag| if (flag.load(.acquire)) return true;
+        if (entry.owned and entry.suspended) return false;
+        const wake = task.wake orelse return false;
+        return wake.load(.acquire);
+    }
     fn resumable(_: *const Supervisor, entry: *const Entry, now_ms: u64) bool {
-        if (!entry.suspended or wake_notifier.ioGeneration() == entry.io_generation) return false;
+        if (!entry.suspended or entry.owned or wake_notifier.ioGeneration() == entry.io_generation) return false;
         return entry.inline_task or now_ms >= entry.suspended_ms +| resume_spacing_ms;
     }
     fn setSuspended(entry: *Entry, suspended: bool) void {
         if (entry.suspended == suspended) return;
         entry.suspended = suspended;
-        wake_notifier.taskSuspended(suspended);
+        // Owner-backed suspensions wait on owner_wake, not on I/O.
+        if (!entry.owned) wake_notifier.taskSuspended(suspended);
     }
     /// Milliseconds until the next tick can do work, assuming no notification
-    /// (runtime/wake.zig) arrives first. Job completions and I/O completions
-    /// notify; un-notified wake flags are re-checked every poll_slice_ms.
+    /// (runtime/wake.zig) arrives first. Job completions, owner publishes and
+    /// I/O completions notify; un-notified wake flags are re-checked every
+    /// poll_slice_ms.
     pub fn nextDelayMs(self: *const Supervisor, now_ms: u64) u64 {
         var next = now_ms +| max_wait_ms;
-        for (self.entries, self.context.tasks) |*entry, task| {
+        for (self.entries, self.context.tasks, 0..) |*entry, task, index| {
             if (entry.health.halted and entry.active == null) continue;
             if (entry.active != null) {
                 if (!entry.timed_out) next = @min(next, entry.deadline_ms);
@@ -287,7 +309,11 @@ pub const Supervisor = struct {
             }
             if (self.stopping) continue;
             next = @min(next, entry.next_ms);
-            if (entry.suspended and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, if (entry.inline_task) now_ms else entry.suspended_ms +| resume_spacing_ms);
+            // Owner-backed: a publish, or (owner idle) a wake flag left set
+            // by the owner's own drain, is due now. Other tasks keep their
+            // flag semantics (a flag their run may not clear cannot spin).
+            if (entry.owned and self.woken(index)) next = now_ms;
+            if (entry.suspended and !entry.owned and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, if (entry.inline_task) now_ms else entry.suspended_ms +| resume_spacing_ms);
             if (task.wake != null and !task.wake_notified) next = @min(next, now_ms +| poll_slice_ms);
         }
         return next -| now_ms;
