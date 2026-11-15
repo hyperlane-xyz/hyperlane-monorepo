@@ -20,6 +20,9 @@ pub const Scheduler = struct {
     ctx: *anyopaque,
     /// Thread-safe: make the parked fiber `f` runnable on its loop again.
     wake: *const fn (ctx: *anyopaque, f: *Fiber) void,
+    /// Take ownership of a newly spawned fiber and make it runnable (the loop
+    /// reaps it when it finishes). Null: this loop does not support spawn.
+    adopt: ?*const fn (ctx: *anyopaque, f: *Fiber) void = null,
 };
 
 pub const ParkedOn = union(enum) {
@@ -234,35 +237,74 @@ pub const Waiter = struct {
     }
 };
 
+// -- structured concurrency ----------------------------------------------------------
+
+/// Storage for one `Group` child; embed it in the child's own state.
+pub const Child = struct {
+    group: *Group = undefined,
+    entry: *const fn (arg: *anyopaque) void = undefined,
+    arg: *anyopaque = undefined,
+};
+
+/// Spawn/join: children run as sibling fibers on the caller's loop (their
+/// waits overlap); `wait` parks until every child returned. Off a fiber, or on
+/// a loop without spawn support, `spawn` runs the child inline.
+pub const Group = struct {
+    mutex: std.Thread.Mutex = .{},
+    pending: usize = 0,
+    waiter: ?*Waiter = null,
+
+    pub fn spawn(self: *Group, child: *Child, entry: *const fn (arg: *anyopaque) void, arg: *anyopaque) !void {
+        child.* = .{ .group = self, .entry = entry, .arg = arg };
+        const parent = running orelse return entry(arg);
+        const adopt = parent.sched.adopt orelse return entry(arg);
+        const f = try create(parent.sched, childMain, child);
+        self.mutex.lock();
+        self.pending += 1;
+        self.mutex.unlock();
+        adopt(parent.sched.ctx, f);
+    }
+
+    /// Returns once every spawned child has returned.
+    pub fn wait(self: *Group) void {
+        while (true) {
+            var waiter: Waiter = .{};
+            self.mutex.lock();
+            if (self.pending == 0) {
+                self.mutex.unlock();
+                return;
+            }
+            self.waiter = &waiter;
+            self.mutex.unlock();
+            _ = waiter.waitTimeout(null);
+        }
+    }
+
+    fn childMain(arg: *anyopaque) void {
+        const child: *Child = @ptrCast(@alignCast(arg));
+        child.entry(child.arg);
+        const self = child.group;
+        // Wake under the mutex: `wait` re-reads `waiter` under it, so the
+        // Waiter (on the parent's stack) is alive for the whole wake.
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.pending -= 1;
+        if (self.pending == 0) if (self.waiter) |waiter| {
+            self.waiter = null;
+            waiter.wake();
+        };
+    }
+};
+
 // -- context switch -----------------------------------------------------------------
 
 /// Saves callee-saved registers on the current stack, stores the stack
 /// pointer in `save`, switches to `to` and restores what is saved there.
-extern fn hypFiberSwitch(save: *usize, to: usize) void;
-extern fn hypFiberTrampoline() void;
-
-fn switchContext(save: *usize, to: usize) void {
-    hypFiberSwitch(save, to);
-}
-
-export fn hypFiberMain(f: *Fiber) callconv(.c) noreturn {
-    f.entry(f.arg);
-    f.done = true;
-    switchContext(&f.sp, f.caller_sp);
-    unreachable;
-}
-
-const sym_prefix = if (builtin.os.tag.isDarwin()) "_" else "";
-
-comptime {
+/// Naked functions (not file-level asm) so every backend, including the
+/// self-hosted x86_64 Debug backend, can assemble them.
+fn hypFiberSwitch() callconv(.naked) void {
     switch (arch) {
-        .aarch64 => asm (
-            \\.text
-            \\.p2align 2
-            \\.global _hypFiberSwitch
-            \\.global hypFiberSwitch
-            \\_hypFiberSwitch:
-            \\hypFiberSwitch:
+        .aarch64 => asm volatile (
             \\  sub sp, sp, #0xb0
             \\  stp x19, x20, [sp, #0x00]
             \\  stp x21, x22, [sp, #0x10]
@@ -289,46 +331,64 @@ comptime {
             \\  ldp d14, d15, [sp, #0x90]
             \\  add sp, sp, #0xb0
             \\  ret
-            \\.global _hypFiberTrampoline
-            \\.global hypFiberTrampoline
-            \\_hypFiberTrampoline:
-            \\hypFiberTrampoline:
-            \\  mov x0, x19
-            \\
-        ++ "  bl " ++ sym_prefix ++ "hypFiberMain\n" ++
-            \\  brk #0
-            \\
         ),
-        .x86_64 => asm (
-            \\.text
-            \\.global hypFiberSwitch
-            \\hypFiberSwitch:
-            \\  pushq %rbp
-            \\  pushq %rbx
-            \\  pushq %r12
-            \\  pushq %r13
-            \\  pushq %r14
-            \\  pushq %r15
-            \\  movq %rsp, (%rdi)
-            \\  movq %rsi, %rsp
-            \\  popq %r15
-            \\  popq %r14
-            \\  popq %r13
-            \\  popq %r12
-            \\  popq %rbx
-            \\  popq %rbp
+        .x86_64 => asm volatile (
+            \\  pushq %%rbp
+            \\  pushq %%rbx
+            \\  pushq %%r12
+            \\  pushq %%r13
+            \\  pushq %%r14
+            \\  pushq %%r15
+            \\  movq %%rsp, (%%rdi)
+            \\  movq %%rsi, %%rsp
+            \\  popq %%r15
+            \\  popq %%r14
+            \\  popq %%r13
+            \\  popq %%r12
+            \\  popq %%rbx
+            \\  popq %%rbp
             \\  retq
-            \\.global hypFiberTrampoline
-            \\hypFiberTrampoline:
-            \\  movq %r15, %rdi
-            \\  andq $-16, %rsp
-            \\
-        ++ "  callq " ++ sym_prefix ++ "hypFiberMain\n" ++
-            \\  ud2
-            \\
         ),
         else => unreachable,
     }
+}
+
+/// First frame of a fresh fiber: moves `f` (restored into a callee-saved
+/// register by the switch) into the first argument and calls hypFiberMain.
+fn hypFiberTrampoline() callconv(.naked) noreturn {
+    switch (arch) {
+        .aarch64 => asm volatile (
+            \\  mov x0, x19
+            \\  bl %[main]
+            \\  brk #0
+            :
+            : [main] "X" (&hypFiberMain),
+        ),
+        .x86_64 => asm volatile (
+            \\  movq %%r15, %%rdi
+            \\  andq $-16, %%rsp
+            \\  callq %[main:P]
+            \\  ud2
+            :
+            : [main] "X" (&hypFiberMain),
+        ),
+        else => unreachable,
+    }
+}
+
+const SwitchFn = *const fn (save: *usize, to: usize) callconv(.c) void;
+
+fn switchContext(save: *usize, to: usize) void {
+    // A naked function is entered with the C argument registers intact.
+    const switch_fn: SwitchFn = @ptrCast(&hypFiberSwitch);
+    switch_fn(save, to);
+}
+
+fn hypFiberMain(f: *Fiber) callconv(.c) noreturn {
+    f.entry(f.arg);
+    f.done = true;
+    switchContext(&f.sp, f.caller_sp);
+    unreachable;
 }
 
 /// A suspended frame that `hypFiberSwitch` restores into the trampoline,

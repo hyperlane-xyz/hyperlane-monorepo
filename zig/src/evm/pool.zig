@@ -386,6 +386,9 @@ const Session = struct {
     grant: bool = false,
     /// Session.mutex: a parked fiber waiting for this session's completion.
     fiber_waiter: ?*fiber.Waiter = null,
+    /// Completion resumes suspended (PendingReadIo) supervisor tasks. Off for
+    /// sessions whose waiter is woken directly (blocking or fiber wait).
+    notify_io: bool = true,
 
     fn wire(self: *Session) *Request {
         return if (self.current) |*current| current else &self.original;
@@ -727,6 +730,7 @@ pub const Pool = struct {
             session.deinit();
             return error.RpcPoolSessionsFull;
         };
+        session.notify_io = wake_owner;
         self.sessions[slot] = session;
         if (wake_owner) self.wakeOwner();
         self.mutex.unlock();
@@ -842,6 +846,9 @@ pub const Pool = struct {
         return self.waitCancels(handle, allocator, deadline_ms, .{ .first = cancel_flag });
     }
     pub fn waitCancels(self: *Pool, handle: Handle, allocator: A, deadline_ms: u64, cancel_flag: Cancels) !WireResponse {
+        // A fiber never drives (it would block its worker in a socket wait):
+        // it parks until the owner completes the session.
+        if (fiber.inFiber()) return self.waitParked(handle, allocator, deadline_ms, cancel_flag);
         defer self.cancel(handle);
         // The session may have been submitted without waking a driver; tell
         // the current driver once (not once per timed slice).
@@ -893,6 +900,31 @@ pub const Pool = struct {
             // A granted waiter drives now; if the token was taken meanwhile,
             // that holder drives instead. Either way no work is left undriven.
             if (granted and self.driver.tryLock()) try self.driveFor(handle, deadline_ms, cancel_flag);
+        }
+    }
+    /// Fiber wait: wake the owner (the session may have been submitted for
+    /// a driving caller), park on a Waiter that Pool.finish wakes, then poll.
+    /// Same deadline (pool ms) and cancellation semantics as `wait`.
+    fn waitParked(self: *Pool, handle: Handle, allocator: A, deadline_ms: u64, cancel_flag: Cancels) !WireResponse {
+        // Terminal poll or cancel ends the waiter registration under the
+        // session mutex before `waiter` leaves scope.
+        defer self.cancel(handle);
+        self.mutex.lock();
+        self.wakeOwner();
+        self.mutex.unlock();
+        var waiter: fiber.Waiter = .{};
+        _ = self.attachWaiter(handle, &waiter);
+        while (true) {
+            if (try self.poll(handle, allocator)) |response| return response;
+            if (cancel_flag.raised()) return error.RequestCancelled;
+            const now_ms = self.now();
+            if (now_ms >= deadline_ms) return error.RequestDeadlineExceeded;
+            // Completion wakes the fiber; borrowed cancel flags have no
+            // notifier, so they are rechecked on a coarse slice.
+            var slice_ms = deadline_ms - now_ms;
+            if (cancel_flag.present()) slice_ms = @min(slice_ms, parked_cancel_slice_ms);
+            if (self.config.clock != null) slice_ms = @min(slice_ms, injected_clock_slice_ms);
+            _ = waiter.waitTimeout(fiber.monoMs() +| @as(i64, @intCast(@min(slice_ms, std.math.maxInt(i32)))));
         }
     }
     /// Caller holds the drive token; released (and handed off) on return.
@@ -2147,8 +2179,9 @@ pub const Pool = struct {
             session.fiber_waiter = null;
             waiter.wake();
         }
+        const notify_io = session.notify_io;
         session.mutex.unlock();
-        wake_notifier.notifyIo();
+        if (notify_io) wake_notifier.notifyIo();
         session.closed.store(true, .release);
         for (session.peers, 0..) |*peer, index| {
             self.cacheRelease(peer);
@@ -2163,6 +2196,8 @@ pub const Pool = struct {
 
 const cooperative_poll_ms: u64 = 2;
 const caller_cancel_slice_ms: u64 = 10;
+/// Cancellation recheck while a fiber is parked on a session (no notifier).
+pub const parked_cancel_slice_ms: u64 = 100;
 const injected_clock_slice_ms: u64 = 5;
 
 fn backoff(base_ms: u32, attempts: u8, classification: Classification) u64 {

@@ -597,11 +597,21 @@ test "native public HTTP blocks localhost and noncanonical numeric IPv4 without 
 
 const ReuseFixture = struct {
     server: std.net.Server,
+    failure: ?anyerror = null,
     fn serve(self: *ReuseFixture) void {
-        self.run() catch @panic("HTTP reuse fixture failed");
+        self.run() catch |err| {
+            self.failure = err;
+        };
+    }
+    /// Bounded waits: a client that fails early must fail the test, not leave
+    /// this thread (and the test's join) blocked in accept/read forever.
+    fn ready(fd: std.posix.fd_t) !void {
+        var poll_fd = [_]std.posix.pollfd{.{ .fd = fd, .events = std.posix.POLL.IN, .revents = 0 }};
+        if (try std.posix.poll(&poll_fd, 5000) == 0) return error.FixtureTimeout;
     }
     fn run(self: *ReuseFixture) !void {
         // Exactly one accepted connection must serve every trusted request.
+        try ready(self.server.stream.handle);
         const connection = try self.server.accept();
         defer connection.stream.close();
         const methods = [_][]const u8{ "PUT", "HEAD", "GET", "POST" };
@@ -611,6 +621,7 @@ const ReuseFixture = struct {
             var used: usize = 0;
             while (true) {
                 if (used == input.len) return error.FixtureRequestTooLarge;
+                try ready(connection.stream.handle);
                 const count = try connection.stream.read(input[used..]);
                 if (count == 0) return error.FixtureEof;
                 used += count;
@@ -658,7 +669,8 @@ test "native HTTP reuses keepalive and isolates headers methods cancellation and
     const base = try std.fmt.allocPrint(allocator, "http://localhost:{d}", .{fixture.server.listen_address.getPort()});
     defer allocator.free(base);
     const thread = try std.Thread.spawn(.{}, ReuseFixture.serve, .{&fixture});
-    defer thread.join();
+    var joined = false;
+    defer if (!joined) thread.join();
     var cancelled = std.atomic.Value(bool).init(false);
     const methods = [_]Method{ .put, .head, .get, .post };
     const paths = [_][]const u8{ "/first", "/second", "/third", "/fourth" };
@@ -675,6 +687,9 @@ test "native HTTP reuses keepalive and isolates headers methods cancellation and
         try std.testing.expectEqualStrings(if (index == 1) "" else "ok", response.body);
         if (index == 0) cancelled.store(true, .release);
     }
+    thread.join();
+    joined = true;
+    if (fixture.failure) |err| return err;
 }
 
 const ResolveFixture = struct {

@@ -299,6 +299,15 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             state.idle = false;
             state.cond.signal();
         }
+        /// fiber.Scheduler.adopt: a child spawned by a fiber on this worker.
+        fn adoptFiber(context: *anyopaque, f: *fiber.Fiber) void {
+            const state: *WorkerState = @ptrCast(@alignCast(context));
+            const self = state.pool;
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            state.live += 1;
+            pushReady(state, f);
+        }
         fn pushReady(state: *WorkerState, f: *fiber.Fiber) void {
             f.next_ready = null;
             if (state.ready_tail) |tail| tail.next_ready = f else state.ready_head = f;
@@ -374,7 +383,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                     }
                     slot.state = .running;
                     self.mutex.unlock();
-                    const f = fiber.create(.{ .ctx = state, .wake = wakeFiber }, jobFiber, &self.slot_fibers[i]) catch |err| {
+                    const f = fiber.create(.{ .ctx = state, .wake = wakeFiber, .adopt = adoptFiber }, jobFiber, &self.slot_fibers[i]) catch |err| {
                         // No fiber stack: the job fails without running.
                         self.finishJob(slot, err, true);
                         self.mutex.lock();
@@ -644,4 +653,46 @@ test "fiber workers run other jobs while a job is parked and resume it on wake" 
     try std.testing.expectEqual(parked, second.id);
     try std.testing.expectEqual(@as(u32, 10), second.result.value);
     try std.testing.expect(pool.parks.load(.acquire) >= 1);
+}
+
+const GroupContext = struct {
+    const Job = struct {
+        child: fiber.Child = .{},
+        done: bool = false,
+        fn run(arg: *anyopaque) void {
+            const job: *Job = @ptrCast(@alignCast(arg));
+            // Each child parks for 100 ms; siblings overlap on one worker.
+            var nap: fiber.Waiter = .{};
+            _ = nap.waitTimeout(fiber.monoMs() + 100);
+            job.done = true;
+        }
+    };
+    fn run(_: *GroupContext, input: u32, _: *const std.atomic.Value(bool)) !u32 {
+        var jobs: [4]Job = @splat(.{});
+        var group: fiber.Group = .{};
+        for (&jobs) |*job| try group.spawn(&job.child, Job.run, job);
+        group.wait();
+        var done: u32 = 0;
+        for (jobs) |job| done += @intFromBool(job.done);
+        return input * 100 + done;
+    }
+    fn freeInput(_: *GroupContext, _: u32) void {}
+    fn freeOutput(_: *GroupContext, _: u32) void {}
+};
+test "fiber group children overlap their parks on one worker and join" {
+    var context: GroupContext = .{};
+    const pool = try Pool(u32, u32, GroupContext, 1, 4).startWith(std.testing.allocator, &context, GroupContext.run, GroupContext.freeInput, GroupContext.freeOutput, .{ .fibers = true });
+    defer pool.deinit();
+    var timer = try std.time.Timer.start();
+    _ = try pool.submit(3, 0, 60_000);
+    const completion = while (true) {
+        if (pool.poll(1)) |value| break value;
+        if (timer.read() > 5 * std.time.ns_per_s) return error.GroupDidNotJoin;
+        std.Thread.sleep(std.time.ns_per_ms);
+    };
+    try std.testing.expectEqual(@as(u32, 304), completion.result.value);
+    // Four 100 ms parks overlapped (serial would take 400 ms).
+    try std.testing.expect(timer.read() < 350 * std.time.ns_per_ms);
+    // Off a fiber the same code runs children inline.
+    try std.testing.expectEqual(@as(u32, 504), try GroupContext.run(&context, 5, undefined));
 }
