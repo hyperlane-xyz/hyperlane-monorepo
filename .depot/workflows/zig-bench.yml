@@ -1,0 +1,240 @@
+name: zig-bench
+# Paired Rust-vs-Zig agent benchmark on Depot compute.
+# Local driver: zig/bench/depot/run.sh (writes zig/bench/depot/selection.json,
+# runs `depot ci run --workflow .depot/workflows/zig-bench.yml`, fetches results).
+# workflow_dispatch inputs override selection.json when dispatched on a pushed ref.
+on:
+  workflow_dispatch:
+    inputs:
+      workloads:
+        description: "Workload selectors (space/comma separated), e.g. 'scraper validator-fast'. Empty = selection.json or all"
+        required: false
+        default: ''
+      pairs:
+        description: 'Alternating Rust/Zig pairs per workload. Empty = selection.json or 5'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  RUST_TOOLCHAIN: '1.98.0'
+  # Portable, matched CPU baseline for both implementations (build and bench
+  # may land on different hosts): Rust x86-64-v3+pclmulqdq, Zig x86_64_v3+pclmul.
+  BENCH_RUSTFLAGS: '--cfg tokio_unstable -Ctarget-cpu=x86-64-v3 -Ctarget-feature=+pclmulqdq'
+  # C/C++ deps of the Rust agents (librocksdb-sys etc.), as zig/tools/build_cpu.py portable_environment.
+  BENCH_CFLAGS: '-march=x86-64-v3 -mtune=generic -mpclmul'
+  ZIG_CPU: 'x86_64_v3+pclmul'
+  NATIVE_PROFILE: 'x86_64_v3_pclmul_native_abi'
+  POSTGRES_IMAGE: 'postgres:16.15'
+
+jobs:
+  plan:
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      workloads: ${{ steps.plan.outputs.workloads }}
+      pairs: ${{ steps.plan.outputs.pairs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - id: plan
+        env:
+          BENCH_WORKLOADS: ${{ inputs.workloads }}
+          BENCH_PAIRS: ${{ inputs.pairs }}
+        run: python3 zig/bench/depot/workloads.py --github-output
+
+  build:
+    runs-on: depot-ubuntu-24.04-16
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Compute cache keys
+        id: keys
+        run: bash zig/bench/depot/cache_keys.sh | tee -a "$GITHUB_OUTPUT"
+
+      - name: Restore Rust agent binaries
+        id: rust
+        uses: actions/cache/restore@v4
+        with:
+          path: .zb/rust-bin
+          key: ${{ steps.keys.outputs.rust }}
+      - name: Restore native prerequisites
+        id: native
+        uses: actions/cache/restore@v4
+        with:
+          path: .zb/native
+          key: ${{ steps.keys.outputs.native }}
+      - name: Restore correctness helpers
+        id: tools
+        uses: actions/cache/restore@v4
+        with:
+          path: .zb/tools
+          key: ${{ steps.keys.outputs.tools }}
+      - name: Restore Zig agent binaries
+        id: zig
+        uses: actions/cache/restore@v4
+        with:
+          path: .zb/zig-bin
+          key: ${{ steps.keys.outputs.zig }}
+      - name: Restore Cargo target (incremental Rust rebuild)
+        if: steps.rust.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            rust/main/target
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ steps.keys.outputs.rust_target }}-${{ steps.keys.outputs.rust }}
+          restore-keys: ${{ steps.keys.outputs.rust_target }}-
+      - name: Restore Zig caches
+        if: steps.zig.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/zig
+            zig/.zig-cache
+            zig/.toolchain
+          key: ${{ steps.keys.outputs.zig_cache }}-${{ steps.keys.outputs.zig }}
+          restore-keys: ${{ steps.keys.outputs.zig_cache }}-
+
+      - name: Install native build requirements
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends build-essential clang cmake libclang-dev \
+            libcurl4-openssl-dev libpq-dev libssl-dev libudev-dev pkg-config protobuf-compiler python3
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --no-self-update
+
+      - name: Build
+        env:
+          RUST_HIT: ${{ steps.rust.outputs.cache-hit }}
+          NATIVE_HIT: ${{ steps.native.outputs.cache-hit }}
+          TOOLS_HIT: ${{ steps.tools.outputs.cache-hit }}
+          ZIG_HIT: ${{ steps.zig.outputs.cache-hit }}
+        run: bash zig/bench/depot/build.sh
+
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: zig-bench-bins
+          path: .zb/out
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Save Rust agent binaries
+        if: steps.rust.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .zb/rust-bin
+          key: ${{ steps.keys.outputs.rust }}
+      - name: Save native prerequisites
+        if: steps.native.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .zb/native
+          key: ${{ steps.keys.outputs.native }}
+      - name: Save correctness helpers
+        if: steps.tools.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .zb/tools
+          key: ${{ steps.keys.outputs.tools }}
+      - name: Save Zig agent binaries
+        if: steps.zig.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .zb/zig-bin
+          key: ${{ steps.keys.outputs.zig }}
+      - name: Save Cargo target
+        if: steps.rust.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            rust/main/target
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ steps.keys.outputs.rust_target }}-${{ steps.keys.outputs.rust }}
+      - name: Save Zig caches
+        if: steps.zig.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cache/zig
+            zig/.zig-cache
+            zig/.toolchain
+          key: ${{ steps.keys.outputs.zig_cache }}-${{ steps.keys.outputs.zig }}
+
+  bench:
+    needs: [plan, build]
+    runs-on: depot-ubuntu-24.04-16
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJSON(needs.plan.outputs.workloads) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: zig-bench-bins
+          path: .zb/out
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+      - name: Install Foundry v1.5.0
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1
+        with:
+          version: v1.5.0
+          cache: false
+      - name: Install runtime requirements and fixtures
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libcurl4-openssl-dev libpq-dev libssl-dev util-linux sysstat
+          chmod -R +x .zb/out
+          docker pull -q "$POSTGRES_IMAGE"
+          # Warm solc + OpenZeppelin downloads outside measured runs.
+          pnpm dlx solc@0.8.33 --version
+      - name: Bench ${{ matrix.workload }}
+        run: |
+          python3 zig/bench/depot/bench.py --workload "${{ matrix.workload }}" \
+            --pairs "${{ needs.plan.outputs.pairs }}" --bins .zb/out --output "$RUNNER_TEMP/zig-bench/${{ matrix.workload }}"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: zig-bench-result-${{ matrix.workload }}
+          path: ${{ runner.temp }}/zig-bench/${{ matrix.workload }}
+          if-no-files-found: warn
+          retention-days: 14
+
+  summary:
+    needs: [plan, bench]
+    if: always() && needs.plan.result == 'success'
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: zig-bench-result-*
+          path: results
+      - name: Summarize
+        run: |
+          python3 zig/bench/depot/summarize.py results --output summary
+          cat summary/summary.md >> "$GITHUB_STEP_SUMMARY"
+          cat summary/summary.md
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: zig-bench-summary
+          path: summary
+          retention-days: 30
