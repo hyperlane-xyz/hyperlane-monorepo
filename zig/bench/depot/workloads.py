@@ -90,6 +90,7 @@ def main() -> None:
             out.write(f"workloads={json.dumps(names)}\n")
             out.write(f"pairs={pairs}\n")
             out.write(f"mode={mode}\n")
+            out.write(f"profile={'true' if data.get('profile') else 'false'}\n")
             out.write(f"sandbox_seconds={int(hours * 3600)}\n")
 
 

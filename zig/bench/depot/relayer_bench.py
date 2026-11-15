@@ -252,6 +252,8 @@ def run_attempt(name, sample, order, args, output):
             threads_steady = running.thread_snapshot()
             metrics = rb.metrics_probe(metrics_port)
             stop = running.stop_with_signal(signal.SIGTERM)
+            stop["minor_page_faults"] = running.usage.ru_minflt
+            stop["major_page_faults"] = running.usage.ru_majflt
             (raw_dir / "relayer.log").write_bytes(running.full_log())
             running.close()
             running = None

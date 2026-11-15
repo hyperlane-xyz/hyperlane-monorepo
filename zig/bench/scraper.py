@@ -270,6 +270,8 @@ class MeasuredProcess:
             "system_seconds": self.usage.ru_stime,
             "voluntary_context_switches": self.usage.ru_nvcsw,
             "involuntary_context_switches": self.usage.ru_nivcsw,
+            "minor_page_faults": self.usage.ru_minflt,
+            "major_page_faults": self.usage.ru_majflt,
             "max_rss_bytes": self.usage.ru_maxrss if sys.platform == "darwin" else self.usage.ru_maxrss * 1024,
             "process_wall_seconds": (self.end_ns - self.start_ns) / 1e9,
             "shutdown_ms": (self.end_ns - started) / 1e6,
@@ -584,6 +586,7 @@ def run_trial(implementation, sample, order, args, pinned, postgres, contracts, 
                         "dbMaxConnections": 3, "dbAcquireTimeoutMillis": 5000,
                         "metricsPort": metrics_port,
                         "tracing": {"level": "error", "fmt": "json"},
+                        "log": {"level": "error", "format": "json"},  # key the Rust loader reads
                         "chains": {CHAIN_NAME: {
                             "name": CHAIN_NAME, "domainId": DOMAIN, "chainId": 31337,
                             "protocol": "ethereum", "rpcUrls": [{"http": proxy.url}],

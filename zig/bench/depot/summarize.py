@@ -16,7 +16,9 @@ import statistics
 HIGHER_IS_BETTER = {"deliveries_per_s"}
 ORDER = ["startup_ms", "catchup_ms", "post_ready_catchup_ms", "deliveries_per_s", "freshness_median_ms", "freshness_max_ms",
          "e2e_latency_median_ms", "e2e_latency_p95_ms", "steady_ms", "restart_catchup_ms", "cpu_s", "cpu_user_s", "cpu_sys_s",
-         "restart_cpu_s", "peak_rss_mib", "shutdown_ms", "restart_shutdown_ms", "process_wall_s", "rpc_requests",
+         "restart_cpu_s", "cpu_ms_per_checkpoint", "cpu_ms_per_event_group", "cpu_ms_per_message",
+         "rpc_per_checkpoint", "rpc_per_event_group", "rpc_per_message", "db_statements_per_event_group",
+         "cpu_util_pct", "ctx_voluntary", "ctx_involuntary", "minor_faults", "major_faults", "peak_rss_mib", "shutdown_ms", "restart_shutdown_ms", "process_wall_s", "rpc_requests",
          "rpc_requests_catchup", "transactions", "db_statements", "db_rows", "db_exec_ms", "db_bytes"]
 
 
@@ -77,16 +79,34 @@ def summarise(result: dict) -> dict:
     }
 
 
-def markdown(summaries: list[dict]) -> str:
-    out = ["# Zig vs Rust paired benchmark", ""]
+def provenance_lines(prov: dict | None) -> list[str]:
+    if not prov:
+        return ["Provenance: not recorded.", ""]
+    match = prov.get("tree_match")
+    verdict = "verified on runner" if match else ("MISMATCH on runner" if match is False else "unverified")
+    dirty = prov.get("paths_differing_from_head") or []
+    return [
+        f"Source: tree `{(prov.get('source_tree') or prov.get('runner_tree') or '?')[:12]}` ({verdict}); "
+        f"local HEAD `{(prov.get('local_head') or '?')[:10]}` {prov.get('local_head_subject', '')!r}"
+        + (f" (ref {prov['ref_requested']})" if prov.get("ref_requested") else "")
+        + f" + {len(dirty)} uncommitted path(s){': ' + ', '.join(dirty[:8]) if dirty else ''}{' ...' if len(dirty) > 8 else ''}.",
+        f"Upstream merge base `{(prov.get('merge_base') or prov.get('runner_head') or '?')[:10]}`; effective patch sha256 "
+        f"`{(prov.get('effective_patch_sha256') or '?')[:16]}` ({prov.get('effective_patch_shortstat') or prov.get('runner_patch_shortstat')}).",
+        "",
+    ]
+
+
+def markdown(summaries: list[dict], prov: dict | None = None) -> str:
+    out = ["# Zig vs Rust paired benchmark", ""] + provenance_lines(prov)
     if summaries:
         h = summaries[0]["host"]
         out.append(f"Runner: {h.get('cpu_model')}, {h.get('nproc')} vCPU, kernel {h.get('kernel')}; "
                    f"agents pinned to {summaries[0]['cpu_placement']['agent_cpus']}, fixtures to {summaries[0]['cpu_placement']['fixture_cpus']}.")
-        out.append("Zig/Rust = median(Zig) / median(Rust); < 1 means Zig lower (better, except deliveries_per_s).")
+        out.append("Zig/Rust = median(Zig) / median(Rust); < 1 means Zig lower (better, except deliveries_per_s). "
+                   "Units: validator = signed checkpoint, scraper = event group (dispatch+process+gas payment), relayer = delivered message.")
         out.append("")
-        out.append("| workload | runs R/Z | catchup | freshness/e2e p50 | CPU | peak RSS | RPC | status |")
-        out.append("|---|---|---|---|---|---|---|---|")
+        out.append("| workload | runs R/Z | catchup | freshness/e2e p50 | CPU | CPU/unit | peak RSS | RPC | RPC/unit | status |")
+        out.append("|---|---|---|---|---|---|---|---|---|---|")
         for s in summaries:
             m = s["metrics"]
             fresh = m.get("freshness_median_ms") or m.get("e2e_latency_median_ms") or {}
@@ -94,8 +114,10 @@ def markdown(summaries: list[dict]) -> str:
                 return fmt(entry.get("zig_over_rust")) if entry else "–"
             status = "ok" if s["passed"] else f"FAIL ({len(s.get('failures') or [])} failures, exit {s.get('harness_exit_code')})"
             comp = s.get("completed") or {}
+            cpu_unit = next((m[k] for k in ("cpu_ms_per_checkpoint", "cpu_ms_per_event_group", "cpu_ms_per_message") if k in m), None)
+            rpc_unit = next((m[k] for k in ("rpc_per_checkpoint", "rpc_per_event_group", "rpc_per_message") if k in m), None)
             out.append(f"| {s['workload']} | {comp.get('rust', 0)}/{comp.get('zig', 0)} | {r(m.get('catchup_ms'))} | {r(fresh)} | "
-                       f"{r(m.get('cpu_s'))} | {r(m.get('peak_rss_mib'))} | {r(m.get('rpc_requests'))} | {status} |")
+                       f"{r(m.get('cpu_s'))} | {r(cpu_unit)} | {r(m.get('peak_rss_mib'))} | {r(m.get('rpc_requests'))} | {r(rpc_unit)} | {status} |")
         out.append("")
     for s in summaries:
         load_b = s.get("load_before") or [None]
@@ -134,7 +156,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("results", type=pathlib.Path)
     parser.add_argument("--output", type=pathlib.Path, required=True)
+    parser.add_argument("--provenance", type=pathlib.Path)
     args = parser.parse_args()
+    prov = None
+    if args.provenance and args.provenance.is_file() and args.provenance.read_text().strip():
+        prov = json.loads(args.provenance.read_text())
     summaries = []
     for path in sorted(args.results.glob("**/result.json")):
         if "raw" in path.parts:
@@ -143,8 +169,8 @@ def main():
     order = {"validator": 0, "scraper": 1, "relayer": 2}
     summaries.sort(key=lambda s: (order.get(s["role"], 9), s["workload"]))
     args.output.mkdir(parents=True, exist_ok=True)
-    (args.output / "summary.json").write_text(json.dumps(summaries, indent=2) + "\n")
-    (args.output / "summary.md").write_text(markdown(summaries))
+    (args.output / "summary.json").write_text(json.dumps({"provenance": prov, "workloads": summaries}, indent=2) + "\n")
+    (args.output / "summary.md").write_text(markdown(summaries, prov))
     print(f"{len(summaries)} workloads summarised -> {args.output}")
 
 

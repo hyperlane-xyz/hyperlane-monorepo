@@ -113,7 +113,7 @@ class MeasuredProcess:
   while self.poll()is None and time.monotonic()<until:time.sleep(.01)
   if self.poll()is None:self.p.kill();_,status,self.usage=os.wait4(self.p.pid,0);self.status=os.waitstatus_to_exitcode(status);self.p.returncode=self.status
   self.end_ns=time.perf_counter_ns();self.shutdown_ms=(self.end_ns-started)/1e6
-  return dict(exit_code=self.status,user_seconds=self.usage.ru_utime,system_seconds=self.usage.ru_stime,voluntary_context_switches=self.usage.ru_nvcsw,involuntary_context_switches=self.usage.ru_nivcsw,max_rss_bytes=self.usage.ru_maxrss if sys.platform=='darwin'else self.usage.ru_maxrss*1024,process_wall_seconds=(self.end_ns-self.start_ns)/1e9,shutdown_ms=self.shutdown_ms)
+  return dict(exit_code=self.status,user_seconds=self.usage.ru_utime,system_seconds=self.usage.ru_stime,voluntary_context_switches=self.usage.ru_nvcsw,involuntary_context_switches=self.usage.ru_nivcsw,minor_page_faults=self.usage.ru_minflt,major_page_faults=self.usage.ru_majflt,max_rss_bytes=self.usage.ru_maxrss if sys.platform=='darwin'else self.usage.ru_maxrss*1024,process_wall_seconds=(self.end_ns-self.start_ns)/1e9,shutdown_ms=self.shutdown_ms)
  def close(self):self.out.close();self.err.close()
 def filesystem_usage(directory):
  logical=allocated=files=0
@@ -125,8 +125,7 @@ def checkpoint_objects(directory,count):
  try:
   objects=[json.loads((directory/f'{i}_with_id.json').read_text())for i in range(count)]
   if int((directory/'index.json').read_text())<count-1:return None
-  snapshot=json.loads((directory/'merkle_snapshot.json').read_text())
-  if snapshot['index']<count-1:return None
+  # merkle_snapshot.json is restart state, not publication: Rust classic fallback writes it only at backfill end.
   return objects
  except (OSError,ValueError,KeyError):return None
 
@@ -173,7 +172,7 @@ def main():
      with CountingProxy(chain.url)as first,CountingProxy(chain.url)as second:
       config=temp/'config';config.mkdir();checkpoints=temp/'checkpoints';
       with socket.socket()as metrics_socket:metrics_socket.bind(('127.0.0.1',0));metrics_port=metrics_socket.getsockname()[1]
-      value={'originChainName':'test1','db':str(temp/'db'),'interval':1,'maxSignConcurrency':50,'metricsPort':metrics_port if args.check_metrics else 0,'tracing':{'level':'error','fmt':'json'},'validator':{'type':'hexKey','key':'0x'+'11'*32},'checkpointSyncer':{'type':'localStorage','path':str(checkpoints)},'skipAnnounce':False,'chains':{'test1':{'name':'test1','domainId':9913371,'chainId':31337,'protocol':'ethereum','rpcUrls':[{'http':first.url},{'http':second.url}],'rpcConsensusType':args.consensus,'signer':{'type':'hexKey','key':'0x'+'11'*32},'mailbox':mailbox,'validatorAnnounce':announce,'merkleTreeHook':hook,'interchainGasPaymaster':required,'blocks':{'reorgPeriod':0,'estimateBlockTime':1},'index':{'from':0,'interval':1,'chunk':1999}}}};(config/'public.json').write_text(json.dumps(value))
+      value={'originChainName':'test1','db':str(temp/'db'),'interval':1,'maxSignConcurrency':50,'metricsPort':metrics_port if args.check_metrics else 0,'tracing':{'level':'error','fmt':'json'},'log':{'level':'error','format':'json'},'validator':{'type':'hexKey','key':'0x'+'11'*32},'checkpointSyncer':{'type':'localStorage','path':str(checkpoints)},'skipAnnounce':False,'chains':{'test1':{'name':'test1','domainId':9913371,'chainId':31337,'protocol':'ethereum','rpcUrls':[{'http':first.url},{'http':second.url}],'rpcConsensusType':args.consensus,'signer':{'type':'hexKey','key':'0x'+'11'*32},'mailbox':mailbox,'validatorAnnounce':announce,'merkleTreeHook':hook,'interchainGasPaymaster':required,'blocks':{'reorgPeriod':0,'estimateBlockTime':1},'index':{'from':0,'interval':1,'chunk':1999}}}};(config/'public.json').write_text(json.dumps(value))
       env=daemon_environment(name,config,url_library);daemon=MeasuredProcess(pinned[name],temp,env)
       profile=None
       if args.profile in [name,'both']:profile=subprocess.Popen(['/usr/bin/sample',str(daemon.p.pid),'5','1','-file',str(args.output/f'{name}-{sample}.sample.txt')],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)

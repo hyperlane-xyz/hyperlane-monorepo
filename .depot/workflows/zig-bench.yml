@@ -37,6 +37,8 @@ jobs:
       workloads: ${{ steps.plan.outputs.workloads }}
       pairs: ${{ steps.plan.outputs.pairs }}
       mode: ${{ steps.plan.outputs.mode }}
+      profile: ${{ steps.plan.outputs.profile }}
+      provenance: ${{ steps.provenance.outputs.provenance }}
       sandbox_seconds: ${{ steps.plan.outputs.sandbox_seconds }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -47,6 +49,9 @@ jobs:
           BENCH_WORKLOADS: ${{ inputs.workloads }}
           BENCH_PAIRS: ${{ inputs.pairs }}
         run: python3 zig/bench/depot/workloads.py --github-output
+      - id: provenance
+        name: Verify measured source against local provenance
+        run: python3 zig/bench/depot/provenance.py runner --github-output
 
   build:
     needs: plan
@@ -205,12 +210,16 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends libcurl4-openssl-dev libpq-dev libssl-dev util-linux sysstat
           chmod -R +x .zb/out
           docker pull -q "$POSTGRES_IMAGE"
+          if [ "${{ needs.plan.outputs.profile }}" = "true" ]; then
+            sudo apt-get install -y -q --no-install-recommends linux-tools-generic strace
+            sudo sysctl -q kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0
+          fi
           # Warm solc + OpenZeppelin downloads outside measured runs.
           pnpm dlx solc@0.8.33 --version
       - name: Bench ${{ matrix.workload }}
         run: |
           python3 zig/bench/depot/bench.py --workload "${{ matrix.workload }}" \
-            --pairs "${{ needs.plan.outputs.pairs }}" --bins .zb/out --output "$RUNNER_TEMP/zig-bench/${{ matrix.workload }}"
+            --pairs "${{ needs.plan.outputs.pairs }}" ${{ needs.plan.outputs.profile == 'true' && '--profile' || '' }} --bins .zb/out --output "$RUNNER_TEMP/zig-bench/${{ matrix.workload }}"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: always()
         with:
@@ -233,8 +242,11 @@ jobs:
           pattern: zig-bench-result-*
           path: results
       - name: Summarize
+        env:
+          PROVENANCE: ${{ needs.plan.outputs.provenance }}
         run: |
-          python3 zig/bench/depot/summarize.py results --output summary
+          mkdir -p summary && printf '%s' "$PROVENANCE" > summary/provenance.json
+          python3 zig/bench/depot/summarize.py results --output summary --provenance summary/provenance.json
           cat summary/summary.md >> "$GITHUB_STEP_SUMMARY"
           cat summary/summary.md
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

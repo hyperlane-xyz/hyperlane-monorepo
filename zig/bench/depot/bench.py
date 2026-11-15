@@ -107,8 +107,29 @@ def cpu_spec(cpus: list[int]) -> str:
 RUST_LOG_LEVEL = os.environ.get("BENCH_RUST_LOG_LEVEL", "error")
 
 
-def make_wrappers(bins: pathlib.Path, mode: str, agent_cpus: list[int], work: pathlib.Path) -> dict[str, dict[str, pathlib.Path]]:
-    """Tiny exec wrappers: same pid/rusage as the real binary, pinned to agent CPUs."""
+def perf_binary() -> str | None:
+    found = sorted(pathlib.Path("/usr/lib/linux-tools").glob("*/perf")) if pathlib.Path("/usr/lib/linux-tools").is_dir() else []
+    return str(found[-1]) if found else None
+
+
+def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str) -> str:
+    """Shell lines that attach a profiler to the wrapper's own pid ($$) before it execs the agent."""
+    stem = f"{profdir}/{impl}-{role}-$$"
+    if kind == "perf":
+        perf = perf_binary()
+        assert perf, "perf not installed (linux-tools-generic)"
+        return (f"{perf} record -q -F 499 --call-graph dwarf,32768 -p $$ -o {stem}.perf.data >/dev/null 2>&1 &\n"
+                f"{perf} stat -e task-clock,context-switches,cpu-migrations,page-faults,cycles,instructions "
+                f"-p $$ -o {stem}.perf-stat.txt >/dev/null 2>&1 &\nsleep 0.3\n")
+    strace = shutil.which("strace")
+    assert strace, "strace not installed"
+    return f"{strace} -c -f -q -p $$ -o {stem}.strace.txt >/dev/null 2>&1 &\nsleep 0.3\n"
+
+
+def make_wrappers(bins: pathlib.Path, mode: str, agent_cpus: list[int], work: pathlib.Path,
+                  profile: tuple[str, pathlib.Path] | None = None) -> dict[str, dict[str, pathlib.Path]]:
+    """Tiny exec wrappers: same pid/rusage as the real binary, pinned to agent CPUs.
+    With profile=(kind, dir) a profiler attaches to that pid first (profiling passes only)."""
     taskset = shutil.which("taskset")
     assert taskset, "taskset (util-linux) required"
     zig_dir = {"ReleaseSafe": "zig-safe", "ReleaseFast": "zig-fast"}[mode]
@@ -116,10 +137,11 @@ def make_wrappers(bins: pathlib.Path, mode: str, agent_cpus: list[int], work: pa
     for impl, sub in (("rust", "rust"), ("zig", zig_dir)):
         for role in ("relayer", "validator", "scraper"):
             real = (bins / sub / role).resolve(strict=True)
-            wrapper = work / "wrap" / impl / role
+            wrapper = work / ("wrap" if profile is None else f"wrap-{profile[0]}") / impl / role
             wrapper.parent.mkdir(parents=True, exist_ok=True)
             env = f"HYP_LOG_LEVEL={RUST_LOG_LEVEL} HYP_LOG_FORMAT=json " if impl == "rust" else ""
-            wrapper.write_text(f'#!/bin/sh\n{env}exec {taskset} -c {cpu_spec(agent_cpus)} {real} "$@"\n')
+            prelude = profiler_prelude(profile[0], profile[1], impl, role) if profile else ""
+            wrapper.write_text(f'#!/bin/sh\n{prelude}{env}exec {taskset} -c {cpu_spec(agent_cpus)} {real} "$@"\n')
             wrapper.chmod(0o755)
             out[impl][role] = wrapper
     return out
@@ -231,7 +253,22 @@ def proc_metrics(m: dict | None) -> dict:
         "peak_rss_mib": m["max_rss_bytes"] / 2**20,
         "shutdown_ms": m["shutdown_ms"],
         "process_wall_s": m["process_wall_seconds"],
+        "cpu_util_pct": 100 * (m["user_seconds"] + m["system_seconds"]) / m["process_wall_seconds"] if m["process_wall_seconds"] else None,
+        "ctx_voluntary": m.get("voluntary_context_switches"),
+        "ctx_involuntary": m.get("involuntary_context_switches"),
+        "minor_faults": m.get("minor_page_faults"),
+        "major_faults": m.get("major_page_faults"),
     }
+
+
+def per_unit(metrics: dict, unit: str, count: int, rpc_key: str = "rpc_requests") -> dict:
+    """Lifetime-independent cost: CPU ms and RPC per unit of completed work."""
+    out = {}
+    if count and metrics.get("cpu_s") is not None:
+        out[f"cpu_ms_per_{unit}"] = metrics["cpu_s"] * 1000 / count
+    if count and metrics.get(rpc_key) is not None:
+        out[f"rpc_per_{unit}"] = metrics[rpc_key] / count
+    return out
 
 
 def normalise_validator(data: dict) -> list[dict]:
@@ -251,6 +288,7 @@ def normalise_validator(data: dict) -> list[dict]:
                 "rpc_requests_catchup": startup_total,
                 "db_bytes": r["storage"]["database"]["allocated_bytes"],
             },
+            "units": {"checkpoint": r["canonical_checkpoint_count"]},
             "rpc_methods": methods,
             "checks": {"checkpoints": r["canonical_checkpoint_count"], "signatures_verified": r["signatures_verified"],
                        "exit_code": r["measurements"]["exit_code"]},
@@ -289,6 +327,7 @@ def normalise_scraper(data: dict, pgstat: dict | None) -> list[dict]:
                 "db_rows": q["rows"] if q else None,
                 "db_exec_ms": float(q["exec_ms"]) if q else None,
             },
+            "units": {"event_group": len(r["fixture"]["events"]) if r.get("fixture", {}).get("events") is not None else None},
             "rpc_methods": dict(sorted(methods.items())),
             "checks": {"first_exit": r["first_process"].get("exit_code"), "restart_exit": r["restart_process"].get("exit_code")},
             "notes": "db_* cover the whole trial (first run + restart replay), agent role only; migrations/harness SQL excluded",
@@ -315,12 +354,87 @@ def normalise_relayer(data: dict) -> list[dict]:
                 "transactions": r["proof"]["unique_transaction_count"],
                 "db_bytes": r.get("db_allocated_bytes"),
             },
+            "units": {"message": r["proof"]["message_count"]},
             "rpc_methods": methods,
             "checks": {"delivered": r["proof"]["message_count"], "exit_code": r["stop"]["exit_code"],
                        "batch_histogram": (r["proof"].get("batch_membership") or {}).get("group_size_histogram")},
             "load_average": r.get("load_average"),
         })
     return rows
+
+
+def parse_perf_folded(text: str) -> dict[str, int]:
+    """`perf report --sort comm -g folded,0,caller,count` -> {'comm;root;...;leaf': samples}."""
+    folded: dict[str, int] = {}
+    comm = "?"
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.endswith("%") is False and "%" in stripped.split()[0]:
+            comm = stripped.split(None, 1)[1].strip()  # "  97.10%  relayer"
+            continue
+        count, _, stack = stripped.partition(" ")
+        if count.isdigit() and stack:
+            key = comm.replace(";", ":") + ";" + stack.replace(" (inlined)", "")
+            folded[key] = folded.get(key, 0) + int(count)
+    return folded
+
+
+def postprocess_profiles(profdir: pathlib.Path) -> dict:
+    """Wait for attached profilers, then fold perf data per impl/role and keep text reports."""
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline and subprocess.run(["pgrep", "-f", f"-o {profdir}"], capture_output=True).returncode == 0:
+        time.sleep(1)
+    perf = perf_binary()
+    summary: dict = {"files": sorted(p.name for p in profdir.iterdir())}
+    groups: dict[str, dict[str, int]] = {}
+    flats: dict[str, dict[str, int]] = {}
+    for data in sorted(profdir.glob("*.perf.data")):
+        impl_role = "-".join(data.name.split("-")[:2])
+        script = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "--sort", "comm",
+                                 "-g", "folded,0,caller,count"], capture_output=True, text=True, timeout=900)
+        folded = groups.setdefault(impl_role, {})
+        for k, v in parse_perf_folded(script.stdout).items():
+            folded[k] = folded.get(k, 0) + v
+        # Flat self-time profile: always complete, even where user-space dwarf unwinding fails
+        # (observed for the multi-threaded Zig agents: callchains then carry kernel frames only).
+        flat = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "-n", "-g", "none",
+                               "--sort", "comm,dso,sym", "--percent-limit", "0"], capture_output=True, text=True, timeout=900)
+        flat_folded = flats.setdefault(impl_role, {})
+        for line in flat.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 5 and parts[0].endswith("%") and parts[1].isdigit():
+                comm, dso, sym = parts[2], parts[3], " ".join(parts[5:]) if parts[4] in ("[.]", "[k]") else " ".join(parts[4:])
+                key = f"{comm};{dso};{sym}".replace("\n", " ")
+                flat_folded[key] = flat_folded.get(key, 0) + int(parts[1])
+        report = subprocess.run([perf, "report", "-i", str(data), "--stdio", "--no-children", "--sort", "dso,sym",
+                                 "--percent-limit", "0.5"], capture_output=True, text=True, timeout=900)
+        (profdir / f"{data.stem}.report.txt").write_text(report.stdout[-200000:] + report.stderr[-4000:])
+        data.unlink()  # raw dwarf data is large; folded + report are kept
+    for impl_role, folded in groups.items():
+        (profdir / f"{impl_role}.folded").write_text("".join(f"{k} {v}\n" for k, v in sorted(folded.items(), key=lambda kv: -kv[1])))
+        summary[impl_role] = {"samples": sum(folded.values()), "stacks": len(folded)}
+    for impl_role, flat in flats.items():
+        (profdir / f"{impl_role}.flat.folded").write_text("".join(f"{k} {v}\n" for k, v in sorted(flat.items(), key=lambda kv: -kv[1])))
+        summary.setdefault(impl_role, {})["flat_samples"] = sum(flat.values())
+    return summary
+
+
+def add_per_unit(rows: list[dict], role: str, params: dict) -> None:
+    for row in rows:
+        m, units = row["metrics"], row.get("units", {})
+        if role == "validator":
+            m.update(per_unit(m, "checkpoint", units.get("checkpoint")))
+        elif role == "relayer":
+            m.update(per_unit(m, "message", units.get("message")))
+        else:
+            # First process handles the catchup+fresh groups (restart replays one more); CPU/RPC are first-run values.
+            groups = params["catchup"] + params["fresh"]
+            units["event_group_first_run"] = groups
+            m.update(per_unit(m, "event_group", groups, "rpc_requests_first_run"))
+            if m.get("db_statements") is not None:
+                m["db_statements_per_event_group"] = m["db_statements"] / (groups + 1)
 
 
 def main() -> int:
@@ -331,6 +445,7 @@ def main() -> int:
     parser.add_argument("--output", type=pathlib.Path, required=True)
     parser.add_argument("--agent-cpus", default=os.environ.get("BENCH_AGENT_CPUS"))
     parser.add_argument("--fixture-cpus", default=os.environ.get("BENCH_FIXTURE_CPUS"))
+    parser.add_argument("--profile", action="store_true", help="after measuring, one perf-record pair and one strace pair (both arms)")
     args = parser.parse_args()
     spec = catalogue.WORKLOADS[args.workload]
     out = args.output.resolve()
@@ -378,6 +493,27 @@ def main() -> int:
         delta = [a - b for a, b in zip(after, before)]
         idle = delta[3] + delta[4]
         result["host_cpu_busy_fraction"] = 1 - idle / sum(delta) if sum(delta) else None
+    add_per_unit(rows, spec["role"], spec["params"])
+    if args.profile:
+        # Separate one-pair passes; profiler overhead never touches the measured rows above.
+        result["profiles"] = {}
+        for kind in ("perf", "strace"):
+            profdir = out / "profiles" / kind
+            profdir.mkdir(parents=True, exist_ok=True)
+            prof_wrappers = make_wrappers(bins, spec["mode"], agent_cpus, work, (kind, profdir))
+            praw = out / "profiles" / f"{kind}-run" / "raw"
+            praw.mkdir(parents=True, exist_ok=True)
+            try:
+                if spec["role"] == "validator":
+                    pcode, _ = run_validator(spec, 1, prof_wrappers, bins, praw)
+                elif spec["role"] == "scraper":
+                    pcode, _ = run_scraper(spec, 1, prof_wrappers, bins, praw, work, fixture_cpus, args.workload + "-" + kind)
+                else:
+                    pcode, _ = run_relayer(spec, 1, prof_wrappers, bins, praw)
+                info = postprocess_profiles(profdir) if kind == "perf" else {"files": sorted(p.name for p in profdir.iterdir())}
+                result["profiles"][kind] = {"harness_exit_code": pcode, **info}
+            except Exception as error:  # profiling is diagnostic; never fail the measured run
+                result["profiles"][kind] = {"error": str(error)[-2000:]}
     failures = []
     if data:
         failures = data.get("failures") or ([data["failure"]] if data.get("failure") else [])

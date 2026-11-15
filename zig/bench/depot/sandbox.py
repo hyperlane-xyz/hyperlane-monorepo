@@ -68,14 +68,7 @@ def job_attempt(run_id: str):
 def start(args) -> None:
     import run as driver  # noqa: E402  (zig/bench/depot/run.py)
 
-    selection = HERE / "selection.json"
-    previous = selection.read_text() if selection.is_file() else None
-    selection.write_text(json.dumps({"mode": "sandbox", "sandbox_hours": args.hours, "workloads": ["all"], "pairs": 1}) + "\n")
-    try:
-        run_id = driver.trigger([])
-    finally:
-        if previous is not None:
-            selection.write_text(previous)
+    run_id, _ = driver.trigger([], None, {"mode": "sandbox", "sandbox_hours": args.hours, "workloads": ["all"], "pairs": 1})
     print(f"run {run_id}; waiting for sandbox job", flush=True)
     while True:
         job, attempt = job_attempt(run_id)
