@@ -99,6 +99,9 @@ pub const PendingDelay = struct {
 pub const Config = struct {
     domain: u32,
     chain_id: u256,
+    /// Every configured endpoint already answered eth_chainId == chain_id
+    /// once (its pool endpoint set is fixed); skip the per-attempt check.
+    chain_verified: bool = false,
     mailbox: Hash,
     relayer: Address,
     reorg: settings.Reorg,
@@ -233,7 +236,7 @@ pub fn Preparer(comptime Origin: type) type {
             var state = input.retry_state;
             if (self.config.max_metadata_bytes == 0) return error.InvalidMetadataLimit;
             try checkCancelled(self.cancel);
-            self.client.checkChain(self.config.chain_id) catch |err| return retry(&outcome, .chain_validation, err, state, null);
+            if (!self.config.chain_verified) self.client.checkChain(self.config.chain_id) catch |err| return retry(&outcome, .chain_validation, err, state, null);
             try checkCancelled(self.cancel);
             if (input.message.destination != self.config.domain) return retryFailure(&outcome, .canonical_message, "DestinationAuthorityMismatch", state, null);
             if (!try input.store.operationMessageAuthorized(input.message)) {

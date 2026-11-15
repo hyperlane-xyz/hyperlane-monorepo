@@ -588,9 +588,15 @@ def hold_batch_preparation(binary,config,value,database,log_path,messages,count,
                 snapshot=prepared_batch_snapshot(operations,messages)
                 assert chain.rpc('eth_getTransactionCount',[evm.TEST_SIGNER,'latest'])==before_nonce,'held preparation consumed account nonce'
                 assert sum(row['method']=='eth_sendRawTransaction' for row in rpc_snapshot(proxy)['observations'])==before_sends,'held preparation broadcast'
-                if snapshot['ready']:evidence.update(snapshot)
-                return snapshot['ready']
-            wait(prepared,running,90,'four exact sealed pending operations under queue cap0')
+                # gasPaymentEnforcement none lets preparation finish before the
+                # gas stream stores IGP payments, but the stopped readback
+                # requires each payment row: also wait for every payment.
+                with urllib.request.urlopen(f'http://127.0.0.1:{value["metricsPort"]}/metrics',timeout=3)as response:body=response.read()
+                payments=metric_observation(body,'hyperlane_contract_sync_stored_events','data_type="gas_payments",chain="test1",agent="relayer",hyperlane_baselib_version="3.0.0"')['value']
+                indexed=payments is not None and payments>=count
+                if snapshot['ready'] and indexed:evidence.update(snapshot,stored_gas_payments=payments)
+                return snapshot['ready'] and indexed
+            wait(prepared,running,90,'four exact sealed pending operations under queue cap0 and all gas payments indexed')
         finally:
             stopped=stop(running)
     assert stopped['exit']==0,stopped

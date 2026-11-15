@@ -116,6 +116,11 @@ const Active = struct {
     /// only changes through this lane's Lander tick or an admin command, so
     /// the item sleeps until one reports activity instead of 100ms polling.
     awaiting_lander: bool = false,
+    /// Prepare found its origin tree leaf or gas payment not yet indexed.
+    /// Parked until the origin indexer commits rows that satisfy it.
+    index_wait: ?evm_driver.IndexWait = null,
+    /// Origin index generation read before the prepare that parked.
+    index_generation: u64 = 0,
     fn deinit(self: *Active) void {
         if (self.evm_driver) |*value| value.deinit();
         if (self.metric_app_context) |value| self.lane.?.owner.allocator.free(value);
@@ -161,6 +166,11 @@ pub const Lane = struct {
     protected_network: ?*resources.Resources = null,
     protected_adapter: ?evm_lander.Evm = null,
     protected_checked: bool = false,
+    /// Per configured destination RPC URL: answered the expected chain id.
+    endpoint_chain_checked: ?[]bool = null,
+    endpoint_chain_verified: bool = false,
+    next_endpoint_chain_check_ms: u64 = 0,
+    endpoint_chain_backoff_ms: u64 = 0,
     credential_manager: ?*credentials.Manager = null,
     svm_ccs_manager: ?*credentials.Manager = null,
     ccip_owner: ?ccip_sessions.Owner = null,
@@ -181,6 +191,9 @@ pub const Lane = struct {
     native_group_gc_cursor: [32]u8 = @splat(0),
     native_group_current_first: bool = false,
     native_group_deadline_ns: ?u64 = null,
+    /// Scratch for one EVM advance (operation record, links, Lander status
+    /// JSON, prepare outcome). Reset, not freed piecemeal, after each poll.
+    poll_arena: ?std.heap.ArenaAllocator = null,
     native_group_senders: std.AutoHashMapUnmanaged([32]u8, SenderState) = .empty,
     native_group_last_error: ?anyerror = null,
     native_group_epoch: ?u64 = null,
@@ -190,6 +203,8 @@ pub const Lane = struct {
 
     fn deinit(self: *Lane) void {
         self.worker.deinit();
+        if (self.poll_arena) |*arena| arena.deinit();
+        if (self.endpoint_chain_checked) |checked| self.owner.allocator.free(checked);
         for (self.active.items) |item| {
             self.finishActiveMetrics(item, .cancelled);
             self.owner.release(item.retained_bytes);
@@ -278,6 +293,7 @@ pub const Lane = struct {
                     self.protected_checked = true;
                 }
             }
+            if (!self.endpoint_chain_verified and times.monotonic_ms >= self.next_endpoint_chain_check_ms) try self.verifyEndpointChains(times, cancel);
             if (self.transactions == null) {
                 if (self.chain.submitter == .lander and self.dispatcher_timer == null and self.initialization_metrics != null) self.dispatcher_timer = std.time.Timer.start() catch null;
                 self.evm_adapter = .{ .rpc = &network.rpc_client.?, .reorg = self.chain.reorg };
@@ -716,6 +732,7 @@ pub const Lane = struct {
             work +|= report.built + report.broadcasts + report.finalized;
             if (landerActivity(report)) self.wakeLanderWaiters(times.monotonic_ms);
         }
+        if (self.chain.protocol == .ethereum) self.wakeIndexWaiters(times.monotonic_ms);
         if (self.native_destination) |factory| {
             for (0..self.origins.len) |_| {
                 const origin_index = self.next_reveal_origin;
@@ -736,7 +753,23 @@ pub const Lane = struct {
         // Ready/signed/confirm actors still run even when this batch is held.
         try self.beginNativePreparationBatch(times, cancel, quantum);
         defer self.native_batch_admission = null;
-        var remaining = @min(quantum, self.active.items.len);
+        // EVM: spend the quantum only on due items. Lander waiters and
+        // confirmation windows are long-lived non-due items; visiting them by
+        // position would delay a due item by one owner cycle per waiter.
+        var advanced: usize = 0;
+        while (self.chain.protocol == .ethereum and advanced < quantum and self.active.items.len > 0) : (advanced += 1) {
+            const current_times: supervisor.Times = if (self.owner.options.observation_clock) |clock| updated: {
+                const observed = try clock.now();
+                break :updated .{ .unix_ms = observed.unix_ms, .monotonic_ms = observed.monotonic_ms };
+            } else times;
+            const index = firstDue(self.active.items, self.next_active, current_times.monotonic_ms) orelse break;
+            self.next_active = (index + 1) % self.active.items.len;
+            if (try self.advance(self.active.items[index], current_times, cancel)) {
+                try self.releaseCompleted(index);
+            }
+            work +|= 1;
+        }
+        var remaining = if (self.chain.protocol == .ethereum) 0 else @min(quantum, self.active.items.len);
         while (remaining > 0 and self.active.items.len > 0) : (remaining -= 1) {
             self.next_active %= self.active.items.len;
             const index = self.next_active;
@@ -761,10 +794,63 @@ pub const Lane = struct {
         };
         return .{ .work = work, .next_delay_ms = delay_ms };
     }
+    /// Origin indexers bump their generation after committing rows. Recheck
+    /// only parked items whose origin advanced, with local reads, and wake
+    /// those whose leaf or payment is now present.
+    fn wakeIndexWaiters(self: *Lane, now_ms: u64) void {
+        for (self.active.items) |item| if (item.index_wait) |wait| {
+            const slot = &self.owner.origins.slots[item.origin_index];
+            const generation = slot.index_generation.load(.acquire);
+            if (generation == item.index_generation) continue;
+            item.index_generation = generation;
+            const origin = slot.handle() orelse continue;
+            const message = item.message.value;
+            const present = switch (wait) {
+                .merkle_leaf => if (origin.history.leafIndex(message.id())) |leaf| leaf != null else |_| true,
+                .gas_payment => if (origin.store.payment(.{ .message_id = message.id(), .destination = message.destination })) |payment| payment != null else |_| true,
+            };
+            if (!present) continue;
+            item.index_wait = null;
+            item.next_ms = @min(item.next_ms, wakeAt(item.now_monotonic_ms, now_ms));
+        };
+    }
+    /// The destination pool's endpoints are fixed for its lifetime and curl
+    /// reconnects per URL transparently, so one eth_chainId per configured URL
+    /// replaces the per-prepare/confirm check routed to an arbitrary endpoint.
+    /// A mismatch fails the lane closed. One unverified URL per pass with a
+    /// short timeout; an unreachable URL backs off (30s doubling to 10min)
+    /// while the per-attempt check stays on until every URL has answered.
+    fn verifyEndpointChains(self: *Lane, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !void {
+        const a = self.owner.allocator;
+        const urls = self.chain.rpc_urls;
+        if (self.endpoint_chain_checked == null) {
+            const checked = try a.alloc(bool, urls.len);
+            @memset(checked, false);
+            self.endpoint_chain_checked = checked;
+        }
+        const checked = self.endpoint_chain_checked.?;
+        const index = std.mem.indexOfScalar(bool, checked, false) orelse {
+            self.endpoint_chain_verified = urls.len != 0;
+            return;
+        };
+        var transport = try curl.Client.init(a, self.owner.options.curl_library);
+        defer transport.deinit();
+        switch (try checkEndpointChain(a, &transport, urls[index], try std.fmt.parseInt(u256, self.chain.chain_id, 0), cancel)) {
+            .verified => {
+                checked[index] = true;
+                self.endpoint_chain_backoff_ms = 0;
+                self.endpoint_chain_verified = std.mem.indexOfScalar(bool, checked, false) == null;
+            },
+            .deferred => {
+                self.endpoint_chain_backoff_ms = if (self.endpoint_chain_backoff_ms == 0) endpoint_chain_retry_ms else @min(self.endpoint_chain_backoff_ms *| 2, endpoint_chain_max_retry_ms);
+                self.next_endpoint_chain_check_ms = times.monotonic_ms +| self.endpoint_chain_backoff_ms;
+            },
+        }
+    }
     fn wakeLanderWaiters(self: *Lane, now_ms: u64) void {
         for (self.active.items) |item| if (item.awaiting_lander) {
             item.awaiting_lander = false;
-            item.next_ms = @min(item.next_ms, now_ms);
+            item.next_ms = @min(item.next_ms, wakeAt(item.now_monotonic_ms, now_ms));
         };
     }
     fn groupTime(self: *Lane, fallback: operation.Times) !operation.Times {
@@ -1628,7 +1714,15 @@ pub const Lane = struct {
         }
         const now: operation.Times = .{ .unix_ms = times.unix_ms, .monotonic_ms = times.monotonic_ms };
         if (self.chain.protocol == .ethereum) {
-            var state = try operation.Operation.open(self.owner.allocator, origin.store, .{
+            // Read before any origin row: a commit racing this prepare wakes it.
+            const index_generation = self.owner.origins.slots[item.origin_index].index_generation.load(.acquire);
+            // Everything allocated from scratch dies with this advance: the
+            // operation, its links and the prepare outcome. Driver, Lander and
+            // RPC state keep their own allocators.
+            if (self.poll_arena == null) self.poll_arena = std.heap.ArenaAllocator.init(self.owner.allocator);
+            defer _ = self.poll_arena.?.reset(.{ .retain_with_limit = poll_arena_retain_bytes });
+            const scratch = self.poll_arena.?.allocator();
+            var state = try operation.Operation.open(scratch, origin.store, .{
                 .id = message.id(),
                 .context = evmContext(self.context.?, origin.chain),
                 .nonce = message.nonce,
@@ -1650,8 +1744,9 @@ pub const Lane = struct {
             defer if (ccip_build) |*value| value.deinit();
             var prepare_config = try evm_prepare.Config.fromSettings(self.chain, self.signer.?.address, self.owner.settings.role.relayer.transaction_gas_limit, self.owner.settings.role.relayer.skip_transaction_gas_limit_for);
             prepare_config.metadata_observer = metadataObserverFor(item);
+            prepare_config.chain_verified = self.endpoint_chain_verified;
             const was_confirming = state.value.confirmation_started;
-            const outcome = item.evm_driver.?.step(self.owner.allocator, &self.transactions.?, &state, origin.history, &self.origins[item.origin_index].policy.?, message, &self.network.?.rpc_client.?, .{
+            const outcome = item.evm_driver.?.step(scratch, &self.transactions.?, &state, origin.history, &self.origins[item.origin_index].policy.?, message, &self.network.?.rpc_client.?, .{
                 .source = prepare_config,
                 .metadata_cache = &self.owner.evm_cache,
                 .default_ism_cache = &self.owner.evm_default_ism_cache,
@@ -1669,9 +1764,11 @@ pub const Lane = struct {
                 else => {},
             }
             self.syncActiveMetrics(item, state.current_status);
-            item.next_ms = @max(times.monotonic_ms +| 100, state.value.next_attempt_ms);
-            item.awaiting_lander = awaitingLander(report, state.value.next_attempt_ms, times.monotonic_ms);
-            if (item.awaiting_lander) item.next_ms = times.monotonic_ms +| lander_wait_fallback_ms;
+            const schedule = evmPollSchedule(report, state.value.next_attempt_ms, times.monotonic_ms);
+            item.next_ms = schedule.next_ms;
+            item.awaiting_lander = schedule.awaiting_lander;
+            item.index_wait = report.index_wait;
+            item.index_generation = index_generation;
             return switch (report.state) {
                 .delivered, .not_contract, .denied => true,
                 else => false,
@@ -1858,6 +1955,32 @@ pub const Lane = struct {
 /// Upper bound on an event-driven Lander wait, covering any status change
 /// that a tick report does not count. Lander activity wakes waiters earlier.
 pub const lander_wait_fallback_ms: u64 = 1_000;
+pub const endpoint_chain_check_timeout_ms: u32 = 2_000;
+pub const endpoint_chain_retry_ms: u64 = 30_000;
+pub const endpoint_chain_max_retry_ms: u64 = 600_000;
+pub const EndpointChain = enum { verified, deferred };
+/// One eth_chainId on a direct client for exactly this URL. WrongChain on a
+/// mismatch; transport or RPC failures defer the check.
+pub fn checkEndpointChain(a: A, transport: *curl.Client, url: []const u8, expected: u256, cancel: *const std.atomic.Value(bool)) !EndpointChain {
+    if (cancel.load(.acquire)) return error.RequestCancelled;
+    var client = @import("../evm/provider.zig").RpcClient.init(a, url, .{ .native_transport = transport, .timeout_ms = endpoint_chain_check_timeout_ms, .connect_timeout_ms = endpoint_chain_check_timeout_ms, .cancel = cancel }) catch |err| {
+        if (err == error.OutOfMemory) return err;
+        return .deferred;
+    };
+    defer client.deinit();
+    const actual = client.chainId256() catch |err| {
+        if (err == error.OutOfMemory or err == error.RequestCancelled or err == error.Cancelled) return err;
+        std.log.warn("destination endpoint chain check deferred: {s}", .{@errorName(err)});
+        return .deferred;
+    };
+    if (actual != expected) return error.WrongChain;
+    return .verified;
+}
+/// Arena capacity kept across EVM polls; larger one-off outcomes are released.
+pub const poll_arena_retain_bytes: usize = 256 * 1024;
+/// Upper bound on an origin-index wait between index generation wakes; the
+/// first Source retry step, so an unseen commit costs no more than before.
+pub const index_wait_fallback_ms: u64 = 5_000;
 /// Every Lander tick path that can change a payload status is counted here:
 /// receipt reads (inclusion, finality, drops), building, broadcasting,
 /// reorg reprocessing and rejections. Scans gated by Lander backoff and
@@ -1869,6 +1992,27 @@ pub fn landerActivity(report: lander.Report) bool {
 /// its own; only Lander progress (or an admin command) can change the result.
 pub fn awaitingLander(report: evm_driver.Report, next_attempt_ms: u64, now_ms: u64) bool {
     return report.state == .existing_payload and report.failure == null and next_attempt_ms <= now_ms;
+}
+pub const PollSchedule = struct { next_ms: u64, awaiting_lander: bool };
+/// Next EVM poll after a step: the operation deadline, at least 100ms out,
+/// or an event-driven Lander wait bounded by the fallback.
+pub fn evmPollSchedule(report: evm_driver.Report, next_attempt_ms: u64, now_ms: u64) PollSchedule {
+    if (report.state == .awaiting_index) return .{ .next_ms = now_ms +| index_wait_fallback_ms, .awaiting_lander = false };
+    if (awaitingLander(report, next_attempt_ms, now_ms)) return .{ .next_ms = now_ms +| lander_wait_fallback_ms, .awaiting_lander = true };
+    return .{ .next_ms = @max(now_ms +| 100, next_attempt_ms), .awaiting_lander = false };
+}
+/// A Lander wake never polls sooner than 100ms after the last advance, so a
+/// Lander that reads receipts every tick costs no more than fixed polling.
+pub fn wakeAt(last_advance_ms: u64, now_ms: u64) u64 {
+    return @max(now_ms, last_advance_ms +| 100);
+}
+/// First item at or after `start` (circular) whose `next_ms` is due.
+pub fn firstDue(items: anytype, start: usize, now_ms: u64) ?usize {
+    for (0..items.len) |offset| {
+        const index = (start + offset) % items.len;
+        if (items[index].next_ms <= now_ms) return index;
+    }
+    return null;
 }
 fn contextHash(chain: *const settings.Chain, signer: [20]u8) [32]u8 {
     var state = std.crypto.hash.sha2.Sha256.init(.{});

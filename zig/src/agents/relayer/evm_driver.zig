@@ -26,7 +26,14 @@ pub const Config = struct {
     jitter: u64 = 0,
     payload_retry_delay_ms: u64 = 1_000,
     confirm_poll_ms: u64 = 500,
+    /// Longest a prepare may wait for its origin index (tree leaf or gas
+    /// payment) without consuming a retry; afterwards the normal ladder runs.
+    max_index_wait_ms: u64 = 60_000,
 };
+
+/// Origin rows a prepare found not yet indexed. Not a failure: the lane
+/// parks the message until the origin indexer commits the row.
+pub const IndexWait = enum { merkle_leaf, gas_payment };
 
 pub const Callbacks = struct {
     /// Last new-payload handoff gate. This callback may inspect only current
@@ -49,6 +56,7 @@ pub const Callbacks = struct {
 
 pub const State = enum {
     idle,
+    awaiting_index,
     existing_payload,
     retried,
     prepared,
@@ -63,12 +71,17 @@ pub const Report = struct {
     failure: ?anyerror = null,
     denial: ?relay_policy.Denial = null,
     payload: ?payload_links.Uuid = null,
+    index_wait: ?IndexWait = null,
 };
 
 pub const Driver = struct {
     allocator: Allocator,
     retry_state: evm_prepare.RetryState = .{},
     cached_metadata: ?[]u8 = null,
+    /// In-memory only: a restart simply prepares again.
+    index_wait_since_ms: ?u64 = null,
+    /// Sealed payload already replayed into Lander by this process.
+    replayed_payload: ?payload_links.Uuid = null,
 
     pub fn init(allocator: Allocator) Driver {
         return .{ .allocator = allocator };
@@ -100,9 +113,17 @@ pub const Driver = struct {
         var link = try payload_links.load(allocator, actor.store, message.id(), actor.options.context);
         defer if (link) |*value| value.deinit();
         if (link) |*value| {
-            try value.replay(destination);
-            if (actor.value.stage != .denied) try actor.payloadEnqueued(value.record().generation, now);
-        }
+            // Replay closes the seal/enqueue crash window once per process;
+            // Lander keeps the payload durably, so later polls of the same
+            // ready payload skip the canonical re-encode and enqueue check.
+            const uuid = value.record().payload.uuid;
+            const replayed = self.replayed_payload != null and std.mem.eql(u8, &self.replayed_payload.?, &uuid) and actor.value.stage == .ready;
+            if (!replayed) {
+                try value.replay(destination);
+                if (actor.value.stage != .denied) try actor.payloadEnqueued(value.record().generation, now);
+                self.replayed_payload = uuid;
+            }
+        } else self.replayed_payload = null;
 
         const inherited = try payload_links.inheritedUuids(allocator, actor.store, message.id());
         defer allocator.free(inherited);
@@ -111,7 +132,7 @@ pub const Driver = struct {
         const current = try observationTime(callbacks, now);
         if (actor.parked or current.monotonic_ms < actor.value.next_attempt_ms) return .{ .state = .idle };
         if (actor.value.confirmation_started) {
-            try client.checkChain(config.source.chain_id);
+            if (!config.source.chain_verified) try client.checkChain(config.source.chain_id);
             if (!try client.delivered(config.source.mailbox[12..32].*, message.id(), .latest)) return self.retry(actor, .RevertedOrReorged, error.ExternalDeliveryReorged, config, try observationTime(callbacks, current), null);
             if (!try finalizedDelivered(client, message, config)) {
                 try actor.waitForFinality(try observationTime(callbacks, current), config.confirm_poll_ms);
@@ -137,21 +158,19 @@ pub const Driver = struct {
         linked_uuid: ?payload_links.Uuid,
         native_link: ?*const payload_links.Link,
     ) !Report {
-        _ = self;
         const statuses = try allocator.alloc(PayloadDisposition, inherited.len);
         defer allocator.free(statuses);
         var unknown = false;
         for (inherited, statuses) |uuid, *disposition| {
-            var record = (try destination.store.loadPayload(allocator, uuid)) orelse {
+            disposition.* = try payloadStatus(allocator, destination.store, uuid) orelse {
                 unknown = true;
                 disposition.* = .unknown;
                 continue;
             };
-            defer record.deinit();
-            if (!std.mem.eql(u8, &try lander.records.payloadUuid(record.value()), &uuid)) return error.PayloadRecordIdentityMismatch;
-            disposition.* = try payloadDisposition(record.value());
         }
         if (unknown) {
+            // Lander no longer knows a linked payload: replay it again.
+            self.replayed_payload = null;
             if (!actor.value.confirmation_started and (actor.value.stage == .preparing or actor.value.stage == .ready)) {
                 _ = try actor.apply(.{ .delay = .{ .generation = actor.value.generation, .now_ms = now.monotonic_ms, .delay_ms = config.payload_retry_delay_ms } }, now, .ErrorRetrievingPayloadStatus);
             }
@@ -283,6 +302,17 @@ pub const Driver = struct {
         });
         defer outcome.deinit();
 
+        // Park only before the first retry: once the cap (or any failure) has
+        // charged a retry, the persisted Source ladder governs later attempts.
+        if (outcome.value == .retry and actor.value.retries == 0) if (indexWait(outcome.value.retry)) |wait| {
+            const since = self.index_wait_since_ms orelse now.monotonic_ms;
+            if (now.monotonic_ms -| since < config.max_index_wait_ms) {
+                try self.updateRetryState(outcome.value.retry.retry_state, outcome.value.retry.cached_metadata);
+                self.index_wait_since_ms = since;
+                return .{ .state = .awaiting_index, .reason = retryReason(outcome.value.retry.reason), .index_wait = wait };
+            }
+        };
+        self.index_wait_since_ms = null;
         switch (outcome.value) {
             .ready => |ready| {
                 try self.updateRetryState(ready.retry_state, null);
@@ -353,6 +383,14 @@ pub const Driver = struct {
         }
     }
 
+    pub fn indexWait(source_retry: evm_prepare.Retry) ?IndexWait {
+        return switch (source_retry.reason) {
+            .gas_payment_not_found => .gas_payment,
+            .metadata => if (source_retry.failure != null and std.mem.eql(u8, source_retry.failure.?, "MessageNotInMerkleTree")) .merkle_leaf else null,
+            else => null,
+        };
+    }
+
     fn updateRetryState(self: *Driver, state: evm_prepare.RetryState, cached: ?[]const u8) !void {
         const replacement = if (cached) |bytes| try self.allocator.dupe(u8, bytes) else null;
         if (self.cached_metadata) |bytes| self.allocator.free(bytes);
@@ -377,8 +415,20 @@ fn observationTime(callbacks: Callbacks, fallback: agents_operation.Times) !agen
 
 const PayloadDisposition = enum { unknown, active, included, failed, finalized };
 
-fn payloadDisposition(value: std.json.Value) !PayloadDisposition {
-    const status = try lander.types.field(value, "status");
+/// Only identity and status of a stored Lander payload. Its EVM data and
+/// criteria are byte arrays (one JSON integer per byte); a typed parse skips
+/// them instead of materializing a Value per byte on every poll.
+fn payloadStatus(allocator: Allocator, store: lander.store.Store, uuid: lander.types.Uuid) !?PayloadDisposition {
+    const bytes = (try store.typed.get(allocator, lander.store.payload_by_uuid, &uuid)) orelse return null;
+    defer allocator.free(bytes);
+    const Head = struct { details: struct { uuid: []const u8 }, status: std.json.Value };
+    var head = try std.json.parseFromSlice(Head, allocator, bytes, .{ .ignore_unknown_fields = true, .duplicate_field_behavior = .@"error" });
+    defer head.deinit();
+    if (!std.mem.eql(u8, &try lander.types.parseUuid(head.value.details.uuid), &uuid)) return error.PayloadRecordIdentityMismatch;
+    return try statusDisposition(head.value.status);
+}
+
+fn statusDisposition(status: std.json.Value) !PayloadDisposition {
     if (status == .string) {
         if (std.mem.eql(u8, status.string, "ReadyToSubmit")) return .active;
         return error.InvalidLanderRecord;
@@ -437,7 +487,7 @@ fn retryFailure(failure: ?[]const u8) ?anyerror {
 }
 
 fn finalizedDelivered(client: *evm.RpcClient, message: protocol.Message, config: Config) !bool {
-    try client.checkChain(config.source.chain_id);
+    if (!config.source.chain_verified) try client.checkChain(config.source.chain_id);
     const block: evm.provider.BlockRef = switch (config.source.reorg) {
         .blocks => |blocks| .{ .number = (try client.blockNumber()) -| blocks },
         .tag => |tag| try evm.provider.BlockRef.fromTag(tag),

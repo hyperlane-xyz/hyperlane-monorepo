@@ -72,6 +72,10 @@ pub const Slot = struct {
     critical: ?*critical_metrics.Tracker = null,
     initialization_failures: u8 = 0,
     ready: std.atomic.Value(bool) = .init(false),
+    /// Bumped after any cycle that committed messages, insertions, gas
+    /// payments or prover leaves. Relayer lanes park not-yet-indexed
+    /// prepares on it instead of a retry backoff.
+    index_generation: std.atomic.Value(u64) = .init(0),
     authority: authority.Gate = .{},
     transaction_queue: ?tx_queue.Queue = null,
     transaction_companion: ?tx_companion.Companion = null,
@@ -260,6 +264,7 @@ pub const Slot = struct {
         report.work +|= companion_report.work;
         report.next_delay_ms = @min(report.next_delay_ms orelse self.chain.index.interval *| 1000, companion_report.next_delay_ms);
         report.work +|= try self.migration.?.migrate();
+        if (report.work != 0) _ = self.index_generation.fetchAdd(1, .release);
         if (!self.migration.?.migrationComplete()) report.next_delay_ms = 0;
         return report;
     }

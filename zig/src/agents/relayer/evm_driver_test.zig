@@ -935,6 +935,241 @@ test "lane sleeps on a Lander-owned payload until Lander reports activity" {
     try runtime.rpc.expectDone();
 }
 
+fn simulatePolls(waiting: driver.Report, lander_active_every_cycle: bool) usize {
+    const tasks = @import("../relayer_task.zig");
+    var polls: usize = 0;
+    var schedule = tasks.evmPollSchedule(waiting, 0, 0);
+    var last_advance: u64 = 0;
+    var now_ms: u64 = 0;
+    while (now_ms < 10_000) {
+        if (lander_active_every_cycle and schedule.awaiting_lander) {
+            schedule.awaiting_lander = false;
+            schedule.next_ms = @min(schedule.next_ms, tasks.wakeAt(last_advance, now_ms));
+        }
+        var worked = false;
+        if (schedule.next_ms <= now_ms) {
+            polls += 1;
+            worked = true;
+            last_advance = now_ms;
+            schedule = tasks.evmPollSchedule(waiting, 0, now_ms);
+        }
+        // Owner cadence from cycleInner: 10ms after work, else up to 100ms.
+        now_ms += @min(if (worked) @as(u64, 10) else 100, schedule.next_ms -| now_ms);
+    }
+    return polls;
+}
+
+test "lane poll count for a Lander-owned payload over 10s" {
+    const tasks = @import("../relayer_task.zig");
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = readySteps();
+    var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .blocks = 1 });
+    defer runtime.deinit();
+    _ = try runtime.prepareStep();
+    const waiting = try runtime.step();
+    try std.testing.expect(tasks.awaitingLander(waiting, runtime.actor.value.next_attempt_ms, 0));
+    // Fixed 100ms polling before: 99 polls after the first advance at t=0.
+    // Idle Lander: only the 1s fallback (t=1s..9s).
+    try std.testing.expectEqual(@as(usize, 9), simulatePolls(waiting, false));
+    // Lander reading receipts every tick never polls faster than before.
+    try std.testing.expect(simulatePolls(waiting, true) <= 100);
+    try runtime.rpc.expectDone();
+}
+
+test "EVM lane quantum reaches a due item behind non-due waiters in one cycle" {
+    const tasks = @import("../relayer_task.zig");
+    const Item = struct { next_ms: u64 };
+    const items = [_]Item{ .{ .next_ms = 900 }, .{ .next_ms = 1_000 }, .{ .next_ms = 600_000 }, .{ .next_ms = 0 } };
+    try std.testing.expectEqual(@as(?usize, 3), tasks.firstDue(&items, 0, 100));
+    try std.testing.expectEqual(@as(?usize, 3), tasks.firstDue(&items, 3, 100));
+    try std.testing.expectEqual(@as(?usize, 1), tasks.firstDue(&items, 1, 1_000));
+    try std.testing.expectEqual(@as(?usize, 0), tasks.firstDue(&[_]Item{ .{ .next_ms = 900 }, .{ .next_ms = 5_000 } }, 1, 950));
+    try std.testing.expectEqual(@as(?usize, null), tasks.firstDue(&[_]Item{.{ .next_ms = 5 }}, 0, 4));
+    try std.testing.expectEqual(@as(?usize, null), tasks.firstDue(&[_]Item{}, 0, 4));
+}
+
+test "unindexed gas payment parks without a retry until the index wait cap" {
+    const tasks = @import("../relayer_task.zig");
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const unpaid = [_]Step{
+        .{ .method = "eth_chainId", .result = "\"0x7a69\"" },
+        .{ .method = "eth_call", .result = zero_word },
+        .{ .method = "eth_getCode", .result = "\"0x01\"" },
+    };
+    const steps = unpaid ++ unpaid ++ unpaid ++ unpaid;
+    const paid: relay_policy.Config = .{ .gas_payment_enforcement = &.{.{ .matching_list = &.{}, .policy = .{ .minimum = 5 } }} };
+    var runtime = try Runtime.init(a, &fixture, &steps, paid, .{ .blocks = 1 });
+    defer runtime.deinit();
+    var times = now();
+    const first = try runtime.stepAt(times);
+    try std.testing.expectEqual(driver.State.awaiting_index, first.state);
+    try std.testing.expectEqual(driver.IndexWait.gas_payment, first.index_wait.?);
+    try std.testing.expectEqual(@as(u32, 0), runtime.actor.value.retries);
+    try std.testing.expect(runtime.actor.value.next_attempt_ms <= times.monotonic_ms);
+    const parked = tasks.evmPollSchedule(first, runtime.actor.value.next_attempt_ms, times.monotonic_ms);
+    try std.testing.expectEqual(times.monotonic_ms + tasks.index_wait_fallback_ms, parked.next_ms);
+    times.monotonic_ms += 59_999;
+    times.unix_ms += 59_999;
+    try std.testing.expectEqual(driver.State.awaiting_index, (try runtime.stepAt(times)).state);
+    try std.testing.expectEqual(@as(u32, 0), runtime.actor.value.retries);
+    // The payment never arrived: the normal Source retry ladder resumes.
+    times.monotonic_ms += 1;
+    times.unix_ms += 1;
+    const capped = try runtime.stepAt(times);
+    try std.testing.expectEqual(driver.State.retried, capped.state);
+    try std.testing.expectEqual(@as(u32, 1), runtime.actor.value.retries);
+    // Once charged, later attempts stay on the ladder instead of re-parking.
+    times.monotonic_ms = runtime.actor.value.next_attempt_ms;
+    times.unix_ms += 600_000;
+    const ladder = try runtime.stepAt(times);
+    try std.testing.expectEqual(driver.State.retried, ladder.state);
+    try std.testing.expectEqual(@as(u32, 2), runtime.actor.value.retries);
+    try runtime.rpc.expectDone();
+}
+
+test "only unindexed leaf and payment retries become index waits" {
+    const base: prepare.Retry = .{ .reason = .metadata, .retry_state = .{} };
+    var leaf = base;
+    leaf.failure = "MessageNotInMerkleTree";
+    try std.testing.expectEqual(driver.IndexWait.merkle_leaf, driver.Driver.indexWait(leaf).?);
+    var payment = base;
+    payment.reason = .gas_payment_not_found;
+    try std.testing.expectEqual(driver.IndexWait.gas_payment, driver.Driver.indexWait(payment).?);
+    var other = base;
+    other.failure = "RpcError";
+    try std.testing.expect(driver.Driver.indexWait(other) == null);
+    try std.testing.expect(driver.Driver.indexWait(base) == null);
+    var signatures = base;
+    signatures.reason = .awaiting_validator_signatures;
+    try std.testing.expect(driver.Driver.indexWait(signatures) == null);
+    var unmet = base;
+    unmet.reason = .gas_payment_requirement_not_met;
+    try std.testing.expect(driver.Driver.indexWait(unmet) == null);
+}
+
+const CountingAllocator = struct {
+    parent: A,
+    allocations: usize = 0,
+    fn allocator(self: *CountingAllocator) A {
+        return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
+    }
+    fn alloc(context: *anyopaque, len: usize, alignment: std.mem.Alignment, ret: usize) ?[*]u8 {
+        const self: *CountingAllocator = @ptrCast(@alignCast(context));
+        self.allocations += 1;
+        return self.parent.rawAlloc(len, alignment, ret);
+    }
+    fn resize(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, len: usize, ret: usize) bool {
+        const self: *CountingAllocator = @ptrCast(@alignCast(context));
+        return self.parent.rawResize(memory, alignment, len, ret);
+    }
+    fn remap(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, len: usize, ret: usize) ?[*]u8 {
+        const self: *CountingAllocator = @ptrCast(@alignCast(context));
+        return self.parent.rawRemap(memory, alignment, len, ret);
+    }
+    fn free(context: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret: usize) void {
+        const self: *CountingAllocator = @ptrCast(@alignCast(context));
+        self.parent.rawFree(memory, alignment, ret);
+    }
+};
+
+fn pollAllocations(runtime: *Runtime, poll_allocator: A, reset: ?*std.heap.ArenaAllocator) !void {
+    runtime.actor.deinit();
+    runtime.actor = try operation.Operation.open(poll_allocator, &runtime.store, .{
+        .id = runtime.fixture.message.id(),
+        .context = @splat(8),
+        .nonce = runtime.fixture.message.nonce,
+        .destination = runtime.fixture.message.destination,
+        .policy = .{ .confirm_delay_ms = 0 },
+    }, now());
+    const report = try runtime.value.step(poll_allocator, &runtime.destination, &runtime.actor, &runtime.origin, &runtime.policy, runtime.fixture.message, &runtime.client, runtime.config(), now(), .{ .cancel = &runtime.cancel });
+    try std.testing.expectEqual(driver.State.existing_payload, report.state);
+    if (reset) |arena| {
+        // Mirror Lane.advance: the operation dies before the arena resets.
+        runtime.actor.deinit();
+        runtime.actor = try operation.Operation.open(runtime.allocator, &runtime.store, .{
+            .id = runtime.fixture.message.id(),
+            .context = @splat(8),
+            .nonce = runtime.fixture.message.nonce,
+            .destination = runtime.fixture.message.destination,
+            .policy = .{ .confirm_delay_ms = 0 },
+        }, now());
+        _ = arena.reset(.{ .retain_with_limit = @import("../relayer_task.zig").poll_arena_retain_bytes });
+    }
+}
+
+test "EVM lane poll scratch arena removes per-poll heap allocations" {
+    var counting: CountingAllocator = .{ .parent = std.testing.allocator };
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = readySteps();
+    var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .blocks = 1 });
+    defer runtime.deinit();
+    _ = try runtime.prepareStep();
+    // Piecemeal: every poll allocates and frees on the general allocator.
+    const piecemeal_start = counting.allocations;
+    for (0..10) |_| try pollAllocations(runtime, counting.allocator(), null);
+    const piecemeal = (counting.allocations - piecemeal_start) / 10;
+    // Scratch arena reset per poll: after warm-up, no general allocations.
+    var arena = std.heap.ArenaAllocator.init(counting.allocator());
+    defer arena.deinit();
+    try pollAllocations(runtime, arena.allocator(), &arena);
+    const arena_start = counting.allocations;
+    for (0..10) |_| try pollAllocations(runtime, arena.allocator(), &arena);
+    std.debug.print("\nEVM poll heap allocations: piecemeal {d}/poll, arena {d} over 10 polls\n", .{ piecemeal, counting.allocations - arena_start });
+    try std.testing.expect(piecemeal > 20);
+    try std.testing.expect(arena.queryCapacity() < @import("../relayer_task.zig").poll_arena_retain_bytes);
+    try std.testing.expectEqual(arena_start, counting.allocations);
+    try runtime.rpc.expectDone();
+}
+
+test "verified destination endpoints skip the per-prepare chain id read" {
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const ready = readySteps();
+    var runtime = try Runtime.init(a, &fixture, ready[1..], allow_gas, .{ .blocks = 1 });
+    defer runtime.deinit();
+    var config = runtime.config();
+    config.source.chain_verified = true;
+    const report = try runtime.value.step(a, &runtime.destination, &runtime.actor, &runtime.origin, &runtime.policy, fixture.message, &runtime.client, config, now(), .{ .cancel = &runtime.cancel });
+    try std.testing.expectEqual(driver.State.prepared, report.state);
+    for (runtime.rpc.requests.items) |request| try std.testing.expect(std.mem.indexOf(u8, request, "eth_chainId") == null);
+    try runtime.rpc.expectDone();
+}
+
+test "destination endpoint chain check verifies, fails closed and defers" {
+    const tasks = @import("../relayer_task.zig");
+    const fixture_pool = @import("../../evm/pool_testing.zig");
+    const a = std.testing.allocator;
+    const library = try fixture_pool.nativeLibrary(a);
+    defer a.free(library);
+    var transport = try @import("../../net/curl.zig").Client.init(a, library);
+    defer transport.deinit();
+    const same_chain = [_]fixture_pool.Reply{.{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x7a69\"}" }};
+    const foreign = [_]fixture_pool.Reply{.{ .body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x1\"}" }};
+    const failing = [_]fixture_pool.Reply{.{ .status = 503, .body = "unavailable" }};
+    const behaviors = [_]fixture_pool.Behavior{ .{ .replies = &same_chain }, .{ .replies = &foreign }, .{ .replies = &failing } };
+    var server = try fixture_pool.Fixture.init(3, &behaviors);
+    try server.start();
+    defer server.deinit();
+    var cancel = std.atomic.Value(bool).init(false);
+    for (0..3) |index| {
+        const url = try server.url(a, index);
+        defer a.free(url);
+        const result = tasks.checkEndpointChain(a, &transport, url, 31337, &cancel);
+        switch (index) {
+            0 => try std.testing.expectEqual(tasks.EndpointChain.verified, try result),
+            1 => try std.testing.expectError(error.WrongChain, result),
+            else => try std.testing.expectEqual(tasks.EndpointChain.deferred, try result),
+        }
+    }
+}
+
 test "native batch uses surviving payload estimate sum for source ratio" {
     const a = std.testing.allocator;
     var fixture = try Fixture.init(a);
