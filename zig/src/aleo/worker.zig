@@ -223,7 +223,12 @@ test "Aleo worker exec acknowledgement excludes inherited parent RSS" {
     };
     const path = try std.fs.cwd().realpathAlloc(std.testing.allocator, fixture_path);
     defer std.testing.allocator.free(path);
-    const args = try std.testing.allocator.alloc([]const u8, 3000);
+    // Argv padding widens the fork->exec window a pre-ack RSS probe would hit
+    // (Linux coverage). On macOS, dropping awaitExec was never caught at any
+    // padding (0..2998), yet exec cost grew ~1 ms per argument and the
+    // /usr/bin/python3 shim execs twice: 3.4-4.5 s of the 5 s deadline.
+    const padding: usize = if (builtin.os.tag == .linux) 2998 else 0;
+    const args = try std.testing.allocator.alloc([]const u8, padding + 2);
     defer std.testing.allocator.free(args);
     args[0] = "/usr/bin/python3";
     args[1] = path;
