@@ -132,7 +132,7 @@ pub const Driver = struct {
         const current = try observationTime(callbacks, now);
         if (actor.parked or current.monotonic_ms < actor.value.next_attempt_ms) return .{ .state = .idle };
         if (actor.value.confirmation_started) {
-            try client.checkChain(config.source.chain_id);
+            if (!config.source.chain_verified) try client.checkChain(config.source.chain_id);
             if (!try client.delivered(config.source.mailbox[12..32].*, message.id(), .latest)) return self.retry(actor, .RevertedOrReorged, error.ExternalDeliveryReorged, config, try observationTime(callbacks, current), null);
             if (!try finalizedDelivered(client, message, config)) {
                 try actor.waitForFinality(try observationTime(callbacks, current), config.confirm_poll_ms);
@@ -485,7 +485,7 @@ fn retryFailure(failure: ?[]const u8) ?anyerror {
 }
 
 fn finalizedDelivered(client: *evm.RpcClient, message: protocol.Message, config: Config) !bool {
-    try client.checkChain(config.source.chain_id);
+    if (!config.source.chain_verified) try client.checkChain(config.source.chain_id);
     const block: evm.provider.BlockRef = switch (config.source.reorg) {
         .blocks => |blocks| .{ .number = (try client.blockNumber()) -| blocks },
         .tag => |tag| try evm.provider.BlockRef.fromTag(tag),

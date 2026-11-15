@@ -1121,6 +1121,21 @@ test "EVM lane poll scratch arena removes per-poll heap allocations" {
     try runtime.rpc.expectDone();
 }
 
+test "verified destination endpoints skip the per-prepare chain id read" {
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const ready = readySteps();
+    var runtime = try Runtime.init(a, &fixture, ready[1..], allow_gas, .{ .blocks = 1 });
+    defer runtime.deinit();
+    var config = runtime.config();
+    config.source.chain_verified = true;
+    const report = try runtime.value.step(a, &runtime.destination, &runtime.actor, &runtime.origin, &runtime.policy, fixture.message, &runtime.client, config, now(), .{ .cancel = &runtime.cancel });
+    try std.testing.expectEqual(driver.State.prepared, report.state);
+    for (runtime.rpc.requests.items) |request| try std.testing.expect(std.mem.indexOf(u8, request, "eth_chainId") == null);
+    try runtime.rpc.expectDone();
+}
+
 test "native batch uses surviving payload estimate sum for source ratio" {
     const a = std.testing.allocator;
     var fixture = try Fixture.init(a);

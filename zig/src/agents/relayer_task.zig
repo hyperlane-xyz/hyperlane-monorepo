@@ -166,6 +166,10 @@ pub const Lane = struct {
     protected_network: ?*resources.Resources = null,
     protected_adapter: ?evm_lander.Evm = null,
     protected_checked: bool = false,
+    /// Per configured destination RPC URL: answered the expected chain id.
+    endpoint_chain_checked: ?[]bool = null,
+    endpoint_chain_verified: bool = false,
+    next_endpoint_chain_check_ms: u64 = 0,
     credential_manager: ?*credentials.Manager = null,
     svm_ccs_manager: ?*credentials.Manager = null,
     ccip_owner: ?ccip_sessions.Owner = null,
@@ -199,6 +203,7 @@ pub const Lane = struct {
     fn deinit(self: *Lane) void {
         self.worker.deinit();
         if (self.poll_arena) |*arena| arena.deinit();
+        if (self.endpoint_chain_checked) |checked| self.owner.allocator.free(checked);
         for (self.active.items) |item| {
             self.finishActiveMetrics(item, .cancelled);
             self.owner.release(item.retained_bytes);
@@ -287,6 +292,7 @@ pub const Lane = struct {
                     self.protected_checked = true;
                 }
             }
+            if (!self.endpoint_chain_verified and times.monotonic_ms >= self.next_endpoint_chain_check_ms) try self.verifyEndpointChains(times, cancel);
             if (self.transactions == null) {
                 if (self.chain.submitter == .lander and self.dispatcher_timer == null and self.initialization_metrics != null) self.dispatcher_timer = std.time.Timer.start() catch null;
                 self.evm_adapter = .{ .rpc = &network.rpc_client.?, .reorg = self.chain.reorg };
@@ -806,6 +812,44 @@ pub const Lane = struct {
             item.index_wait = null;
             item.next_ms = @min(item.next_ms, wakeAt(item.now_monotonic_ms, now_ms));
         };
+    }
+    /// The destination pool's endpoints are fixed for its lifetime and curl
+    /// reconnects per URL transparently, so one eth_chainId per configured URL
+    /// replaces the per-prepare/confirm check routed to an arbitrary endpoint.
+    /// A mismatch fails closed for the lane. Until every URL has answered,
+    /// the per-attempt check stays on; unreachable URLs are retried later.
+    fn verifyEndpointChains(self: *Lane, times: supervisor.Times, cancel: *const std.atomic.Value(bool)) !void {
+        const a = self.owner.allocator;
+        const urls = self.chain.rpc_urls;
+        if (self.endpoint_chain_checked == null) {
+            const checked = try a.alloc(bool, urls.len);
+            @memset(checked, false);
+            self.endpoint_chain_checked = checked;
+        }
+        const expected = try std.fmt.parseInt(u256, self.chain.chain_id, 0);
+        var transport = try curl.Client.init(a, self.owner.options.curl_library);
+        defer transport.deinit();
+        var complete = urls.len != 0;
+        for (urls, self.endpoint_chain_checked.?) |url, *checked| {
+            if (checked.*) continue;
+            if (cancel.load(.acquire)) return error.RequestCancelled;
+            var client = @import("../evm/provider.zig").RpcClient.init(a, url, .{ .native_transport = &transport, .timeout_ms = endpoint_chain_check_timeout_ms, .connect_timeout_ms = endpoint_chain_check_timeout_ms, .cancel = cancel }) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                complete = false;
+                continue;
+            };
+            defer client.deinit();
+            const actual = client.chainId256() catch |err| {
+                if (err == error.OutOfMemory or err == error.RequestCancelled or err == error.Cancelled) return err;
+                std.log.warn("destination {s} endpoint chain check deferred: {s}", .{ self.chain.name, @errorName(err) });
+                complete = false;
+                continue;
+            };
+            if (actual != expected) return error.WrongChain;
+            checked.* = true;
+        }
+        self.endpoint_chain_verified = complete;
+        if (!complete) self.next_endpoint_chain_check_ms = times.monotonic_ms +| endpoint_chain_retry_ms;
     }
     fn wakeLanderWaiters(self: *Lane, now_ms: u64) void {
         for (self.active.items) |item| if (item.awaiting_lander) {
@@ -1704,6 +1748,7 @@ pub const Lane = struct {
             defer if (ccip_build) |*value| value.deinit();
             var prepare_config = try evm_prepare.Config.fromSettings(self.chain, self.signer.?.address, self.owner.settings.role.relayer.transaction_gas_limit, self.owner.settings.role.relayer.skip_transaction_gas_limit_for);
             prepare_config.metadata_observer = metadataObserverFor(item);
+            prepare_config.chain_verified = self.endpoint_chain_verified;
             const was_confirming = state.value.confirmation_started;
             const outcome = item.evm_driver.?.step(scratch, &self.transactions.?, &state, origin.history, &self.origins[item.origin_index].policy.?, message, &self.network.?.rpc_client.?, .{
                 .source = prepare_config,
@@ -1914,6 +1959,8 @@ pub const Lane = struct {
 /// Upper bound on an event-driven Lander wait, covering any status change
 /// that a tick report does not count. Lander activity wakes waiters earlier.
 pub const lander_wait_fallback_ms: u64 = 1_000;
+pub const endpoint_chain_check_timeout_ms: u32 = 5_000;
+pub const endpoint_chain_retry_ms: u64 = 30_000;
 /// Arena capacity kept across EVM polls; larger one-off outcomes are released.
 pub const poll_arena_retain_bytes: usize = 256 * 1024;
 /// Upper bound on an origin-index wait between index generation wakes; the
