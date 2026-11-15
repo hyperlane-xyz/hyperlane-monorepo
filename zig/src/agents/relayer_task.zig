@@ -2265,7 +2265,7 @@ pub const TaskSet = struct {
         const destination_end = origin_tasks.len + lanes.len;
         self.tasks = try a.alloc(supervisor.Task, destination_end + 1 + @intFromBool(self.websocket_bridge != null));
         @memcpy(self.tasks[0..origin_tasks.len], origin_tasks);
-        for (lanes, self.tasks[origin_tasks.len..destination_end]) |*lane, *task| task.* = .{ .context = lane, .run = Lane.run, .failure = Lane.classify, .interval_ms = 100, .timeout_ms = options.job_timeout_ms, .wake = lane.control.wake, .stop_fn = Lane.stop };
+        for (lanes, self.tasks[origin_tasks.len..destination_end]) |*lane, *task| task.* = .{ .context = lane, .run = Lane.run, .failure = Lane.classify, .interval_ms = 100, .timeout_ms = options.job_timeout_ms, .wake = lane.control.wake, .stop_fn = Lane.stop, .nonblocking = true };
         self.tasks[destination_end] = .{ .context = self, .run = pollDenylist, .interval_ms = @max(1, configured.role.relayer.runtime_denylist_poll_interval_seconds *| 1000), .timeout_ms = 45000 };
         if (self.websocket_bridge) |bridge| {
             self.tasks[destination_end + 1] = bridge.descriptor();

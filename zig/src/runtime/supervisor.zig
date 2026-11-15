@@ -21,6 +21,10 @@ pub const Task = struct {
     /// True when every writer of `wake` also calls runtime/wake.zig notify();
     /// otherwise the service loop must re-check `wake` on a short slice.
     wake_notified: bool = false,
+    /// `run` never blocks (e.g. it only polls a retained lane_owner). It runs
+    /// inline on the supervisor thread: no worker handoff, futex wake or
+    /// completion notification per call. Its result is applied immediately.
+    nonblocking: bool = false,
     /// Nonblocking, thread-safe and idempotent. Cancels external retained work
     /// even after its polling callback yielded and no pool JobId remains active.
     stop_fn: ?*const fn (*anyopaque) void = null,
@@ -80,6 +84,8 @@ const Entry = struct {
     suspended_ms: u64 = 0,
     /// Last run returned PendingReadIo; resume on an I/O notification.
     suspended: bool = false,
+    /// Copied from Task.nonblocking: resumption costs no worker handoff.
+    inline_task: bool = false,
     io_generation: u32 = 0,
 };
 pub const Tick = struct { started: usize = 0, completed: usize = 0, suspended: usize = 0, failures: usize = 0, timeouts: usize = 0, retired: usize = 0 };
@@ -92,6 +98,10 @@ pub const Supervisor = struct {
     stopping: bool = false,
     terminal_error: ?anyerror = null,
     last_ms: u64 = 0,
+    /// Cancellation observed by inline (nonblocking) task runs; set by stop.
+    inline_cancel: std.atomic.Value(bool) = .init(false),
+    /// Inline task runs, for work-count evidence.
+    inline_runs: u64 = 0,
 
     /// Copies task descriptors. Task contexts must remain heap-stable and owned
     /// by the caller through deinit, which cancels and joins all worker jobs.
@@ -105,6 +115,7 @@ pub const Supervisor = struct {
         const entries = try a.alloc(Entry, tasks.len);
         errdefer a.free(entries);
         @memset(entries, .{});
+        for (entries, tasks) |*entry, task| entry.inline_task = task.nonblocking;
         self.* = .{ .allocator = a, .context = .{ .tasks = copied }, .entries = entries, .workers = undefined };
         self.workers = try Workers.start(a, &self.context, Context.run, Context.freeInput, Context.freeOutput);
         self.workers.notify_completion = true;
@@ -132,6 +143,7 @@ pub const Supervisor = struct {
     }
     pub fn stop(self: *Supervisor) void {
         self.stopping = true;
+        self.inline_cancel.store(true, .release);
         self.context.stopRetained();
         for (self.entries) |*entry| if (entry.active) |id| {
             if (!entry.timed_out) {
@@ -154,60 +166,8 @@ pub const Supervisor = struct {
             const index = for (self.entries, 0..) |entry, i| {
                 if (entry.active) |active| if (std.meta.eql(active, completion.id)) break i;
             } else return error.UnknownSupervisorCompletion;
-            const entry = &self.entries[index];
-            const task = self.context.tasks[index];
-            switch (completion.result) {
-                .value => |output| {
-                    if (output.index != index) return error.WrongSupervisorCompletion;
-                    entry.active = null;
-                    entry.health.completed +|= 1;
-                    entry.health.work +|= output.report.work;
-                    entry.health.last_success_ms = now.monotonic_ms;
-                    entry.health.last_error = null;
-                    entry.health.halted = output.report.halt or self.terminal_error != null;
-                    entry.next_ms = now.monotonic_ms +| (output.report.next_delay_ms orelse task.interval_ms);
-                    setSuspended(entry, false);
-                    result.completed += 1;
-                },
-                .failure => |err| {
-                    if (err == error.PendingReadIo) {
-                        // A read continuation yields its worker, retaining all
-                        // network/session state in its role-owned journal.
-                        entry.health.suspended +|= 1;
-                        result.suspended += 1;
-                        // Resume on the I/O completion it awaits (notifyIo), or
-                        // on the backstop for sources without a notifier.
-                        setSuspended(entry, true);
-                        entry.suspended_ms = now.monotonic_ms;
-                        entry.next_ms = now.monotonic_ms +| poll_slice_ms;
-                        entry.timed_out = self.workers.retained(completion.id);
-                        if (!entry.timed_out) entry.active = null;
-                        continue;
-                    }
-                    setSuspended(entry, false);
-                    entry.health.last_error = err;
-                    entry.health.failures +|= 1;
-                    result.failures += 1;
-                    entry.next_ms = now.monotonic_ms +| task.interval_ms;
-                    // Preserve client/context exclusivity until actual callback
-                    // retirement. A timeout is never permission to race it.
-                    entry.timed_out = self.workers.retained(completion.id);
-                    if (!entry.timed_out) entry.active = null;
-                    if (err == error.IoTimeout) {
-                        entry.health.timeouts +|= 1;
-                        result.timeouts += 1;
-                    }
-                    if (task.failure) |callback| switch (callback(err)) {
-                        .retry => {},
-                        .halt_task => entry.health.halted = true,
-                        .halt_all => {
-                            if (self.terminal_error == null) self.terminal_error = err;
-                            for (self.entries) |*other| other.health.halted = true;
-                            self.stop();
-                        },
-                    };
-                },
-            }
+            if (completion.result == .value and completion.result.value.index != index) return error.WrongSupervisorCompletion;
+            try self.apply(index, completion.result, completion.id, now, &result);
         }
         for (self.entries) |*entry| if (entry.active) |id| {
             if (entry.timed_out and !self.workers.retained(id)) {
@@ -225,6 +185,18 @@ pub const Supervisor = struct {
             if (entry.active != null or entry.health.halted or (now.monotonic_ms < entry.next_ms and !awake)) continue;
             const io_generation = wake_notifier.ioGeneration();
             const deadline_ms = now.monotonic_ms +| self.context.tasks[index].timeout_ms;
+            if (self.context.tasks[index].nonblocking) {
+                entry.io_generation = io_generation;
+                entry.deadline_ms = deadline_ms;
+                entry.submitted_ms = now.monotonic_ms;
+                entry.health.started +|= 1;
+                result.started += 1;
+                self.inline_runs += 1;
+                const run_result: Workers.Result = if (self.context.run(.{ .index = index, .times = now }, &self.inline_cancel)) |output| .{ .value = output } else |err| .{ .failure = err };
+                try self.apply(index, run_result, null, now, &result);
+                if (self.stopping) return result;
+                continue;
+            }
             const id = self.workers.submit(.{ .index = index, .times = now }, now.monotonic_ms, deadline_ms) catch |err| switch (err) {
                 error.IoPoolFull => break,
                 else => return err,
@@ -238,8 +210,65 @@ pub const Supervisor = struct {
         }
         return result;
     }
+    /// Apply one task result: a worker completion (`id`) or an inline run.
+    fn apply(self: *Supervisor, index: usize, run_result: Workers.Result, id: ?Workers.JobId, now: Times, result: *Tick) !void {
+        const entry = &self.entries[index];
+        const task = self.context.tasks[index];
+        switch (run_result) {
+            .value => |output| {
+                entry.active = null;
+                entry.health.completed +|= 1;
+                entry.health.work +|= output.report.work;
+                entry.health.last_success_ms = now.monotonic_ms;
+                entry.health.last_error = null;
+                entry.health.halted = output.report.halt or self.terminal_error != null;
+                entry.next_ms = now.monotonic_ms +| (output.report.next_delay_ms orelse task.interval_ms);
+                setSuspended(entry, false);
+                result.completed += 1;
+            },
+            .failure => |err| {
+                if (err == error.PendingReadIo) {
+                    // A read continuation yields its worker, retaining all
+                    // network/session state in its role-owned journal.
+                    entry.health.suspended +|= 1;
+                    result.suspended += 1;
+                    // Resume on the I/O completion it awaits (notifyIo), or
+                    // on the backstop for sources without a notifier.
+                    setSuspended(entry, true);
+                    entry.suspended_ms = now.monotonic_ms;
+                    entry.next_ms = now.monotonic_ms +| poll_slice_ms;
+                    entry.timed_out = if (id) |job| self.workers.retained(job) else false;
+                    if (!entry.timed_out) entry.active = null;
+                    return;
+                }
+                setSuspended(entry, false);
+                entry.health.last_error = err;
+                entry.health.failures +|= 1;
+                result.failures += 1;
+                entry.next_ms = now.monotonic_ms +| task.interval_ms;
+                // Preserve client/context exclusivity until actual callback
+                // retirement. A timeout is never permission to race it.
+                entry.timed_out = if (id) |job| self.workers.retained(job) else false;
+                if (!entry.timed_out) entry.active = null;
+                if (err == error.IoTimeout) {
+                    entry.health.timeouts +|= 1;
+                    result.timeouts += 1;
+                }
+                if (task.failure) |callback| switch (callback(err)) {
+                    .retry => {},
+                    .halt_task => entry.health.halted = true,
+                    .halt_all => {
+                        if (self.terminal_error == null) self.terminal_error = err;
+                        for (self.entries) |*other| other.health.halted = true;
+                        self.stop();
+                    },
+                };
+            },
+        }
+    }
     fn resumable(_: *const Supervisor, entry: *const Entry, now_ms: u64) bool {
-        return entry.suspended and wake_notifier.ioGeneration() != entry.io_generation and now_ms >= entry.suspended_ms +| resume_spacing_ms;
+        if (!entry.suspended or wake_notifier.ioGeneration() == entry.io_generation) return false;
+        return entry.inline_task or now_ms >= entry.suspended_ms +| resume_spacing_ms;
     }
     fn setSuspended(entry: *Entry, suspended: bool) void {
         if (entry.suspended == suspended) return;
@@ -259,7 +288,7 @@ pub const Supervisor = struct {
             }
             if (self.stopping) continue;
             next = @min(next, entry.next_ms);
-            if (entry.suspended and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, entry.suspended_ms +| resume_spacing_ms);
+            if (entry.suspended and wake_notifier.ioGeneration() != entry.io_generation) next = @min(next, if (entry.inline_task) now_ms else entry.suspended_ms +| resume_spacing_ms);
             if (task.wake != null and !task.wake_notified) next = @min(next, now_ms +| poll_slice_ms);
         }
         return next -| now_ms;
@@ -441,6 +470,41 @@ test "supervisor resumes a suspended read on I/O notification and sleeps to the 
     // Idle until the 60 s interval: one bounded wait instead of 50 Hz ticks.
     try std.testing.expectEqual(max_wait_ms, owner.nextDelayMs(33));
     try std.testing.expectEqual(@as(u64, 3), state.calls.load(.acquire));
+}
+
+test "supervisor runs nonblocking tasks inline and resumes them on I/O without workers" {
+    const Poller = struct {
+        calls: usize = 0,
+        thread: ?std.Thread.Id = null,
+        fn run(context: *anyopaque, _: Times, cancel: *const std.atomic.Value(bool)) !Report {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.thread = std.Thread.getCurrentId();
+            if (cancel.load(.acquire)) return error.RequestCancelled;
+            self.calls += 1;
+            if (self.calls < 3) return error.PendingReadIo;
+            return .{ .work = 2 };
+        }
+    };
+    var state: Poller = .{};
+    const owner = try Supervisor.start(std.testing.allocator, &.{.{ .context = &state, .run = Poller.run, .interval_ms = 60000, .timeout_ms = 10000, .nonblocking = true }});
+    defer owner.deinit();
+    const first = try owner.tick(.{ .unix_ms = 0, .monotonic_ms = 0 });
+    // Started and suspended in the same tick, on this thread.
+    try std.testing.expectEqual(@as(usize, 1), first.started);
+    try std.testing.expectEqual(@as(usize, 1), first.suspended);
+    try std.testing.expectEqual(std.Thread.getCurrentId(), state.thread.?);
+    // No I/O notification yet: waits for the backstop.
+    try std.testing.expectEqual(@as(usize, 0), (try owner.tick(.{ .unix_ms = 1, .monotonic_ms = 1 })).started);
+    try std.testing.expectEqual(poll_slice_ms - 1, owner.nextDelayMs(1));
+    wake_notifier.notifyIo();
+    // Inline resumption needs no spacing: due immediately.
+    try std.testing.expectEqual(@as(u64, 0), owner.nextDelayMs(1));
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = 1, .monotonic_ms = 1 })).suspended);
+    try std.testing.expectEqual(@as(usize, 1), (try owner.tick(.{ .unix_ms = poll_slice_ms + 1, .monotonic_ms = poll_slice_ms + 1 })).completed);
+    try std.testing.expectEqual(@as(u64, 2), (try owner.health(0)).work);
+    try std.testing.expectEqual(@as(u64, 3), owner.inline_runs);
+    owner.stop();
+    try std.testing.expect(owner.drained());
 }
 
 test "supervisor cooperative reads resume without consuming failures retries or completion" {
