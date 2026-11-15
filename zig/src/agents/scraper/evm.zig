@@ -107,13 +107,7 @@ pub const Evm = struct {
         // Equal positions are rejected below, so stability is irrelevant;
         // pdq keeps the frame small (block sort caches 512 Events on stack).
         std.mem.sortUnstable(src.Event, result.items, {}, less);
-        var positions = std.AutoHashMap(struct { hash: src.Hash, tx: [64]u8 }, u64).init(a);
-        for (result.items, 0..) |event, index| {
-            if (index > 0 and samePosition(result.items[index - 1], event)) return error.ScraperDuplicateEventPosition;
-            const entry = try positions.getOrPut(.{ .hash = event.block_hash, .tx = event.tx_hash.? });
-            if (entry.found_existing and entry.value_ptr.* != event.tx_index) return error.ScraperInconsistentTransactionPosition;
-            entry.value_ptr.* = event.tx_index;
-        }
+        try checkPositions(a, result.items);
         const owned_events = try result.toOwnedSlice(a);
         return .{ .arena = arena, .events = owned_events, .through = through };
     }
@@ -205,6 +199,34 @@ fn less(_: void, a: src.Event, b: src.Event) bool {
     if (a.tx_index != b.tx_index) return a.tx_index < b.tx_index;
     return a.log_index < b.log_index;
 }
+/// Sorted events: no two share a position, and every event of one
+/// (block hash, transaction hash) carries the same transaction index. Orders
+/// 4-byte event indices by transaction and compares neighbours instead of a
+/// 104-byte-per-entry hash map.
+fn checkPositions(a: std.mem.Allocator, events: []const src.Event) !void {
+    if (events.len < 2) return;
+    for (events[1..], events[0 .. events.len - 1]) |event, previous| {
+        if (samePosition(previous, event)) return error.ScraperDuplicateEventPosition;
+    }
+    const order = try a.alloc(u32, events.len);
+    defer a.free(order);
+    for (order, 0..) |*slot, index| slot.* = std.math.cast(u32, index) orelse return error.ScraperEventLimit;
+    std.mem.sortUnstable(u32, order, events, transactionLess);
+    for (order[1..], order[0 .. order.len - 1]) |index, previous| {
+        const x = events[previous];
+        const y = events[index];
+        if (std.mem.eql(u8, &x.block_hash, &y.block_hash) and std.mem.eql(u8, &x.tx_hash.?, &y.tx_hash.?) and x.tx_index != y.tx_index) return error.ScraperInconsistentTransactionPosition;
+    }
+}
+fn transactionLess(events: []const src.Event, x: u32, y: u32) bool {
+    const a = events[x];
+    const b = events[y];
+    return switch (std.mem.order(u8, &a.block_hash, &b.block_hash)) {
+        .lt => true,
+        .gt => false,
+        .eq => std.mem.order(u8, &a.tx_hash.?, &b.tx_hash.?) == .lt,
+    };
+}
 fn samePosition(a: src.Event, b: src.Event) bool {
     return a.block_number == b.block_number and a.tx_index == b.tx_index and a.log_index == b.log_index;
 }
@@ -273,4 +295,19 @@ test "scraper EVM event-block headers overlap through one exchange batch and kee
     try std.testing.expectEqual(@as(usize, 1), fixture.serial);
     fixture.wrong_height = true;
     try std.testing.expectError(error.WrongBlock, interface.headers(&heights, &headers_out));
+}
+
+test "EVM event positions reject duplicates and one transaction at two indices" {
+    const a = std.testing.allocator;
+    const event = struct {
+        fn make(block: u8, tx: u8, tx_index: u64, log_index: u64) src.Event {
+            var tx_hash: [64]u8 = @splat(0);
+            tx_hash[63] = tx;
+            return .{ .block_number = block, .block_hash = @splat(block), .address = @splat(0), .tx_hash = tx_hash, .tx_index = tx_index, .log_index = log_index, .data = .{ .delivery = @splat(0) } };
+        }
+    }.make;
+    try checkPositions(a, &.{});
+    try checkPositions(a, &.{ event(1, 1, 0, 0), event(1, 1, 0, 1), event(1, 2, 1, 2), event(2, 1, 0, 0) });
+    try std.testing.expectError(error.ScraperDuplicateEventPosition, checkPositions(a, &.{ event(1, 1, 0, 0), event(1, 1, 0, 0) }));
+    try std.testing.expectError(error.ScraperInconsistentTransactionPosition, checkPositions(a, &.{ event(1, 1, 0, 0), event(1, 2, 1, 1), event(1, 1, 2, 2) }));
 }
