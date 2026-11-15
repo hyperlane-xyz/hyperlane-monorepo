@@ -374,6 +374,7 @@ fn evmTransport(comptime Role: type, comptime indexOneRange: anytype, comptime i
     role.read_preferred = 0;
     role.round_results = &round;
     role.consensus = false;
+    role.state.repair_complete = false;
     try std.testing.expect(try indexOneRange(&role, 0));
     // The backfill range ends at the round head, so that endpoint's fenced round
     // header is the leading fence: eth_getLogs runs once and a malformed header

@@ -740,11 +740,12 @@ pub const Role = struct {
             return false;
         }
         if (self.fetch_retry.retryEligible(query.range, observed_now)) if (self.indexObserver()) |sink| sink.notify(.{ .fetch_backoff = .{ .stream = .insertion, .delay_ms = 0 } });
-        // Only new (forward) leaves, which the driver authorizes against a
-        // quorum root before signing, may skip per-block membership reads.
-        // History repair halts on a root mismatch, so backfill and repair
+        // Once repair is complete every leaf the driver consumes is authorized
+        // against a quorum root before signing (insertion() refetches with
+        // full membership on a canonical-map miss). Snapshot history repair
+        // halts on a root mismatch instead, so until it completes all ranges
         // keep full canonical membership and its retryable NoncanonicalLog.
-        const root_checked = query.direction == .forward and self.state.repair_complete;
+        const root_checked = self.state.repair_complete;
         var batch = self.fetchInsertionRange(index, query.range, tip.tip, root_checked) catch |err| {
             try c.failed(query.token);
             if (!fetch_observation.retryable(err)) return err;
