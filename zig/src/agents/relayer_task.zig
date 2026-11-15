@@ -116,6 +116,11 @@ const Active = struct {
     /// only changes through this lane's Lander tick or an admin command, so
     /// the item sleeps until one reports activity instead of 100ms polling.
     awaiting_lander: bool = false,
+    /// Prepare found its origin tree leaf or gas payment not yet indexed.
+    /// Parked until the origin indexer commits rows that satisfy it.
+    index_wait: ?evm_driver.IndexWait = null,
+    /// Origin index generation read before the prepare that parked.
+    index_generation: u64 = 0,
     fn deinit(self: *Active) void {
         if (self.evm_driver) |*value| value.deinit();
         if (self.metric_app_context) |value| self.lane.?.owner.allocator.free(value);
@@ -716,6 +721,7 @@ pub const Lane = struct {
             work +|= report.built + report.broadcasts + report.finalized;
             if (landerActivity(report)) self.wakeLanderWaiters(times.monotonic_ms);
         }
+        if (self.chain.protocol == .ethereum) self.wakeIndexWaiters(times.monotonic_ms);
         if (self.native_destination) |factory| {
             for (0..self.origins.len) |_| {
                 const origin_index = self.next_reveal_origin;
@@ -776,6 +782,26 @@ pub const Lane = struct {
             delay_ms = @min(delay_ms, item.next_ms - times.monotonic_ms);
         };
         return .{ .work = work, .next_delay_ms = delay_ms };
+    }
+    /// Origin indexers bump their generation after committing rows. Recheck
+    /// only parked items whose origin advanced, with local reads, and wake
+    /// those whose leaf or payment is now present.
+    fn wakeIndexWaiters(self: *Lane, now_ms: u64) void {
+        for (self.active.items) |item| if (item.index_wait) |wait| {
+            const slot = &self.owner.origins.slots[item.origin_index];
+            const generation = slot.index_generation.load(.acquire);
+            if (generation == item.index_generation) continue;
+            item.index_generation = generation;
+            const origin = slot.handle() orelse continue;
+            const message = item.message.value;
+            const present = switch (wait) {
+                .merkle_leaf => if (origin.history.leafIndex(message.id())) |leaf| leaf != null else |_| true,
+                .gas_payment => if (origin.store.payment(.{ .message_id = message.id(), .destination = message.destination })) |payment| payment != null else |_| true,
+            };
+            if (!present) continue;
+            item.index_wait = null;
+            item.next_ms = @min(item.next_ms, wakeAt(item.now_monotonic_ms, now_ms));
+        };
     }
     fn wakeLanderWaiters(self: *Lane, now_ms: u64) void {
         for (self.active.items) |item| if (item.awaiting_lander) {
@@ -1644,6 +1670,8 @@ pub const Lane = struct {
         }
         const now: operation.Times = .{ .unix_ms = times.unix_ms, .monotonic_ms = times.monotonic_ms };
         if (self.chain.protocol == .ethereum) {
+            // Read before any origin row: a commit racing this prepare wakes it.
+            const index_generation = self.owner.origins.slots[item.origin_index].index_generation.load(.acquire);
             var state = try operation.Operation.open(self.owner.allocator, origin.store, .{
                 .id = message.id(),
                 .context = evmContext(self.context.?, origin.chain),
@@ -1688,6 +1716,8 @@ pub const Lane = struct {
             const schedule = evmPollSchedule(report, state.value.next_attempt_ms, times.monotonic_ms);
             item.next_ms = schedule.next_ms;
             item.awaiting_lander = schedule.awaiting_lander;
+            item.index_wait = report.index_wait;
+            item.index_generation = index_generation;
             return switch (report.state) {
                 .delivered, .not_contract, .denied => true,
                 else => false,
@@ -1874,6 +1904,9 @@ pub const Lane = struct {
 /// Upper bound on an event-driven Lander wait, covering any status change
 /// that a tick report does not count. Lander activity wakes waiters earlier.
 pub const lander_wait_fallback_ms: u64 = 1_000;
+/// Upper bound on an origin-index wait between index generation wakes; the
+/// first Source retry step, so an unseen commit costs no more than before.
+pub const index_wait_fallback_ms: u64 = 5_000;
 /// Every Lander tick path that can change a payload status is counted here:
 /// receipt reads (inclusion, finality, drops), building, broadcasting,
 /// reorg reprocessing and rejections. Scans gated by Lander backoff and
@@ -1890,6 +1923,7 @@ pub const PollSchedule = struct { next_ms: u64, awaiting_lander: bool };
 /// Next EVM poll after a step: the operation deadline, at least 100ms out,
 /// or an event-driven Lander wait bounded by the fallback.
 pub fn evmPollSchedule(report: evm_driver.Report, next_attempt_ms: u64, now_ms: u64) PollSchedule {
+    if (report.state == .awaiting_index) return .{ .next_ms = now_ms +| index_wait_fallback_ms, .awaiting_lander = false };
     if (awaitingLander(report, next_attempt_ms, now_ms)) return .{ .next_ms = now_ms +| lander_wait_fallback_ms, .awaiting_lander = true };
     return .{ .next_ms = @max(now_ms +| 100, next_attempt_ms), .awaiting_lander = false };
 }

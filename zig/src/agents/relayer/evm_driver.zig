@@ -26,7 +26,14 @@ pub const Config = struct {
     jitter: u64 = 0,
     payload_retry_delay_ms: u64 = 1_000,
     confirm_poll_ms: u64 = 500,
+    /// Longest a prepare may wait for its origin index (tree leaf or gas
+    /// payment) without consuming a retry; afterwards the normal ladder runs.
+    max_index_wait_ms: u64 = 60_000,
 };
+
+/// Origin rows a prepare found not yet indexed. Not a failure: the lane
+/// parks the message until the origin indexer commits the row.
+pub const IndexWait = enum { merkle_leaf, gas_payment };
 
 pub const Callbacks = struct {
     /// Last new-payload handoff gate. This callback may inspect only current
@@ -49,6 +56,7 @@ pub const Callbacks = struct {
 
 pub const State = enum {
     idle,
+    awaiting_index,
     existing_payload,
     retried,
     prepared,
@@ -63,12 +71,15 @@ pub const Report = struct {
     failure: ?anyerror = null,
     denial: ?relay_policy.Denial = null,
     payload: ?payload_links.Uuid = null,
+    index_wait: ?IndexWait = null,
 };
 
 pub const Driver = struct {
     allocator: Allocator,
     retry_state: evm_prepare.RetryState = .{},
     cached_metadata: ?[]u8 = null,
+    /// In-memory only: a restart simply prepares again.
+    index_wait_since_ms: ?u64 = null,
 
     pub fn init(allocator: Allocator) Driver {
         return .{ .allocator = allocator };
@@ -283,6 +294,15 @@ pub const Driver = struct {
         });
         defer outcome.deinit();
 
+        if (outcome.value == .retry) if (indexWait(outcome.value.retry)) |wait| {
+            const since = self.index_wait_since_ms orelse now.monotonic_ms;
+            if (now.monotonic_ms -| since < config.max_index_wait_ms) {
+                try self.updateRetryState(outcome.value.retry.retry_state, outcome.value.retry.cached_metadata);
+                self.index_wait_since_ms = since;
+                return .{ .state = .awaiting_index, .reason = retryReason(outcome.value.retry.reason), .index_wait = wait };
+            }
+        };
+        self.index_wait_since_ms = null;
         switch (outcome.value) {
             .ready => |ready| {
                 try self.updateRetryState(ready.retry_state, null);
@@ -351,6 +371,14 @@ pub const Driver = struct {
                 return .{ .state = .not_contract };
             },
         }
+    }
+
+    pub fn indexWait(source_retry: evm_prepare.Retry) ?IndexWait {
+        return switch (source_retry.reason) {
+            .gas_payment_not_found => .gas_payment,
+            .metadata => if (source_retry.failure != null and std.mem.eql(u8, source_retry.failure.?, "MessageNotInMerkleTree")) .merkle_leaf else null,
+            else => null,
+        };
     }
 
     fn updateRetryState(self: *Driver, state: evm_prepare.RetryState, cached: ?[]const u8) !void {

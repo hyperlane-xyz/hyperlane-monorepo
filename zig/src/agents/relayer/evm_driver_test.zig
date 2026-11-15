@@ -990,6 +990,61 @@ test "EVM lane quantum reaches a due item behind non-due waiters in one cycle" {
     try std.testing.expectEqual(@as(?usize, null), tasks.firstDue(&[_]Item{}, 0, 4));
 }
 
+test "unindexed gas payment parks without a retry until the index wait cap" {
+    const tasks = @import("../relayer_task.zig");
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const unpaid = [_]Step{
+        .{ .method = "eth_chainId", .result = "\"0x7a69\"" },
+        .{ .method = "eth_call", .result = zero_word },
+        .{ .method = "eth_getCode", .result = "\"0x01\"" },
+    };
+    const steps = unpaid ++ unpaid ++ unpaid;
+    const paid: relay_policy.Config = .{ .gas_payment_enforcement = &.{.{ .matching_list = &.{}, .policy = .{ .minimum = 5 } }} };
+    var runtime = try Runtime.init(a, &fixture, &steps, paid, .{ .blocks = 1 });
+    defer runtime.deinit();
+    var times = now();
+    const first = try runtime.stepAt(times);
+    try std.testing.expectEqual(driver.State.awaiting_index, first.state);
+    try std.testing.expectEqual(driver.IndexWait.gas_payment, first.index_wait.?);
+    try std.testing.expectEqual(@as(u32, 0), runtime.actor.value.retries);
+    try std.testing.expect(runtime.actor.value.next_attempt_ms <= times.monotonic_ms);
+    const parked = tasks.evmPollSchedule(first, runtime.actor.value.next_attempt_ms, times.monotonic_ms);
+    try std.testing.expectEqual(times.monotonic_ms + tasks.index_wait_fallback_ms, parked.next_ms);
+    times.monotonic_ms += 59_999;
+    times.unix_ms += 59_999;
+    try std.testing.expectEqual(driver.State.awaiting_index, (try runtime.stepAt(times)).state);
+    try std.testing.expectEqual(@as(u32, 0), runtime.actor.value.retries);
+    // The payment never arrived: the normal Source retry ladder resumes.
+    times.monotonic_ms += 1;
+    times.unix_ms += 1;
+    const capped = try runtime.stepAt(times);
+    try std.testing.expectEqual(driver.State.retried, capped.state);
+    try std.testing.expectEqual(@as(u32, 1), runtime.actor.value.retries);
+    try runtime.rpc.expectDone();
+}
+
+test "only unindexed leaf and payment retries become index waits" {
+    const base: prepare.Retry = .{ .reason = .metadata, .retry_state = .{} };
+    var leaf = base;
+    leaf.failure = "MessageNotInMerkleTree";
+    try std.testing.expectEqual(driver.IndexWait.merkle_leaf, driver.Driver.indexWait(leaf).?);
+    var payment = base;
+    payment.reason = .gas_payment_not_found;
+    try std.testing.expectEqual(driver.IndexWait.gas_payment, driver.Driver.indexWait(payment).?);
+    var other = base;
+    other.failure = "RpcError";
+    try std.testing.expect(driver.Driver.indexWait(other) == null);
+    try std.testing.expect(driver.Driver.indexWait(base) == null);
+    var signatures = base;
+    signatures.reason = .awaiting_validator_signatures;
+    try std.testing.expect(driver.Driver.indexWait(signatures) == null);
+    var unmet = base;
+    unmet.reason = .gas_payment_requirement_not_met;
+    try std.testing.expect(driver.Driver.indexWait(unmet) == null);
+}
+
 test "native batch uses surviving payload estimate sum for source ratio" {
     const a = std.testing.allocator;
     var fixture = try Fixture.init(a);
