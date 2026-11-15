@@ -144,6 +144,22 @@ pub const Fe = struct {
         return .{ .v = s[0] +% c * opaqueMask(s[1]) };
     }
 
+    /// a * m for a small public constant m < 2^30: a 5-limb product whose top
+    /// limb (< 2^30) folds back as top * C. Branch-free.
+    pub fn mulSmall(a: Fe, comptime m: u32) Fe {
+        const x: [4]u64 = @bitCast(a.v);
+        var r: [4]u64 = undefined;
+        var carry: u128 = 0;
+        inline for (0..4) |i| {
+            carry += @as(u128, x[i]) * m;
+            r[i] = @truncate(carry);
+            carry >>= 64;
+        }
+        const s = @addWithOverflow(@as(u256, @bitCast(r)), @as(u256, @as(u64, @truncate(carry))) * c);
+        // A carry leaves s < 2^63, so adding C cannot carry.
+        return .{ .v = s[0] +% c * opaqueMask(s[1]) };
+    }
+
     pub fn sq(a: Fe) Fe {
         return a.mul(a);
     }
@@ -228,9 +244,10 @@ pub const Point = struct {
         return .{ .x = q.x, .y = q.y.neg(), .z = q.z };
     }
 
+    /// 21*t (the b3 = 3*7 constant of the formulas): one small product and
+    /// one fold instead of six modular additions.
     fn mul21(t: Fe) Fe {
-        const t4 = t.dbl().dbl();
-        return t4.dbl().dbl().add(t4).add(t);
+        return t.mulSmall(21);
     }
 
     /// Algorithm 9, eprint 2015/1060.
@@ -364,6 +381,19 @@ test "field arithmetic matches big-integer reference" {
     }
     try std.testing.expect(Fe.zero.invert().isZero());
     try std.testing.expectError(error.NotSquare, (Fe{ .v = 7 }).sqrt());
+}
+
+test "small-constant multiplication matches full multiplication" {
+    var prng = std.Random.DefaultPrng.init(0x6d3231);
+    const max = std.math.maxInt(u256);
+    for ([_]u256{ 0, 1, p - 1, p, max, max - 1, c, 1 << 255, (1 << 128) - 1 }) |v| {
+        const f: Fe = .{ .v = v };
+        try std.testing.expectEqual(f.mul(.{ .v = 21 }).canonical(), f.mulSmall(21).canonical());
+    }
+    for (0..20000) |_| {
+        const f: Fe = .{ .v = prng.random().int(u256) };
+        try std.testing.expectEqual(f.mul(.{ .v = 21 }).canonical(), f.mulSmall(21).canonical());
+    }
 }
 
 test "points match std secp256k1 arithmetic" {
