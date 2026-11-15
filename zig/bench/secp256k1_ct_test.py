@@ -3,7 +3,7 @@
 
 Compiles zig/src/protocol/secp256k1.zig's secret-handling entry points
 (comb k*G, field mul/add/sub/neg/select/inversion, mixed addition, safegcd
-nonce inversion) to
+nonce inversion, SHA-256 compression) to
 assembly with $ZIG (skips if unset) and asserts that every conditional
 branch in them and their callees is a backward loop branch on a counter
 (flags set by cmp/add/sub/inc/dec against an immediate). Any data-dependent
@@ -46,8 +46,13 @@ export fn ct_affine_x(p: *const secp.Point, out: *[32]u8) void {
 export fn ct_scalar_invert(k: *const u256, out: *u256) void {
     out.* = secp.scalar_inverse(k.*);
 }
+export fn ct_sha256_compress(state: *[8]u32, block: *const [64]u8) void {
+    secp.sha256.compress(state, block);
+}
 '''
-EXPORTS = ["ct_mulbase", "ct_invert", "ct_field", "ct_add_mixed", "ct_affine_x", "ct_scalar_invert"]
+# HMAC padding/blocking around compress branches only on public lengths.
+EXPORTS = ["ct_mulbase", "ct_invert", "ct_field", "ct_add_mixed", "ct_affine_x", "ct_scalar_invert",
+           "ct_sha256_compress"]
 LABEL = re.compile(r'^"?([A-Za-z_.$][^:"]*)"?:\s*(#.*)?$')
 COUNTER = re.compile(r'^(cmp|add|sub)\s+\w+,\s*-?\d+$|^(inc|dec)\s+\w+$')
 

@@ -13,6 +13,7 @@
 const std = @import("std");
 pub const field = @import("secp256k1_field.zig");
 pub const scalar_inverse = @import("secp256k1_scalar.zig").invert;
+pub const sha256 = @import("sha256.zig");
 const tables = @import("secp256k1_tables.zig");
 const scalar = std.crypto.ecc.Secp256k1.scalar;
 const Endomorphism = std.crypto.ecc.Secp256k1.Endormorphism;

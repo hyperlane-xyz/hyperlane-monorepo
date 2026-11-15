@@ -135,6 +135,8 @@ pub const SigningKey = struct {
 /// Convenience for one-off signing: derives the key (one extra d*G) per call.
 /// Long-lived signers should hold a SigningKey.
 pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
+    // SigningKey holds no HMAC state: nonce HMAC keys/states live only inside
+    // deterministicNonce and are wiped there (HmacKey.wipe, finish, compress).
     var key = try SigningKey.init(secret_key);
     defer key.deinit();
     return key.sign(digest, noise);

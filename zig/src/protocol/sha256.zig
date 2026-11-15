@@ -57,6 +57,9 @@ pub fn compress(state: *[8]u32, block: *const [64]u8) void {
         v[h] = t1 +% big_s0 +% maj;
     }
     inline for (0..8) |i| state[i] +%= v[i];
+    // Message words and working variables derive from keys and secrets.
+    std.crypto.secureZero(u32, &w);
+    std.crypto.secureZero(u32, &v);
 }
 
 /// Continues a hash from `state` (which already absorbed `prefix_len` bytes,
@@ -79,6 +82,7 @@ fn finish(start: [8]u32, prefix_len: usize, data: []const u8) [32]u8 {
     var out: [32]u8 = undefined;
     inline for (0..8) |i| std.mem.writeInt(u32, out[i * 4 ..][0..4], state[i], .big);
     std.crypto.secureZero(u8, &block);
+    std.crypto.secureZero(u32, &state);
     return out;
 }
 

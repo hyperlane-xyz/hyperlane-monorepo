@@ -38,10 +38,10 @@ pub const DigestSigner = struct {
         const arena = self.arena.allocator();
         switch (config) {
             .hex_key => |key| {
-                const local = try signature.SigningKey.init(key);
-                self.address = local.address;
-                self.public_key = local.compressedPublicKey();
-                self.backend = .{ .local = local };
+                // Construct in place: no stack copy of the secret survives.
+                self.backend = .{ .local = try signature.SigningKey.init(key) };
+                self.address = self.backend.local.address;
+                self.public_key = self.backend.local.compressedPublicKey();
             },
             .aws => |aws| {
                 const auth = credentials.aws orelse return error.MissingAwsCredentialLease;
