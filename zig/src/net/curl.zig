@@ -97,6 +97,9 @@ const Api = struct {
         return api;
     }
 };
+/// Total response-head bytes accepted per transfer, including discarded
+/// informational/proxy heads. Multi reservations charge this bound.
+pub const max_header_bytes: usize = 32768;
 const Sink = struct {
     body: []u8 = &.{},
     /// Null allocator is used only for fixed-buffer callback fixtures.
@@ -105,7 +108,10 @@ const Sink = struct {
     used: usize = 0,
     too_large: bool = false,
     out_of_memory: bool = false,
-    header_storage: [32768]u8 = undefined,
+    /// Grown on demand up to max_header_bytes. A fixed 32 KiB array here made
+    /// every Transfer exceed the allocator's largest slab class (one mmap and
+    /// munmap per request) and forced ReleaseSafe to fill it with 0xaa twice.
+    header_storage: []u8 = &.{},
     header_used: usize = 0,
     header_total: usize = 0,
     header_too_large: bool = false,
@@ -164,14 +170,27 @@ const Sink = struct {
         return body;
     }
     fn deinit(self: *Sink) void {
-        if (self.allocator) |allocator| allocator.free(self.body);
+        if (self.allocator) |allocator| {
+            allocator.free(self.body);
+            allocator.free(self.header_storage);
+        }
         self.body = &.{};
         self.used = 0;
+        self.header_storage = &.{};
+        self.header_used = 0;
+    }
+    /// Exact final-response header bytes; ownership moves to the caller.
+    fn takeHeaders(self: *Sink) ![]u8 {
+        const allocator = self.allocator orelse return error.FixedBufferSink;
+        const headers = try allocator.realloc(self.header_storage, self.header_used);
+        self.header_storage = &.{};
+        self.header_used = 0;
+        return headers;
     }
     fn header(pointer: [*]const u8, size: usize, count: usize, context: ?*anyopaque) callconv(.c) usize {
         const self: *Sink = @ptrCast(@alignCast(context orelse return 0));
         const length = std.math.mul(usize, size, count) catch return 0;
-        if (length > self.header_storage.len -| self.header_total) {
+        if (length > max_header_bytes -| self.header_total) {
             self.header_too_large = true;
             return 0;
         }
@@ -185,8 +204,20 @@ const Sink = struct {
             _ = words.next();
             self.response_status = if (words.next()) |status| std.fmt.parseInt(u16, std.mem.trim(u8, status, "\r\n"), 10) catch null else null;
         }
+        const required = self.header_used + length;
+        if (required > self.header_storage.len) {
+            const allocator = self.allocator orelse {
+                self.header_too_large = true;
+                return 0;
+            };
+            const capacity = @min(max_header_bytes, @max(required, @max(@as(usize, 1024), self.header_storage.len *| 2)));
+            self.header_storage = allocator.realloc(self.header_storage, capacity) catch {
+                self.out_of_memory = true;
+                return 0;
+            };
+        }
         @memcpy(self.header_storage[self.header_used..][0..length], pointer[0..length]);
-        self.header_used += length;
+        self.header_used = required;
         if (self.stop_after_http429_head and self.response_status == 429 and std.mem.eql(u8, line, "\r\n")) {
             self.http429_head_aborted = true;
             return 0;
@@ -473,7 +504,7 @@ pub const Transfer = struct {
         if (self.sink.http429_head_aborted and (code != 23 or status != 429 or self.sink.used != 0)) return error.CurlTransportFailed;
         if (self.request.require_http2 and version != 3) return error.Http2Required;
         if (status < 100 or status > 599) return error.InvalidHttpStatus;
-        const header_storage = try allocator.dupe(u8, self.sink.header_storage[0..self.sink.header_used]);
+        const header_storage = try self.sink.takeHeaders();
         errdefer allocator.free(header_storage);
         var parsed_headers: std.ArrayList(Header) = .empty;
         defer parsed_headers.deinit(allocator);
@@ -825,7 +856,7 @@ fn observationElapsed(started: ?std.time.Instant) u64 {
 }
 
 test "native HTTP429 policy stops only complete final head and preserves other errors" {
-    var sink: Sink = .{ .cancel = null, .stop_after_http429_head = true };
+    var sink: Sink = .{ .allocator = std.testing.allocator, .cancel = null, .stop_after_http429_head = true };
     const interim = [_][]const u8{ "HTTP/1.1 200 Connection established\r\n", "Proxy-Agent: fixture\r\n", "\r\n", "HTTP/1.1 100 Continue\r\n", "X-Interim: ignored\r\n", "\r\n", "HTTP/2 429 Too Many Requests\r\n", "Retry-After: 7\r\n" };
     for (interim) |line| try std.testing.expectEqual(line.len, Sink.header(line.ptr, 1, line.len, &sink));
     try std.testing.expect(!sink.http429_head_aborted);
@@ -833,10 +864,12 @@ test "native HTTP429 policy stops only complete final head and preserves other e
     try std.testing.expect(sink.http429_head_aborted);
     try std.testing.expectEqualStrings("HTTP/2 429 Too Many Requests\r\nRetry-After: 7\r\n\r\n", sink.header_storage[0..sink.header_used]);
     try std.testing.expectEqual(@as(usize, 0), sink.body.len);
-    var disabled: Sink = .{ .cancel = null };
+    var disabled: Sink = .{ .allocator = std.testing.allocator, .cancel = null };
+    defer disabled.deinit();
     for ([_][]const u8{ "HTTP/1.1 429 Rejected\r\n", "\r\n" }) |line| try std.testing.expectEqual(line.len, Sink.header(line.ptr, 1, line.len, &disabled));
     try std.testing.expect(!disabled.http429_head_aborted);
-    var redirects: Sink = .{ .cancel = null, .stop_after_http429_head = true };
+    var redirects: Sink = .{ .allocator = std.testing.allocator, .cancel = null, .stop_after_http429_head = true };
+    defer redirects.deinit();
     for ([_][]const u8{ "HTTP/1.1 302 Redirect\r\n", "Location: /next\r\n", "\r\n", "HTTP/1.1 200 OK\r\n", "\r\n" }) |line| try std.testing.expectEqual(line.len, Sink.header(line.ptr, 1, line.len, &redirects));
     try std.testing.expect(!redirects.http429_head_aborted);
     var transfer: Transfer = undefined;
@@ -856,6 +889,11 @@ test "native HTTP429 policy stops only complete final head and preserves other e
     transfer.sink.header_too_large = false;
     transfer.sink.out_of_memory = true;
     try std.testing.expectError(error.OutOfMemory, transfer.finish(23));
+    transfer.sink.deinit();
     transfer.sink = .{ .cancel = null };
     try std.testing.expectError(error.CurlTransportFailed, transfer.finish(23));
+}
+
+test "native transfer stays in a small allocator class without a fixed header array" {
+    try std.testing.expect(@sizeOf(Transfer) <= 512);
 }
