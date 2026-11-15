@@ -286,3 +286,65 @@ test "cooperative RPC completed native request timeout is ordinary with a live o
     try std.testing.expectEqual(@as(usize, 0), cache.entries.items.len);
     try server.check();
 }
+
+const DirectRun = struct {
+    group: *Group,
+    cancel: std.atomic.Value(bool) = .init(false),
+    result: ?anyerror = null,
+    batch_ok: bool = false,
+    fn run(self: *DirectRun) void {
+        @import("runtime/read_mode.zig").mode = .direct;
+        // One pass, no PendingReadIo: every read waits inline on this thread.
+        const report = Group.run(self.group, .{ .unix_ms = 0, .monotonic_ms = 0 }, &self.cancel) catch |err| {
+            self.result = err;
+            return;
+        };
+        if (report.work != 1) self.result = error.UnexpectedReport;
+        self.group.replay.beginPass(&self.cancel) catch |err| {
+            self.result = err;
+            return;
+        };
+        defer self.group.replay.endPass(null);
+        const bodies = [_][]const u8{
+            "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"eth_getLogs\",\"params\":[]}",
+            "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"eth_getLogs\",\"params\":[]}",
+        };
+        var out: [2]rpc.WireResponse = undefined;
+        self.group.replay.fetchMany(std.testing.allocator, &bodies, .{ .max_response_bytes = 8192 }, &out) catch |err| {
+            self.result = err;
+            return;
+        };
+        defer for (out) |wire| std.testing.allocator.free(wire.bytes);
+        self.batch_ok = std.mem.indexOf(u8, out[0].bytes[0..out[0].len], "\"id\":7") != null and std.mem.indexOf(u8, out[1].bytes[0..out[1].len], "\"id\":8") != null;
+    }
+};
+test "direct read mode waits inline without journal replay, clone or identity hashing" {
+    const a = std.testing.allocator;
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const ok = [_]fixture.Reply{.{ .body = "" }};
+    const behaviors = [_]fixture.Behavior{.{ .replies = &ok, .response_fn = respond }};
+    var server = try fixture.Fixture.init(8, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const runtime = try Pool.Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{ .max_attempts = 1 } }, .max_response_bytes = 8192, .max_request_bytes = 16384 });
+    defer runtime.deinit();
+    var group: Group = .{ .replay = try replay.Replay.init(a, runtime, .{ .max_attempt_ms = 5000 }), .client = undefined };
+    defer group.replay.deinit();
+    group.client = try rpc.RpcClient.init(a, url, .{ .exchange = group.replay.interface(), .timeout_ms = 4000, .max_response_bytes = 8192 });
+    defer group.client.deinit();
+    group.evm = .{ .rpc_client = &group.client, .contracts = .{ .mailbox = .{0} ** 32, .hook = .{0} ** 32, .paymaster = .{0} ** 32 }, .domain = 1 };
+    var direct: DirectRun = .{ .group = &group };
+    const thread = try std.Thread.spawn(.{}, DirectRun.run, .{&direct});
+    thread.join();
+    if (direct.result) |err| return err;
+    try std.testing.expect(direct.batch_ok);
+    try std.testing.expectEqual(@as(u64, 16), group.indexed.load(.acquire));
+    // Header, logs, fresh header and the two batched reads: one request each.
+    try std.testing.expectEqual(@as(usize, 5), server.acceptedCount());
+    try std.testing.expectEqual(@as(usize, 0), group.replay.entries.items.len);
+    // Every owner pass ran on the reading thread (no owner-thread handoff).
+    try std.testing.expectEqual(runtime.owner_iterations.load(.acquire), runtime.caller_passes.load(.acquire));
+}

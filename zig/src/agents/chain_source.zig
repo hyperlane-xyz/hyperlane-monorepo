@@ -402,24 +402,7 @@ pub const Resources = struct {
     /// continuation instead of one pass each. Replay order is unchanged.
     fn replayFetchMany(context: *anyopaque, a: A, bodies: []const []const u8, options: rpc.Options, out: []rpc.WireResponse) !void {
         const replay: *ReadReplay.Replay = @ptrCast(@alignCast(context));
-        if (bodies.len != out.len) return error.InvalidRpcBatch;
-        var filled: usize = 0;
-        defer if (filled != bodies.len) for (out[0..filled]) |wire| a.free(wire.bytes);
-        var pending = false;
-        for (bodies) |body| {
-            const wire = replay.fetch(a, body, options) catch |err| {
-                if (err != error.PendingReadIo) return err;
-                pending = true;
-                continue;
-            };
-            if (pending) {
-                a.free(wire.bytes);
-                continue;
-            }
-            out[filled] = wire;
-            filled += 1;
-        }
-        if (pending) return error.PendingReadIo;
+        return replay.fetchMany(a, bodies, options, out);
     }
     fn fallbackExchangeMany(context: *anyopaque, a: A, bodies: []const []const u8, options: rpc.Options, out: []rpc.WireResponse) !void {
         const self: *Resources = @ptrCast(@alignCast(context));

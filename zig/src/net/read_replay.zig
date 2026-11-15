@@ -7,6 +7,7 @@
 const std = @import("std");
 const pool = @import("../evm/pool.zig");
 const rpc = @import("../evm/provider.zig");
+const read_mode = @import("../runtime/read_mode.zig");
 const A = std.mem.Allocator;
 const V = std.json.Value;
 pub const ByteBudget = @import("byte_budget.zig").Budget;
@@ -22,6 +23,8 @@ pub const Config = struct {
     use_owner_timeout: bool = false,
 };
 const Entry = struct { key: [32]u8, occurrence: u32, original_id: i64, handle: ?pool.Handle = null, owner_limited: bool = true, bytes: ?[]u8 = null, failure: ?anyerror = null };
+/// Largest independent read batch overlapped by `Replay.fetchMany`.
+pub const max_batch = 64;
 pub const Replay = struct {
     allocator: A,
     pool: *pool.Pool,
@@ -132,6 +135,7 @@ pub const Replay = struct {
         if (self.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         const remaining = try self.remainingMs();
+        if (read_mode.direct()) return self.fetchDirect(a, body, options, remaining);
         var identity = try requestIdentity(a, body, self.config.max_request_bytes);
         // A larger later wire cap cannot inherit a cached small-cap failure;
         // a smaller cap must not reuse a response produced under different bounds.
@@ -189,7 +193,93 @@ pub const Replay = struct {
         self.entries.appendAssumeCapacity(.{ .key = identity.key, .occurrence = occurrence, .original_id = identity.id, .handle = handle, .owner_limited = self.config.use_owner_timeout or remaining <= options.timeout_ms });
         return error.PendingReadIo;
     }
+    /// Dedicated-thread read (runtime/read_mode.direct): the callback is never
+    /// replayed, so each call is exactly one physical occurrence. Wait inline,
+    /// driving the Pool session when nobody else does; return its bytes.
+    fn fetchDirect(self: *Replay, a: A, body: []const u8, options: rpc.Options, remaining: u32) !rpc.WireResponse {
+        const handle = try self.submitDirect(a, body, options, remaining);
+        return self.waitDirect(a, handle, options, remaining);
+    }
+    fn submitDirect(self: *Replay, a: A, body: []const u8, options: rpc.Options, remaining: u32) !pool.Handle {
+        try requireReadOnly(a, body, self.config.max_request_bytes);
+        const timeout = if (self.config.use_owner_timeout) remaining else @min(options.timeout_ms, remaining);
+        while (true) {
+            return self.pool.submitDeferred(body, timeout, @min(options.connect_timeout_ms, timeout), options.max_response_bytes, options.pool_observer, options.indexer_tip_cache) catch |err| {
+                // Retiring sessions own slots until native drain: wait for one
+                // within this attempt (rare; bounded by deadline and cancel).
+                if (err != error.RpcPoolSessionsFull) return err;
+                if (self.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+                if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+                _ = try self.remainingMs();
+                std.Thread.sleep(std.time.ns_per_ms);
+                continue;
+            };
+        }
+    }
+    fn waitDirect(self: *Replay, a: A, handle: pool.Handle, options: rpc.Options, remaining: u32) !rpc.WireResponse {
+        const timeout = if (self.config.use_owner_timeout) remaining else @min(options.timeout_ms, remaining);
+        const owner_limited = self.config.use_owner_timeout or remaining <= options.timeout_ms;
+        const response = self.pool.waitCancels(handle, a, self.pool.now() +| timeout, .{ .first = self.cancel, .second = options.cancel }) catch |err| return self.completedFailure(err, owner_limited, options.cancel);
+        return .{ .bytes = response.bytes, .len = response.len };
+    }
+    /// Independent reads of one callback. Journal mode submits every miss in
+    /// the same pass before yielding; direct mode submits all sessions, then
+    /// waits for each (one driver progresses all of them concurrently).
+    /// All-or-error: no `out` entry remains allocated on error.
+    pub fn fetchMany(self: *Replay, a: A, bodies: []const []const u8, options: rpc.Options, out: []rpc.WireResponse) !void {
+        if (bodies.len != out.len) return error.InvalidRpcBatch;
+        var filled: usize = 0;
+        defer if (filled != bodies.len) for (out[0..filled]) |wire| a.free(wire.bytes);
+        if (self.in_pass and read_mode.direct()) {
+            if (self.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+            if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+            const remaining = try self.remainingMs();
+            var handles: [max_batch]pool.Handle = undefined;
+            if (bodies.len > handles.len) return error.InvalidRpcBatch;
+            var submitted: usize = 0;
+            // Every wait consumes its handle; cancel is idempotent.
+            defer for (handles[filled..submitted]) |handle| self.pool.cancel(handle);
+            for (bodies) |body| {
+                handles[submitted] = try self.submitDirect(a, body, options, remaining);
+                submitted += 1;
+            }
+            for (handles[0..submitted]) |handle| {
+                out[filled] = try self.waitDirect(a, handle, options, remaining);
+                filled += 1;
+            }
+            return;
+        }
+        var pending = false;
+        for (bodies) |body| {
+            const wire = self.fetch(a, body, options) catch |err| {
+                if (err != error.PendingReadIo) return err;
+                pending = true;
+                continue;
+            };
+            if (pending) {
+                a.free(wire.bytes);
+                continue;
+            }
+            out[filled] = wire;
+            filled += 1;
+        }
+        if (pending) return error.PendingReadIo;
+    }
 };
+/// Same read-only envelope/method policy as requestIdentity, without hashing.
+fn requireReadOnly(a: A, body: []const u8, maximum: usize) !void {
+    if (body.len == 0 or body.len > maximum) return error.ReadReplayRequestTooLarge;
+    var parsed = try std.json.parseFromSlice(V, a, body, .{ .duplicate_field_behavior = .@"error", .parse_numbers = false, .max_value_len = maximum });
+    defer parsed.deinit();
+    if (parsed.value != .object) return error.InvalidRpcRequest;
+    const object = parsed.value.object;
+    const version = object.get("jsonrpc") orelse return error.InvalidRpcRequest;
+    const method = object.get("method") orelse return error.InvalidRpcRequest;
+    const id = object.get("id") orelse return error.InvalidRpcRequest;
+    if (version != .string or !std.mem.eql(u8, version.string, "2.0") or method != .string or id != .number_string) return error.InvalidRpcRequest;
+    if (!readOnly(method.string)) return error.NonReadOnlyReplayRequest;
+    _ = std.fmt.parseInt(i64, id.number_string, 10) catch return error.InvalidRpcRequest;
+}
 pub const Identity = struct { key: [32]u8, id: i64 };
 fn readOnly(method: []const u8) bool {
     const methods = [_][]const u8{ "eth_chainId", "net_version", "eth_blockNumber", "eth_call", "eth_getBlockByNumber", "eth_getBlockByHash", "eth_getTransactionReceipt", "eth_getTransactionByHash", "eth_getLogs", "eth_getCode", "eth_getStorageAt", "eth_getProof", "eth_getBalance", "eth_getTransactionCount", "eth_gasPrice", "eth_maxPriorityFeePerGas", "eth_feeHistory", "eth_estimateGas", "eth_createAccessList", "getGenesisHash", "getBalance", "getSlot", "getBlockHeight", "getLatestBlockhash", "getSignatureStatuses", "getAccountInfo", "getProgramAccounts", "getSignaturesForAddress", "getTransaction", "getBlock", "getFeeForMessage", "getRecentPrioritizationFees", "simulateTransaction", "status", "block", "block_results", "tx", "tx_search", "abci_query", "starknet_chainId", "starknet_blockNumber", "starknet_getBlockWithTxHashes", "starknet_getBlockWithTxs", "starknet_getTransactionByHash", "starknet_getTransactionReceipt", "starknet_getEvents", "starknet_call", "starknet_getClassHashAt", "starknet_getNonce", "starknet_estimateFee" };

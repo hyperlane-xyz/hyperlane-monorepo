@@ -12,6 +12,19 @@ const json_bounds = @import("../net/json_bounds.zig");
 const wake_notifier = @import("../runtime/wake.zig");
 
 pub const WireResponse = struct { bytes: []u8, len: usize };
+/// Borrowed cancellation flags observed by a blocking wait (either raises).
+pub const Cancels = struct {
+    first: ?*const std.atomic.Value(bool) = null,
+    second: ?*const std.atomic.Value(bool) = null,
+    pub fn raised(self: Cancels) bool {
+        if (self.first) |flag| if (flag.load(.acquire)) return true;
+        if (self.second) |flag| if (flag.load(.acquire)) return true;
+        return false;
+    }
+    fn present(self: Cancels) bool {
+        return self.first != null or self.second != null;
+    }
+};
 /// One caller owns a handle. Terminal poll or cancel consumes it. The pool owns
 /// the cancellation token and all request bytes through native completion drain.
 pub const Handle = struct { id: u64 };
@@ -654,6 +667,11 @@ pub const Pool = struct {
     pub fn submitObservedCached(self: *Pool, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !Handle {
         return self.submitSession(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, true);
     }
+    /// For a caller that will `wait` (or `waitCancels`) promptly: the owner
+    /// thread is not woken; the waiting caller drives the session itself.
+    pub fn submitDeferred(self: *Pool, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !Handle {
+        return self.submitSession(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, false);
+    }
     /// `wake_owner` false: the caller drives the session itself in `wait`.
     fn submitSession(self: *Pool, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool, wake_owner: bool) !Handle {
         if (observer_override) |observer| if (!observer.valid()) return error.InvalidRpcObserver;
@@ -779,20 +797,30 @@ pub const Pool = struct {
     pub fn fetchObservedCached(self: *Pool, allocator: A, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, cancel_flag: ?*const std.atomic.Value(bool), max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !WireResponse {
         if (cancel_flag) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         const handle = try self.submitSession(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, false);
-        return self.wait(handle, allocator, self.now() +| timeout_ms, cancel_flag);
+        return self.waitCancels(handle, allocator, self.now() +| timeout_ms, .{ .first = cancel_flag });
+    }
+    /// Blocking read observing two borrowed cancellation flags (job and
+    /// request); the caller drives its own session when the token is free.
+    pub fn fetchCancels(self: *Pool, allocator: A, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, cancels: Cancels, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !WireResponse {
+        if (cancels.raised()) return error.RequestCancelled;
+        const handle = try self.submitSession(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, false);
+        return self.waitCancels(handle, allocator, self.now() +| timeout_ms, cancels);
     }
     /// Block the calling thread until a submitted handle is terminal. Consumes
     /// the handle on every return: terminal poll, or cancel on caller
     /// deadline (pool `now` milliseconds) / cancellation. Callers may submit
     /// several independent handles first and then wait for each in turn.
     pub fn wait(self: *Pool, handle: Handle, allocator: A, deadline_ms: u64, cancel_flag: ?*const std.atomic.Value(bool)) !WireResponse {
+        return self.waitCancels(handle, allocator, deadline_ms, .{ .first = cancel_flag });
+    }
+    pub fn waitCancels(self: *Pool, handle: Handle, allocator: A, deadline_ms: u64, cancel_flag: Cancels) !WireResponse {
         defer self.cancel(handle);
         // The session may have been submitted without waking a driver; tell
         // the current driver once (not once per timed slice).
         var driver_told = false;
         while (true) {
             if (try self.poll(handle, allocator)) |response| return response;
-            if (cancel_flag) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
+            if (cancel_flag.raised()) return error.RequestCancelled;
             const now_ms = self.now();
             if (now_ms >= deadline_ms) return error.RequestDeadlineExceeded;
             // Leader: nobody drives, so this thread runs owner passes until its
@@ -806,7 +834,7 @@ pub const Pool = struct {
             // (or a drive grant) broadcasts. A timed slice remains only for a
             // borrowed cancel flag (no notifier) or an injected test clock.
             var slice_ms = deadline_ms - now_ms;
-            if (cancel_flag != null) slice_ms = @min(slice_ms, caller_cancel_slice_ms);
+            if (cancel_flag.present()) slice_ms = @min(slice_ms, caller_cancel_slice_ms);
             if (self.config.clock != null) slice_ms = @min(slice_ms, injected_clock_slice_ms);
             self.mutex.lock();
             const session = self.findSession(handle) orelse {
@@ -840,7 +868,7 @@ pub const Pool = struct {
         }
     }
     /// Caller holds the drive token; released (and handed off) on return.
-    fn driveFor(self: *Pool, handle: Handle, deadline_ms: u64, cancel_flag: ?*const std.atomic.Value(bool)) !void {
+    fn driveFor(self: *Pool, handle: Handle, deadline_ms: u64, cancel_flag: Cancels) !void {
         self.mutex.lock();
         self.caller_driving = true;
         const own = self.findSession(handle);
@@ -853,11 +881,11 @@ pub const Pool = struct {
             // Only the driver finishes sessions, and this caller has not taken
             // its own session, so it cannot be retired while driving.
             if (session.finished) return;
-            if (cancel_flag) |flag| if (flag.load(.acquire)) return;
+            if (cancel_flag.raised()) return;
             if (pass_.now_ms >= deadline_ms) return;
             if (pass_.busy) continue;
             var cap: u64 = deadline_ms - pass_.now_ms;
-            if (cancel_flag != null) cap = @min(cap, caller_cancel_slice_ms);
+            if (cancel_flag.present()) cap = @min(cap, caller_cancel_slice_ms);
             self.native.wait(pass_.now_ms, @intCast(@min(pass_.timeout, cap))) catch |err| {
                 self.wait_failure = err;
             };
