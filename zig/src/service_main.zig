@@ -23,7 +23,10 @@ const credential_manager = @import("agents/credentials.zig");
 const cloud = @import("cloud/root.zig");
 const lander = @import("lander/root.zig");
 const builtin = @import("builtin");
-const a = std.heap.smp_allocator;
+// One process allocator: libc malloc (glibc in the Linux images, as Rust's
+// system allocator). SmpAllocator maps and unmaps every allocation of 32 KiB
+// or more, so each large response body or JSON arena chunk page-faulted fresh.
+const a = std.heap.c_allocator;
 comptime {
     _ = @import("db/bzip2_glue.zig");
 }
