@@ -112,6 +112,10 @@ const Active = struct {
     submitted_generation: ?u64 = null,
     restored_submitted: bool = false,
     native_group_id: ?[32]u8 = null,
+    /// EVM payload is owned by Lander with no operation deadline. Its status
+    /// only changes through this lane's Lander tick or an admin command, so
+    /// the item sleeps until one reports activity instead of 100ms polling.
+    awaiting_lander: bool = false,
     fn deinit(self: *Active) void {
         if (self.evm_driver) |*value| value.deinit();
         if (self.metric_app_context) |value| self.lane.?.owner.allocator.free(value);
@@ -710,6 +714,7 @@ pub const Lane = struct {
         if (self.transactions) |*transactions| {
             const report = try transactions.tick(times.unix_ms, .{ .max_build = 4, .max_receipts = 16 });
             work +|= report.built + report.broadcasts + report.finalized;
+            if (landerActivity(report)) self.wakeLanderWaiters(times.monotonic_ms);
         }
         if (self.native_destination) |factory| {
             for (0..self.origins.len) |_| {
@@ -755,6 +760,12 @@ pub const Lane = struct {
             delay_ms = @min(delay_ms, item.next_ms - times.monotonic_ms);
         };
         return .{ .work = work, .next_delay_ms = delay_ms };
+    }
+    fn wakeLanderWaiters(self: *Lane, now_ms: u64) void {
+        for (self.active.items) |item| if (item.awaiting_lander) {
+            item.awaiting_lander = false;
+            item.next_ms = @min(item.next_ms, now_ms);
+        };
     }
     fn groupTime(self: *Lane, fallback: operation.Times) !operation.Times {
         return if (self.owner.options.observation_clock) |clock| clock.now() else fallback;
@@ -1659,6 +1670,8 @@ pub const Lane = struct {
             }
             self.syncActiveMetrics(item, state.current_status);
             item.next_ms = @max(times.monotonic_ms +| 100, state.value.next_attempt_ms);
+            item.awaiting_lander = awaitingLander(report, state.value.next_attempt_ms, times.monotonic_ms);
+            if (item.awaiting_lander) item.next_ms = times.monotonic_ms +| lander_wait_fallback_ms;
             return switch (report.state) {
                 .delivered, .not_contract, .denied => true,
                 else => false,
@@ -1842,6 +1855,21 @@ pub const Lane = struct {
         };
     }
 };
+/// Upper bound on an event-driven Lander wait, covering any status change
+/// that a tick report does not count. Lander activity wakes waiters earlier.
+pub const lander_wait_fallback_ms: u64 = 1_000;
+/// Every Lander tick path that can change a payload status is counted here:
+/// receipt reads (inclusion, finality, drops), building, broadcasting,
+/// reorg reprocessing and rejections. Scans gated by Lander backoff and
+/// pure deferrals are not activity.
+pub fn landerActivity(report: lander.Report) bool {
+    return report.receipts_read + report.built + report.broadcasts + report.finalized + report.reverted_payloads + report.stale_dropped + report.reprocessed + report.rejected > 0;
+}
+/// The driver found its payload still active in Lander and set no deadline of
+/// its own; only Lander progress (or an admin command) can change the result.
+pub fn awaitingLander(report: evm_driver.Report, next_attempt_ms: u64, now_ms: u64) bool {
+    return report.state == .existing_payload and report.failure == null and next_attempt_ms <= now_ms;
+}
 fn contextHash(chain: *const settings.Chain, signer: [20]u8) [32]u8 {
     var state = std.crypto.hash.sha2.Sha256.init(.{});
     state.update("hyperlane-zig-evm-destination-v1\x00");

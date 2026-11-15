@@ -843,6 +843,98 @@ test "native included payload is not charged before finality" {
     try runtime.rpc.expectDone();
 }
 
+test "lane polling of a delegated payload performs no durable writes" {
+    // Lane.advance reopens the operation and steps it every ~100ms while
+    // Lander owns the payload. Unchanged state must not rewrite and fsync
+    // the operation, status and retry rows on every poll.
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = readySteps();
+    var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .blocks = 1 });
+    defer runtime.deinit();
+    _ = try runtime.prepareStep();
+    const before = runtime.database.sequence();
+    for (0..10) |_| {
+        runtime.actor.deinit();
+        runtime.actor = try operation.Operation.open(a, &runtime.store, .{
+            .id = fixture.message.id(),
+            .context = @splat(8),
+            .nonce = fixture.message.nonce,
+            .destination = fixture.message.destination,
+            .policy = .{ .confirm_delay_ms = 0 },
+        }, now());
+        const report = try runtime.step();
+        try std.testing.expectEqual(driver.State.existing_payload, report.state);
+    }
+    try std.testing.expectEqual(before, runtime.database.sequence());
+    try std.testing.expectEqual(db.json.Status.ReadyToSubmit, (try runtime.store.status(fixture.message.id())).?);
+    try expectNoSigning(runtime);
+    try runtime.rpc.expectDone();
+}
+
+test "lane polling inside a live confirmation window performs no durable writes" {
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = readySteps();
+    const policy: @import("../../runtime/relayer.zig").Policy = .{ .confirm_delay_ms = 600_000 };
+    var runtime = try Runtime.initAt(a, &fixture, &steps, allow_gas, .{ .blocks = 1 }, policy, now());
+    defer runtime.deinit();
+    const prepared = try runtime.prepareStep();
+    try runtime.associate(&.{prepared.payload.?}, @splat(3), @splat(4), .included);
+    try std.testing.expectEqual(driver.State.existing_payload, (try runtime.step()).state);
+    try std.testing.expect(runtime.actor.value.confirmation_started);
+    const before = runtime.database.sequence();
+    var times = now();
+    for (0..10) |_| {
+        times.unix_ms += 100;
+        times.monotonic_ms += 100;
+        runtime.actor.deinit();
+        runtime.actor = try operation.Operation.open(a, &runtime.store, .{
+            .id = fixture.message.id(),
+            .context = @splat(8),
+            .nonce = fixture.message.nonce,
+            .destination = fixture.message.destination,
+            .policy = policy,
+        }, times);
+        try std.testing.expect(runtime.actor.value.next_attempt_ms > times.monotonic_ms);
+        const report = try runtime.stepAt(times);
+        try std.testing.expectEqual(driver.State.existing_payload, report.state);
+    }
+    try std.testing.expectEqual(before, runtime.database.sequence());
+    try std.testing.expectEqual(db.json.Status{ .Confirm = .SubmittedBySelf }, (try runtime.store.status(fixture.message.id())).?);
+    try expectNoSigning(runtime);
+    try runtime.rpc.expectDone();
+}
+
+test "lane sleeps on a Lander-owned payload until Lander reports activity" {
+    const tasks = @import("../relayer_task.zig");
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const steps = readySteps();
+    const policy: @import("../../runtime/relayer.zig").Policy = .{ .confirm_delay_ms = 600_000 };
+    var runtime = try Runtime.initAt(a, &fixture, &steps, allow_gas, .{ .blocks = 1 }, policy, now());
+    defer runtime.deinit();
+    _ = try runtime.prepareStep();
+    // Ready payload owned by Lander, no operation deadline: event-driven wait.
+    const pending = try runtime.step();
+    try std.testing.expect(tasks.awaitingLander(pending, runtime.actor.value.next_attempt_ms, now().monotonic_ms));
+    // Included payload: the confirmation window deadline drives the next poll.
+    try runtime.associate(&.{pending.payload.?}, @splat(3), @splat(4), .included);
+    const included = try runtime.step();
+    try std.testing.expectEqual(driver.State.existing_payload, included.state);
+    try std.testing.expect(!tasks.awaitingLander(included, runtime.actor.value.next_attempt_ms, now().monotonic_ms));
+    try std.testing.expect(!tasks.landerActivity(.{}));
+    try std.testing.expect(!tasks.landerActivity(.{ .deferred = 3, .transactions_scanned = 5 }));
+    try std.testing.expect(tasks.landerActivity(.{ .receipts_read = 1 }));
+    try std.testing.expect(tasks.landerActivity(.{ .built = 1 }));
+    try std.testing.expect(tasks.landerActivity(.{ .rejected = 1 }));
+    try std.testing.expect(tasks.landerActivity(.{ .stale_dropped = 1 }));
+    try runtime.rpc.expectDone();
+}
+
 test "native batch uses surviving payload estimate sum for source ratio" {
     const a = std.testing.allocator;
     var fixture = try Fixture.init(a);

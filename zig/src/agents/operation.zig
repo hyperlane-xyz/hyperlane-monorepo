@@ -224,6 +224,12 @@ pub const Operation = struct {
         self.parked = false;
     }
 
+    fn rowEquals(self: *Operation, table: []const u8, expected: []const u8) !bool {
+        const stored = (try self.store.typed.get(self.allocator, table, &self.options.id)) orelse return false;
+        defer self.allocator.free(stored);
+        return std.mem.eql(u8, stored, expected);
+    }
+
     fn persist(self: *Operation, value: lifecycle.Operation, signed: ?[]const u8, now: Times, status: db.json.Status) !void {
         var encoded_value = value;
         encoded_value.next_attempt_ms = 0;
@@ -246,6 +252,19 @@ pub const Operation = struct {
         const current = try self.store.typed.get(self.allocator, prefix, &self.options.id);
         defer if (current) |raw| self.allocator.free(raw);
         if (!std.meta.eql(digest(current), self.row_digest) or !std.meta.eql(try self.store.status(self.options.id), self.status_row)) return error.StaleOperationOwner;
+        // Lane polls reopen and replay unchanged state. Every in-process
+        // writer of these four rows commits with WAL fsync (this persist,
+        // Store.storeRetry, admin retry), so byte-identical rows read under
+        // the store lock are already durable: skip the no-op batch and fsync.
+        if (!(self.options.acknowledge_canonical and value.stage == .delivered) and current != null and std.mem.eql(u8, current.?, record) and
+            try self.rowEquals(db.keys.Table.status_by_message_id.prefix(), status_bytes) and
+            try self.rowEquals(db.keys.Table.pending_message_retry_state.prefix(), retry_bytes) and
+            try self.rowEquals(db.keys.Table.pending_message_retry_count.prefix(), &count))
+        {
+            self.deadline = deadline;
+            self.status_row = status;
+            return;
+        }
         var batch = try self.store.typed.batch(self.allocator);
         defer batch.deinit();
         try batch.put(prefix, &self.options.id, record);
