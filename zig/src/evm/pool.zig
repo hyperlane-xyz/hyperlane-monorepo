@@ -395,6 +395,9 @@ pub const Pool = struct {
     next_session_id: std.atomic.Value(u64) = .init(1),
     retained_bytes: usize = 0,
     stopping: std.atomic.Value(bool) = .init(false),
+    /// Owner loop passes; evidence that the owner blocks on sockets/timers.
+    owner_iterations: std.atomic.Value(u64) = .init(0),
+    wait_failure: ?anyerror = null,
     thread: std.Thread,
     started: std.time.Instant,
 
@@ -518,6 +521,7 @@ pub const Pool = struct {
         self.mutex.lock();
         for (self.sessions) |entry| if (entry) |session| session.closed.store(true, .release);
         self.wake.broadcast();
+        self.native.wakeup();
         self.mutex.unlock();
         self.thread.join();
         for (self.sessions) |entry| if (entry) |session| self.destroySession(session);
@@ -536,7 +540,8 @@ pub const Pool = struct {
         allocator.destroy(self);
     }
 
-    fn now(self: *Pool) u64 {
+    /// Pool milliseconds used by deadlines (`wait`), injected clock if any.
+    pub fn now(self: *Pool) u64 {
         if (self.config.clock) |clock| return clock.now_ms_fn(clock.context);
         return (std.time.Instant.now() catch self.started).since(self.started) / std.time.ns_per_ms;
     }
@@ -675,7 +680,7 @@ pub const Pool = struct {
             return error.RpcPoolSessionsFull;
         };
         self.sessions[slot] = session;
-        self.wake.signal();
+        self.wakeOwner();
         self.mutex.unlock();
 
         return .{ .id = session.id };
@@ -699,10 +704,14 @@ pub const Pool = struct {
         session.winner = null;
         session.taken.store(true, .release);
         session.mutex.unlock();
-        self.wake.signal();
+        // Owner retires the taken session; otherwise it would hold a slot
+        // until unrelated socket activity and submit could see SessionsFull.
+        self.wakeOwner();
         self.mutex.unlock();
         if (failure) |err| return err;
         const bytes = winner orelse return error.MissingRpcPoolResult;
+        // Same allocator: move the winner instead of copying it.
+        if (allocator.ptr == self.allocator.ptr and allocator.vtable == self.allocator.vtable) return .{ .bytes = bytes, .len = bytes.len };
         defer self.allocator.free(bytes);
         const copied = try allocator.dupe(u8, bytes);
         return .{ .bytes = copied, .len = copied.len };
@@ -715,7 +724,13 @@ pub const Pool = struct {
         const session = self.findSession(handle) orelse return;
         session.closed.store(true, .release);
         session.taken.store(true, .release);
+        self.wakeOwner();
+    }
+    /// Caller holds Pool.mutex. The idle owner waits on the condition; a busy
+    /// owner blocks in native socket wait, interrupted by curl_multi_wakeup.
+    fn wakeOwner(self: *Pool) void {
         self.wake.signal();
+        self.native.wakeup();
     }
     /// Caller holds Pool.mutex; consumed handles are never handed back.
     fn findSession(self: *Pool, handle: Handle) ?*Session {
@@ -733,12 +748,24 @@ pub const Pool = struct {
     pub fn fetchObservedCached(self: *Pool, allocator: A, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, cancel_flag: ?*const std.atomic.Value(bool), max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !WireResponse {
         if (cancel_flag) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
         const handle = try self.submitObservedCached(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache);
+        return self.wait(handle, allocator, self.now() +| timeout_ms, cancel_flag);
+    }
+    /// Block the calling thread until a submitted handle is terminal. Consumes
+    /// the handle on every return: terminal poll, or cancel on caller
+    /// deadline (pool `now` milliseconds) / cancellation. Callers may submit
+    /// several independent handles first and then wait for each in turn.
+    pub fn wait(self: *Pool, handle: Handle, allocator: A, deadline_ms: u64, cancel_flag: ?*const std.atomic.Value(bool)) !WireResponse {
         defer self.cancel(handle);
-        const deadline_ms = self.now() +| timeout_ms;
         while (true) {
             if (try self.poll(handle, allocator)) |response| return response;
             if (cancel_flag) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
-            if (self.now() >= deadline_ms) return error.RequestDeadlineExceeded;
+            const now_ms = self.now();
+            if (now_ms >= deadline_ms) return error.RequestDeadlineExceeded;
+            // Session completion broadcasts; a timed slice remains only for a
+            // borrowed cancel flag (no notifier) or an injected test clock.
+            var slice_ms = deadline_ms - now_ms;
+            if (cancel_flag != null) slice_ms = @min(slice_ms, caller_cancel_slice_ms);
+            if (self.config.clock != null) slice_ms = @min(slice_ms, injected_clock_slice_ms);
             self.mutex.lock();
             const session = self.findSession(handle) orelse {
                 self.mutex.unlock();
@@ -748,7 +775,7 @@ pub const Pool = struct {
             self.mutex.unlock();
             // This handle has one caller, so taken remains false until it polls
             // or cancels. Owner cannot retire this session while waiting.
-            if (!session.finished) session.wake.timedWait(&session.mutex, 5 * std.time.ns_per_ms) catch {};
+            if (!session.finished) session.wake.timedWait(&session.mutex, slice_ms *| std.time.ns_per_ms) catch {};
             session.mutex.unlock();
         }
     }
@@ -789,14 +816,17 @@ pub const Pool = struct {
                 if (!session.finished and now_ms >= session.deadline_ms) self.finish(session, error.RequestDeadlineExceeded);
                 if (!session.finished) self.progress(session, now_ms) catch |err| self.finish(session, err);
             };
-            while (self.native.poll(now_ms) catch |err| blk: {
+            var completed = false;
+            while (self.pollNative(now_ms) catch |err| blk: {
                 for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| if (!session.finished) self.finish(session, err);
                 break :blk null;
             }) |value| {
                 var completion = value;
                 defer completion.deinit();
                 self.complete(snapshot[0..self.sessions.len], completion, now_ms);
+                completed = true;
             }
+            _ = self.owner_iterations.fetchAdd(1, .monotonic);
             self.mutex.lock();
             for (self.sessions) |*entry| if (entry.*) |session| {
                 const drained = for (session.peers) |peer| {
@@ -818,10 +848,60 @@ pub const Pool = struct {
             // Submit/cancel/shutdown signal this condition under the same
             // mutex. Recheck the live queue, not the earlier owner snapshot:
             // a submission between snapshot and wait must not lose its wake.
-            if (empty and !stopped) self.wake.wait(&self.mutex) else if (!empty) self.wake.timedWait(&self.mutex, 2 * std.time.ns_per_ms) catch {};
+            if (empty and !stopped) {
+                self.wake.wait(&self.mutex);
+            } else if (!empty and !completed) {
+                // Completions only mutate state; their follow-up submissions
+                // happen in the next progress pass, so loop before blocking.
+                // Otherwise block on sockets until activity, the next owner
+                // timer, or wakeOwner (curl_multi_wakeup is level-triggered).
+                // Live table under the mutex: the snapshot may name sessions
+                // retired above. A failed wait fails sessions on the next pass.
+                const timeout = self.nextWaitMs(self.sessions, now_ms);
+                self.mutex.unlock();
+                self.native.wait(now_ms, timeout) catch |err| {
+                    self.wait_failure = err;
+                };
+                self.mutex.lock();
+            }
             self.mutex.unlock();
             if (stopped and empty) return;
         }
+    }
+
+    fn pollNative(self: *Pool, now_ms: u64) !?multi.Completion {
+        // Reported once to the sessions live at failure, like a poll error.
+        if (self.wait_failure) |err| {
+            self.wait_failure = null;
+            return err;
+        }
+        return self.native.poll(now_ms);
+    }
+    /// Owner thread, after progress. Over-approximates every owner timer: an
+    /// early wake costs one pass, a missed timer would stall a session.
+    fn nextWaitMs(self: *Pool, sessions: []const ?*Session, now_ms: u64) u32 {
+        var next: u64 = std.math.maxInt(u64);
+        for (self.probes) |entry| if (entry) |probe| {
+            next = @min(next, probe.deadline_ms);
+            // Budget-deferred probes and cross-Pool tip-cache followers have no
+            // socket or timer of their own: poll them cooperatively.
+            if (probe.native_id == null or probe.cache_follower) next = @min(next, now_ms +| cooperative_poll_ms);
+        };
+        for (sessions) |entry| if (entry) |session| {
+            if (session.finished) continue;
+            next = @min(next, session.deadline_ms);
+            for ([_]u64{ session.round_wait_ms, session.grace_deadline_ms, session.numeric_grace_deadline_ms }) |timer| if (timer > now_ms) {
+                next = @min(next, timer);
+            };
+            for (session.peers) |peer| {
+                if (peer.cache_follower) next = @min(next, now_ms +| cooperative_poll_ms);
+                if (!peer.done and peer.native_id == null and peer.next_attempt_ms > now_ms) next = @min(next, peer.next_attempt_ms);
+            }
+        };
+        // Injected clocks are not wall durations; fixtures advance them freely.
+        if (self.config.clock != null) next = @min(next, now_ms +| cooperative_poll_ms);
+        if (next == std.math.maxInt(u64)) return std.math.maxInt(u32);
+        return @intCast(@min(@max(next -| now_ms, 1), std.math.maxInt(u32)));
     }
 
     fn complete(self: *Pool, sessions: []?*Session, completion: multi.Completion, now_ms: u64) void {
@@ -847,6 +927,12 @@ pub const Pool = struct {
                 switch (completion.result) {
                     .failure => |err| {
                         self.reportUpstream(session, index, false, err == error.RequestCancelled);
+                        // Native response-buffer allocation failure is never a
+                        // provider fault: fail the session instead of retrying.
+                        if (err == error.OutOfMemory) {
+                            self.finish(session, err);
+                            return;
+                        }
                         var outcome: Outcome = .{ .classification = .retryable, .failure = err };
                         self.dispatchOutcome(session, index, &outcome, now_ms);
                     },
@@ -1193,6 +1279,15 @@ pub const Pool = struct {
         };
     }
 
+    /// Allocation failure while probing: retire the probe and fail its session.
+    fn abortProbe(self: *Pool, index: usize, probe: *Probe, err: anyerror) void {
+        if (probe.submitted and probe.observer != null) emitObserved(probe.observer.?, .{ .kind = .upstream_completed, .method = self.probeMethod(), .success = false, .cancelled = probe.cancelled, .operation = .block_number_probe, .endpoint_index = @intCast(index), .duration_ms = self.now() -| probe.started_ms, .duration_ns = elapsedNs(probe.started_at, self.now() -| probe.started_ms) });
+        const attached = probe.session;
+        if (attached) |session| session.waiting_probe = false;
+        self.probes[index] = null;
+        if (attached) |session| self.finish(session, err);
+        probe.deinit(self.allocator);
+    }
     fn finishProbe(self: *Pool, index: usize, result: multi.Result, now_ms: u64) void {
         const probe = self.probes[index] orelse return;
         const endpoint_ = &self.endpoints[index];
@@ -1200,20 +1295,15 @@ pub const Pool = struct {
         var timed_out = false;
         var probe_success = false;
         switch (result) {
-            .failure => |err| timed_out = err == error.RequestDeadlineExceeded or err == error.RequestCancelled,
+            .failure => |err| {
+                if (err == error.OutOfMemory) return self.abortProbe(index, probe, err);
+                timed_out = err == error.RequestDeadlineExceeded or err == error.RequestCancelled;
+            },
             .response => |response| {
                 // Ethereum Source rejects HTTP 429 before decoding but accepts valid
                 // JSON-RPC bodies on other statuses. Other protocols stay 2xx-only.
                 const accepted = response.status != 429 and (self.config.height_protocol == .ethereum or (response.status >= 200 and response.status < 300));
-                const fetched_height = if (accepted) self.probeHeight(response) catch |err| {
-                    if (probe.submitted and probe.observer != null) emitObserved(probe.observer.?, .{ .kind = .upstream_completed, .method = self.probeMethod(), .success = false, .cancelled = probe.cancelled, .operation = .block_number_probe, .endpoint_index = @intCast(index), .duration_ms = self.now() -| probe.started_ms, .duration_ns = elapsedNs(probe.started_at, self.now() -| probe.started_ms) });
-                    const attached = probe.session;
-                    if (attached) |session| session.waiting_probe = false;
-                    self.probes[index] = null;
-                    if (attached) |session| self.finish(session, err);
-                    probe.deinit(self.allocator);
-                    return;
-                } else null;
+                const fetched_height = if (accepted) self.probeHeight(response) catch |err| return self.abortProbe(index, probe, err) else null;
                 probe_success = fetched_height != null;
                 height = fetched_height orelse endpoint_.last_block_height;
             },
@@ -1866,6 +1956,10 @@ pub const Pool = struct {
     }
 };
 
+const cooperative_poll_ms: u64 = 2;
+const caller_cancel_slice_ms: u64 = 10;
+const injected_clock_slice_ms: u64 = 5;
+
 fn backoff(base_ms: u32, attempts: u8, classification: Classification) u64 {
     const shift: u8 = if (attempts <= 1) 0 else attempts - 1;
     const ordinary = @as(u64, base_ms) *| (@as(u64, 1) << @min(shift, 20));
@@ -2133,5 +2227,43 @@ test "native RPC owner suspends between active socket polls instead of spinning 
     // jitter/callback work while bounding actual owner work during an idle I/O.
     try std.testing.expect(elapsed < 200);
     try std.testing.expect((try owner.poll(handle, a)) == null);
+    try server.check();
+}
+test "native RPC owner blocks on sockets while a request stalls and wakes on cancel" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const behaviors = [_]fixture.Behavior{.{ .replies = &.{.{ .body = "", .stall = true }} }};
+    var server = try fixture.Fixture.init(4, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{} } });
+    defer owner.deinit();
+    const handle = try owner.submit(fixture.chain_id_body, 10000, 5000, 32768);
+    var timer = try std.time.Timer.start();
+    while (server.acceptedCount() == 0) {
+        if (timer.read() > std.time.ns_per_s) return error.FixtureStartTimeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    const before = owner.owner_iterations.load(.acquire);
+    std.Thread.sleep(200 * std.time.ns_per_ms);
+    // The former 2 ms condition slice made ~100 passes here.
+    try std.testing.expect(owner.owner_iterations.load(.acquire) - before <= 4);
+    const cancelled_at = timer.read();
+    owner.cancel(handle);
+    // Cancel interrupts the socket wait: the session slot is retired promptly.
+    while (true) {
+        owner.mutex.lock();
+        const live = for (owner.sessions) |entry| {
+            if (entry != null) break true;
+        } else false;
+        owner.mutex.unlock();
+        if (!live) break;
+        if (timer.read() - cancelled_at > 2 * std.time.ns_per_s) return error.CancelDidNotWakeOwner;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
     try server.check();
 }

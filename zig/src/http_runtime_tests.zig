@@ -185,6 +185,10 @@ test "shared HTTP runtime capacity cancellation retained observer owned requests
         std.Thread.sleep(std.time.ns_per_ms);
     }
     try std.testing.expectError(error.HttpRuntimeSessionsFull, owner.submit(request, null));
+    // Owner blocks on the stalled socket; the former 1 ms slice made ~100 passes.
+    const passes = owner.owner_iterations.load(.acquire);
+    std.Thread.sleep(100 * std.time.ns_per_ms);
+    try std.testing.expect(owner.owner_iterations.load(.acquire) - passes <= 4);
     owner.cancel(stalled);
     owner.cancel(stalled);
     try std.testing.expectError(error.InvalidHttpHandle, owner.poll(stalled));

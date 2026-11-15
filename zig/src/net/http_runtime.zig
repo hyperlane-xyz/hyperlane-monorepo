@@ -46,10 +46,15 @@ pub const Runtime = struct {
     mutex: std.Thread.Mutex = .{},
     wake: std.Thread.Condition = .{},
     sessions: []?*Session,
+    /// Owner-thread copy of `sessions`, allocated once (no per-pass 32 KiB fill).
+    snapshot: []?*Session,
+    /// Owner loop passes; evidence that the owner blocks on sockets/timers.
+    owner_iterations: std.atomic.Value(u64) = .init(0),
     next_id: u64 = 1,
     reserved: usize = 0,
     stopping: bool = false,
     native_failed: bool = false,
+    wait_failure: ?anyerror = null,
     thread: std.Thread = undefined,
     started: std.time.Instant,
     /// Thread-safe allocator required. All native Multi operations stay on one
@@ -63,7 +68,9 @@ pub const Runtime = struct {
         const sessions = try a.alloc(?*Session, config.max_sessions);
         errdefer a.free(sessions);
         @memset(sessions, null);
-        self.* = .{ .allocator = a, .config = config, .native = native, .sessions = sessions, .started = try std.time.Instant.now() };
+        const snapshot = try a.alloc(?*Session, config.max_sessions);
+        errdefer a.free(snapshot);
+        self.* = .{ .allocator = a, .config = config, .native = native, .sessions = sessions, .snapshot = snapshot, .started = try std.time.Instant.now() };
         self.thread = try std.Thread.spawn(.{}, run, .{self});
         return self;
     }
@@ -77,11 +84,13 @@ pub const Runtime = struct {
             session.consumed = true;
         };
         self.wake.broadcast();
+        if (!self.native_failed) self.native.wakeup();
         self.mutex.unlock();
         self.thread.join();
         std.debug.assert(self.reserved == 0);
         if (!self.native_failed) self.native.deinit();
         self.allocator.free(self.sessions);
+        self.allocator.free(self.snapshot);
         const a = self.allocator;
         a.destroy(self);
     }
@@ -130,7 +139,7 @@ pub const Runtime = struct {
         self.next_id += 1;
         self.reserved += reserved;
         self.sessions[slot] = session;
-        self.wake.signal();
+        self.wakeOwner();
         return .{ .id = session.id };
     }
     /// Terminal poll consumes the handle. Response transfers owned runtime-
@@ -142,7 +151,7 @@ pub const Runtime = struct {
         const result = session.result orelse return null;
         session.result = null;
         session.consumed = true;
-        self.wake.signal();
+        self.wakeOwner();
         return switch (result) {
             .failure => |err| err,
             .response => |response| response,
@@ -154,7 +163,13 @@ pub const Runtime = struct {
         const session = self.find(handle) orelse return;
         session.closed.store(true, .release);
         session.consumed = true;
+        self.wakeOwner();
+    }
+    /// Caller holds the mutex, so a poisoned native owner is never touched
+    /// after the owner thread destroys it (it flips native_failed first).
+    fn wakeOwner(self: *Runtime) void {
         self.wake.signal();
+        if (!self.native_failed) self.native.wakeup();
     }
     fn find(self: *Runtime, handle: Handle) ?*Session {
         for (self.sessions) |entry| if (entry) |session| if (session.id == handle.id and !session.consumed) return session;
@@ -169,14 +184,18 @@ pub const Runtime = struct {
         session.result = result;
         self.mutex.unlock();
     }
+    fn pollNative(self: *Runtime, now_ms: u64) !?multi.Completion {
+        if (self.wait_failure) |err| return err;
+        return self.native.poll(now_ms);
+    }
     fn run(self: *Runtime) void {
         while (true) {
-            var snapshot: [4096]?*Session = @splat(null);
+            const snapshot = self.snapshot;
             self.mutex.lock();
-            @memcpy(snapshot[0..self.sessions.len], self.sessions);
+            @memcpy(snapshot, self.sessions);
             self.mutex.unlock();
             const now_ms = self.now();
-            for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| {
+            for (snapshot) |entry| if (entry) |session| {
                 if (self.native_failed) {
                     session.native_id = null;
                     if (!session.reported) self.finish(session, .{ .failure = error.HttpRuntimeFailed });
@@ -201,7 +220,8 @@ pub const Runtime = struct {
                     };
                 }
             };
-            while (if (self.native_failed) @as(?multi.Completion, null) else self.native.poll(now_ms) catch |err| blk: {
+            var completed = false;
+            while (if (self.native_failed) @as(?multi.Completion, null) else self.pollNative(now_ms) catch |err| blk: {
                 // A native multi API failure poisons this owner. Destroy native
                 // callbacks while every session token/context is still alive,
                 // then deliver the original error and reject future admission.
@@ -209,15 +229,16 @@ pub const Runtime = struct {
                 self.native_failed = true;
                 self.mutex.unlock();
                 self.native.deinit();
-                for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| {
+                for (snapshot) |entry| if (entry) |session| {
                     session.native_id = null;
                     if (!session.reported) self.finish(session, .{ .failure = err });
                 };
                 break :blk null;
             }) |value| {
+                completed = true;
                 var completion = value;
                 defer completion.deinit();
-                for (snapshot[0..self.sessions.len]) |entry| if (entry) |session| {
+                for (snapshot) |entry| if (entry) |session| {
                     if (session.native_id) |id| if (std.meta.eql(id, completion.id)) {
                         session.native_id = null;
                         self.finish(session, completion.result);
@@ -238,7 +259,30 @@ pub const Runtime = struct {
                 if (entry != null) break false;
             } else true;
             const stopped = self.stopping;
-            if (empty and !stopped) self.wake.wait(&self.mutex) else if (!empty) self.wake.timedWait(&self.mutex, std.time.ns_per_ms) catch {};
+            _ = self.owner_iterations.fetchAdd(1, .monotonic);
+            if (empty and !stopped) {
+                self.wake.wait(&self.mutex);
+            } else if (!empty and self.native_failed) {
+                // Every session is already finished; wait for consumers.
+                self.wake.wait(&self.mutex);
+            } else if (!empty and !completed) {
+                // Completions are delivered above; loop once more before
+                // blocking so freed capacity admits queued sessions. Otherwise
+                // block on sockets, the earliest unsubmitted session deadline,
+                // or wakeOwner (level-triggered curl_multi_wakeup).
+                // Live table under the mutex: the snapshot may name retired sessions.
+                var next: u64 = std.math.maxInt(u32);
+                for (self.sessions) |entry| if (entry) |session| {
+                    if (!session.reported and session.native_id == null) next = @min(next, @max(session.deadline_ms -| now_ms, 1));
+                };
+                self.mutex.unlock();
+                // A failed native wait poisons the owner on the next pass,
+                // exactly like a failed native poll.
+                self.native.wait(now_ms, @intCast(next)) catch |err| {
+                    self.wait_failure = err;
+                };
+                self.mutex.lock();
+            }
             self.mutex.unlock();
             if (empty and stopped) return;
         }
