@@ -1358,21 +1358,35 @@ pub const Pool = struct {
                         const classification = if (expected_absence) Classification.non_retryable else classify(session.wire().method, &parsed);
                         const header_method = @import("header.zig").isMethod(session.wire().method);
                         const known_tip = std.mem.eql(u8, session.wire().method, "eth_blockNumber") or (self.config.height_protocol != .ethereum and std.mem.eql(u8, session.wire().method, "eth_getBlockByNumber"));
-                        // Only these checks need a result tree; built once, from the span.
-                        const result_tree: ?Value = if (classification == .success and (known_tip or (header_method and self.config.height_protocol == .ethereum))) parsed.resultValue(self.allocator) catch |err| {
+                        const ethereum_header = classification == .success and header_method and self.config.height_protocol == .ethereum;
+                        // The header check reads its fields from the result span when it
+                        // can decide there; otherwise (and for tips) one tree is built.
+                        const header_decided: ?bool = if (ethereum_header) headerResultValid(self.allocator, parsed.resultBytes(), headerPending(session.wire())) catch |err| {
+                            self.reportUpstream(session, index, false, false);
+                            parsed.deinit(self.allocator);
+                            self.finish(session, err);
+                            return;
+                        } else null;
+                        const result_tree: ?Value = if (classification == .success and (known_tip or (ethereum_header and header_decided == null))) parsed.resultValue(self.allocator) catch |err| {
                             self.reportUpstream(session, index, false, false);
                             parsed.deinit(self.allocator);
                             self.finish(session, err);
                             return;
                         } else null;
                         if (classification == .success and self.config.height_protocol == .ethereum) {
-                            if (header_method) @import("header.zig").validateResult(session.wire().method, session.wire().params, result_tree.?) catch |err| {
-                                self.reportUpstream(session, index, false, false);
-                                parsed.deinit(self.allocator);
-                                var invalid: Outcome = .{ .classification = .retryable, .failure = err };
-                                self.dispatchOutcome(session, index, &invalid, now_ms);
-                                return;
-                            };
+                            if (header_method) {
+                                var failure: ?anyerror = if (header_decided) |valid| (if (valid) null else error.RpcResponseDecode) else null;
+                                if (header_decided == null) @import("header.zig").validateResult(session.wire().method, session.wire().params, result_tree.?) catch |err| {
+                                    failure = err;
+                                };
+                                if (failure) |err| {
+                                    self.reportUpstream(session, index, false, false);
+                                    parsed.deinit(self.allocator);
+                                    var invalid: Outcome = .{ .classification = .retryable, .failure = err };
+                                    self.dispatchOutcome(session, index, &invalid, now_ms);
+                                    return;
+                                }
+                            }
                             parsed.header_checked = true;
                         }
                         if (classification == .success and known_tip and !validTipResult(session.wire().method, result_tree.?)) {
@@ -2035,6 +2049,72 @@ pub const Pool = struct {
             },
         }
     }
+    fn headerPending(request: *const Request) bool {
+        const params = request.params;
+        return std.mem.eql(u8, request.method, "eth_getBlockByNumber") and params == .array and params.array.items.len > 0 and params.array.items[0] == .string and std.mem.eql(u8, params.array.items[0].string, "pending");
+    }
+    const HeaderField = enum { number, hash, parentHash, timestamp, gasLimit, baseFeePerGas };
+    /// header.validateResult decided from the result span's members (every
+    /// failure there is RpcResponseDecode, so validity is all it reports).
+    /// Null: escaped strings or anything else the span walk will not decide;
+    /// the caller then builds the tree and runs header.validateResult itself.
+    fn headerResultValid(allocator: A, result: []const u8, pending: bool) !?bool {
+        if (std.mem.eql(u8, result, "null")) return true;
+        const found = (try @import("../net/json_fast.zig").fields(HeaderField, allocator, result)) orelse return null;
+        const codecs = @import("codecs.zig");
+        const Text = union(enum) { text: []const u8, null_value, invalid, undecided };
+        const text = struct {
+            fn of(bytes: []const u8, member: ?envelope.Member) Text {
+                const value = member orelse return .invalid;
+                const raw = value.span.of(bytes);
+                if (value.kind == .other and std.mem.eql(u8, raw, "null")) return .null_value;
+                if (value.kind != .string) return .invalid;
+                if (std.mem.indexOfScalar(u8, raw, '\\') != null) return .undecided;
+                return .{ .text = raw[1 .. raw.len - 1] };
+            }
+        }.of;
+        if (found[@intFromEnum(HeaderField.gasLimit)] != null) switch (text(result, found[@intFromEnum(HeaderField.gasLimit)])) {
+            .text => |value| _ = codecs.quantityAs(u256, value) catch return false,
+            .undecided => return null,
+            else => return false,
+        };
+        if (found[@intFromEnum(HeaderField.baseFeePerGas)] != null) switch (text(result, found[@intFromEnum(HeaderField.baseFeePerGas)])) {
+            .text => |value| _ = codecs.quantityAs(u256, value) catch return false,
+            .null_value => {},
+            .undecided => return null,
+            .invalid => return false,
+        };
+        const number_known = switch (text(result, found[@intFromEnum(HeaderField.number)])) {
+            .text => |value| blk: {
+                _ = codecs.quantity(value) catch return false;
+                break :blk true;
+            },
+            .null_value => false,
+            .undecided => return null,
+            .invalid => return false,
+        };
+        const hash_known = switch (text(result, found[@intFromEnum(HeaderField.hash)])) {
+            .text => |value| blk: {
+                _ = codecs.fixedHex(32, value) catch return false;
+                break :blk true;
+            },
+            .null_value => false,
+            .undecided => return null,
+            .invalid => return false,
+        };
+        switch (text(result, found[@intFromEnum(HeaderField.parentHash)])) {
+            .text => |value| _ = codecs.fixedHex(32, value) catch return false,
+            .undecided => return null,
+            else => return false,
+        }
+        switch (text(result, found[@intFromEnum(HeaderField.timestamp)])) {
+            .text => |value| _ = codecs.quantity(value) catch return false,
+            .undecided => return null,
+            else => return false,
+        }
+        return pending or (number_known and hash_known);
+    }
+
     fn validTipResult(method: []const u8, result: Value) bool {
         if (std.mem.eql(u8, method, "eth_blockNumber")) {
             _ = quantity64(result) catch return false;
@@ -2695,6 +2775,53 @@ test "pool requests from one scan match the legacy policy and request parse" {
         if (round % 2 == 0) try legacy.mutate(random, source, &extra, a) else try legacy.reshape(random, source, &extra, a);
         try checkPoolRequest(a, extra.items, random.boolean());
     }
+}
+
+test "header check from the result span decides exactly as header.validateResult" {
+    const a = std.testing.allocator;
+    const hash = "\"0x" ++ "11" ** 32 ++ "\"";
+    const parent = "\"0x" ++ "22" ** 32 ++ "\"";
+    const fields_ok = [_][]const u8{ "\"number\":\"0x10\"", "\"hash\":" ++ hash, "\"parentHash\":" ++ parent, "\"timestamp\":\"0x123\"", "\"gasLimit\":\"0x1c9c380\"", "\"baseFeePerGas\":\"0x7\"" };
+    const replacements = [_][]const u8{ "null", "\"\"", "\"0x\"", "\"0xzz\"", "7", "true", "{}", "\"0x" ++ "11" ** 31 ++ "\"", "\"0x10000000000000000\"", "\"\\u0030x10\"", "\"0x" ++ "ff" ** 33 ++ "\"" };
+    var cases: std.ArrayList([]u8) = .empty;
+    defer {
+        for (cases.items) |case| a.free(case);
+        cases.deinit(a);
+    }
+    for (0..fields_ok.len + 1) |drop| for (0..replacements.len + 1) |replace| for (0..fields_ok.len) |target| {
+        var body: std.ArrayList(u8) = .empty;
+        errdefer body.deinit(a);
+        try body.appendSlice(a, "{\"transactions\":[],");
+        for (fields_ok, 0..) |field, index| {
+            if (index == drop) continue;
+            if (index == target and replace < replacements.len) {
+                const colon = std.mem.indexOfScalar(u8, field, ':').?;
+                try body.appendSlice(a, field[0 .. colon + 1]);
+                try body.appendSlice(a, replacements[replace]);
+            } else try body.appendSlice(a, field);
+            try body.append(a, ',');
+        }
+        try body.appendSlice(a, "\"size\":\"0x1\"}");
+        try cases.append(a, try body.toOwnedSlice(a));
+    };
+    for ([_][]const u8{ "null", "[1]", "\"x\"", "7", "{}" }) |extra| try cases.append(a, try a.dupe(u8, extra));
+    var decided: usize = 0;
+    for (cases.items) |result| for ([_][]const u8{ "[\"latest\",false]", "[\"pending\",false]" }) |params_text| {
+        const params = try envelope.parseValue(a, params_text, false);
+        defer params.deinit();
+        const tree = try envelope.parseValue(a, result, false);
+        defer tree.deinit();
+        const expected = if (@import("header.zig").validateResult("eth_getBlockByNumber", params.value, tree.value)) |_| true else |_| false;
+        var request: Request = .{ .body = @constCast(""), .method = "eth_getBlockByNumber", .id = 1, .params = params.value };
+        if (try Pool.headerResultValid(a, result, Pool.headerPending(&request))) |valid| {
+            decided += 1;
+            if (valid != expected) {
+                std.debug.print("header span {} vs tree {} for {s} {s}\n", .{ valid, expected, result, params_text });
+                return error.DifferentialMismatch;
+            }
+        }
+    };
+    try std.testing.expect(decided * 10 >= cases.items.len * 2 * 8);
 }
 
 const SpanFixture = struct {

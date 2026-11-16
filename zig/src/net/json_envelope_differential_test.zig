@@ -7,6 +7,7 @@ const env = @import("json_envelope.zig");
 const read_replay = @import("read_replay.zig");
 const json_bounds = @import("json_bounds.zig");
 const provider = @import("../evm/provider.zig");
+const fast = @import("json_fast.zig");
 const A = std.mem.Allocator;
 const fixture_hash_0 = "0x" ++ "769f" ** 16;
 const fixture_hash_1 = "0x" ++ "0000" ** 16;
@@ -178,6 +179,7 @@ fn checkResponse(a: A, bytes: []const u8, id: i64) !void {
             return error.DifferentialMismatch;
         }
     }
+    try checkFast(a, bytes);
     // Replay dialect.
     const replay_old = legacyValidateResponse(a, bytes, id);
     const replay_new = read_replay.validateResponse(a, bytes, id);
@@ -247,7 +249,38 @@ fn expectSameVoid(old: anyerror!void, new: anyerror!void, bytes: []const u8) !vo
     }
 }
 
+/// The fast walker never accepts what the std walker rejects, and agrees
+/// exactly (facts, trees) on what it accepts.
+fn checkFast(a: A, bytes: []const u8) !void {
+    inline for (.{ env.pool_options, env.Options{} }) |options| {
+        const reference = env.scanStd(a, bytes, options);
+        if (try fast.scan(a, bytes, options.depth_limit)) |facts| {
+            const top = reference catch |err| {
+                std.debug.print("fast scan accepted, std {s} for {s}\n", .{ @errorName(err), bytes });
+                return error.DifferentialMismatch;
+            };
+            try std.testing.expectEqualDeep(top, facts);
+            fast_accepted += 1;
+        }
+    }
+    inline for (.{ false, true }) |numbers| {
+        var arena = std.heap.ArenaAllocator.init(a);
+        defer arena.deinit();
+        if (try fast.parse(arena.allocator(), a, bytes, numbers)) |tree| {
+            var reference_arena = std.heap.ArenaAllocator.init(a);
+            defer reference_arena.deinit();
+            const reference = env.parseStdLeaky(reference_arena.allocator(), a, bytes, numbers) catch |err| {
+                std.debug.print("fast tree accepted, std {s} for {s}\n", .{ @errorName(err), bytes });
+                return error.DifferentialMismatch;
+            };
+            try std.testing.expect(deepEqual(reference, tree));
+        }
+    }
+}
+var fast_accepted: usize = 0;
+
 fn checkRequest(a: A, body: []const u8) !void {
+    try checkFast(a, body);
     const old = legacyRequireReadOnly(a, body, 4096);
     const new = read_replay.requireReadOnly(a, body, 4096);
     if (old) |id| {
@@ -450,7 +483,7 @@ test "envelope facts match the legacy parsers at the depth bound" {
 pub fn mutate(random: std.Random, source: []const u8, out: *std.ArrayList(u8), a: A) !void {
     out.clearRetainingCapacity();
     try out.appendSlice(a, source);
-    const fragments = [_][]const u8{ "\"id\":7,", "\"a\":1,", "\"result\":", "\"error\":", "{", "}", "[", "]", ",", ":", "\"", "\\", "\\u0069", "1e9", "-0", "null", " ", "\"jsonrpc\":\"2.0\",", "\"\\u0061\":1," };
+    const fragments = [_][]const u8{ "\"id\":7,", "\"a\":1,", "\"result\":", "\"error\":", "{", "}", "[", "]", ",", ":", "\"", "\\", "\\u0069", "1e9", "-0", "null", " ", "\"jsonrpc\":\"2.0\",", "\"\\u0061\":1,", "\xc3\xa9", "\xed\xa0\x80", "\xf4\x90\x80\x80", "\xe2\x82", "\xc0\xaf", "\\ud83d\\ude00", "\\u00e9", "\\u0000", "\x7f", "\t", "\\n", "0.5e-3" };
     const rounds = 1 + random.uintLessThan(usize, 3);
     for (0..rounds) |_| {
         if (out.items.len == 0) break;
@@ -496,6 +529,7 @@ test "envelope facts match the legacy parsers on seeded mutations" {
     }
     // The mutations must still reach the success path, not only errors.
     try std.testing.expect(adopted_count - adopted_before > 1500);
+    try std.testing.expect(fast_accepted > 5000);
 }
 
 pub fn reshape(random: std.Random, source: []const u8, out: *std.ArrayList(u8), a: A) !void {
