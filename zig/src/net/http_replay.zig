@@ -143,14 +143,15 @@ fn requestPolicy(a: A, request: curl.Request, maximum: usize) !?i64 {
     if (body.len > maximum) return error.ReadReplayRequestTooLarge;
     const trimmed = std.mem.trimStart(u8, body, " \t\r\n");
     if (trimmed.len != 0 and (trimmed[0] == '{' or trimmed[0] == '[')) {
-        try @import("json_bounds.zig").validate(body);
-        const parsed = std.json.parseFromSlice(std.json.Value, a, body, .{ .duplicate_field_behavior = .@"error", .parse_numbers = false }) catch |err| switch (err) {
-            error.OutOfMemory => return err,
-            else => null,
+        // One scan: syntax/depth errors propagate (json_bounds), a duplicate key
+        // makes it non-JSON-RPC (its tree parse failed), and a JSON-RPC object
+        // gets the read-only policy on this same scan.
+        const scanned = @import("json_envelope.zig").scan(a, body, @import("json_envelope.zig").pool_options) catch |err| switch (err) {
+            error.DuplicateField => null,
+            else => return err,
         };
-        defer if (parsed) |value| value.deinit();
-        if (parsed) |value| if (value.value == .object and value.value.object.contains("jsonrpc")) {
-            return try rpc_replay.requireReadOnly(a, body, maximum);
+        if (scanned) |top| if (top.object and top.get(.jsonrpc) != null) {
+            return try rpc_replay.readOnlyId(&top, body);
         };
     }
     if (request.method == .post and !readOnlyPost(request.url)) return error.NonReadOnlyReplayRequest;
@@ -216,6 +217,60 @@ test "HTTP replay accepts source read routes rejects broadcast and bounds JSON b
     @memset(depth[0..129], '[');
     @memset(depth[129..], ']');
     try std.testing.expectError(error.JsonDepthExceeded, requestPolicy(a, .{ .url = "https://example.invalid/status/network-status", .method = .post, .body = &depth }, 1024));
+}
+
+/// The pre-scan policy (json_bounds, Value parse, then requireReadOnly), verbatim.
+fn legacyRequestPolicy(a: A, request: curl.Request, maximum: usize) !?i64 {
+    try curl.validateRequest(request);
+    if (request.public_only or (request.method != .get and request.method != .post)) return error.NonReadOnlyReplayRequest;
+    const body = request.body orelse "";
+    if (body.len > maximum) return error.ReadReplayRequestTooLarge;
+    const trimmed = std.mem.trimStart(u8, body, " \t\r\n");
+    if (trimmed.len != 0 and (trimmed[0] == '{' or trimmed[0] == '[')) {
+        try @import("json_bounds.zig").validate(body);
+        const parsed = std.json.parseFromSlice(std.json.Value, a, body, .{ .duplicate_field_behavior = .@"error", .parse_numbers = false }) catch |err| switch (err) {
+            error.OutOfMemory => return err,
+            else => null,
+        };
+        defer if (parsed) |value| value.deinit();
+        if (parsed) |value| if (value.value == .object and value.value.object.contains("jsonrpc")) {
+            return try @import("json_envelope_differential_test.zig").legacyRequireReadOnly(a, body, maximum);
+        };
+    }
+    if (request.method == .post and !readOnlyPost(request.url)) return error.NonReadOnlyReplayRequest;
+    return null;
+}
+
+test "HTTP replay JSON policy matches the pre-scan policy on every body shape" {
+    const a = std.testing.allocator;
+    var deep: [260]u8 = undefined;
+    @memset(deep[0..129], '[');
+    @memset(deep[129..258], ']');
+    var bodies: std.ArrayList([]const u8) = .empty;
+    defer bodies.deinit(a);
+    try bodies.appendSlice(a, &.{
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"status\",\"params\":[]}",
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"broadcast_tx_sync\",\"params\":[]}",
+        "{\"jsonrpc\":\"2.0\",\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"broadcast_tx_sync\"}",
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"status\",\"params\":{\"a\":1,\"a\":2}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"status\",\"params\":[}",
+        "{\"query\":{\"count\":{}}}",
+        "{\"q\":{\"k\":1,\"k\":2}}",
+        "[{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"status\"}]",
+        "{\"jsonrpc\":1,\"id\":4,\"method\":\"status\"}",
+        "{\"\\u006asonrpc\":\"2.0\",\"id\":4,\"method\":\"tx\"}",
+        "  \n{}",
+        "plain text",
+        "",
+        deep[0..258],
+        deep[1..257],
+    });
+    for (bodies.items) |body| for ([_][]const u8{ "https://example.invalid/status/network-status", "https://example.invalid/unrecognized" }) |url| {
+        const request: curl.Request = .{ .url = url, .method = .post, .body = body };
+        const old = legacyRequestPolicy(a, request, 1024);
+        const new = requestPolicy(a, request, 1024);
+        if (old) |id| try std.testing.expectEqual(id, try new) else |err| try std.testing.expectError(err, new);
+    };
 }
 
 test "HTTP replay fetch enforces pass, cancellation and read-only policy before any submit" {

@@ -5,6 +5,7 @@ const Endpoint = @import("../net/endpoint.zig");
 const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const TipCache = @import("../net/dynamic_tip_cache.zig");
+const envelope = @import("../net/json_envelope.zig");
 pub const Address = abi.Address;
 pub const Hash = abi.Hash;
 
@@ -68,7 +69,8 @@ pub const BlockRef = union(enum) {
     }
 };
 
-pub const WireResponse = struct { bytes: []u8, len: usize };
+/// `validated`: a Pool winner already authenticated against this request id.
+pub const WireResponse = struct { bytes: []u8, len: usize, validated: ?envelope.Validated = null };
 pub const Exchange = struct {
     context: *anyopaque,
     fetch_fn: *const fn (*anyopaque, Allocator, []const u8, Options) anyerror!WireResponse,
@@ -132,6 +134,8 @@ pub const RpcClient = struct {
     allocator: Allocator,
     url: []const u8,
     endpoint: Endpoint.OwnedEndpoint,
+    /// Digest of the complete endpoint identity for tip-cache keys.
+    tip_identity: TipCache.Identity,
     headers: []std.http.Header,
     native_headers: []Curl.Header,
     http: std.http.Client,
@@ -167,7 +171,7 @@ pub const RpcClient = struct {
         errdefer allocator.free(native_headers);
         for (headers.items, native_headers) |header, *native| native.* = .{ .name = header.name, .value = header.value };
         try Curl.validateRequest(.{ .url = endpoint.endpoint.url, .method = .post, .headers = native_headers });
-        return .{ .allocator = allocator, .url = endpoint.endpoint.url, .endpoint = endpoint, .headers = try headers.toOwnedSlice(allocator), .native_headers = native_headers, .http = .{ .allocator = allocator }, .options = options };
+        return .{ .allocator = allocator, .url = endpoint.endpoint.url, .endpoint = endpoint, .tip_identity = TipCache.identity(endpoint.identity), .headers = try headers.toOwnedSlice(allocator), .native_headers = native_headers, .http = .{ .allocator = allocator }, .options = options };
     }
 
     pub fn deinit(self: *RpcClient) void {
@@ -260,15 +264,27 @@ pub const RpcClient = struct {
     fn decodeEnvelope(self: *RpcClient, method: []const u8, body: []const u8, id: i64, fetched: WireResponse) !RpcResponse {
         errdefer self.allocator.free(fetched.bytes);
         if (fetched.len > fetched.bytes.len or fetched.len > self.options.max_response_bytes) return error.RpcResponseTooLarge;
-        var parsed = std.json.parseFromSlice(Value, self.allocator, fetched.bytes[0..fetched.len], .{ .duplicate_field_behavior = .@"error", .max_value_len = self.options.max_response_bytes }) catch |err| return @import("pool.zig").responseDecodeError(self.options.protocol, err);
+        const bytes = fetched.bytes[0..fetched.len];
+        if (fetched.validated) |validated| if (try adoptValidated(self.allocator, bytes, id, validated.result)) |adopted| {
+            var parsed = adopted;
+            errdefer parsed.deinit();
+            self.last_rpc_error_code = null;
+            if (self.options.protocol == .ethereum and !validated.header_checked and @import("header.zig").isMethod(method)) try validateHeader(self.allocator, method, body, parsed.value.object.get("result").?);
+            return .{ .allocator = self.allocator, .bytes = fetched.bytes, .parsed = parsed };
+        };
+        var parsed = envelope.parseValue(self.allocator, bytes, true) catch |err| return @import("pool.zig").responseDecodeError(self.options.protocol, err);
         errdefer parsed.deinit();
         self.last_rpc_error_code = validateEnvelope(parsed.value, id) catch |err| return @import("pool.zig").responseDecodeError(self.options.protocol, err);
-        if (self.options.protocol == .ethereum and self.last_rpc_error_code == null and @import("header.zig").isMethod(method)) {
-            var request = try std.json.parseFromSlice(Value, self.allocator, body, .{});
-            defer request.deinit();
-            try @import("header.zig").validateResult(method, request.value.object.get("params").?, parsed.value.object.get("result").?);
-        }
+        if (self.options.protocol == .ethereum and self.last_rpc_error_code == null and @import("header.zig").isMethod(method)) try validateHeader(self.allocator, method, body, parsed.value.object.get("result").?);
         return .{ .allocator = self.allocator, .bytes = fetched.bytes, .parsed = parsed };
+    }
+    /// Header-result check against this request's own params; only the params
+    /// span of the (self-built) body is parsed.
+    fn validateHeader(allocator: Allocator, method: []const u8, body: []const u8, result: Value) !void {
+        const top = try envelope.scan(allocator, body, .{});
+        var params = try envelope.parseValue(allocator, top.get(.params).?.span.of(body), true);
+        defer params.deinit();
+        try @import("header.zig").validateResult(method, params.value, result);
     }
 
     const Fetched = WireResponse;
@@ -291,7 +307,7 @@ pub const RpcClient = struct {
         const method = object.get("method").?.string;
         const id = object.get("id").?.integer;
         const params = object.get("params").?;
-        const hash = (try TipCache.key(self.allocator, self.endpoint.identity, method, params)) orelse return self.fetchNativeTimed(native, body, self.options.timeout_ms);
+        const hash = (try TipCache.key(self.allocator, self.tip_identity, method, params)) orelse return self.fetchNativeTimed(native, body, self.options.timeout_ms);
         const cache = self.options.dynamic_tip_cache.?;
         const started = try std.time.Instant.now();
         self.nativeCacheEvent(method, .logical_read);
@@ -565,6 +581,49 @@ pub const RpcClient = struct {
 
 /// Returns the RPC error code only for a well-formed error response. Result null
 /// is valid JSON-RPC; typed methods decide whether their result may be null.
+/// A Pool winner already authenticated against this id with its exact result
+/// span. The envelope outside that span is still checked here, in this
+/// dialect (integer id, jsonrpc "2.0", no error member), on a copy whose
+/// result is replaced by `0`; then only the result is parsed (its syntax and
+/// duplicate keys are checked by that parse). Null: anything unexpected, and
+/// the caller decodes the whole body as before. Errors only on allocation.
+pub fn adoptValidated(allocator: Allocator, bytes: []const u8, id: i64, span: envelope.Span) !?std.json.Parsed(Value) {
+    if (span.start >= span.end or span.end > bytes.len) return null;
+    const outside_len = bytes.len - (span.end - span.start) + 1;
+    var stack: [512]u8 = undefined;
+    const heap = if (outside_len > stack.len) try allocator.alloc(u8, outside_len) else null;
+    defer if (heap) |memory| allocator.free(memory);
+    const outside = heap orelse stack[0..outside_len];
+    @memcpy(outside[0..span.start], bytes[0..span.start]);
+    outside[span.start] = '0';
+    @memcpy(outside[span.start + 1 ..], bytes[span.end..]);
+    const top = envelope.scan(allocator, outside, .{}) catch |err| {
+        if (err == error.OutOfMemory) return err;
+        return null;
+    };
+    if (!top.object or top.get(.@"error") != null) return null;
+    const version = top.get(.jsonrpc) orelse return null;
+    if (!envelope.isString(outside, version, "2.0")) return null;
+    const actual = top.get(.id) orelse return null;
+    const text = actual.span.of(outside);
+    if (actual.kind != .number or !std.json.isNumberFormattedLikeAnInteger(text)) return null;
+    if ((std.fmt.parseInt(i64, text, 10) catch return null) != id) return null;
+    const result = top.get(.result) orelse return null;
+    if (result.span.start != span.start or result.span.end != span.start + 1) return null;
+    var tree = envelope.parseValue(allocator, span.of(bytes), true) catch |err| {
+        if (err == error.OutOfMemory) return err;
+        return null;
+    };
+    errdefer tree.deinit();
+    // Same root shape callers read today (`parsed.value.object.get(...)`).
+    var root = std.json.ObjectMap.init(tree.arena.allocator());
+    try root.put("jsonrpc", .{ .string = "2.0" });
+    try root.put("id", .{ .integer = id });
+    try root.put("result", tree.value);
+    tree.value = .{ .object = root };
+    return tree;
+}
+
 pub fn validateEnvelope(value: Value, expected_id: i64) !?i64 {
     if (value != .object) return error.InvalidRpcEnvelope;
     const object = value.object;

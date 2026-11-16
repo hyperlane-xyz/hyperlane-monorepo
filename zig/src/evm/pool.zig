@@ -8,12 +8,14 @@ const endpoint = @import("../net/endpoint.zig");
 const A = std.mem.Allocator;
 const Value = std.json.Value;
 const tip_cache = @import("../net/dynamic_tip_cache.zig");
-const json_bounds = @import("../net/json_bounds.zig");
+const envelope = @import("../net/json_envelope.zig");
 const wake_notifier = @import("../runtime/wake.zig");
 const fiber = @import("../runtime/fiber.zig");
 const cancel_wake = @import("../runtime/cancel_wake.zig");
 
-pub const WireResponse = struct { bytes: []u8, len: usize };
+/// `validated`: the Pool already authenticated this envelope against the
+/// request id; the caller may adopt the exact result span.
+pub const WireResponse = struct { bytes: []u8, len: usize, validated: ?envelope.Validated = null };
 /// Borrowed cancellation flags observed by a blocking wait (either raises).
 pub const Cancels = struct {
     first: ?*const std.atomic.Value(bool) = null,
@@ -162,6 +164,8 @@ pub const Classification = enum { success, retryable, rate_limited, non_retryabl
 
 const Endpoint = struct {
     owned: endpoint.OwnedEndpoint,
+    /// Digest of the complete identity, computed once for tip-cache keys.
+    tip_identity: tip_cache.Identity,
     headers: []curl.Header,
     failed_count: u32 = 0,
     last_block_height: u64 = 0,
@@ -173,51 +177,93 @@ const Endpoint = struct {
     }
 };
 
+/// One JSON-RPC request, tokenized once without a tree. `params` is a tree
+/// only for methods whose params the Pool inspects (see `inspectsParams`);
+/// otherwise it is `.null` and no Pool path reads it.
 const Request = struct {
     body: []u8,
-    parsed: std.json.Parsed(Value),
     method: []const u8,
+    method_owned: bool = false,
     id: i64,
-    params: Value,
+    params: Value = .null,
+    params_tree: ?std.json.Parsed(Value) = null,
+    owned_params: ?std.json.Array = null,
 
-    fn parse(allocator: A, body: []const u8, max_bytes: usize) !Request {
+    fn parse(allocator: A, body: []const u8, max_bytes: usize, quorum: bool) !Request {
         if (body.len == 0 or body.len > max_bytes) return error.InvalidRpcRequest;
-        try json_bounds.validate(body);
-        const owned = try allocator.dupe(u8, body);
-        errdefer allocator.free(owned);
-        var parsed = try std.json.parseFromSlice(Value, allocator, owned, .{ .allocate = .alloc_always, .duplicate_field_behavior = .@"error", .parse_numbers = false, .max_value_len = max_bytes });
-        errdefer parsed.deinit();
-        if (parsed.value != .object) return error.InvalidRpcRequest;
-        const object = parsed.value.object;
-        const version = object.get("jsonrpc") orelse return error.InvalidRpcRequest;
-        if (version != .string or !std.mem.eql(u8, version.string, "2.0")) return error.InvalidRpcRequest;
-        const id_value = object.get("id") orelse return error.InvalidRpcRequest;
-        if (id_value != .number_string) return error.InvalidRpcRequest;
-        const id = std.fmt.parseInt(i64, id_value.number_string, 10) catch return error.InvalidRpcRequest;
-        const method = object.get("method") orelse return error.InvalidRpcRequest;
-        if (method != .string or method.string.len == 0) return error.InvalidRpcRequest;
-        const params = object.get("params") orelse Value{ .array = std.json.Array.init(allocator) };
-        return .{ .body = owned, .parsed = parsed, .method = method.string, .id = id, .params = params };
+        const top = try envelope.scan(allocator, body, envelope.pool_options);
+        return adopt(allocator, body, &top, quorum);
     }
 
-    fn fromParts(allocator: A, id: i64, method: []const u8, params: Value, max_bytes: usize) !Request {
+    /// A body the caller already scanned (read-only policy): only the Pool's
+    /// own size and depth bounds remain before adopting that scan.
+    fn scanned(allocator: A, body: []const u8, top: *const envelope.Top, max_bytes: usize, quorum: bool) !Request {
+        if (body.len == 0 or body.len > max_bytes) return error.InvalidRpcRequest;
+        if (top.max_depth > envelope.max_depth) return error.JsonDepthExceeded;
+        return adopt(allocator, body, top, quorum);
+    }
+
+    fn adopt(allocator: A, body: []const u8, top: *const envelope.Top, quorum: bool) !Request {
+        const facts = try envelope.requestFacts(top, body);
+        const id = std.fmt.parseInt(i64, facts.id.of(body), 10) catch return error.InvalidRpcRequest;
+        const owned = try allocator.dupe(u8, body);
+        errdefer allocator.free(owned);
+        const method = try envelope.stringAlloc(allocator, owned, facts.method);
+        errdefer if (method.owned) allocator.free(method.text);
+        if (method.text.len == 0) return error.InvalidRpcRequest;
+        var request: Request = .{ .body = owned, .method = method.text, .method_owned = method.owned, .id = id };
+        if (inspectsParams(method.text, quorum)) {
+            if (facts.params) |span| {
+                const tree = try envelope.parseValue(allocator, span.of(owned), false);
+                request.params_tree = tree;
+                request.params = tree.value;
+            } else request.params = .{ .array = std.json.Array.init(allocator) };
+        }
+        return request;
+    }
+
+    /// The exact body the former stringify-then-parse round trip produced,
+    /// without the parse. `params` stays borrowed unless `owned_params`
+    /// transfers it (the caller keeps ownership on error).
+    fn fromParts(allocator: A, id: i64, method: []const u8, params: Value, owned_params: ?std.json.Array, max_bytes: usize) !Request {
         const body = try std.json.Stringify.valueAlloc(allocator, .{ .jsonrpc = "2.0", .id = id, .method = method, .params = params }, .{});
-        defer allocator.free(body);
-        return parse(allocator, body, max_bytes);
+        errdefer allocator.free(body);
+        if (body.len > max_bytes) return error.InvalidRpcRequest;
+        const name = try allocator.dupe(u8, method);
+        return .{ .body = body, .method = name, .method_owned = true, .id = id, .params = params, .owned_params = owned_params };
     }
 
     fn deinit(self: *Request, allocator: A) void {
-        self.parsed.deinit();
+        if (self.params_tree) |tree| tree.deinit();
+        if (self.owned_params) |*params| params.deinit();
+        if (self.method_owned) allocator.free(self.method);
         allocator.free(self.body);
         self.* = undefined;
     }
 };
 
+const block_parameter_methods = [_][]const u8{ "eth_call", "eth_createAccessList", "eth_getStorageAt", "eth_getCode", "eth_getProof", "eth_estimateGas", "trace_call", "trace_block" };
+/// Methods whose params some Pool path reads: header validation, hedging,
+/// tip-cache keys, CometBFT tx absence, and (quorum) block-tag pinning.
+fn inspectsParams(method: []const u8, quorum: bool) bool {
+    const always = [_][]const u8{ "eth_getBlockByNumber", "eth_getBlockByHash", "eth_getBalance", "eth_getCode", "eth_getStorageAt", "eth_getProof", "tx" };
+    for (always) |candidate| if (std.mem.eql(u8, method, candidate)) return true;
+    if (quorum) for (block_parameter_methods) |candidate| if (std.mem.eql(u8, method, candidate)) return true;
+    return false;
+}
+
+const Winner = struct { bytes: []u8, validated: ?envelope.Validated };
+
+/// A validated upstream envelope: exact result span or the (small) error
+/// tree. A result tree is built only for the consumers that need one.
 const ParsedResponse = struct {
     bytes: []u8,
-    parsed: std.json.Parsed(Value),
-    result: ?Value,
+    result: ?envelope.Span,
     rpc_error: ?Value,
+    error_tree: ?std.json.Parsed(Value),
+    result_tree: ?std.json.Parsed(Value) = null,
+    /// The Ethereum header-result check already ran on this exact response.
+    header_checked: bool = false,
     reserved_bytes: usize,
     charged: bool = false,
 
@@ -230,43 +276,43 @@ const ParsedResponse = struct {
     fn parseOwned(allocator: A, bytes: []u8, expected_id: i64, max_bytes: usize) !ParsedResponse {
         errdefer allocator.free(bytes);
         if (bytes.len > max_bytes) return error.ResponseTooLarge;
-        try json_bounds.validate(bytes);
-        var parsed = try std.json.parseFromSlice(Value, allocator, bytes, .{ .allocate = .alloc_always, .duplicate_field_behavior = .@"error", .parse_numbers = false, .max_value_len = max_bytes });
-        errdefer parsed.deinit();
-        if (parsed.value != .object) return error.InvalidRpcEnvelope;
-        const object = parsed.value.object;
-        const version = object.get("jsonrpc") orelse return error.InvalidRpcEnvelope;
-        if (version != .string or !std.mem.eql(u8, version.string, "2.0")) return error.InvalidRpcEnvelope;
-        const id = object.get("id") orelse return error.InvalidRpcEnvelope;
-        if (id != .number_string) return error.RpcIdMismatch;
-        const actual_id = std.fmt.parseInt(i64, id.number_string, 10) catch return error.RpcIdMismatch;
-        if (actual_id != expected_id) return error.RpcIdMismatch;
-        const has_result = object.contains("result");
-        const has_error = object.contains("error");
-        if (has_result == has_error) return error.InvalidRpcEnvelope;
-        if (has_error) {
-            const rpc_error = object.get("error").?;
-            if (rpc_error != .object) return error.InvalidRpcEnvelope;
-            const code = rpc_error.object.get("code") orelse return error.InvalidRpcEnvelope;
-            const message = rpc_error.object.get("message") orelse return error.InvalidRpcEnvelope;
-            if (code != .number_string or message != .string) return error.InvalidRpcEnvelope;
-            _ = std.fmt.parseInt(i64, code.number_string, 10) catch return error.InvalidRpcEnvelope;
-        }
-        return .{ .bytes = bytes, .parsed = parsed, .result = if (has_result) object.get("result").? else null, .rpc_error = if (has_error) object.get("error").? else null, .reserved_bytes = bytes.len + parsed.arena.queryCapacity() };
+        const response = try envelope.validateResponse(allocator, bytes, expected_id, .pool);
+        const tree = response.rpc_error;
+        return .{ .bytes = bytes, .result = response.result, .rpc_error = if (tree) |value| value.value else null, .error_tree = tree, .reserved_bytes = bytes.len + if (tree) |value| value.arena.queryCapacity() else 0 };
+    }
+
+    fn resultBytes(self: *const ParsedResponse) []const u8 {
+        return self.result.?.of(self.bytes);
+    }
+
+    /// Result tree (parse_numbers=false, strings borrowed from `bytes`),
+    /// built on first use. Consumers build it before any retain so the
+    /// byte budget charges it.
+    fn resultValue(self: *ParsedResponse, allocator: A) !Value {
+        if (self.result_tree) |tree| return tree.value;
+        const tree = try envelope.parseValue(allocator, self.resultBytes(), false);
+        self.result_tree = tree;
+        if (!self.charged) self.reserved_bytes += tree.arena.queryCapacity();
+        return tree.value;
     }
 
     fn deinit(self: *ParsedResponse, allocator: A) void {
-        self.parsed.deinit();
-        allocator.free(self.bytes);
-        self.* = undefined;
+        allocator.free(self.takeBytes(allocator));
     }
 
     fn takeBytes(self: *ParsedResponse, allocator: A) []u8 {
-        self.parsed.deinit();
+        _ = allocator;
+        if (self.result_tree) |tree| tree.deinit();
+        if (self.error_tree) |tree| tree.deinit();
         const bytes = self.bytes;
         self.* = undefined;
-        _ = allocator;
         return bytes;
+    }
+
+    /// Winner bytes plus the validated result span the caller may adopt.
+    fn takeWinner(self: *ParsedResponse, allocator: A) Winner {
+        const validated: ?envelope.Validated = if (self.result) |span| .{ .result = span, .header_checked = self.header_checked } else null;
+        return .{ .bytes = self.takeBytes(allocator), .validated = validated };
     }
 };
 
@@ -375,6 +421,7 @@ const Session = struct {
     saw_non_retryable: bool = false,
     deferred_winner: ?[]u8 = null,
     winner: ?[]u8 = null,
+    winner_validated: ?envelope.Validated = null,
     winner_speculative: bool = false,
     waiting_probe: bool = false,
     reported_start: bool = false,
@@ -498,7 +545,7 @@ pub const Pool = struct {
             }
             const native_headers = try headers.toOwnedSlice(allocator);
             errdefer allocator.free(native_headers);
-            try endpoints.append(allocator, .{ .owned = owned, .headers = native_headers });
+            try endpoints.append(allocator, .{ .owned = owned, .tip_identity = tip_cache.identity(owned.identity), .headers = native_headers });
         }
         if (endpoints.items.len == 0) return error.EmptyRpcEndpointPool;
         const threshold = switch (config.strategy) {
@@ -691,12 +738,22 @@ pub const Pool = struct {
     pub fn submitDeferred(self: *Pool, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !Handle {
         return self.submitSession(body, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, false);
     }
+    /// Like `submitDeferred` for a body the caller already scanned once (the
+    /// cooperative read-only policy): the Pool adopts that scan instead of
+    /// tokenizing the body again. `top` must describe exactly `body`.
+    pub fn submitScanned(self: *Pool, body: []const u8, top: *const envelope.Top, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool) !Handle {
+        return self.submitRequest(body, top, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, false);
+    }
     /// `wake_owner` false: the caller drives the session itself in `wait`.
     fn submitSession(self: *Pool, body: []const u8, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool, wake_owner: bool) !Handle {
+        return self.submitRequest(body, null, timeout_ms, connect_timeout_ms, max_response_bytes, observer_override, use_tip_cache, wake_owner);
+    }
+    fn submitRequest(self: *Pool, body: []const u8, scanned: ?*const envelope.Top, timeout_ms: u32, connect_timeout_ms: u32, max_response_bytes: usize, observer_override: ?Observer, use_tip_cache: bool, wake_owner: bool) !Handle {
         if (observer_override) |observer| if (!observer.valid()) return error.InvalidRpcObserver;
         if (timeout_ms == 0 or connect_timeout_ms == 0 or max_response_bytes == 0 or max_response_bytes > self.config.max_response_bytes) return error.InvalidRpcLimit;
         const session = blk: {
-            var original = try Request.parse(self.allocator, body, self.config.max_request_bytes);
+            const quorum = self.config.strategy == .quorum;
+            var original = if (scanned) |top| try Request.scanned(self.allocator, body, top, self.config.max_request_bytes, quorum) else try Request.parse(self.allocator, body, self.config.max_request_bytes, quorum);
             errdefer original.deinit(self.allocator);
             const session = try self.allocator.create(Session);
             errdefer self.allocator.destroy(session);
@@ -772,6 +829,7 @@ pub const Pool = struct {
         }
         const failure = session.failure;
         const winner = session.winner;
+        const validated = session.winner_validated;
         session.winner = null;
         session.fiber_waiter = null;
         session.taken.store(true, .release);
@@ -788,10 +846,10 @@ pub const Pool = struct {
         if (failure) |err| return err;
         const bytes = winner orelse return error.MissingRpcPoolResult;
         // Same allocator: move the winner instead of copying it.
-        if (allocator.ptr == self.allocator.ptr and allocator.vtable == self.allocator.vtable) return .{ .bytes = bytes, .len = bytes.len };
+        if (allocator.ptr == self.allocator.ptr and allocator.vtable == self.allocator.vtable) return .{ .bytes = bytes, .len = bytes.len, .validated = validated };
         defer self.allocator.free(bytes);
         const copied = try allocator.dupe(u8, bytes);
-        return .{ .bytes = copied, .len = copied.len };
+        return .{ .bytes = copied, .len = copied.len, .validated = validated };
     }
     /// No borrowed caller token survives cancellation. This consumes the handle;
     /// cancel is idempotent, including after terminal poll or slot retirement.
@@ -1106,13 +1164,15 @@ pub const Pool = struct {
         session.phase = phase;
         session.block_parameter_index = index;
         if (phase == .latest) {
-            session.current = try Request.fromParts(self.allocator, request.id, "eth_blockNumber", .{ .array = std.json.Array.init(self.allocator) }, session.max_request_bytes);
+            session.current = try Request.fromParts(self.allocator, request.id, "eth_blockNumber", .{ .array = std.json.Array.init(self.allocator) }, null, session.max_request_bytes);
         } else {
             var params = std.json.Array.init(self.allocator);
-            defer params.deinit();
+            errdefer params.deinit();
             try params.append(tag);
             try params.append(.{ .bool = false });
-            session.current = try Request.fromParts(self.allocator, request.id, "eth_getBlockByNumber", .{ .array = params }, session.max_request_bytes);
+            // The new request owns this array; the tag string stays borrowed
+            // from the original, which outlives it.
+            session.current = try Request.fromParts(self.allocator, request.id, "eth_getBlockByNumber", .{ .array = params }, params, session.max_request_bytes);
         }
         session.phase_started_ms = session.started_ms;
     }
@@ -1296,15 +1356,26 @@ pub const Pool = struct {
                         // Quorum keeps its existing error/vote behavior.
                         const expected_absence = self.config.height_protocol == .tendermint and session.strategy != .quorum and std.mem.eql(u8, session.wire().method, "tx") and if (parsed.rpc_error) |remote| @import("../cosmos/tx_absence.zig").matchesRequest(session.wire().params, remote) else false;
                         const classification = if (expected_absence) Classification.non_retryable else classify(session.wire().method, &parsed);
-                        if (classification == .success and self.config.height_protocol == .ethereum) @import("header.zig").validateResult(session.wire().method, session.wire().params, parsed.result.?) catch |err| {
+                        const header_method = @import("header.zig").isMethod(session.wire().method);
+                        const known_tip = std.mem.eql(u8, session.wire().method, "eth_blockNumber") or (self.config.height_protocol != .ethereum and std.mem.eql(u8, session.wire().method, "eth_getBlockByNumber"));
+                        // Only these checks need a result tree; built once, from the span.
+                        const result_tree: ?Value = if (classification == .success and (known_tip or (header_method and self.config.height_protocol == .ethereum))) parsed.resultValue(self.allocator) catch |err| {
                             self.reportUpstream(session, index, false, false);
                             parsed.deinit(self.allocator);
-                            var invalid: Outcome = .{ .classification = .retryable, .failure = err };
-                            self.dispatchOutcome(session, index, &invalid, now_ms);
+                            self.finish(session, err);
                             return;
-                        };
-                        const known_tip = std.mem.eql(u8, session.wire().method, "eth_blockNumber") or (self.config.height_protocol != .ethereum and std.mem.eql(u8, session.wire().method, "eth_getBlockByNumber"));
-                        if (classification == .success and known_tip and !validTipResult(session.wire().method, parsed.result.?)) {
+                        } else null;
+                        if (classification == .success and self.config.height_protocol == .ethereum) {
+                            if (header_method) @import("header.zig").validateResult(session.wire().method, session.wire().params, result_tree.?) catch |err| {
+                                self.reportUpstream(session, index, false, false);
+                                parsed.deinit(self.allocator);
+                                var invalid: Outcome = .{ .classification = .retryable, .failure = err };
+                                self.dispatchOutcome(session, index, &invalid, now_ms);
+                                return;
+                            };
+                            parsed.header_checked = true;
+                        }
+                        if (classification == .success and known_tip and !validTipResult(session.wire().method, result_tree.?)) {
                             self.reportUpstream(session, index, false, false);
                             parsed.deinit(self.allocator);
                             var invalid: Outcome = .{ .classification = .retryable, .failure = error.InvalidRpcTipResult };
@@ -1340,7 +1411,7 @@ pub const Pool = struct {
         const peer = &session.peers[index];
         if (peer.cache_eligible and peer.cache_upstream_reported) {
             var stored = false;
-            if (outcome.classification == .success) if (outcome.response) |*response| if (response.result) |value| {
+            if (outcome.classification == .success) if (outcome.response) |*response| if (response.result != null) if (response.resultValue(self.allocator) catch null) |value| {
                 if (validTipResult(session.wire().method, value)) {
                     if (peer.cache_ticket) |ticket| if (self.config.dynamic_tip_cache) |cache| {
                         const encoded = std.json.Stringify.valueAlloc(self.allocator, value, .{}) catch null;
@@ -1506,7 +1577,7 @@ pub const Pool = struct {
                 },
             } else if (!probe.cache_checked) {
                 probe.cache_checked = true;
-                const key = (try tip_cache.key(self.allocator, endpoint_.owned.identity, "eth_blockNumber", .null)).?;
+                const key = (try tip_cache.key(self.allocator, endpoint_.tip_identity, "eth_blockNumber", .null)).?;
                 self.probeCacheEvent(probe, .cache_logical_read);
                 switch (try cache.claim(self.allocator, key)) {
                     .hit => |result| {
@@ -1587,7 +1658,8 @@ pub const Pool = struct {
             return null;
         };
         defer parsed.deinit(self.allocator);
-        const value = parsed.result orelse return null;
+        if (parsed.result == null) return null;
+        const value = try parsed.resultValue(self.allocator);
         return switch (self.config.height_protocol) {
             .ethereum => quantity64(value) catch null,
             .sealevel => decimalHeight(value),
@@ -1743,7 +1815,7 @@ pub const Pool = struct {
     }
 
     fn peerSuccess(self: *Pool, session: *Session, index: usize, response: *ParsedResponse, now_ms: u64) !void {
-        if (session.strategy == .fallback and session.phase == .actual and session.strategy.fallback.consider_null_transaction_receipt and std.mem.eql(u8, session.wire().method, "eth_getTransactionReceipt") and response.result.? == .null) {
+        if (session.strategy == .fallback and session.phase == .actual and session.strategy.fallback.consider_null_transaction_receipt and std.mem.eql(u8, session.wire().method, "eth_getTransactionReceipt") and std.mem.eql(u8, response.resultBytes(), "null")) {
             response.deinit(self.allocator);
             session.peers[index].skip = true;
             session.peers[index].failed = true;
@@ -1753,8 +1825,7 @@ pub const Pool = struct {
         switch (session.strategy) {
             .single, .fallback => {
                 session.winner_speculative = session.peers[index].speculative;
-                const bytes = response.takeBytes(self.allocator);
-                self.finishBytes(session, bytes);
+                self.finishWinner(session, response.takeWinner(self.allocator));
             },
             .quorum => {
                 if (isSubmission(session.original.method)) {
@@ -1781,7 +1852,7 @@ pub const Pool = struct {
     }
 
     fn numericSuccess(self: *Pool, session: *Session, index: usize, response: *ParsedResponse, now_ms: u64) !void {
-        const result = response.result.?;
+        const result = try response.resultValue(self.allocator);
         const number: u256 = switch (session.phase) {
             .latest => try quantity64(result),
             .dynamic => try blockNumber(result),
@@ -1803,16 +1874,18 @@ pub const Pool = struct {
     }
 
     fn voteSuccess(self: *Pool, session: *Session, index: usize, response: *ParsedResponse) !void {
+        // Built before any retain: retained peer responses already hold theirs.
+        const value = try response.resultValue(self.allocator);
         for (session.peers, 0..) |*peer, other| {
             if (other == index or peer.response == null) continue;
-            if (normalizedEqual(peer.response.?.result.?, response.result.?)) {
+            if (normalizedEqual(try peer.response.?.resultValue(self.allocator), value)) {
                 peer.votes += 1;
                 if (peer.votes >= self.threshold) {
                     self.releaseResponse(&peer.response.?);
-                    const bytes = peer.response.?.takeBytes(self.allocator);
+                    const winner = peer.response.?.takeWinner(self.allocator);
                     peer.response = null;
                     response.deinit(self.allocator);
-                    self.finishBytes(session, bytes);
+                    self.finishWinner(session, winner);
                 } else response.deinit(self.allocator);
                 return;
             }
@@ -1823,9 +1896,9 @@ pub const Pool = struct {
         response.* = undefined;
         if (self.threshold == 1) {
             self.releaseResponse(&session.peers[index].response.?);
-            const bytes = session.peers[index].response.?.takeBytes(self.allocator);
+            const winner = session.peers[index].response.?.takeWinner(self.allocator);
             session.peers[index].response = null;
-            self.finishBytes(session, bytes);
+            self.finishWinner(session, winner);
         } else self.checkQuorumImpossible(session);
     }
 
@@ -1915,8 +1988,7 @@ pub const Pool = struct {
     fn cachedResult(self: *Pool, session: *Session, index: usize, result: []u8, now_ms: u64) !void {
         defer self.allocator.free(result);
         const body = try std.fmt.allocPrint(self.allocator, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"result\":{s}}}", .{ session.wire().id, result });
-        defer self.allocator.free(body);
-        const parsed = try ParsedResponse.parse(self.allocator, body, session.wire().id, session.max_response_bytes);
+        const parsed = try ParsedResponse.parseOwned(self.allocator, body, session.wire().id, session.max_response_bytes);
         self.cacheRelease(&session.peers[index]);
         session.peers[index].done = true;
         self.cacheEvent(session, index, .cache_hit);
@@ -1943,7 +2015,7 @@ pub const Pool = struct {
         }
         if (peer.cache_checked) return false;
         peer.cache_checked = true;
-        const hash = (try tip_cache.key(self.allocator, self.endpoints[index].owned.identity, session.wire().method, session.wire().params)) orelse return false;
+        const hash = (try tip_cache.key(self.allocator, self.endpoints[index].tip_identity, session.wire().method, session.wire().params)) orelse return false;
         peer.cache_eligible = true;
         self.cacheEvent(session, index, .cache_logical_read);
         switch (try cache.claim(self.allocator, hash)) {
@@ -2065,12 +2137,12 @@ pub const Pool = struct {
                 used[chosen] = true;
             }
             self.releaseResponse(&session.peers[chosen].response.?);
-            const bytes = session.peers[chosen].response.?.takeBytes(self.allocator);
+            const winner = session.peers[chosen].response.?.takeWinner(self.allocator);
             session.peers[chosen].response = null;
             if (session.phase == .actual) {
-                self.finishBytes(session, bytes);
+                self.finishWinner(session, winner);
             } else {
-                self.allocator.free(bytes);
+                self.allocator.free(winner.bytes);
                 const number = session.peers[chosen].number.?;
                 if (self.activeCount(session) == 0) {
                     try self.pinAndRestart(session, number, now_ms);
@@ -2094,7 +2166,7 @@ pub const Pool = struct {
         const tag = try std.fmt.allocPrint(self.allocator, "0x{x}", .{number});
         session.pinned_tag = tag;
         session.original.params.array.items[session.block_parameter_index] = .{ .string = tag };
-        session.current = try Request.fromParts(self.allocator, session.original.id, session.original.method, session.original.params, session.max_request_bytes);
+        session.current = try Request.fromParts(self.allocator, session.original.id, session.original.method, session.original.params, null, session.max_request_bytes);
         session.phase = .actual;
         self.resetPeers(session);
         session.phase_started_ms = now_ms;
@@ -2241,7 +2313,12 @@ pub const Pool = struct {
     }
 
     fn finishBytes(self: *Pool, session: *Session, bytes: []u8) void {
-        session.winner = bytes;
+        self.finishWinner(session, .{ .bytes = bytes, .validated = null });
+    }
+
+    fn finishWinner(self: *Pool, session: *Session, winner: Winner) void {
+        session.winner = winner.bytes;
+        session.winner_validated = winner.validated;
         self.finish(session, null);
     }
 
@@ -2313,8 +2390,7 @@ fn backoff(base_ms: u32, attempts: u8, classification: Classification) u64 {
 fn blockParameterIndex(method: []const u8, params: Value) ?usize {
     if (params != .array or params.array.items.len == 0) return null;
     if (std.mem.eql(u8, method, "eth_getBlockByNumber")) return 0;
-    const methods = [_][]const u8{ "eth_call", "eth_createAccessList", "eth_getStorageAt", "eth_getCode", "eth_getProof", "eth_estimateGas", "trace_call", "trace_block" };
-    for (methods) |candidate| if (std.mem.eql(u8, method, candidate)) return params.array.items.len - 1;
+    for (block_parameter_methods) |candidate| if (std.mem.eql(u8, method, candidate)) return params.array.items.len - 1;
     return null;
 }
 
@@ -2467,6 +2543,202 @@ fn blockNumber(value: Value) !u64 {
     if (value != .object) return error.InvalidRpcBlock;
     const number = value.object.get("number") orelse return error.InvalidRpcBlock;
     return quantity64(number);
+}
+
+/// Work per cooperative read, legacy chain vs one-scan chain, on the same
+/// bytes: read-only policy, Pool request, Pool response envelope (plus the
+/// header check where the method needs it) and the caller's decode.
+fn rpcJsonWork(a: A, body: []const u8, bytes: []const u8, id: i64, legacy_chain: bool) !void {
+    const legacy = @import("../net/json_envelope_differential_test.zig");
+    const read_replay = @import("../net/read_replay.zig");
+    const provider = @import("provider.zig");
+    const header_method = std.mem.indexOf(u8, body, "eth_getBlockByNumber") != null;
+    const copy = try a.dupe(u8, bytes);
+    if (legacy_chain) {
+        defer a.free(copy);
+        _ = try legacy.legacyRequireReadOnly(a, body, 1 << 20);
+        var request = try legacy.legacyRequestParse(a, body, 1 << 20);
+        request.deinit(a);
+        var response = try legacy.legacyParseOwned(a, copy, id, 1 << 20);
+        response.parsed.deinit();
+        var caller = try std.json.parseFromSlice(Value, a, bytes, .{ .duplicate_field_behavior = .@"error" });
+        defer caller.deinit();
+        _ = try provider.validateEnvelope(caller.value, id);
+        if (header_method) {
+            var again = try std.json.parseFromSlice(Value, a, body, .{});
+            again.deinit();
+        }
+        return;
+    }
+    const scanned = try read_replay.scanReadOnly(a, body, 1 << 20);
+    var request = try Request.scanned(a, body, &scanned.top, 1 << 20, false);
+    request.deinit(a);
+    var response = try ParsedResponse.parseOwned(a, copy, id, 1 << 20);
+    if (header_method) {
+        _ = try response.resultValue(a);
+        response.header_checked = true;
+    }
+    const winner = response.takeWinner(a);
+    defer a.free(winner.bytes);
+    const tree = (try provider.adoptValidated(a, winner.bytes, id, winner.validated.?.result)).?;
+    tree.deinit();
+}
+
+test "one cooperative read allocates a fraction of the legacy parse chain" {
+    const fixture_hash_0 = "0x" ++ "769f" ** 16;
+    const fixture_hash_1 = "0x" ++ "0000" ** 16;
+    const fixture_hash_2 = "0x" ++ "0000" ** 16;
+    const fixture_hash_3 = "0x" ++ "b1d5" ** 16;
+    const fixture_hash_4 = "0x" ++ "2f1e" ** 16;
+    const fixture_hash_5 = "0x" ++ "1f1e" ** 16;
+    const log = "{\"address\":\"0x3a464f746d23ab22155710f44db16dca53e0775e\",\"topics\":[\"" ++ fixture_hash_0 ++ "\",\"" ++ fixture_hash_1 ++ "\"],\"data\":\"" ++ fixture_hash_2 ++ "00" ** 31 ++ "77\",\"blockNumber\":\"0x12a05f2\",\"transactionHash\":\"" ++ fixture_hash_3 ++ "\",\"transactionIndex\":\"0x3\",\"blockHash\":\"" ++ fixture_hash_4 ++ "\",\"logIndex\":\"0x1a\",\"removed\":false}";
+    const logs = "{\"jsonrpc\":\"2.0\",\"id\":9,\"result\":[" ++ (log ++ ",") ** 19 ++ log ++ "]}";
+    const cases = [_]struct { name: []const u8, body: []const u8, bytes: []const u8 }{
+        .{ .name = "eth_getLogs x20", .body = "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"eth_getLogs\",\"params\":[{\"fromBlock\":\"0x12a05f0\",\"toBlock\":\"0x12a05f2\",\"address\":\"0x3a464f746d23ab22155710f44db16dca53e0775e\",\"topics\":[\"" ++ fixture_hash_0 ++ "\"]}]}", .bytes = logs },
+        .{ .name = "eth_call", .body = "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"eth_call\",\"params\":[{\"to\":\"0x3a464f746d23ab22155710f44db16dca53e0775e\",\"data\":\"0x" ++ "ab" ** 512 ++ "\"},\"latest\"]}", .bytes = "{\"jsonrpc\":\"2.0\",\"id\":9,\"result\":\"0x" ++ "00" ** 96 ++ "\"}" },
+        .{ .name = "eth_blockNumber", .body = "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"eth_blockNumber\",\"params\":[]}", .bytes = "{\"jsonrpc\":\"2.0\",\"id\":9,\"result\":\"0x12a05f2\"}" },
+        .{ .name = "eth_getBlockByNumber", .body = "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"eth_getBlockByNumber\",\"params\":[\"0x12a05f2\",false]}", .bytes = "{\"jsonrpc\":\"2.0\",\"id\":9,\"result\":{\"number\":\"0x12a05f2\",\"hash\":\"" ++ fixture_hash_4 ++ "\",\"parentHash\":\"" ++ fixture_hash_5 ++ "\",\"timestamp\":\"0x6553f100\",\"gasLimit\":\"0x1c9c380\",\"baseFeePerGas\":\"0x7\",\"transactions\":[],\"uncles\":[]}}" },
+    };
+    for (cases) |case| {
+        var old = std.testing.FailingAllocator.init(std.testing.allocator, .{});
+        try rpcJsonWork(old.allocator(), case.body, case.bytes, 9, true);
+        var new = std.testing.FailingAllocator.init(std.testing.allocator, .{});
+        try rpcJsonWork(new.allocator(), case.body, case.bytes, 9, false);
+        if (std.process.hasEnvVarConstant("HYPERLANE_RPCJSON_COUNTS")) std.debug.print("{s}: allocations {d} -> {d}, bytes {d} -> {d}\n", .{ case.name, old.allocations, new.allocations, old.allocated_bytes, new.allocated_bytes });
+        try std.testing.expect(new.allocations * 3 <= old.allocations * 2);
+        try std.testing.expect(new.allocated_bytes * 3 <= old.allocated_bytes * 2);
+    }
+}
+
+/// Legacy requireReadOnly + Request.parse against scanReadOnly + Request.scanned
+/// (cooperative path) and against Request.parse (direct submit path).
+fn checkPoolRequest(a: A, body: []const u8, quorum: bool) !void {
+    const legacy = @import("../net/json_envelope_differential_test.zig");
+    const read_replay = @import("../net/read_replay.zig");
+    const limit = 1 << 20;
+    // Cooperative: policy first, then the Pool adopts the policy's scan.
+    const old_policy = legacy.legacyRequireReadOnly(a, body, limit);
+    const new_policy = read_replay.scanReadOnly(a, body, limit);
+    if (old_policy) |id| {
+        const scan = new_policy catch |err| {
+            std.debug.print("policy: legacy ok, new {s} for {s}\n", .{ @errorName(err), body });
+            return error.DifferentialMismatch;
+        };
+        try std.testing.expectEqual(id, scan.id);
+        try comparePoolRequest(a, body, legacy.legacyRequestParse(a, body, limit), Request.scanned(a, body, &scan.top, limit, quorum), quorum);
+    } else |old_err| {
+        if (new_policy) |_| {
+            std.debug.print("policy: legacy {s}, new ok for {s}\n", .{ @errorName(old_err), body });
+            return error.DifferentialMismatch;
+        } else |new_err| try std.testing.expectEqual(old_err, new_err);
+    }
+    // Direct submit.
+    try comparePoolRequest(a, body, legacy.legacyRequestParse(a, body, limit), Request.parse(a, body, limit, quorum), quorum);
+}
+fn comparePoolRequest(a: A, body: []const u8, old: anyerror!@import("../net/json_envelope_differential_test.zig").LegacyRequest, new: anyerror!Request, quorum: bool) !void {
+    const legacy = @import("../net/json_envelope_differential_test.zig");
+    if (old) |value| {
+        var l = value;
+        defer l.deinit(a);
+        var n = new catch |err| {
+            std.debug.print("pool request: legacy ok, new {s} for {s}\n", .{ @errorName(err), body });
+            return error.DifferentialMismatch;
+        };
+        defer n.deinit(a);
+        try std.testing.expectEqualStrings(l.method, n.method);
+        try std.testing.expectEqual(l.id, n.id);
+        if (inspectsParams(n.method, quorum)) try std.testing.expect(legacy.deepEqual(l.params, n.params)) else try std.testing.expect(n.params == .null);
+    } else |old_err| {
+        if (new) |value| {
+            var n = value;
+            n.deinit(a);
+            std.debug.print("pool request: legacy {s}, new ok for {s}\n", .{ @errorName(old_err), body });
+            return error.DifferentialMismatch;
+        } else |new_err| if (old_err != new_err) {
+            std.debug.print("pool request: legacy {s}, new {s} for {s}\n", .{ @errorName(old_err), @errorName(new_err), body });
+            return error.DifferentialMismatch;
+        }
+    }
+}
+
+test "pool requests from one scan match the legacy policy and request parse" {
+    const a = std.testing.allocator;
+    const legacy = @import("../net/json_envelope_differential_test.zig");
+    var extra: std.ArrayList(u8) = .empty;
+    defer extra.deinit(a);
+    for (legacy.request_corpus) |body| for ([_]bool{ false, true }) |quorum| try checkPoolRequest(a, body, quorum);
+    const shaped = [_][]const u8{
+        "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"eth_getBlockByHash\",\"params\":[\"0x" ++ "ab" ** 32 ++ "\",false]}",
+        "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"eth_getStorageAt\",\"params\":[\"0x1\",\"0x0\",{\"blockHash\":\"0x" ++ "cd" ** 32 ++ "\"}]}",
+        "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"eth_call\",\"params\":[{\"to\":\"0x1\",\"data\":\"0x\\u0030\"},\"finalized\"]}",
+        "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"eth_estimateGas\"}",
+    };
+    for (shaped) |body| for ([_]bool{ false, true }) |quorum| try checkPoolRequest(a, body, quorum);
+    // Valid read requests around the Pool's depth bound (policy has none).
+    for ([_]usize{ 125, 126, 127, 128, 200 }) |depth| {
+        extra.clearRetainingCapacity();
+        try extra.appendSlice(a, "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"eth_call\",\"params\":");
+        try extra.appendNTimes(a, '[', depth);
+        try extra.appendNTimes(a, ']', depth);
+        try extra.append(a, '}');
+        for ([_]bool{ false, true }) |quorum| try checkPoolRequest(a, extra.items, quorum);
+    }
+    var prng = std.Random.DefaultPrng.init(0x5eed_4a50_4e00_0002);
+    const random = prng.random();
+    for (0..3000) |round| {
+        const source = legacy.request_corpus[random.uintLessThan(usize, legacy.request_corpus.len)];
+        if (round % 2 == 0) try legacy.mutate(random, source, &extra, a) else try legacy.reshape(random, source, &extra, a);
+        try checkPoolRequest(a, extra.items, random.boolean());
+    }
+}
+
+const SpanFixture = struct {
+    fn response(a: A, body: []const u8) ![]u8 {
+        const parsed = try std.json.parseFromSlice(Value, a, body, .{});
+        defer parsed.deinit();
+        const id = parsed.value.object.get("id").?.integer;
+        const method = parsed.value.object.get("method").?.string;
+        const result = if (std.mem.eql(u8, method, "eth_getBlockByNumber"))
+            "{\"number\":\"0x10\",\"timestamp\":\"0x123\",\"hash\":\"0x" ++ "11" ** 32 ++ "\",\"parentHash\":\"0x" ++ "22" ** 32 ++ "\"}"
+        else if (std.mem.eql(u8, method, "eth_call")) "\"0x" ++ "00" ** 31 ++ "07\"" else return error.UnexpectedRpcMethod;
+        return std.fmt.allocPrint(a, "{{ \"jsonrpc\" : \"2.0\", \"id\":{d},\n \"result\": {s} }}", .{ id, result });
+    }
+};
+
+test "cooperative reads hand the pool-validated result span to the caller end to end" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const read_replay = @import("../net/read_replay.zig");
+    const provider = @import("provider.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const behaviors = [_]fixture.Behavior{.{ .replies = &.{.{ .body = "" }}, .response_fn = SpanFixture.response }};
+    var server = try fixture.Fixture.init(8, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{ .max_attempts = 1 } }, .max_response_bytes = 8192, .max_request_bytes = 16384 });
+    defer owner.deinit();
+    var replay = try read_replay.Replay.init(a, owner, .{ .max_attempt_ms = 5000 });
+    defer replay.deinit();
+    try replay.beginPass(null);
+    defer replay.endPass(null);
+    // The exchange result carries the exact span and the header check.
+    const wire = try replay.fetch(a, "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"eth_getBlockByNumber\",\"params\":[\"0x10\",false]}", .{ .timeout_ms = 4000, .max_response_bytes = 8192 });
+    defer a.free(wire.bytes);
+    const validated = wire.validated.?;
+    try std.testing.expect(validated.header_checked);
+    try std.testing.expectEqual(@as(u8, '{'), wire.bytes[validated.result.start]);
+    const adopted = (try provider.adoptValidated(a, wire.bytes[0..wire.len], 3, validated.result)).?;
+    defer adopted.deinit();
+    try std.testing.expectEqualStrings("0x10", adopted.value.object.get("result").?.object.get("number").?.string);
+    // The typed client decodes through the same adoption.
+    var client = try provider.RpcClient.init(a, url, .{ .exchange = replay.interface(), .timeout_ms = 4000, .max_response_bytes = 8192 });
+    defer client.deinit();
+    const header = try client.blockHeader(.{ .number = 16 });
+    try std.testing.expectEqual(@as(u64, 16), header.number);
+    try std.testing.expect(try client.count(@splat(0), .latest) == 7);
 }
 
 test "exact JSON normalization ignores object order and decimal spelling without f64" {
