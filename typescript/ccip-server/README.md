@@ -90,17 +90,20 @@ configuration, and compatibility with the existing EVM reveal endpoint.
 - `POST /getCallsFromRevealMessage`
   CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a reveal message.
 
-  Relayers may include `origin_tx_hash` in the authenticated request. The server
-  verifies the exact reveal and its matching commitment dispatch in that
-  transaction's mailbox events, then derives the ICA from the actual router pair.
-  Reads do not modify stored commitments. If the verified ICA differs from the
-  stored address, the server logs the mismatch and serves the verified address.
-  Existing records with incorrect addresses require a one-time database repair
-  for reads without a hash and `GET /calls/:commitment`.
-  Re-registration must identify the same router pair: stale config that derives a
-  different ICA still returns 409. Missing or null hashes use the stored ICA;
-  malformed hash strings return 400. Lookup or recovery failures return HTTP 500
-  so the relayer can retry.
+  Relayers include `origin_tx_hash` in the authenticated request. Handling depends
+  on the reveal's origin protocol:
+  - EVM: a 32-byte hash is required; a missing, null or malformed hash returns 400. The server verifies the exact reveal and its matching commitment
+    dispatch in that transaction's mailbox events, then derives the ICA from the
+    actual router pair. If the verified ICA differs from the stored address, the
+    server logs the mismatch and serves the verified address.
+  - Sealevel: the hash is ignored and the stored commitment ICA is served.
+  - Any other or unknown origin protocol returns 500.
+
+  Reads do not modify stored commitments. Existing records with incorrect
+  addresses still need a one-time database repair for Sealevel reads and
+  `GET /calls/:commitment`. Re-registration must identify the same router pair:
+  stale config that derives a different ICA still returns 409. Lookup or recovery
+  failures return HTTP 500 so the relayer can retry.
 
 ### Wormhole VAA lookup
 
