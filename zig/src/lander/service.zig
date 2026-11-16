@@ -56,6 +56,9 @@ pub const Config = struct {
 pub const EnqueueInput = struct {
     payload: records.PayloadInput,
     delivery: storage.Delivery = .none,
+    /// `.deferred`: the caller commits a synced write on this database before
+    /// any effect (db.rocks.Durability); signing and sending are gated anyway.
+    durability: @import("../db/rocks.zig").Durability = .sync,
 };
 
 pub const EnqueueResult = struct { uuid: types.Uuid, index: u32, created: bool };
@@ -269,7 +272,7 @@ pub const Service = struct {
             const index = (try self.store.payloadIndex(self.allocator, input.payload.uuid)) orelse return error.MissingPayloadIndex;
             return .{ .uuid = input.payload.uuid, .index = index, .created = false };
         }
-        const index = try self.store.writePayload(self.allocator, input.payload.uuid, canonical, canonical, input.delivery);
+        const index = try self.store.writePayloadWith(self.allocator, input.payload.uuid, canonical, canonical, input.delivery, input.durability);
         self.pending_payloads +|= 1;
         return .{ .uuid = input.payload.uuid, .index = index, .created = true };
     }
@@ -892,6 +895,9 @@ pub const Service = struct {
                 if (attempt.nonce == reservation.nonce) reused_bytes = attempt.bytes;
             }
         }
+        // Effect gate: the nonce reservation and every row this transaction
+        // depends on are durable before signing (db.rocks.Durability).
+        try self.store.typed.database.effectGate();
         var hash: types.Hash = undefined;
         var bytes: []const u8 = undefined;
         if (reused_bytes) |existing| {
@@ -918,6 +924,7 @@ pub const Service = struct {
         } else {
             try self.store.writeSubmission(self.allocator, uuid, json, .{ .hash = hash, .nonce = reservation.nonce, .bytes = bytes });
         }
+        try self.store.typed.database.effectGate();
         const returned = submission.sendRaw(bytes) catch {
             if (self.config.mev_submission) |protected| {
                 if (submission.context == protected.protected_chain.context) self.metric(.{ .mev_submission = false });

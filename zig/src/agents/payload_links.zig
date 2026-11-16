@@ -33,6 +33,11 @@ pub const Link = struct {
     /// Enqueue has no signing or broadcasting effects. The destination owner
     /// recovers nonce/transaction state independently before executing payloads.
     pub fn replay(self: *const Link, destination: anytype) !void {
+        return self.replayWith(destination, .sync);
+    }
+
+    /// `durability` applies to a newly written destination payload row.
+    pub fn replayWith(self: *const Link, destination: anytype, durability: db.rocks.Durability) !void {
         const value = self.record();
         self.store.mutex.lock();
         defer self.store.mutex.unlock();
@@ -40,7 +45,7 @@ pub const Link = struct {
         const relation = try inheritedUuids(self.store.allocator, self.store, value.message_id);
         defer self.store.allocator.free(relation);
         if (relation.len != 1 or !std.mem.eql(u8, &relation[0], &value.payload.uuid)) return error.PayloadRelationChanged;
-        _ = try destination.enqueue(.{ .payload = value.payload, .delivery = value.delivery });
+        _ = try destination.enqueue(.{ .payload = value.payload, .delivery = value.delivery, .durability = durability });
     }
 };
 
@@ -102,6 +107,13 @@ pub fn inheritedUuids(a: A, store: *native.Store, message_id: Hash) ![]Uuid {
 /// Existing relations must be reconciled first. A different generation/input
 /// cannot silently overwrite one that may already have reached the chain.
 pub fn seal(a: A, store: *native.Store, value: Record) !void {
+    return sealWith(a, store, value, .sync);
+}
+
+/// `.deferred`: the caller commits a synced write on this database (the
+/// operation's payloadEnqueued/retry persist) before any effect; see
+/// db.rocks.Durability.
+pub fn sealWith(a: A, store: *native.Store, value: Record, durability: db.rocks.Durability) !void {
     try validate(a, value);
     const encoded = try std.json.Stringify.valueAlloc(a, value, .{});
     defer a.free(encoded);
@@ -134,7 +146,7 @@ pub fn seal(a: A, store: *native.Store, value: Record) !void {
     std.mem.writeInt(u64, &generation, value.generation, .big);
     try batch.put(generation_prefix, &value.message_id, &generation);
     try batch.put(db.keys.Table.payload_uuids_by_message_id.prefix(), &value.message_id, relation);
-    try batch.commitSync();
+    try batch.commitWith(durability);
 }
 
 /// Call only after a real destination status proves the relation terminal.

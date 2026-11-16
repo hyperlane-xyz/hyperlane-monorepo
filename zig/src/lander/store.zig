@@ -365,6 +365,11 @@ pub const Store = struct {
     }
 
     pub fn writePayload(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, canonical_json: []const u8, pending_json: ?[]const u8, delivery_value: Delivery) !u32 {
+        return self.writePayloadWith(allocator, uuid, canonical_json, pending_json, delivery_value, .sync);
+    }
+
+    /// `.deferred`: see rocks.Durability; the caller owes a covering sync.
+    pub fn writePayloadWith(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, canonical_json: []const u8, pending_json: ?[]const u8, delivery_value: Delivery, durability: rocks.Durability) !u32 {
         const existing = try self.payloadIndex(allocator, uuid);
         const index = if (existing) |value| value else try std.math.add(u32, try self.highestPayloadIndex(allocator), 1);
         var batch = try self.typed.batch(allocator);
@@ -380,7 +385,7 @@ pub const Store = struct {
         try self.putPayloadPending(&batch, index, pending_json);
         try putDelivery(&batch, uuid, delivery_value);
         try batch.put(pending_payload_index_write_marker, &singleton, &.{1});
-        try batch.commitSync();
+        try batch.commitWith(durability);
         try self.markPayloadCheckpoint(allocator);
         return index;
     }
@@ -388,7 +393,8 @@ pub const Store = struct {
     /// The checkpoint is a hint (as Rust's, which it writes unsynced): a
     /// stale or missing one only makes a reader re-validate or rebuild the
     /// pending index, and open always rebuilds it. Every row it describes was
-    /// already committed with fsync.
+    /// already committed before it in the ordered WAL (synced, or deferred
+    /// with a covering sync owed), so it never survives a crash without them.
     fn markPayloadCheckpoint(self: Store, allocator: std.mem.Allocator) !void {
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();

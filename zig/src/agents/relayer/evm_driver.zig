@@ -354,14 +354,24 @@ pub const Driver = struct {
                     .payload = ready.payload,
                     .delivery = .{ .mailbox_message = message.id() },
                 };
-                try payload_links.seal(allocator, actor.store, record);
+                // Seal and destination payload rows are deferred WAL writes:
+                // payloadEnqueued (or the retry persist) below is the synced
+                // commit that covers both before any effect (db.rocks.Durability).
+                // A crash before it leaves the operation preparing; the same
+                // deterministic UUID re-seals and re-enqueues.
+                if (@import("builtin").is_test) if (DeferralTestHook.before_deferred) |hook| hook();
+                try payload_links.sealWith(allocator, actor.store, record, .deferred);
                 var sealed = (try payload_links.load(allocator, actor.store, message.id(), actor.options.context)) orelse return error.MissingSealedPayloadLink;
                 defer sealed.deinit();
-                sealed.replay(destination) catch |err| {
-                    if (evm_prepare.hardFailure(err)) return err;
+                sealed.replayWith(destination, .deferred) catch |err| {
+                    if (evm_prepare.hardFailure(err)) {
+                        try actor.store.typed.database.ensureDurable();
+                        return err;
+                    }
                     return self.retry(actor, .ErrorSubmitting, err, config, now, record.payload.uuid);
                 };
                 try actor.payloadEnqueued(record.generation, now);
+                try actor.store.typed.database.effectGate();
                 return .{ .state = .prepared, .payload = record.payload.uuid };
             },
             .retry => |source_retry| {
@@ -545,3 +555,9 @@ fn checkCancelled(cancel: ?*const std.atomic.Value(bool)) !void {
 test {
     _ = @import("evm_driver_test.zig");
 }
+
+/// Test-only: runs right before prepareFresh's deferred seal/payload writes,
+/// when every earlier write of the step is synced (power-loss crash tests).
+pub const DeferralTestHook = struct {
+    pub var before_deferred: ?*const fn () void = null;
+};

@@ -37,6 +37,40 @@ test "native operation stale owners cannot overwrite new progress or an operator
     try std.testing.expectEqual(lifecycle.Effect{ .prepare = 2 }, try manual.apply(.{ .tick = .{ .now_ms = 0 } }, now, null));
 }
 
+test "deferred opening persist is covered by the next synced persist and lost opens recover identically" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const base = try temp.dir.realpathAlloc(a, ".");
+    defer a.free(base);
+    const path = try std.fs.path.join(a, &.{ base, "deferred-open" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{ .sync = true });
+    defer database.deinit();
+    var store = native.Store.init(a, &database, "origin");
+    const message: protocol.Message = .{ .origin = 1, .destination = 2, .nonce = 0, .sender = @splat(1), .recipient = @splat(2), .body = "deferred open" };
+    _ = try store.storeMessage(message, 10, null);
+    const options: ops.Options = .{ .id = message.id(), .context = @splat(7), .nonce = 0, .destination = 2, .policy = .{ .confirm_delay_ms = 0 }, .open_durability = .deferred };
+    const now: ops.Times = .{ .unix_ms = 1000, .monotonic_ms = 0 };
+    const syncs = database.wal_syncs.load(.monotonic);
+    var opened = try ops.Operation.open(a, &store, options, now);
+    defer opened.deinit();
+    try std.testing.expect(database.owesSync());
+    try std.testing.expectError(error.UnsyncedWriteBeforeEffect, database.effectGate());
+    // Power loss here loses the opening rows: the WAL prefix is the state
+    // before open, from which open recreates the same pending operation.
+    _ = try opened.apply(.{ .tick = .{ .now_ms = 0 } }, now, null);
+    try std.testing.expect(!database.owesSync());
+    try database.effectGate();
+    try std.testing.expectEqual(syncs + 1, database.wal_syncs.load(.monotonic));
+    // A reopen of unchanged rows skips its write and owes nothing.
+    var reopened = try ops.Operation.open(a, &store, options, now);
+    defer reopened.deinit();
+    try std.testing.expect(!database.owesSync());
+    try std.testing.expectEqual(syncs + 1, database.wal_syncs.load(.monotonic));
+    try std.testing.expectEqual(lifecycle.Stage.preparing, reopened.value.stage);
+}
+
 test "native operation persists signed bytes before broadcast and resumes with Rust status and retry rows" {
     const a = std.testing.allocator;
     var temp = std.testing.tmpDir(.{});

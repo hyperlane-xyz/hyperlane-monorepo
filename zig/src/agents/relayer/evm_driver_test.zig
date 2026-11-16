@@ -2086,3 +2086,63 @@ test "EVM finality invalid tag cannot retire an external confirmation" {
     try expectNoEffects(runtime);
     try runtime.rpc.expectDone();
 }
+
+var crash_source: []const u8 = "";
+var crash_target: []const u8 = "";
+
+/// Copies the flat RocksDB directory: at the hook every write is synced, so
+/// the copy is exactly what survives a power loss before the next WAL sync.
+fn snapshotDurableState() void {
+    var source = std.fs.openDirAbsolute(crash_source, .{ .iterate = true }) catch @panic("snapshot source");
+    defer source.close();
+    std.fs.makeDirAbsolute(crash_target) catch @panic("snapshot target");
+    var target = std.fs.openDirAbsolute(crash_target, .{}) catch @panic("snapshot target");
+    defer target.close();
+    var entries = source.iterate();
+    while (entries.next() catch @panic("snapshot iterate")) |entry| {
+        if (entry.kind != .file) continue;
+        source.copyFile(entry.name, target, entry.name, .{}) catch @panic("snapshot copy");
+    }
+}
+
+test "power loss between deferred seal/payload rows and their covering sync re-prepares the same payload" {
+    const a = std.testing.allocator;
+    var fixture = try Fixture.init(a);
+    defer fixture.deinit();
+    const crashed = try std.fmt.allocPrint(a, "{s}-crashed", .{fixture.path});
+    defer a.free(crashed);
+    crash_source = fixture.path;
+    crash_target = crashed;
+    driver.DeferralTestHook.before_deferred = snapshotDurableState;
+    defer driver.DeferralTestHook.before_deferred = null;
+    const expected = links.uuid(@splat(8), fixture.message.id(), 1);
+    {
+        const steps = readySteps();
+        var runtime = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .blocks = 1 });
+        defer runtime.deinit();
+        const report = try runtime.prepareStep();
+        try std.testing.expectEqual(expected, report.payload.?);
+        // Seal + payload rows were deferred and the payloadEnqueued persist
+        // paid for both: one fsync for three writes, nothing left owed.
+        try std.testing.expect(!runtime.database.owesSync());
+        try std.testing.expectEqual(@as(u32, 1), try runtime.destination.store.highestPayloadIndex(a));
+    }
+    driver.DeferralTestHook.before_deferred = null;
+    const original = fixture.path;
+    fixture.path = crashed;
+    defer fixture.path = original;
+    // Recover from the power-loss state (WAL prefix up to the last sync): the
+    // operation is preparing with neither seal nor payload; re-preparing
+    // reaches the same deterministic payload without any signing or nonce.
+    const steps = readySteps();
+    var recovered = try Runtime.init(a, &fixture, &steps, allow_gas, .{ .blocks = 1 });
+    defer recovered.deinit();
+    try std.testing.expect((try links.load(a, &recovered.store, fixture.message.id(), @splat(8))) == null);
+    try std.testing.expectEqual(@as(u32, 0), try recovered.destination.store.highestPayloadIndex(a));
+    const report = try recovered.prepareStep();
+    try std.testing.expectEqual(expected, report.payload.?);
+    try std.testing.expectEqual(@as(u32, 1), try recovered.destination.store.highestPayloadIndex(a));
+    try std.testing.expectEqual(@as(u64, 1), recovered.actor.value.generation);
+    try expectNoEffects(recovered);
+    try recovered.rpc.expectDone();
+}

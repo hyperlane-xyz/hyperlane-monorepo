@@ -1828,6 +1828,9 @@ pub const Lane = struct {
                 .destination = message.destination,
                 .policy = .{ .max_retries = self.owner.settings.role.relayer.max_message_retries },
                 .acknowledge_canonical = !item.recovery_only,
+                // Covered by the step's first synced persist (or the
+                // ensureDurable after it) before any effect.
+                .open_durability = .deferred,
             }, now);
             defer state.deinit();
             self.syncActiveMetrics(item, state.current_status);
@@ -1853,6 +1856,9 @@ pub const Lane = struct {
                 .ism_cache_configs = self.owner.settings.role.relayer.ism_cache_configs,
             }, now, .{ .local_admission = .{ .context = &sender, .allowed_fn = Sender.localAdmission }, .origin_sender = .{ .context = &sender, .fetch_fn = Sender.evmFetch }, .private_estimator = if (self.protected_network != null) .{ .context = self, .estimate_fn = privateEstimate } else null, .executor = &self.owner.metadata_executor.executor, .batch_resolver = .{ .context = self, .estimate_fn = batchEstimate }, .cost_receipt_reader = .{ .context = self, .read_fn = finalizedCostReceipt }, .ccip_handler = if (ccip_build) |value| value.binding.handler() else null, .pending_delay = if (ccip_build) |*value| .{ .context = value, .delay_ms_fn = CcipBuild.delay } else null, .cancel = cancel, .observation = if (self.validator_observation) |*value| value.observation() else null, .observation_clock = self.owner.options.observation_clock, .handoff_gate = gate, .lander_gate = lander_gate });
             if (!was_confirming and state.value.confirmation_started and state.current_status == .Confirm and state.current_status.Confirm == .SubmittedBySelf) self.recordPhase(item, .submitted);
+            // Pays the deferred opening persist when the step committed nothing
+            // synced after it (a no-op otherwise), on success and error alike.
+            try origin.store.typed.database.ensureDurable();
             const report = try outcome;
             if (!item.recovery_only and report.state == .delivered and try origin.store.markProcessedIfCanonical(message)) self.recordProcessed(item);
             switch (report.state) {

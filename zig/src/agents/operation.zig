@@ -25,6 +25,10 @@ pub const Options = struct {
     /// Existing sealed effects may settle while current canonical admission is
     /// denied. This capability is never serialized into the operation record.
     acknowledge_canonical: bool = true,
+    /// Durability of the opening persist. `.deferred` only when the caller
+    /// runs the operation's next synced persist (or `ensureDurable`) in the
+    /// same step before any effect; see db.rocks.Durability.
+    open_durability: db.rocks.Durability = .sync,
 };
 const Record = struct { version: u8 = 1, context: Hash, nonce: u32, destination: u32, operation: lifecycle.Operation, deadline: ?Deadline, transaction_bytes: ?[]const u8 };
 pub const Imported = struct { retry_count: u32, next_attempt_ms: u64, status: db.json.Status, parked: bool, normalized_manual: bool };
@@ -134,7 +138,7 @@ pub const Operation = struct {
         }
         // Opening alone has no broadcast/signing effects. Sealing imported
         // retry state also normalizes legacy Manual atomically with its status.
-        try self.persist(self.value, self.transaction_bytes, now, self.current_status);
+        try self.persistWith(self.value, self.transaction_bytes, now, self.current_status, options.open_durability);
         return self;
     }
 
@@ -235,6 +239,10 @@ pub const Operation = struct {
     }
 
     fn persist(self: *Operation, value: lifecycle.Operation, signed: ?[]const u8, now: Times, status: db.json.Status) !void {
+        return self.persistWith(value, signed, now, status, .sync);
+    }
+
+    fn persistWith(self: *Operation, value: lifecycle.Operation, signed: ?[]const u8, now: Times, status: db.json.Status, durability: db.rocks.Durability) !void {
         var encoded_value = value;
         encoded_value.next_attempt_ms = 0;
         const deadline: ?Deadline = if (value.next_attempt_ms > now.monotonic_ms)
@@ -266,6 +274,9 @@ pub const Operation = struct {
             try self.rowEquals(db.keys.Table.pending_message_retry_state.prefix(), retry_bytes) and
             try self.rowEquals(db.keys.Table.pending_message_retry_count.prefix(), &count))
         {
+            // A deferred write this persist was meant to cover (seal, payload
+            // enqueue) still needs its sync; a no-op when none is owed.
+            try self.store.typed.database.ensureDurable();
             self.deadline = deadline;
             self.status_row = status;
             return;
@@ -289,7 +300,7 @@ pub const Operation = struct {
             if (indexed != null and std.mem.eql(u8, indexed.?, &self.options.id)) try batch.delete(pending, &nonce);
             try batch.delete(db.keys.Table.terminally_dropped_message_by_id.prefix(), &self.options.id);
         }
-        try batch.commitSync();
+        try batch.commitWith(durability);
         self.deadline = deadline;
         if (self.row) |previous| self.allocator.free(previous);
         self.row = record;
