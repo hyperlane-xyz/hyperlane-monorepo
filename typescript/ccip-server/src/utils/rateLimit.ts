@@ -1,6 +1,7 @@
 import rateLimit, { normalizeIP } from '@fastify/rate-limit';
 
 import type { CcipApp } from '../http.js';
+import { INTERNAL_SERVER_ERROR } from './errors.js';
 import {
   PrometheusMetrics,
   RateLimitedMethod,
@@ -36,7 +37,7 @@ export async function registerRateLimiting(app: CcipApp): Promise<void> {
       return reply.code(429).send({ error: 'Too many requests' });
     }
     request.log.error({ err: error }, 'Unhandled request error');
-    return reply.code(500).send({ error: 'Internal server error' });
+    return reply.code(500).send({ error: INTERNAL_SERVER_ERROR });
   });
 }
 
