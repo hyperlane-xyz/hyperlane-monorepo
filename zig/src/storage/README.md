@@ -44,8 +44,10 @@ Rust. A same-key object for a different domain/hook follows Rust's overwrite bra
 and returns `overwrote_other_context`; callers should pin their context separately.
 
 `writeCheckpoint` supports an already-computed signature and rechecks durable
-conflicts before publication. It cannot undo a signature already computed by an
-external signer. KMS/network runtimes must serialize their own pre-sign reservations
+conflicts before publication. One exception: when this writer's own
+`probeCheckpoint` found the index absent less than one second earlier, the next
+write of that index (only) trusts that probe instead of re-reading. It cannot
+undo a signature already computed by an external signer. KMS/network runtimes must serialize their own pre-sign reservations
 and discard late results after a halt. The local signing helper does not make those
 external paths complete.
 

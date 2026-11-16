@@ -114,20 +114,28 @@ pub const LocalStore = struct {
             const now = std.time.Instant.now() catch return null;
             self.mutex.lock();
             defer self.mutex.unlock();
+            // At most one live record per index: a repeated probe refreshes it.
+            for (&self.absent) |*entry| if (entry.at != null and entry.index == index) {
+                entry.at = now;
+                return null;
+            };
             self.absent[self.absent_next] = .{ .index = index, .at = now };
             self.absent_next = (self.absent_next + 1) % self.absent.len;
         }
         return found;
     }
 
-    /// One-shot: consumes the entry for `index`, honouring it only if fresh.
+    /// One-shot: consumes every record for `index`, honouring it only if
+    /// fresh. No record for the index survives this call.
     fn takeAbsentLocked(self: *LocalStore, index: u32) bool {
+        var newest: ?std.time.Instant = null;
         for (&self.absent) |*entry| if (entry.at) |at| if (entry.index == index) {
             entry.at = null;
-            const now = std.time.Instant.now() catch return false;
-            return now.since(at) <= absent_ttl_ns;
+            if (newest == null or at.order(newest.?) == .gt) newest = at;
         };
-        return false;
+        const at = newest orelse return false;
+        const now = std.time.Instant.now() catch return false;
+        return now.since(at) <= absent_ttl_ns;
     }
 
     pub fn latestIndex(self: *LocalStore) !?u32 {
@@ -750,4 +758,26 @@ test "a writer's absent pre-sign probe is honoured once by the next write and ne
     const batch = [_]VerifiedCheckpoint{try VerifiedCheckpoint.signWith(&signing, late.value, null)};
     try store.writeVerifiedCheckpoints(&batch, 3);
     try std.testing.expectError(error.ConflictingSignedCheckpoint, store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&signing, (try testCheckpoint(1, 3, key)).value, null), 4));
+}
+
+test "repeated absent probes leave no record that outlives the next write" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const allocator = std.testing.allocator;
+    const key: objects.Hash = .{0x11} ** 32;
+    var store = try LocalStore.open(allocator, tmp.dir, "store", try testOptions(key));
+    defer store.deinit();
+    var signing = try protocol.signature.SigningKey.init(key);
+    defer signing.deinit();
+    try std.testing.expect(try store.probeCheckpoint(5) == null);
+    try std.testing.expect(try store.probeCheckpoint(5) == null);
+    var live: usize = 0;
+    for (store.absent) |entry| if (entry.at != null and entry.index == 5) {
+        live += 1;
+    };
+    try std.testing.expectEqual(@as(usize, 1), live);
+    try std.testing.expectEqual(WriteResult.written, try store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&signing, (try testCheckpoint(5, 1, key)).value, null), 1));
+    for (store.absent) |entry| try std.testing.expect(entry.at == null or entry.index != 5);
+    // Within the TTL, a conflicting same-signer write still inspects and halts.
+    try std.testing.expectError(error.ConflictingSignedCheckpoint, store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&signing, (try testCheckpoint(5, 2, key)).value, null), 2));
 }
