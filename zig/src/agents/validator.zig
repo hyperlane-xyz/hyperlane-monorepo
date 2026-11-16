@@ -335,7 +335,30 @@ pub const Service = struct {
     pub fn signedCheckpoint(self: *Service, index: u32) !?objects.SignedCheckpoint {
         const bytes = try self.get("signed", &indexKey(index)) orelse return null;
         defer self.allocator.free(bytes);
-        return try objects.SignedCheckpoint.parse(self.allocator, bytes);
+        return try decodeSigned(self.allocator, bytes);
+    }
+    /// The validator DB's own signed record (this namespace only, never
+    /// published): version byte, the 104-byte checkpoint, r, s and the full
+    /// u64 v. Published JSON is encoded once, by the store that writes it.
+    const signed_record_len = 1 + 104 + 32 + 32 + 8;
+    fn encodeSigned(signed: objects.SignedCheckpoint) [signed_record_len]u8 {
+        var out: [signed_record_len]u8 = undefined;
+        out[0] = 1;
+        out[1..105].* = encodeCheckpoint(signed.value);
+        std.mem.writeInt(u256, out[105..137], signed.signature.r, .big);
+        std.mem.writeInt(u256, out[137..169], signed.signature.s, .big);
+        std.mem.writeInt(u64, out[169..177], signed.signature.v, .big);
+        return out;
+    }
+    /// Records written as JSON by earlier builds still decode.
+    fn decodeSigned(a: std.mem.Allocator, bytes: []const u8) !objects.SignedCheckpoint {
+        if (bytes.len > 0 and bytes[0] == '{') return objects.SignedCheckpoint.parse(a, bytes);
+        if (bytes.len != signed_record_len or bytes[0] != 1) return error.InvalidValidatorRecord;
+        return .{ .value = try decodeCheckpoint(bytes[1..105]), .signature = .{
+            .r = std.mem.readInt(u256, bytes[105..137], .big),
+            .s = std.mem.readInt(u256, bytes[137..169], .big),
+            .v = std.mem.readInt(u64, bytes[169..177], .big),
+        } };
     }
     /// Raw signed bytes (validator DB or publisher reads): one recovery.
     fn verifyStored(self: *Service, signed: objects.SignedCheckpoint) !Verified {
@@ -727,11 +750,9 @@ pub const Service = struct {
                 const value = existing orelse try self.signSerial(signer, candidate);
                 try self.verifySigned(value);
                 if (!same(value.signed.value, candidate)) return error.SignerChangedCheckpoint;
-                const json = try value.signed.toJson(self.allocator);
-                defer self.allocator.free(json);
                 var batch = try self.beginWal();
                 defer batch.deinit();
-                try self.put(&batch, "signed", &indexKey(candidate.index), json);
+                try self.put(&batch, "signed", &indexKey(candidate.index), &encodeSigned(value.signed));
                 const watermark = if (self.signed_watermark) |w| @max(w, candidate.index) else candidate.index;
                 try self.putNumber(&batch, "signed-watermark", watermark);
                 try self.commit(&batch);
@@ -1188,9 +1209,7 @@ pub const Service = struct {
         if (!same(signed.signed.value, job.checkpoint)) return error.SignerChangedCheckpoint;
         if (!job.reserved) try self.put(wal, "reservations", &indexKey(job.checkpoint.index), &encodeCheckpoint(job.checkpoint));
         if (!job.record) return;
-        const wire = try signed.signed.toJson(self.allocator);
-        defer self.allocator.free(wire);
-        try self.put(wal, "signed", &indexKey(job.checkpoint.index), wire);
+        try self.put(wal, "signed", &indexKey(job.checkpoint.index), &encodeSigned(signed.signed));
         watermark.* = @max(watermark.* orelse 0, job.checkpoint.index);
     }
     /// One WAL commit retires every written index (and advances latest when
@@ -1466,15 +1485,13 @@ pub const Service = struct {
         const signed = try publisher.fetch_checkpoint(publisher.context, snapshot.index) orelse return error.SnapshotCheckpointMissing;
         try self.validateExternal(signed, snapshot.index);
         const tree = try snapshot.authenticatedRestore(signed, self.options.signer_address, self.options.domain, self.options.hook);
-        const json = try signed.toJson(self.allocator);
-        defer self.allocator.free(json);
         var frontier: [4 + protocol.IncrementalMerkle.snapshot_len]u8 = undefined;
         frontier[0..4].* = indexKey(snapshot.index);
         frontier[4..].* = snapshot.tree;
         var batch = try self.beginWal();
         defer batch.deinit();
         try self.putRecord(&batch, snapshot.index, .{ .message_id = signed.value.message_id, .block_height = 0, .block_hash = @splat(0) }, snapshot.root);
-        try self.put(&batch, "signed", &indexKey(snapshot.index), json);
+        try self.put(&batch, "signed", &indexKey(snapshot.index), &encodeSigned(signed));
         try self.put(&batch, "snapshot", &indexKey(snapshot.index), &snapshot.tree);
         try self.put(&batch, "frontier", "", &frontier);
         try self.putNumber(&batch, "bootstrap-index", snapshot.index);
@@ -1502,12 +1519,10 @@ pub const Service = struct {
         if (index > anchor) return false;
         const signed = try publisher.fetch_checkpoint(publisher.context, index) orelse return false;
         try self.validateExternal(signed, index);
-        const json = try signed.toJson(self.allocator);
-        defer self.allocator.free(json);
         var batch = try self.beginWal();
         defer batch.deinit();
         try self.putRecord(&batch, index, .{ .message_id = signed.value.message_id, .block_height = 0, .block_hash = @splat(0) }, signed.value.root);
-        try self.put(&batch, "signed", &indexKey(index), json);
+        try self.put(&batch, "signed", &indexKey(index), &encodeSigned(signed));
         try self.commit(&batch);
         return true;
     }
@@ -1567,11 +1582,7 @@ pub const Service = struct {
             defer batch.deinit();
             try self.putRecord(&batch, cursor, observation, root);
             try self.put(&batch, "snapshot", &indexKey(cursor), &next.snapshot());
-            if (existing) |signed| {
-                const json = try signed.toJson(self.allocator);
-                defer self.allocator.free(json);
-                try self.put(&batch, "signed", &indexKey(cursor), json);
-            }
+            if (existing) |signed| try self.put(&batch, "signed", &indexKey(cursor), &encodeSigned(signed));
             if (!remote_present) try self.put(&batch, "repair-unpublished", &indexKey(cursor), "");
             try self.put(&batch, "repair-frontier", "", &next.snapshot());
             try self.putNumber(&batch, "repair-cursor", cursor + 1);
@@ -1665,6 +1676,25 @@ pub const TestPublicationFault = if (@import("builtin").is_test) struct {
 pub const TestWalFault = if (@import("builtin").is_test) struct {
     pub var outcome_unknown: std.atomic.Value(bool) = .init(false);
 } else void;
+
+test "validator DB signed record round-trips every field and still reads legacy JSON" {
+    const a = std.testing.allocator;
+    const value: Checkpoint = .{ .mailbox_domain = 0xfedcba98, .merkle_tree_hook_address = @splat(0x44), .root = @splat(0x55), .index = 0x01020304, .message_id = @splat(0x66) };
+    const signed = try objects.SignedCheckpoint.sign(value, @splat(0x11), null);
+    var wide = signed;
+    wide.signature.v = std.math.maxInt(u64) - 1;
+    for ([_]objects.SignedCheckpoint{ signed, wide }) |original| {
+        const record = Service.encodeSigned(original);
+        try std.testing.expect(std.meta.eql(original, try Service.decodeSigned(a, &record)));
+        const json = try original.toJson(a);
+        defer a.free(json);
+        try std.testing.expect(std.meta.eql(original, try Service.decodeSigned(a, json)));
+        var bad = record;
+        bad[0] = 2;
+        try std.testing.expectError(error.InvalidValidatorRecord, Service.decodeSigned(a, &bad));
+        try std.testing.expectError(error.InvalidValidatorRecord, Service.decodeSigned(a, record[0 .. record.len - 1]));
+    }
+}
 
 test "pending set ranges match a reference set under random insert remove and truncate" {
     const a = std.testing.allocator;
