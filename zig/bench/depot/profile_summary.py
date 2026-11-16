@@ -15,6 +15,7 @@ import pathlib
 import re
 
 COUNTERS = ["task-clock", "context-switches", "cpu-migrations", "page-faults", "cycles", "instructions"]
+ALIASES = {"cycles:u": "cycles", "instructions:u": "instructions"}  # BENCH_PERF_STAT_USER runs
 
 
 def perf_stat(path: pathlib.Path) -> dict:
@@ -22,6 +23,9 @@ def perf_stat(path: pathlib.Path) -> dict:
     for line in path.read_text().splitlines():
         parts = line.split()
         if len(parts) >= 2:
+            for alias, name in ALIASES.items():
+                if alias in parts[1:3]:
+                    parts = [parts[0], name]
             for name in COUNTERS:
                 if name in parts[1:3]:
                     try:

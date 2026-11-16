@@ -124,7 +124,10 @@ def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str, cal
         return (f"{perf} record -q -F {freq} --call-graph {call_graph} -p $$ -o {stem}.perf.data >/dev/null 2>&1 &\n"
                 # Every minor/major fault with its call graph (cycles samples cannot attribute faults).
                 f"{perf} record -q -e page-faults -c 1 --call-graph {call_graph} -p $$ -o {stem}.faults.perf.data >/dev/null 2>&1 &\n"
-                f"{perf} stat -e task-clock,context-switches,cpu-migrations,page-faults,cycles,instructions "
+                # BENCH_PERF_STAT_USER=1 counts user-mode only. Adding :u events alongside the defaults starves the
+                # sampling recorder of hardware counters (0 cycle samples on the EPYC runners), so it swaps rather than adds.
+                f"{perf} stat -e task-clock,context-switches,cpu-migrations,page-faults,"
+                f"{'cycles:u,instructions:u' if os.environ.get('BENCH_PERF_STAT_USER') else 'cycles,instructions'} "
                 f"-p $$ -o {stem}.perf-stat.txt >/dev/null 2>&1 &\nsleep 0.3\n")
     if kind == "sched":
         perf = perf_binary()
