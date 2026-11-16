@@ -1,33 +1,31 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { it } from 'node:test';
 
 process.env.DATABASE_URL ??= 'postgres://localhost/scraper_sql_test';
-const { EventStore, STREAMS, gasPaymentColumns, gasPaymentMetadataJoins } =
-  await import('./event-store.js');
+const { EventStore, STREAMS } = await import('./event-store.js');
 
-void describe('gas payment SQL helpers', () => {
-  void it('uses recorded log metadata before receipt enrichment and preserves legacy aliases', () => {
-    assert.equal(
-      gasPaymentColumns({
-        columns: ['id', 'tx_id', 'payment'],
-        domain: 'domain',
-        projection: 'unused unqualified projection',
-        table: 'gas_payment',
-      }),
-      '"event_row"."id", "event_row"."tx_id", "event_row"."payment", ' +
-        'COALESCE("event_row"."transaction_hash", "event_transaction"."hash") AS "origin_tx_hash", ' +
-        'COALESCE("event_row"."block_hash", "event_block"."hash") AS "origin_block_hash", ' +
-        'COALESCE("event_row"."block_number", "event_block"."height") AS "origin_block_height"',
-    );
+void it('keeps gas payments without receipts and prefers recorded log metadata', async () => {
+  let query = '';
+  const store = new EventStore({
+    async queryLive(sql) {
+      query = sql;
+      return [];
+    },
   });
-
-  void it('uses left joins for both optional metadata relations', () => {
-    assert.equal(
-      gasPaymentMetadataJoins(),
-      ' LEFT JOIN "transaction" AS "event_transaction" ON "event_transaction"."id" = "event_row"."tx_id"' +
-        ' LEFT JOIN "block" AS "event_block" ON "event_block"."id" = "event_transaction"."block_id"',
+  await store.notifiedEvents('gas_payment', ['1']);
+  assert.match(query, /LEFT JOIN "transaction"/);
+  assert.match(query, /LEFT JOIN "block"/);
+  for (const [field, relation, fallback, alias] of [
+    ['transaction_hash', 'event_transaction', 'hash', 'origin_tx_hash'],
+    ['block_hash', 'event_block', 'hash', 'origin_block_hash'],
+    ['block_number', 'event_block', 'height', 'origin_block_height'],
+  ]) {
+    assert(
+      query.includes(
+        `COALESCE("event_row"."${field}", "${relation}"."${fallback}") AS "${alias}"`,
+      ),
     );
-  });
+  }
 });
 
 void it('includes block identity only in the provisional Merkle projection', async () => {
@@ -53,7 +51,6 @@ void it('includes block identity only in the provisional Merkle projection', asy
 });
 
 void it('filters confirmation dispatch, delivery and gas rows in SQL before enrichment', async () => {
-  const { EventStore } = await import('./event-store.js');
   const queries: { sql: string; values: unknown[] }[] = [];
   const store = new EventStore({
     queryLive: async (sql, values = []) => {
@@ -89,32 +86,4 @@ void it('filters confirmation dispatch, delivery and gas rows in SQL before enri
     assert.fail(`Unexpected row ${JSON.stringify(row)}`);
   }
   assert.equal(queries.length, 1);
-});
-
-void it('filters zero-confirmation reads by mailbox, hook or paymaster', async () => {
-  const queries: { sql: string; values: unknown[] }[] = [];
-  const store = new EventStore({
-    queryLive: async (sql, values = []) => {
-      queries.push({ sql, values });
-      return [];
-    },
-  });
-  for (const [eventType, column] of [
-    ['dispatch', 'origin_mailbox'],
-    ['merkle_tree_insertion', 'merkle_tree_hook'],
-    ['gas_payment', 'interchain_gas_paymaster'],
-  ] as const)
-    for (const addresses of [[`\\x${'aa'.repeat(20)}`], []]) {
-      for await (const row of store.confirmationEventRows(
-        eventType,
-        1,
-        [0n, 0, 0n],
-        10n,
-        0,
-        addresses,
-      ))
-        assert.fail(JSON.stringify(row));
-      assert.ok(queries.at(-1)?.sql.includes(`"${column}"=ANY($6::bytea[])`));
-      assert.deepEqual(queries.at(-1)?.values[5], addresses);
-    }
 });

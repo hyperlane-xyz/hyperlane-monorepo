@@ -26,7 +26,7 @@ use hyperlane_base::{
 use hyperlane_core::{
     BackwardCursorProgress, HyperlaneBackwardCursorStore, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, MerkleTreeInsertion,
-    ReorgPeriod, SequenceAwareIndexer, H256,
+    ReorgPeriod, SequenceAwareIndexer, SequenceCoverage, H256,
 };
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use redact::Secret;
@@ -239,6 +239,18 @@ impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for MerkleTre
 
 #[async_trait]
 impl HyperlaneBackwardCursorStore<MerkleTreeInsertion> for MerkleTreeStore {
+    async fn retrieve_sequence_coverage(&self) -> Result<Option<SequenceCoverage>> {
+        HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_sequence_coverage(&self.db)
+            .await
+    }
+
+    async fn store_sequence_coverage(&self, coverage: SequenceCoverage) -> Result<()> {
+        HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::store_sequence_coverage(
+            &self.db, coverage,
+        )
+        .await
+    }
+
     async fn retrieve_backward_cursors(&self) -> Result<Vec<BackwardCursorProgress>> {
         HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_backward_cursors(&self.db)
             .await
@@ -484,14 +496,14 @@ impl MerkleTreeHookWebSocketSync {
                             bail!("WebSocket insertion cursor remained ahead of canonical count");
                         }
                     } else {
-                        health.observe(count, *next_sequence, false)?;
+                        health.observe(count, *next_sequence)?;
                     }
                     continue;
                 }
             };
             if let Some(message) = message {
                 match message {
-                    ServerMessage::Ready { .. } => socket.subscribe(self.subscription()).await?,
+                    ServerMessage::Ready => socket.subscribe(self.subscription()).await?,
                     ServerMessage::Subscribed { .. } => {
                         info!(
                             domain = self.domain,
@@ -521,8 +533,7 @@ impl MerkleTreeHookWebSocketSync {
                     ServerMessage::Rollback => {
                         bail!("Scraper stream rolled back; resuming RPC indexing")
                     }
-                    // Live subscriptions never depend on a replay marker.
-                    ServerMessage::CaughtUp { .. } | ServerMessage::Other => {}
+                    ServerMessage::Other => {}
                 }
             }
             self.try_handoff(next_sequence, target_count, fallback, &mut pending)
@@ -594,10 +605,8 @@ impl MerkleTreeHookWebSocketSync {
         SubscribeMessage {
             streams: vec![SubscribeStream {
                 confirmations: self.confirmations,
-                cursors: None,
                 domains: Some(vec![self.domain]),
                 event_type: EVENT_TYPE,
-                stream_cursor_version: None,
             }],
             message_type: "subscribe",
         }

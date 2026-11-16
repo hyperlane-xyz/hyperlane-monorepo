@@ -65,7 +65,7 @@ impl<P: Send + 'static, C: Send + 'static> ScraperSession<P, C> {
         }
     }
 
-    /// Submit the agent's durable-cursor subscription.
+    /// Submit the agent's live subscription.
     pub async fn subscribe(&mut self, subscription: SubscribeMessage<'_>) -> Result<()> {
         let expected = subscription.confirmation();
         self.socket
@@ -220,10 +220,8 @@ mod tests {
                 .subscribe(SubscribeMessage {
                     streams: vec![super::super::SubscribeStream {
                         confirmations: None,
-                        cursors: None,
                         domains: Some(vec![1]),
                         event_type: "merkle_tree_insertion",
-                        stream_cursor_version: None,
                     }],
                     message_type: "subscribe",
                 })

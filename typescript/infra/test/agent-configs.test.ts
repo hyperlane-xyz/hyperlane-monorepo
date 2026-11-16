@@ -401,22 +401,13 @@ describe('Agent configs', () => {
       }
 
       if (relayer) {
-        if (context === Contexts.FastPath) {
-          it(`configures ${environment}/${context} relayers for RPC-only indexing`, () => {
-            expect(relayer.websocketUrl).to.be.undefined;
-            expect(relayer.websocketAuthorityEnabled).to.be.undefined;
-          });
-        } else {
-          it(`configures ${environment}/${context} relayers for the shared scraper`, () => {
-            expect(relayer.websocketUrl).to.equal(
-              `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
-            );
-            expect(
-              relayer.websocketAuthorityEnabled,
-              `${environment}/${context} shared scraper authority`,
-            ).to.equal(environment !== 'testnet4');
-          });
-        }
+        it(`configures ${environment}/${context} relayer indexing`, () => {
+          expect(relayer.websocketUrl).to.equal(
+            context === Contexts.FastPath
+              ? undefined
+              : `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+          );
+        });
       }
     });
   });

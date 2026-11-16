@@ -874,7 +874,6 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,
-    websocketAuthorityEnabled: true,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayer,
@@ -953,7 +952,6 @@ const releaseCandidate: RootAgentConfig = {
     ...fallbackHedgeConfig,
     index: { from: RELEASE_CANDIDATE_INDEX_FROM },
     websocketUrl: scraperWebsocketUrl,
-    websocketAuthorityEnabled: true,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerRC,
@@ -1125,7 +1123,7 @@ const fastPath: RootAgentConfig = {
     messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
-    // Use RPC indexing until the scraper proxy supports fastpath streaming.
+    // Fast Path stays on RPC until the proxy supports per-chain confirmations on one connection.
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,

@@ -11,7 +11,6 @@ import type { EventType } from './live/protocol.js';
 const PREFIX = 'hyperlane_scraper_proxy_';
 
 export type WebSocketMetricsSnapshot = {
-  catchUps: number;
   connections: Record<'agent' | 'messages', number>;
   explorerPendingBytes: number;
   explorerPendingMessages: number;
@@ -21,27 +20,20 @@ export type WebSocketMetricsSnapshot = {
   messageMaxConnectionsPerIp: number;
   limits: {
     agentConnections: number;
-    catchUpMs: number;
     clientMessagesPerMinute: number;
-    concurrentCatchUps: number;
     explorerPendingBytes: number;
     explorerPendingMessages: number;
     messageConnections: number;
     messageConnectionsPerIp: number;
     notificationEvents: number;
-    pendingEvents: number;
     socketBufferedBytes: number;
     totalPendingBytes: number;
   };
   listenerReady: boolean;
-  maxCatchUpDurationMs: number;
-  maxCatchUpRows: number;
   maxClientBufferedBytes: number;
-  maxPendingCatchUpEvents: number;
   notificationQueue: Record<'agent' | 'messages', number>;
   outboundPendingBytes: number;
-  pendingCatchUpEvents: number;
-  subscriptions: Record<EventType, { catchingUp: number; live: number }>;
+  subscriptions: Record<EventType, number>;
 };
 
 type DatabasePoolMetrics = {
@@ -143,13 +135,6 @@ export const websocketConnectionRejections = new Counter({
   registers: [metricsRegistry],
 });
 
-export const websocketCatchUps = new Counter({
-  help: 'Historical WebSocket catch-ups by outcome.',
-  labelNames: ['outcome'] as const,
-  name: `${PREFIX}websocket_catch_ups_total`,
-  registers: [metricsRegistry],
-});
-
 export const websocketClientMessageRejections = new Counter({
   help: 'Agent WebSocket messages rejected by the per-client rate limit.',
   name: `${PREFIX}websocket_client_message_rejections_total`,
@@ -170,8 +155,6 @@ export const websocketNotificationQueueOverflows = new Counter({
   registers: [metricsRegistry],
 });
 
-for (const outcome of ['aborted', 'capacity_rejected', 'failure', 'success'])
-  websocketCatchUps.inc({ outcome }, 0);
 for (const reason of [
   'buffer_limit',
   'notification_queue_limit',
@@ -301,65 +284,19 @@ snapshotGauge(
   (gauge, snapshot) => gauge.set(snapshot.listenerReady ? 1 : 0),
 );
 snapshotGauge(
-  'websocket_catch_ups',
-  'Current historical WebSocket catch-ups.',
-  (gauge, snapshot) => gauge.set(snapshot.catchUps),
-);
-snapshotGauge(
-  'websocket_catch_up_concurrency_limit',
-  'Maximum concurrent historical WebSocket catch-ups.',
-  (gauge, snapshot) => gauge.set(snapshot.limits.concurrentCatchUps),
-);
-snapshotGauge(
-  'websocket_max_catch_up_rows',
-  'Largest current row count delivered by one historical catch-up.',
-  (gauge, snapshot) => gauge.set(snapshot.maxCatchUpRows),
-);
-snapshotGauge(
-  'websocket_catch_up_duration_limit_seconds',
-  'Maximum duration of one historical WebSocket catch-up in seconds.',
-  (gauge, snapshot) => gauge.set(snapshot.limits.catchUpMs / 1_000),
-);
-snapshotGauge(
-  'websocket_max_catch_up_duration_seconds',
-  'Longest current historical WebSocket catch-up duration in seconds.',
-  (gauge, snapshot) => gauge.set(snapshot.maxCatchUpDurationMs / 1_000),
-);
-snapshotGauge(
-  'websocket_pending_catch_up_events',
-  'Current live events buffered behind historical catch-ups.',
-  (gauge, snapshot) => gauge.set(snapshot.pendingCatchUpEvents),
-);
-snapshotGauge(
-  'websocket_pending_catch_up_event_limit',
-  'Maximum live events buffered behind one historical catch-up.',
-  (gauge, snapshot) => gauge.set(snapshot.limits.pendingEvents),
-);
-snapshotGauge(
-  'websocket_max_pending_catch_up_events',
-  'Largest current live-event buffer behind one historical catch-up.',
-  (gauge, snapshot) => gauge.set(snapshot.maxPendingCatchUpEvents),
-);
-snapshotGauge(
   'websocket_client_message_limit_per_minute',
   'Maximum agent messages accepted per client per minute.',
   (gauge, snapshot) => gauge.set(snapshot.limits.clientMessagesPerMinute),
 );
 snapshotGauge(
   'websocket_subscriptions',
-  'Current agent subscriptions by event type and state.',
+  'Current live agent subscriptions by event type.',
   (gauge, snapshot) => {
-    for (const [eventType, subscriptions] of Object.entries(
-      snapshot.subscriptions,
-    )) {
-      gauge.set(
-        { event_type: eventType, state: 'catching_up' },
-        subscriptions.catchingUp,
-      );
-      gauge.set({ event_type: eventType, state: 'live' }, subscriptions.live);
+    for (const [eventType, count] of Object.entries(snapshot.subscriptions)) {
+      gauge.set({ event_type: eventType }, count);
     }
   },
-  ['event_type', 'state'],
+  ['event_type'],
 );
 snapshotGauge(
   'websocket_notification_queue',

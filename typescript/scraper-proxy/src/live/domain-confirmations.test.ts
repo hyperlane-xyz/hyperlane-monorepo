@@ -18,8 +18,8 @@ function subscribe(confirmationsByDomain: unknown, streams: unknown[]) {
 void it('domain overrides take precedence for every event type, including zero', () => {
   for (const eventType of EVENT_TYPES) {
     for (const confirmations of [undefined, 12]) {
-      const message = subscribe({ 1: 0, 2: 3, 9: 99 }, [
-        { eventType, domains: [1, 2, 3, 4], confirmations },
+      const message = subscribe({ 1: 0, 2: 3, 5: 3, 9: 99 }, [
+        { eventType, domains: [1, 2, 3, 4, 5], confirmations },
       ]);
       const request = message.streams[0];
       assert(request && request.eventType !== 'blocks');
@@ -34,11 +34,11 @@ void it('domain overrides take precedence for every event type, including zero',
         })),
         [
           { confirmations: 0, domains: [1] },
-          { confirmations: 3, domains: [2] },
+          { confirmations: 3, domains: [2, 5] },
           { confirmations, domains: [3, 4] },
         ],
       );
-      assert.deepEqual([...(request.domains ?? [])], [1, 2, 3, 4]);
+      assert.deepEqual([...(request.domains ?? [])], [1, 2, 3, 4, 5]);
       assert(groups.every((group) => group.eventType === eventType));
     }
   }
@@ -59,6 +59,21 @@ void it('omitted or empty domain overrides retain legacy subscriptions', () => {
       );
     }
   }
+});
+
+void it('merges domain overrides with matching legacy confirmations', () => {
+  const message = subscribe({ 1: 3, 3: 0 }, [
+    { eventType: 'dispatch', domains: [1, 2, 3], confirmations: 3 },
+  ]);
+  const request = message.streams[0];
+  assert(request && request.eventType !== 'blocks');
+  assert.deepEqual(
+    splitConfirmationStreams(request, message.confirmationsByDomain),
+    [
+      { ...request, domains: new Set([1, 2]) },
+      { ...request, domains: new Set([3]), confirmations: 0 },
+    ],
+  );
 });
 
 void it('supports the full uint32 domain range and leaves block streams unchanged', () => {
@@ -109,7 +124,7 @@ void it('rejects malformed domain maps and confirmation values', () => {
   }
 });
 
-void it('requires explicit domains and preserves live-only custom confirmation rules', () => {
+void it('requires explicit domains and rejects replay regardless of domain overrides', () => {
   assert.throws(
     () =>
       splitConfirmationStreams({ eventType: 'dispatch' }, new Map([[1, 2]])),
@@ -121,17 +136,12 @@ void it('requires explicit domains and preserves live-only custom confirmation r
   );
   const replay = {
     eventType: 'dispatch',
+    domains: [1],
     cursors: [
       { domain: 1, address: `0x${'11'.repeat(20)}`, afterSequence: '0' },
     ],
   };
-  assert.throws(() => subscribe({ 1: 0 }, [replay]), /live streams only/);
-  const message = subscribe({ 2: 0 }, [replay]);
-  const request = message.streams[0];
-  assert(request && request.eventType !== 'blocks');
-  assert.equal(
-    splitConfirmationStreams(request, message.confirmationsByDomain)[0]?.cursors
-      ?.length,
-    1,
-  );
+  for (const overrides of [undefined, {}, { 1: 0 }, { 2: 0 }]) {
+    assert.throws(() => subscribe(overrides, [replay]), /live-only/);
+  }
 });

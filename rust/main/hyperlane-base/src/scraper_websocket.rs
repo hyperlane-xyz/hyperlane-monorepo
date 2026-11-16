@@ -5,8 +5,6 @@ mod session;
 pub use client::*;
 pub use session::{ScraperSession, SessionEvent};
 
-use std::collections::HashMap;
-
 use eyre::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
@@ -22,40 +20,20 @@ pub struct SubscribeMessage<'a> {
 }
 
 impl SubscribeMessage<'_> {
-    /// Expected acknowledgement, excluding request-only replay options.
+    /// Expected acknowledgement for the requested live streams.
     pub fn confirmation(&self) -> Vec<SubscribedStream> {
         self.streams
             .iter()
             .map(|stream| SubscribedStream {
                 confirmations: stream.confirmations,
-                cursors: stream.cursors.as_ref().map(|cursors| {
-                    cursors
-                        .iter()
-                        .map(|cursor| match cursor {
-                            StreamCursor::Sequence(cursor) => SubscribedCursor {
-                                address: cursor.address.clone(),
-                                after_sequence: cursor.after_sequence.clone(),
-                                after_stream_cursor: None,
-                                domain: cursor.domain,
-                            },
-                            StreamCursor::GasPayment(cursor) => SubscribedCursor {
-                                address: cursor.address.clone(),
-                                after_sequence: None,
-                                after_stream_cursor: cursor.after_stream_cursor.clone(),
-                                domain: cursor.domain,
-                            },
-                        })
-                        .collect()
-                }),
                 domains: stream.domains.clone(),
                 event_type: stream.event_type.to_owned(),
-                stream_cursor_version: stream.stream_cursor_version,
             })
             .collect()
     }
 }
 
-/// Reject acknowledgements that change the requested streams or replay cursors.
+/// Reject acknowledgements that change the requested live streams.
 pub fn validate_subscription(
     expected: &[SubscribedStream],
     actual: &[SubscribedStream],
@@ -70,59 +48,14 @@ pub fn validate_subscription(
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeStream<'a> {
-    /// Custom live confirmation delay; omitted for canonical replay streams.
+    /// Custom live confirmation delay; omitted for canonical streams.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confirmations: Option<u32>,
-    /// Durable cursors from which replay should resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cursors: Option<Vec<StreamCursor>>,
     /// Domains included in the stream.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domains: Option<Vec<u32>>,
     /// Scraper event type.
     pub event_type: &'a str,
-    /// Versioned logical cursor semantics requested for this stream.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stream_cursor_version: Option<u32>,
-}
-
-/// Durable sequence cursor for one contract and domain.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SequenceCursor {
-    /// Contract address encoded for scraper-proxy.
-    pub address: String,
-    /// Whether scraper-proxy should replay events after the cursor.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allow_replay: Option<bool>,
-    /// Last processed sequence, encoded as a decimal string.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub after_sequence: Option<String>,
-    /// Hyperlane domain identifier.
-    pub domain: u32,
-}
-
-/// Durable gas-payment stream cursor for one contract and domain.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GasPaymentCursor {
-    /// Contract address encoded for scraper-proxy.
-    pub address: String,
-    /// Last processed logical stream cursor, encoded as a decimal string.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub after_stream_cursor: Option<String>,
-    /// Hyperlane domain identifier.
-    pub domain: u32,
-}
-
-/// A cursor accepted by scraper-proxy.
-#[derive(Debug, Serialize)]
-#[serde(untagged)]
-pub enum StreamCursor {
-    /// Native contract sequence cursor.
-    Sequence(SequenceCursor),
-    /// Versioned gas-payment stream cursor.
-    GasPayment(GasPaymentCursor),
 }
 
 /// Messages emitted by scraper-proxy.
@@ -130,34 +63,11 @@ pub enum StreamCursor {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage<T> {
     /// The connection is ready to receive a subscription.
-    Ready {
-        /// Logical cursor versions supported by event type.
-        #[serde(default, rename = "streamCursorVersions")]
-        stream_cursor_versions: HashMap<String, u32>,
-    },
+    Ready,
     /// The subscription was accepted.
     Subscribed {
         /// Streams accepted by scraper-proxy.
         streams: Vec<SubscribedStream>,
-    },
-    /// Historical replay reached the scraper's current cursor.
-    #[serde(rename_all = "camelCase")]
-    CaughtUp {
-        /// Contract address for the cursor.
-        address: String,
-        /// Hyperlane domain identifier.
-        domain: u32,
-        /// Scraper event type.
-        event_type: String,
-        /// Immutable upper bound of sparse legacy gas-payment cursors.
-        #[serde(default)]
-        legacy_max_stream_cursor: Option<String>,
-        /// Last available row ID, encoded as a decimal string.
-        row_id: Option<String>,
-        /// Last available logical stream cursor, encoded as a decimal string.
-        stream_cursor: Option<String>,
-        /// Last available sequence, encoded as a decimal string.
-        sequence: Option<String>,
     },
     /// Live stream recovery boundary for this connection.
     LiveStart(LiveStartBoundary),
@@ -212,28 +122,10 @@ pub struct LiveStartStream {
 pub struct SubscribedStream {
     /// Custom confirmation delay accepted by the server.
     pub confirmations: Option<u32>,
-    /// Durable cursors accepted for this stream.
-    pub cursors: Option<Vec<SubscribedCursor>>,
     /// Domains accepted for this stream.
     pub domains: Option<Vec<u32>>,
     /// Scraper event type.
     pub event_type: String,
-    /// Versioned logical cursor semantics accepted for this stream.
-    pub stream_cursor_version: Option<u32>,
-}
-
-/// One durable cursor echoed by scraper-proxy after subscription.
-#[derive(Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct SubscribedCursor {
-    /// Contract address encoded for scraper-proxy.
-    pub address: String,
-    /// Last processed logical stream cursor, encoded as a decimal string.
-    pub after_stream_cursor: Option<String>,
-    /// Last processed sequence, encoded as a decimal string.
-    pub after_sequence: Option<String>,
-    /// Hyperlane domain identifier.
-    pub domain: u32,
 }
 
 /// Common envelope around scraper event-specific data.
@@ -334,16 +226,6 @@ impl MerkleEventData {
     }
 }
 
-/// Format a contract address as echoed by scraper-proxy: unpad EVM addresses.
-pub fn format_address(address: hyperlane_core::H256) -> String {
-    let bytes = address.as_bytes();
-    if bytes[..12].iter().all(|byte| *byte == 0) {
-        format!("0x{}", hex::encode(&bytes[12..]))
-    } else {
-        format!("{address:#x}")
-    }
-}
-
 /// Decode an EVM or full-width scraper contract address.
 pub fn parse_address(value: &str) -> Result<hyperlane_core::H256> {
     hyperlane_core::bytes_to_address(parse_hex(value)?).context("Invalid scraper event address")
@@ -367,34 +249,12 @@ mod tests {
     }
 
     #[test]
-    fn formats_contracts_like_scraper_proxy_acknowledgements() {
-        use hyperlane_core::H256;
-        let evm = H256::from_low_u64_be(1);
-        assert_eq!(
-            format_address(evm),
-            "0x0000000000000000000000000000000000000001"
-        );
-        let full_width = H256::repeat_byte(0xab);
-        assert_eq!(format_address(full_width), format!("{full_width:#x}"));
-        assert_eq!(
-            parse_address(&format_address(evm)).expect("EVM round trip"),
-            evm
-        );
-        assert_eq!(
-            parse_address(&format_address(full_width)).expect("full-width round trip"),
-            full_width
-        );
-    }
-
-    #[test]
     fn custom_confirmation_acknowledgement_must_match_requested_delay() {
         let request = SubscribeMessage {
             streams: vec![SubscribeStream {
                 confirmations: Some(3),
-                cursors: None,
                 domains: Some(vec![1]),
                 event_type: "merkle_tree_insertion",
-                stream_cursor_version: None,
             }],
             message_type: "subscribe",
         };
@@ -413,50 +273,12 @@ mod tests {
     }
 
     #[test]
-    fn serializes_subscription_protocol() {
+    fn serializes_live_subscription() {
         let message = SubscribeMessage {
             streams: vec![SubscribeStream {
                 confirmations: None,
-                cursors: Some(vec![StreamCursor::Sequence(SequenceCursor {
-                    address: "0x1234".to_owned(),
-                    allow_replay: Some(true),
-                    after_sequence: Some("41".to_owned()),
-                    domain: 5,
-                })]),
-                domains: Some(vec![5]),
-                event_type: "dispatch",
-                stream_cursor_version: None,
-            }],
-            message_type: "subscribe",
-        };
-
-        assert_eq!(
-            serde_json::to_value(message).expect("subscription should serialize"),
-            serde_json::json!({
-                "streams": [{
-                    "cursors": [{
-                        "address": "0x1234",
-                        "allowReplay": true,
-                        "afterSequence": "41",
-                        "domain": 5
-                    }],
-                    "domains": [5],
-                    "eventType": "dispatch"
-                }],
-                "type": "subscribe"
-            })
-        );
-    }
-
-    #[test]
-    fn omits_optional_cursor_fields_for_live_streams() {
-        let message = SubscribeMessage {
-            streams: vec![SubscribeStream {
-                confirmations: None,
-                cursors: None,
                 domains: Some(vec![5]),
                 event_type: "gas_payment",
-                stream_cursor_version: None,
             }],
             message_type: "subscribe",
         };
@@ -467,36 +289,6 @@ mod tests {
                 "streams": [{
                     "domains": [5],
                     "eventType": "gas_payment"
-                }],
-                "type": "subscribe"
-            })
-        );
-    }
-
-    #[test]
-    fn serializes_gas_payment_stream_cursor() {
-        let message = SubscribeMessage {
-            streams: vec![SubscribeStream {
-                confirmations: None,
-                cursors: Some(vec![StreamCursor::GasPayment(GasPaymentCursor {
-                    address: "0x1234".to_owned(),
-                    after_stream_cursor: Some("41".to_owned()),
-                    domain: 5,
-                })]),
-                domains: Some(vec![5]),
-                event_type: "gas_payment",
-                stream_cursor_version: Some(3),
-            }],
-            message_type: "subscribe",
-        };
-        assert_eq!(
-            serde_json::to_value(message).expect("subscription should serialize"),
-            serde_json::json!({
-                "streams": [{
-                    "cursors": [{ "address": "0x1234", "afterStreamCursor": "41", "domain": 5 }],
-                    "domains": [5],
-                    "eventType": "gas_payment",
-                    "streamCursorVersion": 3
                 }],
                 "type": "subscribe"
             })
@@ -553,53 +345,6 @@ mod tests {
     }
 
     #[test]
-    fn deserializes_gas_payment_event_and_caught_up_marker() {
-        let event: ServerMessage<TestData> = serde_json::from_value(serde_json::json!({
-            "type": "event",
-            "data": { "value": "payload" },
-            "domain": 5,
-            "eventType": "gas_payment",
-            "legacyMaxStreamCursor": "20",
-            "rowId": "52",
-            "streamCursor": "42"
-        }))
-        .expect("gas payment event should deserialize");
-        match event {
-            ServerMessage::Event(event) => {
-                assert_eq!(event.legacy_max_stream_cursor.as_deref(), Some("20"));
-                assert_eq!(event.row_id.as_deref(), Some("52"));
-                assert_eq!(event.stream_cursor.as_deref(), Some("42"));
-            }
-            _ => panic!("expected event"),
-        }
-
-        let marker: ServerMessage<TestData> = serde_json::from_value(serde_json::json!({
-            "type": "caught_up",
-            "address": "0x1234",
-            "domain": 5,
-            "eventType": "gas_payment",
-            "legacyMaxStreamCursor": "20",
-            "streamCursor": "42"
-        }))
-        .expect("gas payment marker should deserialize");
-        match marker {
-            ServerMessage::CaughtUp {
-                legacy_max_stream_cursor,
-                row_id,
-                stream_cursor,
-                sequence,
-                ..
-            } => {
-                assert_eq!(legacy_max_stream_cursor.as_deref(), Some("20"));
-                assert_eq!(row_id, None);
-                assert_eq!(stream_cursor.as_deref(), Some("42"));
-                assert_eq!(sequence, None);
-            }
-            _ => panic!("expected caught-up marker"),
-        }
-    }
-
-    #[test]
     fn deserializes_subscription_confirmation() {
         let message: ServerMessage<TestData> = serde_json::from_value(serde_json::json!({
             "type": "subscribed",
@@ -615,10 +360,8 @@ mod tests {
                 streams,
                 vec![SubscribedStream {
                     confirmations: None,
-                    cursors: None,
                     domains: Some(vec![5, 9]),
                     event_type: "dispatch".to_owned(),
-                    stream_cursor_version: None,
                 }]
             ),
             _ => panic!("expected subscription confirmation"),
@@ -626,19 +369,12 @@ mod tests {
     }
 
     #[test]
-    fn deserializes_ready_cursor_capabilities() {
+    fn deserializes_ready_with_extra_capabilities() {
         let message: ServerMessage<TestData> = serde_json::from_value(serde_json::json!({
-            "streamCursorVersions": { "gas_payment": 3 },
-            "type": "ready"
+            "liveStartVersion": 1, "type": "ready"
         }))
-        .expect("ready message should deserialize");
-
-        match message {
-            ServerMessage::Ready {
-                stream_cursor_versions,
-            } => assert_eq!(stream_cursor_versions.get("gas_payment"), Some(&3)),
-            _ => panic!("expected ready message"),
-        }
+        .expect("ready message");
+        assert!(matches!(message, ServerMessage::Ready));
     }
 
     #[test]
