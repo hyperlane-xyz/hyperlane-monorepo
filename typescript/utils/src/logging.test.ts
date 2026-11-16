@@ -73,6 +73,41 @@ describe('Logging Utilities', () => {
         expected: `connect failed ${REDACTED_URL} and ${REDACTED_URL}`,
       },
       {
+        name: 'redacts a url with a bracketed ipv6 host and a path secret',
+        input: `missing response (url="https://[2001:db8::1]/${SECRET_PATH}", code=SERVER_ERROR)`,
+        expected: `missing response (url="${REDACTED_URL}", code=SERVER_ERROR)`,
+      },
+      {
+        name: 'redacts a url with a bracketed ipv6 host and a port',
+        input: `missing response (url="https://[2001:db8::1]:8545", code=SERVER_ERROR)`,
+        expected: `missing response (url="${REDACTED_URL}", code=SERVER_ERROR)`,
+      },
+      {
+        name: 'keeps the closing paren of a stack frame url',
+        input: `at read (https://${SECRET_HOST}/${SECRET_PATH})`,
+        expected: `at read (${REDACTED_URL})`,
+      },
+      {
+        name: 'keeps the closing paren of a stack frame url with a bracketed ipv6 host',
+        input: `at read (https://[2001:db8::1]/${SECRET_PATH})`,
+        expected: `at read (${REDACTED_URL})`,
+      },
+      {
+        name: 'redacts a bare bracketed ipv6 host',
+        input: `url="http://[2001:db8::1]", code=X`,
+        expected: `url="${REDACTED_URL}", code=X`,
+      },
+      {
+        name: 'redacts a bracketed ipv6 host after a comma-joined url',
+        input: `https://${SECRET_HOST},https://[2001:db8::1]/${SECRET_PATH}`,
+        expected: REDACTED_URL,
+      },
+      {
+        name: 'keeps brackets that follow the closing paren of a url',
+        input: `(https://${SECRET_HOST})[x]y`,
+        expected: `(${REDACTED_URL})[x]y`,
+      },
+      {
         name: 'redacts assigned hostnames',
         input: `getaddrinfo ENOTFOUND hostname=${SECRET_HOST}, code=X`,
         expected: `getaddrinfo ENOTFOUND hostname=${REDACTED_HOST}, code=X`,

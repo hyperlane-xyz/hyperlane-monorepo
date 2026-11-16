@@ -209,8 +209,10 @@ export const REDACTED_HOST = '<redacted-host>';
 
 // ethers embeds the RPC url and the resolved hostname in provider error
 // messages (e.g. `url="https://host/<api key>"`, `"hostname":"host"`), and RPC
-// urls can carry credentials.
-const URL_PATTERN = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`<>)\]}]+/gi;
+// urls can carry credentials. Bracketed (IPv6) host segments are matched whole;
+// otherwise `)`, `]` and `}` end the url so stack frames keep their closer.
+const URL_PATTERN =
+  /\b[a-z][a-z0-9+.-]*:\/\/(?:\[[^[\]\s"'`<>]*\]|[^\s"'`<>)\]}])+/gi;
 const JSON_HOSTNAME_PATTERN = /("hostname"\s*:\s*")[^"]*"/gi;
 const ASSIGNED_HOSTNAME_PATTERN = /(\bhostname=)[^\s,)}]+/gi;
 
