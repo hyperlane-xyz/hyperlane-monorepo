@@ -50,6 +50,98 @@ pub const Publisher = struct {
 pub const Verified = @import("../storage/local.zig").VerifiedCheckpoint;
 const namespace = "zig_validator_v1/";
 const Record = struct { observation: Observation, root: Hash };
+const PendingTable = enum(u1) { unpublished, repair };
+/// Pending indices of one table as sorted, disjoint, inclusive ranges.
+/// Observation appends and highest-first publication keep it to a few ranges.
+const PendingSet = struct {
+    ranges: std.ArrayList(Range) = .empty,
+    const Range = struct { lo: u32, hi: u32 };
+    fn deinit(self: *PendingSet, a: std.mem.Allocator) void {
+        self.ranges.deinit(a);
+        self.* = .{};
+    }
+    /// First range whose hi >= index.
+    fn lowerBound(self: *const PendingSet, index: u32) usize {
+        var lo: usize = 0;
+        var hi: usize = self.ranges.items.len;
+        while (lo < hi) {
+            const mid = lo + (hi - lo) / 2;
+            if (self.ranges.items[mid].hi < index) lo = mid + 1 else hi = mid;
+        }
+        return lo;
+    }
+    fn atOrBelow(self: *const PendingSet, target: u32) ?u32 {
+        const i = self.lowerBound(target);
+        if (i < self.ranges.items.len and self.ranges.items[i].lo <= target) return target;
+        return if (i == 0) null else self.ranges.items[i - 1].hi;
+    }
+    /// Ascending rebuild input only.
+    fn append(self: *PendingSet, a: std.mem.Allocator, index: u32) !void {
+        if (self.ranges.items.len > 0) {
+            const last = &self.ranges.items[self.ranges.items.len - 1];
+            if (index <= last.hi) return error.InvalidValidatorRecord;
+            if (index == last.hi + 1) {
+                last.hi = index;
+                return;
+            }
+        }
+        try self.ranges.append(a, .{ .lo = index, .hi = index });
+    }
+    fn insert(self: *PendingSet, a: std.mem.Allocator, index: u32) !void {
+        const i = self.lowerBound(index);
+        const items = self.ranges.items;
+        if (i < items.len and items[i].lo <= index) return;
+        // items[i-1].hi < index < items[i].lo: neither +1 overflows.
+        const joins_previous = i > 0 and items[i - 1].hi + 1 == index;
+        const joins_next = i < items.len and index + 1 == items[i].lo;
+        if (joins_previous and joins_next) {
+            items[i - 1].hi = items[i].hi;
+            _ = self.ranges.orderedRemove(i);
+        } else if (joins_previous) {
+            items[i - 1].hi = index;
+        } else if (joins_next) {
+            items[i].lo = index;
+        } else try self.ranges.insert(a, i, .{ .lo = index, .hi = index });
+    }
+    fn remove(self: *PendingSet, a: std.mem.Allocator, index: u32) !void {
+        const i = self.lowerBound(index);
+        if (i >= self.ranges.items.len or self.ranges.items[i].lo > index) return;
+        const range = self.ranges.items[i];
+        if (range.lo == range.hi) {
+            _ = self.ranges.orderedRemove(i);
+        } else if (range.lo == index) {
+            self.ranges.items[i].lo = index + 1;
+        } else if (range.hi == index) {
+            self.ranges.items[i].hi = index - 1;
+        } else {
+            try self.ranges.ensureUnusedCapacity(a, 1);
+            self.ranges.items[i].hi = index - 1;
+            self.ranges.insertAssumeCapacity(i + 1, .{ .lo = index + 1, .hi = range.hi });
+        }
+    }
+    fn removeAtOrAfter(self: *PendingSet, first: u32) !void {
+        const i = self.lowerBound(first);
+        if (i < self.ranges.items.len and self.ranges.items[i].lo < first) {
+            self.ranges.items[i].hi = first - 1;
+            self.ranges.shrinkRetainingCapacity(i + 1);
+        } else self.ranges.shrinkRetainingCapacity(i);
+    }
+};
+/// A validator WAL batch plus the pending-set changes its rows imply.
+const Wal = struct {
+    rows: rocks.TypedBatch,
+    allocator: std.mem.Allocator,
+    staged: std.ArrayList(Op) = .empty,
+    const Op = struct { table: PendingTable, kind: enum { insert, remove, remove_from }, index: u32 };
+    fn deinit(self: *Wal) void {
+        self.rows.deinit();
+        self.staged.deinit(self.allocator);
+    }
+    fn stage(self: *Wal, table: PendingTable, kind: @FieldType(Op, "kind"), key: []const u8) !void {
+        if (key.len != 4) return error.InvalidValidatorRecord;
+        try self.staged.append(self.allocator, .{ .table = table, .kind = kind, .index = std.mem.readInt(u32, key[0..4], .big) });
+    }
+};
 pub const Service = struct {
     allocator: std.mem.Allocator,
     typed: rocks.Typed,
@@ -70,18 +162,20 @@ pub const Service = struct {
     pending_reorg: ?objects.ReorgEvent = null,
     guard_local_pending: bool = false,
     guard_backend_pending: bool = false,
+    /// The unpublished and repair-unpublished tables, by PendingTable.
+    pending: [2]PendingSet = .{ .{}, .{} },
+    pending_stale: bool = true,
     pub fn deinit(self: *Service) void {
         if (self.publication_workers) |workers| {
             workers.deinit();
             self.allocator.destroy(workers);
         }
         self.publication_workers = null;
+        for (&self.pending) |*set| set.deinit(self.allocator);
     }
     pub fn persistedHalt(a: std.mem.Allocator, database: *rocks.Database, domain_name: []const u8) !bool {
         const typed: rocks.Typed = .{ .database = database, .domain_name = domain_name };
-        const prefix = try table(a, "halted");
-        defer a.free(prefix);
-        const bytes = try typed.get(a, prefix, "") orelse return false;
+        const bytes = try typed.get(a, comptime table("halted"), "") orelse return false;
         defer a.free(bytes);
         if (bytes.len != 4) return error.InvalidValidatorRecord;
         return true;
@@ -90,6 +184,7 @@ pub const Service = struct {
         if (options.endpoint_count == 0) return error.EmptyEndpointPool;
         if (options.consensus) |c| _ = try c.required(options.endpoint_count);
         var self: Service = .{ .allocator = a, .typed = .{ .database = database, .domain_name = options.domain_name }, .options = options };
+        errdefer self.deinit();
         var context: [56]u8 = undefined;
         std.mem.writeInt(u32, context[0..4], options.domain, .big);
         context[4..36].* = options.hook;
@@ -98,10 +193,10 @@ pub const Service = struct {
             defer a.free(old);
             if (!std.mem.eql(u8, old, &context)) return error.ValidatorContextChanged;
         } else {
-            var batch = try self.typed.batch(a);
+            var batch = try self.beginWal();
             defer batch.deinit();
             try self.put(&batch, "context", "", &context);
-            try batch.commitSync();
+            try self.commit(&batch);
         }
         self.halted = (try self.number("halted")) != null;
         if (self.halted) if (options.halt_signal) |signal| signal.store(true, .release);
@@ -128,33 +223,71 @@ pub const Service = struct {
         if (try self.reservation()) |reserved| {
             try self.validateReservation(reserved);
         }
+        try self.rebuildPending();
         return self;
     }
-    fn table(a: std.mem.Allocator, name: []const u8) ![]u8 {
-        return std.mem.concat(a, u8, &.{ namespace, name, "/" });
+    fn table(comptime name: []const u8) []const u8 {
+        return namespace ++ name ++ "/";
     }
-    fn get(self: *Service, name: []const u8, key: []const u8) !?[]u8 {
-        const p = try table(self.allocator, name);
-        defer self.allocator.free(p);
-        return self.typed.get(self.allocator, p, key);
+    fn pendingTable(comptime name: []const u8) ?PendingTable {
+        if (comptime std.mem.eql(u8, name, "unpublished")) return .unpublished;
+        if (comptime std.mem.eql(u8, name, "repair-unpublished")) return .repair;
+        return null;
     }
-    fn put(self: *Service, batch: *rocks.TypedBatch, name: []const u8, key: []const u8, value: []const u8) !void {
-        const p = try table(self.allocator, name);
-        defer self.allocator.free(p);
-        try batch.put(p, key, value);
+    fn get(self: *Service, comptime name: []const u8, key: []const u8) !?[]u8 {
+        return self.typed.get(self.allocator, comptime table(name), key);
     }
-    fn delete(self: *Service, batch: *rocks.TypedBatch, name: []const u8, key: []const u8) !void {
-        const p = try table(self.allocator, name);
-        defer self.allocator.free(p);
-        try batch.delete(p, key);
+    fn beginWal(self: *Service) !Wal {
+        return .{ .rows = try self.typed.batch(self.allocator), .allocator = self.allocator };
     }
-    fn number(self: *Service, name: []const u8) !?u32 {
+    /// Every validator WAL commit. Pending-set changes staged with the rows
+    /// apply only after the commit returns OK; an error leaves the outcome
+    /// unknown, so the set is rebuilt from the DB before its next read.
+    fn commit(self: *Service, batch: *Wal) !void {
+        batch.rows.commitSync() catch |err| {
+            if (batch.staged.items.len > 0) self.pending_stale = true;
+            return err;
+        };
+        if (@import("builtin").is_test) if (batch.staged.items.len > 0 and TestWalFault.outcome_unknown.swap(false, .acq_rel)) {
+            self.pending_stale = true;
+            return error.InjectedWalOutcomeUnknown;
+        };
+        if (self.pending_stale) return;
+        for (batch.staged.items) |op| {
+            const set = &self.pending[@intFromEnum(op.table)];
+            const applied = switch (op.kind) {
+                .insert => set.insert(self.allocator, op.index),
+                .remove => set.remove(self.allocator, op.index),
+                .remove_from => set.removeAtOrAfter(op.index),
+            };
+            applied catch {
+                self.pending_stale = true;
+                return;
+            };
+        }
+    }
+    fn put(self: *Service, batch: *Wal, comptime name: []const u8, key: []const u8, value: []const u8) !void {
+        _ = self;
+        try batch.rows.put(comptime table(name), key, value);
+        if (comptime pendingTable(name)) |t| try batch.stage(t, .insert, key);
+    }
+    fn delete(self: *Service, batch: *Wal, comptime name: []const u8, key: []const u8) !void {
+        _ = self;
+        try batch.rows.delete(comptime table(name), key);
+        if (comptime pendingTable(name)) |t| try batch.stage(t, .remove, key);
+    }
+    fn deleteAtOrAfter(self: *Service, batch: *Wal, comptime name: []const u8, key: []const u8) !void {
+        _ = self;
+        try batch.rows.deleteAtOrAfter(comptime table(name), key);
+        if (comptime pendingTable(name)) |t| try batch.stage(t, .remove_from, key);
+    }
+    fn number(self: *Service, comptime name: []const u8) !?u32 {
         const bytes = try self.get(name, "") orelse return null;
         defer self.allocator.free(bytes);
         if (bytes.len != 4) return error.InvalidValidatorRecord;
         return std.mem.readInt(u32, bytes[0..4], .big);
     }
-    fn putNumber(self: *Service, batch: *rocks.TypedBatch, name: []const u8, n: u32) !void {
+    fn putNumber(self: *Service, batch: *Wal, comptime name: []const u8, n: u32) !void {
         var bytes: [4]u8 = undefined;
         std.mem.writeInt(u32, &bytes, n, .big);
         try self.put(batch, name, "", &bytes);
@@ -202,7 +335,30 @@ pub const Service = struct {
     pub fn signedCheckpoint(self: *Service, index: u32) !?objects.SignedCheckpoint {
         const bytes = try self.get("signed", &indexKey(index)) orelse return null;
         defer self.allocator.free(bytes);
-        return try objects.SignedCheckpoint.parse(self.allocator, bytes);
+        return try decodeSigned(self.allocator, bytes);
+    }
+    /// The validator DB's own signed record (this namespace only, never
+    /// published): version byte, the 104-byte checkpoint, r, s and the full
+    /// u64 v. Published JSON is encoded once, by the store that writes it.
+    const signed_record_len = 1 + 104 + 32 + 32 + 8;
+    fn encodeSigned(signed: objects.SignedCheckpoint) [signed_record_len]u8 {
+        var out: [signed_record_len]u8 = undefined;
+        out[0] = 1;
+        out[1..105].* = encodeCheckpoint(signed.value);
+        std.mem.writeInt(u256, out[105..137], signed.signature.r, .big);
+        std.mem.writeInt(u256, out[137..169], signed.signature.s, .big);
+        std.mem.writeInt(u64, out[169..177], signed.signature.v, .big);
+        return out;
+    }
+    /// Records written as JSON by earlier builds still decode.
+    fn decodeSigned(a: std.mem.Allocator, bytes: []const u8) !objects.SignedCheckpoint {
+        if (bytes.len > 0 and bytes[0] == '{') return objects.SignedCheckpoint.parse(a, bytes);
+        if (bytes.len != signed_record_len or bytes[0] != 1) return error.InvalidValidatorRecord;
+        return .{ .value = try decodeCheckpoint(bytes[1..105]), .signature = .{
+            .r = std.mem.readInt(u256, bytes[105..137], .big),
+            .s = std.mem.readInt(u256, bytes[137..169], .big),
+            .v = std.mem.readInt(u64, bytes[169..177], .big),
+        } };
     }
     /// Raw signed bytes (validator DB or publisher reads): one recovery.
     fn verifyStored(self: *Service, signed: objects.SignedCheckpoint) !Verified {
@@ -255,13 +411,13 @@ pub const Service = struct {
         var frontier: [4 + protocol.IncrementalMerkle.snapshot_len]u8 = undefined;
         frontier[0..4].* = indexKey(index);
         frontier[4..].* = next.snapshot();
-        var batch = try self.typed.batch(self.allocator);
+        var batch = try self.beginWal();
         defer batch.deinit();
         try self.put(&batch, "history", &indexKey(index), &bytes);
         try self.put(&batch, "snapshot", &indexKey(index), &next.snapshot());
         try self.put(&batch, "unpublished", &indexKey(index), "");
         try self.put(&batch, "frontier", "", &frontier);
-        try batch.commitSync();
+        try self.commit(&batch);
         self.tree = next;
     }
     /// Appends new leaves tree.count.. with observe()'s checks in ONE durable
@@ -276,7 +432,7 @@ pub const Service = struct {
         if (first != self.tree.count) return error.MissingInsertion;
         var previous: ?Record = if (first > 0) try self.record(first - 1) orelse return error.MissingValidatorHistory else null;
         var next = self.tree;
-        var batch = try self.typed.batch(self.allocator);
+        var batch = try self.beginWal();
         defer batch.deinit();
         var accepted: usize = 0;
         var failure: ?anyerror = null;
@@ -316,7 +472,7 @@ pub const Service = struct {
             frontier[0..4].* = indexKey(first + @as(u32, @intCast(accepted)) - 1);
             frontier[4..].* = next.snapshot();
             try self.put(&batch, "frontier", "", &frontier);
-            try batch.commitSync();
+            try self.commit(&batch);
             self.tree = next;
         }
         if (halt_previous) {
@@ -350,15 +506,11 @@ pub const Service = struct {
             frontier[0..4].* = indexKey(index);
             frontier[4..].* = tree.snapshot();
         }
-        var batch = try self.typed.batch(self.allocator);
+        var batch = try self.beginWal();
         defer batch.deinit();
-        for ([_][]const u8{ "history", "snapshot", "unpublished" }) |name| {
-            const prefix = try table(self.allocator, name);
-            defer self.allocator.free(prefix);
-            try batch.deleteAtOrAfter(prefix, &indexKey(first));
-        }
+        inline for (.{ "history", "snapshot", "unpublished" }) |name| try self.deleteAtOrAfter(&batch, name, &indexKey(first));
         if (self.verified_through != null) try self.put(&batch, "frontier", "", &frontier) else try self.delete(&batch, "frontier", "");
-        try batch.commitSync();
+        try self.commit(&batch);
         self.tree = tree;
         return true;
     }
@@ -393,7 +545,7 @@ pub const Service = struct {
     }
     fn persistGuardAttempt(self: *Service) !void {
         if (@import("builtin").is_test) _ = TestGuardFault.attempts.fetchAdd(1, .acq_rel);
-        var batch = try self.typed.batch(self.allocator);
+        var batch = try self.beginWal();
         defer batch.deinit();
         const index = if (self.pending_reorg) |event| event.checkpoint_index else self.signed_watermark orelse self.verified_through orelse 0;
         try self.putNumber(&batch, "halted", index);
@@ -401,7 +553,7 @@ pub const Service = struct {
         defer if (json) |bytes| self.allocator.free(bytes);
         if (json) |bytes| try self.put(&batch, "reorg", "", bytes);
         if (@import("builtin").is_test) if (TestGuardFault.before.swap(false, .acq_rel)) return error.InjectedGuardCommitFailure;
-        try batch.commitSync();
+        try self.commit(&batch);
         if (@import("builtin").is_test) if (TestGuardFault.after.swap(false, .acq_rel)) return error.InjectedGuardCommitOutcomeUnknown;
         // A successful retry performs another fsync even if an uncertain prior
         // write is visible: read visibility alone does not establish durability.
@@ -497,10 +649,10 @@ pub const Service = struct {
             const target = matching.items[required - 1];
             self.fresh_verified_through = target;
             if (self.verified_through == null or target > self.verified_through.?) {
-                var batch = try self.typed.batch(self.allocator);
+                var batch = try self.beginWal();
                 defer batch.deinit();
                 try self.putNumber(&batch, "verified", target);
-                try batch.commitSync();
+                try self.commit(&batch);
                 self.verified_through = target;
             }
         }
@@ -511,14 +663,14 @@ pub const Service = struct {
             return r;
         }
         const target = self.verified_through orelse return null;
-        const candidate = try self.pendingAtOrBelow("unpublished", target);
-        const repaired = if (self.repair_complete) try self.pendingAtOrBelow("repair-unpublished", target) else null;
+        const candidate = try self.pendingAtOrBelow(.unpublished, target);
+        const repaired = if (self.repair_complete) try self.pendingAtOrBelow(.repair, target) else null;
         const index = if (candidate) |c| if (repaired) |r| @max(c, r) else c else repaired orelse return null;
         const c = try self.checkpoint(index);
-        var batch = try self.typed.batch(self.allocator);
+        var batch = try self.beginWal();
         defer batch.deinit();
         try self.put(&batch, "reservation", "", &encodeCheckpoint(c));
-        try batch.commitSync();
+        try self.commit(&batch);
         return c;
     }
     pub fn publishReorg(self: *Service, publisher: Publisher) !void {
@@ -598,14 +750,12 @@ pub const Service = struct {
                 const value = existing orelse try self.signSerial(signer, candidate);
                 try self.verifySigned(value);
                 if (!same(value.signed.value, candidate)) return error.SignerChangedCheckpoint;
-                const json = try value.signed.toJson(self.allocator);
-                defer self.allocator.free(json);
-                var batch = try self.typed.batch(self.allocator);
+                var batch = try self.beginWal();
                 defer batch.deinit();
-                try self.put(&batch, "signed", &indexKey(candidate.index), json);
+                try self.put(&batch, "signed", &indexKey(candidate.index), &encodeSigned(value.signed));
                 const watermark = if (self.signed_watermark) |w| @max(w, candidate.index) else candidate.index;
                 try self.putNumber(&batch, "signed-watermark", watermark);
-                try batch.commitSync();
+                try self.commit(&batch);
                 self.signed_watermark = watermark;
                 break :blk value;
             };
@@ -621,7 +771,7 @@ pub const Service = struct {
             if (covered) try self.writeSnapshot(publisher, latest);
             if (self.options.readiness) |status| status.ready("checkpoint_snapshot");
             operation = "checkpoint_persistence";
-            var batch = try self.typed.batch(self.allocator);
+            var batch = try self.beginWal();
             defer batch.deinit();
             try self.delete(&batch, "unpublished", &indexKey(candidate.index));
             try self.delete(&batch, "repair-unpublished", &indexKey(candidate.index));
@@ -629,7 +779,7 @@ pub const Service = struct {
             try self.delete(&batch, "reservation", "");
             try self.delete(&batch, "reservations", &indexKey(candidate.index));
             try self.putNumber(&batch, "latest", latest);
-            try batch.commitSync();
+            try self.commit(&batch);
             self.latest_published = latest;
             if (covered) self.snapshot_through = latest;
             if (self.options.readiness) |status| status.ready("checkpoint_persistence");
@@ -649,10 +799,10 @@ pub const Service = struct {
                     if (self.options.readiness) |status| status.ready("checkpoint_latest_index");
                     operation = "checkpoint_snapshot";
                     try self.writeSnapshot(publisher, latest);
-                    var batch = try self.typed.batch(self.allocator);
+                    var batch = try self.beginWal();
                     defer batch.deinit();
                     try self.putNumber(&batch, "snapshot-through", latest);
-                    try batch.commitSync();
+                    try self.commit(&batch);
                     self.snapshot_through = latest;
                     if (self.options.readiness) |status| status.ready("checkpoint_snapshot");
                 }
@@ -1025,7 +1175,7 @@ pub const Service = struct {
             };
             break;
         };
-        var wal = self.typed.batch(self.allocator) catch |err| {
+        var wal = self.beginWal() catch |err| {
             batch.failLive(err, .submission);
             return;
         };
@@ -1048,20 +1198,18 @@ pub const Service = struct {
             job.reserved = true;
         };
     }
-    fn commitSignatures(self: *Service, wal: *rocks.TypedBatch, watermark: ?u32) !void {
+    fn commitSignatures(self: *Service, wal: *Wal, watermark: ?u32) !void {
         if (watermark) |value| try self.putNumber(wal, "signed-watermark", value);
-        try wal.commitSync();
+        try self.commit(wal);
     }
-    fn recordSignature(self: *Service, wal: *rocks.TypedBatch, job: *PublicationJob, watermark: *?u32) !void {
+    fn recordSignature(self: *Service, wal: *Wal, job: *PublicationJob, watermark: *?u32) !void {
         try self.jobGate(job, false);
         const signed = job.signed.?;
         try self.verifySigned(signed);
         if (!same(signed.signed.value, job.checkpoint)) return error.SignerChangedCheckpoint;
         if (!job.reserved) try self.put(wal, "reservations", &indexKey(job.checkpoint.index), &encodeCheckpoint(job.checkpoint));
         if (!job.record) return;
-        const wire = try signed.signed.toJson(self.allocator);
-        defer self.allocator.free(wire);
-        try self.put(wal, "signed", &indexKey(job.checkpoint.index), wire);
+        try self.put(wal, "signed", &indexKey(job.checkpoint.index), &encodeSigned(signed.signed));
         watermark.* = @max(watermark.* orelse 0, job.checkpoint.index);
     }
     /// One WAL commit retires every written index (and advances latest when
@@ -1073,7 +1221,7 @@ pub const Service = struct {
             batch.failLive(error.InjectedCompletionFailure, .persistence);
             return 0;
         };
-        var wal = self.typed.batch(self.allocator) catch |err| {
+        var wal = self.beginWal() catch |err| {
             batch.failLive(err, .persistence);
             return 0;
         };
@@ -1132,7 +1280,7 @@ pub const Service = struct {
     }
     fn coveredByBatch(self: *Service, batch: *const PublicationBatch, target: u32) !bool {
         if (!self.repair_complete) return false;
-        for ([_][]const u8{ "unpublished", "repair-unpublished" }) |name| {
+        for ([_]PendingTable{ .unpublished, .repair }) |name| {
             var upper = target;
             while (try self.pendingAtOrBelow(name, upper)) |pending| {
                 if (!batch.retires(pending)) return false;
@@ -1142,12 +1290,12 @@ pub const Service = struct {
         }
         return true;
     }
-    fn commitCompletions(self: *Service, wal: *rocks.TypedBatch, latest: ?u32, snapshot: ?u32) !void {
+    fn commitCompletions(self: *Service, wal: *Wal, latest: ?u32, snapshot: ?u32) !void {
         if (latest) |value| try self.putNumber(wal, "latest", value);
         if (snapshot) |value| try self.putNumber(wal, "snapshot-through", value);
-        try wal.commitSync();
+        try self.commit(wal);
     }
-    fn retire(self: *Service, wal: *rocks.TypedBatch, job: *PublicationJob, legacy: ?Checkpoint) !void {
+    fn retire(self: *Service, wal: *Wal, job: *PublicationJob, legacy: ?Checkpoint) !void {
         try self.jobGate(job, false);
         const key = indexKey(job.checkpoint.index);
         try self.delete(wal, "unpublished", &key);
@@ -1167,8 +1315,8 @@ pub const Service = struct {
         errdefer candidates.deinit(self.allocator);
         var upper = target;
         while (candidates.items.len < limit) {
-            const regular = try self.pendingAtOrBelow("unpublished", upper);
-            const repair = if (self.repair_complete) try self.pendingAtOrBelow("repair-unpublished", upper) else null;
+            const regular = try self.pendingAtOrBelow(.unpublished, upper);
+            const repair = if (self.repair_complete) try self.pendingAtOrBelow(.repair, upper) else null;
             const index = if (regular) |r| if (repair) |v| @max(r, v) else r else repair orelse break;
             const candidate = try self.checkpoint(index);
             try self.validateReservation(candidate);
@@ -1181,10 +1329,10 @@ pub const Service = struct {
             upper = index - 1;
         }
         if (durable and candidates.items.len > 0) {
-            var batch = try self.typed.batch(self.allocator);
+            var batch = try self.beginWal();
             defer batch.deinit();
             for (candidates.items) |candidate| try self.put(&batch, "reservations", &indexKey(candidate.index), &encodeCheckpoint(candidate));
-            try batch.commitSync();
+            try self.commit(&batch);
         }
         return candidates.toOwnedSlice(self.allocator);
     }
@@ -1226,22 +1374,57 @@ pub const Service = struct {
         defer self.mutex.unlock();
         if (!self.repair_complete) return true;
         if (self.verified_through) |target| {
-            if (try self.pendingAtOrBelow("unpublished", target) != null or try self.pendingAtOrBelow("repair-unpublished", target) != null) return true;
+            if (try self.pendingAtOrBelow(.unpublished, target) != null or try self.pendingAtOrBelow(.repair, target) != null) return true;
         }
         if (self.latest_published) |latest| if (self.snapshot_through == null or self.snapshot_through.? < latest) return true;
         return false;
     }
-    fn pendingAtOrBelow(self: *Service, name: []const u8, target: u32) !?u32 {
-        const prefix = try table(self.allocator, name);
-        defer self.allocator.free(prefix);
+    /// Highest pending index <= target: an in-memory lookup over the
+    /// committed table contents (no iterator, no tombstone walk).
+    fn pendingAtOrBelow(self: *Service, name: PendingTable, target: u32) !?u32 {
+        if (self.pending_stale) try self.rebuildPending();
+        const found = self.pending[@intFromEnum(name)].atOrBelow(target);
+        if (@import("builtin").is_test) {
+            const stored = try self.storedPendingAtOrBelow(name, target);
+            if (stored != found) std.debug.panic("validator pending set diverged from {s}: memory {?d} db {?d} at {d}", .{ @tagName(name), found, stored, target });
+        }
+        return found;
+    }
+    /// Test oracle: the DB seek the in-memory set replaces.
+    fn storedPendingAtOrBelow(self: *Service, name: PendingTable, target: u32) !?u32 {
+        const prefix = switch (name) {
+            .unpublished => comptime table("unpublished"),
+            .repair => comptime table("repair-unpublished"),
+        };
         var entry = try self.typed.atOrBefore(self.allocator, prefix, &indexKey(target)) orelse return null;
         defer entry.deinit();
         if (entry.key.len != 4) return error.InvalidValidatorRecord;
         return std.mem.readInt(u32, entry.key[0..4], .big);
     }
+    /// One forward scan per table (at open, or after a commit whose outcome
+    /// is unknown). Keys are big-endian, so entries arrive ascending.
+    fn rebuildPending(self: *Service) !void {
+        var fresh: [2]PendingSet = .{ .{}, .{} };
+        errdefer for (&fresh) |*set| set.deinit(self.allocator);
+        inline for (.{ "unpublished", "repair-unpublished" }) |name| {
+            const set = &fresh[@intFromEnum(comptime pendingTable(name).?)];
+            var rows = try self.typed.prefix(self.allocator, comptime table(name));
+            defer rows.deinit();
+            const skip = self.options.domain_name.len + 1 + comptime table(name).len;
+            while (try rows.next(self.allocator)) |row| {
+                var entry = row;
+                defer entry.deinit();
+                if (entry.key.len != skip + 4) return error.InvalidValidatorRecord;
+                try set.append(self.allocator, std.mem.readInt(u32, entry.key[skip..][0..4], .big));
+            }
+        }
+        for (&self.pending) |*set| set.deinit(self.allocator);
+        self.pending = fresh;
+        self.pending_stale = false;
+    }
     fn coveredAfter(self: *Service, current: ?u32, target: u32) !bool {
         if (!self.repair_complete) return false;
-        for ([_][]const u8{ "unpublished", "repair-unpublished" }) |name| {
+        for ([_]PendingTable{ .unpublished, .repair }) |name| {
             var upper = target;
             while (try self.pendingAtOrBelow(name, upper)) |pending| {
                 if (current == null or pending != current.?) return false;
@@ -1278,7 +1461,7 @@ pub const Service = struct {
         if (signed.value.index != index or signed.value.mailbox_domain != self.options.domain or !std.mem.eql(u8, &signed.value.merkle_tree_hook_address, &self.options.hook)) return error.SnapshotCheckpointMismatch;
         if (!std.mem.eql(u8, &try signed.recover(), &self.options.signer_address)) return error.SnapshotSignerMismatch;
     }
-    fn putRecord(self: *Service, batch: *rocks.TypedBatch, index: u32, observation: Observation, root: Hash) !void {
+    fn putRecord(self: *Service, batch: *Wal, index: u32, observation: Observation, root: Hash) !void {
         var bytes: [104]u8 = undefined;
         bytes[0..32].* = observation.message_id;
         std.mem.writeInt(u64, bytes[32..40], observation.block_height, .big);
@@ -1302,15 +1485,13 @@ pub const Service = struct {
         const signed = try publisher.fetch_checkpoint(publisher.context, snapshot.index) orelse return error.SnapshotCheckpointMissing;
         try self.validateExternal(signed, snapshot.index);
         const tree = try snapshot.authenticatedRestore(signed, self.options.signer_address, self.options.domain, self.options.hook);
-        const json = try signed.toJson(self.allocator);
-        defer self.allocator.free(json);
         var frontier: [4 + protocol.IncrementalMerkle.snapshot_len]u8 = undefined;
         frontier[0..4].* = indexKey(snapshot.index);
         frontier[4..].* = snapshot.tree;
-        var batch = try self.typed.batch(self.allocator);
+        var batch = try self.beginWal();
         defer batch.deinit();
         try self.putRecord(&batch, snapshot.index, .{ .message_id = signed.value.message_id, .block_height = 0, .block_hash = @splat(0) }, snapshot.root);
-        try self.put(&batch, "signed", &indexKey(snapshot.index), json);
+        try self.put(&batch, "signed", &indexKey(snapshot.index), &encodeSigned(signed));
         try self.put(&batch, "snapshot", &indexKey(snapshot.index), &snapshot.tree);
         try self.put(&batch, "frontier", "", &frontier);
         try self.putNumber(&batch, "bootstrap-index", snapshot.index);
@@ -1318,7 +1499,7 @@ pub const Service = struct {
         try self.putNumber(&batch, "signed-watermark", snapshot.index);
         try self.putNumber(&batch, "verified", snapshot.index);
         try self.putNumber(&batch, "latest", snapshot.index);
-        try batch.commitSync();
+        try self.commit(&batch);
         self.tree = tree;
         self.bootstrap_index = snapshot.index;
         self.repair_complete = false;
@@ -1338,13 +1519,11 @@ pub const Service = struct {
         if (index > anchor) return false;
         const signed = try publisher.fetch_checkpoint(publisher.context, index) orelse return false;
         try self.validateExternal(signed, index);
-        const json = try signed.toJson(self.allocator);
-        defer self.allocator.free(json);
-        var batch = try self.typed.batch(self.allocator);
+        var batch = try self.beginWal();
         defer batch.deinit();
         try self.putRecord(&batch, index, .{ .message_id = signed.value.message_id, .block_height = 0, .block_hash = @splat(0) }, signed.value.root);
-        try self.put(&batch, "signed", &indexKey(index), json);
-        try batch.commitSync();
+        try self.put(&batch, "signed", &indexKey(index), &encodeSigned(signed));
+        try self.commit(&batch);
         return true;
     }
     /// Reconstruct a snapshot's entire prefix before signing any missing old
@@ -1399,20 +1578,16 @@ pub const Service = struct {
                 try self.halt(anchor, anchor_checkpoint.root, root, timestamp);
                 return error.FinalizedHistoryConflict;
             }
-            var batch = try self.typed.batch(self.allocator);
+            var batch = try self.beginWal();
             defer batch.deinit();
             try self.putRecord(&batch, cursor, observation, root);
             try self.put(&batch, "snapshot", &indexKey(cursor), &next.snapshot());
-            if (existing) |signed| {
-                const json = try signed.toJson(self.allocator);
-                defer self.allocator.free(json);
-                try self.put(&batch, "signed", &indexKey(cursor), json);
-            }
+            if (existing) |signed| try self.put(&batch, "signed", &indexKey(cursor), &encodeSigned(signed));
             if (!remote_present) try self.put(&batch, "repair-unpublished", &indexKey(cursor), "");
             try self.put(&batch, "repair-frontier", "", &next.snapshot());
             try self.putNumber(&batch, "repair-cursor", cursor + 1);
             if (cursor == anchor) try self.putNumber(&batch, "repair-complete", anchor);
-            try batch.commitSync();
+            try self.commit(&batch);
             tree = next;
             cursor += 1;
             processed += 1;
@@ -1458,7 +1633,7 @@ pub const LocalPublisher = struct {
     }
     fn fetch(ctx: *anyopaque, index: u32) !?objects.SignedCheckpoint {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
-        return self.store.fetchCheckpoint(index);
+        return self.store.probeCheckpoint(index);
     }
     fn guard(ctx: *anyopaque) !bool {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
@@ -1495,6 +1670,82 @@ pub const TestPublicationFault = if (@import("builtin").is_test) struct {
     pub var before_signatures: std.atomic.Value(bool) = .init(false);
     pub var before_completion: std.atomic.Value(bool) = .init(false);
 } else void;
+
+/// Test-only: report a committed WAL batch carrying pending-set changes as
+/// failed (outcome unknown to the caller).
+pub const TestWalFault = if (@import("builtin").is_test) struct {
+    pub var outcome_unknown: std.atomic.Value(bool) = .init(false);
+} else void;
+
+test "validator DB signed record round-trips every field and still reads legacy JSON" {
+    const a = std.testing.allocator;
+    const value: Checkpoint = .{ .mailbox_domain = 0xfedcba98, .merkle_tree_hook_address = @splat(0x44), .root = @splat(0x55), .index = 0x01020304, .message_id = @splat(0x66) };
+    const signed = try objects.SignedCheckpoint.sign(value, @splat(0x11), null);
+    var wide = signed;
+    wide.signature.v = std.math.maxInt(u64) - 1;
+    for ([_]objects.SignedCheckpoint{ signed, wide }) |original| {
+        const record = Service.encodeSigned(original);
+        try std.testing.expect(std.meta.eql(original, try Service.decodeSigned(a, &record)));
+        const json = try original.toJson(a);
+        defer a.free(json);
+        try std.testing.expect(std.meta.eql(original, try Service.decodeSigned(a, json)));
+        var bad = record;
+        bad[0] = 2;
+        try std.testing.expectError(error.InvalidValidatorRecord, Service.decodeSigned(a, &bad));
+        try std.testing.expectError(error.InvalidValidatorRecord, Service.decodeSigned(a, record[0 .. record.len - 1]));
+    }
+}
+
+test "pending set ranges match a reference set under random insert remove and truncate" {
+    const a = std.testing.allocator;
+    var set: PendingSet = .{};
+    defer set.deinit(a);
+    var reference = std.StaticBitSet(256).initEmpty();
+    var prng = std.Random.DefaultPrng.init(0x5eed);
+    const random = prng.random();
+    for (0..20000) |_| {
+        const index = random.uintLessThan(u32, 256);
+        switch (random.uintLessThan(u8, 12)) {
+            0...5 => {
+                try set.insert(a, index);
+                reference.set(index);
+            },
+            6...10 => {
+                try set.remove(a, index);
+                reference.unset(index);
+            },
+            else => {
+                try set.removeAtOrAfter(index);
+                for (index..256) |i| reference.unset(i);
+            },
+        }
+        for (set.ranges.items, 0..) |range, i| {
+            try std.testing.expect(range.lo <= range.hi);
+            if (i > 0) try std.testing.expect(set.ranges.items[i - 1].hi + 1 < range.lo);
+        }
+        const target = random.uintLessThan(u32, 300);
+        var expected: ?u32 = null;
+        var j: u32 = @as(u32, @min(target, 255)) + 1;
+        while (j > 0) {
+            j -= 1;
+            if (reference.isSet(j)) {
+                expected = j;
+                break;
+            }
+        }
+        try std.testing.expectEqual(expected, set.atOrBelow(target));
+    }
+    set.deinit(a);
+    const max = std.math.maxInt(u32);
+    try set.insert(a, max);
+    try set.insert(a, 0);
+    try std.testing.expectEqual(@as(?u32, max), set.atOrBelow(max));
+    try std.testing.expectEqual(@as(?u32, 0), set.atOrBelow(max - 1));
+    try set.remove(a, max);
+    try std.testing.expectEqual(@as(?u32, 0), set.atOrBelow(max));
+    try set.removeAtOrAfter(0);
+    try std.testing.expectEqual(@as(?u32, null), set.atOrBelow(max));
+}
 
 /// Fault injection exists only in test binaries; production guard writes always
 /// call the actual RocksDB WAL+fsync implementation without an override.

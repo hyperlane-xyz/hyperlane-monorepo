@@ -113,10 +113,11 @@ pub const Role = struct {
         if (slots.items.len == 0 or slots.items.len > 256) return error.InvalidVotePool;
         const index_resources = try openIndexer(a, chain, env, runtime.clients, 0);
         errdefer index_resources.deinit();
-        const state = try service.Service.open(a, database, .{ .domain_name = chain.name, .domain = chain.domain, .hook = chain.contracts.merkle_tree_hook, .signer_address = runtime.signer_address, .readiness = runtime.readiness, .halt_signal = runtime.halt_signal, .endpoint_count = if (consensus) slots.items.len else 1, .consensus = if (config.checkpoint_consensus) |c| switch (c) {
+        var state = try service.Service.open(a, database, .{ .domain_name = chain.name, .domain = chain.domain, .hook = chain.contracts.merkle_tree_hook, .signer_address = runtime.signer_address, .readiness = runtime.readiness, .halt_signal = runtime.halt_signal, .endpoint_count = if (consensus) slots.items.len else 1, .consensus = if (config.checkpoint_consensus) |c| switch (c) {
             .majority => .majority,
             .quorum => .quorum,
         } else null, .reorg_period = period(chain.reorg) });
+        errdefer state.deinit();
         const self = try a.create(Role);
         errdefer a.destroy(self);
         const owned_slots = try slots.toOwnedSlice();

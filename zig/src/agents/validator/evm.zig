@@ -157,10 +157,11 @@ pub const Role = struct {
             if (quorum_metrics) |value| try value.addEndpoints(&.{slot.client.url});
         }
         const voting_slots = if (consensus) slots.items.len else 1;
-        const state = try service.Service.open(a, database, .{ .domain_name = chain.name, .domain = chain.domain, .hook = chain.contracts.merkle_tree_hook, .signer_address = runtime.signer_address, .readiness = runtime.readiness, .halt_signal = runtime.halt_signal, .endpoint_count = voting_slots, .consensus = if (role.checkpoint_consensus) |c| switch (c) {
+        var state = try service.Service.open(a, database, .{ .domain_name = chain.name, .domain = chain.domain, .hook = chain.contracts.merkle_tree_hook, .signer_address = runtime.signer_address, .readiness = runtime.readiness, .halt_signal = runtime.halt_signal, .endpoint_count = voting_slots, .consensus = if (role.checkpoint_consensus) |c| switch (c) {
             .quorum => .quorum,
             .majority => .majority,
         } else null, .reorg_period = config.reorg_period });
+        errdefer state.deinit();
         const owned = try slots.toOwnedSlice();
         self.* = .{ .allocator = a, .settings = s, .chain = chain, .runtime = actual_runtime, .rpc_native = owned_native, .primary_metrics = primary_metrics, .quorum_metrics = quorum_metrics, .slots = owned, .state = state, .store = native.Store.init(a, database, chain.name), .sequence_store = undefined, .canonical = .init(a), .consensus = consensus, .vote_engine = .{ .min_capacity = owned.len } };
         self.sequence_store = .{ .store = &self.store, .stream = .insertion };
