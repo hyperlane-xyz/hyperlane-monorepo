@@ -133,7 +133,7 @@ impl AggregationIsmMetadataBuilder {
                 let result = ism
                     .modules_and_threshold(message)
                     .await
-                    .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+                    .map_err(MetadataBuildError::from_chain)?;
 
                 self.base_builder()
                     .cache()
@@ -222,21 +222,25 @@ impl AggregationIsmMetadataBuilder {
         sub: &IsmWithMetadataAndType,
         index: usize,
     ) -> ChainResult<Option<U256>> {
-        let report = |outcome| {
+        let report = |outcome, error| {
             self.base.child(index, ism_address).report_activity(
                 message,
                 Activity::IsmVerification {
                     ism: ism_address,
                     outcome,
+                    error,
                 },
             );
         };
         let result = sub.ism.dry_run_verify(message, &sub.metadata).await;
-        report(match &result {
-            Ok(Some(_)) => Outcome::Succeeded,
-            Ok(None) => Outcome::NoEstimate,
-            Err(_) => Outcome::Failed,
-        });
+        report(
+            match &result {
+                Ok(Some(_)) => Outcome::Succeeded,
+                Ok(None) => Outcome::NoEstimate,
+                Err(_) => Outcome::Failed,
+            },
+            result.as_ref().err().map(|error| error.diagnostic()),
+        );
         result
     }
 
@@ -295,7 +299,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .base_builder()
             .build_aggregation_ism(ism_address)
             .await
-            .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?;
+            .map_err(MetadataBuildError::from_chain)?;
 
         let (ism_addresses, threshold) = self.call_modules_and_threshold(ism, message).await?;
 

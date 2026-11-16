@@ -22,6 +22,11 @@ signature bytes are excluded. Checkpoint object URLs omit credentials,
 queries and fragments; local storage is reported as `local`. Offchain success means
 metadata was received, not verified.
 
+Failures attach `hyperlane_core::DiagnosticError` at their observation point.
+Metadata retains its legacy string and adds `diagnostic`, exposed as `error` in
+public ISM snapshots. See the [reader contract](../../../../../../typescript/scraper-proxy/README.md)
+for fields, limits and rollout order; these additive JSON fields need no migration.
+
 Legacy event readers clear attempt state on prepare start. Snapshot writers retain
 the latest known observations when preparation reuses cached metadata; changed
 validator sets, checkpoint identities and metadata failures invalidate the affected

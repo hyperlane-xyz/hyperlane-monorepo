@@ -1,4 +1,5 @@
 import type { ActivityRow } from './status.js';
+import type { DiagnosticError } from '@hyperlane-xyz/utils';
 
 /** Public progress contract shared by GraphQL and WebSocket snapshots. */
 export enum Phase {
@@ -13,6 +14,11 @@ export enum Phase {
   Dropped = 'dropped',
 }
 
+type UnavailableSignature = {
+  validator: string;
+  reason: string;
+  error?: DiagnosticError | null;
+};
 export type SignatureProgress = {
   /** Absent in producer snapshots, which deduplicate across collection attempts. */
   collection_id?: string | null;
@@ -21,7 +27,9 @@ export type SignatureProgress = {
   collected?: number | null;
   signers?: { validator: string; location?: string | null }[];
   threshold: number;
-  unavailable: { validator: string; reason: string }[];
+  unavailable: UnavailableSignature[];
+  latest_indices?: { validator: string; index: number | null }[];
+  discovery_unavailable?: UnavailableSignature[];
 };
 export type IsmProgress = {
   node_id?: string;
@@ -32,25 +40,43 @@ export type IsmProgress = {
   observed_at: string;
   module_type?: string | null;
   validators?: string[] | null;
+  validator_storage?: {
+    validator: string;
+    states: string[];
+    usable: boolean;
+    error?: DiagnosticError | null;
+  }[];
   threshold?: number | null;
   modules?: string[] | null;
   routed_module?: string | null;
   verified?: number | null;
   verification?: VerificationOutcome | null;
   metadata_error?: string | null;
+  error?: DiagnosticError | null;
+  verification_error?: DiagnosticError | null;
   signatures?: SignatureProgress | null;
   offchain_read?: OffchainReadProgress | null;
+  offchain_reads?: OffchainReadProgress[];
 };
 export type RelayerProgress = {
   relayer: string;
   phase: Phase;
   observed_at: string;
   tree_root?: string | null;
-  failure?: { stage: string; reason: string } | null;
+  failure?: {
+    stage: string;
+    reason: string;
+    error?: DiagnosticError | null;
+  } | null;
+  confirmation_error?: {
+    reason: string;
+    error?: DiagnosticError | null;
+  } | null;
   retry?: {
     reason: string;
     count: number;
     next_attempt_at_millis: number | null;
+    error?: DiagnosticError | null;
   } | null;
   modules: IsmProgress[];
 };
@@ -70,6 +96,7 @@ export type OffchainReadProgress = {
   attempt?: number | null;
   endpoint: number | null;
   http_status: number | null;
+  error?: DiagnosticError | null;
 };
 
 export enum DiagnosticsEventType {

@@ -5,15 +5,14 @@ use std::num::TryFromIntError;
 use std::ops::Deref;
 
 use bigdecimal::ParseBigDecimalError;
-use derive_new::new;
 
 use crate::config::StrOrIntParseError;
 use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
 use crate::{
-    Error as PrimitiveTypeError, HyperlaneProviderError, HyperlaneSignerError, ReorgPeriod, H256,
-    U256,
+    DiagnosticError, Error as PrimitiveTypeError, HyperlaneProviderError, HyperlaneSignerError,
+    ReorgPeriod, H256, U256,
 };
 
 /// The result of interacting with a chain.
@@ -26,9 +25,18 @@ impl<E: StdError + Send + Sync + Any> HyperlaneCustomError for E {}
 
 /// Thin wrapper around a boxed HyperlaneCustomError; required to satisfy
 /// AsDynError implementations. Basically a trait-object adaptor.
-#[repr(transparent)]
-#[derive(new)]
-pub struct HyperlaneCustomErrorWrapper(Box<dyn HyperlaneCustomError>);
+pub struct HyperlaneCustomErrorWrapper(Box<dyn HyperlaneCustomError>, Option<Box<DiagnosticError>>);
+
+impl HyperlaneCustomErrorWrapper {
+    /// Wrap an error and retain any typed public evidence before type erasure.
+    pub fn new(error: Box<dyn HyperlaneCustomError>) -> Self {
+        #[cfg(feature = "ethers")]
+        let diagnostic = evm_error_diagnostic(error.as_ref()).map(Box::new);
+        #[cfg(not(feature = "ethers"))]
+        let diagnostic = None;
+        Self(error, diagnostic)
+    }
+}
 
 impl Debug for HyperlaneCustomErrorWrapper {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -172,14 +180,92 @@ pub enum ChainCommunicationError {
 }
 
 impl ChainCommunicationError {
+    /// Stable, sanitized category used by existing activity reason fields.
+    pub fn diagnostic_reason(&self) -> &'static str {
+        self.diagnostic_summary().0
+    }
+
+    fn diagnostic_summary(&self) -> (&'static str, &'static str) {
+        use ChainCommunicationError::*;
+        match self {
+            HyperlaneProtocolError(_) => ("protocol_error", "Protocol operation failed"),
+            ContractError(_) => ("contract_call_failed", "Contract call failed"),
+            ContractNotFound(_) => ("contract_not_found", "Contract was not found"),
+            TransactionDropped(_) => ("transaction_dropped", "Transaction was dropped"),
+            TransactionTimeout => ("transaction_timeout", "Transaction timed out"),
+            SignerUnavailable => ("signer_unavailable", "Transaction signer is unavailable"),
+            HyperlaneSignerError(_) => ("signer_error", "Transaction signing failed"),
+            BatchingFailed => ("batching_failed", "Transaction batching failed"),
+            BatchIsEmpty => ("empty_batch", "Transaction batch was empty"),
+            InsufficientFunds { .. } => ("insufficient_funds", "Insufficient native funds"),
+            RpcClientError(_) => ("rpc_error", "RPC request failed"),
+            InvalidRequest { .. } => ("invalid_request", "Chain request was invalid"),
+            InvalidReorgPeriod(_) => ("invalid_reorg_period", "Chain reorg period was invalid"),
+            SimulationFailed(_) => ("simulation_failed", "Transaction simulation failed"),
+            #[cfg(feature = "async")]
+            TokioJoinError(_) => ("task_failed", "Chain operation task failed"),
+            StrOrIntParseError(_)
+            | Utf8(_)
+            | JsonParseError(_)
+            | HexParseError(_)
+            | UintParseError(_)
+            | FromDecStrError(_)
+            | ParseIntError(_)
+            | HashParsingError(_)
+            | ParseError { .. }
+            | PrimitiveTypeError(_)
+            | ParseBigDecimalError(_)
+            | TryFromIntError(_) => (
+                "invalid_response_or_data",
+                "Chain response or data could not be decoded",
+            ),
+            Other(_) | CustomError(_) | EyreError(_) => ("chain_error", "Chain operation failed"),
+        }
+    }
+
+    /// Public evidence without serializing opaque provider errors.
+    pub fn diagnostic(&self) -> DiagnosticError {
+        use ChainCommunicationError::*;
+        let diagnostic = || {
+            let (code, message) = self.diagnostic_summary();
+            DiagnosticError::new(code, message, "chain")
+        };
+        match self {
+            ContractError(error) | Other(error) => {
+                error.1.as_deref().cloned().unwrap_or_else(diagnostic)
+            }
+            InsufficientFunds {
+                required,
+                available,
+            } => diagnostic()
+                .with_detail("required", required.to_string())
+                .with_detail("available", available.to_string()),
+            RpcClientError(crate::rpc_clients::RpcClientError::FallbackProvidersFailed(errors)) => {
+                DiagnosticError::new("rpc_providers_failed", "All RPC providers failed", "rpc")
+                    .with_causes(errors.iter().map(Self::diagnostic).collect())
+            }
+            EyreError(report) => {
+                if let Some(error) = report.downcast_ref::<Self>() {
+                    return error.diagnostic();
+                }
+                #[cfg(feature = "ethers")]
+                if let Some(error) = evm_error_diagnostic(report.as_ref()) {
+                    return error;
+                }
+                diagnostic()
+            }
+            _ => diagnostic(),
+        }
+    }
+
     /// Create a chain communication error from any other existing error
     pub fn from_other<E: HyperlaneCustomError>(err: E) -> Self {
-        Self::Other(HyperlaneCustomErrorWrapper(Box::new(err)))
+        Self::Other(HyperlaneCustomErrorWrapper::new(Box::new(err)))
     }
 
     /// Create a chain communication error from any other existing error
     pub fn from_other_boxed<E: HyperlaneCustomError>(err: Box<E>) -> Self {
-        Self::Other(HyperlaneCustomErrorWrapper(err))
+        Self::Other(HyperlaneCustomErrorWrapper::new(err))
     }
 
     /// Creates a chain communication error of the other error variant from a string slice
@@ -203,7 +289,7 @@ impl ChainCommunicationError {
     where
         E: HyperlaneCustomError,
     {
-        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
+        Self::ContractError(HyperlaneCustomErrorWrapper::new(Box::new(err)))
     }
 
     /// Creates a chain communication error of the contract error variant from any other existing
@@ -212,7 +298,7 @@ impl ChainCommunicationError {
     where
         E: HyperlaneCustomError,
     {
-        Self::ContractError(HyperlaneCustomErrorWrapper(err))
+        Self::ContractError(HyperlaneCustomErrorWrapper::new(err))
     }
 
     /// Creates a chain communication error of the contract error variant from a static string
@@ -242,15 +328,88 @@ impl<T: ethers_providers::Middleware + 'static> From<ethers_contract::ContractEr
     for ChainCommunicationError
 {
     fn from(err: ethers_contract::ContractError<T>) -> Self {
-        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
+        let diagnostic = match &err {
+            ethers_contract::ContractError::MiddlewareError(error) => evm_error_diagnostic(error),
+            ethers_contract::ContractError::ProviderError(error) => evm_error_diagnostic(error),
+            _ => None,
+        };
+        Self::ContractError(HyperlaneCustomErrorWrapper(
+            Box::new(err),
+            diagnostic.map(Box::new),
+        ))
     }
 }
 
 #[cfg(feature = "ethers")]
 impl From<ethers_providers::ProviderError> for ChainCommunicationError {
     fn from(err: ethers_providers::ProviderError) -> Self {
-        Self::ContractError(HyperlaneCustomErrorWrapper(Box::new(err)))
+        let diagnostic = evm_error_diagnostic(&err);
+        Self::ContractError(HyperlaneCustomErrorWrapper(
+            Box::new(err),
+            diagnostic.map(Box::new),
+        ))
     }
+}
+
+#[cfg(feature = "ethers")]
+fn evm_error_diagnostic(error: &(dyn StdError + 'static)) -> Option<DiagnosticError> {
+    let mut source = Some(error);
+    while let Some(error) = source {
+        if let Some(ethers_providers::ProviderError::JsonRpcClientError(inner)) =
+            error.downcast_ref::<ethers_providers::ProviderError>()
+        {
+            source = Some(inner.as_ref());
+            continue;
+        }
+        if let Some(ethers_providers::HttpClientError::JsonRpcError(response)) =
+            error.downcast_ref::<ethers_providers::HttpClientError>()
+        {
+            let data = response.data.as_ref().and_then(|data| {
+                data.as_str()
+                    .or_else(|| data.get("data").and_then(serde_json::Value::as_str))
+            });
+            if let Some(data) = data
+                .filter(|_| {
+                    response.code == 3 || response.message.to_ascii_lowercase().contains("revert")
+                })
+                .and_then(|data| data.strip_prefix("0x"))
+                .filter(|data| data.len() <= 8192)
+            {
+                if let Ok(data) = hex::decode(data) {
+                    return Some(DiagnosticError::from_evm_revert(&data));
+                }
+            }
+            return Some(
+                DiagnosticError::new(
+                    "rpc_response_error",
+                    "RPC returned an error response",
+                    "rpc",
+                )
+                .with_detail("rpc_code", response.code),
+            );
+        }
+        if let Some(error) = error.downcast_ref::<ChainCommunicationError>() {
+            return Some(error.diagnostic());
+        }
+        if let Some(ethers_providers::ProviderError::HTTPError(error)) =
+            error.downcast_ref::<ethers_providers::ProviderError>()
+        {
+            let (code, message) = if error.is_timeout() {
+                ("rpc_request_timeout", "RPC request timed out")
+            } else if error.is_connect() {
+                ("rpc_connection_failed", "RPC connection failed")
+            } else {
+                ("rpc_request_failed", "RPC request failed")
+            };
+            let mut diagnostic = DiagnosticError::new(code, message, "rpc");
+            if let Some(status) = error.status() {
+                diagnostic = diagnostic.with_detail("http_status", status.as_u16());
+            }
+            return Some(diagnostic);
+        }
+        source = error.source();
+    }
+    None
 }
 
 /// Error types for the Hyperlane protocol
@@ -269,4 +428,52 @@ pub enum HyperlaneProtocolError {
     /// Expected a gas limit and none was provided
     #[error("A gas limit was expected for `process` contract call")]
     ProcessGasLimitRequired,
+}
+
+#[cfg(all(test, feature = "ethers"))]
+mod diagnostic_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn rpc_error(data: serde_json::Value) -> ethers_providers::ProviderError {
+        let error = ethers_providers::HttpClientError::JsonRpcError(
+            serde_json::from_value(json!({
+            "code": -32000, "message": "execution reverted: private provider text", "data": data,
+            }))
+            .expect("valid test value"),
+        );
+        ethers_providers::ProviderError::JsonRpcClientError(Box::new(error))
+    }
+
+    #[test]
+    fn preserves_rpc_revert_evidence_through_contract_and_fallback_wrappers() {
+        type Provider = ethers_providers::Provider<ethers_providers::MockProvider>;
+        let error: ChainCommunicationError =
+            ethers_contract::ContractError::<Provider>::MiddlewareError(rpc_error(json!(
+                "0xdeadbeef"
+            )))
+            .into();
+        assert_eq!(error.diagnostic().details["revert_selector"], "0xdeadbeef");
+        let error =
+            ChainCommunicationError::RpcClientError(RpcClientError::FallbackProvidersFailed(vec![
+                error,
+            ]));
+        assert_eq!(error.diagnostic().causes[0].code, "execution_reverted");
+        assert!(!serde_json::to_string(&error.diagnostic())
+            .expect("valid test value")
+            .contains("private"));
+    }
+
+    #[test]
+    fn retains_rpc_codes_and_native_fund_amounts() {
+        let error: ChainCommunicationError = rpc_error(serde_json::Value::Null).into();
+        assert_eq!(error.diagnostic().details["rpc_code"], -32000);
+        let error = ChainCommunicationError::InsufficientFunds {
+            required: Box::new(2.into()),
+            available: Box::new(1.into()),
+        }
+        .diagnostic();
+        assert_eq!(error.details["required"], "2");
+        assert_eq!(error.details["available"], "1");
+    }
 }

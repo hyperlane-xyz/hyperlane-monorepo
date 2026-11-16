@@ -1,9 +1,12 @@
 import { BytesLike, ethers } from 'ethers';
 import { Logger } from 'pino';
+import { z } from 'zod';
 
-import { assert } from '@hyperlane-xyz/utils';
-
-import { AttestationPendingError } from '../utils/errors.js';
+import {
+  AttestationPendingError,
+  CctpAttestationError,
+  CctpErrorCode,
+} from '../utils/errors.js';
 
 import {
   PrometheusMetrics,
@@ -11,25 +14,26 @@ import {
 } from '../utils/prometheus.js';
 
 // https://developers.circle.com/api-reference/cctp/all/get-messages-v-2
-type DelayReason =
-  | 'insufficient_fee'
-  | 'amount_above_max'
-  | 'insufficient_allowance_available';
-type Status = 'complete' | 'pending_confirmations';
+const cctpDataSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        attestation: z.string().nullish(),
+        message: z.string().nullish(),
+        status: z.string().nullish(),
+        delayReason: z.string().nullish(),
+      }),
+    )
+    .min(1),
+});
+type CCTPData = z.infer<typeof cctpDataSchema>;
+type CCTPMessageEntry = CCTPData['messages'][number];
 
-interface CCTPMessageEntry {
-  attestation: string;
-  message: string;
-  eventNonce: string;
-  // CCTP v2 only
-  cctpVersion?: string;
-  status?: Status;
-  delayReason?: DelayReason;
-}
-
-interface CCTPData {
-  messages: Array<CCTPMessageEntry>;
-}
+const delayCodes = new Map<string, CctpErrorCode>([
+  ['insufficient_fee', CctpErrorCode.InsufficientFee],
+  ['amount_above_max', CctpErrorCode.AmountAboveMax],
+  ['insufficient_allowance_available', CctpErrorCode.InsufficientAllowance],
+]);
 
 class CCTPAttestationService {
   url: string;
@@ -115,7 +119,7 @@ class CCTPAttestationService {
         this.serviceName,
         UnhandledErrorReason.CCTP_UNSUPPORTED_VERSION,
       );
-      throw new Error(`Unsupported CCTP version: ${version}`);
+      throw new CctpAttestationError(CctpErrorCode.UnsupportedVersion);
     }
 
     const options = {
@@ -123,84 +127,54 @@ class CCTPAttestationService {
       headers: { 'Content-Type': 'application/json' },
     };
 
-    const resp = await fetch(url, options);
+    let resp: Response;
+    try {
+      resp = await fetch(url, options);
+    } catch (error) {
+      logger.error({ messageId, error }, 'CCTP attestation API request failed');
+      throw new CctpAttestationError(CctpErrorCode.RequestFailed);
+    }
 
+    const responseContext = {
+      ...context,
+      status: resp.status,
+      statusText: resp.statusText,
+      url,
+      messageId,
+    };
     if (!resp.ok) {
-      if (resp.status === 500) {
-        logger.error(
-          {
-            ...context,
-            status: resp.status,
-            statusText: resp.statusText,
-            url,
-            messageId,
-            error_reason: UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_500,
-          },
-          'CCTP attestation request failed',
-        );
-        PrometheusMetrics.logUnhandledError(
-          this.serviceName,
-          UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_500,
-        );
-        throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
-      }
-
       if (resp.status === 404) {
-        logger.info(
-          {
-            ...context,
-            status: resp.status,
-            statusText: resp.statusText,
-            url,
-          },
-          'CCTP attestation not found',
-        );
-        throw new AttestationPendingError();
+        logger.info(responseContext, 'CCTP attestation not found');
+        throw new AttestationPendingError(CctpErrorCode.NotFound);
       }
-
-      // This should not happen according to the CCTP API spec, but we'll log it just in case
+      const reason =
+        resp.status === 500
+          ? UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_500
+          : UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR;
       logger.error(
-        {
-          ...context,
-          status: resp.status,
-          statusText: resp.statusText,
-          url,
-          messageId,
-          error_reason:
-            UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR,
-        },
-        'CCTP attestation request failed: unknown error',
+        { ...responseContext, error_reason: reason },
+        'CCTP attestation request failed',
       );
-      PrometheusMetrics.logUnhandledError(
-        this.serviceName,
-        UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_UNKNOWN_ERROR,
-      );
-      throw new Error(`CCTP attestation request failed: ${resp.statusText}`);
+      PrometheusMetrics.logUnhandledError(this.serviceName, reason);
+      throw new CctpAttestationError(CctpErrorCode.HttpError, {
+        http_status: resp.status,
+      });
     }
 
     let json: CCTPData;
     try {
-      json = await resp.json();
-    } catch (error) {
+      json = cctpDataSchema.parse(await resp.json());
+    } catch {
       logger.error(
         {
-          ...context,
-          status: resp.status,
-          statusText: resp.statusText,
-          url,
-          messageId,
+          ...responseContext,
           error_reason:
             UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_JSON_PARSE_ERROR,
         },
         'CCTP attestation response parsing failed',
       );
-      throw new Error(`CCTP service response parsing failed: ${error}`);
+      throw new CctpAttestationError(CctpErrorCode.InvalidResponse);
     }
-
-    assert(
-      json.messages.length > 0,
-      'CCTP attestation API returned no messages',
-    );
 
     // Fast path: single message in the tx — no disambiguation needed (99.99% of traffic).
     // Multi-message path: normalize to account for Circle-populated mutable fields and find
@@ -240,7 +214,7 @@ class CCTPAttestationService {
           { messageId, messageCount: json.messages.length },
           'Could not match Circle API messages to cctpMessage — treating as pending',
         );
-        throw new AttestationPendingError();
+        throw new AttestationPendingError(CctpErrorCode.MatchPending);
       }
       matchingMessage = found;
     }
@@ -251,28 +225,32 @@ class CCTPAttestationService {
       matchingMessage.attestation === 'PENDING'
     ) {
       const errorString = 'CCTP attestation is pending';
-      switch (matchingMessage.delayReason) {
-        case 'insufficient_fee':
-        case 'amount_above_max':
-        case 'insufficient_allowance_available':
-          PrometheusMetrics.logUnhandledError(
-            this.serviceName,
-            UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
-          );
-          logger.error(
-            {
-              error_reason:
-                UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
-              ...matchingMessage,
-              ...context,
-            },
-            errorString + ` due to ${matchingMessage.delayReason}`,
-          );
-          break;
-        default:
-          logger.debug({ ...context, ...matchingMessage }, errorString);
+      const delayCode =
+        matchingMessage.delayReason == null
+          ? undefined
+          : delayCodes.get(matchingMessage.delayReason);
+      if (delayCode != null) {
+        PrometheusMetrics.logUnhandledError(
+          this.serviceName,
+          UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+        );
+        logger.error(
+          {
+            error_reason: UnhandledErrorReason.CCTP_ATTESTATION_SERVICE_PENDING,
+            ...matchingMessage,
+            ...context,
+          },
+          errorString + ` due to ${matchingMessage.delayReason}`,
+        );
+      } else {
+        logger.debug({ ...context, ...matchingMessage }, errorString);
       }
-      throw new AttestationPendingError();
+      const code =
+        delayCode ??
+        (matchingMessage.status === 'pending_confirmations'
+          ? CctpErrorCode.PendingConfirmations
+          : CctpErrorCode.Pending);
+      throw new AttestationPendingError(code);
     }
 
     return [matchingMessage.message, matchingMessage.attestation];

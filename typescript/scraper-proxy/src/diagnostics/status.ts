@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { DiagnosticError } from '@hyperlane-xyz/utils';
 
 import { Phase, VerificationOutcome, type RelayerProgress } from './types.js';
 
@@ -19,11 +20,45 @@ const ism = z.string();
 const count = z.number().int().nonnegative();
 const reason = z.union([z.string(), z.record(z.string(), z.unknown())]);
 const verificationOutcome = z.enum(VerificationOutcome);
+const diagnosticError: z.ZodType<DiagnosticError> = z.object({
+  code: z.string(),
+  message: z.string(),
+  source: z.string(),
+  details: z.record(z.string(), z.unknown()).optional(),
+  causes: z.lazy(() => z.array(diagnosticError)).optional(),
+});
+const unavailableSignature = z.object({
+  validator: z.string(),
+  reason: z.string(),
+  error: diagnosticError.nullish(),
+});
+const offchainRead = z.object({
+  state: z.string(),
+  attempt: count.nullish(),
+  endpoint: count.nullable(),
+  http_status: count.nullable(),
+  error: diagnosticError.nullish(),
+});
+const relayFailure = z.object({
+  stage: z.string(),
+  reason: z.string(),
+  error: diagnosticError.nullish(),
+});
 const snapshotModule = z.looseObject({
   node_id: z.string(),
   ism,
   module_type: z.string().nullish(),
   validators: z.array(z.string()).nullish(),
+  validator_storage: z
+    .array(
+      z.object({
+        validator: z.string(),
+        states: z.array(z.string()),
+        usable: z.boolean(),
+        error: diagnosticError.nullish(),
+      }),
+    )
+    .optional(),
   threshold: count.nullish(),
   children: z.array(z.object({ node_id: z.string(), ism })).optional(),
   selected_children: z.array(z.string()).optional(),
@@ -38,6 +73,8 @@ const snapshotModule = z.looseObject({
           VerificationOutcome.Unknown),
     ),
   metadata_error: z.string().nullish(),
+  error: diagnosticError.nullish(),
+  verification_error: diagnosticError.nullish(),
   signatures: z
     .object({
       collection_id: z.string().nullish(),
@@ -53,30 +90,30 @@ const snapshotModule = z.looseObject({
         )
         .optional(),
       threshold: count,
-      unavailable: z.array(
-        z.object({ validator: z.string(), reason: z.string() }),
-      ),
+      unavailable: z.array(unavailableSignature),
+      latest_indices: z
+        .array(z.object({ validator: z.string(), index: count.nullable() }))
+        .optional(),
+      discovery_unavailable: z.array(unavailableSignature).optional(),
     })
     .nullish(),
-  offchain_read: z
-    .object({
-      state: z.string(),
-      attempt: count.nullish(),
-      endpoint: count.nullable(),
-      http_status: count.nullable(),
-    })
-    .nullish(),
+  offchain_read: offchainRead.nullish(),
+  offchain_reads: z.array(offchainRead).optional(),
 });
 const snapshotState = z.looseObject({
   phase: z.enum(Phase),
   tree_root: z.string().nullable(),
   modules: z.array(snapshotModule),
-  failure: z.object({ stage: z.string(), reason: z.string() }).nullish(),
+  confirmation_error: z
+    .object({ reason: z.string(), error: diagnosticError.nullish() })
+    .nullish(),
+  failure: relayFailure.nullish(),
   retry: z
     .object({
       reason: z.string(),
       count,
       next_attempt_at_millis: count.nullable(),
+      error: diagnosticError.nullish(),
     })
     .nullish(),
 });
@@ -86,10 +123,8 @@ const event = z.discriminatedUnion('type', [
     type: z.literal('snapshot_update'),
     state: snapshotState.extend({ removed_modules: z.array(z.string()) }),
   }),
-  z.object({
+  relayFailure.extend({
     type: z.literal('chain_failure'),
-    stage: z.string(),
-    reason: z.string(),
   }),
   z.object({
     type: z.literal('offchain_read'),
@@ -98,6 +133,7 @@ const event = z.discriminatedUnion('type', [
     attempt: count,
     endpoint: count.nullable(),
     http_status: count.nullable(),
+    error: diagnosticError.nullish(),
   }),
   z.object({
     type: z.literal('status'),
@@ -132,8 +168,18 @@ const event = z.discriminatedUnion('type', [
     verified: count,
     threshold: count,
   }),
-  z.object({ type: z.literal('ism_verification'), ism, outcome: z.string() }),
-  z.object({ type: z.literal('metadata'), ism, error: z.string().nullable() }),
+  z.object({
+    type: z.literal('ism_verification'),
+    ism,
+    outcome: z.string(),
+    error: diagnosticError.nullish(),
+  }),
+  z.object({
+    type: z.literal('metadata'),
+    ism,
+    error: z.string().nullable(),
+    diagnostic: diagnosticError.nullish(),
+  }),
   z.object({
     type: z.literal('checkpoint'),
     ism: ism.nullable(),
@@ -172,6 +218,7 @@ const event = z.discriminatedUnion('type', [
     reason: reason.nullable(),
     retry_count: count,
     next_attempt_at_millis: count.nullable(),
+    error: diagnosticError.nullish(),
   }),
   z.object({
     type: z.literal('progress'),
@@ -274,12 +321,17 @@ export function reduceStatus(rows: ActivityRow[]): RelayerProgress[] {
           module.threshold = value.threshold;
           break;
         case 'ism_verification':
+          if (value.error !== undefined)
+            module.verification_error = value.error;
+          else delete module.verification_error;
           module.verification =
             verificationOutcome.safeParse(value.outcome).data ??
             VerificationOutcome.Unknown;
           break;
         case 'metadata':
           module.metadata_error = value.error;
+          if (value.diagnostic !== undefined) module.error = value.diagnostic;
+          else delete module.error;
           break;
         case 'offchain_read':
           module.offchain_read = {
@@ -287,6 +339,7 @@ export function reduceStatus(rows: ActivityRow[]): RelayerProgress[] {
             attempt: value.attempt,
             endpoint: value.endpoint,
             http_status: value.http_status,
+            ...(value.error !== undefined ? { error: value.error } : {}),
           };
           break;
         case 'checkpoint': {
@@ -344,7 +397,11 @@ export function reduceStatus(rows: ActivityRow[]): RelayerProgress[] {
     }
     switch (value.type) {
       case 'chain_failure':
-        state.failure = { stage: value.stage, reason: value.reason };
+        state.failure = {
+          stage: value.stage,
+          reason: value.reason,
+          ...(value.error !== undefined ? { error: value.error } : {}),
+        };
         break;
       case 'metadata_started':
         state.phase = Phase.Preparing;
@@ -367,6 +424,7 @@ export function reduceStatus(rows: ActivityRow[]): RelayerProgress[] {
           reason: reasonCode(value.reason),
           count: value.retry_count,
           next_attempt_at_millis: value.next_attempt_at_millis,
+          ...(value.error !== undefined ? { error: value.error } : {}),
         };
         break;
       case 'progress':

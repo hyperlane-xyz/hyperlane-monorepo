@@ -13,7 +13,11 @@ import {
   type AbiRoute,
   createAbiHandler,
 } from '../../src/utils/abiHandler.js';
-import { AttestationPendingError } from '../../src/utils/errors.js';
+import {
+  AttestationPendingError,
+  CctpAttestationError,
+  CctpErrorCode,
+} from '../../src/utils/errors.js';
 import { initializeMetrics } from '../../src/utils/prometheus.js';
 
 function captureLogger(level = 'info') {
@@ -105,6 +109,8 @@ describe('CCTP pending attestation logging', () => {
       service.getAttestation(cctpMessage, transactionHash, messageId, logger),
     );
     expect(error).to.be.instanceOf(AttestationPendingError);
+    if (!(error instanceof AttestationPendingError)) throw error;
+    expect(error.diagnostic.code).to.equal(CctpErrorCode.InsufficientFee);
     expect(lines).to.have.length(1);
     expect(lines[0]).to.include('"level":50');
     expect(lines[0]).to.include('insufficient_fee');
@@ -122,6 +128,58 @@ describe('CCTP pending attestation logging', () => {
     ).to.be.instanceOf(AttestationPendingError);
   });
 
+  for (const [fields, code] of [
+    [{ status: 'pending_confirmations' }, CctpErrorCode.PendingConfirmations],
+    [{ delayReason: 'insufficient_fee' }, CctpErrorCode.InsufficientFee],
+    [{ delayReason: 'amount_above_max' }, CctpErrorCode.AmountAboveMax],
+    [
+      { delayReason: 'insufficient_allowance_available' },
+      CctpErrorCode.InsufficientAllowance,
+    ],
+  ] as const) {
+    it(`exposes the Circle cause ${code} without changing pending retry semantics`, async () => {
+      sinon.stub(globalThis, 'fetch').resolves(
+        new Response(
+          JSON.stringify({
+            messages: [{ message: null, attestation: 'PENDING', ...fields }],
+          }),
+        ),
+      );
+      const { logger } = captureLogger();
+      const error = await rejected(
+        service.getAttestation(cctpMessage, transactionHash, messageId, logger),
+      );
+      if (!(error instanceof AttestationPendingError)) throw error;
+      expect(error.message).to.equal('CCTP attestation is pending');
+      expect(error.diagnostic.code).to.equal(code);
+    });
+  }
+
+  it('classifies upstream network errors without exposing their text', async () => {
+    sinon
+      .stub(globalThis, 'fetch')
+      .rejects(new Error('https://private-rpc.example?key=secret'));
+    const { logger } = captureLogger();
+    const error = await rejected(
+      service.getAttestation(cctpMessage, transactionHash, messageId, logger),
+    );
+    if (!(error instanceof CctpAttestationError)) throw error;
+    expect(error.diagnostic.code).to.equal(CctpErrorCode.RequestFailed);
+    expect(JSON.stringify(error.diagnostic)).not.to.include('secret');
+  });
+
+  it('classifies malformed Circle data as an invalid upstream response', async () => {
+    sinon
+      .stub(globalThis, 'fetch')
+      .resolves(new Response(JSON.stringify({ messages: [] })));
+    const { logger } = captureLogger();
+    const error = await rejected(
+      service.getAttestation(cctpMessage, transactionHash, messageId, logger),
+    );
+    if (!(error instanceof CctpAttestationError)) throw error;
+    expect(error.diagnostic.code).to.equal(CctpErrorCode.InvalidResponse);
+  });
+
   it('does not suppress genuine upstream failures', async () => {
     sinon
       .stub(globalThis, 'fetch')
@@ -132,7 +190,7 @@ describe('CCTP pending attestation logging', () => {
     );
     expect(error).not.to.be.instanceOf(AttestationPendingError);
     expect(error.message).to.equal(
-      'CCTP attestation request failed: Unavailable',
+      'Circle attestation API returned an HTTP error',
     );
     expect(lines[0]).to.include('"level":50');
   });
@@ -204,6 +262,9 @@ describe('CCTP pending attestation logging', () => {
         expect(response.statusCode).to.equal(500);
         expect(response.json()).to.deep.equal({
           error: 'CCTP attestation is pending',
+          ...(expected && error instanceof CctpAttestationError
+            ? { diagnostic: error.diagnostic }
+            : {}),
         });
         const handlerErrors = lines.filter((line) =>
           line.includes('Error in ABI handler'),

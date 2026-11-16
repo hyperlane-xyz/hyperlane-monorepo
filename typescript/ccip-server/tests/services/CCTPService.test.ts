@@ -113,7 +113,7 @@ describe('CCTPService receipt decoding', () => {
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       expect(error.message).to.equal(
-        'Unable to find MessageSent event in logs',
+        'CCTP MessageSent event was not found in the origin receipt',
       );
     }
   });

@@ -202,6 +202,7 @@ export {
   symmetricDifference,
 } from './sets.js';
 export { formatError } from './errors.js';
+export type { DiagnosticError } from './diagnostics.js';
 export {
   errorToString,
   fromHexString,

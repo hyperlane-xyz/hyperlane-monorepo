@@ -5,6 +5,7 @@ import type { FastifyReply } from 'fastify';
 import type { CcipRequest } from '../http.js';
 import {
   AttestationPendingError,
+  CctpAttestationError,
   CommitmentAccessDeniedError,
 } from './errors.js';
 
@@ -132,7 +133,12 @@ export function createAbiHandler<
           `Error in ABI handler ${functionName}`,
         );
       }
-      return reply.code(500).send({ error: message });
+      return reply.code(500).send({
+        error: message,
+        ...(error instanceof CctpAttestationError
+          ? { diagnostic: error.diagnostic }
+          : {}),
+      });
     }
   };
 }
