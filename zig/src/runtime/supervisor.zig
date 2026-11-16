@@ -63,7 +63,7 @@ const Context = struct {
     /// Runs repeated on a worker fiber without a supervisor round trip.
     held_runs: std.atomic.Value(u64) = .init(0),
     fn run(self: *Context, input: Input, cancel: *const std.atomic.Value(bool)) !Output {
-        const task = self.tasks[input.index];
+        const task = &self.tasks[input.index];
         if (cancel.load(.acquire)) return error.RequestCancelled;
         // Only worker fibers hold: inline (supervisor thread) runs return.
         const hold = fiber.inFiber();
@@ -107,7 +107,8 @@ const Context = struct {
     fn freeInput(_: *Context, _: Input) void {}
     fn freeOutput(_: *Context, _: Output) void {}
 };
-const Workers = io.Pool(Input, Output, Context, 8, 256);
+const worker_slots = 256;
+const Workers = io.Pool(Input, Output, Context, 8, worker_slots);
 /// Cadence for re-checking un-notified task wake flags and the backstop for a
 /// suspended (PendingReadIo) task whose completion source does not notify.
 pub const poll_slice_ms: u64 = 20;
@@ -147,6 +148,9 @@ pub const Supervisor = struct {
     inline_cancel: std.atomic.Value(bool) = .init(false),
     /// Inline task runs, for work-count evidence.
     inline_runs: u64 = 0,
+    /// Entry index of the job last submitted on each worker slot: a
+    /// completion finds its entry without scanning every entry.
+    slot_entry: [worker_slots]u16 = @splat(0),
 
     /// Copies task descriptors. Task contexts must remain heap-stable and owned
     /// by the caller through deinit, which cancels and joins all worker jobs.
@@ -197,7 +201,7 @@ pub const Supervisor = struct {
         };
     }
     pub fn drained(self: *Supervisor) bool {
-        for (self.entries) |entry| if (entry.active) |id| {
+        for (self.entries) |*entry| if (entry.active) |id| {
             if (self.workers.retained(id)) return false;
         };
         return true;
@@ -207,9 +211,9 @@ pub const Supervisor = struct {
         self.last_ms = now.monotonic_ms;
         var result: Tick = .{};
         while (self.workers.poll(now.monotonic_ms)) |completion| {
-            const index = for (self.entries, 0..) |entry, i| {
-                if (entry.active) |active| if (std.meta.eql(active, completion.id)) break i;
-            } else return error.UnknownSupervisorCompletion;
+            const index = self.slot_entry[completion.id.slot];
+            const active = self.entries[index].active orelse return error.UnknownSupervisorCompletion;
+            if (!std.meta.eql(active, completion.id)) return error.UnknownSupervisorCompletion;
             if (completion.result == .value and completion.result.value.index != index) return error.WrongSupervisorCompletion;
             try self.apply(index, completion.result, completion.id, now, &result);
         }
@@ -249,6 +253,7 @@ pub const Supervisor = struct {
             entry.deadline_ms = deadline_ms;
             entry.submitted_ms = now.monotonic_ms;
             entry.active = id;
+            self.slot_entry[id.slot] = @intCast(index);
             entry.health.started +|= 1;
             result.started += 1;
         }
@@ -257,7 +262,7 @@ pub const Supervisor = struct {
     /// Apply one task result: a worker completion (`id`) or an inline run.
     fn apply(self: *Supervisor, index: usize, run_result: Workers.Result, id: ?Workers.JobId, now: Times, result: *Tick) !void {
         const entry = &self.entries[index];
-        const task = self.context.tasks[index];
+        const task = &self.context.tasks[index];
         switch (run_result) {
             .value => |output| {
                 entry.active = null;
@@ -316,7 +321,7 @@ pub const Supervisor = struct {
     /// suspended on its owner follows only `owner_wake`.
     fn woken(self: *const Supervisor, index: usize) bool {
         const entry = &self.entries[index];
-        const task = self.context.tasks[index];
+        const task = &self.context.tasks[index];
         if (task.owner_wake) |flag| if (flag.load(.acquire)) return true;
         if (entry.owned and entry.suspended) return false;
         const wake = task.wake orelse return false;
