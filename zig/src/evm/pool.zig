@@ -2376,7 +2376,12 @@ pub const Pool = struct {
 };
 
 const cooperative_poll_ms: u64 = 2;
-const caller_cancel_slice_ms: u64 = 10;
+/// Cancellation recheck while a blocking caller waits or drives with a
+/// borrowed cancel flag. Runtime raisers wake waits directly (cancel_wake);
+/// this only backstops plain-store flags. Same bound as a parked fiber: Depot
+/// wait counters showed a 10 ms slice ending 2.35 kernel waits per relayer
+/// RPC, more than socket readiness (1.83); each was a voluntary switch.
+const caller_cancel_slice_ms: u64 = 100;
 /// Cancellation recheck while a fiber is parked on a session (no notifier).
 pub const parked_cancel_slice_ms: u64 = 100;
 const injected_clock_slice_ms: u64 = 5;
