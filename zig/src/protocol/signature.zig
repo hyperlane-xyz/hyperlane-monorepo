@@ -195,7 +195,9 @@ fn faultScalar(comptime fault: Fault, comptime at: Fault, value: Scalar) Scalar 
 }
 
 fn signCoreFaulted(comptime fault: Fault, secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
-    // Secret intermediates (d, k, k bytes, k^-1, z + r*d) are wiped on return.
+    // Named secret intermediates (d, both nonce derivations and their bytes,
+    // k^-1, z + r*d) are wiped on return; compiler temporaries (e.g. toBytes
+    // results before the copy) are outside secureZero's reach.
     var d = try Scalar.fromBytes(secret_key, .big);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
     if (d.isZero()) return error.InvalidSecretKey;
@@ -210,7 +212,9 @@ fn signCoreFaulted(comptime fault: Fault, secret_key: Hash, digest: Hash, noise:
     // reveals d. Derive it twice and compare in constant time right before
     // use; this one k_bytes then feeds both k*G and k^-1, so a later fault in
     // either use desynchronises R and s and fails `verifyBeforeRelease`.
-    var k_check = deterministicNonce(digest, secret_key, noise).toBytes(.little);
+    var k_again = deterministicNonce(digest, secret_key, noise);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&k_again));
+    var k_check = k_again.toBytes(.little);
     defer std.crypto.secureZero(u8, &k_check);
     if (!std.crypto.timing_safe.eql([32]u8, k_bytes, k_check)) return error.NonceSelfCheckFailed;
     if (fault == .nonce_after_check) k_bytes = faultScalar(fault, fault, k).toBytes(.little);
