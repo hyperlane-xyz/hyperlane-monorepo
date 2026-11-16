@@ -10,8 +10,8 @@ const std = @import("std");
 const pool = @import("../evm/pool.zig");
 const rpc = @import("../evm/provider.zig");
 const fiber = @import("../runtime/fiber.zig");
+const envelope = @import("json_envelope.zig");
 const A = std.mem.Allocator;
-const V = std.json.Value;
 pub const ByteBudget = @import("byte_budget.zig").Budget;
 
 pub const Config = struct {
@@ -154,11 +154,11 @@ pub const Replay = struct {
         return self.wait(a, handle, options, remaining);
     }
     fn submit(self: *Replay, a: A, body: []const u8, options: rpc.Options, remaining: u32) !pool.Handle {
-        _ = try requireReadOnly(a, body, self.config.max_request_bytes);
+        const request = try scanReadOnly(a, body, self.config.max_request_bytes);
         try self.quota.admit();
         const timeout = if (self.config.use_owner_timeout) remaining else @min(options.timeout_ms, remaining);
         while (true) {
-            return self.pool.submitDeferred(body, timeout, @min(options.connect_timeout_ms, timeout), options.max_response_bytes, options.pool_observer, options.indexer_tip_cache) catch |err| {
+            return self.pool.submitScanned(body, &request.top, timeout, @min(options.connect_timeout_ms, timeout), options.max_response_bytes, options.pool_observer, options.indexer_tip_cache) catch |err| {
                 // Retiring sessions own slots until native drain: wait for one
                 // within this attempt (rare; bounded by deadline and cancel).
                 if (err != error.RpcPoolSessionsFull) return err;
@@ -179,7 +179,7 @@ pub const Replay = struct {
             a.free(response.bytes);
             return err;
         };
-        return .{ .bytes = response.bytes, .len = response.len };
+        return .{ .bytes = response.bytes, .len = response.len, .validated = response.validated };
     }
     /// Independent reads of one callback: submit every session, then wait for
     /// each (one driver progresses all of them concurrently).
@@ -203,47 +203,37 @@ pub const Replay = struct {
         }
     }
 };
-/// Read-only JSON-RPC envelope/method policy. Returns the correlation id.
-/// parse_numbers=false: remote integers are never rounded.
-pub fn requireReadOnly(a: A, body: []const u8, maximum: usize) !i64 {
+/// One scan of a read request: the policy's facts plus the scan the Pool
+/// adopts, so the body is tokenized once and never parsed into a tree.
+pub const ReadRequest = struct { top: envelope.Top, id: i64 };
+/// Read-only JSON-RPC envelope/method policy (std.json parse semantics:
+/// syntax and duplicate keys in document order, no depth bound). Remote
+/// integers are never rounded: the id is the exact i64 spelling.
+pub fn scanReadOnly(a: A, body: []const u8, maximum: usize) !ReadRequest {
     if (body.len == 0 or body.len > maximum) return error.ReadReplayRequestTooLarge;
-    var parsed = try std.json.parseFromSlice(V, a, body, .{ .duplicate_field_behavior = .@"error", .parse_numbers = false, .max_value_len = maximum });
-    defer parsed.deinit();
-    if (parsed.value != .object) return error.InvalidRpcRequest;
-    const object = parsed.value.object;
-    const version = object.get("jsonrpc") orelse return error.InvalidRpcRequest;
-    const method = object.get("method") orelse return error.InvalidRpcRequest;
-    const id = object.get("id") orelse return error.InvalidRpcRequest;
-    if (version != .string or !std.mem.eql(u8, version.string, "2.0") or method != .string or id != .number_string) return error.InvalidRpcRequest;
-    if (!readOnly(method.string)) return error.NonReadOnlyReplayRequest;
-    return std.fmt.parseInt(i64, id.number_string, 10) catch return error.InvalidRpcRequest;
+    const top = try envelope.scan(a, body, .{});
+    return .{ .top = top, .id = try readOnlyId(&top, body) };
 }
-fn readOnly(method: []const u8) bool {
+/// The policy on an existing scan of `body`.
+pub fn readOnlyId(top: *const envelope.Top, body: []const u8) !i64 {
+    const facts = try envelope.requestFacts(top, body);
+    var buffer: [64]u8 = undefined;
+    const method = envelope.stringIn(&buffer, facts.method.span.of(body)) orelse return error.NonReadOnlyReplayRequest;
+    if (!readOnly(method)) return error.NonReadOnlyReplayRequest;
+    return std.fmt.parseInt(i64, facts.id.of(body), 10) catch return error.InvalidRpcRequest;
+}
+/// Returns the correlation id of an allowed read request.
+pub fn requireReadOnly(a: A, body: []const u8, maximum: usize) !i64 {
+    return (try scanReadOnly(a, body, maximum)).id;
+}
+pub fn readOnly(method: []const u8) bool {
     const methods = [_][]const u8{ "eth_chainId", "net_version", "eth_blockNumber", "eth_call", "eth_getBlockByNumber", "eth_getBlockByHash", "eth_getTransactionReceipt", "eth_getTransactionByHash", "eth_getLogs", "eth_getCode", "eth_getStorageAt", "eth_getProof", "eth_getBalance", "eth_getTransactionCount", "eth_gasPrice", "eth_maxPriorityFeePerGas", "eth_feeHistory", "eth_estimateGas", "eth_createAccessList", "getGenesisHash", "getBalance", "getSlot", "getBlockHeight", "getLatestBlockhash", "getSignatureStatuses", "getAccountInfo", "getProgramAccounts", "getSignaturesForAddress", "getTransaction", "getBlock", "getFeeForMessage", "getRecentPrioritizationFees", "simulateTransaction", "status", "block", "block_results", "tx", "tx_search", "abci_query", "starknet_chainId", "starknet_blockNumber", "starknet_getBlockWithTxHashes", "starknet_getBlockWithTxs", "starknet_getTransactionByHash", "starknet_getTransactionReceipt", "starknet_getEvents", "starknet_call", "starknet_getClassHashAt", "starknet_getNonce", "starknet_estimateFee" };
     for (methods) |allowed| if (std.mem.eql(u8, method, allowed)) return true;
     return false;
 }
 pub fn validateResponse(a: A, body: []const u8, expected_id: i64) !void {
-    try @import("json_bounds.zig").validate(body);
-    const parsed = try std.json.parseFromSlice(V, a, body, .{ .duplicate_field_behavior = .@"error", .parse_numbers = false });
-    defer parsed.deinit();
-    try validateValue(parsed.value, expected_id);
-}
-fn validateValue(value: V, expected_id: i64) !void {
-    if (value != .object) return error.InvalidRpcEnvelope;
-    const object = value.object;
-    const version = object.get("jsonrpc") orelse return error.InvalidRpcEnvelope;
-    const id = object.get("id") orelse return error.InvalidRpcEnvelope;
-    if (version != .string or !std.mem.eql(u8, version.string, "2.0") or id != .number_string) return error.InvalidRpcEnvelope;
-    if ((std.fmt.parseInt(i64, id.number_string, 10) catch return error.RpcIdMismatch) != expected_id) return error.RpcIdMismatch;
-    if (object.contains("result") == object.contains("error")) return error.InvalidRpcEnvelope;
-    if (object.get("error")) |rpc_error| {
-        if (rpc_error != .object) return error.InvalidRpcEnvelope;
-        const code = rpc_error.object.get("code") orelse return error.InvalidRpcEnvelope;
-        const message = rpc_error.object.get("message") orelse return error.InvalidRpcEnvelope;
-        if (code != .number_string or message != .string) return error.InvalidRpcEnvelope;
-        _ = std.fmt.parseInt(i64, code.number_string, 10) catch return error.InvalidRpcEnvelope;
-    }
+    var response = try envelope.validateResponse(a, body, expected_id, .replay);
+    response.deinit();
 }
 
 test "cooperative RPC read policy keeps exact ids, forbids writes and malformed envelopes" {
