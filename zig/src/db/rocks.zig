@@ -4,6 +4,7 @@
 const std = @import("std");
 const c = @import("c.zig");
 const keys = @import("keys.zig");
+const sync_stats = @import("sync_stats.zig");
 const Allocator = std.mem.Allocator;
 
 /// Native error messages are copied before rocksdb_free. Optional diagnostics
@@ -46,11 +47,14 @@ pub const Database = struct {
     read_options: *c.ReadOptions,
     write_options: *c.WriteOptions,
     read_only: bool,
+    /// Default write durability (OpenOptions.sync): WAL fsync per write.
+    sync: bool,
     diagnostic: ?*Diagnostic,
 
     pub fn open(allocator: Allocator, path: []const u8, options: OpenOptions) !Database {
         try @import("native_abi.zig").verify();
         if (std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidPath;
+        sync_stats.configure();
         const name = try allocator.dupeZ(u8, path);
         defer allocator.free(name);
         const native_options = c.rocksdb_options_create() orelse return error.NativeAllocation;
@@ -82,11 +86,13 @@ pub const Database = struct {
             .read_options = read_options,
             .write_options = write_options,
             .read_only = options.read_only,
+            .sync = options.sync,
             .diagnostic = options.diagnostic,
         };
     }
 
     pub fn deinit(self: *Database) void {
+        sync_stats.dump();
         c.rocksdb_close(self.handle);
         c.rocksdb_readoptions_destroy(self.read_options);
         c.rocksdb_writeoptions_destroy(self.write_options);
@@ -107,6 +113,7 @@ pub const Database = struct {
         var native_error: ?[*:0]u8 = null;
         c.rocksdb_put(self.handle, self.write_options, key.ptr, key.len, value.ptr, value.len, &native_error);
         try check(native_error, self.diagnostic);
+        sync_stats.record(if (self.sync) .synced_write else .write, @returnAddress());
     }
 
     pub fn delete(self: *Database, key: []const u8) !void {
@@ -114,6 +121,7 @@ pub const Database = struct {
         var native_error: ?[*:0]u8 = null;
         c.rocksdb_delete(self.handle, self.write_options, key.ptr, key.len, &native_error);
         try check(native_error, self.diagnostic);
+        sync_stats.record(if (self.sync) .synced_write else .write, @returnAddress());
     }
 
     pub fn sequence(self: *const Database) u64 {
@@ -234,6 +242,7 @@ pub const Batch = struct {
         var native_error: ?[*:0]u8 = null;
         c.rocksdb_write(self.database.handle, options, handle, &native_error);
         try check(native_error, self.database.diagnostic);
+        sync_stats.record(if (sync) .synced_write else .write, @returnAddress());
         self.deinit();
     }
 
@@ -244,6 +253,7 @@ pub const Batch = struct {
         var native_error: ?[*:0]u8 = null;
         c.rocksdb_write(self.database.handle, self.database.write_options, handle, &native_error);
         try check(native_error, self.database.diagnostic);
+        sync_stats.record(if (self.database.sync) .synced_write else .write, @returnAddress());
         self.deinit();
     }
 };
