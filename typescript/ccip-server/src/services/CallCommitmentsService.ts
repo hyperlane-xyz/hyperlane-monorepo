@@ -24,6 +24,7 @@ import {
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
+  ProtocolType,
   addressToBytes32,
   bytes32ToAddress,
   assert,
@@ -44,7 +45,10 @@ import {
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
 import { createRateLimitHook } from '../utils/rateLimit.js';
-import { CommitmentAccessDeniedError } from '../utils/errors.js';
+import {
+  CommitmentAccessDeniedError,
+  InvalidOriginTxHashError,
+} from '../utils/errors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
 
 import {
@@ -438,7 +442,7 @@ export class CallCommitmentsService extends BaseService {
     message: string,
     relayer: string,
     logger: Logger,
-    originTxHash?: string,
+    rawOriginTxHash?: string,
   ) {
     const log = this.addLoggerServiceContext(logger);
     log.info({ message, relayer }, 'Handling fetch commitment request');
@@ -449,6 +453,16 @@ export class CallCommitmentsService extends BaseService {
       log.info(
         { commitment, message, relayer },
         'Extracted commitment from reveal message',
+      );
+
+      // The hint is only usable for EVM origins (ICA re-derivation reads the
+      // origin dispatch receipt). Validate it for EVM origins so a malformed
+      // hash fails closed; ignore it for non-EVM origins, which have no EVM tx
+      // hash and are served from the stored commitment record.
+      const originTxHash = this.resolveOriginTxHash(
+        origin,
+        rawOriginTxHash,
+        log,
       );
 
       const record = await this.fetchCommitmentRecord(commitment, log);
@@ -511,6 +525,38 @@ export class CallCommitmentsService extends BaseService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Resolve the optional origin_tx_hash hint against the origin domain's
+   * protocol. The hint re-derives the ICA from the origin dispatch receipt and
+   * is only meaningful for EVM origins. For EVM origins a non-empty hint must be
+   * a valid 32-byte tx hash or the request fails closed; for non-EVM origins
+   * (e.g. Solana) the hint is ignored and the reveal is served from the stored
+   * commitment record. An absent or empty hint is treated as "no hint".
+   */
+  private resolveOriginTxHash(
+    origin: number,
+    rawOriginTxHash: string | undefined,
+    log: Logger,
+  ): string | undefined {
+    if (typeof rawOriginTxHash !== 'string' || rawOriginTxHash.length === 0) {
+      return undefined;
+    }
+
+    const protocol = this.multiProvider.tryGetProtocol(origin);
+    if (protocol === ProtocolType.Ethereum) {
+      if (!utils.isHexString(rawOriginTxHash, 32)) {
+        throw new InvalidOriginTxHashError();
+      }
+      return rawOriginTxHash;
+    }
+
+    log.debug(
+      { origin, protocol },
+      'Ignoring origin_tx_hash hint for non-EVM origin',
+    );
+    return undefined;
   }
 
   private async deriveIcaFromRevealMessage(
@@ -1130,16 +1176,13 @@ export class CallCommitmentsService extends BaseService {
       { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
       async (request, reply) => {
         const rawTxHash = request.body?.origin_tx_hash;
-        // origin_tx_hash is an optional EVM-only optimization: a 32-byte dispatch
-        // tx hash lets us re-derive the ICA from the origin receipt. Non-EVM
-        // origins (e.g. Solana, whose tx signature is 64 bytes) have no 32-byte
-        // hash, so anything that isn't a valid 32-byte hash is ignored rather
-        // than rejected — the reveal is still served from the stored commitment
-        // record keyed by the commitment in the reveal message.
+        // origin_tx_hash is an optional EVM-only optimization that lets us
+        // re-derive the ICA from the origin dispatch receipt. Forward it as-is;
+        // handleFetchCommitment decides how to treat it based on the origin
+        // domain's protocol (validated for EVM origins, ignored for non-EVM
+        // origins such as Solana whose tx signatures are not EVM tx hashes).
         const originTxHash =
-          typeof rawTxHash === 'string' && utils.isHexString(rawTxHash, 32)
-            ? rawTxHash
-            : undefined;
+          typeof rawTxHash === 'string' ? rawTxHash : undefined;
         return createAbiHandler(
           CommitmentReadIsmService__factory,
           'getCallsFromRevealMessage',

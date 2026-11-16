@@ -6,6 +6,7 @@ import type { CcipRequest } from '../http.js';
 import {
   AttestationPendingError,
   CommitmentAccessDeniedError,
+  InvalidOriginTxHashError,
 } from './errors.js';
 
 export interface AbiRequestBody {
@@ -116,6 +117,9 @@ export function createAbiHandler<
     } catch (error: unknown) {
       if (error instanceof CommitmentAccessDeniedError) {
         return reply.code(403).send({ error: error.message });
+      }
+      if (error instanceof InvalidOriginTxHashError) {
+        return reply.code(400).send({ error: error.message });
       }
       const message = error instanceof Error ? error.message : String(error);
       if (error instanceof AttestationPendingError) {

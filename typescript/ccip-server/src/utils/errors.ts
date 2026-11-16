@@ -13,3 +13,11 @@ export class CommitmentAccessDeniedError extends Error {
     this.name = 'CommitmentAccessDeniedError';
   }
 }
+
+/** An EVM origin supplied an origin_tx_hash that is not a valid 32-byte hash. */
+export class InvalidOriginTxHashError extends Error {
+  constructor() {
+    super('Invalid origin_tx_hash');
+    this.name = 'InvalidOriginTxHashError';
+  }
+}

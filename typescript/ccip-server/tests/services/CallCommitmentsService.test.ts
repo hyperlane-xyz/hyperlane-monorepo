@@ -14,6 +14,7 @@ import {
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
+  ProtocolType,
   addressToBytes32,
   formatMessage,
   parseMessage,
@@ -1008,9 +1009,10 @@ describe('CallCommitmentsService.handleCheckCommitment', () => {
 });
 
 describe('CallCommitmentsService.handleFetchCommitment', () => {
-  function createService() {
+  function createService(protocol: ProtocolType = ProtocolType.Ethereum) {
     const service = Object.create(CallCommitmentsService.prototype);
     service.addLoggerServiceContext = () => mockLogger();
+    service.multiProvider = { tryGetProtocol: sinon.stub().returns(protocol) };
     return service;
   }
 
@@ -1168,6 +1170,60 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         'message',
         'Reveal origin does not match stored commitment',
       );
+    expect(service.deriveIcaFromRevealMessage.called).to.be.false;
+  });
+
+  it('fails closed on a malformed origin_tx_hash for an EVM origin', async () => {
+    const service = createService(ProtocolType.Ethereum);
+    service.fetchCommitmentRecord = sinon.stub().resolves({
+      commitment,
+      calls: baseCalls,
+      salt,
+      ica: mockIca,
+      originDomain: 1,
+      relayers: baseRelayers,
+    });
+    service.deriveIcaFromRevealMessage = sinon.stub().resolves(mockIca);
+
+    const error = await service
+      .handleFetchCommitment(message, baseRelayers[0], mockLogger(), '0x1234')
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    expect(error)
+      .to.be.instanceOf(Error)
+      .with.property('message', 'Invalid origin_tx_hash');
+    expect(error.name).to.equal('InvalidOriginTxHashError');
+    expect(service.deriveIcaFromRevealMessage.called).to.be.false;
+  });
+
+  it('ignores a non-EVM origin_tx_hash and serves the stored commitment record', async () => {
+    const service = createService(ProtocolType.Sealevel);
+    service.fetchCommitmentRecord = sinon.stub().resolves({
+      commitment,
+      calls: baseCalls,
+      salt,
+      ica: mockIca,
+      originDomain: 1,
+      relayers: baseRelayers,
+    });
+    service.deriveIcaFromRevealMessage = sinon.stub().resolves(mockIca);
+
+    // A Solana tx signature is not a 32-byte EVM hash; it must be ignored, not
+    // rejected, so the reveal is served from the stored record.
+    const solanaTxHash = '0x' + 'ab'.repeat(64);
+    const result = await service.handleFetchCommitment(
+      message,
+      baseRelayers[0],
+      mockLogger(),
+      solanaTxHash,
+    );
+
+    expect(result).to.equal(
+      mockIca + encodeIcaCalls(normalizeCalls(baseCalls), salt).slice(2),
+    );
     expect(service.deriveIcaFromRevealMessage.called).to.be.false;
   });
 });

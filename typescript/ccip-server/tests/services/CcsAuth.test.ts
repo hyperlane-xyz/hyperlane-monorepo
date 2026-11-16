@@ -16,7 +16,11 @@ import {
   encodeIcaCalls,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
-import { addressToBytes32, formatMessage } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  addressToBytes32,
+  formatMessage,
+} from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
@@ -296,7 +300,11 @@ describe('CCS read authentication', () => {
     }
   });
 
-  it('rejects malformed origin transaction hints instead of serving stored routing metadata', async () => {
+  it('forwards string origin transaction hints to the service for protocol-aware handling', async () => {
+    // The route no longer rejects by hash shape; validity is decided downstream
+    // in handleFetchCommitment based on the origin domain's protocol (EVM hints
+    // are validated, non-EVM hints are ignored). The route only forwards the
+    // raw string hint and drops non-string values.
     const fetch = sinon
       .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
       .resolves('0x1234');
@@ -307,17 +315,15 @@ describe('CCS read authentication', () => {
       ),
     );
     try {
-      for (const originTxHash of ['0x1234', '']) {
-        const response = await app.inject({
-          method: 'POST',
-          url: postPath,
-          payload: { sender, data, signature, origin_tx_hash: originTxHash },
-        });
+      const response = await app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: { sender, data, signature, origin_tx_hash: '0x1234' },
+      });
 
-        expect(response.statusCode).to.equal(400);
-        expect(response.json().error).to.equal('Invalid origin_tx_hash');
-      }
-      expect(fetch.called).to.be.false;
+      expect(response.statusCode).to.equal(200);
+      expect(fetch.calledOnce).to.be.true;
+      expect(fetch.firstCall.args[3]).to.equal('0x1234');
     } finally {
       await app.close();
     }
@@ -424,6 +430,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       .stub(destinationProvider, 'call')
       .resolves(utils.defaultAbiCoder.encode(['address'], [correctIca]));
     const multiProvider = sinon.createStubInstance(MultiProvider);
+    multiProvider.tryGetProtocol.withArgs(8453).returns(ProtocolType.Ethereum);
     multiProvider.getChainName.withArgs(8453).returns('base');
     multiProvider.getProvider.withArgs('base').returns(originProvider);
     multiProvider.getProvider.withArgs(42161).returns(destinationProvider);
