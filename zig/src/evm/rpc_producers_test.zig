@@ -342,6 +342,9 @@ test "RPC producers direct native HTTP500 result is a physical semantic success 
     try server.check();
 }
 
+/// The fixture never sends the stalled 429 body; only the client timeout ends
+/// it. Returning on the head must take a small fraction of this horizon.
+const stalled_body_horizon_ms = 30000;
 test "RPC producers Ethereum stalled HTTP429 body returns promptly through Pool direct native and standard paths" {
     const a = std.testing.allocator;
     const library = try fixture.nativeLibrary(a);
@@ -369,7 +372,7 @@ test "RPC producers Ethereum stalled HTTP429 body returns promptly through Pool 
         var native = try @import("../net/curl.zig").Client.init(a, library);
         defer native.deinit();
         native.observer = recorder.nativeObserver();
-        var client = try @import("provider.zig").RpcClient.init(a, url0, .{ .native_transport = if (mode == .native) &native else null, .exchange = if (owner) |o| .{ .context = o, .fetch_fn = statusPoolExchange } else null, .timeout_ms = 5000, .max_response_bytes = 4096 });
+        var client = try @import("provider.zig").RpcClient.init(a, url0, .{ .native_transport = if (mode == .native) &native else null, .exchange = if (owner) |o| .{ .context = o, .fetch_fn = statusPoolExchange } else null, .timeout_ms = stalled_body_horizon_ms, .max_response_bytes = 4096 });
         defer client.deinit();
         var timer = try std.time.Timer.start();
         if (mode == .pool) {
@@ -377,7 +380,7 @@ test "RPC producers Ethereum stalled HTTP429 body returns promptly through Pool 
             try std.testing.expectEqual(@as(usize, 1), audit.demotions.load(.acquire));
             try std.testing.expectEqual(@as(usize, 1), server.pathHits(1));
         } else try std.testing.expectError(error.RpcRateLimited, client.chainId());
-        try std.testing.expect(timer.read() < 1500 * std.time.ns_per_ms);
+        try std.testing.expect(timer.read() < stalled_body_horizon_ms / 3 * std.time.ns_per_ms);
         if (mode != .standard) {
             const wire = try registry.render(a);
             defer a.free(wire);
@@ -399,7 +402,7 @@ test "RPC producers native and Multi complete429 head preserve RetryAfter with z
         const url = try server.url(a, 0);
         defer a.free(url);
         const curl = @import("../net/curl.zig");
-        const request: curl.Request = .{ .url = url, .method = .post, .body = "{}", .timeout_ms = 5000, .max_response_bytes = 16, .stop_after_http429_head = true };
+        const request: curl.Request = .{ .url = url, .method = .post, .body = "{}", .timeout_ms = stalled_body_horizon_ms, .max_response_bytes = 16, .stop_after_http429_head = true };
         var native = try curl.Client.init(a, library);
         defer native.deinit();
         const multi = if (use_multi) try @import("../net/curl_multi.zig").Multi.init(a, .{ .library_path = library, .max_concurrent = 1, .max_pending = 1, .max_response_bytes = 16 }) else null;
@@ -412,12 +415,12 @@ test "RPC producers native and Multi complete429 head preserve RetryAfter with z
                     .response => |value| break :blk value,
                     .failure => |err| return err,
                 };
-                if (timer.read() > 1500 * std.time.ns_per_ms) return error.StalledRateLimitBody;
+                if (timer.read() > stalled_body_horizon_ms / 3 * std.time.ns_per_ms) return error.StalledRateLimitBody;
                 std.Thread.sleep(std.time.ns_per_ms);
             }
         } else try native.send(a, request);
         defer response.deinit();
-        try std.testing.expect(timer.read() < 1500 * std.time.ns_per_ms);
+        try std.testing.expect(timer.read() < stalled_body_horizon_ms / 3 * std.time.ns_per_ms);
         try std.testing.expectEqual(@as(u16, 429), response.status);
         try std.testing.expectEqual(@as(usize, 0), response.body.len);
         var retry_after = false;

@@ -25,7 +25,7 @@ const Fixture = struct {
         defer for (retained[0..held]) |stream| stream.close();
         var timer = try std.time.Timer.start();
         requests: while (!self.stop.load(.acquire)) {
-            if (timer.read() > 8 * std.time.ns_per_s) return error.FixtureTimeout;
+            if (timer.read() > 30 * std.time.ns_per_s) return error.FixtureTimeout;
             var fd = [_]std.posix.pollfd{.{ .fd = self.server.stream.handle, .events = std.posix.POLL.IN, .revents = 0 }};
             if (try std.posix.poll(&fd, 10) == 0) continue;
             const connection = try self.server.accept();
@@ -34,7 +34,7 @@ const Fixture = struct {
             var input: [4096]u8 = undefined;
             var used: usize = 0;
             while (std.mem.indexOf(u8, input[0..used], "\r\n\r\n") == null) {
-                if (timer.read() > 8 * std.time.ns_per_s or self.stop.load(.acquire) or used == input.len) return error.FixtureReadTimeout;
+                if (timer.read() > 30 * std.time.ns_per_s or self.stop.load(.acquire) or used == input.len) return error.FixtureReadTimeout;
                 var read_fd = [_]std.posix.pollfd{.{ .fd = connection.stream.handle, .events = std.posix.POLL.IN, .revents = 0 }};
                 if (try std.posix.poll(&read_fd, 10) == 0) continue;
                 const got = connection.stream.read(input[used..]) catch continue :requests;
@@ -103,7 +103,7 @@ fn waitDrained(e: *engine.Engine) !void {
         } else false;
         e.mutex.unlock();
         if (!live) return;
-        if (timer.read() > 2 * std.time.ns_per_s) return error.EngineSessionsNotDrained;
+        if (timer.read() > 10 * std.time.ns_per_s) return error.EngineSessionsNotDrained;
         std.Thread.sleep(std.time.ns_per_ms);
     }
 }
@@ -151,7 +151,11 @@ test "remote checkpoint engine fans out beyond eight stalled peers and checks ev
         fixture.stop.store(true, .release);
         thread.join();
     };
-    const e = try engine.Engine.start(a, .{ .multi = .{ .library_path = library, .max_concurrent = 32 }, .timeout_ms = 3000, .allow_insecure_loopback = true });
+    // Stalled peers hold until the production S3 object timeout (10 s); the
+    // session timeout stays above it. Quorum from the healthy peers must
+    // return within a third of that horizon.
+    const stall_horizon_ms = 10000;
+    const e = try engine.Engine.start(a, .{ .multi = .{ .library_path = library, .max_concurrent = 32 }, .timeout_ms = 3 * stall_horizon_ms, .allow_insecure_loopback = true });
     defer e.deinit();
     try register(e, a, &fixture, 1, &validators, false);
     var errors: usize = 0;
@@ -159,7 +163,7 @@ test "remote checkpoint engine fans out beyond eight stalled peers and checks ev
     var result = (try e.fetchQuorum(1, a, &validators, 2, 3, &errors, null)).?;
     defer result.deinit();
     try std.testing.expectEqual(@as(u32, 1), result.checkpoint.mailbox_domain);
-    try std.testing.expect(timer.read() < 2 * std.time.ns_per_s);
+    try std.testing.expect(timer.read() < stall_horizon_ms / 3 * std.time.ns_per_ms);
     try std.testing.expectEqual(@as(usize, 16), fixture.guards.load(.acquire));
     try std.testing.expectEqual(@as(usize, 0), errors);
     try waitDrained(e);

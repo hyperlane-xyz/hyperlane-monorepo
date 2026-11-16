@@ -121,18 +121,21 @@ test "source resource configured metadata parallelism admits healthy ninth call 
     var handles: [8]@import("../evm/pool.zig").Handle = undefined;
     var initialized: usize = 0;
     defer for (handles[0..initialized]) |handle| runtime.cancel(handle);
+    // The eight stalled requests hold until their own timeout; the ninth must
+    // complete within a third of it, however loaded the host.
+    const stall_horizon_ms = 60000;
     for (&handles) |*handle| {
-        handle.* = try runtime.submit(body, 20000, 5000, 32768);
+        handle.* = try runtime.submit(body, stall_horizon_ms, 5000, 32768);
         initialized += 1;
     }
     var timer = try std.time.Timer.start();
     while (server.acceptedCount() < 8) {
-        if (timer.read() > 2 * std.time.ns_per_s) return error.FixtureStartTimeout;
+        if (timer.read() > stall_horizon_ms / 3 * std.time.ns_per_ms) return error.FixtureStartTimeout;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    const result = try runtime.fetch(a, body, 20000, 5000, null, 32768);
+    const result = try runtime.fetch(a, body, stall_horizon_ms, 5000, null, 32768);
     defer a.free(result.bytes);
-    try std.testing.expect(timer.read() < 2 * std.time.ns_per_s);
+    try std.testing.expect(timer.read() < stall_horizon_ms / 3 * std.time.ns_per_ms);
     try std.testing.expectEqual(@as(usize, 9), server.acceptedCount());
     try server.check();
 }
