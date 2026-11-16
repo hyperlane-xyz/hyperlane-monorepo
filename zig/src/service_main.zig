@@ -69,6 +69,9 @@ const CredentialOwner = struct {
     }
 };
 pub fn main() void {
+    // Still single-threaded: later fd-table growth would stall every thread
+    // allocating an fd for an RCU grace period (runtime/fd_table.zig).
+    _ = @import("runtime/fd_table.zig").reserve(@import("runtime/fd_table.zig").reserved_fds);
     @import("runtime/malloc.zig").boundArenas();
     run() catch |err| {
         // Error names only: never print config/URLs, native diagnostics or keys.

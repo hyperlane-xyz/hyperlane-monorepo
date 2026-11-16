@@ -8,7 +8,26 @@ pub const Options = struct { max_series: usize = 100000, max_label_bytes: usize 
 pub const Update = union(enum) { set_int: i64, add_int: u64, set_real: f64, add_real: f64, observe: f64 };
 const Histogram = struct { buckets: []u64, count: u64 = 0, sum: f64 = 0 };
 const Value = union(enum) { integer: i64, counter: u64, real: f64, histogram: Histogram };
-const Series = struct { arena: std.heap.ArenaAllocator, key: []const u8, metric: usize, labels: []const []const u8, value: Value, bytes: usize };
+const Series = struct { arena: std.heap.ArenaAllocator, metric: usize, labels: []const []const u8, value: Value, bytes: usize };
+/// Series identity. Stored keys borrow the series' arena-owned labels; a
+/// lookup borrows the caller's labels, so finding a series allocates nothing.
+const SeriesKey = struct { metric: usize, labels: []const []const u8 };
+const SeriesContext = struct {
+    pub fn hash(_: SeriesContext, key: SeriesKey) u64 {
+        var hasher = std.hash.Wyhash.init(0);
+        hasher.update(std.mem.asBytes(&key.metric));
+        for (key.labels) |label| {
+            hasher.update(std.mem.asBytes(&label.len));
+            hasher.update(label);
+        }
+        return hasher.final();
+    }
+    pub fn eql(_: SeriesContext, x: SeriesKey, y: SeriesKey) bool {
+        if (x.metric != y.metric or x.labels.len != y.labels.len) return false;
+        for (x.labels, y.labels) |left, right| if (!std.mem.eql(u8, left, right)) return false;
+        return true;
+    }
+};
 const default_buckets = [_]f64{ 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 };
 pub const Registry = struct {
     allocator: A,
@@ -17,7 +36,7 @@ pub const Registry = struct {
     descriptors: []schema.Descriptor,
     by_name: std.StringHashMapUnmanaged(usize) = .empty,
     series: std.ArrayList(Series) = .empty,
-    by_series: std.StringHashMapUnmanaged(usize) = .empty,
+    by_series: std.HashMapUnmanaged(SeriesKey, usize, SeriesContext, std.hash_map.default_max_load_percentage) = .empty,
     bytes: usize = 0,
     mutex: std.Thread.Mutex = .{},
     /// Retained exposition buffer (guarded by `mutex`): grows by doubling up
@@ -71,56 +90,44 @@ pub const Registry = struct {
         self.allocator.free(self.options.base_version);
         self.allocator.destroy(self);
     }
-    fn key(a: A, index: usize, labels: []const []const u8) ![]u8 {
-        var out: std.ArrayList(u8) = .empty;
-        errdefer out.deinit(a);
-        var encoded: [8]u8 = undefined;
-        std.mem.writeInt(u64, &encoded, index, .big);
-        try out.appendSlice(a, &encoded);
-        for (labels) |label| {
-            std.mem.writeInt(u64, &encoded, label.len, .big);
-            try out.appendSlice(a, &encoded);
-            try out.appendSlice(a, label);
-        }
-        return out.toOwnedSlice(a);
-    }
     fn buckets(descriptor: schema.Descriptor) []const f64 {
         return if (descriptor.buckets.len > 0) descriptor.buckets else &default_buckets;
     }
     fn locate(self: *Registry, index: usize, labels: []const []const u8) !*Series {
-        const descriptor = self.descriptors[index];
+        const descriptor = &self.descriptors[index];
         if (labels.len != descriptor.labels.len) return error.MetricLabelCount;
+        // Existing series: one hash of the caller's labels, no allocation.
+        // Stored labels all passed the checks below, so an invalid label
+        // misses here and fails them as before.
+        if (self.by_series.get(.{ .metric = index, .labels = labels })) |found| return &self.series.items[found];
+        // Accounting unchanged from the encoded-key layout (bytes and limits).
         var total: usize = @sizeOf(Series) + labels.len * (@sizeOf([]const u8) + 16) + 8;
         for (labels) |label| {
             if (label.len > self.options.max_label_bytes or !std.unicode.utf8ValidateSlice(label)) return error.MetricLabelLimit;
             total = try std.math.add(usize, total, label.len * 2);
         }
-        const lookup = try key(self.allocator, index, labels);
-        defer self.allocator.free(lookup);
-        if (self.by_series.get(lookup)) |found| return &self.series.items[found];
         if (self.series.items.len >= self.options.max_series) return error.MetricSeriesLimit;
-        if (descriptor.kind == .histogram) total = try std.math.add(usize, total, buckets(descriptor).len * @sizeOf(u64));
+        if (descriptor.kind == .histogram) total = try std.math.add(usize, total, buckets(descriptor.*).len * @sizeOf(u64));
         if (total > self.options.max_storage_bytes -| self.bytes) return error.MetricStorageLimit;
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         errdefer arena.deinit();
         const owned = arena.allocator();
         const values = try owned.alloc([]const u8, labels.len);
         for (values, labels) |*value, input| value.* = try owned.dupe(u8, input);
-        const stored_key = try owned.dupe(u8, lookup);
         const value: Value = switch (descriptor.kind) {
             .int_gauge => .{ .integer = 0 },
             .int_counter => .{ .counter = 0 },
             .gauge, .counter => .{ .real = 0 },
             .histogram => histogram: {
-                const counts = try owned.alloc(u64, buckets(descriptor).len);
+                const counts = try owned.alloc(u64, buckets(descriptor.*).len);
                 @memset(counts, 0);
                 break :histogram .{ .histogram = .{ .buckets = counts } };
             },
         };
         try self.series.ensureUnusedCapacity(self.allocator, 1);
         try self.by_series.ensureUnusedCapacity(self.allocator, 1);
-        self.by_series.putAssumeCapacityNoClobber(stored_key, self.series.items.len);
-        self.series.appendAssumeCapacity(.{ .arena = arena, .key = stored_key, .metric = index, .labels = values, .value = value, .bytes = total });
+        self.by_series.putAssumeCapacityNoClobber(.{ .metric = index, .labels = values }, self.series.items.len);
+        self.series.appendAssumeCapacity(.{ .arena = arena, .metric = index, .labels = values, .value = value, .bytes = total });
         self.bytes += total;
         return &self.series.items[self.series.items.len - 1];
     }
@@ -173,11 +180,12 @@ pub const Registry = struct {
         defer self.mutex.unlock();
         const metric = self.by_name.get(name) orelse return error.UnknownMetric;
         if (labels.len != self.descriptors[metric].labels.len) return error.MetricLabelCount;
-        const lookup = try key(self.allocator, metric, labels);
-        defer self.allocator.free(lookup);
-        const found = self.by_series.fetchRemove(lookup) orelse return false;
+        const found = self.by_series.fetchRemove(.{ .metric = metric, .labels = labels }) orelse return false;
         var removed = self.series.swapRemove(found.value);
-        if (found.value < self.series.items.len) self.by_series.getPtr(self.series.items[found.value].key).?.* = found.value;
+        if (found.value < self.series.items.len) {
+            const moved = &self.series.items[found.value];
+            self.by_series.getPtr(.{ .metric = moved.metric, .labels = moved.labels }).?.* = found.value;
+        }
         self.bytes -= removed.bytes;
         removed.arena.deinit();
         return true;
@@ -472,4 +480,24 @@ test "explicit agent Tokio startup allocation failures propagate without leaks a
     try std.testing.expectError(error.MetricSeriesLimit, registry.registerNoTokioAgentRuntime());
     try std.testing.expectEqual(@as(usize, 1), registry.series.items.len);
     try std.testing.checkAllAllocationFailures(a, failingRuntimeStartup, .{});
+}
+
+test "updates to an existing series allocate nothing" {
+    var counting = std.testing.FailingAllocator.init(std.testing.allocator, .{});
+    const registry = try Registry.init(counting.allocator(), .relayer, .{ .base_version = "fixture" });
+    defer registry.deinit();
+    const labels: []const []const u8 = &.{ "origin", "remote" };
+    const cursor: []const []const u8 = &.{ "hyperlane_message", "origin", "forward_sequenced" };
+    try registry.update("hyperlane_messages_processed_count", labels, .{ .add_int = 1 });
+    try registry.update("hyperlane_cursor_current_sequence", cursor, .{ .set_int = 1 });
+    const allocations = counting.allocations;
+    for (0..100) |_| {
+        try registry.update("hyperlane_messages_processed_count", labels, .{ .add_int = 1 });
+        _ = try registry.raiseInt("hyperlane_cursor_current_sequence", cursor, 5);
+    }
+    try std.testing.expectEqual(allocations, counting.allocations);
+    // Equal labels in a different slice find the same series.
+    var copy = [_][]const u8{ "origin", "remote" };
+    try registry.update("hyperlane_messages_processed_count", &copy, .{ .add_int = 1 });
+    try std.testing.expectEqual(@as(usize, 2), registry.series.items.len);
 }

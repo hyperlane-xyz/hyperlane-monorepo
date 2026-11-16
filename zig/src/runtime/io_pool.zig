@@ -3,6 +3,7 @@
 //! a newer generation. Timeout ends the owner's wait, not an already-sent RPC.
 const std = @import("std");
 const wake_notifier = @import("wake.zig");
+const cancel_wake = @import("cancel_wake.zig");
 const fiber = @import("fiber.zig");
 
 pub const Hook = struct { context: *anyopaque, call_fn: *const fn (*anyopaque) void };
@@ -27,7 +28,21 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         pub const Result = union(enum) { value: Output, failure: anyerror };
         pub const Completion = struct { id: JobId, result: Result };
         const State = enum { free, queued, running, done, abandoned_queued, abandoned_running };
-        const Slot = struct { state: State = .free, sequence: u64 = 0, completion_sequence: u64 = 0, deadline_ms: u64 = 0, input: Input = undefined, result: Result = undefined, cancel: std.atomic.Value(bool) = std.atomic.Value(bool).init(false) };
+        const Slot = struct {
+            state: State = .free,
+            sequence: u64 = 0,
+            deadline_ms: u64 = 0,
+            /// Free stack and queue FIFO: next index. Done list: next and prev.
+            /// A slot is on exactly one list or (running) on none.
+            next: u16 = none,
+            prev: u16 = none,
+            input: Input = undefined,
+            result: Result = undefined,
+            cancel: std.atomic.Value(bool) = std.atomic.Value(bool).init(false),
+        };
+        const none: u16 = std.math.maxInt(u16);
+        /// Singly (free, queue) or doubly (done) linked list of slot indices.
+        const List = struct { head: u16 = none, tail: u16 = none };
         /// Fiber worker. `lock` guards the ready queue, `idle` and
         /// `interrupt` (wakes from any thread); `timed` and `live` belong to
         /// the worker thread. Lock order: pool mutex, then a worker lock.
@@ -53,6 +68,15 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         free_input: *const fn (*Context, Input) void,
         free_output: *const fn (*Context, Output) void,
         slots: [capacity]Slot = @splat(.{}),
+        /// Pool mutex: free slots (stack), queued and abandoned_queued slots
+        /// in submission order, done slots in completion order. Submit, claim
+        /// and poll cost O(1), not a scan of every slot.
+        free: List = .{},
+        queue: List = .{},
+        done: List = .{},
+        /// Pool mutex: no queued or running deadline is earlier. Poll scans
+        /// for expired work only once this passes, then tightens it.
+        deadline_floor: u64 = std.math.maxInt(u64),
         threads: [workers]std.Thread = undefined,
         /// Started worker threads (threads[0..spawned]).
         spawned: usize = 0,
@@ -98,6 +122,12 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                 state.timed = .initBuffer(&state.timed_storage);
             }
             for (&self.slot_fibers, 0..) |*slot_fiber, index| slot_fiber.* = .{ .pool = self, .index = index };
+            // Lowest index on top: the first submissions take slots 0, 1, ...
+            var free_index: usize = capacity;
+            while (free_index > 0) {
+                free_index -= 1;
+                self.pushFree(free_index);
+            }
             if (options.lazy_workers) return self;
             errdefer {
                 self.mutex.lock();
@@ -120,24 +150,68 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             if (self.stopping) return error.IoPoolStopped;
             if (deadline_ms <= now_ms) return error.IoDeadlineExpired;
             if (self.sequence == std.math.maxInt(u64)) return error.IoSequenceExhausted;
-            for (&self.slots, 0..) |*slot, index| {
-                if (slot.state != .free) continue;
-                // A lazy pool with no thread yet must start one or refuse.
-                const first = self.lazy and self.spawned == 0;
-                if (first) try self.spawnLocked();
-                self.sequence += 1;
-                slot.* = .{ .state = .queued, .sequence = self.sequence, .deadline_ms = deadline_ms, .input = input };
-                _ = self.queued.fetchAdd(1, .seq_cst);
-                if (first) {
-                    // The new worker finds this job before it first waits.
-                } else if (self.lazy and self.idle_workers <= self.pending_wakes and self.spawned < workers) {
-                    // Every started worker is busy: a new one takes this job.
-                    // Failure leaves it queued for a busy worker's next pass.
-                    self.spawnLocked() catch {};
-                } else self.wakeOne();
-                return .{ .slot = @intCast(index), .sequence = self.sequence };
-            }
-            return error.IoPoolFull;
+            const index = self.free.head;
+            if (index == none) return error.IoPoolFull;
+            // A lazy pool with no thread yet must start one or refuse.
+            const first = self.lazy and self.spawned == 0;
+            if (first) try self.spawnLocked();
+            _ = self.popFree();
+            self.sequence += 1;
+            self.slots[index] = .{ .state = .queued, .sequence = self.sequence, .deadline_ms = deadline_ms, .input = input };
+            self.pushQueue(index);
+            self.deadline_floor = @min(self.deadline_floor, deadline_ms);
+            _ = self.queued.fetchAdd(1, .seq_cst);
+            if (first) {
+                // The new worker finds this job before it first waits.
+            } else if (self.lazy and self.idle_workers <= self.pending_wakes and self.spawned < workers) {
+                // Every started worker is busy: a new one takes this job.
+                // Failure leaves it queued for a busy worker's next pass.
+                self.spawnLocked() catch {};
+            } else self.wakeOne();
+            return .{ .slot = index, .sequence = self.sequence };
+        }
+        // List operations: pool mutex held.
+        fn pushFree(self: *Self, index: usize) void {
+            self.slots[index].next = self.free.head;
+            self.free.head = @intCast(index);
+        }
+        fn popFree(self: *Self) u16 {
+            const index = self.free.head;
+            self.free.head = self.slots[index].next;
+            return index;
+        }
+        /// A slot leaves the pool's books: state free, back on the stack.
+        fn releaseSlot(self: *Self, slot: *Slot) void {
+            slot.state = .free;
+            self.pushFree(self.indexOf(slot));
+        }
+        fn indexOf(self: *Self, slot: *Slot) usize {
+            return (@intFromPtr(slot) - @intFromPtr(&self.slots)) / @sizeOf(Slot);
+        }
+        fn pushQueue(self: *Self, index: u16) void {
+            self.slots[index].next = none;
+            if (self.queue.tail == none) self.queue.head = index else self.slots[self.queue.tail].next = index;
+            self.queue.tail = index;
+        }
+        /// The oldest queued or abandoned_queued slot (sequence order).
+        fn popQueue(self: *Self) ?usize {
+            const index = self.queue.head;
+            if (index == none) return null;
+            self.queue.head = self.slots[index].next;
+            if (self.queue.head == none) self.queue.tail = none;
+            return index;
+        }
+        fn pushDone(self: *Self, slot: *Slot) void {
+            const index: u16 = @intCast(self.indexOf(slot));
+            slot.next = none;
+            slot.prev = self.done.tail;
+            if (self.done.tail == none) self.done.head = index else self.slots[self.done.tail].next = index;
+            self.done.tail = index;
+        }
+        fn unlinkDone(self: *Self, index: usize) void {
+            const slot = &self.slots[index];
+            if (slot.prev == none) self.done.head = slot.next else self.slots[slot.prev].next = slot.next;
+            if (slot.next == none) self.done.tail = slot.prev else self.slots[slot.next].prev = slot.prev;
         }
         /// Pool mutex held.
         fn spawnLocked(self: *Self) !void {
@@ -151,55 +225,66 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         /// process supervisor must bound shutdown if a transport never returns.
         pub fn poll(self: *Self, now_ms: u64) ?Completion {
             var cleanup: ?Output = null;
+            var raised: ?*std.atomic.Value(bool) = null;
+            defer if (raised) |flag| cancel_wake.wake(flag);
             self.mutex.lock();
             const completion: ?Completion = blk: {
                 defer self.mutex.unlock();
-                var selected: ?usize = null;
                 // Multisig metadata must consume actual completion order, not
                 // configured validator/slot order when several results arrive
                 // between owner ticks. Expired active jobs are resolved first
                 // so a steady stream of completions cannot starve deadlines.
-                for (self.slots, 0..) |slot, index| {
-                    if ((slot.state != .queued and slot.state != .running) or now_ms < slot.deadline_ms) continue;
-                    if (selected == null or slot.deadline_ms < self.slots[selected.?].deadline_ms) selected = index;
+                if (now_ms >= self.deadline_floor) if (self.expiredLocked(now_ms)) |index| {
+                    const slot = &self.slots[index];
+                    slot.cancel.store(true, .release);
+                    // Abandoned, the slot stays allocated until its job
+                    // retires: the flag outlives the wake after unlock.
+                    raised = &slot.cancel;
+                    slot.state = if (slot.state == .queued) .abandoned_queued else .abandoned_running;
+                    self.wakeOne();
+                    break :blk .{ .id = .{ .slot = @intCast(index), .sequence = slot.sequence }, .result = .{ .failure = error.IoTimeout } };
+                };
+                const index = self.done.head;
+                if (index == none) break :blk null;
+                self.unlinkDone(index);
+                const slot = &self.slots[index];
+                const id: JobId = .{ .slot = index, .sequence = slot.sequence };
+                const result = slot.result;
+                self.releaseSlot(slot);
+                if (now_ms >= slot.deadline_ms) {
+                    if (result == .value) cleanup = result.value;
+                    break :blk .{ .id = id, .result = .{ .failure = error.IoTimeout } };
                 }
-                const expired = selected != null;
-                for (self.slots, 0..) |slot, index| {
-                    if (expired or slot.state != .done) continue;
-                    if (selected == null or slot.completion_sequence < self.slots[selected.?].completion_sequence) selected = index;
-                }
-                for (&self.slots, 0..) |*slot, index| {
-                    if (selected == null or selected.? != index) continue;
-                    const id: JobId = .{ .slot = @intCast(index), .sequence = slot.sequence };
-                    switch (slot.state) {
-                        .done => {
-                            const result = slot.result;
-                            slot.state = .free;
-                            if (now_ms >= slot.deadline_ms) {
-                                if (result == .value) cleanup = result.value;
-                                break :blk .{ .id = id, .result = .{ .failure = error.IoTimeout } };
-                            }
-                            break :blk .{ .id = id, .result = result };
-                        },
-                        .queued, .running => if (now_ms >= slot.deadline_ms) {
-                            slot.cancel.store(true, .release);
-                            slot.state = if (slot.state == .queued) .abandoned_queued else .abandoned_running;
-                            self.wakeOne();
-                            break :blk .{ .id = id, .result = .{ .failure = error.IoTimeout } };
-                        },
-                        else => {},
-                    }
-                }
-                break :blk null;
+                break :blk .{ .id = id, .result = result };
             };
             if (cleanup) |output| self.free_output(self.context, output);
             return completion;
+        }
+
+        /// Pool mutex held: the queued or running slot with the earliest
+        /// expired deadline. Resets the floor to the earliest deadline left.
+        fn expiredLocked(self: *Self, now_ms: u64) ?usize {
+            var selected: ?usize = null;
+            var floor: u64 = std.math.maxInt(u64);
+            for (&self.slots, 0..) |*slot, index| {
+                if (slot.state != .queued and slot.state != .running) continue;
+                if (now_ms >= slot.deadline_ms and (selected == null or slot.deadline_ms < self.slots[selected.?].deadline_ms)) {
+                    if (selected) |previous| floor = @min(floor, self.slots[previous].deadline_ms);
+                    selected = index;
+                } else floor = @min(floor, slot.deadline_ms);
+            }
+            self.deadline_floor = floor;
+            return selected;
         }
 
         /// Caller owns this cancellation completion; no later result for id is
         /// emitted. Cancelling a completed request also destroys its output.
         pub fn cancel(self: *Self, id: JobId) !Completion {
             var cleanup: ?Output = null;
+            // A running job's waits are woken after the pool mutex is free
+            // (the abandoned slot is not reused before the job retires).
+            var raised: ?*std.atomic.Value(bool) = null;
+            defer if (raised) |flag| cancel_wake.wake(flag);
             self.mutex.lock();
             {
                 defer self.mutex.unlock();
@@ -207,12 +292,14 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                 const slot = &self.slots[id.slot];
                 if (slot.sequence != id.sequence or slot.state == .free or slot.state == .abandoned_queued or slot.state == .abandoned_running) return error.StaleIoJob;
                 slot.cancel.store(true, .release);
+                if (slot.state == .running) raised = &slot.cancel;
                 switch (slot.state) {
                     .queued => slot.state = .abandoned_queued,
                     .running => slot.state = .abandoned_running,
                     .done => {
                         if (slot.result == .value) cleanup = slot.result.value;
-                        slot.state = .free;
+                        self.unlinkDone(id.slot);
+                        self.releaseSlot(slot);
                     },
                     else => unreachable,
                 }
@@ -253,8 +340,10 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             self.wakeAll();
             const spawned = self.spawned;
             self.mutex.unlock();
+            // Slots stay put until destroy below: wake running jobs' waits.
+            for (&self.slots) |*slot| cancel_wake.wake(&slot.cancel);
             for (self.threads[0..spawned]) |thread| thread.join();
-            for (self.slots) |slot| {
+            for (&self.slots) |*slot| {
                 if (slot.state == .done and slot.result == .value) self.free_output(self.context, slot.result.value);
             }
             self.allocator.destroy(self);
@@ -264,12 +353,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             while (true) {
                 self.mutex.lock();
                 const index = while (true) {
-                    var selected: ?usize = null;
-                    for (self.slots, 0..) |slot, i| {
-                        if (slot.state != .queued and slot.state != .abandoned_queued) continue;
-                        if (selected == null or slot.sequence < self.slots[selected.?].sequence) selected = i;
-                    }
-                    if (selected) |i| break i;
+                    if (self.popQueue()) |i| break i;
                     if (self.stopping) {
                         self.mutex.unlock();
                         return;
@@ -289,7 +373,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                     self.mutex.unlock();
                     self.free_input(self.context, input);
                     self.mutex.lock();
-                    slot.state = .free;
+                    self.releaseSlot(slot);
                     self.mutex.unlock();
                     // Retirement of an abandoned job frees its supervisor entry.
                     self.completed();
@@ -306,14 +390,14 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                     self.mutex.unlock();
                     if (output == .value) self.free_output(self.context, output.value);
                     self.mutex.lock();
-                    slot.state = .free;
+                    self.releaseSlot(slot);
                 } else {
                     // At most one completion per submission; the checked
                     // submission counter bounds this addition too.
                     self.completions += 1;
-                    slot.completion_sequence = self.completions;
                     slot.result = output;
                     slot.state = .done;
+                    self.pushDone(slot);
                 }
                 self.mutex.unlock();
                 self.completed();
@@ -472,12 +556,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         /// False when another worker claimed it first.
         fn claimQueued(self: *Self, state: *WorkerState) bool {
             self.mutex.lock();
-            var selected: ?usize = null;
-            for (self.slots, 0..) |slot, i| {
-                if (slot.state != .queued and slot.state != .abandoned_queued) continue;
-                if (selected == null or slot.sequence < self.slots[selected.?].sequence) selected = i;
-            }
-            const i = selected orelse {
+            const i = self.popQueue() orelse {
                 self.mutex.unlock();
                 return false;
             };
@@ -489,7 +568,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                 self.mutex.unlock();
                 self.free_input(self.context, input);
                 self.mutex.lock();
-                slot.state = .free;
+                self.releaseSlot(slot);
                 self.mutex.unlock();
                 self.completed();
                 return true;
@@ -545,12 +624,12 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                 self.mutex.unlock();
                 if (output == .value) self.free_output(self.context, output.value);
                 self.mutex.lock();
-                slot.state = .free;
+                self.releaseSlot(slot);
             } else {
                 self.completions += 1;
-                slot.completion_sequence = self.completions;
                 slot.result = output;
                 slot.state = .done;
+                self.pushDone(slot);
             }
             self.mutex.unlock();
             self.completed();
@@ -705,6 +784,66 @@ test "two workers claim cancelled-input cleanup exactly once" {
     pool.deinit();
     try std.testing.expect(progressed);
     try std.testing.expectEqual(@as(u32, 1), context.cleanup_count.load(.seq_cst));
+}
+
+test "done list keeps completion order across cancellation, expiry and slot reuse" {
+    const Quick = struct {
+        ran: std.atomic.Value(u32) = .init(0),
+        fn run(self: *@This(), input: u32, _: *const std.atomic.Value(bool)) !u32 {
+            _ = self.ran.fetchAdd(1, .acq_rel);
+            return input;
+        }
+        fn free(_: *@This(), _: u32) void {}
+    };
+    var context: Quick = .{};
+    const Worker = Pool(u32, u32, Quick, 1, 4);
+    const pool = try Worker.start(std.testing.allocator, &context, Quick.run, Quick.free, Quick.free);
+    defer pool.deinit();
+    for (0..3) |round| {
+        var ids: [4]Worker.JobId = undefined;
+        for (&ids, 0..) |*id, i| id.* = try pool.submit(@intCast(i), 0, 100);
+        try std.testing.expectError(error.IoPoolFull, pool.submit(9, 0, 100));
+        var timer = try std.time.Timer.start();
+        while (context.ran.load(.acquire) < 4 * (round + 1)) {
+            if (timer.read() > 5 * std.time.ns_per_s) return error.TestWorkerDeadline;
+            std.Thread.yield() catch {};
+        }
+        // One worker: completion order is submission order. Cancelling a
+        // done job in the middle unlinks it; the rest keep their order.
+        try std.testing.expectEqual(error.IoCancelled, (try pool.cancel(ids[1])).result.failure);
+        try std.testing.expectEqual(ids[0], pool.poll(1).?.id);
+        // A done job polled at or past its deadline reports a timeout.
+        const late = pool.poll(100).?;
+        try std.testing.expectEqual(ids[2], late.id);
+        try std.testing.expectEqual(error.IoTimeout, late.result.failure);
+        const last = pool.poll(1).?;
+        try std.testing.expectEqual(ids[3], last.id);
+        try std.testing.expectEqual(@as(u32, 3), last.result.value);
+        try std.testing.expectEqual(@as(?Worker.Completion, null), pool.poll(1));
+        try std.testing.expect(!pool.retained(ids[0]));
+    }
+}
+
+test "expired jobs resolve earliest deadline first and only once their deadline passes" {
+    var context: TestContext = .{};
+    const Worker = Pool(u32, u32, TestContext, 1, 3);
+    const pool = try Worker.start(std.testing.allocator, &context, TestContext.run, TestContext.freeInput, TestContext.freeOutput);
+    const running = try pool.submit(1, 0, 30);
+    context.entered.wait();
+    const second = try pool.submit(2, 0, 10);
+    const third = try pool.submit(3, 0, 20);
+    try std.testing.expectEqual(@as(?Worker.Completion, null), pool.poll(5));
+    try std.testing.expectEqual(second, pool.poll(25).?.id);
+    try std.testing.expectEqual(third, pool.poll(25).?.id);
+    try std.testing.expectEqual(@as(?Worker.Completion, null), pool.poll(29));
+    const expired = pool.poll(30).?;
+    try std.testing.expectEqual(running, expired.id);
+    try std.testing.expectEqual(error.IoTimeout, expired.result.failure);
+    context.finish.post();
+    pool.deinit();
+    // Abandoned queued inputs and the late output are all released.
+    try std.testing.expectEqual(@as(u32, 3), context.cleaned_input.load(.seq_cst));
+    try std.testing.expectEqual(@as(u32, 1), context.cleaned_output.load(.seq_cst));
 }
 
 const ParkContext = struct {
