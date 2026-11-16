@@ -21,7 +21,10 @@ pub const Span = struct {
 };
 /// A winner the pool already validated against this request's id: its exact
 /// `result` span, and whether the Ethereum header-result check already ran.
-pub const Validated = struct { result: Span, header_checked: bool = false };
+pub const Validated = struct { result: Span, header_checked: bool = false, header: ?HeaderFacts = null };
+/// The Ethereum header fields the pool's header check already decoded from
+/// the result span, present only when number and hash are both known.
+pub const HeaderFacts = struct { number: u64, hash: [32]u8, parent_hash: [32]u8, timestamp: u64 };
 pub const Kind = enum { string, number, other };
 pub const Member = struct { span: Span, kind: Kind };
 pub const Name = enum { jsonrpc, id, method, params, result, @"error" };

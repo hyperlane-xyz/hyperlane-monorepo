@@ -42,11 +42,11 @@ pub const Evm = struct {
         var params: [16][48]u8 = undefined;
         var calls: [16]rpc.RawCall = undefined;
         for (heights, 0..) |height, i| calls[i] = .{ .method = "eth_getBlockByNumber", .params_json = try std.fmt.bufPrint(&params[i], "[\"0x{x}\",false]", .{height}) };
-        var responses: [16]rpc.RpcResponse = undefined;
-        try self.rpc_client.callMany(calls[0..heights.len], responses[0..heights.len]);
+        var responses: [16]rpc.RawResponse = undefined;
+        try self.rpc_client.callManyRaw(calls[0..heights.len], responses[0..heights.len]);
         defer for (responses[0..heights.len]) |*response| response.deinit();
-        for (heights, responses[0..heights.len], out) |height, response, *header_| {
-            const value = try rpc.BlockHeader.parse(response.value());
+        for (heights, responses[0..heights.len], out) |height, *response, *header_| {
+            const value = try response.header();
             if (value.number != height) return error.WrongBlock;
             header_.* = .{ .height = value.number, .timestamp = value.timestamp, .hash = value.hash, .parent = value.parent_hash };
         }
@@ -94,15 +94,24 @@ pub const Evm = struct {
         const hashes = [_]src.Hash{ abi.dispatch_topic, abi.process_id_topic, abi.insertion_topic, abi.gas_payment_topic };
         var topics: [4][]const u8 = undefined;
         for (hashes, &topics) |topic, *out| out.* = try abi.hexAlloc(a, &topic);
-        var response = try self.rpc_client.call("eth_getLogs", .{.{ .fromBlock = try abi.quantityAlloc(a, from), .toBlock = try abi.quantityAlloc(a, through), .address = addresses, .topics = .{topics} }});
+        var response = try self.rpc_client.callRaw("eth_getLogs", .{.{ .fromBlock = try abi.quantityAlloc(a, from), .toBlock = try abi.quantityAlloc(a, through), .address = addresses, .topics = .{topics} }});
         defer response.deinit();
-        if (response.value() != .array or response.value().array.items.len > self.max_events) return error.ScraperEventLimit;
         var result: std.ArrayList(src.Event) = .empty;
-        for (response.value().array.items) |value| {
-            var log = try parseLog(a, value);
-            defer log.deinit();
-            if (log.block_number < from or log.block_number > through or log.log_index > std.math.maxInt(i64)) return error.ScraperEventOutsideRange;
-            if (try self.decode(log, a)) |event| try result.append(a, event);
+        // Pool-validated logs decode from their bytes; the tree path below
+        // decides everything else (and owns every parse error).
+        const decoded = if (response.raw()) |raw| try rpc.rawLogs(a, raw, true) else null;
+        if (decoded) |logs| {
+            defer rpc.freeLogs(a, logs);
+            if (logs.len > self.max_events) return error.ScraperEventLimit;
+            for (logs) |log| try self.collect(log, from, through, a, &result);
+        } else {
+            const value = try response.value();
+            if (value != .array or value.array.items.len > self.max_events) return error.ScraperEventLimit;
+            for (value.array.items) |item| {
+                var log = try parseLog(a, item);
+                defer log.deinit();
+                try self.collect(log, from, through, a, &result);
+            }
         }
         // Equal positions are rejected below, so stability is irrelevant;
         // pdq keeps the frame small (block sort caches 512 Events on stack).
@@ -110,6 +119,10 @@ pub const Evm = struct {
         try checkPositions(a, result.items);
         const owned_events = try result.toOwnedSlice(a);
         return .{ .arena = arena, .events = owned_events, .through = through };
+    }
+    fn collect(self: *Evm, log: rpc.Log, from: u64, through: u64, a: std.mem.Allocator, result: *std.ArrayList(src.Event)) !void {
+        if (log.block_number < from or log.block_number > through or log.log_index > std.math.maxInt(i64)) return error.ScraperEventOutsideRange;
+        if (try self.decode(log, a)) |event| try result.append(a, event);
     }
     fn transactionEvents(context: *anyopaque, allocator: std.mem.Allocator, transaction: [64]u8) !src.Batch {
         return cast(context).receiptEvents(allocator, transaction, null);

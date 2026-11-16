@@ -264,6 +264,8 @@ const ParsedResponse = struct {
     result_tree: ?std.json.Parsed(Value) = null,
     /// The Ethereum header-result check already ran on this exact response.
     header_checked: bool = false,
+    /// Header fields that check decoded (number and hash known).
+    header: ?envelope.HeaderFacts = null,
     reserved_bytes: usize,
     charged: bool = false,
 
@@ -311,7 +313,7 @@ const ParsedResponse = struct {
 
     /// Winner bytes plus the validated result span the caller may adopt.
     fn takeWinner(self: *ParsedResponse, allocator: A) Winner {
-        const validated: ?envelope.Validated = if (self.result) |span| .{ .result = span, .header_checked = self.header_checked } else null;
+        const validated: ?envelope.Validated = if (self.result) |span| .{ .result = span, .header_checked = self.header_checked, .header = self.header } else null;
         return .{ .bytes = self.takeBytes(allocator), .validated = validated };
     }
 };
@@ -1361,12 +1363,16 @@ pub const Pool = struct {
                         const ethereum_header = classification == .success and header_method and self.config.height_protocol == .ethereum;
                         // The header check reads its fields from the result span when it
                         // can decide there; otherwise (and for tips) one tree is built.
-                        const header_decided: ?bool = if (ethereum_header) headerResultValid(self.allocator, parsed.resultBytes(), headerPending(session.wire())) catch |err| {
+                        const header_span: ?HeaderCheck = if (ethereum_header) headerResult(self.allocator, parsed.resultBytes(), headerPending(session.wire())) catch |err| {
                             self.reportUpstream(session, index, false, false);
                             parsed.deinit(self.allocator);
                             self.finish(session, err);
                             return;
                         } else null;
+                        const header_decided: ?bool = if (header_span) |check| check != .invalid else null;
+                        if (header_span) |check| if (check == .valid) {
+                            parsed.header = check.valid;
+                        };
                         const result_tree: ?Value = if (classification == .success and (known_tip or (ethereum_header and header_decided == null))) parsed.resultValue(self.allocator) catch |err| {
                             self.reportUpstream(session, index, false, false);
                             parsed.deinit(self.allocator);
@@ -2059,7 +2065,14 @@ pub const Pool = struct {
     /// Null: escaped strings or anything else the span walk will not decide;
     /// the caller then builds the tree and runs header.validateResult itself.
     fn headerResultValid(allocator: A, result: []const u8, pending: bool) !?bool {
-        if (std.mem.eql(u8, result, "null")) return true;
+        const check = try headerResult(allocator, result, pending) orelse return null;
+        return check != .invalid;
+    }
+    /// A decided header check; `valid` carries the fields Header.parse would
+    /// return (null for a null block or a pending one without number/hash).
+    const HeaderCheck = union(enum) { invalid, valid: ?envelope.HeaderFacts };
+    fn headerResult(allocator: A, result: []const u8, pending: bool) !?HeaderCheck {
+        if (std.mem.eql(u8, result, "null")) return .{ .valid = null };
         const found = (try @import("../net/json_fast.zig").fields(HeaderField, allocator, result)) orelse return null;
         const codecs = @import("codecs.zig");
         const Text = union(enum) { text: []const u8, null_value, invalid, undecided };
@@ -2074,45 +2087,40 @@ pub const Pool = struct {
             }
         }.of;
         if (found[@intFromEnum(HeaderField.gasLimit)] != null) switch (text(result, found[@intFromEnum(HeaderField.gasLimit)])) {
-            .text => |value| _ = codecs.quantityAs(u256, value) catch return false,
+            .text => |value| _ = codecs.quantityAs(u256, value) catch return .invalid,
             .undecided => return null,
-            else => return false,
+            else => return .invalid,
         };
         if (found[@intFromEnum(HeaderField.baseFeePerGas)] != null) switch (text(result, found[@intFromEnum(HeaderField.baseFeePerGas)])) {
-            .text => |value| _ = codecs.quantityAs(u256, value) catch return false,
+            .text => |value| _ = codecs.quantityAs(u256, value) catch return .invalid,
             .null_value => {},
             .undecided => return null,
-            .invalid => return false,
+            .invalid => return .invalid,
         };
-        const number_known = switch (text(result, found[@intFromEnum(HeaderField.number)])) {
-            .text => |value| blk: {
-                _ = codecs.quantity(value) catch return false;
-                break :blk true;
-            },
-            .null_value => false,
+        const number: ?u64 = switch (text(result, found[@intFromEnum(HeaderField.number)])) {
+            .text => |value| codecs.quantity(value) catch return .invalid,
+            .null_value => null,
             .undecided => return null,
-            .invalid => return false,
+            .invalid => return .invalid,
         };
-        const hash_known = switch (text(result, found[@intFromEnum(HeaderField.hash)])) {
-            .text => |value| blk: {
-                _ = codecs.fixedHex(32, value) catch return false;
-                break :blk true;
-            },
-            .null_value => false,
+        const hash: ?[32]u8 = switch (text(result, found[@intFromEnum(HeaderField.hash)])) {
+            .text => |value| codecs.fixedHex(32, value) catch return .invalid,
+            .null_value => null,
             .undecided => return null,
-            .invalid => return false,
+            .invalid => return .invalid,
         };
-        switch (text(result, found[@intFromEnum(HeaderField.parentHash)])) {
-            .text => |value| _ = codecs.fixedHex(32, value) catch return false,
+        const parent_hash = switch (text(result, found[@intFromEnum(HeaderField.parentHash)])) {
+            .text => |value| codecs.fixedHex(32, value) catch return .invalid,
             .undecided => return null,
-            else => return false,
-        }
-        switch (text(result, found[@intFromEnum(HeaderField.timestamp)])) {
-            .text => |value| _ = codecs.quantity(value) catch return false,
+            else => return .invalid,
+        };
+        const timestamp = switch (text(result, found[@intFromEnum(HeaderField.timestamp)])) {
+            .text => |value| codecs.quantity(value) catch return .invalid,
             .undecided => return null,
-            else => return false,
-        }
-        return pending or (number_known and hash_known);
+            else => return .invalid,
+        };
+        const unknown: HeaderCheck = if (pending) .{ .valid = null } else .invalid;
+        return .{ .valid = .{ .number = number orelse return unknown, .hash = hash orelse return unknown, .parent_hash = parent_hash, .timestamp = timestamp } };
     }
 
     fn validTipResult(method: []const u8, result: Value) bool {
@@ -2813,6 +2821,18 @@ test "header check from the result span decides exactly as header.validateResult
         defer tree.deinit();
         const expected = if (@import("header.zig").validateResult("eth_getBlockByNumber", params.value, tree.value)) |_| true else |_| false;
         var request: Request = .{ .body = @constCast(""), .method = "eth_getBlockByNumber", .id = 1, .params = params.value };
+        if (try Pool.headerResult(a, result, Pool.headerPending(&request))) |check| if (check == .valid) {
+            // Decoded fields are exactly what Header.parse returns; absent
+            // facts only where Header.parse fails (null or pending block).
+            const parsed = @import("header.zig").Header.parse(tree.value);
+            if (check.valid) |facts| {
+                const header = try parsed;
+                try std.testing.expectEqual(header.number, facts.number);
+                try std.testing.expectEqual(header.timestamp, facts.timestamp);
+                try std.testing.expectEqualSlices(u8, &header.hash, &facts.hash);
+                try std.testing.expectEqualSlices(u8, &header.parent_hash, &facts.parent_hash);
+            } else try std.testing.expect(std.meta.isError(parsed));
+        };
         if (try Pool.headerResultValid(a, result, Pool.headerPending(&request))) |valid| {
             decided += 1;
             if (valid != expected) {
@@ -2862,6 +2882,11 @@ test "cooperative reads hand the pool-validated result span to the caller end to
     const validated = wire.validated.?;
     try std.testing.expect(validated.header_checked);
     try std.testing.expectEqual(@as(u8, '{'), wire.bytes[validated.result.start]);
+    // The header fields the check decoded travel with the span.
+    const facts = validated.header orelse return error.TestUnexpectedResult;
+    try std.testing.expectEqual(@as(u64, 16), facts.number);
+    try std.testing.expectEqual(@as(u64, 0x123), facts.timestamp);
+    try std.testing.expectEqualSlices(u8, &(.{0x22} ** 32), &facts.parent_hash);
     const adopted = (try provider.adoptValidated(a, wire.bytes[0..wire.len], 3, validated.result)).?;
     defer adopted.deinit();
     try std.testing.expectEqualStrings("0x10", adopted.value.object.get("result").?.object.get("number").?.string);
@@ -2870,7 +2895,13 @@ test "cooperative reads hand the pool-validated result span to the caller end to
     defer client.deinit();
     const header = try client.blockHeader(.{ .number = 16 });
     try std.testing.expectEqual(@as(u64, 16), header.number);
+    try std.testing.expectEqualSlices(u8, &(.{0x11} ** 32), &header.hash);
     try std.testing.expect(try client.count(@splat(0), .latest) == 7);
+    // Raw calls keep pool-validated results in their bytes (no tree).
+    var raw = try client.callRaw("eth_getBlockByNumber", .{ "0x10", false });
+    defer raw.deinit();
+    try std.testing.expect(raw.raw() != null and raw.tree == null and raw.header_facts != null);
+    try std.testing.expectEqualStrings("0x10", (try raw.value()).object.get("number").?.string);
 }
 
 test "exact JSON normalization ignores object order and decimal spelling without f64" {

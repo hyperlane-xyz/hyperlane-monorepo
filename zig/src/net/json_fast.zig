@@ -20,7 +20,7 @@ const Mode = enum { facts, tree };
 
 /// Facts of `input` exactly as `env.scan` would report them, or null.
 pub fn scan(scratch: A, input: []const u8, depth_limit: ?usize) !?env.Top {
-    var walker: Walker(.facts, env.Name) = .{ .input = input, .scratch = scratch, .limit = depth_limit orelse default_depth };
+    var walker: Walker(.facts, env.Name, 1) = .{ .input = input, .scratch = scratch, .limit = depth_limit orelse default_depth };
     defer walker.deinit();
     if (!try walker.run()) return null;
     walker.top.members = walker.found;
@@ -29,23 +29,42 @@ pub fn scan(scratch: A, input: []const u8, depth_limit: ?usize) !?env.Top {
 
 /// Spans of the named members of the object document `input` (a result
 /// span), or null when it is not an object or the walker bails.
-pub fn fields(comptime Names: type, scratch: A, input: []const u8) !?[@typeInfo(Names).@"enum".fields.len]?env.Member {
-    var walker: Walker(.facts, Names) = .{ .input = input, .scratch = scratch, .limit = default_depth };
+pub fn fields(comptime Names: type, scratch: A, input: []const u8) !?Fields(Names) {
+    var walker: Walker(.facts, Names, 1) = .{ .input = input, .scratch = scratch, .limit = default_depth };
     defer walker.deinit();
     if (!try walker.run() or !walker.top.object) return null;
     return walker.found;
+}
+pub fn Fields(comptime Names: type) type {
+    return [@typeInfo(Names).@"enum".fields.len]?env.Member;
+}
+
+/// `fields` of every element of the array document `input`, in order
+/// (allocated with `gpa`), or null when it is not an array of objects or the
+/// walker bails. Spans are relative to `input`.
+pub fn elements(comptime Names: type, gpa: A, scratch: A, input: []const u8) !?[]Fields(Names) {
+    var walker: Walker(.facts, Names, 2) = .{ .input = input, .scratch = scratch, .limit = default_depth, .rows_allocator = gpa };
+    defer walker.deinit();
+    errdefer walker.rows.deinit(gpa);
+    if (!try walker.run() or walker.top.object or walker.top.max_depth == 0) {
+        walker.rows.deinit(gpa);
+        return null;
+    }
+    return try walker.rows.toOwnedSlice(gpa);
 }
 
 /// The tree `env.parseValue` builds (strings/numbers borrowed from `input`,
 /// escaped strings decoded into `arena`), or null.
 pub fn parse(arena: A, scratch: A, input: []const u8, parse_numbers: bool) !?Value {
-    var walker: Walker(.tree, env.Name) = .{ .input = input, .scratch = scratch, .arena = arena, .parse_numbers = parse_numbers, .limit = default_depth };
+    var walker: Walker(.tree, env.Name, 1) = .{ .input = input, .scratch = scratch, .arena = arena, .parse_numbers = parse_numbers, .limit = default_depth };
     defer walker.deinit();
     if (!try walker.run()) return null;
     return walker.root;
 }
 
-fn Walker(comptime mode: Mode, comptime Names: type) type {
+/// `depth`: members are captured in the root object (1) or in each object
+/// element of a root array (2, collected into `rows`).
+fn Walker(comptime mode: Mode, comptime Names: type, comptime depth: usize) type {
     return struct {
         const Self = @This();
         const Frame = if (mode == .facts) struct { object: bool, start: usize, keys_start: usize, map: ?*KeySet = null } else struct { value: Value, key: ?[]const u8 = null };
@@ -61,8 +80,10 @@ fn Walker(comptime mode: Mode, comptime Names: type) type {
         top: env.Top = .{},
         root: Value = .null,
         member: ?Names = null,
-        found: [@typeInfo(Names).@"enum".fields.len]?env.Member = @splat(null),
+        found: Fields(Names) = @splat(null),
         member_start: usize = 0,
+        rows: std.ArrayList(Fields(Names)) = .empty,
+        rows_allocator: A = undefined,
 
         fn deinit(self: *Self) void {
             if (mode == .facts) for (self.frames.items) |frame| if (frame.map) |map| {
@@ -116,7 +137,7 @@ fn Walker(comptime mode: Mode, comptime Names: type) type {
         fn value(self: *Self) !?bool {
             if (self.i >= self.input.len) return null;
             const start = self.i;
-            if (self.frames.items.len == 1) self.member_start = start;
+            if (self.frames.items.len == depth) self.member_start = start;
             switch (self.input[self.i]) {
                 '{', '[' => |c| {
                     self.i += 1;
@@ -168,6 +189,11 @@ fn Walker(comptime mode: Mode, comptime Names: type) type {
                     self.scratch.destroy(map);
                 }
                 self.keys.shrinkRetainingCapacity(frame.keys_start);
+                if (depth == 2 and self.frames.items.len == 1) {
+                    if (!frame.object) return false;
+                    try self.rows.append(self.rows_allocator, self.found);
+                    self.found = @splat(null);
+                }
                 return self.finished(.null, .{ .start = frame.start, .end = self.i }, .other);
             }
             return self.finished(frame.value, undefined, .other);
@@ -175,6 +201,8 @@ fn Walker(comptime mode: Mode, comptime Names: type) type {
 
         /// A completed scalar: false (not a container), or null to bail.
         fn scalar(self: *Self, parsed: Value, span: env.Span, kind: env.Kind) !?bool {
+            // Array elements must be objects.
+            if (depth == 2 and self.frames.items.len == 1) return null;
             return if (try self.finished(parsed, span, kind)) false else null;
         }
 
@@ -186,7 +214,7 @@ fn Walker(comptime mode: Mode, comptime Names: type) type {
             }
             const frame = &self.frames.items[self.frames.items.len - 1];
             if (mode == .facts) {
-                if (frame.object and self.frames.items.len == 1) if (self.member) |name| {
+                if (frame.object and self.frames.items.len == depth) if (self.member) |name| {
                     self.found[@intFromEnum(name)] = .{ .span = .{ .start = self.member_start, .end = span.end }, .kind = kind };
                     self.member = null;
                 };
@@ -232,7 +260,7 @@ fn Walker(comptime mode: Mode, comptime Names: type) type {
                     for (self.keys.items[frame.keys_start..]) |existing| try map.put(self.scratch, existing, {});
                 }
             }
-            if (self.frames.items.len == 1) self.member = std.meta.stringToEnum(Names, name);
+            if (self.frames.items.len == depth) self.member = std.meta.stringToEnum(Names, name);
             return true;
         }
 

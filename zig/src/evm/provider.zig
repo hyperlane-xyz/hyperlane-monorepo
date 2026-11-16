@@ -6,6 +6,7 @@ const Allocator = std.mem.Allocator;
 const Value = std.json.Value;
 const TipCache = @import("../net/dynamic_tip_cache.zig");
 const envelope = @import("../net/json_envelope.zig");
+const json_fast = @import("../net/json_fast.zig");
 pub const Address = abi.Address;
 pub const Hash = abi.Hash;
 
@@ -34,6 +35,51 @@ pub const RpcResponse = struct {
 
     pub fn deinit(self: *RpcResponse) void {
         self.parsed.deinit();
+        self.allocator.free(self.bytes);
+        self.* = undefined;
+    }
+};
+
+/// A validated response whose result is read straight from its bytes when
+/// the pool already validated them: `span` is then the exact result JSON
+/// (syntax, depth and duplicate keys checked over the whole body by the
+/// pool; the envelope around it rechecked by this client). Otherwise the
+/// envelope was decoded as call() does and `tree` holds it.
+pub const RawResponse = struct {
+    allocator: Allocator,
+    protocol: @import("pool.zig").HeightProtocol,
+    bytes: []u8,
+    span: ?envelope.Span,
+    /// Whole-envelope tree (decoded path) or result tree (built by value()).
+    tree: ?std.json.Parsed(Value) = null,
+    rpc_error: bool = false,
+    /// Header fields the pool already decoded from this exact result.
+    header_facts: ?envelope.HeaderFacts = null,
+
+    /// The exact result JSON, when it was never decoded into a tree.
+    pub fn raw(self: *const RawResponse) ?[]const u8 {
+        return if (self.span) |span| span.of(self.bytes) else null;
+    }
+    pub fn isError(self: RawResponse) bool {
+        return self.rpc_error;
+    }
+    /// The result as RpcResponse.value() gives it (parsed on first use);
+    /// borrows this response.
+    pub fn value(self: *RawResponse) !Value {
+        if (self.tree) |tree| return if (self.span == null) tree.value.object.get("result").? else tree.value;
+        // Not reachable for a span the pool validated; same error mapping
+        // as a full decode otherwise.
+        self.tree = envelope.parseValue(self.allocator, self.raw().?, true) catch |err| return @import("pool.zig").responseDecodeError(self.protocol, err);
+        return self.tree.?.value;
+    }
+    /// BlockHeader.parse of the result, from the pool's decoded fields when
+    /// it has them.
+    pub fn header(self: *RawResponse) !BlockHeader {
+        if (self.header_facts) |facts| return .{ .number = facts.number, .hash = facts.hash, .parent_hash = facts.parent_hash, .timestamp = facts.timestamp };
+        return BlockHeader.parse(try self.value());
+    }
+    pub fn deinit(self: *RawResponse) void {
+        if (self.tree) |tree| tree.deinit();
         self.allocator.free(self.bytes);
         self.* = undefined;
     }
@@ -220,6 +266,24 @@ pub const RpcClient = struct {
     /// envelope is validated exactly as call() (RpcError on any error object).
     /// All-or-error: on error no `out` entry remains allocated.
     pub fn callMany(self: *RpcClient, calls: []const RawCall, out: []RpcResponse) !void {
+        return self.exchangeMany(RpcResponse, decodeEnvelope, calls, out);
+    }
+    /// callMany whose results stay in their response bytes when the pool
+    /// already validated them (see RawResponse); same errors and ownership.
+    pub fn callManyRaw(self: *RpcClient, calls: []const RawCall, out: []RawResponse) !void {
+        return self.exchangeMany(RawResponse, decodeRaw, calls, out);
+    }
+    /// call() with the result left in its response bytes when possible.
+    pub fn callRaw(self: *RpcClient, method: []const u8, params: anytype) !RawResponse {
+        const id = try self.nextId(method);
+        const body = try std.json.Stringify.valueAlloc(self.allocator, .{ .jsonrpc = "2.0", .id = id, .method = method, .params = params }, .{});
+        defer self.allocator.free(body);
+        var response = try self.decodeRaw(method, body, id, try self.fetchOne(body));
+        errdefer response.deinit();
+        if (response.isError()) return error.RpcError;
+        return response;
+    }
+    fn exchangeMany(self: *RpcClient, comptime R: type, comptime decode: anytype, calls: []const RawCall, out: []R) !void {
         if (calls.len != out.len) return error.InvalidRpcBatch;
         var filled: usize = 0;
         errdefer for (out[0..filled]) |*response| response.deinit();
@@ -229,7 +293,7 @@ pub const RpcClient = struct {
                 const id = try self.nextId(raw.method);
                 const body = try self.rawBody(id, raw);
                 defer self.allocator.free(body);
-                slot.* = try self.decodeEnvelope(raw.method, body, id, try self.fetchOne(body));
+                slot.* = try decode(self, raw.method, body, id, try self.fetchOne(body));
                 filled += 1;
                 if (slot.isError()) return error.RpcError;
             }
@@ -255,10 +319,26 @@ pub const RpcClient = struct {
         errdefer for (wires[consumed..]) |wire| self.allocator.free(wire.bytes);
         for (calls, ids, bodies, wires, out) |raw, id, body, wire, *slot| {
             consumed += 1;
-            slot.* = try self.decodeEnvelope(raw.method, body, id, wire);
+            slot.* = try decode(self, raw.method, body, id, wire);
             filled += 1;
         }
         for (out) |response| if (response.isError()) return error.RpcError;
+    }
+    /// Takes ownership of `fetched` on every return. A pool winner whose
+    /// envelope checks out keeps its result span (no tree); everything else,
+    /// and header methods the pool did not header-check, decode as call().
+    fn decodeRaw(self: *RpcClient, method: []const u8, body: []const u8, id: i64, fetched: WireResponse) !RawResponse {
+        if (fetched.validated) |validated| if (fetched.len <= fetched.bytes.len and fetched.len <= self.options.max_response_bytes and
+            (validated.header_checked or self.options.protocol != .ethereum or !@import("header.zig").isMethod(method)))
+        {
+            errdefer self.allocator.free(fetched.bytes);
+            if (try adoptable(self.allocator, fetched.bytes[0..fetched.len], id, validated.result)) {
+                self.last_rpc_error_code = null;
+                return .{ .allocator = self.allocator, .protocol = self.options.protocol, .bytes = fetched.bytes, .span = validated.result, .header_facts = validated.header };
+            }
+        };
+        const response = try self.decodeEnvelope(method, body, id, fetched);
+        return .{ .allocator = self.allocator, .protocol = self.options.protocol, .bytes = response.bytes, .span = null, .tree = response.parsed, .rpc_error = response.isError() };
     }
     /// Takes ownership of `fetched` on every return.
     fn decodeEnvelope(self: *RpcClient, method: []const u8, body: []const u8, id: i64, fetched: WireResponse) !RpcResponse {
@@ -503,9 +583,13 @@ pub const RpcClient = struct {
     }
 
     pub fn blockHeader(self: *RpcClient, block: BlockRef) !BlockHeader {
-        var response = try self.getBlock(block);
+        const tag = try block.text(self.allocator);
+        var response = blk: {
+            defer self.allocator.free(tag);
+            break :blk try self.callRaw("eth_getBlockByNumber", .{ tag, false });
+        };
         defer response.deinit();
-        const header = try BlockHeader.parse(response.value());
+        const header = try response.header();
         switch (block) {
             .number => |expected| if (header.number != expected) return error.WrongBlock,
             else => {},
@@ -516,30 +600,87 @@ pub const RpcClient = struct {
     /// The caller must authenticate each returned log against canonical headers
     /// before committing it. This checks address, topic and requested number range.
     pub fn getLogs(self: *RpcClient, address: Address, from: u64, to: u64, topic0: ?Hash) !RpcResponse {
-        if (from > to or to - from >= self.options.max_log_range) return error.InvalidLogRange;
-        const from_text = try abi.quantityAlloc(self.allocator, from);
-        defer self.allocator.free(from_text);
-        const to_text = try abi.quantityAlloc(self.allocator, to);
-        defer self.allocator.free(to_text);
-        const address_text = try abi.hexAlloc(self.allocator, &address);
-        defer self.allocator.free(address_text);
-        const topic_text = if (topic0) |t| try abi.hexAlloc(self.allocator, &t) else null;
-        defer if (topic_text) |t| self.allocator.free(t);
-        var topics: [1][]const u8 = undefined;
-        if (topic_text) |t| topics[0] = t;
-        var response = try self.call("eth_getLogs", .{.{ .fromBlock = from_text, .toBlock = to_text, .address = address_text, .topics = if (topic_text != null) topics[0..1] else topics[0..0] }});
+        var filter = try LogFilter.init(self, address, from, to, topic0);
+        defer filter.deinit(self.allocator);
+        var response = try self.call("eth_getLogs", .{filter.params()});
         errdefer response.deinit();
         if (response.value() != .array) return error.InvalidRpcResult;
         for (response.value().array.items) |raw| {
             var log = try Log.parse(self.allocator, raw);
             defer log.deinit();
-            if (log.block_number < from or log.block_number > to or !std.mem.eql(u8, &log.address, &address)) return error.LogOutsideFilter;
-            if (topic0) |expected| {
-                if (log.topic_count == 0 or !std.mem.eql(u8, &log.topics[0], &expected)) return error.LogOutsideFilter;
-            }
+            try filter.check(log);
         }
         return response;
     }
+    /// getLogs decoded: the same request, checks and errors, returning the
+    /// logs (each and the slice allocated with `allocator`) instead of JSON.
+    pub fn logs(self: *RpcClient, allocator: Allocator, address: Address, from: u64, to: u64, topic0: ?Hash) ![]Log {
+        var filter = try LogFilter.init(self, address, from, to, topic0);
+        defer filter.deinit(self.allocator);
+        var response = try self.callRaw("eth_getLogs", .{filter.params()});
+        defer response.deinit();
+        if (response.raw()) |raw| if (try rawLogs(allocator, raw, false)) |decoded| {
+            errdefer freeLogs(allocator, decoded);
+            for (decoded) |log| try filter.check(log);
+            return decoded;
+        };
+        // Tree path, in getLogs order: each log parsed, then checked.
+        const value = try response.value();
+        if (value != .array) return error.InvalidRpcResult;
+        const decoded = try allocator.alloc(Log, value.array.items.len);
+        var built: usize = 0;
+        errdefer {
+            for (decoded[0..built]) |*log| log.deinit();
+            allocator.free(decoded);
+        }
+        for (value.array.items, decoded) |raw, *log| {
+            log.* = try Log.parse(allocator, raw);
+            built += 1;
+            try filter.check(log.*);
+        }
+        return decoded;
+    }
+    const LogFilter = struct {
+        address: Address,
+        from: u64,
+        to: u64,
+        topic0: ?Hash,
+        from_text: []u8,
+        to_text: []u8,
+        address_text: []u8,
+        topic_text: ?[]u8,
+        topics: [1][]const u8 = undefined,
+
+        fn init(client: *RpcClient, address: Address, from: u64, to: u64, topic0: ?Hash) !LogFilter {
+            if (from > to or to - from >= client.options.max_log_range) return error.InvalidLogRange;
+            const a = client.allocator;
+            const from_text = try abi.quantityAlloc(a, from);
+            errdefer a.free(from_text);
+            const to_text = try abi.quantityAlloc(a, to);
+            errdefer a.free(to_text);
+            const address_text = try abi.hexAlloc(a, &address);
+            errdefer a.free(address_text);
+            const topic_text = if (topic0) |t| try abi.hexAlloc(a, &t) else null;
+            return .{ .address = address, .from = from, .to = to, .topic0 = topic0, .from_text = from_text, .to_text = to_text, .address_text = address_text, .topic_text = topic_text };
+        }
+        fn deinit(self: *LogFilter, a: Allocator) void {
+            a.free(self.from_text);
+            a.free(self.to_text);
+            a.free(self.address_text);
+            if (self.topic_text) |t| a.free(t);
+        }
+        const Params = struct { fromBlock: []const u8, toBlock: []const u8, address: []const u8, topics: []const []const u8 };
+        fn params(self: *LogFilter) Params {
+            if (self.topic_text) |t| self.topics[0] = t;
+            return .{ .fromBlock = self.from_text, .toBlock = self.to_text, .address = self.address_text, .topics = if (self.topic_text != null) self.topics[0..1] else self.topics[0..0] };
+        }
+        fn check(self: *const LogFilter, log: Log) !void {
+            if (log.block_number < self.from or log.block_number > self.to or !std.mem.eql(u8, &log.address, &self.address)) return error.LogOutsideFilter;
+            if (self.topic0) |expected| {
+                if (log.topic_count == 0 or !std.mem.eql(u8, &log.topics[0], &expected)) return error.LogOutsideFilter;
+            }
+        }
+    };
 
     /// Caller owns returned raw ABI bytes.
     pub fn ethCall(self: *RpcClient, address: Address, calldata: []const u8, block: BlockRef) ![]u8 {
@@ -588,28 +729,7 @@ pub const RpcClient = struct {
 /// duplicate keys are checked by that parse). Null: anything unexpected, and
 /// the caller decodes the whole body as before. Errors only on allocation.
 pub fn adoptValidated(allocator: Allocator, bytes: []const u8, id: i64, span: envelope.Span) !?std.json.Parsed(Value) {
-    if (span.start >= span.end or span.end > bytes.len) return null;
-    const outside_len = bytes.len - (span.end - span.start) + 1;
-    var stack: [512]u8 = undefined;
-    const heap = if (outside_len > stack.len) try allocator.alloc(u8, outside_len) else null;
-    defer if (heap) |memory| allocator.free(memory);
-    const outside = heap orelse stack[0..outside_len];
-    @memcpy(outside[0..span.start], bytes[0..span.start]);
-    outside[span.start] = '0';
-    @memcpy(outside[span.start + 1 ..], bytes[span.end..]);
-    const top = envelope.scan(allocator, outside, .{}) catch |err| {
-        if (err == error.OutOfMemory) return err;
-        return null;
-    };
-    if (!top.object or top.get(.@"error") != null) return null;
-    const version = top.get(.jsonrpc) orelse return null;
-    if (!envelope.isString(outside, version, "2.0")) return null;
-    const actual = top.get(.id) orelse return null;
-    const text = actual.span.of(outside);
-    if (actual.kind != .number or !std.json.isNumberFormattedLikeAnInteger(text)) return null;
-    if ((std.fmt.parseInt(i64, text, 10) catch return null) != id) return null;
-    const result = top.get(.result) orelse return null;
-    if (result.span.start != span.start or result.span.end != span.start + 1) return null;
+    if (!try adoptable(allocator, bytes, id, span)) return null;
     var tree = envelope.parseValue(allocator, span.of(bytes), true) catch |err| {
         if (err == error.OutOfMemory) return err;
         return null;
@@ -622,6 +742,32 @@ pub fn adoptValidated(allocator: Allocator, bytes: []const u8, id: i64, span: en
     try root.put("result", tree.value);
     tree.value = .{ .object = root };
     return tree;
+}
+/// The envelope half of adoptValidated: whether everything outside the
+/// pool-validated result span is a plain success envelope for `id`.
+fn adoptable(allocator: Allocator, bytes: []const u8, id: i64, span: envelope.Span) !bool {
+    if (span.start >= span.end or span.end > bytes.len) return false;
+    const outside_len = bytes.len - (span.end - span.start) + 1;
+    var stack: [512]u8 = undefined;
+    const heap = if (outside_len > stack.len) try allocator.alloc(u8, outside_len) else null;
+    defer if (heap) |memory| allocator.free(memory);
+    const outside = heap orelse stack[0..outside_len];
+    @memcpy(outside[0..span.start], bytes[0..span.start]);
+    outside[span.start] = '0';
+    @memcpy(outside[span.start + 1 ..], bytes[span.end..]);
+    const top = envelope.scan(allocator, outside, .{}) catch |err| {
+        if (err == error.OutOfMemory) return err;
+        return false;
+    };
+    if (!top.object or top.get(.@"error") != null) return false;
+    const version = top.get(.jsonrpc) orelse return false;
+    if (!envelope.isString(outside, version, "2.0")) return false;
+    const actual = top.get(.id) orelse return false;
+    const text = actual.span.of(outside);
+    if (actual.kind != .number or !std.json.isNumberFormattedLikeAnInteger(text)) return false;
+    if ((std.fmt.parseInt(i64, text, 10) catch return false) != id) return false;
+    const result = top.get(.result) orelse return false;
+    return result.span.start == span.start and result.span.end == span.start + 1;
 }
 
 pub fn validateEnvelope(value: Value, expected_id: i64) !?i64 {
@@ -664,6 +810,94 @@ fn decodeHexAlloc(allocator: Allocator, text: []const u8) ![]u8 {
 }
 
 pub const BlockHeader = @import("header.zig").Header;
+
+pub fn freeLogs(allocator: Allocator, items: []Log) void {
+    for (items) |*log| log.deinit();
+    allocator.free(items);
+}
+
+const LogField = enum { removed, topics, address, blockNumber, blockHash, transactionHash, transactionIndex, logIndex, data };
+
+/// The logs Log.parse returns for every element of the eth_getLogs result
+/// JSON `result` (allocated with `allocator`), read from its bytes. Null when
+/// any element would fail Log.parse or cannot be decided here (escapes,
+/// duplicate keys, odd shapes): the caller then decodes the tree, which owns
+/// every error. `absent_removed`: a missing or null `removed` reads as false
+/// (scraper.evm.parseLog); otherwise it must be present like Log.parse.
+pub fn rawLogs(allocator: Allocator, result: []const u8, absent_removed: bool) !?[]Log {
+    var scratch = std.heap.stackFallback(1024, allocator);
+    const rows = (try json_fast.elements(LogField, allocator, scratch.get(), result)) orelse return null;
+    defer allocator.free(rows);
+    const logs = try allocator.alloc(Log, rows.len);
+    var built: usize = 0;
+    errdefer {
+        for (logs[0..built]) |*log| log.deinit();
+        allocator.free(logs);
+    }
+    for (rows, logs) |row, *log| {
+        log.* = (try rawLog(allocator, result, row, absent_removed)) orelse {
+            for (logs[0..built]) |*done| done.deinit();
+            allocator.free(logs);
+            return null;
+        };
+        built += 1;
+    }
+    return logs;
+}
+fn rawLog(allocator: Allocator, bytes: []const u8, row: json_fast.Fields(LogField), absent_removed: bool) !?Log {
+    const Field = struct {
+        fn text(input: []const u8, found: ?envelope.Member) ?[]const u8 {
+            const member = found orelse return null;
+            if (member.kind != .string) return null;
+            const raw = member.span.of(input);
+            if (std.mem.indexOfScalar(u8, raw, '\\') != null) return null;
+            return raw[1 .. raw.len - 1];
+        }
+    };
+    const at = struct {
+        fn f(r: json_fast.Fields(LogField), name: LogField) ?envelope.Member {
+            return r[@intFromEnum(name)];
+        }
+    }.f;
+    if (at(row, .removed)) |removed| {
+        const raw = removed.span.of(bytes);
+        if (!std.mem.eql(u8, raw, "false") and !(absent_removed and std.mem.eql(u8, raw, "null"))) return null;
+    } else if (!absent_removed) return null;
+    // Topics: an already-validated array of at most four unescaped strings.
+    const topics_member = at(row, .topics) orelse return null;
+    var topics: [4]Hash = .{.{0} ** 32} ** 4;
+    var topic_count: u8 = 0;
+    {
+        const raw = topics_member.span.of(bytes);
+        if (raw[0] != '[') return null;
+        var i: usize = 1;
+        while (true) {
+            while (i < raw.len and std.ascii.isWhitespace(raw[i])) i += 1;
+            if (i >= raw.len) return null;
+            if (raw[i] == ']') break;
+            if (raw[i] == ',') {
+                i += 1;
+                continue;
+            }
+            if (raw[i] != '"' or topic_count == 4) return null;
+            const end = std.mem.indexOfScalarPos(u8, raw, i + 1, '"') orelse return null;
+            const text = raw[i + 1 .. end];
+            if (std.mem.indexOfScalar(u8, text, '\\') != null) return null;
+            topics[topic_count] = abi.fixedHex(32, text) catch return null;
+            topic_count += 1;
+            i = end + 1;
+        }
+    }
+    const address = abi.fixedHex(20, Field.text(bytes, at(row, .address)) orelse return null) catch return null;
+    const block_number = abi.quantity(Field.text(bytes, at(row, .blockNumber)) orelse return null) catch return null;
+    const block_hash = abi.fixedHex(32, Field.text(bytes, at(row, .blockHash)) orelse return null) catch return null;
+    const transaction_hash = abi.fixedHex(32, Field.text(bytes, at(row, .transactionHash)) orelse return null) catch return null;
+    const transaction_index = abi.quantity(Field.text(bytes, at(row, .transactionIndex)) orelse return null) catch return null;
+    const log_index = abi.quantity(Field.text(bytes, at(row, .logIndex)) orelse return null) catch return null;
+    const data_text = Field.text(bytes, at(row, .data)) orelse return null;
+    const data = decodeHexAlloc(allocator, data_text) catch |err| return if (err == error.OutOfMemory) err else null;
+    return .{ .allocator = allocator, .address = address, .topics = topics, .topic_count = topic_count, .data = data, .block_number = block_number, .block_hash = block_hash, .transaction_hash = transaction_hash, .transaction_index = transaction_index, .log_index = log_index };
+}
 
 pub const Log = struct {
     allocator: Allocator,
@@ -1021,4 +1255,8 @@ test "HTTP log filter rejects out of range and mismatched contract logs" {
     const wrong_contract = try std.json.Stringify.valueAlloc(std.testing.allocator, .{ .jsonrpc = "2.0", .id = 1, .result = .{parsed.value} }, .{});
     defer std.testing.allocator.free(wrong_contract);
     try std.testing.expectError(error.LogOutsideFilter, loopbackRequest(wrong_contract, 200, 2048, .logs));
+}
+
+test {
+    _ = @import("logs_differential_test.zig");
 }

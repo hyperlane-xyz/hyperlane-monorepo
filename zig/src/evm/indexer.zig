@@ -212,19 +212,12 @@ pub const Indexer = struct {
             .delivery => abi.process_id_topic,
         };
         const fence = leading orelse try self.client.blockHeader(.{ .number = range.to });
-        var response = try self.client.getLogs(address, range.from, range.to, topic);
-        defer response.deinit();
-        var logs: std.ArrayList(rpc.Log) = .empty;
+        var logs: std.ArrayList(rpc.Log) = .fromOwnedSlice(try self.client.logs(self.allocator, address, range.from, range.to, topic));
         errdefer {
             for (logs.items) |*log| log.deinit();
             logs.deinit(self.allocator);
         }
-        for (response.value().array.items) |value| {
-            var log = try rpc.Log.parse(self.allocator, value);
-            errdefer log.deinit();
-            _ = try log.event();
-            try logs.append(self.allocator, log);
-        }
+        for (logs.items) |log| _ = try log.event();
         std.mem.sort(rpc.Log, logs.items, {}, less);
         var unique: usize = 0;
         for (0..logs.items.len) |position| {
