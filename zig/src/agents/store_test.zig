@@ -338,3 +338,55 @@ test "deferred indexing rows cost one fsync with their synced cursor" {
     try database.effectGate();
     try std.testing.expectEqual(before + 1, database.wal_syncs.load(.monotonic));
 }
+
+test "idle loader does not seek again until the store indexes a pending message" {
+    const loader = @import("loader.zig");
+    const a = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const parent = try tmp.dir.realpathAlloc(a, ".");
+    defer a.free(parent);
+    const path = try std.fs.path.join(a, &.{ parent, "idle" });
+    defer a.free(path);
+    var database = try db.rocks.Database.open(a, path, .{ .sync = true });
+    defer database.deinit();
+    var store = agents.Store.init(a, &database, "ethereum");
+    const first: protocol.Message = .{ .nonce = 0, .origin = 1, .destination = 2, .body = "first" };
+    _ = try store.storeMessage(first, 1, null);
+    var state = try loader.Loader.init(a, &store, &.{2}, .{});
+    defer state.deinit();
+    var loaded = (try state.next()).?;
+    loaded.message.deinit();
+    try std.testing.expect((try state.next()) == null);
+    // A row no Store write announced stays unseen: the idle scan is skipped.
+    const pending = try db.keys.pendingDestination(a, 2);
+    defer a.free(pending);
+    const hidden: protocol.Message = .{ .nonce = 1, .origin = 1, .destination = 2, .body = "hidden" };
+    {
+        const bytes = try hidden.encodeAlloc(a);
+        defer a.free(bytes);
+        var batch = try store.typed.batch(a);
+        defer batch.deinit();
+        try batch.put(db.keys.Table.message.prefix(), &hidden.id(), bytes);
+        var id_key: [4]u8 = undefined;
+        std.mem.writeInt(u32, &id_key, 1, .big);
+        const encoded_nonce = try db.codec.encode(a, @as(u32, 1));
+        defer a.free(encoded_nonce);
+        try batch.put(db.keys.Table.message_id.prefix(), encoded_nonce, &hidden.id());
+        try batch.put(pending, &id_key, &hidden.id());
+        try batch.commit();
+    }
+    try std.testing.expect((try state.next()) == null);
+    // Indexing announces new pending rows; the next scan finds both.
+    const next: protocol.Message = .{ .nonce = 2, .origin = 1, .destination = 2, .body = "next" };
+    _ = try store.storeMessage(next, 3, null);
+    var found = std.AutoHashMap(u32, void).init(a);
+    defer found.deinit();
+    while (try state.next()) |value| {
+        var item = value;
+        defer item.message.deinit();
+        try found.put(item.message.value.nonce, {});
+    }
+    try std.testing.expect(found.contains(1));
+    try std.testing.expect(found.contains(2));
+}

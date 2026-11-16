@@ -56,6 +56,15 @@ pub const Store = struct {
     /// Process-local cache invalidation for canonical replacements. A restart
     /// rebuilds the prover from RocksDB, so this counter need not be persisted.
     tree_reset_generation: u64 = 0,
+    /// Advanced before every batch that may add a pending-destination row
+    /// (only `upsert` and `reconcilePending` add them; deliveries only
+    /// remove). A loader that found nothing pending at or above its cursor
+    /// need not seek the index again until this changes. Both writers hold
+    /// `mutex` from the bump through the commit, and the loader's seek takes
+    /// it, so a seek that follows a bump it read sees the committed row.
+    /// One Store exists per origin database in a process; rows added through
+    /// another instance are found by the loader's periodic rescan.
+    pending_generation: std.atomic.Value(u64) = .init(0),
 
     pub fn init(allocator: std.mem.Allocator, database: *db.rocks.Database, domain_name: []const u8) Store {
         return .{ .allocator = allocator, .typed = .{ .database = database, .domain_name = domain_name } };
@@ -287,6 +296,7 @@ pub const Store = struct {
         defer self.allocator.free(prefix);
         var nonce: [4]u8 = undefined;
         std.mem.writeInt(u32, &nonce, message.nonce, .big);
+        _ = self.pending_generation.fetchAdd(1, .release);
         try batch.put(prefix, &nonce, &id);
         if (previous) |old| {
             if (!std.mem.eql(u8, &old.value.id(), &id)) {
@@ -322,7 +332,10 @@ pub const Store = struct {
                 try batch.delete(prefix, &nonce);
                 try self.delete(batch, .terminally_dropped_message_by_id, message.id());
             }
-        } else if (indexed == null or !std.mem.eql(u8, indexed.?, &message.id())) try batch.put(prefix, &nonce, &message.id());
+        } else if (indexed == null or !std.mem.eql(u8, indexed.?, &message.id())) {
+            _ = self.pending_generation.fetchAdd(1, .release);
+            try batch.put(prefix, &nonce, &message.id());
+        }
     }
 
     pub fn markProcessed(self: *Store, message: protocol.Message) !void {
@@ -465,6 +478,41 @@ pub const Store = struct {
         return self.pending(destination, sequence, true);
     }
 
+    /// The pending message at exactly `sequence`, read with point gets. A
+    /// stale index row is removed, as `pending` does.
+    pub fn pendingAt(self: *Store, destination: u32, sequence: u32) !?OwnedMessage {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        const prefix = try db.keys.pendingDestination(self.allocator, destination);
+        defer self.allocator.free(prefix);
+        var key: [4]u8 = undefined;
+        std.mem.writeInt(u32, &key, sequence, .big);
+        const indexed = (try self.typed.get(self.allocator, prefix, &key)) orelse return null;
+        defer self.allocator.free(indexed);
+        if (indexed.len != 32) return error.InvalidPendingIndex;
+        return self.pendingRow(prefix, destination, &key, indexed[0..32].*);
+    }
+
+    /// The canonical message of a pending index row if it is still pending;
+    /// otherwise the stale row is deleted. Caller holds the mutex.
+    fn pendingRow(self: *Store, prefix: []const u8, destination: u32, key: *const [4]u8, id: Hash) !?OwnedMessage {
+        const nonce = std.mem.readInt(u32, key, .big);
+        var canonical = try self.messageByNonce(nonce);
+        var transferred = false;
+        defer if (!transferred) if (canonical) |*message| message.deinit();
+        if (canonical) |message| {
+            if (message.value.destination == destination and std.mem.eql(u8, &message.value.id(), &id) and !try self.processed(nonce) and !try self.terminal(id)) {
+                transferred = true;
+                return message;
+            }
+        }
+        var batch = try self.typed.batch(self.allocator);
+        defer batch.deinit();
+        try batch.delete(prefix, key);
+        try batch.commit();
+        return null;
+    }
+
     fn pending(self: *Store, destination: u32, sequence: u32, backwards: bool) !?OwnedMessage {
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -476,21 +524,7 @@ pub const Store = struct {
             var entry = (try if (backwards) self.typed.atOrBefore(self.allocator, prefix, &key) else self.typed.atOrAfter(self.allocator, prefix, &key)) orelse return null;
             defer entry.deinit();
             if (entry.key.len != 4 or entry.value.len != 32) return error.InvalidPendingIndex;
-            const nonce = std.mem.readInt(u32, entry.key[0..4], .big);
-            const id = entry.value[0..32].*;
-            var canonical = try self.messageByNonce(nonce);
-            var transferred = false;
-            defer if (!transferred) if (canonical) |*message| message.deinit();
-            if (canonical) |message| {
-                if (message.value.destination == destination and std.mem.eql(u8, &message.value.id(), &id) and !try self.processed(nonce) and !try self.terminal(id)) {
-                    transferred = true;
-                    return message;
-                }
-            }
-            var batch = try self.typed.batch(self.allocator);
-            defer batch.deinit();
-            try batch.delete(prefix, entry.key);
-            try batch.commit();
+            if (try self.pendingRow(prefix, destination, entry.key[0..4], entry.value[0..32].*)) |message| return message;
         }
         return error.PendingIndexRepairYield;
     }
