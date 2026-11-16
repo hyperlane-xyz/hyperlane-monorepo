@@ -297,10 +297,19 @@ pub const Snapshot = struct {
         if (signed.value.index != self.index or !std.mem.eql(u8, &signed.value.root, &self.root) or signed.value.mailbox_domain != domain or !std.mem.eql(u8, &signed.value.merkle_tree_hook_address, &hook)) return error.SnapshotCheckpointMismatch;
     }
 
+    /// Compact `{"index":N,"root":"0x..","tree":[b,...]}`, written directly:
+    /// every field is a number or lowercase hex, so nothing needs escaping.
     pub fn toJson(self: *const Snapshot, allocator: Allocator) ![]u8 {
-        const root = try hex.hexAlloc(allocator, &self.root);
-        defer allocator.free(root);
-        return std.json.Stringify.valueAlloc(allocator, .{ .index = self.index, .root = root, .tree = ByteArray{ .bytes = &self.tree } }, .{});
+        const max = "{\"index\":".len + 10 + ",\"root\":\"0x".len + 64 + "\",\"tree\":[".len + self.tree.len * 4 + "]}".len;
+        var buffer: [max]u8 = undefined;
+        var out: std.Io.Writer = .fixed(&buffer);
+        out.print("{{\"index\":{d},\"root\":\"0x{x}\",\"tree\":[", .{ self.index, &self.root }) catch unreachable;
+        for (self.tree, 0..) |byte, i| {
+            if (i > 0) out.writeByte(',') catch unreachable;
+            out.printInt(byte, 10, .lower, .{}) catch unreachable;
+        }
+        out.writeAll("]}") catch unreachable;
+        return allocator.dupe(u8, out.buffered());
     }
 
     pub fn parse(allocator: Allocator, bytes: []const u8) !Snapshot {
@@ -313,15 +322,6 @@ pub const Snapshot = struct {
         for (raw_tree.array.items, 0..) |item, i| snapshot.tree[i] = try uint(u8, item);
         _ = try snapshot.restore();
         return snapshot;
-    }
-};
-
-const ByteArray = struct {
-    bytes: []const u8,
-    pub fn jsonStringify(self: ByteArray, writer: *std.json.Stringify) !void {
-        try writer.beginArray();
-        for (self.bytes) |byte| try writer.write(@as(u16, byte));
-        try writer.endArray();
     }
 };
 
