@@ -5,9 +5,10 @@
 read callback one absolute attempt deadline and borrowed cancellation. Every
 fetch submits one physical request and waits for it: on a fiber (Supervisor
 workers, metadata executor workers) the fiber parks and its worker runs other
-fibers; on a thread (lane owners, assisting callers) the thread drives the
-session inline. The callback is never replayed, so nothing is journaled,
-hashed or cloned, and no read is ever re-issued by the read layer.
+fibers; on a thread (lane owners, or a metadata worker running a job without
+a fiber stack) the thread drives the session inline. The callback is never
+replayed, so nothing is journaled, hashed or cloned, and no read is ever
+re-issued by the read layer.
 
 ```zig
 var reads = try Replay.init(allocator, pool, .{ .max_attempt_ms = 120000 });
