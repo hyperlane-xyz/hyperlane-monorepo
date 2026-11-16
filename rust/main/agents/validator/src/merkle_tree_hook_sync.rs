@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use eyre::{bail, ensure, eyre, Context, ContextCompat, Result};
 use futures_util::{future::BoxFuture, stream, FutureExt, StreamExt};
 use prometheus::IntGauge;
+use rand::Rng;
 use tokio::{
     sync::Notify,
     task::JoinHandle,
@@ -392,7 +393,7 @@ impl MerkleTreeHookWebSocketSync {
         self.confirmations = reorg_period.as_blocks().ok();
         let retry_delay = RETRY_DELAY
             .checked_add(Duration::from_millis(
-                (self.domain % RETRY_JITTER_MS).into(),
+                rand::thread_rng().gen_range(0..RETRY_JITTER_MS).into(),
             ))
             .expect("bounded retry jitter cannot overflow Duration");
         self.run_loop(

@@ -337,38 +337,60 @@ block-tag policies omit confirmations and use the scraper's canonical policy.
 It validates the negotiated policy before using the existing RPC handoff.
 No WebSocket backfill is performed.
 
-Limits per process: **500 validator connections**, 5 per client IP, 500 unfinished
-setups, 1 KiB URLs/client frames, and 30 application messages per minute.
-Disconnected setups retain their work slot until the DB read ends. Heartbeat and
-socket/aggregate outbound-buffer limits apply. Each connection creates at most
-one custom reader. Connection capacity is separate from `/agents` and `/messages`;
-validator reads use a dedicated five-connection primary pool with acquisition
-timeouts, preventing public queues from consuming the internal live-event pool.
+Limits per process: **500 connections**, 100 per exact client IP address,
+32 unfinished setups in total, and 8 unfinished setups per IP budget. URLs/client frames
+are limited to 1 KiB and application messages to 30 per minute. Admission limits
+reject with HTTP 400/403/429/503 before upgrading. Disconnected setups retain
+connection, IP and setup reservations until their DB work ends. Connection/IP
+reservations also remain until the socket has actually closed.
+
+Connections with the same `(domain, confirmations)` share one custom reader.
+Events are serialized once and broadcast without waiting for individual send
+callbacks; slow clients remain subject to socket and aggregate buffer limits.
+The final member disconnecting releases its reader. Heartbeat limits also apply.
+
+Validator-only reads use a dedicated five-connection primary pool with acquisition
+timeouts. Canonical events already needed by internal agents reuse that existing
+live-pool read and broadcast, without adding a public query to the live pool.
 The database server and outbound resources remain shared.
 
 Validator metrics use the `hyperlane_scraper_proxy_` prefix:
 
-| Metric                                                                                      | Labels / meaning                                                        |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `websocket_connections`, `websocket_connection_limit`                                       | `route="validators"`: current connections and the 500-connection cap    |
-| `websocket_connections_total`, `websocket_connection_rejections_total`                      | Connections accepted and rejected, by route/rejection reason            |
-| `websocket_validator_subscriptions`                                                         | Active subscriptions by `domain` and `policy="canonical"` or `"custom"` |
-| `websocket_validator_pending_setups`, `websocket_validator_setup_limit`                     | Unfinished DB setups and their cap                                      |
-| `websocket_validator_client_ips`                                                            | Current distinct client IP count                                        |
-| `websocket_validator_max_connections_per_ip`, `websocket_validator_connection_limit_per_ip` | Largest current per-IP count and its limit                              |
-| `websocket_validator_client_message_limit_bytes`                                            | Inbound frame limit                                                     |
-| `database_pool_waiting_requests`, `database_pool_connection_limit`                          | `pool="validator"`: queued reads and the five-connection isolation cap  |
-| `database_queries_total`, `database_query_duration_seconds`                                 | `role="validator_primary"`: validator DB load and latency               |
+| Metric                                                                                      | Labels / meaning                                                                               |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `websocket_connections`, `websocket_connection_limit`                                       | `route="validators"`: active connections and the 500-connection cap                            |
+| `websocket_connections_total`, `websocket_connection_rejections_total`                      | Accepted/rejected connections by route and reason                                              |
+| `websocket_validator_subscriptions`                                                         | Active subscriptions by `domain` and `policy="canonical"` or `"custom"`                        |
+| `websocket_validator_reserved_connections`                                                  | Connections counted against the cap, including closing sockets and disconnected pending setups |
+| `websocket_validator_pending_setups`, `websocket_validator_setup_limit`                     | Unfinished DB setups and the global setup cap                                                  |
+| `websocket_validator_shared_readers`                                                        | Active custom domain/confirmation readers                                                      |
+| `websocket_validator_client_ips`                                                            | Public IP budgets currently reserved                                                           |
+| `websocket_validator_max_connections_per_ip`, `websocket_validator_connection_limit_per_ip` | Largest public IP reservation count and its limit                                              |
+| `websocket_validator_client_message_limit_bytes`                                            | Inbound frame limit                                                                            |
+| `database_pool_waiting_requests`, `database_pool_connection_limit`                          | `pool="validator"`: queued reads and five-connection cap                                       |
+| `database_queries_total`, `database_query_duration_seconds`                                 | `role="validator_primary"`: validator DB load and latency                                      |
 
-Subscriptions count only accepted streams and exclude validators from the agent
-subscription gauge. Labels contain only known subscribed domains and two policy
-classes, never client IPs or arbitrary confirmation counts. Domain series are
-removed when the last subscription disconnects.
+Subscriptions exclude validators from the agent subscription gauge. Labels never
+contain client IPs or arbitrary confirmation counts. Domain series disappear when
+the last subscription disconnects.
 
-Production requires a valid `CF-Connecting-IP`, supplied by the trusted Cloudflare
-tunnel. Keep the origin private and rate-limit upgrades at Cloudflare. The
-remotely managed tunnel must allow the exact `/validators` path for public access;
-adding this endpoint does not change the deployed tunnel configuration.
+In production, all validators require a valid `CF-Connecting-IP` from the
+loopback cloudflared sidecar. Only loopback peers may supply that header.
+Direct private-network connections are rejected as well. Keep the service origin
+private. Cloudflared must connect to a loopback origin.
+
+Rate-limit upgrades/reconnects and handle subnet-level abuse at Cloudflare;
+the proxy does not group IPv6 subnets. Distributed clients and distinct
+confirmation policies can still occupy public capacity and consume shared DB
+resources. The remotely managed tunnel must allow the exact `/validators` path;
+adding the endpoint does not modify the deployed tunnel configuration.
+
+Rollout: deploy a proxy image supporting `/validators` first, configure the
+Cloudflare tunnel, then update each
+validator context's image and URL together in a deployment PR. This PR leaves
+infra URLs at `/agents` for the currently pinned validator images; the new Rust
+binary accepts only a query-free `ws://` or `wss://` URL ending in `/validators`.
+No new cluster or database migration is required.
 
 ## Agent WebSocket: `/agents`
 

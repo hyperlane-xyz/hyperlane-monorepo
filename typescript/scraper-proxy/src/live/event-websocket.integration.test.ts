@@ -194,6 +194,8 @@ before(async () => {
   events = new EventWebSocketServer(db, {
     maxAgentClients: 2,
     maxValidatorClients: 6,
+
+    maxValidatorClientsPerIp: 5,
     maxExplorerClients: 8,
     maxTotalBufferedBytes: 1_024,
   });
@@ -407,20 +409,21 @@ void it('rejects invalid URLs before DB reads and unknown domains before readers
     '?domain=1&domain=2',
     '?domain=1&blocks=true',
     `?domain=1&${'x'.repeat(1024)}`,
-    '?domain=999&confirmations=0',
   ]) {
-    const socket = new WebSocket(`${validatorsUrl}${query}`);
-    const messages = captureMessages(socket);
-    const code = new Promise<number>((resolve) =>
-      socket.once('close', resolve),
-    );
-    const error = await waitFor(messages, 'error');
-    assert.equal(await code, 1008);
-    assert.equal(queries.length, query.includes('999') ? 1 : 0);
-    if (query.includes('999'))
-      assert.match(String(error.error), /Unknown domain 999/);
-    assert(!messages.some(({ type }) => type === 'ready'));
+    await upgradeRejected(`${validatorsUrl}${query}`, 400);
+    assert.equal(queries.length, 0);
   }
+  const socket = new WebSocket(`${validatorsUrl}?domain=999&confirmations=0`);
+  const messages = captureMessages(socket);
+  const closed = new Promise<number>((resolve) =>
+    socket.once('close', resolve),
+  );
+  assert.match(
+    String((await waitFor(messages, 'error')).error),
+    /Unknown domain 999/,
+  );
+  assert.equal(await closed, 1008);
+  assert.equal(queries.length, 1);
   assert.equal(initialize.mock.callCount(), 0);
 });
 
@@ -512,7 +515,7 @@ for (const failure of ['unavailable', 'database']) {
     );
     const code = await closed;
     // Database failure terminates the socket; unavailable policies close with 1008.
-    assert.equal(code, failure === 'database' ? 1006 : 1008);
+    assert.equal(code, failure === 'database' ? 1013 : 1008);
     assert(!messages.some(({ type }) => type === 'ready'));
     assert.equal(events.metricsSnapshot().validatorPendingSetups, 0);
     assert.equal(events.metricsSnapshot().connections.validators, 0);
@@ -558,20 +561,13 @@ void it('limits validator IPs and total capacity independently from agents and m
     return socket;
   };
   const rejected = async (ip: string, expected: number) => {
-    const socket = new WebSocket(`${validatorsUrl}?domain=1`, {
-      headers: { 'cf-connecting-ip': ip },
-    });
-    sockets.push(socket);
-    assert.equal(
-      await new Promise<number>((resolve) => socket.once('close', resolve)),
-      expected,
-    );
+    await upgradeRejected(`${validatorsUrl}?domain=1`, expected, ip);
   };
   try {
     for (let i = 0; i < 5; i++) await open('203.0.113.11');
-    await rejected('203.0.113.11', 1008);
+    await rejected('203.0.113.11', 429);
     await open('203.0.113.12');
-    await rejected('203.0.113.13', 1013);
+    await rejected('203.0.113.13', 503);
     for (const endpoint of [url, messagesUrl]) {
       const socket = new WebSocket(endpoint);
       sockets.push(socket);
@@ -614,10 +610,14 @@ void it('bounds disconnected validator setup work and releases it after the look
   const sockets: WebSocket[] = [];
   try {
     for (let i = 0; i < 6; i++) {
+      if (i === 5)
+        await upgradeRejected(`${validatorsUrl}?domain=1`, 429, '203.0.113.40');
       const socket = new WebSocket(
         `${validatorsUrl}?domain=1&confirmations=0`,
         {
-          headers: { 'cf-connecting-ip': `203.0.113.${i + 20}` },
+          headers: {
+            'cf-connecting-ip': i < 5 ? '203.0.113.40' : '203.0.113.41',
+          },
         },
       );
       sockets.push(socket);
@@ -627,12 +627,7 @@ void it('bounds disconnected validator setup work and releases it after the look
         () => events.metricsSnapshot().connections.validators === 0,
       );
     }
-    const rejected = new WebSocket(`${validatorsUrl}?domain=1`);
-    sockets.push(rejected);
-    assert.equal(
-      await new Promise<number>((resolve) => rejected.once('close', resolve)),
-      1013,
-    );
+    await upgradeRejected(`${validatorsUrl}?domain=1`, 503);
     assert.equal(queries, 6);
     assert.equal(events.metricsSnapshot().validatorPendingSetups, 6);
     release();
@@ -650,6 +645,235 @@ void it('bounds disconnected validator setup work and releases it after the look
     await waitUntil(() =>
       sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
     );
+  }
+});
+
+void it('bounds concurrent setup work globally and per public IP after disconnects', async () => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer({
+    listen: async () => async () => {},
+    queryLive: db.queryLive,
+    async queryValidator<T>() {
+      await gate;
+      return queryRows<T>([]);
+    },
+  });
+  const sockets: WebSocket[] = [];
+  try {
+    await new Promise<void>((resolve) =>
+      localHttp.listen(0, '127.0.0.1', resolve),
+    );
+    await localEvents.start(localHttp);
+    const address = localHttp.address();
+    assert(address && typeof address !== 'string');
+    const endpoint = `ws://127.0.0.1:${address.port}/validators?domain=1`;
+    for (let i = 0; i < 32; i++) {
+      if (i === 8) {
+        sockets.forEach((socket) => socket.close());
+        await waitUntil(() =>
+          sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+        );
+        await upgradeRejected(endpoint, 429, '203.0.113.90');
+      }
+      const socket = new WebSocket(endpoint, {
+        headers: {
+          'cf-connecting-ip': i < 8 ? '203.0.113.90' : `203.0.113.${100 + i}`,
+        },
+      });
+      sockets.push(socket);
+      await new Promise<void>((resolve, reject) => {
+        socket.once('open', resolve);
+        socket.once('error', reject);
+      });
+    }
+    assert.equal(localEvents.metricsSnapshot().validatorPendingSetups, 32);
+    await upgradeRejected(endpoint, 503, '203.0.113.200');
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+    assert.equal(
+      localEvents.metricsSnapshot().validatorReservedConnections,
+      32,
+    );
+  } finally {
+    sockets.forEach((socket) => socket.terminate());
+    release();
+    await waitUntil(
+      () => localEvents.metricsSnapshot().validatorReservedConnections === 0,
+    );
+    await localEvents.stop();
+    await new Promise<void>((resolve, reject) =>
+      localHttp.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
+void it('retains admission capacity until a rejected socket actually closes', async (context) => {
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
+  const original = WebSocket.prototype.close;
+  const delayed: WebSocket[] = [];
+  context.mock.method(
+    WebSocket.prototype,
+    'close',
+    function (this: WebSocket, code?: number, reason?: string) {
+      if (!this.url && code === 1008) delayed.push(this);
+      else original.call(this, code, reason);
+    },
+  );
+  const sockets: WebSocket[] = [];
+  try {
+    for (let i = 0; i < 6; i++) {
+      const socket = new WebSocket(`${validatorsUrl}?domain=1`, {
+        headers: { 'cf-connecting-ip': `203.0.113.${80 + i}` },
+      });
+      sockets.push(socket);
+      await waitFor(captureMessages(socket), 'ready');
+    }
+    sockets[0].send('{"type":"subscribe"}');
+    await waitUntil(() => delayed.length === 1);
+    assert.equal(events.metricsSnapshot().connections.validators, 5);
+    assert.equal(events.metricsSnapshot().validatorReservedConnections, 6);
+    await upgradeRejected(`${validatorsUrl}?domain=1`, 503);
+  } finally {
+    delayed.forEach((socket) => original.call(socket, 1008));
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
+void it('uses the validator pool for both canonical publication paths', async (context) => {
+  const original = db.queryLive.bind(db);
+  const queries: string[] = [];
+  context.mock.method(
+    db,
+    'queryValidator',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      queries.push(sql);
+      if (sql.includes('JOIN scraper_checkpoint'))
+        return queryRows<T>([liveStartRow]);
+      return original<T>(sql, values);
+    },
+  );
+  context.mock.method(db, 'queryLive', async () => {
+    throw new Error('Validator-only traffic leaked into live pool');
+  });
+  const socket = new WebSocket(`${validatorsUrl}?domain=1`);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    await waitFor(messages, 'live_start');
+    notify('scraper_event', notification('1'));
+    await waitFor(messages, 'event');
+    messages.length = 0;
+    rows.set('987001', { ...row(hookA), block_number: '101' });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '101',
+        previousConfirmedHeight: '100',
+      }),
+    );
+    await waitFor(messages, 'event');
+    assert(queries.some((sql) => sql.includes('notification_id')));
+    assert(queries.some((sql) => sql.includes('"frontier_row"')));
+  } finally {
+    rows.delete('987001');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('shares one custom reader and keeps reading while send completions are stalled', async (context) => {
+  const original = db.queryLive.bind(db);
+  let snapshots = 0;
+  let reads = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('LEFT JOIN LATERAL')) {
+        snapshots++;
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            height: '10',
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+          },
+        ]);
+      }
+      if (sql.includes('confirmation_events')) {
+        reads++;
+        const height = String(values[3]);
+        if (height === '12') return [];
+        return queryRows<T>([
+          {
+            ...row(hookA),
+            block_number: height,
+            frontier_height: height,
+            frontier_id: String(reads),
+            block_hash: `\\x${'ab'.repeat(32)}`,
+          },
+        ]);
+      }
+      return original<T>(sql, values);
+    },
+  );
+  const sockets = [
+    new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`),
+    new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`),
+  ];
+  const messages = sockets.map(captureMessages);
+  const completions = delayServerSendCompletions(context);
+  try {
+    await Promise.all(
+      messages.map(async (frames) => {
+        await waitFor(frames, 'ready');
+        await waitFor(frames, 'live_start');
+      }),
+    );
+    assert.equal(snapshots, 1);
+    assert.equal(events.metricsSnapshot().validatorSharedReaders, 1);
+    for (const height of ['11', '12']) {
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain: 1,
+          headHeight: height,
+          indexedHeight: height,
+          previousIndexedHeight: String(Number(height) - 1),
+          confirmedHeight: '5',
+        }),
+      );
+      await waitUntil(() => reads === Number(height) - 10);
+      if (height === '11')
+        await Promise.all(messages.map((frames) => waitFor(frames, 'event')));
+    }
+    assert.equal(reads, 2);
+    assert.equal(completions.length, 2);
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+    assert.equal(events.metricsSnapshot().validatorSharedReaders, 0);
   }
 });
 
@@ -2130,7 +2354,8 @@ void it('requires the Cloudflare client IP in production', async () => {
   const nodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
   try {
-    for (const publicUrl of [messagesUrl, `${validatorsUrl}?domain=1`]) {
+    await upgradeRejected(`${validatorsUrl}?domain=1`, 403);
+    for (const publicUrl of [messagesUrl]) {
       const socket = new WebSocket(publicUrl);
       const [code, reason] = await new Promise<[number, string]>((resolve) =>
         socket.once('close', (code, reason) =>
@@ -3277,6 +3502,35 @@ void it('does not report heartbeat cleanup as a send failure', async (context) =
   }
 });
 
+void it('bounds failed validator negotiations even when the error frame exceeds the buffer limit', async () => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer(
+    { ...db, listen: async () => async () => {} },
+    { maxBufferedBytes: 1 },
+  );
+  await new Promise<void>((resolve) =>
+    localHttp.listen(0, '127.0.0.1', resolve),
+  );
+  await localEvents.start(localHttp);
+  const address = localHttp.address();
+  assert(address && typeof address !== 'string');
+  const socket = new WebSocket(
+    `ws://127.0.0.1:${address.port}/validators?domain=1`,
+  );
+  socket.on('error', () => {});
+  try {
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    assert.equal(localEvents.metricsSnapshot().validatorReservedConnections, 0);
+  } finally {
+    socket.terminate();
+    await localEvents.stop();
+    await new Promise<void>((resolve, reject) =>
+      localHttp.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
 void it('rejects out-of-range heartbeat intervals without starting timers', async () => {
   const { EventWebSocketServer } = await import('./event-websocket.js');
   for (const heartbeatMs of [
@@ -3447,6 +3701,26 @@ void it('skips oversized diagnostics and retries fanout without interrupting nor
   );
   assert(sockets.every((socket) => socket.readyState === WebSocket.OPEN));
 });
+
+async function upgradeRejected(
+  endpoint: string,
+  expected: number,
+  ip?: string,
+  headers: Record<string, string> = {},
+): Promise<void> {
+  const socket = new WebSocket(endpoint, {
+    headers: { ...headers, ...(ip ? { 'cf-connecting-ip': ip } : {}) },
+  });
+  socket.on('error', () => {});
+  const status = await new Promise<number | undefined>((resolve) => {
+    socket.once('unexpected-response', (_request, response) => {
+      response.resume();
+      socket.terminate();
+      resolve(response.statusCode);
+    });
+  });
+  assert.equal(status, expected);
+}
 
 function row(
   merkle_tree_hook: string,

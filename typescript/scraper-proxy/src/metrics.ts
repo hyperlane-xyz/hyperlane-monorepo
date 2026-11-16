@@ -13,6 +13,8 @@ const PREFIX = 'hyperlane_scraper_proxy_';
 export type WebSocketMetricsSnapshot = {
   connections: Record<'agent' | 'messages' | 'validators', number>;
   validatorPendingSetups: number;
+  validatorReservedConnections: number;
+  validatorSharedReaders: number;
   validatorSubscriptions: {
     domain: number;
     canonical: number;
@@ -34,6 +36,7 @@ export type WebSocketMetricsSnapshot = {
     messageConnections: number;
     messageConnectionsPerIp: number;
     validatorConnections: number;
+    validatorSetups: number;
     validatorConnectionsPerIp: number;
     validatorMessageBytes: number;
     notificationEvents: number;
@@ -311,8 +314,18 @@ snapshotGauge(
 );
 snapshotGauge(
   'websocket_validator_setup_limit',
-  'Maximum unfinished validator setups, including disconnected clients.',
-  (gauge, snapshot) => gauge.set(snapshot.limits.validatorConnections),
+  'Maximum unfinished validator setups.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.validatorSetups),
+);
+snapshotGauge(
+  'websocket_validator_reserved_connections',
+  'Validator connection reservations, including closing sockets and unfinished setups.',
+  (gauge, snapshot) => gauge.set(snapshot.validatorReservedConnections),
+);
+snapshotGauge(
+  'websocket_validator_shared_readers',
+  'Active shared domain/confirmation readers.',
+  (gauge, snapshot) => gauge.set(snapshot.validatorSharedReaders),
 );
 snapshotGauge(
   'websocket_validator_client_ips',

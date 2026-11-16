@@ -216,6 +216,17 @@ impl ScraperWebSocket {
         let (socket, _) = timeout(read_timeout, connect_async(url.as_str()))
             .await
             .context("Connecting to scraper WebSocket timed out")?
+            .map_err(|error| match &error {
+                tokio_tungstenite::tungstenite::Error::Http(response)
+                    if matches!(response.status().as_u16(), 400 | 403 | 429 | 503) =>
+                {
+                    eyre::Report::new(RejectedStream(format!(
+                        "WebSocket admission rejected: {}",
+                        response.status()
+                    )))
+                }
+                _ => eyre::Report::new(error),
+            })
             .context("Connecting to scraper WebSocket")?;
         Ok(Self {
             socket,
@@ -255,14 +266,19 @@ impl ScraperWebSocket {
                 event_types,
                 historical_streaming,
                 live_start_version,
-            }) => ensure!(
-                actual_domain == domain
+            }) => {
+                if !(actual_domain == domain
                     && actual_confirmations == confirmations
                     && event_types == ["merkle_tree_insertion"]
                     && !historical_streaming
-                    && live_start_version == 1,
-                "Validator WebSocket ready does not match requested stream"
-            ),
+                    && live_start_version == 1)
+                {
+                    return Err(RejectedStream(
+                        "Validator WebSocket ready does not match requested stream".into(),
+                    )
+                    .into());
+                }
+            }
             Some(ValidatorHandshake::Error { error }) => return Err(RejectedStream(error).into()),
             None => bail!("Validator WebSocket closed before ready"),
         }
@@ -329,6 +345,11 @@ impl ScraperWebSocket {
                     .flush()
                     .await
                     .context("Responding to scraper heartbeat")?,
+                Message::Close(Some(frame)) if matches!(u16::from(frame.code), 1008 | 1013) => {
+                    return Err(
+                        RejectedStream(format!("Scraper WebSocket closed: {frame:?}")).into(),
+                    );
+                }
                 Message::Close(frame) => bail!("Scraper WebSocket closed: {frame:?}"),
                 Message::Binary(_) | Message::Pong(_) | Message::Frame(_) => {}
             }
@@ -396,6 +417,49 @@ pub(super) mod tests {
     }
 
     #[tokio::test]
+    async fn admission_and_policy_rejections_use_slow_retries() {
+        use tokio::io::AsyncWriteExt;
+        for status in [400, 403, 429, 503] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.expect("listen");
+            let url = url::Url::parse(&format!(
+                "ws://{}/validators",
+                listener.local_addr().expect("address")
+            ))
+            .expect("URL");
+            let (result, _) = tokio::join!(
+                ScraperWebSocket::connect_validator(&url, 1, None, READ_TIMEOUT),
+                async {
+                    let (mut socket, _) = listener.accept().await.expect("accept");
+                    let mut request = [0; 4096];
+                    tokio::io::AsyncReadExt::read(&mut socket, &mut request)
+                        .await
+                        .expect("read upgrade");
+                    socket.write_all(format!("HTTP/1.1 {status} Rejected\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes()).await.expect("reject");
+                }
+            );
+            let error = result.err().expect("admission rejected");
+            assert!(error.downcast_ref::<RejectedStream>().is_some());
+        }
+        for code in [1008, 1013] {
+            let (mut client, mut server) = connection(READ_TIMEOUT).await;
+            server
+                .send(Message::Close(Some(
+                    tokio_tungstenite::tungstenite::protocol::CloseFrame {
+                        code: code.into(),
+                        reason: "rejected".into(),
+                    },
+                )))
+                .await
+                .expect("close");
+            let error = client
+                .recv::<serde_json::Value>()
+                .await
+                .expect_err("rejected");
+            assert!(error.downcast_ref::<RejectedStream>().is_some());
+        }
+    }
+
+    #[tokio::test]
     async fn validator_url_negotiation_validates_ready_without_sending_subscribe() {
         for confirmations in [None, Some(0), Some(12)] {
             for invalid in [
@@ -407,8 +471,11 @@ pub(super) mod tests {
                 Some("liveStartVersion"),
                 Some("type"),
             ] {
-                let mut ready = serde_json::json!({"type":"ready", "domain":1, "confirmations":confirmations,
+                let mut ready = serde_json::json!({"type":"ready", "domain":1,
                     "eventTypes":["merkle_tree_insertion"], "historicalStreaming":false, "liveStartVersion":1});
+                if let Some(count) = confirmations {
+                    ready["confirmations"] = serde_json::json!(count);
+                }
                 if let Some(field) = invalid {
                     ready[field] = match field {
                         "domain" => serde_json::json!(2),

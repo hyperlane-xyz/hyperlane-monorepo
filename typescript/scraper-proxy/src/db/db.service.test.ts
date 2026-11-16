@@ -129,6 +129,29 @@ void it('times out stalled replica connections', async (context) => {
   assert(duration < 3_000);
 });
 
+void it('bounds the validator pool and times out queued acquisition independently of the live pool', async (context) => {
+  context.mock.method(Socket.prototype, 'connect', function () {
+    return this;
+  });
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.close());
+  const queries = Array.from({ length: 6 }, () =>
+    db.queryValidator('SELECT 1'),
+  );
+  const snapshot = db.metricsSnapshot();
+  assert.equal(snapshot.pools.validator.limit, 5);
+  assert.equal(snapshot.pools.validator.total, 5);
+  assert.equal(snapshot.pools.validator.waiting, 1);
+  assert.equal(snapshot.pools.live.total, 0);
+  const results = await Promise.allSettled(queries);
+  for (const result of results) {
+    assert(result.status === 'rejected');
+    assert(result.reason instanceof Error);
+    assert.match(result.reason.message, /timeout/i);
+  }
+});
+
 void it('fails startup on false or missing stream schema checks', async (context) => {
   let schema: Record<string, boolean> = {};
   context.mock.method(pg.Pool.prototype, 'query', () =>

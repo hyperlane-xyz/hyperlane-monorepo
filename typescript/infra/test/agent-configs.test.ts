@@ -393,9 +393,9 @@ describe('Agent configs', () => {
     Object.entries(agents).forEach(([context, config]) => {
       const { relayer, validators } = config;
       if (validators) {
-        it(`configures ${environment}/${context} validators for the dedicated Merkle stream`, () => {
+        it(`configures ${environment}/${context} validators for the shared scraper`, () => {
           expect(validators.websocketUrl).to.equal(
-            `ws://scraper-proxy.${environment}.svc.cluster.local:8383/validators`,
+            `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
           );
         });
       }
