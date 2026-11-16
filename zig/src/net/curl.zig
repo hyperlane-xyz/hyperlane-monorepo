@@ -84,7 +84,6 @@ const Api = struct {
     global_init: *const fn (c_long) callconv(.c) c_int,
     easy_init: *const fn () callconv(.c) ?*Handle,
     easy_cleanup: *const fn (*Handle) callconv(.c) void,
-    easy_reset: *const fn (*Handle) callconv(.c) void,
     easy_setopt: *const fn (*Handle, c_int, ...) callconv(.c) c_int,
     easy_perform: *const fn (*Handle) callconv(.c) c_int,
     easy_getinfo: *const fn (*Handle, c_int, ...) callconv(.c) c_int,
@@ -273,6 +272,13 @@ pub const Client = struct {
     // A live connection must never cross these trust classes: reused sockets do
     // not call OPENSOCKETFUNCTION and cannot be checked after the fact.
     idle: [2]IdlePool = .{ .{}, .{} },
+    /// Some libcurl proxy environment variable was set at init. Otherwise
+    /// trusted handles pin PROXY="" so libcurl skips its per-transfer
+    /// environment lookups; behaviour is unchanged (no proxy either way).
+    proxy_environment: bool = true,
+    /// Idle handles keep their per-trust-class static options (callbacks,
+    /// TLS verification, redirects, signals, proxy policy); a transfer sets
+    /// only the per-request ones. Fresh handles are configured once.
     fn acquire(self: *Client, public_only: bool) !*Handle {
         self.mutex.lock();
         const pool = &self.idle[@intFromBool(public_only)];
@@ -283,12 +289,47 @@ pub const Client = struct {
             return handle;
         }
         self.mutex.unlock();
-        return self.api.easy_init() orelse error.LibcurlHandleFailed;
+        const handle = self.api.easy_init() orelse return error.LibcurlHandleFailed;
+        self.configure(handle, public_only) catch |err| {
+            self.api.easy_cleanup(handle);
+            return err;
+        };
+        return handle;
+    }
+    fn configure(self: *Client, handle: *Handle, public_only: bool) !void {
+        const api = self.api;
+        if (public_only) {
+            // curl.h STRINGPOINT+4, STRINGPOINT+177, FUNCTIONPOINT+163.
+            // Never allow environment proxy routes to bypass the actual
+            // target-address policy. Public handles never serve trusted work.
+            try check(api.easy_setopt(handle, 10004, @as([*:0]const u8, "")));
+            try check(api.easy_setopt(handle, 10177, @as([*:0]const u8, "*")));
+            try check(api.easy_setopt(handle, 20163, @as(*const fn (?*anyopaque, c_int, *const CurlSockaddr) callconv(.c) c_int, Sink.openSocket)));
+        } else if (!self.proxy_environment) try check(api.easy_setopt(handle, 10004, @as([*:0]const u8, "")));
+        try check(api.easy_setopt(handle, 20011, @as(*const fn ([*]const u8, usize, usize, ?*anyopaque) callconv(.c) usize, Sink.write)));
+        try check(api.easy_setopt(handle, 20079, @as(*const fn ([*]const u8, usize, usize, ?*anyopaque) callconv(.c) usize, Sink.header)));
+        try check(api.easy_setopt(handle, 52, @as(c_long, 0)));
+        try check(api.easy_setopt(handle, 99, @as(c_long, 1)));
+        // S3 SigV4 signs the exact path; object keys may contain dot segments
+        // and repeated slashes, which libcurl otherwise normalizes.
+        try check(api.easy_setopt(handle, 234, @as(c_long, 1))); // PATH_AS_IS
+        try check(api.easy_setopt(handle, 64, @as(c_long, 1)));
+        try check(api.easy_setopt(handle, 81, @as(c_long, 2)));
+        try check(api.easy_setopt(handle, 43, @as(c_long, 0)));
+        try check(api.easy_setopt(handle, 20219, @as(*const fn (?*anyopaque, i64, i64, i64, i64) callconv(.c) c_int, Sink.progress)));
     }
     fn release(self: *Client, handle: *Handle, public_only: bool) void {
-        // Reset request options/callback pointers, preserving vetted libcurl's
-        // connection, DNS and TLS session caches on this exclusively owned handle.
-        self.api.easy_reset(handle);
+        // Keep static options and libcurl's connection, DNS and TLS session
+        // caches; drop pointers into the finished transfer so nothing can
+        // reach freed memory before the next transfer sets its own.
+        const api = self.api;
+        const cleared = api.easy_setopt(handle, 10001, @as(?*anyopaque, null)) | api.easy_setopt(handle, 10029, @as(?*anyopaque, null)) |
+            api.easy_setopt(handle, 10057, @as(?*anyopaque, null)) | api.easy_setopt(handle, 10023, @as(?*anyopaque, null)) |
+            api.easy_setopt(handle, 80, @as(c_long, 1)) | (if (public_only) api.easy_setopt(handle, 10164, @as(?*anyopaque, null)) else 0);
+        if (cleared != 0) {
+            api.easy_cleanup(handle);
+            return;
+        }
         self.mutex.lock();
         const pool = &self.idle[@intFromBool(public_only)];
         if (pool.len < pool.handles.len) {
@@ -312,7 +353,11 @@ pub const Client = struct {
         // deadline the loaded library cannot enforce.
         if (version.features & (1 << 7) == 0) return error.LibcurlAsyncDnsRequired;
         if (api.global_init(3) != 0) return error.LibcurlInitializationFailed;
-        return .{ .library = library, .api = api };
+        var proxy_environment = false;
+        for ([_][:0]const u8{ "http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY" }) |name| {
+            if (std.posix.getenv(name) != null) proxy_environment = true;
+        }
+        return .{ .library = library, .api = api, .proxy_environment = proxy_environment };
     }
     pub fn deinit(self: *Client) void {
         // Caller must join/cancel every send job before destroying this client.
@@ -426,6 +471,9 @@ pub const Transfer = struct {
             headers = client.api.slist_append(headers, line) orelse return error.OutOfMemory;
         }
         if (!has_encoding) headers = client.api.slist_append(headers, "accept-encoding: identity") orelse return error.OutOfMemory;
+        // Per-request options only; static ones were set when the handle was
+        // created (Client.configure). Every option a previous transfer on
+        // this handle may have set is set again here.
         const api = client.api;
         try Client.check(api.easy_setopt(handle, 10002, url.ptr));
         const method: [*:0]const u8 = switch (request.method) {
@@ -435,38 +483,23 @@ pub const Transfer = struct {
             .head => "HEAD",
             .delete => "DELETE",
         };
-        try Client.check(api.easy_setopt(handle, 10036, method));
-        if (request.method == .head) try Client.check(api.easy_setopt(handle, 44, @as(c_long, 1)));
+        // HTTPGET first: it clears a previous body/upload mode; NOBODY and
+        // POSTFIELDS then select HEAD or a body, CUSTOMREQUEST the verb.
+        try Client.check(api.easy_setopt(handle, 80, @as(c_long, 1)));
+        try Client.check(api.easy_setopt(handle, 44, @as(c_long, @intFromBool(request.method == .head))));
         if (request.body) |body| {
             try Client.check(api.easy_setopt(handle, 10015, body.ptr));
             try Client.check(api.easy_setopt(handle, 30120, @as(i64, @intCast(body.len))));
         }
+        try Client.check(api.easy_setopt(handle, 10036, method));
         try Client.check(api.easy_setopt(handle, 10023, headers));
-        if (request.public_only) {
-            // curl.h STRINGPOINT+4, STRINGPOINT+177, FUNCTIONPOINT+163,
-            // CBPOINT+164. Never allow environment proxy routes to bypass the
-            // actual target-address policy.
-            try Client.check(api.easy_setopt(handle, 10004, @as([*:0]const u8, "")));
-            try Client.check(api.easy_setopt(handle, 10177, @as([*:0]const u8, "*")));
-            try Client.check(api.easy_setopt(handle, 20163, @as(*const fn (?*anyopaque, c_int, *const CurlSockaddr) callconv(.c) c_int, Sink.openSocket)));
-            try Client.check(api.easy_setopt(handle, 10164, &self.sink));
-        }
-        try Client.check(api.easy_setopt(handle, 20011, @as(*const fn ([*]const u8, usize, usize, ?*anyopaque) callconv(.c) usize, Sink.write)));
+        if (request.public_only) try Client.check(api.easy_setopt(handle, 10164, &self.sink)); // CBPOINT+164
         try Client.check(api.easy_setopt(handle, 10001, &self.sink));
-        try Client.check(api.easy_setopt(handle, 20079, @as(*const fn ([*]const u8, usize, usize, ?*anyopaque) callconv(.c) usize, Sink.header)));
         try Client.check(api.easy_setopt(handle, 10029, &self.sink));
         try Client.check(api.easy_setopt(handle, 155, @as(c_long, request.timeout_ms)));
         try Client.check(api.easy_setopt(handle, 156, @as(c_long, request.connect_timeout_ms)));
-        try Client.check(api.easy_setopt(handle, 52, @as(c_long, 0)));
-        try Client.check(api.easy_setopt(handle, 99, @as(c_long, 1)));
-        // S3 SigV4 signs the exact path; object keys may contain dot segments
-        // and repeated slashes, which libcurl otherwise normalizes.
-        try Client.check(api.easy_setopt(handle, 234, @as(c_long, 1))); // PATH_AS_IS
-        try Client.check(api.easy_setopt(handle, 64, @as(c_long, 1)));
-        try Client.check(api.easy_setopt(handle, 81, @as(c_long, 2)));
-        if (request.require_http2) try Client.check(api.easy_setopt(handle, 84, @as(c_long, 5)));
-        try Client.check(api.easy_setopt(handle, 43, @as(c_long, 0)));
-        try Client.check(api.easy_setopt(handle, 20219, @as(*const fn (?*anyopaque, i64, i64, i64, i64) callconv(.c) c_int, Sink.progress)));
+        // 0 = CURL_HTTP_VERSION_NONE, libcurl's default negotiation.
+        try Client.check(api.easy_setopt(handle, 84, @as(c_long, if (request.require_http2) 5 else 0)));
         try Client.check(api.easy_setopt(handle, 10057, &self.sink));
 
         self.headers = headers;

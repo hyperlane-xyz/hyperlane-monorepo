@@ -267,6 +267,30 @@ const Slot = struct {
     completion_sequence: u64 = 0,
     trust: u1 = 0,
 };
+/// Why `Multi.wait` ended. A kernel wait ends on readiness, a wakeup, or a
+/// timeout that came from libcurl's timer or from the caller's bound/transfer
+/// deadline; `early` returns made no kernel call.
+pub const WaitStats = struct {
+    early: u64 = 0,
+    early_wakeup: u64 = 0,
+    nonblocking: u64 = 0,
+    readiness: u64 = 0,
+    woken: u64 = 0,
+    curl_timer: u64 = 0,
+    bound: u64 = 0,
+    stale: u64 = 0,
+    fn count(self: *WaitStats, timeout: u64, bound: u64, got: Harvest) void {
+        if (got.len != 0) {
+            self.readiness += 1;
+        } else if (got.woke) {
+            self.woken += 1;
+        } else if (timeout == 0) {
+            self.nonblocking += 1;
+        } else if (timeout < bound) {
+            self.curl_timer += 1;
+        } else self.bound += 1;
+    }
+};
 /// Callback context of one native multi handle (one trust cache).
 const Cache = struct {
     owner: *Multi,
@@ -297,6 +321,10 @@ pub const Multi = struct {
     dispatches: u64 = 0,
     /// epoll_ctl/kevent registration changes.
     registrations: u64 = 0,
+    /// Why each `wait` ended (owner-thread counters; see WaitStats).
+    wait_stats: WaitStats = .{},
+    /// Set by an owner that reports these counters itself (evm.pool).
+    stats_reported: bool = false,
     /// Indexed by descriptor; only libcurl connection sockets are tracked.
     fds: std.ArrayListUnmanaged(FdState) = .empty,
     /// Connection sockets created over a still-tracked descriptor, i.e. a
@@ -349,6 +377,7 @@ pub const Multi = struct {
         return self;
     }
     pub fn deinit(self: *Multi) void {
+        if (!self.stats_reported) self.reportStats("multi", "");
         for (self.slots) |*slot| {
             if (slot.state == .active) _ = self.api.multi_remove_handle(self.caches[slot.trust].handle, slot.transfer.?.handle);
             if (slot.transfer) |transfer| transfer.deinit();
@@ -658,15 +687,24 @@ pub const Multi = struct {
     /// `max_wait_ms`; such callers must do one or bound the wait.
     pub fn wait(self: *Multi, now_ms: u64, max_wait_ms: u32) !void {
         try self.clock(now_ms);
-        if (self.done != 0 or self.ready_len != 0) return;
-        if (self.queued != 0 and self.active < self.config.max_concurrent) return;
-        if (self.wake_pending.swap(false, .acq_rel)) return;
+        if (self.done != 0 or self.ready_len != 0 or (self.queued != 0 and self.active < self.config.max_concurrent)) {
+            self.wait_stats.early += 1;
+            return;
+        }
+        if (self.wake_pending.swap(false, .acq_rel)) {
+            self.wait_stats.early_wakeup += 1;
+            return;
+        }
         var timeout: u64 = max_wait_ms;
         for (self.slots[0..self.high]) |slot| {
             if (slot.state != .queued and slot.state != .active) continue;
-            if (slot.transfer.?.request.cancel) |flag| if (flag.load(.acquire)) return;
+            if (slot.transfer.?.request.cancel) |flag| if (flag.load(.acquire)) {
+                self.wait_stats.early += 1;
+                return;
+            };
             timeout = @min(timeout, slot.deadline_ms -| now_ms);
         }
+        const bound = timeout;
         const started = self.monoNs();
         // Round libcurl's deadline up: an early return would only spin.
         for (self.caches) |cache| if (cache.timer_ns) |deadline| {
@@ -679,13 +717,27 @@ pub const Multi = struct {
             self.waits += 1;
             const got = try self.poller.harvest(@intCast(@min(remaining, std.math.maxInt(i32))), &self.ready);
             self.ready_len = got.len;
-            if (!got.woke) return;
-            if (self.wake_pending.swap(false, .acq_rel) or got.len != 0) return;
+            if (!got.woke or got.len != 0 or self.wake_pending.swap(false, .acq_rel)) {
+                self.wait_stats.count(timeout, bound, got);
+                return;
+            }
             // Stale trigger: its flag was consumed on entry by an earlier wait.
+            self.wait_stats.stale += 1;
             const elapsed = (self.monoNs() -| started) / std.time.ns_per_ms;
             if (elapsed >= timeout) return;
             remaining = timeout - elapsed;
         }
+    }
+    /// HYPERLANE_CURL_WAIT_STATS=<file>: append one JSON line of driver
+    /// counters at teardown (diagnostics only; nothing is recorded when unset).
+    pub fn reportStats(self: *Multi, owner: []const u8, extra: []const u8) void {
+        const path = std.posix.getenv("HYPERLANE_CURL_WAIT_STATS") orelse return;
+        var buffer: [1024]u8 = undefined;
+        const s = self.wait_stats;
+        const line = std.fmt.bufPrint(&buffer, "{{\"owner\":\"{s}\",\"completions\":{d},\"waits\":{d},\"harvests\":{d},\"dispatches\":{d},\"registrations\":{d},\"early\":{d},\"early_wakeup\":{d},\"nonblocking\":{d},\"readiness\":{d},\"woken\":{d},\"curl_timer\":{d},\"bound\":{d},\"stale\":{d}{s}}}\n", .{ owner, self.completions, self.waits, self.harvests, self.dispatches, self.registrations, s.early, s.early_wakeup, s.nonblocking, s.readiness, s.woken, s.curl_timer, s.bound, s.stale, extra }) catch return;
+        const fd = std.posix.open(path, .{ .ACCMODE = .WRONLY, .CREAT = true, .APPEND = true, .CLOEXEC = true }, 0o644) catch return;
+        defer std.posix.close(fd);
+        _ = std.posix.write(fd, line) catch {};
     }
     /// Thread-safe and level-triggered: interrupts a current `wait`, or makes
     /// the next one return at once. Coalesces until a `wait` consumes it.
@@ -1277,6 +1329,52 @@ test "curl multi stops watching an idle keepalive socket its peer closed and rec
     try std.testing.expect(timer.read() >= 150 * std.time.ns_per_ms);
     try driveFast(multi, url, &timer);
     try std.testing.expectEqual(@as(u64, 0), multi.unreported_closes);
+    multi.deinit();
+    multi_open = false;
+    thread.join();
+    joined = true;
+    if (fixture.failure) |err| return err;
+}
+
+test "curl multi starts a freshly added transfer within the owner call without a timer tick" {
+    const allocator = std.testing.allocator;
+    const library = try nativeLibrary(allocator);
+    defer allocator.free(library);
+    var fixture: SerialFixture = .{ .server = try (try std.net.Address.parseIp4("127.0.0.1", 0)).listen(.{}), .total = 1 };
+    defer fixture.server.deinit();
+    const thread = try std.Thread.spawn(.{}, SerialFixture.serve, .{&fixture});
+    var joined = false;
+    defer if (!joined) {
+        fixture.abort();
+        thread.join();
+    };
+    const multi = try Multi.init(allocator, .{ .library_path = library, .max_concurrent = 2, .max_pending = 2 });
+    var multi_open = true;
+    defer if (multi_open) multi.deinit();
+    const url = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/fast", .{fixture.server.listen_address.getPort()});
+    defer allocator.free(url);
+    var timer = try std.time.Timer.start();
+    const id = try multi.submit(.{ .url = url, .method = .get, .timeout_ms = 3000, .max_response_bytes = 32 }, 0);
+    // One owner call, no wait: add_handle's zero-delay libcurl timer runs in
+    // that same call, so the transfer has already issued its first socket
+    // (connect, or the resolver's notifier where IP literals are resolved).
+    try std.testing.expectEqual(@as(?Completion, null), try multi.advance(0));
+    try std.testing.expectEqual(@as(u64, 1), multi.dispatches);
+    try std.testing.expect(multi.registrations >= 1);
+    try std.testing.expectEqual(@as(u64, 0), multi.waits);
+    while (true) {
+        if (try multi.advance(timer.read() / std.time.ns_per_ms)) |value| {
+            var completion = value;
+            defer completion.deinit();
+            try std.testing.expectEqual(id, completion.id);
+            try std.testing.expectEqualStrings("ok", completion.result.response.body);
+            break;
+        }
+        try multi.wait(timer.read() / std.time.ns_per_ms, 1000);
+        if (timer.read() > 3 * std.time.ns_per_s) return error.FixtureCompletionTimeout;
+    }
+    // Each wait ended on readiness or libcurl's own short timer.
+    try std.testing.expect(multi.waits <= 6);
     multi.deinit();
     multi_open = false;
     thread.join();
