@@ -228,8 +228,9 @@ pub const Database = struct {
     pub fn lastFixedKey(self: *Database, comptime size: usize, allocator: Allocator, prefix_bytes: []const u8) !?[size]u8 {
         const start = try std.mem.concat(allocator, u8, &.{ prefix_bytes, &([_]u8{255} ** size) });
         defer allocator.free(start);
-        const iterator = c.rocksdb_create_iterator(self.handle, self.read_options) orelse return error.NativeAllocation;
-        defer c.rocksdb_iter_destroy(iterator);
+        var bounded = try Bounded.open(self, allocator, prefix_bytes);
+        defer bounded.deinit(allocator);
+        const iterator = bounded.handle;
         c.rocksdb_iter_seek_for_prev(iterator, start.ptr, start.len);
         while (true) {
             var native_error: ?[*:0]u8 = null;
@@ -246,14 +247,67 @@ pub const Database = struct {
     }
 
     pub fn prefix(self: *Database, allocator: Allocator, prefix_bytes: []const u8) !PrefixIterator {
-        const owned_prefix = try allocator.dupe(u8, prefix_bytes);
-        errdefer allocator.free(owned_prefix);
-        const handle = c.rocksdb_create_iterator(self.handle, self.read_options) orelse return error.NativeAllocation;
-        errdefer c.rocksdb_iter_destroy(handle);
-        c.rocksdb_iter_seek(handle, owned_prefix.ptr, owned_prefix.len);
-        var iterator: PrefixIterator = .{ .handle = handle, .allocator = allocator, .prefix_bytes = owned_prefix, .diagnostic = self.diagnostic };
+        return self.prefixFrom(allocator, prefix_bytes, "");
+    }
+
+    /// `prefix`, positioned at the first entry at or after `prefix_bytes ++ start`.
+    pub fn prefixFrom(self: *Database, allocator: Allocator, prefix_bytes: []const u8, start: []const u8) !PrefixIterator {
+        var bounded = try Bounded.open(self, allocator, prefix_bytes);
+        errdefer bounded.deinit(allocator);
+        if (start.len == 0) {
+            c.rocksdb_iter_seek(bounded.handle, prefix_bytes.ptr, prefix_bytes.len);
+        } else {
+            const key = try std.mem.concat(allocator, u8, &.{ prefix_bytes, start });
+            defer allocator.free(key);
+            c.rocksdb_iter_seek(bounded.handle, key.ptr, key.len);
+        }
+        var iterator: PrefixIterator = .{ .handle = bounded.handle, .bounded = bounded, .allocator = allocator, .prefix_bytes = bounded.lower(), .diagnostic = self.diagnostic };
         try iterator.status();
         return iterator;
+    }
+};
+
+extern fn rocksdb_readoptions_set_iterate_upper_bound(*c.ReadOptions, ?[*]const u8, usize) void;
+extern fn rocksdb_readoptions_set_iterate_lower_bound(*c.ReadOptions, ?[*]const u8, usize) void;
+
+/// A native iterator confined to keys starting with a prefix. RocksDB then
+/// stops at the prefix's end (and, backwards, its start) instead of stepping
+/// into the next table, and skips files and tombstones outside it. The bound
+/// keys are borrowed by the native read options, so both are owned here and
+/// outlive the iterator.
+const Bounded = struct {
+    handle: *c.Iterator,
+    options: *c.ReadOptions,
+    /// prefix ++ successor(prefix) (the successor is absent for an all-0xff
+    /// or empty prefix, which has no upper bound).
+    bounds: []u8,
+    prefix_len: usize,
+
+    fn open(database: *Database, allocator: Allocator, prefix_bytes: []const u8) !Bounded {
+        const upper = keys.successor(allocator, prefix_bytes) catch |err| switch (err) {
+            error.NoPrefixUpperBound => null,
+            else => return err,
+        };
+        defer if (upper) |bytes| allocator.free(bytes);
+        const bounds = try std.mem.concat(allocator, u8, &.{ prefix_bytes, upper orelse "" });
+        errdefer allocator.free(bounds);
+        const options = c.rocksdb_readoptions_create() orelse return error.NativeAllocation;
+        errdefer c.rocksdb_readoptions_destroy(options);
+        if (prefix_bytes.len > 0) rocksdb_readoptions_set_iterate_lower_bound(options, bounds.ptr, prefix_bytes.len);
+        if (upper != null) rocksdb_readoptions_set_iterate_upper_bound(options, bounds[prefix_bytes.len..].ptr, bounds.len - prefix_bytes.len);
+        const handle = c.rocksdb_create_iterator(database.handle, options) orelse return error.NativeAllocation;
+        return .{ .handle = handle, .options = options, .bounds = bounds, .prefix_len = prefix_bytes.len };
+    }
+
+    fn lower(self: Bounded) []u8 {
+        return self.bounds[0..self.prefix_len];
+    }
+
+    fn deinit(self: *Bounded, allocator: Allocator) void {
+        c.rocksdb_iter_destroy(self.handle);
+        c.rocksdb_readoptions_destroy(self.options);
+        allocator.free(self.bounds);
+        self.* = undefined;
     }
 };
 
@@ -361,6 +415,8 @@ pub const Entry = struct {
 
 pub const PrefixIterator = struct {
     handle: *c.Iterator,
+    /// Owns `handle` and `prefix_bytes`.
+    bounded: Bounded,
     allocator: Allocator,
     prefix_bytes: []u8,
     diagnostic: ?*Diagnostic,
@@ -370,8 +426,7 @@ pub const PrefixIterator = struct {
     pub const Borrowed = struct { key: []const u8, value: []const u8 };
 
     pub fn deinit(self: *PrefixIterator) void {
-        c.rocksdb_iter_destroy(self.handle);
-        self.allocator.free(self.prefix_bytes);
+        self.bounded.deinit(self.allocator);
         self.* = undefined;
     }
 
@@ -439,21 +494,36 @@ pub const Typed = struct {
         return self.database.prefix(allocator, key);
     }
 
+    /// `prefix`, starting at the first entry at or after `encoded_key`.
+    pub fn prefixFrom(self: Typed, allocator: Allocator, table_prefix: []const u8, encoded_key: []const u8) !PrefixIterator {
+        const key = try keys.scoped(allocator, self.domain_name, table_prefix, "");
+        defer allocator.free(key);
+        return self.database.prefixFrom(allocator, key, encoded_key);
+    }
+
+    /// The nearest entry of the table at or after (before) `encoded_key`,
+    /// read by an iterator bounded to the table.
     fn entryAt(self: Typed, allocator: Allocator, table_prefix: []const u8, encoded_key: []const u8, forward: bool) !?Entry {
         const full_prefix = try keys.scoped(allocator, self.domain_name, table_prefix, "");
         defer allocator.free(full_prefix);
         const start = try std.mem.concat(allocator, u8, &.{ full_prefix, encoded_key });
         defer allocator.free(start);
-        var entry = (try self.database.entryAt(allocator, start, forward)) orelse return null;
-        errdefer entry.deinit();
-        if (!std.mem.startsWith(u8, entry.key, full_prefix)) {
-            entry.deinit();
-            return null;
-        }
-        const suffix = try allocator.dupe(u8, entry.key[full_prefix.len..]);
-        allocator.free(entry.key);
-        entry.key = suffix;
-        return entry;
+        var bounded = try Bounded.open(self.database, allocator, full_prefix);
+        defer bounded.deinit(allocator);
+        const iterator = bounded.handle;
+        if (forward) c.rocksdb_iter_seek(iterator, start.ptr, start.len) else c.rocksdb_iter_seek_for_prev(iterator, start.ptr, start.len);
+        var native_error: ?[*:0]u8 = null;
+        c.rocksdb_iter_get_error(iterator, &native_error);
+        try check(native_error, self.database.diagnostic);
+        if (c.rocksdb_iter_valid(iterator) == 0) return null;
+        var key_len: usize = 0;
+        const native_key = c.rocksdb_iter_key(iterator, &key_len)[0..key_len];
+        if (!std.mem.startsWith(u8, native_key, full_prefix)) return null;
+        const suffix = try allocator.dupe(u8, native_key[full_prefix.len..]);
+        errdefer allocator.free(suffix);
+        var value_len: usize = 0;
+        const native_value = c.rocksdb_iter_value(iterator, &value_len);
+        return .{ .key = suffix, .value = try allocator.dupe(u8, native_value[0..value_len]), .allocator = allocator };
     }
 
     pub fn atOrAfter(self: Typed, allocator: Allocator, table_prefix: []const u8, encoded_key: []const u8) !?Entry {
