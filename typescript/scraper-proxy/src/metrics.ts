@@ -11,7 +11,17 @@ import type { EventType } from './live/protocol.js';
 const PREFIX = 'hyperlane_scraper_proxy_';
 
 export type WebSocketMetricsSnapshot = {
-  connections: Record<'agent' | 'messages', number>;
+  connections: Record<'agent' | 'messages' | 'validators', number>;
+  validatorPendingSetups: number;
+  validatorReservedConnections: number;
+  validatorSharedReaders: number;
+  validatorSubscriptions: {
+    domain: number;
+    canonical: number;
+    custom: number;
+  }[];
+  validatorClientIps: number;
+  validatorMaxConnectionsPerIp: number;
   explorerPendingBytes: number;
   explorerPendingMessages: number;
   maxExplorerPendingBytes: number;
@@ -25,13 +35,17 @@ export type WebSocketMetricsSnapshot = {
     explorerPendingMessages: number;
     messageConnections: number;
     messageConnectionsPerIp: number;
+    validatorConnections: number;
+    validatorSetups: number;
+    validatorConnectionsPerIp: number;
+    validatorMessageBytes: number;
     notificationEvents: number;
     socketBufferedBytes: number;
     totalPendingBytes: number;
   };
   listenerReady: boolean;
   maxClientBufferedBytes: number;
-  notificationQueue: Record<'agent' | 'messages', number>;
+  notificationQueue: Record<'agent' | 'messages' | 'validators', number>;
   outboundPendingBytes: number;
   subscriptions: Record<EventType, number>;
 };
@@ -45,13 +59,14 @@ type DatabasePoolMetrics = {
 
 export type DatabaseMetricsSnapshot = {
   listeners: number;
-  pools: Record<'live' | 'main', DatabasePoolMetrics>;
+  pools: Record<'live' | 'main' | 'validator', DatabasePoolMetrics>;
 };
 
 export const DatabaseQueryRole = {
   GraphqlPrimary: 'graphql_primary',
   GraphqlReplica: 'graphql_replica',
   LivePrimary: 'live_primary',
+  ValidatorPrimary: 'validator_primary',
 } as const;
 
 export type DatabaseQueryRole =
@@ -162,13 +177,19 @@ for (const reason of [
   'send_error',
 ])
   websocketSendFailures.inc({ reason }, 0);
-for (const route of ['agent', 'messages']) {
+for (const route of ['agent', 'messages', 'validators']) {
   for (const reason of ['connection_limit', 'listener_unavailable'])
     websocketConnectionRejections.inc({ reason, route }, 0);
 }
-for (const reason of ['invalid_client_ip', 'per_ip_limit'])
-  websocketConnectionRejections.inc({ reason, route: 'messages' }, 0);
-for (const route of ['agent', 'messages'])
+for (const route of ['messages', 'validators'])
+  for (const reason of ['invalid_client_ip', 'per_ip_limit'])
+    websocketConnectionRejections.inc({ reason, route }, 0);
+websocketConnections.inc({ route: 'validators' }, 0);
+websocketConnectionRejections.inc(
+  { route: 'validators', reason: 'invalid_subscription' },
+  0,
+);
+for (const route of ['agent', 'messages', 'validators'])
   websocketNotificationQueueOverflows.inc({ route }, 0);
 
 let websocketMetricsProvider: (() => WebSocketMetricsSnapshot) | undefined;
@@ -251,6 +272,7 @@ snapshotGauge(
   (gauge, snapshot) => {
     gauge.set({ route: 'agent' }, snapshot.connections.agent);
     gauge.set({ route: 'messages' }, snapshot.connections.messages);
+    gauge.set({ route: 'validators' }, snapshot.connections.validators);
   },
   ['route'],
 );
@@ -260,8 +282,65 @@ snapshotGauge(
   (gauge, snapshot) => {
     gauge.set({ route: 'agent' }, snapshot.limits.agentConnections);
     gauge.set({ route: 'messages' }, snapshot.limits.messageConnections);
+    gauge.set({ route: 'validators' }, snapshot.limits.validatorConnections);
   },
   ['route'],
+);
+snapshotGauge(
+  'websocket_validator_pending_setups',
+  'Validator negotiations awaiting database reads, including disconnected clients.',
+  (gauge, snapshot) => gauge.set(snapshot.validatorPendingSetups),
+);
+snapshotGauge(
+  'websocket_validator_connection_limit_per_ip',
+  'Maximum /validators WebSocket connections per client IP.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.validatorConnectionsPerIp),
+);
+snapshotGauge(
+  'websocket_validator_subscriptions',
+  'Active validator subscriptions by domain and canonical/custom policy.',
+  (gauge, snapshot) => {
+    gauge.reset();
+    for (const {
+      domain,
+      canonical,
+      custom,
+    } of snapshot.validatorSubscriptions) {
+      gauge.set({ domain: String(domain), policy: 'canonical' }, canonical);
+      gauge.set({ domain: String(domain), policy: 'custom' }, custom);
+    }
+  },
+  ['domain', 'policy'],
+);
+snapshotGauge(
+  'websocket_validator_setup_limit',
+  'Maximum unfinished validator setups.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.validatorSetups),
+);
+snapshotGauge(
+  'websocket_validator_reserved_connections',
+  'Validator connection reservations, including closing sockets and unfinished setups.',
+  (gauge, snapshot) => gauge.set(snapshot.validatorReservedConnections),
+);
+snapshotGauge(
+  'websocket_validator_shared_readers',
+  'Active shared domain/confirmation readers.',
+  (gauge, snapshot) => gauge.set(snapshot.validatorSharedReaders),
+);
+snapshotGauge(
+  'websocket_validator_client_ips',
+  'Current number of distinct validator client IPs.',
+  (gauge, snapshot) => gauge.set(snapshot.validatorClientIps),
+);
+snapshotGauge(
+  'websocket_validator_max_connections_per_ip',
+  'Largest current validator connection count for one client IP.',
+  (gauge, snapshot) => gauge.set(snapshot.validatorMaxConnectionsPerIp),
+);
+snapshotGauge(
+  'websocket_validator_client_message_limit_bytes',
+  'Maximum inbound validator WebSocket message size.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.validatorMessageBytes),
 );
 snapshotGauge(
   'websocket_message_client_ips',
@@ -304,6 +383,7 @@ snapshotGauge(
   (gauge, snapshot) => {
     gauge.set({ route: 'agent' }, snapshot.notificationQueue.agent);
     gauge.set({ route: 'messages' }, snapshot.notificationQueue.messages);
+    gauge.set({ route: 'validators' }, snapshot.notificationQueue.validators);
   },
   ['route'],
 );
@@ -313,6 +393,7 @@ snapshotGauge(
   (gauge, snapshot) => {
     gauge.set({ route: 'agent' }, snapshot.limits.notificationEvents);
     gauge.set({ route: 'messages' }, snapshot.limits.notificationEvents);
+    gauge.set({ route: 'validators' }, snapshot.limits.notificationEvents);
   },
   ['route'],
 );

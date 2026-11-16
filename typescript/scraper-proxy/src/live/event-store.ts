@@ -92,6 +92,14 @@ export class EventStore {
 
   constructor(private readonly db: Pick<DbService, 'queryLive'>) {}
 
+  async domainExists(domain: number): Promise<boolean> {
+    const rows = await this.db.queryLive<{ id: number }>(
+      'SELECT id FROM domain WHERE id=$1',
+      [storedDomain(domain)],
+    );
+    return rows.length > 0;
+  }
+
   blockHeads(domains?: Set<number>) {
     return this.db.queryLive<{
       domain: number;
