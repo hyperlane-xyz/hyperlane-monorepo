@@ -39,9 +39,12 @@ pub const Eip2930 = struct {
         return crypto.recover(try self.signingHash(allocator), signature);
     }
 
-    /// Accepts canonical recoverable Ethereum signatures (v=27/28, low s).
+    /// Accepts canonical Ethereum signature encodings (v=27/28, nonzero
+    /// canonical r, low s). Encoding does not authenticate: callers must
+    /// establish the signer first, by `recoverSigner` matched to their
+    /// configured signer or by signing locally with a check against Q.
     pub fn encodeSigned(self: Eip2930, allocator: Allocator, signature: transaction.Signature) ![]u8 {
-        _ = try self.recoverSigner(allocator, signature);
+        _ = try crypto.canonicalScalars(signature);
         var fields: Bytes = .empty;
         defer fields.deinit(allocator);
         try self.appendFields(allocator, &fields);
@@ -53,14 +56,12 @@ pub const Eip2930 = struct {
 
     pub fn sign(self: Eip2930, allocator: Allocator, secret_key: transaction.Hash, noise: ?transaction.Hash) !transaction.SignedTransaction {
         const digest = try self.signingHash(allocator);
-        const signature = try crypto.signDigest(secret_key, digest, noise);
-        const signer = try crypto.secretKeyAddress(secret_key);
-        const recovered = try crypto.recover(digest, signature);
-        if (!std.mem.eql(u8, &signer, &recovered)) return error.SignerMismatch;
-        const bytes = try self.encodeSigned(allocator, signature);
+        // Verified against Q = d*G before release; recovers to `address`.
+        const signed = try crypto.signDigestWithAddress(secret_key, digest, noise);
+        const bytes = try self.encodeSigned(allocator, signed.signature);
         var hash: transaction.Hash = undefined;
         std.crypto.hash.sha3.Keccak256.hash(bytes, &hash, .{});
-        return .{ .allocator = allocator, .bytes = bytes, .hash = hash, .signature = signature, .signer = signer };
+        return .{ .allocator = allocator, .bytes = bytes, .hash = hash, .signature = signed.signature, .signer = signed.address };
     }
 
     fn appendFields(self: Eip2930, allocator: Allocator, out: *Bytes) !void {
@@ -283,6 +284,8 @@ test "EIP-2930 signed encoding rejects noncanonical signatures" {
     const key: transaction.Hash = @splat(0x11);
     var signed = try tx.sign(std.testing.allocator, key, null);
     defer signed.deinit();
+    try std.testing.expectEqual(try crypto.secretKeyAddress(key), signed.signer);
+    try std.testing.expectEqual(signed.signer, try tx.recoverSigner(std.testing.allocator, signed.signature));
     var invalid = signed.signature;
     invalid[64] = 0;
     try std.testing.expectError(error.InvalidRecoveryId, tx.encodeSigned(std.testing.allocator, invalid));
