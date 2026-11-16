@@ -50,7 +50,10 @@ import {
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
 import { createRateLimitHook } from '../utils/rateLimit.js';
-import { CommitmentAccessDeniedError } from '../utils/errors.js';
+import {
+  CommitmentAccessDeniedError,
+  INTERNAL_SERVER_ERROR,
+} from '../utils/errors.js';
 import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
 
@@ -503,7 +506,7 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.code(500).send({ error: 'Internal server error' });
+      return res.code(500).send({ error: INTERNAL_SERVER_ERROR });
     }
 
     const requestedMetadata = {
@@ -1134,7 +1137,7 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.code(500).send({ error: 'Internal server error' });
+      return res.code(500).send({ error: INTERNAL_SERVER_ERROR });
     }
   }
 
@@ -1269,7 +1272,7 @@ export class CallCommitmentsService extends BaseService {
         this.config.serviceName,
         UnhandledErrorReason.CALL_COMMITMENTS_DATABASE_ERROR,
       );
-      return res.code(500).send({ error: 'Internal server error' });
+      return res.code(500).send({ error: INTERNAL_SERVER_ERROR });
     }
 
     return res.code(200).send({ commitment });
@@ -1374,7 +1377,7 @@ export class CallCommitmentsService extends BaseService {
         },
         'Database error fetching calldata',
       );
-      return res.code(500).send({ error: 'Internal server error' });
+      return res.code(500).send({ error: INTERNAL_SERVER_ERROR });
     }
     if (!record) return res.code(404).send({ error: 'Not found' });
     const relayers = z.array(z.string()).parse(record.relayers);

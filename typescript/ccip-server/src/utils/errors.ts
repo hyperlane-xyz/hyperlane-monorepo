@@ -1,4 +1,4 @@
-export const INTERNAL_SERVER_ERROR = 'Internal server error' as const;
+export const INTERNAL_SERVER_ERROR = 'Internal server error';
 
 /**
  * The lookup has no answer yet and the caller should retry. The message is
