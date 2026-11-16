@@ -358,7 +358,9 @@ pub fn Builder(comptime Source: type) type {
                     self.mutex.unlock();
                     if (ready) return;
                     if (self.parentCancelled()) return error.RequestCancelled;
-                    // On a fiber assist() runs nothing (see Executor.assist).
+                    // Runs a queued job only on a stackless executor worker
+                    // (see Executor.mayAssist). Any other owner waits for
+                    // completions and never sits behind a stalled sibling.
                     const assisted = if (expected) |job| self.executor.assistJob(&job.job) else self.executor.assist();
                     if (assisted) continue;
                     self.mutex.lock();
@@ -1098,6 +1100,127 @@ test "metadata refusals cancellation and pending IO propagate across optional br
         source.checkpoint_mode = false;
         source.checkpoint_error = null;
     }
+}
+
+/// Aggregation 0 over children 1, 2, 3 (threshold 2). Child 1 holds the only
+/// worker's thread; child 2 stalls on its read; child 3 verifies at once.
+const StallSiblingSource = struct {
+    const Fixture = struct {
+        owner: std.Thread.Id,
+        horizon_ms: i64,
+        forks: std.atomic.Value(usize) = .init(0),
+        first_entered: std.atomic.Value(bool) = .init(false),
+        stall_entered: std.atomic.Value(bool) = .init(false),
+        stall_on_owner: std.atomic.Value(bool) = .init(false),
+        stall_cancelled: std.atomic.Value(bool) = .init(false),
+    };
+    allocator: std.mem.Allocator,
+    fixture: *Fixture,
+    cancel: ?*const std.atomic.Value(bool) = null,
+    pub fn fork(self: *const StallSiblingSource, allocator: std.mem.Allocator, cancel: *const std.atomic.Value(bool)) !*StallSiblingSource {
+        // Child 1 occupies the worker before the stalled child is queued, so
+        // the stalled child is provably still queued when the owner waits.
+        if (self.fixture.forks.fetchAdd(1, .acq_rel) + 1 == 2) {
+            const deadline = fiber.monoMs() + 5000;
+            while (!self.fixture.first_entered.load(.acquire)) {
+                if (fiber.monoMs() >= deadline) return error.FirstChildNeverStarted;
+                std.Thread.sleep(std.time.ns_per_ms);
+            }
+        }
+        const result = try allocator.create(StallSiblingSource);
+        result.* = .{ .allocator = allocator, .fixture = self.fixture, .cancel = cancel };
+        return result;
+    }
+    pub fn deinitFork(self: *StallSiblingSource) void {
+        self.allocator.destroy(self);
+    }
+    pub fn moduleType(_: *StallSiblingSource, address: Address) !ModuleType {
+        return if (address[19] == 0) .aggregation else .null_ism;
+    }
+    pub fn route(_: *StallSiblingSource, address: Address, _: protocol.Message) !Address {
+        return address;
+    }
+    pub fn members(self: *StallSiblingSource, _: Address, _: protocol.Message, _: bool) !Members {
+        const addresses = try self.allocator.alloc(Address, 3);
+        for (addresses, 1..) |*address, index| {
+            address.* = @splat(0);
+            address[19] = @intCast(index);
+        }
+        return .{ .addresses = addresses, .threshold = 2 };
+    }
+    pub fn verify(self: *StallSiblingSource, address: Address, _: protocol.Message, _: []const u8) !u256 {
+        const fixture = self.fixture;
+        switch (address[19]) {
+            1 => {
+                // Blocks the worker thread (no park) until the stalled child
+                // starts somewhere, or briefly when it cannot start meanwhile.
+                fixture.first_entered.store(true, .release);
+                const until = fiber.monoMs() + 200;
+                while (!fixture.stall_entered.load(.acquire) and fiber.monoMs() < until) std.Thread.sleep(std.time.ns_per_ms);
+            },
+            2 => {
+                fixture.stall_entered.store(true, .release);
+                if (std.Thread.getCurrentId() == fixture.owner) fixture.stall_on_owner.store(true, .release);
+                // A read without a response: parks on a fiber, blocks a thread.
+                while (fiber.monoMs() < fixture.horizon_ms) {
+                    if (self.cancel.?.load(.acquire)) {
+                        fixture.stall_cancelled.store(true, .release);
+                        return error.RequestCancelled;
+                    }
+                    var nap: fiber.Waiter = .{};
+                    _ = nap.waitTimeout(fiber.monoMs() + 5);
+                }
+                return error.UpstreamReadTimeout;
+            },
+            else => {},
+        }
+        return 1;
+    }
+    pub fn ccipMetadata(_: *StallSiblingSource, _: Address, _: protocol.Message) ![]u8 {
+        return error.UnsupportedIsmType;
+    }
+    pub fn leafIndex(_: *StallSiblingSource, _: [32]u8) !?u32 {
+        return null;
+    }
+    pub fn highestKnownLeafIndex(_: *StallSiblingSource) !?u32 {
+        return null;
+    }
+    pub fn fetchCheckpoint(_: *StallSiblingSource, _: Address, _: u32) !?objects.SignedCheckpoint {
+        return null;
+    }
+    pub fn latestIndex(_: *StallSiblingSource, _: Address) !?u32 {
+        return null;
+    }
+    pub fn proof(_: *StallSiblingSource, _: u32, _: protocol.Checkpoint) !protocol.Proof {
+        return error.NoProof;
+    }
+};
+
+test "off-fiber owner returns at threshold without running its queued stalled sibling" {
+    const root = try metadata_parallel.Root.start(std.testing.allocator, .{ .workers = 1 });
+    defer root.deinit();
+    const horizon_ms: i64 = 3000;
+    var fixture: StallSiblingSource.Fixture = .{ .owner = std.Thread.getCurrentId(), .horizon_ms = fiber.monoMs() + horizon_ms };
+    var source: StallSiblingSource = .{ .allocator = std.testing.allocator, .fixture = &fixture };
+    var builder: Builder(StallSiblingSource) = .{ .allocator = std.testing.allocator, .source = &source, .executor = &root.executor };
+    const message: protocol.Message = .{ .origin = 1, .destination = 2, .body = "" };
+    const started = fiber.monoMs();
+    const bytes = try builder.build(@splat(0), message);
+    const elapsed = fiber.monoMs() - started;
+    defer std.testing.allocator.free(bytes);
+    try std.testing.expect(!fixture.stall_on_owner.load(.acquire));
+    try std.testing.expect(elapsed < horizon_ms / 2);
+    const aggregation = try protocol.metadata.Aggregation.decode(bytes, 3);
+    try std.testing.expect((try aggregation.metadataAt(0)) != null);
+    try std.testing.expect((try aggregation.metadataAt(1)) == null);
+    try std.testing.expect((try aggregation.metadataAt(2)) != null);
+    // The abandoned sibling observes the operation's cancellation and retires.
+    const drain_deadline = fiber.monoMs() + 2000;
+    while (root.executor.retainedJobs() != 0) {
+        if (fiber.monoMs() >= drain_deadline) return error.StalledSiblingNotRetired;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try std.testing.expect(fixture.stall_cancelled.load(.acquire));
 }
 
 const FeltTestSource = struct {
