@@ -87,10 +87,12 @@ pub fn Builder(comptime Source: type) type {
                     self.source = null;
                 }
 
-                fn finish(self: *JobState, result: Result) void {
+                fn finish(self: *JobState, result: Result) metadata_parallel.RunResult {
+                    self.job.retire();
                     self.operation.complete(self, result);
                     self.closeSource();
                     self.operation.release();
+                    return .retired;
                 }
 
                 fn run(job: *metadata_parallel.Job) metadata_parallel.RunResult {
@@ -99,14 +101,10 @@ pub fn Builder(comptime Source: type) type {
                     const source = self.source.?;
                     if (operation.parentCancelled()) {
                         if (@hasDecl(Source, "endPass")) source.endPass(error.RequestCancelled);
-                        self.finish(.idle);
-                        return .done;
+                        return self.finish(.idle);
                     }
                     if (@hasDecl(Source, "setMetadataParent")) source.setMetadataParent(operation.link());
-                    if (@hasDecl(Source, "beginPass")) source.beginPass(&operation.cancel) catch |err| {
-                        self.finish(.{ .failed = err });
-                        return .done;
-                    };
+                    if (@hasDecl(Source, "beginPass")) source.beginPass(&operation.cancel) catch |err| return self.finish(.{ .failed = err });
                     var builder: Self = .{
                         .allocator = operation.allocator,
                         .source = source,
@@ -126,13 +124,11 @@ pub fn Builder(comptime Source: type) type {
                     if (@hasDecl(Source, "endPass")) source.endPass(failure);
                     if (executed) |result| {
                         operation.attempt.mergeDiagnostics(builder.diagnostics);
-                        self.finish(result);
-                        return .done;
+                        return self.finish(result);
                     } else |err| {
                         if (err == error.PendingReadIo) return .suspended;
                         operation.attempt.mergeDiagnostics(builder.diagnostics);
-                        self.finish(.{ .failed = err });
-                        return .done;
+                        return self.finish(.{ .failed = err });
                     }
                 }
 

@@ -39,13 +39,22 @@ pub const Config = struct {
     max_output_bytes: usize = 64 * 1024 * 1024,
 };
 
-pub const RunResult = enum { done, suspended };
+/// `.done`: the executor releases the job's slot after run returns.
+/// `.retired`: the job released it (Job.retire) before publishing completion.
+pub const RunResult = enum { done, suspended, retired };
 pub const Job = struct {
     next: ?*Job = null,
     due_ms: u64 = 0,
     run_fn: *const fn (*Job) RunResult,
     /// Set by submit: the executor a worker fiber reports this job to.
     executor: ?*Executor = null,
+
+    /// Release this job's executor slot before waking its joiner, so a woken
+    /// joiner never observes it retained (or a submit after it saturated).
+    /// Then run_fn returns `.retired`; the executor touches nothing after.
+    pub fn retire(self: *Job) void {
+        self.executor.?.retire();
+    }
 };
 
 /// The executor whose worker thread is running a job without a fiber stack.
@@ -164,6 +173,7 @@ pub const Executor = struct {
     fn run(self: *Executor, job: *Job) void {
         switch (job.run_fn(job)) {
             .done => self.retire(),
+            .retired => {},
             .suspended => {
                 _ = self.suspensions.fetchAdd(1, .monotonic);
                 self.mutex.lock();
@@ -185,13 +195,14 @@ pub const Executor = struct {
     /// The fiber host runs other fibers and jobs meanwhile; nothing requeues.
     fn runFiber(self: *Executor, job: *Job) void {
         var backoff_ms = suspend_first_ms;
-        while (job.run_fn(job) == .suspended) {
+        var result = job.run_fn(job);
+        while (result == .suspended) : (result = job.run_fn(job)) {
             _ = self.suspensions.fetchAdd(1, .monotonic);
             var nap: fiber.Waiter = .{};
             _ = nap.waitTimeout(fiber.monoMs() + backoff_ms);
             backoff_ms = @min(backoff_ms * 2, suspend_max_ms);
         }
-        self.retire();
+        if (result == .done) self.retire();
     }
 
     /// Only this executor's worker thread running a job without a fiber stack
