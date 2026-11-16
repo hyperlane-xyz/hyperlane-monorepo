@@ -9,6 +9,7 @@
 const std = @import("std");
 const A = std.mem.Allocator;
 const Scanner = std.json.Scanner;
+const fast = @import("json_fast.zig");
 pub const Value = std.json.Value;
 
 pub const Span = struct {
@@ -54,6 +55,15 @@ const Frame = struct { object: bool, start: usize, keys_start: usize, map: ?*Key
 pub fn scan(gpa: A, input: []const u8, options: Options) !Top {
     var fallback = std.heap.stackFallback(2048, gpa);
     var arena = std.heap.ArenaAllocator.init(fallback.get());
+    defer arena.deinit();
+    // Valid documents take the fast walker; anything it is unsure of (every
+    // error case included) is decided by the std.json walker below.
+    if (try fast.scan(arena.allocator(), input, options.depth_limit)) |top| return top;
+    return scanStd(arena.allocator(), input, options);
+}
+/// The std.json-token walker alone (the reference for json_fast).
+pub fn scanStd(scratch: A, input: []const u8, options: Options) !Top {
+    var arena = std.heap.ArenaAllocator.init(scratch);
     defer arena.deinit();
     var walker: Walker = .{ .input = input, .scratch = arena.allocator(), .scanner = Scanner.initCompleteInput(arena.allocator(), input), .options = options };
     try walker.run();
@@ -197,11 +207,20 @@ pub fn parseValue(gpa: A, input: []const u8, parse_numbers: bool) !std.json.Pars
     errdefer gpa.destroy(arena);
     arena.* = .init(gpa);
     errdefer arena.deinit();
+    {
+        var fallback = std.heap.stackFallback(1024, gpa);
+        if (try fast.parse(arena.allocator(), fallback.get(), input, parse_numbers)) |value| return .{ .arena = arena, .value = value };
+    }
+    _ = arena.reset(.free_all);
+    return .{ .arena = arena, .value = try parseStdLeaky(arena.allocator(), gpa, input, parse_numbers) };
+}
+/// The std.json-token tree builder alone (the reference for json_fast).
+pub fn parseStdLeaky(arena: A, gpa: A, input: []const u8, parse_numbers: bool) !Value {
     var scanner = Scanner.initCompleteInput(gpa, input);
     defer scanner.deinit();
-    const value = try parseTokens(arena.allocator(), &scanner, parse_numbers);
+    const value = try parseTokens(arena, &scanner, parse_numbers);
     if (try scanner.next() != .end_of_document) unreachable;
-    return .{ .arena = arena, .value = value };
+    return value;
 }
 
 fn parseTokens(allocator: A, source: *Scanner, parse_numbers: bool) !Value {
