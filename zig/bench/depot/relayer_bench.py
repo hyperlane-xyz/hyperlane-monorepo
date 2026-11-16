@@ -416,6 +416,11 @@ def run_attempt(name, sample, order, args, output):
             fresh_rpc = rpc_snapshot()
             threads_steady = running.thread_snapshot()
             metrics = rb.metrics_probe(metrics_port)
+            try:  # full exposition at end of the fresh phase, for series/label diffs between arms
+                with urllib.request.urlopen(f"http://127.0.0.1:{metrics_port}/metrics", timeout=4) as response:
+                    (raw_dir / "metrics.txt").write_bytes(response.read(16 * 1024 * 1024))
+            except (OSError, urllib.error.URLError) as error:
+                (raw_dir / "metrics.txt").write_text(f"# metrics dump failed: {error}\n")
             stop = running.stop_with_signal(signal.SIGTERM)
             stop["minor_page_faults"] = running.usage.ru_minflt
             stop["major_page_faults"] = running.usage.ru_majflt

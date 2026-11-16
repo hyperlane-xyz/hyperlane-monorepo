@@ -139,6 +139,8 @@ class CountingProxy:
         if not stall_receipts:
             self.release.set()
         self.receipt_requests_started = threading.Event()
+        # (start_ns, end_ns, method summary) per HTTP request, for phase analysis of slow catch-ups.
+        self.timeline = []
 
     def snapshot(self):
         with self.lock:
@@ -160,6 +162,16 @@ class CountingProxy:
                     decoded = json.loads(data)
                     requests = decoded if isinstance(decoded, list) else [decoded]
                     methods = [request.get("method", "invalid") for request in requests]
+                    started_ns = time.perf_counter_ns()
+                    summary = []
+                    for request in requests[:4]:
+                        params = request.get("params") or []
+                        detail = ""
+                        if request.get("method") == "eth_getLogs" and params and isinstance(params[0], dict):
+                            detail = f"{params[0].get('fromBlock')}-{params[0].get('toBlock')}"
+                        elif request.get("method") == "eth_getBlockByNumber" and params:
+                            detail = str(params[0])
+                        summary.append(request.get("method", "invalid") + (f"({detail})" if detail else ""))
                     with owner.lock:
                         owner.counts.update(methods)
                     if any(method in ("eth_getTransactionReceipt", "eth_getTransactionByHash") for method in methods):
@@ -180,6 +192,8 @@ class CountingProxy:
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)
+                    with owner.lock:
+                        owner.timeline.append((started_ns, time.perf_counter_ns(), ",".join(summary) + (f",+{len(requests) - 4}" if len(requests) > 4 else "")))
                 except (OSError, ValueError) as error:
                     with owner.lock:
                         owner.errors[type(error).__name__] += 1
@@ -640,10 +654,19 @@ def run_trial(implementation, sample, order, args, pinned, postgres, contracts, 
                         if proxy.release.is_set():
                             raise RuntimeError("receipt gate opened before confirmed-head check")
                         proxy.release.set()
+                    released_ns = time.perf_counter_ns()
                     caught_ns = wait_for(
                         lambda: complete(args.catchup), daemon, args.deadline, "catchup and enrichment"
                     )
                     catchup_ms = (caught_ns - daemon.start_ns) / 1e6
+                    with proxy.lock:  # RPC timeline up to catch-up, ms since spawn (phase analysis)
+                        (trial_dir / "rpc-timeline-first.json").write_text(json.dumps({
+                            "phases_ms": {"first_durable_dispatch": (startup_ns - daemon.start_ns) / 1e6,
+                                          "head_at_backlog_tip": (stalled_head_ns - daemon.start_ns) / 1e6 if stalled_head_ns else None,
+                                          "receipts_released": (released_ns - daemon.start_ns) / 1e6,
+                                          "caught_up": catchup_ms},
+                            "requests": [[round((a - daemon.start_ns) / 1e6, 2), round((b - a) / 1e6, 2), m]
+                                         for a, b, m in proxy.timeline if a <= caught_ns]}))
                     startup_rpc = proxy.snapshot()
                     metrics = metrics_probe(metrics_port, trial_dir / "metrics-first.txt")
                     if not metrics["passed"]:

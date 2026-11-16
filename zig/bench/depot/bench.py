@@ -190,9 +190,13 @@ def make_wrappers(bins: pathlib.Path, mode: str, agent_cpus: list[int], work: pa
             if os.environ.get("BENCH_FD_SAMPLER"):  # diagnostic: open-fd count + FDSize at 4 Hz (fixture CPUs)
                 fd_out = work.parent / "agent-out"
                 fd_out.mkdir(parents=True, exist_ok=True)
-                prelude = (f'(while kill -0 $$ 2>/dev/null; do n=$(ls /proc/$$/fd 2>/dev/null | wc -l); '
-                           f's=$(grep FDSize /proc/$$/status 2>/dev/null); echo "$(date +%s.%N) $n $s"; sleep 0.25; done '
-                           f'> {fd_out}/fd-{impl}-{role}-$$.txt 2>/dev/null) &\n') + prelude
+                # At each new peak, also keep the fd -> target listing and the socket tables for attribution.
+                peak = f"{fd_out}/fdpeak-{impl}-{role}-$$"
+                prelude = (f'(m=0; while kill -0 $$ 2>/dev/null; do n=$(ls /proc/$$/fd 2>/dev/null | wc -l); '
+                           f's=$(grep FDSize /proc/$$/status 2>/dev/null); echo "$(date +%s.%N) $n $s"; '
+                           f'if [ "$n" -gt "$m" ]; then m=$n; ls -l /proc/$$/fd > {peak}.fds 2>/dev/null; '
+                           f'cat /proc/$$/net/tcp /proc/$$/net/tcp6 > {peak}.tcp 2>/dev/null; cat /proc/$$/net/unix > {peak}.unix 2>/dev/null; fi; '
+                           f'sleep 0.25; done > {fd_out}/fd-{impl}-{role}-$$.txt 2>/dev/null) &\n') + prelude
             wrapper.write_text(f'#!/bin/sh\n{prelude}{env}exec {taskset} -c {cpu_spec(agent_cpus)} {real} "$@"\n')
             wrapper.chmod(0o755)
             out[impl][role] = wrapper
