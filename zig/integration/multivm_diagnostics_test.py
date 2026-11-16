@@ -574,7 +574,7 @@ class RelayerStartupNumericControls(unittest.TestCase):
         rows=api.startup_header_projection(raw,probe.sources)['observations']
         self.assertEqual([r['Source_error_name']for r in rows],['WrongChain','ReadReplayPassNotActive',None]);self.assertTrue(all(r['lane_attribution']is None for r in rows))
         self.assertNotIn('PRIVATE',json.dumps(rows))
-        old={name:body for name,body in probe.sources.items()if name not in {'zig/src/evm/provider.zig','zig/src/net/read_replay.zig'}}
+        old={name:body for name,body in probe.sources.items()if name not in {'zig/src/evm/provider.zig','zig/src/net/read_replay.zig','zig/src/agents/relayer_task.zig'}}
         self.assertIsNone(api.startup_header_projection(raw,old)['observations'][0]['Source_error_name'])
     def test_successor_epoch_requires_actual_admitted_closure_not_an_arbitrary_commit(self):
         original=copy.deepcopy(self.closure)
