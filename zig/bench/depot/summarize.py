@@ -64,6 +64,12 @@ def summarise(result: dict) -> dict:
         impl_rows = [r for r in rows if r["impl"] == impl]
         names = sorted({m for r in impl_rows for m in r.get("rpc_methods", {})})
         methods[impl] = {m: statistics.median([r.get("rpc_methods", {}).get(m, 0) for r in impl_rows]) for m in names}
+    pooled = {}
+    for impl in ("rust", "zig"):
+        samples = sorted(v for r in rows if r["impl"] == impl for v in r.get("latency_samples_ms") or [])
+        if samples:
+            pooled[impl] = {"n": len(samples), **{f"p{q}": percentile(samples, q / 100) for q in (25, 50, 75, 95)},
+                            "share_over_3s": sum(v > 3000 for v in samples) / len(samples)}
     host = result.get("host", {})
     return {
         "workload": result.get("workload"), "role": result.get("role"), "mode": result.get("mode"),
@@ -76,7 +82,17 @@ def summarise(result: dict) -> dict:
         "host_cpu_busy_fraction": result.get("host_cpu_busy_fraction"),
         "duration_s": result.get("duration_s"),
         "metrics": table, "rpc_methods_median": methods,
+        # All runs' per-message (relayer e2e) / per-unit (validator, scraper freshness) latencies pooled per arm:
+        # robust to run-level bimodality (e.g. the relayer fixture's 3 s receipt stall) that skews median-of-run-p50.
+        "pooled_latency_ms": pooled,
     }
+
+
+def percentile(sorted_values: list, q: float) -> float:
+    index = (len(sorted_values) - 1) * q
+    lo = int(index)
+    hi = min(lo + 1, len(sorted_values) - 1)
+    return sorted_values[lo] + (sorted_values[hi] - sorted_values[lo]) * (index - lo)
 
 
 def provenance_lines(prov: dict | None) -> list[str]:
@@ -105,8 +121,8 @@ def markdown(summaries: list[dict], prov: dict | None = None) -> str:
         out.append("Zig/Rust = median(Zig) / median(Rust); < 1 means Zig lower (better, except deliveries_per_s). "
                    "Units: validator = signed checkpoint, scraper = event group (dispatch+process+gas payment), relayer = delivered message.")
         out.append("")
-        out.append("| workload | runs R/Z | catchup | freshness/e2e p50 | CPU | CPU/unit | peak RSS | RPC | RPC/unit | status |")
-        out.append("|---|---|---|---|---|---|---|---|---|---|")
+        out.append("| workload | runs R/Z | catchup | freshness/e2e p50 | pooled p50 | CPU | CPU/unit | peak RSS | RPC | RPC/unit | status |")
+        out.append("|---|---|---|---|---|---|---|---|---|---|---|")
         for s in summaries:
             m = s["metrics"]
             fresh = m.get("freshness_median_ms") or m.get("e2e_latency_median_ms") or {}
@@ -116,7 +132,9 @@ def markdown(summaries: list[dict], prov: dict | None = None) -> str:
             comp = s.get("completed") or {}
             cpu_unit = next((m[k] for k in ("cpu_ms_per_checkpoint", "cpu_ms_per_event_group", "cpu_ms_per_message") if k in m), None)
             rpc_unit = next((m[k] for k in ("rpc_per_checkpoint", "rpc_per_event_group", "rpc_per_message") if k in m), None)
-            out.append(f"| {s['workload']} | {comp.get('rust', 0)}/{comp.get('zig', 0)} | {r(m.get('catchup_ms'))} | {r(fresh)} | "
+            pl = s.get("pooled_latency_ms") or {}
+            pooled_ratio = fmt(pl["zig"]["p50"] / pl["rust"]["p50"]) if pl.get("rust") and pl.get("zig") and pl["rust"]["p50"] else "–"
+            out.append(f"| {s['workload']} | {comp.get('rust', 0)}/{comp.get('zig', 0)} | {r(m.get('catchup_ms'))} | {r(fresh)} | {pooled_ratio} | "
                        f"{r(m.get('cpu_s'))} | {r(cpu_unit)} | {r(m.get('peak_rss_mib'))} | {r(m.get('rpc_requests'))} | {r(rpc_unit)} | {status} |")
         out.append("")
     for s in summaries:
@@ -138,6 +156,15 @@ def markdown(summaries: list[dict], prov: dict | None = None) -> str:
                     return f"{fmt(x['median'])} ({fmt(x['min'])}–{fmt(x['max'])})" if x else "–"
                 out.append(f"| {name} | {cell(e['rust'])} | {cell(e['zig'])} | {fmt(e['zig_over_rust'])} | {fmt(e['paired_ratio_median'])} |")
             out.append("")
+            pooled = s.get("pooled_latency_ms") or {}
+            if pooled.get("rust") and pooled.get("zig"):
+                label = "e2e" if s["role"] == "relayer" else "freshness"
+                pr, pz = pooled["rust"], pooled["zig"]
+                out.append(f"Pooled {label} over all runs' samples (Rust n={pr['n']} / Zig n={pz['n']}): "
+                           + ", ".join(f"p{q} {fmt(pr[f'p{q}'])}/{fmt(pz[f'p{q}'])} ({fmt(pz[f'p{q}'] / pr[f'p{q}'] if pr[f'p{q}'] else None)})"
+                                       for q in (25, 50, 75, 95))
+                           + f"; share > 3 s {pr['share_over_3s'] * 100:.1f}%/{pz['share_over_3s'] * 100:.1f}%")
+                out.append("")
             rm, zm = s["rpc_methods_median"]["rust"], s["rpc_methods_median"]["zig"]
             names = sorted(set(rm) | set(zm), key=lambda k: -(rm.get(k, 0) + zm.get(k, 0)))
             if names:

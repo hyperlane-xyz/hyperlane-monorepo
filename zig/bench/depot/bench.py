@@ -349,6 +349,7 @@ def normalise_validator(data: dict) -> list[dict]:
         startup_total, _ = rpc_total(r["rpc_startup"])
         rows.append({
             "impl": r["implementation"], "pair": r["sample"], "order": r["order"],
+            "latency_samples_ms": list(r["freshness_ms"]),  # per-checkpoint, pooled by summarize.py
             "metrics": {
                 "catchup_ms": r["catchup_ms"],
                 "freshness_median_ms": med(r["freshness_ms"]),
@@ -382,6 +383,7 @@ def normalise_scraper(data: dict, pgstat: dict | None) -> list[dict]:
         q = queries.get(r.get("database_name"))
         rows.append({
             "impl": r["implementation"], "pair": r["sample"], "order": r.get("order"),
+            "latency_samples_ms": list(r["fresh_event_group_to_durable_ms"]),  # per-event-group freshness, pooled
             "metrics": {
                 "startup_ms": r["startup_ms"],
                 "catchup_ms": r["catchup_ms"],
@@ -412,6 +414,7 @@ def normalise_relayer(data: dict) -> list[dict]:
         total, methods = rpc_total([e["methods"] for e in r["rpc"]["total"]])
         rows.append({
             "impl": r["implementation"], "pair": r["sample"], "order": r["order"],
+            "latency_samples_ms": list(r["freshness_ms"]),  # per-message e2e, pooled by summarize.py
             "metrics": {
                 "startup_ms": r["launch_to_ready_ms"],
                 "catchup_ms": r["launch_to_caught_up_ms"],
