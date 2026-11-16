@@ -40,6 +40,7 @@ jobs:
       profile: ${{ steps.plan.outputs.profile }}
       profile_kinds: ${{ steps.plan.outputs.profile_kinds }}
       zig_env: ${{ steps.plan.outputs.zig_env }}
+      harness_env: ${{ steps.plan.outputs.harness_env }}
       provenance: ${{ steps.provenance.outputs.provenance }}
       sandbox_seconds: ${{ steps.plan.outputs.sandbox_seconds }}
     steps:
@@ -223,6 +224,7 @@ jobs:
       - name: Bench ${{ matrix.workload }}
         env:
           BENCH_ZIG_ENV: ${{ needs.plan.outputs.zig_env }}
+          BENCH_HARNESS_ENV: ${{ needs.plan.outputs.harness_env }}
         run: |
           python3 zig/bench/depot/bench.py --workload "${{ matrix.workload }}" \
             --pairs "${{ needs.plan.outputs.pairs }}" ${{ needs.plan.outputs.profile == 'true' && '--profile' || '' }} --profile-kinds "${{ needs.plan.outputs.profile_kinds }}" --bins .zb/out --output "$RUNNER_TEMP/zig-bench/${{ matrix.workload }}"

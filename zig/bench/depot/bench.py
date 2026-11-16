@@ -133,6 +133,15 @@ def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str, cal
                 f"-o {stem}.sched.perf.data >/dev/null 2>&1 &\nsleep 0.3\n")
     strace = shutil.which("strace")
     assert strace, "strace not installed"
+    if kind == "syscalls":
+        # Targeted per-call trace with stacks (-k, libdw strace build; falls back to no stacks), filter from
+        # BENCH_STRACE_TRACE; plus a 4 Hz tid/comm sampler started before strace attaches (so it isn't traced).
+        expr = os.environ.get("BENCH_STRACE_TRACE") or "clone3,mmap,munmap,mprotect,madvise,exit"
+        assert re.fullmatch(r"[a-z0-9_,%]+", expr), f"bad BENCH_STRACE_TRACE {expr!r}"
+        return (f'(while kill -0 $$ 2>/dev/null; do t=$(date +%s.%N); for d in /proc/$$/task/*; do '
+                f'read c < "$d/comm" 2>/dev/null && echo "$t ${{d##*/}} $c"; done; sleep 0.25; done > {stem}.comm.txt 2>/dev/null) &\n'
+                f"({strace} -f -tt -k -q -e trace={expr} -p $$ -o {stem}.syscalls.txt 2>{stem}.syscalls.err || "
+                f"{strace} -f -tt -q -e trace={expr} -p $$ -o {stem}.syscalls.txt) >/dev/null 2>&1 &\nsleep 0.3\n")
     if kind == "startup":
         # Full per-thread syscall timeline (wall-clock -ttt) for startup analysis; the harness
         # records launch_unix/ready_unix in the same clock (relayer only).
@@ -555,6 +564,10 @@ def main() -> int:
     work.mkdir(parents=True, exist_ok=True)
     bins = args.bins.resolve()
 
+    for entry in json.loads(os.environ.get("BENCH_HARNESS_ENV") or "[]"):  # diagnostic switches for harnesses
+        name, sep, value = entry.partition("=")
+        assert sep and re.fullmatch(r"[A-Z_][A-Z0-9_]*", name), f"bad BENCH_HARNESS_ENV entry {entry!r}"
+        os.environ[name] = value
     agent_cpus, fixture_cpus = split_cpus(args.agent_cpus, args.fixture_cpus)
     os.sched_setaffinity(0, fixture_cpus)  # harness, Anvil, proxies, Rust checkpoint validator inherit this
     wrappers = make_wrappers(bins, spec["mode"], agent_cpus, work)

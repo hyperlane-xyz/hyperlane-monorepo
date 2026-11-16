@@ -138,6 +138,26 @@ def proc_snapshot(pid: int) -> dict:
     return snapshot
 
 
+def finish_sampler(sampler: subprocess.Popen, path: pathlib.Path, launch_ns: int) -> dict:
+    """Wait for startup_sampler.py, rebase its times to ms since launch, rewrite the file, return a summary.
+
+    The metrics server thread is taken to be the first thread spawned after main (lowest tid > pid):
+    the HTTP server starts right after `listening`, before the task set (seen in the 4c81a59284 trace)."""
+    out = sampler.stdout.read()  # stdin was closed after handing over the pid
+    sampler.wait(timeout=60)
+    data = json.loads(out)
+    pid = data["pid"]
+    threads = {}
+    for tid, rows in data["threads"].items():
+        threads[tid] = [[round((row[0] - launch_ns) / 1e6, 3), *row[1:]] for row in rows]
+    spawned = sorted(int(tid) for tid in threads if int(tid) != pid)
+    server = str(spawned[0]) if spawned else None
+    data.update(threads=threads, server_tid=server, start_ms=round((data.pop("start_ns") - launch_ns) / 1e6, 3))
+    path.write_text(json.dumps(data))
+    return {"samples": data["samples"], "server_tid": server, "stack_readable": data["stack_readable"],
+            "server": threads.get(server, []), "main": threads.get(str(pid), [])}
+
+
 def parse_startup_trace(log: bytes, launch_ns: int) -> list:
     """`startup-trace <CLOCK_MONOTONIC ns> <kind> <value> t<tid>` lines (bench-only diag builds) as ms since launch."""
     events = []
@@ -315,8 +335,21 @@ def run_attempt(name, sample, order, args, output):
             nonce_before = {"anvil-1": int(chain.rpc("eth_getTransactionCount", [evm.TEST_SIGNER, "latest"]), 16),
                             "anvil-2": int(chain_alt.rpc("eth_getTransactionCount", [evm.TEST_SIGNER, "latest"]), 16)}
 
+            sampler = None
+            sampler_ms = os.environ.get("BENCH_STARTUP_SAMPLER")  # diagnostic: per-thread /proc sampler, Zig only
+            if sampler_ms and name == "zig":
+                # started first and handed the pid on stdin: Python startup (~20 ms) would miss the window
+                # root (if passwordless sudo) can read /proc/*/syscall and /proc/*/stack of a non-descendant
+                sudo = ["sudo", "-n"] if os.geteuid() != 0 and shutil.which("sudo") and \
+                    subprocess.run(["sudo", "-n", "true"], capture_output=True).returncode == 0 else []
+                sampler = subprocess.Popen([*sudo, sys.executable, str(HERE / "startup_sampler.py"), "-", sampler_ms],
+                                           stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+                time.sleep(0.2)
             running = rb.launch(name, args.binaries[name], temporary, relayer_file, relayer_config)
             launch_ns = running.start_ns
+            if sampler:
+                sampler.stdin.write(f"{running.p.pid}\n")
+                sampler.stdin.close()
             launch_unix = time.time() - (time.perf_counter_ns() - launch_ns) / 1e9
             agent_pid = running.p.pid
             probes = []  # harness-side readiness probe log: (ms since launch, outcome, probe duration ms); no agent perturbation
@@ -389,6 +422,8 @@ def run_attempt(name, sample, order, args, output):
             agent_log = running.full_log()
             (raw_dir / "relayer.log").write_bytes(agent_log)
             startup_trace = parse_startup_trace(agent_log, launch_ns)
+            # after the timed phases: collecting earlier would stall the harness's catchup polling
+            startup_threads = finish_sampler(sampler, raw_dir / "startup-sampler.json", launch_ns) if sampler else None
             running.close()
             running = None
             if stop["exit_code"] not in [0, -signal.SIGTERM]:
@@ -444,6 +479,7 @@ def run_attempt(name, sample, order, args, output):
                 "launch_unix": launch_unix, "ready_unix": ready_unix, "agent_pid": agent_pid,
                 "readiness_probes": probes[-40:],
                 "startup_proc": startup_proc,
+                **({"startup_threads": startup_threads} if startup_threads else {}),
                 **({"startup_trace": startup_trace} if startup_trace else {}),
                 **rb.catchup_measurements(backlog, launch_ns, ready_ns, caught_ns),
                 "freshness_ms": fresh,
