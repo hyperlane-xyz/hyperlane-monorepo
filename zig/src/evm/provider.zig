@@ -246,6 +246,9 @@ pub const RpcClient = struct {
     /// Request bodies are written here, reusing its capacity; a body is valid
     /// until the next request is encoded.
     body: std.ArrayList(u8) = .empty,
+    /// A request is between encode and decode. The body buffer makes this
+    /// client strictly serial: concurrent callers fork their own client.
+    in_flight: bool = false,
 
     /// Forget a completed read section only after its controller has advanced
     /// past that section; subsequent identical fences must be physical reads.
@@ -298,6 +301,8 @@ pub const RpcClient = struct {
     /// Validate the full envelope but retain structured errors for contracts
     /// whose read protocol intentionally reverts (EIP-3668).
     pub fn callEnvelope(self: *RpcClient, method: []const u8, params: anytype) !RpcResponse {
+        self.enter();
+        defer self.in_flight = false;
         const id = try self.nextId(method);
         const body = try self.encode(id, method, params);
         const fetched = try self.fetchOne(body);
@@ -313,6 +318,10 @@ pub const RpcClient = struct {
     }
     fn fetchOne(self: *RpcClient, body: []const u8) !WireResponse {
         return if (self.options.exchange) |exchange| try exchange.fetch_fn(exchange.context, self.allocator, body, self.options) else if (self.options.native_transport) |native| try self.fetchNative(native, body) else try self.fetchStd(body);
+    }
+    fn enter(self: *RpcClient) void {
+        std.debug.assert(!self.in_flight);
+        self.in_flight = true;
     }
     /// The request body, exactly Stringify of `{jsonrpc, id, method, params}`
     /// (RawParams are copied verbatim), in the reused body buffer.
@@ -347,6 +356,8 @@ pub const RpcClient = struct {
     }
     /// call() with the result left in its response bytes when possible.
     pub fn callRaw(self: *RpcClient, method: []const u8, params: anytype) !RawResponse {
+        self.enter();
+        defer self.in_flight = false;
         const id = try self.nextId(method);
         const body = try self.encode(id, method, params);
         var response = try self.decodeRaw(method, body, id, try self.fetchOne(body));
@@ -356,6 +367,8 @@ pub const RpcClient = struct {
     }
     fn exchangeMany(self: *RpcClient, comptime R: type, comptime decode: anytype, calls: []const RawCall, out: []R) !void {
         if (calls.len != out.len) return error.InvalidRpcBatch;
+        self.enter();
+        defer self.in_flight = false;
         var filled: usize = 0;
         errdefer for (out[0..filled]) |*response| response.deinit();
         const many = if (self.options.exchange) |exchange| exchange.fetch_many_fn else null;
@@ -1372,6 +1385,28 @@ test "request bodies are byte-identical to Stringify of the whole envelope" {
         if (topic_text) |t| topics[0] = t;
         try expectBody(&client, 9, "eth_getLogs", .{filter.params(&topic)}, .{.{ .fromBlock = from_text, .toBlock = to_text, .address = address_text, .topics = if (topic_text != null) topics[0..1] else topics[0..0] }});
     };
+    // scraper.evm events(): three addresses, one OR-set of four topics.
+    const contracts = [3]Address{ address, .{0x01} ** 20, .{0xfe} ** 20 };
+    const hashes = [4]Hash{ .{0x11} ** 32, .{0x22} ** 32, .{0x33} ** 32, .{0x44} ** 32 };
+    var address_params: [3]HexParam = undefined;
+    var address_texts: [3][]const u8 = undefined;
+    for (&contracts, &address_params, &address_texts) |*contract, *param, *text| {
+        param.* = .{ .bytes = contract };
+        text.* = try abi.hexAlloc(a, contract);
+    }
+    defer for (address_texts) |text| a.free(text);
+    var topic_params: [4]HexParam = undefined;
+    var topic_texts: [4][]const u8 = undefined;
+    for (&hashes, &topic_params, &topic_texts) |*hash, *param, *text| {
+        param.* = .{ .bytes = hash };
+        text.* = try abi.hexAlloc(a, hash);
+    }
+    defer for (topic_texts) |text| a.free(text);
+    const from_text = try abi.quantityAlloc(a, 0x1b4);
+    defer a.free(from_text);
+    const through_text = try abi.quantityAlloc(a, 0x2000);
+    defer a.free(through_text);
+    try expectBody(&client, 11, "eth_getLogs", .{.{ .fromBlock = QuantityParam{ .value = 0x1b4 }, .toBlock = QuantityParam{ .value = 0x2000 }, .address = address_params, .topics = .{topic_params} }}, .{.{ .fromBlock = from_text, .toBlock = through_text, .address = address_texts, .topics = .{topic_texts} }});
     // The buffer is reused: no allocation once it has grown.
     const capacity = client.body.capacity;
     _ = try client.encode(1, "eth_chainId", .{});
