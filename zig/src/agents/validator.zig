@@ -456,15 +456,16 @@ pub const Service = struct {
                 }
             }
             try next.ingest(observation.message_id);
+            const root = next.root();
             var bytes: [104]u8 = undefined;
             bytes[0..32].* = observation.message_id;
             std.mem.writeInt(u64, bytes[32..40], observation.block_height, .big);
             bytes[40..72].* = observation.block_hash;
-            bytes[72..104].* = next.root();
+            bytes[72..104].* = root;
             try self.put(&batch, "history", &indexKey(index), &bytes);
             try self.put(&batch, "snapshot", &indexKey(index), &next.snapshot());
             try self.put(&batch, "unpublished", &indexKey(index), "");
-            previous = .{ .observation = observation, .root = next.root() };
+            previous = .{ .observation = observation, .root = root };
             accepted += 1;
         }
         if (accepted > 0) {
