@@ -176,7 +176,7 @@ export class EventWebSocketServer {
       const heads = [...this.pendingHeads.values()];
       this.pendingHeads.clear();
       if (!heads.length) return;
-      this.store.invalidate();
+      this.store.invalidateMessages();
       for (const head of heads) this.notifyConfirmationStreams(head);
     },
     (error) => this.failExplorerStream(error),
@@ -586,11 +586,7 @@ export class EventWebSocketServer {
     domains: Set<number>,
     eventType?: EventType,
     allowUnavailable = eventType === undefined,
-    readHeads = () =>
-      this.store.confirmationHeads(
-        domains,
-        eventType ? confirmations : undefined,
-      ),
+    readHeads = () => this.store.confirmationHeads(domains),
   ): Promise<ConfirmationStream | undefined> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
@@ -722,17 +718,6 @@ export class EventWebSocketServer {
     }[] = [];
     let eventStreams: StreamRequest[] = [];
     try {
-      const domains = new Set(
-        message.streams.flatMap((request) => [...(request.domains ?? [])]),
-      );
-      const knownDomains = await this.store.knownDomains(domains);
-      if (this.clients.get(socket) !== client) return;
-      for (const domain of domains) {
-        if (!knownDomains.has(domain)) {
-          this.rejectNegotiation(socket, `Unknown domain ${domain}`);
-          return;
-        }
-      }
       eventStreams = message.streams
         .filter((request) => request.eventType !== 'blocks')
         .flatMap((request) =>
@@ -1011,7 +996,7 @@ export class EventWebSocketServer {
           // A rollback must invalidate in-flight readers immediately; never
           // coalesce it away with a subsequent forward observation.
           this.pendingHeads.delete(head.domain);
-          this.store.invalidate();
+          this.store.invalidateMessages();
           this.notifyConfirmationStreams(head);
         } else {
           this.pendingHeads.set(head.domain, head);
@@ -1297,7 +1282,7 @@ export class EventWebSocketServer {
 
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
-    this.store.invalidate();
+    this.store.invalidateMessages();
     const canonicalIds = new Set<string>();
     for (const [socket, client] of this.explorerClients) {
       const interested = this.explorerMessageIds(socket, messageIds);
@@ -1432,7 +1417,7 @@ export class EventWebSocketServer {
   private closeClients(reason: string, code = 1013): void {
     this.confirmationStreams.clear();
     this.pendingHeads.clear();
-    this.store.invalidate();
+    this.store.invalidateMessages();
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
   }

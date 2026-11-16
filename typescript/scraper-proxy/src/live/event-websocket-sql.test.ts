@@ -4,69 +4,35 @@ import { it } from 'node:test';
 process.env.DATABASE_URL ??= 'postgres://localhost/scraper_sql_test';
 const { EventStore, STREAMS } = await import('./event-store.js');
 
-void it('shares only identical in-flight event pages, independently of confirmation labels', async () => {
-  let release = () => {};
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let queries = 0;
+void it('binds every domain/policy pair in one confirmation snapshot', async () => {
+  let query = '';
+  let parameters: unknown[] = [];
   const store = new EventStore({
-    async queryLive() {
-      queries++;
-      await held;
+    async queryLive(sql, values = []) {
+      query = sql;
+      parameters = values;
       return [];
     },
   });
-  const read = async (domain = 1, through = 10n, confirmations = 0) => {
-    for await (const row of store.confirmationEventRows(
-      'dispatch',
-      domain,
-      [0n, 0, 0n],
-      through,
-      confirmations,
-    ))
-      assert.fail(`Unexpected row ${JSON.stringify(row)}`);
-  };
-  const first = read();
-  const sameRange = read(1, 10n, 2);
-  assert.equal(queries, 1);
-  const otherDomain = read(2);
-  const otherRange = read(1, 11n);
-  assert.equal(queries, 3);
-  store.invalidate();
-  const afterRollback = read();
-  assert.equal(queries, 4);
-  release();
-  await Promise.all([first, sameRange, otherDomain, otherRange, afterRollback]);
-  await read();
-  assert.equal(queries, 5, 'completed pages are never reused');
-});
-
-void it('evicts failed shared reads so later subscribers can retry', async () => {
-  let queries = 0;
-  const store = new EventStore({
-    async queryLive() {
-      if (++queries === 1) throw new Error('read failed');
-      return [];
-    },
-  });
-  const read = async () => {
-    for await (const row of store.confirmationEventRows(
-      'dispatch',
-      1,
-      [0n, 0, 0n],
-      10n,
-      0,
-    ))
-      assert.fail(`Unexpected row ${JSON.stringify(row)}`);
-  };
-  await Promise.all([
-    assert.rejects(read(), /read failed/),
-    assert.rejects(read(), /read failed/),
+  const snapshots = await store.confirmationSnapshots(
+    new Map([
+      [0, new Set([1, 4294967294])],
+      [12, new Set([1])],
+    ]),
+  );
+  assert.deepEqual(parameters, [
+    [1, -2, 1],
+    [0, 0, 12],
   ]);
-  assert.equal(queries, 1);
-  await read();
-  assert.equal(queries, 2);
+  assert.match(query, /unnest\(\$1::integer\[\], \$2::bigint\[\]\)/);
+  assert.match(query, /h\.head_height-requested\.confirmations/);
+  assert.deepEqual(
+    snapshots,
+    new Map([
+      [0, new Map()],
+      [12, new Map()],
+    ]),
+  );
 });
 
 void it('keeps gas payments without receipts and prefers recorded log metadata', async () => {

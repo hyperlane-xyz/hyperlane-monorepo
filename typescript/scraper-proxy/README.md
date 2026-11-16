@@ -475,7 +475,8 @@ gas completeness. If a boundary is unavailable, keep RPC indexing for that strea
 
 Set `confirmationsByDomain` on the subscription to apply a confirmation count to
 all requested event types for a domain. Check `ready.confirmations.byDomain` for
-server support:
+server support and verify the echoed map in `subscribed` before relying on it;
+older proxies can ignore an unknown map and stream canonical data instead:
 
 ```json
 {
@@ -509,23 +510,25 @@ canonical policy for the other event types. Legacy per-event confirmations remai
 supported during agent migration.
 
 The map requires explicit domains on event streams; its keys do not subscribe to
-additional domains. Counts must be nonnegative safe integers and keys must be
-uint32 domain IDs. All agent streams are live-only; recover history through RPC.
+additional domains. Unused keys are rejected, including keys used only by `blocks`.
+Counts must be nonnegative safe integers and keys must be uint32 domain IDs.
+All agent streams are live-only; recover history through RPC.
 `blocks` subscriptions still report raw indexed heads and ignore this map.
 The `subscribed` response echoes the map alongside the original streams.
-Every explicitly subscribed domain (including `blocks`) must exist in the scraper
-DB's `domain` table. Unknown domains reject the entire subscription with an error
-and close code 1008, before any readers or block subscriptions are created.
-Known domains without near-head state retain the existing canonical/advisory behavior.
+Legacy canonical subscriptions retain per-domain `live_start_unavailable` behavior
+for missing checkpoints; other domains remain subscribed. An explicit custom
+policy, including a domain override, requires near-head state for every affected
+domain. A missing head rejects the whole subscription with close code 1008;
+advisory zero-confirmation streams retain their existing canonical fallback.
 
 Domains sharing a count are grouped into the existing custom readers. All requested
 domain/count pairs, including advisory zero-confirmation pairs, share one initial
 database snapshot per subscription. Advisory zero-confirmation domains use one
 reader per event type. Rollbacks during setup refresh the snapshot.
-Identical concurrent custom event reads share a database query across clients;
-client cursors and delivery remain independent. Canonical publication excludes overridden domains; the same event is not
+Canonical publication excludes overridden domains; the same event is not
 also emitted at the configured default. Handoff boundaries and rollback frames
-retain the effective numeric confirmation count.
+retain the effective numeric confirmation count. A domain can receive multiple
+`live_start` frames, covering different event types and effective policies.
 
 ### Legacy per-event confirmations
 

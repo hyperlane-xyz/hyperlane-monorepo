@@ -41,9 +41,6 @@ let headQueryErrorDomain: number | undefined;
 let headQueryErrorEventType: EventType | undefined;
 let omitExplorerRows = false;
 const notifiedIds = new Set<string>();
-const knownDomainRows = [1, 2, 3, -2, 3_448_148_188 - 2 ** 32].map((id) => ({
-  id,
-}));
 
 const db: EventDatabase = {
   async listen(_channels, handler) {
@@ -51,8 +48,6 @@ const db: EventDatabase = {
     return async () => undefined;
   },
   async queryLive<T>(sql, values = []) {
-    if (sql.startsWith('SELECT id FROM domain'))
-      return queryRows<T>(knownDomainRows);
     if (sql.includes('"message_view"')) {
       explorerQuery = sql;
       explorerQueryCount++;
@@ -264,9 +259,8 @@ void it('rejects agent backfills without reads and starts live on every connecti
         await waitFor(messages, 'live_start_unavailable');
         socket.send(JSON.stringify({ type: 'ping' }));
         await waitFor(messages, 'pong');
-        assert.equal(queries.length, before + 2);
-        assert.match(queries[before], /SELECT id FROM domain/);
-        assert.match(queries[before + 1], /JOIN scraper_checkpoint/);
+        assert.equal(queries.length, before + 1);
+        assert.match(queries[before], /JOIN scraper_checkpoint/);
         assert(
           !messages.some(
             ({ type }) => type === 'event' || type === 'caught_up',
@@ -309,103 +303,75 @@ const liveStartRow = {
   interchain_gas_paymaster: '33'.repeat(32),
 };
 
-for (const eventType of ['dispatch', 'blocks', 'all']) {
-  void it(`rejects unknown ${eventType} domains before creating any readers`, async (context) => {
-    const queries: string[] = [];
-    const initialize = context.mock.method(
-      ConfirmationStream.prototype,
-      'initialize',
+for (const eventType of ['dispatch', 'blocks']) {
+  void it(`keeps legacy ${eventType} subscriptions available when a domain is missing`, async (context) => {
+    const original = db.queryLive.bind(db);
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('JOIN scraper_checkpoint'))
+          return queryRows<T>([liveStartRow]);
+        return original<T>(sql, values);
+      },
     );
-    context.mock.method(db, 'queryLive', async (sql) => {
-      queries.push(sql);
-      assert.match(sql, /^SELECT id FROM domain/);
-      return knownDomainRows;
-    });
-    const domains = Array.from({ length: 1_000 }, (_, index) => index + 1);
     const socket = new WebSocket(url);
     const messages = captureMessages(socket);
-    const closed = new Promise<number>((resolve) =>
-      socket.once('close', resolve),
-    );
     try {
       await waitFor(messages, 'ready');
       socket.send(
         JSON.stringify({
           type: 'subscribe',
-          ...(eventType === 'all'
-            ? {
-                confirmationsByDomain: Object.fromEntries(
-                  domains.map((domain) => [domain, domain]),
-                ),
-              }
-            : {}),
-          streams:
-            eventType === 'all'
-              ? EVENT_TYPES.map((eventType) => ({
-                  eventType,
-                  domains,
-                  includeZeroConfirmations: true,
-                }))
-              : [{ eventType, domains: [1, 999] }],
+          streams: [
+            { eventType, domains: [1, 999] },
+            ...(eventType === 'blocks'
+              ? [{ eventType: 'dispatch', domains: [1, 999] }]
+              : []),
+          ],
         }),
       );
-      assert.match(
-        String((await waitFor(messages, 'error')).error),
-        /Unknown domain/,
-      );
-      assert.equal(await closed, 1008);
-      assert.equal(queries.length, 1);
-      assert.equal(initialize.mock.callCount(), 0);
+      await waitFor(messages, 'subscribed');
+      const unavailable = await waitFor(messages, 'live_start_unavailable');
+      assert.equal(unavailable.domain, 999);
       assert(
-        !messages.some(({ type }) => type === 'subscribed' || type === 'block'),
+        messages.some(
+          ({ type, domain }) => type === 'live_start' && domain === 1,
+        ),
       );
+      socket.send('{"type":"ping"}');
+      await waitFor(messages, 'pong');
+      assert(!messages.some(({ type }) => type === 'error'));
     } finally {
-      socket.terminate();
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
     }
   });
 }
 
-void it('stops subscription setup when disconnected during domain validation', async (context) => {
-  let release = () => {};
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let queries = 0;
-  const initialize = context.mock.method(
-    ConfirmationStream.prototype,
-    'initialize',
-  );
-  context.mock.method(db, 'queryLive', async (sql) => {
-    queries++;
-    assert.match(sql, /^SELECT id FROM domain/);
-    await held;
-    return knownDomainRows;
-  });
+void it('rejects a domain override without scraper-head state', async (context) => {
+  context.mock.method(db, 'queryLive', async () => []);
   const socket = new WebSocket(url);
   const messages = captureMessages(socket);
-  try {
-    await waitFor(messages, 'ready');
-    socket.send(
-      JSON.stringify({
-        type: 'subscribe',
-        streams: [
-          { eventType: 'blocks', domains: [1] },
-          { eventType: 'dispatch', domains: [1], confirmations: 0 },
-        ],
-      }),
-    );
-    await waitUntil(() => queries === 1);
-    socket.close();
-    await waitUntil(() => events.metricsSnapshot().connections.agent === 0);
-    release();
-    await nextTurn();
-    assert.equal(queries, 1);
-    assert.equal(initialize.mock.callCount(), 0);
-    assert(!messages.some(({ type }) => type === 'subscribed'));
-  } finally {
-    release();
-    socket.terminate();
-  }
+  const closed = new Promise<number>((resolve) =>
+    socket.once('close', resolve),
+  );
+  await waitFor(messages, 'ready');
+  socket.send(
+    JSON.stringify({
+      type: 'subscribe',
+      confirmationsByDomain: { 999: 0 },
+      streams: [{ eventType: 'dispatch', domains: [999] }],
+    }),
+  );
+  assert.match(
+    String((await waitFor(messages, 'error')).error),
+    /Custom confirmations unavailable for domain 999/,
+  );
+  assert.equal(await closed, 1008);
+  assert(!messages.some(({ type }) => type === 'subscribed'));
 });
 
 void it('provides quiet-chain live starts and isolates malformed checkpoints without scanning events', async (context) => {
@@ -417,8 +383,6 @@ void it('provides quiet-chain live starts and isolates malformed checkpoints wit
       sql: string,
       values: unknown[] = [],
     ): Promise<T[]> => {
-      if (sql.startsWith('SELECT id FROM domain'))
-        return queryRows<T>(knownDomainRows);
       queries++;
       assert.match(sql, /JOIN scraper_checkpoint/);
       assert.deepEqual(values, [[1, -2, 2]]);
@@ -533,7 +497,7 @@ void it('applies domain overrides across event types with legacy and canonical f
   rows.set('994003', { ...row(hookA, 0), domain: 3 });
   const socket = new WebSocket(url);
   const messages = captureMessages(socket);
-  const confirmationsByDomain = { 1: 0, 2: 3, 9: 99 };
+  const confirmationsByDomain = { 1: 0, 2: 3 };
   try {
     const ready = await waitFor(messages, 'ready');
     assert.equal(record(ready.confirmations).byDomain, true);
@@ -661,8 +625,6 @@ void it('batches distinct policies and uses one advisory reader per event type',
       sql: string,
       values: unknown[] = [],
     ): Promise<T[]> => {
-      if (sql.startsWith('SELECT id FROM domain'))
-        return queryRows<T>(knownDomainRows);
       assert.match(sql, /LEFT JOIN LATERAL/);
       snapshots.push(values);
       return queryRows<T>(
@@ -740,8 +702,6 @@ void it('automatically distinguishes canonical, custom and advisory zero-confirm
       sql: string,
       values: unknown[] = [],
     ): Promise<T[]> => {
-      if (sql.startsWith('SELECT id FROM domain'))
-        return queryRows<T>(knownDomainRows);
       if (sql.includes('LEFT JOIN LATERAL')) {
         confirmations.push(...recordArray(values[1]));
         return queryRows<T>(
@@ -853,8 +813,6 @@ for (const rollback of [false, true]) {
       db,
       'queryLive',
       async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
-        if (sql.startsWith('SELECT id FROM domain'))
-          return queryRows<T>(knownDomainRows);
         assert.match(sql, /LEFT JOIN LATERAL/);
         const first = ++queries === 1;
         if (first) await held;
@@ -928,8 +886,6 @@ void it('keeps custom streams without retained checkpoints unavailable, never ca
     db,
     'queryLive',
     async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
-      if (sql.startsWith('SELECT id FROM domain'))
-        return queryRows<T>(knownDomainRows);
       assert.match(sql, /LEFT JOIN LATERAL/);
       return queryRows<T>([
         {
@@ -1033,8 +989,7 @@ void it('registers live delivery before reading the boundary and resamples on re
 });
 
 void it('closes a failed boundary snapshot without claiming a live start', async (context) => {
-  context.mock.method(db, 'queryLive', async (sql) => {
-    if (sql.startsWith('SELECT id FROM domain')) return knownDomainRows;
+  context.mock.method(db, 'queryLive', async () => {
     throw new Error('snapshot failed');
   });
   const socket = new WebSocket(url);
@@ -1063,7 +1018,6 @@ for (const route of ['agents', 'messages']) {
     });
     let snapshotStarted = false;
     context.mock.method(db, 'queryLive', async (sql) => {
-      if (sql.startsWith('SELECT id FROM domain')) return knownDomainRows;
       assert(sql.includes("encode(indexed_hash, 'hex')"));
       snapshotStarted = true;
       await held;
@@ -1311,9 +1265,7 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
 for (const kind of ['query', 'unavailable']) {
   void it(`reports ${kind} confirmation negotiation errors before closing with 1008`, async (context) => {
     if (kind === 'unavailable')
-      context.mock.method(db, 'queryLive', async (sql) =>
-        sql.startsWith('SELECT id FROM domain') ? knownDomainRows : [],
-      );
+      context.mock.method(db, 'queryLive', async () => []);
     const socket = new WebSocket(
       kind === 'query' ? `${messagesUrl}?confirmations=-1&domains=1` : url,
     );
@@ -1366,8 +1318,6 @@ for (const available of [false, true]) {
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
-        if (sql.startsWith('SELECT id FROM domain'))
-          return queryRows<T>(knownDomainRows);
         if (
           sql.includes('SELECT domain, head_height') ||
           sql.includes('SELECT h.domain, h.head_height')
@@ -1474,8 +1424,6 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
       sql: string,
       values: unknown[] = [],
     ): Promise<T[]> => {
-      if (sql.startsWith('SELECT id FROM domain'))
-        return queryRows<T>(knownDomainRows);
       if (
         sql.includes('SELECT domain, head_height') ||
         sql.includes('SELECT h.domain, h.head_height')
@@ -1555,8 +1503,6 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
     db,
     'queryLive',
     async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
-      if (sql.startsWith('SELECT id FROM domain'))
-        return queryRows<T>(knownDomainRows);
       if (
         sql.includes('SELECT domain, head_height') ||
         sql.includes('SELECT h.domain, h.head_height')
@@ -1663,8 +1609,6 @@ for (const { eventType, byDomain } of [...EVENT_TYPES, 'messages'].flatMap(
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
-        if (sql.startsWith('SELECT id FROM domain'))
-          return queryRows<T>(knownDomainRows);
         if (
           sql.includes('SELECT domain, head_height') ||
           sql.includes('SELECT h.domain, h.head_height')
@@ -2076,15 +2020,6 @@ void it('accepts fleet-sized agent subscriptions without raising the Explorer pa
   const payloadEvents = new EventWebSocketServer(
     {
       ...db,
-      async queryLive<T>(sql, values = []) {
-        if (sql.startsWith('SELECT id FROM domain'))
-          return queryRows<T>(
-            Array.from({ length: 1_000 }, (_, index) => ({
-              id: index + 1_000,
-            })),
-          );
-        return db.queryLive<T>(sql, values);
-      },
       async listen() {
         return async () => undefined;
       },

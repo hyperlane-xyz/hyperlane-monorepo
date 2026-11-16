@@ -80,12 +80,19 @@ export function parseClientMessage(raw: string): ClientMessage {
     value.confirmationsByDomain,
   );
   if (confirmationsByDomain?.size) {
+    const domains = new Set<number>();
     for (const request of streams) {
       if (request.eventType === 'blocks') continue;
       if (!request.domains) {
         throw new Error(
           'confirmationsByDomain requires explicit event stream domains',
         );
+      }
+      for (const domain of request.domains) domains.add(domain);
+    }
+    for (const domain of confirmationsByDomain.keys()) {
+      if (!domains.has(domain)) {
+        throw new Error(`Unused confirmationsByDomain domain ${domain}`);
       }
     }
   }

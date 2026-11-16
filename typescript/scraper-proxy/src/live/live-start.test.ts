@@ -18,8 +18,6 @@ void it(
     try {
       // Session-local tables: never alter an existing scraper database.
       await db.query(`
-      CREATE TEMP TABLE domain (id integer PRIMARY KEY);
-      INSERT INTO domain VALUES (1),(-2),(7);
       CREATE TEMP TABLE scraper_head (
         domain integer PRIMARY KEY, confirmed_height bigint, indexed_height bigint,
         mailbox bytea, merkle_tree_hook bytea, interchain_gas_paymaster bytea,
@@ -54,10 +52,6 @@ void it(
         new Set([1, 2, 3, 4, 5, 4294967294]),
       );
       assert.deepEqual(
-        await store.knownDomains(new Set([1, 4294967294, 7, 8])),
-        new Set([1, 4294967294, 7]),
-      );
-      assert.deepEqual(
         [...boundaries.keys()].sort((a, b) => a - b),
         [1, 5, 4294967294],
       );
@@ -82,7 +76,14 @@ void it(
       await db.query(
         "INSERT INTO scraper_checkpoint VALUES (1,108,decode(repeat('ef',32),'hex'))",
       );
-      const custom = await store.confirmationHeads(
+      const customHeads = async (domains: Set<number>, count: number) => {
+        const heads = (
+          await store.confirmationSnapshots(new Map([[count, domains]]))
+        ).get(count);
+        assert(heads);
+        return heads;
+      };
+      const custom = await customHeads(
         new Set([1, 2, 3, 4, 5, 4294967294]),
         11,
       );
@@ -100,12 +101,6 @@ void it(
         [2, new Set([7])],
       ]);
       const snapshots = await store.confirmationSnapshots(policies);
-      assert.deepEqual(snapshots.get(11), custom);
-      for (const [count, domains] of policies)
-        assert.deepEqual(
-          snapshots.get(count),
-          await store.confirmationHeads(domains, count),
-        );
       assert.equal(
         snapshots.get(0)?.get(4294967294)?.liveStart?.height,
         '9007199254740993',
@@ -113,18 +108,16 @@ void it(
       assert.equal(snapshots.get(21)?.get(1)?.liveStart, undefined);
       assert.equal(snapshots.get(2)?.size, 0);
       assert.equal(
-        (await store.confirmationHeads(new Set([1]), 0)).get(1)?.liveStart
-          ?.height,
+        (await customHeads(new Set([1]), 0)).get(1)?.liveStart?.height,
         '110',
       );
       assert.equal(
-        (await store.confirmationHeads(new Set([1]), 21)).get(1)?.liveStart,
+        (await customHeads(new Set([1]), 21)).get(1)?.liveStart,
         undefined,
       );
       assert.equal(
-        (await store.confirmationHeads(new Set([4294967294]), 0)).get(
-          4294967294,
-        )?.liveStart?.height,
+        (await customHeads(new Set([4294967294]), 0)).get(4294967294)?.liveStart
+          ?.height,
         '9007199254740993',
       );
       assert.equal((await store.liveStartBoundaries()).size, 4);
@@ -135,7 +128,7 @@ void it(
       assert.equal(corrupt.has(1), false);
       assert.equal(corrupt.get(5)?.height, '0');
       assert.equal(
-        (await store.confirmationHeads(new Set([1, 5]), 20)).get(1)?.liveStart,
+        (await customHeads(new Set([1, 5]), 20)).get(1)?.liveStart,
         undefined,
       );
       await db.query(
@@ -143,7 +136,7 @@ void it(
       );
       assert.equal((await store.liveStartBoundaries(new Set([5]))).size, 0);
       assert.equal(
-        (await store.confirmationHeads(new Set([5]), 0)).get(5)?.liveStart,
+        (await customHeads(new Set([5]), 0)).get(5)?.liveStart,
         undefined,
       );
     } finally {

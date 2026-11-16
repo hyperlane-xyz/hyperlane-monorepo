@@ -18,7 +18,7 @@ function subscribe(confirmationsByDomain: unknown, streams: unknown[]) {
 void it('domain overrides take precedence for every event type, including zero', () => {
   for (const eventType of EVENT_TYPES) {
     for (const confirmations of [undefined, 12]) {
-      const message = subscribe({ 1: 0, 2: 3, 5: 3, 9: 99 }, [
+      const message = subscribe({ 1: 0, 2: 3, 5: 3 }, [
         { eventType, domains: [1, 2, 3, 4, 5], confirmations },
       ]);
       const request = message.streams[0];
@@ -125,6 +125,19 @@ void it('rejects malformed domain maps and confirmation values', () => {
 });
 
 void it('requires explicit domains and rejects replay regardless of domain overrides', () => {
+  for (const streams of [
+    [{ eventType: 'dispatch', domains: [1] }],
+    [{ eventType: 'blocks', domains: [2] }],
+    [
+      { eventType: 'dispatch', domains: [1] },
+      { eventType: 'blocks', domains: [2] },
+    ],
+  ]) {
+    assert.throws(
+      () => subscribe({ 2: 0 }, streams),
+      /Unused confirmationsByDomain domain 2/,
+    );
+  }
   assert.throws(
     () =>
       splitConfirmationStreams({ eventType: 'dispatch' }, new Map([[1, 2]])),
