@@ -448,6 +448,10 @@ for (const failure of ['unavailable', 'database']) {
     const code = await closed;
     // Database failure terminates the socket; unavailable policies close with 1008.
     assert.equal(code, failure === 'database' ? 1013 : 1008);
+    assert.equal(
+      messages.some(({ type }) => type === 'error'),
+      failure !== 'database',
+    );
     assert(!messages.some(({ type }) => type === 'ready'));
     assert.equal(events.metricsSnapshot().validatorPendingSetups, 0);
     assert.equal(events.metricsSnapshot().connections.validators, 0);
@@ -754,6 +758,105 @@ for (const channel of ['scraper_event', 'scraper_head']) {
         () =>
           validator.readyState === WebSocket.CLOSED &&
           agent.readyState === WebSocket.CLOSED,
+      );
+    }
+  });
+}
+
+for (const failure of ['head', 'queue']) {
+  void it(`keeps custom validator readers connected after a canonical ${failure} failure`, async (context) => {
+    const original = db.queryValidator.bind(db);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let blocked = false;
+    let customReads = 0;
+    context.mock.method(
+      db,
+      'queryValidator',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('LEFT JOIN LATERAL'))
+          return queryRows<T>([
+            {
+              ...liveStartRow,
+              confirmations: 0,
+              height: '10',
+              head_height: '10',
+              indexed_height: '10',
+              confirmed_height: '5',
+            },
+          ]);
+        if (sql.includes('confirmation_events')) {
+          customReads++;
+          return [];
+        }
+        if (sql.includes('notification_id') || sql.includes('"frontier_row"')) {
+          blocked = true;
+          if (failure === 'queue') await gate;
+          throw new Error('canonical read failed');
+        }
+        return original<T>(sql, values);
+      },
+    );
+    const canonical = new WebSocket(`${validatorsUrl}?domain=1`);
+    const custom = new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`);
+    const canonicalMessages = captureMessages(canonical);
+    const customMessages = captureMessages(custom);
+    try {
+      await Promise.all([
+        waitFor(canonicalMessages, 'ready'),
+        waitFor(customMessages, 'live_start'),
+      ]);
+      if (failure === 'head') {
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            domain: 1,
+            previousConfirmedHeight: '10',
+            confirmedHeight: '11',
+          }),
+        );
+      } else {
+        notify('scraper_event', notification('1'));
+        await waitUntil(() => blocked);
+        for (let batch = 0; batch < 11; batch++) {
+          for (let index = 0; index < 1_000; index++)
+            notify(
+              'scraper_event',
+              notification(String(500_000 + batch * 1_000 + index)),
+            );
+          await waitUntil(
+            () => events.metricsSnapshot().notificationQueue.agent === 0,
+          );
+        }
+      }
+      await waitUntil(() => canonical.readyState === WebSocket.CLOSED);
+      assert.equal(custom.readyState, WebSocket.OPEN);
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain: 1,
+          headHeight: '11',
+          indexedHeight: '11',
+          previousIndexedHeight: '10',
+          confirmedHeight: '5',
+        }),
+      );
+      await waitUntil(() => customReads > 0);
+      custom.send(JSON.stringify({ type: 'ping' }));
+      await waitFor(customMessages, 'pong');
+    } finally {
+      release();
+      canonical.close();
+      custom.close();
+      await waitUntil(() =>
+        [canonical, custom].every(
+          ({ readyState }) => readyState === WebSocket.CLOSED,
+        ),
       );
     }
   });
@@ -3389,6 +3492,11 @@ void it('keeps Explorer connected when an agent query fails', async () => {
 });
 
 void it('bounds Explorer notifications without closing agents', async () => {
+  const failures = async () =>
+    (await websocketSendFailures.get()).values.find(
+      ({ labels }) => labels.reason === 'notification_queue_limit',
+    )?.value ?? 0;
+  const failuresBefore = await failures();
   const explorer = new WebSocket(messagesUrl);
   const explorerMessages: Record<string, unknown>[] = [];
   const agentMessages: Record<string, unknown>[] = [];
@@ -3412,10 +3520,7 @@ void it('bounds Explorer notifications without closing agents', async () => {
     await waitUntil(() => explorer.readyState === WebSocket.CLOSED);
     assert.equal(agent.readyState, WebSocket.OPEN);
     assert.equal(events.metricsSnapshot().notificationQueue.messages, 0);
-    assert.match(
-      await metricsRegistry.metrics(),
-      /websocket_send_failures_total\{reason="notification_queue_limit"\} 1/,
-    );
+    assert.equal(await failures(), failuresBefore + 1);
   } finally {
     agent.close();
     if (explorer.readyState !== WebSocket.CLOSED) explorer.close();

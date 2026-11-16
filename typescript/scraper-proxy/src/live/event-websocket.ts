@@ -1840,11 +1840,13 @@ export class EventWebSocketServer {
 
   private failValidatorDomain(domain: number, error: unknown): void {
     for (const socket of this.validatorClients.keys()) {
+      const subscription = this.clients
+        .get(socket)
+        ?.subscriptions.get('merkle_tree_insertion');
       if (
-        this.clients
-          .get(socket)
-          ?.subscriptions.get('merkle_tree_insertion')
-          ?.domains?.has(domain)
+        subscription &&
+        subscription.confirmations === undefined &&
+        subscription.domains?.has(domain)
       )
         this.failSocket(socket, formatError(error));
     }
@@ -1854,8 +1856,13 @@ export class EventWebSocketServer {
     this.logger.error(`validator event stream failed: ${formatError(error)}`);
     this.validatorNotifications.clear();
     this.validatorHeadRanges.clear();
-    for (const socket of this.validatorClients.keys())
-      this.failSocket(socket, formatError(error));
+    for (const socket of this.validatorClients.keys()) {
+      const subscription = this.clients
+        .get(socket)
+        ?.subscriptions.get('merkle_tree_insertion');
+      if (subscription && subscription.confirmations === undefined)
+        this.failSocket(socket, formatError(error));
+    }
   }
 
   private closeClients(reason: string, code = 1013): void {
@@ -2071,7 +2078,8 @@ export class EventWebSocketServer {
         reason,
       });
     this.disconnect(socket);
-    this.sendError(socket, error);
+    if (code === 1013) this.logger.warn(`stream setup failed: ${error}`);
+    else this.sendError(socket, error);
     socket.close(
       code,
       code === 1013 ? 'Stream unavailable' : 'Invalid subscription',
