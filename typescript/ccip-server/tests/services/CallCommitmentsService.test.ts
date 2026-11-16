@@ -14,6 +14,7 @@ import {
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
+  ProtocolType,
   addressToBytes32,
   formatMessage,
   parseMessage,
@@ -1011,6 +1012,10 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
   function createService() {
     const service = Object.create(CallCommitmentsService.prototype);
     service.addLoggerServiceContext = () => mockLogger();
+    service.multiProvider = {
+      getProtocol: sinon.stub().returns(ProtocolType.Ethereum),
+    };
+    service.deriveIcaFromRevealMessage = sinon.stub().resolves(mockIca);
     return service;
   }
 
@@ -1044,6 +1049,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       message,
       baseRelayers[0],
       mockLogger(),
+      '0x' + '34'.repeat(32),
     );
 
     expect(result).to.equal(
