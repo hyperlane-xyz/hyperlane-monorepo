@@ -120,7 +120,8 @@ def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str, cal
     if kind == "perf":
         perf = perf_binary()
         assert perf, "perf not installed (linux-tools-generic)"
-        return (f"{perf} record -q -F 499 --call-graph {call_graph} -p $$ -o {stem}.perf.data >/dev/null 2>&1 &\n"
+        freq = int(os.environ.get("BENCH_PERF_FREQ") or 499)  # higher for small cycle shares (more perturbation)
+        return (f"{perf} record -q -F {freq} --call-graph {call_graph} -p $$ -o {stem}.perf.data >/dev/null 2>&1 &\n"
                 # Every minor/major fault with its call graph (cycles samples cannot attribute faults).
                 f"{perf} record -q -e page-faults -c 1 --call-graph {call_graph} -p $$ -o {stem}.faults.perf.data >/dev/null 2>&1 &\n"
                 f"{perf} stat -e task-clock,context-switches,cpu-migrations,page-faults,cycles,instructions "
@@ -183,6 +184,12 @@ def make_wrappers(bins: pathlib.Path, mode: str, agent_cpus: list[int], work: pa
             wrapper.parent.mkdir(parents=True, exist_ok=True)
             env = f"HYP_LOG_LEVEL={RUST_LOG_LEVEL} HYP_LOG_FORMAT=json " if impl == "rust" else zig_env
             prelude = profiler_prelude(profile[0], profile[1], impl, role, call_graph) if profile else ""
+            if os.environ.get("BENCH_FD_SAMPLER"):  # diagnostic: open-fd count + FDSize at 4 Hz (fixture CPUs)
+                fd_out = work.parent / "agent-out"
+                fd_out.mkdir(parents=True, exist_ok=True)
+                prelude = (f'(while kill -0 $$ 2>/dev/null; do n=$(ls /proc/$$/fd 2>/dev/null | wc -l); '
+                           f's=$(grep FDSize /proc/$$/status 2>/dev/null); echo "$(date +%s.%N) $n $s"; sleep 0.25; done '
+                           f'> {fd_out}/fd-{impl}-{role}-$$.txt 2>/dev/null) &\n') + prelude
             wrapper.write_text(f'#!/bin/sh\n{prelude}{env}exec {taskset} -c {cpu_spec(agent_cpus)} {real} "$@"\n')
             wrapper.chmod(0o755)
             out[impl][role] = wrapper
