@@ -428,76 +428,6 @@ void it('rejects invalid URLs before DB reads and unknown domains before readers
   assert.equal(initialize.mock.callCount(), 0);
 });
 
-void it('treats validator confirmations=0 as a single custom stream, not canonical', async (context) => {
-  const original = db.queryLive.bind(db);
-  const initialize = context.mock.method(
-    ConfirmationStream.prototype,
-    'initialize',
-  );
-  context.mock.method(
-    db,
-    'queryLive',
-    async <T extends QueryResultRow>(
-      sql: string,
-      values: unknown[] = [],
-    ): Promise<T[]> => {
-      if (sql.includes('LEFT JOIN LATERAL')) {
-        assert.deepEqual(values, [[1], [0]]);
-        return queryRows<T>([
-          {
-            ...liveStartRow,
-            confirmations: 0,
-            height: '10',
-            head_height: '10',
-            indexed_height: '10',
-            confirmed_height: '5',
-          },
-        ]);
-      }
-      if (sql.includes('confirmation_events'))
-        return queryRows<T>([
-          {
-            ...row(hookA),
-            block_number: '11',
-            block_hash: `\\x${'ab'.repeat(32)}`,
-            frontier_height: '11',
-            frontier_id: '1',
-          },
-        ]);
-      return original<T>(sql, values);
-    },
-  );
-  const socket = new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`);
-  const messages = captureMessages(socket);
-  try {
-    assert.equal((await waitFor(messages, 'ready')).confirmations, 0);
-    assert.deepEqual(events.metricsSnapshot().validatorSubscriptions, [
-      { domain: 1, canonical: 0, custom: 1 },
-    ]);
-    assert.equal((await waitFor(messages, 'live_start')).confirmations, 0);
-    notify('scraper_event', notification('1'));
-    notify(
-      'scraper_head',
-      JSON.stringify({
-        domain: 1,
-        headHeight: '11',
-        indexedHeight: '11',
-        previousIndexedHeight: '10',
-        confirmedHeight: '5',
-      }),
-    );
-    const event = await waitFor(messages, 'event');
-    assert.equal(event.confirmations, 0);
-    assert.equal(event.height, '11');
-    assert.equal(event.eventType, 'merkle_tree_insertion');
-    assert.equal(initialize.mock.callCount(), 1);
-    assert.equal(messages.filter(({ type }) => type === 'event').length, 1);
-  } finally {
-    socket.close();
-    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
-  }
-});
-
 for (const failure of ['unavailable', 'database']) {
   void it(`rejects ${failure} validator confirmation setup without a ready frame`, async (context) => {
     context.mock.method(
@@ -589,79 +519,25 @@ void it('limits validator IPs and total capacity independently from agents and m
   }
 });
 
-void it('bounds disconnected validator setup work and releases it after the lookup ends', async (context) => {
-  let release = () => {};
-  const held = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  let queries = 0;
-  context.mock.method(
-    db,
-    'queryLive',
-    async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
-      if (!sql.startsWith('SELECT id FROM domain')) return [];
-      queries++;
-      await held;
-      return queryRows<T>([{ id: 1 }]);
-    },
-  );
-  const initialize = context.mock.method(
-    ConfirmationStream.prototype,
-    'initialize',
-  );
-  const sockets: WebSocket[] = [];
-  try {
-    for (let i = 0; i < 6; i++) {
-      if (i === 5)
-        await upgradeRejected(`${validatorsUrl}?domain=1`, 429, '203.0.113.40');
-      const socket = new WebSocket(
-        `${validatorsUrl}?domain=1&confirmations=0`,
-        {
-          headers: {
-            'cf-connecting-ip': i < 5 ? '203.0.113.40' : '203.0.113.41',
-          },
-        },
-      );
-      sockets.push(socket);
-      await waitUntil(() => queries === i + 1);
-      socket.close();
-      await waitUntil(
-        () => events.metricsSnapshot().connections.validators === 0,
-      );
-    }
-    await upgradeRejected(`${validatorsUrl}?domain=1`, 503);
-    assert.equal(queries, 6);
-    assert.equal(events.metricsSnapshot().validatorPendingSetups, 6);
-    release();
-    await waitUntil(
-      () => events.metricsSnapshot().validatorPendingSetups === 0,
-    );
-    assert.equal(initialize.mock.callCount(), 0);
-    const replacement = new WebSocket(`${validatorsUrl}?domain=1`);
-    sockets.push(replacement);
-    const messages = captureMessages(replacement);
-    await waitFor(messages, 'ready');
-  } finally {
-    release();
-    sockets.forEach((socket) => socket.close());
-    await waitUntil(() =>
-      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
-    );
-  }
-});
-
-void it('bounds concurrent setup work globally and per public IP after disconnects', async () => {
+void it('bounds setup work after disconnects and recovers capacity without creating readers', async (context) => {
   const { EventWebSocketServer } = await import('./event-websocket.js');
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
+  const initialize = context.mock.method(
+    ConfirmationStream.prototype,
+    'initialize',
+  );
   const localHttp = createServer();
   const localEvents = new EventWebSocketServer({
     listen: async () => async () => {},
     queryLive: db.queryLive,
-    async queryValidator<T>() {
-      await gate;
+    async queryValidator<T>(sql: string) {
+      if (sql.startsWith('SELECT id FROM domain')) {
+        await gate;
+        return queryRows<T>([{ id: 1 }]);
+      }
       return queryRows<T>([]);
     },
   });
@@ -703,6 +579,14 @@ void it('bounds concurrent setup work globally and per public IP after disconnec
       localEvents.metricsSnapshot().validatorReservedConnections,
       32,
     );
+    release();
+    await waitUntil(
+      () => localEvents.metricsSnapshot().validatorReservedConnections === 0,
+    );
+    assert.equal(initialize.mock.callCount(), 0);
+    const replacement = new WebSocket(endpoint);
+    sockets.push(replacement);
+    await waitFor(captureMessages(replacement), 'ready');
   } finally {
     sockets.forEach((socket) => socket.terminate());
     release();

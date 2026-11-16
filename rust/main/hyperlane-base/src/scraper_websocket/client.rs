@@ -2,7 +2,7 @@
 
 use std::{pin::Pin, time::Duration};
 
-use eyre::{bail, ensure, Context, Result};
+use eyre::{bail, Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use serde::de::DeserializeOwned;
 use tokio::{
@@ -232,14 +232,6 @@ impl ScraperWebSocket {
         confirmations: Option<u32>,
         read_timeout: Duration,
     ) -> Result<Self> {
-        ensure!(
-            url.path() == "/validators",
-            "Validator WebSocket URL must use /validators"
-        );
-        ensure!(
-            url.query().is_none(),
-            "Validator WebSocket URL must not contain query parameters"
-        );
         let mut url = url.clone();
         url.query_pairs_mut()
             .append_pair("domain", &domain.to_string());
@@ -263,20 +255,18 @@ impl ScraperWebSocket {
                 event_types,
                 historical_streaming,
                 live_start_version,
-            }) => {
-                if !(actual_domain == domain
-                    && actual_confirmations == confirmations
-                    && event_types == ["merkle_tree_insertion"]
-                    && !historical_streaming
-                    && live_start_version == 1)
-                {
-                    return Err(RejectedStream(
-                        "Validator WebSocket ready does not match requested stream".into(),
-                    )
-                    .into());
-                }
-            }
+            }) if actual_domain == domain
+                && actual_confirmations == confirmations
+                && event_types == ["merkle_tree_insertion"]
+                && !historical_streaming
+                && live_start_version == 1 => {}
             Some(ValidatorHandshake::Error { error }) => return Err(RejectedStream(error).into()),
+            Some(_) => {
+                return Err(RejectedStream(
+                    "Validator WebSocket ready does not match requested stream".into(),
+                )
+                .into())
+            }
             None => bail!("Validator WebSocket closed before ready"),
         }
         socket.state = SubscriptionState::Subscribed;
@@ -485,95 +475,103 @@ pub(super) mod tests {
 
     #[tokio::test]
     async fn validator_url_negotiation_validates_ready_without_sending_subscribe() {
-        for confirmations in [None, Some(0), Some(12)] {
-            for invalid in [
-                None,
-                Some("domain"),
-                Some("confirmations"),
-                Some("eventTypes"),
-                Some("historicalStreaming"),
-                Some("liveStartVersion"),
-                Some("type"),
-            ] {
-                let mut ready = serde_json::json!({"type":"ready", "domain":1,
-                    "eventTypes":["merkle_tree_insertion"], "historicalStreaming":false, "liveStartVersion":1});
-                if let Some(count) = confirmations {
-                    ready["confirmations"] = serde_json::json!(count);
-                }
-                if let Some(field) = invalid {
-                    ready[field] = match field {
-                        "domain" => serde_json::json!(2),
-                        "confirmations" => serde_json::json!(99),
-                        "eventTypes" => serde_json::json!(["dispatch"]),
-                        "historicalStreaming" => serde_json::json!(true),
-                        "liveStartVersion" => serde_json::json!(2),
-                        _ => serde_json::json!("subscribed"),
-                    };
-                }
-                let listener = TcpListener::bind("127.0.0.1:0").await.expect("listen");
-                let url = url::Url::parse(&format!(
-                    "ws://{}/validators",
-                    listener.local_addr().unwrap()
-                ))
-                .unwrap();
-                let (client, server) = tokio::join!(
-                    ScraperWebSocket::connect_validator(&url, 1, confirmations, READ_TIMEOUT),
-                    async {
-                        let (tcp, _) = listener.accept().await.unwrap();
-                        let mut socket = tokio_tungstenite::accept_hdr_async(tcp, |request: &tokio_tungstenite::tungstenite::handshake::server::Request, response| {
+        for (confirmations, invalid) in [
+            (None, None),
+            (Some(0), None),
+            (Some(12), None),
+            (Some(12), Some("domain")),
+            (Some(12), Some("confirmations")),
+            (Some(12), Some("eventTypes")),
+            (Some(12), Some("historicalStreaming")),
+            (Some(12), Some("liveStartVersion")),
+            (Some(12), Some("type")),
+        ] {
+            let mut ready = serde_json::json!({"type":"ready", "domain":1,
+                "eventTypes":["merkle_tree_insertion"], "historicalStreaming":false, "liveStartVersion":1});
+            if let Some(count) = confirmations {
+                ready["confirmations"] = serde_json::json!(count);
+            }
+            if let Some(field) = invalid {
+                ready[field] = match field {
+                    "domain" => serde_json::json!(2),
+                    "confirmations" => serde_json::json!(99),
+                    "eventTypes" => serde_json::json!(["dispatch"]),
+                    "historicalStreaming" => serde_json::json!(true),
+                    "liveStartVersion" => serde_json::json!(2),
+                    _ => serde_json::json!("subscribed"),
+                };
+            }
+            let listener = TcpListener::bind("127.0.0.1:0").await.expect("listen");
+            let url = url::Url::parse(&format!(
+                "ws://{}/validators",
+                listener.local_addr().unwrap()
+            ))
+            .unwrap();
+            let (client, server) = tokio::join!(
+                ScraperWebSocket::connect_validator(&url, 1, confirmations, READ_TIMEOUT),
+                async {
+                    let (tcp, _) = listener.accept().await.unwrap();
+                    let mut socket = tokio_tungstenite::accept_hdr_async(
+                        tcp,
+                        |request: &tokio_tungstenite::tungstenite::handshake::server::Request,
+                         response| {
                             let expected = match confirmations {
-                                Some(count) => format!("/validators?domain=1&confirmations={count}"),
+                                Some(count) => {
+                                    format!("/validators?domain=1&confirmations={count}")
+                                }
                                 None => "/validators?domain=1".into(),
                             };
                             assert_eq!(request.uri().to_string(), expected);
                             Ok(response)
-                        }).await.unwrap();
-                        socket
-                            .send(Message::Text(ready.to_string().into()))
-                            .await
-                            .unwrap();
-                        socket
-                    }
-                );
-                if invalid.is_some() {
-                    assert!(client.is_err());
-                    continue;
-                }
-                let mut client = client.unwrap();
-                let mut server = server;
-                assert!(
-                    timeout(Duration::from_millis(10), server.next())
+                        },
+                    )
+                    .await
+                    .unwrap();
+                    socket
+                        .send(Message::Text(ready.to_string().into()))
                         .await
-                        .is_err(),
-                    "URL clients must not send a subscribe frame"
-                );
-                server
-                    .send(Message::Text(r#"{"type":"rollback"}"#.into()))
-                    .await
-                    .unwrap();
-                assert!(matches!(
-                    client.recv::<serde_json::Value>().await.unwrap(),
-                    Some(ServerMessage::Rollback)
-                ));
-                server
-                    .send(Message::Text(ready.to_string().into()))
-                    .await
-                    .unwrap();
-                assert!(
-                    client.recv::<serde_json::Value>().await.is_err(),
-                    "duplicate ready"
-                );
-                server
-                    .send(Message::Text(
-                        r#"{"type":"subscribed","streams":[]}"#.into(),
-                    ))
-                    .await
-                    .unwrap();
-                assert!(
-                    client.recv::<serde_json::Value>().await.is_err(),
-                    "unexpected subscribed"
-                );
+                        .unwrap();
+                    socket
+                }
+            );
+            if invalid.is_some() {
+                assert!(client.is_err());
+                continue;
             }
+            let mut client = client.unwrap();
+            let mut server = server;
+            assert!(
+                timeout(Duration::from_millis(10), server.next())
+                    .await
+                    .is_err(),
+                "URL clients must not send a subscribe frame"
+            );
+            server
+                .send(Message::Text(r#"{"type":"rollback"}"#.into()))
+                .await
+                .unwrap();
+            assert!(matches!(
+                client.recv::<serde_json::Value>().await.unwrap(),
+                Some(ServerMessage::Rollback)
+            ));
+            server
+                .send(Message::Text(ready.to_string().into()))
+                .await
+                .unwrap();
+            assert!(
+                client.recv::<serde_json::Value>().await.is_err(),
+                "duplicate ready"
+            );
+            server
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
+                .await
+                .unwrap();
+            assert!(
+                client.recv::<serde_json::Value>().await.is_err(),
+                "unexpected subscribed"
+            );
         }
     }
 

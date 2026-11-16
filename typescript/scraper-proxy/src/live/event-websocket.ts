@@ -26,7 +26,6 @@ import {
   displayAddress,
   SUBSCRIPTION_TYPES,
   type BlockStreamRequest,
-  type ClientMessage,
   type EventNotification,
   type EventType,
   type HeadNotification,
@@ -171,15 +170,7 @@ export class EventWebSocketServer {
   });
   private readonly clients = new Map<WebSocket, Client>();
   private readonly validatorClients = new Map<WebSocket, ValidatorClient>();
-  private readonly validatorAdmissions = new WeakMap<
-    IncomingMessage,
-    {
-      client: ValidatorClient;
-      subscription: ReturnType<typeof parseValidatorSubscription>;
-    }
-  >();
   private readonly validatorGroups = new Map<string, ValidatorGroup>();
-  private readonly validatorClientsByIp = new Map<string, number>();
   private readonly blockSubscriptions = new Map<WebSocket, BlockSubscription>();
   private readonly confirmationStreams = new Map<
     WebSocket,
@@ -311,13 +302,6 @@ export class EventWebSocketServer {
           this.failSocket(socket, formatError(error)),
         ),
     );
-    this.validatorServer.on(
-      'connection',
-      (socket, request) =>
-        void this.connectValidator(socket, request).catch((error) =>
-          this.failSocket(socket, formatError(error)),
-        ),
-    );
     this.heartbeatTimer = setInterval(() => this.heartbeat(), heartbeatMs);
     this.logger.info(
       `event websockets listening on ${AGENT_PATH}, ${MESSAGE_PATH}, ${VALIDATOR_PATH} batchSize=${config.EVENT_STREAM_BATCH_SIZE} maxAgentClients=${this.limits.maxAgentClients} maxValidatorClients=${this.limits.maxValidatorClients} maxBufferedBytes=${this.limits.maxBufferedBytes} maxTotalBufferedBytes=${this.limits.maxTotalBufferedBytes}`,
@@ -390,11 +374,15 @@ export class EventWebSocketServer {
         subscriptions[eventType]++;
     }
     const sockets = [...this.clients.keys(), ...this.explorerClients.keys()];
+    const validatorIps = new Map<string, number>();
+    for (const { ip } of this.validatorClients.values())
+      validatorIps.set(ip, (validatorIps.get(ip) ?? 0) + 1);
+    const validatorConnections = this.validatorCount();
     return {
       connections: {
-        agent: this.clients.size - this.validatorCount(),
+        agent: this.clients.size - validatorConnections,
         messages: this.explorerClients.size,
-        validators: this.validatorCount(),
+        validators: validatorConnections,
       },
       validatorPendingSetups: [...this.validatorClients.values()].filter(
         (client) => client.pending,
@@ -402,11 +390,8 @@ export class EventWebSocketServer {
       validatorReservedConnections: this.validatorClients.size,
       validatorSharedReaders: this.validatorGroups.size,
       validatorSubscriptions: [...validatorSubscriptions.values()],
-      validatorClientIps: this.validatorClientsByIp.size,
-      validatorMaxConnectionsPerIp: Math.max(
-        0,
-        ...this.validatorClientsByIp.values(),
-      ),
+      validatorClientIps: validatorIps.size,
+      validatorMaxConnectionsPerIp: Math.max(0, ...validatorIps.values()),
       explorerPendingMessages: [...this.explorerClients.values()].reduce(
         (total, client) => total + client.queue.length,
         0,
@@ -501,6 +486,12 @@ export class EventWebSocketServer {
       socket.destroy();
       return;
     }
+    let admission:
+      | {
+          client: ValidatorClient;
+          subscription: ReturnType<typeof parseValidatorSubscription>;
+        }
+      | undefined;
     if (path === VALIDATOR_PATH) {
       let status = 400;
       let reason = 'invalid_subscription';
@@ -529,18 +520,16 @@ export class EventWebSocketServer {
           throw new Error('Maximum validator setups reached');
         status = 429;
         reason = 'per_ip_setup_limit';
+        const peers = clients.filter((entry) => entry.ip === client.ip);
         if (
-          clients.filter((entry) => entry.ip === client.ip && entry.pending)
-            .length >= MAX_VALIDATOR_PENDING_SETUPS_PER_IP
+          peers.filter((entry) => entry.pending).length >=
+          MAX_VALIDATOR_PENDING_SETUPS_PER_IP
         )
           throw new Error('Maximum setups per client reached');
         reason = 'per_ip_limit';
-        if (
-          (this.validatorClientsByIp.get(client.ip) ?? 0) >=
-          this.limits.maxValidatorClientsPerIp
-        )
+        if (peers.length >= this.limits.maxValidatorClientsPerIp)
           throw new Error('Maximum connections per client reached');
-        this.validatorAdmissions.set(request, { client, subscription });
+        admission = { client, subscription };
       } catch {
         websocketConnectionRejections.inc({ route: 'validators', reason });
         socket.end(
@@ -550,19 +539,23 @@ export class EventWebSocketServer {
         return;
       }
     }
-    websocketServer.handleUpgrade(request, socket, head, (websocket) =>
-      websocketServer.emit('connection', websocket, request),
-    );
+    websocketServer.handleUpgrade(request, socket, head, (websocket) => {
+      if (admission)
+        void this.connectValidator(
+          websocket,
+          admission.client,
+          admission.subscription,
+        ).catch((error) => this.failSocket(websocket, formatError(error)));
+      else websocketServer.emit('connection', websocket, request);
+    });
   };
 
   private async connectValidator(
     socket: WebSocket,
-    request: IncomingMessage,
+    validator: ValidatorClient,
+    subscription: ReturnType<typeof parseValidatorSubscription>,
   ): Promise<void> {
     this.watch(socket);
-    const admission = this.validatorAdmissions.get(request);
-    if (!admission) throw new Error('Missing validator admission');
-    const { client: validator, subscription } = admission;
     const client: Client = {
       alive: true,
       messages: 0,
@@ -572,10 +565,6 @@ export class EventWebSocketServer {
     };
     this.clients.set(socket, client);
     this.validatorClients.set(socket, validator);
-    this.validatorClientsByIp.set(
-      validator.ip,
-      (this.validatorClientsByIp.get(validator.ip) ?? 0) + 1,
-    );
     websocketConnections.inc({ route: 'validators' });
     socket.on('message', (data, binary) => {
       if (this.clients.get(socket) !== client) return;
@@ -602,37 +591,49 @@ export class EventWebSocketServer {
         this.rejectNegotiation(socket, `Unknown domain ${domain}`);
         return;
       }
-      if (confirmations !== undefined) {
-        await this.subscribeValidatorGroup(
-          socket,
-          client,
-          domain,
-          confirmations,
-        );
+      const group =
+        confirmations === undefined
+          ? undefined
+          : await this.joinValidatorGroup(
+              socket,
+              client,
+              validator,
+              domain,
+              confirmations,
+            );
+      if (
+        this.clients.get(socket) !== client ||
+        (confirmations !== undefined && !group)
+      )
         return;
-      }
-      await this.subscribe(
+      const request: StreamRequest = {
+        eventType: 'merkle_tree_insertion',
+        domains: new Set([domain]),
+        confirmations,
+      };
+      client.subscriptions.set('merkle_tree_insertion', request);
+      client.subscribing = false;
+      this.send(socket, {
+        type: 'ready',
+        domain,
+        confirmations,
+        eventTypes: ['merkle_tree_insertion'],
+        historicalStreaming: false,
+        liveStartVersion: 1,
+      });
+      group?.stream.start();
+      const boundary = group
+        ? group.boundary
+        : (await this.validatorStore.liveStartBoundaries(request.domains)).get(
+            domain,
+          );
+      await this.sendLiveStart(
         socket,
         client,
-        {
-          type: 'subscribe',
-          streams: [
-            {
-              eventType: 'merkle_tree_insertion',
-              domains: new Set([domain]),
-              confirmations,
-            },
-          ],
-        },
-        {
-          type: 'ready',
-          domain,
-          confirmations,
-          eventTypes: ['merkle_tree_insertion'],
-          historicalStreaming: false,
-          liveStartVersion: 1,
-        },
-        this.validatorStore,
+        domain,
+        ['merkle_tree_insertion'],
+        boundary,
+        confirmations,
       );
     } catch (error) {
       this.rejectNegotiation(
@@ -649,16 +650,15 @@ export class EventWebSocketServer {
     }
   }
 
-  private async subscribeValidatorGroup(
+  private async joinValidatorGroup(
     socket: WebSocket,
     client: Client,
+    validator: ValidatorClient,
     domain: number,
     confirmations: number,
-  ): Promise<void> {
+  ) {
     await this.confirmationUpdates.flush();
     if (this.clients.get(socket) !== client) return;
-    const validator = this.validatorClients.get(socket);
-    if (!validator) return;
     const key = `${domain}:${confirmations}`;
     const readHeads = async () => {
       const snapshots = await this.validatorStore.confirmationSnapshots(
@@ -672,6 +672,14 @@ export class EventWebSocketServer {
     const joining = group !== undefined;
     if (!group) {
       const members = new Set<WebSocket>();
+      const broadcast = (message: Record<string, unknown>) => {
+        const serialized = serialize(message);
+        for (const member of members) {
+          if (this.clients.get(member)?.subscribing === false)
+            this.sendSerialized(member, serialized);
+        }
+        return members.size > 0;
+      };
       const stream = new ConfirmationStream(confirmations, new Set([domain]), {
         active: () => !this.stopped && members.size > 0,
         read: (_domain, after, through) =>
@@ -682,16 +690,9 @@ export class EventWebSocketServer {
             through,
             confirmations,
           ),
-        send: (message) => {
-          const serialized = serialize(message);
-          for (const member of members) {
-            if (this.clients.get(member)?.subscribing === false)
-              this.sendSerialized(member, serialized);
-          }
-          return Promise.resolve(members.size > 0);
-        },
+        send: async (message) => broadcast(message),
         rollback: (_domain, from, to) => {
-          const message = serialize({
+          broadcast({
             type: 'rollback',
             eventType: 'merkle_tree_insertion',
             domain,
@@ -699,10 +700,6 @@ export class EventWebSocketServer {
             fromHeight: from.toString(),
             toHeight: to.toString(),
           });
-          for (const member of members) {
-            if (this.clients.get(member)?.subscribing === false)
-              this.sendSerialized(member, message);
-          }
         },
         fail: (error) => {
           for (const member of members)
@@ -732,29 +729,7 @@ export class EventWebSocketServer {
       boundary = heads.get(domain)?.liveStart;
       break;
     }
-    client.subscriptions.set('merkle_tree_insertion', {
-      eventType: 'merkle_tree_insertion',
-      domains: new Set([domain]),
-      confirmations,
-    });
-    client.subscribing = false;
-    this.send(socket, {
-      type: 'ready',
-      domain,
-      confirmations,
-      eventTypes: ['merkle_tree_insertion'],
-      historicalStreaming: false,
-      liveStartVersion: 1,
-    });
-    group.stream.start();
-    await this.sendLiveStart(
-      socket,
-      client,
-      domain,
-      ['merkle_tree_insertion'],
-      boundary,
-      confirmations,
-    );
+    return { stream: group.stream, boundary };
   }
 
   private validatorCount(): number {
@@ -950,7 +925,6 @@ export class EventWebSocketServer {
     eventType?: EventType,
     allowUnavailable = eventType === undefined,
     readHeads = () => this.store.confirmationHeads(domains),
-    store = this.store,
   ): Promise<ConfirmationStream | undefined> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
@@ -961,14 +935,14 @@ export class EventWebSocketServer {
         this.clients.has(socket) || this.explorerClients.has(socket),
       read: (domain, after, through, frontiers) =>
         eventType
-          ? store.confirmationEventRows(
+          ? this.store.confirmationEventRows(
               eventType,
               domain,
               after,
               through,
               confirmations,
             )
-          : store.confirmationMessageRows(
+          : this.store.confirmationMessageRows(
               domain,
               after,
               through,
@@ -1076,26 +1050,6 @@ export class EventWebSocketServer {
     }
 
     client.subscribing = true;
-    await this.subscribe(socket, client, message);
-  }
-
-  private async subscribe(
-    socket: WebSocket,
-    client: Client,
-    message: Extract<ClientMessage, { type: 'subscribe' }>,
-    acknowledgement: Record<string, unknown> = {
-      type: 'subscribed',
-      ...(message.confirmationsByDomain
-        ? {
-            confirmationsByDomain: Object.fromEntries(
-              message.confirmationsByDomain,
-            ),
-          }
-        : {}),
-      streams: message.streams.map(subscriptionResponse),
-    },
-    store = this.store,
-  ): Promise<void> {
     const customStreams: {
       request: StreamRequest;
       stream: ConfirmationStream;
@@ -1131,7 +1085,7 @@ export class EventWebSocketServer {
         if (!snapshot || snapshot.revision !== this.confirmationRevision) {
           snapshot = {
             revision: this.confirmationRevision,
-            heads: store.confirmationSnapshots(policies),
+            heads: this.store.confirmationSnapshots(policies),
           };
         }
         const heads = (await snapshot.heads).get(confirmations);
@@ -1163,7 +1117,6 @@ export class EventWebSocketServer {
             request.eventType,
             allowUnavailable,
             () => readHeads(confirmations),
-            store,
           ).then((stream) => (stream ? { request, stream } : undefined)),
         );
       };
@@ -1209,7 +1162,17 @@ export class EventWebSocketServer {
     }
 
     client.subscribing = false;
-    this.send(socket, acknowledgement);
+    this.send(socket, {
+      ...(message.confirmationsByDomain
+        ? {
+            confirmationsByDomain: Object.fromEntries(
+              message.confirmationsByDomain,
+            ),
+          }
+        : {}),
+      streams: message.streams.map(subscriptionResponse),
+      type: 'subscribed',
+    });
     this.confirmationStreams.get(socket)?.forEach((stream) => stream.start());
     this.startBlocks(socket);
     try {
@@ -1232,7 +1195,6 @@ export class EventWebSocketServer {
         socket,
         client,
         eventStreams.filter((request) => request.confirmations === undefined),
-        store,
       );
     } catch (error) {
       this.failSocket(socket, formatError(error));
@@ -1244,15 +1206,14 @@ export class EventWebSocketServer {
     socket: WebSocket,
     client: Client,
     streams: StreamRequest[],
-    store = this.store,
   ): Promise<void> {
     if (!streams.length) return;
     const domains = streams.every((stream) => stream.domains)
       ? new Set(streams.flatMap((stream) => [...(stream.domains ?? [])]))
       : undefined;
     // Canonical subscriptions are registered before this primary DB read.
-    // Buffer from the acknowledgement (`ready` for validators), before the boundary.
-    const boundaries = await store.liveStartBoundaries(domains);
+    // Consumers must buffer from `subscribed`, not from the boundary frame.
+    const boundaries = await this.store.liveStartBoundaries(domains);
     const requested = new Set([
       ...boundaries.keys(),
       ...streams.flatMap((stream) => [...(stream.domains ?? [])]),
@@ -1465,18 +1426,13 @@ export class EventWebSocketServer {
         grouped.set(notification.eventType, group);
       }
       for (const [eventType, notifications] of grouped) {
-        const live = notifications.filter((notification) =>
-          this.hasSubscriber(notification, true),
-        );
-        const validators = notifications.filter(
-          (notification) =>
-            this.hasSubscriber(notification) &&
-            !this.hasSubscriber(notification, true),
-        );
+        const live: EventNotification[] = [];
+        for (const notification of notifications) {
+          if (this.hasSubscriber(notification, true)) live.push(notification);
+          else if (this.hasSubscriber(notification))
+            this.queueValidatorNotification(notification);
+        }
         if (live.length) await this.publishNotifications(eventType, live);
-        validators.forEach((notification) =>
-          this.queueValidatorNotification(notification),
-        );
       }
     }
   }
@@ -2100,9 +2056,6 @@ export class EventWebSocketServer {
     const client = this.validatorClients.get(socket);
     if (!client || client.pending || socket.readyState !== WebSocket.CLOSED)
       return;
-    const count = this.validatorClientsByIp.get(client.ip) ?? 0;
-    if (count > 1) this.validatorClientsByIp.set(client.ip, count - 1);
-    else this.validatorClientsByIp.delete(client.ip);
     this.validatorClients.delete(socket);
   }
 

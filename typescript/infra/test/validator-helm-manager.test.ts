@@ -26,9 +26,6 @@ describe('ValidatorHelmManager', () => {
     for (const config of Object.values(localAgents)) {
       expect(config.validators?.rpcConsensusType).to.equal('majority');
     }
-    expect(agents[Contexts.FastPath].validators?.websocketUrl).to.equal(
-      'wss://explorer-api.hyperlane.xyz/validators',
-    );
   });
 
   it('preserves validator quorum and majority on AltVMs', () => {

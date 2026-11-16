@@ -363,7 +363,7 @@ export function parseValidatorSubscription(params: URLSearchParams): {
     throw new Error('Expected nonnegative integer confirmations');
   return {
     domain,
-    confirmations: parseConfirmations(Number(count), new Set([domain])),
+    confirmations: parseConfirmationCount(Number(count)),
   };
 }
 

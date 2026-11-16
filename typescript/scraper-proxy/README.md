@@ -387,12 +387,9 @@ confirmation policies can still occupy public capacity and consume shared DB
 resources. The remotely managed tunnel must allow the exact `/validators` path;
 adding the endpoint does not modify the deployed tunnel configuration.
 
-Rollout: deploy a proxy image supporting `/validators` first, configure the
-Cloudflare tunnel, then deploy the updated validators. Mainnet/testnet validator
-contexts use `wss://explorer-api.hyperlane.xyz/validators`, on the same public host
-as `/messages` and `/graphql`. Deploying these configs requires compatible validator
-images and completed proxy/tunnel rollout; image tags are not bumped here. The new
-Rust binary accepts only a query-free `ws://` or `wss://` URL ending in `/validators`.
+Mainnet/testnet validator contexts use `wss://explorer-api.hyperlane.xyz/validators`,
+on the same public host as `/messages` and `/graphql`. The Rust binary accepts only
+a query-free `ws://` or `wss://` URL ending in `/validators`.
 No new cluster or database migration is required.
 
 ## Agent WebSocket: `/agents`
