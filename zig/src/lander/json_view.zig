@@ -89,11 +89,30 @@ pub fn writeByteArray(out: *std.ArrayList(u8), allocator: std.mem.Allocator, byt
     out.appendAssumeCapacity('[');
     for (bytes, 0..) |byte, i| {
         if (i != 0) out.appendAssumeCapacity(',');
-        var digits: [3]u8 = undefined;
-        const text = std.fmt.bufPrint(&digits, "{d}", .{byte}) catch unreachable;
-        out.appendSliceAssumeCapacity(text);
+        out.appendSliceAssumeCapacity(decimal[byte]);
     }
     out.appendAssumeCapacity(']');
+}
+
+const decimal: [256][]const u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var table: [256][]const u8 = undefined;
+    for (&table, 0..) |*text, i| text.* = std.fmt.comptimePrint("{d}", .{i});
+    break :blk table;
+};
+
+test "byte array text matches Stringify for every byte" {
+    const allocator = std.testing.allocator;
+    var all: [256]u8 = undefined;
+    for (&all, 0..) |*byte, i| byte.* = @intCast(i);
+    var out: std.ArrayList(u8) = .empty;
+    defer out.deinit(allocator);
+    try writeByteArray(&out, allocator, &all);
+    var items: [256]std.json.Value = undefined;
+    for (&items, all) |*item, byte| item.* = .{ .integer = byte };
+    const expected = try std.json.Stringify.valueAlloc(allocator, std.json.Value{ .array = .{ .items = &items, .capacity = 256, .allocator = allocator } }, .{});
+    defer allocator.free(expected);
+    try std.testing.expectEqualStrings(expected, out.items);
 }
 
 fn skipSpace(raw: []const u8, start: usize) usize {
