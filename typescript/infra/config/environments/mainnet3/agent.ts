@@ -407,6 +407,8 @@ const diagnosticsDatabaseSecret =
 
 const scraperWebsocketUrl =
   'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents';
+const validatorWebsocketUrl =
+  'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/validators';
 
 const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
   '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
@@ -908,7 +910,7 @@ const hyperlane: RootAgentConfig = {
       tag: mainnetDockerTags.validator,
     },
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -985,7 +987,7 @@ const releaseCandidate: RootAgentConfig = {
       tag: mainnetDockerTags.validatorRC,
     },
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -1150,7 +1152,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorFastPath,

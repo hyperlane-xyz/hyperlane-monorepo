@@ -2,7 +2,7 @@
 
 use std::{pin::Pin, time::Duration};
 
-use eyre::{bail, Context, Result};
+use eyre::{bail, ensure, Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use serde::de::DeserializeOwned;
 use tokio::{
@@ -12,6 +12,22 @@ use tokio::{
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
 use super::ServerMessage;
+
+#[derive(serde::Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ValidatorHandshake {
+    #[serde(rename_all = "camelCase")]
+    Ready {
+        domain: u32,
+        confirmations: Option<u32>,
+        event_types: Vec<String>,
+        historical_streaming: bool,
+        live_start_version: u32,
+    },
+    Error {
+        error: String,
+    },
+}
 
 /// Delay between ordinary connection retries.
 pub const RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -209,6 +225,51 @@ impl ScraperWebSocket {
         })
     }
 
+    /// Negotiate one public validator stream in the URL, without a subscribe frame.
+    pub async fn connect_validator(
+        url: &url::Url,
+        domain: u32,
+        confirmations: Option<u32>,
+        read_timeout: Duration,
+    ) -> Result<Self> {
+        ensure!(
+            url.path() == "/validators",
+            "Validator WebSocket URL must use /validators"
+        );
+        ensure!(
+            url.query().is_none(),
+            "Validator WebSocket URL must not contain query parameters"
+        );
+        let mut url = url.clone();
+        url.query_pairs_mut()
+            .append_pair("domain", &domain.to_string());
+        if let Some(confirmations) = confirmations {
+            url.query_pairs_mut()
+                .append_pair("confirmations", &confirmations.to_string());
+        }
+        let mut socket = Self::connect(&url, read_timeout).await?;
+        match socket.receive::<ValidatorHandshake>().await? {
+            Some(ValidatorHandshake::Ready {
+                domain: actual_domain,
+                confirmations: actual_confirmations,
+                event_types,
+                historical_streaming,
+                live_start_version,
+            }) => ensure!(
+                actual_domain == domain
+                    && actual_confirmations == confirmations
+                    && event_types == ["merkle_tree_insertion"]
+                    && !historical_streaming
+                    && live_start_version == 1,
+                "Validator WebSocket ready does not match requested stream"
+            ),
+            Some(ValidatorHandshake::Error { error }) => return Err(RejectedStream(error).into()),
+            None => bail!("Validator WebSocket closed before ready"),
+        }
+        socket.state = SubscriptionState::Subscribed;
+        Ok(socket)
+    }
+
     pub(super) fn read_deadline(&self) -> Instant {
         self.deadline.deadline()
     }
@@ -224,6 +285,23 @@ impl ScraperWebSocket {
     /// Receive a typed protocol message, servicing heartbeats and enforcing order.
     /// EOF and transport errors are returned to the agent so it restores RPC first.
     pub async fn recv<T: DeserializeOwned>(&mut self) -> Result<Option<ServerMessage<T>>> {
+        let message = self.receive().await?;
+        match &message {
+            Some(ServerMessage::Ready) => self.state = self.state.receive_ready()?,
+            Some(ServerMessage::Subscribed { .. }) => {
+                self.state = self.state.receive_subscribed()?
+            }
+            Some(ServerMessage::Event(_)) => self.state.require_subscribed("event")?,
+            Some(ServerMessage::LiveStart(_) | ServerMessage::LiveStartUnavailable { .. }) => {
+                self.state.require_subscribed("live-start boundary")?
+            }
+            Some(ServerMessage::Rollback) => self.state.require_subscribed("rollback")?,
+            _ => {}
+        }
+        Ok(message)
+    }
+
+    async fn receive<T: DeserializeOwned>(&mut self) -> Result<Option<T>> {
         loop {
             let frame = tokio::select! {
                 biased;
@@ -242,19 +320,6 @@ impl ScraperWebSocket {
                 Message::Text(text) => {
                     let message =
                         serde_json::from_str(&text).context("Parsing scraper WebSocket message")?;
-                    match &message {
-                        ServerMessage::Ready => self.state = self.state.receive_ready()?,
-                        ServerMessage::Subscribed { .. } => {
-                            self.state = self.state.receive_subscribed()?
-                        }
-                        ServerMessage::Event(_) => self.state.require_subscribed("event")?,
-                        ServerMessage::LiveStart(_)
-                        | ServerMessage::LiveStartUnavailable { .. } => {
-                            self.state.require_subscribed("live-start boundary")?
-                        }
-                        ServerMessage::Rollback => self.state.require_subscribed("rollback")?,
-                        ServerMessage::Error { .. } | ServerMessage::Other => {}
-                    }
                     return Ok(Some(message));
                 }
                 // Tungstenite queues the matching pong while reading a ping.
@@ -328,6 +393,97 @@ pub(super) mod tests {
             accept_async(socket).await.expect("handshake")
         });
         (client.expect("connect"), server)
+    }
+
+    #[tokio::test]
+    async fn validator_url_negotiation_validates_ready_without_sending_subscribe() {
+        for confirmations in [None, Some(0), Some(12)] {
+            for invalid in [
+                None,
+                Some("domain"),
+                Some("confirmations"),
+                Some("eventTypes"),
+                Some("historicalStreaming"),
+                Some("liveStartVersion"),
+                Some("type"),
+            ] {
+                let mut ready = serde_json::json!({"type":"ready", "domain":1, "confirmations":confirmations,
+                    "eventTypes":["merkle_tree_insertion"], "historicalStreaming":false, "liveStartVersion":1});
+                if let Some(field) = invalid {
+                    ready[field] = match field {
+                        "domain" => serde_json::json!(2),
+                        "confirmations" => serde_json::json!(99),
+                        "eventTypes" => serde_json::json!(["dispatch"]),
+                        "historicalStreaming" => serde_json::json!(true),
+                        "liveStartVersion" => serde_json::json!(2),
+                        _ => serde_json::json!("subscribed"),
+                    };
+                }
+                let listener = TcpListener::bind("127.0.0.1:0").await.expect("listen");
+                let url = url::Url::parse(&format!(
+                    "ws://{}/validators",
+                    listener.local_addr().unwrap()
+                ))
+                .unwrap();
+                let (client, server) = tokio::join!(
+                    ScraperWebSocket::connect_validator(&url, 1, confirmations, READ_TIMEOUT),
+                    async {
+                        let (tcp, _) = listener.accept().await.unwrap();
+                        let mut socket = tokio_tungstenite::accept_hdr_async(tcp, |request: &tokio_tungstenite::tungstenite::handshake::server::Request, response| {
+                            let expected = match confirmations {
+                                Some(count) => format!("/validators?domain=1&confirmations={count}"),
+                                None => "/validators?domain=1".into(),
+                            };
+                            assert_eq!(request.uri().to_string(), expected);
+                            Ok(response)
+                        }).await.unwrap();
+                        socket
+                            .send(Message::Text(ready.to_string().into()))
+                            .await
+                            .unwrap();
+                        socket
+                    }
+                );
+                if invalid.is_some() {
+                    assert!(client.is_err());
+                    continue;
+                }
+                let mut client = client.unwrap();
+                let mut server = server;
+                assert!(
+                    timeout(Duration::from_millis(10), server.next())
+                        .await
+                        .is_err(),
+                    "URL clients must not send a subscribe frame"
+                );
+                server
+                    .send(Message::Text(r#"{"type":"rollback"}"#.into()))
+                    .await
+                    .unwrap();
+                assert!(matches!(
+                    client.recv::<serde_json::Value>().await.unwrap(),
+                    Some(ServerMessage::Rollback)
+                ));
+                server
+                    .send(Message::Text(ready.to_string().into()))
+                    .await
+                    .unwrap();
+                assert!(
+                    client.recv::<serde_json::Value>().await.is_err(),
+                    "duplicate ready"
+                );
+                server
+                    .send(Message::Text(
+                        r#"{"type":"subscribed","streams":[]}"#.into(),
+                    ))
+                    .await
+                    .unwrap();
+                assert!(
+                    client.recv::<serde_json::Value>().await.is_err(),
+                    "unexpected subscribed"
+                );
+            }
+        }
     }
 
     #[tokio::test]

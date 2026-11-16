@@ -67,6 +67,7 @@ debugging but does not replace scraper state.
 | ------------------- | ------------------------------------------------------------------------ | ----------------------------------- | --------------------------------- |
 | `GET/POST /graphql` | Historical queries, pagination, message snapshots, diagnostic history    | Request/response                    | Explorer, Nexus, services         |
 | `WS /messages`      | Enriched message updates, selected message IDs, block heads, diagnostics | Server pushes after URL negotiation | Explorer, Nexus, public consumers |
+| `WS /validators`    | Merkle tree insertions for exactly one domain and confirmation policy    | Server pushes after URL negotiation | Public validators                 |
 | `WS /agents`        | Live protocol events at canonical or custom confirmations                | Client sends a subscription         | Internal agents and indexers      |
 | `GET /metrics`      | Request, database, WebSocket, queue, and process metrics                 | Prometheus scrape                   | Monitoring                        |
 
@@ -300,6 +301,74 @@ outbound byte limits have priority.
 Missing diagnostic fields mean unobserved, not zero or success. Never infer ISM
 verification from signature counts, metadata success, absent events, or a failed
 validator read. The proxy performs no background signature reads or verification.
+
+## Validator WebSocket: `/validators`
+
+This public, live-only endpoint emits only `merkle_tree_insertion` events. Choose
+exactly one domain and an optional confirmation count in the connection URL:
+
+```text
+wss://<public-scraper-host>/validators?domain=1
+wss://<public-scraper-host>/validators?domain=1&confirmations=12
+wss://<public-scraper-host>/validators?domain=1&confirmations=0
+```
+
+The domain must exist in the scraper DB's `domain` table. Omitted confirmations
+use the scraper's configured canonical policy. An explicit nonnegative safe
+integer uses the custom-confirmation flow, capped by indexed progress; zero
+streams near-head events. Custom counts require near-head state and never fall
+back to canonical. Keep the policy consistent with the validator's configuration.
+
+The server validates the URL and automatically subscribes. It sends `ready` with
+`domain`, optional `confirmations`, `eventTypes: ["merkle_tree_insertion"]`,
+`historicalStreaming: false`, and `liveStartVersion: 1` before any events or
+`live_start`/`live_start_unavailable` frames. There is no client subscribe message,
+`subscribed` acknowledgement, or subscribe deadline. Reconnect to change policy.
+Only `{"type":"ping"}` application messages are accepted. Additional/duplicate URL
+parameters, domain lists, replay options and subscription messages are rejected.
+
+The handoff uses the same boundaries as `/agents`: domain, height/hash, Merkle
+hook address and optional confirmation count. Buffer from `ready`, recover history
+through RPC, verify the boundary through RPC, then hand off after catching up.
+Unavailable boundaries, disconnects and rollbacks retain or restore RPC indexing.
+Configure the Rust validator's `websocketUrl` with the `/validators` endpoint and
+no query parameters. It supplies its origin domain and numeric reorg period;
+block-tag policies omit confirmations and use the scraper's canonical policy.
+It validates the negotiated policy before using the existing RPC handoff.
+No WebSocket backfill is performed.
+
+Limits per process: **500 validator connections**, 5 per client IP, 500 unfinished
+setups, 1 KiB URLs/client frames, and 30 application messages per minute.
+Disconnected setups retain their work slot until the DB read ends. Heartbeat and
+socket/aggregate outbound-buffer limits apply. Each connection creates at most
+one custom reader. Connection capacity is separate from `/agents` and `/messages`;
+validator reads use a dedicated five-connection primary pool with acquisition
+timeouts, preventing public queues from consuming the internal live-event pool.
+The database server and outbound resources remain shared.
+
+Validator metrics use the `hyperlane_scraper_proxy_` prefix:
+
+| Metric                                                                                      | Labels / meaning                                                        |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `websocket_connections`, `websocket_connection_limit`                                       | `route="validators"`: current connections and the 500-connection cap    |
+| `websocket_connections_total`, `websocket_connection_rejections_total`                      | Connections accepted and rejected, by route/rejection reason            |
+| `websocket_validator_subscriptions`                                                         | Active subscriptions by `domain` and `policy="canonical"` or `"custom"` |
+| `websocket_validator_pending_setups`, `websocket_validator_setup_limit`                     | Unfinished DB setups and their cap                                      |
+| `websocket_validator_client_ips`                                                            | Current distinct client IP count                                        |
+| `websocket_validator_max_connections_per_ip`, `websocket_validator_connection_limit_per_ip` | Largest current per-IP count and its limit                              |
+| `websocket_validator_client_message_limit_bytes`                                            | Inbound frame limit                                                     |
+| `database_pool_waiting_requests`, `database_pool_connection_limit`                          | `pool="validator"`: queued reads and the five-connection isolation cap  |
+| `database_queries_total`, `database_query_duration_seconds`                                 | `role="validator_primary"`: validator DB load and latency               |
+
+Subscriptions count only accepted streams and exclude validators from the agent
+subscription gauge. Labels contain only known subscribed domains and two policy
+classes, never client IPs or arbitrary confirmation counts. Domain series are
+removed when the last subscription disconnects.
+
+Production requires a valid `CF-Connecting-IP`, supplied by the trusted Cloudflare
+tunnel. Keep the origin private and rate-limit upgrades at Cloudflare. The
+remotely managed tunnel must allow the exact `/validators` path for public access;
+adding this endpoint does not change the deployed tunnel configuration.
 
 ## Agent WebSocket: `/agents`
 
@@ -556,7 +625,8 @@ pnpm -C typescript/infra tsx scripts/agents/deploy-agents.ts \
 
 Use `testnet4` for testnet. When enabling the tunnel, supply the GCP secret
 `{context}-{environment}-scraper-proxy-cloudflared-tunnel-token`. Route only
-`/graphql*` and `/messages*` publicly; keep `/agents` cluster-only.
+`/graphql*`, `/messages*`, and the exact `/validators` path publicly; keep `/agents`
+cluster-only. Tunnel ingress is managed remotely in Cloudflare, not by this chart.
 
 The configured SELECT-only Secret Manager values are
 `hyperlane-mainnet-relayer-postgres-reader-url` for mainnet3 and

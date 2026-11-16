@@ -256,6 +256,48 @@ export function parseExplorerConfirmations(
   return { confirmations, domains };
 }
 
+/** Public validators negotiate one immutable Merkle stream in the URL. */
+export function parseValidatorSubscription(params: URLSearchParams): {
+  domain: number;
+  confirmations?: number;
+} {
+  for (const key of params.keys()) {
+    if (
+      (key !== 'domain' && key !== 'confirmations') ||
+      params.getAll(key).length !== 1
+    )
+      throw new Error('Expected one domain and optional confirmations only');
+  }
+  const rawDomain = params.get('domain');
+  const domain = Number(rawDomain);
+  if (
+    !rawDomain ||
+    !UNSIGNED_INTEGER_REGEX.test(rawDomain) ||
+    !isDomain(domain)
+  )
+    throw new Error('Expected one uint32 domain');
+  const count = params.get('confirmations');
+  if (count === null) return { domain };
+  if (!UNSIGNED_INTEGER_REGEX.test(count))
+    throw new Error('Expected nonnegative integer confirmations');
+  return {
+    domain,
+    confirmations: parseConfirmations(Number(count), new Set([domain])),
+  };
+}
+
+export function parseValidatorPing(raw: string): void {
+  const value: unknown = JSON.parse(raw);
+  if (
+    !isRecord(value) ||
+    value.type !== 'ping' ||
+    Object.keys(value).length !== 1
+  )
+    throw new Error(
+      'Only ping is allowed; reconnect to change the subscription',
+    );
+}
+
 export function parseMessageId(value: string): string {
   if (!/^(?:0x|\\x)?[\da-fA-F]{64}$/.test(value))
     throw new Error('Expected a 32-byte message ID');

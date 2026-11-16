@@ -69,6 +69,7 @@ void it('keeps replica health from gating primary live queries', async (context)
   assert.equal(connectAttempts, 0);
   const saturated = db.query('SELECT pg_sleep(1)');
   assert.deepEqual(await db.queryLive('SELECT 1'), [{ ready: 1 }]);
+  assert.deepEqual(await db.queryValidator('SELECT validator'), [{ ready: 1 }]);
   assert.equal(
     queryUrls.get('SELECT pg_sleep(1)'),
     process.env.DATABASE_READ_REPLICA_URL,
@@ -105,6 +106,10 @@ void it('keeps replica health from gating primary live queries', async (context)
   assert.match(
     metrics,
     /database_query_duration_seconds_count\{(?=[^}]*role="graphql_replica")(?=[^}]*outcome="success")[^}]*\} 2/,
+  );
+  assert.match(
+    metrics,
+    /database_queries_total\{(?=[^}]*role="validator_primary")(?=[^}]*outcome="success")[^}]*\} 1/,
   );
   assert.match(metrics, /database_rows_total\{role="graphql_replica"\} 2/);
 });
@@ -162,9 +167,11 @@ void it('closes both pools even when listener shutdown throws', async (context) 
   await db.listen(['scraper_event'], () => {}, assert.fail);
   await db.query('SELECT 1');
   await db.queryLive('SELECT 1');
+  await db.queryValidator('SELECT 1');
   await assert.rejects(db.close(), /listener shutdown failed/);
   assert.deepEqual(closed, [
     'listener',
+    process.env.DATABASE_URL,
     process.env.DATABASE_URL,
     process.env.DATABASE_READ_REPLICA_URL,
   ]);

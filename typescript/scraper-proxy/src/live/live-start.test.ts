@@ -18,6 +18,8 @@ void it(
     try {
       // Session-local tables: never alter an existing scraper database.
       await db.query(`
+      CREATE TEMP TABLE domain (id integer PRIMARY KEY);
+      INSERT INTO domain VALUES (1),(-2),(7);
       CREATE TEMP TABLE scraper_head (
         domain integer PRIMARY KEY, confirmed_height bigint, indexed_height bigint,
         mailbox bytea, merkle_tree_hook bytea, interchain_gas_paymaster bytea,
@@ -48,6 +50,10 @@ void it(
           return (await db.query<T>(sql, values)).rows;
         },
       });
+      assert.equal(await store.domainExists(1), true);
+      assert.equal(await store.domainExists(4294967294), true);
+      assert.equal(await store.domainExists(7), true); // Known, no near-head state.
+      assert.equal(await store.domainExists(8), false);
       const boundaries = await store.liveStartBoundaries(
         new Set([1, 2, 3, 4, 5, 4294967294]),
       );

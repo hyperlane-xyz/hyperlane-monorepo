@@ -16,10 +16,16 @@ void it('serves current usage and limits from /metrics', async () => {
     pools: {
       live: { idle: 1, limit: 10, total: 2, waiting: 0 },
       main: { idle: 3, limit: 10, total: 5, waiting: 2 },
+      validator: { idle: 0, limit: 5, total: 5, waiting: 7 },
     },
   }));
+  const validatorSubscriptions = [{ domain: 1, canonical: 1, custom: 1 }];
   setWebSocketMetricsProvider(() => ({
-    connections: { agent: 3, messages: 4 },
+    connections: { agent: 3, messages: 4, validators: 2 },
+    validatorPendingSetups: 1,
+    validatorSubscriptions,
+    validatorClientIps: 1,
+    validatorMaxConnectionsPerIp: 2,
     explorerPendingBytes: 1_024,
     explorerPendingMessages: 9,
     maxExplorerPendingBytes: 512,
@@ -33,6 +39,9 @@ void it('serves current usage and limits from /metrics', async () => {
       explorerPendingMessages: 2_000,
       messageConnections: 400,
       messageConnectionsPerIp: 5,
+      validatorConnections: 500,
+      validatorConnectionsPerIp: 5,
+      validatorMessageBytes: 1024,
       notificationEvents: 10_000,
       socketBufferedBytes: 1_024,
       totalPendingBytes: 4_096,
@@ -53,6 +62,42 @@ void it('serves current usage and limits from /metrics', async () => {
   assert.match(
     output,
     /hyperlane_scraper_proxy_websocket_connections\{route="agent"\} 3/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_connections\{route="validators"\} 2/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_connection_limit\{route="validators"\} 500/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_pending_setups 1/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_subscriptions\{domain="1",policy="canonical"\} 1/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_subscriptions\{domain="1",policy="custom"\} 1/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_setup_limit 500/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_client_ips 1/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_max_connections_per_ip 2/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_client_message_limit_bytes 1024/,
   );
   assert.match(
     output,
@@ -124,7 +169,21 @@ void it('serves current usage and limits from /metrics', async () => {
     output,
     /hyperlane_scraper_proxy_database_pool_waiting_requests\{pool="main"\} 2/,
   );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_database_pool_waiting_requests\{pool="validator"\} 7/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_database_pool_connection_limit\{pool="validator"\} 5/,
+  );
   assert.match(output, /hyperlane_scraper_proxy_process_cpu/);
+
+  validatorSubscriptions.length = 0;
+  assert.doesNotMatch(
+    await metricsRegistry.metrics(),
+    /websocket_validator_subscriptions\{domain=/,
+  );
 
   const { registerMetricsRoute } = await import('./module.js');
   const app = Fastify({ logger: false });
