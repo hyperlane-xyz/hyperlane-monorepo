@@ -24,6 +24,10 @@ pub const Request = struct {
     /// `validateEndpoint` (an RPC pool checks its endpoints once at start), so
     /// per-transfer validation skips them. Never set with `public_only`.
     endpoint_checked: bool = false,
+    /// Expected body bytes (e.g. this endpoint's previous response). Without
+    /// a Content-Length the first body write reserves min(hint, limit)
+    /// instead of doubling up from 4 KiB.
+    size_hint: usize = 0,
     cancel: ?*const std.atomic.Value(bool) = null,
 };
 
@@ -115,6 +119,10 @@ const Sink = struct {
     allocator: ?std.mem.Allocator = null,
     limit: usize = 0,
     used: usize = 0,
+    /// Final response head's Content-Length, and the request's size hint:
+    /// the body buffer is sized once when either covers the first write.
+    content_length: ?usize = null,
+    size_hint: usize = 0,
     too_large: bool = false,
     out_of_memory: bool = false,
     /// Grown on demand up to max_header_bytes. A fixed 32 KiB array here made
@@ -159,7 +167,8 @@ const Sink = struct {
         const required = self.used + length;
         if (required > self.body.len) {
             const allocator = self.allocator orelse unreachable;
-            const capacity = @max(required, @min(limit, @max(@as(usize, 4096), self.body.len *| 2)));
+            const expected = self.content_length orelse self.size_hint;
+            const capacity = if (expected >= required) @min(limit, expected) else @max(required, @min(limit, @max(@as(usize, 4096), self.body.len *| 2)));
             self.body = allocator.realloc(self.body, capacity) catch {
                 self.out_of_memory = true;
                 return 0;
@@ -209,6 +218,7 @@ const Sink = struct {
         const line = pointer[0..length];
         if (std.mem.startsWith(u8, line, "HTTP/")) {
             self.header_used = 0;
+            self.content_length = null;
             var words = std.mem.tokenizeScalar(u8, line, ' ');
             _ = words.next();
             self.response_status = if (words.next()) |status| std.fmt.parseInt(u16, std.mem.trim(u8, status, "\r\n"), 10) catch null else null;
@@ -227,6 +237,10 @@ const Sink = struct {
         }
         @memcpy(self.header_storage[self.header_used..][0..length], pointer[0..length]);
         self.header_used = required;
+        const name = "content-length:";
+        if (line.len > name.len and std.ascii.eqlIgnoreCase(line[0..name.len], name)) {
+            self.content_length = std.fmt.parseInt(usize, std.mem.trim(u8, line[name.len..], " \t\r\n"), 10) catch null;
+        }
         if (self.stop_after_http429_head and self.response_status == 429 and std.mem.eql(u8, line, "\r\n")) {
             self.http429_head_aborted = true;
             return 0;
@@ -492,7 +506,7 @@ pub const Transfer = struct {
         var request = original;
         request.url = url;
         request.body = owned_body;
-        self.* = .{ .allocator = allocator, .client = client, .handle = handle, .request = request, .url = url, .body = owned_body, .sink = .{ .allocator = allocator, .limit = request.max_response_bytes, .cancel = request.cancel, .stop_after_http429_head = request.stop_after_http429_head } };
+        self.* = .{ .allocator = allocator, .client = client, .handle = handle, .request = request, .url = url, .body = owned_body, .sink = .{ .allocator = allocator, .limit = request.max_response_bytes, .size_hint = request.size_hint, .cancel = request.cancel, .stop_after_http429_head = request.stop_after_http429_head } };
         var headers: ?*Slist = null;
         errdefer client.api.slist_free_all(headers);
         var has_encoding = false;
@@ -601,6 +615,28 @@ test "native HTTP sink bounds body headers and cancellation without loading curl
     try std.testing.expectEqual(@as(c_int, 0), Sink.progress(&sink, 0, 0, 0, 0));
     cancelled.store(true, .release);
     try std.testing.expectEqual(@as(c_int, 1), Sink.progress(&sink, 0, 0, 0, 0));
+}
+
+test "native HTTP sink sizes the body once from Content-Length or the size hint" {
+    var cancelled = std.atomic.Value(bool).init(false);
+    var sink: Sink = .{ .allocator = std.testing.allocator, .limit = 1 << 20, .cancel = &cancelled };
+    defer sink.deinit();
+    for ([_][]const u8{ "HTTP/1.1 100 Continue\r\n", "\r\n", "HTTP/1.1 200 OK\r\n", "Content-Length: 20000\r\n", "\r\n" }) |line|
+        try std.testing.expectEqual(line.len, Sink.header(line.ptr, 1, line.len, &sink));
+    try std.testing.expectEqual(@as(?usize, 20000), sink.content_length);
+    const chunk: [1000]u8 = @splat('x');
+    try std.testing.expectEqual(chunk.len, Sink.write(&chunk, 1, chunk.len, &sink));
+    try std.testing.expectEqual(@as(usize, 20000), sink.body.len);
+    for (0..19) |_| try std.testing.expectEqual(chunk.len, Sink.write(&chunk, 1, chunk.len, &sink));
+    // Exactly sized: no growth, and taking the body moves it without a copy.
+    try std.testing.expectEqual(@as(usize, 20000), sink.body.len);
+    const body = try sink.takeBody();
+    std.testing.allocator.free(body);
+    // Chunked (no length): the hint sizes the buffer, capped at the limit.
+    var hinted: Sink = .{ .allocator = std.testing.allocator, .limit = 6000, .size_hint = 9000, .cancel = &cancelled };
+    defer hinted.deinit();
+    try std.testing.expectEqual(chunk.len, Sink.write(&chunk, 1, chunk.len, &hinted));
+    try std.testing.expectEqual(@as(usize, 6000), hinted.body.len);
 }
 
 test "native HTTP validates NUL controls token headers and content encoding before loading curl" {
