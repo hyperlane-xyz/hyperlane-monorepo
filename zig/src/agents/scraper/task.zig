@@ -703,8 +703,20 @@ pub const TaskSet = struct {
                 if (kind == .ccr and owned.routers.len == 0) continue;
                 const i = self.initialized_lanes;
                 lanes[i] = .{ .owner = self, .chain = owned, .kind = kind, .receipt_lane = .{ .stream = if (kind == .gas) .gas else .delivery }, .backoff = .{ .allocator = a } };
-                if (kind == .head) lanes[i].head_owner = try HeadOwner.init(&lanes[i], Lane.cycle, .{ .timeout_ms = options.head_timeout_ms });
                 tasks[i] = .{ .context = &lanes[i], .run = Lane.run, .failure = classify, .wake = owned.wakeFor(kind), .wake_notified = true, .interval_ms = if (kind == .head) @max(1, @min(60000, chain.index.interval *| 1000)) else if (kind == .delivery or kind == .gas) @max(1, chain.index.interval *| 1000) else 5000, .timeout_ms = if (kind == .head) options.head_timeout_ms else options.auxiliary_timeout_ms };
+                if (kind == .head) {
+                    // The head cycle runs on its own owner thread; the task
+                    // only polls it, inline on the service thread. The owner
+                    // publishes through owner_wake (one service wake per
+                    // cycle), not through the I/O generation, so a pending
+                    // head neither costs a worker job per poll nor turns
+                    // every RPC completion into a service wake.
+                    lanes[i].head_owner = try HeadOwner.init(&lanes[i], Lane.cycle, .{ .timeout_ms = options.head_timeout_ms, .notify_io = false });
+                    const owner = &lanes[i].head_owner.?;
+                    tasks[i].nonblocking = true;
+                    tasks[i].owner_wake = owner.ownerWake();
+                    tasks[i].owner_deadline = owner.ownerDeadline();
+                }
                 self.initialized_lanes += 1;
             }
         }

@@ -263,6 +263,16 @@ test "scraper actual TaskSet validates DB then keeps independent chain lanes laz
     }
     try std.testing.expectEqual([2]usize{ 4, 4 }, ordinary);
     try std.testing.expectEqual([2]usize{ 1, 0 }, optional_ccr);
+    // Head polls its owner inline and resumes on the owner's publish flag,
+    // never via a worker job or the global I/O generation.
+    for (tasks.lanes, tasks.descriptors()) |*lane, descriptor| {
+        try std.testing.expectEqual(lane.kind == .head, descriptor.nonblocking);
+        if (lane.head_owner) |*owner| {
+            try std.testing.expect(descriptor.owner_wake == owner.ownerWake());
+            try std.testing.expect(descriptor.owner_deadline == owner.ownerDeadline());
+            try std.testing.expect(!owner.config.notify_io);
+        } else try std.testing.expect(descriptor.owner_wake == null and descriptor.owner_deadline == null);
+    }
     try std.testing.expectEqual(@as(u64, 1), tasks.database.snapshot().opened);
     var cancelled = std.atomic.Value(bool).init(true);
     for (tasks.descriptors(), 0..) |descriptor, index| {
