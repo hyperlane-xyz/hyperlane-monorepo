@@ -184,8 +184,12 @@ const RemoteFixture = struct {
             }
             var header: [160]u8 = undefined;
             const response = try std.fmt.bufPrint(&header, "HTTP/1.1 {s}\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{ status, body.len });
-            try connection.stream.writeAll(response);
-            try connection.stream.writeAll(body);
+            // Reaching threshold cancels eligible peers; one may close after
+            // its request was read. Its reply is moot, not a fixture failure.
+            inline for (.{ response, body }) |bytes| connection.stream.writeAll(bytes) catch |err| switch (err) {
+                error.BrokenPipe, error.ConnectionResetByPeer => continue :connections,
+                else => return err,
+            };
         }
     }
 };
@@ -403,6 +407,7 @@ test "native session returns 27-peer quorum and latest without replay refetch" {
         session.endPass(error.PendingReadIo);
     }
     defer selected.?.deinit();
+    if (fixture.failure) |err| return err;
     try std.testing.expectEqual(@as(usize, 1), errors);
     try std.testing.expectEqual(@as(usize, 27), fixture.guards.load(.acquire));
     try std.testing.expectEqualDeep(checkpoint(1), selected.?.checkpoint);
@@ -435,6 +440,7 @@ test "native session returns 27-peer quorum and latest without replay refetch" {
         session.endPass(error.PendingReadIo);
         break;
     }
+    if (fixture.failure) |err| return err;
     for (latest, 0..) |value, index| try std.testing.expectEqual(if (index == 26) @as(?u32, null) else @as(?u32, 3), value);
     try std.testing.expectEqual(@as(usize, 1), errors);
     // Reaching threshold closes the request and may cancel eligible peers before
