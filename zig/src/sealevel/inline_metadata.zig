@@ -130,10 +130,11 @@ const Job = struct {
         self.failure = failure;
         if (self.view) |view| view.deinit_fn(view.context);
         self.view = null;
-        // Executor.run reads no Job fields on .done. No access after finish:
-        // the joining caller may release job storage immediately.
+        self.job.retire();
+        // No access after finish: the joining caller may release job storage
+        // immediately, and the executor reads no Job fields on .retired.
         self.join.finish();
-        return .done;
+        return .retired;
     }
     fn run(raw: *parallel.Job) parallel.RunResult {
         const self: *Job = @alignCast(@fieldParentPtr("job", raw));
