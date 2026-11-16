@@ -4,6 +4,37 @@ import { it } from 'node:test';
 process.env.DATABASE_URL ??= 'postgres://localhost/scraper_sql_test';
 const { EventStore, STREAMS } = await import('./event-store.js');
 
+void it('binds every domain/policy pair in one confirmation snapshot', async () => {
+  let query = '';
+  let parameters: unknown[] = [];
+  const store = new EventStore({
+    async queryLive(sql, values = []) {
+      query = sql;
+      parameters = values;
+      return [];
+    },
+  });
+  const snapshots = await store.confirmationSnapshots(
+    new Map([
+      [0, new Set([1, 4294967294])],
+      [12, new Set([1])],
+    ]),
+  );
+  assert.deepEqual(parameters, [
+    [1, -2, 1],
+    [0, 0, 12],
+  ]);
+  assert.match(query, /unnest\(\$1::integer\[\], \$2::bigint\[\]\)/);
+  assert.match(query, /h\.head_height-requested\.confirmations/);
+  assert.deepEqual(
+    snapshots,
+    new Map([
+      [0, new Map()],
+      [12, new Map()],
+    ]),
+  );
+});
+
 void it('keeps gas payments without receipts and prefers recorded log metadata', async () => {
   let query = '';
   const store = new EventStore({

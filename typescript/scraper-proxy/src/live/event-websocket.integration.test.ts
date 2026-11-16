@@ -242,6 +242,7 @@ void it('rejects agent backfills without reads and starts live on every connecti
         socket.send(
           JSON.stringify({
             type: 'subscribe',
+            ...(id === '202' ? { confirmationsByDomain: { 1: 0 } } : {}),
             streams: [
               {
                 eventType: 'gas_payment',
@@ -441,10 +442,11 @@ void it('treats validator confirmations=0 as a single custom stream, not canonic
       values: unknown[] = [],
     ): Promise<T[]> => {
       if (sql.includes('LEFT JOIN LATERAL')) {
-        assert.deepEqual(values, [[1], 0]);
+        assert.deepEqual(values, [[1], [0]]);
         return queryRows<T>([
           {
             ...liveStartRow,
+            confirmations: 0,
             height: '10',
             head_height: '10',
             indexed_height: '10',
@@ -811,6 +813,7 @@ void it('shares one custom reader and keeps reading while send completions are s
         return queryRows<T>([
           {
             ...liveStartRow,
+            confirmations: 0,
             height: '10',
             head_height: '10',
             indexed_height: '10',
@@ -875,6 +878,77 @@ void it('shares one custom reader and keeps reading while send completions are s
     );
     assert.equal(events.metricsSnapshot().validatorSharedReaders, 0);
   }
+});
+
+for (const eventType of ['dispatch', 'blocks']) {
+  void it(`keeps legacy ${eventType} subscriptions available when a domain is missing`, async (context) => {
+    const original = db.queryLive.bind(db);
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('JOIN scraper_checkpoint'))
+          return queryRows<T>([liveStartRow]);
+        return original<T>(sql, values);
+      },
+    );
+    const socket = new WebSocket(url);
+    const messages = captureMessages(socket);
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            { eventType, domains: [1, 999] },
+            ...(eventType === 'blocks'
+              ? [{ eventType: 'dispatch', domains: [1, 999] }]
+              : []),
+          ],
+        }),
+      );
+      await waitFor(messages, 'subscribed');
+      const unavailable = await waitFor(messages, 'live_start_unavailable');
+      assert.equal(unavailable.domain, 999);
+      assert(
+        messages.some(
+          ({ type, domain }) => type === 'live_start' && domain === 1,
+        ),
+      );
+      socket.send('{"type":"ping"}');
+      await waitFor(messages, 'pong');
+      assert(!messages.some(({ type }) => type === 'error'));
+    } finally {
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+}
+
+void it('rejects a domain override without scraper-head state', async (context) => {
+  context.mock.method(db, 'queryLive', async () => []);
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  const closed = new Promise<number>((resolve) =>
+    socket.once('close', resolve),
+  );
+  await waitFor(messages, 'ready');
+  socket.send(
+    JSON.stringify({
+      type: 'subscribe',
+      confirmationsByDomain: { 999: 0 },
+      streams: [{ eventType: 'dispatch', domains: [999] }],
+    }),
+  );
+  assert.match(
+    String((await waitFor(messages, 'error')).error),
+    /Custom confirmations unavailable for domain 999/,
+  );
+  assert.equal(await closed, 1008);
+  assert(!messages.some(({ type }) => type === 'subscribed'));
 });
 
 void it('provides quiet-chain live starts and isolates malformed checkpoints without scanning events', async (context) => {
@@ -955,6 +1029,246 @@ void it('provides quiet-chain live starts and isolates malformed checkpoints wit
   }
 });
 
+void it('applies domain overrides across event types with legacy and canonical fallbacks', async (context) => {
+  const original = db.queryLive.bind(db);
+  const snapshots: unknown[][] = [];
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('LEFT JOIN LATERAL')) {
+        snapshots.push(values);
+        const domains = values[0];
+        assert(Array.isArray(domains));
+        return queryRows<T>(
+          domains.map((domain, index) => ({
+            ...liveStartRow,
+            domain: Number(domain),
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+            confirmations: Number(recordArray(values[1])[index]),
+            height: String(10 - Number(recordArray(values[1])[index])),
+          })),
+        );
+      }
+      if (sql.includes('JOIN scraper_checkpoint'))
+        return queryRows<T>([{ ...liveStartRow, domain: 3, height: '5' }]);
+      if (sql.includes("encode(indexed_hash, 'hex')"))
+        return queryRows<T>([
+          {
+            domain: 1,
+            indexed_height: '10',
+            head_height: '10',
+            hash: liveStartRow.hash,
+          },
+        ]);
+      if (sql.includes('confirmation_events')) return [];
+      return original<T>(sql, values);
+    },
+  );
+  rows.set('994001', { ...row(hookA, 0), domain: 1 });
+  rows.set('994003', { ...row(hookA, 0), domain: 3 });
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  const confirmationsByDomain = { 1: 0, 2: 3 };
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.equal(record(ready.confirmations).byDomain, true);
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        confirmationsByDomain,
+        streams: [
+          ...EVENT_TYPES.map((eventType) => ({
+            eventType,
+            // Keep canonical filtering regardless of the domain/group order.
+            domains:
+              eventType === 'merkle_tree_insertion' ? [3, 2, 1] : [1, 2, 3],
+            ...(['dispatch', 'delivery'].includes(eventType)
+              ? { confirmations: 2 }
+              : {}),
+          })),
+          { eventType: 'blocks', domains: [1, 2, 3] },
+        ],
+      }),
+    );
+    const ack = await waitFor(messages, 'subscribed');
+    assert.deepEqual(ack.confirmationsByDomain, confirmationsByDomain);
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'live_start').length === 11,
+    );
+    const starts = messages.filter(({ type }) => type === 'live_start');
+    assert.equal(
+      snapshots.length,
+      1,
+      'all domain/policy pairs share one snapshot across event types',
+    );
+    assert.deepEqual(
+      snapshots.map((values) => [values[0], values[1]]),
+      [
+        [
+          [1, 2, 3],
+          [0, 3, 2],
+        ],
+      ],
+    );
+    for (const eventType of EVENT_TYPES) {
+      for (const [domain, confirmations] of [
+        [1, 0],
+        [2, 3],
+      ]) {
+        assert.equal(
+          starts.filter(
+            (frame) =>
+              frame.domain === domain &&
+              frame.confirmations === confirmations &&
+              Array.isArray(frame.streams) &&
+              frame.streams.some(
+                (stream) => record(stream).eventType === eventType,
+              ),
+          ).length,
+          1,
+        );
+      }
+    }
+    assert.equal(
+      starts.filter((frame) => frame.domain === 3 && frame.confirmations === 2)
+        .length,
+      2,
+    );
+    const canonical = starts.filter(
+      (frame) => frame.domain === 3 && frame.confirmations === undefined,
+    );
+    assert.equal(canonical.length, 1);
+    assert.deepEqual(canonical[0]?.streams, [
+      {
+        eventType: 'gas_payment',
+        address: `0x${liveStartRow.interchain_gas_paymaster}`,
+      },
+      {
+        eventType: 'merkle_tree_insertion',
+        address: `0x${liveStartRow.merkle_tree_hook}`,
+      },
+    ]);
+    const block = await waitFor(messages, 'block');
+    assert.equal(block.height, '10');
+    assert.equal(block.confirmations, undefined);
+    notify(
+      'scraper_event',
+      JSON.stringify({
+        domain: 1,
+        eventType: 'merkle_tree_insertion',
+        id: '994001',
+      }),
+    );
+    notify(
+      'scraper_event',
+      JSON.stringify({
+        domain: 3,
+        eventType: 'merkle_tree_insertion',
+        id: '994003',
+      }),
+    );
+    const event = await waitFor(messages, 'event');
+    assert.equal(event.domain, 3);
+    assert.equal(event.confirmations, undefined);
+    assert(
+      !notifiedIds.has('994001'),
+      'overridden domains do not also receive canonical publication',
+    );
+    assert.equal(messages.filter(({ type }) => type === 'event').length, 1);
+  } finally {
+    rows.delete('994001');
+    rows.delete('994003');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('batches distinct policies and uses one advisory reader per event type', async (context) => {
+  const snapshots: unknown[][] = [];
+  const initialize = context.mock.method(
+    ConfirmationStream.prototype,
+    'initialize',
+  );
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      assert.match(sql, /LEFT JOIN LATERAL/);
+      snapshots.push(values);
+      return queryRows<T>(
+        recordArray(values[0]).map((domain, index) => ({
+          ...liveStartRow,
+          domain,
+          confirmations: recordArray(values[1])[index],
+          head_height: '100',
+          indexed_height: '90',
+          confirmed_height: '80',
+          height: '90',
+        })),
+      );
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        confirmationsByDomain: { 1: 0, 2: 2, 3: 3 },
+        streams: EVENT_TYPES.map((eventType) => ({
+          eventType,
+          domains: [1, 2, 3],
+          includeZeroConfirmations: true,
+        })),
+      }),
+    );
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'live_start').length === 20,
+    );
+    assert.equal(snapshots.length, 1);
+    assert.deepEqual(snapshots[0], [
+      [1, 2, 3, 2, 3],
+      [0, 0, 0, 2, 3],
+    ]);
+    assert.equal(
+      initialize.mock.callCount(),
+      16,
+      'three custom readers and one advisory reader per event type',
+    );
+    const starts = messages.filter(
+      ({ type, confirmations }) => type === 'live_start' && confirmations === 0,
+    );
+    assert.equal(
+      starts.length,
+      12,
+      'exactly one zero-confirmation boundary per domain/event type',
+    );
+    for (const eventType of EVENT_TYPES)
+      for (const domain of [1, 2, 3])
+        assert.equal(
+          starts.filter(
+            (frame) =>
+              frame.domain === domain &&
+              record(recordArray(frame.streams)[0]).eventType === eventType,
+          ).length,
+          1,
+        );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
 void it('automatically distinguishes canonical, custom and advisory zero-confirmation boundaries', async (context) => {
   const confirmations: unknown[] = [];
   const ranges: unknown[][] = [];
@@ -966,17 +1280,18 @@ void it('automatically distinguishes canonical, custom and advisory zero-confirm
       values: unknown[] = [],
     ): Promise<T[]> => {
       if (sql.includes('LEFT JOIN LATERAL')) {
-        confirmations.push(values[1]);
-        return queryRows<T>([
-          {
+        confirmations.push(...recordArray(values[1]));
+        return queryRows<T>(
+          recordArray(values[1]).map((count) => ({
             ...liveStartRow,
+            confirmations: count,
             head_height: '112',
             indexed_height: '110',
             confirmed_height: '100',
-            height: values[1] === 2 ? '108' : '110',
-            hash: (values[1] === 2 ? 'cd' : 'ef').repeat(32),
-          },
-        ]);
+            height: count === 2 ? '108' : '110',
+            hash: (count === 2 ? 'cd' : 'ef').repeat(32),
+          })),
+        );
       }
       if (sql.includes('JOIN scraper_checkpoint'))
         return queryRows<T>([liveStartRow]);
@@ -1081,6 +1396,7 @@ for (const rollback of [false, true]) {
         return queryRows<T>([
           {
             ...liveStartRow,
+            confirmations: 2,
             height: rollback && !first ? '99' : '100',
             head_height: rollback && !first ? '101' : '102',
             indexed_height: rollback && !first ? '99' : '100',
@@ -1154,6 +1470,7 @@ void it('keeps custom streams without retained checkpoints unavailable, never ca
           head_height: '120',
           indexed_height: '110',
           confirmed_height: '100',
+          confirmations: 30,
           height: null,
         },
       ]);
@@ -1588,6 +1905,7 @@ for (const available of [false, true]) {
               ? [
                   {
                     domain: 1,
+                    confirmations: 0,
                     head_height: '10',
                     indexed_height: '10',
                     confirmed_height: '5',
@@ -1689,15 +2007,16 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
         sql.includes('SELECT h.domain, h.head_height')
       ) {
         snapshots++;
-        if (snapshots === 2) await held;
-        return queryRows<T>([
-          {
+        if (snapshots === 1) await held;
+        return queryRows<T>(
+          recordArray(values[1]).map((confirmations) => ({
             domain: 1,
+            confirmations,
             head_height: '10',
             indexed_height: '10',
             confirmed_height: '5',
-          },
-        ]);
+          })),
+        );
       }
       if (sql.includes('confirmation_events')) return [];
       return original<T>(sql, values);
@@ -1722,7 +2041,7 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
         ],
       }),
     );
-    await waitUntil(() => snapshots === 2);
+    await waitUntil(() => snapshots === 1);
     notify(
       'scraper_head',
       JSON.stringify({
@@ -1742,7 +2061,7 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
     );
     release();
     await waitFor(messages, 'subscribed');
-    assert.equal(snapshots, 3); // Two readers plus the rollback snapshot retry.
+    assert.equal(snapshots, 2); // One batch plus the rollback snapshot retry.
     notify('scraper_event', notification('1'));
     await waitFor(messages, 'event');
     assert.deepEqual(
@@ -1850,8 +2169,20 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
   }
 });
 
-for (const eventType of [...EVENT_TYPES, 'messages', 'validators']) {
-  void it(`streams custom ${eventType} with confirmations, rollback, and replacements`, async (context) => {
+for (const { eventType, byDomain } of [
+  ...EVENT_TYPES,
+  'messages',
+  'validators',
+].flatMap((eventType) =>
+  (eventType === 'messages' || eventType === 'validators'
+    ? [false]
+    : [false, true]
+  ).map((byDomain) => ({
+    eventType,
+    byDomain,
+  })),
+)) {
+  void it(`streams custom ${eventType} with ${byDomain ? 'domain overrides' : 'confirmations'}, rollback, and replacements`, async (context) => {
     const hasAdvisory = eventType !== 'messages' && eventType !== 'validators';
     const completions = delayServerSendCompletions(context);
     let replacement = false;
@@ -1869,14 +2200,18 @@ for (const eventType of [...EVENT_TYPES, 'messages', 'validators']) {
           sql.includes('SELECT domain, head_height') ||
           sql.includes('SELECT h.domain, h.head_height')
         )
-          return queryRows<T>([
-            {
+          return queryRows<T>(
+            (sql.includes('LEFT JOIN LATERAL')
+              ? recordArray(values[1])
+              : [undefined]
+            ).map((confirmations) => ({
               domain: 1,
+              confirmations,
               head_height: '11',
               indexed_height: '9',
               confirmed_height: '5',
-            },
-          ]);
+            })),
+          );
         const messageId = `\\x${(replacement ? '02' : '01').repeat(32)}`;
         const data = {
           id: '1',
@@ -1974,10 +2309,11 @@ for (const eventType of [...EVENT_TYPES, 'messages', 'validators']) {
         socket.send(
           JSON.stringify({
             type: 'subscribe',
+            ...(byDomain ? { confirmationsByDomain: { 1: 2 } } : {}),
             streams: [
               {
                 eventType,
-                confirmations: 2,
+                confirmations: byDomain ? 100 : 2,
                 domains: [1],
                 includeZeroConfirmations: true,
               },
@@ -3931,6 +4267,11 @@ function parseRecord(value: string): Record<string, unknown> {
 
 function record(value: unknown): Record<string, unknown> {
   assert(value && typeof value === 'object' && !Array.isArray(value));
+  return value;
+}
+
+function recordArray(value: unknown): unknown[] {
+  assert(Array.isArray(value));
   return value;
 }
 

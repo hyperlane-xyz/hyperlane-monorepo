@@ -82,7 +82,14 @@ void it(
       await db.query(
         "INSERT INTO scraper_checkpoint VALUES (1,108,decode(repeat('ef',32),'hex'))",
       );
-      const custom = await store.confirmationHeads(
+      const customHeads = async (domains: Set<number>, count: number) => {
+        const heads = (
+          await store.confirmationSnapshots(new Map([[count, domains]]))
+        ).get(count);
+        assert(heads);
+        return heads;
+      };
+      const custom = await customHeads(
         new Set([1, 2, 3, 4, 5, 4294967294]),
         11,
       );
@@ -93,19 +100,30 @@ void it(
       assert.equal(custom.get(3)?.liveStart, undefined);
       assert.equal(custom.get(4)?.liveStart, undefined);
       assert.equal(custom.get(5)?.liveStart?.height, '0');
+      const policies = new Map([
+        [11, new Set([1, 2, 3, 4, 5, 4294967294])],
+        [0, new Set([1, 4294967294])],
+        [21, new Set([1])],
+        [2, new Set([7])],
+      ]);
+      const snapshots = await store.confirmationSnapshots(policies);
       assert.equal(
-        (await store.confirmationHeads(new Set([1]), 0)).get(1)?.liveStart
-          ?.height,
+        snapshots.get(0)?.get(4294967294)?.liveStart?.height,
+        '9007199254740993',
+      );
+      assert.equal(snapshots.get(21)?.get(1)?.liveStart, undefined);
+      assert.equal(snapshots.get(2)?.size, 0);
+      assert.equal(
+        (await customHeads(new Set([1]), 0)).get(1)?.liveStart?.height,
         '110',
       );
       assert.equal(
-        (await store.confirmationHeads(new Set([1]), 21)).get(1)?.liveStart,
+        (await customHeads(new Set([1]), 21)).get(1)?.liveStart,
         undefined,
       );
       assert.equal(
-        (await store.confirmationHeads(new Set([4294967294]), 0)).get(
-          4294967294,
-        )?.liveStart?.height,
+        (await customHeads(new Set([4294967294]), 0)).get(4294967294)?.liveStart
+          ?.height,
         '9007199254740993',
       );
       assert.equal((await store.liveStartBoundaries()).size, 4);
@@ -116,7 +134,7 @@ void it(
       assert.equal(corrupt.has(1), false);
       assert.equal(corrupt.get(5)?.height, '0');
       assert.equal(
-        (await store.confirmationHeads(new Set([1, 5]), 20)).get(1)?.liveStart,
+        (await customHeads(new Set([1, 5]), 20)).get(1)?.liveStart,
         undefined,
       );
       await db.query(
@@ -124,7 +142,7 @@ void it(
       );
       assert.equal((await store.liveStartBoundaries(new Set([5]))).size, 0);
       assert.equal(
-        (await store.confirmationHeads(new Set([5]), 0)).get(5)?.liveStart,
+        (await customHeads(new Set([5]), 0)).get(5)?.liveStart,
         undefined,
       );
     } finally {

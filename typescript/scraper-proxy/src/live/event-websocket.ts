@@ -26,12 +26,14 @@ import {
   displayAddress,
   SUBSCRIPTION_TYPES,
   type BlockStreamRequest,
+  type ClientMessage,
   type EventNotification,
   type EventType,
   type HeadNotification,
   type LiveStartBoundary,
   parseDatabaseDomain,
   parseClientMessage,
+  splitConfirmationStreams,
   parseEventNotification,
   parseExplorerNotification,
   parseExplorerConfirmations,
@@ -460,7 +462,7 @@ export class EventWebSocketServer {
     });
     websocketConnections.inc({ route: 'agent' });
     this.send(socket, {
-      confirmations: { unit: 'blocks', liveOnly: true },
+      confirmations: { unit: 'blocks', liveOnly: true, byDomain: true },
       eventTypes: SUBSCRIPTION_TYPES,
       historicalStreaming: false,
       liveStartVersion: 1,
@@ -600,13 +602,16 @@ export class EventWebSocketServer {
       await this.subscribe(
         socket,
         client,
-        [
-          {
-            eventType: 'merkle_tree_insertion',
-            domains: new Set([domain]),
-            confirmations,
-          },
-        ],
+        {
+          type: 'subscribe',
+          streams: [
+            {
+              eventType: 'merkle_tree_insertion',
+              domains: new Set([domain]),
+              confirmations,
+            },
+          ],
+        },
         {
           type: 'ready',
           domain,
@@ -643,6 +648,14 @@ export class EventWebSocketServer {
     const validator = this.validatorClients.get(socket);
     if (!validator) return;
     const key = `${domain}:${confirmations}`;
+    const readHeads = async () => {
+      const snapshots = await this.validatorStore.confirmationSnapshots(
+        new Map([[confirmations, new Set([domain])]]),
+      );
+      const heads = snapshots.get(confirmations);
+      if (!heads) throw new Error('Missing confirmation policy');
+      return heads;
+    };
     let group = this.validatorGroups.get(key);
     const joining = group !== undefined;
     if (!group) {
@@ -688,14 +701,7 @@ export class EventWebSocketServer {
         key,
         stream,
         members,
-        ready: Promise.resolve().then(() =>
-          stream.initialize(() =>
-            this.validatorStore.confirmationHeads(
-              new Set([domain]),
-              confirmations,
-            ),
-          ),
-        ),
+        ready: Promise.resolve().then(() => stream.initialize(readHeads)),
       };
       this.validatorGroups.set(key, group);
     }
@@ -708,10 +714,7 @@ export class EventWebSocketServer {
     // before the read; retry if another rollback invalidates that snapshot.
     while (joining && !boundary) {
       const revision = this.confirmationRevision;
-      const heads = await this.validatorStore.confirmationHeads(
-        new Set([domain]),
-        confirmations,
-      );
+      const heads = await readHeads();
       if (this.clients.get(socket) !== client) return;
       if (revision !== this.confirmationRevision) continue;
       boundary = heads.get(domain)?.liveStart;
@@ -934,11 +937,7 @@ export class EventWebSocketServer {
     domains: Set<number>,
     eventType?: EventType,
     allowUnavailable = eventType === undefined,
-    readHeads = () =>
-      this.store.confirmationHeads(
-        domains,
-        eventType ? confirmations : undefined,
-      ),
+    readHeads = () => this.store.confirmationHeads(domains),
     store = this.store,
   ): Promise<ConfirmationStream | undefined> {
     // Deliver older queued heads before this stream takes its initial snapshot.
@@ -1065,16 +1064,23 @@ export class EventWebSocketServer {
     }
 
     client.subscribing = true;
-    await this.subscribe(socket, client, message.streams);
+    await this.subscribe(socket, client, message);
   }
 
   private async subscribe(
     socket: WebSocket,
     client: Client,
-    requests: (StreamRequest | BlockStreamRequest)[],
+    message: Extract<ClientMessage, { type: 'subscribe' }>,
     acknowledgement: Record<string, unknown> = {
       type: 'subscribed',
-      streams: requests.map(subscriptionResponse),
+      ...(message.confirmationsByDomain
+        ? {
+            confirmationsByDomain: Object.fromEntries(
+              message.confirmationsByDomain,
+            ),
+          }
+        : {}),
+      streams: message.streams.map(subscriptionResponse),
     },
     store = this.store,
   ): Promise<void> {
@@ -1082,33 +1088,47 @@ export class EventWebSocketServer {
       request: StreamRequest;
       stream: ConfirmationStream;
     }[] = [];
-    // One primary snapshot per confirmations/domains group. All readers are
-    // registered concurrently before it resolves. Rollbacks force a fresh read
-    // when initialize retries; never reuse a snapshot from an earlier ancestry.
-    const snapshots = new Map<
-      string,
-      { revision: number; heads: ReturnType<EventStore['confirmationHeads']> }
-    >();
-    const readHeads = (confirmations: number, domains: Set<number>) => {
-      const key = JSON.stringify([
-        confirmations,
-        [...domains].sort((a, b) => a - b),
-      ]);
-      let snapshot = snapshots.get(key);
-      if (!snapshot || snapshot.revision !== this.confirmationRevision) {
-        snapshot = {
-          revision: this.confirmationRevision,
-          heads: store.confirmationHeads(domains, confirmations),
-        };
-        snapshots.set(key, snapshot);
-      }
-      return snapshot.heads;
-    };
-    const eventStreams = requests.filter(
-      (request) => request.eventType !== 'blocks',
-    );
+    let eventStreams: StreamRequest[] = [];
     try {
-      const blocks = requests.find((request) => request.eventType === 'blocks');
+      eventStreams = message.streams
+        .filter((request) => request.eventType !== 'blocks')
+        .flatMap((request) =>
+          splitConfirmationStreams(request, message.confirmationsByDomain),
+        );
+      const policies = new Map<number, Set<number>>();
+      for (const request of eventStreams) {
+        const counts = new Set<number>();
+        if (request.confirmations !== undefined)
+          counts.add(request.confirmations);
+        if (request.includeZeroConfirmations) counts.add(0);
+        for (const count of counts) {
+          const domains = policies.get(count) ?? new Set<number>();
+          for (const domain of request.domains ?? []) domains.add(domain);
+          policies.set(count, domains);
+        }
+      }
+      // Batch every domain/policy pair into one snapshot. Readers are registered
+      // before it resolves; a setup rollback forces the whole snapshot to refresh.
+      let snapshot:
+        | {
+            revision: number;
+            heads: ReturnType<EventStore['confirmationSnapshots']>;
+          }
+        | undefined;
+      const readHeads = async (confirmations: number) => {
+        if (!snapshot || snapshot.revision !== this.confirmationRevision) {
+          snapshot = {
+            revision: this.confirmationRevision,
+            heads: store.confirmationSnapshots(policies),
+          };
+        }
+        const heads = (await snapshot.heads).get(confirmations);
+        if (!heads) throw new Error('Missing confirmation policy');
+        return heads;
+      };
+      const blocks = message.streams.find(
+        (request) => request.eventType === 'blocks',
+      );
       if (blocks) await this.subscribeBlocks(socket, blocks.domains);
       const initializing: Promise<
         | {
@@ -1130,7 +1150,7 @@ export class EventWebSocketServer {
             domains,
             request.eventType,
             allowUnavailable,
-            () => readHeads(confirmations, domains),
+            () => readHeads(confirmations),
             store,
           ).then((stream) => (stream ? { request, stream } : undefined)),
         );
@@ -1138,12 +1158,23 @@ export class EventWebSocketServer {
       for (const request of eventStreams) {
         if (request.confirmations !== undefined && request.domains)
           addStream(request, request.confirmations, request.domains);
+      }
+      // One advisory reader per event type, even when custom counts differ by domain.
+      for (const request of message.streams) {
         if (
+          request.eventType !== 'blocks' &&
           request.includeZeroConfirmations &&
-          request.confirmations !== 0 &&
           request.domains
-        )
-          addStream(request, 0, request.domains, true);
+        ) {
+          const domains = new Set(
+            [...request.domains].filter(
+              (domain) =>
+                (message.confirmationsByDomain?.get(domain) ??
+                  request.confirmations) !== 0,
+            ),
+          );
+          if (domains.size) addStream(request, 0, domains, true);
+        }
       }
       for (const result of await Promise.all(initializing)) {
         if (result) customStreams.push(result);
@@ -1155,7 +1186,13 @@ export class EventWebSocketServer {
       return;
     }
     if (this.clients.get(socket) !== client) return;
+    // Custom readers are separate; retain the canonical group for live filtering.
     for (const request of eventStreams) {
+      if (
+        request.confirmations !== undefined &&
+        client.subscriptions.has(request.eventType)
+      )
+        continue;
       client.subscriptions.set(request.eventType, request);
     }
 
