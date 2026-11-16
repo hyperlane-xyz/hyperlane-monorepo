@@ -258,8 +258,38 @@ pub const SendOverride = struct {
 /// injected replay returns are intentionally unobserved.
 pub const Observation = struct { request: Request, response: ?*const Response = null, failure: ?anyerror = null, duration_ns: u64 };
 pub const Observer = struct { context: *anyopaque, event_fn: *const fn (*anyopaque, Observation) void };
-// Serializes process-global initialization even with older native curl builds.
-var initialization_mutex: std.Thread.Mutex = .{};
+/// A libcurl loaded, checked and globally initialized once per process and
+/// path, never unloaded. Unloading with the last client (e.g. a validator
+/// vote round's transient Multi) tore down libcurl and its TLS library, and
+/// the next client paid dlopen, symbol binding and TLS initialization again.
+const Loaded = struct {
+    path: []const u8,
+    library: std.DynLib,
+    api: Api,
+    // Serializes process-global initialization even with older native curl builds.
+    var mutex: std.Thread.Mutex = .{};
+    var table: [4]Loaded = undefined;
+    var len: usize = 0;
+    fn get(path: []const u8) !*const Loaded {
+        mutex.lock();
+        defer mutex.unlock();
+        for (table[0..len]) |*entry| if (std.mem.eql(u8, entry.path, path)) return entry;
+        if (len == table.len) return error.TooManyLibcurlLibraries;
+        var library = try std.DynLib.open(path);
+        errdefer library.close();
+        const api = try Api.load(&library);
+        const version = api.version_info(0) orelse return error.LibcurlVersionUnavailable;
+        // With synchronous DNS, CURLOPT_NOSIGNAL can leave a stalled resolver
+        // outside the total timeout. Fail configuration instead of promising a
+        // deadline the loaded library cannot enforce.
+        if (version.features & (1 << 7) == 0) return error.LibcurlAsyncDnsRequired;
+        if (api.global_init(3) != 0) return error.LibcurlInitializationFailed;
+        const owned = try std.heap.page_allocator.dupe(u8, path);
+        table[len] = .{ .path = owned, .library = library, .api = api };
+        len += 1;
+        return &table[len - 1];
+    }
+};
 pub const Client = struct {
     observer: ?Observer = null,
     /// Trusted read-only replay boundary. Configure only on independently owned
@@ -342,32 +372,20 @@ pub const Client = struct {
         }
     }
     pub fn init(_: std.mem.Allocator, library_path: []const u8) !Client {
-        var library = try std.DynLib.open(library_path);
-        errdefer library.close();
-        const api = try Api.load(&library);
-        initialization_mutex.lock();
-        defer initialization_mutex.unlock();
-        const version = api.version_info(0) orelse return error.LibcurlVersionUnavailable;
-        // With synchronous DNS, CURLOPT_NOSIGNAL can leave a stalled resolver
-        // outside the total timeout. Fail configuration instead of promising a
-        // deadline the loaded library cannot enforce.
-        if (version.features & (1 << 7) == 0) return error.LibcurlAsyncDnsRequired;
-        if (api.global_init(3) != 0) return error.LibcurlInitializationFailed;
+        const native = try Loaded.get(library_path);
         var proxy_environment = false;
         for ([_][:0]const u8{ "http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY" }) |name| {
             if (std.posix.getenv(name) != null) proxy_environment = true;
         }
-        return .{ .library = library, .api = api, .proxy_environment = proxy_environment };
+        return .{ .library = native.library, .api = native.api, .proxy_environment = proxy_environment };
     }
     pub fn deinit(self: *Client) void {
         // Caller must join/cancel every send job before destroying this client.
-        // Process-global curl resources are intentionally not cleaned up while
-        // other HTTP clients/worker transports can still hold native handles.
+        // The process-wide library stays loaded (see Loaded).
         for (&self.idle) |*pool| {
             for (pool.handles[0..pool.len]) |handle| self.api.easy_cleanup(handle);
             pool.len = 0;
         }
-        self.library.close();
         self.* = undefined;
     }
     fn check(code: c_int) !void {
@@ -612,6 +630,26 @@ test "public HTTP rejects literal destinations and native socket callback preven
     var ipv6_target: extern struct { family: c_int, socktype: c_int, protocol: c_int, addrlen: c_uint, addr: std.posix.sockaddr.in6 } = .{ .family = std.posix.AF.INET6, .socktype = std.posix.SOCK.STREAM, .protocol = std.posix.IPPROTO.TCP, .addrlen = @sizeOf(std.posix.sockaddr.in6), .addr = (try std.net.Address.parseIp("::ffff:127.0.0.1", 80)).in6.sa };
     try std.testing.expectEqual(@as(c_int, -1), Sink.openSocket(&sink, 0, @ptrCast(&ipv6_target)));
     try std.testing.expect(sink.non_public_destination);
+}
+
+test "native clients load and initialize libcurl once per process and path" {
+    const allocator = std.testing.allocator;
+    const library = std.process.getEnvVarOwned(allocator, "HYPERLANE_CURL_LIBRARY") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => return error.SkipZigTest,
+        else => return err,
+    };
+    defer allocator.free(library);
+    var first = try Client.init(allocator, library);
+    const loaded = Loaded.len;
+    const version = first.api.version_info;
+    first.deinit();
+    // The last client is gone: the next one reuses the loaded library.
+    var second = try Client.init(allocator, library);
+    defer second.deinit();
+    try std.testing.expectEqual(loaded, Loaded.len);
+    try std.testing.expectEqual(version, second.api.version_info);
+    try std.testing.expectError(error.FileNotFound, Client.init(allocator, "/never/load/libcurl.so"));
+    try std.testing.expectEqual(loaded, Loaded.len);
 }
 
 test "native public HTTP blocks localhost and noncanonical numeric IPv4 without connecting" {
