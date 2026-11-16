@@ -470,6 +470,43 @@ pub const PrefixIterator = struct {
     }
 };
 
+/// `keys.scoped` for one point operation, built on the stack when it fits:
+/// native calls copy the key, so it need not outlive the call.
+const ScopedKey = struct {
+    buffer: [192]u8 = undefined,
+    heap: ?[]u8 = null,
+
+    fn build(self: *ScopedKey, allocator: Allocator, domain_name: []const u8, table_prefix: []const u8, encoded_key: []const u8) ![]const u8 {
+        const length = domain_name.len + 1 + table_prefix.len + encoded_key.len;
+        if (length > self.buffer.len) {
+            self.heap = try keys.scoped(allocator, domain_name, table_prefix, encoded_key);
+            return self.heap.?;
+        }
+        var at: usize = 0;
+        for ([_][]const u8{ domain_name, "_", table_prefix, encoded_key }) |part| {
+            @memcpy(self.buffer[at..][0..part.len], part);
+            at += part.len;
+        }
+        return self.buffer[0..length];
+    }
+
+    fn deinit(self: *ScopedKey, allocator: Allocator) void {
+        if (self.heap) |bytes| allocator.free(bytes);
+    }
+};
+
+test "scoped key on the stack equals keys.scoped" {
+    const allocator = std.testing.allocator;
+    const long: [300]u8 = @splat('k');
+    for ([_][]const u8{ "", "abc", &long }) |encoded| {
+        var scoped: ScopedKey = .{};
+        defer scoped.deinit(allocator);
+        const expected = try keys.scoped(allocator, "ethereum", "table_", encoded);
+        defer allocator.free(expected);
+        try std.testing.expectEqualStrings(expected, try scoped.build(allocator, "ethereum", "table_", encoded));
+    }
+}
+
 /// Borrows database/domain name. Encoded keys/values remain explicit, so decoded
 /// variable-length message bodies cannot outlive a freed native get buffer.
 pub const Typed = struct {
@@ -477,15 +514,15 @@ pub const Typed = struct {
     domain_name: []const u8,
 
     pub fn get(self: Typed, allocator: Allocator, table_prefix: []const u8, encoded_key: []const u8) !?[]u8 {
-        const key = try keys.scoped(allocator, self.domain_name, table_prefix, encoded_key);
-        defer allocator.free(key);
-        return self.database.get(allocator, key);
+        var scoped: ScopedKey = .{};
+        defer scoped.deinit(allocator);
+        return self.database.get(allocator, try scoped.build(allocator, self.domain_name, table_prefix, encoded_key));
     }
 
     pub fn put(self: Typed, allocator: Allocator, table_prefix: []const u8, encoded_key: []const u8, encoded_value: []const u8) !void {
-        const key = try keys.scoped(allocator, self.domain_name, table_prefix, encoded_key);
-        defer allocator.free(key);
-        try self.database.put(key, encoded_value);
+        var scoped: ScopedKey = .{};
+        defer scoped.deinit(allocator);
+        try self.database.put(try scoped.build(allocator, self.domain_name, table_prefix, encoded_key), encoded_value);
     }
 
     pub fn prefix(self: Typed, allocator: Allocator, table_prefix: []const u8) !PrefixIterator {
@@ -555,15 +592,15 @@ pub const TypedBatch = struct {
     }
 
     pub fn put(self: *TypedBatch, table_prefix: []const u8, encoded_key: []const u8, encoded_value: []const u8) !void {
-        const key = try keys.scoped(self.allocator, self.domain_name, table_prefix, encoded_key);
-        defer self.allocator.free(key);
-        try self.batch.put(key, encoded_value);
+        var scoped: ScopedKey = .{};
+        defer scoped.deinit(self.allocator);
+        try self.batch.put(try scoped.build(self.allocator, self.domain_name, table_prefix, encoded_key), encoded_value);
     }
 
     pub fn delete(self: *TypedBatch, table_prefix: []const u8, encoded_key: []const u8) !void {
-        const key = try keys.scoped(self.allocator, self.domain_name, table_prefix, encoded_key);
-        defer self.allocator.free(key);
-        try self.batch.delete(key);
+        var scoped: ScopedKey = .{};
+        defer scoped.deinit(self.allocator);
+        try self.batch.delete(try scoped.build(self.allocator, self.domain_name, table_prefix, encoded_key));
     }
 
     pub fn deleteAtOrAfter(self: *TypedBatch, table_prefix: []const u8, encoded_key: []const u8) !void {

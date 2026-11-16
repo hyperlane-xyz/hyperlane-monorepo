@@ -370,11 +370,6 @@ pub const Store = struct {
         self.applyActive(change);
     }
 
-    fn updateActive(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, uuid: types.Uuid, status: StatusTag) !?ActiveSet.Change {
-        const index = (try self.transactionIndex(allocator, uuid)) orelse return null;
-        return try putActive(batch, index, uuid, status != .dropped and status != .finalized);
-    }
-
     fn getInt(self: Store, comptime T: type, allocator: std.mem.Allocator, prefix: []const u8, key: []const u8) !?T {
         const bytes = (try self.typed.get(allocator, prefix, key)) orelse return null;
         defer allocator.free(bytes);
@@ -448,8 +443,7 @@ pub const Store = struct {
         }
         const status = try statusTag(allocator, transaction_json);
         try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        var change = try self.updateActive(&batch, allocator, uuid, status);
-        if (existing == null) change = try putActive(&batch, index, uuid, true);
+        const change = try putActive(&batch, index, uuid, existing == null or (status != .dropped and status != .finalized));
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         for (payloads) |payload| {
             const payload_index = (try self.payloadIndex(allocator, payload.uuid)) orelse return error.MissingPayload;
