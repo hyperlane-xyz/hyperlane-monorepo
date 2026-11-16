@@ -234,29 +234,49 @@ pub const LocalStore = struct {
     }
 
     /// Batch form of writeVerifiedCheckpoint for one directory: every object
-    /// still gets its own data fsync and atomic rename, then ONE directory
-    /// fsync persists all of the renames before this returns. Callers must
-    /// not take any dependent durable step (latest index, snapshot, WAL
-    /// completion) before it returns; any error leaves the handle poisoned.
+    /// still gets its own data fsync before its atomic rename, then ONE
+    /// directory fsync persists all of the renames before this returns.
+    /// Objects are staged in chunks: write every temporary file, then fsync
+    /// each, then rename each. The first fsync's journal commit usually
+    /// carries the others' data, so the rest return without blocking.
+    /// Callers must not take any dependent durable step (latest index,
+    /// snapshot, WAL completion) before it returns; any error leaves the
+    /// handle poisoned.
     pub fn writeVerifiedCheckpoints(self: *LocalStore, batch: []const VerifiedCheckpoint, unix_timestamp: u64) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
         try self.requireWrite();
         const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
         for (batch) |verified| verified.require(expected_signer) catch |err| return if (err == error.WrongSigner) error.WrongStoreSigner else err;
+        const chunk = 64;
+        var staged: [chunk]Staged = undefined;
         var renamed: u32 = 0;
-        for (batch) |verified| {
-            if (try self.inspectCheckpointLocked(verified.signed.value, unix_timestamp) == .already_present) continue;
-            const bytes = try verified.signed.toJson(self.allocator);
-            defer self.allocator.free(bytes);
-            var name_buffer: [40]u8 = undefined;
-            const name = try std.fmt.bufPrint(&name_buffer, "{d}_with_id.json", .{verified.signed.value.index});
-            try self.renameSynced(name, bytes);
-            renamed += 1;
-            if (@import("builtin").is_test) if (TestBatchFault.fail_after_renames.load(.acquire) == renamed) {
-                TestBatchFault.fail_after_renames.store(0, .release);
-                return error.InjectedDirectorySyncFailure;
-            };
+        var next: usize = 0;
+        while (next < batch.len) {
+            var count: usize = 0;
+            defer for (staged[0..count]) |*entry| entry.atomic.deinit();
+            while (next < batch.len and count < chunk) : (next += 1) {
+                const verified = batch[next];
+                if (try self.inspectCheckpointLocked(verified.signed.value, unix_timestamp) == .already_present) continue;
+                const bytes = try verified.signed.toJson(self.allocator);
+                defer self.allocator.free(bytes);
+                if (bytes.len >= self.options.max_bytes) return error.ObjectTooLarge;
+                const entry = &staged[count];
+                entry.name_len = (try std.fmt.bufPrint(&entry.name, "{d}_with_id.json", .{verified.signed.value.index})).len;
+                self.poisoned = true;
+                entry.atomic = try self.dir.atomicFile(entry.name[0..entry.name_len], .{ .mode = 0o600, .write_buffer = &.{} });
+                count += 1;
+                try entry.atomic.file_writer.file.writeAll(bytes);
+            }
+            for (staged[0..count]) |*entry| try entry.atomic.file_writer.file.sync();
+            for (staged[0..count]) |*entry| {
+                try entry.atomic.renameIntoPlace();
+                renamed += 1;
+                if (@import("builtin").is_test) if (TestBatchFault.fail_after_renames.load(.acquire) == renamed) {
+                    TestBatchFault.fail_after_renames.store(0, .release);
+                    return error.InjectedDirectorySyncFailure;
+                };
+            }
         }
         if (batch.len == 0) return;
         if (@import("builtin").is_test) if (TestBatchFault.before_directory_sync.swap(false, .acq_rel)) return error.InjectedDirectorySyncFailure;
@@ -391,6 +411,13 @@ pub const LocalStore = struct {
         defer self.allocator.free(bytes);
         try self.atomicWrite("reorg_flag.json", bytes);
     }
+};
+
+/// A batch object between its temporary-file write and its rename.
+const Staged = struct {
+    atomic: std.fs.AtomicFile,
+    name: [40]u8,
+    name_len: usize,
 };
 
 /// Test-only count of object reads that found no file.
@@ -780,4 +807,41 @@ test "repeated absent probes leave no record that outlives the next write" {
     for (store.absent) |entry| try std.testing.expect(entry.at == null or entry.index != 5);
     // Within the TTL, a conflicting same-signer write still inspects and halts.
     try std.testing.expectError(error.ConflictingSignedCheckpoint, store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&signing, (try testCheckpoint(5, 2, key)).value, null), 2));
+}
+
+test "multi-chunk batch stages every object and recovers by replay after a fault before the directory fsync" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const allocator = std.testing.allocator;
+    const key: objects.Hash = .{0x11} ** 32;
+    var signing = try protocol.signature.SigningKey.init(key);
+    defer signing.deinit();
+    var batch: [70]VerifiedCheckpoint = undefined;
+    for (&batch, 0..) |*verified, i| verified.* = try VerifiedCheckpoint.signWith(&signing, (try testCheckpoint(@intCast(i), 7, key)).value, null);
+    {
+        var store = try LocalStore.open(allocator, tmp.dir, "store", try testOptions(key));
+        defer store.deinit();
+        // Crash at the covering sync: every object renamed, no directory fsync.
+        TestBatchFault.before_directory_sync.store(true, .release);
+        try std.testing.expectError(error.InjectedDirectorySyncFailure, store.writeVerifiedCheckpoints(&batch, 1));
+        try std.testing.expect(store.poisoned);
+    }
+    var store = try LocalStore.open(allocator, tmp.dir, "store", try testOptions(key));
+    defer store.deinit();
+    // Replay finds identical objects and still ends with the directory fsync.
+    const syncs = TestBatchFault.directory_syncs.load(.acquire);
+    try store.writeVerifiedCheckpoints(&batch, 2);
+    try std.testing.expectEqual(syncs + 1, TestBatchFault.directory_syncs.load(.acquire));
+    try std.testing.expect(!store.poisoned);
+    for (batch) |verified| {
+        const stored = (try store.fetchCheckpoint(verified.signed.value.index)).?;
+        try std.testing.expect(std.meta.eql(stored.value, verified.signed.value));
+    }
+    // No temporary files are left behind.
+    var entries = store.dir.iterate();
+    var objects_seen: usize = 0;
+    while (try entries.next()) |entry| {
+        if (std.mem.endsWith(u8, entry.name, "_with_id.json")) objects_seen += 1 else try std.testing.expect(std.mem.startsWith(u8, entry.name, "."));
+    }
+    try std.testing.expectEqual(@as(usize, 70), objects_seen);
 }
