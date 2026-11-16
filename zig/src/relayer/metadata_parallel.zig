@@ -684,6 +684,57 @@ test "executor lifetime stop token retires a retained cooperative continuation" 
     try std.testing.expect(!pending.expired.load(.acquire));
 }
 
+test "only a stackless worker thread of the executor assists queued jobs" {
+    const root = try Root.start(std.testing.allocator, .{ .workers = 1 });
+    defer root.deinit();
+    const Gate = struct {
+        job: Job = .{ .run_fn = run },
+        entered: std.atomic.Value(bool) = .init(false),
+        release: std.atomic.Value(bool) = .init(false),
+        fn run(job: *Job) RunResult {
+            const self: *@This() = @fieldParentPtr("job", job);
+            self.entered.store(true, .release);
+            while (!self.release.load(.acquire)) std.Thread.sleep(std.time.ns_per_ms);
+            return .done;
+        }
+    };
+    const Probe = struct {
+        job: Job = .{ .run_fn = run },
+        thread: ?std.Thread.Id = null,
+        fn run(job: *Job) RunResult {
+            const self: *@This() = @fieldParentPtr("job", job);
+            self.thread = std.Thread.getCurrentId();
+            return .done;
+        }
+    };
+    // The only worker is held, so probes stay queued until assisted.
+    var gate: Gate = .{};
+    defer gate.release.store(true, .release);
+    try root.executor.submit(&gate.job);
+    var timer = try std.time.Timer.start();
+    while (!gate.entered.load(.acquire)) {
+        if (timer.read() > std.time.ns_per_s) return error.WorkerDidNotEnter;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    var first: Probe = .{};
+    var second: Probe = .{};
+    try root.executor.submit(&first.job);
+    try root.executor.submit(&second.job);
+    try std.testing.expect(!root.executor.assist());
+    try std.testing.expect(!root.executor.assistJob(&second.job));
+    try std.testing.expectEqual(@as(usize, 3), root.executor.retainedJobs());
+    // As the worker's fallback marks its thread while running a job inline.
+    inline_worker = &root.executor;
+    defer inline_worker = null;
+    try std.testing.expect(root.executor.assistJob(&second.job));
+    try std.testing.expectEqual(@as(?std.Thread.Id, std.Thread.getCurrentId()), second.thread);
+    try std.testing.expectEqual(@as(?std.Thread.Id, null), first.thread);
+    try std.testing.expect(root.executor.assist());
+    try std.testing.expectEqual(@as(?std.Thread.Id, std.Thread.getCurrentId()), first.thread);
+    try std.testing.expect(!root.executor.assist());
+    try std.testing.expectEqual(@as(usize, 1), root.executor.retainedJobs());
+}
+
 test "executor off-fiber last suspension wakes parked workers and retires cancellation" {
     const root = try Root.start(std.testing.allocator, .{ .workers = 1 });
     defer root.deinit();
