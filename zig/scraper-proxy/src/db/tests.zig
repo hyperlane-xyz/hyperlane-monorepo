@@ -1796,3 +1796,128 @@ test "libpq: lazy results write and materialize byte-identically to converted ro
     try testing.expectEqual(@as(f64, 2), after.rows[0].get("x").?.number);
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
+
+/// Runs `n` concurrent `Pool.acquire` calls on fibers of one scheduler and
+/// records each outcome and its elapsed time.
+const FiberBurst = struct {
+    pool: *pool_mod.Pool,
+    n: usize,
+    ok: std.atomic.Value(usize) = .init(0),
+    messages: [16][96]u8 = @splat(@splat(0)),
+    elapsed: [16]i64 = @splat(0),
+    next: std.atomic.Value(usize) = .init(0),
+    err: ?anyerror = null,
+
+    fn one(arg: *anyopaque) void {
+        const self: *@This() = @ptrCast(@alignCast(arg));
+        const i = self.next.fetchAdd(1, .monotonic);
+        var arena = std.heap.ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        var failure: root.Failure = .{};
+        const t0 = std.time.milliTimestamp();
+        if (self.pool.acquire(arena.allocator(), &failure)) |conn| {
+            _ = self.ok.fetchAdd(1, .monotonic);
+            self.elapsed[i] = std.time.milliTimestamp() - t0;
+            // Hold it (fiber parked on the query) while the others connect.
+            var c = conn;
+            _ = c.query(arena.allocator(), "SELECT pg_sleep(0.3)", &.{}, null) catch {};
+            self.pool.release(c);
+        } else |_| {
+            self.elapsed[i] = std.time.milliTimestamp() - t0;
+            const m = @min(failure.message.len, self.messages[i].len);
+            @memcpy(self.messages[i][0..m], failure.message[0..m]);
+        }
+    }
+    fn root_(arg: *anyopaque) void {
+        const self: *@This() = @ptrCast(@alignCast(arg));
+        for (1..self.n) |_| core.fiber.spawn(one, self) catch |e| {
+            self.err = e;
+        };
+        one(arg);
+    }
+};
+
+fn withHost(a: std.mem.Allocator, url: []const u8, host: []const u8) ![]const u8 {
+    const i = std.mem.indexOf(u8, url, "127.0.0.1") orelse return url;
+    return std.fmt.allocPrint(a, "{s}{s}{s}", .{ url[0..i], host, url[i + "127.0.0.1".len ..] });
+}
+
+test "startMayBlock: only host names need the resolver thread" {
+    try testing.expect(!pq.startMayBlock("postgresql://u:p@127.0.0.1:5432/x"));
+    try testing.expect(!pq.startMayBlock("postgresql://u:p@[::1]:5432/x"));
+    try testing.expect(!pq.startMayBlock("host=10.0.0.1,10.0.0.2 port=5432,5433 dbname=x"));
+    try testing.expect(!pq.startMayBlock("host=/var/run/postgresql dbname=x"));
+    try testing.expect(!pq.startMayBlock("host=db.example hostaddr=10.0.0.1 dbname=x"));
+    try testing.expect(pq.startMayBlock("postgresql://u:p@localhost:5432/x"));
+    try testing.expect(pq.startMayBlock("host=10.0.0.1,db.example dbname=x"));
+    try testing.expect(pq.startMayBlock("dbname=x"));
+    try testing.expect(pq.startMayBlock("not a conninfo ="));
+}
+
+test "libpq on a fiber: cold connects use at most Connector.max_workers threads" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    // The test URL's own host (an IP locally, a container name on Linux CI)
+    // and, when it is an IP, the same server by name.
+    for ([_][]const u8{ url, try withHost(arena_state.allocator(), url, "localhost") }) |u| {
+        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = u }, .max = 10 });
+        defer p.deinit();
+        var waited: usize = 0;
+        while (pool_mod.connectorStats().workers > 0 and waited < 300) : (waited += 1) std.Thread.sleep(10 * std.time.ns_per_ms);
+        pool_mod.resetConnectorPeak();
+        var burst: FiberBurst = .{ .pool = p, .n = 10 };
+        try core.fiber.testing.run(FiberBurst.root_, &burst);
+        try testing.expect(burst.err == null);
+        try testing.expectEqual(@as(usize, 10), burst.ok.load(.monotonic));
+        try testing.expectEqual(@as(u32, 10), p.stats().total);
+        // The CPU steps (each PQconnectPoll) always run on the workers; name
+        // resolution too when the host is a name.
+        const peak = pool_mod.connectorStats().peak;
+        try testing.expect(peak >= 1 and peak <= 4);
+    }
+    // Workers leave once idle.
+    var waited: usize = 0;
+    while (pool_mod.connectorStats().workers > 0 and waited < 300) : (waited += 1) std.Thread.sleep(10 * std.time.ns_per_ms);
+    try testing.expectEqual(@as(u32, 0), pool_mod.connectorStats().workers);
+}
+
+test "libpq on a fiber: connects keep their deadline and node-pg's timeout text" {
+    const stalled = try stalledListener();
+    defer std.posix.close(stalled.fd);
+    var url_buf: [128]u8 = undefined;
+    const timeout_ms = 400;
+    // Both start paths: inline (IP) and through the workers (name).
+    for ([_][]const u8{ "127.0.0.1", "localhost" }) |host| {
+        const url = try std.fmt.bufPrint(&url_buf, "postgresql://u:p@{s}:{d}/x?sslmode=disable", .{ host, stalled.port });
+        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .connect_timeout_ms = timeout_ms }, .max = 10 });
+        defer p.deinit();
+        var burst: FiberBurst = .{ .pool = p, .n = 8 };
+        try core.fiber.testing.run(FiberBurst.root_, &burst);
+        try testing.expect(burst.err == null);
+        try testing.expectEqual(@as(usize, 0), burst.ok.load(.monotonic));
+        for (0..8) |i| {
+            try testing.expect(std.mem.startsWith(u8, &burst.messages[i], "Connection terminated due to connection timeout"));
+            try testing.expect(burst.elapsed[i] >= timeout_ms - 5);
+            try testing.expect(burst.elapsed[i] < timeout_ms + timeout_ms / 2);
+        }
+    }
+}
+
+test "libpq: connect errors read the same on a fiber (both start paths) as a direct connect" {
+    const refused = try stalledListener();
+    const port = refused.port;
+    std.posix.close(refused.fd);
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    for ([_][]const u8{ "127.0.0.1", "localhost" }) |host| {
+        const url = try std.fmt.allocPrint(arena_state.allocator(), "postgresql://u:p@{s}:{d}/x?sslmode=disable", .{ host, port });
+        var direct: root.Failure = .{};
+        try testing.expectError(error.ConnectionFailed, pq.Conn.connect(.{ .conninfo = url }, arena_state.allocator(), &direct));
+        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+        defer p.deinit();
+        var burst: FiberBurst = .{ .pool = p, .n = 1 };
+        try core.fiber.testing.run(FiberBurst.root_, &burst);
+        try testing.expectEqualStrings(direct.message, std.mem.sliceTo(&burst.messages[0], 0));
+    }
+}

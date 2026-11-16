@@ -299,7 +299,9 @@ test "raw rows: custom scalars over converted columns take today's path, NULLs i
     var t1: Table = .{ .names = &rmd_names, .oids = &rmd_oids, .cells = &good };
     for ([_][]const u8{ rmd_list, rmd_by_pk, "{ raw_message_dispatch { b: msg_body t: time_created msg_id } }" }) |q| {
         try expectSame(a, q, &t1);
-        try std.testing.expectEqual(@as(usize, 0), (try run(a, q, &t1, true)).raw_calls);
+        const before = t1.materializes;
+        try std.testing.expectEqual(@as(usize, 1), (try run(a, q, &t1, true)).raw_calls);
+        try std.testing.expectEqual(before, t1.materializes); // written in place
     }
     // A NULL in non-null custom fields (bytea!, timestamp!): today's located
     // error; the list's null bubbles to data, by_pk's to the nullable field.
@@ -455,9 +457,9 @@ test "raw rows: PostgreSQL results through the App adapters match today's bytes"
         .{ .query = "{ domain(where: {id: {_lt: -5}}) { id name } }", .lazy = true },
         .{ .query = "query ($n: Int) { domain(limit: $n, order_by: {name: desc}) { native_token chain_id } }", .vars = "{\"n\":7}", .lazy = true },
         // Custom scalars over converted columns (bytea, timestamp, interval): today's path.
-        .{ .query = "{ raw_message_dispatch(order_by: {id: desc}, limit: 50) { id msg_id nonce origin_domain destination_domain sender recipient msg_body origin_block_height origin_tx_hash time_created } }", .lazy = false },
-        .{ .query = try std.fmt.allocPrint(ca, "{{ raw_message_dispatch_by_pk(id: \"{s}\") {{ id msg_id nonce sender time_created }} }}", .{rmd_id}), .lazy = false },
-        .{ .query = "query ($o: [Int!]) { message_view(where: {origin_domain_id: {_in: $o}}, order_by: {id: desc}, limit: 100) { id msg_id nonce sender recipient is_delivered send_occurred_at delivery_occurred_at delivery_latency origin_tx_hash destination_tx_hash total_payment num_payments } }", .vars = "{\"o\":[42161,8453]}", .lazy = false },
+        .{ .query = "{ raw_message_dispatch(order_by: {id: desc}, limit: 50) { id msg_id nonce origin_domain destination_domain sender recipient msg_body origin_block_height origin_tx_hash time_created } }", .lazy = true },
+        .{ .query = try std.fmt.allocPrint(ca, "{{ raw_message_dispatch_by_pk(id: \"{s}\") {{ id msg_id nonce sender time_created }} }}", .{rmd_id}), .lazy = true },
+        .{ .query = "query ($o: [Int!]) { message_view(where: {origin_domain_id: {_in: $o}}, order_by: {id: desc}, limit: 100) { id msg_id nonce sender recipient is_delivered send_occurred_at delivery_occurred_at delivery_latency origin_tx_hash destination_tx_hash total_payment num_payments } }", .vars = "{\"o\":[42161,8453]}", .lazy = true },
         .{ .query = "{ message_view(order_by: {id: desc}, limit: 500) { id nonce is_delivered is_provisional origin_chain_id origin_block_height destination_chain_id total_payment num_payments origin_domain destination_domain } }", .lazy = true },
         // Fallbacks: __typename, confirmations, aggregate.
         .{ .query = "{ domain(limit: 2) { __typename id } }", .lazy = false },

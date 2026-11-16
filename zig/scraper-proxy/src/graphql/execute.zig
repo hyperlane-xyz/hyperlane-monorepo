@@ -673,8 +673,8 @@ pub const Executor = struct {
             if (ft.* != .named or ft.named.kind != .scalar) return null;
             const leaf = ft.named;
             switch (leaf.scalar) {
-                .string, .id, .int, .boolean => {},
-                .custom => if (!passThroughCustom(leaf.name)) return null,
+                // Custom scalars are all pass-through (scalars.ts `serialize(v) = v`).
+                .string, .id, .int, .boolean, .custom => {},
                 .float => return null,
             }
             slot.* = .{ .kind = leaf.scalar, .non_null = non_null };
@@ -683,9 +683,10 @@ pub const Executor = struct {
         return .{ .collected = collected, .scalars = scalars, .list_non_null = if (is_list) list_non_null else false, .object_non_null = object_non_null };
     }
 
-    /// Writes the field from `raw` when every selected field maps to a fast
-    /// column whose JSON equals today's output and no cell needs today's
-    /// error or coercion path; false (nothing written): materialize instead.
+    /// Writes the field from `raw` when every selected field's column writes
+    /// today's output (an identity pair, or any column under a pass-through
+    /// custom scalar) and no cell needs today's error or coercion path; on a
+    /// miss the partial output is dropped and false returned: materialize.
     fn writeRawRows(self: *Executor, plan: RawPlan, raw: RawRows, single: bool) Err!bool {
         const fields = plan.collected.names.len;
         const cols = try self.a.alloc(usize, fields);
@@ -699,12 +700,14 @@ pub const Executor = struct {
                 found = i;
             };
             const i = found orelse return false;
-            const k = raw.columns[i].kind orelse return false;
+            const k = raw.columns[i].kind;
             const identity = switch (scalar.kind) {
                 .string, .id => k == .string_text,
                 .int => k == .number_text,
                 .boolean => k == .bool_tf,
-                .custom => true, // pass-through: today's output is the column value as JSON
+                // Pass-through: today's output is the converted cell as JSON,
+                // which `write_cell_fn` writes for any column type.
+                .custom => true,
                 .float => false,
             };
             if (!identity) return false;
@@ -712,38 +715,43 @@ pub const Executor = struct {
         }
         const rows = if (single) @min(raw.n_rows, 1) else raw.n_rows;
         if (single and rows == 0 and plan.object_non_null) return false;
-        // Pre-scan: a NULL in a non-null field, or an Int outside 32 bits,
-        // takes today's path (its error or coercion).
-        for (0..rows) |r| {
-            for (plan.scalars, cols) |scalar, c| {
-                const text = raw.cell(r, c) orelse {
-                    if (scalar.non_null) return false;
-                    continue;
-                };
-                if (scalar.kind == .int) {
-                    const n = std.fmt.parseInt(i64, text, 10) catch return false;
-                    if (n > std.math.maxInt(i32) or n < std.math.minInt(i32)) return false;
-                }
-            }
-        }
         const w = &self.out.writer;
         if (single and rows == 0) {
             try self.writeRaw("null");
             return true;
         }
+        const mark = w.end;
         if (!single) try self.writeRaw("[");
         for (0..rows) |r| {
             if (r > 0) try self.writeRaw(",");
             try self.writeRaw("{");
-            for (plan.collected.keys, cols, 0..) |key, c, i| {
+            for (plan.collected.keys, plan.scalars, cols, 0..) |key, scalar, c, i| {
                 if (i > 0) try self.writeRaw(",");
                 try self.writeRaw(key);
+                // A NULL (or a converted json `null`) in a non-null field, or
+                // an Int outside 32 bits: today's error or coercion path.
+                const text = raw.cell(r, c) orelse {
+                    if (scalar.non_null) return self.dropRaw(mark);
+                    try self.writeRaw("null");
+                    continue;
+                };
+                if (scalar.kind == .int) {
+                    const n = std.fmt.parseInt(i64, text, 10) catch return self.dropRaw(mark);
+                    if (n > std.math.maxInt(i32) or n < std.math.minInt(i32)) return self.dropRaw(mark);
+                }
+                if (scalar.non_null and raw.columns[c].kind == null and std.mem.eql(u8, text, "null")) return self.dropRaw(mark);
                 raw.write_cell_fn(raw.ctx, w, self.a, r, c) catch return error.OutOfMemory;
             }
             try self.writeRaw("}");
         }
         if (!single) try self.writeRaw("]");
         return true;
+    }
+
+    /// `writeRawRows` miss: drop what it wrote.
+    fn dropRaw(self: *Executor, mark: usize) bool {
+        self.out.writer.end = mark;
+        return false;
     }
 
     /// `completeValue`, serialized; `result` null = undefined. Returns
@@ -946,14 +954,6 @@ pub const Executor = struct {
         return null;
     }
 };
-
-/// Custom scalars written from fast columns. All custom scalars are
-/// pass-through (scalars.ts), but the converted ones (bytea, timestamp,
-/// interval) measured slower written per cell than materialized (Depot
-/// 4ggszm4hmd: +6–7% CPU on the 500-row rows), so they keep today's path.
-fn passThroughCustom(name: []const u8) bool {
-    return std.mem.eql(u8, name, "bigint") or std.mem.eql(u8, name, "numeric");
-}
 
 /// Where a field was last found in its rows. Rows of one database result
 /// share key order and the key slices themselves (`pq.convertRows`

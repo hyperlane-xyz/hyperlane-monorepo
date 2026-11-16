@@ -44,10 +44,10 @@ pub fn build(b: *std.Build) void {
     // After handling events, a loop polls without blocking for up to this
     // long before sleeping in epoll_wait, so a connection or request arriving
     // right after a batch skips the sleep and its sender the wake-up (0: off).
-    // An idle loop never spins. Measured (Depot shcp1zd9n8): light-load
-    // connect p50/p99 below TS, closed-loop rows within 1.5%, light-load CPU
-    // per request about twice the no-spin build's (still under TS's).
-    const loop_spin_us = b.option(u32, "loop-spin-us", "Poll up to N microseconds after handling events before blocking (0: off; default 100)") orelse 100;
+    // Off by default: on Depot (qf9rnvjn3k) a 100 us spin bought no connect
+    // latency over 0 (both tie TS) but cost 2-3x CPU per request on rows that
+    // wait on PostgreSQL and 1 ms/s with 2,000 idle keep-alive sockets.
+    const loop_spin_us = b.option(u32, "loop-spin-us", "Poll up to N microseconds after handling events before blocking (default 0: off)") orelse 0;
     http_options.addOption(u32, "loop_spin_us", loop_spin_us);
     // Diagnostics only (bench): live loop mutex hold- and wait-time
     // histograms, logged at info. Off by default.

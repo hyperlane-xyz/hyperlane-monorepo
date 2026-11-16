@@ -193,7 +193,8 @@ pub const LazyRows = struct {
     pub fn writeText(w: *std.Io.Writer, arena: std.mem.Allocator, oid: u32, text: []const u8) (std.Io.Writer.Error || std.mem.Allocator.Error)!void {
         const kind = kindOf(oid);
         if (kind != .none) return writeFast(w, kind, text);
-        try core.json.stringify(w, try convert.convertCell(arena, oid, text, .copy));
+        // Stringified at once: the value may alias `text` (no copy).
+        try core.json.stringify(w, try convert.convertCell(arena, oid, text, .borrow));
     }
 
     /// A non-NULL cell of a fast `kind` (not `.none`), without allocating:
@@ -202,9 +203,9 @@ pub const LazyRows = struct {
         switch (kind) {
             // PostgreSQL's own output is canonical and JS prints it back
             // unchanged; anything else (never seen) is formatted like convertCell.
-            .number => if (canonicalInt(text)) try w.writeAll(text) else try core.json.writeNumber(w, convert.fastInt(text)),
+            .number => if (canonicalInt(text)) try core.json.writeShort(w, text) else try core.json.writeNumber(w, convert.fastInt(text)),
             .string => try core.json.writeString(w, text),
-            .boolean => try w.writeAll(if (convert.fastBool(text)) "true" else "false"),
+            .boolean => try core.json.writeShort(w, if (convert.fastBool(text)) "true" else "false"),
             .none => unreachable,
         }
     }
@@ -492,6 +493,28 @@ pub const Conn = struct {
     /// timeout -> "Connection terminated due to connection timeout", other
     /// failures -> libpq's message (trimmed).
     pub fn connect(opts: ConnOptions, arena: std.mem.Allocator, failure: ?*Failure) Error!Conn {
+        return connectFinish(try connectStart(opts, arena, failure), arena, failure, null);
+    }
+
+    /// Runs one `PQconnectPoll` (`pollConnect`) elsewhere, e.g. on a worker
+    /// thread: the step that does TLS handshake and SCRAM crypto.
+    pub const Poller = struct {
+        ctx: *anyopaque,
+        poll: *const fn (ctx: *anyopaque, pg: *anyopaque) c_int,
+    };
+
+    /// A connection between `connectStart` and `connectFinish`.
+    pub const Starting = struct {
+        pg: *PGconn,
+        owner: u64,
+        query_timeout_ms: ?u64,
+        connect_timeout_ms: ?u64,
+    };
+
+    /// First half of `connect`: `PQconnectStartParams`, which resolves host
+    /// names with a blocking getaddrinfo (see `startMayBlock`); nothing is
+    /// sent yet. Finish with `connectFinish` (any thread, one owner).
+    pub fn connectStart(opts: ConnOptions, arena: std.mem.Allocator, failure: ?*Failure) Error!Starting {
         var scratch = std.heap.ArenaAllocator.init(std.heap.c_allocator);
         defer scratch.deinit();
         const a = scratch.allocator();
@@ -539,17 +562,27 @@ pub const Conn = struct {
         if (existingOption(conninfo, "gssencmode") == null and std.posix.getenv("PGGSSENCMODE") == null)
             Kw.add(&kw_buf, &val_buf, &n_kw, "gssencmode", "disable");
         const pg = PQconnectStartParams(&kw_buf, &val_buf, 1) orelse return error.OutOfMemory;
-        const owner = core.fiber.newOwner();
+        if (PQstatus(pg) == 1) { // CONNECTION_BAD
+            setFailure(failure, arena, trimMessage(std.mem.span(PQerrorMessage(pg))), null);
+            PQfinish(pg);
+            return error.ConnectionFailed;
+        }
+        return .{ .pg = pg, .owner = core.fiber.newOwner(), .query_timeout_ms = opts.query_timeout_ms, .connect_timeout_ms = opts.connect_timeout_ms };
+    }
+
+    /// Second half of `connect`: drives `PQconnectPoll` to completion within
+    /// `connect_timeout_ms` (from here, as `connect` always counted it),
+    /// waiting on the socket (a fiber parks). Frees the connection on failure.
+    /// `poller`: where each `PQconnectPoll` runs (null: here).
+    pub fn connectFinish(st: Starting, arena: std.mem.Allocator, failure: ?*Failure, poller: ?Poller) Error!Conn {
+        const pg = st.pg;
+        const owner = st.owner;
         errdefer {
             const fd = PQsocket(pg);
             if (fd >= 0) core.fiber.forgetFd(fd);
             PQfinish(pg);
         }
-        const deadline: ?i64 = if (opts.connect_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
-        if (PQstatus(pg) == 1) { // CONNECTION_BAD
-            setFailure(failure, arena, trimMessage(std.mem.span(PQerrorMessage(pg))), null);
-            return error.ConnectionFailed;
-        }
+        const deadline: ?i64 = if (st.connect_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
         var state: c_int = PGRES_POLLING_WRITING;
         while (true) {
             switch (state) {
@@ -566,7 +599,7 @@ pub const Conn = struct {
                     }
                 },
             }
-            state = PQconnectPoll(pg);
+            state = if (poller) |p| p.poll(p.ctx, pg) else PQconnectPoll(pg);
         }
         _ = PQsetNoticeReceiver(pg, ignoreNotice, null);
         if (PQsslInUse(pg) != 0) tls.logMode();
@@ -579,7 +612,7 @@ pub const Conn = struct {
         // (left by a socket closed without telling the loop, or by our own
         // connect if it waited on a fiber); the socket is open and ours.
         core.fiber.forgetFd(sock);
-        return .{ .pg = pg, .query_timeout_ms = opts.query_timeout_ms, .sock = sock, .owner = owner };
+        return .{ .pg = pg, .query_timeout_ms = st.query_timeout_ms, .sock = sock, .owner = owner };
     }
 
     pub fn deinit(self: *Conn) void {
@@ -1149,6 +1182,43 @@ fn convertRows(arena: std.mem.Allocator, res: *PGresult) std.mem.Allocator.Error
 }
 
 /// Returns the value of `keyword` parsed from a connection string, if set.
+/// One `PQconnectPoll` step of a connection in `connectFinish` (`Poller`).
+pub fn pollConnect(pg: *anyopaque) c_int {
+    return PQconnectPoll(@ptrCast(pg));
+}
+
+/// Whether `PQconnectStartParams` may block on name resolution for this
+/// connection string: false only when every target is an IP literal or a
+/// Unix-socket directory (or `hostaddr` is given), so libpq's getaddrinfo
+/// returns at once. Environment defaults (PGHOST, ...) count as "may block".
+pub fn startMayBlock(conninfo: []const u8) bool {
+    var buf: [2048]u8 = undefined;
+    if (conninfo.len >= buf.len) return true;
+    @memcpy(buf[0..conninfo.len], conninfo);
+    buf[conninfo.len] = 0;
+    const z = buf[0..conninfo.len :0];
+    var errmsg: ?[*:0]u8 = null;
+    const parsed = PQconninfoParse(z, &errmsg) orelse {
+        if (errmsg) |m| PQfreemem(m);
+        return true;
+    };
+    defer PQconninfoFree(parsed);
+    var host: ?[]const u8 = null;
+    var i: usize = 0;
+    while (parsed[i].keyword) |k| : (i += 1) {
+        const v = std.mem.span(parsed[i].val orelse continue);
+        if (v.len == 0) continue;
+        if (std.mem.eql(u8, std.mem.span(k), "hostaddr")) return false;
+        if (std.mem.eql(u8, std.mem.span(k), "host")) host = v;
+    }
+    var it = std.mem.splitScalar(u8, host orelse return true, ',');
+    while (it.next()) |h| {
+        if (h.len > 0 and h[0] == '/') continue;
+        _ = std.net.Address.parseIp(h, 0) catch return true;
+    }
+    return false;
+}
+
 fn existingOption(conninfo: [:0]const u8, keyword: []const u8) ?[]const u8 {
     var errmsg: ?[*:0]u8 = null;
     const parsed = PQconninfoParse(conninfo, &errmsg) orelse {

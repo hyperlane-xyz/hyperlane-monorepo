@@ -100,10 +100,166 @@ const Waiter = struct {
     }
 };
 
-/// `pq.Conn.connect`, but never on a fiber stack (name resolution, TLS):
-/// on a fiber it runs on a helper thread while the fiber parks.
+/// `pq.Conn.connect` from a fiber without blocking its loop: the fiber
+/// waits for the socket (TCP, TLS, startup and auth round trips stay async,
+/// as node-pg's connect), while `Connector`'s few workers run the CPU steps
+/// (each `PQconnectPoll`) and the host-name resolution in `connectStart`
+/// (not needed for IP literals or Unix sockets).
 fn connectOffFiber(opts: pq.ConnOptions, arena: std.mem.Allocator, failure: ?*Failure) Error!pq.Conn {
-    return core.fiber.offload(pq.Conn.connect, .{ opts, arena, failure });
+    if (!core.fiber.inFiber()) return pq.Conn.connect(opts, arena, failure);
+    const started = if (pq.startMayBlock(opts.conninfo)) try connector.start(opts, arena, failure) else try pq.Conn.connectStart(opts, arena, failure);
+    return pq.Conn.connectFinish(started, arena, failure, connector.poller());
+}
+
+/// Process-wide bounded executor for the CPU-heavy or blocking steps of
+/// fiber connects: `connectStart` (libpq's blocking host-name resolution)
+/// and each `PQconnectPoll` call (TLS handshake crypto, SCRAM-SHA-256's
+/// PBKDF2: ~2 ms per connect), which would otherwise stall the fiber's loop
+/// (node-pg also runs SCRAM's PBKDF2 off its main thread). Network waits
+/// stay on the fiber, so a worker is held only for one CPU step at a time.
+/// At most `max_workers` threads, started on demand, exiting after
+/// `idle_exit_ms` without work (no idle threads). Jobs run FIFO. A start
+/// job counts its queue time against the connect timeout, which runs from
+/// `pool.connect()` as in pg-pool and node-pg: one whose deadline passed
+/// while queued fails with node-pg's timeout text without starting.
+const Connector = struct {
+    mutex: std.Thread.Mutex = .{},
+    work: std.Thread.Condition = .{},
+    head: ?*Job = null,
+    tail: ?*Job = null,
+    workers: u32 = 0,
+    idle: u32 = 0,
+    /// Test-only: the most workers alive at once.
+    peak: u32 = 0,
+
+    pub const max_workers = 4;
+    const idle_exit_ms = 250;
+
+    const Job = struct {
+        kind: union(enum) {
+            start: struct {
+                opts: pq.ConnOptions,
+                arena: std.mem.Allocator,
+                failure: ?*Failure,
+                deadline: ?i64,
+                result: Error!pq.Conn.Starting = error.ConnectionFailed,
+            },
+            poll: struct { pg: *anyopaque, state: c_int = 0 },
+        },
+        done: core.fiber.Waiter = .{},
+        next: ?*Job = null,
+    };
+
+    fn start(self: *Connector, opts: pq.ConnOptions, arena: std.mem.Allocator, failure: ?*Failure) Error!pq.Conn.Starting {
+        const deadline: ?i64 = if (opts.connect_timeout_ms) |ms| (if (ms > 0) pq.nowMs() + @as(i64, @intCast(ms)) else null) else null;
+        var job: Job = .{ .kind = .{ .start = .{ .opts = opts, .arena = arena, .failure = failure, .deadline = deadline } } };
+        if (!self.submit(&job)) return pq.Conn.connectStart(opts, arena, failure);
+        job.done.wait();
+        return job.kind.start.result;
+    }
+
+    /// `pq.Conn.Poller`: one `PQconnectPoll` call on a worker.
+    fn poll(ctx: *anyopaque, pg: *anyopaque) c_int {
+        const self: *Connector = @ptrCast(@alignCast(ctx));
+        var job: Job = .{ .kind = .{ .poll = .{ .pg = pg } } };
+        if (!self.submit(&job)) return pq.pollConnect(pg);
+        job.done.wait();
+        return job.kind.poll.state;
+    }
+
+    fn poller(self: *Connector) pq.Conn.Poller {
+        return .{ .ctx = self, .poll = poll };
+    }
+
+    /// Queues `job`, starting a worker if none is free. False when no
+    /// worker thread exists or can be started (the caller runs it inline).
+    fn submit(self: *Connector, job: *Job) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.tail) |t| t.next = job else self.head = job;
+        self.tail = job;
+        if (self.idle > 0) {
+            self.work.signal();
+        } else if (self.workers < max_workers) {
+            if (std.Thread.spawn(.{}, workerLoop, .{self})) |thread| {
+                thread.detach();
+                self.workers += 1;
+                self.peak = @max(self.peak, self.workers);
+            } else |_| if (self.workers == 0) {
+                self.unlinkLocked(job);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    fn unlinkLocked(self: *Connector, job: *Job) void {
+        var prev: ?*Job = null;
+        var cur = self.head;
+        while (cur) |c| : (cur = c.next) {
+            if (c == job) {
+                if (prev) |p| p.next = c.next else self.head = c.next;
+                if (self.tail == c) self.tail = prev;
+                return;
+            }
+            prev = c;
+        }
+    }
+
+    fn workerLoop(self: *Connector) void {
+        self.mutex.lock();
+        while (true) {
+            const job = self.head orelse {
+                self.idle += 1;
+                const timed_out = if (self.work.timedWait(&self.mutex, idle_exit_ms * std.time.ns_per_ms)) |_| false else |_| true;
+                self.idle -= 1;
+                if (timed_out and self.head == null) {
+                    self.workers -= 1;
+                    self.mutex.unlock();
+                    return;
+                }
+                continue;
+            };
+            self.head = job.next;
+            if (self.head == null) self.tail = null;
+            self.mutex.unlock();
+            switch (job.kind) {
+                .start => |*st| st.result = startJob(st.opts, st.arena, st.failure, st.deadline),
+                .poll => |*pl| pl.state = pq.pollConnect(pl.pg),
+            }
+            job.done.wake(); // last touch of `job` (it lives on the caller's stack)
+            self.mutex.lock();
+        }
+    }
+
+    fn startJob(opts_in: pq.ConnOptions, arena: std.mem.Allocator, failure: ?*Failure, deadline: ?i64) Error!pq.Conn.Starting {
+        var opts = opts_in;
+        if (deadline) |d| {
+            const left = d - pq.nowMs();
+            if (left <= 0) {
+                if (failure) |f| f.* = .{ .message = arena.dupe(u8, "Connection terminated due to connection timeout") catch "" };
+                return error.ConnectionFailed;
+            }
+            opts.connect_timeout_ms = @intCast(left);
+        }
+        return pq.Conn.connectStart(opts, arena, failure);
+    }
+};
+
+var connector: Connector = .{};
+
+/// Test-only view of the connect executor.
+pub fn connectorStats() struct { workers: u32, peak: u32 } {
+    connector.mutex.lock();
+    defer connector.mutex.unlock();
+    return .{ .workers = connector.workers, .peak = connector.peak };
+}
+
+/// Test-only.
+pub fn resetConnectorPeak() void {
+    connector.mutex.lock();
+    defer connector.mutex.unlock();
+    connector.peak = connector.workers;
 }
 
 pub const Pool = struct {
