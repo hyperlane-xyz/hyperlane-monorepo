@@ -44,6 +44,12 @@ The reveal lookup derives the account from the commit's owner and user salt. A c
 that commits on a user's behalf must therefore derive the commit's user salt from its own
 caller (`msg.sender`).
 
+With a zero commit ISM, the reveal lookup skips re-deriving the dispatched router pair,
+because registry ICA routers enroll no ISM (`isms(origin) == 0`). If a non-zero ISM is
+ever enrolled on a registry ICA router (`enrollRemoteRouterAndIsm`), this skip in
+`deriveRouterVersionIcas` (`CallCommitmentsService.ts`) must be revisited; otherwise
+registrations made without an ISM on that pair stop resolving.
+
 ## General calldata lookup
 
 This route is disabled by default while the Sealevel reveal flow is redesigned; set
