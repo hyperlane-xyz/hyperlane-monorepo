@@ -186,37 +186,58 @@ export class EventStore {
 
   async confirmationHeads(
     domains: Set<number>,
-    confirmations?: number,
   ): Promise<Map<number, ConfirmationHead>> {
-    // Custom agent streams take their position and block identity from the same
-    // snapshot. Checkpoints can be sparse (e.g. skipped slots): start at the last
-    // retained checkpoint at or below the requested confirmation frontier.
     const rows = await this.db.queryLive<Row>(
-      confirmations === undefined
-        ? 'SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])'
-        : `SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,
-                  c.height::text AS height, ${LIVE_START_COLUMNS}
-           FROM scraper_head h LEFT JOIN LATERAL (
-             SELECT height, hash FROM scraper_checkpoint
-             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-$2::bigint)
-             ORDER BY height DESC LIMIT 1
-           ) c ON h.healthy AND NOT h.halted
-           WHERE h.domain=ANY($1::integer[])`,
-      confirmations === undefined
-        ? [[...domains].map(storedDomain)]
-        : [[...domains].map(storedDomain), confirmations],
+      'SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])',
+      [[...domains].map(storedDomain)],
     );
     return new Map(
       rows.map((row) => [
         parseDatabaseDomain(row.domain, 'Invalid head domain'),
-        {
-          head: parseId(row.head_height),
-          indexed: parseId(row.indexed_height),
-          confirmed: parseId(row.confirmed_height),
-          liveStart: liveStartBoundary(row),
-        },
+        confirmationHead(row),
       ]),
     );
+  }
+
+  /** One snapshot for all requested domain/policy pairs, shared across event types. */
+  async confirmationSnapshots(
+    policies: Map<number, Set<number>>,
+  ): Promise<Map<number, Map<number, ConfirmationHead>>> {
+    const domains: number[] = [];
+    const confirmations: number[] = [];
+    const snapshots = new Map<number, Map<number, ConfirmationHead>>();
+    for (const [policy, requestedDomains] of policies) {
+      snapshots.set(policy, new Map());
+      for (const domain of requestedDomains) {
+        domains.push(storedDomain(domain));
+        confirmations.push(policy);
+      }
+    }
+    if (!domains.length) return snapshots;
+    // Custom agent streams take their position and block identity from the same
+    // snapshot. Checkpoints can be sparse (e.g. skipped slots): start at the last
+    // retained checkpoint at or below the requested confirmation frontier.
+    const rows = await this.db.queryLive<Row>(
+      `SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,
+                  requested.confirmations, c.height::text AS height, ${LIVE_START_COLUMNS}
+           FROM unnest($1::integer[], $2::bigint[]) requested(domain, confirmations)
+           JOIN scraper_head h ON h.domain=requested.domain
+           LEFT JOIN LATERAL (
+             SELECT height, hash FROM scraper_checkpoint
+             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-requested.confirmations)
+             ORDER BY height DESC LIMIT 1
+           ) c ON h.healthy AND NOT h.halted`,
+      [domains, confirmations],
+    );
+    for (const row of rows) {
+      const heads = snapshots.get(Number(row.confirmations));
+      if (!heads) throw new Error('Unexpected confirmation policy');
+      heads.set(
+        parseDatabaseDomain(row.domain, 'Invalid head domain'),
+        confirmationHead(row),
+      );
+    }
+    return snapshots;
   }
 
   invalidateMessages(): void {
@@ -472,6 +493,15 @@ const LIVE_START_COLUMNS = `encode(c.hash, 'hex') AS hash,
   encode(h.mailbox, 'hex') AS mailbox,
   encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,
   encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster`;
+
+function confirmationHead(row: Row): ConfirmationHead {
+  return {
+    head: parseId(row.head_height),
+    indexed: parseId(row.indexed_height),
+    confirmed: parseId(row.confirmed_height),
+    liveStart: liveStartBoundary(row),
+  };
+}
 
 function liveStartBoundary(row: Row): LiveStartBoundary | undefined {
   const hash = parseOptionalBlockHash(row.hash);

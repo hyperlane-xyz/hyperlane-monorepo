@@ -32,6 +32,7 @@ import {
   type LiveStartBoundary,
   parseDatabaseDomain,
   parseClientMessage,
+  splitConfirmationStreams,
   parseEventNotification,
   parseExplorerNotification,
   parseExplorerConfirmations,
@@ -370,7 +371,7 @@ export class EventWebSocketServer {
     });
     websocketConnections.inc({ route: 'agent' });
     this.send(socket, {
-      confirmations: { unit: 'blocks', liveOnly: true },
+      confirmations: { unit: 'blocks', liveOnly: true, byDomain: true },
       eventTypes: SUBSCRIPTION_TYPES,
       historicalStreaming: false,
       liveStartVersion: 1,
@@ -585,11 +586,7 @@ export class EventWebSocketServer {
     domains: Set<number>,
     eventType?: EventType,
     allowUnavailable = eventType === undefined,
-    readHeads = () =>
-      this.store.confirmationHeads(
-        domains,
-        eventType ? confirmations : undefined,
-      ),
+    readHeads = () => this.store.confirmationHeads(domains),
   ): Promise<ConfirmationStream | undefined> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
@@ -719,32 +716,44 @@ export class EventWebSocketServer {
       request: StreamRequest;
       stream: ConfirmationStream;
     }[] = [];
-    // One primary snapshot per confirmations/domains group. All readers are
-    // registered concurrently before it resolves. Rollbacks force a fresh read
-    // when initialize retries; never reuse a snapshot from an earlier ancestry.
-    const snapshots = new Map<
-      string,
-      { revision: number; heads: ReturnType<EventStore['confirmationHeads']> }
-    >();
-    const readHeads = (confirmations: number, domains: Set<number>) => {
-      const key = JSON.stringify([
-        confirmations,
-        [...domains].sort((a, b) => a - b),
-      ]);
-      let snapshot = snapshots.get(key);
-      if (!snapshot || snapshot.revision !== this.confirmationRevision) {
-        snapshot = {
-          revision: this.confirmationRevision,
-          heads: this.store.confirmationHeads(domains, confirmations),
-        };
-        snapshots.set(key, snapshot);
-      }
-      return snapshot.heads;
-    };
-    const eventStreams = message.streams.filter(
-      (request) => request.eventType !== 'blocks',
-    );
+    let eventStreams: StreamRequest[] = [];
     try {
+      eventStreams = message.streams
+        .filter((request) => request.eventType !== 'blocks')
+        .flatMap((request) =>
+          splitConfirmationStreams(request, message.confirmationsByDomain),
+        );
+      const policies = new Map<number, Set<number>>();
+      for (const request of eventStreams) {
+        const counts = new Set<number>();
+        if (request.confirmations !== undefined)
+          counts.add(request.confirmations);
+        if (request.includeZeroConfirmations) counts.add(0);
+        for (const count of counts) {
+          const domains = policies.get(count) ?? new Set<number>();
+          for (const domain of request.domains ?? []) domains.add(domain);
+          policies.set(count, domains);
+        }
+      }
+      // Batch every domain/policy pair into one snapshot. Readers are registered
+      // before it resolves; a setup rollback forces the whole snapshot to refresh.
+      let snapshot:
+        | {
+            revision: number;
+            heads: ReturnType<EventStore['confirmationSnapshots']>;
+          }
+        | undefined;
+      const readHeads = async (confirmations: number) => {
+        if (!snapshot || snapshot.revision !== this.confirmationRevision) {
+          snapshot = {
+            revision: this.confirmationRevision,
+            heads: this.store.confirmationSnapshots(policies),
+          };
+        }
+        const heads = (await snapshot.heads).get(confirmations);
+        if (!heads) throw new Error('Missing confirmation policy');
+        return heads;
+      };
       const blocks = message.streams.find(
         (request) => request.eventType === 'blocks',
       );
@@ -769,19 +778,30 @@ export class EventWebSocketServer {
             domains,
             request.eventType,
             allowUnavailable,
-            () => readHeads(confirmations, domains),
+            () => readHeads(confirmations),
           ).then((stream) => (stream ? { request, stream } : undefined)),
         );
       };
       for (const request of eventStreams) {
         if (request.confirmations !== undefined && request.domains)
           addStream(request, request.confirmations, request.domains);
+      }
+      // One advisory reader per event type, even when custom counts differ by domain.
+      for (const request of message.streams) {
         if (
+          request.eventType !== 'blocks' &&
           request.includeZeroConfirmations &&
-          request.confirmations !== 0 &&
           request.domains
-        )
-          addStream(request, 0, request.domains, true);
+        ) {
+          const domains = new Set(
+            [...request.domains].filter(
+              (domain) =>
+                (message.confirmationsByDomain?.get(domain) ??
+                  request.confirmations) !== 0,
+            ),
+          );
+          if (domains.size) addStream(request, 0, domains, true);
+        }
       }
       for (const result of await Promise.all(initializing)) {
         if (result) customStreams.push(result);
@@ -793,12 +813,25 @@ export class EventWebSocketServer {
       return;
     }
     if (this.clients.get(socket) !== client) return;
+    // Custom readers are separate; retain the canonical group for live filtering.
     for (const request of eventStreams) {
+      if (
+        request.confirmations !== undefined &&
+        client.subscriptions.has(request.eventType)
+      )
+        continue;
       client.subscriptions.set(request.eventType, request);
     }
 
     client.subscribing = false;
     this.send(socket, {
+      ...(message.confirmationsByDomain
+        ? {
+            confirmationsByDomain: Object.fromEntries(
+              message.confirmationsByDomain,
+            ),
+          }
+        : {}),
       streams: message.streams.map(subscriptionResponse),
       type: 'subscribed',
     });
