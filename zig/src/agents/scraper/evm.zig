@@ -89,12 +89,16 @@ pub const Evm = struct {
         errdefer arena.deinit();
         const a = arena.allocator();
         const contracts = [_]src.Hash{ self.contracts.mailbox, self.contracts.hook, self.contracts.paymaster };
-        var addresses: [3][]const u8 = undefined;
-        for (contracts, &addresses) |contract, *out| out.* = try abi.hexAlloc(a, &try address(contract));
+        var raw_addresses: [3][20]u8 = undefined;
+        var addresses: [3]rpc.HexParam = undefined;
+        for (contracts, &raw_addresses, &addresses) |contract, *raw, *out| {
+            raw.* = try address(contract);
+            out.* = .{ .bytes = raw };
+        }
         const hashes = [_]src.Hash{ abi.dispatch_topic, abi.process_id_topic, abi.insertion_topic, abi.gas_payment_topic };
-        var topics: [4][]const u8 = undefined;
-        for (hashes, &topics) |topic, *out| out.* = try abi.hexAlloc(a, &topic);
-        var response = try self.rpc_client.callRaw("eth_getLogs", .{.{ .fromBlock = try abi.quantityAlloc(a, from), .toBlock = try abi.quantityAlloc(a, through), .address = addresses, .topics = .{topics} }});
+        var topics: [4]rpc.HexParam = undefined;
+        for (&hashes, &topics) |*topic, *out| out.* = .{ .bytes = topic };
+        var response = try self.rpc_client.callRaw("eth_getLogs", .{.{ .fromBlock = rpc.QuantityParam{ .value = from }, .toBlock = rpc.QuantityParam{ .value = through }, .address = addresses, .topics = .{topics} }});
         defer response.deinit();
         var result: std.ArrayList(src.Event) = .empty;
         // Pool-validated logs decode from their bytes; the tree path below

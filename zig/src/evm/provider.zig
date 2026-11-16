@@ -72,6 +72,11 @@ pub const RawResponse = struct {
         self.tree = envelope.parseValue(self.allocator, self.raw().?, true) catch |err| return @import("pool.zig").responseDecodeError(self.protocol, err);
         return self.tree.?.value;
     }
+    /// `string(value())` without a tree when the result is an unescaped string.
+    pub fn text(self: *RawResponse) ![]const u8 {
+        if (self.raw()) |bytes| if (bytes.len >= 2 and bytes[0] == '"' and std.mem.indexOfScalar(u8, bytes, '\\') == null) return bytes[1 .. bytes.len - 1];
+        return string(try self.value());
+    }
     /// BlockHeader.parse of the result, from the pool's decoded fields when
     /// it has them.
     pub fn header(self: *RawResponse) !BlockHeader {
@@ -114,6 +119,56 @@ pub const BlockRef = union(enum) {
         };
     }
 };
+
+/// `0x`-prefixed lowercase hex JSON string of `bytes`, written straight into
+/// the request: the same bytes as Stringify of abi.hexAlloc's text, without
+/// that allocation or Stringify's per-byte string escaping pass.
+pub const HexParam = struct {
+    bytes: []const u8,
+    pub fn jsonStringify(self: HexParam, jw: anytype) !void {
+        try jw.beginWriteRaw();
+        try jw.writer.writeAll("\"0x");
+        const digits = "0123456789abcdef";
+        var chunk: [128]u8 = undefined;
+        var at: usize = 0;
+        while (at < self.bytes.len) {
+            const n: usize = @min(chunk.len / 2, self.bytes.len - at);
+            for (self.bytes[at..][0..n], 0..) |byte, i| {
+                chunk[2 * i] = digits[byte >> 4];
+                chunk[2 * i + 1] = digits[byte & 15];
+            }
+            try jw.writer.writeAll(chunk[0 .. 2 * n]);
+            at += n;
+        }
+        try jw.writer.writeByte('"');
+        jw.endWriteRaw();
+    }
+};
+/// abi.quantityAlloc's text as a JSON string, written in place.
+pub const QuantityParam = struct {
+    value: u64,
+    pub fn jsonStringify(self: QuantityParam, jw: anytype) !void {
+        try jw.beginWriteRaw();
+        try jw.writer.print("\"0x{x}\"", .{self.value});
+        jw.endWriteRaw();
+    }
+};
+/// BlockRef.text as a JSON string, written in place.
+pub const BlockParam = struct {
+    block: BlockRef,
+    pub fn jsonStringify(self: BlockParam, jw: anytype) !void {
+        switch (self.block) {
+            .number => |n| try (QuantityParam{ .value = n }).jsonStringify(jw),
+            .latest => try jw.write("latest"),
+            .safe => try jw.write("safe"),
+            .finalized => try jw.write("finalized"),
+            .earliest => try jw.write("earliest"),
+            .pending => try jw.write("pending"),
+        }
+    }
+};
+/// Params already serialized as JSON.
+const RawParams = struct { json: []const u8 };
 
 /// `validated`: a Pool winner already authenticated against this request id.
 pub const WireResponse = struct { bytes: []u8, len: usize, validated: ?envelope.Validated = null };
@@ -188,6 +243,9 @@ pub const RpcClient = struct {
     options: Options,
     next_id: i64 = 1,
     last_rpc_error_code: ?i64 = null,
+    /// Request bodies are written here, reusing its capacity; a body is valid
+    /// until the next request is encoded.
+    body: std.ArrayList(u8) = .empty,
 
     /// Forget a completed read section only after its controller has advanced
     /// past that section; subsequent identical fences must be physical reads.
@@ -221,6 +279,7 @@ pub const RpcClient = struct {
     }
 
     pub fn deinit(self: *RpcClient) void {
+        self.body.deinit(self.allocator);
         self.http.deinit();
         self.allocator.free(self.headers);
         self.allocator.free(self.native_headers);
@@ -240,8 +299,7 @@ pub const RpcClient = struct {
     /// whose read protocol intentionally reverts (EIP-3668).
     pub fn callEnvelope(self: *RpcClient, method: []const u8, params: anytype) !RpcResponse {
         const id = try self.nextId(method);
-        const body = try std.json.Stringify.valueAlloc(self.allocator, .{ .jsonrpc = "2.0", .id = id, .method = method, .params = params }, .{});
-        defer self.allocator.free(body);
+        const body = try self.encode(id, method, params);
         const fetched = try self.fetchOne(body);
         return self.decodeEnvelope(method, body, id, fetched);
     }
@@ -256,11 +314,25 @@ pub const RpcClient = struct {
     fn fetchOne(self: *RpcClient, body: []const u8) !WireResponse {
         return if (self.options.exchange) |exchange| try exchange.fetch_fn(exchange.context, self.allocator, body, self.options) else if (self.options.native_transport) |native| try self.fetchNative(native, body) else try self.fetchStd(body);
     }
-    /// Same body bytes as callEnvelope, with params already serialized.
-    fn rawBody(self: *RpcClient, id: i64, raw: RawCall) ![]u8 {
-        const method = try std.json.Stringify.valueAlloc(self.allocator, raw.method, .{});
-        defer self.allocator.free(method);
-        return std.fmt.allocPrint(self.allocator, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":{s},\"params\":{s}}}", .{ id, method, raw.params_json });
+    /// The request body, exactly Stringify of `{jsonrpc, id, method, params}`
+    /// (RawParams are copied verbatim), in the reused body buffer.
+    fn encode(self: *RpcClient, id: i64, method: []const u8, params: anytype) ![]const u8 {
+        self.body.clearRetainingCapacity();
+        try self.append(id, method, params);
+        return self.body.items;
+    }
+    fn append(self: *RpcClient, id: i64, method: []const u8, params: anytype) !void {
+        var out: std.Io.Writer.Allocating = .fromArrayList(self.allocator, &self.body);
+        defer self.body = out.toArrayList();
+        const writer = &out.writer;
+        writeBody(writer, id, method, params) catch return error.OutOfMemory;
+    }
+    fn writeBody(writer: *std.Io.Writer, id: i64, method: []const u8, params: anytype) std.Io.Writer.Error!void {
+        try writer.print("{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":", .{id});
+        try std.json.Stringify.value(method, .{}, writer);
+        try writer.writeAll(",\"params\":");
+        if (@TypeOf(params) == RawParams) try writer.writeAll(params.json) else try std.json.Stringify.value(params, .{}, writer);
+        try writer.writeByte('}');
     }
     /// Independent calls, overlapped when the exchange supports it; every
     /// envelope is validated exactly as call() (RpcError on any error object).
@@ -276,8 +348,7 @@ pub const RpcClient = struct {
     /// call() with the result left in its response bytes when possible.
     pub fn callRaw(self: *RpcClient, method: []const u8, params: anytype) !RawResponse {
         const id = try self.nextId(method);
-        const body = try std.json.Stringify.valueAlloc(self.allocator, .{ .jsonrpc = "2.0", .id = id, .method = method, .params = params }, .{});
-        defer self.allocator.free(body);
+        const body = try self.encode(id, method, params);
         var response = try self.decodeRaw(method, body, id, try self.fetchOne(body));
         errdefer response.deinit();
         if (response.isError()) return error.RpcError;
@@ -291,8 +362,7 @@ pub const RpcClient = struct {
         if (many == null or calls.len < 2) {
             for (calls, out) |raw, *slot| {
                 const id = try self.nextId(raw.method);
-                const body = try self.rawBody(id, raw);
-                defer self.allocator.free(body);
+                const body = try self.encode(id, raw.method, RawParams{ .json = raw.params_json });
                 slot.* = try decode(self, raw.method, body, id, try self.fetchOne(body));
                 filled += 1;
                 if (slot.isError()) return error.RpcError;
@@ -302,15 +372,20 @@ pub const RpcClient = struct {
         const ids = try self.allocator.alloc(i64, calls.len);
         defer self.allocator.free(ids);
         const bodies = try self.allocator.alloc([]const u8, calls.len);
-        var built: usize = 0;
-        defer {
-            for (bodies[0..built]) |body| self.allocator.free(body);
-            self.allocator.free(bodies);
-        }
-        for (calls, ids, bodies) |raw, *id, *body| {
+        defer self.allocator.free(bodies);
+        const ends = try self.allocator.alloc(usize, calls.len);
+        defer self.allocator.free(ends);
+        // All bodies go into the one buffer; slice it only once it stops growing.
+        self.body.clearRetainingCapacity();
+        for (calls, ids, ends) |raw, *id, *end| {
             id.* = try self.nextId(raw.method);
-            body.* = try self.rawBody(id.*, raw);
-            built += 1;
+            try self.append(id.*, raw.method, RawParams{ .json = raw.params_json });
+            end.* = self.body.items.len;
+        }
+        var start: usize = 0;
+        for (bodies, ends) |*body, end| {
+            body.* = self.body.items[start..end];
+            start = end;
         }
         const wires = try self.allocator.alloc(WireResponse, calls.len);
         defer self.allocator.free(wires);
@@ -555,9 +630,9 @@ pub const RpcClient = struct {
     }
 
     pub fn chainId256(self: *RpcClient) !u256 {
-        var response = try self.call("eth_chainId", .{});
+        var response = try self.callRaw("eth_chainId", .{});
         defer response.deinit();
-        return abi.quantityAs(u256, try string(response.value()));
+        return abi.quantityAs(u256, try response.text());
     }
 
     pub fn checkChain(self: *RpcClient, expected: u256) !void {
@@ -565,9 +640,9 @@ pub const RpcClient = struct {
     }
 
     pub fn blockNumber(self: *RpcClient) !u64 {
-        var response = try self.call("eth_blockNumber", .{});
+        var response = try self.callRaw("eth_blockNumber", .{});
         defer response.deinit();
-        return abi.quantity(try string(response.value()));
+        return abi.quantity(try response.text());
     }
 
     pub fn confirmedHead(self: *RpcClient, confirmations: u64) !u64 {
@@ -577,17 +652,11 @@ pub const RpcClient = struct {
     }
 
     pub fn getBlock(self: *RpcClient, block: BlockRef) !RpcResponse {
-        const tag = try block.text(self.allocator);
-        defer self.allocator.free(tag);
-        return self.call("eth_getBlockByNumber", .{ tag, false });
+        return self.call("eth_getBlockByNumber", .{ BlockParam{ .block = block }, false });
     }
 
     pub fn blockHeader(self: *RpcClient, block: BlockRef) !BlockHeader {
-        const tag = try block.text(self.allocator);
-        var response = blk: {
-            defer self.allocator.free(tag);
-            break :blk try self.callRaw("eth_getBlockByNumber", .{ tag, false });
-        };
+        var response = try self.callRaw("eth_getBlockByNumber", .{ BlockParam{ .block = block }, false });
         defer response.deinit();
         const header = try response.header();
         switch (block) {
@@ -600,9 +669,9 @@ pub const RpcClient = struct {
     /// The caller must authenticate each returned log against canonical headers
     /// before committing it. This checks address, topic and requested number range.
     pub fn getLogs(self: *RpcClient, address: Address, from: u64, to: u64, topic0: ?Hash) !RpcResponse {
-        var filter = try LogFilter.init(self, address, from, to, topic0);
-        defer filter.deinit(self.allocator);
-        var response = try self.call("eth_getLogs", .{filter.params()});
+        const filter = try LogFilter.init(self, address, from, to, topic0);
+        var topic: [1]HexParam = undefined;
+        var response = try self.call("eth_getLogs", .{filter.params(&topic)});
         errdefer response.deinit();
         if (response.value() != .array) return error.InvalidRpcResult;
         for (response.value().array.items) |raw| {
@@ -615,9 +684,9 @@ pub const RpcClient = struct {
     /// getLogs decoded: the same request, checks and errors, returning the
     /// logs (each and the slice allocated with `allocator`) instead of JSON.
     pub fn logs(self: *RpcClient, allocator: Allocator, address: Address, from: u64, to: u64, topic0: ?Hash) ![]Log {
-        var filter = try LogFilter.init(self, address, from, to, topic0);
-        defer filter.deinit(self.allocator);
-        var response = try self.callRaw("eth_getLogs", .{filter.params()});
+        const filter = try LogFilter.init(self, address, from, to, topic0);
+        var topic: [1]HexParam = undefined;
+        var response = try self.callRaw("eth_getLogs", .{filter.params(&topic)});
         defer response.deinit();
         if (response.raw()) |raw| if (try rawLogs(allocator, raw, false)) |decoded| {
             errdefer freeLogs(allocator, decoded);
@@ -645,34 +714,19 @@ pub const RpcClient = struct {
         from: u64,
         to: u64,
         topic0: ?Hash,
-        from_text: []u8,
-        to_text: []u8,
-        address_text: []u8,
-        topic_text: ?[]u8,
-        topics: [1][]const u8 = undefined,
 
         fn init(client: *RpcClient, address: Address, from: u64, to: u64, topic0: ?Hash) !LogFilter {
             if (from > to or to - from >= client.options.max_log_range) return error.InvalidLogRange;
-            const a = client.allocator;
-            const from_text = try abi.quantityAlloc(a, from);
-            errdefer a.free(from_text);
-            const to_text = try abi.quantityAlloc(a, to);
-            errdefer a.free(to_text);
-            const address_text = try abi.hexAlloc(a, &address);
-            errdefer a.free(address_text);
-            const topic_text = if (topic0) |t| try abi.hexAlloc(a, &t) else null;
-            return .{ .address = address, .from = from, .to = to, .topic0 = topic0, .from_text = from_text, .to_text = to_text, .address_text = address_text, .topic_text = topic_text };
+            return .{ .address = address, .from = from, .to = to, .topic0 = topic0 };
         }
-        fn deinit(self: *LogFilter, a: Allocator) void {
-            a.free(self.from_text);
-            a.free(self.to_text);
-            a.free(self.address_text);
-            if (self.topic_text) |t| a.free(t);
-        }
-        const Params = struct { fromBlock: []const u8, toBlock: []const u8, address: []const u8, topics: []const []const u8 };
-        fn params(self: *LogFilter) Params {
-            if (self.topic_text) |t| self.topics[0] = t;
-            return .{ .fromBlock = self.from_text, .toBlock = self.to_text, .address = self.address_text, .topics = if (self.topic_text != null) self.topics[0..1] else self.topics[0..0] };
+        const Params = struct { fromBlock: QuantityParam, toBlock: QuantityParam, address: HexParam, topics: []const HexParam };
+        /// Borrows `topic` (one slot) for the topics array.
+        fn params(self: *const LogFilter, topic: *[1]HexParam) Params {
+            const topics: []const HexParam = if (self.topic0) |*expected| blk: {
+                topic[0] = .{ .bytes = expected };
+                break :blk topic[0..1];
+            } else topic[0..0];
+            return .{ .fromBlock = .{ .value = self.from }, .toBlock = .{ .value = self.to }, .address = .{ .bytes = &self.address }, .topics = topics };
         }
         fn check(self: *const LogFilter, log: Log) !void {
             if (log.block_number < self.from or log.block_number > self.to or !std.mem.eql(u8, &log.address, &self.address)) return error.LogOutsideFilter;
@@ -684,15 +738,9 @@ pub const RpcClient = struct {
 
     /// Caller owns returned raw ABI bytes.
     pub fn ethCall(self: *RpcClient, address: Address, calldata: []const u8, block: BlockRef) ![]u8 {
-        const to = try abi.hexAlloc(self.allocator, &address);
-        defer self.allocator.free(to);
-        const data = try abi.hexAlloc(self.allocator, calldata);
-        defer self.allocator.free(data);
-        const tag = try block.text(self.allocator);
-        defer self.allocator.free(tag);
-        var response = try self.call("eth_call", .{ .{ .to = to, .data = data }, tag });
+        var response = try self.callRaw("eth_call", .{ .{ .to = HexParam{ .bytes = &address }, .data = HexParam{ .bytes = calldata } }, BlockParam{ .block = block } });
         defer response.deinit();
-        return decodeHexAlloc(self.allocator, try string(response.value()));
+        return decodeHexAlloc(self.allocator, try response.text());
     }
 
     pub fn delivered(self: *RpcClient, mailbox: Address, message_id: Hash, block: BlockRef) !bool {
@@ -1259,4 +1307,73 @@ test "HTTP log filter rejects out of range and mismatched contract logs" {
 
 test {
     _ = @import("logs_differential_test.zig");
+}
+
+fn expectBody(client: *RpcClient, id: i64, method: []const u8, params: anytype, legacy: anytype) !void {
+    const expected = try std.json.Stringify.valueAlloc(std.testing.allocator, .{ .jsonrpc = "2.0", .id = id, .method = method, .params = legacy }, .{});
+    defer std.testing.allocator.free(expected);
+    try std.testing.expectEqualStrings(expected, try client.encode(id, method, params));
+}
+
+test "request bodies are byte-identical to Stringify of the whole envelope" {
+    const a = std.testing.allocator;
+    var client = try RpcClient.init(a, "http://fixture/rpc", .{});
+    defer client.deinit();
+    // Generic params go through Stringify unchanged.
+    var tree = try std.json.parseFromSlice(Value, a, "{\"b\":[1,2.5,\"x\\u0000y\"],\"a\":null,\"c\":{\"d\":true}}", .{});
+    defer tree.deinit();
+    const Optional = struct { to: ?[]const u8, value: ?u64 = null, nested: struct { flag: bool, list: []const []const u8 } };
+    const strings = [_][]const u8{ "plain", "q\"uote", "back\\slash", "ctl\x01\n\t", "\u{e9}\u{1F600}", "bad\xff" };
+    for ([_]i64{ 1, 0, -1, std.math.maxInt(i64), std.math.minInt(i64) }) |id| {
+        try expectBody(&client, id, "eth_chainId", .{}, .{});
+        try expectBody(&client, id, "eth_getBlockByNumber", .{ "latest", false }, .{ "latest", false });
+        try expectBody(&client, id, "x", tree.value, tree.value);
+        try expectBody(&client, id, "x", .{Optional{ .to = null, .nested = .{ .flag = false, .list = &strings } }}, .{Optional{ .to = null, .nested = .{ .flag = false, .list = &strings } }});
+        try expectBody(&client, id, "eth_sendRawTransaction", .{"0x02f8"}, .{"0x02f8"});
+        for (strings) |text| {
+            try expectBody(&client, id, text, .{text}, .{text});
+            // Raw params (callMany) match the former allocPrint body.
+            const legacy_method = try std.json.Stringify.valueAlloc(a, text, .{});
+            defer a.free(legacy_method);
+            const legacy = try std.fmt.allocPrint(a, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":{s},\"params\":{s}}}", .{ id, legacy_method, "[\"0x1\",false]" });
+            defer a.free(legacy);
+            try std.testing.expectEqualStrings(legacy, try client.encode(id, text, RawParams{ .json = "[\"0x1\",false]" }));
+        }
+    }
+    // Typed params write the same text the allocating helpers produced.
+    var calldata: [300]u8 = undefined;
+    for (&calldata, 0..) |*byte, i| byte.* = @truncate(i *% 37);
+    const address: Address = .{ 0x00, 0xff, 0x10 } ++ .{0xab} ** 17;
+    const blocks = [_]BlockRef{ .{ .number = 0 }, .{ .number = 0x10 }, .{ .number = std.math.maxInt(u64) }, .latest, .safe, .finalized, .earliest, .pending };
+    for (blocks) |block| {
+        const tag = try block.text(a);
+        defer a.free(tag);
+        try expectBody(&client, 7, "eth_getBlockByNumber", .{ BlockParam{ .block = block }, false }, .{ tag, false });
+        for ([_][]const u8{ "", calldata[0..1], calldata[0..64], calldata[0..65], &calldata }) |data| {
+            const to = try abi.hexAlloc(a, &address);
+            defer a.free(to);
+            const data_text = try abi.hexAlloc(a, data);
+            defer a.free(data_text);
+            try expectBody(&client, 7, "eth_call", .{ .{ .to = HexParam{ .bytes = &address }, .data = HexParam{ .bytes = data } }, BlockParam{ .block = block } }, .{ .{ .to = to, .data = data_text }, tag });
+        }
+    }
+    for ([_]?Hash{ null, .{0x5a} ** 32 }) |topic0| for ([_][2]u64{ .{ 0, 0 }, .{ 1, 1999 }, .{ 0x123456, std.math.maxInt(u64) } }) |range| {
+        const filter: RpcClient.LogFilter = .{ .address = address, .from = range[0], .to = range[1], .topic0 = topic0 };
+        var topic: [1]HexParam = undefined;
+        const from_text = try abi.quantityAlloc(a, range[0]);
+        defer a.free(from_text);
+        const to_text = try abi.quantityAlloc(a, range[1]);
+        defer a.free(to_text);
+        const address_text = try abi.hexAlloc(a, &address);
+        defer a.free(address_text);
+        const topic_text = if (topic0) |t| try abi.hexAlloc(a, &t) else null;
+        defer if (topic_text) |t| a.free(t);
+        var topics: [1][]const u8 = undefined;
+        if (topic_text) |t| topics[0] = t;
+        try expectBody(&client, 9, "eth_getLogs", .{filter.params(&topic)}, .{.{ .fromBlock = from_text, .toBlock = to_text, .address = address_text, .topics = if (topic_text != null) topics[0..1] else topics[0..0] }});
+    };
+    // The buffer is reused: no allocation once it has grown.
+    const capacity = client.body.capacity;
+    _ = try client.encode(1, "eth_chainId", .{});
+    try std.testing.expectEqual(capacity, client.body.capacity);
 }
