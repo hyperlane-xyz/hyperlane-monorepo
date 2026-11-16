@@ -20,6 +20,14 @@ pub const Request = struct {
     /// Untrusted CCIP URLs: bypass proxies and validate the actual destination
     /// sockaddr before opening a socket. Trusted RPC/cloud callers leave false.
     public_only: bool = false,
+    /// `url` and `headers` are a fixed endpoint that already passed
+    /// `validateEndpoint` (an RPC pool checks its endpoints once at start), so
+    /// per-transfer validation skips them. Never set with `public_only`.
+    endpoint_checked: bool = false,
+    /// Expected body bytes (e.g. this endpoint's previous response). Without
+    /// a Content-Length the first body write reserves min(hint, limit)
+    /// instead of doubling up from 4 KiB.
+    size_hint: usize = 0,
     cancel: ?*const std.atomic.Value(bool) = null,
 };
 
@@ -27,20 +35,26 @@ fn headerToken(char: u8) bool {
     return std.ascii.isAlphanumeric(char) or std.mem.indexOfScalar(u8, "!#$%&'*+-.^_`|~", char) != null;
 }
 pub fn validateRequest(request: Request) !void {
-    for (request.url) |char| if (char <= 32 or char == 127) return error.InvalidHttpUrl;
-    const uri = try std.Uri.parse(request.url);
+    if (request.endpoint_checked) {
+        if (request.public_only) return error.InvalidHttpRequest;
+    } else try validateEndpoint(request.url, request.headers, request.public_only);
+    if (request.timeout_ms == 0 or request.connect_timeout_ms == 0 or request.max_response_bytes == 0) return error.InvalidHttpLimit;
+    if (request.method == .head and request.body != null) return error.InvalidHttpRequest;
+}
+/// The URL and header part of `validateRequest`.
+pub fn validateEndpoint(url: []const u8, headers: []const Header, public_only: bool) !void {
+    for (url) |char| if (char <= 32 or char == 127) return error.InvalidHttpUrl;
+    const uri = try std.Uri.parse(url);
     if (uri.host == null or uri.user != null or uri.password != null or uri.fragment != null or (!std.mem.eql(u8, uri.scheme, "http") and !std.mem.eql(u8, uri.scheme, "https"))) return error.InvalidHttpUrl;
-    if (request.public_only) {
+    if (public_only) {
         var buffer: [1024]u8 = undefined;
         const host = try uri.host.?.toRaw(&buffer);
         const unbracketed = if (host.len >= 2 and host[0] == '[' and host[host.len - 1] == ']') host[1 .. host.len - 1] else host;
         const address = std.net.Address.parseIp(unbracketed, 0) catch null;
         if (address) |literal| if (!public_address.isPublic(literal)) return error.NonPublicDestination;
     }
-    if (request.timeout_ms == 0 or request.connect_timeout_ms == 0 or request.max_response_bytes == 0) return error.InvalidHttpLimit;
-    if (request.method == .head and request.body != null) return error.InvalidHttpRequest;
     var encoding_count: usize = 0;
-    for (request.headers) |header| {
+    for (headers) |header| {
         if (header.name.len == 0) return error.InvalidHttpHeader;
         for (header.name) |char| if (!headerToken(char)) return error.InvalidHttpHeader;
         for (header.value) |char| if ((char < 32 and char != '\t') or char == 127) return error.InvalidHttpHeader;
@@ -105,6 +119,10 @@ const Sink = struct {
     allocator: ?std.mem.Allocator = null,
     limit: usize = 0,
     used: usize = 0,
+    /// Final response head's Content-Length, and the request's size hint:
+    /// the body buffer is sized once when either covers the first write.
+    content_length: ?usize = null,
+    size_hint: usize = 0,
     too_large: bool = false,
     out_of_memory: bool = false,
     /// Grown on demand up to max_header_bytes. A fixed 32 KiB array here made
@@ -149,7 +167,8 @@ const Sink = struct {
         const required = self.used + length;
         if (required > self.body.len) {
             const allocator = self.allocator orelse unreachable;
-            const capacity = @max(required, @min(limit, @max(@as(usize, 4096), self.body.len *| 2)));
+            const expected = self.content_length orelse self.size_hint;
+            const capacity = if (expected >= required) @min(limit, expected) else @max(required, @min(limit, @max(@as(usize, 4096), self.body.len *| 2)));
             self.body = allocator.realloc(self.body, capacity) catch {
                 self.out_of_memory = true;
                 return 0;
@@ -199,6 +218,7 @@ const Sink = struct {
         const line = pointer[0..length];
         if (std.mem.startsWith(u8, line, "HTTP/")) {
             self.header_used = 0;
+            self.content_length = null;
             var words = std.mem.tokenizeScalar(u8, line, ' ');
             _ = words.next();
             self.response_status = if (words.next()) |status| std.fmt.parseInt(u16, std.mem.trim(u8, status, "\r\n"), 10) catch null else null;
@@ -217,6 +237,10 @@ const Sink = struct {
         }
         @memcpy(self.header_storage[self.header_used..][0..length], pointer[0..length]);
         self.header_used = required;
+        const name = "content-length:";
+        if (line.len > name.len and std.ascii.eqlIgnoreCase(line[0..name.len], name)) {
+            self.content_length = std.fmt.parseInt(usize, std.mem.trim(u8, line[name.len..], " \t\r\n"), 10) catch null;
+        }
         if (self.stop_after_http429_head and self.response_status == 429 and std.mem.eql(u8, line, "\r\n")) {
             self.http429_head_aborted = true;
             return 0;
@@ -258,8 +282,38 @@ pub const SendOverride = struct {
 /// injected replay returns are intentionally unobserved.
 pub const Observation = struct { request: Request, response: ?*const Response = null, failure: ?anyerror = null, duration_ns: u64 };
 pub const Observer = struct { context: *anyopaque, event_fn: *const fn (*anyopaque, Observation) void };
-// Serializes process-global initialization even with older native curl builds.
-var initialization_mutex: std.Thread.Mutex = .{};
+/// A libcurl loaded, checked and globally initialized once per process and
+/// path, never unloaded. Unloading with the last client (e.g. a validator
+/// vote round's transient Multi) tore down libcurl and its TLS library, and
+/// the next client paid dlopen, symbol binding and TLS initialization again.
+const Loaded = struct {
+    path: []const u8,
+    library: std.DynLib,
+    api: Api,
+    // Serializes process-global initialization even with older native curl builds.
+    var mutex: std.Thread.Mutex = .{};
+    var table: [4]Loaded = undefined;
+    var len: usize = 0;
+    fn get(path: []const u8) !*const Loaded {
+        mutex.lock();
+        defer mutex.unlock();
+        for (table[0..len]) |*entry| if (std.mem.eql(u8, entry.path, path)) return entry;
+        if (len == table.len) return error.TooManyLibcurlLibraries;
+        var library = try std.DynLib.open(path);
+        errdefer library.close();
+        const api = try Api.load(&library);
+        const version = api.version_info(0) orelse return error.LibcurlVersionUnavailable;
+        // With synchronous DNS, CURLOPT_NOSIGNAL can leave a stalled resolver
+        // outside the total timeout. Fail configuration instead of promising a
+        // deadline the loaded library cannot enforce.
+        if (version.features & (1 << 7) == 0) return error.LibcurlAsyncDnsRequired;
+        if (api.global_init(3) != 0) return error.LibcurlInitializationFailed;
+        const owned = try std.heap.page_allocator.dupe(u8, path);
+        table[len] = .{ .path = owned, .library = library, .api = api };
+        len += 1;
+        return &table[len - 1];
+    }
+};
 pub const Client = struct {
     observer: ?Observer = null,
     /// Trusted read-only replay boundary. Configure only on independently owned
@@ -342,32 +396,20 @@ pub const Client = struct {
         }
     }
     pub fn init(_: std.mem.Allocator, library_path: []const u8) !Client {
-        var library = try std.DynLib.open(library_path);
-        errdefer library.close();
-        const api = try Api.load(&library);
-        initialization_mutex.lock();
-        defer initialization_mutex.unlock();
-        const version = api.version_info(0) orelse return error.LibcurlVersionUnavailable;
-        // With synchronous DNS, CURLOPT_NOSIGNAL can leave a stalled resolver
-        // outside the total timeout. Fail configuration instead of promising a
-        // deadline the loaded library cannot enforce.
-        if (version.features & (1 << 7) == 0) return error.LibcurlAsyncDnsRequired;
-        if (api.global_init(3) != 0) return error.LibcurlInitializationFailed;
+        const native = try Loaded.get(library_path);
         var proxy_environment = false;
         for ([_][:0]const u8{ "http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY" }) |name| {
             if (std.posix.getenv(name) != null) proxy_environment = true;
         }
-        return .{ .library = library, .api = api, .proxy_environment = proxy_environment };
+        return .{ .library = native.library, .api = native.api, .proxy_environment = proxy_environment };
     }
     pub fn deinit(self: *Client) void {
         // Caller must join/cancel every send job before destroying this client.
-        // Process-global curl resources are intentionally not cleaned up while
-        // other HTTP clients/worker transports can still hold native handles.
+        // The process-wide library stays loaded (see Loaded).
         for (&self.idle) |*pool| {
             for (pool.handles[0..pool.len]) |handle| self.api.easy_cleanup(handle);
             pool.len = 0;
         }
-        self.library.close();
         self.* = undefined;
     }
     fn check(code: c_int) !void {
@@ -448,6 +490,10 @@ pub const Transfer = struct {
     sink: Sink,
     pub fn init(client: *Client, allocator: std.mem.Allocator, original: Request) !*Transfer {
         try validateRequest(original);
+        return initValidated(client, allocator, original);
+    }
+    /// `init` for a request the caller just passed through `validateRequest`.
+    pub fn initValidated(client: *Client, allocator: std.mem.Allocator, original: Request) !*Transfer {
         if (original.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
         const self = try allocator.create(Transfer);
         errdefer allocator.destroy(self);
@@ -460,7 +506,7 @@ pub const Transfer = struct {
         var request = original;
         request.url = url;
         request.body = owned_body;
-        self.* = .{ .allocator = allocator, .client = client, .handle = handle, .request = request, .url = url, .body = owned_body, .sink = .{ .allocator = allocator, .limit = request.max_response_bytes, .cancel = request.cancel, .stop_after_http429_head = request.stop_after_http429_head } };
+        self.* = .{ .allocator = allocator, .client = client, .handle = handle, .request = request, .url = url, .body = owned_body, .sink = .{ .allocator = allocator, .limit = request.max_response_bytes, .size_hint = request.size_hint, .cancel = request.cancel, .stop_after_http429_head = request.stop_after_http429_head } };
         var headers: ?*Slist = null;
         errdefer client.api.slist_free_all(headers);
         var has_encoding = false;
@@ -571,6 +617,28 @@ test "native HTTP sink bounds body headers and cancellation without loading curl
     try std.testing.expectEqual(@as(c_int, 1), Sink.progress(&sink, 0, 0, 0, 0));
 }
 
+test "native HTTP sink sizes the body once from Content-Length or the size hint" {
+    var cancelled = std.atomic.Value(bool).init(false);
+    var sink: Sink = .{ .allocator = std.testing.allocator, .limit = 1 << 20, .cancel = &cancelled };
+    defer sink.deinit();
+    for ([_][]const u8{ "HTTP/1.1 100 Continue\r\n", "\r\n", "HTTP/1.1 200 OK\r\n", "Content-Length: 20000\r\n", "\r\n" }) |line|
+        try std.testing.expectEqual(line.len, Sink.header(line.ptr, 1, line.len, &sink));
+    try std.testing.expectEqual(@as(?usize, 20000), sink.content_length);
+    const chunk: [1000]u8 = @splat('x');
+    try std.testing.expectEqual(chunk.len, Sink.write(&chunk, 1, chunk.len, &sink));
+    try std.testing.expectEqual(@as(usize, 20000), sink.body.len);
+    for (0..19) |_| try std.testing.expectEqual(chunk.len, Sink.write(&chunk, 1, chunk.len, &sink));
+    // Exactly sized: no growth, and taking the body moves it without a copy.
+    try std.testing.expectEqual(@as(usize, 20000), sink.body.len);
+    const body = try sink.takeBody();
+    std.testing.allocator.free(body);
+    // Chunked (no length): the hint sizes the buffer, capped at the limit.
+    var hinted: Sink = .{ .allocator = std.testing.allocator, .limit = 6000, .size_hint = 9000, .cancel = &cancelled };
+    defer hinted.deinit();
+    try std.testing.expectEqual(chunk.len, Sink.write(&chunk, 1, chunk.len, &hinted));
+    try std.testing.expectEqual(@as(usize, 6000), hinted.body.len);
+}
+
 test "native HTTP validates NUL controls token headers and content encoding before loading curl" {
     const request: Request = .{ .url = "https://example.com/a/../b//c", .method = .get };
     try validateRequest(request);
@@ -590,6 +658,17 @@ test "native HTTP validates NUL controls token headers and content encoding befo
     try std.testing.expectError(error.InvalidHttpHeader, validateRequest(invalid));
     invalid.headers = &.{.{ .name = "Accept-Encoding", .value = "identity" }};
     try validateRequest(invalid);
+    // A pre-checked fixed endpoint skips URL/header parsing, never limits,
+    // and is never accepted for public-only (CCIP) destinations.
+    const checked: Request = .{ .url = "checked-once", .method = .post, .endpoint_checked = true };
+    try validateRequest(checked);
+    var bad_limit = checked;
+    bad_limit.timeout_ms = 0;
+    try std.testing.expectError(error.InvalidHttpLimit, validateRequest(bad_limit));
+    var public = checked;
+    public.public_only = true;
+    try std.testing.expectError(error.InvalidHttpRequest, validateRequest(public));
+    try std.testing.expectError(error.InvalidHttpUrl, validateEndpoint("ftp://example.com/", &.{}, false));
 }
 
 test "public HTTP rejects literal destinations and native socket callback prevents rebinding" {
@@ -612,6 +691,26 @@ test "public HTTP rejects literal destinations and native socket callback preven
     var ipv6_target: extern struct { family: c_int, socktype: c_int, protocol: c_int, addrlen: c_uint, addr: std.posix.sockaddr.in6 } = .{ .family = std.posix.AF.INET6, .socktype = std.posix.SOCK.STREAM, .protocol = std.posix.IPPROTO.TCP, .addrlen = @sizeOf(std.posix.sockaddr.in6), .addr = (try std.net.Address.parseIp("::ffff:127.0.0.1", 80)).in6.sa };
     try std.testing.expectEqual(@as(c_int, -1), Sink.openSocket(&sink, 0, @ptrCast(&ipv6_target)));
     try std.testing.expect(sink.non_public_destination);
+}
+
+test "native clients load and initialize libcurl once per process and path" {
+    const allocator = std.testing.allocator;
+    const library = std.process.getEnvVarOwned(allocator, "HYPERLANE_CURL_LIBRARY") catch |err| switch (err) {
+        error.EnvironmentVariableNotFound => return error.SkipZigTest,
+        else => return err,
+    };
+    defer allocator.free(library);
+    var first = try Client.init(allocator, library);
+    const loaded = Loaded.len;
+    const version = first.api.version_info;
+    first.deinit();
+    // The last client is gone: the next one reuses the loaded library.
+    var second = try Client.init(allocator, library);
+    defer second.deinit();
+    try std.testing.expectEqual(loaded, Loaded.len);
+    try std.testing.expectEqual(version, second.api.version_info);
+    try std.testing.expectError(error.FileNotFound, Client.init(allocator, "/never/load/libcurl.so"));
+    try std.testing.expectEqual(loaded, Loaded.len);
 }
 
 test "native public HTTP blocks localhost and noncanonical numeric IPv4 without connecting" {

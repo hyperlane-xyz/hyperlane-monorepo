@@ -167,6 +167,13 @@ const Endpoint = struct {
     /// Digest of the complete identity, computed once for tip-cache keys.
     tip_identity: tip_cache.Identity,
     headers: []curl.Header,
+    /// URL and headers passed curl.validateEndpoint at pool start: transfers
+    /// skip re-parsing them. An endpoint that failed keeps failing per
+    /// transfer, as before (a fallback pool still serves from the others).
+    checked: bool,
+    /// Body bytes of this endpoint's last response: sizes the next
+    /// transfer's buffer when it has no Content-Length (driver-owned).
+    last_response_bytes: usize = 0,
     failed_count: u32 = 0,
     last_block_height: u64 = 0,
     last_block_time_ms: u64 = 0,
@@ -545,7 +552,8 @@ pub const Pool = struct {
             }
             const native_headers = try headers.toOwnedSlice(allocator);
             errdefer allocator.free(native_headers);
-            try endpoints.append(allocator, .{ .owned = owned, .tip_identity = tip_cache.identity(owned.identity), .headers = native_headers });
+            const checked = if (curl.validateEndpoint(owned.endpoint.url, native_headers, false)) |_| true else |_| false;
+            try endpoints.append(allocator, .{ .owned = owned, .tip_identity = tip_cache.identity(owned.identity), .headers = native_headers, .checked = checked });
         }
         if (endpoints.items.len == 0) return error.EmptyRpcEndpointPool;
         const threshold = switch (config.strategy) {
@@ -1328,6 +1336,7 @@ pub const Pool = struct {
                         self.dispatchOutcome(session, index, &outcome, now_ms);
                     },
                     .response => |*response| {
+                        self.endpoints[index].last_response_bytes = response.body.len;
                         if (response.status == 429) {
                             self.reportUpstream(session, index, false, false);
                             var outcome: Outcome = .{ .classification = .rate_limited, .failure = error.RpcRateLimited };
@@ -1614,6 +1623,8 @@ pub const Pool = struct {
             .url = endpoint_.owned.endpoint.url,
             .method = .post,
             .headers = endpoint_.headers,
+            .endpoint_checked = endpoint_.checked,
+            .size_hint = endpoint_.last_response_bytes,
             .body = switch (self.config.height_protocol) {
                 .ethereum => "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_blockNumber\",\"params\":[]}",
                 .sealevel => "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getBlockHeight\",\"params\":[{\"commitment\":\"processed\"}]}",
@@ -2167,6 +2178,8 @@ pub const Pool = struct {
             .url = endpoint_.owned.endpoint.url,
             .method = .post,
             .headers = endpoint_.headers,
+            .endpoint_checked = endpoint_.checked,
+            .size_hint = endpoint_.last_response_bytes,
             .body = session.wire().body,
             .timeout_ms = @intCast(@min(timeout, std.math.maxInt(u32))),
             .connect_timeout_ms = @min(session.connect_timeout_ms, @as(u32, @intCast(@min(timeout, std.math.maxInt(u32))))),
