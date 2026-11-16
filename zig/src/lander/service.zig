@@ -26,8 +26,13 @@ pub const Signer = struct {
 };
 
 pub const NativeTests = if (@import("builtin").is_test) struct {
+    /// Runs on `record` as decoded from the store; the record keeps every
+    /// change, as a retained row would.
     pub fn simulateBatch(running: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain) !void {
-        _ = try running.simulateBatch(record, allocator, submission);
+        const uuid = try records.transactionUuid(record.value());
+        var row: Service.Row = .{ .uuid = uuid, .record = record.*, .status = std.meta.activeTag(try records.status(record.value())), .index = try running.store.transactionIndex(allocator, uuid), .base_capacity = 0 };
+        defer record.* = row.record;
+        _ = try running.simulateBatch(&row, allocator, submission);
     }
 } else struct {};
 
@@ -150,6 +155,8 @@ pub const Service = struct {
     fast_recovery: bool,
     /// Mirror of the durable active index; `store.active` points at it.
     active: *storage.ActiveSet,
+    /// `store.pending_floor` points at it.
+    pending_floor: *storage.PendingFloor,
     active_cursor: u32 = 0,
     past_old_boundary: bool = false,
     next_boundary_refresh_ms: u64 = 0,
@@ -169,6 +176,33 @@ pub const Service = struct {
     /// Source caches Multicall code existence for the adapter's lifetime; a
     /// configured batch contract that has code is not re-read per batch.
     batch_contract_present: bool = false,
+    /// Decoded rows of active transactions once recovery is complete (as
+    /// Source keeps its inclusion pool in memory). A check mutates the entry
+    /// (in the entry's own arena) and encodes it only to write; it never
+    /// re-reads a row this service wrote. Invariants:
+    /// - An entry equals its stored row (encodes to what the stored row
+    ///   decodes to), so persisted bytes are those the reload-per-check path
+    ///   wrote. A check that wrote nothing restores `status` and
+    ///   `last_status_check`, the only fields changed before a write; any
+    ///   error, terminal status or reorg rewrite evicts the entry, and the
+    ///   next check decodes the stored row. Tests check this every tick
+    ///   (`rowsMatchStore`).
+    /// - The service is the sole writer of lander rows while open; a write
+    ///   behind it (e.g. processReorg's own reload) evicts the entry first.
+    /// - `Row.payloads` assumes a retained transaction's payload rows are
+    ///   written only through it and delivery rows never change after
+    ///   enqueue.
+    /// - Durability is unchanged: every row write keeps its commit mode, and
+    ///   the effect gates before signing and sending still run.
+    /// Open and recovery always decode from the database.
+    rows: std.AutoHashMapUnmanaged(types.Uuid, *Row) = .empty,
+    /// Transaction rows committed by this service (a check compares it to
+    /// tell whether it wrote).
+    row_writes: u64 = 0,
+    /// Transaction rows decoded from the database.
+    row_loads: u64 = 0,
+    /// Payload rows read from the database by finality checks.
+    payload_loads: u64 = 0,
 
     pub fn open(allocator: std.mem.Allocator, store: storage.Store, chain_adapter: chain.Chain, config: Config, cancel: *const std.atomic.Value(bool)) !Service {
         if (config.max_batch_size == 0 or config.domain_name.len == 0 or config.estimated_block_time_ms == 0) return error.InvalidLanderConfig;
@@ -181,8 +215,12 @@ pub const Service = struct {
         active.* = .init(allocator);
         errdefer active.deinit();
         if (fast_recovery) try active.rebuild(store);
+        const pending_floor = try allocator.create(storage.PendingFloor);
+        errdefer allocator.destroy(pending_floor);
+        pending_floor.* = .{};
         var owned_store = store;
         owned_store.active = active;
+        owned_store.pending_floor = pending_floor;
         return .{
             .allocator = allocator,
             .store = owned_store,
@@ -193,6 +231,7 @@ pub const Service = struct {
             .scan_cursor = highest,
             .fast_recovery = fast_recovery,
             .active = active,
+            .pending_floor = pending_floor,
             .payload_reconcile_cursor = payload_highest,
             .payload_reconcile_complete = payload_highest == 0,
             .receipt_progress = std.AutoHashMap(types.Uuid, ReceiptProgress).init(allocator),
@@ -240,13 +279,192 @@ pub const Service = struct {
         self.checks.put(self.allocator, uuid, .{ .creation_ms = creation, .last_ms = now_ms, .included = status == .included }) catch {};
     }
 
+    /// A decoded transaction row and what it replaces at its next write.
+    const Row = struct {
+        uuid: types.Uuid,
+        record: storage.JsonRecord,
+        /// Status of the stored row.
+        status: storage.StatusTag,
+        /// `tx_index_by_uuid` of the transaction.
+        index: ?u32,
+        /// Arena capacity when decoded (bounds growth from mutations).
+        base_capacity: usize,
+        /// What finality checks read of each payload of `payload_details`, in
+        /// order, filled by the first check (null: not yet, or the details
+        /// changed). Owned by the service allocator.
+        payloads: ?[]PayloadFacts = null,
+
+        fn value(self: *const Row) std.json.Value {
+            return self.record.value();
+        }
+
+        fn arena(self: *Row) std.mem.Allocator {
+            return self.record.parsed.arena.allocator();
+        }
+    };
+
+    /// A payload row as finality checks use it. Payload rows of a retained
+    /// transaction are written only through it (delivery rows never change
+    /// after enqueue), so the facts stay those of the stored rows.
+    const PayloadFacts = struct {
+        uuid: types.Uuid,
+        /// The stored status value, re-encoded compactly.
+        status: []u8,
+        gas_limit: u256,
+        /// The delivery read (null: delivered by inclusion).
+        call: ?chain.Call,
+
+        fn deinit(self: *PayloadFacts, allocator: std.mem.Allocator) void {
+            allocator.free(self.status);
+            if (self.call) |call| allocator.free(call.calldata);
+            self.* = undefined;
+        }
+    };
+
+    fn freePayloadFacts(self: *Service, row: *Row) void {
+        const facts = row.payloads orelse return;
+        for (facts) |*item| item.deinit(self.allocator);
+        self.allocator.free(facts);
+        row.payloads = null;
+    }
+
+    fn payloadFacts(self: *Service, allocator: std.mem.Allocator, payload: records.PayloadView) !PayloadFacts {
+        const uuid = try payload.uuid(allocator);
+        const status = try std.json.Stringify.valueAlloc(self.allocator, try payload.statusValue(allocator), .{});
+        errdefer self.allocator.free(status);
+        const gas_limit = try payload.gasLimit(allocator);
+        var call = try self.deliveryCall(allocator, payload);
+        if (call) |*value| value.calldata = try self.allocator.dupe(u8, value.calldata);
+        return .{ .uuid = uuid, .status = status, .gas_limit = gas_limit, .call = call };
+    }
+
+    fn destroyRow(self: *Service, row: *Row) void {
+        self.freePayloadFacts(row);
+        row.record.deinit();
+        self.allocator.destroy(row);
+    }
+
+    fn newRow(self: *Service, uuid: types.Uuid, record: storage.JsonRecord, index: ?u32) !*Row {
+        var owned = record;
+        errdefer owned.deinit();
+        const status = std.meta.activeTag(try records.status(owned.value()));
+        const row = try self.allocator.create(Row);
+        row.* = .{ .uuid = uuid, .record = owned, .status = status, .index = index, .base_capacity = owned.parsed.arena.queryCapacity() };
+        return row;
+    }
+
+    /// The stored row decoded (null: absent). Not retained.
+    fn loadRow(self: *Service, uuid: types.Uuid) !?*Row {
+        const record = (try self.store.loadTransaction(self.allocator, uuid)) orelse return null;
+        self.row_loads += 1;
+        var owned = record;
+        const index = self.store.transactionIndex(self.allocator, uuid) catch |err| {
+            owned.deinit();
+            return err;
+        };
+        return try self.newRow(uuid, owned, index);
+    }
+
+    /// Frees a row and removes it from `rows` if retained there.
+    fn dropRow(self: *Service, row: *Row) void {
+        if (self.rows.get(row.uuid)) |retained| if (retained == row) {
+            _ = self.rows.remove(row.uuid);
+        };
+        self.destroyRow(row);
+    }
+
+    fn evictRow(self: *Service, uuid: types.Uuid) void {
+        if (self.rows.get(uuid)) |row| self.dropRow(row);
+    }
+
+    fn clearRows(self: *Service) void {
+        var iterator = self.rows.valueIterator();
+        while (iterator.next()) |row| self.destroyRow(row.*);
+        self.rows.clearRetainingCapacity();
+    }
+
+    /// Keeps an active row for later checks, else frees it. Allocation
+    /// failure only loses the entry; the next check decodes the stored row.
+    fn retainRow(self: *Service, row: *Row) void {
+        if (row.status == .dropped or row.status == .finalized) return self.dropRow(row);
+        if (self.rows.get(row.uuid)) |retained| if (retained == row) return;
+        self.evictRow(row.uuid);
+        self.rows.put(self.allocator, row.uuid, row) catch return self.dropRow(row);
+    }
+
+    /// Mutations allocate in the row's arena. Past a bound, the row is
+    /// re-decoded from its own encoding (equal to the stored row), which
+    /// drops what earlier mutations replaced.
+    fn boundRowGrowth(self: *Service, row: *Row) !void {
+        if (row.record.parsed.arena.queryCapacity() <= 2 * row.base_capacity + 64 * 1024) return;
+        const json = try std.json.Stringify.valueAlloc(self.allocator, row.value(), .{});
+        defer self.allocator.free(json);
+        const parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, json, .{ .duplicate_field_behavior = .@"error", .allocate = .alloc_always });
+        row.record.deinit();
+        row.record = .{ .parsed = parsed };
+        row.base_capacity = parsed.arena.queryCapacity();
+    }
+
+    /// The store write of the row as it is now; `json` is its encoding.
+    fn rowWrite(row: *const Row, scratch: std.mem.Allocator, json: []const u8) !storage.Store.Row {
+        return .{
+            .uuid = row.uuid,
+            .json = json,
+            .status = std.meta.activeTag(try records.status(row.value())),
+            .hashes = try records.hashes(scratch, row.value()),
+            .prior = .{ .status = row.status, .index = row.index },
+        };
+    }
+
+    fn committedRow(self: *Service, row: *Row, write: storage.Store.Row) void {
+        row.status = write.status;
+        self.row_writes += 1;
+    }
+
+    fn writeRow(self: *Service, row: *Row, scratch: std.mem.Allocator) !void {
+        const json = try std.json.Stringify.valueAlloc(self.allocator, row.value(), .{});
+        defer self.allocator.free(json);
+        const write = try rowWrite(row, scratch, json);
+        try self.store.writeTransactionRow(self.allocator, write);
+        self.committedRow(row, write);
+    }
+
+    fn writeRowAndPayloads(self: *Service, row: *Row, scratch: std.mem.Allocator, payloads: []const storage.PayloadUpdate, receipt: ?storage.FinalizedReceipt) !void {
+        const json = try std.json.Stringify.valueAlloc(self.allocator, row.value(), .{});
+        defer self.allocator.free(json);
+        const write = try rowWrite(row, scratch, json);
+        try self.store.writeTransactionRowAndPayloads(self.allocator, write, payloads, receipt);
+        self.committedRow(row, write);
+    }
+
+    /// Test oracle: every retained row encodes as its stored row decodes.
+    fn rowsMatchStore(self: *Service) !bool {
+        var iterator = self.rows.valueIterator();
+        while (iterator.next()) |entry| {
+            const row = entry.*;
+            var stored = (try self.store.loadTransaction(self.allocator, row.uuid)) orelse return false;
+            defer stored.deinit();
+            const expected = try std.json.Stringify.valueAlloc(self.allocator, stored.value(), .{});
+            defer self.allocator.free(expected);
+            const actual = try std.json.Stringify.valueAlloc(self.allocator, row.value(), .{});
+            defer self.allocator.free(actual);
+            if (!std.mem.eql(u8, expected, actual)) return false;
+            if (row.status != std.meta.activeTag(try records.status(stored.value()))) return false;
+            if (!std.meta.eql(row.index, try self.store.transactionIndex(self.allocator, row.uuid))) return false;
+        }
+        return true;
+    }
+
     pub fn deinit(self: *Service) void {
         var iterator = self.receipt_progress.iterator();
         while (iterator.next()) |entry| self.allocator.free(entry.value_ptr.items);
         self.receipt_progress.deinit();
+        self.clearRows();
+        self.rows.deinit(self.allocator);
         self.checks.deinit(self.allocator);
         self.active.deinit();
         self.allocator.destroy(self.active);
+        self.allocator.destroy(self.pending_floor);
         self.* = undefined;
     }
 
@@ -288,14 +506,11 @@ pub const Service = struct {
         if (try self.store.reorgRange(self.allocator, self.config.signer.address) != null) return false;
         if (!self.active.fresh) try self.active.rebuild(self.store);
         if (self.active.count() != 0) return false;
-        var pending = try self.store.typed.prefix(self.allocator, storage.pending_payload_by_index);
+        var pending = (try self.store.pendingPayloads(self.allocator)) orelse return true;
         defer pending.deinit();
-        if (try pending.next(self.allocator)) |entry_value| {
-            var entry = entry_value;
-            entry.deinit();
-            return false;
-        }
-        return true;
+        const first = try pending.nextBorrowed();
+        self.store.observeFirstPending(if (first) |entry| entry.key else null);
+        return first == null;
     }
 
     /// A tick holds the mutex across its RPCs. When it runs on a fiber beside
@@ -345,12 +560,17 @@ pub const Service = struct {
         }
         try self.processReorg(limits.max_reorg, &report);
         // Reorg handling can reactivate or rewrite transactions: reschedule all.
-        if (report.reprocessed != 0) self.checks.clearRetainingCapacity();
+        if (report.reprocessed != 0) {
+            self.checks.clearRetainingCapacity();
+            self.clearRows();
+        }
         try self.scanTransactions(now_ms, limits, boundary_ready, &report);
         try self.buildPending(now_ms, limits, &report);
         self.tickMetrics(&report, started_ms);
         report.recovery_complete = self.recovery_complete;
         if (@import("builtin").is_test and !try self.active.matchesStore(self.store)) return error.ActiveSetDiverged;
+        if (@import("builtin").is_test and !try self.rowsMatchStore()) return error.RetainedRowDiverged;
+        if (@import("builtin").is_test and !try self.store.pendingFloorHolds(self.allocator)) return error.PendingFloorAboveRow;
         return report;
     }
 
@@ -362,6 +582,8 @@ pub const Service = struct {
         self.tickMetrics(report, started_ms);
         report.recovery_complete = self.recovery_complete;
         if (@import("builtin").is_test and !try self.active.matchesStore(self.store)) return error.ActiveSetDiverged;
+        if (@import("builtin").is_test and !try self.rowsMatchStore()) return error.RetainedRowDiverged;
+        if (@import("builtin").is_test and !try self.store.pendingFloorHolds(self.allocator)) return error.PendingFloorAboveRow;
         return report.*;
     }
 
@@ -414,6 +636,8 @@ pub const Service = struct {
                     try records.setStatus(&record.parsed.value, arena.allocator(), .pending_inclusion);
                     const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
                     defer self.allocator.free(json);
+                    // Written behind any retained row: decode it again.
+                    self.evictRow(uuid);
                     try self.store.writeTransaction(self.allocator, uuid, json);
                     report.reprocessed += 1;
                 }
@@ -445,27 +669,27 @@ pub const Service = struct {
                 self.scan_cursor -= 1;
                 continue;
             };
-            var record = (try self.store.loadTransaction(self.allocator, uuid)) orelse {
+            const row = (try self.loadRow(uuid)) orelse {
                 self.past_old_boundary = true;
                 try self.store.setActive(self.allocator, index, uuid, false);
                 self.scan_cursor -= 1;
                 continue;
             };
-            defer record.deinit();
-            const status = try records.status(record.value());
+            defer self.dropRow(row);
+            const status = try records.status(row.value());
             if (!status.isActive()) {
                 self.past_old_boundary = true;
                 try self.store.setActive(self.allocator, index, uuid, false);
                 self.scan_cursor -= 1;
                 continue;
             }
-            self.trackOldest(record.value(), now_ms);
+            self.trackOldest(row.value(), now_ms);
             report.transactions_scanned += 1;
             if (!self.recovery_complete) {
                 self.queued_transactions +|= 1;
                 if (status == .included) self.included_transactions +|= 1;
             }
-            const completed = self.reconcileTransaction(&record, now_ms, limits, boundary_ready, report) catch |err| blk: {
+            const completed = self.reconcileRow(row, now_ms, limits, boundary_ready, report) catch |err| blk: {
                 std.log.warn("transaction reconciliation failed: {s}", .{@errorName(err)});
                 self.metric(.{ .inclusion_error = .{ .name = "transaction_lifecycle" } });
                 self.metric(.{ .call_retries = .{ .name = "transaction_lifecycle" } });
@@ -509,34 +733,40 @@ pub const Service = struct {
                 scanned += 1;
                 continue;
             };
-            var record = (try self.store.loadTransaction(self.allocator, uuid)) orelse {
+            // Retained only after recovery and only while it succeeds.
+            const row = self.rows.get(uuid) orelse (try self.loadRow(uuid)) orelse {
                 try self.store.setActive(self.allocator, index, uuid, false);
                 continue;
             };
-            defer record.deinit();
-            const status = try records.status(record.value());
+            var retain = false;
+            defer if (retain) self.retainRow(row) else self.dropRow(row);
+            const status = try records.status(row.value());
             if (!status.isActive()) {
                 try self.store.setActive(self.allocator, index, uuid, false);
                 continue;
             }
-            self.trackOldest(record.value(), now_ms);
+            self.trackOldest(row.value(), now_ms);
             report.transactions_scanned += 1;
             if (!self.recovery_complete) {
                 self.queued_transactions +|= 1;
                 if (status == .included) self.included_transactions +|= 1;
             }
-            if (self.recovery_complete and status != .included and !readyForProcessing(record.value(), self.config.estimated_block_time_ms, now_ms)) {
-                self.rememberPersistedCheck(uuid, record.value());
+            if (self.recovery_complete and status != .included and !readyForProcessing(row.value(), self.config.estimated_block_time_ms, now_ms)) {
+                self.rememberPersistedCheck(uuid, row.value());
+                retain = true;
                 scanned += 1;
                 continue;
             }
-            const completed = self.reconcileTransaction(&record, now_ms, limits, boundary_ready, report) catch blk: {
+            var failed = false;
+            const completed = self.reconcileRow(row, now_ms, limits, boundary_ready, report) catch blk: {
                 self.metric(.{ .inclusion_error = .{ .name = "transaction_lifecycle" } });
                 self.metric(.{ .call_retries = .{ .name = "transaction_lifecycle" } });
                 report.deferred += 1;
+                failed = true;
                 break :blk false;
             };
-            if (completed and self.recovery_complete) self.rememberCheck(uuid, record.value(), now_ms);
+            retain = !failed and self.recovery_complete;
+            if (completed and self.recovery_complete) self.rememberCheck(uuid, row.value(), now_ms);
             scanned += 1;
             if (!completed and !self.recovery_complete) {
                 self.recovery_blocked = true;
@@ -546,10 +776,39 @@ pub const Service = struct {
         }
     }
 
-    fn reconcileTransaction(self: *Service, record: *storage.JsonRecord, now_ms: u64, limits: TickLimits, boundary_ready: bool, report: *Report) !bool {
+    /// Reconciles a row; on success the row equals the stored row again (see
+    /// `rows`). A check that wrote nothing changed at most `status` and
+    /// `last_status_check`, which are restored; on error the caller drops it.
+    fn reconcileRow(self: *Service, row: *Row, now_ms: u64, limits: TickLimits, boundary_ready: bool, report: *Report) !bool {
+        const value = &row.record.parsed.value;
+        if (value.* != .object) return error.InvalidLanderRecord;
+        const saved_status = value.object.get("status");
+        const saved_check = value.object.get("last_status_check");
+        const writes = self.row_writes;
+        const completed = try self.reconcileTransaction(row, now_ms, limits, boundary_ready, report);
+        if (self.row_writes == writes) {
+            try restoreField(value, "status", saved_status);
+            try restoreField(value, "last_status_check", saved_check);
+        }
+        try self.boundRowGrowth(row);
+        return completed;
+    }
+
+    fn restoreField(value: *std.json.Value, name: []const u8, saved: ?std.json.Value) !void {
+        if (saved) |previous| {
+            // Present before, so present now: no allocation.
+            try value.object.put(name, previous);
+        } else {
+            _ = value.object.orderedRemove(name);
+        }
+    }
+
+    fn reconcileTransaction(self: *Service, row: *Row, now_ms: u64, limits: TickLimits, boundary_ready: bool, report: *Report) !bool {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const allocator = arena.allocator();
+        const record = &row.record;
+        const owned = row.arena();
         const uuid = try records.transactionUuid(record.value());
         const previous_status = try records.status(record.value());
         const observation = try self.reconcileReceipts(record, allocator, limits, report) orelse return false;
@@ -558,12 +817,12 @@ pub const Service = struct {
             if (previous_status == .included and observed != .included and observed != .finalized) self.included_transactions -|= 1;
             if (previous_status != .included and observed == .included) self.included_transactions +|= 1;
         }
-        try records.setStatus(&record.parsed.value, allocator, observed);
-        try records.setTimestamp(&record.parsed.value, "last_status_check", try records.timestamp(allocator, now_ms));
+        try records.setStatus(&record.parsed.value, owned, observed);
+        try records.setTimestamp(&record.parsed.value, "last_status_check", try records.timestamp(owned, now_ms));
         if (observed == .included or observed == .finalized) {
             const finalized_height = observation.finalized_height orelse try self.chain.finalizedHeight();
             const delivery_height = if (observed == .included) (try self.chain.latestBlock()).number else finalized_height;
-            try self.writePayloadOutcomes(record, allocator, observed, delivery_height, observation.winning, report, sameStatus(previous_status, observed));
+            try self.writePayloadOutcomes(row, allocator, observed, delivery_height, observation.winning, report, sameStatus(previous_status, observed));
             if (observed == .finalized) {
                 try self.clearProgress(uuid);
                 self.queued_transactions -|= 1;
@@ -574,11 +833,7 @@ pub const Service = struct {
         }
         // An unchanged status only advanced last_status_check, which the
         // in-memory schedule now owns; skip the rewrite and its fsync.
-        if (!(self.recovery_complete and sameStatus(previous_status, observed))) {
-            const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-            defer self.allocator.free(json);
-            try self.store.writeTransaction(self.allocator, uuid, json);
-        }
+        if (!(self.recovery_complete and sameStatus(previous_status, observed))) try self.writeRow(row, allocator);
         if (observed == .dropped) {
             try self.clearProgress(uuid);
             self.queued_transactions -|= 1;
@@ -586,10 +841,8 @@ pub const Service = struct {
         }
         if (!self.recovery_complete and (self.fast_recovery or self.past_old_boundary)) {
             if (try self.staleRecovered(record, allocator)) {
-                try records.setStatus(&record.parsed.value, allocator, .{ .dropped = .{ .other = "stale recovered transaction: payloads already delivered or terminal" } });
-                const dropped_json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-                defer self.allocator.free(dropped_json);
-                try self.store.writeTransaction(self.allocator, uuid, dropped_json);
+                try records.setStatus(&record.parsed.value, owned, .{ .dropped = .{ .other = "stale recovered transaction: payloads already delivered or terminal" } });
+                try self.writeRow(row, allocator);
                 self.metric(.{ .dropped_transaction = .{ .name = "Other" } });
                 try self.clearProgress(uuid);
                 self.queued_transactions -|= 1;
@@ -598,7 +851,7 @@ pub const Service = struct {
             return true;
         }
         if (!boundary_ready) return true;
-        try self.submit(record, allocator, uuid, now_ms, observed, report);
+        try self.submit(row, allocator, uuid, now_ms, observed, report);
         return true;
     }
 
@@ -687,23 +940,41 @@ pub const Service = struct {
         if (self.receipt_progress.fetchRemove(uuid)) |removed| self.allocator.free(removed.value.items);
     }
 
-    fn writePayloadOutcomes(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, observed: types.Status, finalized_height: u64, winning: ?WinningReceipt, report: *Report, unchanged: bool) !void {
-        const uuid = try records.transactionUuid(record.value());
+    fn writePayloadOutcomes(self: *Service, row: *Row, allocator: std.mem.Allocator, observed: types.Status, finalized_height: u64, winning: ?WinningReceipt, report: *Report, unchanged: bool) !void {
+        const record = &row.record;
         const payload_uuids = try records.payloadTransactionUuids(allocator, record.value());
         const updates = try allocator.alloc(storage.PayloadUpdate, payload_uuids.len);
         const outcomes = try allocator.alloc(observer.PayloadOutcome, payload_uuids.len);
         const previous_reverted = report.reverted_payloads;
-        const payloads = try allocator.alloc(records.PayloadView, payload_uuids.len);
+        // Views of the stored rows, read only when needed (null: not read).
+        const payloads = try allocator.alloc(?records.PayloadView, payload_uuids.len);
+        @memset(payloads, null);
+        const facts = row.payloads orelse blk: {
+            const loaded = try self.allocator.alloc(PayloadFacts, payload_uuids.len);
+            var count: usize = 0;
+            errdefer {
+                for (loaded[0..count]) |*item| item.deinit(self.allocator);
+                self.allocator.free(loaded);
+            }
+            for (payload_uuids, payloads, loaded) |payload_uuid, *payload, *item| {
+                payload.* = try self.loadPayloadView(allocator, payload_uuid);
+                item.* = try self.payloadFacts(allocator, payload.*.?);
+                count += 1;
+            }
+            row.payloads = loaded;
+            break :blk loaded;
+        };
+        if (facts.len != payload_uuids.len) return error.InvalidLanderRecord;
         const delivered_flags = try allocator.alloc(bool, payload_uuids.len);
         // Success criteria are independent reads at one height: one
         // overlapped round instead of one round trip per payload.
         const checks = try allocator.alloc(chain.Call, payload_uuids.len);
         const check_of = try allocator.alloc(?usize, payload_uuids.len);
         var check_count: usize = 0;
-        for (payload_uuids, payloads, check_of) |payload_uuid, *payload, *slot| {
-            payload.* = try self.loadPayloadView(allocator, payload_uuid);
+        for (payload_uuids, facts, check_of) |payload_uuid, item, *slot| {
+            if (!std.mem.eql(u8, &payload_uuid, &item.uuid)) return error.InvalidLanderRecord;
             slot.* = null;
-            if (try self.deliveryCall(allocator, payload.*)) |check| {
+            if (item.call) |check| {
                 checks[check_count] = check;
                 slot.* = check_count;
                 check_count += 1;
@@ -721,24 +992,36 @@ pub const Service = struct {
         // re-encode and fsync that only refreshed last_status_check.
         const target = try records.payloadStatusText(allocator, observed);
         if (unchanged and observed == .included and all_delivered and self.recovery_complete) {
-            const stored = for (payloads) |payload| {
-                if (!std.mem.eql(u8, target, payload.status)) {
-                    const current = try std.json.Stringify.valueAlloc(allocator, try payload.statusValue(allocator), .{});
-                    if (!std.mem.eql(u8, target, current)) break false;
-                }
+            const stored = for (facts) |item| {
+                if (!std.mem.eql(u8, target, item.status)) break false;
             } else true;
             if (stored) return;
         }
-        for (payload_uuids, payloads, delivered_flags, 0..) |payload_uuid, payload, delivered, i| {
+        const statuses = try allocator.alloc([]const u8, payload_uuids.len);
+        for (payload_uuids, payloads, facts, delivered_flags, statuses, 0..) |payload_uuid, *payload, item, delivered, *status, i| {
             if (!delivered) report.reverted_payloads += 1;
-            updates[i] = .{ .uuid = payload_uuid, .canonical_json = try payload.withStatus(allocator, if (delivered) target else records.payload_reverted_status) };
-            outcomes[i] = .{ .uuid = payload_uuid, .delivered = delivered, .estimated_gas = try payload.gasLimit(allocator) };
+            if (payload.* == null) payload.* = try self.loadPayloadView(allocator, payload_uuid);
+            status.* = if (delivered) target else records.payload_reverted_status;
+            updates[i] = .{ .uuid = payload_uuid, .canonical_json = try payload.*.?.withStatus(allocator, status.*) };
+            outcomes[i] = .{ .uuid = payload_uuid, .delivered = delivered, .estimated_gas = item.gas_limit };
         }
         if (observed == .finalized) try self.emitFinalizedOutcome(record, winning, outcomes);
         const projection = if (observed == .finalized) try finalizedProjection(record, winning) else null;
-        const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-        defer self.allocator.free(json);
-        try self.store.writeTransactionAndPayloadsWithReceipt(self.allocator, uuid, json, updates, projection);
+        // The new statuses are copied first: the write cannot be undone.
+        const written = try allocator.alloc([]u8, facts.len);
+        var copied: usize = 0;
+        var adopted = false;
+        defer if (!adopted) for (written[0..copied]) |copy| self.allocator.free(copy);
+        for (written, statuses) |*copy, status| {
+            copy.* = try self.allocator.dupe(u8, status);
+            copied += 1;
+        }
+        try self.writeRowAndPayloads(row, allocator, updates, projection);
+        for (facts, written) |*item, copy| {
+            self.allocator.free(item.status);
+            item.status = copy;
+        }
+        adopted = true;
         for (previous_reverted..report.reverted_payloads) |_| self.metric(.{ .dropped_payload = .{ .name = "Reverted" } });
         if (observed == .finalized) self.metric(.finalized_transaction);
     }
@@ -778,6 +1061,7 @@ pub const Service = struct {
     }
 
     fn loadPayloadView(self: *Service, allocator: std.mem.Allocator, uuid: types.Uuid) !records.PayloadView {
+        self.payload_loads += 1;
         const bytes = (try self.store.loadPayloadBytes(allocator, uuid)) orelse return error.MissingPayload;
         return records.PayloadView.parse(allocator, bytes);
     }
@@ -865,13 +1149,15 @@ pub const Service = struct {
         self.metric(.{ .status_scan_duration_milliseconds = @intCast(@max(std.time.milliTimestamp() - started_ms, 0)) });
     }
 
-    fn submit(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, uuid: types.Uuid, now_ms: u64, observed: types.Status, report: *Report) !void {
+    fn submit(self: *Service, row: *Row, allocator: std.mem.Allocator, uuid: types.Uuid, now_ms: u64, observed: types.Status, report: *Report) !void {
+        const record = &row.record;
+        const owned = row.arena();
         if (types.optionalField(record.value(), "last_submission_attempt")) |last| if (last != .null) {
             const elapsed = now_ms -| ((try rfc3339(last.string)) * 1000);
             if (elapsed <= @max(self.config.estimated_block_time_ms, 1000)) return;
         };
         const submission = try self.submissionChain(record, allocator);
-        const simulated = if (!self.config.bypass_batch_simulation and (try types.uintField(record.value(), "submission_attempts")) == 0) try self.simulateBatch(record, allocator, submission) else null;
+        const simulated = if (!self.config.bypass_batch_simulation and (try types.uintField(record.value(), "submission_attempts")) == 0) try self.simulateBatch(row, allocator, submission) else null;
         const previous_nonce = try types.optionalUint(try types.requestFromRecord(record.value()), "nonce");
         // The simulation's latest block also prices and caps this submission.
         var prepared = try self.prepareSubmission(record, allocator, submission, if (submission.context == self.chain.context) simulated else null);
@@ -886,7 +1172,7 @@ pub const Service = struct {
         setRequestNonce(&prepared.request, reservation.nonce);
         const price_unchanged = prepared.price != .none and std.meta.eql(old_price, prepared.price);
         if (!nonce_changed and price_unchanged and observed != .pending_inclusion) return;
-        try types.updateRequest(try types.requestPtr(&record.parsed.value), allocator, prepared.request);
+        try types.updateRequest(try types.requestPtr(&record.parsed.value), owned, prepared.request);
         var signed: ?evm_transaction.SignedTransaction = null;
         var reused_bytes: ?[]u8 = null;
         const previous_hashes = try records.hashes(allocator, record.value());
@@ -914,15 +1200,15 @@ pub const Service = struct {
             hash = signed.?.hash;
             bytes = encoded;
         }
-        _ = try records.appendHash(&record.parsed.value, allocator, hash);
+        _ = try records.appendHash(&record.parsed.value, owned, hash);
         try records.incrementAttempts(&record.parsed.value);
-        try records.setTimestamp(&record.parsed.value, "last_submission_attempt", try records.timestamp(allocator, now_ms));
-        const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-        defer self.allocator.free(json);
-        if (reused_bytes != null) {
-            try self.store.writeSubmission(self.allocator, uuid, json, null);
-        } else {
-            try self.store.writeSubmission(self.allocator, uuid, json, .{ .hash = hash, .nonce = reservation.nonce, .bytes = bytes });
+        try records.setTimestamp(&record.parsed.value, "last_submission_attempt", try records.timestamp(owned, now_ms));
+        {
+            const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
+            defer self.allocator.free(json);
+            const write = try rowWrite(row, allocator, json);
+            try self.store.writeSubmissionRow(self.allocator, write, if (reused_bytes != null) null else .{ .hash = hash, .nonce = reservation.nonce, .bytes = bytes });
+            self.committedRow(row, write);
         }
         try self.store.typed.database.effectGate();
         const returned = submission.sendRaw(bytes) catch {
@@ -937,10 +1223,8 @@ pub const Service = struct {
         if (self.config.mev_submission) |protected| {
             if (submission.context == protected.protected_chain.context) self.metric(.{ .mev_submission = true });
         }
-        try records.setStatus(&record.parsed.value, allocator, .mempool);
-        const accepted_json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-        defer self.allocator.free(accepted_json);
-        try self.store.writeTransaction(self.allocator, uuid, accepted_json);
+        try records.setStatus(&record.parsed.value, owned, .mempool);
+        try self.writeRow(row, allocator);
         try self.clearProgress(uuid);
         const fee: observer.Metric.FeeMetric = switch (prepared.price) {
             .none => observer.Metric.FeeMetric{ .gas_price = null, .priority_fee = null, .gas_limit = requestGas(prepared.request) },
@@ -963,7 +1247,8 @@ pub const Service = struct {
     }
 
     /// Returns the submission chain's latest block it simulated against.
-    fn simulateBatch(self: *Service, record: *storage.JsonRecord, allocator: std.mem.Allocator, submission: chain.Chain) !?chain.LatestBlock {
+    fn simulateBatch(self: *Service, row: *Row, allocator: std.mem.Allocator, submission: chain.Chain) !?chain.LatestBlock {
+        const record = &row.record;
         const details = try types.field(record.value(), "payload_details");
         if (details.array.items.len <= 1) return null;
         const request = try types.parseRequest(allocator, try types.requestFromRecord(record.value()));
@@ -1004,16 +1289,13 @@ pub const Service = struct {
             };
         }
         if (survivor_count == 0) {
-            const failed_uuid = try records.transactionUuid(record.value());
-            try records.setStatus(&record.parsed.value, allocator, .{ .dropped = .{ .other = "Non-retryable error: simulation failed" } });
+            try records.setStatus(&record.parsed.value, row.arena(), .{ .dropped = .{ .other = "Non-retryable error: simulation failed" } });
             const failed = try allocator.alloc(storage.PayloadUpdate, details.array.items.len);
             for (details.array.items, payloads, 0..) |detail, payload, i| {
                 const payload_uuid = try types.parseUuid(try types.stringField(detail, "uuid"));
                 failed[i] = .{ .uuid = payload_uuid, .canonical_json = try payload.withStatus(allocator, records.payload_simulation_failed_status) };
             }
-            const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-            defer self.allocator.free(json);
-            try self.store.writeTransactionAndPayloads(self.allocator, failed_uuid, json, failed);
+            try self.writeRowAndPayloads(row, allocator, failed, null);
             self.queued_transactions -|= 1;
             self.metric(.{ .dropped_transaction = .{ .name = "Other" } });
             for (failed) |_| self.metric(.{ .dropped_payload = .{ .name = "FailedSimulation" } });
@@ -1046,6 +1328,7 @@ pub const Service = struct {
         const retained = try std.json.parseFromSliceLeaky(std.json.Value, record.parsed.arena.allocator(), rebuilt_json, .{ .duplicate_field_behavior = .@"error", .allocate = .alloc_always });
         details_slot.* = retained.object.get("payload_details").?;
         vm_slot.* = retained.object.get("vm_specific_data").?;
+        self.freePayloadFacts(row);
         const failed = try allocator.alloc(storage.PayloadUpdate, failed_count);
         var failed_index: usize = 0;
         for (details.array.items, results, payloads) |detail, result, payload| {
@@ -1054,9 +1337,7 @@ pub const Service = struct {
             failed[failed_index] = .{ .uuid = payload_uuid, .canonical_json = try payload.withStatus(allocator, records.payload_simulation_failed_status) };
             failed_index += 1;
         }
-        const json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
-        defer self.allocator.free(json);
-        try self.store.writeTransactionAndPayloads(self.allocator, uuid, json, failed);
+        try self.writeRowAndPayloads(row, allocator, failed, null);
         for (failed) |_| self.metric(.{ .dropped_payload = .{ .name = "FailedSimulation" } });
         return latest;
     }
@@ -1153,9 +1434,9 @@ pub const Service = struct {
 
     fn buildPending(self: *Service, now_ms: u64, limits: TickLimits, report: *Report) !void {
         if (!self.payload_reconcile_complete or !self.recovery_complete) return;
-        const prefix = try self.store.typed.prefix(self.allocator, storage.pending_payload_by_index);
-        var iterator = prefix;
+        var iterator = (try self.store.pendingPayloads(self.allocator)) orelse return;
         defer iterator.deinit();
+        var observed = false;
         var scanned: usize = 0;
         while (scanned < limits.max_payload_scan and report.built < limits.max_build) {
             if (self.config.max_submit_queue_length) |maximum| {
@@ -1170,7 +1451,12 @@ pub const Service = struct {
                 group.deinit(self.allocator);
             }
             while (group.items.len < self.config.max_batch_size and scanned < limits.max_payload_scan) : (scanned += 1) {
-                var entry = (try iterator.next(self.allocator)) orelse break;
+                const next = try iterator.next(self.allocator);
+                if (!observed) {
+                    observed = true;
+                    self.store.observeFirstPending(if (next) |entry| entry.key[iterator.prefix_bytes.len..] else null);
+                }
+                var entry = next orelse break;
                 defer entry.deinit();
                 try group.append(self.allocator, try self.allocator.dupe(u8, entry.value));
             }
@@ -1221,14 +1507,35 @@ pub const Service = struct {
         const payload_uuid = try payload.uuid(allocator);
         try self.checkAssociation(allocator, payload_uuid);
         const uuid = types.newUuid();
-        var transaction: records.OwnedJson = .init(self.allocator);
-        defer transaction.deinit();
-        try records.createTransaction(&transaction, payload, uuid, self.config.signer.address, self.config.chain_id, try records.timestamp(allocator, now_ms));
-        const transaction_json = try transaction.stringify(self.allocator);
+        var record = try self.newRecord();
+        var record_owned = true;
+        defer if (record_owned) record.deinit();
+        const owned = record.parsed.arena.allocator();
+        record.parsed.value = try records.transactionValue(owned, payload, uuid, self.config.signer.address, self.config.chain_id, try records.timestamp(owned, now_ms));
+        const transaction_json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
         defer self.allocator.free(transaction_json);
         const payload_updated = try payload.withStatus(allocator, try records.payloadStatusText(allocator, .pending_inclusion));
         const update = [_]storage.PayloadUpdate{.{ .uuid = payload_uuid, .canonical_json = payload_updated }};
-        _ = try self.store.writeBuiltTransaction(self.allocator, uuid, transaction_json, &update);
+        const index = try self.store.writeBuiltTransaction(self.allocator, uuid, transaction_json, &update);
+        record_owned = false;
+        self.retainBuilt(uuid, record, index);
+    }
+
+    fn newRecord(self: *Service) !storage.JsonRecord {
+        const arena = try self.allocator.create(std.heap.ArenaAllocator);
+        arena.* = .init(self.allocator);
+        return .{ .parsed = .{ .arena = arena, .value = .null } };
+    }
+
+    /// Retains a just-written new row. Its payload details still borrow the
+    /// payload rows' raw spans; they are decoded into the row's arena first,
+    /// as a reader of the written bytes would have them. Failure only loses
+    /// the entry.
+    fn retainBuilt(self: *Service, uuid: types.Uuid, built: storage.JsonRecord, index: u32) void {
+        var record = built;
+        records.ownDetails(&record.parsed.value, record.parsed.arena.allocator()) catch return record.deinit();
+        const row = self.newRow(uuid, record, index) catch return;
+        self.retainRow(row);
     }
 
     fn buildBatch(self: *Service, now_ms: u64, group: []const []u8) !void {
@@ -1261,17 +1568,21 @@ pub const Service = struct {
         if (!try self.batchContractPresent(allocator, batch_address)) return error.BatchContractNotFound;
         const encoded = try multicall.encode(allocator, calls);
         const uuid = types.newUuid();
-        var transaction: records.OwnedJson = .init(self.allocator);
-        defer transaction.deinit();
-        try records.createBatchTransaction(&transaction, payloads, uuid, self.config.signer.address, self.config.chain_id, try records.timestamp(allocator, now_ms), batch_address, encoded.calldata, encoded.value);
+        var record = try self.newRecord();
+        var record_owned = true;
+        defer if (record_owned) record.deinit();
+        const owned = record.parsed.arena.allocator();
+        record.parsed.value = try records.batchTransactionValue(owned, payloads, uuid, self.config.signer.address, self.config.chain_id, try records.timestamp(owned, now_ms), batch_address, encoded.calldata, encoded.value);
         const updates = try allocator.alloc(storage.PayloadUpdate, payloads.len);
         const pending_status = try records.payloadStatusText(allocator, .pending_inclusion);
         for (payloads, 0..) |payload, i| {
             updates[i] = .{ .uuid = try payload.uuid(allocator), .canonical_json = try payload.withStatus(allocator, pending_status) };
         }
-        const transaction_json = try transaction.stringify(self.allocator);
+        const transaction_json = try std.json.Stringify.valueAlloc(self.allocator, record.value(), .{});
         defer self.allocator.free(transaction_json);
-        _ = try self.store.writeBuiltTransaction(self.allocator, uuid, transaction_json, updates);
+        const index = try self.store.writeBuiltTransaction(self.allocator, uuid, transaction_json, updates);
+        record_owned = false;
+        self.retainBuilt(uuid, record, index);
     }
 
     fn trackOldest(self: *Service, value: std.json.Value, now_ms: u64) void {

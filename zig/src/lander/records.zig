@@ -208,7 +208,13 @@ fn rawValue(raw: []const u8) std.json.Value {
 }
 
 pub fn createTransaction(owned: *OwnedJson, payload: PayloadView, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8) !void {
-    const allocator = owned.allocator();
+    owned.root = try transactionValue(owned.allocator(), payload, uuid, signer, chain_id, timestamp_text);
+}
+
+/// The new transaction row of `payload`. Every value lives in `allocator`
+/// except `payload_details`, which borrow the payload's raw spans (see
+/// `ownDetails`).
+pub fn transactionValue(allocator: std.mem.Allocator, payload: PayloadView, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8) !std.json.Value {
     const bytes = json_view.byteArray(allocator, payload.data) catch return error.InvalidEvmPayload;
     const data = try std.json.parseFromSliceLeaky(std.json.Value, allocator, bytes, .{ .duplicate_field_behavior = .@"error" });
     if (data != .array or data.array.items.len != 2) return error.InvalidEvmPayload;
@@ -241,23 +247,26 @@ pub fn createTransaction(owned: *OwnedJson, payload: PayloadView, uuid: types.Uu
     try root.put("creation_timestamp", .{ .string = timestamp_text });
     try root.put("last_submission_attempt", .null);
     try root.put("last_status_check", .null);
-    owned.root = .{ .object = root };
+    return .{ .object = root };
 }
 
 pub fn createBatchTransaction(owned: *OwnedJson, payloads: []const PayloadView, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8, batch_address: types.Address, calldata: []const u8, value: u256) !void {
+    owned.root = try batchTransactionValue(owned.allocator(), payloads, uuid, signer, chain_id, timestamp_text, batch_address, calldata, value);
+}
+
+pub fn batchTransactionValue(allocator: std.mem.Allocator, payloads: []const PayloadView, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8, batch_address: types.Address, calldata: []const u8, value: u256) !std.json.Value {
     if (payloads.len < 2) return error.InvalidBatch;
-    try createTransaction(owned, payloads[0], uuid, signer, chain_id, timestamp_text);
-    const allocator = owned.allocator();
+    var root = try transactionValue(allocator, payloads[0], uuid, signer, chain_id, timestamp_text);
     const details = try allocator.alloc(std.json.Value, payloads.len);
     for (payloads, 0..) |payload, i| details[i] = rawValue(payload.details);
-    try owned.root.object.put("payload_details", .{ .array = .{ .items = details, .capacity = details.len, .allocator = allocator } });
-    const tx = try types.requestPtr(&owned.root);
+    try root.object.put("payload_details", .{ .array = .{ .items = details, .capacity = details.len, .allocator = allocator } });
+    const tx = try types.requestPtr(&root);
     try tx.object.put("to", .{ .string = try abi.hexAlloc(allocator, &batch_address) });
     try tx.object.put("data", .{ .string = try abi.hexAlloc(allocator, calldata) });
     try tx.object.put("value", .{ .string = try types.quantity(allocator, value) });
     try tx.object.put("gas", .null);
     try tx.object.put("nonce", .null);
-    const evm = owned.root.object.getPtr("vm_specific_data").?.object.getPtr("Evm").?;
+    const evm = root.object.getPtr("vm_specific_data").?.object.getPtr("Evm").?;
     var function = std.json.ObjectMap.init(allocator);
     try function.put("name", .{ .string = if (value == 0) "aggregate3" else "aggregate3Value" });
     try function.put("inputs", .{ .array = .{ .items = try allocator.alloc(std.json.Value, 0), .capacity = 0, .allocator = allocator } });
@@ -265,6 +274,21 @@ pub fn createBatchTransaction(owned: *OwnedJson, payloads: []const PayloadView, 
     try function.put("constant", .null);
     try function.put("stateMutability", .{ .string = "nonpayable" });
     try evm.object.put("function", .{ .object = function });
+    return root;
+}
+
+/// Replaces the borrowed raw `payload_details` spans of a new transaction
+/// row with their decoded values (allocated in `allocator`): the row a
+/// reader decodes from the bytes the raw spans were written as.
+pub fn ownDetails(value: *std.json.Value, allocator: std.mem.Allocator) !void {
+    if (value.* != .object) return error.InvalidLanderRecord;
+    const details = value.object.getPtr("payload_details") orelse return error.InvalidLanderRecord;
+    if (details.* != .array) return error.InvalidLanderRecord;
+    const decoded = try allocator.alloc(std.json.Value, details.array.items.len);
+    for (details.array.items, decoded) |item, *out| {
+        out.* = if (item == .number_string) try std.json.parseFromSliceLeaky(std.json.Value, allocator, item.number_string, .{ .duplicate_field_behavior = .@"error", .allocate = .alloc_always }) else item;
+    }
+    details.* = .{ .array = .{ .items = decoded, .capacity = decoded.len, .allocator = allocator } };
 }
 
 pub fn transactionUuid(value: std.json.Value) !types.Uuid {
