@@ -4726,6 +4726,9 @@
       "rpcUrls": [
         {
           "http": "https://rpc.tea.xyz"
+        },
+        {
+          "http": "https://tea.drpc.org"
         }
       ],
       "technicalStack": "opstack",
