@@ -163,6 +163,8 @@ pub const Classification = enum { success, retryable, rate_limited, non_retryabl
 
 const Endpoint = struct {
     owned: endpoint.OwnedEndpoint,
+    /// Digest of the complete identity, computed once for tip-cache keys.
+    tip_identity: tip_cache.Identity,
     headers: []curl.Header,
     failed_count: u32 = 0,
     last_block_height: u64 = 0,
@@ -535,7 +537,7 @@ pub const Pool = struct {
             }
             const native_headers = try headers.toOwnedSlice(allocator);
             errdefer allocator.free(native_headers);
-            try endpoints.append(allocator, .{ .owned = owned, .headers = native_headers });
+            try endpoints.append(allocator, .{ .owned = owned, .tip_identity = tip_cache.identity(owned.identity), .headers = native_headers });
         }
         if (endpoints.items.len == 0) return error.EmptyRpcEndpointPool;
         const threshold = switch (config.strategy) {
@@ -1517,7 +1519,7 @@ pub const Pool = struct {
                 },
             } else if (!probe.cache_checked) {
                 probe.cache_checked = true;
-                const key = (try tip_cache.key(self.allocator, endpoint_.owned.identity, "eth_blockNumber", .null)).?;
+                const key = (try tip_cache.key(self.allocator, endpoint_.tip_identity, "eth_blockNumber", .null)).?;
                 self.probeCacheEvent(probe, .cache_logical_read);
                 switch (try cache.claim(self.allocator, key)) {
                     .hit => |result| {
@@ -1955,7 +1957,7 @@ pub const Pool = struct {
         }
         if (peer.cache_checked) return false;
         peer.cache_checked = true;
-        const hash = (try tip_cache.key(self.allocator, self.endpoints[index].owned.identity, session.wire().method, session.wire().params)) orelse return false;
+        const hash = (try tip_cache.key(self.allocator, self.endpoints[index].tip_identity, session.wire().method, session.wire().params)) orelse return false;
         peer.cache_eligible = true;
         self.cacheEvent(session, index, .cache_logical_read);
         switch (try cache.claim(self.allocator, hash)) {

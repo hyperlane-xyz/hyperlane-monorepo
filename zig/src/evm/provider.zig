@@ -134,6 +134,8 @@ pub const RpcClient = struct {
     allocator: Allocator,
     url: []const u8,
     endpoint: Endpoint.OwnedEndpoint,
+    /// Digest of the complete endpoint identity for tip-cache keys.
+    tip_identity: TipCache.Identity,
     headers: []std.http.Header,
     native_headers: []Curl.Header,
     http: std.http.Client,
@@ -169,7 +171,7 @@ pub const RpcClient = struct {
         errdefer allocator.free(native_headers);
         for (headers.items, native_headers) |header, *native| native.* = .{ .name = header.name, .value = header.value };
         try Curl.validateRequest(.{ .url = endpoint.endpoint.url, .method = .post, .headers = native_headers });
-        return .{ .allocator = allocator, .url = endpoint.endpoint.url, .endpoint = endpoint, .headers = try headers.toOwnedSlice(allocator), .native_headers = native_headers, .http = .{ .allocator = allocator }, .options = options };
+        return .{ .allocator = allocator, .url = endpoint.endpoint.url, .endpoint = endpoint, .tip_identity = TipCache.identity(endpoint.identity), .headers = try headers.toOwnedSlice(allocator), .native_headers = native_headers, .http = .{ .allocator = allocator }, .options = options };
     }
 
     pub fn deinit(self: *RpcClient) void {
@@ -305,7 +307,7 @@ pub const RpcClient = struct {
         const method = object.get("method").?.string;
         const id = object.get("id").?.integer;
         const params = object.get("params").?;
-        const hash = (try TipCache.key(self.allocator, self.endpoint.identity, method, params)) orelse return self.fetchNativeTimed(native, body, self.options.timeout_ms);
+        const hash = (try TipCache.key(self.allocator, self.tip_identity, method, params)) orelse return self.fetchNativeTimed(native, body, self.options.timeout_ms);
         const cache = self.options.dynamic_tip_cache.?;
         const started = try std.time.Instant.now();
         self.nativeCacheEvent(method, .logical_read);
