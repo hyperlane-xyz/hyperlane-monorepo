@@ -3,6 +3,7 @@
 //! a newer generation. Timeout ends the owner's wait, not an already-sent RPC.
 const std = @import("std");
 const wake_notifier = @import("wake.zig");
+const cancel_wake = @import("cancel_wake.zig");
 const fiber = @import("fiber.zig");
 
 pub const Hook = struct { context: *anyopaque, call_fn: *const fn (*anyopaque) void };
@@ -224,6 +225,8 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         /// process supervisor must bound shutdown if a transport never returns.
         pub fn poll(self: *Self, now_ms: u64) ?Completion {
             var cleanup: ?Output = null;
+            var raised: ?*std.atomic.Value(bool) = null;
+            defer if (raised) |flag| cancel_wake.wake(flag);
             self.mutex.lock();
             const completion: ?Completion = blk: {
                 defer self.mutex.unlock();
@@ -234,6 +237,9 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                 if (now_ms >= self.deadline_floor) if (self.expiredLocked(now_ms)) |index| {
                     const slot = &self.slots[index];
                     slot.cancel.store(true, .release);
+                    // Abandoned, the slot stays allocated until its job
+                    // retires: the flag outlives the wake after unlock.
+                    raised = &slot.cancel;
                     slot.state = if (slot.state == .queued) .abandoned_queued else .abandoned_running;
                     self.wakeOne();
                     break :blk .{ .id = .{ .slot = @intCast(index), .sequence = slot.sequence }, .result = .{ .failure = error.IoTimeout } };
@@ -275,6 +281,10 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
         /// emitted. Cancelling a completed request also destroys its output.
         pub fn cancel(self: *Self, id: JobId) !Completion {
             var cleanup: ?Output = null;
+            // A running job's waits are woken after the pool mutex is free
+            // (the abandoned slot is not reused before the job retires).
+            var raised: ?*std.atomic.Value(bool) = null;
+            defer if (raised) |flag| cancel_wake.wake(flag);
             self.mutex.lock();
             {
                 defer self.mutex.unlock();
@@ -282,6 +292,7 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
                 const slot = &self.slots[id.slot];
                 if (slot.sequence != id.sequence or slot.state == .free or slot.state == .abandoned_queued or slot.state == .abandoned_running) return error.StaleIoJob;
                 slot.cancel.store(true, .release);
+                if (slot.state == .running) raised = &slot.cancel;
                 switch (slot.state) {
                     .queued => slot.state = .abandoned_queued,
                     .running => slot.state = .abandoned_running,
@@ -329,6 +340,8 @@ pub fn Pool(comptime Input: type, comptime Output: type, comptime Context: type,
             self.wakeAll();
             const spawned = self.spawned;
             self.mutex.unlock();
+            // Slots stay put until destroy below: wake running jobs' waits.
+            for (&self.slots) |*slot| cancel_wake.wake(&slot.cancel);
             for (self.threads[0..spawned]) |thread| thread.join();
             for (&self.slots) |*slot| {
                 if (slot.state == .done and slot.result == .value) self.free_output(self.context, slot.result.value);

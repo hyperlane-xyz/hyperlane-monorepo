@@ -4,6 +4,7 @@
 const std = @import("std");
 const supervisor = @import("supervisor.zig");
 const wake_notifier = @import("wake.zig");
+const cancel_wake = @import("cancel_wake.zig");
 pub const Config = struct {
     timeout_ms: u64,
     stack_size: usize = 1024 * 1024,
@@ -73,6 +74,9 @@ pub const Owner = struct {
     /// owner holds its mutex only between runs, never across `run_fn`. A
     /// deadline cancels, but never grants early context reuse.
     pub fn poll(self: *Owner, times: supervisor.Times, caller_cancel: *const std.atomic.Value(bool)) !?supervisor.Report {
+        // Waits on the raised flag are woken after the owner mutex is free.
+        var raised = false;
+        defer if (raised) cancel_wake.wake(&self.cancel);
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.stopping) return error.LaneOwnerStopped;
@@ -80,11 +84,13 @@ pub const Owner = struct {
             if (caller_cancel.load(.acquire)) {
                 self.cancelled = true;
                 self.cancel.store(true, .release);
+                raised = true;
                 self.changed.broadcast();
             }
             if (self.state != .done and !self.waiting and self.timer.?.read() >= self.config.timeout_ms * std.time.ns_per_ms) {
                 self.expired = true;
                 self.cancel.store(true, .release);
+                raised = true;
                 self.changed.broadcast();
                 // Signalled: the poller falls back to its backstop instead
                 // of re-polling a run that is already retiring.
@@ -202,6 +208,7 @@ pub const Owner = struct {
     /// Stop and join before freeing clients, keys, metadata executor or DBs.
     /// Idempotent so constructor cleanup and role teardown share the same path.
     pub fn requestStop(self: *Owner) void {
+        defer cancel_wake.wake(&self.cancel);
         self.mutex.lock();
         defer self.mutex.unlock();
         self.stopping = true;

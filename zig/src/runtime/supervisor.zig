@@ -4,6 +4,7 @@ const std = @import("std");
 const io = @import("io_pool.zig");
 const fiber = @import("fiber.zig");
 const wake_notifier = @import("wake.zig");
+const cancel_wake = @import("cancel_wake.zig");
 const A = std.mem.Allocator;
 pub const Times = struct { unix_ms: u64, monotonic_ms: u64 };
 pub const Report = struct { work: u64 = 0, next_delay_ms: ?u64 = null, halt: bool = false };
@@ -191,7 +192,7 @@ pub const Supervisor = struct {
     }
     pub fn stop(self: *Supervisor) void {
         self.stopping = true;
-        self.inline_cancel.store(true, .release);
+        cancel_wake.raise(&self.inline_cancel);
         self.context.stopRetained();
         for (self.entries) |*entry| if (entry.active) |id| {
             if (!entry.timed_out) {

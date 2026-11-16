@@ -55,6 +55,7 @@ pub const stream_authority_gate = @import("runtime/authority_gate.zig");
 pub const destination_lane_owner = @import("runtime/lane_owner.zig");
 pub const supervisor = @import("runtime/supervisor.zig");
 pub const fd_table = @import("runtime/fd_table.zig");
+pub const cancel_wake = @import("runtime/cancel_wake.zig");
 pub const message_loader = @import("agents/loader.zig");
 pub const block_cursor = @import("runtime/block_cursor.zig");
 pub const evm_origin = @import("agents/evm_origin.zig");

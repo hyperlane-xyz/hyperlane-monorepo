@@ -11,6 +11,7 @@ const tip_cache = @import("../net/dynamic_tip_cache.zig");
 const json_bounds = @import("../net/json_bounds.zig");
 const wake_notifier = @import("../runtime/wake.zig");
 const fiber = @import("../runtime/fiber.zig");
+const cancel_wake = @import("../runtime/cancel_wake.zig");
 
 pub const WireResponse = struct { bytes: []u8, len: usize };
 /// Borrowed cancellation flags observed by a blocking wait (either raises).
@@ -863,6 +864,14 @@ pub const Pool = struct {
         // until the current driver completes the session.
         if (fiber.inFiber()) return self.waitParked(handle, allocator, deadline_ms, cancel_flag);
         defer self.cancel(handle);
+        // A runtime raise of a borrowed flag (runtime/cancel_wake.zig) ends
+        // the driver's socket wait or this follower's wait at once; the
+        // slice below only backstops flags raised by a plain store.
+        var cancel_waker: CancelWaker = .{ .pool = self };
+        var cancel_registration: cancel_wake.Pair = .{};
+        defer cancel_registration.unregister();
+        cancel_waker.follower = handle;
+        cancel_registration.register(cancel_flag.first, cancel_flag.second, cancel_waker.waker());
         // The session may have been submitted without waking a driver; tell
         // the current driver once (not once per timed slice).
         var driver_told = false;
@@ -897,7 +906,7 @@ pub const Pool = struct {
             self.mutex.unlock();
             // This handle has one caller, so taken remains false until it polls
             // or cancels. No driver can retire this session while waiting.
-            if (!session.finished and !session.grant) session.wake.timedWait(&session.mutex, slice_ms *| std.time.ns_per_ms) catch {};
+            if (!session.finished and !session.grant and !cancel_flag.raised()) session.wake.timedWait(&session.mutex, slice_ms *| std.time.ns_per_ms) catch {};
             session.mutex.unlock();
             // Grants are issued under Pool.mutex while blocking_waiter is set:
             // consume and stop accepting them atomically, so no grant can land
@@ -923,6 +932,12 @@ pub const Pool = struct {
         // session mutex before `waiter` leaves scope.
         defer self.cancel(handle);
         var waiter: fiber.Waiter = .{};
+        // A runtime cancel raise wakes the parked fiber (or its socket wait
+        // when it drives); unregistered before `waiter` leaves scope.
+        var cancel_waker: CancelWaker = .{ .pool = self, .waiter = &waiter };
+        var cancel_registration: cancel_wake.Pair = .{};
+        defer cancel_registration.unregister();
+        cancel_registration.register(cancel_flag.first, cancel_flag.second, cancel_waker.waker());
         var attached = false;
         var owner_told = false;
         while (true) {
@@ -958,6 +973,32 @@ pub const Pool = struct {
             _ = waiter.waitTimeout(fiber.monoMs() +| @as(i64, @intCast(@min(slice_ms, std.math.maxInt(i32)))));
         }
     }
+    /// Wakes a wait that observes a borrowed cancel flag when the runtime
+    /// raises it: the socket wait (if this caller drives), the follower's
+    /// session condition, or the parked fiber.
+    const CancelWaker = struct {
+        pool: *Pool,
+        /// Blocking caller: its session is looked up per wake (a session
+        /// pointer could be retired once the caller polled it).
+        follower: ?Handle = null,
+        waiter: ?*fiber.Waiter = null,
+        fn waker(self: *CancelWaker) cancel_wake.Waker {
+            return .{ .context = self, .call = call };
+        }
+        fn call(context: *anyopaque) void {
+            const self: *CancelWaker = @ptrCast(@alignCast(context));
+            self.pool.native.wakeup();
+            if (self.follower) |handle| {
+                self.pool.mutex.lock();
+                defer self.pool.mutex.unlock();
+                const session = self.pool.findSession(handle) orelse return;
+                session.mutex.lock();
+                session.wake.broadcast();
+                session.mutex.unlock();
+            }
+            if (self.waiter) |waiter| waiter.wake();
+        }
+    };
     fn interruptDriver(context: *anyopaque) void {
         const self: *Pool = @ptrCast(@alignCast(context));
         self.native.wakeup();
@@ -2751,6 +2792,82 @@ test "a lone fiber drives its own pool requests without owner thread handoffs" {
     try std.testing.expectEqual(@as(u32, 10), completion.result.value);
     // Every pass ran on the fiber's worker: the owner thread never drove.
     try std.testing.expectEqual(owner.owner_iterations.load(.acquire), owner.caller_passes.load(.acquire));
+}
+
+const StalledFetch = struct {
+    owner: *Pool,
+    body: []const u8,
+    fn run(self: *StalledFetch, _: u32, cancel: *const std.atomic.Value(bool)) !u32 {
+        const response = try self.owner.fetch(std.testing.allocator, self.body, 60_000, 1000, cancel, 4096);
+        std.testing.allocator.free(response.bytes);
+        return 1;
+    }
+    fn freeInput(_: *StalledFetch, _: u32) void {}
+    fn freeOutput(_: *StalledFetch, _: u32) void {}
+};
+test "a runtime cancel raise ends blocking and fiber pool waits without a recheck slice" {
+    const a = std.testing.allocator;
+    const fixture = @import("pool_testing.zig");
+    const library = try fixture.nativeLibrary(a);
+    defer a.free(library);
+    const behaviors = [_]fixture.Behavior{.{ .replies = &.{ .{ .body = "", .stall = true }, .{ .body = "", .stall = true } } }};
+    var server = try fixture.Fixture.init(4, &behaviors);
+    try server.start();
+    defer server.deinit();
+    const url = try server.url(a, 0);
+    defer a.free(url);
+    const owner = try Pool.start(a, .{ .library_path = library, .urls = &.{url}, .strategy = .{ .single = .{} } });
+    defer owner.deinit();
+    // Fiber job: io_pool cancellation raises the job's borrowed flag.
+    var context: StalledFetch = .{ .owner = owner, .body = fixture.chain_id_body };
+    const io = @import("../runtime/io_pool.zig");
+    const workers = try io.Pool(u32, u32, StalledFetch, 1, 2).startWith(a, &context, StalledFetch.run, StalledFetch.freeInput, StalledFetch.freeOutput, .{ .fibers = true });
+    defer workers.deinit();
+    const id = try workers.submit(0, 0, 120_000);
+    var timer = try std.time.Timer.start();
+    while (server.acceptedCount() == 0) {
+        if (timer.read() > 5 * std.time.ns_per_s) return error.FixtureStartTimeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+    const cancelled_at = timer.read();
+    var delivered = cancel_wake.delivered.load(.acquire);
+    _ = try workers.cancel(id);
+    // The raise found the wait's registration and woke it (no recheck slice).
+    try std.testing.expect(cancel_wake.delivered.load(.acquire) > delivered);
+    while (workers.retained(id)) {
+        if (timer.read() - cancelled_at > 5 * std.time.ns_per_s) return error.CancelDidNotEndFiberWait;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // Blocking caller on its own thread, flag raised by a lane-style owner.
+    const Caller = struct {
+        owner: *Pool,
+        cancel: std.atomic.Value(bool) = .init(false),
+        result: ?anyerror = null,
+        fn run(self: *@This()) void {
+            const response = self.owner.fetch(std.testing.allocator, fixture.chain_id_body, 60_000, 1000, &self.cancel, 4096) catch |err| {
+                self.result = err;
+                return;
+            };
+            std.testing.allocator.free(response.bytes);
+        }
+    };
+    var caller: Caller = .{ .owner = owner };
+    const thread = try std.Thread.spawn(.{}, Caller.run, .{&caller});
+    while (server.acceptedCount() < 2) {
+        if (timer.read() > 10 * std.time.ns_per_s) {
+            cancel_wake.raise(&caller.cancel);
+            thread.join();
+            return error.FixtureStartTimeout;
+        }
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+    delivered = cancel_wake.delivered.load(.acquire);
+    cancel_wake.raise(&caller.cancel);
+    try std.testing.expect(cancel_wake.delivered.load(.acquire) > delivered);
+    thread.join();
+    try std.testing.expectEqual(@as(?anyerror, error.RequestCancelled), caller.result);
 }
 
 test "native RPC owner notices delayed responses without any further submit" {
