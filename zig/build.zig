@@ -6,6 +6,7 @@ pub fn build(b: *std.Build) void {
     const native_cpp = b.option([]const u8, "native-cxx-library", "Linux GNU libstdc++ shared library; zig.py discovers the native compiler path");
     const libpq_library = b.option([]const u8, "libpq-library", "Full path to libpq for isolated PostgreSQL integration tests");
     const optimize = b.option(std.builtin.OptimizeMode, "optimize", "Optimization mode (default ReleaseSafe)") orelse .ReleaseSafe;
+    const glibc_mem = glibcMem(b, target, optimize);
     const module = b.addModule("agents", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
@@ -60,6 +61,7 @@ pub fn build(b: *std.Build) void {
             });
             validator_module.addOptions("service_options", service_options);
             linkNativeCpp(validator_module, target.result, native_cpp);
+            if (glibc_mem) |object| validator_module.addObject(object);
             var service_paths = std.mem.splitScalar(u8, libraries, ',');
             while (service_paths.next()) |path| validator_module.addObjectFile(.{ .cwd_relative = path });
             const validator = b.addExecutable(.{ .name = role, .root_module = validator_module });
@@ -72,6 +74,7 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         });
         linkNativeCpp(native_module, target.result, native_cpp);
+        if (glibc_mem) |object| native_module.addObject(object);
         if (libpq_library) |library| native_module.addObjectFile(.{ .cwd_relative = library });
         var paths = std.mem.splitScalar(u8, libraries, ',');
         while (paths.next()) |path| native_module.addObjectFile(.{ .cwd_relative = path });
@@ -90,6 +93,7 @@ pub fn build(b: *std.Build) void {
         });
         scraper_module.addOptions("service_options", service_options);
         scraper_module.addObjectFile(.{ .cwd_relative = library });
+        if (glibc_mem) |object| scraper_module.addObject(object);
         const scraper = b.addExecutable(.{ .name = "scraper", .root_module = scraper_module });
         b.step("scraper", "Build the native operational scraper").dependOn(&b.addInstallArtifact(scraper, .{}).step);
         const pg_module = b.createModule(.{
@@ -102,6 +106,18 @@ pub fn build(b: *std.Build) void {
         const pg_tests = b.addTest(.{ .root_module = pg_module });
         b.step("native-pg-test", "Verify PostgreSQL integration against a disposable fixture").dependOn(&b.addRunArtifact(pg_tests).step);
     }
+}
+
+/// Linux glibc native binaries: mem* go to glibc instead of compiler_rt's loops (src/glibc_mem.zig).
+fn glibcMem(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) ?*std.Build.Step.Compile {
+    const enabled = b.option(bool, "glibc-mem", "Route memcpy/memmove/memset/memcmp to glibc on Linux GNU (default true)") orelse true;
+    if (!enabled or target.result.os.tag != .linux or !target.result.isGnuLibC()) return null;
+    return b.addObject(.{ .name = "glibc_mem", .root_module = b.createModule(.{
+        .root_source_file = b.path("src/glibc_mem.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    }) });
 }
 
 fn linkNativeCpp(module: *std.Build.Module, target: std.Target, native_cpp: ?[]const u8) void {

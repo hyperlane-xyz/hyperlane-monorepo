@@ -144,17 +144,35 @@ pub fn hexAlloc(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
     const out = try allocator.alloc(u8, len);
     out[0..2].* = "0x".*;
     const digits = "0123456789abcdef";
-    for (bytes, 0..) |byte, i| {
-        out[2 + i * 2] = digits[byte >> 4];
-        out[3 + i * 2] = digits[byte & 15];
-    }
+    // Digit pairs zipped with the input: one length check for the loop, none per byte.
+    for (bytes, std.mem.bytesAsSlice([2]u8, out[2..])) |byte, *pair| pair.* = .{ digits[byte >> 4], digits[byte & 15] };
     return out;
 }
 
+/// Nibble value of each byte; 0xff marks a non-hex byte.
+const hex_nibbles: [256]u8 = blk: {
+    var table: [256]u8 = @splat(0xff);
+    for ("0123456789abcdef", 0..) |digit, value| table[digit] = value;
+    for ("ABCDEF", 10..) |digit, value| table[digit] = value;
+    break :blk table;
+};
+
 pub fn decodeHex(out: []u8, input: []const u8) AbiError![]u8 {
     if (!std.mem.startsWith(u8, input, "0x") or input.len % 2 != 0) return error.InvalidHex;
-    if ((input.len - 2) / 2 > out.len) return error.InvalidHex;
-    return std.fmt.hexToBytes(out, input[2..]) catch return error.InvalidHex;
+    const len = (input.len - 2) / 2;
+    if (len > out.len) return error.InvalidHex;
+    // Same rejections as std.fmt.hexToBytes, without its per-digit branches and
+    // per-byte bounds checks: zip digit pairs with the output, table lookups by
+    // u8 (always in range), and one validity check after the loop.
+    var invalid: u8 = 0;
+    for (std.mem.bytesAsSlice([2]u8, input[2..]), out[0..len]) |pair, *byte| {
+        const high = hex_nibbles[pair[0]];
+        const low = hex_nibbles[pair[1]];
+        invalid |= high | low;
+        byte.* = high << 4 | low;
+    }
+    if (invalid > 0xf) return error.InvalidHex;
+    return out[0..len];
 }
 
 pub fn fixedHex(comptime N: usize, input: []const u8) AbiError![N]u8 {
@@ -192,6 +210,42 @@ test "strict quantities and hex data" {
     try std.testing.expectEqual([2]u8{ 0xab, 0xcd }, try fixedHex(2, "0xAbCd"));
     try std.testing.expectError(error.InvalidHex, fixedHex(2, "0xabc"));
     try std.testing.expectError(error.InvalidHex, fixedHex(2, "abcd"));
+}
+
+test "hex decode matches std.fmt over every byte and rejects malformed input" {
+    var all: [256]u8 = undefined;
+    for (&all, 0..) |*byte, value| byte.* = @intCast(value);
+    const text = try hexAlloc(std.testing.allocator, &all);
+    defer std.testing.allocator.free(text);
+    try std.testing.expectEqualStrings("0x" ++ std.fmt.bytesToHex(all, .lower), text);
+    var decoded: [257]u8 = undefined;
+    try std.testing.expectEqualSlices(u8, &all, try decodeHex(&decoded, text));
+    const upper = std.fmt.bytesToHex(all, .upper);
+    try std.testing.expectEqualSlices(u8, &all, try decodeHex(&decoded, "0x" ++ upper));
+    try std.testing.expectEqual(@as(usize, 0), (try decodeHex(&decoded, "0x")).len);
+    try std.testing.expectEqual(@as(usize, 0), (try decodeHex(decoded[0..0], "0x")).len);
+    try std.testing.expectError(error.InvalidHex, decodeHex(decoded[0..1], "0xabcd")); // no room
+    try std.testing.expectError(error.InvalidHex, decodeHex(&decoded, "abcd")); // no prefix
+    try std.testing.expectError(error.InvalidHex, decodeHex(&decoded, "0Xab"));
+    try std.testing.expectError(error.InvalidHex, decodeHex(&decoded, "0xabc")); // odd
+    try std.testing.expectError(error.InvalidHex, decodeHex(&decoded, "0"));
+    try std.testing.expectError(error.InvalidHex, decodeHex(&decoded, ""));
+    // Every non-hex byte, in either nibble position, after valid pairs.
+    var bad = "0x0011aa??".*;
+    for (0..256) |value| {
+        const byte: u8 = @intCast(value);
+        const valid = std.fmt.charToDigit(byte, 16) catch null;
+        for ([_]usize{ 8, 9 }) |position| {
+            bad[8] = '0';
+            bad[9] = '0';
+            bad[position] = byte;
+            if (valid) |nibble| {
+                const out = try decodeHex(&decoded, &bad);
+                try std.testing.expectEqual(@as(usize, 4), out.len);
+                try std.testing.expectEqual(if (position == 8) nibble << 4 else nibble, out[3]);
+            } else try std.testing.expectError(error.InvalidHex, decodeHex(&decoded, &bad));
+        }
+    }
     const full = try quantityAlloc256(std.testing.allocator, std.math.maxInt(u256));
     defer std.testing.allocator.free(full);
     try std.testing.expectEqual(std.math.maxInt(u256), try quantityAs(u256, full));
