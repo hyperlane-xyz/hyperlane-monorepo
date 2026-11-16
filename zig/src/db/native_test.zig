@@ -136,3 +136,69 @@ test "native typed seeks retain bounds and highest fixed key skips overlapping r
     try std.testing.expectEqual(third, (try typed.lastFixedKey(4, allocator, "ordered_")).?);
     try std.testing.expect((try typed.lastFixedKey(4, allocator, "absent_")) == null);
 }
+
+test "deferred commits owe one WAL sync that a later synced commit or ensureDurable pays" {
+    const allocator = std.testing.allocator;
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+    const base = try temporary.dir.realpathAlloc(allocator, ".");
+    defer allocator.free(base);
+    const path = try std.fs.path.join(allocator, &.{ base, "db" });
+    defer allocator.free(path);
+    {
+        var db = try rocks.Database.open(allocator, path, .{ .sync = true });
+        defer db.deinit();
+        try std.testing.expect(!db.owesSync());
+        try db.ensureDurable();
+        try std.testing.expectEqual(@as(u64, 0), db.wal_syncs.load(.monotonic));
+        var first = try db.batch();
+        defer first.deinit();
+        try first.put("a", "1");
+        try first.commitWith(.deferred);
+        try std.testing.expect(db.owesSync());
+        try std.testing.expectError(error.UnsyncedWriteBeforeEffect, db.effectGate());
+        // Visible before durable; a later synced commit covers it.
+        try expectValue(&db, "a", "1");
+        var second = try db.batch();
+        defer second.deinit();
+        try second.put("b", "2");
+        try second.commitWith(.sync);
+        try std.testing.expect(!db.owesSync());
+        try db.effectGate();
+        try std.testing.expectEqual(@as(u64, 1), db.wal_syncs.load(.monotonic));
+        // Debt with no covering commit: one flush pays it, the next is free.
+        var third = try db.batch();
+        defer third.deinit();
+        try third.put("c", "3");
+        try third.commitWith(.deferred);
+        try db.ensureDurable();
+        try db.ensureDurable();
+        try std.testing.expect(!db.owesSync());
+        try std.testing.expectEqual(@as(u64, 2), db.wal_syncs.load(.monotonic));
+        // Hints stay outside the debt.
+        var hint = try db.batch();
+        defer hint.deinit();
+        try hint.put("hint", "x");
+        try hint.commitUnsynced();
+        try std.testing.expect(!db.owesSync());
+    }
+    {
+        var db = try rocks.Database.open(allocator, path, .{ .sync = true });
+        defer db.deinit();
+        try expectValue(&db, "a", "1");
+        try expectValue(&db, "b", "2");
+        try expectValue(&db, "c", "3");
+    }
+    {
+        // Rust-style unsynced databases never owe a sync.
+        var db = try rocks.Database.open(allocator, path, .{});
+        defer db.deinit();
+        var batch = try db.batch();
+        defer batch.deinit();
+        try batch.put("d", "4");
+        try batch.commitWith(.deferred);
+        try std.testing.expect(!db.owesSync());
+        try db.effectGate();
+        try std.testing.expectEqual(@as(u64, 0), db.wal_syncs.load(.monotonic));
+    }
+}

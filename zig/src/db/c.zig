@@ -28,6 +28,7 @@ pub extern fn rocksdb_get(*DB, *const ReadOptions, [*]const u8, usize, *usize, *
 pub extern fn rocksdb_put(*DB, *const WriteOptions, [*]const u8, usize, [*]const u8, usize, *?[*:0]u8) void;
 pub extern fn rocksdb_delete(*DB, *const WriteOptions, [*]const u8, usize, *?[*:0]u8) void;
 pub extern fn rocksdb_write(*DB, *const WriteOptions, *WriteBatch, *?[*:0]u8) void;
+pub extern fn rocksdb_flush_wal(*DB, u8, *?[*:0]u8) void;
 pub extern fn rocksdb_get_latest_sequence_number(*DB) u64;
 pub extern fn rocksdb_writebatch_create() ?*WriteBatch;
 pub extern fn rocksdb_writebatch_destroy(*WriteBatch) void;

@@ -33,6 +33,25 @@ fn check(native_error: ?[*:0]u8, diagnostic: ?*Diagnostic) !void {
     }
 }
 
+/// Durability contract of a `sync = true` database: every write is durable
+/// before any external effect that depends on it, or that a peer or chain
+/// could observe (sendRaw, checkpoint/announcement publish, API ack, metrics
+/// claims about delivery), and before any internal decision that is
+/// irreversible after a crash (e.g. a nonce is durable before the transaction
+/// is signed). `Durability.sync` commits are durable on return. A
+/// `Durability.deferred` commit is a WAL write without fsync whose caller
+/// guarantees a covering synced commit (or `ensureDurable`) on this database
+/// before any such effect: RocksDB syncs every live WAL file in one ordered
+/// log, so a later sync persists every earlier write. A crash between the
+/// two reaches only states a crash just before the deferred commit already
+/// could. Effect sites call `effectGate`.
+pub const Durability = enum { sync, deferred };
+
+/// Test-mode proof that each deferral is covered: the newest deferred write
+/// made on this thread (fibers do not park inside a deferral window), so a
+/// concurrent fiber's legitimate debt on another thread never trips a gate.
+threadlocal var thread_debt: struct { database: ?*const Database = null, sequence: u64 = 0 } = .{};
+
 pub const OpenOptions = struct {
     create_if_missing: bool = true,
     read_only: bool = false,
@@ -49,6 +68,13 @@ pub const Database = struct {
     read_only: bool,
     /// Default write durability (OpenOptions.sync): WAL fsync per write.
     sync: bool,
+    /// Durability debt (sequence numbers): the newest deferred write and the
+    /// newest sequence known WAL-synced. Debt exists while owed > synced.
+    owed: std.atomic.Value(u64) = .init(0),
+    synced: std.atomic.Value(u64) = .init(0),
+    /// Work counter: WAL fsyncs this handle requested (synced writes plus
+    /// debt-paying flushes).
+    wal_syncs: std.atomic.Value(u64) = .init(0),
     diagnostic: ?*Diagnostic,
 
     pub fn open(allocator: Allocator, path: []const u8, options: OpenOptions) !Database {
@@ -111,21 +137,58 @@ pub const Database = struct {
     pub fn put(self: *Database, key: []const u8, value: []const u8) !void {
         if (self.read_only) return error.ReadOnly;
         var native_error: ?[*:0]u8 = null;
+        const before = self.sequence();
         c.rocksdb_put(self.handle, self.write_options, key.ptr, key.len, value.ptr, value.len, &native_error);
         try check(native_error, self.diagnostic);
+        if (self.sync) self.coveredThrough(before);
         sync_stats.record(if (self.sync) .synced_write else .write, @returnAddress());
     }
 
     pub fn delete(self: *Database, key: []const u8) !void {
         if (self.read_only) return error.ReadOnly;
         var native_error: ?[*:0]u8 = null;
+        const before = self.sequence();
         c.rocksdb_delete(self.handle, self.write_options, key.ptr, key.len, &native_error);
         try check(native_error, self.diagnostic);
+        if (self.sync) self.coveredThrough(before);
         sync_stats.record(if (self.sync) .synced_write else .write, @returnAddress());
     }
 
     pub fn sequence(self: *const Database) u64 {
         return c.rocksdb_get_latest_sequence_number(self.handle);
+    }
+
+    /// A WAL sync that started after `before` was visible returned OK. Every
+    /// visible write was already appended to the WAL, which syncs in order.
+    fn coveredThrough(self: *Database, before: u64) void {
+        _ = self.wal_syncs.fetchAdd(1, .monotonic);
+        _ = self.synced.fetchMax(before, .acq_rel);
+    }
+
+    /// True while a deferred commit on this database is not yet covered by a
+    /// WAL sync.
+    pub fn owesSync(self: *const Database) bool {
+        return self.owed.load(.acquire) > self.synced.load(.acquire);
+    }
+
+    /// Pays any durability debt with one WAL fsync; a no-op (no syscall)
+    /// when every deferred write is already covered by a later synced commit.
+    pub fn ensureDurable(self: *Database) !void {
+        if (!self.owesSync()) return;
+        const before = self.sequence();
+        var native_error: ?[*:0]u8 = null;
+        c.rocksdb_flush_wal(self.handle, 1, &native_error);
+        try check(native_error, self.diagnostic);
+        sync_stats.record(.wal_sync, @returnAddress());
+        self.coveredThrough(before);
+    }
+
+    /// Call immediately before an external effect (see `Durability`). Tests
+    /// fail if an uncovered deferred write reaches an effect, proving each
+    /// deferral has its covering sync; production pays any debt instead.
+    pub fn effectGate(self: *Database) !void {
+        if (@import("builtin").is_test and thread_debt.database == self and thread_debt.sequence > self.synced.load(.acquire)) return error.UnsyncedWriteBeforeEffect;
+        try self.ensureDurable();
     }
 
     pub fn batch(self: *Database) !Batch {
@@ -233,6 +296,19 @@ pub const Batch = struct {
         return self.commitWithSync(false);
     }
 
+    /// `.sync` is `commitSync`. `.deferred` is a WAL write whose caller owes
+    /// a covering synced commit before any external effect (see
+    /// `Durability`); on a sync=false database it is the plain unsynced
+    /// commit and creates no debt.
+    pub fn commitWith(self: *Batch, durability: Durability) !void {
+        if (durability == .sync) return self.commitSync();
+        if (!self.database.sync) return self.commit();
+        try self.commitWithSync(false);
+        const sequence = self.database.sequence();
+        _ = self.database.owed.fetchMax(sequence, .acq_rel);
+        if (@import("builtin").is_test) thread_debt = .{ .database = self.database, .sequence = sequence };
+    }
+
     fn commitWithSync(self: *Batch, sync: bool) !void {
         const handle = self.handle orelse return error.ClosedBatch;
         const options = c.rocksdb_writeoptions_create() orelse return error.NativeAllocation;
@@ -240,8 +316,10 @@ pub const Batch = struct {
         c.rocksdb_writeoptions_set_sync(options, @intFromBool(sync));
         c.rocksdb_writeoptions_disable_WAL(options, 0);
         var native_error: ?[*:0]u8 = null;
+        const before = self.database.sequence();
         c.rocksdb_write(self.database.handle, options, handle, &native_error);
         try check(native_error, self.database.diagnostic);
+        if (sync) self.database.coveredThrough(before);
         sync_stats.record(if (sync) .synced_write else .write, @returnAddress());
         self.deinit();
     }
@@ -251,8 +329,10 @@ pub const Batch = struct {
     pub fn commit(self: *Batch) !void {
         const handle = self.handle orelse return error.ClosedBatch;
         var native_error: ?[*:0]u8 = null;
+        const before = self.database.sequence();
         c.rocksdb_write(self.database.handle, self.database.write_options, handle, &native_error);
         try check(native_error, self.database.diagnostic);
+        if (self.database.sync) self.database.coveredThrough(before);
         sync_stats.record(if (self.database.sync) .synced_write else .write, @returnAddress());
         self.deinit();
     }
@@ -431,5 +511,9 @@ pub const TypedBatch = struct {
 
     pub fn commit(self: *TypedBatch) !void {
         try self.batch.commit();
+    }
+
+    pub fn commitWith(self: *TypedBatch, durability: Durability) !void {
+        try self.batch.commitWith(durability);
     }
 };
