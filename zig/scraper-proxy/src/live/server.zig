@@ -207,6 +207,10 @@ pub const SendJob = struct {
         waiter: *Waiter,
         explorer_drain,
         diagnostics: diagnostics.stream.Completion,
+        /// An awaited send whose continuation is a callback (no task waits):
+        /// written whole at once, the sender continues itself (`.written`);
+        /// otherwise `func` runs as the write callback's continuation.
+        resumable: *Resumable,
     };
 
     /// ws wrote the frame (or failed it). Only recorded: live applies the
@@ -221,6 +225,11 @@ pub const SendJob = struct {
 };
 
 const Completed = struct { job: *SendJob, ok: bool };
+
+/// `SendJob.Kind.resumable`'s continuation (a `.run` handoff: never blocks).
+pub const Resumable = struct {
+    func: *const fn (self: *Resumable, ok: bool) void,
+};
 
 /// One Node write request: a frame written alone, or the frames buffered
 /// while the one before was in flight (written together, one writev).
@@ -518,6 +527,20 @@ pub const Server = struct {
     listener_attempt: u64 = 0,
     /// Write callbacks of frames written inline, run at the end of the turn.
     deferred: std.ArrayList(Deferred) = .empty,
+    /// Subscribes run as continuations, their database reads through
+    /// `Db.query_async`: no worker waits for one (`-Dlive-fiber-queries`;
+    /// tests set it).
+    async_subscribes: bool = runtime.fiber_queries,
+    /// `query_async` reads whose `done` has not finished (`stop` waits for
+    /// none: `done` touches the pool). Own lock: `done` never takes live's.
+    async_mutex: std.Thread.Mutex = .{},
+    async_outstanding: usize = 0,
+    async_idle: std.Thread.Condition = .{},
+    /// Finished reads awaiting their continuation (`async_mutex`), run in
+    /// completion order by one task (`drainReads`): a burst of completions
+    /// costs one worker, and no continuation ever waits.
+    finished_reads: std.ArrayList(*AsyncWork) = .empty,
+    reads_draining: bool = false,
     /// `confirmationRevision`: bumped by every indexed-height rollback, so a
     /// subscribe never reuses a heads snapshot from an earlier ancestry.
     confirmation_revision: u64 = 0,
@@ -591,6 +614,7 @@ pub const Server = struct {
         self.head_ranges.deinit(a);
         self.head_failures.deinit(a);
         self.deferred.deinit(a);
+        self.finished_reads.deinit(a);
         self.flush_payloads.deinit(a);
         self.corked.deinit(a);
         self.flush_jobs.deinit(a);
@@ -723,7 +747,7 @@ pub const Server = struct {
                     resumeWaiter(self.loop, waiter, ok);
                 },
                 // The job (and its peer reference) goes to the continuation.
-                .explorer_drain, .diagnostics => self.loop.handOff(.{ .run = .{ .ctx = job, .func = continueSend } }),
+                .explorer_drain, .diagnostics, .resumable => self.loop.handOff(.{ .run = .{ .ctx = job, .func = continueSend } }),
             }
         }
     }
@@ -751,6 +775,7 @@ pub const Server = struct {
                 peer.explorer.sending = false;
             },
             .diagnostics => |done| done.complete(ok),
+            .resumable => |r| r.func(r, ok),
             .none, .waiter => unreachable,
         }
     }
@@ -803,6 +828,11 @@ pub const Server = struct {
         self.loop.lock();
         self.closeClients("Server stopping", 1001);
         self.loop.unlock();
+        // In-flight `query_async` reads finish (their continuations then see
+        // closed clients and run in `Pool.deinit`).
+        self.async_mutex.lock();
+        while (self.async_outstanding > 0) self.async_idle.wait(&self.async_mutex);
+        self.async_mutex.unlock();
         self.logHoldTimes();
     }
 
@@ -959,8 +989,128 @@ pub const Server = struct {
         if (!blocks and custom == null) {
             // No reads: finish synchronously like the TS async function.
             self.finishExplorer(peer, setup);
+        } else if (self.async_subscribes and self.store.db.query_async != null) {
+            self.explorerAsync(peer, setup);
         } else self.loop.spawn(finishExplorer, .{ self, peer, setup });
         return peer;
+    }
+
+    // -- Explorer setup as continuations (`async_subscribes`) ------------------
+
+    /// `connectExplorer` after its synchronous prefix, without a task: the
+    /// block heads and heads snapshot reads go through `query_async`.
+    const ExplorerFlow = struct {
+        peer: *Peer,
+        setup: *ExplorerSetup,
+        stream: ?*ConfirmationStream = null,
+        /// `stream.initialize`'s revision for the read in flight.
+        revision: u64 = 0,
+        work: AsyncWork = undefined,
+    };
+
+    fn explorerAsync(self: *Server, peer: *Peer, setup: *ExplorerSetup) void {
+        const flow = self.allocator.create(ExplorerFlow) catch oom();
+        flow.* = .{ .peer = peer, .setup = setup };
+        if (setup.blocks) {
+            const domains = if (peer.blocks) |b| b.domains else null;
+            return self.issueExplorerRead(flow, es.EventStore.blockHeadsQuery, domains, runExplorerBlocks);
+        }
+        self.explorerStream(flow);
+    }
+
+    fn issueExplorerRead(
+        self: *Server,
+        flow: *ExplorerFlow,
+        comptime statementOf: anytype,
+        domains: anytype,
+        run: *const fn (self: *Server, work: *AsyncWork) void,
+    ) void {
+        flow.work = .{ .query = self.newQuery(), .run = run };
+        const statement = statementOf(flow.work.query.arena.allocator(), domains) catch oom();
+        flow.work.query.sql = statement.sql;
+        flow.work.query.params = statement.params;
+        self.issueRead(&flow.work);
+    }
+
+    fn endExplorer(self: *Server, flow: *ExplorerFlow) void {
+        if (flow.stream) |stream| stream.release();
+        if (flow.setup.custom) |c| self.allocator.free(c.domains);
+        self.allocator.destroy(flow.setup);
+        flow.peer.release();
+        self.allocator.destroy(flow);
+    }
+
+    /// `await this.subscribeBlocks(...)` resumed.
+    fn runExplorerBlocks(self: *Server, work: *AsyncWork) void {
+        const flow: *ExplorerFlow = @alignCast(@fieldParentPtr("work", work));
+        // Taken over: the flow may issue its next read (or end) below.
+        var query = flow.work.query;
+        defer query.deinit();
+        if (query.failure()) |err| {
+            self.failSocket(flow.peer, errorMessage(err));
+            return self.endExplorer(flow);
+        }
+        self.applyBlockRows(flow.peer, query.rows) catch |err| {
+            self.failSocket(flow.peer, errorMessage(err));
+            return self.endExplorer(flow);
+        };
+        self.explorerStream(flow);
+    }
+
+    /// `createConfirmationStream(socket, confirmations, domains)` up to its read.
+    fn explorerStream(self: *Server, flow: *ExplorerFlow) void {
+        const peer = flow.peer;
+        const c = flow.setup.custom orelse return self.explorerReady(flow);
+        // The confirmation drain is synchronous: this flush never waits.
+        std.debug.assert(!self.confirmation_updates.running);
+        self.confirmation_updates.flush();
+        if (!peer.in_clients and !peer.in_explorer) return self.explorerReady(flow);
+        const stream = self.newConfirmationStream(peer, c.confirmations, c.domains, null);
+        stream.retain(); // the flow's
+        flow.stream = stream;
+        self.explorerHeads(flow);
+    }
+
+    /// `initialize`'s loop head.
+    fn explorerHeads(self: *Server, flow: *ExplorerFlow) void {
+        const stream = flow.stream.?;
+        flow.revision = stream.initializeRead() orelse return self.explorerReady(flow);
+        self.issueExplorerRead(flow, explorerHeadsQuery, stream.domains, runExplorerHeads);
+    }
+
+    fn explorerHeadsQuery(arena: Allocator, domains: []const u32) Allocator.Error!es.EventStore.Statement {
+        return es.EventStore.confirmationHeadsQuery(arena, domains, null);
+    }
+
+    fn runExplorerHeads(self: *Server, work: *AsyncWork) void {
+        const flow: *ExplorerFlow = @alignCast(@fieldParentPtr("work", work));
+        const peer = flow.peer;
+        const stream = flow.stream.?;
+        // Taken over: the flow may issue its next read (or end) below.
+        var query = flow.work.query;
+        defer query.deinit();
+        const outcome: ?anyerror = blk: {
+            if (query.failure()) |err| break :blk err;
+            var heads = es.EventStore.parseConfirmationHeads(self.allocator, query.rows) catch |err| break :blk err;
+            defer heads.deinit(self.allocator);
+            const done = stream.initializeWith(flow.revision, &heads, true) catch |err| break :blk err;
+            if (!done) return self.explorerHeads(flow); // ancestry changed: read again
+            break :blk null;
+        };
+        if (outcome) |err| {
+            if (err == error.ConfirmationUnavailable) {
+                var buffer: [96]u8 = undefined;
+                self.rejectNegotiation(peer, unavailableMessage(&buffer, stream.unavailable_domain));
+            } else self.failSocket(peer, errorMessage(err));
+            return self.endExplorer(flow);
+        }
+        self.explorerReady(flow);
+    }
+
+    /// `finishExplorer` after its reads.
+    fn explorerReady(self: *Server, flow: *ExplorerFlow) void {
+        defer self.endExplorer(flow);
+        self.completeExplorer(flow.peer, flow.setup, flow.stream);
     }
 
     const ExplorerSetup = struct {
@@ -992,6 +1142,11 @@ pub const Server = struct {
                 return self.failSocket(peer, errorMessage(err));
             };
         }
+        self.completeExplorer(peer, setup, stream);
+    }
+
+    /// `connectExplorer` after its reads: `ready`, start, diagnostics.
+    fn completeExplorer(self: *Server, peer: *Peer, setup: *ExplorerSetup, stream: ?*ConfirmationStream) void {
         // Initialization awaits DB reads; the peer may already have disconnected.
         // (Streams registered meanwhile hold peer references: drop them.)
         if (!peer.in_explorer) return self.dropStreams(peer);
@@ -1208,6 +1363,13 @@ pub const Server = struct {
             self.sendError(peer, "Already subscribed");
             return;
         }
+        const async_subscribe = self.async_subscribes and self.store.db.query_async != null;
+        if (async_subscribe and canonicalOnly(streams)) {
+            // `await Promise.all([])` is a microtask: TS runs on to the
+            // boundary read before anything else; nothing here may wait.
+            self.subscribeCanonical(peer, streams);
+            return;
+        }
         client.subscribing = true;
         for (streams) |request| {
             // Register before the snapshot: notifications received during the
@@ -1217,6 +1379,7 @@ pub const Server = struct {
         const job = self.allocator.create(SubscribeJob) catch oom();
         job.* = .{ .arena = arena, .streams = streams };
         arena_owned = false;
+        if (async_subscribe) return self.subscribeAsync(peer, job);
         peer.retain();
         self.loop.spawn(subscribe, .{ self, peer, job });
     }
@@ -1247,6 +1410,18 @@ pub const Server = struct {
         /// The subscribe task awaiting the outcome (`Promise.all`); resumed
         /// through the handoff queue, before anything else takes the mutex.
         waiter: ?*Waiter = null,
+        // Continuations (`async_subscribes`): no task; the flow holds a reference.
+        async_flow: bool = false,
+        peer: ?*Peer = null,
+        /// Custom streams created (retained), in request order.
+        custom: std.ArrayList(CustomStream) = .empty,
+        /// `Promise.all` settled and its continuation ran (once).
+        settled: bool = false,
+        /// The custom live starts: next stream and domain index.
+        next_custom: usize = 0,
+        next_domain: usize = 0,
+        frame: std.ArrayList(u8) = .empty,
+        resumable: Resumable = .{ .func = resumeCustomLiveStarts },
     };
 
     /// `stream.initialize(readHeads, allowUnavailable)` in progress.
@@ -1275,12 +1450,19 @@ pub const Server = struct {
         err: anyerror = error.Failed,
         message: [256]u8 = undefined,
         message_len: usize = 0,
+        /// `async_subscribes`: its read.
+        work: AsyncWork = undefined,
+        job: *SubscribeJob = undefined,
     };
 
     fn releaseJob(self: *Server, job: *SubscribeJob) void {
         job.refs -= 1;
         if (job.refs > 0) return;
         for (job.inits) |init| init.stream.release();
+        for (job.custom.items) |entry| entry.stream.release();
+        job.custom.deinit(self.allocator);
+        job.frame.deinit(self.allocator);
+        if (job.peer) |peer| peer.release();
         for (job.snapshots.items) |snapshot| {
             snapshot.heads.deinit(self.allocator);
             self.allocator.free(snapshot.domains);
@@ -1316,7 +1498,14 @@ pub const Server = struct {
         };
         job.snapshots.append(self.allocator, snapshot) catch oom();
         job.refs += 1;
-        self.loop.spawn(readSnapshot, .{ self, job, snapshot });
+        if (job.async_flow) {
+            snapshot.job = job;
+            snapshot.work = .{ .query = self.newQuery(), .run = runSnapshotRead };
+            const statement = es.EventStore.confirmationHeadsQuery(snapshot.work.query.arena.allocator(), snapshot.query_domains, confirmations) catch oom();
+            snapshot.work.query.sql = statement.sql;
+            snapshot.work.query.params = statement.params;
+            self.issueRead(&snapshot.work);
+        } else self.loop.spawn(readSnapshot, .{ self, job, snapshot });
         return snapshot;
     }
 
@@ -1374,6 +1563,8 @@ pub const Server = struct {
                 if (err == error.ConfirmationUnavailable) job.unavailable_domain = init.stream.unavailable_domain;
             }
         } else self.warnCanonicalDomains(init.stream, init.event_type);
+        // Continuations: settled by the caller once its reactions ran.
+        if (job.async_flow) return;
         // `await Promise.all(...)` resumes once every stream finished or one failed.
         if (job.initializing > 0 and job.failure == null) return;
         const waiter = job.waiter orelse return;
@@ -1382,6 +1573,192 @@ pub const Server = struct {
     }
 
     const CustomStream = struct { event_type: EventType, stream: *ConfirmationStream };
+
+    // -- subscribes as continuations (`async_subscribes`) ---------------------
+    //
+    // `onMessage` with blocks or custom streams, without a task: each await
+    // (block heads, heads snapshots, awaited live starts, the boundary read)
+    // is a `query_async` read or a resumable send whose continuation runs
+    // the next step; no step waits. The flow holds one job reference.
+
+    /// The synchronous prefix (mutex held, on the ws thread): never waits.
+    fn subscribeAsync(self: *Server, peer: *Peer, job: *SubscribeJob) void {
+        job.async_flow = true;
+        job.peer = peer;
+        peer.retain();
+        if (peer.blocks) |subscription| {
+            const read = self.allocator.create(BlocksRead) catch oom();
+            read.* = .{ .job = job, .work = .{ .query = self.newQuery(), .run = runBlocksRead } };
+            job.refs += 1;
+            const statement = es.EventStore.blockHeadsQuery(read.work.query.arena.allocator(), subscription.domains) catch oom();
+            read.work.query.sql = statement.sql;
+            read.work.query.params = statement.params;
+            return self.issueRead(&read.work);
+        }
+        self.subscribeStreamsAsync(job);
+    }
+
+    const BlocksRead = struct { job: *SubscribeJob, work: AsyncWork };
+
+    /// `await this.subscribeBlocks(...)` resumed.
+    fn runBlocksRead(self: *Server, work: *AsyncWork) void {
+        const read: *BlocksRead = @alignCast(@fieldParentPtr("work", work));
+        const job = read.job;
+        defer {
+            read.work.query.deinit();
+            self.allocator.destroy(read);
+            self.releaseJob(job);
+        }
+        const peer = job.peer.?;
+        if (read.work.query.failure()) |err| {
+            self.failSocket(peer, errorMessage(err));
+            return self.releaseJob(job); // the flow ends
+        }
+        self.applyBlockRows(peer, read.work.query.rows) catch |err| {
+            self.failSocket(peer, errorMessage(err));
+            return self.releaseJob(job);
+        };
+        self.subscribeStreamsAsync(job);
+    }
+
+    /// The concurrent `createConfirmationStream` calls: register every
+    /// stream's heads read, settle once they resolved.
+    fn subscribeStreamsAsync(self: *Server, job: *SubscribeJob) void {
+        const peer = job.peer.?;
+        const Spec = struct { event_type: EventType, confirmations: u64, domains: []const u32, allow_unavailable: bool };
+        var specs: std.ArrayList(Spec) = .empty;
+        defer specs.deinit(self.allocator);
+        for (job.streams) |request| {
+            const event_type = request.kind.eventType() orelse continue;
+            const domains = request.domains orelse continue;
+            if (request.confirmations) |confirmations|
+                specs.append(self.allocator, .{ .event_type = event_type, .confirmations = confirmations, .domains = domains, .allow_unavailable = false }) catch oom();
+            if (request.include_zero_confirmations == true and request.confirmations != 0)
+                specs.append(self.allocator, .{ .event_type = event_type, .confirmations = 0, .domains = domains, .allow_unavailable = true }) catch oom();
+        }
+        if (specs.items.len == 0) return self.subscribeSettled(job);
+        // The confirmation drain is synchronous (never waits): this flush
+        // runs it now, as the first `flush()` of TS's burst.
+        std.debug.assert(!self.confirmation_updates.running);
+        self.confirmation_updates.flush();
+        if (!peer.in_clients and !peer.in_explorer) return self.subscribeSettled(job);
+        const inits = job.arena.allocator().alloc(StreamInit, specs.items.len) catch oom();
+        for (specs.items, inits) |spec, *init| {
+            const stream = self.newConfirmationStream(peer, spec.confirmations, spec.domains, spec.event_type);
+            stream.retain(); // `job.custom`
+            job.custom.append(self.allocator, .{ .event_type = spec.event_type, .stream = stream }) catch oom();
+            stream.retain(); // `job.inits`
+            init.* = .{ .stream = stream, .event_type = spec.event_type, .allow_unavailable = spec.allow_unavailable };
+        }
+        job.inits = inits;
+        job.initializing = inits.len;
+        for (inits) |*init| self.startInit(job, init);
+        self.settleIfReady(job);
+    }
+
+    /// A heads snapshot resolved: its reactions, then `Promise.all`'s
+    /// continuation if this settled it.
+    fn runSnapshotRead(self: *Server, work: *AsyncWork) void {
+        const snapshot: *HeadsSnapshot = @alignCast(@fieldParentPtr("work", work));
+        const job = snapshot.job;
+        defer {
+            snapshot.work.query.deinit();
+            self.releaseJob(job);
+        }
+        if (snapshot.work.query.failure()) |err| {
+            snapshot.err = err;
+            snapshot.message_len = snapshot.work.query.message_len;
+            @memcpy(snapshot.message[0..snapshot.message_len], snapshot.work.query.message[0..snapshot.message_len]);
+            snapshot.state = .failed;
+        } else if (es.EventStore.parseConfirmationHeads(self.allocator, snapshot.work.query.rows)) |heads| {
+            snapshot.heads = heads;
+            snapshot.state = .ok;
+        } else |err| {
+            const message = errorMessage(err);
+            snapshot.message_len = @min(message.len, snapshot.message.len);
+            @memcpy(snapshot.message[0..snapshot.message_len], message[0..snapshot.message_len]);
+            snapshot.err = err;
+            snapshot.state = .failed;
+        }
+        for (job.inits) |*init| {
+            if (init.done or init.waiting != snapshot) continue;
+            init.waiting = null;
+            self.continueInit(job, init, snapshot);
+        }
+        self.settleIfReady(job);
+    }
+
+    fn settleIfReady(self: *Server, job: *SubscribeJob) void {
+        if (job.settled or (job.initializing > 0 and job.failure == null)) return;
+        self.subscribeSettled(job);
+    }
+
+    /// `onMessage` after `await Promise.all(...)`.
+    fn subscribeSettled(self: *Server, job: *SubscribeJob) void {
+        job.settled = true;
+        const peer = job.peer.?;
+        if (job.failure) |err| {
+            if (err == error.ConfirmationUnavailable) {
+                var buffer: [96]u8 = undefined;
+                self.rejectNegotiation(peer, unavailableMessage(&buffer, job.unavailable_domain));
+            } else {
+                // The message was recorded on the thread that failed.
+                const recorded = if (err == error.Failed) runtime.fail("{s}", .{job.failure_message[0..job.failure_len]}) else err;
+                self.failSocket(peer, errorMessage(recorded));
+            }
+            return self.releaseJob(job);
+        }
+        if (!peer.in_clients) {
+            self.dropStreams(peer);
+            return self.releaseJob(job);
+        }
+        self.acknowledge(peer, job.streams);
+        if (peer.streams) |streams| {
+            // `forEach(stream => stream.start())` over a snapshot.
+            const snapshot = self.allocator.dupe(*ConfirmationStream, streams.items) catch oom();
+            defer self.allocator.free(snapshot);
+            for (snapshot) |stream| stream.retain();
+            for (snapshot) |stream| stream.start();
+            for (snapshot) |stream| stream.release();
+        }
+        self.startBlocks(peer);
+        self.continueCustomLiveStarts(job);
+    }
+
+    /// The custom live starts (each awaited), then the canonical read.
+    fn continueCustomLiveStarts(self: *Server, job: *SubscribeJob) void {
+        const peer = job.peer.?;
+        while (job.next_custom < job.custom.items.len) {
+            const entry = job.custom.items[job.next_custom];
+            if (job.next_domain >= entry.stream.domains.len) {
+                job.next_custom += 1;
+                job.next_domain = 0;
+                continue;
+            }
+            const domain = entry.stream.domains[job.next_domain];
+            job.next_domain += 1;
+            // `sendLiveStart`: false once the client is gone.
+            if (!peer.in_clients) return self.releaseJob(job);
+            job.frame.clearRetainingCapacity();
+            var out: std.Io.Writer.Allocating = .fromArrayList(self.allocator, &job.frame);
+            writeLiveStart(&out.writer, domain, &[_]EventType{entry.event_type}, entry.stream.liveStart(domain), entry.stream.confirmations) catch oom();
+            job.frame = out.toArrayList();
+            switch (self.sendFrame(peer, job.frame.items, .{ .resumable = &job.resumable })) {
+                .failed => return self.releaseJob(job),
+                .written => continue,
+                .queued => return, // `resumeCustomLiveStarts`
+            }
+        }
+        self.startCanonicalRead(peer, job.streams);
+        self.releaseJob(job);
+    }
+
+    fn resumeCustomLiveStarts(resumable: *Resumable, ok: bool) void {
+        const job: *SubscribeJob = @alignCast(@fieldParentPtr("resumable", resumable));
+        const self = job.peer.?.server;
+        if (!ok) return self.releaseJob(job);
+        self.continueCustomLiveStarts(job);
+    }
 
     /// `onMessage` after its first await.
     fn subscribe(self: *Server, peer: *Peer, job: *SubscribeJob) void {
@@ -1400,20 +1777,7 @@ pub const Server = struct {
             return;
         };
         if (!peer.in_clients) return self.dropStreams(peer);
-        const client = &peer.agent;
-        for (job.streams) |request| {
-            const event_type = request.kind.eventType() orelse continue;
-            if (client.subscriptions.get(event_type)) |previous| if (previous.domains) |domains| self.allocator.free(domains);
-            client.subscriptions.set(event_type, .{
-                .confirmations = request.confirmations,
-                .domains = if (request.domains) |domains| self.allocator.dupe(u32, domains) catch oom() else null,
-            });
-        }
-        client.subscribing = false;
-        var out: std.Io.Writer.Allocating = .init(self.allocator);
-        defer out.deinit();
-        writeSubscribed(&out.writer, job.streams) catch oom();
-        _ = self.send(peer, out.written());
+        self.acknowledge(peer, job.streams);
         if (peer.streams) |streams| {
             // `forEach(stream => stream.start())` over a snapshot.
             const snapshot = self.allocator.dupe(*ConfirmationStream, streams.items) catch oom();
@@ -1429,6 +1793,221 @@ pub const Server = struct {
             }
         }
         self.sendLiveStarts(peer, job.streams) catch |err| self.failSocket(peer, errorMessage(err));
+    }
+
+    /// `client.subscriptions.set(...)` for every event stream, then `subscribed`.
+    fn acknowledge(self: *Server, peer: *Peer, streams: []const protocol.StreamRequest) void {
+        const client = &peer.agent;
+        for (streams) |request| {
+            const event_type = request.kind.eventType() orelse continue;
+            if (client.subscriptions.get(event_type)) |previous| if (previous.domains) |domains| self.allocator.free(domains);
+            client.subscriptions.set(event_type, .{
+                .confirmations = request.confirmations,
+                .domains = if (request.domains) |domains| self.allocator.dupe(u32, domains) catch oom() else null,
+            });
+        }
+        client.subscribing = false;
+        var out: std.Io.Writer.Allocating = .init(self.allocator);
+        defer out.deinit();
+        writeSubscribed(&out.writer, streams) catch oom();
+        _ = self.send(peer, out.written());
+    }
+
+    /// No `blocks` stream and no custom confirmations: nothing to await
+    /// before the canonical boundary read.
+    fn canonicalOnly(streams: []const protocol.StreamRequest) bool {
+        for (streams) |request| {
+            if (request.kind == .blocks or request.confirmations != null or request.include_zero_confirmations == true) return false;
+        }
+        return true;
+    }
+
+    /// A canonical-only `onMessage` after its microtask: acknowledge, then
+    /// issue the boundary read; its continuation sends the live starts.
+    /// Mutex held; never waits.
+    fn subscribeCanonical(self: *Server, peer: *Peer, streams: []const protocol.StreamRequest) void {
+        self.acknowledge(peer, streams);
+        self.startCanonicalRead(peer, streams);
+    }
+
+    /// `sendLiveStarts` up to its boundary read; `finishCanonical` goes on.
+    fn startCanonicalRead(self: *Server, peer: *Peer, streams: []const protocol.StreamRequest) void {
+        var plan = CanonicalPlan.init(self.allocator, streams) orelse return;
+        if (self.stopped) return plan.deinit();
+        const job = self.allocator.create(CanonicalRead) catch oom();
+        job.* = .{ .server = self, .peer = peer, .plan = plan, .work = .{ .query = self.newQuery(), .run = runCanonicalRead } };
+        peer.retain();
+        const statement = es.EventStore.liveStartBoundariesQuery(job.work.query.arena.allocator(), plan.domainFilter()) catch oom();
+        job.work.query.sql = statement.sql;
+        job.work.query.params = statement.params;
+        self.issueRead(&job.work);
+    }
+
+    fn newQuery(self: *Server) es.AsyncQuery {
+        var query = es.AsyncQuery.init(self.allocator, asyncReadDone);
+        query.owner = self;
+        return query;
+    }
+
+    const CanonicalRead = struct {
+        server: *Server,
+        peer: *Peer,
+        plan: CanonicalPlan,
+        work: AsyncWork,
+        // The live starts (after the read): `sendLiveStarts`' loop as a
+        // state machine whose awaited sends resume through `resumable`.
+        boundaries: es.EventStore.Boundaries = .empty,
+        requested: std.ArrayList(u32) = .empty,
+        next: usize = 0,
+        frame: std.ArrayList(u8) = .empty,
+        resumable: Resumable = .{ .func = resumeLiveStarts },
+
+        fn destroy(self: *CanonicalRead) void {
+            const server = self.server;
+            const a = server.allocator;
+            self.boundaries.deinit(a);
+            self.requested.deinit(a);
+            self.frame.deinit(a);
+            self.work.query.deinit();
+            self.plan.deinit();
+            self.peer.release();
+            a.destroy(self);
+        }
+    };
+
+    /// A `query_async` read and the continuation that consumes it.
+    const AsyncWork = struct {
+        query: es.AsyncQuery,
+        run: *const fn (self: *Server, work: *AsyncWork) void,
+    };
+
+    /// Mutex held. After `stop` no query starts: the read fails at once and
+    /// its continuation still runs (so its flow releases what it holds).
+    fn issueRead(self: *Server, work: *AsyncWork) void {
+        if (self.stopped) {
+            // Straight into the query: this thread's error buffer may hold a
+            // message a caller up the stack (a reaction loop) still reads.
+            const message = "Server stopping";
+            work.query.err = error.Failed;
+            @memcpy(work.query.message[0..message.len], message);
+            work.query.message_len = message.len;
+            self.async_mutex.lock();
+            defer self.async_mutex.unlock();
+            self.queueFinished(work);
+            return;
+        }
+        self.async_mutex.lock();
+        self.async_outstanding += 1;
+        self.async_mutex.unlock();
+        self.store.db.query_async.?(self.store.db.ctx, &work.query);
+    }
+
+    /// `async_mutex` held: `work`'s continuation joins the drain.
+    fn queueFinished(self: *Server, work: *AsyncWork) void {
+        self.finished_reads.append(self.allocator, work) catch oom();
+        if (!self.reads_draining) {
+            self.reads_draining = true;
+            self.loop.spawn(drainReads, .{self});
+        }
+    }
+
+    /// Any thread, without live's mutex: queue the continuation (TS's
+    /// `await queryLive` resumes as a macrotask).
+    fn asyncReadDone(query: *es.AsyncQuery) void {
+        const work: *AsyncWork = @alignCast(@fieldParentPtr("query", query));
+        const self = serverOfRead(work);
+        // One critical section; the pool's mutex (`spawn`) nests inside it
+        // (the pool never takes `async_mutex`). The unlock is the last access
+        // to the server: `stop` returns only after it.
+        self.async_mutex.lock();
+        self.queueFinished(work);
+        self.async_outstanding -= 1;
+        if (self.async_outstanding == 0) self.async_idle.broadcast();
+        self.async_mutex.unlock();
+    }
+
+    /// The server a read belongs to (its `query.backend` is the db's).
+    fn serverOfRead(work: *AsyncWork) *Server {
+        return @ptrCast(@alignCast(work.query.owner));
+    }
+
+    /// The finished reads' continuations, in completion order. None waits.
+    /// Each runs in a turn of its own (TS: one macrotask per pg result), so
+    /// turn-end work (write callbacks, corks) and other lockers run between
+    /// them; it is still one worker.
+    fn drainReads(self: *Server) void {
+        var first = true;
+        while (true) {
+            if (!first) {
+                self.loop.unlock();
+                self.loop.lock();
+            }
+            first = false;
+            self.async_mutex.lock();
+            if (self.finished_reads.items.len == 0) {
+                self.reads_draining = false;
+                self.async_mutex.unlock();
+                return;
+            }
+            const work = self.finished_reads.orderedRemove(0);
+            self.async_mutex.unlock();
+            work.run(self, work);
+        }
+    }
+
+    fn runCanonicalRead(self: *Server, work: *AsyncWork) void {
+        self.finishCanonical(@alignCast(@fieldParentPtr("work", work)));
+    }
+
+    fn finishCanonical(self: *Server, job: *CanonicalRead) void {
+        if (job.work.query.failure()) |err| {
+            self.failSocket(job.peer, errorMessage(err));
+            return job.destroy();
+        }
+        job.boundaries = self.store.parseLiveStartBoundaries(job.work.query.rows) catch |err| {
+            self.failSocket(job.peer, errorMessage(err));
+            return job.destroy();
+        };
+        // `new Set([...boundaries.keys(), ...requested domains])`.
+        job.requested.appendSlice(self.allocator, job.boundaries.keys()) catch oom();
+        for (job.plan.requested_domains) |domain| if (std.mem.indexOfScalar(u32, job.requested.items, domain) == null)
+            job.requested.append(self.allocator, domain) catch oom();
+        self.continueLiveStarts(job);
+    }
+
+    /// `for (domain of requested) if (!(await sendLiveStart(...))) return`.
+    fn continueLiveStarts(self: *Server, job: *CanonicalRead) void {
+        while (job.next < job.requested.items.len) {
+            const domain = job.requested.items[job.next];
+            job.next += 1;
+            // `sendLiveStart`: false once the client is gone.
+            if (!job.peer.in_clients) break;
+            var event_types: [EventType.all.len]EventType = undefined;
+            var count: usize = 0;
+            for (job.plan.streams) |stream| {
+                if (stream.hasDomain(domain)) {
+                    event_types[count] = stream.kind.eventType().?;
+                    count += 1;
+                }
+            }
+            job.frame.clearRetainingCapacity();
+            var out: std.Io.Writer.Allocating = .fromArrayList(self.allocator, &job.frame);
+            writeLiveStart(&out.writer, domain, event_types[0..count], job.boundaries.get(domain), null) catch oom();
+            job.frame = out.toArrayList();
+            switch (self.sendFrame(job.peer, job.frame.items, .{ .resumable = &job.resumable })) {
+                .failed => break,
+                .written => continue,
+                // Resumes in `resumeLiveStarts` (the frame stays alive meanwhile).
+                .queued => return,
+            }
+        }
+        job.destroy();
+    }
+
+    fn resumeLiveStarts(resumable: *Resumable, ok: bool) void {
+        const job: *CanonicalRead = @alignCast(@fieldParentPtr("resumable", resumable));
+        if (!ok) return job.destroy();
+        job.server.continueLiveStarts(job);
     }
 
     /// `subscribeBlocks` and the concurrent `createConfirmationStream` calls.
@@ -1481,39 +2060,72 @@ pub const Server = struct {
         }
     }
 
+    /// `sendLiveStarts`' streams and domains (its prefix). Owns copies.
+    const CanonicalPlan = struct {
+        arena: std.heap.ArenaAllocator,
+        streams: []const protocol.StreamRequest,
+        /// The canonical streams' domains, first occurrence order.
+        requested_domains: []const u32,
+        every_stream_has_domains: bool,
+
+        /// Null without a canonical stream.
+        fn init(gpa: Allocator, requests: []const protocol.StreamRequest) ?CanonicalPlan {
+            var arena = std.heap.ArenaAllocator.init(gpa);
+            const a = arena.allocator();
+            var streams: std.ArrayList(protocol.StreamRequest) = .empty;
+            var requested: std.ArrayList(u32) = .empty;
+            var every = true;
+            for (requests) |request| {
+                if (request.kind == .blocks or request.confirmations != null) continue;
+                var copy = request;
+                if (request.domains) |domains| {
+                    copy.domains = a.dupe(u32, domains) catch oom();
+                    for (domains) |domain| if (std.mem.indexOfScalar(u32, requested.items, domain) == null)
+                        requested.append(a, domain) catch oom();
+                } else every = false;
+                streams.append(a, copy) catch oom();
+            }
+            if (streams.items.len == 0) {
+                arena.deinit();
+                return null;
+            }
+            return .{ .arena = arena, .streams = streams.items, .requested_domains = requested.items, .every_stream_has_domains = every };
+        }
+
+        fn deinit(self: *CanonicalPlan) void {
+            self.arena.deinit();
+        }
+
+        /// `liveStartBoundaries(domains)`: undefined if any stream has none.
+        fn domainFilter(self: *const CanonicalPlan) ?[]const u32 {
+            return if (self.every_stream_has_domains) self.requested_domains else null;
+        }
+    };
+
     /// `sendLiveStarts`: canonical streams start at the confirmed checkpoint
     /// read after their subscriptions were registered.
     fn sendLiveStarts(self: *Server, peer: *Peer, requests: []const protocol.StreamRequest) !void {
+        var plan = CanonicalPlan.init(self.allocator, requests) orelse return;
+        defer plan.deinit();
+        var boundaries = try self.store.liveStartBoundaries(plan.domainFilter());
+        defer boundaries.deinit(self.allocator);
+        self.sendCanonicalLiveStarts(peer, &plan, &boundaries);
+    }
+
+    /// `sendLiveStarts` after its boundary read.
+    fn sendCanonicalLiveStarts(self: *Server, peer: *Peer, plan: *const CanonicalPlan, boundaries: *const es.EventStore.Boundaries) void {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const a = arena.allocator();
-        var streams: std.ArrayList(protocol.StreamRequest) = .empty;
-        for (requests) |request| {
-            if (request.kind == .blocks or request.confirmations != null) continue;
-            streams.append(a, request) catch oom();
-        }
-        if (streams.items.len == 0) return;
-        var requested_domains: std.ArrayList(u32) = .empty;
-        var every_stream_has_domains = true;
-        for (streams.items) |stream| {
-            const domains = stream.domains orelse {
-                every_stream_has_domains = false;
-                continue;
-            };
-            for (domains) |domain| if (std.mem.indexOfScalar(u32, requested_domains.items, domain) == null)
-                requested_domains.append(a, domain) catch oom();
-        }
-        var boundaries = try self.store.liveStartBoundaries(if (every_stream_has_domains) requested_domains.items else null);
-        defer boundaries.deinit(self.allocator);
         // `new Set([...boundaries.keys(), ...requested domains])`.
         var requested: std.ArrayList(u32) = .empty;
         requested.appendSlice(a, boundaries.keys()) catch oom();
-        for (requested_domains.items) |domain| if (std.mem.indexOfScalar(u32, requested.items, domain) == null)
+        for (plan.requested_domains) |domain| if (std.mem.indexOfScalar(u32, requested.items, domain) == null)
             requested.append(a, domain) catch oom();
         var event_types: std.ArrayList(EventType) = .empty;
         for (requested.items) |domain| {
             event_types.clearRetainingCapacity();
-            for (streams.items) |stream| {
+            for (plan.streams) |stream| {
                 if (stream.hasDomain(domain)) event_types.append(a, stream.kind.eventType().?) catch oom();
             }
             if (!self.sendLiveStart(peer, domain, event_types.items, boundaries.get(domain), null)) return;
@@ -1608,8 +2220,14 @@ pub const Server = struct {
         const domains = if (peer.blocks) |b| b.domains else return;
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
+        try self.applyBlockRows(peer, try self.store.blockHeads(arena.allocator(), domains));
+    }
+
+    /// `subscribeBlocks` after its read: the latest head per domain.
+    fn applyBlockRows(self: *Server, peer: *Peer, rows: []const Value) !void {
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
         const a = arena.allocator();
-        const rows = try self.store.blockHeads(a, domains);
         for (rows) |row| {
             var diag: protocol.Diag = .{};
             const domain = protocol.parseDatabaseDomain(row.get("domain"), "", &diag) catch return runtime.fail("Invalid block domain", .{});
@@ -2697,6 +3315,12 @@ pub const Server = struct {
                             _ = self.pending_bytes.fetchSub(bytes.len, .monotonic);
                             peer.release();
                             waiter.finish(true);
+                            return .written;
+                        },
+                        // As `.waiter`: the sender continues at once.
+                        .resumable => {
+                            _ = self.pending_bytes.fetchSub(bytes.len, .monotonic);
+                            peer.release();
                             return .written;
                         },
                         // Node fires the write callback after the current synchronous

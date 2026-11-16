@@ -446,6 +446,19 @@ pub const DbService = struct {
     }
 
     fn run(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure_opt: ?*Failure) Error![]Value {
+        return (try self.runResult(kind, role, arena, sql, params, opts, failure_opt)).rows;
+    }
+
+    /// `query`/`queryReusable` (`plan`) returning libpq's result unconverted
+    /// (`pq.LazyRows`; same pool, timeouts, errors, logs and metrics). The
+    /// caller owns it and must `deinit` it. Null with a test `backend`.
+    pub fn queryLazy(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, plan: pq.Plan, failure: ?*Failure) Error!?*pq.LazyRows {
+        if (self.backend != null) return null;
+        const result = try self.runResult(.main, self.main_role, arena, sql, params, .{ .plan = plan, .lazy = true }, failure);
+        return result.lazy;
+    }
+
+    fn runResult(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure_opt: ?*Failure) Error!root.Result {
         const id = self.next_query_id.fetchAdd(1, .monotonic) + 1;
         const started = self.clock();
         var local_failure: Failure = .{};
@@ -489,7 +502,7 @@ pub const DbService = struct {
 
     /// Metrics, stats and the failed/slow query logs for a finished query
     /// (`id` was assigned when the query started, as in TS).
-    fn report(self: *DbService, id: u64, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, result: Error!root.Result, duration: i64, failure: *Failure) Error![]Value {
+    fn report(self: *DbService, id: u64, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, result: Error!root.Result, duration: i64, failure: *Failure) Error!root.Result {
         const ok = result catch |e| {
             self.record(role, duration, 0, true);
             const message = if (failure.message.len > 0) failure.message else @errorName(e);
@@ -500,7 +513,7 @@ pub const DbService = struct {
         if (duration >= @as(i64, @intCast(self.config.database_slow_query_ms))) {
             self.logger.warn("slow query id={d} role={s} durationMs={d} rows={d} {f}", .{ id, role.label(), duration, ok.row_count, QueryDetails{ .arena = arena, .sql = sql, .params = params } });
         }
-        return ok.rows;
+        return ok;
     }
 
     fn record(self: *DbService, role: Role, duration: i64, rows: usize, failed: bool) void {

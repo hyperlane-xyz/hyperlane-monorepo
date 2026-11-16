@@ -4,6 +4,7 @@
 const std = @import("std");
 const json = @import("core").json;
 const scraperdb = @import("scraperdb");
+const db = @import("db");
 const ast = @import("ast.zig");
 const execute = @import("execute.zig");
 
@@ -12,6 +13,7 @@ const Member = json.Member;
 const Allocator = std.mem.Allocator;
 const Info = execute.Info;
 const ResolveResult = execute.ResolveResult;
+const RawResult = execute.RawResult;
 
 /// Diagnostics boundary (main.zig adapts `diagnostics.Service`). On failure
 /// set `failure.message` (exact TS text) and `failure.code` for GraphQLErrors
@@ -30,7 +32,39 @@ pub const ResolverMap = struct {
     diagnostics: ?Diagnostics = null,
 
     pub fn resolvers(self: *ResolverMap) execute.Resolvers {
-        return .{ .ctx = self, .resolve = resolve, .parent_types = &.{ "query_root", "message_view_aggregate_fields" } };
+        return .{ .ctx = self, .resolve = resolve, .resolve_raw = resolveRaw, .parent_types = &.{ "query_root", "message_view_aggregate_fields" } };
+    }
+
+    /// `resolve`'s table fields with the rows left as libpq's result: the
+    /// same SQL, plan, errors and messages (`scraperdb.resolvers.*Lazy`).
+    /// `message_view` with `confirmations`, and other fields: `.none`.
+    fn resolveRaw(ctx: *anyopaque, a: Allocator, info: *const Info, _: Value, args: Value) Allocator.Error!RawResult {
+        const self: *ResolverMap = @ptrCast(@alignCast(ctx));
+        if (!std.mem.eql(u8, info.parent_type.name, "query_root")) return .none;
+        const field = std.meta.stringToEnum(RootField, info.field_name) orelse return .none;
+        var message: []const u8 = "";
+        switch (field) {
+            .domain, .raw_message_dispatch, .message_view => {
+                const table: scraperdb.Table = switch (field) {
+                    .domain => .domain,
+                    .raw_message_dispatch => .raw_message_dispatch,
+                    else => .message_view,
+                };
+                // `selectMessages` without confirmations is `select` (service.zig).
+                if (field == .message_view and scraperdb.value.present(args.get("confirmations")) != null) return .none;
+                const columns = try selectedColumns(a, info, info.field_nodes);
+                const lazy = scraperdb.resolvers.selectLazy(self.db, a, table, &args, columns, &message) catch |err| return rawFailed(err, message);
+                return .{ .rows = try rawRows(a, lazy orelse return .none) };
+            },
+            .domain_by_pk, .raw_message_dispatch_by_pk => {
+                const table: scraperdb.Table = if (field == .domain_by_pk) .domain else .raw_message_dispatch;
+                const id = args.get("id") orelse Value.null;
+                const columns = try selectedColumns(a, info, info.field_nodes);
+                const lazy = scraperdb.resolvers.byPkLazy(self.db, a, table, &id, columns, &message) catch |err| return rawFailed(err, message);
+                return .{ .row = try rawRows(a, lazy orelse return .none) };
+            },
+            else => return .none,
+        }
     }
 
     fn resolve(ctx: *anyopaque, a: Allocator, info: *const Info, parent: Value, args: Value) Allocator.Error!ResolveResult {
@@ -106,6 +140,51 @@ fn failed(err: anyerror, message: []const u8) Allocator.Error!ResolveResult {
     if (err == error.OutOfMemory) return error.OutOfMemory;
     return .{ .failure = .{ .message = message } };
 }
+
+fn rawFailed(err: anyerror, message: []const u8) Allocator.Error!RawResult {
+    if (err == error.OutOfMemory) return error.OutOfMemory;
+    return .{ .failure = .{ .message = message } };
+}
+
+/// `lazy` as the executor's `RawRows` (which then owns it: on error here it
+/// is released).
+pub fn rawRows(a: Allocator, lazy: *db.LazyRows) Allocator.Error!execute.RawRows {
+    errdefer lazy.deinit();
+    const columns = try a.alloc(execute.RawColumn, lazy.columns.len);
+    for (columns, lazy.columns) |*out, c| out.* = .{ .name = c.name, .kind = switch (c.kind) {
+        .number => .number_text,
+        .string => .string_text,
+        .boolean => .bool_tf,
+        .none => null,
+    } };
+    return .{
+        .ctx = lazy,
+        .n_rows = lazy.rows,
+        .columns = columns,
+        .cell_fn = LazyAdapter.cell,
+        .materialize_fn = LazyAdapter.materialize,
+        .write_cell_fn = LazyAdapter.writeCell,
+        .deinit_fn = LazyAdapter.deinit,
+    };
+}
+
+const LazyAdapter = struct {
+    fn of(ctx: *anyopaque) *db.LazyRows {
+        return @ptrCast(@alignCast(ctx));
+    }
+    fn cell(ctx: *anyopaque, row: usize, col: usize) ?[]const u8 {
+        return of(ctx).cell(row, col);
+    }
+    fn materialize(ctx: *anyopaque, a: Allocator) Allocator.Error![]Value {
+        return of(ctx).materialize(a);
+    }
+    fn writeCell(ctx: *anyopaque, w: *std.Io.Writer, a: Allocator, row: usize, col: usize) (std.Io.Writer.Error || Allocator.Error)!void {
+        return of(ctx).writeCell(w, a, row, col);
+    }
+    fn deinit(ctx: *anyopaque) void {
+        of(ctx).deinit();
+    }
+};
 
 fn stringArg(args: Value, name: []const u8) ?[]const u8 {
     const v = args.get(name) orelse return null;

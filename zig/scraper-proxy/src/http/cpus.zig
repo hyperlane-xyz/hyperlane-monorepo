@@ -55,8 +55,7 @@ fn cgroupQuotaCpus() ?u32 {
     const self_cgroup = readFile("/proc/self/cgroup", &buf);
     var rel_buf: [std.fs.max_path_bytes]u8 = undefined;
     // v2 (unified), also mounted at /sys/fs/cgroup/unified on hybrid hosts.
-    if (self_cgroup) |text| if (v2Path(text)) |rel| {
-        const r = copy(&rel_buf, rel) orelse return null;
+    if (self_cgroup) |text| if (v2Path(text)) |rel| if (copy(&rel_buf, rel)) |r| {
         for ([_][]const u8{ "/sys/fs/cgroup", "/sys/fs/cgroup/unified" }) |mount| {
             if (minQuota(mount, r, .v2)) |q| return q;
         }

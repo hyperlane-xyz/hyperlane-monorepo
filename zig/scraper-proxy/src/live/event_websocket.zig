@@ -13,6 +13,8 @@ const es = @import("event_store.zig");
 
 const ws = http.ws;
 const Allocator = std.mem.Allocator;
+/// The HTTP server's loop group (fibers run on its loops).
+pub const FiberHost = @FieldType(http.Server, "loop");
 
 pub const EventWebSocketServer = struct {
     gpa: Allocator,
@@ -25,6 +27,8 @@ pub const EventWebSocketServer = struct {
     agent_ws: ws.Server = .{ .options = .{ .max_payload = live.MAX_AGENT_MESSAGE_BYTES } },
     explorer_ws: ws.Server = .{ .options = .{ .max_payload = live.MAX_EXPLORER_MESSAGE_BYTES } },
     start_error: [128]u8 = undefined,
+    /// `-Dlive-fiber-queries`: where `queryAsync` runs its fibers.
+    fiber_host: ?*FiberHost = null,
 
     /// `new EventWebSocketServer(db, {}, diagnostics)`.
     pub fn init(gpa: Allocator, db_service: *db.DbService, diagnostics_service: ?*diagnostics.Service) !*EventWebSocketServer {
@@ -47,7 +51,7 @@ pub const EventWebSocketServer = struct {
         errdefer self.scheduler.deinit();
         self.loop = .{ .allocator = gpa, .pool = &self.pool, .scheduler = self.scheduler.scheduler() };
         const config = core.config.get();
-        self.server = try live.Server.create(gpa, &self.loop, .{ .ctx = self, .query = query }, .{
+        self.server = try live.Server.create(gpa, &self.loop, .{ .ctx = self, .query = query, .query_async = if (runtime.fiber_queries) queryAsync else null }, .{
             .ctx = self,
             .listen = listen,
             .listen_unlogged = listenUnlogged,
@@ -59,6 +63,12 @@ pub const EventWebSocketServer = struct {
             .production = if (config.node_env) |env| std.mem.eql(u8, env, "production") else false,
         }, self.diagnostics_stream);
         return self;
+    }
+
+    /// The HTTP server whose loops run live's database fibers; before it
+    /// accepts (`-Dlive-fiber-queries`).
+    pub fn setFiberHost(self: *EventWebSocketServer, host: *FiberHost) void {
+        self.fiber_host = host;
     }
 
     /// `start(server)`; `message` receives the failure text for main's exit path.
@@ -103,6 +113,8 @@ pub const EventWebSocketServer = struct {
 
     fn onUpgrade(ctx: *anyopaque, req: *http.Request, socket: *http.UpgradeSocket) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        // Wiring, all builds: main hands the loops over before accepting.
+        if (runtime.fiber_queries and self.fiber_host == null) @panic("live: -Dlive-fiber-queries without setFiberHost");
         // stop() removes the TS 'upgrade' listener.
         self.loop.lock();
         const stopped = self.server.stopped;
@@ -270,6 +282,50 @@ pub const EventWebSocketServer = struct {
             runtime.fail("{s}", .{core.log.formatError(err, if (failure.message.len > 0) failure.message else null)});
     }
 
+    /// `Db.query_async`: on an HTTP loop thread, a fiber on that loop (its
+    /// pool checkout and socket waits park the fiber); otherwise, or if the
+    /// fiber cannot be created, a pool job (a worker waits, as `query`).
+    /// Never runs the query here: the caller holds live's mutex.
+    fn queryAsync(ctx: *anyopaque, request: *es.AsyncQuery) void {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        request.backend = self;
+        request.run_query = query;
+        dispatchQuery(&self.pool, self.fiber_host, request);
+    }
+
+    /// `queryAsync`'s choice (tests drive it with their own pool and host).
+    pub fn dispatchQuery(pool: *runtime.Pool, fiber_host: ?*FiberHost, request: *es.AsyncQuery) void {
+        // `setFiberHost` before accepts is wiring (main always calls it).
+        if (fiber_host == null and core.fiber.onEventLoopThread()) @panic("live: -Dlive-fiber-queries without setFiberHost");
+        if (core.fiber.onEventLoopThread()) if (fiber_host) |host| {
+            // The calling thread's loop: the fiber is created and reaped on
+            // this thread (its fiber cache), with no cross-thread post.
+            const loop = host.current();
+            if (core.fiber.create(loop.fiberScheduler(), runQueryFiber, request)) |fiber| {
+                loop.postFiber(fiber);
+                return;
+            } else |_| {}
+        };
+        request.job = .{ .run = runQueryJob };
+        pool.submit(&request.job);
+    }
+
+    fn runQueryFiber(arg: *anyopaque) void {
+        runQuery(@ptrCast(@alignCast(arg)));
+    }
+
+    fn runQueryJob(job: *runtime.Pool.Job) void {
+        runQuery(@alignCast(@fieldParentPtr("job", job)));
+    }
+
+    /// The read itself (`request.run_query`), then `done` (no live lock held).
+    fn runQuery(request: *es.AsyncQuery) void {
+        if (request.run_query(request.backend, request.arena.allocator(), request.sql, request.params)) |rows| {
+            request.rows = rows;
+        } else |err| request.setFailure(err);
+        request.done(request);
+    }
+
     fn listen(ctx: *anyopaque, channels: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
         const listener = try self.openListener(channels, handler);
@@ -306,3 +362,35 @@ pub const EventWebSocketServer = struct {
         self.db.unlisten(@ptrCast(@alignCast(handle)));
     }
 };
+
+test "queryAsync off an HTTP loop thread runs the read on a pool job, then done" {
+    const testing = std.testing;
+    var pool = runtime.Pool.init(testing.allocator);
+    defer pool.deinit();
+    const Probe = struct {
+        done: std.Thread.ResetEvent = .{},
+        thread: std.Thread.Id = 0,
+        fn run(_: *anyopaque, arena: Allocator, _: []const u8, _: []const core.json.Value) anyerror![]core.json.Value {
+            const rows = try arena.alloc(core.json.Value, 1);
+            rows[0] = core.json.int(7);
+            return rows;
+        }
+        fn finished(request: *es.AsyncQuery) void {
+            const self: *@This() = @ptrCast(@alignCast(request.owner));
+            self.thread = std.Thread.getCurrentId();
+            self.done.set();
+        }
+    };
+    var probe: Probe = .{};
+    var request = es.AsyncQuery.init(testing.allocator, Probe.finished);
+    defer request.deinit();
+    request.owner = &probe;
+    request.backend = &probe;
+    request.run_query = Probe.run;
+    try testing.expect(!core.fiber.onEventLoopThread());
+    EventWebSocketServer.dispatchQuery(&pool, null, &request);
+    probe.done.wait();
+    try testing.expect(probe.thread != std.Thread.getCurrentId());
+    try testing.expectEqual(@as(usize, 1), request.rows.len);
+    try testing.expect(request.err == null);
+}

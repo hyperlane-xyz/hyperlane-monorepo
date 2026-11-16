@@ -24,6 +24,52 @@ pub const Row = Value;
 pub const Db = struct {
     ctx: *anyopaque,
     query: *const fn (ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const Value) anyerror![]Value,
+    /// Runs `query` without a live worker waiting (`-Dlive-fiber-queries`):
+    /// `query.done(query)` follows on whatever thread finished it, never
+    /// holding live's loop mutex and never inside this call.
+    query_async: ?*const fn (ctx: *anyopaque, query: *AsyncQuery) void = null,
+};
+
+/// One `Db.query_async` read. The caller owns it (and `arena`, which holds
+/// the parameters and receives the rows) until `done` has run.
+pub const AsyncQuery = struct {
+    arena: std.heap.ArenaAllocator,
+    sql: []const u8 = "",
+    params: []const Value = &.{},
+    done: *const fn (query: *AsyncQuery) void,
+    rows: []Value = &.{},
+    err: ?anyerror = null,
+    message: [256]u8 = undefined,
+    message_len: usize = 0,
+    /// For the caller (`done` finds its context through it).
+    owner: *anyopaque = undefined,
+    /// For the backend: the context and the blocking read it runs.
+    backend: *anyopaque = undefined,
+    run_query: *const fn (ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const Value) anyerror![]Value = undefined,
+    job: runtime.Pool.Job = .{ .run = undefined },
+
+    pub fn init(gpa: Allocator, done: *const fn (query: *AsyncQuery) void) AsyncQuery {
+        return .{ .arena = .init(gpa), .done = done };
+    }
+
+    pub fn deinit(self: *AsyncQuery) void {
+        self.arena.deinit();
+    }
+
+    /// Record a failure (its message is the finishing thread's).
+    pub fn setFailure(self: *AsyncQuery, err: anyerror) void {
+        self.err = err;
+        const message = runtime.errorMessage(err);
+        self.message_len = @min(message.len, self.message.len);
+        @memcpy(self.message[0..self.message_len], message[0..self.message_len]);
+    }
+
+    /// The failure, with its message recorded on the calling thread.
+    pub fn failure(self: *const AsyncQuery) ?anyerror {
+        const err = self.err orelse return null;
+        if (err != error.Failed) return err;
+        return runtime.fail("{s}", .{self.message[0..self.message_len]});
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -509,15 +555,24 @@ pub const EventStore = struct {
 
     /// `liveStartBoundaries(domains?)`: every healthy domain's confirmed
     /// checkpoint, in row order (no ORDER BY). Malformed rows are skipped.
-    pub fn liveStartBoundaries(self: *EventStore, domains: ?[]const u32) !std.AutoArrayHashMapUnmanaged(u32, protocol.LiveStartBoundary) {
+    pub fn liveStartBoundaries(self: *EventStore, domains: ?[]const u32) !Boundaries {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
-        const a = arena.allocator();
-        const rows = if (domains) |list|
-            try self.query(a, sql.live_start_boundaries_filtered, &.{try domainArray(a, list)})
-        else
-            try self.query(a, sql.live_start_boundaries, &.{});
-        var boundaries: std.AutoArrayHashMapUnmanaged(u32, protocol.LiveStartBoundary) = .empty;
+        const statement = try liveStartBoundariesQuery(arena.allocator(), domains);
+        return self.parseLiveStartBoundaries(try self.query(arena.allocator(), statement.sql, statement.params));
+    }
+
+    pub const Boundaries = std.AutoArrayHashMapUnmanaged(u32, protocol.LiveStartBoundary);
+
+    /// `liveStartBoundaries`' statement (parameters in `arena`).
+    pub fn liveStartBoundariesQuery(arena: Allocator, domains: ?[]const u32) Allocator.Error!Statement {
+        if (domains) |list| return .{ .sql = sql.live_start_boundaries_filtered, .params = try arena.dupe(Value, &.{try domainArray(arena, list)}) };
+        return .{ .sql = sql.live_start_boundaries, .params = &.{} };
+    }
+
+    /// `liveStartBoundaries`' rows → boundaries (allocated with the store's allocator).
+    pub fn parseLiveStartBoundaries(self: *EventStore, rows: []const Value) !Boundaries {
+        var boundaries: Boundaries = .empty;
         errdefer boundaries.deinit(self.allocator);
         for (rows) |row| {
             const boundary = liveStartBoundary(row) orelse continue;
@@ -533,11 +588,27 @@ pub const EventStore = struct {
     pub fn confirmationHeads(self: *EventStore, allocator: Allocator, domains: []const u32, confirmations: ?u64) !cs.Heads {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
-        const a = arena.allocator();
-        const rows = if (confirmations) |count|
-            try self.query(a, sql.confirmation_heads_live_start, &.{ try domainArray(a, domains), json.int(count) })
-        else
-            try self.query(a, sql.confirmation_heads, &.{try domainArray(a, domains)});
+        const statement = try confirmationHeadsQuery(arena.allocator(), domains, confirmations);
+        return parseConfirmationHeads(allocator, try self.query(arena.allocator(), statement.sql, statement.params));
+    }
+
+    /// `confirmationHeads`' statement (parameters in `arena`).
+    pub fn confirmationHeadsQuery(arena: Allocator, domains: []const u32, confirmations: ?u64) Allocator.Error!Statement {
+        if (confirmations) |count|
+            return .{ .sql = sql.confirmation_heads_live_start, .params = try arena.dupe(Value, &.{ try domainArray(arena, domains), json.int(count) }) };
+        return .{ .sql = sql.confirmation_heads, .params = try arena.dupe(Value, &.{try domainArray(arena, domains)}) };
+    }
+
+    pub const Statement = struct { sql: []const u8, params: []const Value };
+
+    /// `blockHeads`' statement (parameters in `arena`).
+    pub fn blockHeadsQuery(arena: Allocator, domains: ?[]const u32) Allocator.Error!Statement {
+        if (domains) |list| return .{ .sql = sql.block_heads_filtered, .params = try arena.dupe(Value, &.{try domainArray(arena, list)}) };
+        return .{ .sql = sql.block_heads, .params = &.{} };
+    }
+
+    /// `confirmationHeads`' rows → heads (allocated with `allocator`).
+    pub fn parseConfirmationHeads(allocator: Allocator, rows: []const Value) !cs.Heads {
         var heads: cs.Heads = .empty;
         errdefer heads.deinit(allocator);
         for (rows) |row| {

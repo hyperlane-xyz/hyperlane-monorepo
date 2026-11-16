@@ -114,7 +114,122 @@ pub const QueryOptions = struct {
     plan: Plan = .unnamed,
     /// Pool-wide switch that turns named statements off (set by `Pool`).
     guard: ?*ReuseGuard = null,
+    /// Keep the result as libpq's PGresult (`Result.lazy`, see `LazyRows`)
+    /// instead of converting rows.
+    lazy: bool = false,
 };
+
+/// A query result kept as libpq's PGresult instead of converted rows, so a
+/// caller can write simple columns straight from libpq's text
+/// (`writeCell`) or convert exactly as `query` would (`materialize`). The
+/// owner must call `deinit` (PQclear) once done; nothing else frees it.
+pub const LazyRows = struct {
+    res: *PGresult,
+    columns: []const Column,
+    rows: usize,
+    row_count: usize,
+
+    pub const Column = struct {
+        name: []const u8,
+        oid: u32,
+        kind: Kind,
+    };
+
+    /// Columns whose cells are written straight from libpq's text with the
+    /// bytes `json.stringify(convertCell(...))` produces. `none`: convert.
+    pub const Kind = enum { number, string, boolean, none };
+
+    /// int2/int4 (a JS number), int8/numeric (strings in node-pg), bool,
+    /// text/varchar/bpchar. Floats, json/jsonb, bytea, date/time types,
+    /// arrays and everything else keep `convertCell`.
+    pub fn kindOf(oid: u32) Kind {
+        return switch (oid) {
+            21, 23 => .number,
+            20, 1700, 25, 1043, 1042 => .string,
+            16 => .boolean,
+            else => .none,
+        };
+    }
+
+    fn init(arena: std.mem.Allocator, res: *PGresult) Error!LazyRows {
+        const n_cols: usize = @intCast(PQnfields(res));
+        const columns = try arena.alloc(Column, n_cols);
+        for (columns, 0..) |*c, i| {
+            const oid = PQftype(res, @intCast(i));
+            c.* = .{ .name = try arena.dupe(u8, std.mem.span(PQfname(res, @intCast(i)))), .oid = oid, .kind = kindOf(oid) };
+        }
+        return .{ .res = res, .columns = columns, .rows = @intCast(PQntuples(res)), .row_count = rowCount(res) };
+    }
+
+    /// The column whose value a row object holds under `name`: the last one
+    /// of that name (node-pg: duplicates keep the first position, last value).
+    pub fn column(self: *const LazyRows, name: []const u8) ?usize {
+        var i = self.columns.len;
+        while (i > 0) {
+            i -= 1;
+            if (std.mem.eql(u8, self.columns[i].name, name)) return i;
+        }
+        return null;
+    }
+
+    /// Cell text as libpq holds it (valid until `deinit`); null for NULL.
+    pub fn cell(self: *const LazyRows, row: usize, col: usize) ?[]const u8 {
+        const r: c_int = @intCast(row);
+        const c: c_int = @intCast(col);
+        const len = PQgetlength(self.res, r, c);
+        if (len == 0 and PQgetisnull(self.res, r, c) != 0) return null;
+        return PQgetvalue(self.res, r, c)[0..@intCast(len)];
+    }
+
+    /// Writes cell (`row`, `col`) as JSON, byte-identical to
+    /// `json.stringify(convertCell(oid, text))` (NULL: `null`). Columns of
+    /// kind `none` go through `convertCell` (allocating in `arena`).
+    pub fn writeCell(self: *const LazyRows, w: *std.Io.Writer, arena: std.mem.Allocator, row: usize, col: usize) (std.Io.Writer.Error || std.mem.Allocator.Error)!void {
+        const text = self.cell(row, col) orelse return w.writeAll("null");
+        return writeText(w, arena, self.columns[col].oid, text);
+    }
+
+    /// `writeCell` for a non-NULL cell's text of column type `oid`.
+    pub fn writeText(w: *std.Io.Writer, arena: std.mem.Allocator, oid: u32, text: []const u8) (std.Io.Writer.Error || std.mem.Allocator.Error)!void {
+        const kind = kindOf(oid);
+        if (kind != .none) return writeFast(w, kind, text);
+        try core.json.stringify(w, try convert.convertCell(arena, oid, text, .copy));
+    }
+
+    /// A non-NULL cell of a fast `kind` (not `.none`), without allocating:
+    /// the bytes `json.stringify(convertCell(oid, text))` gives for that kind.
+    pub fn writeFast(w: *std.Io.Writer, kind: Kind, text: []const u8) std.Io.Writer.Error!void {
+        switch (kind) {
+            // PostgreSQL's own output is canonical and JS prints it back
+            // unchanged; anything else (never seen) is formatted like convertCell.
+            .number => if (canonicalInt(text)) try w.writeAll(text) else try core.json.writeNumber(w, convert.fastInt(text)),
+            .string => try core.json.writeString(w, text),
+            .boolean => try w.writeAll(if (convert.fastBool(text)) "true" else "false"),
+            .none => unreachable,
+        }
+    }
+
+    /// Exactly the rows `query` returns for this result (`convertRows`).
+    pub fn materialize(self: *const LazyRows, arena: std.mem.Allocator) std.mem.Allocator.Error![]Value {
+        return convertRows(arena, self.res);
+    }
+
+    pub fn deinit(self: *LazyRows) void {
+        PQclear(self.res);
+        self.* = undefined;
+    }
+};
+
+/// PostgreSQL's int2/int4 output, which JS prints back unchanged: an
+/// optional '-', then "0" or a digit run without a leading zero ("-0" never
+/// occurs; anything else takes the converting path).
+fn canonicalInt(text: []const u8) bool {
+    const digits = if (text.len > 0 and text[0] == '-') text[1..] else text;
+    if (digits.len == 0 or digits.len > 10) return false;
+    if (digits[0] == '0') return digits.len == 1 and text.len == 1;
+    for (digits) |d| if (d < '0' or d > '9') return false;
+    return true;
+}
 
 /// The session's `plan_cache_mode` as far as this connection knows: set to
 /// `force_custom_plan` at startup, switched (pipelined with the execute)
@@ -362,6 +477,10 @@ pub const Conn = struct {
     readiness: ?*const std.atomic.Value(u32) = null,
     /// The socket libpq opened (-1 once handled after libpq dropped it).
     sock: std.posix.fd_t = -1,
+    /// `QueryOptions.lazy` for the query in progress, and the tuples result
+    /// it kept (owned here until `queryWith` hands it to the caller).
+    lazy_mode: bool = false,
+    lazy_res: ?*PGresult = null,
     /// This connection's identity for fiber-loop registrations
     /// (`core.fiber.newOwner`; never reused, unlike `pg` or `sock`).
     owner: u64 = 0,
@@ -547,10 +666,23 @@ pub const Conn = struct {
     pub fn queryWith(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: QueryOptions, failure: ?*Failure) Error!root.Result {
         const deadline: ?i64 = if (self.query_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
         const named = opts.plan != .unnamed and params.len > 0 and (if (opts.guard) |g| g.active() else true);
-        const result = if (named)
+        self.lazy_mode = opts.lazy;
+        defer self.lazy_mode = false;
+        errdefer self.dropLazy();
+        var result = if (named)
             self.runNamed(arena, sql, params, opts.plan, opts.guard, deadline, failure)
         else
             self.runUnnamed(arena, sql, params, deadline, failure);
+        if (opts.lazy) {
+            if (result) |*r| {
+                if (self.lazy_res) |res| {
+                    const lazy = try arena.create(LazyRows);
+                    lazy.* = try LazyRows.init(arena, res);
+                    self.lazy_res = null;
+                    r.lazy = lazy;
+                }
+            } else |_| {}
+        }
         return result catch |e| {
             // A server error leaves the connection idle and reusable; any
             // other early return (timeout, transport, OOM mid-result) may
@@ -711,12 +843,13 @@ pub const Conn = struct {
                 if (index > steps.len or PQstatus(self.pg) != CONNECTION_OK) return self.transportFailure(arena, failure);
                 continue;
             };
-            defer PQclear(res);
+            var kept = false;
+            defer if (!kept) PQclear(res);
             const step: Step = if (index < steps.len) steps[index] else .execute;
             switch (PQresultStatus(res)) {
                 PGRES_PIPELINE_SYNC => break,
                 PGRES_TUPLES_OK, PGRES_COMMAND_OK, PGRES_EMPTY_QUERY => if (!server_error and step == .execute) {
-                    result = .{ .rows = try convertRows(arena, res), .row_count = rowCount(res) };
+                    result = try self.takeTuples(arena, res, &kept);
                 },
                 PGRES_FATAL_ERROR => if (!server_error) {
                     server_error = true;
@@ -793,6 +926,21 @@ pub const Conn = struct {
 
     /// Processes the results libpq has already parsed, without waiting.
     /// True when the reply is complete (libpq returned its final null).
+    /// A tuples/command result: converted, or (lazy mode) kept in
+    /// `lazy_res` for `queryWith` (`kept`: the caller must not clear it).
+    fn takeTuples(self: *Conn, arena: std.mem.Allocator, res: *PGresult, kept: *bool) Error!root.Result {
+        if (!self.lazy_mode) return .{ .rows = try convertRows(arena, res), .row_count = rowCount(res) };
+        if (self.lazy_res) |old| PQclear(old);
+        self.lazy_res = res;
+        kept.* = true;
+        return .{ .rows = &.{}, .row_count = rowCount(res) };
+    }
+
+    fn dropLazy(self: *Conn) void {
+        if (self.lazy_res) |res| PQclear(res);
+        self.lazy_res = null;
+    }
+
     fn collectStep(self: *Conn, arena: std.mem.Allocator, reply: *Reply, failure: ?*Failure) Error!bool {
         if (reply.complete) return true;
         while (PQisBusy(self.pg) == 0) {
@@ -800,10 +948,11 @@ pub const Conn = struct {
                 reply.complete = true;
                 return true;
             };
-            defer PQclear(res);
+            var kept = false;
+            defer if (!kept) PQclear(res);
             switch (PQresultStatus(res)) {
                 PGRES_TUPLES_OK, PGRES_COMMAND_OK, PGRES_EMPTY_QUERY => if (!reply.server_error) {
-                    reply.result = .{ .rows = try convertRows(arena, res), .row_count = rowCount(res) };
+                    reply.result = try self.takeTuples(arena, res, &kept);
                 },
                 PGRES_FATAL_ERROR => if (!reply.server_error) {
                     reply.server_error = true;
@@ -942,7 +1091,7 @@ fn rowCount(res: *PGresult) usize {
     return std.fmt.parseInt(usize, text, 10) catch 0;
 }
 
-fn convertRows(arena: std.mem.Allocator, res: *PGresult) Error![]Value {
+fn convertRows(arena: std.mem.Allocator, res: *PGresult) std.mem.Allocator.Error![]Value {
     const n_rows: usize = @intCast(PQntuples(res));
     const n_cols: usize = @intCast(PQnfields(res));
     const rows = try arena.alloc(Value, n_rows);
@@ -1133,4 +1282,63 @@ test "waitSocket: a reply within the poller's grace skips the hand-off" {
     try std.testing.expect(waitSocket(fds[0], std.posix.POLL.IN, null));
     t.join();
     try std.testing.expectEqual(@as(usize, 0), Counter.begins);
+}
+
+fn expectFastEqualsConvert(a: std.mem.Allocator, oid: u32, text: []const u8) !void {
+    var fast: std.Io.Writer.Allocating = .init(a);
+    try LazyRows.writeText(&fast.writer, a, oid, text);
+    const want = try core.json.stringifyAlloc(a, try convert.convertCell(a, oid, text, .copy));
+    if (!std.mem.eql(u8, want, fast.written())) std.debug.print("oid {d} text {any}: fast {s} want {s}\n", .{ oid, text, fast.written(), want });
+    try std.testing.expectEqualStrings(want, fast.written());
+}
+
+test "LazyRows.writeText is byte-identical to stringify(convertCell) on edge values" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const ints = [_][]const u8{ "0", "-0", "1", "-1", "32767", "-32768", "2147483647", "-2147483648", "00", "007", "-007", "9999999999", "99999999999", "12345678901", "4294967295", "", "-", "+1", " 1", "1 ", "1e3", "0x1f" };
+    for (ints) |t| for ([_]u32{ 21, 23 }) |oid| try expectFastEqualsConvert(a, oid, t);
+    const numerics = [_][]const u8{ "0", "9007199254740993", "-9223372036854775808", "9223372036854775807", "123.4500", "1.00000000000000000000", "1e-30", "0.000000000000000000000000000001", "NaN", "Infinity", "-Infinity", "-0.0", "18446744073709551616" };
+    for (numerics) |t| for ([_]u32{ 20, 1700 }) |oid| try expectFastEqualsConvert(a, oid, t);
+    const texts = [_][]const u8{ "", "plain", "pad   ", "\"quoted\" \\back\\slash/", "\x00\x01\x07\x08\x09\x0a\x0b\x0c\x0d\x1b\x1f\x7f", "\u{2028}\u{2029}", "\u{1F600} astral \u{10FFFF}", "é ü ß 中文", "</script>", "\\u0000" };
+    for (texts) |t| for ([_]u32{ 25, 1043, 1042 }) |oid| try expectFastEqualsConvert(a, oid, t);
+    const bools = [_][]const u8{ "t", "f", "true", "false", "1", "0", "y", "yes", "on", "TRUE", "", "x" };
+    for (bools) |t| try expectFastEqualsConvert(a, 16, t);
+    // Excluded types keep convertCell (trivially equal; asserts the routing).
+    for ([_]u32{ 700, 701, 114, 3802, 17, 1082, 1184, 1007, 26, 19, 2950 }) |oid|
+        try std.testing.expectEqual(LazyRows.Kind.none, LazyRows.kindOf(oid));
+}
+
+test "LazyRows.writeText equals stringify(convertCell) on random values" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var prng = std.Random.DefaultPrng.init(0xc417);
+    const rnd = prng.random();
+    var buf: [64]u8 = undefined;
+    for (0..20_000) |_| {
+        const v = rnd.intRangeAtMost(i64, -2147483648, 2147483647);
+        try expectFastEqualsConvert(a, 23, std.fmt.bufPrint(&buf, "{d}", .{v}) catch unreachable);
+        const big = rnd.int(i64);
+        try expectFastEqualsConvert(a, 20, std.fmt.bufPrint(&buf, "{d}", .{big}) catch unreachable);
+    }
+    // Random valid UTF-8 strings, biased to control, quote, backslash,
+    // U+2028/9 and astral code points.
+    const picks = [_]u21{ 0, 1, 8, 9, 10, 13, 0x1f, '"', '\\', '/', 0x7f, 0x80, 0x2028, 0x2029, 0xfeff, 0x1F600, 0x10FFFF, 'a', 'z', 0xe9 };
+    var s: std.ArrayList(u8) = .empty;
+    for (0..5_000) |_| {
+        s.clearRetainingCapacity();
+        const n = rnd.uintLessThan(usize, 24);
+        for (0..n) |_| {
+            const cp: u21 = if (rnd.boolean()) picks[rnd.uintLessThan(usize, picks.len)] else blk: {
+                var c = rnd.uintLessThan(u21, 0x110000);
+                if (c >= 0xD800 and c <= 0xDFFF) c = 'x';
+                break :blk c;
+            };
+            var enc: [4]u8 = undefined;
+            const len = std.unicode.utf8Encode(cp, &enc) catch unreachable;
+            try s.appendSlice(a, enc[0..len]);
+        }
+        try expectFastEqualsConvert(a, 25, s.items);
+    }
 }

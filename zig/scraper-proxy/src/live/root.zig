@@ -13,7 +13,7 @@ pub const EventWebSocketServer = @import("event_websocket.zig").EventWebSocketSe
 test {
     std.testing.refAllDecls(@This());
     // Analyze the main.zig entry points without building the exe.
-    inline for (.{ "init", "start", "stop", "deinit", "upgradeHandler", "metricsProvider" }) |name|
+    inline for (.{ "init", "start", "stop", "deinit", "upgradeHandler", "metricsProvider", "setFiberHost" }) |name|
         _ = &@field(EventWebSocketServer, name);
     _ = @import("protocol_test.zig");
     _ = @import("notification_worker_test.zig");

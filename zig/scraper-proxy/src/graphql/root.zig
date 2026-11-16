@@ -37,5 +37,6 @@ test {
     _ = @import("module_test.zig");
     _ = @import("bench_test.zig");
     _ = @import("execute_golden_test.zig");
+    _ = @import("raw_rows_test.zig");
     _ = @import("stack_test.zig");
 }

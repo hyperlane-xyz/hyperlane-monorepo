@@ -269,8 +269,30 @@ const FakeDb = struct {
     /// Called before each query, without any lock (the loop mutex is released).
     before_query: ?struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque, sql: []const u8) void } = null,
 
+    /// `query_async` (on a thread of its own, after `before_query`), when set.
+    async_queries: bool = false,
+    async_started: usize = 0,
+
     fn db(self: *FakeDb) es.Db {
-        return .{ .ctx = self, .query = query };
+        return .{ .ctx = self, .query = query, .query_async = queryAsync };
+    }
+
+    fn queryAsync(ctx: *anyopaque, request: *es.AsyncQuery) void {
+        const self: *FakeDb = @ptrCast(@alignCast(ctx));
+        self.mutex.lock();
+        self.async_started += 1;
+        self.mutex.unlock();
+        request.backend = self;
+        const thread = std.Thread.spawn(.{}, runAsync, .{request}) catch unreachable;
+        thread.detach();
+    }
+
+    fn runAsync(request: *es.AsyncQuery) void {
+        const self: *FakeDb = @ptrCast(@alignCast(request.backend));
+        if (query(self, request.arena.allocator(), request.sql, request.params)) |rows| {
+            request.rows = rows;
+        } else |err| request.setFailure(err);
+        request.done(request);
     }
 
     fn query(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) anyerror![]json.Value {
@@ -363,6 +385,14 @@ const Harness = struct {
 
     fn init(self: *Harness, limits: live.Limits) !void {
         return self.initBatch(limits, 500);
+    }
+
+    /// With canonical-only subscribes inline and `query_async` reads.
+    fn initAsync(self: *Harness, limits: live.Limits) !void {
+        try self.initBatch(limits, 500);
+        self.t.loop.lock();
+        self.server.async_subscribes = true;
+        self.t.loop.unlock();
     }
 
     fn initBatch(self: *Harness, limits: live.Limits, batch_size: u64) !void {
@@ -1732,4 +1762,453 @@ test "an early listener lost before start is replaced by a logged connect" {
     // The fresh connect logs; the lost early one never did.
     try testing.expectEqual(@as(usize, 2), h.listen.listens);
     try testing.expectEqual(@as(usize, 1), h.listen.logged);
+}
+
+// -- -Dlive-fiber-queries: canonical-only subscribes inline, async boundary read
+
+test "async canonical subscribe: subscribed at once, live starts after the boundary read" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    h.db.add(.{ .contains = "JOIN scraper_checkpoint", .rows = "[{\"domain\":2,\"height\":\"15\",\"hash\":\"" ++ "ab" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]" });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1,2]}]}");
+    // Inline: acknowledged before onMessage returned, the read issued.
+    try testing.expectEqualStrings("{\"streams\":[{\"domains\":[1,2],\"eventType\":\"dispatch\"}],\"type\":\"subscribed\"}", s.frame(1));
+    try testing.expectEqual(@as(usize, 1), h.db.async_started);
+    try h.waitFrames(s, 4);
+    // Boundary rows first, then the remaining requested domains (TS's Set).
+    try testing.expect(std.mem.startsWith(u8, s.frame(2), "{\"type\":\"live_start\",\"domain\":2,\"height\":\"15\""));
+    try testing.expectEqualStrings(
+        \\{"type":"live_start_unavailable","domain":1,"eventTypes":["dispatch"],"reason":"No healthy live-start scraper checkpoint"}
+    , s.frame(3));
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"delivery\"}]}");
+    try h.waitFrames(s, 5);
+    try testing.expectEqualStrings("{\"error\":\"Already subscribed\",\"type\":\"error\"}", s.frame(4));
+}
+
+test "async canonical subscribe: live delivery is registered before the boundary read resolves" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    var gate: QueryGate = .{ .contains = "JOIN scraper_checkpoint" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1]}]}");
+    gate.started.wait();
+    h.db.on("\"confirmed_merkle_tree_insertion\" AS \"event_row\" WHERE",
+        \\[{"notification_id":"21","domain":1,"merkle_tree_hook":"\\x0000000000000000000000000000000000000001","leaf_index":0,"message_id":"\\xaa","block_number":101}]
+    );
+    h.listen.notify(live.EVENT_CHANNEL, "{\"eventType\":\"merkle_tree_insertion\",\"id\":\"21\",\"domain\":1}");
+    h.t.fake.tick(100);
+    try h.waitFrames(s, 3);
+    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"type\":\"event\"") != null);
+    gate.released.set();
+    try h.waitFrames(s, 4);
+    try testing.expect(std.mem.startsWith(u8, s.frame(3), "{\"type\":\"live_start_unavailable\",\"domain\":1"));
+}
+
+test "async canonical subscribe: a failed boundary read terminates without a live start" {
+    var h: Harness = .{};
+    try h.initAsync(defaultLimits());
+    defer h.deinit();
+    h.db.add(.{ .contains = "JOIN scraper_checkpoint", .fail = true });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
+    try waitClosed(s);
+    try testing.expect(s.terminated);
+    try testing.expectEqual(@as(usize, 1), countFrames(s, "\"type\":\"subscribed\""));
+    try testing.expectEqual(@as(usize, 0), countFrames(s, "live_start"));
+}
+
+test "async canonical subscribe: a client gone before the read resolves gets nothing, and stop waits for the read" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    var gate: QueryGate = .{ .contains = "JOIN scraper_checkpoint" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
+    gate.started.wait();
+    h.server.onClose(peer);
+    _ = h.peers.pop();
+    // stop() must wait for the read in flight (its `done` touches the pool).
+    const Releaser = struct {
+        fn run(g: *QueryGate) void {
+            std.Thread.sleep(50 * std.time.ns_per_ms);
+            g.released.set();
+        }
+    };
+    const releaser = try std.Thread.spawn(.{}, Releaser.run, .{&gate});
+    defer h.deinit();
+    h.server.stop();
+    releaser.join();
+    h.t.loop.lock();
+    const outstanding = h.server.async_outstanding;
+    h.t.loop.unlock();
+    try testing.expectEqual(@as(usize, 0), outstanding);
+    h.settle();
+    try testing.expectEqual(@as(usize, 2), s.count()); // ready, subscribed
+}
+
+test "async subscribe with blocks: block heads, then subscribed, blocks and live starts, as continuations" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    h.db.on("FROM scraper_head", "[{\"domain\":1,\"indexed_height\":\"10\",\"hash\":\"" ++ "AA" ** 32 ++ "\",\"head_height\":\"12\"}]");
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"blocks\",\"domains\":[1]},{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
+    try h.waitFrames(s, 4);
+    try testing.expectEqualStrings("{\"streams\":[{\"domains\":[1],\"eventType\":\"blocks\"},{\"domains\":[1],\"eventType\":\"dispatch\"}],\"type\":\"subscribed\"}", s.frame(1));
+    try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\",\"headHeight\":\"12\"}", s.frame(2));
+    try testing.expect(std.mem.startsWith(u8, s.frame(3), "{\"type\":\"live_start_unavailable\",\"domain\":1"));
+    try testing.expectEqual(@as(usize, 2), h.db.async_started); // block heads, boundaries
+}
+
+test "async subscribe with custom streams: shared snapshot, custom live starts, then canonical" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const checkpoint = "\"hash\":\"" ++ "AB" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"";
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .rows = "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":\"17\"," ++ checkpoint ++ "}]" });
+    h.db.on("JOIN scraper_checkpoint c", "[{\"domain\":3,\"height\":\"15\"," ++ checkpoint ++ "}]");
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","streams":[{"eventType":"dispatch","confirmations":3,"domains":[1]},{"eventType":"delivery","confirmations":3,"domains":[1]},{"eventType":"gas_payment","domains":[3]}]}
+    );
+    try h.waitFrames(s, 5);
+    try testing.expect(std.mem.indexOf(u8, s.frame(1), "\"type\":\"subscribed\"") != null);
+    try testing.expect(std.mem.startsWith(u8, s.frame(2), "{\"type\":\"live_start\",\"domain\":1,\"confirmations\":3,\"height\":\"17\""));
+    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"eventType\":\"dispatch\"") != null);
+    try testing.expect(std.mem.indexOf(u8, s.frame(3), "\"eventType\":\"delivery\"") != null);
+    try testing.expect(std.mem.startsWith(u8, s.frame(4), "{\"type\":\"live_start\",\"domain\":3,\"height\":\"15\""));
+    h.settle();
+    // One heads read shared by both custom streams, one boundary read.
+    try testing.expectEqual(@as(usize, 1), headsReads(&h));
+    try testing.expectEqual(@as(usize, 1), boundaryReads(&h));
+}
+
+fn boundaryReads(h: *Harness) usize {
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    var reads: usize = 0;
+    for (h.db.queries.items) |query| {
+        if (std.mem.indexOf(u8, query, "JOIN scraper_checkpoint c") != null) reads += 1;
+    }
+    return reads;
+}
+
+test "async subscribe: custom confirmations unavailable rejects the subscription" {
+    var h: Harness = .{};
+    try h.initAsync(defaultLimits());
+    defer h.deinit();
+    const s, const peer = h.agent();
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[7],\"confirmations\":2}]}");
+    try h.waitFrames(s, 2);
+    try testing.expectEqualStrings("{\"error\":\"Custom confirmations unavailable for domain 7\",\"type\":\"error\"}", s.frame(1));
+    try waitClosed(s);
+    try testing.expectEqualStrings("Invalid subscription", s.reason());
+}
+
+test "async subscribe: custom streams retry on a fresh snapshot after a rollback during the read" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    var gate: QueryGate = .{ .contains = "SELECT h.domain, h.head_height" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    h.db.on("SELECT h.domain, h.head_height", heads_before);
+    h.db.on("SELECT h.domain, h.head_height", heads_after);
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, two_custom_streams);
+    gate.started.wait();
+    h.listen.notify(live.HEAD_CHANNEL, rollback_head);
+    for (0..10_000) |_| {
+        if (revisionOf(&h) == 1) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    h.db.before_query = null;
+    gate.released.set();
+    try h.waitFrames(s, 4);
+    h.settle();
+    try testing.expectEqual(@as(usize, 2), headsReads(&h));
+    for ([_]?[]const u8{ liveStartOf(s, "dispatch"), liveStartOf(s, "delivery") }) |frame| {
+        try testing.expect(std.mem.indexOf(u8, frame.?, "{\"type\":\"live_start\",\"domain\":1,\"confirmations\":2,\"height\":\"99\"") != null);
+    }
+}
+
+/// Holds only the first query whose SQL contains `contains`.
+const FirstQueryGate = struct {
+    contains: []const u8,
+    seen: std.atomic.Value(usize) = .init(0),
+    started: std.Thread.ResetEvent = .{},
+    released: std.Thread.ResetEvent = .{},
+
+    fn before(ctx: *anyopaque, sql: []const u8) void {
+        const self: *FirstQueryGate = @ptrCast(@alignCast(ctx));
+        if (std.mem.indexOf(u8, sql, self.contains) == null) return;
+        if (self.seen.fetchAdd(1, .monotonic) != 0) return;
+        self.started.set();
+        self.released.wait();
+    }
+};
+
+test "async live starts across queued sends: domain order holds through each resume" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    // `.busy`: every frame is queued; each resumes from its write callback.
+    s.inline_mode = .busy;
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[3,1,2]}]}");
+    try h.waitFrames(s, 5);
+    for ([_][]const u8{ "\"domain\":3", "\"domain\":1", "\"domain\":2" }, 2..) |needle, index|
+        try testing.expect(std.mem.indexOf(u8, s.frame(index), needle) != null);
+}
+
+test "async live starts: a failed awaited send ends the loop, no further live start" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.settle();
+    s.hold = true;
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1,2,3]}]}");
+    try h.waitFrames(s, 3); // ready, subscribed, live start 1 (held)
+    h.settle();
+    s.releaseHeld(false); // the awaited live start fails
+    h.settle();
+    try testing.expectEqual(@as(usize, 3), s.count());
+    try testing.expect(s.terminated);
+}
+
+test "async reads continue in completion order, not issue order" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    var gate: FirstQueryGate = .{ .contains = "JOIN scraper_checkpoint" };
+    h.db.before_query = .{ .ctx = &gate, .func = FirstQueryGate.before };
+    defer gate.released.set();
+    const first, const first_peer = h.agent();
+    const second, const second_peer = h.agent();
+    try h.waitFrames(first, 1);
+    try h.waitFrames(second, 1);
+    h.server.onMessage(first_peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
+    gate.started.wait();
+    h.server.onMessage(second_peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[2]}]}");
+    try h.waitFrames(second, 3);
+    try testing.expectEqual(@as(usize, 2), first.count()); // still awaiting its read
+    gate.released.set();
+    try h.waitFrames(first, 3);
+    try testing.expect(std.mem.indexOf(u8, first.frame(2), "\"domain\":1") != null);
+}
+
+test "async reads: a burst of subscribes all get their live start once" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    limits.max_agent_clients = 40;
+    try h.initAsync(limits);
+    defer h.deinit();
+    var agents: [40]struct { *FakeSocket, *live.Peer } = undefined;
+    for (&agents) |*agent| agent.* = h.agent();
+    for (agents) |agent| try h.waitFrames(agent[0], 1);
+    for (agents) |agent| h.server.onMessage(agent[1], "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
+    for (agents) |agent| try h.waitFrames(agent[0], 3);
+    h.settle();
+    for (agents) |agent| try testing.expectEqual(@as(usize, 1), countFrames(agent[0], "live_start"));
+}
+
+test "async live starts: stop with an awaited live start still queued frees everything" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit(); // fails the held frame, stops, drains (leaks are test failures)
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.settle();
+    s.hold = true;
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1,2]}]}");
+    try h.waitFrames(s, 3);
+}
+
+test "async Explorer setup: block heads and the custom heads read as continuations, then ready" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    h.db.on("encode(indexed_hash, 'hex')", "[{\"domain\":1,\"indexed_height\":\"10\",\"hash\":\"" ++ "AA" ** 32 ++ "\",\"head_height\":\"12\"}]");
+    h.db.on("SELECT domain, head_height, indexed_height, confirmed_height", "[{\"domain\":1,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"8\"}]");
+    const s, _ = h.explorer("/messages?confirmations=1&domains=1,2&blocks=true", "1.2.3.4");
+    try h.waitFrames(s, 2);
+    try testing.expectEqualStrings(
+        \\{"confirmations":1,"domains":[1,2],"customDomains":[1],"canonicalDomains":[2],"eventTypes":["message_upsert","rollback","block"],"type":"ready"}
+    , s.frame(0));
+    try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\",\"headHeight\":\"12\"}", s.frame(1));
+    try testing.expectEqual(@as(usize, 2), h.db.async_started);
+}
+
+// -- async subscribes: failure paths (phase 2)
+
+test "async subscribe: a failed block heads read fails the socket, nothing acknowledged" {
+    var h: Harness = .{};
+    try h.initAsync(defaultLimits());
+    defer h.deinit();
+    h.db.add(.{ .contains = "encode(indexed_hash, 'hex')", .fail = true });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"blocks\",\"domains\":[1]},{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
+    try waitClosed(s);
+    try testing.expect(s.terminated);
+    try testing.expectEqual(@as(usize, 0), countFrames(s, "subscribed"));
+}
+
+test "async subscribe: a failed heads snapshot read fails the socket (not a negotiation error)" {
+    var h: Harness = .{};
+    try h.initAsync(defaultLimits());
+    defer h.deinit();
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .fail = true });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
+    try waitClosed(s);
+    try testing.expect(s.terminated);
+    try testing.expectEqual(@as(usize, 1), s.count()); // ready only: no error frame, no subscribed
+}
+
+test "async subscribe: one stream failing settles at once; the other's later read frees the job" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    var gate: FirstQueryGate = .{ .contains = "SELECT h.domain, h.head_height" };
+    h.db.before_query = .{ .ctx = &gate, .func = FirstQueryGate.before };
+    defer gate.released.set();
+    // dispatch (2, [1]) is read first and held; delivery (3, [7]) has no head.
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .domain = null, .rows = "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":null}]" });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","streams":[{"eventType":"dispatch","confirmations":2,"domains":[1]},{"eventType":"delivery","confirmations":3,"domains":[7]}]}
+    );
+    try h.waitFrames(s, 2);
+    try testing.expectEqualStrings("{\"error\":\"Custom confirmations unavailable for domain 7\",\"type\":\"error\"}", s.frame(1));
+    try waitClosed(s);
+    gate.released.set(); // the held read completes after the subscribe settled
+    h.settle();
+    try testing.expectEqual(@as(usize, 2), s.count());
+}
+
+test "async subscribe: a client gone during the block heads read gets nothing more" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    var gate: QueryGate = .{ .contains = "encode(indexed_hash, 'hex')" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"blocks\",\"domains\":[1]},{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":0}]}");
+    gate.started.wait();
+    h.server.onClose(peer);
+    _ = h.peers.pop();
+    gate.released.set();
+    h.settle();
+    try testing.expectEqual(@as(usize, 1), s.count());
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    for (h.db.queries.items) |query| try testing.expect(std.mem.indexOf(u8, query, "confirmed_height") == null);
+}
+
+fn customTwoDomainsHeld(h: *Harness) !struct { *FakeSocket, *live.Peer } {
+    const checkpoint = "\"hash\":\"" ++ "AB" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"";
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .rows = "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":\"17\"," ++ checkpoint ++ "},{\"domain\":2,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":\"17\"," ++ checkpoint ++ "}]" });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.settle();
+    s.hold = true;
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"confirmations\":2,\"domains\":[1,2]}]}");
+    try h.waitFrames(s, 3); // ready, subscribed, live start for domain 1 (held)
+    h.settle();
+    return .{ s, peer };
+}
+
+test "async subscribe: a failed custom live start (resume with !ok) ends the flow" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const s, _ = try customTwoDomainsHeld(&h);
+    s.releaseHeld(false);
+    h.settle();
+    try testing.expectEqual(@as(usize, 3), s.count());
+    try testing.expectEqual(@as(usize, 0), boundaryReads(&h)); // no canonical read after a failed send
+}
+
+test "async subscribe: a client gone during the custom live starts gets no more frames" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const s, const peer = try customTwoDomainsHeld(&h);
+    h.server.onClose(peer);
+    _ = h.peers.pop();
+    s.releaseHeld(true);
+    h.settle();
+    try testing.expectEqual(@as(usize, 3), s.count());
+    try testing.expectEqual(@as(usize, 0), boundaryReads(&h));
+}
+
+test "async reads after stop fail at once and still release their flow" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.t.loop.lock();
+    h.server.stopped = true; // as after stop(): a read issued now must not start
+    h.t.loop.unlock();
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
+    h.settle();
+    try testing.expectEqual(@as(usize, 0), h.db.async_started);
+    try testing.expect(s.terminated);
+    h.t.loop.lock();
+    h.server.stopped = false;
+    h.t.loop.unlock();
 }

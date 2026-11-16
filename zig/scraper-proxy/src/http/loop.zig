@@ -266,6 +266,9 @@ pub const Options = struct {
 
 /// Event-loop counters (relaxed atomics; logged at debug level when the loop
 /// stops) to attribute per-request overhead: waits vs events, hand-offs.
+/// `-Dloop-spin-us` in nanoseconds (0: no post-event polling).
+const spin_ns: i64 = @as(i64, @import("http_options").loop_spin_us) * std.time.ns_per_us;
+
 pub const Stats = struct {
     waits: std.atomic.Value(u64) = .init(0),
     events: std.atomic.Value(u64) = .init(0),
@@ -292,6 +295,9 @@ pub const Stats = struct {
     fiber_migrations: std.atomic.Value(u64) = .init(0),
     /// Registrations redone because the fd number had a new owner.
     fiber_reregisters: std.atomic.Value(u64) = .init(0),
+    /// Post-event polls (`-Dloop-spin-us`) that found events / ran out.
+    spin_hits: std.atomic.Value(u64) = .init(0),
+    spin_misses: std.atomic.Value(u64) = .init(0),
 
     fn bump(counter: *std.atomic.Value(u64), n: u64) void {
         _ = counter.fetchAdd(n, .monotonic);
@@ -628,6 +634,7 @@ pub const Loop = struct {
             st.unparks.load(.monotonic),       st.spawns.load(.monotonic), st.parks.load(.monotonic),  st.exits.load(.monotonic),  st.monitor_starts.load(.monotonic),
             st.monitor_ticks.load(.monotonic), st.stalls.load(.monotonic), st.stolen.load(.monotonic),
         });
+        if (spin_ns > 0) core.log.child("Http").debug("loop {d} spin stats hits={d} misses={d}", .{ self.id, st.spin_hits.load(.monotonic), st.spin_misses.load(.monotonic) });
         if (st.fiber_resumes.load(.monotonic) > 0) core.log.child("Http").debug("loop {d} fiber stats resumes={d} ready_hits={d} fresh_parks={d} level_checks={d} level_hits={d} migrations={d} reregisters={d}", .{
             self.id,                                st.fiber_resumes.load(.monotonic),    st.fiber_ready_hits.load(.monotonic), st.fiber_fresh_parks.load(.monotonic),
             st.fiber_level_checks.load(.monotonic), st.fiber_level_hits.load(.monotonic), st.fiber_migrations.load(.monotonic), st.fiber_reregisters.load(.monotonic),
@@ -1269,7 +1276,29 @@ pub const Loop = struct {
 
 
     /// Waits for up to `out.len` events.
-    fn wait(self: *Loop, out: []Event, timeout_ms: i32) union(enum) { events: usize, timeout, interrupted } {
+    const WaitResult = union(enum) { events: usize, timeout, interrupted };
+
+    /// `wait`, first polling without blocking for up to `-Dloop-spin-us` when
+    /// `spin` (the loop just handled events): input arriving right after a
+    /// batch then skips the sleep, and its sender the cost of waking us.
+    fn waitSpin(self: *Loop, out: []Event, timeout_ms: i32, spin: bool) WaitResult {
+        if (spin_ns > 0 and spin and timeout_ms != 0 and is_linux) {
+            const began = monoNs();
+            while (true) {
+                const got = self.wait(out, 0);
+                if (got != .timeout) {
+                    Stats.bump(&self.stats.spin_hits, 1);
+                    return got;
+                }
+                if (monoNs() - began >= spin_ns or self.isStopping()) break;
+                std.atomic.spinLoopHint();
+            }
+            Stats.bump(&self.stats.spin_misses, 1);
+        }
+        return self.wait(out, timeout_ms);
+    }
+
+    fn wait(self: *Loop, out: []Event, timeout_ms: i32) WaitResult {
         if (is_linux) {
             var ev: [max_event_batch]linux.epoll_event = undefined;
             const rc = linux.epoll_wait(self.fd, &ev, @intCast(out.len), timeout_ms);
@@ -1315,6 +1344,8 @@ pub const Loop = struct {
         var batch: [max_event_batch]Event = undefined;
         tls_rec.?.batch = &batch;
         if (@hasDecl(core, "blocking")) core.blocking.hook = .{ .ctx = self, .begin = hookBegin, .end = hookEnd };
+        // Spin only right after handling events: an idle loop blocks at once.
+        var after_events = false;
         while (true) {
             if (self.isStopping()) {
                 // Pass the stop on: the wake fd is edge-triggered.
@@ -1329,7 +1360,8 @@ pub const Loop = struct {
             const alone = @atomicLoad(u32, &self.threads, .monotonic) <= 1;
             const rec = tls_rec.?;
             const want = @max(1, @min(self.options.event_batch, max_event_batch));
-            const got = self.wait(rec.batch[0..want], if (surplus) surplus_linger_ms else if (alone) -1 else self.options.idle_exit_ms);
+            const got = self.waitSpin(rec.batch[0..want], if (surplus) surplus_linger_ms else if (alone) -1 else self.options.idle_exit_ms, after_events and alone);
+            after_events = got == .events;
             Stats.bump(&self.stats.waits, 1);
             const others = self.idle.fetchSub(1, .seq_cst) - 1;
             if (self.isStopping()) continue;

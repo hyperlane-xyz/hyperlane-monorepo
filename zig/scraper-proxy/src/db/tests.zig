@@ -1746,3 +1746,53 @@ test "libpq on fibers: a waiter on another loop passed over for affinity keeps i
     try testing.expect(std.mem.startsWith(u8, &st.b_message, "timeout exceeded when trying to connect"));
     try testing.expect(st.b_elapsed >= timeout_ms - 5 and st.b_elapsed < 3 * timeout_ms);
 }
+
+test "libpq: lazy results write and materialize byte-identically to converted rows" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    // Fast types at their edges plus excluded types (which convert).
+    const select =
+        \\SELECT * FROM (VALUES
+        \\ ((-32768)::int2, (-2147483648)::int4, 9007199254740993::int8, 1.2300e-5::numeric, ''::text, 'pad'::char(6), E'   \U0001F600 "\\ \t\n'::varchar, true, 1.5::float8, '{"a": [1, 2.50]}'::jsonb, '\x00ff'::bytea, '2020-02-29'::date, '{1,NULL}'::int4[], 4294967295::oid, '2026-10-01 12:34:56.789012'::timestamp, '2026-10-01 12:34:56.5+02'::timestamptz, '1 year 2 mons 3 days 04:05:06.789'::interval),
+        \\ (32767::int2, 2147483647::int4, (-9223372036854775808)::int8, 'NaN'::numeric, repeat('x', 3000), NULL, NULL, false, NULL, NULL, NULL, NULL, NULL, NULL, 'infinity'::timestamp, '-infinity'::timestamptz, '-00:00:01'::interval),
+        \\ (NULL, NULL, NULL, NULL, NULL, ''::char(1), E'\x01\x1f'::varchar, NULL, 'NaN'::float8, 'null'::jsonb, ''::bytea, NULL, '{}'::int4[], 0::oid, '0001-01-01 00:00:00 BC'::timestamp, NULL, NULL),
+        \\ (0::int2, 0::int4, 0::int8, 0::numeric, 'z', 'x', 'y', true, 0::float8, '[]'::jsonb, decode(repeat('00ff7f80', 64), 'hex'), '0001-01-01'::date, '{NULL}'::int4[], 1::oid, '1970-01-01 00:00:00'::timestamp, '1970-01-01 00:00:00+00'::timestamptz, '0'::interval),
+        \\ (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+        \\) AS t(i2, i4, i8, num, txt, bp, vc, b, f8, j, by, d, arr, o, ts, tstz, iv)
+    ;
+    for ([_]struct { sql: []const u8, params: []const core.json.Value, plan: pq.Plan }{
+        .{ .sql = select, .params = &.{}, .plan = .unnamed },
+        // The named (pipelined) path, both plan modes.
+        .{ .sql = select ++ " WHERE $1::int = 1", .params = &.{.{ .number = 1 }}, .plan = .custom },
+        .{ .sql = select ++ " WHERE $1::int = 1", .params = &.{.{ .number = 1 }}, .plan = .reusable },
+    }) |q| for (0..3) |_| { // repeated: named statements prepare on second use
+        const plain = try p.queryWith(a, q.sql, q.params, .{ .plan = q.plan }, null);
+        const lazy_result = try p.queryWith(a, q.sql, q.params, .{ .plan = q.plan, .lazy = true }, null);
+        const lazy = lazy_result.lazy.?;
+        defer lazy.deinit();
+        try testing.expectEqual(@as(usize, 0), lazy_result.rows.len);
+        try testing.expectEqual(plain.row_count, lazy.row_count);
+        try testing.expectEqual(plain.rows.len, lazy.rows);
+        try testing.expectEqualStrings(
+            try core.json.stringifyAlloc(a, .{ .array = plain.rows }),
+            try core.json.stringifyAlloc(a, .{ .array = try lazy.materialize(a) }),
+        );
+        for (plain.rows, 0..) |row, r| for (lazy.columns, 0..) |c, ci| {
+            var out: std.Io.Writer.Allocating = .init(a);
+            try lazy.writeCell(&out.writer, a, r, ci);
+            try testing.expectEqualStrings(try core.json.stringifyAlloc(a, row.get(c.name).?), out.written());
+        };
+        try testing.expectEqual(@as(?usize, 13), lazy.column("o"));
+    };
+    // A failing lazy query keeps the error and the connection.
+    var failure: root.Failure = .{};
+    try testing.expectError(error.QueryFailed, p.queryWith(a, "SELECT 1 / $1::int AS x", &.{.{ .number = 0 }}, .{ .lazy = true }, &failure));
+    try testing.expectEqualStrings("division by zero", failure.message);
+    const after = try p.query(a, "SELECT 2 AS x", &.{}, null);
+    try testing.expectEqual(@as(f64, 2), after.rows[0].get("x").?.number);
+    try testing.expectEqual(@as(u32, 1), p.stats().total);
+}

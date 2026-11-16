@@ -2,6 +2,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const db_mod = @import("db");
 const provisional = @import("provisional_message.zig");
 const sql = @import("sql.zig");
 const Table = @import("tables.zig").Table;
@@ -26,8 +27,13 @@ pub const Database = struct {
     /// Optional: same contract as `queryFn` for statements whose generic
     /// plan is safe to reuse (see `Plan.reusable`); null falls back to `queryFn`.
     reusableQueryFn: ?QueryFn = null,
+    /// Optional: the same query (planned as `plan`), with libpq's result
+    /// returned unconverted (`db.LazyRows`, owned by the caller; null when
+    /// the implementation cannot, e.g. a test backend).
+    lazyQueryFn: ?LazyQueryFn = null,
 
     pub const QueryFn = *const fn (ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value;
+    pub const LazyQueryFn = *const fn (ctx: *anyopaque, arena: Allocator, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror!?*db_mod.LazyRows;
 
     pub fn query(self: Database, arena: Allocator, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value {
         return self.queryFn(self.ctx, arena, text, values, diag);
@@ -97,6 +103,23 @@ pub const Service = struct {
     pub fn select(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror![]Value {
         const query = try sql.buildSelect(arena, table, args, null, diag);
         return self.db.queryPlanned(arena, planFor(args.where), query.sql, query.values, diag);
+    }
+
+    /// `select`'s query with its rows left unconverted (`db.LazyRows`, which
+    /// the caller must `deinit`); null when the database cannot (then use
+    /// `select`). Same SQL, plan, errors and diagnostics as `select`.
+    pub fn selectLazy(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror!?*db_mod.LazyRows {
+        const f = self.db.lazyQueryFn orelse return null;
+        const query = try sql.buildSelect(arena, table, args, null, diag);
+        return f(self.db.ctx, arena, planFor(args.where), query.sql, query.values, diag);
+    }
+
+    /// `byPk`'s query with its rows left unconverted (at most one; null when
+    /// the database cannot, then use `byPk`). The caller must `deinit` it.
+    pub fn byPkLazy(self: Service, arena: Allocator, table: Table, id: Value, columns: ?[]const []const u8, diag: *Diag) anyerror!?*db_mod.LazyRows {
+        const f = self.db.lazyQueryFn orelse return null;
+        const query = try sql.buildByPk(arena, table, id, columns, diag);
+        return f(self.db.ctx, arena, .reusable, query.sql, query.values, diag);
     }
 
     pub fn selectMessages(self: Service, arena: Allocator, args: MessageSelectArgs, diag: *Diag) anyerror![]Value {

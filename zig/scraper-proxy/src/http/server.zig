@@ -339,6 +339,14 @@ pub const Server = struct {
         self.mutex.unlock();
         // Sockets still alive reference the server and the loop: leak them.
         if (leaked) return;
+        if (fibers and fiber_group == &self.loop) {
+            // Later fd users (e.g. another test's database connection) must
+            // not reach the freed loop.
+            core.fiber.fd_closing = null;
+            core.fiber.fd_closed = null;
+            core.fiber.fd_readiness = null;
+            fiber_group = null;
+        }
         self.loop.deinit();
         while (self.arenas) |box| {
             self.arenas = box.next;

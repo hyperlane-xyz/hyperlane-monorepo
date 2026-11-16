@@ -21,6 +21,7 @@ pub const service = @import("service.zig");
 pub const resolvers = @import("resolvers.zig");
 pub const Database = service.Database;
 pub const Service = service.Service;
+pub const Plan = service.Plan;
 pub const MessageSelectArgs = service.MessageSelectArgs;
 
 test {

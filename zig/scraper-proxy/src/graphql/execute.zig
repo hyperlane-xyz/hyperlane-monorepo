@@ -85,6 +85,56 @@ pub const Resolvers = struct {
     /// without a call (graphql-js `defaultFieldResolver`).
     parent_types: []const []const u8 = &.{"query_root"},
     resolve: *const fn (ctx: *anyopaque, a: Allocator, info: *const Info, parent: Value, args: Value) Allocator.Error!ResolveResult,
+    /// Optional: the same field resolved to a database result read in place
+    /// (`RawResult`), asked only when the selection can be written straight
+    /// from it (see `rawPlan`). `.none`: use `resolve`.
+    resolve_raw: ?*const fn (ctx: *anyopaque, a: Allocator, info: *const Info, parent: Value, args: Value) Allocator.Error!RawResult = null,
+};
+
+/// What a fast column's JSON is (the database adapter decides per column
+/// type; `RawRows.write_cell_fn` writes it byte-equal to today's path).
+pub const FastKind = enum {
+    /// A JSON number (int2/int4).
+    number_text,
+    /// A JSON string (int8, numeric, text-like).
+    string_text,
+    /// `true`/`false` (bool).
+    bool_tf,
+};
+
+pub const RawColumn = struct {
+    name: []const u8,
+    /// Null: not a fast column type (the rows must be materialized).
+    kind: ?FastKind,
+};
+
+/// A database result read in place (IMPLEMENTATION.md "rows straight to
+/// JSON"). Owned by the executor once returned: `deinit` exactly once.
+pub const RawRows = struct {
+    ctx: *anyopaque,
+    n_rows: usize,
+    columns: []const RawColumn,
+    /// Cell text (null: SQL NULL), valid until `deinit`.
+    cell_fn: *const fn (ctx: *anyopaque, row: usize, col: usize) ?[]const u8,
+    /// Today's row values (`[]Value` objects), allocated in `a`.
+    materialize_fn: *const fn (ctx: *anyopaque, a: Allocator) Allocator.Error![]Value,
+    /// Writes cell (row, col) as today's JSON for its value (NULL: `null`).
+    write_cell_fn: *const fn (ctx: *anyopaque, w: *std.Io.Writer, a: Allocator, row: usize, col: usize) (std.Io.Writer.Error || Allocator.Error)!void,
+    deinit_fn: *const fn (ctx: *anyopaque) void,
+
+    fn cell(self: RawRows, row: usize, col: usize) ?[]const u8 {
+        return self.cell_fn(self.ctx, row, col);
+    }
+};
+
+pub const RawResult = union(enum) {
+    /// Not available for this field: use `Resolvers.resolve`.
+    none,
+    /// A list field's rows.
+    rows: RawRows,
+    /// A single-object field (`*_by_pk`): its first row, or null when none.
+    row: RawRows,
+    failure: ResolveFailure,
 };
 
 pub const Result = struct {
@@ -475,7 +525,7 @@ pub const Executor = struct {
     }
 
     fn writeRaw(self: *Executor, bytes: []const u8) Allocator.Error!void {
-        self.out.writer.writeAll(bytes) catch return error.OutOfMemory;
+        json.writeShort(&self.out.writer, bytes) catch return error.OutOfMemory;
     }
 
     // ---- fields ----
@@ -533,7 +583,7 @@ pub const Executor = struct {
             },
             .boolean => {
                 if (r != .bool) return false;
-                w.writeAll(if (r.bool) "true" else "false") catch return error.OutOfMemory;
+                json.writeShort(w, if (r.bool) "true" else "false") catch return error.OutOfMemory;
             },
         }
         return true;
@@ -552,6 +602,21 @@ pub const Executor = struct {
             .ok => |v| v,
             .err => |e| return self.raise(e.message, null, e.locations),
         };
+        if (self.resolvers.resolve_raw) |resolve_raw| if (try self.rawPlan(def, nodes)) |plan| {
+            switch (try resolve_raw(self.resolvers.ctx, self.a, &info, source, args)) {
+                .none => {},
+                .failure => |f| return self.raise(f.message, f.code, &.{}),
+                inline .rows, .row => |raw, tag| {
+                    defer raw.deinit_fn(raw.ctx);
+                    if (try self.writeRawRows(plan, raw, tag == .row)) return;
+                    // Not writable in place: today's values from the same result.
+                    const rows = try raw.materialize_fn(raw.ctx, self.a);
+                    const value: Value = if (tag == .rows) .{ .array = rows } else if (rows.len > 0) rows[0] else .null;
+                    _ = try self.writeValue(def.type, &info, path, value);
+                    return;
+                },
+            }
+        };
         var resolved: ?Value = null;
         if (std.mem.eql(u8, def.name, "__typename")) {
             resolved = .{ .string = parent.name };
@@ -561,6 +626,124 @@ pub const Executor = struct {
             .failure => |f| return self.raise(f.message, f.code, &.{}),
         }
         _ = try self.writeValue(def.type, &info, path, resolved);
+    }
+
+    /// The selection a field can write straight from a database result: a
+    /// list of objects, or one object, whose collected fields are all plain
+    /// leaves (default resolver, no arguments) of a scalar whose output is
+    /// the column value itself (String, ID, Int, Boolean, or the
+    /// pass-through bigint/numeric scalars). Null: today's path.
+    const RawPlan = struct {
+        collected: *const Collected,
+        /// Field types (for nullability and the Int range check).
+        scalars: []const RawScalar,
+        list_non_null: bool,
+        object_non_null: bool,
+    };
+    const RawScalar = struct { kind: schema_mod.ScalarKind, non_null: bool };
+
+    fn rawPlan(self: *Executor, def: *const schema_mod.Field, nodes: []const *const ast.Field) Err!?RawPlan {
+        var t = def.type;
+        var list_non_null = false;
+        var object_non_null = false;
+        if (t.* == .non_null) {
+            list_non_null = true;
+            t = t.non_null;
+        }
+        if (t.* == .list) {
+            t = t.list;
+            if (t.* == .non_null) {
+                object_non_null = true;
+                t = t.non_null;
+            }
+        } else {
+            object_non_null = list_non_null;
+            list_non_null = false;
+        }
+        if (t.* != .named or t.named.kind != .object) return null;
+        const named = t.named;
+        const collected = try self.collectSubfields(named, nodes);
+        const scalars = try self.a.alloc(RawScalar, collected.names.len);
+        for (collected.defs, collected.plain, scalars) |maybe_def, plain, *slot| {
+            const d = maybe_def orelse return null;
+            if (!plain) return null;
+            var ft = d.type;
+            const non_null = ft.* == .non_null;
+            if (non_null) ft = ft.non_null;
+            if (ft.* != .named or ft.named.kind != .scalar) return null;
+            const leaf = ft.named;
+            switch (leaf.scalar) {
+                .string, .id, .int, .boolean => {},
+                .custom => if (!passThroughCustom(leaf.name)) return null,
+                .float => return null,
+            }
+            slot.* = .{ .kind = leaf.scalar, .non_null = non_null };
+        }
+        const is_list = def.type.* == .list or (def.type.* == .non_null and def.type.non_null.* == .list);
+        return .{ .collected = collected, .scalars = scalars, .list_non_null = if (is_list) list_non_null else false, .object_non_null = object_non_null };
+    }
+
+    /// Writes the field from `raw` when every selected field maps to a fast
+    /// column whose JSON equals today's output and no cell needs today's
+    /// error or coercion path; false (nothing written): materialize instead.
+    fn writeRawRows(self: *Executor, plan: RawPlan, raw: RawRows, single: bool) Err!bool {
+        const fields = plan.collected.names.len;
+        const cols = try self.a.alloc(usize, fields);
+        for (plan.collected.defs, plan.scalars, cols) |maybe_def, scalar, *col| {
+            // The column the row object holds for this field (the default
+            // resolver's `source[def.name]`): like convertRows, a duplicated
+            // name keeps its last column's value.
+            const column_name = (maybe_def orelse return false).name;
+            var found: ?usize = null;
+            for (raw.columns, 0..) |c, i| if (std.mem.eql(u8, c.name, column_name)) {
+                found = i;
+            };
+            const i = found orelse return false;
+            const k = raw.columns[i].kind orelse return false;
+            const identity = switch (scalar.kind) {
+                .string, .id => k == .string_text,
+                .int => k == .number_text,
+                .boolean => k == .bool_tf,
+                .custom => true, // pass-through: today's output is the column value as JSON
+                .float => false,
+            };
+            if (!identity) return false;
+            col.* = i;
+        }
+        const rows = if (single) @min(raw.n_rows, 1) else raw.n_rows;
+        if (single and rows == 0 and plan.object_non_null) return false;
+        // Pre-scan: a NULL in a non-null field, or an Int outside 32 bits,
+        // takes today's path (its error or coercion).
+        for (0..rows) |r| {
+            for (plan.scalars, cols) |scalar, c| {
+                const text = raw.cell(r, c) orelse {
+                    if (scalar.non_null) return false;
+                    continue;
+                };
+                if (scalar.kind == .int) {
+                    const n = std.fmt.parseInt(i64, text, 10) catch return false;
+                    if (n > std.math.maxInt(i32) or n < std.math.minInt(i32)) return false;
+                }
+            }
+        }
+        const w = &self.out.writer;
+        if (single and rows == 0) {
+            try self.writeRaw("null");
+            return true;
+        }
+        if (!single) try self.writeRaw("[");
+        for (0..rows) |r| {
+            if (r > 0) try self.writeRaw(",");
+            try self.writeRaw("{");
+            for (plan.collected.keys, cols, 0..) |key, c, i| {
+                if (i > 0) try self.writeRaw(",");
+                try self.writeRaw(key);
+                raw.write_cell_fn(raw.ctx, w, self.a, r, c) catch return error.OutOfMemory;
+            }
+            try self.writeRaw("}");
+        }
+        if (!single) try self.writeRaw("]");
+        return true;
     }
 
     /// `completeValue`, serialized; `result` null = undefined. Returns
@@ -763,6 +946,14 @@ pub const Executor = struct {
         return null;
     }
 };
+
+/// Custom scalars written from fast columns. All custom scalars are
+/// pass-through (scalars.ts), but the converted ones (bytea, timestamp,
+/// interval) measured slower written per cell than materialized (Depot
+/// 4ggszm4hmd: +6–7% CPU on the 500-row rows), so they keep today's path.
+fn passThroughCustom(name: []const u8) bool {
+    return std.mem.eql(u8, name, "bigint") or std.mem.eql(u8, name, "numeric");
+}
 
 /// Where a field was last found in its rows. Rows of one database result
 /// share key order and the key slices themselves (`pq.convertRows`

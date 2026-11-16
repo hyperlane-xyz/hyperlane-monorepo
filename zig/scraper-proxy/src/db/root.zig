@@ -55,9 +55,13 @@ pub const Result = struct {
     rows: []Value,
     /// node-pg `rowCount` (command tag count; null tag -> 0).
     row_count: usize,
+    /// `QueryOptions.lazy`: the unconverted result (`rows` is empty); the
+    /// receiver owns it and must `deinit` it.
+    lazy: ?*pq.LazyRows = null,
 };
 
 pub const Pool = pool.Pool;
+pub const LazyRows = pq.LazyRows;
 pub const PoolOptions = pool.Options;
 pub const ConnOptions = pq.ConnOptions;
 pub const QueryOptions = pq.QueryOptions;

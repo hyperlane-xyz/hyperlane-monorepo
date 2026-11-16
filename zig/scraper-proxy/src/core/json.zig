@@ -102,8 +102,8 @@ const recursion_limit = 128;
 
 fn stringifyAt(w: *Writer, value: Value, depth: usize) Writer.Error!void {
     switch (value) {
-        .null => try w.writeAll("null"),
-        .bool => |b| try w.writeAll(if (b) "true" else "false"),
+        .null => try writeShort(w, "null"),
+        .bool => |b| try writeShort(w, if (b) "true" else "false"),
         .number => |n| try writeNumber(w, n),
         .raw => |r| try w.writeAll(r),
         .string => |s| try writeString(w, s),
@@ -314,63 +314,109 @@ const lanes = 16;
 
 const Block = @Vector(lanes, u8);
 
-inline fn specialMask(block: Block) std.meta.Int(.unsigned, lanes) {
-    const special = (block < @as(Block, @splat(0x20))) |
+inline fn specialBits(block: Block) @Vector(lanes, bool) {
+    return (block < @as(Block, @splat(0x20))) |
         (block == @as(Block, @splat('"'))) |
         (block == @as(Block, @splat('\\'))) |
         (block == @as(Block, @splat(0xed)));
-    return @bitCast(special);
+}
+
+/// Index of the first byte needing `escape_table` in `block`, if any. The
+/// any-test is one reduction; the bit mask (costly on NEON) only on a hit.
+inline fn firstSpecial(block: Block) ?usize {
+    const special = specialBits(block);
+    if (!@reduce(.Or, special)) return null;
+    const mask: std.meta.Int(.unsigned, lanes) = @bitCast(special);
+    return @ctz(mask);
 }
 
 pub fn writeString(w: *Writer, s: []const u8) Writer.Error!void {
-    // Fast path (enough free buffer for the string plus one block of slack):
-    // copy 16-byte blocks straight into the buffer while checking them, so
-    // clean strings cost one pass. Bytes past the string are overwritten
-    // later (they are beyond `w.end`).
-    if (w.buffer.len - w.end >= s.len + 2 + lanes) {
-        const dest = w.buffer[w.end + 1 ..];
-        w.buffer[w.end] = '"';
-        var i: usize = 0;
-        while (i < s.len) : (i += lanes) {
-            var block: [lanes]u8 = undefined;
-            if (i + lanes <= s.len) {
-                block = s[i..][0..lanes].*;
+    try w.writeByte('"');
+    var i: usize = 0;
+    while (i < s.len) {
+        // Room for the rest, one escape and a block of slack: copy 16-byte
+        // blocks straight into the buffer while checking them (one pass);
+        // bytes past the string are overwritten later (beyond `w.end`).
+        const rest = s[i..];
+        if (w.buffer.len - w.end < rest.len + max_escape + lanes) return writeEscaped(w, s, i);
+        const dest = w.buffer[w.end..];
+        var j: usize = 0;
+        const at: usize = while (j < rest.len) {
+            if (j + lanes <= rest.len) {
+                const block: Block = rest[j..][0..lanes].*;
+                dest[j..][0..lanes].* = block;
+                if (firstSpecial(block)) |k| break j + k;
+                j += lanes;
+            } else if (rest.len >= lanes) {
+                // Tail: the last full block, overlapping checked (clean) bytes.
+                const k = rest.len - lanes;
+                const block: Block = rest[k..][0..lanes].*;
+                dest[k..][0..lanes].* = block;
+                break if (firstSpecial(block)) |f| k + f else rest.len;
             } else {
-                block = @splat('a');
-                @memcpy(block[0 .. s.len - i], s[i..]);
+                var bytes: [lanes]u8 = @splat('a');
+                copyShort(&bytes, rest);
+                const block: Block = bytes;
+                dest[0..lanes].* = block;
+                break if (firstSpecial(block)) |f| f else rest.len;
             }
-            dest[i..][0..lanes].* = block;
-            const mask = specialMask(block);
-            if (mask != 0) {
-                // Commit the clean prefix, escape the rest.
-                const at = i + @ctz(mask);
-                w.end += 1 + at;
-                return writeEscaped(w, s, at);
-            }
-        }
-        dest[s.len] = '"';
-        w.end += s.len + 2;
-        return;
+        } else rest.len;
+        w.end += at;
+        i += at;
+        if (i < s.len) i += writeEscape(w, s, i);
     }
     try w.writeByte('"');
-    return writeEscaped(w, s, 0);
 }
 
+/// Longest escape `writeEscape` writes (`\uXXXX`).
+const max_escape = 6;
+
+/// Writes the escape for `s[i]` (an `escape_table` byte) into the buffer,
+/// which has room for `max_escape` bytes; returns the input bytes consumed.
+inline fn writeEscape(w: *Writer, s: []const u8, i: usize) usize {
+    const c = s[i];
+    const out = w.buffer[w.end..][0..max_escape];
+    switch (escape_table[c]) {
+        1 => if (i + 2 < s.len and s[i + 1] >= 0xa0 and s[i + 1] <= 0xbf and s[i + 2] & 0xc0 == 0x80) {
+            // WTF-8 lone surrogate: `\udxxx`.
+            const unit: u16 = (@as(u16, c & 0x0f) << 12) | (@as(u16, s[i + 1] & 0x3f) << 6) | (s[i + 2] & 0x3f);
+            out.* = .{ '\\', 'u', hex[unit >> 12], hex[(unit >> 8) & 0xf], hex[(unit >> 4) & 0xf], hex[unit & 0xf] };
+            w.end += 6;
+            return 3;
+        } else {
+            out[0] = c;
+            w.end += 1;
+            return 1;
+        },
+        'u' => {
+            out.* = .{ '\\', 'u', '0', '0', hex[c >> 4], hex[c & 0xf] };
+            w.end += 6;
+            return 1;
+        },
+        else => |k| {
+            out[0] = '\\';
+            out[1] = k;
+            w.end += 2;
+            return 1;
+        },
+    }
+}
+
+const hex = "0123456789abcdef";
+
 /// Writes `s[from..]` escaped plus the closing quote (opening quote and
-/// `s[0..from]` already written).
+/// `s[0..from]` already written), through the writer (no room assumed).
 fn writeEscaped(w: *Writer, s: []const u8, from: usize) Writer.Error!void {
     var start: usize = from;
     var i: usize = from;
     while (i < s.len) : (i += 1) {
         // Skip clean 16-byte blocks.
         while (i + lanes <= s.len) {
-            const mask = specialMask(s[i..][0..lanes].*);
-            if (mask == 0) {
-                i += lanes;
-                continue;
+            if (firstSpecial(s[i..][0..lanes].*)) |k| {
+                i += k;
+                break;
             }
-            i += @ctz(mask);
-            break;
+            i += lanes;
         }
         if (i >= s.len) break;
         const c = s[i];
@@ -401,9 +447,49 @@ fn writeEscaped(w: *Writer, s: []const u8, from: usize) Writer.Error!void {
 
 /// `JSON.stringify(number)`: non-finite -> `null`.
 pub fn writeNumber(w: *Writer, value: f64) Writer.Error!void {
-    if (!std.math.isFinite(value)) return w.writeAll("null");
+    // Exact integers (the common case): digits straight to the writer.
+    if (@abs(value) < 9007199254740992.0 and @trunc(value) == value) {
+        var digits: [24]u8 = undefined;
+        const text = formatU64(&digits, @intFromFloat(@abs(value)));
+        if (value >= 0) return writeShort(w, text); // -0 prints "0"
+        const start = digits.len - text.len - 1;
+        digits[start] = '-';
+        return writeShort(w, digits[start..]);
+    }
+    if (!std.math.isFinite(value)) return writeShort(w, "null");
     var buf: [64]u8 = undefined;
     try w.writeAll(formatNumber(&buf, value));
+}
+
+/// `w.writeAll(bytes)`, with runs of up to 32 bytes copied inline
+/// (overlapping loads/stores) instead of through a `memcpy` call.
+pub inline fn writeShort(w: *Writer, bytes: []const u8) Writer.Error!void {
+    if (bytes.len <= 32 and w.buffer.len - w.end >= 32) {
+        copyShort(w.buffer[w.end..][0..32], bytes);
+        w.end += bytes.len;
+        return;
+    }
+    return w.writeAll(bytes);
+}
+
+/// Copies `src` (at most `dest.len` ≤ 32 bytes) to the front of `dest`
+/// with fixed-size overlapping copies; never reads outside `src`.
+inline fn copyShort(dest: anytype, src: []const u8) void {
+    const n = src.len;
+    if (n >= 16) {
+        dest[0..16].* = src[0..16].*;
+        dest[n - 16 ..][0..16].* = src[n - 16 ..][0..16].*;
+    } else if (n >= 8) {
+        dest[0..8].* = src[0..8].*;
+        dest[n - 8 ..][0..8].* = src[n - 8 ..][0..8].*;
+    } else if (n >= 4) {
+        dest[0..4].* = src[0..4].*;
+        dest[n - 4 ..][0..4].* = src[n - 4 ..][0..4].*;
+    } else if (n > 0) {
+        dest[0] = src[0];
+        dest[n / 2] = src[n / 2];
+        dest[n - 1] = src[n - 1];
+    }
 }
 
 const digit_pairs: *const [200]u8 = "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
@@ -994,6 +1080,226 @@ test "vectorized writeString matches the scalar reference" {
     }
 }
 
+// The C9 writer (two passes after the first escape), kept as an oracle.
+inline fn specialMaskBefore(block: Block) std.meta.Int(.unsigned, lanes) {
+    const special = (block < @as(Block, @splat(0x20))) |
+        (block == @as(Block, @splat('"'))) |
+        (block == @as(Block, @splat('\\'))) |
+        (block == @as(Block, @splat(0xed)));
+    return @bitCast(special);
+}
+
+fn writeStringBefore(w: *Writer, s: []const u8) Writer.Error!void {
+    // Fast path (enough free buffer for the string plus one block of slack):
+    // copy 16-byte blocks straight into the buffer while checking them, so
+    // clean strings cost one pass. Bytes past the string are overwritten
+    // later (they are beyond `w.end`).
+    if (w.buffer.len - w.end >= s.len + 2 + lanes) {
+        const dest = w.buffer[w.end + 1 ..];
+        w.buffer[w.end] = '"';
+        var i: usize = 0;
+        while (i < s.len) : (i += lanes) {
+            var block: [lanes]u8 = undefined;
+            if (i + lanes <= s.len) {
+                block = s[i..][0..lanes].*;
+            } else {
+                block = @splat('a');
+                @memcpy(block[0 .. s.len - i], s[i..]);
+            }
+            dest[i..][0..lanes].* = block;
+            const mask = specialMaskBefore(block);
+            if (mask != 0) {
+                // Commit the clean prefix, escape the rest.
+                const at = i + @ctz(mask);
+                w.end += 1 + at;
+                return writeEscapedBefore(w, s, at);
+            }
+        }
+        dest[s.len] = '"';
+        w.end += s.len + 2;
+        return;
+    }
+    try w.writeByte('"');
+    return writeEscapedBefore(w, s, 0);
+}
+
+/// Writes `s[from..]` escaped plus the closing quote (opening quote and
+/// `s[0..from]` already written).
+fn writeEscapedBefore(w: *Writer, s: []const u8, from: usize) Writer.Error!void {
+    var start: usize = from;
+    var i: usize = from;
+    while (i < s.len) : (i += 1) {
+        // Skip clean 16-byte blocks.
+        while (i + lanes <= s.len) {
+            const mask = specialMaskBefore(s[i..][0..lanes].*);
+            if (mask == 0) {
+                i += lanes;
+                continue;
+            }
+            i += @ctz(mask);
+            break;
+        }
+        if (i >= s.len) break;
+        const c = s[i];
+        const kind = escape_table[c];
+        if (kind == 0) continue;
+        if (kind == 1) {
+            if (i + 2 < s.len and s[i + 1] >= 0xa0 and s[i + 1] <= 0xbf and s[i + 2] & 0xc0 == 0x80) {
+                try w.writeAll(s[start..i]);
+                const unit: u16 = (@as(u16, c & 0x0f) << 12) | (@as(u16, s[i + 1] & 0x3f) << 6) | (s[i + 2] & 0x3f);
+                try w.print("\\u{x:0>4}", .{unit});
+                i += 2;
+                start = i + 1;
+            }
+            continue;
+        }
+        try w.writeAll(s[start..i]);
+        if (kind == 'u') {
+            try w.print("\\u{x:0>4}", .{c});
+        } else {
+            try w.writeByte('\\');
+            try w.writeByte(kind);
+        }
+        start = i + 1;
+    }
+    try w.writeAll(s[start..]);
+    try w.writeByte('"');
+}
+
+
+test "writeString: inline escapes match the C9 writer and the scalar reference (fuzz)" {
+    var prng = std.Random.DefaultPrng.init(0x57a1_9e5c);
+    const r = prng.random();
+    const alphabet = "abcXYZ019 \"\\\n\t\x01\x1f\x7f\xed\xa0\xbf\x80\xc3\xa9\xe2";
+    var buf: [300]u8 = undefined;
+    var out_new: [2400]u8 = undefined;
+    var out_old: [2400]u8 = undefined;
+    var out_ref: [6000]u8 = undefined;
+    for (0..40_000) |n| {
+        // Every length 0..300 (vector boundaries included), mostly random.
+        const len = if (n < 301) n else r.uintAtMost(usize, buf.len);
+        switch (r.uintLessThan(u8, 4)) {
+            // Any bytes (invalid UTF-8 included: the writer passes them through).
+            0 => r.bytes(buf[0..len]),
+            1 => for (buf[0..len]) |*b| {
+                b.* = alphabet[r.uintLessThan(usize, alphabet.len)];
+            },
+            // Long clean runs with sparse specials (bytea text, prose).
+            else => for (buf[0..len]) |*b| {
+                b.* = if (r.uintLessThan(u8, 40) == 0) alphabet[r.uintLessThan(usize, alphabet.len)] else "0123456789abcdef"[r.uintLessThan(usize, 16)];
+            },
+        }
+        if (len > 0 and r.boolean()) buf[0] = '\\'; // bytea's leading backslash
+        const s = buf[0..len];
+        // Prefix (alignment) and capacity (fast vs slow path) vary.
+        const prefix = r.uintLessThan(usize, 20);
+        const cap = if (r.boolean()) out_new.len else @min(out_new.len, prefix + 2 + len * 6 + r.uintLessThan(usize, 40));
+        var wn = std.Io.Writer.fixed(out_new[0..cap]);
+        var wo = std.Io.Writer.fixed(&out_old);
+        var wr = std.Io.Writer.fixed(&out_ref);
+        for ([_]*std.Io.Writer{ &wn, &wo, &wr }) |w| w.splatByteAll('.', prefix) catch unreachable;
+        try writeString(&wn, s);
+        try writeStringBefore(&wo, s);
+        try writeStringScalar(&wr, s);
+        try testing.expectEqualStrings(wr.buffered(), wn.buffered());
+        try testing.expectEqualStrings(wo.buffered(), wn.buffered());
+    }
+    // Growing writer, from a tiny buffer (slow path, then fast).
+    for (0..2000) |_| {
+        const len = r.uintAtMost(usize, buf.len);
+        r.bytes(buf[0..len]);
+        var grow: std.Io.Writer.Allocating = try .initCapacity(testing.allocator, 1);
+        defer grow.deinit();
+        var wr = std.Io.Writer.fixed(&out_ref);
+        for (0..3) |_| {
+            try writeString(&grow.writer, buf[0..len]);
+            try writeStringScalar(&wr, buf[0..len]);
+        }
+        try testing.expectEqualStrings(wr.buffered(), grow.written());
+    }
+}
+
+fn writeNumberBefore(w: *Writer, value: f64) Writer.Error!void {
+    if (!std.math.isFinite(value)) return w.writeAll("null");
+    var buf: [64]u8 = undefined;
+    try w.writeAll(formatNumber(&buf, value));
+}
+
+test "writeNumber and writeShort match the C9 writers (fuzz)" {
+    var prng = std.Random.DefaultPrng.init(0x4e_0b3e);
+    const r = prng.random();
+    var out_new: [4096]u8 = undefined;
+    var out_old: [4096]u8 = undefined;
+    const edges = [_]f64{ 0, -0.0, 1, -1, 9, 10, 99, 100, 2147483647, -2147483648, 4294967296, 9007199254740991, -9007199254740991, 9007199254740992, -9007199254740992, 9007199254740994, 18014398509481984, 1e21, 1e-7, 0.1, -0.5, 123.456, 5e-324, std.math.floatMax(f64), std.math.nan(f64), std.math.inf(f64), -std.math.inf(f64) };
+    for (0..60_000) |n| {
+        const v: f64 = if (n < edges.len) edges[n] else switch (r.uintLessThan(u8, 6)) {
+            0 => @floatFromInt(r.int(i32)),
+            1 => @floatFromInt(r.int(i64) >> @intCast(r.uintLessThan(u8, 64))),
+            2 => @floatFromInt(r.uintLessThan(u64, 1 << 54)),
+            3 => @bitCast(r.int(u64)), // any bit pattern (NaNs, subnormals, huge)
+            4 => @as(f64, @floatFromInt(r.int(i32))) / 1000.0,
+            else => -@as(f64, @floatFromInt(r.uintLessThan(u64, 1 << 53))),
+        };
+        // Capacity: roomy, or tight (the writeAll path; fixed writers fail
+        // on overflow, so give exactly enough for the old output).
+        var wo = std.Io.Writer.fixed(&out_old);
+        try writeNumberBefore(&wo, v);
+        const need = wo.buffered().len;
+        const prefix = r.uintLessThan(usize, 40);
+        const cap = if (r.boolean()) out_new.len else prefix + need;
+        var wn = std.Io.Writer.fixed(out_new[0..cap]);
+        try wn.splatByteAll('.', prefix);
+        try writeNumber(&wn, v);
+        try testing.expectEqualStrings(wo.buffered(), wn.buffered()[prefix..]);
+    }
+    // writeShort: every length 0..40, roomy and tight buffers.
+    var src: [40]u8 = undefined;
+    for (0..20_000) |n| {
+        const len = if (n <= 40) n else r.uintAtMost(usize, src.len);
+        r.bytes(src[0..len]);
+        const prefix = r.uintLessThan(usize, 40);
+        const cap = if (r.boolean()) out_new.len else prefix + len + r.uintLessThan(usize, 40);
+        var wn = std.Io.Writer.fixed(out_new[0..cap]);
+        try wn.splatByteAll('.', prefix);
+        try writeShort(&wn, src[0..len]);
+        try testing.expectEqual(prefix + len, wn.end);
+        try testing.expectEqualSlices(u8, src[0..len], wn.buffered()[prefix..]);
+    }
+}
+
+test "writeShort and writeString never read outside the source (guard pages)" {
+    // Three pages: PROT_NONE, data, PROT_NONE. Sources sit flush against
+    // either guard, so any over- or under-read faults.
+    const page = std.heap.pageSize();
+    const mem = try std.posix.mmap(null, 3 * page, std.posix.PROT.READ | std.posix.PROT.WRITE, .{ .TYPE = .PRIVATE, .ANONYMOUS = true }, -1, 0);
+    defer std.posix.munmap(mem);
+    try std.posix.mprotect(mem[0..page], std.posix.PROT.NONE);
+    try std.posix.mprotect(@alignCast(mem[2 * page ..]), std.posix.PROT.NONE);
+    const data = mem[page .. 2 * page];
+    var prng = std.Random.DefaultPrng.init(0x9a4d);
+    const r = prng.random();
+    var out_new: [2400]u8 = undefined;
+    var out_ref: [2400]u8 = undefined;
+    for (0..4) |round| for (0..301) |len| {
+        r.bytes(data);
+        if (round % 2 == 1) for (data) |*b| {
+            b.* = "0123456789abcdef\\"[r.uintLessThan(usize, 17)];
+        };
+        for ([_][]const u8{ data[data.len - len ..], data[0..len] }) |src| {
+            var wn = std.Io.Writer.fixed(&out_new);
+            var wr = std.Io.Writer.fixed(&out_ref);
+            try writeString(&wn, src);
+            try writeStringScalar(&wr, src);
+            try testing.expectEqualStrings(wr.buffered(), wn.buffered());
+            if (len <= 40) {
+                var ws = std.Io.Writer.fixed(&out_new);
+                try writeShort(&ws, src);
+                try testing.expectEqualSlices(u8, src, ws.buffered());
+            }
+        }
+    };
+}
+
 test "parse matches JSON.parse semantics" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -1128,4 +1434,35 @@ test "toWellFormedUtf8 replaces invalid sequences like Buffer#toString" {
     try testing.expectEqualStrings("a\u{fffd}b", try toWellFormedUtf8(a, "a\xffb"));
     try testing.expectEqualStrings("\u{fffd}\u{fffd}", try toWellFormedUtf8(a, "\xed\xa0\x80"[0..2] ++ ""));
     try testing.expectEqualStrings("\u{fffd}x", try toWellFormedUtf8(a, "\xe2\x82x"));
+}
+
+// Opt-in: the strings of `raw_message_dispatch` 500 rows with bodies (bytea
+// hex with its leading backslash, a timestamp), C9 writer vs today's.
+//   JSON_BENCH=1 ./build.sh test-core -Doptimize=ReleaseFast -Dtest-filter="writeString bench"
+test "writeString bench: bytea-like rows (opt-in)" {
+    if (std.posix.getenv("JSON_BENCH") == null) return error.SkipZigTest;
+    const a = std.heap.page_allocator;
+    var prng = std.Random.DefaultPrng.init(42);
+    const r = prng.random();
+    var strings: std.ArrayList([]const u8) = .empty;
+    for (0..500) |_| for ([_]usize{ 32, 20, 20, 80, 32 }) |bytes| {
+        const n = if (bytes == 80) r.uintAtMost(usize, 160) else bytes;
+        const s = try a.alloc(u8, 2 + 2 * n);
+        s[0] = '\\';
+        s[1] = 'x';
+        for (s[2..]) |*c| c.* = "0123456789abcdef"[r.uintLessThan(usize, 16)];
+        try strings.append(a, s);
+        try strings.append(a, "2026-10-03 00:12:34.567891");
+    };
+    var out: std.Io.Writer.Allocating = try .initCapacity(a, 1 << 20);
+    var best = [2]u64{ std.math.maxInt(u64), std.math.maxInt(u64) };
+    for (0..30) |_| for (0..2) |v| {
+        var t = try std.time.Timer.start();
+        for (0..20) |_| {
+            out.clearRetainingCapacity();
+            for (strings.items) |s| if (v == 0) try writeStringBefore(&out.writer, s) else try writeString(&out.writer, s);
+        }
+        best[v] = @min(best[v], t.read() / 20);
+    };
+    std.debug.print("writeString, 500 rmd rows of strings: C9 {d:.1} us, now {d:.1} us (min of 30); now/C9 {d:.3}\n", .{ @as(f64, @floatFromInt(best[0])) / 1000, @as(f64, @floatFromInt(best[1])) / 1000, @as(f64, @floatFromInt(best[1])) / @as(f64, @floatFromInt(best[0])) });
 }

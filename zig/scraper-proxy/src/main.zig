@@ -18,7 +18,8 @@
 //!     app.route() http.Route, app.deinit()
 //!   live.EventWebSocketServer.init(gpa, *db.DbService, ?*diagnostics.Service) !*S,
 //!     s.start(*failure_message ?[]const u8) !void, s.upgradeHandler() http.UpgradeHandler,
-//!     s.metricsProvider() core.metrics.WebSocketMetricsProvider, s.stop(), s.deinit()
+//!     s.metricsProvider() core.metrics.WebSocketMetricsProvider, s.setFiberHost(*http loop group),
+//!     s.stop(), s.deinit()
 const std = @import("std");
 const builtin = @import("builtin");
 const core = @import("core");
@@ -175,5 +176,7 @@ fn startup(app: *App, config: core.config.Config) !void {
         return e;
     };
     app.server = server;
+    // Live's per-subscribe reads run as fibers on these loops (-Dlive-fiber-queries).
+    if (has_events) app.events.?.setFiberHost(&server.loop);
     try server.start();
 }

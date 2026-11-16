@@ -5,6 +5,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const db = @import("db");
 const service = @import("service.zig");
 const sql = @import("sql.zig");
 const Table = @import("tables.zig").Table;
@@ -47,6 +48,20 @@ pub fn selectMessages(svc: Service, arena: Allocator, args: *const Value, column
 pub fn byPk(svc: Service, arena: Allocator, table: Table, id: *const Value, columns: []const []const u8, message: *[]const u8) Error!?Value {
     var diag: sql.Diag = .{};
     return svc.byPk(arena, table, id.*, columns, &diag) catch |err| return failed(err, diag, message);
+}
+
+/// `select` with the rows left as libpq's result (`db.LazyRows`, which the
+/// caller must `deinit`); null when the service cannot (then use `select`).
+pub fn selectLazy(svc: Service, arena: Allocator, table: Table, args: *const Value, columns: []const []const u8, message: *[]const u8) Error!?*db.LazyRows {
+    var diag: sql.Diag = .{};
+    return svc.selectLazy(arena, table, selectArgs(args, columns), &diag) catch |err| return failed(err, diag, message);
+}
+
+/// `byPk` with the row left as libpq's result (zero or one row); null when
+/// the service cannot (then use `byPk`).
+pub fn byPkLazy(svc: Service, arena: Allocator, table: Table, id: *const Value, columns: []const []const u8, message: *[]const u8) Error!?*db.LazyRows {
+    var diag: sql.Diag = .{};
+    return svc.byPkLazy(arena, table, id.*, columns, &diag) catch |err| return failed(err, diag, message);
 }
 
 /// `message_view_aggregate_fields.count(columns, distinct)` with the parent's select args.
