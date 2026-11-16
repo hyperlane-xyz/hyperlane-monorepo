@@ -115,6 +115,42 @@ class ShapeProxy:
             return dict(self.shapes.most_common())
 
 
+def proc_snapshot(pid: int) -> dict:
+    """Process counters right after readiness (Linux /proc; cheap reads, no tracer).
+
+    minflt/majflt/utime/stime cover the whole thread group; ctx switches are summed over live threads."""
+    try:
+        fields = pathlib.Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+    except OSError:
+        return {}
+    tick = os.sysconf("SC_CLK_TCK")
+    snapshot = {"minflt": int(fields[7]), "majflt": int(fields[9]), "utime_ms": int(fields[11]) * 1000 / tick,
+                "stime_ms": int(fields[12]) * 1000 / tick, "threads": int(fields[17]), "ctx_voluntary": 0, "ctx_involuntary": 0}
+    for status in pathlib.Path(f"/proc/{pid}/task").glob("*/status"):
+        try:
+            for line in status.read_text().splitlines():
+                if line.startswith("voluntary_ctxt_switches:"):
+                    snapshot["ctx_voluntary"] += int(line.split()[1])
+                elif line.startswith("nonvoluntary_ctxt_switches:"):
+                    snapshot["ctx_involuntary"] += int(line.split()[1])
+        except OSError:
+            continue  # thread exited between listing and read
+    return snapshot
+
+
+def parse_startup_trace(log: bytes, launch_ns: int) -> list:
+    """`startup-trace <CLOCK_MONOTONIC ns> <kind> <value> t<tid>` lines (bench-only diag builds) as ms since launch."""
+    events = []
+    for line in log.decode(errors="replace").splitlines():
+        at = line.find("startup-trace ")
+        if at < 0:
+            continue
+        parts = line[at:].split()
+        if len(parts) >= 5 and parts[1].isdigit():
+            events.append([round((int(parts[1]) - launch_ns) / 1e6, 3), parts[2], parts[3], parts[4]])
+    return events
+
+
 def start_anvil(log):
     port = rb.free_port()
     proc = subprocess.Popen(["anvil", "--host", "127.0.0.1", "--port", str(port), "--chain-id", "31337", "--silent"],
@@ -298,6 +334,8 @@ def run_attempt(name, sample, order, args, output):
 
             ready_ns = rb.wait_for(running, ready_probe, args.deadline, "relayer readiness")
             ready_unix = time.time()
+            startup_proc = proc_snapshot(agent_pid)
+            startup_proc["at_ms"] = round((time.perf_counter_ns() - launch_ns) / 1e6, 2)
             startup_rpc = rpc_snapshot()
             pending = list(messages)
 
@@ -348,7 +386,9 @@ def run_attempt(name, sample, order, args, output):
             stop = running.stop_with_signal(signal.SIGTERM)
             stop["minor_page_faults"] = running.usage.ru_minflt
             stop["major_page_faults"] = running.usage.ru_majflt
-            (raw_dir / "relayer.log").write_bytes(running.full_log())
+            agent_log = running.full_log()
+            (raw_dir / "relayer.log").write_bytes(agent_log)
+            startup_trace = parse_startup_trace(agent_log, launch_ns)
             running.close()
             running = None
             if stop["exit_code"] not in [0, -signal.SIGTERM]:
@@ -403,6 +443,8 @@ def run_attempt(name, sample, order, args, output):
                 "launch_to_ready_ms": (ready_ns - launch_ns) / 1e6,
                 "launch_unix": launch_unix, "ready_unix": ready_unix, "agent_pid": agent_pid,
                 "readiness_probes": probes[-40:],
+                "startup_proc": startup_proc,
+                **({"startup_trace": startup_trace} if startup_trace else {}),
                 **rb.catchup_measurements(backlog, launch_ns, ready_ns, caught_ns),
                 "freshness_ms": fresh,
                 "freshness_percentiles_ms": {q: rb.percentile(fresh, v) for q, v in [("p50", .5), ("p95", .95), ("p99", .99)]},

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import os
 import pathlib
 import platform
@@ -139,10 +140,26 @@ def profiler_prelude(kind: str, profdir: pathlib.Path, impl: str, role: str, cal
     return f"{strace} -c -f -q -p $$ -o {stem}.strace.txt >/dev/null 2>&1 &\nsleep 0.3\n"
 
 
+def zig_env_prefix(agent_out: pathlib.Path) -> str:
+    """BENCH_ZIG_ENV: JSON list of "NAME=VALUE" set for Zig agents only (diagnostic runs).
+    "{out}" in VALUE becomes <output>/agent-out (uploaded); shell "$$" is the agent pid."""
+    entries = json.loads(os.environ.get("BENCH_ZIG_ENV") or "[]")
+    prefix = ""
+    for entry in entries:
+        name, sep, value = entry.partition("=")
+        assert sep and re.fullmatch(r"[A-Z_][A-Z0-9_]*", name), f"bad BENCH_ZIG_ENV entry {entry!r}"
+        assert '"' not in value and "`" not in value, f"unsupported quoting in {entry!r}"
+        if "{out}" in value:
+            agent_out.mkdir(parents=True, exist_ok=True)
+        prefix += f'{name}="{value.replace("{out}", str(agent_out))}" '
+    return prefix
+
+
 def make_wrappers(bins: pathlib.Path, mode: str, agent_cpus: list[int], work: pathlib.Path,
                   profile: tuple[str, pathlib.Path] | None = None) -> dict[str, dict[str, pathlib.Path]]:
     """Tiny exec wrappers: same pid/rusage as the real binary, pinned to agent CPUs.
     With profile=(kind, dir) a profiler attaches to that pid first (profiling passes only)."""
+    zig_env = zig_env_prefix(work.parent / "agent-out")
     taskset = shutil.which("taskset")
     assert taskset, "taskset (util-linux) required"
     zig_dir = {"ReleaseSafe": "zig-safe", "ReleaseFast": "zig-fast"}[mode]
@@ -155,7 +172,7 @@ def make_wrappers(bins: pathlib.Path, mode: str, agent_cpus: list[int], work: pa
             real = (bins / sub / role).resolve(strict=True)
             wrapper = work / ("wrap" if profile is None else f"wrap-{profile[0]}") / impl / role
             wrapper.parent.mkdir(parents=True, exist_ok=True)
-            env = f"HYP_LOG_LEVEL={RUST_LOG_LEVEL} HYP_LOG_FORMAT=json " if impl == "rust" else ""
+            env = f"HYP_LOG_LEVEL={RUST_LOG_LEVEL} HYP_LOG_FORMAT=json " if impl == "rust" else zig_env
             prelude = profiler_prelude(profile[0], profile[1], impl, role, call_graph) if profile else ""
             wrapper.write_text(f'#!/bin/sh\n{prelude}{env}exec {taskset} -c {cpu_spec(agent_cpus)} {real} "$@"\n')
             wrapper.chmod(0o755)

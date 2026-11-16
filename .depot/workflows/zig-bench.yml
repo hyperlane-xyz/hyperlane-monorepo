@@ -39,6 +39,7 @@ jobs:
       mode: ${{ steps.plan.outputs.mode }}
       profile: ${{ steps.plan.outputs.profile }}
       profile_kinds: ${{ steps.plan.outputs.profile_kinds }}
+      zig_env: ${{ steps.plan.outputs.zig_env }}
       provenance: ${{ steps.provenance.outputs.provenance }}
       sandbox_seconds: ${{ steps.plan.outputs.sandbox_seconds }}
     steps:
@@ -220,6 +221,8 @@ jobs:
           # Warm solc + OpenZeppelin downloads outside measured runs.
           pnpm dlx solc@0.8.33 --version
       - name: Bench ${{ matrix.workload }}
+        env:
+          BENCH_ZIG_ENV: ${{ needs.plan.outputs.zig_env }}
         run: |
           python3 zig/bench/depot/bench.py --workload "${{ matrix.workload }}" \
             --pairs "${{ needs.plan.outputs.pairs }}" ${{ needs.plan.outputs.profile == 'true' && '--profile' || '' }} --profile-kinds "${{ needs.plan.outputs.profile_kinds }}" --bins .zb/out --output "$RUNNER_TEMP/zig-bench/${{ matrix.workload }}"

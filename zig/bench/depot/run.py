@@ -186,6 +186,8 @@ def main() -> int:
     parser.add_argument("--ref", help="bench this commit instead of the working tree (current harness overlaid)")
     parser.add_argument("--profile", action="store_true", help="add one extra profiled pair per kind per workload (excluded from stats)")
     parser.add_argument("--profile-kinds", default="perf,strace,sched", help="perf,strace,sched,startup (see bench.py)")
+    parser.add_argument("--zig-env", action="append", default=[], metavar="NAME=VALUE",
+                        help="env for Zig agents only (repeatable); {out} -> uploaded agent-out dir, $$ -> agent pid")
     args = parser.parse_args()
     provenance = None
     if args.fetch:
@@ -197,7 +199,7 @@ def main() -> int:
         try:
             run_id, provenance = trigger(["build"] if args.build_only else [], tree,
                                          {"workloads": names, "pairs": args.pairs, "profile": args.profile or args.profile_kinds != "perf,strace,sched",
-                                          "profile_kinds": args.profile_kinds})
+                                          "profile_kinds": args.profile_kinds, "zig_env": args.zig_env})
         finally:
             tree.close()
         print(f"run {run_id}: source tree {provenance['source_tree'][:12]} (HEAD {provenance['local_head'][:10]}, "

@@ -67,7 +67,7 @@ def main():
             if args.workload and workload != args.workload:
                 continue
             total, by_site, by_thread = sites(folded, args.depth)
-            print(f"== {d.name} {workload} {args.impl}: {total} switches")
+            print(f"== {d.resolve().name} {workload} {args.impl}: {total} switches")
             print("   threads: " + ", ".join(f"{k} {v}" for k, v in by_thread.most_common(6)))
             for site, n in by_site.most_common(args.top):
                 print(f"   {n:6d} {100 * n / max(total, 1):5.1f}%  {site}")
