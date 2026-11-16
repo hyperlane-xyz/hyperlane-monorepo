@@ -51,7 +51,7 @@ void it('serves current usage and limits from /metrics', async () => {
     },
     listenerReady: true,
     maxClientBufferedBytes: 128,
-    notificationQueue: { agent: 6, messages: 7 },
+    notificationQueue: { agent: 6, messages: 7, validators: 8 },
     outboundPendingBytes: 256,
     subscriptions: {
       delivery: 1,
@@ -183,6 +183,7 @@ void it('serves current usage and limits from /metrics', async () => {
     /hyperlane_scraper_proxy_database_pool_connection_limit\{pool="validator"\} 5/,
   );
   assert.match(output, /hyperlane_scraper_proxy_process_cpu/);
+  assert.match(output, /websocket_notification_queue\{route="validators"\} 8/);
 
   validatorSubscriptions.length = 0;
   assert.doesNotMatch(

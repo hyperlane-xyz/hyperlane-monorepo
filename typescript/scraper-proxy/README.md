@@ -352,6 +352,8 @@ The final member disconnecting releases its reader. Heartbeat limits also apply.
 Validator-only reads use a dedicated five-connection primary pool with acquisition
 timeouts. Canonical events already needed by internal agents reuse that existing
 live-pool read and broadcast, without adding a public query to the live pool.
+Validator-only canonical publication has its own bounded queue and worker, so
+waiting for that pool does not stall internal agent notification or head drains.
 The database server and outbound resources remain shared.
 
 Validator metrics use the `hyperlane_scraper_proxy_` prefix:

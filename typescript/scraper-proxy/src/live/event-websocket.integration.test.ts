@@ -797,6 +797,151 @@ void it('uses the validator pool for both canonical publication paths', async (c
   }
 });
 
+for (const channel of ['scraper_event', 'scraper_head']) {
+  void it(`keeps agent publication independent from blocked validator ${channel} reads`, async (context) => {
+    const original = db.queryValidator.bind(db);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let blocked = false;
+    let finished = false;
+    context.mock.method(
+      db,
+      'queryValidator',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('notification_id') || sql.includes('"frontier_row"')) {
+          blocked = true;
+          await gate;
+          try {
+            return await original<T>(sql, values);
+          } finally {
+            finished = true;
+          }
+        }
+        return original<T>(sql, values);
+      },
+    );
+    const validator = new WebSocket(`${validatorsUrl}?domain=1`);
+    const validatorMessages = captureMessages(validator);
+    const agent = new WebSocket(url);
+    const agentMessages = captureMessages(agent);
+    rows.set('987002', { ...row(hookA), domain: 2, block_number: '101' });
+    try {
+      await waitFor(validatorMessages, 'ready');
+      await waitFor(agentMessages, 'ready');
+      agent.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [{ eventType: 'merkle_tree_insertion', domains: [2] }],
+        }),
+      );
+      await waitFor(agentMessages, 'subscribed');
+      const publish = (domain: number, id: string) =>
+        notify(
+          channel,
+          JSON.stringify(
+            channel === 'scraper_event'
+              ? { eventType: 'merkle_tree_insertion', domain, id }
+              : {
+                  domain,
+                  previousConfirmedHeight: '100',
+                  confirmedHeight: '101',
+                },
+          ),
+        );
+      publish(1, '1');
+      await waitUntil(() => blocked);
+      publish(2, '987002');
+      const event = await waitFor(agentMessages, 'event');
+      assert.equal(event.domain, 2);
+      assert.equal(finished, false);
+      assert.equal(agent.readyState, WebSocket.OPEN);
+    } finally {
+      release();
+      if (blocked) await waitUntil(() => finished);
+      rows.delete('987002');
+      validator.close();
+      agent.close();
+      await waitUntil(
+        () =>
+          validator.readyState === WebSocket.CLOSED &&
+          agent.readyState === WebSocket.CLOSED,
+      );
+    }
+  });
+}
+
+void it('samples a current boundary when joining an advanced shared validator reader', async (context) => {
+  const original = db.queryLive.bind(db);
+  let height = '10';
+  let reads = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('LEFT JOIN LATERAL'))
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            confirmations: 0,
+            height,
+            head_height: height,
+            indexed_height: height,
+            confirmed_height: '5',
+          },
+        ]);
+      if (sql.includes('confirmation_events')) {
+        reads++;
+        return [];
+      }
+      return original<T>(sql, values);
+    },
+  );
+  const sockets: WebSocket[] = [];
+  try {
+    const first = new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`);
+    sockets.push(first);
+    assert.equal(
+      (await waitFor(captureMessages(first), 'live_start')).height,
+      '10',
+    );
+    height = '11';
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        headHeight: height,
+        indexedHeight: height,
+        previousIndexedHeight: '10',
+        confirmedHeight: '5',
+      }),
+    );
+    await waitUntil(() => reads === 1);
+    const second = new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`);
+    sockets.push(second);
+    const messages = captureMessages(second);
+    const boundary = await waitFor(messages, 'live_start');
+    assert.equal(boundary.height, '11');
+    assert.deepEqual(
+      messages.slice(0, 2).map(({ type }) => type),
+      ['ready', 'live_start'],
+    );
+    assert.equal(events.metricsSnapshot().validatorSharedReaders, 1);
+  } finally {
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
 void it('shares one custom reader and keeps reading while send completions are stalled', async (context) => {
   const original = db.queryLive.bind(db);
   let snapshots = 0;
@@ -851,7 +996,7 @@ void it('shares one custom reader and keeps reading while send completions are s
         await waitFor(frames, 'live_start');
       }),
     );
-    assert.equal(snapshots, 1);
+    assert.equal(snapshots, 2);
     assert.equal(events.metricsSnapshot().validatorSharedReaders, 1);
     for (const height of ['11', '12']) {
       notify(

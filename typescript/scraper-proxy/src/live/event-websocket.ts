@@ -190,6 +190,11 @@ export class EventWebSocketServer {
   private readonly explorerClientsByIp = new Map<string, number>();
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
+  private readonly validatorNotifications = new Map<
+    string,
+    EventNotification
+  >();
+  private readonly validatorHeadRanges = new Map<number, HeadRange>();
   private readonly pendingHeads = new Map<number, HeadNotification>();
   private readonly headRanges = new Map<number, HeadRange>();
   private readonly headFailures = new Map<number, number>();
@@ -204,6 +209,11 @@ export class EventWebSocketServer {
     NOTIFICATION_BATCH_MS,
     () => this.drainExplorerNotifications(),
     (error) => this.failExplorerStream(error),
+  );
+  private readonly validatorUpdates = new NotificationWorker(
+    NOTIFICATION_BATCH_MS,
+    () => this.drainValidatorUpdates(),
+    (error) => this.failValidatorStream(error),
   );
   private confirmationRevision = 0;
   private readonly confirmationUpdates = new NotificationWorker(
@@ -322,6 +332,7 @@ export class EventWebSocketServer {
     );
     for (const worker of [
       this.agentNotifications,
+      this.validatorUpdates,
       this.explorerUpdates,
       this.headUpdates,
       this.confirmationUpdates,
@@ -444,6 +455,7 @@ export class EventWebSocketServer {
       notificationQueue: {
         agent: this.notifications.size,
         messages: this.explorerNotifications.size,
+        validators: this.validatorNotifications.size,
       },
       outboundPendingBytes: this.pendingBytes,
       subscriptions,
@@ -710,9 +722,9 @@ export class EventWebSocketServer {
     await group.ready;
     if (this.clients.get(socket) !== client) return;
     let boundary = group.stream.liveStart(domain);
-    // After a rollback, a new connection needs a fresh boundary. Register it
-    // before the read; retry if another rollback invalidates that snapshot.
-    while (joining && !boundary) {
+    // Joining connections need a current boundary. Register before the read;
+    // retry if a rollback invalidates that snapshot.
+    while (joining) {
       const revision = this.confirmationRevision;
       const heads = await readHeads();
       if (this.clients.get(socket) !== client) return;
@@ -1392,6 +1404,10 @@ export class EventWebSocketServer {
       } else {
         const notification = parseEventNotification(payload);
         if (!this.hasSubscriber(notification)) return;
+        if (!this.hasSubscriber(notification, true)) {
+          this.queueValidatorNotification(notification);
+          return;
+        }
         const key = `${notification.eventType}:${notification.id}`;
         if (
           !this.notifications.has(key) &&
@@ -1453,25 +1469,72 @@ export class EventWebSocketServer {
           this.hasSubscriber(notification, true),
         );
         const validators = notifications.filter(
-          (notification) => !this.hasSubscriber(notification, true),
+          (notification) =>
+            this.hasSubscriber(notification) &&
+            !this.hasSubscriber(notification, true),
         );
         if (live.length) await this.publishNotifications(eventType, live);
-        if (validators.length) {
-          try {
-            await this.publishNotifications(
-              eventType,
-              validators,
-              this.validatorStore,
-            );
-          } catch (error) {
-            for (const domain of new Set(
-              validators.map((notification) => notification.domain),
-            ))
-              this.failValidatorDomain(domain, error);
-          }
-        }
+        validators.forEach((notification) =>
+          this.queueValidatorNotification(notification),
+        );
       }
     }
+  }
+
+  private queueValidatorNotification(notification: EventNotification): void {
+    const key = notification.id.toString();
+    if (
+      !this.validatorNotifications.has(key) &&
+      this.validatorNotifications.size >= MAX_PENDING_NOTIFICATIONS
+    ) {
+      websocketNotificationQueueOverflows.inc({ route: 'validators' });
+      websocketSendFailures.inc({ reason: 'notification_queue_limit' });
+      this.failValidatorStream(
+        new Error('Validator notification queue limit exceeded'),
+      );
+      return;
+    }
+    this.validatorNotifications.set(key, notification);
+    this.validatorUpdates.schedule();
+  }
+
+  private async drainValidatorUpdates(): Promise<void> {
+    while (this.validatorNotifications.size) {
+      const batch = [...this.validatorNotifications.values()].slice(
+        0,
+        NOTIFICATION_BATCH_SIZE,
+      );
+      batch.forEach(({ id }) =>
+        this.validatorNotifications.delete(id.toString()),
+      );
+      try {
+        await this.publishNotifications(
+          'merkle_tree_insertion',
+          batch,
+          this.validatorStore,
+        );
+      } catch (error) {
+        for (const domain of new Set(batch.map(({ domain }) => domain)))
+          this.failValidatorDomain(domain, error);
+      }
+    }
+    for (const [domain, range] of this.validatorHeadRanges) {
+      try {
+        for await (const rows of this.validatorStore.headEvents(
+          'merkle_tree_insertion',
+          domain,
+          range.after,
+          range.through,
+        )) {
+          if (this.stopped) return;
+          rows.forEach((row) => this.publish('merkle_tree_insertion', row));
+        }
+      } catch (error) {
+        this.failValidatorDomain(domain, error);
+      }
+      this.releaseHeadRange(domain, range, this.validatorHeadRanges);
+    }
+    if (this.validatorHeadRanges.size) this.validatorUpdates.schedule();
   }
 
   private async drainHeadNotifications(): Promise<void> {
@@ -1513,13 +1576,17 @@ export class EventWebSocketServer {
   }
 
   /** Drop a handled range, keeping any extension that arrived meanwhile. */
-  private releaseHeadRange(domain: number, range: HeadRange): void {
-    const current = this.headRanges.get(domain);
+  private releaseHeadRange(
+    domain: number,
+    range: HeadRange,
+    ranges = this.headRanges,
+  ): void {
+    const current = ranges.get(domain);
     if (!current) return;
     if (current.through <= range.through) {
-      this.headRanges.delete(domain);
+      ranges.delete(domain);
     } else {
-      this.headRanges.set(domain, {
+      ranges.set(domain, {
         after: range.through,
         through: current.through,
       });
@@ -1540,14 +1607,22 @@ export class EventWebSocketServer {
         this.explorerClients.size > 0 &&
         (eventType === 'delivery' || eventType === 'gas_payment');
       if (!agentInterested && !explorerInterested) continue;
-      const store =
+      if (
         agentInterested &&
         !explorerInterested &&
         !this.hasSubscriber({ domain, eventType }, true)
-          ? this.validatorStore
-          : this.store;
+      ) {
+        const current = this.validatorHeadRanges.get(domain);
+        this.validatorHeadRanges.set(domain, {
+          after: current && current.after < after ? current.after : after,
+          through:
+            current && current.through > through ? current.through : through,
+        });
+        this.validatorUpdates.schedule(0);
+        continue;
+      }
       try {
-        for await (const events of store.headEvents(
+        for await (const events of this.store.headEvents(
           eventType,
           domain,
           after,
@@ -1581,10 +1656,6 @@ export class EventWebSocketServer {
           }
         }
       } catch (error) {
-        if (store === this.validatorStore) {
-          this.failValidatorDomain(domain, error);
-          continue;
-        }
         throw new HeadPublicationError(error, agentPublished, explorerPending);
       }
       if (eventType === 'gas_payment') explorerPending = false;
@@ -1823,6 +1894,14 @@ export class EventWebSocketServer {
     }
   }
 
+  private failValidatorStream(error: unknown): void {
+    this.logger.error(`validator event stream failed: ${formatError(error)}`);
+    this.validatorNotifications.clear();
+    this.validatorHeadRanges.clear();
+    for (const socket of this.validatorClients.keys())
+      this.failSocket(socket, formatError(error));
+  }
+
   private closeClients(reason: string, code = 1013): void {
     this.confirmationStreams.clear();
     this.pendingHeads.clear();
@@ -1833,6 +1912,8 @@ export class EventWebSocketServer {
 
   private closeAgentClients(reason: string, code = 1013): void {
     this.notifications.clear();
+    this.validatorNotifications.clear();
+    this.validatorHeadRanges.clear();
     this.headRanges.clear();
     this.headFailures.clear();
     for (const socket of this.clients.keys()) {

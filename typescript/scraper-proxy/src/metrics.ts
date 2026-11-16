@@ -45,7 +45,7 @@ export type WebSocketMetricsSnapshot = {
   };
   listenerReady: boolean;
   maxClientBufferedBytes: number;
-  notificationQueue: Record<'agent' | 'messages', number>;
+  notificationQueue: Record<'agent' | 'messages' | 'validators', number>;
   outboundPendingBytes: number;
   subscriptions: Record<EventType, number>;
 };
@@ -189,7 +189,7 @@ websocketConnectionRejections.inc(
   { route: 'validators', reason: 'invalid_subscription' },
   0,
 );
-for (const route of ['agent', 'messages'])
+for (const route of ['agent', 'messages', 'validators'])
   websocketNotificationQueueOverflows.inc({ route }, 0);
 
 let websocketMetricsProvider: (() => WebSocketMetricsSnapshot) | undefined;
@@ -383,6 +383,7 @@ snapshotGauge(
   (gauge, snapshot) => {
     gauge.set({ route: 'agent' }, snapshot.notificationQueue.agent);
     gauge.set({ route: 'messages' }, snapshot.notificationQueue.messages);
+    gauge.set({ route: 'validators' }, snapshot.notificationQueue.validators);
   },
   ['route'],
 );
@@ -392,6 +393,7 @@ snapshotGauge(
   (gauge, snapshot) => {
     gauge.set({ route: 'agent' }, snapshot.limits.notificationEvents);
     gauge.set({ route: 'messages' }, snapshot.limits.notificationEvents);
+    gauge.set({ route: 'validators' }, snapshot.limits.notificationEvents);
   },
   ['route'],
 );
