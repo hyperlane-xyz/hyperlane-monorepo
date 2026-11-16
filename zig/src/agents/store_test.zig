@@ -272,3 +272,34 @@ test "receipt admission never changes indexed nonce authority and survives reope
         try std.testing.expect((try store.pendingAtOrAfter(12, 0)) == null);
     }
 }
+
+test "deferred indexing rows cost one fsync with their synced cursor" {
+    const allocator = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const parent = try temp.dir.realpathAlloc(allocator, ".");
+    defer allocator.free(parent);
+    const path = try std.fs.path.join(allocator, &.{ parent, "agent" });
+    defer allocator.free(path);
+    var database = try db.rocks.Database.open(allocator, path, .{ .sync = true });
+    defer database.deinit();
+    var store = agents.Store.init(allocator, &database, "ethereum");
+    const before = database.wal_syncs.load(.monotonic);
+    for (0..4) |i| {
+        const index: u32 = @intCast(i);
+        const tag: u8 = @intCast(i + 1);
+        try std.testing.expect(try store.storeInsertionWith(.{ .leaf_index = index, .message_id = @splat(tag) }, 10 + i, .deferred));
+        try std.testing.expect(try store.storePaymentWith(.{ .message_id = @splat(tag), .destination = 2, .payment = 5, .gas_amount = 7 }, .{ .transaction_id = @splat(tag), .log_index = 0 }, .deferred));
+    }
+    // Visible to readers (and deduplicated) before they are durable.
+    try std.testing.expect(database.owesSync());
+    try std.testing.expectError(error.UnsyncedWriteBeforeEffect, database.effectGate());
+    try std.testing.expectEqual(@as(u32, 3), (try store.leafIndex(@splat(4))).?);
+    try std.testing.expect(!try store.storePaymentWith(.{ .message_id = @splat(1), .destination = 2, .payment = 5, .gas_amount = 7 }, .{ .transaction_id = @splat(1), .log_index = 0 }, .deferred));
+    try std.testing.expectEqual(before, database.wal_syncs.load(.monotonic));
+    // The synced cursor covers all eight rows with one fsync.
+    try store.storeCursor(.insertion, 13);
+    try std.testing.expect(!database.owesSync());
+    try database.effectGate();
+    try std.testing.expectEqual(before + 1, database.wal_syncs.load(.monotonic));
+}

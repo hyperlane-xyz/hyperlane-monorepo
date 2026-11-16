@@ -46,6 +46,19 @@ pub const Batch = struct {
     /// A queue-capacity yield retains this row offset until notification succeeds.
     /// Replayed earlier rows still contribute cursor positions without republishing.
     pub fn storeObservedFrom(self: *const Batch, database: *native_store.Store, observer: ?@import("../runtime/indexing_observer.zig").Observer, offset: *usize) ![]sequence.Log {
+        return self.storeObservedWith(database, observer, offset, .sync);
+    }
+    /// Insertion and gas rows as WAL writes without fsync: the caller commits
+    /// its synced cursor/watermark row on the same database right after this
+    /// returns, which persists every row (db.rocks.Durability). Rows lost to a
+    /// crash before that sync are re-indexed from chain: the cursor did not
+    /// advance and payment log identities deduplicate. Dispatch rows stay
+    /// synced (no covering cursor write follows them).
+    pub fn storeObservedDeferred(self: *const Batch, database: *native_store.Store, observer: ?@import("../runtime/indexing_observer.zig").Observer) ![]sequence.Log {
+        var offset: usize = 0;
+        return self.storeObservedWith(database, observer, &offset, .deferred);
+    }
+    fn storeObservedWith(self: *const Batch, database: *native_store.Store, observer: ?@import("../runtime/indexing_observer.zig").Observer, offset: *usize, durability: @import("../db/rocks.zig").Durability) ![]sequence.Log {
         var positions: std.ArrayList(sequence.Log) = .empty;
         errdefer positions.deinit(self.allocator);
         try positions.ensureTotalCapacity(self.allocator, self.logs.len);
@@ -67,13 +80,13 @@ pub const Batch = struct {
                 },
                 .insertion => {
                     if (event != .insertion) return error.UnexpectedStreamEvent;
-                    if (write) if (try database.storeInsertion(.{ .leaf_index = event.insertion.index, .message_id = event.insertion.message_id }, log.block_number)) if (observer) |sink| sink.notify(.{ .stored = .{ .stream = self.stream } });
+                    if (write) if (try database.storeInsertionWith(.{ .leaf_index = event.insertion.index, .message_id = event.insertion.message_id }, log.block_number, durability)) if (observer) |sink| sink.notify(.{ .stored = .{ .stream = self.stream } });
                     positions.appendAssumeCapacity(.{ .sequence = event.insertion.index, .block = std.math.cast(u32, log.block_number) orelse return error.IndexHeightOutOfRange });
                 },
                 .gas => {
                     if (event != .gas_payment) return error.UnexpectedStreamEvent;
                     const payment = event.gas_payment;
-                    if (write) if (try database.storePayment(.{ .message_id = payment.message_id, .destination = payment.destination, .payment = payment.payment, .gas_amount = payment.gas_amount }, .{ .transaction_id = transaction, .log_index = log.log_index })) if (observer) |sink| sink.notify(.{ .stored = .{ .stream = self.stream } });
+                    if (write) if (try database.storePaymentWith(.{ .message_id = payment.message_id, .destination = payment.destination, .payment = payment.payment, .gas_amount = payment.gas_amount }, .{ .transaction_id = transaction, .log_index = log.log_index }, durability)) if (observer) |sink| sink.notify(.{ .stored = .{ .stream = self.stream } });
                 },
                 .delivery => return error.UnsequencedStream,
             }

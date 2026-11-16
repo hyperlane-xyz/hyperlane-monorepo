@@ -355,9 +355,11 @@ pub const Service = struct {
                 };
                 self.fetched(selected, action.query);
                 defer batch.deinit();
-                const points = try batch.storeObserved(&self.store, self.observer);
+                const points = try batch.storeObservedDeferred(&self.store, self.observer);
                 self.allocator.free(points);
+                // Synced: covers the deferred payment rows above.
                 try self.store.storeGasWatermark(cursor.watermark());
+                try self.store.typed.database.effectGate();
                 // This completed read section has committed. Resume directly
                 // at the fresh-tip stage if the next physical read suspends.
                 self.gas_refresh = true;

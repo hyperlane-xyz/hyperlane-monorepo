@@ -760,7 +760,9 @@ pub const Role = struct {
         };
         if (self.fetch_retry.recordSuccess(query.range)) if (self.indexObserver()) |sink| sink.notify(.{ .fetch_backoff = .{ .stream = .insertion, .delay_ms = 0 } });
         defer batch.deinit();
-        const positions = batch.storeObserved(&self.store, self.indexObserver()) catch |err| {
+        // Deferred insertion rows: storeCursor below is synced and covers
+        // them before this tick returns to the driver that observes/signs.
+        const positions = batch.storeObservedDeferred(&self.store, self.indexObserver()) catch |err| {
             try c.failed(query.token);
             return err;
         };
@@ -777,6 +779,7 @@ pub const Role = struct {
         }
         try c.update(query.token, positions, self.cycle_clock.now(observed_now), self.sequence_store.interface());
         try self.store.storeCursor(.insertion, batch.through.number);
+        try self.store.typed.database.effectGate();
         fetch_observation.completed(self.indexObserver(), .insertion, c, null, count, self.cycle_clock.now(observed_now));
         return true;
     }

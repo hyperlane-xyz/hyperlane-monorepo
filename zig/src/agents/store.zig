@@ -357,9 +357,15 @@ pub const Store = struct {
     }
 
     pub fn storeInsertion(self: *Store, insertion: codec.MerkleInsertion, block_number: u64) !bool {
+        return self.storeInsertionWith(insertion, block_number, .sync);
+    }
+
+    /// `.deferred`: the caller commits a synced write (its cursor) on this
+    /// database before any effect; see db.rocks.Durability.
+    pub fn storeInsertionWith(self: *Store, insertion: codec.MerkleInsertion, block_number: u64, durability: db.rocks.Durability) !bool {
         self.mutex.lock();
         defer self.mutex.unlock();
-        return self.putInsertion(insertion, block_number);
+        return self.putInsertion(insertion, block_number, durability);
     }
 
     /// Unverified websocket notifications may fill a gap but cannot overwrite
@@ -368,11 +374,11 @@ pub const Store = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (try self.insertionByIndex(incoming.leaf_index)) |previous| return previous;
-        _ = try self.putInsertion(incoming, block_number);
+        _ = try self.putInsertion(incoming, block_number, .sync);
         return null;
     }
 
-    fn putInsertion(self: *Store, insertion: codec.MerkleInsertion, block_number: u64) !bool {
+    fn putInsertion(self: *Store, insertion: codec.MerkleInsertion, block_number: u64, durability: db.rocks.Durability) !bool {
         const previous = try self.insertionByIndex(insertion.leaf_index);
         const reverse = try self.leafIndex(insertion.message_id);
         const previous_block = try self.get(u64, .merkle_tree_insertion_block_number, insertion.leaf_index);
@@ -385,7 +391,7 @@ pub const Store = struct {
         try self.put(&batch, .merkle_tree_insertion, insertion.leaf_index, insertion);
         try self.put(&batch, .merkle_leaf_index_by_message_id, insertion.message_id, insertion.leaf_index);
         try self.put(&batch, .merkle_tree_insertion_block_number, insertion.leaf_index, block_number);
-        try batch.commit();
+        try if (durability == .sync) batch.commit() else batch.commitWith(.deferred);
         if (replaced) self.tree_reset_generation += 1;
         return previous == null or !std.meta.eql(previous.?, insertion);
     }
@@ -520,9 +526,15 @@ pub const Store = struct {
     }
 
     pub fn storePayment(self: *Store, incoming: codec.GasPayment, meta: codec.GasPaymentMeta) !bool {
+        return self.storePaymentWith(incoming, meta, .sync);
+    }
+
+    /// `.deferred`: the caller commits a synced write (its watermark) on this
+    /// database before any effect; see db.rocks.Durability.
+    pub fn storePaymentWith(self: *Store, incoming: codec.GasPayment, meta: codec.GasPaymentMeta, durability: db.rocks.Durability) !bool {
         self.mutex.lock();
         defer self.mutex.unlock();
-        return self.putPayment(incoming, meta, null, 0);
+        return self.putPayment(incoming, meta, null, 0, durability);
     }
 
     pub fn storeIndexedPayment(self: *Store, incoming: codec.GasPayment, meta: codec.GasPaymentMeta, sequence: u32, block_number: u64) !bool {
@@ -545,10 +557,10 @@ pub const Store = struct {
             return false;
         }
         if (stored_block != null) return error.GasPaymentSequenceConflict;
-        return self.putPayment(incoming, meta, sequence, block_number);
+        return self.putPayment(incoming, meta, sequence, block_number, .sync);
     }
 
-    fn putPayment(self: *Store, incoming: codec.GasPayment, meta: codec.GasPaymentMeta, sequence: ?u32, block_number: u64) !bool {
+    fn putPayment(self: *Store, incoming: codec.GasPayment, meta: codec.GasPaymentMeta, sequence: ?u32, block_number: u64, durability: db.rocks.Durability) !bool {
         const already_processed = (try self.get(bool, .gas_payment_meta_processed, meta)) orelse false;
         if (already_processed and sequence == null) return false;
         const key: codec.GasPaymentKey = .{ .message_id = incoming.message_id, .destination = incoming.destination };
@@ -564,7 +576,7 @@ pub const Store = struct {
             try self.put(&batch, .gas_payment_by_sequence, number, incoming);
             try self.put(&batch, .gas_payment_block_by_sequence, number, block_number);
         }
-        try batch.commit();
+        try if (durability == .sync) batch.commit() else batch.commitWith(.deferred);
         return !already_processed;
     }
 
