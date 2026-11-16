@@ -43,10 +43,12 @@ scraper's canonical stream. Configure a query-free `ws://` or `wss://` URL endin
 in `/validators`; other paths fail startup validation. No validator subscription
 sends replay cursors or waits for `caught_up` markers.
 
-HTTP admission rejections (400/403/429/503), policy mismatches and WebSocket
-1008/1013 closes use a five-minute retry base while RPC indexing continues.
+HTTP upgrade rejections, policy mismatches and WebSocket 1008 closes use a
+five-minute retry base while RPC indexing continues. Transient 1013 closes and
+transport failures retain the ordinary short retry interval.
 Retries include random per-process jitter. Deploy the supporting proxy image
-before switching each validator context's image and URL together.
+before enabling the Cloudflare route, then deploy validators using
+`wss://explorer-api.hyperlane.xyz/validators`.
 
 RPC indexing starts immediately and fills historical gaps, including after every
 WebSocket disconnect. The validator buffers up to 4,096 consecutive live insertions

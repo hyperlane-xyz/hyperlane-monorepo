@@ -27,7 +27,7 @@ describe('ValidatorHelmManager', () => {
       expect(config.validators?.rpcConsensusType).to.equal('majority');
     }
     expect(agents[Contexts.FastPath].validators?.websocketUrl).to.equal(
-      'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents',
+      'wss://explorer-api.hyperlane.xyz/validators',
     );
   });
 
@@ -75,8 +75,7 @@ describe('ValidatorHelmManager', () => {
       validators: {
         rpcConsensusType: RpcConsensusType.Fallback,
         index: { from: -10_000 },
-        websocketUrl:
-          'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents',
+        websocketUrl: 'wss://explorer-api.hyperlane.xyz/validators',
         docker: {
           repo: 'ghcr.io/hyperlane-xyz/hyperlane-agent',
           tag: 'test',
@@ -113,7 +112,7 @@ describe('ValidatorHelmManager', () => {
     expect(values.hyperlane.validator?.configs).to.have.lengthOf(1);
     expect(values.hyperlane.validator?.configs?.[0].interval).to.equal(1);
     expect(values.hyperlane.validator?.configs?.[0].websocketUrl).to.equal(
-      'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents',
+      'wss://explorer-api.hyperlane.xyz/validators',
     );
   });
 });
