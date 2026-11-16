@@ -93,7 +93,11 @@ pub fn build(b: *std.Build) void {
         });
         scraper_module.addOptions("service_options", service_options);
         scraper_module.addObjectFile(.{ .cwd_relative = library });
-        if (glibc_mem) |object| scraper_module.addObject(object);
+        if (glibc_mem) |object| {
+            scraper_module.addObject(object);
+            // dlsym lives in libdl before glibc 2.34 (relayer/validator get it via linkNativeCpp).
+            scraper_module.linkSystemLibrary("dl", .{ .use_pkg_config = .no });
+        }
         const scraper = b.addExecutable(.{ .name = "scraper", .root_module = scraper_module });
         b.step("scraper", "Build the native operational scraper").dependOn(&b.addInstallArtifact(scraper, .{}).step);
         const pg_module = b.createModule(.{

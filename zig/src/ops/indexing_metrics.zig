@@ -8,6 +8,11 @@ pub const Adapter = struct {
     unix_seconds: u64 = 0,
     gap_at: [3]u64 = @splat(0),
     failures: usize = 0,
+    /// Series handles keyed by name/label identity (touched only under the registry lock).
+    handles: metrics.Handles(32, 1) = .{},
+    fn update(self: *Adapter, name: []const u8, labels: []const []const u8, change: metrics.Update) !void {
+        try self.registry.updateVia(&self.handles.at(metrics.identityKey(name, labels))[0], name, labels, change);
+    }
     pub fn interface(self: *Adapter) observation.Observer {
         return .{ .context = self, .notify_fn = notify };
     }
@@ -47,30 +52,30 @@ pub const Adapter = struct {
     }
     pub fn record(self: *Adapter, event: observation.Event) !void {
         switch (event) {
-            .tree_ingested => |index| try self.registry.update("hyperlane_latest_tree_insertion_index", &.{self.chain}, .{ .set_int = index }),
-            .stored => |value| try self.registry.update("hyperlane_contract_sync_stored_events", &.{ dataType(value.stream), self.chain }, .{ .add_int = value.count }),
+            .tree_ingested => |index| try self.update("hyperlane_latest_tree_insertion_index", &.{self.chain}, .{ .set_int = index }),
+            .stored => |value| try self.update("hyperlane_contract_sync_stored_events", &.{ dataType(value.stream), self.chain }, .{ .add_int = value.count }),
             .fetch_backoff => |value| {
-                if (value.retry) try self.registry.update("hyperlane_contract_sync_fetch_retries", &.{ dataType(value.stream), self.chain }, .{ .add_int = 1 });
-                try self.registry.update("hyperlane_contract_sync_fetch_backoff_seconds", &.{ dataType(value.stream), self.chain }, .{ .set_int = integer(value.delay_ms / 1000) });
+                if (value.retry) try self.update("hyperlane_contract_sync_fetch_retries", &.{ dataType(value.stream), self.chain }, .{ .add_int = 1 });
+                try self.update("hyperlane_contract_sync_fetch_backoff_seconds", &.{ dataType(value.stream), self.chain }, .{ .set_int = integer(value.delay_ms / 1000) });
             },
             .completed => |value| {
                 const kind = eventType(value.stream);
                 const forward = if (value.forward_sequence != null) "forward_sequenced" else "forward_rate_limited";
-                try self.registry.update("hyperlane_contract_sync_block_height", &.{ dataType(value.stream), self.chain }, .{ .set_int = value.forward_block });
-                try self.registry.update("hyperlane_cursor_current_block", &.{ kind, self.chain, forward }, .{ .set_int = value.forward_block });
-                if (value.forward_sequence) |n| try self.registry.update("hyperlane_cursor_current_sequence", &.{ kind, self.chain, forward }, .{ .set_int = n });
-                if (value.backward_block) |n| try self.registry.update("hyperlane_cursor_current_block", &.{ kind, self.chain, "backward_sequenced" }, .{ .set_int = n });
-                if (value.backward_sequence) |n| try self.registry.update("hyperlane_cursor_current_sequence", &.{ kind, self.chain, "backward_sequenced" }, .{ .set_int = n });
+                try self.update("hyperlane_contract_sync_block_height", &.{ dataType(value.stream), self.chain }, .{ .set_int = value.forward_block });
+                try self.update("hyperlane_cursor_current_block", &.{ kind, self.chain, forward }, .{ .set_int = value.forward_block });
+                if (value.forward_sequence) |n| try self.update("hyperlane_cursor_current_sequence", &.{ kind, self.chain, forward }, .{ .set_int = n });
+                if (value.backward_block) |n| try self.update("hyperlane_cursor_current_block", &.{ kind, self.chain, "backward_sequenced" }, .{ .set_int = n });
+                if (value.backward_sequence) |n| try self.update("hyperlane_cursor_current_sequence", &.{ kind, self.chain, "backward_sequenced" }, .{ .set_int = n });
                 if (value.max_sequence) |n| _ = try self.registry.raiseInt("hyperlane_cursor_max_sequence", &.{ kind, self.chain }, n);
                 const previous = &self.gap_at[slot(value.stream)];
                 if (previous.* != value.gap_retry_at) {
-                    if (value.gap_retry_at != 0) try self.registry.update("hyperlane_cursor_sequence_gap_retries", &.{ kind, self.chain }, .{ .add_int = 1 });
-                    try self.registry.update("hyperlane_cursor_sequence_gap_backoff_seconds", &.{ kind, self.chain }, .{ .set_int = integer((value.gap_retry_at -| value.now_ms) / 1000) });
+                    if (value.gap_retry_at != 0) try self.update("hyperlane_cursor_sequence_gap_retries", &.{ kind, self.chain }, .{ .add_int = 1 });
+                    try self.update("hyperlane_cursor_sequence_gap_backoff_seconds", &.{ kind, self.chain }, .{ .set_int = integer((value.gap_retry_at -| value.now_ms) / 1000) });
                     previous.* = value.gap_retry_at;
                 }
                 // A successful cycle is the positive initialization proof,
                 // including genuine empty/caught-up cursor decisions.
-                try self.registry.update("hyperlane_contract_sync_liveness", &.{ dataType(value.stream), self.chain, "cursor_task" }, .{ .set_int = integer(self.unix_seconds) });
+                try self.update("hyperlane_contract_sync_liveness", &.{ dataType(value.stream), self.chain, "cursor_task" }, .{ .set_int = integer(self.unix_seconds) });
             },
         }
     }

@@ -28,6 +28,24 @@ const SeriesContext = struct {
         return true;
     }
 };
+/// Direct-mapped `Registry.Handle`s for one call site whose labels vary
+/// (per method, endpoint, stage...). The caller picks the slot with a cheap
+/// key; a collision only costs a normal lookup because handles self-verify.
+pub fn Handles(comptime slots: usize, comptime width: usize) type {
+    return struct {
+        entries: [slots][width]Registry.Handle = @splat(@splat(.{})),
+        pub fn at(self: *@This(), key: u64) *[width]Registry.Handle {
+            return &self.entries[@intCast(key % slots)];
+        }
+    };
+}
+/// Slot key from the identity (address, length) of a name and labels: free
+/// to compute, stable for string literals and long-lived label storage.
+pub fn identityKey(name: []const u8, labels: []const []const u8) u64 {
+    var key: u64 = @intFromPtr(name.ptr);
+    for (labels) |label| key = (key ^ @intFromPtr(label.ptr) ^ label.len) *% 0x9e3779b97f4a7c15;
+    return key ^ (key >> 29);
+}
 const default_buckets = [_]f64{ 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 };
 pub const Registry = struct {
     allocator: A,
@@ -135,7 +153,35 @@ pub const Registry = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         const index = self.by_name.get(name) orelse return error.UnknownMetric;
-        const kind = self.descriptors[index].kind;
+        try checkChange(self.descriptors[index].kind, change);
+        self.apply(try self.locate(index, labels), change);
+    }
+    /// A caller-held position of one series, so repeated updates skip the
+    /// name lookup and the label hash. Purely a hint: every use re-checks it
+    /// against the name and labels under the registry lock, so a stale handle
+    /// (series removed or moved) or one shared by several label sets only
+    /// costs a normal lookup. Accessed only under the registry lock.
+    pub const Handle = struct { index: usize = std.math.maxInt(usize) };
+    /// `update` through `handle`: same errors, limits and series creation
+    /// point (the first update), so the exposition is unchanged.
+    pub fn updateVia(self: *Registry, handle: *Handle, name: []const u8, labels: []const []const u8, change: Update) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (handle.index < self.series.items.len) {
+            const series = &self.series.items[handle.index];
+            const descriptor = self.descriptors[series.metric];
+            if (std.mem.eql(u8, descriptor.name, name) and SeriesContext.eql(.{}, .{ .metric = series.metric, .labels = series.labels }, .{ .metric = series.metric, .labels = labels })) {
+                try checkChange(descriptor.kind, change);
+                return self.apply(series, change);
+            }
+        }
+        const index = self.by_name.get(name) orelse return error.UnknownMetric;
+        try checkChange(self.descriptors[index].kind, change);
+        const series = try self.locate(index, labels);
+        handle.index = series - self.series.items.ptr;
+        self.apply(series, change);
+    }
+    fn checkChange(kind: schema.Kind, change: Update) !void {
         const valid = switch (change) {
             .set_int => kind == .int_gauge,
             .add_int => kind == .int_counter,
@@ -144,7 +190,8 @@ pub const Registry = struct {
             .observe => kind == .histogram,
         };
         if (!valid) return error.InvalidMetricUpdate;
-        const series = try self.locate(index, labels);
+    }
+    fn apply(self: *Registry, series: *Series, change: Update) void {
         switch (change) {
             .set_int => |value| series.value.integer = value,
             .add_int => |value| series.value.counter +%= value,
@@ -154,7 +201,7 @@ pub const Registry = struct {
                 const histogram = &series.value.histogram;
                 histogram.count +%= 1;
                 histogram.sum += value;
-                for (buckets(self.descriptors[index]), histogram.buckets) |upper, *count| if (value <= upper) {
+                for (buckets(self.descriptors[series.metric]), histogram.buckets) |upper, *count| if (value <= upper) {
                     count.* +%= 1;
                 };
             },
@@ -480,6 +527,59 @@ test "explicit agent Tokio startup allocation failures propagate without leaks a
     try std.testing.expectError(error.MetricSeriesLimit, registry.registerNoTokioAgentRuntime());
     try std.testing.expectEqual(@as(usize, 1), registry.series.items.len);
     try std.testing.checkAllAllocationFailures(a, failingRuntimeStartup, .{});
+}
+
+test "handle updates render byte-identical to plain updates and keep errors and limits" {
+    const a = std.testing.allocator;
+    const plain = try Registry.init(a, .relayer, .{ .base_version = "fixture" });
+    defer plain.deinit();
+    const cached = try Registry.init(a, .relayer, .{ .base_version = "fixture" });
+    defer cached.deinit();
+    var table: Handles(4, 1) = .{};
+    const Step = struct { name: []const u8, labels: []const []const u8, change: Update };
+    const steps = [_]Step{
+        .{ .name = "hyperlane_messages_processed_count", .labels = &.{ "origin", "remote" }, .change = .{ .add_int = 2 } },
+        .{ .name = "hyperlane_request_duration_seconds", .labels = &.{ "h", "rpc", "c", "eth_call", "success", "relayer", "fallback" }, .change = .{ .add_real = 0.25 } },
+        .{ .name = "hyperlane_messages_processed_count", .labels = &.{ "origin", "other\n\"" }, .change = .{ .add_int = 1 } },
+        .{ .name = "hyperlane_messages_processed_count", .labels = &.{ "origin", "remote" }, .change = .{ .add_int = 3 } },
+        .{ .name = "hyperlane_fallback_hedge_duration_seconds", .labels = &.{ "c", "eth_call", "primary" }, .change = .{ .observe = 0.3 } },
+        .{ .name = "hyperlane_fallback_hedge_duration_seconds", .labels = &.{ "c", "eth_call", "primary" }, .change = .{ .observe = 7 } },
+    };
+    // Every step through the same slot and through per-step slots: sharing,
+    // collisions and hits must all land on the right series.
+    for (0..2) |round| for (steps, 0..) |step, i| {
+        try plain.update(step.name, step.labels, step.change);
+        const handle = &table.at(if (round == 0) 0 else i)[0];
+        try cached.updateVia(handle, step.name, step.labels, step.change);
+    };
+    // A removal moves series under existing handles.
+    try std.testing.expect(try plain.remove("hyperlane_messages_processed_count", &.{ "origin", "remote" }));
+    try std.testing.expect(try cached.remove("hyperlane_messages_processed_count", &.{ "origin", "remote" }));
+    for (steps, 0..) |step, i| {
+        try plain.update(step.name, step.labels, step.change);
+        try cached.updateVia(&table.at(i)[0], step.name, step.labels, step.change);
+    }
+    const expected = try plain.render(a);
+    defer a.free(expected);
+    const actual = try cached.render(a);
+    defer a.free(actual);
+    try std.testing.expectEqualStrings(expected, actual);
+    // Same errors, before and after the handle is warm.
+    var handle: Registry.Handle = .{};
+    try std.testing.expectError(error.UnknownMetric, cached.updateVia(&handle, "hyperlane_nope", &.{}, .{ .add_int = 1 }));
+    try std.testing.expectError(error.InvalidMetricUpdate, cached.updateVia(&handle, "hyperlane_messages_processed_count", &.{ "origin", "remote" }, .{ .set_int = 1 }));
+    try std.testing.expectError(error.MetricLabelCount, cached.updateVia(&handle, "hyperlane_messages_processed_count", &.{"origin"}, .{ .add_int = 1 }));
+    try cached.updateVia(&handle, "hyperlane_messages_processed_count", &.{ "origin", "remote" }, .{ .add_int = 1 });
+    try std.testing.expectError(error.InvalidMetricUpdate, cached.updateVia(&handle, "hyperlane_messages_processed_count", &.{ "origin", "remote" }, .{ .set_int = 1 }));
+    try std.testing.expectError(error.InvalidMetricUpdate, cached.updateVia(&handle, "hyperlane_messages_processed_count", &.{ "origin", "remote" }, .{ .add_real = -1 }));
+    // Series limit applies at the first update, as with `update`.
+    const bounded = try Registry.init(a, .relayer, .{ .base_version = "fixture", .max_series = 1 });
+    defer bounded.deinit();
+    var first: Registry.Handle = .{};
+    var second: Registry.Handle = .{};
+    try bounded.updateVia(&first, "hyperlane_messages_processed_count", &.{ "a", "b" }, .{ .add_int = 1 });
+    try std.testing.expectError(error.MetricSeriesLimit, bounded.updateVia(&second, "hyperlane_messages_processed_count", &.{ "a", "c" }, .{ .add_int = 1 }));
+    try bounded.updateVia(&first, "hyperlane_messages_processed_count", &.{ "a", "b" }, .{ .add_int = 1 });
 }
 
 test "updates to an existing series allocate nothing" {
