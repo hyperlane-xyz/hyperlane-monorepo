@@ -803,6 +803,7 @@ pub fn Builder(comptime Source: type) type {
                 if (Source.parallel_quorum) return self.source.fetchQuorum(self.allocator, validators, threshold, index, &self.diagnostics.storage_errors);
             } else if (@hasDecl(Source, "fetchQuorum")) return self.source.fetchQuorum(self.allocator, validators, threshold, index, &self.diagnostics.storage_errors);
             var collector = try quorum.Collector.init(self.allocator, validators, threshold, index, .standard);
+            defer collector.deinit();
             for (validators, 0..) |validator, validator_index| {
                 const signed = (self.source.fetchCheckpoint(validator, index) catch |err| {
                     if (hardFailure(err)) return err;

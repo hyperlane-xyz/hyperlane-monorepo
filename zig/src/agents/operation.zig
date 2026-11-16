@@ -71,7 +71,9 @@ pub const Operation = struct {
     deadline: ?Deadline = null,
     transaction_bytes: ?[]u8 = null,
     current_status: db.json.Status = .FirstPrepareAttempt,
-    row_digest: ?Hash = null,
+    /// The operation row as last read or committed by this owner. Persist
+    /// compares the current row byte-for-byte to detect a stale owner.
+    row: ?[]u8 = null,
     status_row: ?db.json.Status = null,
     parked: bool = false,
     pub const max_transaction_bytes = 128 * 1024;
@@ -79,10 +81,11 @@ pub const Operation = struct {
 
     pub fn open(allocator: Allocator, store: *native.Store, options: Options, now: Times) !Operation {
         const bytes = try store.typed.get(allocator, prefix, &options.id);
-        defer if (bytes) |raw| allocator.free(raw);
-        const status = try store.status(options.id);
-        var self: Operation = .{ .allocator = allocator, .store = store, .options = options, .value = .{ .id = options.id, .policy = options.policy }, .row_digest = digest(bytes), .status_row = status };
+        var self: Operation = .{ .allocator = allocator, .store = store, .options = options, .value = .{ .id = options.id, .policy = options.policy }, .row = bytes };
+        errdefer if (self.row) |raw| allocator.free(raw);
         errdefer if (self.transaction_bytes) |raw| allocator.free(raw);
+        const status = try store.status(options.id);
+        self.status_row = status;
         if (bytes) |raw| {
             if (raw.len > max_record_bytes) return error.OperationRecordTooLarge;
             var decoded = try std.json.parseFromSlice(Record, allocator, raw, .{ .duplicate_field_behavior = .@"error" });
@@ -137,6 +140,7 @@ pub const Operation = struct {
 
     pub fn deinit(self: *Operation) void {
         if (self.transaction_bytes) |raw| self.allocator.free(raw);
+        if (self.row) |raw| self.allocator.free(raw);
         self.* = undefined;
     }
 
@@ -238,7 +242,8 @@ pub const Operation = struct {
         else
             null;
         const record = try std.json.Stringify.valueAlloc(self.allocator, Record{ .context = self.options.context, .nonce = self.options.nonce, .destination = self.options.destination, .operation = encoded_value, .deadline = deadline, .transaction_bytes = signed }, .{});
-        defer self.allocator.free(record);
+        var owned_record: ?[]u8 = record;
+        defer if (owned_record) |raw| self.allocator.free(raw);
         if (record.len > max_record_bytes) return error.OperationRecordTooLarge;
         const retry: db.json.RetryState = .{ .retry_count = value.retries, .next_attempt_at_millis = if (deadline) |at| at.unix_ms else null, .retry_delay_millis = if (deadline) |at| at.delay_ms else null, .reason = reason(status) };
         const retry_bytes = try retry.toJson(self.allocator);
@@ -251,7 +256,7 @@ pub const Operation = struct {
         defer self.store.mutex.unlock();
         const current = try self.store.typed.get(self.allocator, prefix, &self.options.id);
         defer if (current) |raw| self.allocator.free(raw);
-        if (!std.meta.eql(digest(current), self.row_digest) or !std.meta.eql(try self.store.status(self.options.id), self.status_row)) return error.StaleOperationOwner;
+        if (!sameRow(current, self.row) or !std.meta.eql(try self.store.status(self.options.id), self.status_row)) return error.StaleOperationOwner;
         // Lane polls reopen and replay unchanged state. Every in-process
         // writer of these four rows commits with WAL fsync (this persist,
         // Store.storeRetry, admin retry), so byte-identical rows read under
@@ -286,16 +291,16 @@ pub const Operation = struct {
         }
         try batch.commitSync();
         self.deadline = deadline;
-        self.row_digest = digest(record);
+        if (self.row) |previous| self.allocator.free(previous);
+        self.row = record;
+        owned_record = null;
         self.status_row = status;
     }
 };
 
-fn digest(bytes: ?[]const u8) ?Hash {
-    const raw = bytes orelse return null;
-    var hash: Hash = undefined;
-    std.crypto.hash.sha2.Sha256.hash(raw, &hash, .{});
-    return hash;
+fn sameRow(current: ?[]const u8, held: ?[]const u8) bool {
+    if (current == null or held == null) return current == null and held == null;
+    return std.mem.eql(u8, current.?, held.?);
 }
 
 test "Rust retry import preserves manual authority stale-version precedence and rollback clamps" {

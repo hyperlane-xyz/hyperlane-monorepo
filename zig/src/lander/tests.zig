@@ -1449,6 +1449,93 @@ test "checkpointed active recovery avoids finalized history RPC" {
     try std.testing.expectEqual(@as(?u64, 1), mock.receipt_calls.get(active_hash));
 }
 
+fn expectActiveIndexes(running: *service.Service, expected: []const u32) !void {
+    try std.testing.expect(running.active.fresh);
+    try std.testing.expect(try running.active.matchesStore(running.store));
+    try std.testing.expectEqual(expected.len, running.active.count());
+    for (running.active.entries.items, expected) |entry, index| try std.testing.expectEqual(index, entry.index);
+}
+
+test "active mirror is rebuilt from the database at restart, after a crash before the memory update, and after a failed write" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .estimated_block_time_ms = 1 };
+    config.overrides.gas_price = 5;
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    _ = try running.enqueue(legacyPayload(id(121)));
+    _ = try running.enqueue(legacyPayload(id(122)));
+    _ = try running.tick(1_000, .{});
+    _ = try running.tick(100_000, .{});
+    try std.testing.expect(try fixture.store().activeCheckpoint(allocator));
+    try expectActiveIndexes(&running, &.{ 1, 2 });
+    const first = (try fixture.store().transactionUuidByIndex(allocator, 1)).?;
+    const second = (try fixture.store().transactionUuidByIndex(allocator, 2)).?;
+
+    // A write that fails after staging its index change leaves the database
+    // unchanged and the mirror stale; the next use rebuilds it.
+    const dropped = "{\"status\":{\"Dropped\":\"DroppedByChain\"}}";
+    try std.testing.expectError(error.MissingPayload, running.store.writeTransactionAndPayloads(allocator, first, dropped, &.{.{ .uuid = id(0xee), .canonical_json = "{}" }}));
+    try std.testing.expect(!running.active.fresh);
+    var unchanged = (try fixture.store().transactionStatus(allocator, first)).?;
+    defer unchanged.deinit(allocator);
+    try std.testing.expect(unchanged.value != .dropped);
+    _ = try running.tick(100_001, .{});
+    try expectActiveIndexes(&running, &.{ 1, 2 });
+
+    // Committed through a store without the mirror, then the process dies
+    // before any memory update: restart derives the set from the database.
+    try fixture.store().setActive(allocator, 1, first, false);
+    try std.testing.expectEqual(@as(usize, 2), running.active.count());
+    running.deinit();
+    var restarted = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    defer restarted.deinit();
+    try expectActiveIndexes(&restarted, &.{2});
+    try std.testing.expectEqual(second, restarted.active.atOrAfter(0).?.uuid);
+    _ = try restarted.tick(200_000, .{});
+    // A write outside the Service stays invisible to the mirror (and the
+    // per-tick oracle reports it) until the mirror is next rebuilt.
+    try fixture.store().setActive(allocator, 1, first, true);
+    try std.testing.expect(!try restarted.active.matchesStore(restarted.store));
+    restarted.active.fresh = false;
+    _ = try restarted.tick(200_001, .{});
+    try expectActiveIndexes(&restarted, &.{ 1, 2 });
+}
+
+test "active mirror marks itself stale when it cannot record a change" {
+    var buffer: [256]u8 = undefined;
+    var fixed = std.heap.FixedBufferAllocator.init(&buffer);
+    var failing = std.testing.FailingAllocator.init(fixed.allocator(), .{ .fail_index = 0 });
+    var set = storage.ActiveSet.init(failing.allocator());
+    defer set.deinit();
+    set.fresh = true;
+    set.apply(.{ .index = 7, .uuid = id(7), .active = true });
+    try std.testing.expect(!set.fresh);
+    // A stale set ignores further changes until rebuilt.
+    set.apply(.{ .index = 8, .uuid = id(8), .active = true });
+    try std.testing.expectEqual(@as(usize, 0), set.count());
+}
+
+test "active mirror applies inserts overwrites and removals in index order" {
+    var set = storage.ActiveSet.init(std.testing.allocator);
+    defer set.deinit();
+    set.fresh = true;
+    for ([_]u32{ 5, 1, 9, 3 }) |index| set.apply(.{ .index = index, .uuid = id(@intCast(index)), .active = true });
+    set.apply(.{ .index = 3, .uuid = id(33), .active = true });
+    set.apply(.{ .index = 9, .uuid = id(9), .active = false });
+    set.apply(.{ .index = 4, .uuid = id(4), .active = false });
+    try std.testing.expect(set.fresh);
+    try std.testing.expectEqual(@as(usize, 3), set.count());
+    try std.testing.expectEqual(@as(u32, 1), set.atOrAfter(0).?.index);
+    try std.testing.expectEqual(id(33), set.atOrAfter(2).?.uuid);
+    try std.testing.expectEqual(@as(u32, 5), set.atOrAfter(4).?.index);
+    try std.testing.expect(set.atOrAfter(6) == null);
+}
+
 test "finalized observer receives winning receipt and payload gas outcome" {
     const allocator = std.testing.allocator;
     var fixture = try DbFixture.open(allocator);
