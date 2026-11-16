@@ -1130,12 +1130,12 @@ export class CallCommitmentsService extends BaseService {
       { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
       async (request, reply) => {
         const rawTxHash = request.body?.origin_tx_hash;
-        if (
-          typeof rawTxHash === 'string' &&
-          !utils.isHexString(rawTxHash, 32)
-        ) {
-          return reply.code(400).send({ error: 'Invalid origin_tx_hash' });
-        }
+        // origin_tx_hash is an optional EVM-only optimization: a 32-byte dispatch
+        // tx hash lets us re-derive the ICA from the origin receipt. Non-EVM
+        // origins (e.g. Solana, whose tx signature is 64 bytes) have no 32-byte
+        // hash, so anything that isn't a valid 32-byte hash is ignored rather
+        // than rejected — the reveal is still served from the stored commitment
+        // record keyed by the commitment in the reveal message.
         const originTxHash =
           typeof rawTxHash === 'string' && utils.isHexString(rawTxHash, 32)
             ? rawTxHash
