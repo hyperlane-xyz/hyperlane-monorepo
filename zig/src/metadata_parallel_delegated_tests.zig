@@ -110,7 +110,7 @@ const Source = struct {
         errdefer _ = self.fixture.forks.fetchSub(1, .acq_rel);
         if ((self.fixture.clock_child or self.fixture.late_ccip_child) and count == 4) {
             // Ensure the intentionally uncancellable child already runs on a
-            // worker before the caller can assist any queued job itself.
+            // worker before the remaining children are queued behind it.
             var timer = try std.time.Timer.start();
             while (!self.fixture.clock_entered.load(.acquire)) {
                 if (timer.read() > 5 * std.time.ns_per_s) return error.ClockChildNeverStarted;

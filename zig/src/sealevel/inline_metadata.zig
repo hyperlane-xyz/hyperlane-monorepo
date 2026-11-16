@@ -36,7 +36,8 @@ pub const InlineExecutor = struct {
         const jobs = try a.alloc(Job, children.len);
         defer a.free(jobs);
         var cancel = std.atomic.Value(bool).init(false);
-        for (jobs, children) |*job, spec| job.* = .{ .allocator = a, .executor = self.executor, .address = address, .message = message, .spec = spec, .depth = depth, .cancel = &cancel };
+        var join: Join = .{};
+        for (jobs, children) |*job, spec| job.* = .{ .allocator = a, .executor = self.executor, .address = address, .message = message, .spec = spec, .depth = depth, .cancel = &cancel, .join = &join };
         var scheduled: usize = 0;
         var failure: ?anyerror = null;
         for (jobs) |*job| {
@@ -58,19 +59,24 @@ pub const InlineExecutor = struct {
                 cancel.store(true, .release);
                 failure = error.RequestCancelled;
             };
-            var finished: usize = 0;
-            for (jobs[0..scheduled]) |*job| if (job.done.load(.acquire)) {
-                finished += 1;
-            };
-            if (finished == scheduled) break;
-            if (!self.executor.assist()) {
-                // Parks a fiber (its worker keeps running the children);
-                // sleeps a thread.
-                var nap: fiber.Waiter = .{};
-                _ = nap.waitTimeout(fiber.monoMs() + 1);
+            // Executor workers run every child; waiting here never runs one.
+            // The last retirement wakes this caller: a fiber parks (its worker
+            // keeps running the children), a thread blocks. Only a borrowed
+            // cancel flag, which has no notifier, is rechecked on a slice.
+            join.mutex.lock();
+            if (join.finished == scheduled) {
+                join.mutex.unlock();
+                break;
             }
+            var waiter: fiber.Waiter = .{};
+            join.waiter = &waiter;
+            join.mutex.unlock();
+            _ = waiter.waitTimeout(if (external_cancel != null) fiber.monoMs() + cancel_slice_ms else null);
+            join.mutex.lock();
+            if (join.waiter == &waiter) join.waiter = null;
+            join.mutex.unlock();
         }
-        // Every child has retired its view before publishing done. Even when a
+        // Every child has retired its view before counting finished. Even when a
         // refusal arrives early, source join_all keeps all other child results.
         defer for (jobs[0..scheduled]) |*job| if (job.bytes) |bytes| {
             self.executor.releaseOutput(bytes.len);
@@ -88,6 +94,25 @@ pub const InlineExecutor = struct {
         return .{ .allocator = a, .executor = self.executor, .values = values };
     }
 };
+/// Recheck interval for a borrowed external cancel flag (no notifier).
+const cancel_slice_ms = 10;
+/// Retirement count of one buildAll; the caller waits for all of them.
+const Join = struct {
+    mutex: std.Thread.Mutex = .{},
+    finished: usize = 0,
+    /// Mutex: the waiting caller's waiter, woken under it so it is alive.
+    waiter: ?*fiber.Waiter = null,
+    /// A child's last access to shared storage: the caller frees jobs and
+    /// this Join only after observing the count under the mutex.
+    fn finish(self: *Join) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.finished += 1;
+        const waiter = self.waiter orelse return;
+        self.waiter = null;
+        waiter.wake();
+    }
+};
 const Job = struct {
     job: parallel.Job = .{ .run_fn = run },
     allocator: A,
@@ -97,17 +122,17 @@ const Job = struct {
     spec: Spec,
     depth: usize,
     cancel: *std.atomic.Value(bool),
+    join: *Join,
     view: ?InlineView = null,
-    done: std.atomic.Value(bool) = .init(false),
     failure: ?anyerror = null,
     bytes: ?[]u8 = null,
     fn retire(self: *Job, failure: ?anyerror) parallel.RunResult {
         self.failure = failure;
         if (self.view) |view| view.deinit_fn(view.context);
         self.view = null;
-        // Executor.run reads no Job fields on .done. No access after this store:
+        // Executor.run reads no Job fields on .done. No access after finish:
         // the joining caller may release job storage immediately.
-        self.done.store(true, .release);
+        self.join.finish();
         return .done;
     }
     fn run(raw: *parallel.Job) parallel.RunResult {

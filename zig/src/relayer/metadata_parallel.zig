@@ -1,10 +1,15 @@
-//! Bounded, type-erased metadata jobs. Waiting callers execute queued work too,
-//! so nested aggregations cannot strand every worker waiting for its children.
-//! Worker-run jobs execute on stackful fibers: a job whose read parks frees
-//! its worker for other jobs and resumes when its response completes. A job
-//! that still yields (`.suspended`) re-runs on its own fiber after a short
-//! backoff park, without retiring its source or operation; off a fiber it is
-//! requeued for a worker.
+//! Bounded, type-erased metadata jobs. Worker-run jobs execute on stackful
+//! fibers: a job whose read parks frees its worker for other jobs and resumes
+//! when its response completes, so every queued job starts without help from
+//! a waiting caller. Callers waiting for an operation's results therefore
+//! never run queued jobs: an unrelated or no-longer-needed job (a stalled
+//! sibling) could hold the caller until that job's read deadline although its
+//! threshold is already met. The one exception is a worker thread running a
+//! job without a fiber stack: its nested waits still execute queued work, so
+//! nested aggregations cannot strand every worker waiting for its children.
+//! A job that still yields (`.suspended`) re-runs on its own fiber after a
+//! short backoff park, without retiring its source or operation; off a fiber
+//! it is requeued for a worker.
 const std = @import("std");
 const fiber = @import("../runtime/fiber.zig");
 
@@ -42,6 +47,9 @@ pub const Job = struct {
     /// Set by submit: the executor a worker fiber reports this job to.
     executor: ?*Executor = null,
 };
+
+/// The executor whose worker thread is running a job without a fiber stack.
+threadlocal var inline_worker: ?*Executor = null;
 
 fn nowMs() u64 {
     return @intCast(std.time.milliTimestamp());
@@ -151,8 +159,8 @@ pub const Executor = struct {
         self.mutex.unlock();
     }
 
-    /// Off a fiber (assisting caller, or no fiber stack): a suspended job
-    /// returns to the queue for a worker fiber.
+    /// Off a fiber (no fiber stack, or that worker's nested assist): a
+    /// suspended job returns to the queue for a worker fiber.
     fn run(self: *Executor, job: *Job) void {
         switch (job.run_fn(job)) {
             .done => self.retire(),
@@ -186,25 +194,28 @@ pub const Executor = struct {
         self.retire();
     }
 
-    /// Execute one ready queued job. Delayed continuations remain retained.
-    /// Never on a fiber: an unrelated job could hold the caller's fiber behind
-    /// its own waits (a suspended job re-runs in place); the fiber's worker
-    /// starts queued jobs on their own fibers while the caller parks.
-    pub fn assist(self: *Executor) bool {
-        if (fiber.inFiber()) return false;
-        const job = self.take() orelse return false;
-        self.runAssisted(job);
-        return true;
-    }
-    /// A waiting caller runs queued work itself: on its fiber the job's reads
-    /// park it, off a fiber they wait inline (the caller is waiting anyway).
-    fn runAssisted(self: *Executor, job: *Job) void {
-        if (fiber.inFiber()) return self.runFiber(job);
-        self.run(job);
+    /// Only this executor's worker thread running a job without a fiber stack
+    /// may execute queued work while it waits (else workers all so occupied
+    /// could strand their children). Every other waiter, on or off a fiber,
+    /// waits for completion: a job run inline holds its caller until the job's
+    /// own reads finish, even when the caller no longer needs its result.
+    fn mayAssist(self: *Executor) bool {
+        return inline_worker == self;
     }
 
-    /// Priority discovery runs its prefix job, never an unrelated trailing job.
+    /// Execute one ready queued job if this caller may (see mayAssist).
+    /// Delayed continuations remain retained.
+    pub fn assist(self: *Executor) bool {
+        if (!self.mayAssist()) return false;
+        const job = self.take() orelse return false;
+        self.run(job);
+        return true;
+    }
+
+    /// Priority discovery runs its prefix job, never an unrelated trailing job
+    /// (same rule as assist).
     pub fn assistJob(self: *Executor, target: *Job) bool {
+        if (!self.mayAssist()) return false;
         self.mutex.lock();
         var previous: ?*Job = null;
         var current = self.head;
@@ -218,7 +229,7 @@ pub const Executor = struct {
                 if (self.tail == job) self.tail = previous;
                 job.next = null;
                 self.mutex.unlock();
-                self.runAssisted(job);
+                self.run(job);
                 return true;
             }
             previous = job;
@@ -235,14 +246,21 @@ pub const Executor = struct {
         const state = &self.worker_states[index];
         defer state.timed.deinit(self.allocator);
         self.mutex.lock();
+        // After each ready step, expire parks and start one due job before the
+        // next: a fiber that is always ready again (a yield, or a park whose
+        // deadline could not be tracked) cannot starve queued jobs, which no
+        // waiting caller runs (see mayAssist).
+        var fair = false;
         while (true) {
-            if (popReady(state)) |f| {
+            if (!fair) if (popReady(state)) |f| {
                 dropTimed(state, f);
                 self.mutex.unlock();
                 self.step(state, f);
                 self.mutex.lock();
+                fair = true;
                 continue;
-            }
+            };
+            fair = false;
             var next_deadline: ?i64 = null;
             if (state.timed.items.len != 0) {
                 const now = fiber.monoMs();
@@ -262,7 +280,6 @@ pub const Executor = struct {
                         pushReady(state, f);
                     }
                 }
-                if (state.ready_head != null) continue;
             }
             if (self.head) |job| if (job.due_ms <= nowMs()) {
                 self.head = job.next;
@@ -271,8 +288,11 @@ pub const Executor = struct {
                 state.live += 1;
                 self.mutex.unlock();
                 const f = fiber.create(.{ .ctx = state, .wake = wakeFiber, .adopt = adoptFiber, .has_ready = hasReady, .set_interrupt = setInterrupt }, jobMain, job) catch {
-                    // No fiber stack: run the job on this thread (it may block).
+                    // No fiber stack: run the job on this thread (it may block;
+                    // its nested waits assist, see mayAssist).
+                    inline_worker = self;
                     self.run(job);
+                    inline_worker = null;
                     self.mutex.lock();
                     state.live -= 1;
                     continue;
@@ -285,6 +305,7 @@ pub const Executor = struct {
                 const due_mono = fiber.monoMs() + @max(due - @as(i64, @intCast(nowMs())), 0);
                 next_deadline = @min(next_deadline orelse due_mono, due_mono);
             };
+            if (state.ready_head != null) continue;
             if (self.head == null and self.stopping and state.live == 0) {
                 self.mutex.unlock();
                 return;
@@ -663,7 +684,58 @@ test "executor lifetime stop token retires a retained cooperative continuation" 
     try std.testing.expect(!pending.expired.load(.acquire));
 }
 
-test "executor caller-assisted last suspension wakes parked workers and retires cancellation" {
+test "only a stackless worker thread of the executor assists queued jobs" {
+    const root = try Root.start(std.testing.allocator, .{ .workers = 1 });
+    defer root.deinit();
+    const Gate = struct {
+        job: Job = .{ .run_fn = run },
+        entered: std.atomic.Value(bool) = .init(false),
+        release: std.atomic.Value(bool) = .init(false),
+        fn run(job: *Job) RunResult {
+            const self: *@This() = @fieldParentPtr("job", job);
+            self.entered.store(true, .release);
+            while (!self.release.load(.acquire)) std.Thread.sleep(std.time.ns_per_ms);
+            return .done;
+        }
+    };
+    const Probe = struct {
+        job: Job = .{ .run_fn = run },
+        thread: ?std.Thread.Id = null,
+        fn run(job: *Job) RunResult {
+            const self: *@This() = @fieldParentPtr("job", job);
+            self.thread = std.Thread.getCurrentId();
+            return .done;
+        }
+    };
+    // The only worker is held, so probes stay queued until assisted.
+    var gate: Gate = .{};
+    defer gate.release.store(true, .release);
+    try root.executor.submit(&gate.job);
+    var timer = try std.time.Timer.start();
+    while (!gate.entered.load(.acquire)) {
+        if (timer.read() > std.time.ns_per_s) return error.WorkerDidNotEnter;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    var first: Probe = .{};
+    var second: Probe = .{};
+    try root.executor.submit(&first.job);
+    try root.executor.submit(&second.job);
+    try std.testing.expect(!root.executor.assist());
+    try std.testing.expect(!root.executor.assistJob(&second.job));
+    try std.testing.expectEqual(@as(usize, 3), root.executor.retainedJobs());
+    // As the worker's fallback marks its thread while running a job inline.
+    inline_worker = &root.executor;
+    defer inline_worker = null;
+    try std.testing.expect(root.executor.assistJob(&second.job));
+    try std.testing.expectEqual(@as(?std.Thread.Id, std.Thread.getCurrentId()), second.thread);
+    try std.testing.expectEqual(@as(?std.Thread.Id, null), first.thread);
+    try std.testing.expect(root.executor.assist());
+    try std.testing.expectEqual(@as(?std.Thread.Id, std.Thread.getCurrentId()), first.thread);
+    try std.testing.expect(!root.executor.assist());
+    try std.testing.expectEqual(@as(usize, 1), root.executor.retainedJobs());
+}
+
+test "executor off-fiber last suspension wakes parked workers and retires cancellation" {
     const root = try Root.start(std.testing.allocator, .{ .workers = 1 });
     defer root.deinit();
     const Gate = struct {
@@ -718,7 +790,13 @@ test "executor caller-assisted last suspension wakes parked workers and retires 
     };
     var assisted: Assisted = .{ .executor = &root.executor, .gate = &gate, .caller = std.Thread.getCurrentId() };
     try root.executor.submit(&assisted.job);
-    try std.testing.expect(root.executor.assist());
+    // A caller outside the executor never runs queued work.
+    try std.testing.expect(!root.executor.assist());
+    try std.testing.expect(!root.executor.assistJob(&assisted.job));
+    // The off-fiber path a stackless worker uses: run here, then requeue.
+    const job = root.executor.take() orelse return error.QueuedJobMissing;
+    try std.testing.expectEqual(&assisted.job, job);
+    root.executor.run(job);
     try std.testing.expect(assisted.parked);
     timer.reset();
     while (!assisted.retired.load(.acquire) or root.executor.retainedJobs() != 0) {
