@@ -48,6 +48,7 @@ import { createRateLimitHook } from '../utils/rateLimit.js';
 import {
   CommitmentAccessDeniedError,
   InvalidOriginTxHashError,
+  UnknownOriginProtocolError,
 } from '../utils/errors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
 
@@ -148,6 +149,13 @@ type ReconciliationDb = Pick<
 class CommitmentConflictError extends Error {}
 
 const EVM_RELAYER_REGEX = /^0x(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
+
+// Non-EVM origin protocols whose reveal is served from the stored commitment
+// record, ignoring any origin_tx_hash hint (an EVM-only ICA re-derivation aid).
+// Any protocol not listed here — including an unknown domain — fails closed.
+const HINT_IGNORED_PROTOCOLS: ReadonlySet<ProtocolType> = new Set([
+  ProtocolType.Sealevel,
+]);
 
 function normalizedRelayerSet(relayers: string[]): string[] {
   return [
@@ -534,6 +542,10 @@ export class CallCommitmentsService extends BaseService {
    * a valid 32-byte tx hash or the request fails closed; for non-EVM origins
    * (e.g. Solana) the hint is ignored and the reveal is served from the stored
    * commitment record. An absent or empty hint is treated as "no hint".
+   *
+   * An origin whose protocol is unknown (domain missing from registry metadata)
+   * or not on the hint-ignoring allowlist fails closed rather than being served
+   * unbound.
    */
   private resolveOriginTxHash(
     origin: number,
@@ -552,11 +564,16 @@ export class CallCommitmentsService extends BaseService {
       return rawOriginTxHash;
     }
 
-    log.debug(
-      { origin, protocol },
-      'Ignoring origin_tx_hash hint for non-EVM origin',
-    );
-    return undefined;
+    if (protocol != null && HINT_IGNORED_PROTOCOLS.has(protocol)) {
+      log.debug(
+        { origin, protocol },
+        'Ignoring origin_tx_hash hint for non-EVM origin',
+      );
+      return undefined;
+    }
+
+    // Unknown domain or an unclassified protocol: never serve unbound.
+    throw new UnknownOriginProtocolError(origin, protocol);
   }
 
   private async deriveIcaFromRevealMessage(

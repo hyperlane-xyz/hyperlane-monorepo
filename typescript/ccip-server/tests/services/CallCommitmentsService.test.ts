@@ -1226,6 +1226,40 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     );
     expect(service.deriveIcaFromRevealMessage.called).to.be.false;
   });
+
+  it('fails closed when the origin protocol is unknown (domain missing from registry)', async () => {
+    const service = createService();
+    // A domain absent from registry metadata resolves to undefined; it must not
+    // be served unbound.
+    service.multiProvider = {
+      tryGetProtocol: sinon.stub().returns(undefined),
+    };
+    service.fetchCommitmentRecord = sinon.stub().resolves({
+      commitment,
+      calls: baseCalls,
+      salt,
+      ica: mockIca,
+      originDomain: 1,
+      relayers: baseRelayers,
+    });
+    service.deriveIcaFromRevealMessage = sinon.stub().resolves(mockIca);
+
+    const error = await service
+      .handleFetchCommitment(
+        message,
+        baseRelayers[0],
+        mockLogger(),
+        '0x' + 'ab'.repeat(64),
+      )
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    expect(error).to.be.instanceOf(Error);
+    expect(error.name).to.equal('UnknownOriginProtocolError');
+    expect(service.deriveIcaFromRevealMessage.called).to.be.false;
+  });
 });
 
 describe('CallCommitmentsService.handleCalldataPost', () => {

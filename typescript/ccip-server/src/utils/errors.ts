@@ -21,3 +21,19 @@ export class InvalidOriginTxHashError extends Error {
     this.name = 'InvalidOriginTxHashError';
   }
 }
+
+/**
+ * The reveal's origin domain resolved to a protocol we don't know how to
+ * handle (an unknown domain missing from registry metadata, or a protocol not
+ * on the hint-handling allowlist). Fail closed rather than serve unbound.
+ */
+export class UnknownOriginProtocolError extends Error {
+  constructor(origin: number, protocol: string | null | undefined) {
+    super(
+      `Unsupported origin protocol for reveal (origin ${origin}, protocol ${
+        protocol ?? 'unknown'
+      })`,
+    );
+    this.name = 'UnknownOriginProtocolError';
+  }
+}
