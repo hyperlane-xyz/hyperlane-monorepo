@@ -787,9 +787,13 @@ test "injected signing faults are caught before release" {
             const signed = try signCoreFaulted(fault, key.secret, digest, null);
             const verdict = try verdicts(&key, &oracle_table, digest, signed.signature, signed.r_point);
             switch (fault) {
-                // A nonce changed before both k*G and k^-1 still yields a
-                // valid signature under a different k: nothing leaks, and
-                // neither this check nor the previous one can tell.
+                // KNOWN GAP, not safe: a nonce changed before both k*G and
+                // k^-1 yields a valid signature under k' = k + delta, which
+                // no verify-after-sign (this or the previous check) can see.
+                // With deterministic nonces the clean signature on the same
+                // digest exists, so a structured delta (a bit flip) reveals d
+                // by trying ~512 candidates. Only nonce hedging (fresh noise)
+                // or a redundant nonce derivation closes it.
                 .none, .nonce => try std.testing.expect(verdict.signer and verdict.oracle),
                 else => try std.testing.expect(!verdict.signer),
             }
