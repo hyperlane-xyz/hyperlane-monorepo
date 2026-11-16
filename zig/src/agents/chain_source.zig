@@ -344,7 +344,7 @@ pub const Resources = struct {
     fn exchange(context: *anyopaque, a: A, body: []const u8, options: rpc.Options) !rpc.WireResponse {
         const pool: *RpcPool.Pool = @ptrCast(@alignCast(context));
         const result = try pool.fetchObservedCached(a, body, options.timeout_ms, options.connect_timeout_ms, options.cancel, options.max_response_bytes, options.pool_observer, options.indexer_tip_cache);
-        return .{ .bytes = result.bytes, .len = result.len };
+        return .{ .bytes = result.bytes, .len = result.len, .validated = result.validated };
     }
     /// One bounded session spans endpoint attempts; the Pool separately caps
     /// each physical request. Explicit caller clocks can only reduce this budget.
@@ -369,7 +369,7 @@ pub const Resources = struct {
         errdefer a.free(result.bytes);
         _ = try self.fallbackRpcBudget(options.owner_deadline_ns);
         if (options.cancel) |flag| if (flag.load(.acquire)) return error.RequestCancelled;
-        return .{ .bytes = result.bytes, .len = result.len };
+        return .{ .bytes = result.bytes, .len = result.len, .validated = result.validated };
     }
     /// Independent reads overlapped on the shared pool: every request is
     /// submitted before any is awaited, all under one deadline. All-or-error.
@@ -390,7 +390,7 @@ pub const Resources = struct {
         const deadline_ms = pool.now() +| timeout_ms;
         while (done < submitted) : (done += 1) {
             const result = try pool.wait(handles[done], a, deadline_ms, options.cancel);
-            out[done] = .{ .bytes = result.bytes, .len = result.len };
+            out[done] = .{ .bytes = result.bytes, .len = result.len, .validated = result.validated };
         }
     }
     pub const max_overlapped_reads = 16;
