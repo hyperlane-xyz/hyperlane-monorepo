@@ -776,12 +776,13 @@ pub const Pool = struct {
         session.taken.store(true, .release);
         session.mutex.unlock();
         // Retire now when nobody drives (no thread handoff); otherwise the
-        // driver retires it on its next pass. A held slot must not linger
-        // until unrelated socket activity (submit could see SessionsFull).
+        // driver retires it on its next pass. The next submit wakes the owner
+        // anyway, so a wake just to retire is spent only when this was the
+        // last free slot (a submit could otherwise see SessionsFull).
         if (self.driver.tryLock()) {
             self.retireLocked();
             self.driver.unlock();
-        } else self.native.wakeup();
+        } else if (self.freeSlotLocked() == null) self.native.wakeup();
         self.mutex.unlock();
         if (failure) |err| return err;
         const bytes = winner orelse return error.MissingRpcPoolResult;
