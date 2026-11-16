@@ -20,6 +20,10 @@ pub const Request = struct {
     /// Untrusted CCIP URLs: bypass proxies and validate the actual destination
     /// sockaddr before opening a socket. Trusted RPC/cloud callers leave false.
     public_only: bool = false,
+    /// `url` and `headers` are a fixed endpoint that already passed
+    /// `validateEndpoint` (an RPC pool checks its endpoints once at start), so
+    /// per-transfer validation skips them. Never set with `public_only`.
+    endpoint_checked: bool = false,
     cancel: ?*const std.atomic.Value(bool) = null,
 };
 
@@ -27,20 +31,26 @@ fn headerToken(char: u8) bool {
     return std.ascii.isAlphanumeric(char) or std.mem.indexOfScalar(u8, "!#$%&'*+-.^_`|~", char) != null;
 }
 pub fn validateRequest(request: Request) !void {
-    for (request.url) |char| if (char <= 32 or char == 127) return error.InvalidHttpUrl;
-    const uri = try std.Uri.parse(request.url);
+    if (request.endpoint_checked) {
+        if (request.public_only) return error.InvalidHttpRequest;
+    } else try validateEndpoint(request.url, request.headers, request.public_only);
+    if (request.timeout_ms == 0 or request.connect_timeout_ms == 0 or request.max_response_bytes == 0) return error.InvalidHttpLimit;
+    if (request.method == .head and request.body != null) return error.InvalidHttpRequest;
+}
+/// The URL and header part of `validateRequest`.
+pub fn validateEndpoint(url: []const u8, headers: []const Header, public_only: bool) !void {
+    for (url) |char| if (char <= 32 or char == 127) return error.InvalidHttpUrl;
+    const uri = try std.Uri.parse(url);
     if (uri.host == null or uri.user != null or uri.password != null or uri.fragment != null or (!std.mem.eql(u8, uri.scheme, "http") and !std.mem.eql(u8, uri.scheme, "https"))) return error.InvalidHttpUrl;
-    if (request.public_only) {
+    if (public_only) {
         var buffer: [1024]u8 = undefined;
         const host = try uri.host.?.toRaw(&buffer);
         const unbracketed = if (host.len >= 2 and host[0] == '[' and host[host.len - 1] == ']') host[1 .. host.len - 1] else host;
         const address = std.net.Address.parseIp(unbracketed, 0) catch null;
         if (address) |literal| if (!public_address.isPublic(literal)) return error.NonPublicDestination;
     }
-    if (request.timeout_ms == 0 or request.connect_timeout_ms == 0 or request.max_response_bytes == 0) return error.InvalidHttpLimit;
-    if (request.method == .head and request.body != null) return error.InvalidHttpRequest;
     var encoding_count: usize = 0;
-    for (request.headers) |header| {
+    for (headers) |header| {
         if (header.name.len == 0) return error.InvalidHttpHeader;
         for (header.name) |char| if (!headerToken(char)) return error.InvalidHttpHeader;
         for (header.value) |char| if ((char < 32 and char != '\t') or char == 127) return error.InvalidHttpHeader;
@@ -466,6 +476,10 @@ pub const Transfer = struct {
     sink: Sink,
     pub fn init(client: *Client, allocator: std.mem.Allocator, original: Request) !*Transfer {
         try validateRequest(original);
+        return initValidated(client, allocator, original);
+    }
+    /// `init` for a request the caller just passed through `validateRequest`.
+    pub fn initValidated(client: *Client, allocator: std.mem.Allocator, original: Request) !*Transfer {
         if (original.cancel) |cancel| if (cancel.load(.acquire)) return error.RequestCancelled;
         const self = try allocator.create(Transfer);
         errdefer allocator.destroy(self);
@@ -608,6 +622,17 @@ test "native HTTP validates NUL controls token headers and content encoding befo
     try std.testing.expectError(error.InvalidHttpHeader, validateRequest(invalid));
     invalid.headers = &.{.{ .name = "Accept-Encoding", .value = "identity" }};
     try validateRequest(invalid);
+    // A pre-checked fixed endpoint skips URL/header parsing, never limits,
+    // and is never accepted for public-only (CCIP) destinations.
+    const checked: Request = .{ .url = "checked-once", .method = .post, .endpoint_checked = true };
+    try validateRequest(checked);
+    var bad_limit = checked;
+    bad_limit.timeout_ms = 0;
+    try std.testing.expectError(error.InvalidHttpLimit, validateRequest(bad_limit));
+    var public = checked;
+    public.public_only = true;
+    try std.testing.expectError(error.InvalidHttpRequest, validateRequest(public));
+    try std.testing.expectError(error.InvalidHttpUrl, validateEndpoint("ftp://example.com/", &.{}, false));
 }
 
 test "public HTTP rejects literal destinations and native socket callback prevents rebinding" {

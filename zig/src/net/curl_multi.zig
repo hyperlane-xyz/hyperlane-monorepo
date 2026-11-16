@@ -491,7 +491,7 @@ pub const Multi = struct {
         const index = for (self.slots, 0..) |slot, index| {
             if (slot.state == .free) break index;
         } else return error.CurlMultiQueueFull;
-        const transfer = try curl.Transfer.init(&self.client, self.allocator, request);
+        const transfer = try curl.Transfer.initValidated(&self.client, self.allocator, request);
         self.sequence += 1;
         self.slots[index] = .{ .state = .queued, .sequence = self.sequence, .deadline_ms = now_ms +| request.timeout_ms, .transfer = transfer, .reserved_bytes = reserved, .trust = @intFromBool(request.public_only) };
         self.reserved_bytes += reserved;
