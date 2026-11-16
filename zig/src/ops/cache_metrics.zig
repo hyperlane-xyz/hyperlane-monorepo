@@ -11,6 +11,11 @@ pub const Adapter = struct {
     expired_recorded: u64 = 0,
     size_recorded: u64 = 0,
     failures: usize = 0,
+    /// Series handles keyed by name/label identity (touched only under the registry lock).
+    handles: metrics.Handles(32, 1) = .{},
+    fn update(self: *Adapter, name: []const u8, labels: []const []const u8, change: metrics.Update) !void {
+        try self.registry.updateVia(&self.handles.at(metrics.identityKey(name, labels))[0], name, labels, change);
+    }
 
     pub fn interface(self: *Adapter, partition: cache.Partition) cache.Observer {
         return .{ .context = self, .partition = partition, .notify_fn = notify };
@@ -36,7 +41,7 @@ pub const Adapter = struct {
         // Always refresh gauges even if the decision counter cannot allocate.
         var first_error: ?anyerror = null;
         if (observation.decision) |decision| {
-            self.registry.update(if (decision == .hit) "hyperlane_hit_count" else "hyperlane_miss_count", &.{ "relayer_cache", observation.chain, observation.method.?, if (decision == .failure) "failure" else "success" }, .{ .add_int = 1 }) catch |err| {
+            self.update(if (decision == .hit) "hyperlane_hit_count" else "hyperlane_miss_count", &.{ "relayer_cache", observation.chain, observation.method.?, if (decision == .failure) "failure" else "success" }, .{ .add_int = 1 }) catch |err| {
                 first_error = err;
             };
         }
@@ -45,19 +50,19 @@ pub const Adapter = struct {
             total.entries +|= value.entries;
             total.serialized_bytes +|= value.serialized_bytes;
         }
-        self.registry.update("hyperlane_cache_entry_count", &.{"relayer_cache"}, .{ .set_int = integer(total.entries) }) catch |err| {
+        self.update("hyperlane_cache_entry_count", &.{"relayer_cache"}, .{ .set_int = integer(total.entries) }) catch |err| {
             first_error = first_error orelse err;
         };
-        self.registry.update("hyperlane_cache_weighted_size_bytes", &.{"relayer_cache"}, .{ .set_int = integer(total.serialized_bytes) }) catch |err| {
+        self.update("hyperlane_cache_weighted_size_bytes", &.{"relayer_cache"}, .{ .set_int = integer(total.serialized_bytes) }) catch |err| {
             first_error = first_error orelse err;
         };
         // Advance each drained counter only after Registry accepted that delta.
-        self.registry.update("hyperlane_cache_eviction_count", &.{ "relayer_cache", "expired" }, .{ .add_int = self.expired_total - self.expired_recorded }) catch |err| {
+        self.update("hyperlane_cache_eviction_count", &.{ "relayer_cache", "expired" }, .{ .add_int = self.expired_total - self.expired_recorded }) catch |err| {
             first_error = first_error orelse err;
             return first_error.?;
         };
         self.expired_recorded = self.expired_total;
-        self.registry.update("hyperlane_cache_eviction_count", &.{ "relayer_cache", "size" }, .{ .add_int = self.size_total - self.size_recorded }) catch |err| {
+        self.update("hyperlane_cache_eviction_count", &.{ "relayer_cache", "size" }, .{ .add_int = self.size_total - self.size_recorded }) catch |err| {
             return first_error orelse err;
         };
         self.size_recorded = self.size_total;

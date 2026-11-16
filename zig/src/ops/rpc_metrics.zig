@@ -22,6 +22,9 @@ pub const Recorder = struct {
     /// Registry limits/OOM are observable without turning telemetry into an RPC
     /// failure. The first failure emits only the error name, never a request.
     failures: std.atomic.Value(u64) = std.atomic.Value(u64).init(0),
+    /// Series handles for the per-request updates (touched only under the registry lock).
+    request_handles: metrics.Handles(64, 2) = .{},
+    cache_handles: metrics.Handles(64, 1) = .{},
     pub fn init(a: A, registry: *metrics.Registry, options: Options) !*Recorder {
         const self = try a.create(Recorder);
         self.* = .{ .allocator = a, .arena = std.heap.ArenaAllocator.init(a), .registry = registry, .options = options };
@@ -70,9 +73,12 @@ pub const Recorder = struct {
         try self.addEndpoints(urls);
     }
     pub fn record(self: *Recorder, host: []const u8, connection: []const u8, method: []const u8, success: bool, duration_ns: u64) !void {
-        const labels = [_][]const u8{ host, connection, self.options.chain, pool.boundedMethod(method), if (success) "success" else "failure", @tagName(self.options.role), @tagName(self.options.operation) };
-        try self.registry.update("hyperlane_request_count", &labels, .{ .add_int = 1 });
-        try self.registry.update("hyperlane_request_duration_seconds", &labels, .{ .add_real = @as(f64, @floatFromInt(duration_ns)) / std.time.ns_per_s });
+        const bounded = pool.boundedMethod(method);
+        const labels = [_][]const u8{ host, connection, self.options.chain, bounded, if (success) "success" else "failure", @tagName(self.options.role), @tagName(self.options.operation) };
+        // Method text lives in per-request storage: key on its content, the rest on identity.
+        const handles = self.request_handles.at(metrics.identityKey(host, &.{connection}) ^ std.hash.Wyhash.hash(@intFromBool(success), bounded));
+        try self.registry.updateVia(&handles[0], "hyperlane_request_count", &labels, .{ .add_int = 1 });
+        try self.registry.updateVia(&handles[1], "hyperlane_request_duration_seconds", &labels, .{ .add_real = @as(f64, @floatFromInt(duration_ns)) / std.time.ns_per_s });
     }
     fn failed(self: *Recorder, err: anyerror) void {
         if (self.failures.fetchAdd(1, .monotonic) == 0) std.log.warn("RPC metrics failed: {s}", .{@errorName(err)});
@@ -170,7 +176,9 @@ pub const Recorder = struct {
                     .cache_upstream_error => "upstream_error",
                     else => unreachable,
                 };
-                self.registry.update("hyperlane_request_cache_count", &.{ self.pool_hosts[index], self.options.chain, pool.boundedMethod(event.method), result, @tagName(self.options.role) }, .{ .add_int = 1 }) catch |err| self.failed(err);
+                const method = pool.boundedMethod(event.method);
+                const handle = &self.cache_handles.at(std.hash.Wyhash.hash(index, method) ^ @intFromPtr(result.ptr))[0];
+                self.registry.updateVia(handle, "hyperlane_request_cache_count", &.{ self.pool_hosts[index], self.options.chain, method, result, @tagName(self.options.role) }, .{ .add_int = 1 }) catch |err| self.failed(err);
             },
             .upstream_completed => {
                 if (event.cancelled) return;
