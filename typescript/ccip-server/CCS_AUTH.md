@@ -37,6 +37,12 @@ The signed URL is the configured public endpoint URL, including
 `/callCommitments/getCallsFromRevealMessage`. Existing Rust and TypeScript EVM clients
 continue working unchanged if their signer is whitelisted.
 
+Origin binding differs by protocol. EVM-origin reveals must carry the dispatch
+`origin_tx_hash`, and the served ICA is derived from that receipt. Sealevel-origin
+reveals are served from the stored commitment record with no origin binding: access
+rests on relayer authorization and the stored origin domain matching the reveal. Other
+origin protocols are rejected.
+
 ## General calldata lookup
 
 For `GET /callCommitments/calldata/:commitment`, sign with:
