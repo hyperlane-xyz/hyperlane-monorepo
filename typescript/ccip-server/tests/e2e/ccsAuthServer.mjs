@@ -159,6 +159,7 @@ new CallCommitmentsService(
   icaRoutersByDomain(registryAddresses, provider),
   true,
   mailboxesByDomain(registryAddresses, provider),
+  false,
 ).registerRoutes(app, '/callCommitments');
 await app.listen({ host: '127.0.0.1', port: 55441 });
 const tlsServer = https.createServer(

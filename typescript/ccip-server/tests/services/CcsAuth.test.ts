@@ -21,6 +21,7 @@ import {
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
+  ProtocolType,
   addressToBytes32,
   assert,
   bytes32ToAddress,
@@ -103,7 +104,10 @@ async function server(
     trustedIcaRouters: ReadonlyMap<number, IcaRouters>;
     originMailboxes: ReadonlyMap<number, string>;
   },
-  { calldataLookupEnabled = true }: { calldataLookupEnabled?: boolean } = {},
+  {
+    calldataLookupEnabled = true,
+    sealevelRevealsEnabled = false,
+  }: { calldataLookupEnabled?: boolean; sealevelRevealsEnabled?: boolean } = {},
 ) {
   const app = Fastify({ loggerInstance: pino({ level: 'silent' }) });
   await registerRateLimiting(app);
@@ -119,6 +123,7 @@ async function server(
     dependencies?.trustedIcaRouters ?? defaultIcaRouters,
     calldataLookupEnabled,
     dependencies?.originMailboxes ?? defaultOriginMailboxes,
+    sealevelRevealsEnabled,
   );
   service.registerRoutes(app, '/callCommitments');
   return app;
@@ -373,7 +378,7 @@ describe('CCS read authentication', () => {
     }
   });
 
-  it('rejects malformed origin transaction hints instead of serving stored routing metadata', async () => {
+  it('forwards string origin transaction hints for protocol-aware validation', async () => {
     const fetch = sinon
       .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
       .resolves('0x1234');
@@ -384,17 +389,17 @@ describe('CCS read authentication', () => {
       ),
     );
     try {
-      for (const originTxHash of ['0x1234', '']) {
+      for (const originTxHash of ['0x1234', '', '0x' + 'ab'.repeat(64)]) {
         const response = await app.inject({
           method: 'POST',
           url: postPath,
           payload: { sender, data, signature, origin_tx_hash: originTxHash },
         });
 
-        expect(response.statusCode).to.equal(400);
-        expect(response.json().error).to.equal('Invalid origin_tx_hash');
+        expect(response.statusCode).to.equal(200);
+        expect(fetch.lastCall.args[3]).to.equal(originTxHash);
       }
-      expect(fetch.called).to.be.false;
+      expect(fetch.callCount).to.equal(3);
     } finally {
       await app.close();
     }
@@ -477,6 +482,8 @@ describe('CCS authenticated reveal recovery integration', () => {
     originV3Only = false,
     destinationV3Only = false,
     commitIsm = '0x' + '00'.repeat(20),
+    protocol = ProtocolType.Ethereum,
+    sealevelRevealsEnabled = false,
   }: {
     trustRouters?: boolean;
     registeredWithDispatchedRouters?: boolean;
@@ -484,6 +491,8 @@ describe('CCS authenticated reveal recovery integration', () => {
     originV3Only?: boolean;
     destinationV3Only?: boolean;
     commitIsm?: string;
+    protocol?: ProtocolType | null;
+    sealevelRevealsEnabled?: boolean;
   } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
@@ -582,6 +591,8 @@ describe('CCS authenticated reveal recovery integration', () => {
         );
       });
     const multiProvider = sinon.createStubInstance(MultiProvider);
+    if (protocol === null) multiProvider.getProtocol.throws('Unknown origin');
+    else multiProvider.getProtocol.returns(protocol);
     multiProvider.getChainName.withArgs(8453).returns('base');
     multiProvider.getChainName.withArgs(42161).returns('arbitrum');
     multiProvider.getProvider.withArgs('base').returns(originProvider);
@@ -643,15 +654,19 @@ describe('CCS authenticated reveal recovery integration', () => {
           [8453, { interchainAccountRouter: '0x' + '41'.repeat(20) }],
           [42161, { interchainAccountRouter: '0x' + '42'.repeat(20) }],
         ]);
-    const app = await server([wallet.address], {
-      multiProvider,
-      icaApp,
-      trustedIcaRouters,
-      originMailboxes: new Map([
-        [8453, mailbox],
-        [42161, '0x' + '34'.repeat(20)],
-      ]),
-    });
+    const app = await server(
+      [wallet.address],
+      {
+        multiProvider,
+        icaApp,
+        trustedIcaRouters,
+        originMailboxes: new Map([
+          [8453, mailbox],
+          [42161, '0x' + '34'.repeat(20)],
+        ]),
+      },
+      { sealevelRevealsEnabled },
+    );
     const data =
       CommitmentReadIsmService__factory.createInterface().encodeFunctionData(
         'getCallsFromRevealMessage',
@@ -750,7 +765,7 @@ describe('CCS authenticated reveal recovery integration', () => {
     }
   });
 
-  it('returns HTTP 500 for a null origin transaction hash', async () => {
+  it('returns HTTP 400 for a null origin transaction hash', async () => {
     const f = await fixture();
     try {
       const response = await f.app.inject({
@@ -763,9 +778,9 @@ describe('CCS authenticated reveal recovery integration', () => {
           origin_tx_hash: null,
         },
       });
-      expect(response.statusCode).to.equal(500);
+      expect(response.statusCode).to.equal(400);
       expect(response.json()).to.deep.equal({
-        error: 'Internal server error',
+        error: 'Invalid origin_tx_hash',
       });
       sinon.assert.notCalled(f.receipt);
       sinon.assert.notCalled(f.updateMany);
@@ -773,6 +788,79 @@ describe('CCS authenticated reveal recovery integration', () => {
       await f.app.close();
     }
   });
+
+  interface OriginProtocolCase {
+    protocol: ProtocolType | null;
+    sealevelRevealsEnabled: boolean;
+  }
+
+  const originProtocolCases: OriginProtocolCase[] = [
+    { protocol: ProtocolType.Ethereum, sealevelRevealsEnabled: false },
+    { protocol: ProtocolType.Ethereum, sealevelRevealsEnabled: true },
+    { protocol: ProtocolType.Sealevel, sealevelRevealsEnabled: true },
+    { protocol: ProtocolType.Sealevel, sealevelRevealsEnabled: false },
+    { protocol: ProtocolType.Cosmos, sealevelRevealsEnabled: true },
+    { protocol: null, sealevelRevealsEnabled: true },
+  ];
+
+  for (const { protocol, sealevelRevealsEnabled } of originProtocolCases) {
+    for (const { originTxHash, validEvmHash } of [
+      { originTxHash: undefined, validEvmHash: false },
+      { originTxHash: null, validEvmHash: false },
+      { originTxHash: 1234, validEvmHash: false },
+      { originTxHash: '', validEvmHash: false },
+      { originTxHash: '0x1234', validEvmHash: false },
+      { originTxHash: '0x' + 'ab'.repeat(32), validEvmHash: true },
+      { originTxHash: '0x' + 'ab'.repeat(64), validEvmHash: false },
+    ]) {
+      it(`handles ${protocol ?? 'unknown'} origin with hash ${JSON.stringify(originTxHash)} when Sealevel reveals are ${sealevelRevealsEnabled ? 'enabled' : 'disabled'}`, async () => {
+        const f = await fixture({ protocol, sealevelRevealsEnabled });
+        const isEvm = protocol === ProtocolType.Ethereum;
+        const isSealevel = protocol === ProtocolType.Sealevel;
+        const status = isSealevel
+          ? sealevelRevealsEnabled
+            ? 200
+            : 403
+          : isEvm
+            ? validEvmHash
+              ? 200
+              : 400
+            : 500;
+        try {
+          const response = await f.app.inject({
+            method: 'POST',
+            url: postPath,
+            payload: {
+              sender: f.payload.sender,
+              data: f.payload.data,
+              signature: f.payload.signature,
+              origin_tx_hash: originTxHash,
+            },
+          });
+          expect(response.statusCode).to.equal(status);
+          if (status === 200) {
+            const ica = isSealevel ? f.record.ica : f.dispatchedIca;
+            expect(response.json().data).to.equal(
+              ica + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+            );
+          } else {
+            expect(response.json()).to.deep.equal({
+              error:
+                status === 400
+                  ? 'Invalid origin_tx_hash'
+                  : status === 403
+                    ? 'Sealevel-origin reveals are disabled'
+                    : 'Internal server error',
+            });
+          }
+          expect(f.receipt.callCount).to.equal(isEvm && validEvmHash ? 1 : 0);
+          sinon.assert.notCalled(f.updateMany);
+        } finally {
+          await f.app.close();
+        }
+      });
+    }
+  }
 
   const missingSelector = () =>
     ethers.logger.makeError(

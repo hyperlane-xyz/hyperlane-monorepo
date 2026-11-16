@@ -118,6 +118,7 @@ const diagnosticsDatabaseSecret =
 
 const scraperWebsocketUrl =
   'ws://scraper-proxy.testnet4.svc.cluster.local:8383/agents';
+const validatorWebsocketUrl = 'wss://explorer-api.hyperlane.xyz/validators';
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
@@ -230,7 +231,7 @@ const hyperlane: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validator,
@@ -298,7 +299,7 @@ const releaseCandidate: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorRC,
@@ -340,7 +341,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorFastPath,

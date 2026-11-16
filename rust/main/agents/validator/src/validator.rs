@@ -1452,7 +1452,7 @@ mod tests {
         ] {
             let raw = serde_json::json!({
                 "originchainname": "test",
-                "websocketurl": "wss://scraper.example/events",
+                "websocketurl": "wss://scraper.example/validators",
                 "validator": {"type": "hexKey", "key": format!("0x{}", "11".repeat(32))},
                 "checkpointsyncer": {"type": "localStorage", "path": "/tmp/validator-checkpoints"},
                 "chains": {"test": {

@@ -41,6 +41,7 @@ let headQueryErrorDomain: number | undefined;
 let headQueryErrorEventType: EventType | undefined;
 let omitExplorerRows = false;
 const notifiedIds = new Set<string>();
+let validatorQueryCount = 0;
 
 const db: EventDatabase = {
   async listen(_channels, handler) {
@@ -48,6 +49,8 @@ const db: EventDatabase = {
     return async () => undefined;
   },
   async queryLive<T>(sql, values = []) {
+    if (sql.startsWith('SELECT id FROM domain'))
+      return queryRows<T>(values[0] === 1 ? [{ id: 1 }] : []);
     if (sql.includes('"message_view"')) {
       explorerQuery = sql;
       explorerQueryCount++;
@@ -173,18 +176,26 @@ const db: EventDatabase = {
       }),
     );
   },
+  async queryValidator<T>(sql, values = []) {
+    validatorQueryCount++;
+    return db.queryLive<T>(sql, values);
+  },
 };
 
 const http = createServer();
 let events: EventWebSocketServer;
 let url: string;
 let messagesUrl: string;
+let validatorsUrl: string;
 
 before(async () => {
   process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
   const { EventWebSocketServer } = await import('./event-websocket.js');
   events = new EventWebSocketServer(db, {
     maxAgentClients: 2,
+    maxValidatorClients: 6,
+
+    maxValidatorClientsPerIp: 5,
     maxExplorerClients: 8,
     maxTotalBufferedBytes: 1_024,
   });
@@ -193,6 +204,7 @@ before(async () => {
   assert(address && typeof address !== 'string');
   url = `ws://127.0.0.1:${address.port}/agents`;
   messagesUrl = `ws://127.0.0.1:${address.port}/messages`;
+  validatorsUrl = `ws://127.0.0.1:${address.port}/validators`;
   await events.start(http);
 });
 
@@ -230,6 +242,7 @@ void it('rejects agent backfills without reads and starts live on every connecti
         socket.send(
           JSON.stringify({
             type: 'subscribe',
+            ...(id === '202' ? { confirmationsByDomain: { 1: 0 } } : {}),
             streams: [
               {
                 eventType: 'gas_payment',
@@ -301,6 +314,774 @@ const liveStartRow = {
   merkle_tree_hook: '22'.repeat(32),
   interchain_gas_paymaster: '33'.repeat(32),
 };
+
+void it('negotiates by URL and streams only canonical Merkle insertions for one validator domain', async (context) => {
+  const validatorQueriesBefore = validatorQueryCount;
+  const original = db.queryLive.bind(db);
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('JOIN scraper_checkpoint'))
+        return queryRows<T>([liveStartRow]);
+      return original<T>(sql, values);
+    },
+  );
+  const socket = new WebSocket(`${validatorsUrl}?domain=1`);
+  const messages = captureMessages(socket);
+  rows.set('99', { ...row(hookA), domain: 2 });
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.deepEqual(ready, {
+      type: 'ready',
+      domain: 1,
+      eventTypes: ['merkle_tree_insertion'],
+      historicalStreaming: false,
+      liveStartVersion: 1,
+    });
+    const start = await waitFor(messages, 'live_start');
+    assert.deepEqual(
+      messages.slice(0, 2).map(({ type }) => type),
+      ['ready', 'live_start'],
+    );
+    assert.equal(start.height, '100');
+    assert.deepEqual(start.streams, [
+      {
+        eventType: 'merkle_tree_insertion',
+        address: `0x${liveStartRow.merkle_tree_hook}`,
+      },
+    ]);
+    notify(
+      'scraper_event',
+      JSON.stringify({
+        eventType: 'merkle_tree_insertion',
+        domain: 2,
+        id: '99',
+      }),
+    );
+    notify(
+      'scraper_event',
+      JSON.stringify({ eventType: 'dispatch', domain: 1, id: '99' }),
+    );
+    notify('scraper_event', notification('1'));
+    const event = await waitFor(messages, 'event');
+    assert.equal(event.eventType, 'merkle_tree_insertion');
+    assert.equal(event.domain, 1);
+    assert.equal(event.confirmations, undefined);
+    socket.send(JSON.stringify({ type: 'ping' }));
+    await waitFor(messages, 'pong');
+    assert.equal(messages.filter(({ type }) => type === 'event').length, 1);
+    assert.equal(events.metricsSnapshot().connections.agent, 0);
+    assert.equal(events.metricsSnapshot().connections.validators, 1);
+    assert.deepEqual(events.metricsSnapshot().validatorSubscriptions, [
+      { domain: 1, canonical: 1, custom: 0 },
+    ]);
+    assert.equal(
+      events.metricsSnapshot().subscriptions.merkle_tree_insertion,
+      0,
+    );
+    assert.equal(events.metricsSnapshot().validatorClientIps, 1);
+    assert.equal(events.metricsSnapshot().validatorMaxConnectionsPerIp, 1);
+    assert(validatorQueryCount > validatorQueriesBefore);
+  } finally {
+    rows.delete('99');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    assert.deepEqual(events.metricsSnapshot().validatorSubscriptions, []);
+  }
+});
+
+void it('rejects invalid URLs before DB reads and unknown domains before readers', async (context) => {
+  const queries: string[] = [];
+  context.mock.method(db, 'queryLive', async (sql) => {
+    queries.push(sql);
+    return [];
+  });
+  const initialize = context.mock.method(
+    ConfirmationStream.prototype,
+    'initialize',
+  );
+  for (const query of [
+    '',
+    '?domain=1,2',
+    '?domain=1&domain=2',
+    '?domain=1&blocks=true',
+    `?domain=1&${'x'.repeat(1024)}`,
+  ]) {
+    await upgradeRejected(`${validatorsUrl}${query}`, 400);
+    assert.equal(queries.length, 0);
+  }
+  const socket = new WebSocket(`${validatorsUrl}?domain=999&confirmations=0`);
+  const messages = captureMessages(socket);
+  const closed = new Promise<number>((resolve) =>
+    socket.once('close', resolve),
+  );
+  assert.match(
+    String((await waitFor(messages, 'error')).error),
+    /Unknown domain 999/,
+  );
+  assert.equal(await closed, 1008);
+  assert.equal(queries.length, 1);
+  assert.equal(initialize.mock.callCount(), 0);
+});
+
+for (const failure of ['unavailable', 'database']) {
+  void it(`rejects ${failure} validator confirmation setup without a ready frame`, async (context) => {
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(sql: string): Promise<T[]> => {
+        if (sql.startsWith('SELECT id FROM domain'))
+          return queryRows<T>([{ id: 1 }]);
+        if (failure === 'database') throw new Error('snapshot failed');
+        return [];
+      },
+    );
+    const socket = new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`);
+    const messages = captureMessages(socket);
+    const closed = new Promise<number>((resolve) =>
+      socket.once('close', resolve),
+    );
+    const code = await closed;
+    // Database failure terminates the socket; unavailable policies close with 1008.
+    assert.equal(code, failure === 'database' ? 1013 : 1008);
+    assert.equal(
+      messages.some(({ type }) => type === 'error'),
+      failure !== 'database',
+    );
+    assert(!messages.some(({ type }) => type === 'ready'));
+    assert.equal(events.metricsSnapshot().validatorPendingSetups, 0);
+    assert.equal(events.metricsSnapshot().connections.validators, 0);
+  });
+}
+
+void it('rejects validator subscription changes, binary frames, large frames and excessive messages', async () => {
+  for (const kind of ['subscribe', 'binary', 'oversized', 'rate']) {
+    const socket = new WebSocket(`${validatorsUrl}?domain=1`);
+    const messages = captureMessages(socket);
+    const code = new Promise<number>((resolve) =>
+      socket.once('close', resolve),
+    );
+    await waitFor(messages, 'ready');
+    if (kind === 'subscribe')
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [{ eventType: 'dispatch', domains: [2] }],
+        }),
+      );
+    if (kind === 'binary') socket.send(Buffer.from('{"type":"ping"}'));
+    if (kind === 'oversized') socket.send('x'.repeat(1025));
+    if (kind === 'rate')
+      for (let i = 0; i < 31; i++) socket.send('{"type":"ping"}');
+    assert.equal(await code, kind === 'oversized' ? 1009 : 1008);
+    assert.equal(
+      messages.filter(({ type }) => type === 'subscribed').length,
+      0,
+    );
+  }
+  await waitUntil(() => events.metricsSnapshot().connections.validators === 0);
+});
+
+void it('limits validator IPs and total capacity independently from agents and messages', async () => {
+  const sockets: WebSocket[] = [];
+  const open = async (ip: string) => {
+    const socket = new WebSocket(`${validatorsUrl}?domain=1`, {
+      headers: { 'cf-connecting-ip': ip },
+    });
+    sockets.push(socket);
+    await waitFor(captureMessages(socket), 'ready');
+    return socket;
+  };
+  const rejected = async (ip: string, expected: number) => {
+    await upgradeRejected(`${validatorsUrl}?domain=1`, expected, ip);
+  };
+  try {
+    for (let i = 0; i < 5; i++) await open('203.0.113.11');
+    await rejected('203.0.113.11', 429);
+    await open('203.0.113.12');
+    await rejected('203.0.113.13', 503);
+    for (const endpoint of [url, messagesUrl]) {
+      const socket = new WebSocket(endpoint);
+      sockets.push(socket);
+      await waitFor(captureMessages(socket), 'ready');
+    }
+    sockets[0]?.close();
+    await waitUntil(
+      () => events.metricsSnapshot().connections.validators === 5,
+    );
+    await open('203.0.113.11');
+    assert.equal(events.metricsSnapshot().connections.validators, 6);
+  } finally {
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
+void it('bounds setup work after disconnects and recovers capacity without creating readers', async (context) => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const initialize = context.mock.method(
+    ConfirmationStream.prototype,
+    'initialize',
+  );
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer({
+    listen: async () => async () => {},
+    queryLive: db.queryLive,
+    async queryValidator<T>(sql: string) {
+      if (sql.startsWith('SELECT id FROM domain')) {
+        await gate;
+        return queryRows<T>([{ id: 1 }]);
+      }
+      return queryRows<T>([]);
+    },
+  });
+  const sockets: WebSocket[] = [];
+  try {
+    await new Promise<void>((resolve) =>
+      localHttp.listen(0, '127.0.0.1', resolve),
+    );
+    await localEvents.start(localHttp);
+    const address = localHttp.address();
+    assert(address && typeof address !== 'string');
+    const endpoint = `ws://127.0.0.1:${address.port}/validators?domain=1`;
+    for (let i = 0; i < 32; i++) {
+      if (i === 8) {
+        sockets.forEach((socket) => socket.close());
+        await waitUntil(() =>
+          sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+        );
+        await upgradeRejected(endpoint, 429, '203.0.113.90');
+      }
+      const socket = new WebSocket(endpoint, {
+        headers: {
+          'cf-connecting-ip': i < 8 ? '203.0.113.90' : `203.0.113.${100 + i}`,
+        },
+      });
+      sockets.push(socket);
+      await new Promise<void>((resolve, reject) => {
+        socket.once('open', resolve);
+        socket.once('error', reject);
+      });
+    }
+    assert.equal(localEvents.metricsSnapshot().validatorPendingSetups, 32);
+    await upgradeRejected(endpoint, 503, '203.0.113.200');
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+    assert.equal(
+      localEvents.metricsSnapshot().validatorReservedConnections,
+      32,
+    );
+    release();
+    await waitUntil(
+      () => localEvents.metricsSnapshot().validatorReservedConnections === 0,
+    );
+    assert.equal(initialize.mock.callCount(), 0);
+    const replacement = new WebSocket(endpoint);
+    sockets.push(replacement);
+    await waitFor(captureMessages(replacement), 'ready');
+  } finally {
+    sockets.forEach((socket) => socket.terminate());
+    release();
+    await waitUntil(
+      () => localEvents.metricsSnapshot().validatorReservedConnections === 0,
+    );
+    await localEvents.stop();
+    await new Promise<void>((resolve, reject) =>
+      localHttp.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
+void it('retains admission capacity until a rejected socket actually closes', async (context) => {
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
+  const original = WebSocket.prototype.close;
+  const delayed: WebSocket[] = [];
+  context.mock.method(
+    WebSocket.prototype,
+    'close',
+    function (this: WebSocket, code?: number, reason?: string) {
+      if (!this.url && code === 1008) delayed.push(this);
+      else original.call(this, code, reason);
+    },
+  );
+  const sockets: WebSocket[] = [];
+  try {
+    for (let i = 0; i < 6; i++) {
+      const socket = new WebSocket(`${validatorsUrl}?domain=1`, {
+        headers: { 'cf-connecting-ip': `203.0.113.${80 + i}` },
+      });
+      sockets.push(socket);
+      await waitFor(captureMessages(socket), 'ready');
+    }
+    sockets[0].send('{"type":"subscribe"}');
+    await waitUntil(() => delayed.length === 1);
+    assert.equal(events.metricsSnapshot().connections.validators, 5);
+    assert.equal(events.metricsSnapshot().validatorReservedConnections, 6);
+    await upgradeRejected(`${validatorsUrl}?domain=1`, 503);
+  } finally {
+    delayed.forEach((socket) => original.call(socket, 1008));
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
+void it('uses the validator pool for both canonical publication paths', async (context) => {
+  const original = db.queryLive.bind(db);
+  const queries: string[] = [];
+  context.mock.method(
+    db,
+    'queryValidator',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      queries.push(sql);
+      if (sql.includes('JOIN scraper_checkpoint'))
+        return queryRows<T>([liveStartRow]);
+      return original<T>(sql, values);
+    },
+  );
+  context.mock.method(db, 'queryLive', async () => {
+    throw new Error('Validator-only traffic leaked into live pool');
+  });
+  const socket = new WebSocket(`${validatorsUrl}?domain=1`);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    await waitFor(messages, 'live_start');
+    notify('scraper_event', notification('1'));
+    await waitFor(messages, 'event');
+    messages.length = 0;
+    rows.set('987001', { ...row(hookA), block_number: '101' });
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '101',
+        previousConfirmedHeight: '100',
+      }),
+    );
+    await waitFor(messages, 'event');
+    assert(queries.some((sql) => sql.includes('notification_id')));
+    assert(queries.some((sql) => sql.includes('"frontier_row"')));
+  } finally {
+    rows.delete('987001');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+for (const channel of ['scraper_event', 'scraper_head']) {
+  void it(`keeps agent publication independent from blocked validator ${channel} reads`, async (context) => {
+    const original = db.queryValidator.bind(db);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let blocked = false;
+    let finished = false;
+    context.mock.method(
+      db,
+      'queryValidator',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('notification_id') || sql.includes('"frontier_row"')) {
+          blocked = true;
+          await gate;
+          try {
+            return await original<T>(sql, values);
+          } finally {
+            finished = true;
+          }
+        }
+        return original<T>(sql, values);
+      },
+    );
+    const validator = new WebSocket(`${validatorsUrl}?domain=1`);
+    const validatorMessages = captureMessages(validator);
+    const agent = new WebSocket(url);
+    const agentMessages = captureMessages(agent);
+    rows.set('987002', { ...row(hookA), domain: 2, block_number: '101' });
+    try {
+      await waitFor(validatorMessages, 'ready');
+      await waitFor(agentMessages, 'ready');
+      agent.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [{ eventType: 'merkle_tree_insertion', domains: [2] }],
+        }),
+      );
+      await waitFor(agentMessages, 'subscribed');
+      const publish = (domain: number, id: string) =>
+        notify(
+          channel,
+          JSON.stringify(
+            channel === 'scraper_event'
+              ? { eventType: 'merkle_tree_insertion', domain, id }
+              : {
+                  domain,
+                  previousConfirmedHeight: '100',
+                  confirmedHeight: '101',
+                },
+          ),
+        );
+      publish(1, '1');
+      await waitUntil(() => blocked);
+      publish(2, '987002');
+      const event = await waitFor(agentMessages, 'event');
+      assert.equal(event.domain, 2);
+      assert.equal(finished, false);
+      assert.equal(agent.readyState, WebSocket.OPEN);
+    } finally {
+      release();
+      if (blocked) await waitUntil(() => finished);
+      rows.delete('987002');
+      validator.close();
+      agent.close();
+      await waitUntil(
+        () =>
+          validator.readyState === WebSocket.CLOSED &&
+          agent.readyState === WebSocket.CLOSED,
+      );
+    }
+  });
+}
+
+for (const failure of ['head', 'queue']) {
+  void it(`keeps custom validator readers connected after a canonical ${failure} failure`, async (context) => {
+    const original = db.queryValidator.bind(db);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let blocked = false;
+    let customReads = 0;
+    context.mock.method(
+      db,
+      'queryValidator',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('LEFT JOIN LATERAL'))
+          return queryRows<T>([
+            {
+              ...liveStartRow,
+              confirmations: 0,
+              height: '10',
+              head_height: '10',
+              indexed_height: '10',
+              confirmed_height: '5',
+            },
+          ]);
+        if (sql.includes('confirmation_events')) {
+          customReads++;
+          return [];
+        }
+        if (sql.includes('notification_id') || sql.includes('"frontier_row"')) {
+          blocked = true;
+          if (failure === 'queue') await gate;
+          throw new Error('canonical read failed');
+        }
+        return original<T>(sql, values);
+      },
+    );
+    const canonical = new WebSocket(`${validatorsUrl}?domain=1`);
+    const custom = new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`);
+    const canonicalMessages = captureMessages(canonical);
+    const customMessages = captureMessages(custom);
+    try {
+      await Promise.all([
+        waitFor(canonicalMessages, 'ready'),
+        waitFor(customMessages, 'live_start'),
+      ]);
+      if (failure === 'head') {
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            domain: 1,
+            previousConfirmedHeight: '10',
+            confirmedHeight: '11',
+          }),
+        );
+      } else {
+        notify('scraper_event', notification('1'));
+        await waitUntil(() => blocked);
+        for (let batch = 0; batch < 11; batch++) {
+          for (let index = 0; index < 1_000; index++)
+            notify(
+              'scraper_event',
+              notification(String(500_000 + batch * 1_000 + index)),
+            );
+          await waitUntil(
+            () => events.metricsSnapshot().notificationQueue.agent === 0,
+          );
+        }
+      }
+      await waitUntil(() => canonical.readyState === WebSocket.CLOSED);
+      assert.equal(custom.readyState, WebSocket.OPEN);
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain: 1,
+          headHeight: '11',
+          indexedHeight: '11',
+          previousIndexedHeight: '10',
+          confirmedHeight: '5',
+        }),
+      );
+      await waitUntil(() => customReads > 0);
+      custom.send(JSON.stringify({ type: 'ping' }));
+      await waitFor(customMessages, 'pong');
+    } finally {
+      release();
+      canonical.close();
+      custom.close();
+      await waitUntil(() =>
+        [canonical, custom].every(
+          ({ readyState }) => readyState === WebSocket.CLOSED,
+        ),
+      );
+    }
+  });
+}
+
+void it('samples a current boundary when joining an advanced shared validator reader', async (context) => {
+  const original = db.queryLive.bind(db);
+  let height = '10';
+  let reads = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('LEFT JOIN LATERAL'))
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            confirmations: 0,
+            height,
+            head_height: height,
+            indexed_height: height,
+            confirmed_height: '5',
+          },
+        ]);
+      if (sql.includes('confirmation_events')) {
+        reads++;
+        return [];
+      }
+      return original<T>(sql, values);
+    },
+  );
+  const sockets: WebSocket[] = [];
+  try {
+    const first = new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`);
+    sockets.push(first);
+    assert.equal(
+      (await waitFor(captureMessages(first), 'live_start')).height,
+      '10',
+    );
+    height = '11';
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        headHeight: height,
+        indexedHeight: height,
+        previousIndexedHeight: '10',
+        confirmedHeight: '5',
+      }),
+    );
+    await waitUntil(() => reads === 1);
+    const second = new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`);
+    sockets.push(second);
+    const messages = captureMessages(second);
+    const boundary = await waitFor(messages, 'live_start');
+    assert.equal(boundary.height, '11');
+    assert.deepEqual(
+      messages.slice(0, 2).map(({ type }) => type),
+      ['ready', 'live_start'],
+    );
+    assert.equal(events.metricsSnapshot().validatorSharedReaders, 1);
+  } finally {
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+  }
+});
+
+void it('shares one custom reader and keeps reading while send completions are stalled', async (context) => {
+  const original = db.queryLive.bind(db);
+  let snapshots = 0;
+  let reads = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('LEFT JOIN LATERAL')) {
+        snapshots++;
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            confirmations: 0,
+            height: '10',
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+          },
+        ]);
+      }
+      if (sql.includes('confirmation_events')) {
+        reads++;
+        const height = String(values[3]);
+        if (height === '12') return [];
+        return queryRows<T>([
+          {
+            ...row(hookA),
+            block_number: height,
+            frontier_height: height,
+            frontier_id: String(reads),
+            block_hash: `\\x${'ab'.repeat(32)}`,
+          },
+        ]);
+      }
+      return original<T>(sql, values);
+    },
+  );
+  const sockets = [
+    new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`),
+    new WebSocket(`${validatorsUrl}?domain=1&confirmations=0`),
+  ];
+  const messages = sockets.map(captureMessages);
+  const completions = delayServerSendCompletions(context);
+  try {
+    await Promise.all(
+      messages.map(async (frames) => {
+        await waitFor(frames, 'ready');
+        await waitFor(frames, 'live_start');
+      }),
+    );
+    assert.equal(snapshots, 2);
+    assert.equal(events.metricsSnapshot().validatorSharedReaders, 1);
+    for (const height of ['11', '12']) {
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain: 1,
+          headHeight: height,
+          indexedHeight: height,
+          previousIndexedHeight: String(Number(height) - 1),
+          confirmedHeight: '5',
+        }),
+      );
+      await waitUntil(() => reads === Number(height) - 10);
+      if (height === '11')
+        await Promise.all(messages.map((frames) => waitFor(frames, 'event')));
+    }
+    assert.equal(reads, 2);
+    assert.equal(completions.length, 2);
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
+    );
+    assert.equal(events.metricsSnapshot().validatorSharedReaders, 0);
+  }
+});
+
+for (const eventType of ['dispatch', 'blocks']) {
+  void it(`keeps legacy ${eventType} subscriptions available when a domain is missing`, async (context) => {
+    const original = db.queryLive.bind(db);
+    context.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(
+        sql: string,
+        values: unknown[] = [],
+      ): Promise<T[]> => {
+        if (sql.includes('JOIN scraper_checkpoint'))
+          return queryRows<T>([liveStartRow]);
+        return original<T>(sql, values);
+      },
+    );
+    const socket = new WebSocket(url);
+    const messages = captureMessages(socket);
+    try {
+      await waitFor(messages, 'ready');
+      socket.send(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [
+            { eventType, domains: [1, 999] },
+            ...(eventType === 'blocks'
+              ? [{ eventType: 'dispatch', domains: [1, 999] }]
+              : []),
+          ],
+        }),
+      );
+      await waitFor(messages, 'subscribed');
+      const unavailable = await waitFor(messages, 'live_start_unavailable');
+      assert.equal(unavailable.domain, 999);
+      assert(
+        messages.some(
+          ({ type, domain }) => type === 'live_start' && domain === 1,
+        ),
+      );
+      socket.send('{"type":"ping"}');
+      await waitFor(messages, 'pong');
+      assert(!messages.some(({ type }) => type === 'error'));
+    } finally {
+      socket.close();
+      await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    }
+  });
+}
+
+void it('rejects a domain override without scraper-head state', async (context) => {
+  context.mock.method(db, 'queryLive', async () => []);
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  const closed = new Promise<number>((resolve) =>
+    socket.once('close', resolve),
+  );
+  await waitFor(messages, 'ready');
+  socket.send(
+    JSON.stringify({
+      type: 'subscribe',
+      confirmationsByDomain: { 999: 0 },
+      streams: [{ eventType: 'dispatch', domains: [999] }],
+    }),
+  );
+  assert.match(
+    String((await waitFor(messages, 'error')).error),
+    /Custom confirmations unavailable for domain 999/,
+  );
+  assert.equal(await closed, 1008);
+  assert(!messages.some(({ type }) => type === 'subscribed'));
+});
 
 void it('provides quiet-chain live starts and isolates malformed checkpoints without scanning events', async (context) => {
   let queries = 0;
@@ -380,6 +1161,246 @@ void it('provides quiet-chain live starts and isolates malformed checkpoints wit
   }
 });
 
+void it('applies domain overrides across event types with legacy and canonical fallbacks', async (context) => {
+  const original = db.queryLive.bind(db);
+  const snapshots: unknown[][] = [];
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (sql.includes('LEFT JOIN LATERAL')) {
+        snapshots.push(values);
+        const domains = values[0];
+        assert(Array.isArray(domains));
+        return queryRows<T>(
+          domains.map((domain, index) => ({
+            ...liveStartRow,
+            domain: Number(domain),
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+            confirmations: Number(recordArray(values[1])[index]),
+            height: String(10 - Number(recordArray(values[1])[index])),
+          })),
+        );
+      }
+      if (sql.includes('JOIN scraper_checkpoint'))
+        return queryRows<T>([{ ...liveStartRow, domain: 3, height: '5' }]);
+      if (sql.includes("encode(indexed_hash, 'hex')"))
+        return queryRows<T>([
+          {
+            domain: 1,
+            indexed_height: '10',
+            head_height: '10',
+            hash: liveStartRow.hash,
+          },
+        ]);
+      if (sql.includes('confirmation_events')) return [];
+      return original<T>(sql, values);
+    },
+  );
+  rows.set('994001', { ...row(hookA, 0), domain: 1 });
+  rows.set('994003', { ...row(hookA, 0), domain: 3 });
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  const confirmationsByDomain = { 1: 0, 2: 3 };
+  try {
+    const ready = await waitFor(messages, 'ready');
+    assert.equal(record(ready.confirmations).byDomain, true);
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        confirmationsByDomain,
+        streams: [
+          ...EVENT_TYPES.map((eventType) => ({
+            eventType,
+            // Keep canonical filtering regardless of the domain/group order.
+            domains:
+              eventType === 'merkle_tree_insertion' ? [3, 2, 1] : [1, 2, 3],
+            ...(['dispatch', 'delivery'].includes(eventType)
+              ? { confirmations: 2 }
+              : {}),
+          })),
+          { eventType: 'blocks', domains: [1, 2, 3] },
+        ],
+      }),
+    );
+    const ack = await waitFor(messages, 'subscribed');
+    assert.deepEqual(ack.confirmationsByDomain, confirmationsByDomain);
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'live_start').length === 11,
+    );
+    const starts = messages.filter(({ type }) => type === 'live_start');
+    assert.equal(
+      snapshots.length,
+      1,
+      'all domain/policy pairs share one snapshot across event types',
+    );
+    assert.deepEqual(
+      snapshots.map((values) => [values[0], values[1]]),
+      [
+        [
+          [1, 2, 3],
+          [0, 3, 2],
+        ],
+      ],
+    );
+    for (const eventType of EVENT_TYPES) {
+      for (const [domain, confirmations] of [
+        [1, 0],
+        [2, 3],
+      ]) {
+        assert.equal(
+          starts.filter(
+            (frame) =>
+              frame.domain === domain &&
+              frame.confirmations === confirmations &&
+              Array.isArray(frame.streams) &&
+              frame.streams.some(
+                (stream) => record(stream).eventType === eventType,
+              ),
+          ).length,
+          1,
+        );
+      }
+    }
+    assert.equal(
+      starts.filter((frame) => frame.domain === 3 && frame.confirmations === 2)
+        .length,
+      2,
+    );
+    const canonical = starts.filter(
+      (frame) => frame.domain === 3 && frame.confirmations === undefined,
+    );
+    assert.equal(canonical.length, 1);
+    assert.deepEqual(canonical[0]?.streams, [
+      {
+        eventType: 'gas_payment',
+        address: `0x${liveStartRow.interchain_gas_paymaster}`,
+      },
+      {
+        eventType: 'merkle_tree_insertion',
+        address: `0x${liveStartRow.merkle_tree_hook}`,
+      },
+    ]);
+    const block = await waitFor(messages, 'block');
+    assert.equal(block.height, '10');
+    assert.equal(block.confirmations, undefined);
+    notify(
+      'scraper_event',
+      JSON.stringify({
+        domain: 1,
+        eventType: 'merkle_tree_insertion',
+        id: '994001',
+      }),
+    );
+    notify(
+      'scraper_event',
+      JSON.stringify({
+        domain: 3,
+        eventType: 'merkle_tree_insertion',
+        id: '994003',
+      }),
+    );
+    const event = await waitFor(messages, 'event');
+    assert.equal(event.domain, 3);
+    assert.equal(event.confirmations, undefined);
+    assert(
+      !notifiedIds.has('994001'),
+      'overridden domains do not also receive canonical publication',
+    );
+    assert.equal(messages.filter(({ type }) => type === 'event').length, 1);
+  } finally {
+    rows.delete('994001');
+    rows.delete('994003');
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
+void it('batches distinct policies and uses one advisory reader per event type', async (context) => {
+  const snapshots: unknown[][] = [];
+  const initialize = context.mock.method(
+    ConfirmationStream.prototype,
+    'initialize',
+  );
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      assert.match(sql, /LEFT JOIN LATERAL/);
+      snapshots.push(values);
+      return queryRows<T>(
+        recordArray(values[0]).map((domain, index) => ({
+          ...liveStartRow,
+          domain,
+          confirmations: recordArray(values[1])[index],
+          head_height: '100',
+          indexed_height: '90',
+          confirmed_height: '80',
+          height: '90',
+        })),
+      );
+    },
+  );
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        confirmationsByDomain: { 1: 0, 2: 2, 3: 3 },
+        streams: EVENT_TYPES.map((eventType) => ({
+          eventType,
+          domains: [1, 2, 3],
+          includeZeroConfirmations: true,
+        })),
+      }),
+    );
+    await waitUntil(
+      () => messages.filter(({ type }) => type === 'live_start').length === 20,
+    );
+    assert.equal(snapshots.length, 1);
+    assert.deepEqual(snapshots[0], [
+      [1, 2, 3, 2, 3],
+      [0, 0, 0, 2, 3],
+    ]);
+    assert.equal(
+      initialize.mock.callCount(),
+      16,
+      'three custom readers and one advisory reader per event type',
+    );
+    const starts = messages.filter(
+      ({ type, confirmations }) => type === 'live_start' && confirmations === 0,
+    );
+    assert.equal(
+      starts.length,
+      12,
+      'exactly one zero-confirmation boundary per domain/event type',
+    );
+    for (const eventType of EVENT_TYPES)
+      for (const domain of [1, 2, 3])
+        assert.equal(
+          starts.filter(
+            (frame) =>
+              frame.domain === domain &&
+              record(recordArray(frame.streams)[0]).eventType === eventType,
+          ).length,
+          1,
+        );
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+  }
+});
+
 void it('automatically distinguishes canonical, custom and advisory zero-confirmation boundaries', async (context) => {
   const confirmations: unknown[] = [];
   const ranges: unknown[][] = [];
@@ -391,17 +1412,18 @@ void it('automatically distinguishes canonical, custom and advisory zero-confirm
       values: unknown[] = [],
     ): Promise<T[]> => {
       if (sql.includes('LEFT JOIN LATERAL')) {
-        confirmations.push(values[1]);
-        return queryRows<T>([
-          {
+        confirmations.push(...recordArray(values[1]));
+        return queryRows<T>(
+          recordArray(values[1]).map((count) => ({
             ...liveStartRow,
+            confirmations: count,
             head_height: '112',
             indexed_height: '110',
             confirmed_height: '100',
-            height: values[1] === 2 ? '108' : '110',
-            hash: (values[1] === 2 ? 'cd' : 'ef').repeat(32),
-          },
-        ]);
+            height: count === 2 ? '108' : '110',
+            hash: (count === 2 ? 'cd' : 'ef').repeat(32),
+          })),
+        );
       }
       if (sql.includes('JOIN scraper_checkpoint'))
         return queryRows<T>([liveStartRow]);
@@ -506,6 +1528,7 @@ for (const rollback of [false, true]) {
         return queryRows<T>([
           {
             ...liveStartRow,
+            confirmations: 2,
             height: rollback && !first ? '99' : '100',
             head_height: rollback && !first ? '101' : '102',
             indexed_height: rollback && !first ? '99' : '100',
@@ -579,6 +1602,7 @@ void it('keeps custom streams without retained checkpoints unavailable, never ca
           head_height: '120',
           indexed_height: '110',
           confirmed_height: '100',
+          confirmations: 30,
           height: null,
         },
       ]);
@@ -934,6 +1958,7 @@ void it('keeps agent capacity independent from Explorer capacity', async () => {
   assert.deepEqual(events.metricsSnapshot().connections, {
     agent: 1,
     messages: 8,
+    validators: 0,
   });
   assert.equal(events.metricsSnapshot().messageClientIps, 8);
   assert.equal(events.metricsSnapshot().limits.agentConnections, 2);
@@ -1012,6 +2037,7 @@ for (const available of [false, true]) {
               ? [
                   {
                     domain: 1,
+                    confirmations: 0,
                     head_height: '10',
                     indexed_height: '10',
                     confirmed_height: '5',
@@ -1113,15 +2139,16 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
         sql.includes('SELECT h.domain, h.head_height')
       ) {
         snapshots++;
-        if (snapshots === 2) await held;
-        return queryRows<T>([
-          {
+        if (snapshots === 1) await held;
+        return queryRows<T>(
+          recordArray(values[1]).map((confirmations) => ({
             domain: 1,
+            confirmations,
             head_height: '10',
             indexed_height: '10',
             confirmed_height: '5',
-          },
-        ]);
+          })),
+        );
       }
       if (sql.includes('confirmation_events')) return [];
       return original<T>(sql, values);
@@ -1146,7 +2173,7 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
         ],
       }),
     );
-    await waitUntil(() => snapshots === 2);
+    await waitUntil(() => snapshots === 1);
     notify(
       'scraper_head',
       JSON.stringify({
@@ -1166,7 +2193,7 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
     );
     release();
     await waitFor(messages, 'subscribed');
-    assert.equal(snapshots, 3); // Two readers plus the rollback snapshot retry.
+    assert.equal(snapshots, 2); // One batch plus the rollback snapshot retry.
     notify('scraper_event', notification('1'));
     await waitFor(messages, 'event');
     assert.deepEqual(
@@ -1274,8 +2301,21 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
   }
 });
 
-for (const eventType of [...EVENT_TYPES, 'messages']) {
-  void it(`streams custom ${eventType} with confirmations, rollback, and replacements`, async (context) => {
+for (const { eventType, byDomain } of [
+  ...EVENT_TYPES,
+  'messages',
+  'validators',
+].flatMap((eventType) =>
+  (eventType === 'messages' || eventType === 'validators'
+    ? [false]
+    : [false, true]
+  ).map((byDomain) => ({
+    eventType,
+    byDomain,
+  })),
+)) {
+  void it(`streams custom ${eventType} with ${byDomain ? 'domain overrides' : 'confirmations'}, rollback, and replacements`, async (context) => {
+    const hasAdvisory = eventType !== 'messages' && eventType !== 'validators';
     const completions = delayServerSendCompletions(context);
     let replacement = false;
     const targets: bigint[] = [];
@@ -1286,18 +2326,24 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
         sql: string,
         values: unknown[] = [],
       ): Promise<T[]> => {
+        if (sql.startsWith('SELECT id FROM domain'))
+          return queryRows<T>([{ id: 1 }]);
         if (
           sql.includes('SELECT domain, head_height') ||
           sql.includes('SELECT h.domain, h.head_height')
         )
-          return queryRows<T>([
-            {
+          return queryRows<T>(
+            (sql.includes('LEFT JOIN LATERAL')
+              ? recordArray(values[1])
+              : [undefined]
+            ).map((confirmations) => ({
               domain: 1,
+              confirmations,
               head_height: '11',
               indexed_height: '9',
               confirmed_height: '5',
-            },
-          ]);
+            })),
+          );
         const messageId = `\\x${(replacement ? '02' : '01').repeat(32)}`;
         const data = {
           id: '1',
@@ -1325,7 +2371,10 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
             return queryRows<T>([
               { height: '10', source: 0, id: '1', msg_id: messageId },
             ]);
-          if (eventType === 'merkle_tree_insertion')
+          if (
+            eventType === 'merkle_tree_insertion' ||
+            eventType === 'validators'
+          )
             return queryRows<T>([
               {
                 domain: 1,
@@ -1361,7 +2410,9 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
     const socket = new WebSocket(
       eventType === 'messages'
         ? `${messagesUrl}?confirmations=2&domains=1,2`
-        : url,
+        : eventType === 'validators'
+          ? `${validatorsUrl}?domain=1&confirmations=2`
+          : url,
     );
     const messages = captureMessages(socket);
     const advance = (
@@ -1386,14 +2437,15 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
         assert.deepEqual(ready.customDomains, [1]);
         assert.deepEqual(ready.canonicalDomains, [2]);
       }
-      if (eventType !== 'messages') {
+      if (hasAdvisory) {
         socket.send(
           JSON.stringify({
             type: 'subscribe',
+            ...(byDomain ? { confirmationsByDomain: { 1: 2 } } : {}),
             streams: [
               {
                 eventType,
-                confirmations: 2,
+                confirmations: byDomain ? 100 : 2,
                 domains: [1],
                 includeZeroConfirmations: true,
               },
@@ -1405,7 +2457,7 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
         assert.equal(record(ack.streams[0]).includeZeroConfirmations, true);
       }
       advance('11', '10', '9');
-      if (eventType !== 'messages') {
+      if (hasAdvisory) {
         const zero = await waitFor(messages, 'event');
         assert.equal(zero.confirmations, 0);
         assert.equal(zero.height, '10');
@@ -1428,7 +2480,7 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
       assert.equal(frame.height, '10');
       assert.equal(frame.confirmations, 2);
       assert.equal(record(frame.data).frontier_height, undefined);
-      if (eventType === 'merkle_tree_insertion') {
+      if (eventType === 'merkle_tree_insertion' || eventType === 'validators') {
         assert.equal(frame.blockHash, `\\x${'08'.repeat(32)}`);
         assert.equal(record(frame.data).block_hash, undefined);
       }
@@ -1437,7 +2489,7 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
       const rollback = await waitFor(messages, 'rollback');
       assert.equal(rollback.fromHeight, '10');
       assert.equal(rollback.toHeight, '9');
-      if (eventType !== 'messages') {
+      if (hasAdvisory) {
         await waitUntil(
           () => messages.filter(({ type }) => type === 'rollback').length === 2,
         );
@@ -1460,7 +2512,7 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
               `\\x${'02'.repeat(32)}`,
         ),
       );
-      if (eventType !== 'messages')
+      if (hasAdvisory)
         await waitUntil(
           () =>
             messages.filter(
@@ -1470,7 +2522,7 @@ for (const eventType of [...EVENT_TYPES, 'messages']) {
                   record(message.data).message_id) === `\\x${'02'.repeat(32)}`,
             ).length === 2,
         );
-      if (eventType === 'merkle_tree_insertion')
+      if (eventType === 'merkle_tree_insertion' || eventType === 'validators')
         assert.equal(messages.at(-1)?.blockHash, `\\x${'09'.repeat(32)}`);
       assert.equal(socket.readyState, WebSocket.OPEN);
     } finally {
@@ -1770,14 +2822,17 @@ void it('requires the Cloudflare client IP in production', async () => {
   const nodeEnv = process.env.NODE_ENV;
   process.env.NODE_ENV = 'production';
   try {
-    const socket = new WebSocket(messagesUrl);
-    const [code, reason] = await new Promise<[number, string]>((resolve) =>
-      socket.once('close', (code, reason) =>
-        resolve([code, reason.toString()]),
-      ),
-    );
-    assert.equal(code, 1008);
-    assert.match(reason, /Missing or invalid client IP/);
+    await upgradeRejected(`${validatorsUrl}?domain=1`, 403);
+    for (const publicUrl of [messagesUrl]) {
+      const socket = new WebSocket(publicUrl);
+      const [code, reason] = await new Promise<[number, string]>((resolve) =>
+        socket.once('close', (code, reason) =>
+          resolve([code, reason.toString()]),
+        ),
+      );
+      assert.equal(code, 1008);
+      assert.match(reason, /Missing or invalid client IP/);
+    }
   } finally {
     if (nodeEnv === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = nodeEnv;
@@ -2437,6 +3492,11 @@ void it('keeps Explorer connected when an agent query fails', async () => {
 });
 
 void it('bounds Explorer notifications without closing agents', async () => {
+  const failures = async () =>
+    (await websocketSendFailures.get()).values.find(
+      ({ labels }) => labels.reason === 'notification_queue_limit',
+    )?.value ?? 0;
+  const failuresBefore = await failures();
   const explorer = new WebSocket(messagesUrl);
   const explorerMessages: Record<string, unknown>[] = [];
   const agentMessages: Record<string, unknown>[] = [];
@@ -2460,10 +3520,7 @@ void it('bounds Explorer notifications without closing agents', async () => {
     await waitUntil(() => explorer.readyState === WebSocket.CLOSED);
     assert.equal(agent.readyState, WebSocket.OPEN);
     assert.equal(events.metricsSnapshot().notificationQueue.messages, 0);
-    assert.match(
-      await metricsRegistry.metrics(),
-      /websocket_send_failures_total\{reason="notification_queue_limit"\} 1/,
-    );
+    assert.equal(await failures(), failuresBefore + 1);
   } finally {
     agent.close();
     if (explorer.readyState !== WebSocket.CLOSED) explorer.close();
@@ -2809,6 +3866,9 @@ void it('abandons an in-flight head range while listener shutdown is pending', a
         { frontier_id: '1', frontier_height: '10', msg_id: msgId },
       ]);
     },
+    async queryValidator() {
+      return [];
+    },
   };
   const stoppingHttp = createServer();
   const { EventWebSocketServer } = await import('./event-websocket.js');
@@ -2866,6 +3926,7 @@ void it('does not report heartbeat cleanup as a send failure', async (context) =
       return async () => undefined;
     },
     queryLive: db.queryLive,
+    queryValidator: db.queryValidator,
   };
   const heartbeatHttp = createServer();
   const { EventWebSocketServer } = await import('./event-websocket.js');
@@ -2911,6 +3972,35 @@ void it('does not report heartbeat cleanup as a send failure', async (context) =
   }
 });
 
+void it('bounds failed validator negotiations even when the error frame exceeds the buffer limit', async () => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer(
+    { ...db, listen: async () => async () => {} },
+    { maxBufferedBytes: 1 },
+  );
+  await new Promise<void>((resolve) =>
+    localHttp.listen(0, '127.0.0.1', resolve),
+  );
+  await localEvents.start(localHttp);
+  const address = localHttp.address();
+  assert(address && typeof address !== 'string');
+  const socket = new WebSocket(
+    `ws://127.0.0.1:${address.port}/validators?domain=1`,
+  );
+  socket.on('error', () => {});
+  try {
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
+    assert.equal(localEvents.metricsSnapshot().validatorReservedConnections, 0);
+  } finally {
+    socket.terminate();
+    await localEvents.stop();
+    await new Promise<void>((resolve, reject) =>
+      localHttp.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
 void it('rejects out-of-range heartbeat intervals without starting timers', async () => {
   const { EventWebSocketServer } = await import('./event-websocket.js');
   for (const heartbeatMs of [
@@ -2924,6 +4014,7 @@ void it('rejects out-of-range heartbeat intervals without starting timers', asyn
     const invalidDb: EventDatabase = {
       listen: async () => async () => undefined,
       queryLive: db.queryLive,
+      queryValidator: db.queryValidator,
     };
     const invalidHttp = createServer();
     await new Promise<void>((resolve) =>
@@ -2982,6 +4073,7 @@ void it('skips oversized diagnostics and retries fanout without interrupting nor
         return async () => undefined;
       },
       queryLive: db.queryLive,
+      queryValidator: db.queryValidator,
     },
     { maxBufferedBytes: 4_096, maxTotalBufferedBytes: 4_096 },
     new DiagnosticsService({
@@ -3079,6 +4171,26 @@ void it('skips oversized diagnostics and retries fanout without interrupting nor
   );
   assert(sockets.every((socket) => socket.readyState === WebSocket.OPEN));
 });
+
+async function upgradeRejected(
+  endpoint: string,
+  expected: number,
+  ip?: string,
+  headers: Record<string, string> = {},
+): Promise<void> {
+  const socket = new WebSocket(endpoint, {
+    headers: { ...headers, ...(ip ? { 'cf-connecting-ip': ip } : {}) },
+  });
+  socket.on('error', () => {});
+  const status = await new Promise<number | undefined>((resolve) => {
+    socket.once('unexpected-response', (_request, response) => {
+      response.resume();
+      socket.terminate();
+      resolve(response.statusCode);
+    });
+  });
+  assert.equal(status, expected);
+}
 
 function row(
   merkle_tree_hook: string,
@@ -3289,6 +4401,11 @@ function parseRecord(value: string): Record<string, unknown> {
 
 function record(value: unknown): Record<string, unknown> {
   assert(value && typeof value === 'object' && !Array.isArray(value));
+  return value;
+}
+
+function recordArray(value: unknown): unknown[] {
+  assert(Array.isArray(value));
   return value;
 }
 

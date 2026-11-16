@@ -92,38 +92,43 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
 - `POST /getCallsFromRevealMessage`
   CCIP-Read endpoint (uses ABI handler) to fetch & re-encode calls for a reveal message.
 
-  The relayer must send `origin_tx_hash`, the transaction that dispatched the
-  reveal. Calls are resolved from the commitment dispatched alongside the
-  reveal. The server checks that
+  Relayers include `origin_tx_hash`, the transaction that dispatched the reveal,
+  in the authenticated request. After the relayer authorization and the check
+  that the reveal's origin is the stored commitment's origin, handling depends
+  on the reveal's origin protocol:
 
-  - the reveal's origin is the stored commitment's origin,
-  - the reveal was dispatched between ICA routers from the registry
-    (`interchainAccountRouter` and `interchainAccountRouterV3`), and
-  - the reveal is in the hinted transaction's mailbox events, with the
-    commitment dispatched before it, and the ICA the dispatched routers derive
-    for that commitment, or the ICA that any registry router version derives
-    for the same owner and user salt, equals the stored ICA. The latter covers
-    registrations made without router overrides.
+  - EVM: a 32-byte hash is required; a missing, null or malformed hash returns 400. Calls are resolved from the commitment dispatched alongside the reveal.
+    The server checks that
+    - the reveal was dispatched between ICA routers from the registry
+      (`interchainAccountRouter` and `interchainAccountRouterV3`), and
+    - the reveal is in the hinted transaction's mailbox events, with the
+      commitment dispatched before it, and the ICA the dispatched routers
+      derive for that commitment, or the ICA that any registry router version
+      derives for the same owner and user salt, equals the stored ICA. The
+      latter covers registrations made without router overrides.
 
-  Reveals from chains without registry ICA routers, such as Sealevel origins,
-  are not served.
+    The ICA of the dispatched router pair is served, which can differ from the
+    stored one. A reveal that fails these checks gets HTTP 403.
 
-  The ICA of the dispatched router pair is served, which can differ from the
-  stored one. Reads do not modify stored commitments. A reveal that fails these
-  checks gets HTTP 403. A missing or null hash, a missing receipt, a failing
-  RPC, or a candidate ICA whose chain read failed (when none of the others
-  match) get HTTP 500 so the relayer retries; malformed hash strings get 400.
-  A candidate the chain answers as underivable (e.g. a router without salted
-  accounts) does not match, and a reveal whose dispatched routers the chain
-  answers as unable to derive the ICA gets HTTP 403. For a destination without
-  `interchainAccountRouter`, only the dispatched routers' ICA is checked.
-  Existing records with incorrect addresses still need a one-time database
-  repair for `GET /calls/:commitment`. Re-registration must identify the same
-  router pair: stale config that derives a different ICA still returns 409. A
-  separate ICA router deployment is only served if the registry CCS reads lists
-  its routers (otherwise run its own CCS). CCS fails to start if that registry
-  lists no ICA routers, or lists a chain with ICA routers but no mailbox. Origin
-  mailboxes are read from the registry addresses.
+  - Sealevel: not served (HTTP 403) unless `CCS_SEALEVEL_REVEALS_ENABLED=true`,
+    in which case the hash is ignored and the stored commitment ICA is served.
+    Keep the flag unset in production until the Sealevel reveal flow is
+    redesigned.
+  - Any other or unknown origin protocol returns 500.
+
+  Reads do not modify stored commitments. A missing receipt, a failing RPC, or
+  a candidate ICA whose chain read failed (when none of the others match) get
+  HTTP 500 so the relayer retries. A candidate the chain answers as underivable
+  (e.g. a router without salted accounts) does not match, and a reveal whose
+  dispatched routers the chain answers as unable to derive the ICA gets HTTP 403. For a destination without `interchainAccountRouter`, only the dispatched
+  routers' ICA is checked. Existing records with incorrect addresses still need
+  a one-time database repair for `GET /calls/:commitment` and, when enabled,
+  Sealevel reads. Re-registration must identify the same router pair: stale
+  config that derives a different ICA still returns 409. A separate ICA router
+  deployment is only served if the registry CCS reads lists its routers
+  (otherwise run its own CCS). CCS fails to start if that registry lists no ICA
+  routers, or lists a chain with ICA routers but no mailbox. Origin mailboxes
+  are read from the registry addresses.
 
 ### Wormhole VAA lookup
 

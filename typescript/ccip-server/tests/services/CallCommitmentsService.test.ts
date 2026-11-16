@@ -20,6 +20,7 @@ import {
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import { BlockchainError } from '@hyperlane-xyz/sdk/providers/SmartProvider/SmartProvider';
 import {
+  ProtocolType,
   addressToBytes32,
   formatMessage,
   parseMessage,
@@ -34,7 +35,10 @@ import {
   icaRoutersByDomain,
   mailboxesByDomain,
 } from '../../src/services/CallCommitmentsService.js';
-import { CommitmentAccessDeniedError } from '../../src/utils/errors.js';
+import {
+  CommitmentAccessDeniedError,
+  InvalidOriginTxHashError,
+} from '../../src/utils/errors.js';
 import { RpcUnavailableError } from '../../src/utils/rpcErrors.js';
 import { PrometheusMetrics } from '../../src/utils/prometheus.js';
 
@@ -1837,6 +1841,7 @@ describe('CallCommitmentsService constructor', () => {
       icaRoutersByDomain(addresses, multiProvider),
       false,
       mailboxesByDomain(addresses, multiProvider),
+      false,
     );
   }
 
@@ -1975,6 +1980,10 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
   function createService() {
     const service = Object.create(CallCommitmentsService.prototype);
     service.addLoggerServiceContext = () => mockLogger();
+    service.multiProvider = {
+      getProtocol: sinon.stub().returns(ProtocolType.Ethereum),
+    };
+    service.sealevelRevealsEnabled = false;
     return service;
   }
 
@@ -2187,6 +2196,34 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       .with.property('message', 'Reveal does not belong to this commitment');
   });
 
+  it('denies an EVM-origin reveal whose dispatched ICA matches no candidate when Sealevel reveals are enabled', async () => {
+    const { deriveIcaFromRevealMessage, deriveRouterVersionIcas } =
+      dispatchedOtherIca([routerIca], 0);
+    const service = createVerifyingService({
+      deriveIcaFromRevealMessage,
+      deriveRouterVersionIcas,
+      sealevelRevealsEnabled: true,
+    });
+
+    const error = await service
+      .handleFetchCommitment(
+        message,
+        baseRelayers[0],
+        mockLogger(),
+        originTxHash,
+      )
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    expect(error)
+      .to.be.instanceOf(CommitmentAccessDeniedError)
+      .with.property('message', 'Reveal does not belong to this commitment');
+    sinon.assert.calledOnce(service.deriveIcaFromRevealMessage);
+    sinon.assert.calledOnce(service.deriveRouterVersionIcas);
+  });
+
   it('retries instead of denying when a candidate that could have matched failed to derive', async () => {
     // e.g. the destination RPC timed out on the V2 candidate while the V3
     // dispatch differs from the stored (V2) ICA: not a denial.
@@ -2226,10 +2263,16 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     expect(result).to.equal(servedCalls(otherIca));
   });
 
-  it('requires an origin transaction hash', async () => {
+  it('rejects a missing or malformed EVM origin transaction hash', async () => {
     const service = createVerifyingService();
 
-    for (const hint of [undefined, '']) {
+    for (const hint of [
+      undefined,
+      '',
+      '0x1234',
+      '34'.repeat(32),
+      '0x' + '34'.repeat(64),
+    ]) {
       const error = await service
         .handleFetchCommitment(message, baseRelayers[0], mockLogger(), hint)
         .then(
@@ -2237,13 +2280,125 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
           (error: unknown) => error,
         );
       expect(error)
-        .to.be.instanceOf(Error)
+        .to.be.instanceOf(InvalidOriginTxHashError)
+        .with.property('message', 'Invalid origin_tx_hash');
+    }
+    sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
+  });
+
+  it('denies a Sealevel-origin reveal when Sealevel reveals are disabled', async () => {
+    const service = createVerifyingService();
+    service.multiProvider.getProtocol.returns(ProtocolType.Sealevel);
+
+    const error = await service
+      .handleFetchCommitment(
+        message,
+        baseRelayers[0],
+        mockLogger(),
+        originTxHash,
+      )
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    expect(error)
+      .to.be.instanceOf(CommitmentAccessDeniedError)
+      .with.property('message', 'Sealevel-origin reveals are disabled');
+    sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
+  });
+
+  for (const hint of [undefined, '0x1234', originTxHash]) {
+    it(`serves the stored ICA for a Sealevel-origin reveal with hash ${String(hint)} when Sealevel reveals are enabled`, async () => {
+      const service = createVerifyingService({ sealevelRevealsEnabled: true });
+      service.multiProvider.getProtocol.returns(ProtocolType.Sealevel);
+      service.fetchCommitmentRecord = sinon.stub().resolves({
+        commitment,
+        calls: baseCalls,
+        salt,
+        ica: otherIca,
+        originDomain: 1,
+        relayers: baseRelayers,
+      });
+
+      const result = await service.handleFetchCommitment(
+        message,
+        baseRelayers[0],
+        mockLogger(),
+        hint,
+      );
+
+      expect(result).to.equal(servedCalls(otherIca));
+      sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
+      sinon.assert.notCalled(service.deriveRouterVersionIcas);
+    });
+  }
+
+  for (const sealevelRevealsEnabled of [false, true]) {
+    it(`checks the relayer and origin of a Sealevel-origin reveal first when Sealevel reveals are ${sealevelRevealsEnabled ? 'enabled' : 'disabled'}`, async () => {
+      const service = createVerifyingService({ sealevelRevealsEnabled });
+      service.multiProvider.getProtocol.returns(ProtocolType.Sealevel);
+      const record = {
+        commitment,
+        calls: baseCalls,
+        salt,
+        ica: mockIca,
+        originDomain: 1,
+        relayers: [baseRelayers[0]],
+      };
+      service.fetchCommitmentRecord = sinon.stub().resolves(record);
+
+      const unauthorized = await service
+        .handleFetchCommitment(message, baseRelayers[1], mockLogger())
+        .catch((error: unknown) => error);
+      expect(unauthorized)
+        .to.be.instanceOf(CommitmentAccessDeniedError)
+        .with.property('message', 'Signer not authorized for this commitment');
+
+      service.fetchCommitmentRecord = sinon.stub().resolves({
+        commitment: record.commitment,
+        calls: record.calls,
+        salt: record.salt,
+        ica: record.ica,
+        originDomain: 3,
+        relayers: record.relayers,
+      });
+      const otherOrigin = await service
+        .handleFetchCommitment(message, baseRelayers[0], mockLogger())
+        .catch((error: unknown) => error);
+      expect(otherOrigin)
+        .to.be.instanceOf(CommitmentAccessDeniedError)
         .with.property(
           'message',
-          'Missing origin transaction hash for reveal message',
+          'Reveal origin does not match stored commitment',
         );
-      expect(error).not.to.be.instanceOf(CommitmentAccessDeniedError);
-    }
+      sinon.assert.notCalled(service.multiProvider.getProtocol);
+    });
+  }
+
+  it('rejects reveals from origin protocols other than EVM and Sealevel', async () => {
+    const service = createVerifyingService({ sealevelRevealsEnabled: true });
+    service.multiProvider.getProtocol.returns(ProtocolType.Cosmos);
+
+    const error = await service
+      .handleFetchCommitment(
+        message,
+        baseRelayers[0],
+        mockLogger(),
+        originTxHash,
+      )
+      .then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+
+    expect(error)
+      .to.be.instanceOf(Error)
+      .with.property(
+        'message',
+        `Unsupported origin protocol: ${ProtocolType.Cosmos}`,
+      );
+    expect(error).not.to.be.instanceOf(CommitmentAccessDeniedError);
     sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
   });
 

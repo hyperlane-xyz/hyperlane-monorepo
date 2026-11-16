@@ -133,6 +133,65 @@ mod test {
     }
 
     #[tokio::test]
+    async fn cursor_coverage_survives_restart_and_is_event_specific() {
+        use hyperlane_core::{HyperlaneWatermarkedLogStore, SequenceCoverage};
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().to_str().unwrap().to_owned();
+        let domain = HyperlaneDomain::new_test_domain("coverage");
+        let entry = |nonce| {
+            (
+                Indexed::new(HyperlaneMessage {
+                    nonce,
+                    ..Default::default()
+                }),
+                LogMeta {
+                    block_number: u64::from(nonce) + 100,
+                    ..Default::default()
+                },
+            )
+        };
+        {
+            let db = HyperlaneRocksDB::new(&domain, setup_db(path.clone()));
+            db.store_logs(&[entry(0), entry(1), entry(3)])
+                .await
+                .unwrap();
+            assert_eq!(
+                HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_sequence_coverage(&db)
+                    .await
+                    .unwrap(),
+                None
+            );
+            HyperlaneBackwardCursorStore::<HyperlaneMessage>::store_sequence_coverage(
+                &db,
+                SequenceCoverage { first: 0, last: 1 },
+            )
+            .await
+            .unwrap();
+            db.advance_observed_gas_height(150).unwrap();
+            db.advance_observed_gas_height(140).unwrap();
+        }
+        let db = HyperlaneRocksDB::new(&domain, setup_db(path));
+        assert_eq!(
+            HyperlaneBackwardCursorStore::<HyperlaneMessage>::retrieve_sequence_coverage(&db)
+                .await
+                .unwrap(),
+            Some(SequenceCoverage { first: 0, last: 1 })
+        );
+        assert_eq!(
+            HyperlaneWatermarkedLogStore::<InterchainGasPayment>::retrieve_high_watermark(&db)
+                .await
+                .unwrap(),
+            Some(150)
+        );
+        assert_eq!(
+            HyperlaneBackwardCursorStore::<MerkleTreeInsertion>::retrieve_sequence_coverage(&db)
+                .await
+                .unwrap(),
+            None
+        );
+    }
+
+    #[tokio::test]
     async fn backward_cursors_are_durable_and_event_specific() {
         // Manage our own temporary path so the database can be dropped and
         // genuinely reopened from disk, proving cursor durability. Wrapping

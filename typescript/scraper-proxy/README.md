@@ -67,6 +67,7 @@ debugging but does not replace scraper state.
 | ------------------- | ------------------------------------------------------------------------ | ----------------------------------- | --------------------------------- |
 | `GET/POST /graphql` | Historical queries, pagination, message snapshots, diagnostic history    | Request/response                    | Explorer, Nexus, services         |
 | `WS /messages`      | Enriched message updates, selected message IDs, block heads, diagnostics | Server pushes after URL negotiation | Explorer, Nexus, public consumers |
+| `WS /validators`    | Merkle tree insertions for exactly one domain and confirmation policy    | Server pushes after URL negotiation | Public validators                 |
 | `WS /agents`        | Live protocol events at canonical or custom confirmations                | Client sends a subscription         | Internal agents and indexers      |
 | `GET /metrics`      | Request, database, WebSocket, queue, and process metrics                 | Prometheus scrape                   | Monitoring                        |
 
@@ -301,6 +302,96 @@ Missing diagnostic fields mean unobserved, not zero or success. Never infer ISM
 verification from signature counts, metadata success, absent events, or a failed
 validator read. The proxy performs no background signature reads or verification.
 
+## Validator WebSocket: `/validators`
+
+This public, live-only endpoint emits only `merkle_tree_insertion` events. Choose
+exactly one domain and an optional confirmation count in the connection URL:
+
+```text
+wss://<public-scraper-host>/validators?domain=1
+wss://<public-scraper-host>/validators?domain=1&confirmations=12
+wss://<public-scraper-host>/validators?domain=1&confirmations=0
+```
+
+The domain must exist in the scraper DB's `domain` table. Omitted confirmations
+use the scraper's configured canonical policy. An explicit nonnegative safe
+integer uses the custom-confirmation flow, capped by indexed progress; zero
+streams near-head events. Custom counts require near-head state and never fall
+back to canonical. Keep the policy consistent with the validator's configuration.
+
+The server validates the URL and automatically subscribes. It sends `ready` with
+`domain`, optional `confirmations`, `eventTypes: ["merkle_tree_insertion"]`,
+`historicalStreaming: false`, and `liveStartVersion: 1` before any events or
+`live_start`/`live_start_unavailable` frames. There is no client subscribe message,
+`subscribed` acknowledgement, or subscribe deadline. Reconnect to change policy.
+Only `{"type":"ping"}` application messages are accepted. Additional/duplicate URL
+parameters, domain lists, replay options and subscription messages are rejected.
+
+The handoff uses the same boundaries as `/agents`: domain, height/hash, Merkle
+hook address and optional confirmation count. Buffer from `ready`, recover history
+through RPC, verify the boundary through RPC, then hand off after catching up.
+Unavailable boundaries, disconnects and rollbacks retain or restore RPC indexing.
+Configure the Rust validator's `websocketUrl` with the `/validators` endpoint and
+no query parameters. It supplies its origin domain and numeric reorg period;
+block-tag policies omit confirmations and use the scraper's canonical policy.
+It validates the negotiated policy before using the existing RPC handoff.
+No WebSocket backfill is performed.
+
+Limits per process: **500 connections**, 100 per exact client IP address,
+32 unfinished setups in total, and 8 unfinished setups per IP budget. URLs/client frames
+are limited to 1 KiB and application messages to 30 per minute. Admission limits
+reject with HTTP 400/403/429/503 before upgrading. Disconnected setups retain
+connection, IP and setup reservations until their DB work ends. Connection/IP
+reservations also remain until the socket has actually closed.
+
+Connections with the same `(domain, confirmations)` share one custom reader.
+Events are serialized once and broadcast without waiting for individual send
+callbacks; slow clients remain subject to socket and aggregate buffer limits.
+The final member disconnecting releases its reader. Heartbeat limits also apply.
+
+Validator-only reads use a dedicated five-connection primary pool with acquisition
+timeouts. Canonical events already needed by internal agents reuse that existing
+live-pool read and broadcast, without adding a public query to the live pool.
+Validator-only canonical publication has its own bounded queue and worker, so
+waiting for that pool does not stall internal agent notification or head drains.
+The database server and outbound resources remain shared.
+
+Validator metrics use the `hyperlane_scraper_proxy_` prefix:
+
+| Metric                                                                                      | Labels / meaning                                                                               |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `websocket_connections`, `websocket_connection_limit`                                       | `route="validators"`: active connections and the 500-connection cap                            |
+| `websocket_connections_total`, `websocket_connection_rejections_total`                      | Accepted/rejected connections by route and reason                                              |
+| `websocket_validator_subscriptions`                                                         | Active subscriptions by `domain` and `policy="canonical"` or `"custom"`                        |
+| `websocket_validator_reserved_connections`                                                  | Connections counted against the cap, including closing sockets and disconnected pending setups |
+| `websocket_validator_pending_setups`, `websocket_validator_setup_limit`                     | Unfinished DB setups and the global setup cap                                                  |
+| `websocket_validator_shared_readers`                                                        | Active custom domain/confirmation readers                                                      |
+| `websocket_validator_client_ips`                                                            | Public IP budgets currently reserved                                                           |
+| `websocket_validator_max_connections_per_ip`, `websocket_validator_connection_limit_per_ip` | Largest public IP reservation count and its limit                                              |
+| `websocket_validator_client_message_limit_bytes`                                            | Inbound frame limit                                                                            |
+| `database_pool_waiting_requests`, `database_pool_connection_limit`                          | `pool="validator"`: queued reads and five-connection cap                                       |
+| `database_queries_total`, `database_query_duration_seconds`                                 | `role="validator_primary"`: validator DB load and latency                                      |
+
+Subscriptions exclude validators from the agent subscription gauge. Labels never
+contain client IPs or arbitrary confirmation counts. Domain series disappear when
+the last subscription disconnects.
+
+In production, all validators require a valid `CF-Connecting-IP` from the
+loopback cloudflared sidecar. Only loopback peers may supply that header.
+Direct private-network connections are rejected as well. Keep the service origin
+private. Cloudflared must connect to a loopback origin.
+
+Rate-limit upgrades/reconnects and handle subnet-level abuse at Cloudflare;
+the proxy does not group IPv6 subnets. Distributed clients and distinct
+confirmation policies can still occupy public capacity and consume shared DB
+resources. The remotely managed tunnel must allow the exact `/validators` path;
+adding the endpoint does not modify the deployed tunnel configuration.
+
+Mainnet/testnet validator contexts use `wss://explorer-api.hyperlane.xyz/validators`,
+on the same public host as `/messages` and `/graphql`. The Rust binary accepts only
+a query-free `ws://` or `wss://` URL ending in `/validators`.
+No new cluster or database migration is required.
+
 ## Agent WebSocket: `/agents`
 
 `/agents` provides live protocol events for agents and indexers. The endpoint is
@@ -327,7 +418,7 @@ On connection, the server advertises its capabilities:
   ],
   "historicalStreaming": false,
   "liveStartVersion": 1,
-  "confirmations": { "unit": "blocks", "liveOnly": true }
+  "confirmations": { "unit": "blocks", "liveOnly": true, "byDomain": true }
 }
 ```
 
@@ -471,6 +562,67 @@ use `live_start` as the explicit RPC recovery target for every required stream,
 including gas payments. Dispatch/Merkle sequence agreement alone cannot establish
 gas completeness. If a boundary is unavailable, keep RPC indexing for that stream.
 
+### Per-domain confirmations
+
+Set `confirmationsByDomain` on the subscription to apply a confirmation count to
+all requested event types for a domain. Check `ready.confirmations.byDomain` for
+server support and verify the echoed map in `subscribed` before relying on it;
+older proxies can ignore an unknown map and stream canonical data instead:
+
+```json
+{
+  "type": "subscribe",
+  "confirmationsByDomain": {
+    "1": 12,
+    "1399811149": 32
+  },
+  "streams": [
+    {
+      "eventType": "dispatch",
+      "domains": [1, 56, 1399811149],
+      "confirmations": 2
+    },
+    { "eventType": "delivery", "domains": [1, 56, 1399811149] },
+    { "eventType": "gas_payment", "domains": [1, 56, 1399811149] },
+    { "eventType": "merkle_tree_insertion", "domains": [1, 56, 1399811149] }
+  ]
+}
+```
+
+For each event type and domain, the effective policy is:
+
+1. `confirmationsByDomain[domain]`, when supplied (including `0`).
+2. The legacy stream's `confirmations`, when supplied.
+3. The scraper's configured canonical confirmation/finality policy.
+
+In this example, Ethereum uses 12 confirmations and Solana uses 32 slots for all
+four event types. Domain 56 uses 2 confirmations for dispatch and its configured
+canonical policy for the other event types. Legacy per-event confirmations remain
+supported during agent migration.
+
+The map requires explicit domains on event streams; its keys do not subscribe to
+additional domains. Unused keys are rejected, including keys used only by `blocks`.
+Counts must be nonnegative safe integers and keys must be uint32 domain IDs.
+All agent streams are live-only; recover history through RPC.
+`blocks` subscriptions still report raw indexed heads and ignore this map.
+The `subscribed` response echoes the map alongside the original streams.
+Legacy canonical subscriptions retain per-domain `live_start_unavailable` behavior
+for missing checkpoints; other domains remain subscribed. An explicit custom
+policy, including a domain override, requires near-head state for every affected
+domain. A missing head rejects the whole subscription with close code 1008;
+advisory zero-confirmation streams retain their existing canonical fallback.
+
+Domains sharing a count are grouped into the existing custom readers. All requested
+domain/count pairs, including advisory zero-confirmation pairs, share one initial
+database snapshot per subscription. Advisory zero-confirmation domains use one
+reader per event type. Rollbacks during setup refresh the snapshot.
+Canonical publication excludes overridden domains; the same event is not
+also emitted at the configured default. Handoff boundaries and rollback frames
+retain the effective numeric confirmation count. A domain can receive multiple
+`live_start` frames, covering different event types and effective policies.
+
+### Legacy per-event confirmations
+
 To use a custom confirmation delay, provide both `confirmations` and explicit
 `domains` on a stream:
 
@@ -556,7 +708,8 @@ pnpm -C typescript/infra tsx scripts/agents/deploy-agents.ts \
 
 Use `testnet4` for testnet. When enabling the tunnel, supply the GCP secret
 `{context}-{environment}-scraper-proxy-cloudflared-tunnel-token`. Route only
-`/graphql*` and `/messages*` publicly; keep `/agents` cluster-only.
+`/graphql*`, `/messages*`, and the exact `/validators` path publicly; keep `/agents`
+cluster-only. Tunnel ingress is managed remotely in Cloudflare, not by this chart.
 
 The configured SELECT-only Secret Manager values are
 `hyperlane-mainnet-relayer-postgres-reader-url` for mainnet3 and

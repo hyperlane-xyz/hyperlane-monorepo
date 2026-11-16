@@ -49,6 +49,7 @@ function registerServiceWithNoopHandlers(app: CcipApp): void {
       new Map([[1, { interchainAccountRouter: '0x' + '01'.repeat(20) }]]),
       true,
       new Map([[1, '0x' + '02'.repeat(20)]]),
+      false,
     );
     service.registerRoutes(app, '');
   } finally {

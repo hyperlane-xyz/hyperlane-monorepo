@@ -51,6 +51,18 @@ impl<P: Send + 'static, C: Send + 'static> ScraperSession<P, C> {
         Ok(Self::new(socket, timeouts.progress_check))
     }
 
+    /// Connect to the public validator feed with one immutable URL subscription.
+    pub async fn connect_validator(
+        url: &url::Url,
+        domain: u32,
+        confirmations: Option<u32>,
+        timeouts: StreamTimeouts,
+    ) -> Result<Self> {
+        let socket =
+            ScraperWebSocket::connect_validator(url, domain, confirmations, timeouts.read).await?;
+        Ok(Self::new(socket, timeouts.progress_check))
+    }
+
     fn new(socket: ScraperWebSocket, progress_check: Duration) -> Self {
         let mut ticker = interval(progress_check);
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);

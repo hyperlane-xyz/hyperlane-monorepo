@@ -21,3 +21,10 @@ export class CommitmentAccessDeniedError extends Error {
     this.name = 'CommitmentAccessDeniedError';
   }
 }
+
+export class InvalidOriginTxHashError extends Error {
+  constructor() {
+    super('Invalid origin_tx_hash');
+    this.name = 'InvalidOriginTxHashError';
+  }
+}

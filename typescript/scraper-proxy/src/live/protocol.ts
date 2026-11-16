@@ -21,7 +21,11 @@ export type StreamRequest = {
 };
 export type ClientMessage =
   | { type: 'ping' }
-  | { streams: (StreamRequest | BlockStreamRequest)[]; type: 'subscribe' };
+  | {
+      confirmationsByDomain?: Map<number, number>;
+      streams: (StreamRequest | BlockStreamRequest)[];
+      type: 'subscribe';
+    };
 export type BlockStreamRequest = {
   eventType: 'blocks';
   includeZeroConfirmations?: never;
@@ -72,7 +76,85 @@ export function parseClientMessage(raw: string): ClientMessage {
   ) {
     throw new Error('Duplicate eventType subscription');
   }
-  return { streams, type: 'subscribe' };
+  const confirmationsByDomain = parseDomainConfirmations(
+    value.confirmationsByDomain,
+  );
+  if (confirmationsByDomain?.size) {
+    const domains = new Set<number>();
+    for (const request of streams) {
+      if (request.eventType === 'blocks') continue;
+      if (!request.domains) {
+        throw new Error(
+          'confirmationsByDomain requires explicit event stream domains',
+        );
+      }
+      for (const domain of request.domains) domains.add(domain);
+    }
+    for (const domain of confirmationsByDomain.keys()) {
+      if (!domains.has(domain)) {
+        throw new Error(`Unused confirmationsByDomain domain ${domain}`);
+      }
+    }
+  }
+  return {
+    ...(confirmationsByDomain ? { confirmationsByDomain } : {}),
+    streams,
+    type: 'subscribe',
+  };
+}
+
+/** Partition each event type once, retaining one canonical domain filter. */
+export function splitConfirmationStreams(
+  request: StreamRequest,
+  confirmationsByDomain?: ReadonlyMap<number, number>,
+): StreamRequest[] {
+  if (!confirmationsByDomain?.size) return [request];
+  if (!request.domains) {
+    throw new Error(
+      'confirmationsByDomain requires explicit event stream domains',
+    );
+  }
+  const groups = new Map<number | undefined, Set<number>>();
+  for (const domain of request.domains) {
+    const confirmations =
+      confirmationsByDomain.get(domain) ?? request.confirmations;
+    let domains = groups.get(confirmations);
+    if (!domains) {
+      domains = new Set();
+      groups.set(confirmations, domains);
+    }
+    domains.add(domain);
+  }
+  return [...groups].map(([confirmations, domains]) => ({
+    ...request,
+    confirmations,
+    domains,
+  }));
+}
+
+function parseDomainConfirmations(
+  value: unknown,
+): Map<number, number> | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value))
+    throw new Error(
+      'confirmationsByDomain must be a domain-to-confirmations object',
+    );
+  const confirmations = new Map<number, number>();
+  for (const [key, count] of Object.entries(value)) {
+    const domain = Number(key);
+    if (!isDomain(domain) || String(domain) !== key) {
+      throw new Error('confirmationsByDomain keys must be uint32 domain IDs');
+    }
+    confirmations.set(domain, parseConfirmationCount(count));
+  }
+  return confirmations;
+}
+
+function parseConfirmationCount(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+    throw new Error('confirmations must be a non-negative safe integer');
+  return value;
 }
 
 export function parseEventNotification(
@@ -229,11 +311,10 @@ export function parseConfirmations(
   domains?: Set<number>,
 ): number | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
-    throw new Error('confirmations must be a non-negative safe integer');
+  const confirmations = parseConfirmationCount(value);
   if (!domains?.size)
     throw new Error('confirmations requires explicit domains');
-  return value;
+  return confirmations;
 }
 
 export function parseExplorerConfirmations(
@@ -254,6 +335,48 @@ export function parseExplorerConfirmations(
   const confirmations = parseConfirmations(Number(count), domains);
   if (confirmations === undefined) throw new Error('Missing confirmations');
   return { confirmations, domains };
+}
+
+/** Public validators negotiate one immutable Merkle stream in the URL. */
+export function parseValidatorSubscription(params: URLSearchParams): {
+  domain: number;
+  confirmations?: number;
+} {
+  for (const key of params.keys()) {
+    if (
+      (key !== 'domain' && key !== 'confirmations') ||
+      params.getAll(key).length !== 1
+    )
+      throw new Error('Expected one domain and optional confirmations only');
+  }
+  const rawDomain = params.get('domain');
+  const domain = Number(rawDomain);
+  if (
+    !rawDomain ||
+    !UNSIGNED_INTEGER_REGEX.test(rawDomain) ||
+    !isDomain(domain)
+  )
+    throw new Error('Expected one uint32 domain');
+  const count = params.get('confirmations');
+  if (count === null) return { domain };
+  if (!UNSIGNED_INTEGER_REGEX.test(count))
+    throw new Error('Expected nonnegative integer confirmations');
+  return {
+    domain,
+    confirmations: parseConfirmationCount(Number(count)),
+  };
+}
+
+export function parseValidatorPing(raw: string): void {
+  const value: unknown = JSON.parse(raw);
+  if (
+    !isRecord(value) ||
+    value.type !== 'ping' ||
+    Object.keys(value).length !== 1
+  )
+    throw new Error(
+      'Only ping is allowed; reconnect to change the subscription',
+    );
 }
 
 export function parseMessageId(value: string): string {

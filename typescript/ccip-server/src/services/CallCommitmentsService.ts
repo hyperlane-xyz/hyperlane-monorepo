@@ -24,6 +24,7 @@ import {
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
+  ProtocolType,
   addressToBytes32,
   assert,
   bytes32ToAddress,
@@ -53,6 +54,7 @@ import { createRateLimitHook } from '../utils/rateLimit.js';
 import {
   CommitmentAccessDeniedError,
   INTERNAL_SERVER_ERROR,
+  InvalidOriginTxHashError,
 } from '../utils/errors.js';
 import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
@@ -79,6 +81,9 @@ const EnvSchema = z.object({
   // Keep unset (disabled) in production until the Sealevel reveal flow is
   // redesigned; enable only for local testing.
   CCS_CALLDATA_LOOKUP_ENABLED: CalldataLookupEnabledSchema,
+  // Keep unset (disabled) in production until the Sealevel reveal flow is
+  // redesigned; enable only for local testing.
+  CCS_SEALEVEL_REVEALS_ENABLED: CalldataLookupEnabledSchema,
 });
 
 const CommitmentMetadataSchema = z.object({
@@ -381,6 +386,7 @@ export class CallCommitmentsService extends BaseService {
     private readonly trustedIcaRouters: ReadonlyMap<number, IcaRouters>,
     private readonly calldataLookupEnabled: boolean,
     private readonly originMailboxes: ReadonlyMap<number, string>,
+    private readonly sealevelRevealsEnabled: boolean,
   ) {
     super(config);
     assert(
@@ -422,6 +428,7 @@ export class CallCommitmentsService extends BaseService {
       icaRoutersByDomain(coreAddresses, multiProvider),
       env.CCS_CALLDATA_LOOKUP_ENABLED,
       mailboxesByDomain(coreAddresses, multiProvider),
+      env.CCS_SEALEVEL_REVEALS_ENABLED,
     );
   }
 
@@ -584,54 +591,66 @@ export class CallCommitmentsService extends BaseService {
           'Reveal origin does not match stored commitment',
         );
       }
-      // Calls are resolved from the commitment dispatched alongside this
-      // reveal, which must target the account the calls were registered for.
-      // Without the origin transaction hash the request returns HTTP 500 and
-      // the relayer retries.
-      assert(
-        originTxHash,
-        'Missing origin transaction hash for reveal message',
-      );
-      const dispatch = await this.deriveIcaFromRevealMessage(
-        message,
-        originTxHash,
-        log,
-      );
-      const { ica } = dispatch;
-      if (!eqAddress(ica, record.ica)) {
-        // Records registered without router overrides store the V2-derived
-        // ICA; a router version candidate equal to the stored ICA admits the
-        // reveal, and the dispatched ICA is served.
-        const { routerVersionIcas, unavailableCandidates } =
-          await this.deriveRouterVersionIcas(dispatch, originTxHash, log);
-        if (
-          !routerVersionIcas.some((candidate) =>
-            eqAddress(candidate, record.ica),
-          )
-        ) {
-          // A candidate whose chain read failed might have matched: that is
-          // not a denial, so fail with HTTP 500 and let the relayer retry.
-          assert(
-            unavailableCandidates === 0,
-            'Could not derive every ICA candidate for the reveal',
-          );
-          log.warn(
-            {
-              commitment,
-              originTxHash,
-              storedIca: record.ica,
-              revealIca: ica,
-            },
-            'Paired commitment does not derive the stored ICA',
-          );
+      const protocol = this.multiProvider.getProtocol(origin);
+      let ica: string;
+      if (protocol === ProtocolType.Sealevel) {
+        if (!this.sealevelRevealsEnabled) {
           throw new CommitmentAccessDeniedError(
-            'Reveal does not belong to this commitment',
+            'Sealevel-origin reveals are disabled',
           );
         }
-        log.info(
-          { commitment, originTxHash, storedIca: record.ica, revealIca: ica },
-          'Serving the dispatched ICA; the stored ICA was derived with another router version or ISM',
+        ica = record.ica;
+      } else {
+        assert(
+          protocol === ProtocolType.Ethereum,
+          `Unsupported origin protocol: ${protocol}`,
         );
+        // Calls are resolved from the commitment dispatched alongside this
+        // reveal, which must target the account the calls were registered for.
+        if (!originTxHash || !utils.isHexString(originTxHash, 32)) {
+          throw new InvalidOriginTxHashError();
+        }
+        const dispatch = await this.deriveIcaFromRevealMessage(
+          message,
+          originTxHash,
+          log,
+        );
+        ica = dispatch.ica;
+        if (!eqAddress(ica, record.ica)) {
+          // Records registered without router overrides store the V2-derived
+          // ICA; a router version candidate equal to the stored ICA admits the
+          // reveal, and the dispatched ICA is served.
+          const { routerVersionIcas, unavailableCandidates } =
+            await this.deriveRouterVersionIcas(dispatch, originTxHash, log);
+          if (
+            !routerVersionIcas.some((candidate) =>
+              eqAddress(candidate, record.ica),
+            )
+          ) {
+            // A candidate whose chain read failed might have matched: that is
+            // not a denial, so fail with HTTP 500 and let the relayer retry.
+            assert(
+              unavailableCandidates === 0,
+              'Could not derive every ICA candidate for the reveal',
+            );
+            log.warn(
+              {
+                commitment,
+                originTxHash,
+                storedIca: record.ica,
+                revealIca: ica,
+              },
+              'Paired commitment does not derive the stored ICA',
+            );
+            throw new CommitmentAccessDeniedError(
+              'Reveal does not belong to this commitment',
+            );
+          }
+          log.info(
+            { commitment, originTxHash, storedIca: record.ica, revealIca: ica },
+            'Serving the dispatched ICA; the stored ICA was derived with another router version or ISM',
+          );
+        }
       }
       const encoded =
         ica +
@@ -1437,16 +1456,8 @@ export class CallCommitmentsService extends BaseService {
       { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
       async (request, reply) => {
         const rawTxHash = request.body?.origin_tx_hash;
-        if (
-          typeof rawTxHash === 'string' &&
-          !utils.isHexString(rawTxHash, 32)
-        ) {
-          return reply.code(400).send({ error: 'Invalid origin_tx_hash' });
-        }
         const originTxHash =
-          typeof rawTxHash === 'string' && utils.isHexString(rawTxHash, 32)
-            ? rawTxHash
-            : undefined;
+          typeof rawTxHash === 'string' ? rawTxHash : undefined;
         return createAbiHandler(
           CommitmentReadIsmService__factory,
           'getCallsFromRevealMessage',

@@ -9,6 +9,7 @@ import {
   AttestationPendingError,
   CommitmentAccessDeniedError,
   INTERNAL_SERVER_ERROR,
+  InvalidOriginTxHashError,
   LookupPendingError,
 } from './errors.js';
 
@@ -120,6 +121,9 @@ export function createAbiHandler<
     } catch (error: unknown) {
       if (error instanceof CommitmentAccessDeniedError) {
         return reply.code(403).send({ error: error.message });
+      }
+      if (error instanceof InvalidOriginTxHashError) {
+        return reply.code(400).send({ error: error.message });
       }
       const message = redactErrorMessage(error);
       if (error instanceof AttestationPendingError) {

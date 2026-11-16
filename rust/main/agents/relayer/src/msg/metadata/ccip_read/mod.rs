@@ -1032,14 +1032,14 @@ mod test {
                 let response = client.post(&url).json(&without_hash).send().await?;
                 assert_eq!(
                     response.status().as_u16(),
-                    if allowed { 500 } else { 403 },
+                    if allowed { 400 } else { 403 },
                     "{} signer {key_byte} without origin_tx_hash",
                     case.name
                 );
                 if allowed {
                     let error: serde_json::Value = response.json().await?;
                     assert_eq!(
-                        error["error"], "Internal server error",
+                        error["error"], "Invalid origin_tx_hash",
                         "{} signer {key_byte} without origin_tx_hash",
                         case.name
                     );

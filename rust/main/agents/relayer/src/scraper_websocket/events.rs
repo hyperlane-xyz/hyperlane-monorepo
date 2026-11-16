@@ -271,6 +271,11 @@ impl ScraperSource {
             }
             LiveEvent::Gas(payment, meta) => {
                 self.database.process_indexed_gas_payment(*payment, meta)?;
+                // Resume from observed gas progress, never from an independent RPC tip.
+                // Replay the observed block and its predecessor; this does not prove gas completeness.
+                let height = u32::try_from(meta.block_number).context("Gas height exceeds u32")?;
+                self.database
+                    .advance_observed_gas_height(height.saturating_sub(1))?;
             }
         }
         if let Some((kind, sequence)) = event.sequence() {

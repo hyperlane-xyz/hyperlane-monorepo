@@ -50,6 +50,15 @@ ever enrolled on a registry ICA router (`enrollRemoteRouterAndIsm`), this skip i
 `deriveRouterVersionIcas` (`CallCommitmentsService.ts`) must be revisited; otherwise
 registrations made without an ISM on that pair stop resolving.
 
+Origin binding differs by protocol. EVM-origin reveals must carry a 32-byte dispatch
+`origin_tx_hash` (HTTP 400 otherwise), and are served only when the ICA derived from
+that receipt matches the stored ICA or a registry router version candidate (HTTP 403
+otherwise). Sealevel-origin reveals are not served (HTTP 403) unless
+`CCS_SEALEVEL_REVEALS_ENABLED=true`, which is off by default; when enabled, they are
+served from the stored commitment record with no origin binding: access rests on relayer
+authorization and the stored origin domain matching the reveal. Other origin protocols
+are rejected.
+
 ## General calldata lookup
 
 This route is disabled by default while the Sealevel reveal flow is redesigned; set
@@ -152,7 +161,7 @@ CCS_E2E_FIXTURES="$CCS_E2E_DIR/fixtures.json" cargo test \
 ```
 
 The POST test uses a real local EVM signer. It sends each EVM fixture's
-`origin_tx_hash` and expects the bound calls, and without the hash expects HTTP 500 for
+`origin_tx_hash` and expects the bound calls, and without the hash expects HTTP 400 for
 allowed signers and 403 for others. The SVM test exercises the production GET
 client with valid pre-signed EVM fixtures and asserts its exact signing hash. Both check
 global and per-record authorization. These tests do not access production KMS or execute
