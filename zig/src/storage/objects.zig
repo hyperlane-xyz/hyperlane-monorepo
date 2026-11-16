@@ -68,12 +68,19 @@ fn checkpointWire(allocator: Allocator, checkpoint: Checkpoint) !CheckpointWire 
 /// the key's Q before release) or an actual ECDSA recovery. Consumers call
 /// `require(expected)` against their configured validator address, which also
 /// rejects any value not produced (or altered after production) by these
-/// constructors: `tag` is an HMAC under a process-random key that no other
-/// module can read. Requiring is two compares and one HMAC, never a recovery.
+/// constructors: `tag` is a SipHash-2-4-128 MAC, under a process-random key
+/// that is file-private (no other module can name it), over every field of
+/// the value, signature and signer. Zig has no private fields, so the binding
+/// must cover the bytes: a content-independent token could be copied onto an
+/// edited value. Requiring is two compares and one short keyed hash, never a
+/// recovery.
 pub const VerifiedCheckpoint = struct {
     signed: SignedCheckpoint,
     signer: Address,
-    tag: [32]u8,
+    tag: Tag,
+
+    pub const Tag = [Mac.mac_length]u8;
+    const Mac = std.crypto.auth.siphash.SipHash128(2, 4);
 
     /// Local keys: zero recoveries; the signature was checked against Q.
     pub fn signWith(key: *const protocol.signature.SigningKey, value: Checkpoint, noise: ?Hash) !VerifiedCheckpoint {
@@ -94,7 +101,7 @@ pub const VerifiedCheckpoint = struct {
     /// its established signer is the caller's configured validator address.
     pub fn require(self: *const VerifiedCheckpoint, expected: Address) !void {
         const tag = mac(self.signed, self.signer);
-        if (!std.crypto.timing_safe.eql([32]u8, tag, self.tag)) return error.UnverifiedCheckpoint;
+        if (!std.crypto.timing_safe.eql(Tag, tag, self.tag)) return error.UnverifiedCheckpoint;
         if (!std.mem.eql(u8, &self.signer, &expected)) return error.WrongSigner;
     }
 
@@ -102,35 +109,34 @@ pub const VerifiedCheckpoint = struct {
         return .{ .signed = signed, .signer = signer, .tag = mac(signed, signer) };
     }
 
-    fn mac(signed: SignedCheckpoint, signer: Address) [32]u8 {
-        const Hmac = std.crypto.auth.hmac.sha2.HmacSha256;
+    /// Fixed-layout input: every field at a fixed offset, so no two distinct
+    /// (value, signature, signer) triples share an encoding.
+    fn mac(signed: SignedCheckpoint, signer: Address) Tag {
+        if (@import("builtin").is_test) _ = test_macs.fetchAdd(1, .monotonic);
         seal_key_once.call();
-        var state = Hmac.init(&seal_key);
         const c = signed.value;
-        state.update(&c.merkle_tree_hook_address);
-        var domain: [4]u8 = undefined;
-        std.mem.writeInt(u32, &domain, c.mailbox_domain, .big);
-        state.update(&domain);
-        state.update(&c.root);
-        var index: [4]u8 = undefined;
-        std.mem.writeInt(u32, &index, c.index, .big);
-        state.update(&index);
-        state.update(&c.message_id);
-        state.update(&signed.signature.bytes());
-        var v: [8]u8 = undefined;
-        std.mem.writeInt(u64, &v, signed.signature.v, .big);
-        state.update(&v);
-        state.update(&signer);
-        var out: [32]u8 = undefined;
-        state.final(&out);
+        var input: [32 + 4 + 32 + 4 + 32 + 32 + 32 + 8 + 20]u8 = undefined;
+        input[0..32].* = c.merkle_tree_hook_address;
+        std.mem.writeInt(u32, input[32..36], c.mailbox_domain, .big);
+        input[36..68].* = c.root;
+        std.mem.writeInt(u32, input[68..72], c.index, .big);
+        input[72..104].* = c.message_id;
+        std.mem.writeInt(u256, input[104..136], signed.signature.r, .big);
+        std.mem.writeInt(u256, input[136..168], signed.signature.s, .big);
+        std.mem.writeInt(u64, input[168..176], signed.signature.v, .big);
+        input[176..196].* = signer;
+        var out: Tag = undefined;
+        Mac.create(&out, &input, &seal_key);
         return out;
     }
 };
-var seal_key: [32]u8 = undefined;
+var seal_key: [VerifiedCheckpoint.Mac.key_length]u8 = undefined;
 var seal_key_once = std.once(initSealKey);
 fn initSealKey() void {
     std.crypto.random.bytes(&seal_key);
 }
+/// Test-only count of seal computations (seal + require).
+pub var test_macs: std.atomic.Value(usize) = .init(0);
 /// Test-only count of recoveries performed at the VerifiedCheckpoint boundary.
 pub var test_recoveries: std.atomic.Value(usize) = .init(0);
 

@@ -623,6 +623,12 @@ test "verified checkpoints come only from the checked signing path or a recovery
     var altered = signed;
     altered.signed.value.root[0] ^= 1;
     try std.testing.expectError(error.UnverifiedCheckpoint, altered.require(key.address));
+    var resigned = signed;
+    resigned.signed.signature.s ^= 1;
+    try std.testing.expectError(error.UnverifiedCheckpoint, resigned.require(key.address));
+    var shifted_v = signed;
+    shifted_v.signed.signature.v +%= 1;
+    try std.testing.expectError(error.UnverifiedCheckpoint, shifted_v.require(key.address));
     var relabelled = signed;
     relabelled.signer = .{0x99} ** 20;
     try std.testing.expectError(error.UnverifiedCheckpoint, relabelled.require(.{0x99} ** 20));
