@@ -199,6 +199,14 @@ pub fn payloadUuid(value: std.json.Value) !types.Uuid {
     return types.parseUuid(try types.stringField(details, "uuid"));
 }
 
+/// A validated raw JSON value (borrowed) that Stringify writes verbatim:
+/// payload details carry per-byte `success_criteria` arrays that would
+/// otherwise be decoded into one Value per byte only to be re-encoded.
+/// Never read back as a tree; the stored row is reparsed when needed.
+fn rawValue(raw: []const u8) std.json.Value {
+    return .{ .number_string = raw };
+}
+
 pub fn createTransaction(owned: *OwnedJson, payload: PayloadView, uuid: types.Uuid, signer: types.Address, chain_id: u256, timestamp_text: []const u8) !void {
     const allocator = owned.allocator();
     const bytes = json_view.byteArray(allocator, payload.data) catch return error.InvalidEvmPayload;
@@ -221,7 +229,7 @@ pub fn createTransaction(owned: *OwnedJson, payload: PayloadView, uuid: types.Uu
     var evm = std.json.ObjectMap.init(allocator);
     try evm.put("Evm", .{ .object = precursor });
     const details_items = try allocator.alloc(std.json.Value, 1);
-    details_items[0] = try json_view.parseValue(allocator, payload.details);
+    details_items[0] = rawValue(payload.details);
     const hash_items = try allocator.alloc(std.json.Value, 0);
     var root = std.json.ObjectMap.init(allocator);
     try root.put("uuid", .{ .string = try types.uuidText(allocator, uuid) });
@@ -241,7 +249,7 @@ pub fn createBatchTransaction(owned: *OwnedJson, payloads: []const PayloadView, 
     try createTransaction(owned, payloads[0], uuid, signer, chain_id, timestamp_text);
     const allocator = owned.allocator();
     const details = try allocator.alloc(std.json.Value, payloads.len);
-    for (payloads, 0..) |payload, i| details[i] = try json_view.parseValue(allocator, payload.details);
+    for (payloads, 0..) |payload, i| details[i] = rawValue(payload.details);
     try owned.root.object.put("payload_details", .{ .array = .{ .items = details, .capacity = details.len, .allocator = allocator } });
     const tx = try types.requestPtr(&owned.root);
     try tx.object.put("to", .{ .string = try abi.hexAlloc(allocator, &batch_address) });
