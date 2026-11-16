@@ -1244,9 +1244,13 @@ test "curl multi reuses one keepalive connection across idle gaps between transf
     defer fixture.server.deinit();
     const thread = try std.Thread.spawn(.{}, KeepaliveFixture.serve, .{&fixture});
     // Declared after the fixture thread: deinit closes the kept connection
-    // (EOF for a fixture still reading) before the join below.
+    // (EOF for a fixture still reading) before the join below; an empty
+    // connection ends a fixture still blocked in accept.
     var joined = false;
-    defer if (!joined) thread.join();
+    defer if (!joined) {
+        if (std.net.tcpConnectToAddress(fixture.server.listen_address)) |stream| stream.close() else |_| {}
+        thread.join();
+    };
     const multi = try Multi.init(allocator, .{ .library_path = library, .max_concurrent = 2, .max_pending = 2 });
     var multi_open = true;
     defer if (multi_open) multi.deinit();
@@ -1308,7 +1312,12 @@ test "curl multi stops watching an idle keepalive socket its peer closed and rec
     defer fixture.server.deinit();
     const thread = try std.Thread.spawn(.{}, ClosingFixture.serve, .{&fixture});
     var joined = false;
-    defer if (!joined) thread.join();
+    // On failure the fixture may still block in accept for its next
+    // connection: an empty connection ends it (EOF), then join.
+    defer if (!joined) {
+        if (std.net.tcpConnectToAddress(fixture.server.listen_address)) |stream| stream.close() else |_| {}
+        thread.join();
+    };
     const multi = try Multi.init(allocator, .{ .library_path = library, .max_concurrent = 2, .max_pending = 2 });
     var multi_open = true;
     defer if (multi_open) multi.deinit();
@@ -1325,7 +1334,9 @@ test "curl multi stops watching an idle keepalive socket its peer closed and rec
         try multi.wait(timer.read() / std.time.ns_per_ms, 20);
     }
     try std.testing.expect(multi.waits - waits == 10);
-    try std.testing.expectEqual(registrations + 1, multi.registrations);
+    // One deregistration at most: when the FIN arrives with the response,
+    // libcurl closes the connection itself (counted before the snapshot).
+    try std.testing.expect(multi.registrations - registrations <= 1);
     try std.testing.expect(timer.read() >= 150 * std.time.ns_per_ms);
     try driveFast(multi, url, &timer);
     try std.testing.expectEqual(@as(u64, 0), multi.unreported_closes);
