@@ -1633,7 +1633,7 @@ pub const LocalPublisher = struct {
     }
     fn fetch(ctx: *anyopaque, index: u32) !?objects.SignedCheckpoint {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));
-        return self.store.fetchCheckpoint(index);
+        return self.store.probeCheckpoint(index);
     }
     fn guard(ctx: *anyopaque) !bool {
         const self: *LocalPublisher = @ptrCast(@alignCast(ctx));

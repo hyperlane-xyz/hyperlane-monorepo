@@ -45,6 +45,13 @@ pub const LocalStore = struct {
     /// the snapshot reuse the verification only when the on-disk object is
     /// identical; anything else is recovered again (fail closed).
     recent: objects.RecentVerified = .{},
+    /// Indices whose pre-sign probe (probeCheckpoint) by this writer found
+    /// no object. Each is honoured once, by the next write of that index,
+    /// and only within absent_ttl_ns of the probe. Guarded by `mutex`.
+    absent: [64]Absent = @splat(.{}),
+    absent_next: usize = 0,
+    const Absent = struct { index: u32 = 0, at: ?std.time.Instant = null };
+    const absent_ttl_ns = std.time.ns_per_s;
 
     /// Opens its own directory handle; the caller retains ownership of parent.
     /// Read-only readers neither create paths nor participate in writer locking.
@@ -79,7 +86,10 @@ pub const LocalStore = struct {
 
     fn readObject(self: *LocalStore, name: []const u8) !?[]u8 {
         const bytes = self.dir.readFileAlloc(self.allocator, name, self.options.max_bytes - 1) catch |err| switch (err) {
-            error.FileNotFound => return null,
+            error.FileNotFound => {
+                if (@import("builtin").is_test) _ = test_missing_reads.fetchAdd(1, .monotonic);
+                return null;
+            },
             else => return err,
         };
         return bytes;
@@ -93,6 +103,31 @@ pub const LocalStore = struct {
         const signed = try objects.SignedCheckpoint.parse(self.allocator, bytes);
         if (signed.value.index != index) return error.WrongCheckpointIndex;
         return signed;
+    }
+
+    /// fetchCheckpoint for a writer's pre-sign probe. A miss lets the next
+    /// write of this index skip re-reading the object this writer just found
+    /// absent; that write's conflict inspection otherwise runs unchanged.
+    pub fn probeCheckpoint(self: *LocalStore, index: u32) !?objects.SignedCheckpoint {
+        const found = try self.fetchCheckpoint(index);
+        if (found == null and !self.options.read_only) {
+            const now = std.time.Instant.now() catch return null;
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            self.absent[self.absent_next] = .{ .index = index, .at = now };
+            self.absent_next = (self.absent_next + 1) % self.absent.len;
+        }
+        return found;
+    }
+
+    /// One-shot: consumes the entry for `index`, honouring it only if fresh.
+    fn takeAbsentLocked(self: *LocalStore, index: u32) bool {
+        for (&self.absent) |*entry| if (entry.at) |at| if (entry.index == index) {
+            entry.at = null;
+            const now = std.time.Instant.now() catch return false;
+            return now.since(at) <= absent_ttl_ns;
+        };
+        return false;
     }
 
     pub fn latestIndex(self: *LocalStore) !?u32 {
@@ -245,6 +280,7 @@ pub const LocalStore = struct {
 
     fn inspectCheckpointLocked(self: *LocalStore, value: objects.Checkpoint, unix_timestamp: u64) !WriteResult {
         const expected_signer = self.options.signer orelse return error.MissingStoreSigner;
+        if (self.takeAbsentLocked(value.index)) return .written;
         var result: WriteResult = .written;
         if (try self.fetchCheckpoint(value.index)) |existing| {
             const existing_signer = try existing.recover();
@@ -348,6 +384,9 @@ pub const LocalStore = struct {
         try self.atomicWrite("reorg_flag.json", bytes);
     }
 };
+
+/// Test-only count of object reads that found no file.
+pub var test_missing_reads: std.atomic.Value(usize) = .init(0);
 
 /// Fault injection exists only in test binaries: production batch writes
 /// always reach the directory fsync.
@@ -681,4 +720,34 @@ test "verified checkpoint writes skip recovery but still require the configured 
     next.index = 1;
     try std.testing.expectError(error.WrongStoreSigner, store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&other, next, null), 1));
     try std.testing.expect(try store.fetchCheckpoint(1) == null);
+}
+
+test "a writer's absent pre-sign probe is honoured once by the next write and never by readers" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const allocator = std.testing.allocator;
+    const key: objects.Hash = .{0x11} ** 32;
+    var store = try LocalStore.open(allocator, tmp.dir, "store", try testOptions(key));
+    defer store.deinit();
+    var signing = try protocol.signature.SigningKey.init(key);
+    defer signing.deinit();
+    const first = try VerifiedCheckpoint.signWith(&signing, (try testCheckpoint(0, 1, key)).value, null);
+    try std.testing.expect(try store.probeCheckpoint(0) == null);
+    const before = test_missing_reads.load(.monotonic);
+    try std.testing.expectEqual(WriteResult.written, try store.writeVerifiedCheckpoint(first, 1));
+    // Only the reorg-flag check missed; the absent object was not re-read.
+    try std.testing.expectEqual(before + 1, test_missing_reads.load(.monotonic));
+    // One-shot: a later write inspects durable state again.
+    try std.testing.expectEqual(WriteResult.already_present, try store.writeVerifiedCheckpoint(first, 2));
+    // The batch write consumes its entry; the next write of that index
+    // inspects durable state and finds the same-signer conflict.
+    try std.testing.expect(try store.probeCheckpoint(1) == null);
+    const late = try testCheckpoint(1, 2, key);
+    var other = try LocalStore.open(allocator, tmp.dir, "store", .{});
+    defer other.deinit();
+    try std.testing.expect(try other.probeCheckpoint(2) == null);
+    for (other.absent) |entry| try std.testing.expect(entry.at == null);
+    const batch = [_]VerifiedCheckpoint{try VerifiedCheckpoint.signWith(&signing, late.value, null)};
+    try store.writeVerifiedCheckpoints(&batch, 3);
+    try std.testing.expectError(error.ConflictingSignedCheckpoint, store.writeVerifiedCheckpoint(try VerifiedCheckpoint.signWith(&signing, (try testCheckpoint(1, 3, key)).value, null), 4));
 }
