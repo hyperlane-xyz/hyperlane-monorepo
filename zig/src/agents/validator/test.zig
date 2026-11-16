@@ -96,6 +96,7 @@ test "durable reservation and signature resume latest and snapshot failures late
     var opened = true;
     defer if (opened) db.deinit();
     var service = try validator.Service.open(a, &db, try options(5));
+    defer service.deinit();
     try observe(&service, 6);
     var fake = Fake.init(a);
     defer fake.deinit();
@@ -111,6 +112,7 @@ test "durable reservation and signature resume latest and snapshot failures late
     opened = false;
     db = try rocks.Database.open(a, p, .{ .create_if_missing = false });
     opened = true;
+    service.deinit();
     service = try validator.Service.open(a, &db, try options(5));
     try std.testing.expectEqual(@as(u32, 2), (try service.reservation()).?.index);
     fake.fail_latest = false;
@@ -143,6 +145,7 @@ test "configured vote denominator retains failures and conflicts below signed wa
     var db = try rocks.Database.open(a, p, .{});
     defer db.deinit();
     var service = try validator.Service.open(a, &db, try options(4));
+    defer service.deinit();
     try observe(&service, 3);
     const c = try service.checkpoint(2);
     try std.testing.expectEqual(@as(?validator.Checkpoint, null), try service.authorize(&.{ c, c, null, null }, 100));
@@ -155,6 +158,7 @@ test "configured vote denominator retains failures and conflicts below signed wa
     conflict.root = @splat(0xee);
     try std.testing.expectError(error.FinalizedHistoryConflict, service.authorize(&.{ conflict, conflict, conflict, null }, 103));
     var replay = try validator.Service.open(a, &db, try options(4));
+    defer replay.deinit();
     try std.testing.expect(replay.halted);
     try std.testing.expectError(error.ValidatorHalted, replay.publishNext(fake.signer(), fake.publisher(), 104, 1));
     try std.testing.expect(fake.reorged);
@@ -168,6 +172,7 @@ test "preexisting same signer conflicting remote checkpoint prevents signature a
     var db = try rocks.Database.open(a, p, .{});
     defer db.deinit();
     var service = try validator.Service.open(a, &db, try options(1));
+    defer service.deinit();
     try observe(&service, 1);
     const c = try service.checkpoint(0);
     _ = try service.authorize(&.{c}, 100);
@@ -179,7 +184,8 @@ test "preexisting same signer conflicting remote checkpoint prevents signature a
     try std.testing.expectError(error.FinalizedHistoryConflict, service.publishNext(fake.signer(), fake.publisher(), 101, 1));
     try std.testing.expectEqual(@as(usize, 0), fake.sign_count);
     try std.testing.expect(fake.reorged);
-    const replay = try validator.Service.open(a, &db, try options(1));
+    var replay = try validator.Service.open(a, &db, try options(1));
+    defer replay.deinit();
     try std.testing.expect(replay.halted);
 }
 test "history exceeds in-memory model capacities and publication tick stays bounded" {
@@ -191,6 +197,7 @@ test "history exceeds in-memory model capacities and publication tick stays boun
     var db = try rocks.Database.open(a, p, .{});
     defer db.deinit();
     var service = try validator.Service.open(a, &db, try options(1));
+    defer service.deinit();
     try observe(&service, 137);
     _ = try service.authorize(&.{try service.checkpoint(136)}, 100);
     var fake = Fake.init(a);
@@ -212,6 +219,7 @@ test "actual durable local checkpoint publisher latest-first snapshot and restar
     defer db.deinit();
     const opts = try options(1);
     var service = try validator.Service.open(a, &db, opts);
+    defer service.deinit();
     try observe(&service, 4);
     const LocalStore = @import("../../storage/local.zig").LocalStore;
     var store = try LocalStore.open(a, temp.dir, "checkpoints", .{ .read_only = false, .signer = opts.signer_address });
@@ -232,6 +240,7 @@ test "actual durable local checkpoint publisher latest-first snapshot and restar
     try std.testing.expectEqual(@as(u32, 4), restored.count);
     try std.testing.expectEqualSlices(u8, &service.tree.root(), &restored.root());
     var replay = try validator.Service.open(a, &db, opts);
+    defer replay.deinit();
     try std.testing.expectEqual(@as(usize, 0), try replay.publishNext(signer.interface(), publisher.interface(), 103, 64));
 }
 const Polling = struct {
@@ -262,6 +271,7 @@ test "bounded driver replays 64 observations and retains unavailable configured 
     defer db.deinit();
     const opts = try options(4);
     var service = try validator.Service.open(a, &db, opts);
+    defer service.deinit();
     var tree = protocol.IncrementalMerkle.init();
     for (0..137) |i| {
         var id: validator.Hash = @splat(0);
@@ -356,6 +366,7 @@ test "remote snapshot resumes live indexing while bounded durable prefix repair 
     defer fake.deinit();
     try seededHistory(&fake, opts, 5, &.{ 1, 3 });
     var service = try validator.Service.open(a, &db, opts);
+    defer service.deinit();
     try std.testing.expect(try service.bootstrap(fake.publisher()));
     try std.testing.expectEqual(@as(u32, 5), service.tree.count);
     try std.testing.expect(!service.repair_complete);
@@ -376,6 +387,7 @@ test "remote snapshot resumes live indexing while bounded durable prefix repair 
     opened = false;
     db = try rocks.Database.open(a, p, .{ .create_if_missing = false });
     opened = true;
+    service.deinit();
     service = try validator.Service.open(a, &db, opts);
     try std.testing.expectEqual(@as(u32, 6), service.tree.count);
     try std.testing.expect(!service.repair_complete);
@@ -403,6 +415,7 @@ test "remote snapshot tampering wrong signer and durable backend guard never see
     defer fake.deinit();
     try seededHistory(&fake, opts, 3, &.{});
     var service = try validator.Service.open(a, &db, opts);
+    defer service.deinit();
     fake.snapshot.?.root[0] ^= 1;
     try std.testing.expectError(error.SnapshotCheckpointMismatch, service.bootstrap(fake.publisher()));
     try std.testing.expectEqual(@as(u32, 0), service.tree.count);
@@ -413,7 +426,8 @@ test "remote snapshot tampering wrong signer and durable backend guard never see
     try std.testing.expectEqual(@as(u32, 0), service.tree.count);
     fake.reorged = true;
     try std.testing.expectError(error.ValidatorHalted, service.bootstrap(fake.publisher()));
-    const replay = try validator.Service.open(a, &db, opts);
+    var replay = try validator.Service.open(a, &db, opts);
+    defer replay.deinit();
     try std.testing.expect(replay.halted);
     try std.testing.expectEqual(@as(usize, 0), fake.sign_count);
 }
@@ -433,10 +447,12 @@ test "snapshot prefix repair never signs RPC holes whose replay conflicts with t
     wrong.root = @splat(0xee);
     try fake.checkpoints.put(0, try objects.SignedCheckpoint.sign(wrong, key, null));
     var service = try validator.Service.open(a, &db, opts);
+    defer service.deinit();
     _ = try service.bootstrap(fake.publisher());
     try std.testing.expectError(error.FinalizedHistoryConflict, service.repairHistory(fake.publisher(), &fake, Polling.insertion, 1000, 64, 100));
     try std.testing.expectEqual(@as(usize, 0), fake.sign_count);
-    const replay = try validator.Service.open(a, &db, opts);
+    var replay = try validator.Service.open(a, &db, opts);
+    defer replay.deinit();
     try std.testing.expect(replay.halted);
 }
 fn noCloud(_: *anyopaque, _: std.mem.Allocator, _: @import("../../cloud/http.zig").Request) anyerror!@import("../../cloud/http.zig").Response {
@@ -494,6 +510,7 @@ test "native unsigned suffix rollback preserves committed signed prefix and surv
     defer if (opened) db.deinit();
     const opts = try options(1);
     var service = try validator.Service.open(a, &db, opts);
+    defer service.deinit();
     try observe(&service, 1);
     _ = try service.authorize(&.{try service.checkpoint(0)}, 100);
     var fake = Fake.init(a);
@@ -511,6 +528,7 @@ test "native unsigned suffix rollback preserves committed signed prefix and surv
     opened = false;
     db = try rocks.Database.open(a, p, .{ .create_if_missing = false });
     opened = true;
+    service.deinit();
     service = try validator.Service.open(a, &db, opts);
     try std.testing.expectEqual(@as(u32, 1), service.tree.count);
     for (1..3) |i| try service.observe(@intCast(i), (try Polling.insertion(&fake, @intCast(i), 1000)).?, 1000);
@@ -528,11 +546,13 @@ test "RPC-authenticated committed prefix conflict halts even when signer never c
     defer db.deinit();
     const opts = try options(1);
     var service = try validator.Service.open(a, &db, opts);
+    defer service.deinit();
     try observe(&service, 1);
     _ = try service.authorize(&.{try service.checkpoint(0)}, 100);
     try std.testing.expect(service.signed_watermark == null);
     try std.testing.expectError(error.FinalizedHistoryConflict, service.verifyCommitted(0, @splat(0xee), 101));
-    const replay = try validator.Service.open(a, &db, opts);
+    var replay = try validator.Service.open(a, &db, opts);
+    defer replay.deinit();
     try std.testing.expect(replay.halted);
 }
 test "same-block provenance change remains recoverable until prefix RPC authorization" {
@@ -544,6 +564,7 @@ test "same-block provenance change remains recoverable until prefix RPC authoriz
     var db = try rocks.Database.open(a, p, .{});
     defer db.deinit();
     var state = try validator.Service.open(a, &db, try options(1));
+    defer state.deinit();
     const old: validator.Observation = .{ .message_id = @splat(1), .block_height = 10, .block_hash = @splat(2) };
     const next: validator.Observation = .{ .message_id = @splat(3), .block_height = 10, .block_hash = @splat(4) };
     try state.observe(0, old, 20);
@@ -601,6 +622,7 @@ test "unknown stream header hash transitions to canonical RPC within the same bl
     var db = try rocks.Database.open(a, p, .{});
     defer db.deinit();
     var state = try validator.Service.open(a, &db, try options(1));
+    defer state.deinit();
     try state.observe(0, .{ .message_id = @splat(1), .block_height = 100, .block_hash = @splat(0) }, 100);
     _ = try state.authorize(&.{try state.checkpoint(0)}, 1);
     try state.observe(0, .{ .message_id = @splat(1), .block_height = 100, .block_hash = @splat(0xaa) }, 100);
@@ -610,6 +632,7 @@ test "unknown stream header hash transitions to canonical RPC within the same bl
     var opts = try options(1);
     opts.domain_name = "known-provenance";
     var known = try validator.Service.open(a, &db, opts);
+    defer known.deinit();
     try known.observe(0, .{ .message_id = @splat(1), .block_height = 100, .block_hash = @splat(0xaa) }, 100);
     _ = try known.authorize(&.{try known.checkpoint(0)}, 1);
     try std.testing.expectError(error.FinalizedHistoryConflict, known.observe(1, .{ .message_id = @splat(2), .block_height = 100, .block_hash = @splat(0xbb) }, 100));
@@ -628,6 +651,7 @@ test "root-checked insertion leaf from a non-canonical log is never signed" {
     var db = try rocks.Database.open(a, p, .{});
     defer db.deinit();
     var service = try validator.Service.open(a, &db, try options(2));
+    defer service.deinit();
     var canonical = protocol.IncrementalMerkle.init();
     for (0..3) |i| {
         var id: validator.Hash = @splat(0);
@@ -767,6 +791,7 @@ test "batched new-leaf observation matches per-leaf observe and commits the vali
     var db = try rocks.Database.open(a, p, .{});
     defer db.deinit();
     var single = try validator.Service.open(a, &db, try options(1));
+    defer single.deinit();
     try observe(&single, 6);
     const expected = single.tree.root();
     var other_temp = std.testing.tmpDir(.{});
@@ -776,6 +801,7 @@ test "batched new-leaf observation matches per-leaf observe and commits the vali
     var other_db = try rocks.Database.open(a, q, .{});
     defer other_db.deinit();
     var batched = try validator.Service.open(a, &other_db, try options(1));
+    defer batched.deinit();
     var leaves: [6]validator.Observation = undefined;
     for (&leaves, 0..) |*leaf, i| {
         var id: validator.Hash = @splat(0);
@@ -795,6 +821,43 @@ test "batched new-leaf observation matches per-leaf observe and commits the vali
     for (0..6) |i| try std.testing.expectEqual(try single.checkpoint(@intCast(i)), try batched.checkpoint(@intCast(i)));
     // The batched frontier survives reopen exactly like per-leaf commits.
     var reopened = try validator.Service.open(a, &other_db, try options(1));
+    defer reopened.deinit();
     try std.testing.expectEqual(@as(u32, 6), reopened.tree.count);
     try std.testing.expectEqualSlices(u8, &expected, &reopened.tree.root());
+}
+
+test "pending set rebuilds from the DB after a commit with unknown outcome and across restart" {
+    const a = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const p = try path(a, &temp);
+    defer a.free(p);
+    var db = try rocks.Database.open(a, p, .{});
+    var opened = true;
+    defer if (opened) db.deinit();
+    var service = try validator.Service.open(a, &db, try options(1));
+    defer service.deinit();
+    try observe(&service, 6);
+    _ = try service.authorize(&.{try service.checkpoint(5)}, 100);
+    var fake = Fake.init(a);
+    defer fake.deinit();
+    // The completion commit (retiring index 5) lands but reports failure.
+    validator.TestWalFault.outcome_unknown.store(true, .release);
+    try std.testing.expectError(error.InjectedWalOutcomeUnknown, service.publishNext(fake.signer(), fake.publisher(), 101, 1));
+    try std.testing.expect(service.pending_stale);
+    // The next read rebuilds from the DB (the test oracle compares every lookup).
+    try std.testing.expect(try service.hasPendingPublication());
+    try std.testing.expect(!service.pending_stale);
+    // Crash point: reopen rebuilds the same set from the WAL tables.
+    service.deinit();
+    db.deinit();
+    opened = false;
+    db = try rocks.Database.open(a, p, .{ .create_if_missing = false });
+    opened = true;
+    service = try validator.Service.open(a, &db, try options(1));
+    try std.testing.expectEqual(@as(?u32, 5), service.latest_published);
+    _ = try service.authorize(&.{try service.checkpoint(5)}, 102);
+    try std.testing.expectEqual(@as(usize, 5), try service.publishNext(fake.signer(), fake.publisher(), 103, 64));
+    try std.testing.expect(!try service.hasPendingPublication());
+    try std.testing.expectEqual(@as(usize, 6), fake.sign_count);
 }
