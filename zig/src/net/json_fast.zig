@@ -20,22 +20,32 @@ const Mode = enum { facts, tree };
 
 /// Facts of `input` exactly as `env.scan` would report them, or null.
 pub fn scan(scratch: A, input: []const u8, depth_limit: ?usize) !?env.Top {
-    var walker: Walker(.facts) = .{ .input = input, .scratch = scratch, .limit = depth_limit orelse default_depth };
+    var walker: Walker(.facts, env.Name) = .{ .input = input, .scratch = scratch, .limit = depth_limit orelse default_depth };
     defer walker.deinit();
     if (!try walker.run()) return null;
+    walker.top.members = walker.found;
     return walker.top;
+}
+
+/// Spans of the named members of the object document `input` (a result
+/// span), or null when it is not an object or the walker bails.
+pub fn fields(comptime Names: type, scratch: A, input: []const u8) !?[@typeInfo(Names).@"enum".fields.len]?env.Member {
+    var walker: Walker(.facts, Names) = .{ .input = input, .scratch = scratch, .limit = default_depth };
+    defer walker.deinit();
+    if (!try walker.run() or !walker.top.object) return null;
+    return walker.found;
 }
 
 /// The tree `env.parseValue` builds (strings/numbers borrowed from `input`,
 /// escaped strings decoded into `arena`), or null.
 pub fn parse(arena: A, scratch: A, input: []const u8, parse_numbers: bool) !?Value {
-    var walker: Walker(.tree) = .{ .input = input, .scratch = scratch, .arena = arena, .parse_numbers = parse_numbers, .limit = default_depth };
+    var walker: Walker(.tree, env.Name) = .{ .input = input, .scratch = scratch, .arena = arena, .parse_numbers = parse_numbers, .limit = default_depth };
     defer walker.deinit();
     if (!try walker.run()) return null;
     return walker.root;
 }
 
-fn Walker(comptime mode: Mode) type {
+fn Walker(comptime mode: Mode, comptime Names: type) type {
     return struct {
         const Self = @This();
         const Frame = if (mode == .facts) struct { object: bool, start: usize, keys_start: usize, map: ?*KeySet = null } else struct { value: Value, key: ?[]const u8 = null };
@@ -50,7 +60,8 @@ fn Walker(comptime mode: Mode) type {
         keys: std.ArrayList([]const u8) = .empty,
         top: env.Top = .{},
         root: Value = .null,
-        member: ?env.Name = null,
+        member: ?Names = null,
+        found: [@typeInfo(Names).@"enum".fields.len]?env.Member = @splat(null),
         member_start: usize = 0,
 
         fn deinit(self: *Self) void {
@@ -176,7 +187,7 @@ fn Walker(comptime mode: Mode) type {
             const frame = &self.frames.items[self.frames.items.len - 1];
             if (mode == .facts) {
                 if (frame.object and self.frames.items.len == 1) if (self.member) |name| {
-                    self.top.members[@intFromEnum(name)] = .{ .span = .{ .start = self.member_start, .end = span.end }, .kind = kind };
+                    self.found[@intFromEnum(name)] = .{ .span = .{ .start = self.member_start, .end = span.end }, .kind = kind };
                     self.member = null;
                 };
                 return true;
@@ -221,7 +232,7 @@ fn Walker(comptime mode: Mode) type {
                     for (self.keys.items[frame.keys_start..]) |existing| try map.put(self.scratch, existing, {});
                 }
             }
-            if (self.frames.items.len == 1) self.member = std.meta.stringToEnum(env.Name, name);
+            if (self.frames.items.len == 1) self.member = std.meta.stringToEnum(Names, name);
             return true;
         }
 
