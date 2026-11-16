@@ -207,8 +207,10 @@ pub const Lane = struct {
         self.worker.deinit();
         for (&self.poll_arenas) |*slot| if (slot.*) |*arena| arena.deinit();
         if (self.endpoint_chain_checked) |checked| self.owner.allocator.free(checked);
+        // Finish every item's metrics before freeing any: syncQueueStatus walks
+        // all of `active`, so a destroyed earlier item would be read after free.
+        for (self.active.items) |item| self.finishActiveMetrics(item, .cancelled);
         for (self.active.items) |item| {
-            self.finishActiveMetrics(item, .cancelled);
             self.owner.release(item.retained_bytes);
             item.deinit();
             self.owner.allocator.destroy(item);
