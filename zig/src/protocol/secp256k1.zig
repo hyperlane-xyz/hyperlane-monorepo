@@ -259,6 +259,92 @@ pub fn mulDoubleBasePublic(g_scalar: [32]u8, r: Point, r_scalar: [32]u8) !Point 
     return q;
 }
 
+/// Bit offsets at which each GLV half (< 2^128) is cut for `mulSignerPublic`.
+/// Multiples of comb_bits, so G's upper chunks reuse comb rows; the longest
+/// chunk is 35 bits, so the shared doubling chain is at most 36 long.
+const chunk_offsets = [4]u8{ 0, 35, 65, 100 };
+
+/// A signer's fixed public point Q as affine width-8 odd-multiple tables of
+/// 2^o * Q for every chunk offset o. Built once per key (16 KiB).
+pub const SignerTable = struct {
+    chunks: [chunk_offsets.len]WideTable,
+
+    pub fn init(q: Point) SignerTable {
+        var table: SignerTable = undefined;
+        var shifted = q;
+        var at: u8 = 0;
+        for (&table.chunks, chunk_offsets) |*shifted_table, offset| {
+            while (at < offset) : (at += 1) shifted = shifted.dbl();
+            shifted_table.* = WideTable.init(shifted);
+        }
+        return table;
+    }
+};
+
+/// Chunk `i` of a GLV half: bits [chunk_offsets[i], chunk_offsets[i + 1]).
+fn chunk(value: u256, comptime i: usize) u256 {
+    const low = value >> chunk_offsets[i];
+    if (i + 1 == chunk_offsets.len) return low;
+    return low & ((@as(u256, 1) << (chunk_offsets[i + 1] - chunk_offsets[i])) - 1);
+}
+
+/// Variable-time g_scalar*G + q_scalar*Q for PUBLIC scalars and a signer's
+/// precomputed Q (signature self-verification). Scalars are canonical
+/// little-endian. Both scalars are GLV-split and each half cut into four
+/// chunks, so every term is a fixed-base lookup on a <= 36-step doubling
+/// chain: G's low chunk uses width-8 wNAF over the odd table, its upper
+/// chunks width-5 wNAF over comb rows (entry j-1 holds j * 2^(5 i) * G); Q's
+/// chunks width-8 wNAF over the SignerTable. May return the identity.
+pub fn mulSignerPublic(table: *const SignerTable, g_scalar: [32]u8, q_scalar: [32]u8) error{ NonCanonical, GlvBound }!Point {
+    const Half = @typeInfo(@typeInfo(@TypeOf(half)).@"fn".return_type.?).error_union.payload;
+    const g_split = try Endomorphism.splitScalar(g_scalar, .little);
+    const q_split = try Endomorphism.splitScalar(q_scalar, .little);
+    const g_halves = [2]Half{ try half(g_split.r1), try half(g_split.r2) };
+    const q_halves = [2]Half{ try half(q_split.r1), try half(q_split.r2) };
+    var g_nafs: [2][chunk_offsets.len]WnafDigits = undefined;
+    var q_nafs: [2][chunk_offsets.len]WnafDigits = undefined;
+    var top: usize = 0;
+    inline for (0..2) |part| {
+        inline for (0..chunk_offsets.len) |i| {
+            g_nafs[part][i] = wnaf(if (i == 0) 8 else comb_bits, chunk(g_halves[part].value, i));
+            q_nafs[part][i] = wnaf(8, chunk(q_halves[part].value, i));
+            top = @max(top, @max(g_nafs[part][i].len, q_nafs[part][i].len));
+        }
+    }
+    var q = Point.identity;
+    var pos = top;
+    while (pos > 0) {
+        pos -= 1;
+        q = q.dbl();
+        inline for (0..2) |part| {
+            inline for (0..chunk_offsets.len) |i| {
+                const d = g_nafs[part][i].digits[pos];
+                if (d != 0) {
+                    const g = if (i == 0) entry(&tables.odd[@abs(d) >> 1]) else entry(&tables.comb[chunk_offsets[i] / comb_bits][@abs(d) - 1]);
+                    const term: Affine = if (part == 0) g else .{ .x = g.x.mul(beta), .y = g.y };
+                    q = q.addMixed(if ((d < 0) != g_halves[part].negative) term.neg() else term);
+                }
+            }
+            inline for (0..chunk_offsets.len) |i| {
+                const d = q_nafs[part][i].digits[pos];
+                if (d != 0) {
+                    const base = table.chunks[i].odd[@abs(d) >> 1];
+                    const term: Affine = if (part == 0) base else .{ .x = base.x.mul(beta), .y = base.y };
+                    q = q.addMixed(if ((d < 0) != q_halves[part].negative) term.neg() else term);
+                }
+            }
+        }
+    }
+    return q;
+}
+
+/// Projective q equals the affine point a: q is not the identity, X == a.x*Z
+/// and Y == a.y*Z. No inversion; variable time (public inputs only).
+pub fn equalsAffine(q: Point, a: Affine) bool {
+    if (q.isIdentity()) return false;
+    return q.x.equivalent(a.x.mul(q.z)) and q.y.equivalent(a.y.mul(q.z));
+}
+
 const Std = std.crypto.ecc.Secp256k1;
 
 fn scalarBytes(v: u256) [32]u8 {
@@ -388,4 +474,50 @@ test "wide fixed-point table holds affine odd multiples and verification combina
         const expected = (try Std.mulDoubleBasePublic(Std.basePoint, scalarBytes(a), reference_q, scalarBytes(b), .little)).add(try reference_r.mulPublic(scalarBytes(c), .little));
         try std.testing.expect(try sameAsStd(got, expected));
     }
+}
+
+test "signer table chunks hold 2^o * Q and signer multiplication matches std" {
+    var prng = std.Random.DefaultPrng.init(0x7369676e);
+    const n = scalar.field_order;
+    const lambda: u256 = 37718080363155996902926221483475020450927657555482586988616620542887997980018;
+    const reference_q = try Std.basePoint.mul(scalarBytes(prng.random().int(u256) % (n - 1) + 1), .little);
+    const table = SignerTable.init(try fromStd(reference_q));
+    for (table.chunks, chunk_offsets) |chunk_table, offset| {
+        var shifted = reference_q;
+        for (0..offset) |_| shifted = shifted.dbl();
+        try std.testing.expect(try sameAsStd(Point.fromAffine(chunk_table.odd[0]), shifted));
+        try std.testing.expect(try sameAsStd(Point.fromAffine(chunk_table.odd[63]), try shifted.mulPublic(scalarBytes(127), .little)));
+    }
+    // Scalars whose GLV halves sit at chunk boundaries, all-ones chunks and
+    // both 128-bit bands, plus random ones.
+    const edges = [_]u256{ 0, 1, 2, n - 1, n - 2, n / 2, lambda, n - lambda, (1 << 35) - 1, 1 << 35, (1 << 65) - 1, 1 << 65, (1 << 100) - 1, 1 << 100, (1 << 128) - 1, 1 << 128, repeated(0xff) % n, repeated(0x80), repeated(0x55) };
+    for (0..edges.len * edges.len + 2000) |i| {
+        const a: u256 = if (i < edges.len * edges.len) edges[i % edges.len] else prng.random().int(u256) % n;
+        const b: u256 = if (i < edges.len * edges.len) edges[i / edges.len] else prng.random().int(u256) % n;
+        const got = try mulSignerPublic(&table, scalarBytes(a), scalarBytes(b));
+        const expected = Std.mulDoubleBasePublic(Std.basePoint, scalarBytes(a), reference_q, scalarBytes(b), .little) catch {
+            try std.testing.expect(got.isIdentity());
+            continue;
+        };
+        try std.testing.expect(try sameAsStd(got, expected));
+        try std.testing.expect(equalsAffine(got, try got.affine()));
+    }
+    // ug*G + ur*Q is the identity when ug = -ur*c for Q = cG.
+    const c: u256 = 0xC0FFEE;
+    const small = SignerTable.init(try mulBase(scalarBytes(c)));
+    try std.testing.expect((try mulSignerPublic(&small, scalarBytes(n - (777 * c) % n), scalarBytes(777))).isIdentity());
+}
+
+test "projective comparison binds both coordinates and rejects the identity" {
+    const point = try mulBase(scalarBytes(0x1234));
+    const a = try point.affine();
+    // A non-trivial Z: the same point as (X*t : Y*t : Z*t).
+    const t: Fe = .{ .v = 0x9876543210 };
+    const scaled: Point = .{ .x = point.x.mul(t), .y = point.y.mul(t), .z = point.z.mul(t) };
+    try std.testing.expect(equalsAffine(scaled, a));
+    try std.testing.expect(!equalsAffine(scaled, a.neg()));
+    try std.testing.expect(!equalsAffine(scaled.neg(), a));
+    try std.testing.expect(!equalsAffine(scaled, .{ .x = a.x.add(Fe.one), .y = a.y }));
+    try std.testing.expect(!equalsAffine(Point.identity, a));
+    try std.testing.expect(!equalsAffine(.{ .x = Fe.zero, .y = a.y, .z = Fe.zero }, .{ .x = Fe.zero, .y = a.y }));
 }

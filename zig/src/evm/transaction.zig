@@ -96,11 +96,14 @@ pub const Transaction = union(enum) {
         return crypto.recover(try self.signingHash(allocator), signature);
     }
 
-    /// Accepts canonical recoverable Ethereum signatures (v=27/28, low s).
-    /// A recovered address alone does not authorize a sender; callers must match
-    /// it to their configured signer before submission.
+    /// Accepts canonical Ethereum signature encodings (v=27/28, nonzero
+    /// canonical r, low s). Encoding does not authenticate: callers must
+    /// establish the signer first, by `recoverSigner` matched to their
+    /// configured signer or by signing locally with a check against Q.
+    /// A signature produced outside this process (KMS, remote signer) must be
+    /// verified with `recoverSigner` against the expected signer first.
     pub fn encodeSigned(self: Transaction, allocator: Allocator, signature: Signature) ![]u8 {
-        _ = try self.recoverSigner(allocator, signature);
+        _ = try crypto.canonicalScalars(signature);
         var fields: Bytes = .empty;
         defer fields.deinit(allocator);
         try self.appendFields(allocator, &fields);
@@ -120,14 +123,12 @@ pub const Transaction = union(enum) {
 
     pub fn sign(self: Transaction, allocator: Allocator, secret_key: Hash, noise: ?Hash) !SignedTransaction {
         const digest = try self.signingHash(allocator);
-        const signature = try crypto.signDigest(secret_key, digest, noise);
-        const signer = try crypto.secretKeyAddress(secret_key);
-        const recovered = try crypto.recover(digest, signature);
-        if (!std.mem.eql(u8, &signer, &recovered)) return error.SignerMismatch;
-        const bytes = try self.encodeSigned(allocator, signature);
+        // Verified against Q = d*G before release; recovers to `address`.
+        const signed = try crypto.signDigestWithAddress(secret_key, digest, noise);
+        const bytes = try self.encodeSigned(allocator, signed.signature);
         var hash: Hash = undefined;
         std.crypto.hash.sha3.Keccak256.hash(bytes, &hash, .{});
-        return .{ .allocator = allocator, .bytes = bytes, .hash = hash, .signature = signature, .signer = signer };
+        return .{ .allocator = allocator, .bytes = bytes, .hash = hash, .signature = signed.signature, .signer = signed.address };
     }
 
     fn envelope(self: Transaction, allocator: Allocator, fields: []const u8) ![]u8 {
@@ -258,6 +259,35 @@ test "EIP-155 reference transaction and independent Foundry EIP-1559 vector" {
     try std.testing.expectEqualStrings("0x02f8730109843b9aca008504a817c800" ++ "82520894353535353535353535353535" ++ "3535353535353535880de0b6b3a76400" ++ "0080c080a04e87ced8b47d801c979c6b" ++ "aa52bbd78b42c9db2515c9d1f473e06f" ++ "65d49aaa90a02357671517c59544ebd9" ++ "5012d1988c102292eb570cc840ac9af7" ++ "2bb4c52e5edd", typed_encoded);
     try std.testing.expectEqual(try crypto.secretKeyAddress(key), signed.signer);
     try std.testing.expectEqual(signed.signer, try legacy.recoverSigner(allocator, signed.signature));
+}
+
+test "signed encoding rejects noncanonical signatures and local signing recovers its signer" {
+    const allocator = std.testing.allocator;
+    const n = std.crypto.ecc.Secp256k1.scalar.field_order;
+    const key: Hash = @splat(0x11);
+    for ([_]Transaction{
+        .{ .legacy = .{ .chain_id = 1, .nonce = 1, .gas_price = 1, .gas_limit = 21_000, .to = null } },
+        .{ .eip1559 = .{ .chain_id = 1, .nonce = 1, .max_priority_fee_per_gas = 1, .max_fee_per_gas = 2, .gas_limit = 21_000, .to = null } },
+    }) |tx| {
+        var signed = try tx.sign(allocator, key, null);
+        defer signed.deinit();
+        try std.testing.expectEqual(try crypto.secretKeyAddress(key), signed.signer);
+        try std.testing.expectEqual(signed.signer, try tx.recoverSigner(allocator, signed.signature));
+        var invalid = signed.signature;
+        for ([_]u8{ 0, 1, 26, 29, 37 }) |v| {
+            invalid[64] = v;
+            try std.testing.expectError(error.InvalidRecoveryId, tx.encodeSigned(allocator, invalid));
+        }
+        invalid = signed.signature;
+        std.mem.writeInt(u256, invalid[32..64], n - 1, .big);
+        try std.testing.expectError(error.HighSignatureS, tx.encodeSigned(allocator, invalid));
+        invalid = signed.signature;
+        std.mem.writeInt(u256, invalid[0..32], n, .big);
+        try std.testing.expectError(error.NonCanonical, tx.encodeSigned(allocator, invalid));
+        invalid = signed.signature;
+        @memset(invalid[32..64], 0);
+        try std.testing.expectError(error.InvalidSignature, tx.encodeSigned(allocator, invalid));
+    }
 }
 
 test "canonical RLP zero short-byte and long-length boundaries" {

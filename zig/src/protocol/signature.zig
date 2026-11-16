@@ -32,6 +32,18 @@ pub fn secretKeyAddress(secret_key: Hash) !Address {
     return try address(try secp256k1.mulBase(little));
 }
 
+/// Ethereum's strict encoding (v = 27/28, nonzero canonical r, low s), with
+/// the same errors as `recover`. Format only: it does not identify a signer.
+pub fn canonicalScalars(signature: Signature) !struct { Scalar, Scalar } {
+    if (signature[64] != 27 and signature[64] != 28) return error.InvalidRecoveryId;
+    const r = try Scalar.fromBytes(signature[0..32].*, .big);
+    const s = try Scalar.fromBytes(signature[32..64].*, .big);
+    if (r.isZero() or s.isZero()) return error.InvalidSignature;
+    if (std.mem.readInt(u256, signature[32..64], .big) > Curve.scalar.field_order / 2)
+        return error.HighSignatureS;
+    return .{ r, s };
+}
+
 /// Security boundary: Ethereum's v=27/28, nonzero canonical r and low-s only.
 /// ECDSA recovery uses Q=r^-1(sR-zG); scalar arithmetic comes from Zig
 /// std.crypto, field/point arithmetic and the GLV/wNAF joint multiplication
@@ -39,12 +51,7 @@ pub fn secretKeyAddress(secret_key: Hash) !Address {
 /// This is public-input variable-time verification, never secret scalar
 /// multiplication. Transaction chain-ID recovery values are rejected.
 pub fn recover(digest: Hash, signature: Signature) !Address {
-    if (signature[64] != 27 and signature[64] != 28) return error.InvalidRecoveryId;
-    const r = try Scalar.fromBytes(signature[0..32].*, .big);
-    const s = try Scalar.fromBytes(signature[32..64].*, .big);
-    if (r.isZero() or s.isZero()) return error.InvalidSignature;
-    if (std.mem.readInt(u256, signature[32..64], .big) > Curve.scalar.field_order / 2)
-        return error.HighSignatureS;
+    const r, const s = try canonicalScalars(signature);
     // r < n < p, so r is always a canonical x coordinate.
     const point_r = try secp256k1.Point.fromX(try secp256k1.Fe.fromBytes(signature[0..32].*), signature[64] == 28);
     const z = reducedHash(digest);
@@ -77,27 +84,31 @@ pub fn recoverCompatible(digest: Hash, r: Hash, s: Hash, v: u64) !Address {
     return recover(digest, signature);
 }
 
-/// A local secp256k1 signing identity. The public key Q = d*G (and its wNAF
-/// table) is derived once here; it is the signer's identity, used to verify
-/// every signature before release.
+/// Q = d*G for a nonzero canonical secret key.
+fn publicPoint(secret_key: Hash) !secp256k1.Point {
+    var d = try Scalar.fromBytes(secret_key, .big);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
+    if (d.isZero()) return error.InvalidSecretKey;
+    var little = d.toBytes(.little);
+    defer std.crypto.secureZero(u8, &little);
+    return secp256k1.mulBase(little);
+}
+
+/// A local secp256k1 signing identity. The public key Q = d*G (and its
+/// fixed-base tables) is derived once here; it is the signer's identity, used
+/// to verify every signature before release.
 pub const SigningKey = struct {
     secret: Hash,
     public_key: secp256k1.Affine,
-    public_table: secp256k1.WideTable,
+    public_table: secp256k1.SignerTable,
     address: Address,
 
     pub fn init(secret_key: Hash) !SigningKey {
-        var d = try Scalar.fromBytes(secret_key, .big);
-        defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
-        if (d.isZero()) return error.InvalidSecretKey;
-        var little = d.toBytes(.little);
-        defer std.crypto.secureZero(u8, &little);
-        const q = try secp256k1.mulBase(little);
-        const affine = try q.affine();
+        const affine = try (try publicPoint(secret_key)).affine();
         return .{
             .secret = secret_key,
             .public_key = affine,
-            .public_table = secp256k1.WideTable.init(secp256k1.Point.fromAffine(affine)),
+            .public_table = secp256k1.SignerTable.init(secp256k1.Point.fromAffine(affine)),
             .address = addressOfCoordinates(affine.x.toBytes(), affine.y.toBytes()),
         };
     }
@@ -127,19 +138,34 @@ pub const SigningKey = struct {
     /// this key's Q (see `verifyBeforeRelease`) and never returned otherwise.
     pub fn sign(self: *const SigningKey, digest: Hash, noise: ?[32]u8) !Signature {
         const signed = try signCore(self.secret, digest, noise);
-        try verifyBeforeRelease(self, digest, signed.signature, signed.r_point);
+        try verifyBeforeRelease(&self.public_table, digest, signed.signature, signed.r_point);
         return signed.signature;
     }
 };
 
-/// Convenience for one-off signing: derives the key (one extra d*G) per call.
-/// Long-lived signers should hold a SigningKey.
+/// Convenience for one-off signing: derives Q (one extra d*G) per call and
+/// verifies against it like `SigningKey.sign`, with a per-call width-5 table
+/// for Q instead of the per-signer tables. Long-lived signers should hold a
+/// SigningKey.
 pub fn signDigest(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signature {
-    // SigningKey holds no HMAC state: nonce HMAC keys/states live only inside
-    // deterministicNonce and are wiped there (HmacKey.wipe, finish, compress).
-    var key = try SigningKey.init(secret_key);
-    defer key.deinit();
-    return key.sign(digest, noise);
+    return (try signOneOff(secret_key, digest, noise)).signature;
+}
+
+/// `signDigest` plus the signer address, derived from the same Q the
+/// signature was verified against: strict `recover` of the signature returns
+/// exactly this address, so callers need not recover it again.
+pub fn signDigestWithAddress(secret_key: Hash, digest: Hash, noise: ?[32]u8) !struct { signature: Signature, address: Address } {
+    const signed = try signOneOff(secret_key, digest, noise);
+    return .{ .signature = signed.signature, .address = try address(signed.q) };
+}
+
+fn signOneOff(secret_key: Hash, digest: Hash, noise: ?[32]u8) !struct { signature: Signature, q: secp256k1.Point } {
+    // Nonce HMAC keys/states live only inside deterministicNonce and are
+    // wiped there (HmacKey.wipe, finish, compress).
+    const q = try publicPoint(secret_key);
+    const signed = try signCore(secret_key, digest, noise);
+    try verifyOneOffBeforeRelease(q, digest, signed.signature, signed.r_point);
+    return .{ .signature = signed.signature, .q = q };
 }
 
 /// Signing without the fault self-check, for benchmark attribution only. It
@@ -156,16 +182,45 @@ pub const benchmark = if (@hasDecl(@import("root"), "kernel_bench_unverified_sig
 const Signed = struct { signature: Signature, r_point: secp256k1.Affine };
 
 fn signCore(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
-    // Secret intermediates (d, k, k bytes, k^-1, z + r*d) are wiped on return.
+    return signCoreFaulted(.none, secret_key, digest, noise);
+}
+
+/// Test-only fault injection points for `signCoreFaulted`; production code
+/// passes `.none`, which compiles every injection away.
+const Fault = enum { none, d, z, nonce, nonce_after_check, nonce_for_point, nonce_inverse, point_x, point_y, t, s, parity };
+
+fn faultScalar(comptime fault: Fault, comptime at: Fault, value: Scalar) Scalar {
+    if (fault != at) return value;
+    return value.add(Scalar.one);
+}
+
+fn signCoreFaulted(comptime fault: Fault, secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
+    // Named secret intermediates (d, both nonce derivations and their bytes,
+    // k^-1, z + r*d) are wiped on return; compiler temporaries (e.g. toBytes
+    // results before the copy) are outside secureZero's reach.
     var d = try Scalar.fromBytes(secret_key, .big);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&d));
     if (d.isZero()) return error.InvalidSecretKey;
-    const z = reducedHash(digest);
-    var k = deterministicNonce(digest, secret_key, noise);
+    d = faultScalar(fault, .d, d);
+    const z = faultScalar(fault, .z, reducedHash(digest));
+    var k = faultScalar(fault, .nonce, deterministicNonce(digest, secret_key, noise));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&k));
     var k_bytes = k.toBytes(.little);
     defer std.crypto.secureZero(u8, &k_bytes);
-    const point = try (try secp256k1.mulBase(k_bytes)).affine();
+    // Fault hardening: a nonce changed consistently for both k*G and k^-1
+    // passes any verification yet, beside the deterministic clean signature,
+    // reveals d. Derive it twice and compare in constant time right before
+    // use; this one k_bytes then feeds both k*G and k^-1, so a later fault in
+    // either use desynchronises R and s and fails `verifyBeforeRelease`.
+    var k_again = deterministicNonce(digest, secret_key, noise);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&k_again));
+    var k_check = k_again.toBytes(.little);
+    defer std.crypto.secureZero(u8, &k_check);
+    if (!std.crypto.timing_safe.eql([32]u8, k_bytes, k_check)) return error.NonceSelfCheckFailed;
+    if (fault == .nonce_after_check) k_bytes = faultScalar(fault, fault, k).toBytes(.little);
+    var point = try (try secp256k1.mulBase(if (fault == .nonce_for_point) faultScalar(fault, fault, k).toBytes(.little) else k_bytes)).affine();
+    if (fault == .point_x) point.x = point.x.add(secp256k1.Fe.one);
+    if (fault == .point_y) point.y = point.y.neg();
     const x = point.x.toBytes();
     // Ethereum v=27/28 cannot encode the exceedingly rare x>=curve order case.
     // Fail closed; caller may retry with fresh signing noise.
@@ -173,11 +228,11 @@ fn signCore(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
     const r = try Scalar.fromBytes(x, .big);
     if (r.isZero()) return error.IdentityElement;
     // Constant-time safegcd inversion (secp256k1_scalar.zig).
-    var k_inverse = try Scalar.fromBytes(@bitCast(@import("secp256k1_scalar.zig").invert(@bitCast(k_bytes))), .little);
+    var k_inverse = faultScalar(fault, .nonce_inverse, try Scalar.fromBytes(@bitCast(@import("secp256k1_scalar.zig").invert(@bitCast(k_bytes))), .little));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&k_inverse));
-    var t = z.add(r.mul(d));
+    var t = faultScalar(fault, .t, z.add(r.mul(d)));
     defer std.crypto.secureZero(u8, std.mem.asBytes(&t));
-    var s = k_inverse.mul(t);
+    var s = faultScalar(fault, .s, k_inverse.mul(t));
     if (s.isZero()) return error.IdentityElement;
     var parity: u8 = @intFromBool(point.y.isOdd());
     var s_bytes = s.toBytes(.big);
@@ -186,6 +241,7 @@ fn signCore(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
         s_bytes = s.toBytes(.big);
         parity ^= 1;
     }
+    if (fault == .parity) parity ^= 1;
     var signature: Signature = undefined;
     signature[0..32].* = x;
     signature[32..64].* = s_bytes;
@@ -193,25 +249,48 @@ fn signCore(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
     return .{ .signature = signature, .r_point = point };
 }
 
-/// Verifies the serialized (r, s, v) against the key's true Q, using the R
-/// computed while signing and no inversion: x(R) must equal r, R' (R with
-/// the y parity v names) must be R or -R, and s*R' == z*G + r*Q, checked as
-/// z*G + r*Q + (n - s)*R' == identity with one shared GLV/wNAF chain. This
-/// catches faults in d, k, k*G, s and serialization. Only public values
-/// enter the variable-time multiplication.
-fn verifyBeforeRelease(key: *const SigningKey, digest: Hash, signature: Signature, r_point: secp256k1.Affine) error{SignatureSelfCheckFailed}!void {
-    const fail = error.SignatureSelfCheckFailed;
-    if (!std.mem.eql(u8, &r_point.x.toBytes(), signature[0..32])) return fail;
-    if (signature[64] != 27 and signature[64] != 28) return fail;
-    const r = Scalar.fromBytes(signature[0..32].*, .big) catch return fail;
-    const s = Scalar.fromBytes(signature[32..64].*, .big) catch return fail;
-    if (r.isZero() or s.isZero()) return fail;
+/// Public scalars of the standard ECDSA check, after the serialization checks
+/// shared by both pre-release verifiers.
+const Check = struct { g_scalar: [32]u8, q_scalar: [32]u8, named: secp256k1.Affine };
+
+/// Serialized (r, s, v) checks against the R computed while signing: x(R)
+/// must equal r exactly (so x >= n never passes as x mod n), v must be 27/28,
+/// r and s canonical and nonzero, s low. `named` is R with the y parity v
+/// names. Returns u1 = z/s and u2 = r/s.
+fn releaseCheck(digest: Hash, signature: Signature, r_point: secp256k1.Affine) ?Check {
+    if (!std.mem.eql(u8, &r_point.x.toBytes(), signature[0..32])) return null;
+    const r, const s = canonicalScalars(signature) catch return null;
     const odd = signature[64] == 28;
     const named: secp256k1.Affine = if (r_point.y.isOdd() == odd) r_point else r_point.neg();
-    const r_table = secp256k1.OddMultiples.init(secp256k1.Point.fromAffine(named));
-    const z = reducedHash(digest);
-    const sum = secp256k1.multiMulPublicFixed(1, .{.{ .table = &key.public_table, .scalar = r.toBytes(.little) }}, 1, z.toBytes(.little), .{&r_table}, .{s.neg().toBytes(.little)}) catch return fail;
-    if (!sum.isIdentity()) return fail;
+    // y = 0 is on no secp256k1 point (prime order), so negation flips parity.
+    if (named.y.isOdd() != odd) return null;
+    // s is public: safegcd inversion (secp256k1_scalar.zig), as in recover.
+    const w = Scalar.fromBytes(@bitCast(secp256k1.scalar_inverse(@bitCast(s.toBytes(.little)))), .little) catch return null;
+    return .{ .g_scalar = reducedHash(digest).mul(w).toBytes(.little), .q_scalar = r.mul(w).toBytes(.little), .named = named };
+}
+
+/// Fault-attack check: verifies the serialized (r, s, v) against the key's
+/// true Q as standard ECDSA, R'' = (z/s)*G + (r/s)*Q, and requires R'' to be
+/// exactly the point (r, y) whose parity v names, compared projectively
+/// (X == r*Z, Y == y*Z, Z != 0) without a field inversion. Equivalent to
+/// s*R' == z*G + r*Q for the signing-time R' (s is invertible mod n), and
+/// implies strict `recover` returns this key's address. Catches faults in d,
+/// k, k*G, k^-1, z + r*d, s, low-s normalisation and serialization. Only
+/// public values enter the variable-time multiplication.
+fn verifyBeforeRelease(table: *const secp256k1.SignerTable, digest: Hash, signature: Signature, r_point: secp256k1.Affine) error{SignatureSelfCheckFailed}!void {
+    const fail = error.SignatureSelfCheckFailed;
+    const check = releaseCheck(digest, signature, r_point) orelse return fail;
+    const point = secp256k1.mulSignerPublic(table, check.g_scalar, check.q_scalar) catch return fail;
+    if (!secp256k1.equalsAffine(point, check.named)) return fail;
+}
+
+/// `verifyBeforeRelease` for one-off signing: the same check against Q = d*G
+/// computed for this call, with a per-call width-5 table for Q.
+fn verifyOneOffBeforeRelease(q: secp256k1.Point, digest: Hash, signature: Signature, r_point: secp256k1.Affine) error{SignatureSelfCheckFailed}!void {
+    const fail = error.SignatureSelfCheckFailed;
+    const check = releaseCheck(digest, signature, r_point) orelse return fail;
+    const point = secp256k1.mulDoubleBasePublic(check.g_scalar, q, check.q_scalar) catch return fail;
+    if (!secp256k1.equalsAffine(point, check.named)) return fail;
 }
 
 /// std.crypto.sign.ecdsa deterministicScalar for secp256k1/HMAC-SHA256: the
@@ -542,7 +621,7 @@ test "fault self-check rejects any corrupted signature component" {
     defer key.deinit();
     const digest = [_]u8{0x22} ** 32;
     const good = try signCore(key.secret, digest, null);
-    try verifyBeforeRelease(&key, digest, good.signature, good.r_point);
+    try verifyBeforeRelease(&key.public_table, digest, good.signature, good.r_point);
     try std.testing.expectEqual(good.signature, try key.sign(digest, null));
     try std.testing.expectEqual(good.signature, try signDigest(key.secret, digest, null));
     // Simulated faults: flipped bits in r, s and v; R from another nonce (a
@@ -551,22 +630,193 @@ test "fault self-check rejects any corrupted signature component" {
     for ([_]usize{ 0, 17, 31, 32, 50, 63, 64 }) |byte| {
         var faulted = good.signature;
         faulted[byte] ^= 1;
-        try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key, digest, faulted, good.r_point));
+        try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key.public_table, digest, faulted, good.r_point));
     }
     const other_nonce = try signCore(key.secret, digest, .{0x33} ** 32);
-    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key, digest, good.signature, other_nonce.r_point));
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key.public_table, digest, good.signature, other_nonce.r_point));
     var mixed = good.signature;
     mixed[0..32].* = other_nonce.signature[0..32].*;
-    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key, digest, mixed, other_nonce.r_point));
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key.public_table, digest, mixed, other_nonce.r_point));
     var other_key = try SigningKey.init(.{0x12} ** 32);
     defer other_key.deinit();
-    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&other_key, digest, good.signature, good.r_point));
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&other_key.public_table, digest, good.signature, good.r_point));
     // A consistently faulted d (signature made with d' but checked against the
     // true Q) is caught, unlike a (z + r*d)*G == s*R style check.
     const faulted_d = try signCore(other_key.secret, digest, null);
-    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key, digest, faulted_d.signature, faulted_d.r_point));
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&key.public_table, digest, faulted_d.signature, faulted_d.r_point));
     try std.testing.expectEqualSlices(u8, &key.address, &try secretKeyAddress(key.secret));
     try std.testing.expectEqualSlices(u8, &(try Curve.basePoint.mul(key.secret, .big)).toCompressedSec1(), &key.compressedPublicKey());
+}
+
+/// The previous pre-release check, kept as a differential oracle: x(R) == r,
+/// v names R or -R, and z*G + r*Q + (n - s)*R' == identity, with R's table
+/// built per call. It did not require low s.
+fn oracleAccepts(q_table: *const secp256k1.WideTable, digest: Hash, signature: Signature, r_point: secp256k1.Affine) bool {
+    if (!std.mem.eql(u8, &r_point.x.toBytes(), signature[0..32])) return false;
+    if (signature[64] != 27 and signature[64] != 28) return false;
+    const r = Scalar.fromBytes(signature[0..32].*, .big) catch return false;
+    const s = Scalar.fromBytes(signature[32..64].*, .big) catch return false;
+    if (r.isZero() or s.isZero()) return false;
+    const named: secp256k1.Affine = if (r_point.y.isOdd() == (signature[64] == 28)) r_point else r_point.neg();
+    const r_table = secp256k1.OddMultiples.init(secp256k1.Point.fromAffine(named));
+    const sum = secp256k1.multiMulPublicFixed(1, .{.{ .table = q_table, .scalar = r.toBytes(.little) }}, 1, reducedHash(digest).toBytes(.little), .{&r_table}, .{s.neg().toBytes(.little)}) catch return false;
+    return sum.isIdentity();
+}
+
+const Verdicts = struct { signer: bool, one_off: bool, oracle: bool, high_s: bool };
+
+/// Both production checks and the oracle on one input; the two production
+/// checks must agree, and accept exactly what the oracle accepts with low s.
+fn verdicts(key: *const SigningKey, oracle_table: *const secp256k1.WideTable, digest: Hash, signature: Signature, r_point: secp256k1.Affine) !Verdicts {
+    const out: Verdicts = .{
+        .signer = if (verifyBeforeRelease(&key.public_table, digest, signature, r_point)) true else |_| false,
+        .one_off = if (verifyOneOffBeforeRelease(secp256k1.Point.fromAffine(key.public_key), digest, signature, r_point)) true else |_| false,
+        .oracle = oracleAccepts(oracle_table, digest, signature, r_point),
+        .high_s = std.mem.readInt(u256, signature[32..64], .big) > Curve.scalar.field_order / 2,
+    };
+    try std.testing.expectEqual(out.signer, out.one_off);
+    try std.testing.expectEqual(out.oracle and !out.high_s, out.signer);
+    return out;
+}
+
+test "pre-release check differential against the previous check, with near-valid mutations" {
+    const n = Curve.scalar.field_order;
+    var prng = std.Random.DefaultPrng.init(0x72656c65);
+    const random = prng.random();
+    var counts = struct { accepted: usize = 0, rejected: usize = 0, high_s: usize = 0 }{};
+    for ([_]u256{ 1, 2, n - 1, n / 2, std.math.maxInt(u256) / 0xff * 0x11, 0 }) |seed| {
+        var secret: Hash = undefined;
+        if (seed == 0) random.bytes(&secret) else std.mem.writeInt(u256, &secret, seed, .big);
+        var key = try SigningKey.init(secret);
+        defer key.deinit();
+        const oracle_table = secp256k1.WideTable.init(secp256k1.Point.fromAffine(key.public_key));
+        const cases: usize = if (@import("builtin").mode == .Debug) 40 else 300;
+        for (0..cases) |i| {
+            var digest: Hash = undefined;
+            random.bytes(&digest);
+            var noise: [32]u8 = undefined;
+            random.bytes(&noise);
+            const good = try signCore(secret, digest, if (i % 2 == 0) noise else null);
+            try std.testing.expect((try verdicts(&key, &oracle_table, digest, good.signature, good.r_point)).signer);
+            counts.accepted += 1;
+            // Malleated (n - s, flipped v): the oracle accepted it; the
+            // low-s requirement now rejects it.
+            var malleated = good.signature;
+            malleated[32..64].* = (try Scalar.fromBytes(good.signature[32..64].*, .big)).neg().toBytes(.big);
+            malleated[64] = 27 + 28 - malleated[64];
+            const high = try verdicts(&key, &oracle_table, digest, malleated, good.r_point);
+            try std.testing.expect(high.oracle and high.high_s and !high.signer);
+            counts.high_s += 1;
+            // R with the other y: v alone selects the point, so both accept.
+            try std.testing.expect((try verdicts(&key, &oracle_table, digest, good.signature, good.r_point.neg())).signer);
+            // Single-bit flips anywhere in (r, s, v), in R, and in the digest.
+            var flipped = good.signature;
+            const bit = random.uintLessThan(usize, 65 * 8);
+            flipped[bit / 8] ^= @as(u8, 1) << @intCast(bit % 8);
+            var other_digest = digest;
+            other_digest[random.uintLessThan(usize, 32)] ^= 0x40;
+            const mutations = [_]struct { digest: Hash, signature: Signature, r_point: secp256k1.Affine }{
+                .{ .digest = digest, .signature = flipped, .r_point = good.r_point },
+                .{ .digest = digest, .signature = good.signature, .r_point = .{ .x = good.r_point.x, .y = good.r_point.y.add(secp256k1.Fe.one) } },
+                .{ .digest = digest, .signature = good.signature, .r_point = .{ .x = good.r_point.x.add(secp256k1.Fe.one), .y = good.r_point.y } },
+                .{ .digest = other_digest, .signature = good.signature, .r_point = good.r_point },
+            };
+            for (mutations) |m| {
+                try std.testing.expect(!(try verdicts(&key, &oracle_table, m.digest, m.signature, m.r_point)).signer);
+                counts.rejected += 1;
+            }
+        }
+    }
+    try std.testing.expect(counts.accepted > 0 and counts.rejected == 4 * counts.accepted and counts.high_s == counts.accepted);
+}
+
+test "pre-release check rejects the identity, x(R) >= n and an invalid Q" {
+    const n = Curve.scalar.field_order;
+    const p = secp256k1.field.p;
+    var key = try SigningKey.init(.{0x11} ** 32);
+    defer key.deinit();
+    const oracle_table = secp256k1.WideTable.init(secp256k1.Point.fromAffine(key.public_key));
+    const digest = [_]u8{0x22} ** 32;
+    const good = try signCore(key.secret, digest, null);
+
+    // Identity: a digest with z = -r*d makes z*G + r*Q the identity.
+    const d = try Scalar.fromBytes(key.secret, .big);
+    const r = try Scalar.fromBytes(good.signature[0..32].*, .big);
+    const s = try Scalar.fromBytes(good.signature[32..64].*, .big);
+    const at_infinity = r.mul(d).neg().toBytes(.big);
+    const w = s.invert();
+    try std.testing.expect((try secp256k1.mulSignerPublic(&key.public_table, reducedHash(at_infinity).mul(w).toBytes(.little), r.mul(w).toBytes(.little))).isIdentity());
+    try std.testing.expect(!(try verdicts(&key, &oracle_table, at_infinity, good.signature, good.r_point)).signer);
+
+    // x(R) >= n: R = (n + t, y) and Q = r^-1 (s*R - z*G) for r = t make
+    // (r, s) valid under x mod n, but Ethereum recovery reads x = r, so both
+    // the signing-time R and a fabricated (t, y) must be rejected.
+    var t: u256 = 1;
+    const big_r = while (t < p - n) : (t += 1) {
+        break secp256k1.Point.fromX(.{ .v = n + t }, false) catch continue;
+    } else unreachable;
+    const big_affine = try big_r.affine();
+    var wrapped: Signature = undefined;
+    std.mem.writeInt(u256, wrapped[0..32], t, .big);
+    const wrapped_s = try Scalar.fromBytes(@splat(0x33), .big);
+    wrapped[32..64].* = (if (std.mem.readInt(u256, &wrapped_s.toBytes(.big), .big) > n / 2) wrapped_s.neg() else wrapped_s).toBytes(.big);
+    const wrapped_r = try Scalar.fromBytes(wrapped[0..32].*, .big);
+    const z = reducedHash(digest);
+    const s_used = try Scalar.fromBytes(wrapped[32..64].*, .big);
+    const q_wrapped = try secp256k1.mulDoubleBasePublic(z.mul(wrapped_r.invert()).neg().toBytes(.little), big_r, s_used.mul(wrapped_r.invert()).toBytes(.little));
+    const table = secp256k1.SignerTable.init(q_wrapped);
+    const g_scalar = z.mul(s_used.invert()).toBytes(.little);
+    const q_scalar = wrapped_r.mul(s_used.invert()).toBytes(.little);
+    const r_double_prime = try (try secp256k1.mulSignerPublic(&table, g_scalar, q_scalar)).affine();
+    try std.testing.expectEqual(n + t, r_double_prime.x.canonical());
+    for ([_]u8{ 27, 28 }) |v| {
+        wrapped[64] = v;
+        for ([_]secp256k1.Affine{ big_affine, big_affine.neg(), .{ .x = .{ .v = t }, .y = big_affine.y } }) |r_point| {
+            try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&table, digest, wrapped, r_point));
+            try std.testing.expectError(error.SignatureSelfCheckFailed, verifyOneOffBeforeRelease(q_wrapped, digest, wrapped, r_point));
+        }
+    }
+
+    // Invalid Q: off the curve, or another key's point.
+    const off_curve = secp256k1.Point.fromAffine(.{ .x = key.public_key.x, .y = key.public_key.y.add(secp256k1.Fe.one) });
+    const off_table = secp256k1.SignerTable.init(off_curve);
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&off_table, digest, good.signature, good.r_point));
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyOneOffBeforeRelease(off_curve, digest, good.signature, good.r_point));
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyOneOffBeforeRelease(secp256k1.Point.identity, digest, good.signature, good.r_point));
+    var other = try SigningKey.init(.{0x12} ** 32);
+    defer other.deinit();
+    try std.testing.expectError(error.SignatureSelfCheckFailed, verifyBeforeRelease(&other.public_table, digest, good.signature, good.r_point));
+}
+
+test "injected signing faults are caught before release" {
+    var key = try SigningKey.init(.{0x11} ** 32);
+    defer key.deinit();
+    const oracle_table = secp256k1.WideTable.init(secp256k1.Point.fromAffine(key.public_key));
+    var prng = std.Random.DefaultPrng.init(0x6661756c);
+    for (0..32) |_| {
+        var digest: Hash = undefined;
+        prng.random().bytes(&digest);
+        inline for (comptime std.enums.values(Fault)) |fault| {
+            // One faulted nonce derivation is caught by the redundant one.
+            if (fault == .nonce) {
+                try std.testing.expectError(error.NonceSelfCheckFailed, signCoreFaulted(fault, key.secret, digest, null));
+                continue;
+            }
+            const signed = try signCoreFaulted(fault, key.secret, digest, null);
+            const verdict = try verdicts(&key, &oracle_table, digest, signed.signature, signed.r_point);
+            switch (fault) {
+                // KNOWN GAP, not safe: a nonce changed after the redundant
+                // derivation check but before both k*G and k^-1 (the window
+                // is a few instructions) yields a valid signature under
+                // k' = k + delta, which no verify-after-sign can see. With
+                // deterministic nonces the clean signature on the same digest
+                // exists, so a structured delta (a bit flip) reveals d by
+                // trying ~512 candidates. Only nonce hedging closes it.
+                .none, .nonce_after_check => try std.testing.expect(verdict.signer and verdict.oracle),
+                else => try std.testing.expect(!verdict.signer),
+            }
+        }
+    }
 }
 
 /// Random cases for the in-tree differential; reduced in Debug where std's
