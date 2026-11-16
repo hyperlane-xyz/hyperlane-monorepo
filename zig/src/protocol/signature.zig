@@ -187,7 +187,7 @@ fn signCore(secret_key: Hash, digest: Hash, noise: ?[32]u8) !Signed {
 
 /// Test-only fault injection points for `signCoreFaulted`; production code
 /// passes `.none`, which compiles every injection away.
-const Fault = enum { none, d, z, nonce, nonce_for_point, nonce_inverse, point_x, point_y, t, s, parity };
+const Fault = enum { none, d, z, nonce, nonce_after_check, nonce_for_point, nonce_inverse, point_x, point_y, t, s, parity };
 
 fn faultScalar(comptime fault: Fault, comptime at: Fault, value: Scalar) Scalar {
     if (fault != at) return value;
@@ -205,6 +205,15 @@ fn signCoreFaulted(comptime fault: Fault, secret_key: Hash, digest: Hash, noise:
     defer std.crypto.secureZero(u8, std.mem.asBytes(&k));
     var k_bytes = k.toBytes(.little);
     defer std.crypto.secureZero(u8, &k_bytes);
+    // Fault hardening: a nonce changed consistently for both k*G and k^-1
+    // passes any verification yet, beside the deterministic clean signature,
+    // reveals d. Derive it twice and compare in constant time right before
+    // use; this one k_bytes then feeds both k*G and k^-1, so a later fault in
+    // either use desynchronises R and s and fails `verifyBeforeRelease`.
+    var k_check = deterministicNonce(digest, secret_key, noise).toBytes(.little);
+    defer std.crypto.secureZero(u8, &k_check);
+    if (!std.crypto.timing_safe.eql([32]u8, k_bytes, k_check)) return error.NonceSelfCheckFailed;
+    if (fault == .nonce_after_check) k_bytes = faultScalar(fault, fault, k).toBytes(.little);
     var point = try (try secp256k1.mulBase(if (fault == .nonce_for_point) faultScalar(fault, fault, k).toBytes(.little) else k_bytes)).affine();
     if (fault == .point_x) point.x = point.x.add(secp256k1.Fe.one);
     if (fault == .point_y) point.y = point.y.neg();
@@ -784,17 +793,22 @@ test "injected signing faults are caught before release" {
         var digest: Hash = undefined;
         prng.random().bytes(&digest);
         inline for (comptime std.enums.values(Fault)) |fault| {
+            // One faulted nonce derivation is caught by the redundant one.
+            if (fault == .nonce) {
+                try std.testing.expectError(error.NonceSelfCheckFailed, signCoreFaulted(fault, key.secret, digest, null));
+                continue;
+            }
             const signed = try signCoreFaulted(fault, key.secret, digest, null);
             const verdict = try verdicts(&key, &oracle_table, digest, signed.signature, signed.r_point);
             switch (fault) {
-                // KNOWN GAP, not safe: a nonce changed before both k*G and
-                // k^-1 yields a valid signature under k' = k + delta, which
-                // no verify-after-sign (this or the previous check) can see.
-                // With deterministic nonces the clean signature on the same
-                // digest exists, so a structured delta (a bit flip) reveals d
-                // by trying ~512 candidates. Only nonce hedging (fresh noise)
-                // or a redundant nonce derivation closes it.
-                .none, .nonce => try std.testing.expect(verdict.signer and verdict.oracle),
+                // KNOWN GAP, not safe: a nonce changed after the redundant
+                // derivation check but before both k*G and k^-1 (the window
+                // is a few instructions) yields a valid signature under
+                // k' = k + delta, which no verify-after-sign can see. With
+                // deterministic nonces the clean signature on the same digest
+                // exists, so a structured delta (a bit flip) reveals d by
+                // trying ~512 candidates. Only nonce hedging closes it.
+                .none, .nonce_after_check => try std.testing.expect(verdict.signer and verdict.oracle),
                 else => try std.testing.expect(!verdict.signer),
             }
         }

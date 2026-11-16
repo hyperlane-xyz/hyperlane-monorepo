@@ -100,6 +100,8 @@ pub const Transaction = union(enum) {
     /// canonical r, low s). Encoding does not authenticate: callers must
     /// establish the signer first, by `recoverSigner` matched to their
     /// configured signer or by signing locally with a check against Q.
+    /// A signature produced outside this process (KMS, remote signer) must be
+    /// verified with `recoverSigner` against the expected signer first.
     pub fn encodeSigned(self: Transaction, allocator: Allocator, signature: Signature) ![]u8 {
         _ = try crypto.canonicalScalars(signature);
         var fields: Bytes = .empty;
