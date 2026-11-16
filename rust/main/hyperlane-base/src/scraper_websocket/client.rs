@@ -241,10 +241,15 @@ impl ScraperWebSocket {
         }
         let mut socket = Self::connect(&url, read_timeout).await.map_err(|error| {
             match error.downcast_ref::<tokio_tungstenite::tungstenite::Error>() {
-                Some(tokio_tungstenite::tungstenite::Error::Http(response)) => RejectedStream(
-                    format!("WebSocket admission rejected: {}", response.status()),
-                )
-                .into(),
+                Some(tokio_tungstenite::tungstenite::Error::Http(response))
+                    if response.status().is_client_error() =>
+                {
+                    RejectedStream(format!(
+                        "WebSocket admission rejected: {}",
+                        response.status()
+                    ))
+                    .into()
+                }
                 _ => error,
             }
         })?;
@@ -406,7 +411,7 @@ pub(super) mod tests {
     #[tokio::test]
     async fn admission_and_policy_rejections_use_slow_retries() {
         use tokio::io::AsyncWriteExt;
-        for status in [400, 403, 404, 429, 500, 502, 503, 504] {
+        for status in [400, 403, 404, 429, 500, 502, 503, 504, 530] {
             for validator in [false, true] {
                 let listener = TcpListener::bind("127.0.0.1:0").await.expect("listen");
                 let url = url::Url::parse(&format!(
@@ -432,10 +437,11 @@ pub(super) mod tests {
                     }
                 );
                 let error = result.err().expect("admission rejected");
-                assert_eq!(error.downcast_ref::<RejectedStream>().is_some(), validator);
+                let slow_retry = validator && (400..500).contains(&status);
+                assert_eq!(error.downcast_ref::<RejectedStream>().is_some(), slow_retry);
                 assert_eq!(
                     stream_retry_delay(&Err(error), RETRY_DELAY),
-                    if validator {
+                    if slow_retry {
                         REJECTED_STREAM_RETRY_DELAY + RETRY_DELAY
                     } else {
                         RETRY_DELAY
