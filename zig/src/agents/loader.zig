@@ -13,6 +13,9 @@ const Destination = struct {
     low: ?u32,
     next_low: bool = false,
     reopen_pending: bool = false,
+    /// Store.pending_generation when a high scan last found nothing at or
+    /// above `high`; until it changes no new pending row can exist there.
+    high_empty_at: ?u64 = null,
     reconsider: std.ArrayList(u32) = .empty,
     fn reopen(self: *Destination) void {
         self.low = if (self.high) |h| std.math.sub(u32, h, 1) catch null else std.math.maxInt(u32);
@@ -22,6 +25,7 @@ const Destination = struct {
         switch (direction) {
             .high => {
                 self.high = std.math.add(u32, nonce, 1) catch null;
+                self.high_empty_at = null;
                 self.next_low = true;
             },
             .low => {
@@ -79,12 +83,15 @@ pub const Loader = struct {
         // A range boundary costs O(destinations), never O(historical rows).
         for (self.destinations) |*destination| {
             if (destination.low == null) destination.reopen() else destination.reopen_pending = true;
+            destination.high_empty_at = null;
         }
         return page.scanned;
     }
     pub fn rescan(self: *Loader) void {
         for (self.destinations) |*destination| {
             if (destination.low == null) destination.reopen() else destination.reopen_pending = true;
+            // Bounds what a row added outside this Store would miss.
+            destination.high_empty_at = null;
         }
     }
     pub fn release(self: *Loader, id: Hash, reconsider: bool) !void {
@@ -121,18 +128,19 @@ pub const Loader = struct {
             var direction: Direction = .high;
             if (destination.reconsider.items.len > 0) {
                 const nonce = destination.reconsider.items[0];
-                selected = try self.store.pendingAtOrAfter(destination.domain, nonce);
-                if (selected != null and selected.?.value.nonce != nonce) {
-                    selected.?.deinit();
-                    selected = null;
-                }
+                selected = try self.store.pendingAt(destination.domain, nonce);
                 if (selected == null) _ = destination.reconsider.orderedRemove(0) else direction = .reconsider;
             }
             if (selected == null) {
                 for (0..2) |attempt| {
                     const low = if (attempt == 0) destination.next_low else !destination.next_low;
                     const boundary = (if (low) destination.low else destination.high) orelse continue;
+                    // Read before the seek: a row added during it advances
+                    // the generation past the one recorded as empty.
+                    const generation = self.store.pending_generation.load(.acquire);
+                    if (!low and destination.high_empty_at == generation) continue;
                     selected = if (low) try self.store.pendingAtOrBefore(destination.domain, boundary) else try self.store.pendingAtOrAfter(destination.domain, boundary);
+                    if (!low and selected == null) destination.high_empty_at = generation;
                     if (selected != null) {
                         direction = if (low) .low else .high;
                         break;

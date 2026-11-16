@@ -1891,6 +1891,33 @@ test "receipt optional fee roundtrip and nonfinal delete are exact" {
     try std.testing.expectEqual(@as(?storage.FinalizedReceipt, null), try store.loadFinalizedReceipt(allocator, uuid, hash));
 }
 
+test "receipt left by a foreign rewrite of a finalized row is point deleted by the next write" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    const store = fixture.store();
+    const uuid = id(116);
+    const hash: types.Hash = @splat(0x61);
+    const other: types.Hash = @splat(0x62);
+    const wide = try types.wideHashText(allocator, hash);
+    defer allocator.free(wide);
+    const finalized = try std.fmt.allocPrint(allocator, "{{\"tx_hashes\":[\"{s}\"],\"status\":\"Finalized\"}}", .{wide});
+    defer allocator.free(finalized);
+    const pending = try std.fmt.allocPrint(allocator, "{{\"tx_hashes\":[\"{s}\"],\"status\":\"PendingInclusion\"}}", .{wide});
+    defer allocator.free(pending);
+    const receipt: storage.FinalizedReceipt = .{ .transaction_uuid = uuid, .transaction_hash = hash, .block_number = 9, .block_hash = @splat(0x63), .executed = true, .gas_used = 1, .effective_gas_price = 2 };
+    try store.writeTransactionAndPayloadsWithReceipt(allocator, uuid, finalized, &.{}, receipt);
+    try store.writeTransactionAndPayloadsWithReceipt(allocator, id(117), finalized, &.{}, .{ .transaction_uuid = id(117), .transaction_hash = hash, .block_number = 9, .block_hash = @splat(0x63), .executed = true, .gas_used = 1, .effective_gas_price = 2 });
+    // A Rust writer moves the row out of finalized without knowing the receipt.
+    try store.typed.put(allocator, storage.transaction_by_uuid, &uuid, pending);
+    try std.testing.expect(try store.loadFinalizedReceipt(allocator, uuid, hash) != null);
+    try store.writeTransaction(allocator, uuid, pending);
+    try std.testing.expectEqual(@as(?storage.FinalizedReceipt, null), try store.loadFinalizedReceipt(allocator, uuid, hash));
+    try std.testing.expectEqual(@as(?storage.FinalizedReceipt, null), try store.loadFinalizedReceipt(allocator, uuid, other));
+    // Another transaction's receipt for the same hash is untouched.
+    try std.testing.expect(try store.loadFinalizedReceipt(allocator, id(117), hash) != null);
+}
+
 test "owned status reason survives record destruction and allocation failures" {
     const allocator = std.testing.allocator;
     var fixture = try DbFixture.open(allocator);
@@ -2092,4 +2119,139 @@ test "multicall code existence is read once like Source" {
     _ = try running.enqueue(legacyPayload(id(95)));
     try std.testing.expectEqual(@as(usize, 1), (try running.tick(2_000, .{})).built);
     try std.testing.expectEqual(@as(u64, 1), mock.code_calls);
+}
+
+test "retained rows: a transaction's checks after its build decode no stored row" {
+    const allocator = std.testing.allocator;
+    var fixture = try DbFixture.open(allocator);
+    defer fixture.close();
+    var mock = MockChain.init(allocator);
+    defer mock.close();
+    mock.latest.number = 5;
+    var signer = try MockSigner.init();
+    var cancel = std.atomic.Value(bool).init(false);
+    var config: service.Config = .{ .domain_name = "arbitrum", .chain_id = 1, .signer = signer.signer(), .estimated_block_time_ms = 1_000 };
+    config.overrides.gas_price = 5;
+    var running = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    var open = true;
+    defer if (open) running.deinit();
+    _ = try running.enqueue(legacyPayload(id(78)));
+    // Recovery completes on an empty store; the build retains its row.
+    _ = try running.tick(1_000, .{});
+    try std.testing.expectEqual(@as(u32, 1), running.rows.count());
+    const before = running.row_loads;
+    _ = try running.tick(100_000, .{});
+    try std.testing.expectEqual(@as(usize, 1), mock.sent.items.len);
+    var tx_hash: types.Hash = undefined;
+    std.crypto.hash.sha3.Keccak256.hash(mock.sent.items[0], &tx_hash, .{});
+    const block_hash: types.Hash = @splat(0x78);
+    try mock.receipts.put(tx_hash, .{ .block_number = 5, .block_hash = block_hash });
+    try mock.headers.put(5, .{ .number = 5, .hash = block_hash });
+    mock.finalized_height = 1;
+    mock.next_nonce = 1;
+    var now_ms: u64 = 101_000;
+    while (now_ms < 106_000) : (now_ms += 1_000) _ = try running.tick(now_ms, .{});
+    mock.finalized_height = 5;
+    const finalized = try running.tick(107_000, .{});
+    try std.testing.expectEqual(@as(usize, 1), finalized.finalized);
+    // Submission, broadcast, inclusion, five finality checks and the final
+    // write all ran on the retained row; payload rows were read once to
+    // learn them and once to write each status.
+    try std.testing.expectEqual(before, running.row_loads);
+    try std.testing.expectEqual(@as(u64, 2), running.payload_loads);
+    try std.testing.expectEqual(@as(u32, 0), running.rows.count());
+    running.deinit();
+    open = false;
+    // A restart decodes from the database.
+    var restarted = try service.Service.open(allocator, fixture.store(), mock.interface(), config, &cancel);
+    defer restarted.deinit();
+    _ = try restarted.tick(200_000, .{});
+}
+
+test "a retained Rust row encodes exactly the bytes a reload per step writes" {
+    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const fixture_bytes = try @import("../testing/fixture.zig").bytes(a, @embedFile("testing/reference/fixtures/lander_types.json.gz"), 16 * 1024 * 1024);
+    const fixture = try std.json.parseFromSliceLeaky(std.json.Value, a, fixture_bytes, .{ .allocate = .alloc_always });
+    // The stored row: Rust's transaction, with its own key order and fields.
+    const stored = try std.json.Stringify.valueAlloc(a, try types.field(fixture, "transaction"), .{});
+    const Step = struct {
+        fn apply(value: *std.json.Value, owner: std.mem.Allocator, step: usize) !void {
+            switch (step) {
+                0 => {
+                    try records.setStatus(value, owner, .pending_inclusion);
+                    try records.setTimestamp(value, "last_status_check", try records.timestamp(owner, 1_700_000_000_123));
+                },
+                1 => {
+                    var request = try types.parseRequest(owner, try types.requestFromRecord(value.*));
+                    request.request.eip1559.nonce = 9;
+                    request.request.eip1559.max_fee_per_gas = 220;
+                    request.request.eip1559.chain_id = 1;
+                    try types.updateRequest(try types.requestPtr(value), owner, request.request);
+                    _ = try records.appendHash(value, owner, @splat(0x5a));
+                    try records.incrementAttempts(value);
+                    try records.setTimestamp(value, "last_submission_attempt", try records.timestamp(owner, 1_700_000_001_000));
+                },
+                2 => try records.setStatus(value, owner, .mempool),
+                3 => {
+                    try records.setStatus(value, owner, .included);
+                    try records.setTimestamp(value, "last_status_check", try records.timestamp(owner, 1_700_000_002_000));
+                },
+                4 => try records.setStatus(value, owner, .{ .dropped = .{ .other = "stale recovered transaction: payloads already delivered or terminal" } }),
+                else => unreachable,
+            }
+        }
+    };
+    var retained = try std.json.parseFromSlice(std.json.Value, allocator, stored, .{ .duplicate_field_behavior = .@"error" });
+    defer retained.deinit();
+    var expected: []const u8 = stored;
+    for (0..5) |step| {
+        // Reload path: decode the stored bytes, change, encode.
+        var reload = try std.json.parseFromSlice(std.json.Value, allocator, expected, .{ .duplicate_field_behavior = .@"error" });
+        defer reload.deinit();
+        var scratch = std.heap.ArenaAllocator.init(allocator);
+        defer scratch.deinit();
+        try Step.apply(&reload.value, scratch.allocator(), step);
+        expected = try std.json.Stringify.valueAlloc(a, reload.value, .{});
+        // A check that does not write restores what it changed.
+        const saved_status = retained.value.object.get("status");
+        const saved_check = retained.value.object.get("last_status_check");
+        try records.setStatus(&retained.value, retained.arena.allocator(), .included);
+        try records.setTimestamp(&retained.value, "last_status_check", "2099-01-01T00:00:00.000Z");
+        if (saved_status) |value| try retained.value.object.put("status", value) else _ = retained.value.object.orderedRemove("status");
+        if (saved_check) |value| try retained.value.object.put("last_status_check", value) else _ = retained.value.object.orderedRemove("last_status_check");
+        // Retained path: change the long-lived row in its own arena.
+        try Step.apply(&retained.value, retained.arena.allocator(), step);
+        const actual = try std.json.Stringify.valueAlloc(a, retained.value, .{});
+        try std.testing.expectEqualStrings(expected, actual);
+    }
+}
+
+test "a new row with a foreign-spelled payload detail span retains what its written bytes decode to" {
+    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const data = legacyPayload(id(1)).payload.data_json;
+    var payload_json: std.ArrayList(u8) = .empty;
+    // Whitespace, escaped ASCII and a byte array spelled with spaces: not
+    // what Stringify writes, as a foreign writer may have stored it.
+    try payload_json.appendSlice(a, "{\"details\": { \"uuid\" : \"0101010\\u0031-0101-0101-0101-010101010101\", \"metadata\": \"m\\u00e9\\/x\", \"success_criteria\": [ 1 , 2 ] }, \"data\":");
+    try @import("json_view.zig").writeByteArray(&payload_json, a, data);
+    try payload_json.appendSlice(a, ",\"gas_limit\":\"0x5208\",\"to\":\"0x" ++ "00" ** 32 ++ "\",\"status\":\"ReadyToSubmit\",\"value\":null,\"inclusion_soft_deadline\":null}");
+    const payload = try records.PayloadView.parse(a, payload_json.items);
+    var built = std.heap.ArenaAllocator.init(allocator);
+    defer built.deinit();
+    var value = try records.transactionValue(built.allocator(), payload, id(5), @splat(4), 1, "2026-01-02T03:04:05.006Z");
+    const written = try std.json.Stringify.valueAlloc(a, value, .{});
+    try records.ownDetails(&value, built.allocator());
+    const retained = try std.json.Stringify.valueAlloc(a, value, .{});
+    const decoded = try std.json.parseFromSliceLeaky(std.json.Value, a, written, .{ .duplicate_field_behavior = .@"error" });
+    try std.testing.expectEqualStrings(try std.json.Stringify.valueAlloc(a, decoded, .{}), retained);
+    // The written bytes keep the span verbatim, as before.
+    try std.testing.expect(std.mem.indexOf(u8, written, "[ 1 , 2 ]") != null);
+    try std.testing.expect(!std.mem.eql(u8, written, retained));
+    try std.testing.expectEqual(id(1), (try records.payloadTransactionUuids(a, value))[0]);
 }

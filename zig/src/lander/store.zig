@@ -179,11 +179,35 @@ pub const ActiveSet = struct {
     }
 };
 
+/// Lowest payload index that may hold a `pending_payload_by_index` row, as
+/// the Service knows it. Building deletes a payload's row, so the index's
+/// low end is a run of tombstones that every scan from the prefix start
+/// would step over; scans start here instead. A write lowers it before it
+/// commits; only a scan's first observation raises it. Open starts at 0.
+pub const PendingFloor = struct {
+    index: u64 = 0,
+
+    /// No pending row at all.
+    pub const none: u64 = std.math.maxInt(u32) + 1;
+
+    pub fn lower(self: *PendingFloor, index: u32) void {
+        self.index = @min(self.index, index);
+    }
+
+    /// A fresh scan from the floor saw `first` (null: nothing) before any
+    /// write: no row lies below it.
+    pub fn observe(self: *PendingFloor, first: ?u32) void {
+        self.index = first orelse none;
+    }
+};
+
 pub const Store = struct {
     typed: rocks.Typed,
     /// Owned by the Service, the sole writer of lander rows while it is open.
     /// Writes through a Store copy without it leave the mirror unaware.
     active: ?*ActiveSet = null,
+    /// Owned by the Service, like `active`.
+    pending_floor: ?*PendingFloor = null,
 
     pub fn init(database: *rocks.Database, domain_name: []const u8) Store {
         return .{ .typed = .{ .database = database, .domain_name = domain_name } };
@@ -346,11 +370,6 @@ pub const Store = struct {
         self.applyActive(change);
     }
 
-    fn updateActive(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, uuid: types.Uuid, status: StatusTag) !?ActiveSet.Change {
-        const index = (try self.transactionIndex(allocator, uuid)) orelse return null;
-        return try putActive(batch, index, uuid, status != .dropped and status != .finalized);
-    }
-
     fn getInt(self: Store, comptime T: type, allocator: std.mem.Allocator, prefix: []const u8, key: []const u8) !?T {
         const bytes = (try self.typed.get(allocator, prefix, key)) orelse return null;
         defer allocator.free(bytes);
@@ -403,7 +422,7 @@ pub const Store = struct {
     }
 
     fn putPayloadPending(self: Store, batch: *rocks.TypedBatch, index: u32, pending_json: ?[]const u8) !void {
-        _ = self;
+        if (pending_json != null) if (self.pending_floor) |floor| floor.lower(index);
         var encoded: [4]u8 = undefined;
         std.mem.writeInt(u32, &encoded, index, .big);
         if (pending_json) |json| try batch.put(pending_payload_by_index, &encoded, json) else try batch.delete(pending_payload_by_index, &encoded);
@@ -424,8 +443,7 @@ pub const Store = struct {
         }
         const status = try statusTag(allocator, transaction_json);
         try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        var change = try self.updateActive(&batch, allocator, uuid, status);
-        if (existing == null) change = try putActive(&batch, index, uuid, true);
+        const change = try putActive(&batch, index, uuid, existing == null or (status != .dropped and status != .finalized));
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         for (payloads) |payload| {
             const payload_index = (try self.payloadIndex(allocator, payload.uuid)) orelse return error.MissingPayload;
@@ -442,15 +460,19 @@ pub const Store = struct {
     }
 
     pub fn writeTransaction(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8) !void {
-        const status = try statusTag(allocator, transaction_json);
-        if (status == .finalized) return error.MissingFinalizedReceipt;
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        return self.writeTransactionRow(allocator, try self.describeRow(arena.allocator(), uuid, transaction_json));
+    }
+
+    /// `writeTransaction` for a caller that holds the decoded row and what it
+    /// replaces: nothing is read back or decoded again.
+    pub fn writeTransactionRow(self: Store, allocator: std.mem.Allocator, row: Row) !void {
+        if (row.status == .finalized) return error.MissingFinalizedReceipt;
         errdefer self.invalidateActive();
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
-        try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
-        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        const change = try self.updateActive(&batch, allocator, uuid, status);
-        try batch.put(transaction_by_uuid, &uuid, transaction_json);
+        const change = try self.putTransactionRow(&batch, allocator, row);
         try batch.commitSync();
         self.applyActive(change);
     }
@@ -460,16 +482,18 @@ pub const Store = struct {
     }
 
     pub fn writeTransactionAndPayloadsWithReceipt(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, payloads: []const PayloadUpdate, receipt: ?FinalizedReceipt) !void {
-        const status = try statusTag(allocator, transaction_json);
-        if (status == .finalized and receipt == null) return error.MissingFinalizedReceipt;
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        return self.writeTransactionRowAndPayloads(allocator, try self.describeRow(arena.allocator(), uuid, transaction_json), payloads, receipt);
+    }
+
+    pub fn writeTransactionRowAndPayloads(self: Store, allocator: std.mem.Allocator, row: Row, payloads: []const PayloadUpdate, receipt: ?FinalizedReceipt) !void {
+        if (row.status == .finalized and receipt == null) return error.MissingFinalizedReceipt;
         errdefer self.invalidateActive();
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
-        try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
+        const change = try self.putTransactionRow(&batch, allocator, row);
         if (receipt) |value| try putFinalizedReceipt(&batch, value);
-        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        const change = try self.updateActive(&batch, allocator, uuid, status);
-        try batch.put(transaction_by_uuid, &uuid, transaction_json);
         for (payloads) |payload| {
             const payload_index = (try self.payloadIndex(allocator, payload.uuid)) orelse return error.MissingPayload;
             try batch.put(payload_by_uuid, &payload.uuid, payload.canonical_json);
@@ -480,6 +504,62 @@ pub const Store = struct {
         // Before any later fallible step: the change is durable now.
         self.applyActive(change);
         try self.markPayloadCheckpoint(allocator);
+    }
+
+    /// A transaction row write, with what is known of the stored row it
+    /// replaces, so the write reads nothing back.
+    pub const Row = struct {
+        uuid: types.Uuid,
+        json: []const u8,
+        status: StatusTag,
+        /// The row's `tx_hashes`: the only hashes a finalized receipt of this
+        /// transaction can be keyed by.
+        hashes: []const types.Hash,
+        prior: Prior,
+    };
+
+    pub const Prior = struct {
+        /// Status of the stored row (null: no stored row).
+        status: ?StatusTag,
+        /// The transaction's index (null: not indexed).
+        index: ?u32,
+    };
+
+    /// The `Row` of `json` for a caller that does not hold it decoded: the
+    /// stored row and index are read. Allocations live in `arena`.
+    fn describeRow(self: Store, arena: std.mem.Allocator, uuid: types.Uuid, json: []const u8) !Row {
+        const raw = try json_view.fields(2, arena, json, .{ "status", "tx_hashes" });
+        const status = std.meta.activeTag(try types.statusFromJson(try json_view.parseValue(arena, raw[0] orelse return error.InvalidLanderRecord)));
+        var hashes: []types.Hash = &.{};
+        if (raw[1]) |text| {
+            const value = try json_view.parseValue(arena, text);
+            if (value != .array) return error.InvalidLanderRecord;
+            hashes = try arena.alloc(types.Hash, value.array.items.len);
+            for (value.array.items, hashes) |item, *hash| {
+                if (item != .string) return error.InvalidLanderRecord;
+                hash.* = try types.parseHash(item.string);
+            }
+        }
+        const old_status: ?StatusTag = if (try self.typed.get(arena, transaction_by_uuid, &uuid)) |old| try statusTag(arena, old) else null;
+        return .{ .uuid = uuid, .json = json, .status = status, .hashes = hashes, .prior = .{ .status = old_status, .index = try self.transactionIndex(arena, uuid) } };
+    }
+
+    /// Puts the row and its derived changes: stale finalized receipts are
+    /// removed, the nonce availability generation is bumped when the row's
+    /// dropped-ness flips, and the active index follows the new status.
+    fn putTransactionRow(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, row: Row) !?ActiveSet.Change {
+        try deleteFinalizedReceipts(batch, allocator, row);
+        if (row.prior.status) |old| if ((old == .dropped) != (row.status == .dropped)) {
+            const next = try std.math.add(u64, try self.availabilityGeneration(allocator), 1);
+            try putInt(batch, u64, nonce_availability_generation, &singleton, next);
+        };
+        const index = row.prior.index orelse {
+            try batch.put(transaction_by_uuid, &row.uuid, row.json);
+            return null;
+        };
+        const change = try putActive(batch, index, row.uuid, row.status != .dropped and row.status != .finalized);
+        try batch.put(transaction_by_uuid, &row.uuid, row.json);
+        return change;
     }
 
     pub fn loadFinalizedReceipt(self: Store, allocator: std.mem.Allocator, transaction_uuid: types.Uuid, transaction_hash: types.Hash) !?FinalizedReceipt {
@@ -525,23 +605,41 @@ pub const Store = struct {
         try batch.put(finalized_receipt_by_uuid_hash, &key, if (receipt.effective_gas_price == null) bytes[0..123] else bytes[0..155]);
     }
 
-    fn deleteFinalizedReceiptsForTransaction(batch: *rocks.TypedBatch, allocator: std.mem.Allocator, transaction_uuid: types.Uuid) !void {
-        const prefix = try keys.scoped(allocator, batch.domain_name, finalized_receipt_by_uuid_hash, &transaction_uuid);
-        defer allocator.free(prefix);
-        try batch.batch.deletePrefix(allocator, prefix);
+    /// A finalized receipt is keyed by its transaction and winning hash, one
+    /// of the row's `tx_hashes`. Leaving finalized removes all of them with a
+    /// range delete (rare: a reorg past finality). Any other write removes
+    /// only the row's own hashes with point deletes, which also clears what a
+    /// foreign writer (a Rust rollback) left behind, without putting a range
+    /// tombstone in front of every later read.
+    fn deleteFinalizedReceipts(batch: *rocks.TypedBatch, allocator: std.mem.Allocator, row: Row) !void {
+        if (row.prior.status == .finalized) {
+            const prefix = try keys.scoped(allocator, batch.domain_name, finalized_receipt_by_uuid_hash, &row.uuid);
+            defer allocator.free(prefix);
+            return batch.batch.deletePrefix(allocator, prefix);
+        }
+        for (row.hashes) |hash| {
+            var key: [48]u8 = undefined;
+            key[0..16].* = row.uuid;
+            key[16..48].* = hash;
+            try batch.delete(finalized_receipt_by_uuid_hash, &key);
+        }
     }
 
-    pub fn writeSubmission(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, attempt: ?struct { hash: types.Hash, nonce: u256, bytes: []const u8 }) !void {
-        const status = try statusTag(allocator, transaction_json);
-        if (status == .finalized) return error.MissingFinalizedReceipt;
+    pub const SubmissionAttempt = struct { hash: types.Hash, nonce: u256, bytes: []const u8 };
+
+    pub fn writeSubmission(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, attempt: ?SubmissionAttempt) !void {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        return self.writeSubmissionRow(allocator, try self.describeRow(arena.allocator(), uuid, transaction_json), attempt);
+    }
+
+    pub fn writeSubmissionRow(self: Store, allocator: std.mem.Allocator, row: Row, attempt: ?SubmissionAttempt) !void {
+        if (row.status == .finalized) return error.MissingFinalizedReceipt;
         errdefer self.invalidateActive();
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
-        try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
-        try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        const change = try self.updateActive(&batch, allocator, uuid, status);
-        try batch.put(transaction_by_uuid, &uuid, transaction_json);
-        if (attempt) |value| try putAttempt(&batch, uuid, value.hash, value.nonce, value.bytes);
+        const change = try self.putTransactionRow(&batch, allocator, row);
+        if (attempt) |value| try putAttempt(&batch, row.uuid, value.hash, value.nonce, value.bytes);
         try batch.commitSync();
         self.applyActive(change);
     }
@@ -655,6 +753,35 @@ pub const Store = struct {
         defer allocator.free(bytes);
         if (bytes.len < 34 or bytes[0] != 1) return error.InvalidSignedAttempt;
         return .{ .nonce = std.mem.readInt(u256, bytes[1..33], .little), .bytes = try allocator.dupe(u8, bytes[33..]) };
+    }
+
+    /// Pending payload rows from the floor on (all of them without one).
+    /// Null when the floor says none exist. Call `observeFirstPending` with
+    /// the first entry before any write.
+    pub fn pendingPayloads(self: Store, allocator: std.mem.Allocator) !?rocks.PrefixIterator {
+        const floor = if (self.pending_floor) |value| value.index else 0;
+        if (floor == PendingFloor.none) return null;
+        var start: [4]u8 = undefined;
+        std.mem.writeInt(u32, &start, @intCast(floor), .big);
+        return try self.typed.prefixFrom(allocator, pending_payload_by_index, &start);
+    }
+
+    /// Raises the floor to the first row (`key`: its encoded index) a fresh
+    /// `pendingPayloads` scan saw.
+    pub fn observeFirstPending(self: Store, key: ?[]const u8) void {
+        const floor = self.pending_floor orelse return;
+        const first = key orelse return floor.observe(null);
+        if (first.len != 4) return;
+        floor.observe(std.mem.readInt(u32, first[0..4], .big));
+    }
+
+    /// Test oracle: no pending row lies below the floor.
+    pub fn pendingFloorHolds(self: Store, allocator: std.mem.Allocator) !bool {
+        const floor = self.pending_floor orelse return true;
+        var iterator = try self.typed.prefix(allocator, pending_payload_by_index);
+        defer iterator.deinit();
+        const first = (try iterator.nextBorrowed()) orelse return true;
+        return first.key.len == 4 and std.mem.readInt(u32, first.key[0..4], .big) >= floor.index;
     }
 
     pub fn attemptPrefix(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid) ![]u8 {
