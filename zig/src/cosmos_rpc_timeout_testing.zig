@@ -191,11 +191,13 @@ test "Cosmos RPC cooperative Resources full20s timeout reaches healthy second pe
     defer a.free(library);
     const h = try ResourceHarness.init(a, library, true, 120000);
     defer h.deinit();
-    var timer = try std.time.Timer.start();
+    // Curl's clock: a host sleep inside the wait still counts toward the
+    // physical timeout it ends, as it does for libcurl.
+    const clock = try fixture.CurlClock.start();
     // One call: the read waits through the first peer's full timeout.
     var response = try h.read(null);
     defer response.deinit();
-    try std.testing.expect(timer.read() >= 19500 * std.time.ns_per_ms);
+    try std.testing.expect((try clock.read()) >= 19500 * std.time.ns_per_ms);
     try std.testing.expectEqualStrings("42", response.value().object.get("height").?.string);
     try std.testing.expectEqual(@as(i64, 9007199254740993), response.value().object.get("exact").?.integer);
     try std.testing.expectEqual(@as(usize, 1), h.server.pathHits(0));
@@ -228,10 +230,10 @@ test "Cosmos RPC direct Resources full20s timeout preserves ordered120s actual o
     defer h.deinit();
     h.network.rpc_deadline_ns = (try http.rpcNowNs()) + 120 * std.time.ns_per_s;
     h.network.http.rpc_read_owner = .{ .deadline_ns = h.network.rpc_deadline_ns.? };
-    var timer = try std.time.Timer.start();
+    const clock = try fixture.CurlClock.start();
     var response = try h.finish(null);
     defer response.deinit();
-    try std.testing.expect(timer.read() >= 19500 * std.time.ns_per_ms);
+    try std.testing.expect((try clock.read()) >= 19500 * std.time.ns_per_ms);
     try std.testing.expectEqualStrings(result, response.bytes);
     try std.testing.expectEqual(@as(usize, 1), h.server.pathHits(0));
     try std.testing.expectEqual(@as(usize, 1), h.server.pathHits(1));

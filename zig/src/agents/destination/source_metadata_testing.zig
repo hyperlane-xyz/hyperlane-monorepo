@@ -236,7 +236,20 @@ const WalletFixture = struct {
         var retained: [32]std.net.Stream = undefined;
         var retained_count: usize = 0;
         defer for (retained[0..retained_count]) |stream| stream.close();
+        // Healthy verify replies wait for the stalled sibling's request, so the
+        // threshold can never complete before that sibling is in flight.
+        var held: [8]Held = undefined;
+        var held_count: usize = 0;
+        defer while (held_count != 0) {
+            held_count -= 1;
+            held[held_count].release();
+        };
         while (!self.stop.load(.acquire)) {
+            if (self.stalled.load(.acquire) != 0) while (held_count != 0) {
+                held_count -= 1;
+                defer held[held_count].release();
+                try reply(held[held_count].stream, held[held_count].response);
+            };
             var listen_fd = [_]std.posix.pollfd{.{ .fd = self.listener.stream.handle, .events = std.posix.POLL.IN, .revents = 0 }};
             if (try std.posix.poll(&listen_fd, 10) == 0) continue;
             const connection = try self.listener.accept();
@@ -281,18 +294,36 @@ const WalletFixture = struct {
                 retained_stream = true;
                 continue;
             };
+            const verify_selector = std.fmt.bytesToHex(abi.selector("verify(bytes,bytes)"), .lower);
+            if (!self.ccip_mode and self.stalled.load(.acquire) == 0 and std.mem.indexOf(u8, body, &verify_selector) != null) {
+                if (held_count == held.len) {
+                    std.heap.page_allocator.free(response);
+                    return error.FixtureTooManyHeldReplies;
+                }
+                held[held_count] = .{ .stream = connection.stream, .response = response };
+                held_count += 1;
+                retained_stream = true;
+                continue;
+            }
             defer std.heap.page_allocator.free(response);
-            var header: [256]u8 = undefined;
-            const text = try std.fmt.bufPrint(&header, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{response.len});
-            connection.stream.writeAll(text) catch |failure| switch (failure) {
-                error.BrokenPipe, error.ConnectionResetByPeer => continue,
-                else => return failure,
-            };
-            connection.stream.writeAll(response) catch |failure| switch (failure) {
-                error.BrokenPipe, error.ConnectionResetByPeer => continue,
-                else => return failure,
-            };
+            try reply(connection.stream, response);
         }
+    }
+    const Held = struct {
+        stream: std.net.Stream,
+        response: []u8,
+        fn release(self: Held) void {
+            self.stream.close();
+            std.heap.page_allocator.free(self.response);
+        }
+    };
+    fn reply(stream: std.net.Stream, response: []const u8) !void {
+        var header: [256]u8 = undefined;
+        const text = try std.fmt.bufPrint(&header, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{response.len});
+        inline for (.{ text, response }) |bytes| stream.writeAll(bytes) catch |failure| switch (failure) {
+            error.BrokenPipe, error.ConnectionResetByPeer => return,
+            else => return failure,
+        };
     }
 };
 
