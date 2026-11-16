@@ -513,10 +513,17 @@ additional domains. Counts must be nonnegative safe integers and keys must be
 uint32 domain IDs. All agent streams are live-only; recover history through RPC.
 `blocks` subscriptions still report raw indexed heads and ignore this map.
 The `subscribed` response echoes the map alongside the original streams.
+Every explicitly subscribed domain (including `blocks`) must exist in the scraper
+DB's `domain` table. Unknown domains reject the entire subscription with an error
+and close code 1008, before any readers or block subscriptions are created.
+Known domains without near-head state retain the existing canonical/advisory behavior.
 
-Domains sharing a count are grouped into the existing custom readers. Matching
-confirmation/domain groups share their initial database snapshot across event
-types. Canonical publication excludes overridden domains; the same event is not
+Domains sharing a count are grouped into the existing custom readers. All requested
+domain/count pairs, including advisory zero-confirmation pairs, share one initial
+database snapshot per subscription. Advisory zero-confirmation domains use one
+reader per event type. Rollbacks during setup refresh the snapshot.
+Identical concurrent custom event reads share a database query across clients;
+client cursors and delivery remain independent. Canonical publication excludes overridden domains; the same event is not
 also emitted at the configured default. Handoff boundaries and rollback frames
 retain the effective numeric confirmation count.
 

@@ -83,14 +83,26 @@ const EVENT_DOMAIN_COLUMNS: Record<EventType, readonly string[]> = {
   merkle_tree_insertion: ['domain'],
 };
 
-const MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES = 128;
+const MAX_CACHE_ENTRIES = 128;
 type ProvisionalMessage = { data: Row; domains: number[] };
 
 /** Database reads for live event and message publication. */
 export class EventStore {
   private readonly cache = new Map<string, Promise<ProvisionalMessage[]>>();
+  private readonly eventReads = new Map<string, Promise<Row[]>>();
 
   constructor(private readonly db: Pick<DbService, 'queryLive'>) {}
+
+  async knownDomains(domains: Set<number>): Promise<Set<number>> {
+    if (!domains.size) return new Set();
+    const rows = await this.db.queryLive<{ id: number }>(
+      'SELECT id FROM domain WHERE id=ANY($1::integer[])',
+      [[...domains].map(storedDomain)],
+    );
+    return new Set(
+      rows.map((row) => parseDatabaseDomain(row.id, 'Invalid domain')),
+    );
+  }
 
   blockHeads(domains?: Set<number>) {
     return this.db.queryLive<{
@@ -188,39 +200,70 @@ export class EventStore {
     domains: Set<number>,
     confirmations?: number,
   ): Promise<Map<number, ConfirmationHead>> {
-    // Custom agent streams take their position and block identity from the same
-    // snapshot. Checkpoints can be sparse (e.g. skipped slots): start at the last
-    // retained checkpoint at or below the requested confirmation frontier.
+    if (confirmations !== undefined) {
+      const snapshots = await this.confirmationSnapshots(
+        new Map([[confirmations, domains]]),
+      );
+      const heads = snapshots.get(confirmations);
+      if (!heads) throw new Error('Missing confirmation policy');
+      return heads;
+    }
     const rows = await this.db.queryLive<Row>(
-      confirmations === undefined
-        ? 'SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])'
-        : `SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,
-                  c.height::text AS height, ${LIVE_START_COLUMNS}
-           FROM scraper_head h LEFT JOIN LATERAL (
-             SELECT height, hash FROM scraper_checkpoint
-             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-$2::bigint)
-             ORDER BY height DESC LIMIT 1
-           ) c ON h.healthy AND NOT h.halted
-           WHERE h.domain=ANY($1::integer[])`,
-      confirmations === undefined
-        ? [[...domains].map(storedDomain)]
-        : [[...domains].map(storedDomain), confirmations],
+      'SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])',
+      [[...domains].map(storedDomain)],
     );
     return new Map(
       rows.map((row) => [
         parseDatabaseDomain(row.domain, 'Invalid head domain'),
-        {
-          head: parseId(row.head_height),
-          indexed: parseId(row.indexed_height),
-          confirmed: parseId(row.confirmed_height),
-          liveStart: liveStartBoundary(row),
-        },
+        confirmationHead(row),
       ]),
     );
   }
 
-  invalidateMessages(): void {
+  /** One snapshot for all requested domain/policy pairs, shared across event types. */
+  async confirmationSnapshots(
+    policies: Map<number, Set<number>>,
+  ): Promise<Map<number, Map<number, ConfirmationHead>>> {
+    const domains: number[] = [];
+    const confirmations: number[] = [];
+    const snapshots = new Map<number, Map<number, ConfirmationHead>>();
+    for (const [policy, requestedDomains] of policies) {
+      snapshots.set(policy, new Map());
+      for (const domain of requestedDomains) {
+        domains.push(storedDomain(domain));
+        confirmations.push(policy);
+      }
+    }
+    if (!domains.length) return snapshots;
+    // Custom agent streams take their position and block identity from the same
+    // snapshot. Checkpoints can be sparse (e.g. skipped slots): start at the last
+    // retained checkpoint at or below the requested confirmation frontier.
+    const rows = await this.db.queryLive<Row>(
+      `SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,
+                  requested.confirmations, c.height::text AS height, ${LIVE_START_COLUMNS}
+           FROM unnest($1::integer[], $2::bigint[]) requested(domain, confirmations)
+           JOIN scraper_head h ON h.domain=requested.domain
+           LEFT JOIN LATERAL (
+             SELECT height, hash FROM scraper_checkpoint
+             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-requested.confirmations)
+             ORDER BY height DESC LIMIT 1
+           ) c ON h.healthy AND NOT h.halted`,
+      [domains, confirmations],
+    );
+    for (const row of rows) {
+      const heads = snapshots.get(Number(row.confirmations));
+      if (!heads) throw new Error('Unexpected confirmation policy');
+      heads.set(
+        parseDatabaseDomain(row.domain, 'Invalid head domain'),
+        confirmationHead(row),
+      );
+    }
+    return snapshots;
+  }
+
+  invalidate(): void {
     this.cache.clear();
+    this.eventReads.clear();
   }
 
   async *confirmationEventRows(
@@ -241,7 +284,7 @@ export class EventStore {
       eventType === 'merkle_tree_insertion' ? ', event_row.block_hash' : '';
     let position = after;
     while (true) {
-      const rows = await this.db.queryLive<Row>(
+      const rows = await this.sharedEventRead(
         `/* confirmation_events */ SELECT ${projection}${blockHash}, event_row.id AS frontier_id, event_row.${q(height)} AS frontier_height
          FROM (SELECT * FROM ${q(table)} WHERE ${q(stream.domain)}=$1
            AND (${q(height)}, id)>($2::bigint,$3::bigint) AND ${q(height)}<=$4::bigint
@@ -269,6 +312,19 @@ export class EventStore {
       }
       if (rows.length < config.EVENT_STREAM_BATCH_SIZE) return;
     }
+  }
+
+  private sharedEventRead(sql: string, values: unknown[]): Promise<Row[]> {
+    const key = JSON.stringify([sql, values]);
+    const pending = this.eventReads.get(key);
+    if (pending) return pending;
+    const result = this.db.queryLive<Row>(sql, values).finally(() => {
+      if (this.eventReads.get(key) === result) this.eventReads.delete(key);
+    });
+    // Coalesce only in-flight reads. Never retain a completed or pre-reorg page.
+    if (this.eventReads.size < MAX_CACHE_ENTRIES)
+      this.eventReads.set(key, result);
+    return result;
   }
 
   async *confirmationMessageRows(
@@ -342,8 +398,7 @@ export class EventStore {
     const cached = this.cache.get(key);
     if (cached) return cached;
     // Entries survive only until the next head/message change, with a hard bound.
-    if (this.cache.size >= MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES)
-      this.cache.clear();
+    if (this.cache.size >= MAX_CACHE_ENTRIES) this.cache.clear();
     const result = this.db
       .queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
         sortedIds,
@@ -472,6 +527,15 @@ const LIVE_START_COLUMNS = `encode(c.hash, 'hex') AS hash,
   encode(h.mailbox, 'hex') AS mailbox,
   encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,
   encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster`;
+
+function confirmationHead(row: Row): ConfirmationHead {
+  return {
+    head: parseId(row.head_height),
+    indexed: parseId(row.indexed_height),
+    confirmed: parseId(row.confirmed_height),
+    liveStart: liveStartBoundary(row),
+  };
+}
 
 function liveStartBoundary(row: Row): LiveStartBoundary | undefined {
   const hash = parseOptionalBlockHash(row.hash);

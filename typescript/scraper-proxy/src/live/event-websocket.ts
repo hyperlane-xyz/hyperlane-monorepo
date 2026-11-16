@@ -176,7 +176,7 @@ export class EventWebSocketServer {
       const heads = [...this.pendingHeads.values()];
       this.pendingHeads.clear();
       if (!heads.length) return;
-      this.store.invalidateMessages();
+      this.store.invalidate();
       for (const head of heads) this.notifyConfirmationStreams(head);
     },
     (error) => this.failExplorerStream(error),
@@ -720,34 +720,55 @@ export class EventWebSocketServer {
       request: StreamRequest;
       stream: ConfirmationStream;
     }[] = [];
-    // One primary snapshot per confirmations/domains group. All readers are
-    // registered concurrently before it resolves. Rollbacks force a fresh read
-    // when initialize retries; never reuse a snapshot from an earlier ancestry.
-    const snapshots = new Map<
-      string,
-      { revision: number; heads: ReturnType<EventStore['confirmationHeads']> }
-    >();
-    const readHeads = (confirmations: number, domains: Set<number>) => {
-      const key = JSON.stringify([
-        confirmations,
-        [...domains].sort((a, b) => a - b),
-      ]);
-      let snapshot = snapshots.get(key);
-      if (!snapshot || snapshot.revision !== this.confirmationRevision) {
-        snapshot = {
-          revision: this.confirmationRevision,
-          heads: this.store.confirmationHeads(domains, confirmations),
-        };
-        snapshots.set(key, snapshot);
-      }
-      return snapshot.heads;
-    };
-    const eventStreams = message.streams
-      .filter((request) => request.eventType !== 'blocks')
-      .flatMap((request) =>
-        splitConfirmationStreams(request, message.confirmationsByDomain),
-      );
+    let eventStreams: StreamRequest[] = [];
     try {
+      const domains = new Set(
+        message.streams.flatMap((request) => [...(request.domains ?? [])]),
+      );
+      const knownDomains = await this.store.knownDomains(domains);
+      if (this.clients.get(socket) !== client) return;
+      for (const domain of domains) {
+        if (!knownDomains.has(domain)) {
+          this.rejectNegotiation(socket, `Unknown domain ${domain}`);
+          return;
+        }
+      }
+      eventStreams = message.streams
+        .filter((request) => request.eventType !== 'blocks')
+        .flatMap((request) =>
+          splitConfirmationStreams(request, message.confirmationsByDomain),
+        );
+      const policies = new Map<number, Set<number>>();
+      for (const request of eventStreams) {
+        const counts = new Set<number>();
+        if (request.confirmations !== undefined)
+          counts.add(request.confirmations);
+        if (request.includeZeroConfirmations) counts.add(0);
+        for (const count of counts) {
+          const domains = policies.get(count) ?? new Set<number>();
+          for (const domain of request.domains ?? []) domains.add(domain);
+          policies.set(count, domains);
+        }
+      }
+      // Batch every domain/policy pair into one snapshot. Readers are registered
+      // before it resolves; a setup rollback forces the whole snapshot to refresh.
+      let snapshot:
+        | {
+            revision: number;
+            heads: ReturnType<EventStore['confirmationSnapshots']>;
+          }
+        | undefined;
+      const readHeads = async (confirmations: number) => {
+        if (!snapshot || snapshot.revision !== this.confirmationRevision) {
+          snapshot = {
+            revision: this.confirmationRevision,
+            heads: this.store.confirmationSnapshots(policies),
+          };
+        }
+        const heads = (await snapshot.heads).get(confirmations);
+        if (!heads) throw new Error('Missing confirmation policy');
+        return heads;
+      };
       const blocks = message.streams.find(
         (request) => request.eventType === 'blocks',
       );
@@ -772,19 +793,30 @@ export class EventWebSocketServer {
             domains,
             request.eventType,
             allowUnavailable,
-            () => readHeads(confirmations, domains),
+            () => readHeads(confirmations),
           ).then((stream) => (stream ? { request, stream } : undefined)),
         );
       };
       for (const request of eventStreams) {
         if (request.confirmations !== undefined && request.domains)
           addStream(request, request.confirmations, request.domains);
+      }
+      // One advisory reader per event type, even when custom counts differ by domain.
+      for (const request of message.streams) {
         if (
+          request.eventType !== 'blocks' &&
           request.includeZeroConfirmations &&
-          request.confirmations !== 0 &&
           request.domains
-        )
-          addStream(request, 0, request.domains, true);
+        ) {
+          const domains = new Set(
+            [...request.domains].filter(
+              (domain) =>
+                (message.confirmationsByDomain?.get(domain) ??
+                  request.confirmations) !== 0,
+            ),
+          );
+          if (domains.size) addStream(request, 0, domains, true);
+        }
       }
       for (const result of await Promise.all(initializing)) {
         if (result) customStreams.push(result);
@@ -979,7 +1011,7 @@ export class EventWebSocketServer {
           // A rollback must invalidate in-flight readers immediately; never
           // coalesce it away with a subsequent forward observation.
           this.pendingHeads.delete(head.domain);
-          this.store.invalidateMessages();
+          this.store.invalidate();
           this.notifyConfirmationStreams(head);
         } else {
           this.pendingHeads.set(head.domain, head);
@@ -1265,7 +1297,7 @@ export class EventWebSocketServer {
 
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
-    this.store.invalidateMessages();
+    this.store.invalidate();
     const canonicalIds = new Set<string>();
     for (const [socket, client] of this.explorerClients) {
       const interested = this.explorerMessageIds(socket, messageIds);
@@ -1400,7 +1432,7 @@ export class EventWebSocketServer {
   private closeClients(reason: string, code = 1013): void {
     this.confirmationStreams.clear();
     this.pendingHeads.clear();
-    this.store.invalidateMessages();
+    this.store.invalidate();
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
   }

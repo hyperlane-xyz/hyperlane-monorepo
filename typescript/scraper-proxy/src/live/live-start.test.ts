@@ -18,6 +18,8 @@ void it(
     try {
       // Session-local tables: never alter an existing scraper database.
       await db.query(`
+      CREATE TEMP TABLE domain (id integer PRIMARY KEY);
+      INSERT INTO domain VALUES (1),(-2),(7);
       CREATE TEMP TABLE scraper_head (
         domain integer PRIMARY KEY, confirmed_height bigint, indexed_height bigint,
         mailbox bytea, merkle_tree_hook bytea, interchain_gas_paymaster bytea,
@@ -50,6 +52,10 @@ void it(
       });
       const boundaries = await store.liveStartBoundaries(
         new Set([1, 2, 3, 4, 5, 4294967294]),
+      );
+      assert.deepEqual(
+        await store.knownDomains(new Set([1, 4294967294, 7, 8])),
+        new Set([1, 4294967294, 7]),
       );
       assert.deepEqual(
         [...boundaries.keys()].sort((a, b) => a - b),
@@ -87,6 +93,25 @@ void it(
       assert.equal(custom.get(3)?.liveStart, undefined);
       assert.equal(custom.get(4)?.liveStart, undefined);
       assert.equal(custom.get(5)?.liveStart?.height, '0');
+      const policies = new Map([
+        [11, new Set([1, 2, 3, 4, 5, 4294967294])],
+        [0, new Set([1, 4294967294])],
+        [21, new Set([1])],
+        [2, new Set([7])],
+      ]);
+      const snapshots = await store.confirmationSnapshots(policies);
+      assert.deepEqual(snapshots.get(11), custom);
+      for (const [count, domains] of policies)
+        assert.deepEqual(
+          snapshots.get(count),
+          await store.confirmationHeads(domains, count),
+        );
+      assert.equal(
+        snapshots.get(0)?.get(4294967294)?.liveStart?.height,
+        '9007199254740993',
+      );
+      assert.equal(snapshots.get(21)?.get(1)?.liveStart, undefined);
+      assert.equal(snapshots.get(2)?.size, 0);
       assert.equal(
         (await store.confirmationHeads(new Set([1]), 0)).get(1)?.liveStart
           ?.height,
