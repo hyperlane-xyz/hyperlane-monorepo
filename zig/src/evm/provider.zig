@@ -243,12 +243,10 @@ pub const RpcClient = struct {
     options: Options,
     next_id: i64 = 1,
     last_rpc_error_code: ?i64 = null,
-    /// Request bodies are written here, reusing its capacity; a body is valid
-    /// until the next request is encoded.
-    body: std.ArrayList(u8) = .empty,
-    /// A request is between encode and decode. The body buffer makes this
-    /// client strictly serial: concurrent callers fork their own client.
-    in_flight: bool = false,
+    /// Size of the last encoded request; new bodies start at this capacity.
+    /// Each call owns its body: lane fibers share one client and park
+    /// mid-call, so a shared body buffer would be overwritten under them.
+    body_hint: usize = 0,
 
     /// Forget a completed read section only after its controller has advanced
     /// past that section; subsequent identical fences must be physical reads.
@@ -282,7 +280,6 @@ pub const RpcClient = struct {
     }
 
     pub fn deinit(self: *RpcClient) void {
-        self.body.deinit(self.allocator);
         self.http.deinit();
         self.allocator.free(self.headers);
         self.allocator.free(self.native_headers);
@@ -301,10 +298,10 @@ pub const RpcClient = struct {
     /// Validate the full envelope but retain structured errors for contracts
     /// whose read protocol intentionally reverts (EIP-3668).
     pub fn callEnvelope(self: *RpcClient, method: []const u8, params: anytype) !RpcResponse {
-        self.enter();
-        defer self.in_flight = false;
         const id = try self.nextId(method);
-        const body = try self.encode(id, method, params);
+        var buffer: std.ArrayList(u8) = .empty;
+        defer buffer.deinit(self.allocator);
+        const body = try self.encode(&buffer, id, method, params);
         const fetched = try self.fetchOne(body);
         return self.decodeEnvelope(method, body, id, fetched);
     }
@@ -319,20 +316,17 @@ pub const RpcClient = struct {
     fn fetchOne(self: *RpcClient, body: []const u8) !WireResponse {
         return if (self.options.exchange) |exchange| try exchange.fetch_fn(exchange.context, self.allocator, body, self.options) else if (self.options.native_transport) |native| try self.fetchNative(native, body) else try self.fetchStd(body);
     }
-    fn enter(self: *RpcClient) void {
-        std.debug.assert(!self.in_flight);
-        self.in_flight = true;
-    }
     /// The request body, exactly Stringify of `{jsonrpc, id, method, params}`
-    /// (RawParams are copied verbatim), in the reused body buffer.
-    fn encode(self: *RpcClient, id: i64, method: []const u8, params: anytype) ![]const u8 {
-        self.body.clearRetainingCapacity();
-        try self.append(id, method, params);
-        return self.body.items;
+    /// (RawParams are copied verbatim), in the caller-owned `buffer`.
+    fn encode(self: *RpcClient, buffer: *std.ArrayList(u8), id: i64, method: []const u8, params: anytype) ![]const u8 {
+        try buffer.ensureTotalCapacity(self.allocator, self.body_hint);
+        try self.append(buffer, id, method, params);
+        self.body_hint = buffer.items.len;
+        return buffer.items;
     }
-    fn append(self: *RpcClient, id: i64, method: []const u8, params: anytype) !void {
-        var out: std.Io.Writer.Allocating = .fromArrayList(self.allocator, &self.body);
-        defer self.body = out.toArrayList();
+    fn append(self: *RpcClient, buffer: *std.ArrayList(u8), id: i64, method: []const u8, params: anytype) !void {
+        var out: std.Io.Writer.Allocating = .fromArrayList(self.allocator, buffer);
+        defer buffer.* = out.toArrayList();
         const writer = &out.writer;
         writeBody(writer, id, method, params) catch return error.OutOfMemory;
     }
@@ -356,10 +350,10 @@ pub const RpcClient = struct {
     }
     /// call() with the result left in its response bytes when possible.
     pub fn callRaw(self: *RpcClient, method: []const u8, params: anytype) !RawResponse {
-        self.enter();
-        defer self.in_flight = false;
         const id = try self.nextId(method);
-        const body = try self.encode(id, method, params);
+        var buffer: std.ArrayList(u8) = .empty;
+        defer buffer.deinit(self.allocator);
+        const body = try self.encode(&buffer, id, method, params);
         var response = try self.decodeRaw(method, body, id, try self.fetchOne(body));
         errdefer response.deinit();
         if (response.isError()) return error.RpcError;
@@ -367,15 +361,16 @@ pub const RpcClient = struct {
     }
     fn exchangeMany(self: *RpcClient, comptime R: type, comptime decode: anytype, calls: []const RawCall, out: []R) !void {
         if (calls.len != out.len) return error.InvalidRpcBatch;
-        self.enter();
-        defer self.in_flight = false;
+        var buffer: std.ArrayList(u8) = .empty;
+        defer buffer.deinit(self.allocator);
         var filled: usize = 0;
         errdefer for (out[0..filled]) |*response| response.deinit();
         const many = if (self.options.exchange) |exchange| exchange.fetch_many_fn else null;
         if (many == null or calls.len < 2) {
             for (calls, out) |raw, *slot| {
                 const id = try self.nextId(raw.method);
-                const body = try self.encode(id, raw.method, RawParams{ .json = raw.params_json });
+                buffer.clearRetainingCapacity();
+                const body = try self.encode(&buffer, id, raw.method, RawParams{ .json = raw.params_json });
                 slot.* = try decode(self, raw.method, body, id, try self.fetchOne(body));
                 filled += 1;
                 if (slot.isError()) return error.RpcError;
@@ -389,15 +384,14 @@ pub const RpcClient = struct {
         const ends = try self.allocator.alloc(usize, calls.len);
         defer self.allocator.free(ends);
         // All bodies go into the one buffer; slice it only once it stops growing.
-        self.body.clearRetainingCapacity();
         for (calls, ids, ends) |raw, *id, *end| {
             id.* = try self.nextId(raw.method);
-            try self.append(id.*, raw.method, RawParams{ .json = raw.params_json });
-            end.* = self.body.items.len;
+            try self.append(&buffer, id.*, raw.method, RawParams{ .json = raw.params_json });
+            end.* = buffer.items.len;
         }
         var start: usize = 0;
         for (bodies, ends) |*body, end| {
-            body.* = self.body.items[start..end];
+            body.* = buffer.items[start..end];
             start = end;
         }
         const wires = try self.allocator.alloc(WireResponse, calls.len);
@@ -1325,7 +1319,9 @@ test {
 fn expectBody(client: *RpcClient, id: i64, method: []const u8, params: anytype, legacy: anytype) !void {
     const expected = try std.json.Stringify.valueAlloc(std.testing.allocator, .{ .jsonrpc = "2.0", .id = id, .method = method, .params = legacy }, .{});
     defer std.testing.allocator.free(expected);
-    try std.testing.expectEqualStrings(expected, try client.encode(id, method, params));
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(std.testing.allocator);
+    try std.testing.expectEqualStrings(expected, try client.encode(&buffer, id, method, params));
 }
 
 test "request bodies are byte-identical to Stringify of the whole envelope" {
@@ -1350,7 +1346,9 @@ test "request bodies are byte-identical to Stringify of the whole envelope" {
             defer a.free(legacy_method);
             const legacy = try std.fmt.allocPrint(a, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"method\":{s},\"params\":{s}}}", .{ id, legacy_method, "[\"0x1\",false]" });
             defer a.free(legacy);
-            try std.testing.expectEqualStrings(legacy, try client.encode(id, text, RawParams{ .json = "[\"0x1\",false]" }));
+            var buffer: std.ArrayList(u8) = .empty;
+            defer buffer.deinit(a);
+            try std.testing.expectEqualStrings(legacy, try client.encode(&buffer, id, text, RawParams{ .json = "[\"0x1\",false]" }));
         }
     }
     // Typed params write the same text the allocating helpers produced.
@@ -1407,8 +1405,40 @@ test "request bodies are byte-identical to Stringify of the whole envelope" {
     const through_text = try abi.quantityAlloc(a, 0x2000);
     defer a.free(through_text);
     try expectBody(&client, 11, "eth_getLogs", .{.{ .fromBlock = QuantityParam{ .value = 0x1b4 }, .toBlock = QuantityParam{ .value = 0x2000 }, .address = address_params, .topics = .{topic_params} }}, .{.{ .fromBlock = from_text, .toBlock = through_text, .address = address_texts, .topics = .{topic_texts} }});
-    // The buffer is reused: no allocation once it has grown.
-    const capacity = client.body.capacity;
-    _ = try client.encode(1, "eth_chainId", .{});
-    try std.testing.expectEqual(capacity, client.body.capacity);
+    // New bodies start at the last body's size.
+    var buffer: std.ArrayList(u8) = .empty;
+    defer buffer.deinit(a);
+    _ = try client.encode(&buffer, 1, "eth_chainId", .{});
+    try std.testing.expect(buffer.capacity >= client.body_hint);
+}
+
+test "a call parked mid-exchange keeps its body while another call on the same client runs" {
+    // Lane fibers share one client and park inside fetch; a nested call stands
+    // in for the sibling fiber that runs while the first is parked.
+    const Nested = struct {
+        client: *RpcClient = undefined,
+        depth: usize = 0,
+        fn fetch(context: *anyopaque, allocator: Allocator, body: []const u8, _: Options) anyerror!WireResponse {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            const before = try allocator.dupe(u8, body);
+            defer allocator.free(before);
+            self.depth += 1;
+            if (self.depth == 1) {
+                var inner = try self.client.call("eth_call", .{ .{ .to = "0x" ++ "22" ** 20, .data = "0x" ++ "ab" ** 300 }, "latest" });
+                inner.deinit();
+            }
+            try std.testing.expectEqualStrings(before, body);
+            var parsed = try std.json.parseFromSlice(struct { id: i64 }, allocator, body, .{ .ignore_unknown_fields = true });
+            defer parsed.deinit();
+            const bytes = try std.fmt.allocPrint(allocator, "{{\"jsonrpc\":\"2.0\",\"id\":{d},\"result\":\"0x01\"}}", .{parsed.value.id});
+            return .{ .bytes = bytes, .len = bytes.len };
+        }
+    };
+    var fixture: Nested = .{};
+    var client = try RpcClient.init(std.testing.allocator, "http://fixture/rpc", .{ .exchange = .{ .context = &fixture, .fetch_fn = Nested.fetch } });
+    defer client.deinit();
+    fixture.client = &client;
+    var outer = try client.call("eth_blockNumber", .{});
+    defer outer.deinit();
+    try std.testing.expectEqual(@as(usize, 2), fixture.depth);
 }
