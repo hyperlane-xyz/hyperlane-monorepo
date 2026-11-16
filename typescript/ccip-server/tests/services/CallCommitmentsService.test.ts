@@ -2176,53 +2176,35 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     });
   }
 
-  it('denies the reveal when no candidate ICA equals the stored one', async () => {
-    const service = createVerifyingService(dispatchedOtherIca([routerIca], 0));
+  for (const sealevelRevealsEnabled of [false, true]) {
+    it(`denies an EVM-origin reveal whose dispatched ICA matches no candidate when Sealevel reveals are ${sealevelRevealsEnabled ? 'enabled' : 'disabled'}`, async () => {
+      const { deriveIcaFromRevealMessage, deriveRouterVersionIcas } =
+        dispatchedOtherIca([routerIca], 0);
+      const service = createVerifyingService({
+        deriveIcaFromRevealMessage,
+        deriveRouterVersionIcas,
+        sealevelRevealsEnabled,
+      });
 
-    const error = await service
-      .handleFetchCommitment(
-        message,
-        baseRelayers[0],
-        mockLogger(),
-        originTxHash,
-      )
-      .then(
-        () => undefined,
-        (error: unknown) => error,
-      );
+      const error = await service
+        .handleFetchCommitment(
+          message,
+          baseRelayers[0],
+          mockLogger(),
+          originTxHash,
+        )
+        .then(
+          () => undefined,
+          (error: unknown) => error,
+        );
 
-    expect(error)
-      .to.be.instanceOf(CommitmentAccessDeniedError)
-      .with.property('message', 'Reveal does not belong to this commitment');
-  });
-
-  it('denies an EVM-origin reveal whose dispatched ICA matches no candidate when Sealevel reveals are enabled', async () => {
-    const { deriveIcaFromRevealMessage, deriveRouterVersionIcas } =
-      dispatchedOtherIca([routerIca], 0);
-    const service = createVerifyingService({
-      deriveIcaFromRevealMessage,
-      deriveRouterVersionIcas,
-      sealevelRevealsEnabled: true,
+      expect(error)
+        .to.be.instanceOf(CommitmentAccessDeniedError)
+        .with.property('message', 'Reveal does not belong to this commitment');
+      sinon.assert.calledOnce(service.deriveIcaFromRevealMessage);
+      sinon.assert.calledOnce(service.deriveRouterVersionIcas);
     });
-
-    const error = await service
-      .handleFetchCommitment(
-        message,
-        baseRelayers[0],
-        mockLogger(),
-        originTxHash,
-      )
-      .then(
-        () => undefined,
-        (error: unknown) => error,
-      );
-
-    expect(error)
-      .to.be.instanceOf(CommitmentAccessDeniedError)
-      .with.property('message', 'Reveal does not belong to this commitment');
-    sinon.assert.calledOnce(service.deriveIcaFromRevealMessage);
-    sinon.assert.calledOnce(service.deriveRouterVersionIcas);
-  });
+  }
 
   it('retries instead of denying when a candidate that could have matched failed to derive', async () => {
     // e.g. the destination RPC timed out on the V2 candidate while the V3
