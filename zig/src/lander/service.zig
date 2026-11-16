@@ -145,6 +145,8 @@ pub const Service = struct {
     recovery_complete: bool = false,
     recovery_blocked: bool = false,
     fast_recovery: bool,
+    /// Mirror of the durable active index; `store.active` points at it.
+    active: *storage.ActiveSet,
     active_cursor: u32 = 0,
     past_old_boundary: bool = false,
     next_boundary_refresh_ms: u64 = 0,
@@ -171,15 +173,23 @@ pub const Service = struct {
         const highest = try store.highestTransactionIndex(allocator);
         const fast_recovery = try store.activeCheckpoint(allocator);
         const payload_highest = try store.beginPendingReconciliation(allocator);
+        const active = try allocator.create(storage.ActiveSet);
+        errdefer allocator.destroy(active);
+        active.* = .init(allocator);
+        errdefer active.deinit();
+        if (fast_recovery) try active.rebuild(store);
+        var owned_store = store;
+        owned_store.active = active;
         return .{
             .allocator = allocator,
-            .store = store,
+            .store = owned_store,
             .chain = chain_adapter,
             .config = config,
-            .nonces = nonce.Manager.init(store, config.signer.address),
+            .nonces = nonce.Manager.init(owned_store, config.signer.address),
             .cancel = cancel,
             .scan_cursor = highest,
             .fast_recovery = fast_recovery,
+            .active = active,
             .payload_reconcile_cursor = payload_highest,
             .payload_reconcile_complete = payload_highest == 0,
             .receipt_progress = std.AutoHashMap(types.Uuid, ReceiptProgress).init(allocator),
@@ -232,6 +242,8 @@ pub const Service = struct {
         while (iterator.next()) |entry| self.allocator.free(entry.value_ptr.items);
         self.receipt_progress.deinit();
         self.checks.deinit(self.allocator);
+        self.active.deinit();
+        self.allocator.destroy(self.active);
         self.* = undefined;
     }
 
@@ -271,12 +283,8 @@ pub const Service = struct {
         defer self.mutex.unlock();
         if (!self.recovery_complete or !self.payload_reconcile_complete) return false;
         if (try self.store.reorgRange(self.allocator, self.config.signer.address) != null) return false;
-        var start: [4]u8 = @splat(0);
-        if (try self.store.typed.atOrAfter(self.allocator, storage.active_tx_by_index, &start)) |entry_value| {
-            var entry = entry_value;
-            entry.deinit();
-            return false;
-        }
+        if (!self.active.fresh) try self.active.rebuild(self.store);
+        if (self.active.count() != 0) return false;
         var pending = try self.store.typed.prefix(self.allocator, storage.pending_payload_by_index);
         defer pending.deinit();
         if (try pending.next(self.allocator)) |entry_value| {
@@ -339,6 +347,7 @@ pub const Service = struct {
         try self.buildPending(now_ms, limits, &report);
         self.tickMetrics(&report, started_ms);
         report.recovery_complete = self.recovery_complete;
+        if (@import("builtin").is_test and !try self.active.matchesStore(self.store)) return error.ActiveSetDiverged;
         return report;
     }
 
@@ -349,6 +358,7 @@ pub const Service = struct {
         try self.buildPending(now_ms, limits, report);
         self.tickMetrics(report, started_ms);
         report.recovery_complete = self.recovery_complete;
+        if (@import("builtin").is_test and !try self.active.matchesStore(self.store)) return error.ActiveSetDiverged;
         return report.*;
     }
 
@@ -479,18 +489,17 @@ pub const Service = struct {
         self.recovery_blocked = false;
         var scanned: usize = 0;
         while (scanned < limits.max_transactions and report.receipts_read < limits.max_receipts) {
-            var encoded: [4]u8 = undefined;
-            std.mem.writeInt(u32, &encoded, self.active_cursor, .big);
-            var entry = (try self.store.typed.atOrAfter(self.allocator, storage.active_tx_by_index, &encoded)) orelse {
+            // A failed write in the previous step left the mirror stale.
+            if (!self.active.fresh) try self.active.rebuild(self.store);
+            // Looked up per step: reconciliation removes entries as it goes.
+            const entry = self.active.atOrAfter(self.active_cursor) orelse {
                 self.recovery_complete = true;
                 self.active_cursor = 0;
                 return;
             };
-            defer entry.deinit();
-            if (entry.key.len != 4 or entry.value.len != 16) return error.InvalidLanderRecord;
-            const index = std.mem.readInt(u32, entry.key[0..4], .big);
+            const index = entry.index;
             self.active_cursor = if (index == std.math.maxInt(u32)) 0 else index + 1;
-            const uuid = entry.value[0..16].*;
+            const uuid = entry.uuid;
             if (self.recovery_complete) if (self.checks.get(uuid)) |check| if (!check.due(self.config.estimated_block_time_ms, now_ms)) {
                 self.oldest_unchecked_age_seconds = @max(self.oldest_unchecked_age_seconds, now_ms / 1000 -| check.last_ms / 1000);
                 report.transactions_scanned += 1;

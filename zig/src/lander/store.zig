@@ -92,11 +92,112 @@ pub const PayloadUpdate = struct {
     pending_json: ?[]const u8 = null,
 };
 
+/// In-memory mirror of `active_tx_by_index` (Rust keeps its inclusion pool
+/// in memory the same way). The database stays the source of truth: the set
+/// is rebuilt from one prefix scan, and each committed write that changes the
+/// index applies its change right after the commit returns. Any failed write
+/// or allocation marks the set stale, so it is rebuilt before its next use;
+/// a crash simply loses it, and open rebuilds it.
+pub const ActiveSet = struct {
+    allocator: std.mem.Allocator,
+    /// Sorted by index (the key order of `active_tx_by_index`).
+    entries: std.ArrayListUnmanaged(Entry) = .empty,
+    fresh: bool = false,
+
+    pub const Entry = struct { index: u32, uuid: types.Uuid };
+    pub const Change = struct { index: u32, uuid: types.Uuid, active: bool };
+
+    pub fn init(allocator: std.mem.Allocator) ActiveSet {
+        return .{ .allocator = allocator };
+    }
+
+    pub fn deinit(self: *ActiveSet) void {
+        self.entries.deinit(self.allocator);
+        self.* = undefined;
+    }
+
+    pub fn count(self: *const ActiveSet) usize {
+        return self.entries.items.len;
+    }
+
+    fn lowerBound(self: *const ActiveSet, index: u32) usize {
+        var low: usize = 0;
+        var high = self.entries.items.len;
+        while (low < high) {
+            const middle = low + (high - low) / 2;
+            if (self.entries.items[middle].index < index) low = middle + 1 else high = middle;
+        }
+        return low;
+    }
+
+    /// The lowest active entry at or after `index`.
+    pub fn atOrAfter(self: *const ActiveSet, index: u32) ?Entry {
+        const position = self.lowerBound(index);
+        return if (position < self.entries.items.len) self.entries.items[position] else null;
+    }
+
+    /// Mirrors a committed change. A stale set ignores it (it will be rebuilt).
+    pub fn apply(self: *ActiveSet, change: Change) void {
+        if (!self.fresh) return;
+        const position = self.lowerBound(change.index);
+        const present = position < self.entries.items.len and self.entries.items[position].index == change.index;
+        if (!change.active) {
+            if (present) _ = self.entries.orderedRemove(position);
+        } else if (present) {
+            self.entries.items[position].uuid = change.uuid;
+        } else {
+            self.entries.insert(self.allocator, position, .{ .index = change.index, .uuid = change.uuid }) catch {
+                self.fresh = false;
+            };
+        }
+    }
+
+    /// Replaces the contents with the durable index, read with one iterator.
+    pub fn rebuild(self: *ActiveSet, store: Store) !void {
+        self.fresh = false;
+        self.entries.clearRetainingCapacity();
+        var iterator = try store.typed.prefix(self.allocator, active_tx_by_index);
+        defer iterator.deinit();
+        while (try iterator.nextBorrowed()) |entry| {
+            if (entry.key.len != 4 or entry.value.len != 16) return error.InvalidLanderRecord;
+            try self.entries.append(self.allocator, .{ .index = std.mem.readInt(u32, entry.key[0..4], .big), .uuid = entry.value[0..16].* });
+        }
+        self.fresh = true;
+    }
+
+    /// Test oracle: a fresh set equals the durable index.
+    pub fn matchesStore(self: *const ActiveSet, store: Store) !bool {
+        if (!self.fresh) return true;
+        var durable = ActiveSet.init(self.allocator);
+        defer durable.deinit();
+        try durable.rebuild(store);
+        if (durable.entries.items.len != self.entries.items.len) return false;
+        for (durable.entries.items, self.entries.items) |left, right| {
+            if (left.index != right.index or !std.mem.eql(u8, &left.uuid, &right.uuid)) return false;
+        }
+        return true;
+    }
+};
+
 pub const Store = struct {
     typed: rocks.Typed,
+    /// Owned by the Service, the sole writer of lander rows while it is open.
+    /// Writes through a Store copy without it leave the mirror unaware.
+    active: ?*ActiveSet = null,
 
     pub fn init(database: *rocks.Database, domain_name: []const u8) Store {
         return .{ .typed = .{ .database = database, .domain_name = domain_name } };
+    }
+
+    fn applyActive(self: Store, change: ?ActiveSet.Change) void {
+        const set = self.active orelse return;
+        if (change) |value| set.apply(value);
+    }
+
+    /// A write failed: whether it reached the database is unknown, so the
+    /// mirror must be rebuilt from it.
+    fn invalidateActive(self: Store) void {
+        if (self.active) |set| set.fresh = false;
     }
 
     pub fn loadJson(self: Store, allocator: std.mem.Allocator, prefix: []const u8, key: []const u8) !?JsonRecord {
@@ -229,22 +330,25 @@ pub const Store = struct {
         try batch.commitSync();
     }
 
-    pub fn putActive(batch: *rocks.TypedBatch, index: u32, uuid: types.Uuid, active: bool) !void {
+    pub fn putActive(batch: *rocks.TypedBatch, index: u32, uuid: types.Uuid, active: bool) !ActiveSet.Change {
         var encoded: [4]u8 = undefined;
         std.mem.writeInt(u32, &encoded, index, .big);
         if (active) try batch.put(active_tx_by_index, &encoded, &uuid) else try batch.delete(active_tx_by_index, &encoded);
+        return .{ .index = index, .uuid = uuid, .active = active };
     }
 
     pub fn setActive(self: Store, allocator: std.mem.Allocator, index: u32, uuid: types.Uuid, active: bool) !void {
+        errdefer self.invalidateActive();
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
-        try putActive(&batch, index, uuid, active);
+        const change = try putActive(&batch, index, uuid, active);
         try batch.commitSync();
+        self.applyActive(change);
     }
 
-    fn updateActive(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, uuid: types.Uuid, status: StatusTag) !void {
-        const index = (try self.transactionIndex(allocator, uuid)) orelse return;
-        try putActive(batch, index, uuid, status != .dropped and status != .finalized);
+    fn updateActive(self: Store, batch: *rocks.TypedBatch, allocator: std.mem.Allocator, uuid: types.Uuid, status: StatusTag) !?ActiveSet.Change {
+        const index = (try self.transactionIndex(allocator, uuid)) orelse return null;
+        return try putActive(batch, index, uuid, status != .dropped and status != .finalized);
     }
 
     fn getInt(self: Store, comptime T: type, allocator: std.mem.Allocator, prefix: []const u8, key: []const u8) !?T {
@@ -300,6 +404,7 @@ pub const Store = struct {
     }
 
     pub fn writeBuiltTransaction(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, payloads: []const PayloadUpdate) !u32 {
+        errdefer self.invalidateActive();
         const existing = try self.transactionIndex(allocator, uuid);
         const index = if (existing) |value| value else try std.math.add(u32, try self.highestTransactionIndex(allocator), 1);
         var batch = try self.typed.batch(allocator);
@@ -313,8 +418,8 @@ pub const Store = struct {
         }
         const status = try statusTag(allocator, transaction_json);
         try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        try self.updateActive(&batch, allocator, uuid, status);
-        if (existing == null) try putActive(&batch, index, uuid, true);
+        var change = try self.updateActive(&batch, allocator, uuid, status);
+        if (existing == null) change = try putActive(&batch, index, uuid, true);
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         for (payloads) |payload| {
             const payload_index = (try self.payloadIndex(allocator, payload.uuid)) orelse return error.MissingPayload;
@@ -324,6 +429,8 @@ pub const Store = struct {
         }
         try batch.put(pending_payload_index_write_marker, &singleton, &.{1});
         try batch.commitSync();
+        // Before any later fallible step: the change is durable now.
+        self.applyActive(change);
         try self.markPayloadCheckpoint(allocator);
         return index;
     }
@@ -331,13 +438,15 @@ pub const Store = struct {
     pub fn writeTransaction(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8) !void {
         const status = try statusTag(allocator, transaction_json);
         if (status == .finalized) return error.MissingFinalizedReceipt;
+        errdefer self.invalidateActive();
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
         try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
         try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        try self.updateActive(&batch, allocator, uuid, status);
+        const change = try self.updateActive(&batch, allocator, uuid, status);
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         try batch.commitSync();
+        self.applyActive(change);
     }
 
     pub fn writeTransactionAndPayloads(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, payloads: []const PayloadUpdate) !void {
@@ -347,12 +456,13 @@ pub const Store = struct {
     pub fn writeTransactionAndPayloadsWithReceipt(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, payloads: []const PayloadUpdate, receipt: ?FinalizedReceipt) !void {
         const status = try statusTag(allocator, transaction_json);
         if (status == .finalized and receipt == null) return error.MissingFinalizedReceipt;
+        errdefer self.invalidateActive();
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
         try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
         if (receipt) |value| try putFinalizedReceipt(&batch, value);
         try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        try self.updateActive(&batch, allocator, uuid, status);
+        const change = try self.updateActive(&batch, allocator, uuid, status);
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         for (payloads) |payload| {
             const payload_index = (try self.payloadIndex(allocator, payload.uuid)) orelse return error.MissingPayload;
@@ -361,6 +471,8 @@ pub const Store = struct {
         }
         try batch.put(pending_payload_index_write_marker, &singleton, &.{1});
         try batch.commitSync();
+        // Before any later fallible step: the change is durable now.
+        self.applyActive(change);
         try self.markPayloadCheckpoint(allocator);
     }
 
@@ -416,14 +528,16 @@ pub const Store = struct {
     pub fn writeSubmission(self: Store, allocator: std.mem.Allocator, uuid: types.Uuid, transaction_json: []const u8, attempt: ?struct { hash: types.Hash, nonce: u256, bytes: []const u8 }) !void {
         const status = try statusTag(allocator, transaction_json);
         if (status == .finalized) return error.MissingFinalizedReceipt;
+        errdefer self.invalidateActive();
         var batch = try self.typed.batch(allocator);
         defer batch.deinit();
         try deleteFinalizedReceiptsForTransaction(&batch, allocator, uuid);
         try self.bumpAvailabilityIfChanged(&batch, allocator, uuid, status);
-        try self.updateActive(&batch, allocator, uuid, status);
+        const change = try self.updateActive(&batch, allocator, uuid, status);
         try batch.put(transaction_by_uuid, &uuid, transaction_json);
         if (attempt) |value| try putAttempt(&batch, uuid, value.hash, value.nonce, value.bytes);
         try batch.commitSync();
+        self.applyActive(change);
     }
 
     pub fn finalizedNonce(self: Store, allocator: std.mem.Allocator, signer: types.Address) !?u256 {

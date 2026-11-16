@@ -264,6 +264,10 @@ pub const PrefixIterator = struct {
     allocator: Allocator,
     prefix_bytes: []u8,
     diagnostic: ?*Diagnostic,
+    /// `nextBorrowed` steps past the entry it returned on the following call.
+    advance: bool = false,
+
+    pub const Borrowed = struct { key: []const u8, value: []const u8 };
 
     pub fn deinit(self: *PrefixIterator) void {
         c.rocksdb_iter_destroy(self.handle);
@@ -292,6 +296,22 @@ pub const PrefixIterator = struct {
         c.rocksdb_iter_next(self.handle);
         try self.status();
         return .{ .key = key, .value = value, .allocator = allocator };
+    }
+
+    /// The next entry without copying: `key` excludes the prefix. Both slices
+    /// borrow native memory valid until the following call or deinit. Do not
+    /// mix with `next` on one iterator.
+    pub fn nextBorrowed(self: *PrefixIterator) !?Borrowed {
+        if (self.advance) c.rocksdb_iter_next(self.handle);
+        self.advance = true;
+        try self.status();
+        if (c.rocksdb_iter_valid(self.handle) == 0) return null;
+        var key_len: usize = 0;
+        const native_key = c.rocksdb_iter_key(self.handle, &key_len)[0..key_len];
+        if (!std.mem.startsWith(u8, native_key, self.prefix_bytes)) return null;
+        var value_len: usize = 0;
+        const native_value = c.rocksdb_iter_value(self.handle, &value_len);
+        return .{ .key = native_key[self.prefix_bytes.len..], .value = native_value[0..value_len] };
     }
 };
 
