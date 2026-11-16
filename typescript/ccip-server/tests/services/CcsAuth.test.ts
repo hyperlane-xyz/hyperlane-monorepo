@@ -16,7 +16,11 @@ import {
   encodeIcaCalls,
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
-import { addressToBytes32, formatMessage } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  addressToBytes32,
+  formatMessage,
+} from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
 import { CallCommitmentsService } from '../../src/services/CallCommitmentsService.js';
@@ -296,7 +300,7 @@ describe('CCS read authentication', () => {
     }
   });
 
-  it('rejects malformed origin transaction hints instead of serving stored routing metadata', async () => {
+  it('forwards string origin transaction hints for protocol-aware validation', async () => {
     const fetch = sinon
       .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
       .resolves('0x1234');
@@ -307,17 +311,17 @@ describe('CCS read authentication', () => {
       ),
     );
     try {
-      for (const originTxHash of ['0x1234', '']) {
+      for (const originTxHash of ['0x1234', '', '0x' + 'ab'.repeat(64)]) {
         const response = await app.inject({
           method: 'POST',
           url: postPath,
           payload: { sender, data, signature, origin_tx_hash: originTxHash },
         });
 
-        expect(response.statusCode).to.equal(400);
-        expect(response.json().error).to.equal('Invalid origin_tx_hash');
+        expect(response.statusCode).to.equal(200);
+        expect(fetch.lastCall.args[3]).to.equal(originTxHash);
       }
-      expect(fetch.called).to.be.false;
+      expect(fetch.callCount).to.equal(3);
     } finally {
       await app.close();
     }
@@ -369,7 +373,9 @@ describe('CCS read authentication', () => {
 describe('CCS authenticated reveal recovery integration', () => {
   afterEach(() => sinon.restore());
 
-  async function fixture() {
+  async function fixture(
+    protocol: ProtocolType | null = ProtocolType.Ethereum,
+  ) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
     const mailbox = '0x' + '33'.repeat(20);
@@ -424,6 +430,8 @@ describe('CCS authenticated reveal recovery integration', () => {
       .stub(destinationProvider, 'call')
       .resolves(utils.defaultAbiCoder.encode(['address'], [correctIca]));
     const multiProvider = sinon.createStubInstance(MultiProvider);
+    if (protocol === null) multiProvider.getProtocol.throws('Unknown origin');
+    else multiProvider.getProtocol.returns(protocol);
     multiProvider.getChainName.withArgs(8453).returns('base');
     multiProvider.getProvider.withArgs('base').returns(originProvider);
     multiProvider.getProvider.withArgs(42161).returns(destinationProvider);
@@ -491,24 +499,62 @@ describe('CCS authenticated reveal recovery integration', () => {
     }
   });
 
-  it('serves a Rust None/null hint from the stored ICA without RPC reads', async () => {
-    const f = await fixture();
-    try {
-      const response = await f.app.inject({
-        method: 'POST',
-        url: postPath,
-        payload: { ...f.payload, origin_tx_hash: null },
+  for (const protocol of [
+    ProtocolType.Ethereum,
+    ProtocolType.Sealevel,
+    ProtocolType.Cosmos,
+    null,
+  ]) {
+    for (const originTxHash of [
+      undefined,
+      null,
+      1234,
+      '',
+      '0x1234',
+      '0x' + 'ab'.repeat(32),
+      '0x' + 'ab'.repeat(64),
+    ]) {
+      it(`handles ${protocol ?? 'unknown'} origin with hash ${JSON.stringify(originTxHash)}`, async () => {
+        const f = await fixture(protocol);
+        const validEvmHash =
+          typeof originTxHash === 'string' &&
+          utils.isHexString(originTxHash, 32);
+        const status =
+          protocol === ProtocolType.Sealevel
+            ? 200
+            : protocol === ProtocolType.Ethereum
+              ? validEvmHash
+                ? 200
+                : 400
+              : 500;
+        try {
+          const response = await f.app.inject({
+            method: 'POST',
+            url: postPath,
+            payload: { ...f.payload, origin_tx_hash: originTxHash },
+          });
+          expect(response.statusCode).to.equal(status);
+          if (status === 200) {
+            const ica =
+              protocol === ProtocolType.Sealevel ? f.record.ica : f.correctIca;
+            expect(response.json().data).to.equal(
+              ica + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+            );
+          } else {
+            expect(response.json()).not.to.have.property('data');
+            if (status === 400)
+              expect(response.json().error).to.equal('Invalid origin_tx_hash');
+          }
+          expect(f.receipt.callCount).to.equal(
+            protocol === ProtocolType.Ethereum && validEvmHash ? 1 : 0,
+          );
+          sinon.assert.notCalled(f.updateMany);
+        } finally {
+          await f.app.close();
+        }
       });
-      expect(response.statusCode).to.equal(200);
-      expect(response.json().data).to.equal(
-        f.record.ica + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
-      );
-      sinon.assert.notCalled(f.receipt);
-      sinon.assert.notCalled(f.updateMany);
-    } finally {
-      await f.app.close();
     }
-  });
+  }
 
   for (const failure of ['missing receipt', 'origin RPC failure'] as const) {
     it(`returns HTTP 500 for ${failure}, without a successful metadata response`, async () => {

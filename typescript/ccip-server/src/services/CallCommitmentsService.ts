@@ -24,6 +24,7 @@ import {
   normalizeCalls,
 } from '@hyperlane-xyz/sdk/middleware/account/icaCalls';
 import {
+  ProtocolType,
   addressToBytes32,
   bytes32ToAddress,
   assert,
@@ -44,7 +45,10 @@ import {
   UnhandledErrorReason,
 } from '../utils/prometheus.js';
 import { createRateLimitHook } from '../utils/rateLimit.js';
-import { CommitmentAccessDeniedError } from '../utils/errors.js';
+import {
+  CommitmentAccessDeniedError,
+  InvalidOriginTxHashError,
+} from '../utils/errors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
 
 import {
@@ -471,9 +475,18 @@ export class CallCommitmentsService extends BaseService {
       );
       // The dispatch receipt identifies the actual router pair, including for
       // older records derived using the registry's default router version.
-      const ica = originTxHash
-        ? await this.deriveIcaFromRevealMessage(message, originTxHash)
-        : record.ica;
+      const protocol = this.multiProvider.getProtocol(origin);
+      let ica = record.ica;
+      if (protocol !== ProtocolType.Sealevel) {
+        assert(
+          protocol === ProtocolType.Ethereum,
+          `Unsupported origin protocol: ${protocol}`,
+        );
+        if (!originTxHash || !utils.isHexString(originTxHash, 32)) {
+          throw new InvalidOriginTxHashError();
+        }
+        ica = await this.deriveIcaFromRevealMessage(message, originTxHash);
+      }
       if (ica.toLowerCase() !== record.ica.toLowerCase()) {
         log.warn(
           {
@@ -1130,16 +1143,8 @@ export class CallCommitmentsService extends BaseService {
       { ...ABI_ROUTE_OPTIONS, preHandler: this.auth.authenticate },
       async (request, reply) => {
         const rawTxHash = request.body?.origin_tx_hash;
-        if (
-          typeof rawTxHash === 'string' &&
-          !utils.isHexString(rawTxHash, 32)
-        ) {
-          return reply.code(400).send({ error: 'Invalid origin_tx_hash' });
-        }
         const originTxHash =
-          typeof rawTxHash === 'string' && utils.isHexString(rawTxHash, 32)
-            ? rawTxHash
-            : undefined;
+          typeof rawTxHash === 'string' ? rawTxHash : undefined;
         return createAbiHandler(
           CommitmentReadIsmService__factory,
           'getCallsFromRevealMessage',
