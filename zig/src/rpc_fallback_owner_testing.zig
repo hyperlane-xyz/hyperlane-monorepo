@@ -90,7 +90,9 @@ const Job = struct {
             if (self.profile == .svm) network.clients.sealevel.deadline_ns = deadline else client.options.owner_deadline_ns = deadline;
         }
         if (self.mode == .precancel) self.cancel.store(true, .release);
-        var timer = try std.time.Timer.start();
+        // Curl's clock: a host sleep inside the wait still counts toward the
+        // physical timeout it ends, as it does for libcurl.
+        const clock = try fixture.CurlClock.start();
         while (true) {
             var response = self.pass(network) catch |err| {
                 if (err == error.PendingReadIo) {
@@ -104,7 +106,7 @@ const Job = struct {
             };
             defer response.deinit();
             if (self.mode != .live) return error.AcceptedExpiredFallbackOwner;
-            try std.testing.expect(timer.read() >= (if (self.profile == .hedged_immutable) @as(u64, 20500) else 19500) * std.time.ns_per_ms);
+            try std.testing.expect((try clock.read()) >= (if (self.profile == .hedged_immutable) @as(u64, 20500) else 19500) * std.time.ns_per_ms);
             if (self.profile == .svm) {
                 try std.testing.expectEqual(@as(i64, 37), response.value().integer);
                 try std.testing.expect(client.options.owner_deadline_ns == (if (self.cooperative) @as(?u64, 1) else null));

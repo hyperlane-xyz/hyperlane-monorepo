@@ -10,6 +10,24 @@ pub fn nativeLibrary(allocator: A) ![]u8 {
     };
 }
 
+/// Elapsed time on libcurl's timeout clock (CLOCK_MONOTONIC_RAW). On macOS it
+/// keeps ticking while the host sleeps; std.time.Timer (UPTIME_RAW) does not,
+/// so a physical timeout that curl ends across a sleep looks short to Timer.
+/// Measure lower bounds on curl timeouts with this clock.
+pub const CurlClock = struct {
+    started: u64,
+    pub fn start() !CurlClock {
+        return .{ .started = try now() };
+    }
+    pub fn read(self: CurlClock) !u64 {
+        return (try now()) -| self.started;
+    }
+    fn now() !u64 {
+        const value = try std.posix.clock_gettime(std.posix.CLOCK.MONOTONIC_RAW);
+        return @as(u64, @intCast(value.sec)) * std.time.ns_per_s + @as(u64, @intCast(value.nsec));
+    }
+};
+
 pub const Reply = struct {
     status: u16 = 200,
     body: []const u8,
