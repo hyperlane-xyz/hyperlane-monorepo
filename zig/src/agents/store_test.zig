@@ -273,6 +273,41 @@ test "receipt admission never changes indexed nonce authority and survives reope
     }
 }
 
+test "startup pending-index migration fsyncs only nonces it repairs" {
+    const allocator = std.testing.allocator;
+    var temp = std.testing.tmpDir(.{});
+    defer temp.cleanup();
+    const parent = try temp.dir.realpathAlloc(allocator, ".");
+    defer allocator.free(parent);
+    const path = try std.fs.path.join(allocator, &.{ parent, "agent" });
+    defer allocator.free(path);
+    var database = try db.rocks.Database.open(allocator, path, .{ .sync = true });
+    defer database.deinit();
+    var store = agents.Store.init(allocator, &database, "ethereum");
+    for (0..5) |i| {
+        const message: protocol.Message = .{ .version = 3, .nonce = @intCast(i), .origin = 1, .destination = 11, .sender = @splat(1), .recipient = @splat(2), .body = "migrate" };
+        try std.testing.expect(try store.storeMessage(message, 10, null));
+    }
+    const before = database.wal_syncs.load(.monotonic);
+    const consistent = try store.reconcileLegacyPage(0, 256);
+    try std.testing.expectEqual(@as(usize, 5), consistent.scanned);
+    try std.testing.expectEqual(before, database.wal_syncs.load(.monotonic));
+    // A missing pending entry is repaired with exactly one synced commit.
+    const pending = try db.keys.pendingDestination(allocator, 11);
+    defer allocator.free(pending);
+    var nonce: [4]u8 = undefined;
+    std.mem.writeInt(u32, &nonce, 3, .big);
+    var batch = try store.typed.batch(allocator);
+    defer batch.deinit();
+    try batch.delete(pending, &nonce);
+    try batch.commitSync();
+    const damaged = database.wal_syncs.load(.monotonic);
+    _ = try store.reconcileLegacyPage(0, 256);
+    try std.testing.expectEqual(damaged + 1, database.wal_syncs.load(.monotonic));
+    const repaired = (try store.typed.get(allocator, pending, &nonce)).?;
+    defer allocator.free(repaired);
+}
+
 test "deferred indexing rows cost one fsync with their synced cursor" {
     const allocator = std.testing.allocator;
     var temp = std.testing.tmpDir(.{});

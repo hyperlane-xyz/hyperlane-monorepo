@@ -217,6 +217,9 @@ pub const Store = struct {
         var batch = try self.typed.batch(self.allocator);
         defer batch.deinit();
         try self.reconcilePending(&batch, message.value);
+        // Startup migration re-checks every canonical nonce; an already
+        // consistent index stages nothing, so skip the empty write and fsync.
+        if (batch.batch.count() == 0) return true;
         try batch.commit();
         return true;
     }

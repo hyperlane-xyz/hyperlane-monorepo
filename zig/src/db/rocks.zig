@@ -44,7 +44,11 @@ fn check(native_error: ?[*:0]u8, diagnostic: ?*Diagnostic) !void {
 /// before any such effect: RocksDB syncs every live WAL file in one ordered
 /// log, so a later sync persists every earlier write. A crash between the
 /// two reaches only states a crash just before the deferred commit already
-/// could. Effect sites call `effectGate`.
+/// could. Every deferral is covered within its own step. The EVM Lander gates
+/// signing and sendRaw with `effectGate`, and in-step coverage is asserted
+/// with it after the covering sync. Ungated effect sites (native destination
+/// sign/broadcast, validator sign/publish, API acks) rely on their actor's own
+/// synced persist preceding the effect, which covers every earlier write.
 pub const Durability = enum { sync, deferred };
 
 /// Test-mode proof that each deferral is covered: the newest deferred write
@@ -270,6 +274,12 @@ pub const Batch = struct {
     pub fn delete(self: *Batch, key: []const u8) !void {
         const handle = self.handle orelse return error.ClosedBatch;
         c.rocksdb_writebatch_delete(handle, key.ptr, key.len);
+    }
+
+    /// Staged operations (puts, deletes, range deletes).
+    pub fn count(self: *const Batch) usize {
+        const handle = self.handle orelse return 0;
+        return @intCast(c.rocksdb_writebatch_count(handle));
     }
 
     pub fn deleteRange(self: *Batch, start: []const u8, end: []const u8) !void {

@@ -31,6 +31,7 @@ pub extern fn rocksdb_write(*DB, *const WriteOptions, *WriteBatch, *?[*:0]u8) vo
 pub extern fn rocksdb_flush_wal(*DB, u8, *?[*:0]u8) void;
 pub extern fn rocksdb_get_latest_sequence_number(*DB) u64;
 pub extern fn rocksdb_writebatch_create() ?*WriteBatch;
+pub extern fn rocksdb_writebatch_count(*WriteBatch) c_int;
 pub extern fn rocksdb_writebatch_destroy(*WriteBatch) void;
 pub extern fn rocksdb_writebatch_put(*WriteBatch, [*]const u8, usize, [*]const u8, usize) void;
 pub extern fn rocksdb_writebatch_delete(*WriteBatch, [*]const u8, usize) void;
