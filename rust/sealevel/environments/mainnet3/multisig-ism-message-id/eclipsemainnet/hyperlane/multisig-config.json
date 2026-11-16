@@ -1,10 +1,21 @@
 {
+  "aevo": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 3,
+    "validators": [
+      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
+      "0xa2adc5fb1ecdbb65a4ffdc92a6fb6210a5181eee",
+      "0x71645a74b8a9dc8ee98ada9cef64c55423a663e0",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
   "elysium": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
     "validators": [
       "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x49ed767e8e971cf77413e3114f8de0b3c34205f9"
+      "0x49ed767e8e971cf77413e3114f8de0b3c34205f9",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
   "tempo": {
