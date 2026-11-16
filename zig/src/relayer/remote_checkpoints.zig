@@ -96,7 +96,8 @@ const Session = struct {
     /// themselves even while the owner is inside an inline disk read.
     clock: std.time.Instant,
     phase: enum { guard, read } = .guard,
-    arrivals: [256]Arrival = undefined,
+    /// One per peer: each peer pushes exactly once, when it reaches done.
+    arrivals: []Arrival,
     length: usize = 0,
     consumed: usize = 0,
     diagnostics: usize = 0,
@@ -111,6 +112,7 @@ const Session = struct {
         if (self.references.fetchSub(1, .acq_rel) != 1) return;
         for (self.peers) |peer| if (peer.registration) |registration| registration.release();
         self.allocator.free(self.peers);
+        self.allocator.free(self.arrivals);
         const allocator = self.allocator;
         allocator.destroy(self);
     }
@@ -220,10 +222,12 @@ const DiskPool = io.Pool(DiskInput, DiskOutput, Engine, 4, 512);
 pub const ReadRequest = struct {
     allocator: A,
     session: *Session,
-    validators: [256]Address = undefined,
+    /// Owned, sized to the validator count (fixed 256-entry arrays were
+    /// filled per request in safety-checked builds).
+    validators: []Address,
     count: usize,
     collector: ?quorum.Collector = null,
-    latest: [256]?u32 = @splat(null),
+    latest: []?u32,
     storage_errors: usize = 0,
     diagnostics_reported: usize = 0,
     finished: bool = false,
@@ -319,7 +323,10 @@ pub const ReadRequest = struct {
     pub fn deinit(self: *ReadRequest) void {
         self.finish();
         self.session.release();
+        if (self.collector) |*collector| collector.deinit();
         const a = self.allocator;
+        a.free(self.validators);
+        a.free(self.latest);
         a.destroy(self);
     }
 };
@@ -536,6 +543,8 @@ pub const Engine = struct {
         const peers = try self.allocator.alloc(Peer, validators.len);
         errdefer self.allocator.free(peers);
         @memset(peers, .{ .registration = null, .stage = .done });
+        const arrivals = try self.allocator.alloc(Arrival, validators.len);
+        errdefer self.allocator.free(arrivals);
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.stopping.load(.acquire)) return error.RemoteCheckpointEngineStopped;
@@ -551,7 +560,7 @@ pub const Engine = struct {
             self.touched[i] = self.sequence;
             break;
         };
-        session.* = .{ .allocator = self.allocator, .peers = peers, .kind = kind, .index = index, .deadline_ms = self.now() +| self.config.timeout_ms, .clock = self.started };
+        session.* = .{ .allocator = self.allocator, .peers = peers, .arrivals = arrivals, .kind = kind, .index = index, .deadline_ms = self.now() +| self.config.timeout_ms, .clock = self.started };
         session.retain(); // dedicated owner reference, released after work drains
         self.sessions[slot] = session;
         self.kicked = true;
@@ -564,24 +573,30 @@ pub const Engine = struct {
     pub fn submitQuorum(self: *Engine, origin: u32, allocator: A, validators: []const Address, threshold: usize, index: u32) !*ReadRequest {
         // Validate before enqueueing work or copying an oversized slice.
         var collector = try quorum.Collector.init(allocator, validators, threshold, index, .standard);
-        const request = try self.allocator.create(ReadRequest);
-        errdefer self.allocator.destroy(request);
-        request.* = .{ .allocator = self.allocator, .session = try self.enqueue(origin, validators, .checkpoint, index), .count = validators.len };
-        @memcpy(request.validators[0..validators.len], validators);
-        collector.validators = request.validators[0..validators.len];
+        errdefer collector.deinit();
+        const request = try self.newRequest(origin, validators, .checkpoint, index);
+        collector.validators = request.validators;
         request.collector = collector;
         return request;
     }
     pub fn submitLatest(self: *Engine, origin: u32, validators: []const Address) !*ReadRequest {
         if (validators.len > 256) return error.InvalidLatestIndicesLength;
+        return self.newRequest(origin, validators, .latest, 0);
+    }
+    fn newRequest(self: *Engine, origin: u32, validators: []const Address, kind: Kind, index: u32) !*ReadRequest {
         const request = try self.allocator.create(ReadRequest);
         errdefer self.allocator.destroy(request);
-        request.* = .{ .allocator = self.allocator, .session = try self.enqueue(origin, validators, .latest, 0), .count = validators.len };
-        @memcpy(request.validators[0..validators.len], validators);
+        const owned = try self.allocator.dupe(Address, validators);
+        errdefer self.allocator.free(owned);
+        const latest = try self.allocator.alloc(?u32, validators.len);
+        errdefer self.allocator.free(latest);
+        @memset(latest, null);
+        request.* = .{ .allocator = self.allocator, .session = try self.enqueue(origin, validators, kind, index), .validators = owned, .latest = latest, .count = validators.len };
         return request;
     }
     pub fn fetchQuorum(self: *Engine, origin: u32, allocator: A, validators: []const Address, threshold: usize, index: u32, storage_errors: *usize, cancel: ?*const std.atomic.Value(bool)) !?quorum.Quorum {
         var collector = try quorum.Collector.init(allocator, validators, threshold, index, .standard);
+        defer collector.deinit();
         const session = try self.enqueue(origin, validators, .checkpoint, index);
         defer {
             session.closed.store(true, .release);

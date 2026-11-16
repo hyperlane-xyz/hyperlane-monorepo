@@ -457,6 +457,7 @@ pub fn Source(comptime Origin: type) type {
             if (sessions) if (self.session) |*session| return session.fetchQuorum(a, validators, threshold, index, errors);
             if (@hasDecl(Origin, "fetchQuorum")) return self.origin.fetchQuorum(a, validators, threshold, index, errors, self.options.cancel);
             var collector = try quorum.Collector.init(a, validators, threshold, index, .standard);
+            defer collector.deinit();
             for (validators, 0..) |validator, position| {
                 const signed = self.origin.fetchCheckpoint(validator, index) catch |err| {
                     if (metadata.hardFailure(err)) return err;

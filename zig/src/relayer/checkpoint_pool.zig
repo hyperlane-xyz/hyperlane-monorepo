@@ -286,6 +286,7 @@ pub const ReaderPool = struct {
 
     pub fn fetchQuorum(self: *ReaderPool, origin: u32, allocator: Allocator, validators: []const Address, threshold: usize, index: u32, storage_errors: *usize, cancel: ?*const std.atomic.Value(bool)) !?quorum.Quorum {
         var collector = try quorum.Collector.init(allocator, validators, threshold, index, .standard);
+        defer collector.deinit();
         // A reorg flag at ANY selected backend aborts the whole build. Check
         // every peer before early quorum; retain the exact checked locations
         // across phases even if registrations rotate concurrently.

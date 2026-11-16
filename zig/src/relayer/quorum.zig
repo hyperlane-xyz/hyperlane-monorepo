@@ -21,6 +21,7 @@ pub const Quorum = struct {
 /// wins; signatures in its result follow configured validator positions.
 pub fn collect(allocator: std.mem.Allocator, arrivals: []const Arrival, validators: []const Address, threshold: usize, index: u32, destination: Destination) !?Quorum {
     var collector = try Collector.init(allocator, validators, threshold, index, destination);
+    defer collector.deinit();
     for (arrivals) |arrival| {
         if (try collector.push(arrival)) |result| return result;
     }
@@ -33,7 +34,10 @@ pub const Collector = struct {
     threshold: usize,
     index: u32,
     destination: Destination,
-    accepted: [256]Arrival = undefined,
+    /// One slot per configured validator (each is accepted at most once).
+    /// Sized at init: a fixed 256-entry array (~45 KiB) was filled on every
+    /// init in safety-checked builds.
+    accepted: []Arrival,
     accepted_len: usize = 0,
     seen: [256]bool = @splat(false),
     complete: bool = false,
@@ -43,7 +47,12 @@ pub const Collector = struct {
         for (validators, 0..) |validator, i| {
             for (validators[0..i]) |previous| if (std.mem.eql(u8, &validator, &previous)) return error.DuplicateValidator;
         }
-        return .{ .allocator = allocator, .validators = validators, .threshold = threshold, .index = index, .destination = destination };
+        return .{ .allocator = allocator, .validators = validators, .threshold = threshold, .index = index, .destination = destination, .accepted = try allocator.alloc(Arrival, validators.len) };
+    }
+
+    pub fn deinit(self: *Collector) void {
+        self.allocator.free(self.accepted);
+        self.* = undefined;
     }
 
     /// Streaming completion order. Recover each validator signature once and
@@ -69,8 +78,8 @@ pub const Collector = struct {
             }
         }
         if (count < self.threshold) return null;
-        std.mem.sort(u8, matches[0..count], &self.accepted, struct {
-            fn less(accepted: *const [256]Arrival, left: u8, right: u8) bool {
+        std.mem.sort(u8, matches[0..count], self.accepted, struct {
+            fn less(accepted: []const Arrival, left: u8, right: u8) bool {
                 return accepted[left].validator_index < accepted[right].validator_index;
             }
         }.less);
