@@ -140,8 +140,27 @@ fn putMember(a: Allocator, list: *std.ArrayList(json.Member), key: []const u8, v
     try list.append(a, .{ .key = key, .value = value });
 }
 
+/// A response-cache key: the exact normalized bytes TS hashes with SHA-256
+/// (`operationName \0 normalizedQuery \0 sortedUsedVariables`), compared in
+/// full on lookup (so two requests share an entry exactly when TS's digests
+/// would match, minus SHA-256's theoretical collisions), and a wyhash of
+/// them for bucketing only.
+pub const Key = struct {
+    hash: u64,
+    bytes: []const u8,
+};
+
+const KeyContext = struct {
+    pub fn hash(_: KeyContext, k: Key) u64 {
+        return k.hash;
+    }
+    pub fn eql(_: KeyContext, x: Key, y: Key) bool {
+        return x.hash == y.hash and std.mem.eql(u8, x.bytes, y.bytes);
+    }
+};
+
 pub const PreparedCacheRequest = struct {
-    key: [64]u8,
+    key: Key,
     refresh: bool,
     ttl: f64,
 };
@@ -175,8 +194,13 @@ const DocKeyContext = struct {
 const PreparedDocument = struct {
     arena: std.heap.ArenaAllocator,
     key: DocKey = .{ .schema = 0, .operation_name = null, .query = "" },
-    /// Response-cache key when the document uses no data variables (constant).
-    static_key: ?[64]u8 = null,
+    /// Response-cache key when the document uses no data variables (constant;
+    /// bytes in this document's arena).
+    static_key: ?Key = null,
+    /// The key's constant prefix (`operationName \0 normalizedQuery \0`) and
+    /// its wyhash, the seed of each request's key hash.
+    key_prefix: []const u8 = "",
+    prefix_hash: u64 = 0,
     operation: *const ast.Operation,
     query: []const u8,
     used_variables: compat.UsedVariables,
@@ -190,7 +214,8 @@ const PreparedDocument = struct {
 };
 
 const Entry = struct {
-    key: [64]u8,
+    /// Owned copy of the key bytes.
+    key: Key,
     body: []const u8,
     expires: i64,
     /// The cache's reference (while stored) plus in-flight shared reads.
@@ -236,7 +261,7 @@ pub const ResponseCache = struct {
     mutex: std.Thread.Mutex = .{},
     documents: std.HashMapUnmanaged(DocKey, *PreparedDocument, DocKeyContext, std.hash_map.default_max_load_percentage) = .empty,
     document_order: Lru(PreparedDocument) = .{},
-    entries: std.AutoHashMapUnmanaged([64]u8, *Entry) = .empty,
+    entries: std.HashMapUnmanaged(Key, *Entry, KeyContext, std.hash_map.default_max_load_percentage) = .empty,
     entry_order: Lru(Entry) = .{},
     bytes: usize = 0,
     /// Millisecond clock (tests inject a fake).
@@ -296,7 +321,9 @@ pub const ResponseCache = struct {
         const directive = (try cacheDirective(a, p.operation, variables)) orelse return null;
         if (p.static_key == null and try keyOverflows(a, p, variables)) return error.StackOverflow;
         return .{
-            .key = p.static_key orelse try cacheKey(a, operation_name, p, variables),
+            // A static key lives in the document's arena, which may go once
+            // the document is released: the request keeps its own copy.
+            .key = if (p.static_key) |k| .{ .hash = k.hash, .bytes = try a.dupe(u8, k.bytes) } else try cacheKey(a, p, variables),
             .refresh = directive.refresh,
             .ttl = directive.ttl,
         };
@@ -388,7 +415,9 @@ pub const ResponseCache = struct {
         p.query = try pa.dupe(u8, try printer.printDocument(a, &normalized));
         p.used_variables = used;
         p.operation = op;
-        if (used.count() == 0) p.static_key = try cacheKey(a, operation_name, p, .{ .object = &.{} });
+        p.key_prefix = try std.mem.concat(pa, u8, &.{ operation_name orelse "", "\x00", p.query, "\x00" });
+        p.prefix_hash = std.hash.Wyhash.hash(0, p.key_prefix);
+        if (used.count() == 0) p.static_key = try cacheKey(pa, p, .{ .object = &.{} });
         keep = true;
         return p;
     }
@@ -436,7 +465,9 @@ pub const ResponseCache = struct {
         return false;
     }
 
-    fn cacheKey(a: Allocator, operation_name: ?[]const u8, p: *const PreparedDocument, variables: Value) ![64]u8 {
+    /// `operationName \0 normalizedQuery \0 sortedUsedVariables`: TS's
+    /// SHA-256 input, kept verbatim (the prefix comes from the document).
+    fn cacheKey(a: Allocator, p: *const PreparedDocument, variables: Value) !Key {
         var data: std.ArrayList(json.Member) = .empty;
         for (try js.keyOrder(a, variables.object)) |idx| {
             const m = variables.object[idx];
@@ -444,15 +475,8 @@ pub const ResponseCache = struct {
         }
         const sorted = try sortObjectKeys(a, .{ .object = data.items });
         const serialized = try json.stringifyAlloc(a, sorted);
-        var h = std.crypto.hash.sha2.Sha256.init(.{});
-        h.update(operation_name orelse "");
-        h.update("\x00");
-        h.update(p.query);
-        h.update("\x00");
-        h.update(serialized);
-        var digest: [32]u8 = undefined;
-        h.final(&digest);
-        return std.fmt.bytesToHex(digest, .lower);
+        const bytes = try std.mem.concat(a, u8, &.{ p.key_prefix, serialized });
+        return .{ .hash = std.hash.Wyhash.hash(p.prefix_hash, serialized), .bytes = bytes };
     }
 
     /// `read(request)` sharing the stored body: the caller must `release` the
@@ -483,6 +507,7 @@ pub const ResponseCache = struct {
 
     fn freeEntry(self: *ResponseCache, entry: *Entry) void {
         self.gpa.free(entry.body);
+        self.gpa.free(entry.key.bytes);
         self.gpa.destroy(entry);
     }
 
@@ -516,8 +541,11 @@ pub const ResponseCache = struct {
         errdefer self.gpa.destroy(entry);
         const owned = try self.gpa.dupe(u8, body);
         errdefer self.gpa.free(owned);
-        entry.* = .{ .key = request.key, .body = owned, .expires = self.now_ms() + @as(i64, @intFromFloat(request.ttl * 1000)) };
-        try self.entries.put(self.gpa, request.key, entry);
+        const key_bytes = try self.gpa.dupe(u8, request.key.bytes);
+        errdefer self.gpa.free(key_bytes);
+        const key: Key = .{ .hash = request.key.hash, .bytes = key_bytes };
+        entry.* = .{ .key = key, .body = owned, .expires = self.now_ms() + @as(i64, @intFromFloat(request.ttl * 1000)) };
+        try self.entries.put(self.gpa, key, entry);
         self.entry_order.push(entry);
         self.bytes += owned.len;
         while (self.entry_order.len > max_entries or self.bytes > max_total_bytes) {
@@ -526,7 +554,7 @@ pub const ResponseCache = struct {
         }
     }
 
-    fn remove(self: *ResponseCache, key: [64]u8) void {
+    fn remove(self: *ResponseCache, key: Key) void {
         const kv = self.entries.fetchRemove(key) orelse return;
         const entry = kv.value;
         self.entry_order.unlink(entry);
@@ -629,14 +657,14 @@ test "memoizes query validation without reusing request variables or crossing sc
     try std.testing.expectEqualDeep(first, again);
     try std.testing.expectEqual(calls, cache.validations.load(.monotonic));
     const changed = (try cache.prepare(a, schema, try body.make(a, q, ",\"operationName\":\"First\"", "{\"id\":2,\"ttl\":10,\"refresh\":true}"))).?;
-    try std.testing.expect(!std.mem.eql(u8, &changed.key, &first.key));
+    try std.testing.expect(!KeyContext.eql(.{}, changed.key, first.key));
     try std.testing.expectEqual(@as(f64, 10), changed.ttl);
     try std.testing.expect(changed.refresh);
     try std.testing.expect((try cache.read(a, changed)) == null);
     try std.testing.expect((try cache.prepare(a, schema, try body.make(a, q, ",\"operationName\":\"First\"", "{\"id\":\"invalid\",\"ttl\":30,\"refresh\":false}"))) == null);
     try std.testing.expect((try cache.prepare(a, schema, try body.make(a, q, ",\"operationName\":\"First\"", "{\"ttl\":30,\"refresh\":false}"))) == null);
     const unnamed = (try cache.prepare(a, schema, try body.make(a, q, "", "{\"id\":1,\"ttl\":30,\"refresh\":false}"))).?;
-    try std.testing.expect(!std.mem.eql(u8, &unnamed.key, &first.key));
+    try std.testing.expect(!KeyContext.eql(.{}, unnamed.key, first.key));
     try std.testing.expect((try cache.prepare(a, schema, try body.make(a, q, ",\"operationName\":\"Missing\"", "{\"id\":1,\"ttl\":30,\"refresh\":false}"))) == null);
     const other = try schema_mod.buildSchema(std.testing.allocator, &.{"type Query { other: Int }"});
     defer {
@@ -702,20 +730,21 @@ test "concurrent prepare under eviction keeps documents alive and keys stable" {
     var cache = ResponseCache.init(std.testing.allocator); // leak-checked
     defer cache.deinit();
     const distinct = 300; // above the 256-document LRU, so eviction races with use
-    var expected: [distinct][64]u8 = undefined;
+    var expected: [distinct]Key = undefined;
+    var expected_arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer expected_arena.deinit();
     {
         var single = ResponseCache.init(std.testing.allocator);
         defer single.deinit();
-        var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-        defer arena.deinit();
         for (&expected, 0..) |*key, i| {
-            const query = try std.fmt.allocPrint(arena.allocator(), "query @cached(ttl: 30) {{ domain(limit: {d}) {{ id }} }}", .{i % 500 + 1});
+            const ea = expected_arena.allocator();
+            const query = try std.fmt.allocPrint(ea, "query @cached(ttl: 30) {{ domain(limit: {d}) {{ id }} }}", .{i % 500 + 1});
             var members = [_]json.Member{.{ .key = "query", .value = .{ .string = query } }};
-            key.* = (try single.prepare(arena.allocator(), schema, .{ .object = &members })).?.key;
+            key.* = (try single.prepare(ea, schema, .{ .object = &members })).?.key;
         }
     }
     const Worker = struct {
-        fn run(c: *ResponseCache, s: *const Schema, want: *const [distinct][64]u8, seed: usize, failures: *std.atomic.Value(u32)) void {
+        fn run(c: *ResponseCache, s: *const Schema, want: *const [distinct]Key, seed: usize, failures: *std.atomic.Value(u32)) void {
             var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
             defer arena.deinit();
             for (0..600) |n| {
@@ -724,7 +753,7 @@ test "concurrent prepare under eviction keeps documents alive and keys stable" {
                 const query = std.fmt.allocPrint(arena.allocator(), "query @cached(ttl: 30) {{ domain(limit: {d}) {{ id }} }}", .{i % 500 + 1}) catch return;
                 var members = [_]json.Member{.{ .key = "query", .value = .{ .string = query } }};
                 const got = c.prepare(arena.allocator(), s, .{ .object = &members }) catch null;
-                if (got == null or !std.mem.eql(u8, &got.?.key, &want[i])) _ = failures.fetchAdd(1, .monotonic);
+                if (got == null or !KeyContext.eql(.{}, got.?.key, want[i])) _ = failures.fetchAdd(1, .monotonic);
             }
         }
     };
@@ -739,8 +768,7 @@ test "concurrent prepare under eviction keeps documents alive and keys stable" {
 test "shared hits keep the body alive across replacement and eviction" {
     var cache = ResponseCache.init(std.testing.allocator);
     defer cache.deinit();
-    var key: [64]u8 = undefined;
-    @memset(&key, 'k');
+    const key: Key = .{ .hash = 1, .bytes = "k\x00{ k }\x00{}" };
     const request: PreparedCacheRequest = .{ .key = key, .refresh = false, .ttl = 30 };
     try cache.write(request, "first body");
     const hit = cache.readShared(request).?;
@@ -751,4 +779,32 @@ test "shared hits keep the body alive across replacement and eviction" {
     try std.testing.expectEqualStrings("first body", hit.body);
     cache.release(hit);
     try std.testing.expect(cache.readShared(request) == null);
+}
+
+test "response-cache key: TS's SHA-256 input bytes, compared in full" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var cache = ResponseCache.init(std.testing.allocator);
+    defer cache.deinit();
+    const schema = schema_mod.testing.scraper();
+    const query = "query Named($id: Int!, $unused: Int) @cached(ttl: 30) { domain(where: {id: {_eq: $id}}) { id } }";
+    const q = try json.stringifyAlloc(a, .{ .string = query });
+    const req = try parseBody(a, try std.fmt.allocPrint(a, "{{\"query\":{s},\"operationName\":\"Named\",\"variables\":{{\"unused\":5,\"id\":7}}}}", .{q}));
+    const prepared = (try cache.prepare(a, schema, req)).?;
+    const p = (try cache.acquireDocument(a, schema, .{ .schema = @intFromPtr(schema), .operation_name = "Named", .query = query })).?;
+    defer cache.releaseDocument(p);
+    // Exactly what TS feeds to SHA-256 (unused variables dropped, keys sorted).
+    try std.testing.expectEqualStrings(try std.mem.concat(a, u8, &.{ "Named\x00", p.query, "\x00{\"id\":7}" }), prepared.key.bytes);
+    // Different keys never share an entry, even with equal bucket hashes.
+    try cache.write(prepared, "seven");
+    const forged: PreparedCacheRequest = .{ .key = .{ .hash = prepared.key.hash, .bytes = "Named\x00x\x00{\"id\":7}" }, .refresh = false, .ttl = 30 };
+    try std.testing.expect((try cache.read(a, forged)) == null);
+    try std.testing.expectEqualStrings("seven", (try cache.read(a, prepared)).?.body);
+    // Variable-free documents: a static key, copied per request.
+    const static_req = try parseBody(a, "{\"query\":\"query @cached(ttl: 30) { domain(limit: 1) { id } }\"}");
+    const s1 = (try cache.prepare(a, schema, static_req)).?;
+    const s2 = (try cache.prepare(a, schema, static_req)).?;
+    try std.testing.expect(KeyContext.eql(.{}, s1.key, s2.key));
+    try std.testing.expect(s1.key.bytes.ptr != s2.key.bytes.ptr);
 }

@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) void {
     db_options.addOption(bool, "pool_hold_stats", pool_hold_stats);
     // Fiber-mode event loops (one pinned thread each); the default until the
     // 1-vs-N measurement decides. Not a runtime knob (TS env surface).
-    const http_loops = b.option(u32, "http-loops", "HTTP event loops in fiber mode (0: one per CPU; default 1)") orelse 1;
+    const http_loops = b.option(u32, "http-loops", "HTTP event loops in fiber mode (0: auto, the process's CPUs capped by its cgroup quota, clamped 1..4; default 1)") orelse 1;
     const http_options = b.addOptions();
     http_options.addOption(u32, "loops", http_loops);
     // Diagnostics only (bench): event-loop counters logged at close (debug

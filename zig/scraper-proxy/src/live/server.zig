@@ -9,6 +9,7 @@
 const std = @import("std");
 const core = @import("core");
 const diagnostics = @import("diagnostics");
+const http = @import("http");
 const protocol = @import("protocol.zig");
 const runtime = @import("runtime.zig");
 const frames = @import("frames.zig");
@@ -564,7 +565,7 @@ pub const Server = struct {
             .limits = options.limits,
             .production = options.production,
             .diagnostics_stream = diagnostics_stream,
-            .parallel_flush_threads = @max(1, @min(PARALLEL_FLUSH_THREADS, std.Thread.getCpuCount() catch 1)),
+            .parallel_flush_threads = @max(1, @min(PARALLEL_FLUSH_THREADS, http.effectiveCpus())),
         };
         self.agent_notifications = .init(loop, NOTIFICATION_BATCH_MS, self, drainAgentThunk, failAgentThunk);
         self.explorer_updates = .init(loop, NOTIFICATION_BATCH_MS, self, drainExplorerThunk, failExplorerThunk);

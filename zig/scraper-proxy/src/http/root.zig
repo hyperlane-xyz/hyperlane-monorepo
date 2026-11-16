@@ -19,6 +19,8 @@ pub const Options = server.Options;
 pub const UpgradeHandler = server.UpgradeHandler;
 pub const UpgradeSocket = server.UpgradeSocket;
 pub const metricsRoute = @import("metrics_route.zig").route;
+/// CPUs this process may run on; use instead of `std.Thread.getCpuCount`.
+pub const effectiveCpus = @import("cpus.zig").effectiveCpus;
 
 test {
     std.testing.refAllDecls(@This());
@@ -27,6 +29,7 @@ test {
     std.testing.refAllDeclsRecursive(ws);
     std.testing.refAllDeclsRecursive(@import("parse.zig"));
     _ = @import("loop.zig");
+    _ = @import("cpus.zig");
     _ = @import("tests.zig");
     _ = @import("corpus_test.zig");
     _ = @import("bench_test.zig");

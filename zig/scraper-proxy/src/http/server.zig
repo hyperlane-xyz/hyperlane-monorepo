@@ -86,9 +86,10 @@ pub const Options = struct {
     /// Fiber mode: event loops, one pinned thread each, sharing the listen
     /// socket (one registration per loop; on Linux EPOLLEXCLUSIVE wakes one
     /// loop per connection burst). Thread mode always runs one.
-    /// 0: one per CPU this process may run on (`std.Thread.getCpuCount`,
-    /// which honours the affinity mask, e.g. a cpuset). Default:
-    /// `-Dhttp-loops` (1 until measured).
+    /// 0 ("auto"): the CPUs this process may use, i.e. its affinity mask
+    /// capped by its cgroup CPU quota, clamped to 1..4 (`cpus.autoLoops`).
+    /// Default: `-Dhttp-loops` (1: production pods run without a CPU limit,
+    /// so auto would see the node's CPUs).
     loops: u32 = @import("http_options").loops,
 };
 
@@ -213,7 +214,7 @@ pub const Server = struct {
         errdefer gpa.destroy(self);
         self.* = .{ .gpa = gpa, .options = options, .listen_fd = fd, .address = bound };
         const n_loops: u32 = if (!fibers) 1 else if (options.loops == 0)
-            @intCast(std.math.clamp(std.Thread.getCpuCount() catch 1, 1, max_loops))
+            @import("cpus.zig").autoLoops()
         else
             @min(options.loops, max_loops);
         try self.loop.init(gpa, n_loops, .{

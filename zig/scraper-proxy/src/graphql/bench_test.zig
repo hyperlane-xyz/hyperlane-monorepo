@@ -298,6 +298,20 @@ test "graphql route direct cost (opt-in)" {
         try f.route.response_cache.write(.{ .key = prepared.key, .refresh = false, .ttl = 300 }, body);
         try direct(f.route.route(), "Explorer @cached hit (1.7 KB request, 25 KB body)", explorer, 100_000);
     }
+    // Explorer message by id @cached(ttl: 5) hit: keyed on a variable, so the
+    // response-cache key is hashed per request (`ResponseCache.cacheKey`).
+    {
+        var arena = std.heap.ArenaAllocator.init(gpa);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const byid = @embedFile("testdata/explorer-byid-cached.json");
+        const prepared = (try f.route.response_cache.prepare(a, schema_mod.testing.scraper(), try core.json.parse(a, byid, .{}))).?;
+        const body = try a.alloc(u8, 2 * 1024);
+        @memset(body, 'x');
+        body[0] = '{';
+        try f.route.response_cache.write(.{ .key = prepared.key, .refresh = false, .ttl = 300 }, body);
+        try direct(f.route.route(), "Explorer by-id @cached hit (1.5 KB request keyed on a variable)", byid, 100_000);
+    }
 }
 
 fn hammer(r: http.Route, body: []const u8, iterations: usize, failed: *std.atomic.Value(u32)) void {
