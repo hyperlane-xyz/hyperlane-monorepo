@@ -29,7 +29,7 @@ describe('USDT Eclipse production manifest', () => {
       ),
     );
     const registryCommit = loaded.deployment.registryCommit;
-    expect(registryCommit).to.equal('182e1be0c2df41b6e423b4934390daff1b6a72f9');
+    expect(registryCommit).to.equal('aa7cc3d836cbb020a3cedab7c470d5c59824a269');
     if (!registryCommit) throw new Error('Missing Eclipse registry pin');
     expect(loaded.deployment.monitorOnly).to.equal(true);
     const warpCore = WarpCoreConfigSchema.parse(
@@ -106,7 +106,15 @@ describe('USDT Eclipse production manifest', () => {
         `RPC_URL_${token.chainName.toUpperCase()}`,
       );
     }
-    expect(values.hyperlane.chains).to.include('plasma');
+    expect(values.hyperlane.chains).not.to.include('plasma');
+    expect(secret.spec.target.template.data).not.to.have.property(
+      'RPC_URL_PLASMA',
+    );
+    expect(
+      secret.spec.data.map(
+        (item: { remoteRef: { key: string } }) => item.remoteRef.key,
+      ),
+    ).not.to.include('mainnet3-rpc-endpoints-plasma');
     const keys = secret.spec.target.template.data;
     for (const protocol of ['ETHEREUM', 'SEALEVEL', 'TRON'])
       expect(keys).to.have.property(`HYP_INVENTORY_KEY_${protocol}`);
@@ -147,6 +155,13 @@ describe('USDT Eclipse production manifest', () => {
     expect(runtime).not.to.have.property('deployment');
     expect(runtime).not.to.have.property('stateStore');
     expect(sts.spec).not.to.have.property('volumeClaimTemplates');
+    expect(runtime.pendingTransferMiddlewares).to.deep.equal([
+      {
+        type: 'relayerDenylist',
+        url: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json',
+        refreshIntervalSecs: 60,
+      },
+    ]);
     expect(runtime.intentTTL).to.equal(1209600);
     expect(loaded.config.intentTTL).to.equal(1209600000);
     expect(runtime.externalBridges).to.deep.equal({

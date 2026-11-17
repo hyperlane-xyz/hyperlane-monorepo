@@ -1,4 +1,4 @@
-# Source: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/182e1be0c2df41b6e423b4934390daff1b6a72f9/deployments/warp_routes/USDT/eclipsemainnet-config.yaml
+# Source: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/aa7cc3d836cbb020a3cedab7c470d5c59824a269/deployments/warp_routes/USDT/eclipsemainnet-config.yaml
 # yaml-language-server: $schema=../schema.json
 tokens:
   - addressOrDenom: '0x42B794FbF2Ae97d7E9001e21D36B0A5595B51B11'
@@ -69,19 +69,6 @@ tokens:
       denominator: 1
     standard: EvmHypCollateral
     symbol: USDT
-  - addressOrDenom: '0xa119087116aDC61ade063105644795cb7BC0009D'
-    chainName: plasma
-    coinGeckoId: tether
-    collateralAddressOrDenom: '0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb'
-    connections: []
-    decimals: 6
-    logoURI: /deployments/warp_routes/USDT/logo.svg
-    name: USDT0
-    scale:
-      numerator: 1
-      denominator: 1
-    standard: EvmHypCollateral
-    symbol: USDT0
   - addressOrDenom: Bk79wMjvpPCh5iQcCEjPWFcG1V2TfgdwaBsWBEYFYSNU
     chainName: solanamainnet
     coinGeckoId: tether
