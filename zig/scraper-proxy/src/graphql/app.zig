@@ -29,7 +29,7 @@ pub const App = struct {
         self.* = .{ .gpa = gpa, .schema = schema, .db = dbs, .diagnostics = diag };
         const config = core.config.get();
         self.route_state = route_mod.GraphqlRoute.init(gpa, schema, .{
-            .db = scraperdb.Service.init(.{ .ctx = dbs, .queryFn = query, .reusableQueryFn = queryReusable, .fixedJoinQueryFn = queryFixedJoin, .lazyQueryFn = queryLazy }),
+            .db = scraperdb.Service.init(.{ .ctx = dbs, .queryFn = query, .reusableQueryFn = queryReusable, .fixedJoinQueryFn = queryFixedJoin, .serialQueryFn = querySerial, .lazyQueryFn = queryLazy }),
             .diagnostics = if (diag != null) .{ .ctx = self, .history = history, .snapshot = snapshot } else null,
         }, .{
             .max_active_requests = @intCast(config.graphql_max_active_requests),
@@ -64,6 +64,11 @@ pub const App = struct {
         return run(ctx, arena, text, values, diag, .fixed_join);
     }
 
+    /// `scraperdb` statements planned without parallel workers.
+    fn querySerial(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
+        return run(ctx, arena, text, values, diag, .serial);
+    }
+
     fn run(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag, plan: scraperdb.Plan) anyerror![]Value {
         const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
         // First I/O of the request: takes its execution slot (route.zig).
@@ -77,6 +82,7 @@ pub const App = struct {
             .custom => dbs.query(arena, text, values, &failure),
             .reusable => dbs.queryReusable(arena, text, values, &failure),
             .fixed_join => dbs.queryFixedJoin(arena, text, values, &failure),
+            .serial => dbs.querySerial(arena, text, values, &failure),
         };
         return rows catch |err| {
             diag.message = if (failure.message.len > 0) failure.message else @errorName(err);
@@ -100,6 +106,7 @@ pub const App = struct {
             .custom => .unnamed,
             .reusable => .reusable,
             .fixed_join => .fixed_join,
+            .serial => .serial,
         };
         return dbs.queryLazy(arena, text, values, pq_plan, &failure) catch |err| {
             diag.message = if (failure.message.len > 0) failure.message else @errorName(err);

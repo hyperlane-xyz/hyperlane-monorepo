@@ -53,6 +53,11 @@ pub const DbService = struct {
     validator_pool: ?*pool_mod.Pool = null,
     /// This service's running listener threads (`close` waits for them).
     listener_threads: listener_mod.ThreadCount = .init(0),
+    /// How long `close` waits for them (test seam).
+    listener_wait_ms: u64 = close_listener_wait_ms,
+    /// A listener thread outlived `close`'s wait: it still decrements
+    /// `listener_threads`, so `deinit` leaves this struct allocated.
+    outlived: bool = false,
     listeners: std.ArrayList(*listener_mod.Listener) = .empty,
     /// Disconnected listeners awaiting `unlisten`/`close`.
     retired: std.ArrayList(*listener_mod.Listener) = .empty,
@@ -91,8 +96,9 @@ pub const DbService = struct {
 
     pub fn deinit(self: *DbService) void {
         self.close() catch {};
-        // In-flight queries outlived the drain: they still reference us.
-        if (self.leaked) return;
+        // In-flight queries outlived the drain, or a listener thread outlived
+        // close: they still reference us.
+        if (self.leaked or self.outlived) return;
         self.gpa.destroy(self);
     }
 
@@ -228,9 +234,11 @@ pub const DbService = struct {
         retired.deinit(self.gpa);
         // Listeners a callback stopped free themselves on their own thread
         // once the callback returns; let them finish before we go away.
-        if (!listener_mod.awaitThreads(&self.listener_threads, close_listener_wait_ms)) {
-            // Should never happen: the memory below may still be in use.
-            self.logger.warn("{d} listener threads still running after {d} ms at close", .{ self.listener_threads.load(.acquire), close_listener_wait_ms });
+        if (!listener_mod.awaitThreads(&self.listener_threads, self.listener_wait_ms)) {
+            // Should never happen. The late threads still decrement our
+            // counter, so this struct is left allocated (`deinit`).
+            self.logger.warn("{d} listener threads still running after {d} ms at close", .{ self.listener_threads.load(.acquire), self.listener_wait_ms });
+            self.outlived = true;
         }
         // Pools wait for (bounded) checked-out connections before freeing.
         if (live) |p| p.deinit();
@@ -283,6 +291,12 @@ pub const DbService = struct {
     /// (`pq.Plan.fixed_join`): same SQL, rows and errors.
     pub fn queryFixedJoin(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
         return self.run(.main, self.main_role, arena, sql, params, .{ .plan = .fixed_join }, failure);
+    }
+
+    /// `query` planned without parallel workers (`pq.Plan.serial`): same
+    /// SQL, rows and errors.
+    pub fn querySerial(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
+        return self.run(.main, self.main_role, arena, sql, params, .{ .plan = .serial }, failure);
     }
 
     /// The validator WebSocket's reads on the primary (`validator_primary`;

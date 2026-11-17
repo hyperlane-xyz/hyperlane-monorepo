@@ -455,7 +455,7 @@ test "libpq: reusable statements match unnamed ones, evict, and survive result t
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 
-test "libpq: fixed_join statements switch join_collapse_limit and every other statement switches it back" {
+test "libpq: fixed_join and serial statements set their planner setting for themselves only (transaction-scoped)" {
     const url = testUrl() orelse return error.SkipZigTest;
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
@@ -463,45 +463,58 @@ test "libpq: fixed_join statements switch join_collapse_limit and every other st
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
     defer p.deinit();
     var failure: root.Failure = .{};
-    const fixed: pq.QueryOptions = .{ .plan = .fixed_join };
-    const with_param = "SELECT current_setting('join_collapse_limit') AS v WHERE $1::int = 1";
+    const settings = "current_setting('join_collapse_limit') || '/' || current_setting('max_parallel_workers_per_gather') AS v";
+    const sql = "SELECT " ++ settings ++ " WHERE $1::int = 1";
     const one = [_]Value{.{ .number = 1 }};
     const Check = struct {
         fn expect(want: []const u8, r: root.Result) !void {
             try testing.expectEqualStrings(want, r.rows[0].get("v").?.string);
         }
     };
-    const default = (try p.query(a, "SHOW join_collapse_limit", &.{}, &failure)).rows[0].get("join_collapse_limit").?.string;
-    try testing.expect(!std.mem.eql(u8, default, "1"));
-    // Switched with the execute, and kept while fixed statements follow.
-    for (0..3) |_| try Check.expect("1", try p.queryWith(a, with_param, &one, fixed, &failure));
-    // Unnamed statements with parameters switch back in the same pipeline.
-    try Check.expect(default, try p.query(a, with_param, &one, &failure));
-    // Without parameters (simple protocol): in a round trip of its own.
-    try Check.expect("1", try p.queryWith(a, with_param, &one, fixed, &failure));
-    try Check.expect(default, try p.query(a, "SELECT current_setting('join_collapse_limit') AS v", &.{}, &failure));
-    // Named statements, whose generic plans outlive the setting, too.
-    try Check.expect("1", try p.queryWith(a, with_param, &one, fixed, &failure));
-    for (0..3) |_| try Check.expect(default, try p.queryWith(a, with_param, &one, .{ .plan = .reusable }, &failure));
+    const start = try a.dupe(u8, (try p.query(a, sql, &one, &failure)).rows[0].get("v").?.string);
+    var parts = std.mem.splitScalar(u8, start, '/');
+    const join_default = parts.first();
+    const workers_default = parts.next().?;
+    try testing.expect(!std.mem.eql(u8, join_default, "1") and !std.mem.eql(u8, workers_default, "0"));
+    const fixed_want = try std.fmt.allocPrint(a, "1/{s}", .{workers_default});
+    const serial_want = try std.fmt.allocPrint(a, "{s}/0", .{join_default});
+    const fixed: pq.QueryOptions = .{ .plan = .fixed_join };
+    const serial: pq.QueryOptions = .{ .plan = .serial };
+    const notices_before = pq.test_notices.load(.monotonic);
+    // Each statement sees its own setting; the next one, of any kind, the
+    // session's (nothing to reset: the setting ends with the pipeline).
+    for (0..2) |_| {
+        try Check.expect(fixed_want, try p.queryWith(a, sql, &one, fixed, &failure));
+        try Check.expect(start, try p.query(a, sql, &one, &failure));
+        try Check.expect(serial_want, try p.queryWith(a, sql, &one, serial, &failure));
+        try Check.expect(start, try p.query(a, "SELECT " ++ settings, &.{}, &failure));
+        try Check.expect(fixed_want, try p.queryWith(a, sql, &one, fixed, &failure));
+        try Check.expect(serial_want, try p.queryWith(a, sql, &one, serial, &failure));
+        for (0..3) |_| try Check.expect(start, try p.queryWith(a, sql, &one, .{ .plan = .reusable }, &failure));
+    }
     // Lazy results read the same.
-    const lazy_result = try p.queryWith(a, with_param, &one, .{ .plan = .fixed_join, .lazy = true }, &failure);
+    const lazy_result = try p.queryWith(a, sql, &one, .{ .plan = .fixed_join, .lazy = true }, &failure);
     const lazy = lazy_result.lazy.?;
     defer lazy.deinit();
-    try testing.expectEqualStrings("1", lazy.cell(0, 0).?);
-    // A server error rolls the switch back with its pipeline: same message
-    // as a plain statement, and the next statement still sees the right value.
+    try testing.expectEqualStrings(fixed_want, lazy.cell(0, 0).?);
+    // A failing execute after the SET LOCAL: the plain statement's error,
+    // and the setting is gone with the failed transaction.
     const failing = "SELECT 1 / ($1::int - 1) AS x";
     try testing.expectError(error.QueryFailed, p.query(a, failing, &one, &failure));
-    const plain_message = failure.message;
-    try testing.expectError(error.QueryFailed, p.queryWith(a, failing, &one, fixed, &failure));
-    try testing.expectEqualStrings(plain_message, failure.message);
-    try Check.expect("1", try p.queryWith(a, with_param, &one, fixed, &failure));
-    try testing.expectError(error.QueryFailed, p.query(a, failing, &one, &failure));
-    try testing.expectEqualStrings(plain_message, failure.message);
-    try Check.expect(default, try p.query(a, with_param, &one, &failure));
-    // Without named statements (a transaction pooler), no session setting.
+    const plain_message = try a.dupe(u8, failure.message);
+    for ([_]pq.QueryOptions{ fixed, serial }) |opts| {
+        try testing.expectError(error.QueryFailed, p.queryWith(a, failing, &one, opts, &failure));
+        try testing.expectEqualStrings(plain_message, failure.message);
+        try Check.expect(start, try p.query(a, sql, &one, &failure));
+    }
+    // No notice reached the client (a SET LOCAL would warn "can only be
+    // used in transaction blocks" on every statement).
+    try testing.expectEqual(notices_before, pq.test_notices.load(.monotonic));
+    // Nothing depends on named statements (a transaction pooler gets the
+    // same transaction-scoped setting).
     p.reuse_guard.disabled.store(true, .monotonic);
-    try Check.expect(default, try p.queryWith(a, with_param, &one, fixed, &failure));
+    try Check.expect(fixed_want, try p.queryWith(a, sql, &one, fixed, &failure));
+    try Check.expect(start, try p.query(a, sql, &one, &failure));
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 
@@ -674,6 +687,35 @@ test "libpq: checkout takes the most recently released idle connection (pg-pool 
         const r = try p.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null);
         try testing.expectEqual(pids[2], r.rows[0].get("pid").?.number);
     }
+}
+
+test "libpq: behind a transaction pooler, a tuned statement's setting never reaches another client (opt-in SCRAPER_PROXY_TEST_POOLER_URL)" {
+    // A PgBouncer in transaction mode with default_pool_size = 1, so both
+    // clients below share one server backend.
+    const url = std.posix.getenv("SCRAPER_PROXY_TEST_POOLER_URL") orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const tuned = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer tuned.deinit();
+    const other = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer other.deinit();
+    var failure: root.Failure = .{};
+    const sql = "SELECT current_setting('join_collapse_limit') || '/' || current_setting('max_parallel_workers_per_gather') || '/' || pg_backend_pid() AS v WHERE $1::int = 1";
+    const one = [_]Value{.{ .number = 1 }};
+    const start = (try other.query(a, sql, &one, &failure)).rows[0].get("v").?.string;
+    const defaults = start[0..std.mem.lastIndexOfScalar(u8, start, '/').?];
+    const notices_before = pq.test_notices.load(.monotonic);
+    for (0..20) |i| {
+        const opts: pq.QueryOptions = .{ .plan = if (i % 2 == 0) .fixed_join else .serial };
+        const mine = (try tuned.queryWith(a, sql, &one, opts, &failure)).rows[0].get("v").?.string;
+        try testing.expect(!std.mem.startsWith(u8, mine, defaults));
+        const theirs = (try other.query(a, sql, &one, &failure)).rows[0].get("v").?.string;
+        // Same backend (pool size 1), yet the other client sees the defaults.
+        try testing.expectEqualStrings(mine[std.mem.lastIndexOfScalar(u8, mine, '/').?..], theirs[std.mem.lastIndexOfScalar(u8, theirs, '/').?..]);
+        try testing.expect(std.mem.startsWith(u8, theirs, defaults));
+    }
+    try testing.expectEqual(notices_before, pq.test_notices.load(.monotonic));
 }
 
 test "libpq: TLS replies and notifications never wait on bytes OpenSSL already holds (opt-in SCRAPER_PROXY_TEST_TLS_URL)" {
@@ -978,6 +1020,44 @@ test "libpq: LISTEN round trip, disconnect and unlisten inside on_disconnect" {
         }
     }.f);
     try testing.expectEqual(@as(f64, 0), svc.metricsSnapshot().listeners);
+}
+
+test "libpq: close outlived by a listener thread warns and leaves the service allocated" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    core.config.set(.{ .database_url = url });
+    core.log.setSink(LogCapture.sink, null);
+    defer core.log.setSink(null, null);
+    defer LogCapture.reset();
+    const svc = try DbService.init(testing.allocator, null);
+    svc.listener_wait_ms = 20;
+    // The callback lingers far past close's wait.
+    var capture: NotifyCapture = .{ .svc = svc, .unlisten_inside = true, .linger_ms = 500 };
+    defer capture.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var failure: root.Failure = .{};
+    const channel = try uniqueChannel(a, "outlived_channel");
+    capture.listener = try svc.listen(&.{channel}, .{ .ctx = &capture, .on_notification = NotifyCapture.onNotification, .on_disconnect = NotifyCapture.onDisconnect }, a, &failure);
+    const pattern = try std.fmt.allocPrint(a, "{s}%", .{try listenStatement(a, channel)});
+    _ = try svc.queryLive(a, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE $1", &.{.{ .string = pattern }}, &failure);
+    try capture.waitFor(struct {
+        fn f(c: *NotifyCapture) bool {
+            return c.disconnected;
+        }
+    }.f);
+    svc.deinit();
+    // Still allocated: the late thread's decrement lands in live memory.
+    try testing.expect(svc.outlived);
+    {
+        LogCapture.mutex.lock();
+        defer LogCapture.mutex.unlock();
+        var warned = false;
+        for (LogCapture.warnings.items) |w| warned = warned or contains(w, "listener threads still running after 20 ms at close");
+        try testing.expect(warned);
+    }
+    try testing.expect(listener_mod.awaitThreads(&svc.listener_threads, 5_000));
+    testing.allocator.destroy(svc);
 }
 
 test "libpq: listenUnlogged leaves the listening line to logListening" {

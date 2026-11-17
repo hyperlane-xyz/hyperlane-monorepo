@@ -30,6 +30,9 @@ pub const Database = struct {
     /// Optional: same contract as `queryFn`, planned with the view's join
     /// order fixed (see `Plan.fixed_join`); null falls back to `queryFn`.
     fixedJoinQueryFn: ?QueryFn = null,
+    /// Optional: same contract as `queryFn`, planned without parallel
+    /// workers (see `Plan.serial`); null falls back to `queryFn`.
+    serialQueryFn: ?QueryFn = null,
     /// Optional: the same query (planned as `plan`), with libpq's result
     /// returned unconverted (`db.LazyRows`, owned by the caller; null when
     /// the implementation cannot, e.g. a test backend).
@@ -47,6 +50,7 @@ pub const Database = struct {
             .custom => self.queryFn,
             .reusable => self.reusableQueryFn orelse self.queryFn,
             .fixed_join => self.fixedJoinQueryFn orelse self.queryFn,
+            .serial => self.serialQueryFn orelse self.queryFn,
         };
         return f(self.ctx, arena, text, values, diag);
     }
@@ -62,7 +66,14 @@ pub const Database = struct {
 /// `fixed_join` plans like `custom` but with the view's join order fixed
 /// (`join_collapse_limit = 1`), for selects whose rows no plan can change
 /// and whose fixed-order plan is never slower (`sql.Sql.fixed_join`).
-pub const Plan = enum { custom, reusable, fixed_join };
+///
+/// `serial` plans like `custom` but without parallel workers, for the
+/// confirmation projection: its parallel plan spends most of its time
+/// starting workers (bench DB: 25 -> 10 ms per call at 214 affected
+/// messages, never slower from 0 to 10,000), and its result order differs
+/// only among rows tying on the ORDER BY, which the parallel plan (TS's
+/// too) already leaves unspecified.
+pub const Plan = enum { custom, reusable, fixed_join, serial };
 
 /// True when `where` pins a unique key (`id` or `msg_id`, unique or
 /// near-unique in every public table) with `_eq` in a top-level conjunct.
@@ -146,7 +157,7 @@ pub const Service = struct {
         const queries = try buildMessageQueries(arena, select_args, confirmations, diag);
         const rows = try self.db.queryPlanned(arena, .reusable, queries.snapshot.sql, queries.snapshot.values, diag);
         const projection = try buildProjection(arena, select_args, if (rows.len > 0) rows[0] else null, diag);
-        const plan: Plan = if (isMessageIdLookup(select_args.where)) .reusable else .custom;
+        const plan: Plan = if (isMessageIdLookup(select_args.where)) .reusable else .serial;
         return self.db.queryPlanned(arena, plan, projection.sql, projection.values, diag);
     }
 

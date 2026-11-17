@@ -219,18 +219,40 @@ reproduces the observable rule, not the scheduling.
   table (`message`: `id`, `msg_id`, `nonce`, `origin_domain_id`,
   `destination_domain_id`, `sender`, `recipient`, `origin_mailbox`,
   `origin_tx_id`, `message_body`, `send_scraped_at`, plus
-  `send_occurred_at IS NOT NULL`) runs with `join_collapse_limit = 1`. The
-  switch is pipelined with the execute, so it adds no round trip, and every
-  other statement switches back first. Rows are totally ordered by `id`, so
+  `send_occurred_at IS NOT NULL`) runs with `join_collapse_limit = 1`,
+  transaction-scoped: `set_config('join_collapse_limit', '1', true)` is
+  pipelined with the statement (no extra round trip) and ends with the
+  pipeline's implicit transaction, so the setting never persists in the
+  session or across a transaction pooler. Rows are totally ordered by `id`, so
   no plan can change a response; SQL text and errors are unchanged. On the
   1M-message bench DB the plans are identical and planning per call drops
   from 3.1 to 0.9 ms (Explorer page) and from 3.0 to 1.1 ms (500-row stub);
   Explorer page and search requests use 8-11% less PostgreSQL CPU, the stub
   19% less. Predicates on joined tables (e.g. `origin_tx_hash`, 49x slower
-  with the order fixed) never qualify. It is off whenever named statements
-  are off (transaction pooler), so the setting never reaches another
-  session. A statement without parameters that follows a fixed one on the
-  same connection pays one extra round trip for the reset.
+  with the order fixed) never qualify.
+- **Confirmation projection planned without parallel workers (visible only among ORDER BY ties, as between TS runs).** A
+  `message_view` select with `confirmations` that is not bounded by `msg_id` runs its
+  projection statement (`WITH custom_frontier(domain, height) AS (…) … FROM
+"provisional_message_view" … ORDER BY <order_by> LIMIT n`) with
+  `max_parallel_workers_per_gather = 0`, transaction-scoped like the join order above
+  (`set_config(…, true)` pipelined with the statement; never persists in the session or across
+  a transaction pooler). SQL text and errors are unchanged. Rows equal on every ORDER BY column
+  (all rows, without an ORDER BY) can come back in a different relative order, and where a LIMIT
+  cuts through such a group, which of those tied rows are returned can differ, exactly as it
+  can between two TS runs (below); responses whose ORDER BY leaves no ties are identical. The
+  Explorer's ORDER BY is `"send_occurred_at" DESC, "id" DESC`,
+  and `id` is not unique in this view: a provisional row's `id` is
+  `coalesce(canonical.id, dispatch.id)`, i.e. `message.id` when the message is indexed and
+  `raw_message_dispatch.id` otherwise, two independent sequences, so two different messages can
+  share an `id`, and when their origin blocks share a `timestamp` they tie on the whole key.
+  TS's plan for the same statement (bench DB, all four Explorer shapes) is a `Gather` (2
+  workers) over a `Parallel Append` of the dispatch branches feeding a `Sort` (quicksort, or
+  top-N heapsort under the LIMIT) on that key; Gather delivers rows in worker-arrival order and
+  PostgreSQL's sorts are not stable, so TS returns such tied rows in an order that varies
+  between runs, including which tied rows land inside the LIMIT. On Depot (n=8) the Explorer page and search requests use 44-56% less
+  PostgreSQL CPU (projection exec 36 → 7.5 ms per call), p99 drops 43-53%, and a 3,372-message
+  confirmations window 55% less CPU; on the bench DB it is never slower from 0 to 10,000
+  affected messages.
 - **Deeply nested parameter values.** node-pg formats parameters
   recursively, so TS fails with V8's "Maximum call stack size exceeded" once
   a parameter (a custom-scalar variable carries any JSON) nests deep enough,
