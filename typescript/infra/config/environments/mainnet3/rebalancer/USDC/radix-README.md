@@ -19,6 +19,9 @@ of the same route. Wallet separation or shared reservation coordination remains
 follow-up work if contention is unacceptable.
 
 The relayer-denylist middleware refreshes the live mainnet list every 60 seconds.
+The blacklist-ISM middleware also excludes messages rejected by an on-chain
+blacklist in a destination router's ISM. It discovers those ISMs at startup and
+refreshes their configuration and blocked message IDs every 10 minutes.
 It does not coordinate inventory reservations or recover external bridge orders.
 Denylist a rebalancer-owned message only after its funds settled another way.
 

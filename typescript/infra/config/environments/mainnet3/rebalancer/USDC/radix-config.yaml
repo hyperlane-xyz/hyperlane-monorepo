@@ -10,6 +10,7 @@ pendingTransferMiddlewares:
   - type: relayerDenylist
     url: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json
     refreshIntervalSecs: 60
+  - type: blacklistIsm
 
 inventorySigners:
   ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
