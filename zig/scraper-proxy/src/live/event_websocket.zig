@@ -30,6 +30,10 @@ pub const EventWebSocketServer = struct {
     start_error: [128]u8 = undefined,
     /// Where `queryAsync` runs its fibers.
     fiber_host: ?*FiberHost = null,
+    /// `stop` returned: every `query_async` read is done (`Server.stop` waits
+    /// for `async_outstanding` while the HTTP loops still run), so no
+    /// `startFiber` job may be pending when the loops' group is freed.
+    reads_drained: std.atomic.Value(bool) = .init(false),
 
     /// `new EventWebSocketServer(db, {}, diagnostics)`.
     pub fn init(gpa: Allocator, db_service: *db.DbService, diagnostics_service: ?*diagnostics.Service) !*EventWebSocketServer {
@@ -89,6 +93,7 @@ pub const EventWebSocketServer = struct {
 
     pub fn stop(self: *EventWebSocketServer) void {
         self.server.stop();
+        self.reads_drained.store(true, .release);
     }
 
     /// After `stop()` and the HTTP server closed (all upgraded sockets gone).
@@ -334,10 +339,11 @@ pub const EventWebSocketServer = struct {
         dispatchQuery(&self.pool, self.fiber_host, request);
     }
 
-    /// `Db.query_async`: on an HTTP loop thread, a fiber on that loop (its
-    /// pool checkout and socket waits park the fiber); otherwise, or if the
-    /// fiber cannot be created, a pool job (a worker waits, as `query`).
-    /// Never runs the query here: the caller holds live's mutex.
+    /// `Db.query_async`: a fiber on an HTTP loop (its pool checkout and socket
+    /// waits park the fiber). On a loop thread it is created on that loop; from
+    /// any other thread (continuations run on live's workers) a loop creates it
+    /// (`Group.startFiber`). Only if no fiber can start, a pool job (a worker
+    /// waits, as `query`). Never runs the query here: the caller holds live's mutex.
     fn queryAsync(ctx: *anyopaque, request: *es.AsyncQuery) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
         request.backend = self;
@@ -349,17 +355,37 @@ pub const EventWebSocketServer = struct {
     pub fn dispatchQuery(pool: *runtime.Pool, fiber_host: ?*FiberHost, request: *es.AsyncQuery) void {
         // `setFiberHost` before accepts is wiring (main always calls it).
         if (fiber_host == null and core.fiber.onEventLoopThread()) @panic("live: a query_async read on an HTTP loop thread without setFiberHost");
-        if (core.fiber.onEventLoopThread()) if (fiber_host) |host| {
-            // The calling thread's loop: the fiber is created and reaped on
-            // this thread (its fiber cache), with no cross-thread post.
-            const loop = host.current();
-            if (core.fiber.create(loop.fiberScheduler(), runQueryFiber, request)) |fiber| {
-                loop.postFiber(fiber);
+        request.job = .{ .run = runQueryJob };
+        request.fallback_pool = pool;
+        if (fiber_host) |host| {
+            if (core.fiber.onEventLoopThread()) {
+                // The calling thread's loop: the fiber is created and reaped on
+                // this thread (its fiber cache), with no cross-thread post.
+                const loop = host.current();
+                if (core.fiber.create(loop.fiberScheduler(), runQueryFiber, request)) |fiber| {
+                    loop.postFiber(fiber);
+                    return;
+                } else |_| {}
+            } else if (host.startFiber(runQueryFiber, request, startFailed)) |_| {
                 return;
             } else |_| {}
-        };
-        request.job = .{ .run = runQueryJob };
+        }
         pool.submit(&request.job);
+    }
+
+    /// `startFiber`'s `on_fail` (on a loop thread or at the group's deinit;
+    /// never blocks): the read runs as a pool job instead.
+    /// The read stays counted (`async_outstanding`) until its `done`.
+    fn startFailed(arg: *anyopaque) void {
+        const request: *es.AsyncQuery = @ptrCast(@alignCast(arg));
+        // Only `queryAsync`/`queryValidatorAsync` start fibers; their backend is the server.
+        // A best-effort tripwire: it catches an `on_fail` after `stop` and before
+        // `deinit`. The guarantee is main's order (events.stop waits for every
+        // read before the HTTP group is torn down); during `Group.deinit` the
+        // server may already be freed.
+        const events: *EventWebSocketServer = @ptrCast(@alignCast(request.backend));
+        std.debug.assert(!events.reads_drained.load(.acquire));
+        request.fallback_pool.submit(&request.job);
     }
 
     fn runQueryFiber(arg: *anyopaque) void {

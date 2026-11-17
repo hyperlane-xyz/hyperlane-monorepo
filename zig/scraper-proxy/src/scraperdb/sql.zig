@@ -209,12 +209,18 @@ fn writeCountExpression(w: *Writer, columns: []const []const u8, distinct: bool)
 fn writeColumns(b: *Builder, w: *Writer, selected: ?[]const []const u8) Error!void {
     const spec = b.table.spec();
     const names = selected orelse spec.columns;
-    var allowed: std.ArrayList([]const u8) = .empty;
+    // Known columns, first occurrence each, in selection order.
+    var seen = std.StaticBitSet(tables.Spec.max_columns).initEmpty();
+    var any = false;
     for (names) |name| {
-        if (spec.hasColumn(name) and !containsString(allowed.items, name)) try allowed.append(b.arena, name);
+        const column = spec.columnInfo(name) orelse continue;
+        if (seen.isSet(column.index)) continue;
+        seen.set(column.index);
+        if (any) write(w, ", ") catch return error.OutOfMemory;
+        write(w, column.quoted) catch return error.OutOfMemory;
+        any = true;
     }
-    if (allowed.items.len == 0) try allowed.append(b.arena, spec.primary_key orelse spec.columns[0]);
-    writeQuotedList(w, allowed.items) catch return error.OutOfMemory;
+    if (!any) tables.writeQuoted(w, spec.primary_key orelse spec.columns[0]) catch return error.OutOfMemory;
 }
 
 fn writeRelation(w: *Writer, table: Table, custom: ?[]const u8) Writer.Error!void {
@@ -471,4 +477,41 @@ fn boundedInteger(b: *Builder, arg: ?Value, name: []const u8, max: u32) Error!vo
 
 fn boundedColumns(b: *Builder, count: usize, name: []const u8, max: usize) Error!void {
     try b.check(count == 0 or count <= max, "{s} exceeds maximum of {d} columns", .{ name, max });
+}
+
+test "writeColumns matches the C13 writer: order, duplicates, unknown names, empty (property)" {
+    // The C13 column writer (linear dedup, `writeQuoted` per name): the oracle.
+    const Before = struct {
+        fn write(b: *Builder, w: *Writer, selected: ?[]const []const u8) Error!void {
+            const spec = b.table.spec();
+            const names = selected orelse spec.columns;
+            var allowed: std.ArrayList([]const u8) = .empty;
+            for (names) |name| {
+                if (spec.hasColumn(name) and !containsString(allowed.items, name)) try allowed.append(b.arena, name);
+            }
+            if (allowed.items.len == 0) try allowed.append(b.arena, spec.primary_key orelse spec.columns[0]);
+            writeQuotedList(w, allowed.items) catch return error.OutOfMemory;
+        }
+    };
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var diag: Diag = .{};
+    var prng = std.Random.DefaultPrng.init(0xc01_5e7);
+    const r = prng.random();
+    const unknown = [_][]const u8{ "", "nope", "ID", "id ", "\"id\"", "is_provisional", "msg_id\"" };
+    for (0..3000) |n| {
+        const table = std.enums.values(Table)[n % std.enums.values(Table).len];
+        const spec = table.spec();
+        const len = r.uintLessThan(usize, spec.columns.len * 2 + 2);
+        const names = try a.alloc([]const u8, len);
+        for (names) |*name| name.* = if (r.uintLessThan(u8, 5) == 0) unknown[r.uintLessThan(usize, unknown.len)] else spec.columns[r.uintLessThan(usize, spec.columns.len)];
+        const selected: ?[]const []const u8 = if (n % 50 == 0) null else names;
+        var b: Builder = .{ .arena = a, .diag = &diag, .table = table };
+        var new: std.Io.Writer.Allocating = .init(a);
+        var old: std.Io.Writer.Allocating = .init(a);
+        try writeColumns(&b, &new.writer, selected);
+        try Before.write(&b, &old.writer, selected);
+        try std.testing.expectEqualStrings(old.written(), new.written());
+    }
 }

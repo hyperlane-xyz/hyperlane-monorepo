@@ -47,6 +47,8 @@ pub const AsyncQuery = struct {
     backend: *anyopaque = undefined,
     run_query: *const fn (ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const Value) anyerror![]Value = undefined,
     job: runtime.Pool.Job = .{ .run = undefined },
+    /// The backend's pool, for a fiber that could not start (`on_fail`).
+    fallback_pool: *runtime.Pool = undefined,
 
     pub fn init(gpa: Allocator, done: *const fn (query: *AsyncQuery) void) AsyncQuery {
         return .{ .arena = .init(gpa), .done = done };

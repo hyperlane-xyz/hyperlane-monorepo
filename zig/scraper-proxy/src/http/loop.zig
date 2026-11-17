@@ -57,6 +57,15 @@ const fiber_mod = core.fiber;
 
 /// Posted-event token: `udata` is a `*core.fiber.Fiber` to resume.
 const fiber_token: u32 = 1 << 31;
+/// Posted-event token: `udata` is a `*StartJob` (`Group.startFiber`).
+const start_token: u32 = 1 << 30;
+
+/// `Group.startFiber`'s request, created on the loop that runs it.
+const StartJob = struct {
+    func: *const fn (arg: *anyopaque) void,
+    arg: *anyopaque,
+    on_fail: ?*const fn (arg: *anyopaque) void,
+};
 
 /// Called when a fiber started by the owner finishes on a later resume.
 pub const FiberDone = struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque) void };
@@ -363,6 +372,8 @@ pub const Group = struct {
     gpa: std.mem.Allocator,
     slots: Slots = .{},
     loops: []Loop = &.{},
+    /// `startFiber`'s round-robin position.
+    next_start: std.atomic.Value(usize) = .init(0),
     /// Sockets fibers wait on (`core.fiber.waitFd`): one persistent
     /// edge-triggered registration each, keyed by fd, on the loop that last
     /// waited on it.
@@ -482,6 +493,31 @@ pub const Group = struct {
         self.owner(index).setDeadline(index, deadline);
     }
 
+    /// Runs `func(arg)` on a new fiber on one of the loops (round-robin),
+    /// from any thread, without waiting: the fiber is created and first run
+    /// by that loop's own thread (its stack cache and fiber-locals). The
+    /// caller only takes the loop's mutex briefly; nothing here blocks or
+    /// logs. If the loop cannot create the fiber (no stack or memory) or is
+    /// stopping before it runs, it calls `on_fail(arg)` instead, on the
+    /// loop's thread (or the thread stopping the group), which must not
+    /// block either (e.g. hand `arg` to a worker pool). `error.Closed`:
+    /// the group is stopping; nothing was queued.
+    ///
+    /// Contract: a fiber that already started and is parked when the group
+    /// stops is never resumed and gets no `on_fail`, so callers drain their
+    /// own fibers before stopping the group; and no call may still be in
+    /// progress once the group is deinitialized (its memory is freed).
+    pub fn startFiber(self: *Group, func: *const fn (arg: *anyopaque) void, arg: *anyopaque, on_fail: ?*const fn (arg: *anyopaque) void) error{ Closed, OutOfMemory }!void {
+        if (self.isStopping()) return error.Closed;
+        const job = try self.gpa.create(StartJob);
+        job.* = .{ .func = func, .arg = arg, .on_fail = on_fail };
+        const i = self.next_start.fetchAdd(1, .monotonic) % self.loops.len;
+        self.loops[i].postStart(job) catch |e| {
+            self.gpa.destroy(job);
+            return e;
+        };
+    }
+
     /// For a handler starting a fiber on this thread's loop.
     pub fn fiberScheduler(self: *Group) fiber_mod.Scheduler {
         return self.current().fiberScheduler();
@@ -577,6 +613,8 @@ pub const Loop = struct {
     stopping: std.atomic.Value(bool) = .init(false),
     /// Harvested events handed on by a poller that blocked (see `Rec.batch`).
     posted_events: std.ArrayList(Event) = .empty,
+    /// `deinit` drained the posted events: no more posts (mutex).
+    posts_closed: bool = false,
 
     /// Deadline min-heap of slot indices (keys in `Slot.armed`) and the
     /// one-shot timer armed for its top.
@@ -648,11 +686,24 @@ pub const Loop = struct {
         self.mutex.lock();
         self.park_cond.broadcast();
         while (self.threads > 0 or self.monitor_running.load(.acquire)) self.cond.timedWait(&self.mutex, std.time.ns_per_ms) catch {};
+        // Posts end here, before the wake fd closes: a poster signals under
+        // this mutex, so none can write to a closed (or reused) fd number.
+        // `startFiber` jobs that never ran get `on_fail`; later calls
+        // `error.Closed` (until the group itself is freed).
+        self.posts_closed = true;
+        var left = self.posted_events;
+        self.posted_events = .empty;
         self.mutex.unlock();
+        defer left.deinit(self.gpa);
+        for (left.items) |ev| if (ev.token == start_token) {
+            const job: *StartJob = @ptrFromInt(ev.udata);
+            const j = job.*;
+            self.gpa.destroy(job);
+            if (j.on_fail) |cb| cb(j.arg);
+        };
         if (self.wake_fd >= 0) posix.close(self.wake_fd);
         if (self.tick_fd >= 0) posix.close(self.tick_fd);
         posix.close(self.fd);
-        self.posted_events.deinit(self.gpa);
         self.heap.deinit(self.gpa);
         self.gpa.free(self.recs);
     }
@@ -783,8 +834,10 @@ pub const Loop = struct {
             self.handler.on_posted(self.handler.ctx, index, gen, token);
             return;
         };
-        self.mutex.unlock();
+        // Under the mutex, like `postStart`: `deinit` closes the wake fd
+        // only after taking it.
         if (was_empty) self.signalWake();
+        self.mutex.unlock();
     }
 
     fn signalWake(self: *Loop) void {
@@ -1033,6 +1086,12 @@ pub const Loop = struct {
         // never a log line.
         while (true) {
             self.mutex.lock();
+            // Stopped: nothing will run it any more (its owner drains its
+            // fibers before stopping the group).
+            if (self.posts_closed) {
+                self.mutex.unlock();
+                return;
+            }
             const was_empty = self.posted_events.items.len == 0;
             self.posted_events.append(self.gpa, .{ .udata = @intFromPtr(f), .token = fiber_token }) catch {
                 self.mutex.unlock();
@@ -1040,10 +1099,35 @@ pub const Loop = struct {
                 std.Thread.sleep(std.time.ns_per_ms);
                 continue;
             };
-            self.mutex.unlock();
+            // Under the mutex, like `postStart`.
             if (was_empty) self.signalWake();
+            self.mutex.unlock();
             return;
         }
+    }
+
+    fn postStart(self: *Loop, job: *StartJob) error{ Closed, OutOfMemory }!void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.posts_closed) return error.Closed;
+        const was_empty = self.posted_events.items.len == 0;
+        try self.posted_events.append(self.gpa, .{ .udata = @intFromPtr(job), .token = start_token });
+        // Under the mutex: `deinit` closes the wake fd only after taking it.
+        if (was_empty) self.signalWake();
+    }
+
+    /// A `startFiber` job on this loop's thread: create the fiber here and
+    /// run it until it first waits (or `on_fail`).
+    fn runStart(self: *Loop, job: *StartJob) void {
+        const j = job.*;
+        self.gpa.destroy(job);
+        const f = if (self.isStopping()) null else fiber_mod.create(self.fiberScheduler(), j.func, j.arg) catch null;
+        const fiber = f orelse {
+            if (j.on_fail) |cb| cb(j.arg);
+            return;
+        };
+        // Detached (no `user`): reaped when it finishes.
+        _ = self.runFiber(fiber);
     }
 
     /// Resumes `f` until it finishes or waits, publishing each wait only
@@ -1518,6 +1602,7 @@ pub const Loop = struct {
             if (self.runFiber(@ptrFromInt(ev.udata))) |done| done.func(done.ctx);
             return;
         }
+        if (ev.token == start_token) return self.runStart(@ptrFromInt(ev.udata));
         if (ev.token != 0) return self.handler.on_posted(self.handler.ctx, @truncate(ev.udata), @truncate(ev.udata >> 32), ev.token);
         switch (ev.udata) {
             wake_udata => self.onWake(),
@@ -1638,6 +1723,83 @@ fn sysFd(rc: usize) !posix.fd_t {
 pub fn monoMs() i64 {
     const ts = posix.clock_gettime(.MONOTONIC) catch return 0;
     return @as(i64, ts.sec) * 1000 + @divTrunc(@as(i64, ts.nsec), std.time.ns_per_ms);
+}
+
+test "startFiber jobs still queued when the group stops get on_fail, then later calls error.Closed" {
+    const Noop = struct {
+        fn event(_: *anyopaque, _: u32, _: u32, _: Event) void {}
+        fn posted(_: *anyopaque, _: u32, _: u32, _: u32) void {}
+        fn expired(_: *anyopaque, _: u32, _: u32) void {}
+        fn exit(_: *anyopaque) void {}
+        var ran: u32 = 0;
+        var failed: u32 = 0;
+        fn run(_: *anyopaque) void {
+            ran += 1;
+        }
+        fn fail(_: *anyopaque) void {
+            failed += 1;
+        }
+    };
+    var dummy: u8 = 0;
+    var group: Group = undefined;
+    // Never started: every job stays queued.
+    try group.init(std.testing.allocator, 2, .{}, .{ .ctx = &dummy, .on_event = Noop.event, .on_posted = Noop.posted, .on_expired = Noop.expired, .on_thread_exit = Noop.exit });
+    for (0..10) |_| try group.startFiber(Noop.run, &dummy, Noop.fail);
+    try group.startFiber(Noop.run, &dummy, null); // no on_fail: dropped quietly
+    for (group.loops) |*l| l.deinit();
+    try std.testing.expectEqual(@as(u32, 10), Noop.failed);
+    try std.testing.expectEqual(@as(u32, 0), Noop.ran);
+    try std.testing.expectError(error.Closed, group.startFiber(Noop.run, &dummy, Noop.fail));
+    // `Group.deinit` without the loop deinit it already ran.
+    std.testing.allocator.free(group.loops);
+    group.fd_waits.deinit(std.testing.allocator);
+    group.fd_free.deinit(std.testing.allocator);
+    group.slots.deinit(std.testing.allocator);
+}
+
+test "startFiber racing the group's stop: every accepted job runs or gets on_fail, then error.Closed" {
+    const Probe = struct {
+        fn event(_: *anyopaque, _: u32, _: u32, _: Event) void {}
+        fn posted(_: *anyopaque, _: u32, _: u32, _: u32) void {}
+        fn expired(_: *anyopaque, _: u32, _: u32) void {}
+        fn exit(_: *anyopaque) void {}
+        var ran = std.atomic.Value(u32).init(0);
+        var failed = std.atomic.Value(u32).init(0);
+        fn run(_: *anyopaque) void {
+            _ = ran.fetchAdd(1, .acq_rel);
+        }
+        fn fail(_: *anyopaque) void {
+            _ = failed.fetchAdd(1, .acq_rel);
+        }
+        fn poster(group: *Group, accepted: *std.atomic.Value(u32)) void {
+            var dummy: u8 = 0;
+            while (true) {
+                group.startFiber(run, &dummy, fail) catch |e| switch (e) {
+                    error.Closed => return,
+                    error.OutOfMemory => continue,
+                };
+                _ = accepted.fetchAdd(1, .acq_rel);
+            }
+        }
+    };
+    var dummy: u8 = 0;
+    var group: Group = undefined;
+    try group.init(std.testing.allocator, 2, .{}, .{ .ctx = &dummy, .on_event = Probe.event, .on_posted = Probe.posted, .on_expired = Probe.expired, .on_thread_exit = Probe.exit });
+    try group.start();
+    var accepted = std.atomic.Value(u32).init(0);
+    var threads: [4]std.Thread = undefined;
+    for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Probe.poster, .{ &group, &accepted });
+    std.Thread.sleep(30 * std.time.ns_per_ms);
+    // Stop the loops while the posters keep going (the group's memory stays
+    // until they have all seen error.Closed).
+    for (group.loops) |*l| l.deinit();
+    for (threads) |t| t.join();
+    try std.testing.expect(accepted.load(.acquire) > 0);
+    try std.testing.expectEqual(accepted.load(.acquire), Probe.ran.load(.acquire) + Probe.failed.load(.acquire));
+    std.testing.allocator.free(group.loops);
+    group.fd_waits.deinit(std.testing.allocator);
+    group.fd_free.deinit(std.testing.allocator);
+    group.slots.deinit(std.testing.allocator);
 }
 
 test "claim/release tokens and generations" {

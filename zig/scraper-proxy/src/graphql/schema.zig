@@ -80,10 +80,13 @@ pub const NamedType = struct {
     enum_values: []const []const u8 = &.{},
     is_one_of: bool = false,
     is_introspection: bool = false,
+    /// Field name -> index into `fields` for wide types (set at build time).
+    field_index: ?*const std.StringHashMapUnmanaged(u32) = null,
     // Self-reference for `TypeRef.named` without allocation.
     ref: TypeRef = undefined,
 
     pub fn field(self: *const NamedType, name: []const u8) ?*const Field {
+        if (self.field_index) |index| return if (index.get(name)) |i| &self.fields[i] else null;
         for (self.fields) |*f| if (std.mem.eql(u8, f.name, name)) return f;
         return null;
     }
@@ -198,6 +201,60 @@ pub const Schema = struct {
         return self.table_fields.get(table);
     }
 };
+
+/// Wide types (more than `field_index_threshold` fields) get a name index
+/// for `NamedType.field`; the first field of a name wins, like the scan.
+pub const field_index_threshold = 8;
+
+pub fn indexFields(alloc: std.mem.Allocator, ty: *NamedType) !void {
+    if (ty.fields.len <= field_index_threshold) return;
+    const index = try alloc.create(std.StringHashMapUnmanaged(u32));
+    index.* = .empty;
+    try index.ensureTotalCapacity(alloc, @intCast(ty.fields.len));
+    for (ty.fields, 0..) |f, i| {
+        const gop = index.getOrPutAssumeCapacity(f.name);
+        if (!gop.found_existing) gop.value_ptr.* = @intCast(i);
+    }
+    ty.field_index = index;
+}
+
+test "field index: first match, threshold, and equal to the scan on the scraper schema" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const names = [_][]const u8{ "a", "b", "c", "d", "e", "f", "g", "h", "b", "i", "a" };
+    // At the threshold (scan), one past it (index), and with duplicates.
+    for ([_]usize{ field_index_threshold, field_index_threshold + 1, names.len }) |n| {
+        const fields = try a.alloc(Field, n);
+        for (fields, names[0..n]) |*f, name| f.* = .{ .name = name, .args = &.{}, .type = undefined };
+        var ty: NamedType = .{ .name = "T", .kind = .object, .fields = fields };
+        try indexFields(a, &ty);
+        try std.testing.expectEqual(n > field_index_threshold, ty.field_index != null);
+        for (names ++ [_][]const u8{ "z", "", "A" }) |name| {
+            var first: ?*const Field = null;
+            for (fields) |*f| if (std.mem.eql(u8, f.name, name)) {
+                first = f;
+                break;
+            };
+            try std.testing.expectEqual(first, ty.field(name));
+        }
+    }
+    // Every type of the production schema: index lookups equal the scan.
+    const schema = testing.scraper();
+    var it = schema.types.iterator();
+    while (it.next()) |entry| {
+        const ty = entry.value_ptr.*;
+        for (ty.fields) |*f| {
+            var first: ?*const Field = null;
+            for (ty.fields) |*g| if (std.mem.eql(u8, g.name, f.name)) {
+                first = g;
+                break;
+            };
+            try std.testing.expectEqual(first, ty.field(f.name));
+        }
+        try std.testing.expectEqual(@as(?*const Field, null), ty.field("no_such_field"));
+    }
+}
 
 pub const scraperdb_sdl = @embedFile("scraperdb-schema.graphql");
 
@@ -432,6 +489,7 @@ pub fn buildSchema(gpa: std.mem.Allocator, sources: []const []const u8) !*Schema
         ty.fields = fields.items;
         ty.input_fields = input_fields.items;
         ty.enum_values = enum_values.items;
+        try indexFields(alloc, ty);
     }
     for (b.defs.items) |t| {
         if (t.kind != .directive) continue;

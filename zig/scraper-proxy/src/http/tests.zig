@@ -2498,3 +2498,110 @@ fn wsReadLarge(c: *Client, a: std.mem.Allocator) !struct { opcode: u8, payload: 
     c.len -= start;
     return .{ .opcode = opcode, .payload = out };
 }
+
+const StartProbe = struct {
+    var ran = std.atomic.Value(u32).init(0);
+    var on_loop_fiber = std.atomic.Value(u32).init(0);
+    var done = std.atomic.Value(u32).init(0);
+    var failed = std.atomic.Value(u32).init(0);
+    var wait_ms: i64 = 0;
+
+    fn reset(ms: i64) void {
+        ran.store(0, .release);
+        on_loop_fiber.store(0, .release);
+        done.store(0, .release);
+        failed.store(0, .release);
+        wait_ms = ms;
+    }
+
+    fn run(_: *anyopaque) void {
+        _ = ran.fetchAdd(1, .acq_rel);
+        if (core.fiber.inFiber() and core.onEventLoopThread()) _ = on_loop_fiber.fetchAdd(1, .acq_rel);
+        // A real wait parks the fiber (the loop goes on meanwhile).
+        if (wait_ms > 0) {
+            var w: core.fiber.Waiter = .{};
+            _ = w.waitTimeout(core.fiber.monoMs() + wait_ms);
+        }
+        _ = done.fetchAdd(1, .acq_rel);
+    }
+
+    fn fail(_: *anyopaque) void {
+        _ = failed.fetchAdd(1, .acq_rel);
+    }
+
+    fn until(counter: *std.atomic.Value(u32), want: u32) !void {
+        var waited: u32 = 0;
+        while (counter.load(.acquire) < want and waited < 2_000) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+        try testing.expectEqual(want, counter.load(.acquire));
+    }
+};
+
+test "startFiber from non-loop threads runs every job on a loop fiber while requests are served" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    StartProbe.reset(2);
+    const Poster = struct {
+        fn run(group: *loop_mod.Group, n: u32, errors: *std.atomic.Value(u32)) void {
+            var dummy: u8 = 0;
+            for (0..n) |_| group.startFiber(StartProbe.run, &dummy, StartProbe.fail) catch {
+                _ = errors.fetchAdd(1, .acq_rel);
+            };
+        }
+    };
+    var errors = std.atomic.Value(u32).init(0);
+    var threads: [4]std.Thread = undefined;
+    for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Poster.run, .{ &h.server.loop, 250, &errors });
+    // HTTP keeps flowing meanwhile.
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    for (0..50) |_| try testing.expectEqual(@as(u16, 404), (try c.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n")).status);
+    for (threads) |t| t.join();
+    try testing.expectEqual(@as(u32, 0), errors.load(.acquire));
+    try StartProbe.until(&StartProbe.done, 1000);
+    try testing.expectEqual(@as(u32, 1000), StartProbe.on_loop_fiber.load(.acquire));
+    try testing.expectEqual(@as(u32, 0), StartProbe.failed.load(.acquire));
+}
+
+test "startFiber: a fiber that cannot be created calls on_fail on the loop instead" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    StartProbe.reset(0);
+    core.fiber.test_fail_create.store(true, .release);
+    defer core.fiber.test_fail_create.store(false, .release);
+    var dummy: u8 = 0;
+    try h.server.loop.startFiber(StartProbe.run, &dummy, StartProbe.fail);
+    try StartProbe.until(&StartProbe.failed, 1);
+    try testing.expectEqual(@as(u32, 0), StartProbe.ran.load(.acquire));
+    try testing.expect(!core.fiber.test_fail_create.load(.acquire));
+    // The next one runs normally.
+    try h.server.loop.startFiber(StartProbe.run, &dummy, StartProbe.fail);
+    try StartProbe.until(&StartProbe.done, 1);
+}
+
+test "startFiber at shutdown: every job either runs or gets on_fail" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    StartProbe.reset(0);
+    var dummy: u8 = 0;
+    // Hold the loop (a test-only blocking job) so the next jobs are still
+    // queued when the server stops.
+    const Blocker = struct {
+        fn run(_: *anyopaque) void {
+            std.Thread.sleep(300 * std.time.ns_per_ms);
+        }
+    };
+    try h.server.loop.startFiber(Blocker.run, &dummy, null);
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+    for (0..100) |_| try h.server.loop.startFiber(StartProbe.run, &dummy, StartProbe.fail);
+    h.stop();
+    // Each ran (if it reached the loop in time) or was told it did not.
+    try testing.expectEqual(@as(u32, 100), StartProbe.done.load(.acquire) + StartProbe.failed.load(.acquire));
+    try testing.expectEqual(StartProbe.ran.load(.acquire), StartProbe.done.load(.acquire));
+}

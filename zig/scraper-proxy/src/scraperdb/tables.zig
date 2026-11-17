@@ -24,26 +24,36 @@ pub const Table = enum {
 pub const Spec = struct {
     /// Sorted like JS `Array.prototype.sort` (UTF-16 order; ASCII here).
     columns: []const []const u8,
-    column_set: std.StaticStringMap(void),
+    column_set: std.StaticStringMap(Column),
     primary_key: ?[]const u8,
     relation: ?[]const u8,
 
+    /// A column's position in `columns` and its quoted identifier.
+    pub const Column = struct { index: u8, quoted: []const u8 };
+    pub const max_columns = 128;
+
     pub fn hasColumn(self: *const Spec, column: []const u8) bool {
         return self.column_set.has(column);
+    }
+
+    pub fn columnInfo(self: *const Spec, name: []const u8) ?Column {
+        return self.column_set.get(name);
     }
 };
 
 fn spec(comptime columns: []const []const u8, primary_key: ?[]const u8, relation: ?[]const u8) Spec {
     @setEvalBranchQuota(100_000);
-    comptime var kvs: [columns.len]struct { []const u8 } = undefined;
+    if (columns.len > Spec.max_columns) @compileError("too many columns");
+    comptime var kvs: [columns.len]struct { []const u8, Spec.Column } = undefined;
     inline for (columns, 0..) |column, index| {
         if (index > 0 and !std.mem.lessThan(u8, columns[index - 1], column)) @compileError("columns must be sorted");
-        kvs[index] = .{column};
+        if (std.mem.indexOfScalar(u8, column, '"') != null) @compileError("column names are plain identifiers");
+        kvs[index] = .{ column, .{ .index = index, .quoted = "\"" ++ column ++ "\"" } };
     }
     const frozen = kvs;
     return .{
         .columns = columns,
-        .column_set = std.StaticStringMap(void).initComptime(frozen),
+        .column_set = std.StaticStringMap(Spec.Column).initComptime(frozen),
         .primary_key = primary_key,
         .relation = relation,
     };

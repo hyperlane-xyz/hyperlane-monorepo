@@ -367,6 +367,39 @@ test "raw rows: randomized converted custom columns match today's bytes (propert
     }
 }
 
+test "raw rows: column lookup at the map threshold, duplicate names keep the last value" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // raw_message_dispatch columns (fast or custom types); `nonce` repeats.
+    const all_names = [_][]const u8{ "id", "nonce", "origin_domain", "destination_domain", "origin_block_height", "msg_id", "sender", "recipient", "nonce", "time_created", "msg_body" };
+    const all_oids = [_]Oid{ .int8, .int4, .int4, .int4, .int8, .bytea, .bytea, .bytea, .int4, .timestamptz, .bytea };
+    const row_a = [_]?[]const u8{ "1", "7", "1", "2", "100", "\\x01", "\\x02", "\\x03", "8", "2026-01-01 00:00:00", null };
+    const row_b = [_]?[]const u8{ "2", "9", "3", "4", "101", "\\x04", "\\x05", "\\x06", "10", "2026-01-02 00:00:00", "\\x07" };
+    // 7 and 8 columns: scan; 9, 10, 11: name index (threshold is > 8).
+    for ([_]usize{ 7, 8, 9, 10, 11 }) |n| {
+        const rows = [_][]const ?[]const u8{ row_a[0..n], row_b[0..n] };
+        var table: Table = .{ .names = all_names[0..n], .oids = all_oids[0..n], .cells = &rows };
+        var selection: std.ArrayList(u8) = .empty;
+        for (all_names[0..n]) |name| {
+            try selection.appendSlice(a, name);
+            try selection.append(a, ' ');
+        }
+        for ([_][]const u8{
+            try std.fmt.allocPrint(a, "{{ raw_message_dispatch {{ {s} }} }}", .{selection.items}),
+            try std.fmt.allocPrint(a, "{{ raw_message_dispatch {{ x: nonce {s} y: nonce }} }}", .{selection.items}),
+            try std.fmt.allocPrint(a, "{{ raw_message_dispatch_by_pk(id: 1) {{ nonce id }} }}", .{}),
+        }) |q| {
+            try expectSame(a, q, &table);
+            const before = table.materializes;
+            try std.testing.expectEqual(@as(usize, 1), (try run(a, q, &table, true)).raw_calls);
+            try std.testing.expectEqual(before, table.materializes); // written in place
+        }
+        // A selected field with no column: today's path at every width.
+        try expectSame(a, "{ raw_message_dispatch { id origin_mailbox } }", &table);
+    }
+}
+
 // ---- Against PostgreSQL: the real App adapters (`queryLazy` → `LazyRows`)
 // vs the same App with the lazy path off, on the harness scraper schema.
 // Needs SCRAPER_PROXY_TEST_DATABASE_URL (`parity/fixtures/db.sh env harness`).
@@ -618,12 +651,26 @@ test "raw rows stage bench: today vs raw from one result (opt-in)" {
         var lazy: *db.LazyRows = undefined;
         var raw_on = false;
         fn noDeinit(_: *anyopaque) void {}
-        fn resolve(_: *anyopaque, a: Allocator, info: *const execute.Info, _: Value, _: Value) Allocator.Error!execute.ResolveResult {
+        /// The resolver's SQL work (selected columns + `buildSelect`), whose
+        /// query is not sent: the prefetched result stands in for it.
+        fn buildSql(a: Allocator, info: *const execute.Info, args: Value) Allocator.Error!void {
+            const scraperdb = @import("scraperdb");
+            const table = std.meta.stringToEnum(scraperdb.Table, info.field_name) orelse return;
+            const columns = try @import("resolvers.zig").selectedColumns(a, info, info.field_nodes);
+            var diag: scraperdb.Diag = .{};
+            _ = scraperdb.buildSelect(a, table, scraperdb.resolvers.selectArgs(&args, columns), null, &diag) catch |err| switch (err) {
+                error.OutOfMemory => return error.OutOfMemory,
+                else => @panic("stage bench SQL"),
+            };
+        }
+        fn resolve(_: *anyopaque, a: Allocator, info: *const execute.Info, _: Value, args: Value) Allocator.Error!execute.ResolveResult {
             if (!std.mem.eql(u8, info.parent_type.name, "query_root")) return .default;
+            try buildSql(a, info, args);
             return .{ .value = .{ .array = try lazy.materialize(a) } };
         }
-        fn resolveRaw(_: *anyopaque, a: Allocator, info: *const execute.Info, _: Value, _: Value) Allocator.Error!execute.RawResult {
+        fn resolveRaw(_: *anyopaque, a: Allocator, info: *const execute.Info, _: Value, args: Value) Allocator.Error!execute.RawResult {
             if (!raw_on or !std.mem.eql(u8, info.parent_type.name, "query_root")) return .none;
+            try buildSql(a, info, args);
             var raw = try @import("resolvers.zig").rawRows(a, lazy);
             raw.deinit_fn = noDeinit;
             return .{ .rows = raw };
@@ -646,6 +693,7 @@ test "raw rows stage bench: today vs raw from one result (opt-in)" {
         .{ .name = "rmd 500 with bodies", .sql = "SELECT \"id\", \"msg_id\", \"nonce\", \"origin_domain\", \"destination_domain\", \"sender\", \"recipient\", \"msg_body\", \"origin_block_height\", \"origin_tx_hash\", \"time_created\" FROM \"raw_message_dispatch\" ORDER BY \"id\" DESC LIMIT 500", .query = "{ raw_message_dispatch { id msg_id nonce origin_domain destination_domain sender recipient msg_body origin_block_height origin_tx_hash time_created } }", .n = 2000 },
         .{ .name = "mv 500 Explorer stub", .sql = "SELECT \"id\", \"msg_id\", \"nonce\", \"sender\", \"recipient\", \"is_delivered\", \"is_provisional\", \"send_occurred_at\", \"delivery_occurred_at\", \"delivery_latency\", \"origin_chain_id\", \"origin_block_height\", \"origin_domain_id\", \"origin_tx_id\", \"origin_tx_hash\", \"origin_tx_sender\", \"origin_tx_recipient\", \"destination_chain_id\", \"destination_domain_id\", \"destination_tx_id\", \"destination_tx_hash\", \"destination_tx_sender\", \"destination_tx_recipient\", \"message_body\" FROM (SELECT *, FALSE AS is_provisional FROM \"message_view\") AS \"message_view\" ORDER BY \"id\" DESC LIMIT 500", .query = "{ message_view { id msg_id nonce sender recipient is_delivered is_provisional send_occurred_at delivery_occurred_at delivery_latency origin_chain_id origin_block_height origin_domain_id origin_tx_id origin_tx_hash origin_tx_sender origin_tx_recipient destination_chain_id destination_domain_id destination_tx_id destination_tx_hash destination_tx_sender destination_tx_recipient message_body } }", .n = 1000 },
         .{ .name = "mv list 100", .sql = "SELECT \"id\", \"msg_id\", \"nonce\", \"sender\", \"recipient\", \"is_delivered\", \"send_occurred_at\", \"delivery_occurred_at\", \"delivery_latency\", \"origin_tx_hash\", \"destination_tx_hash\", \"total_payment\", \"num_payments\" FROM (SELECT *, FALSE AS is_provisional FROM \"message_view\") AS \"message_view\" WHERE \"origin_domain_id\" IN (42161, 8453) ORDER BY \"id\" DESC LIMIT 100", .query = "{ message_view { id msg_id nonce sender recipient is_delivered send_occurred_at delivery_occurred_at delivery_latency origin_tx_hash destination_tx_hash total_payment num_payments } }", .n = 5000 },
+        .{ .name = "by id details", .sql = "SELECT \"id\", \"msg_id\", \"nonce\", \"sender\", \"recipient\", \"is_delivered\", \"is_provisional\", \"send_occurred_at\", \"delivery_occurred_at\", \"delivery_latency\", \"origin_chain_id\", \"origin_block_height\", \"origin_domain_id\", \"origin_tx_id\", \"origin_tx_hash\", \"origin_tx_sender\", \"origin_tx_recipient\", \"destination_chain_id\", \"destination_domain_id\", \"destination_tx_id\", \"destination_tx_hash\", \"destination_tx_sender\", \"destination_tx_recipient\", \"message_body\", \"origin_block_hash\", \"origin_block_id\", \"origin_mailbox\", \"origin_tx_cumulative_gas_used\", \"origin_tx_effective_gas_price\", \"origin_tx_gas_limit\", \"origin_tx_gas_price\", \"origin_tx_gas_used\", \"origin_tx_max_fee_per_gas\", \"origin_tx_max_priority_fee_per_gas\", \"origin_tx_nonce\", \"destination_block_hash\", \"destination_block_height\", \"destination_block_id\", \"destination_mailbox\", \"destination_tx_cumulative_gas_used\", \"destination_tx_effective_gas_price\", \"destination_tx_gas_limit\", \"destination_tx_gas_price\", \"destination_tx_gas_used\", \"destination_tx_max_fee_per_gas\", \"destination_tx_max_priority_fee_per_gas\", \"destination_tx_nonce\", \"total_gas_amount\", \"total_payment\", \"num_payments\" FROM (SELECT *, FALSE AS is_provisional FROM \"message_view\") AS \"message_view\" WHERE \"msg_id\" = (SELECT \"msg_id\" FROM \"message_view\" ORDER BY \"id\" DESC LIMIT 1) LIMIT 1", .query = "{ message_view(where: {send_occurred_at: {_is_null: false}, msg_id: {_eq: \"\\\\x00\"}}, limit: 1) { id msg_id nonce sender recipient is_delivered is_provisional send_occurred_at delivery_occurred_at delivery_latency origin_chain_id origin_block_height origin_domain_id origin_tx_id origin_tx_hash origin_tx_sender origin_tx_recipient destination_chain_id destination_domain_id destination_tx_id destination_tx_hash destination_tx_sender destination_tx_recipient message_body origin_block_hash origin_block_id origin_mailbox origin_tx_cumulative_gas_used origin_tx_effective_gas_price origin_tx_gas_limit origin_tx_gas_price origin_tx_gas_used origin_tx_max_fee_per_gas origin_tx_max_priority_fee_per_gas origin_tx_nonce destination_block_hash destination_block_height destination_block_id destination_mailbox destination_tx_cumulative_gas_used destination_tx_effective_gas_price destination_tx_gas_limit destination_tx_gas_price destination_tx_gas_used destination_tx_max_fee_per_gas destination_tx_max_priority_fee_per_gas destination_tx_nonce total_gas_amount total_payment num_payments } }", .n = 40000 },
         .{ .name = "domains 63", .sql = "SELECT \"id\", \"name\", \"chain_id\", \"native_token\", \"is_test_net\", \"is_deprecated\" FROM \"domain\" ORDER BY \"id\" ASC", .query = "{ domain { id name chain_id native_token is_test_net is_deprecated } }", .n = 40000 },
     }) |b| {
         Stage.lazy = (try f.dbs.queryLazy(keep.allocator(), b.sql, &.{}, .unnamed, &failure)).?;
@@ -656,7 +704,9 @@ test "raw rows stage bench: today vs raw from one result (opt-in)" {
         const coerced = (try values.getVariableValues(keep.allocator(), schema, doc.definitions[0].operation.variable_definitions, null)).coerced;
         if (profile) |name| {
             if (!std.mem.startsWith(u8, b.name, name)) continue;
-            Stage.raw_on = false;
+            // The profile arm loops the raw path only (production's path);
+            // the comparison rows below still time both arms.
+            Stage.raw_on = true;
             for (0..b.n * 100) |_| {
                 _ = arena_state.reset(.retain_capacity);
                 const a = arena_state.allocator();

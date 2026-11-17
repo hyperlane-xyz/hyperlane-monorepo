@@ -695,13 +695,20 @@ pub const Executor = struct {
         // cannot express; today's path writes them.
         if (fields == 0) return false;
         const cols = try self.a.alloc(usize, fields);
+        // The column the row object holds for each field (the default
+        // resolver's `source[def.name]`): like convertRows, a duplicated name
+        // keeps its last column's value. Wide results: a name index.
+        var by_name: std.StringHashMapUnmanaged(usize) = .empty;
+        if (raw.columns.len > 8) {
+            try by_name.ensureTotalCapacity(self.a, @intCast(raw.columns.len));
+            for (raw.columns, 0..) |c, i| by_name.putAssumeCapacity(c.name, i);
+        }
         for (plan.collected.defs, plan.scalars, cols) |maybe_def, scalar, *col| {
-            // The column the row object holds for this field (the default
-            // resolver's `source[def.name]`): like convertRows, a duplicated
-            // name keeps its last column's value.
             const column_name = (maybe_def orelse return false).name;
             var found: ?usize = null;
-            for (raw.columns, 0..) |c, i| if (std.mem.eql(u8, c.name, column_name)) {
+            if (raw.columns.len > 8) {
+                found = by_name.get(column_name);
+            } else for (raw.columns, 0..) |c, i| if (std.mem.eql(u8, c.name, column_name)) {
                 found = i;
             };
             const i = found orelse return false;
@@ -909,6 +916,8 @@ pub const Executor = struct {
     };
 
     fn collectFields(self: *Executor, runtime: *const NamedType, set: *const ast.SelectionSet, fields: *FieldMap, visited: *std.StringHashMapUnmanaged(void)) Err!void {
+        try fields.entries.ensureUnusedCapacity(self.a, @intCast(set.selections.len));
+        try fields.names.ensureUnusedCapacity(self.a, set.selections.len);
         for (set.selections) |sel| switch (sel) {
             .field => |f| {
                 if (!try self.shouldInclude(f.directives)) continue;
