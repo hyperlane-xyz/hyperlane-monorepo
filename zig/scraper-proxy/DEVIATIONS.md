@@ -4,22 +4,25 @@ Every known behaviour difference between the Zig port and the TypeScript
 proxy (the oracle). Each entry says what differs, why, and what a client can
 observe. Anything not listed here is meant to be identical; a differential
 runner that byte-compares both servers against the same PostgreSQL checks
-that (kept outside this tree).
+that (kept outside this tree), except for the cases its report lists as
+unverified or unit-only.
 
 ## Concurrency model
 
-The proxy runs on threads, not one Node event loop. Where TS relies on
-"nothing else runs between two awaits", the port reproduces the observable
-rule, not the scheduling.
+The proxy runs on event-loop threads with fibers, not one Node event loop.
+Where TS relies on "nothing else runs between two awaits", the port
+reproduces the observable rule, not the scheduling.
 
-- **HTTP pollers.** Sockets live on one epoll/kqueue set and one poller
-  thread runs at a time. A poller about to block (database wait, pool wait,
-  root-field join, marked with `core.blocking`) hands its place to a waiting
-  or parked poller, and a monitor hands off for any dispatch stalled more
-  than 2 ms without that mark (e.g. live's loop mutex). Unlike Node, a
-  blocked handler never delays other sockets. At most 256 poller threads
-  (running, blocked and parked); GraphQL admission keeps blocked ones
-  near 25. No socket cap. Client impact: none beyond latency.
+- **HTTP event loops.** Sockets live on an epoll/kqueue set served by one
+  event-loop thread (the shipped build; `-Dhttp-loops` builds run several).
+  Each request runs as a fiber on that thread: a fiber waiting on PostgreSQL
+  or a pool parks and the loop serves other sockets, as Node does at an
+  `await`. Work that cannot run on the loop (name resolution, TLS
+  handshakes, connection setup) runs on short-lived helper threads; live's
+  database reads run as fibers on the loops and its other work under its
+  loop mutex (below). Like Node, CPU-bound work in one request delays other
+  sockets on the same loop. No socket cap. Client impact: none beyond
+  latency.
 - **GraphQL execution admission.** TS counts a request against
   `GRAPHQL_MAX_ACTIVE_REQUESTS` from preHandler to response finish, but a
   request that never awaits (cache hit, validation error, any I/O-free
@@ -36,7 +39,7 @@ rule, not the scheduling.
   invalid arguments holds a slot for the instant before failing; a blocked
   response write takes its slot without the bound, so the count can exceed
   the limit by the requests racing at that moment.
-- **GraphQL root fields run concurrently** on threads, and errors are merged
+- **GraphQL root fields run concurrently** (as sibling fibers), and errors are merged
   the way graphql-js collects them on a query's first execution (checked
   case by case in `parity/corpus/graphql-errors.mjs`): failures without I/O
   (assertions, argument errors) first in document order, then I/O-backed
@@ -57,7 +60,10 @@ rule, not the scheduling.
   can join the current batch instead of the next; a timer-fired drain that
   already finished is not "joined" by a later `flush()` (it runs a fresh,
   usually empty, drain). Per-stream ordering is unchanged; only cross-event
-  ordering inside those windows can differ.
+  ordering inside those windows can differ. Subscribe, Explorer and
+  `/validators` setups are continuations rather than tasks: each database
+  read's continuation runs in completion order, one per turn, so the windows
+  are the same ones.
 - **Diagnostics stream bursts.** Node never fires a timer between two
   synchronous calls (e.g. several `notify()`s); here the 25 ms drain timer
   can fire between them, so a burst may split into two reads. Each read
@@ -88,10 +94,6 @@ rule, not the scheduling.
 - **Lingering close** after a `Connection: close` response drains the
   half-closed socket until the peer closes, like Node's `socket.end()`, but
   for at most 10 s (Node: indefinitely) and not past server close.
-- **Unread request bodies:** after a response, up to 1 MiB of a
-  Content-Length body is drained to keep the connection alive (Node's
-  `req._dump()` has no cap); larger or chunked remainders close the
-  connection.
 - **Stalled clients cost memory, not threads:** a client that stops reading
   a response or never finishes a body (Node has no timeout for either) parks
   its socket with its unsent bytes or buffered body, like Node.
@@ -147,17 +149,19 @@ rule, not the scheduling.
   depth limit on either side.
 - **`Did you mean` lists** use graphql-js `suggestionList`, but lowercase
   folding is ASCII-only, so suggestions for non-ASCII input can differ.
-- **V8 `JSON.parse` messages** (GET `variables`/`extensions`) are emulated
-  for the common cases; rare V8 messages (e.g. lone-surrogate inputs) may
-  differ.
+- **V8 `JSON.parse` messages** (GET `variables`/`extensions`, and
+  unparsable `/validators` client frames) are emulated for the common cases;
+  rare V8 messages (e.g. lone-surrogate inputs) may differ.
 - **Lone surrogates** (`"\ud800"` in request JSON) become WTF-8 bytes;
   locations count them as one UTF-16 unit like JS, but printing them in
   graphql-js messages is not byte-identical.
 - **Caches (not observable).** mercurius' two-generation QuickLRU is an
   exact LRU of the same capacity (1024, error LRU likewise); the response
-  cache's prepared documents keep TS's 256 / 8192-byte bounds; the cache key
-  hashes a canonical print of the normalised document (only hit/miss
-  equivalence matters).
+  cache's prepared documents keep TS's 256 / 8192-byte bounds. TS keys the
+  response cache by a SHA-256 of the operation name, normalised query and
+  used variables; the port keeps those input bytes and compares them in
+  full, so hits and misses are identical (bar a SHA-256 collision, which
+  would be a hit in TS only).
 
 ## Database (node-pg / pg-pool)
 
@@ -209,6 +213,24 @@ rule, not the scheduling.
   switched off for the pool, with one warning, on a 42P05 or a second 26000
   within 60 s. Backend memory: at most 8 statements (about 15 MB) per
   connection.
+- **Join order fixed for id-ordered `message_view` selects (not
+  client-visible).** A select whose ORDER BY ends in the unique `id` and
+  whose predicates and ORDER BY columns all come from the view's driving
+  table (`message`: `id`, `msg_id`, `nonce`, `origin_domain_id`,
+  `destination_domain_id`, `sender`, `recipient`, `origin_mailbox`,
+  `origin_tx_id`, `message_body`, `send_scraped_at`, plus
+  `send_occurred_at IS NOT NULL`) runs with `join_collapse_limit = 1`. The
+  switch is pipelined with the execute, so it adds no round trip, and every
+  other statement switches back first. Rows are totally ordered by `id`, so
+  no plan can change a response; SQL text and errors are unchanged. On the
+  1M-message bench DB the plans are identical and planning per call drops
+  from 3.1 to 0.9 ms (Explorer page) and from 3.0 to 1.1 ms (500-row stub);
+  Explorer page and search requests use 8-11% less PostgreSQL CPU, the stub
+  19% less. Predicates on joined tables (e.g. `origin_tx_hash`, 49x slower
+  with the order fixed) never qualify. It is off whenever named statements
+  are off (transaction pooler), so the setting never reaches another
+  session. A statement without parameters that follows a fixed one on the
+  same connection pays one extra round trip for the reset.
 - **Deeply nested parameter values.** node-pg formats parameters
   recursively, so TS fails with V8's "Maximum call stack size exceeded" once
   a parameter (a custom-scalar variable carries any JSON) nests deep enough,
@@ -254,7 +276,7 @@ rule, not the scheduling.
   error and text are unchanged. With one loop (the default) the order is
   pg-pool's.
 
-## WebSockets (`/agents`, `/messages`)
+## WebSockets (`/agents`, `/messages`, `/validators`)
 
 - **Integer ranges.** Notification ids and heights and row ids are i128 (TS:
   unbounded BigInt); notification payloads beyond i128 are rejected as
@@ -284,9 +306,14 @@ rule, not the scheduling.
   validate the code (`ws` throws); the proxy only passes valid codes and
   short reasons, so this is unreachable.
 - **Limits are not configurable beyond TS's env surface.** TS tests pass
-  `maxExplorerClients` and `heartbeatMs` to the server constructor; the
-  port's tests do the same through `live.Limits`, and neither binary exposes
-  them.
+  `maxExplorerClients`, `maxValidatorClients`, `maxValidatorClientsPerIp`
+  and `heartbeatMs` to the server constructor; the port's tests do the same
+  through `live.Limits`, and neither binary exposes them. A test-only
+  `-Dparity-hooks` build (never shipped) adds a loopback control port
+  (`PARITY_HOOK_PORT`) that holds send completions and runs the heartbeat on
+  demand, for the parity runner's scenarios; while holding, it writes those
+  frames uncorked. The TS side gets the same through a preload
+  (`parity/hooks/ts-hooks.mjs`).
 
 ## Metrics, logs, process
 

@@ -27,6 +27,12 @@ pub const Spec = struct {
     column_set: std.StaticStringMap(Column),
     primary_key: ?[]const u8,
     relation: ?[]const u8,
+    /// Columns read straight from the relation's driving table (a view's
+    /// first FROM item; every other table joins to it). A select whose
+    /// predicates all use these may be planned with the view's join order
+    /// fixed (`sql.Sql.fixed_join`). An allow-list: a column not named here,
+    /// including any added later, keeps the default planning.
+    driving_columns: std.StaticStringMap(void) = .initComptime(.{}),
 
     /// A column's position in `columns` and its quoted identifier.
     pub const Column = struct { index: u8, quoted: []const u8 };
@@ -39,7 +45,28 @@ pub const Spec = struct {
     pub fn columnInfo(self: *const Spec, name: []const u8) ?Column {
         return self.column_set.get(name);
     }
+
+    pub fn isDrivingColumn(self: *const Spec, name: []const u8) bool {
+        return self.driving_columns.has(name);
+    }
+
+    pub fn hasDrivingColumns(self: *const Spec) bool {
+        return self.driving_columns.keys().len > 0;
+    }
 };
+
+/// `base` with `driving` as its driving-table columns (each must be a column).
+fn withDriving(comptime base: Spec, comptime driving: []const []const u8) Spec {
+    comptime var kvs: [driving.len]struct { []const u8 } = undefined;
+    inline for (driving, 0..) |column, index| {
+        if (!base.column_set.has(column)) @compileError("driving column " ++ column ++ " is not a column");
+        kvs[index] = .{column};
+    }
+    const frozen = kvs;
+    var out = base;
+    out.driving_columns = .initComptime(frozen);
+    return out;
+}
 
 fn spec(comptime columns: []const []const u8, primary_key: ?[]const u8, relation: ?[]const u8) Spec {
     @setEvalBranchQuota(100_000);
@@ -61,7 +88,17 @@ fn spec(comptime columns: []const []const u8, primary_key: ?[]const u8, relation
 
 const domain = spec(&.{ "chain_id", "id", "is_deprecated", "is_test_net", "name", "native_token", "time_created", "time_updated" }, "id", null);
 
-const message_view = spec(&.{
+/// `message_view`'s driving table is `message msg`: these columns are
+/// `msg`'s own (id, msg_id, nonce, origin, destination, time_created,
+/// sender, recipient, origin_mailbox, origin_tx_id, msg_body). Every other
+/// column comes from a joined table (domain, transaction, block, payments,
+/// delivered_message) or is the projection's `is_provisional` constant.
+const message_view = withDriving(message_view_columns, &.{
+    "destination_domain_id", "id",       "message_body", "msg_id",          "nonce", "origin_domain_id",
+    "origin_mailbox",        "origin_tx_id", "recipient", "send_scraped_at", "sender",
+});
+
+const message_view_columns = spec(&.{
     "delivery_latency",                   "delivery_occurred_at",                    "delivery_scape_latency",
     "delivery_scraped_at",                "destination_block_hash",                  "destination_block_height",
     "destination_block_id",               "destination_chain_id",                    "destination_domain",

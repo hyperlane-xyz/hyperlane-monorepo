@@ -29,6 +29,8 @@ pub const TimerCallback = *const fn (ctx: *anyopaque, id: u64) void;
 /// acquisition (lock to unlock or wait, turn-end work included). Off by
 /// default: the shipped build does no extra work.
 pub const hold_stats = @import("live_options").loop_hold_stats;
+/// `-Dparity-hooks=true` builds: `parity_hooks.zig` (parity scenarios only).
+pub const parity_hooks = @import("live_options").parity_hooks;
 
 /// Cumulative hold times (`hold_stats` builds only).
 pub const HoldHistogram = struct {

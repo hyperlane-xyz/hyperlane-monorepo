@@ -51,6 +51,8 @@ pub const DbService = struct {
     main_pool: ?*pool_mod.Pool = null,
     live_pool: ?*pool_mod.Pool = null,
     validator_pool: ?*pool_mod.Pool = null,
+    /// This service's running listener threads (`close` waits for them).
+    listener_threads: listener_mod.ThreadCount = .init(0),
     listeners: std.ArrayList(*listener_mod.Listener) = .empty,
     /// Disconnected listeners awaiting `unlisten`/`close`.
     retired: std.ArrayList(*listener_mod.Listener) = .empty,
@@ -97,6 +99,8 @@ pub const DbService = struct {
     /// Bound for `close` to wait for in-flight queries (node-pg `pool.end()`
     /// waits for checked-out clients; ours is bounded so shutdown finishes).
     pub const close_drain_ms = 30_000;
+    /// Bound for `close` to wait for listener threads that are finishing.
+    pub const close_listener_wait_ms = 5_000;
 
     /// `start()`: schema checks, warm-up (primary only), stats timer. On
     /// failure `failure.message` holds the TS error message.
@@ -222,6 +226,12 @@ pub const DbService = struct {
         for (retired.items) |l| self.stopListener(l);
         listeners.deinit(self.gpa);
         retired.deinit(self.gpa);
+        // Listeners a callback stopped free themselves on their own thread
+        // once the callback returns; let them finish before we go away.
+        if (!listener_mod.awaitThreads(&self.listener_threads, close_listener_wait_ms)) {
+            // Should never happen: the memory below may still be in use.
+            self.logger.warn("{d} listener threads still running after {d} ms at close", .{ self.listener_threads.load(.acquire), close_listener_wait_ms });
+        }
         // Pools wait for (bounded) checked-out connections before freeing.
         if (live) |p| p.deinit();
         if (validator) |p| p.deinit();
@@ -269,6 +279,12 @@ pub const DbService = struct {
         return self.run(.main, self.main_role, arena, sql, params, .{ .plan = .reusable }, failure);
     }
 
+    /// `query` for selects planned with the view's join order fixed
+    /// (`pq.Plan.fixed_join`): same SQL, rows and errors.
+    pub fn queryFixedJoin(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
+        return self.run(.main, self.main_role, arena, sql, params, .{ .plan = .fixed_join }, failure);
+    }
+
     /// The validator WebSocket's reads on the primary (`validator_primary`;
     /// own pool of `MAX_VALIDATOR_POOL_CLIENTS`, queued checkouts time out
     /// after DATABASE_QUERY_TIMEOUT_MS like TS's connectionTimeoutMillis).
@@ -304,7 +320,7 @@ pub const DbService = struct {
             .ctx = wrapper,
             .on_notification = ListenWrapper.onNotification,
             .on_disconnect = ListenWrapper.onDisconnect,
-        }, .{}, arena, failure);
+        }, .{ .threads = &self.listener_threads }, arena, failure);
         wrapper.listener = l;
         self.mutex.lock();
         if (self.ended) {

@@ -129,12 +129,68 @@ const canary: u64 = 0x5a1f_f1be_c0de_d00d;
 threadlocal var free_list: ?*Fiber = null;
 threadlocal var free_count: usize = 0;
 const keep_free = 64;
+/// Monotonic ms of this thread's last fiber allocation (`trimIdleCache`).
+threadlocal var last_alloc_ms: i64 = 0;
+
+/// Stacks `trimIdleCache` keeps cached (their pages released).
+pub const idle_keep = 4;
+/// How long a thread allocates no fiber before its cache is trimmed: long
+/// enough that a burst after a short pause reuses warm stacks (a 1 s delay
+/// cost the next burst ~0.8 ms of page faults, Depot f36ckswglc). A `var`
+/// only so tests can shorten it before a loop starts.
+pub var idle_trim_ms: i64 = 30_000;
+
+/// Milliseconds until `trimIdleCache` would trim, for a loop's wait bound.
+pub fn trimDueInMs(now_ms: i64) i64 {
+    return @max(1, idle_trim_ms - (now_ms - last_alloc_ms));
+}
+
+/// True while this thread's stack cache holds more than `idle_keep` fibers
+/// (an event loop then wakes within `idle_trim_ms` to call `trimIdleCache`).
+pub fn cacheIsFat() bool {
+    return free_count > idle_keep;
+}
+
+/// Fibers in this thread's stack cache (tests, diagnostics).
+pub fn cachedFibers() usize {
+    return free_count;
+}
+
+/// After `idle_trim_ms` without a fiber allocation on this thread: unmaps
+/// cached fibers beyond `idle_keep` and returns the touched pages of the
+/// rest, so a burst of fibers (e.g. 100 subscribes) leaves no resident
+/// stacks behind once the thread is idle. Cheap no-op otherwise.
+pub fn trimIdleCache(now_ms: i64) void {
+    if (free_count <= idle_keep or now_ms - last_alloc_ms < idle_trim_ms) return;
+    var kept: usize = 0;
+    var prev: ?*Fiber = null;
+    var it = free_list;
+    while (it) |f| {
+        const next = f.next_free;
+        if (kept < idle_keep) {
+            const lo = std.mem.alignForward(usize, @intFromPtr(f.stack.ptr) + guard, std.heap.page_size_min);
+            const hi = @intFromPtr(f.stack.ptr) + f.stack.len;
+            // The canary page is now zero-filled, which `freeFiber` treats
+            // as untouched (no page faulted back in just to rewrite it).
+            posix.madvise(@ptrFromInt(lo), hi - lo, posix.MADV.DONTNEED) catch {};
+            kept += 1;
+            prev = f;
+        } else {
+            if (prev) |p| p.next_free = next else free_list = next;
+            free_count -= 1;
+            posix.munmap(f.stack);
+            std.heap.c_allocator.destroy(f);
+        }
+        it = next;
+    }
+}
 
 fn canaryPtr(f: *Fiber) *u64 {
     return @ptrFromInt(@intFromPtr(f.stack.ptr) + f.stack.len - shallow);
 }
 
 fn allocFiber() !*Fiber {
+    last_alloc_ms = monoMs();
     if (free_list) |f| {
         free_list = f.next_free;
         free_count -= 1;
@@ -159,7 +215,9 @@ fn mapFlags() posix.MAP {
 
 fn freeFiber(f: *Fiber) void {
     // A deep request touched pages below the shallow mark: give them back.
-    if (canaryPtr(f).* != canary) {
+    // (0: a stack `trimIdleCache` released, still untouched there.)
+    const mark = canaryPtr(f).*;
+    if (mark != canary and mark != 0) {
         const lo = std.mem.alignForward(usize, @intFromPtr(f.stack.ptr) + guard, std.heap.page_size_min);
         const hi = std.mem.alignBackward(usize, @intFromPtr(canaryPtr(f)), std.heap.page_size_min);
         if (hi > lo) posix.madvise(@ptrFromInt(lo), hi - lo, posix.MADV.DONTNEED) catch {};
@@ -848,4 +906,38 @@ test "offFiber runs the call outside the fiber, on the same thread, and returns 
     try std.testing.expectEqual(@as(u32, 42), c.result);
     try std.testing.expect(!c.inside_fiber);
     try std.testing.expectEqual(c.thread, c.inside_thread);
+}
+
+test "an idle thread's fiber stack cache is trimmed to idle_keep, its pages released" {
+    releaseThreadCache();
+    var fibers: [10]*Fiber = undefined;
+    for (&fibers) |*f| {
+        f.* = try allocFiber();
+        // Touch the top of the stack, as a request would.
+        f.*.stack[f.*.stack.len - 1] = 1;
+    }
+    for (fibers) |f| freeFiber(f);
+    try std.testing.expectEqual(@as(usize, 10), free_count);
+    // Busy (a fiber was allocated just now): nothing happens.
+    trimIdleCache(monoMs());
+    try std.testing.expectEqual(@as(usize, 10), free_count);
+    try std.testing.expect(cacheIsFat());
+    // Idle long enough: down to idle_keep, every kept stack zeroed but intact.
+    trimIdleCache(monoMs() + idle_trim_ms);
+    try std.testing.expectEqual(@as(usize, idle_keep), free_count);
+    try std.testing.expect(!cacheIsFat());
+    var it = free_list;
+    var n: usize = 0;
+    while (it) |f| : (it = f.next_free) {
+        // Linux drops the pages (MADV_DONTNEED zero-fills); macOS only takes a hint.
+        if (builtin.os.tag == .linux) try std.testing.expectEqual(@as(u8, 0), f.stack[f.stack.len - 1]);
+        // Released (zero-filled) on Linux; macOS keeps the page, canary intact.
+        try std.testing.expect(canaryPtr(f).* == canary or canaryPtr(f).* == 0);
+        n += 1;
+    }
+    try std.testing.expectEqual(@as(usize, idle_keep), n);
+    // Still usable.
+    const again = try allocFiber();
+    freeFiber(again);
+    releaseThreadCache();
 }

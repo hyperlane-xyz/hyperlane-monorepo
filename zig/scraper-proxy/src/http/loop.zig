@@ -1442,7 +1442,11 @@ pub const Loop = struct {
             const alone = @atomicLoad(u32, &self.threads, .monotonic) <= 1;
             const rec = tls_rec.?;
             const want = @max(1, @min(self.options.event_batch, max_event_batch));
-            const got = self.waitSpin(rec.batch[0..want], if (surplus) surplus_linger_ms else if (alone) -1 else self.options.idle_exit_ms, after_events and alone);
+            // A fiber stack cache left fat by a burst: wake to trim it once idle.
+            const trim = alone and fiber_mod.cacheIsFat();
+            const alone_ms: i32 = if (trim) @intCast(@min(fiber_mod.trimDueInMs(fiber_mod.monoMs()), std.math.maxInt(i32))) else -1;
+            const got = self.waitSpin(rec.batch[0..want], if (surplus) surplus_linger_ms else if (alone) alone_ms else self.options.idle_exit_ms, after_events and alone);
+            if (trim) fiber_mod.trimIdleCache(fiber_mod.monoMs());
             after_events = got == .events;
             Stats.bump(&self.stats.waits, 1);
             const others = self.idle.fetchSub(1, .seq_cst) - 1;

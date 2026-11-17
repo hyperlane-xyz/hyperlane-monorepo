@@ -455,6 +455,56 @@ test "libpq: reusable statements match unnamed ones, evict, and survive result t
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 
+test "libpq: fixed_join statements switch join_collapse_limit and every other statement switches it back" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    var failure: root.Failure = .{};
+    const fixed: pq.QueryOptions = .{ .plan = .fixed_join };
+    const with_param = "SELECT current_setting('join_collapse_limit') AS v WHERE $1::int = 1";
+    const one = [_]Value{.{ .number = 1 }};
+    const Check = struct {
+        fn expect(want: []const u8, r: root.Result) !void {
+            try testing.expectEqualStrings(want, r.rows[0].get("v").?.string);
+        }
+    };
+    const default = (try p.query(a, "SHOW join_collapse_limit", &.{}, &failure)).rows[0].get("join_collapse_limit").?.string;
+    try testing.expect(!std.mem.eql(u8, default, "1"));
+    // Switched with the execute, and kept while fixed statements follow.
+    for (0..3) |_| try Check.expect("1", try p.queryWith(a, with_param, &one, fixed, &failure));
+    // Unnamed statements with parameters switch back in the same pipeline.
+    try Check.expect(default, try p.query(a, with_param, &one, &failure));
+    // Without parameters (simple protocol): in a round trip of its own.
+    try Check.expect("1", try p.queryWith(a, with_param, &one, fixed, &failure));
+    try Check.expect(default, try p.query(a, "SELECT current_setting('join_collapse_limit') AS v", &.{}, &failure));
+    // Named statements, whose generic plans outlive the setting, too.
+    try Check.expect("1", try p.queryWith(a, with_param, &one, fixed, &failure));
+    for (0..3) |_| try Check.expect(default, try p.queryWith(a, with_param, &one, .{ .plan = .reusable }, &failure));
+    // Lazy results read the same.
+    const lazy_result = try p.queryWith(a, with_param, &one, .{ .plan = .fixed_join, .lazy = true }, &failure);
+    const lazy = lazy_result.lazy.?;
+    defer lazy.deinit();
+    try testing.expectEqualStrings("1", lazy.cell(0, 0).?);
+    // A server error rolls the switch back with its pipeline: same message
+    // as a plain statement, and the next statement still sees the right value.
+    const failing = "SELECT 1 / ($1::int - 1) AS x";
+    try testing.expectError(error.QueryFailed, p.query(a, failing, &one, &failure));
+    const plain_message = failure.message;
+    try testing.expectError(error.QueryFailed, p.queryWith(a, failing, &one, fixed, &failure));
+    try testing.expectEqualStrings(plain_message, failure.message);
+    try Check.expect("1", try p.queryWith(a, with_param, &one, fixed, &failure));
+    try testing.expectError(error.QueryFailed, p.query(a, failing, &one, &failure));
+    try testing.expectEqualStrings(plain_message, failure.message);
+    try Check.expect(default, try p.query(a, with_param, &one, &failure));
+    // Without named statements (a transaction pooler), no session setting.
+    p.reuse_guard.disabled.store(true, .monotonic);
+    try Check.expect(default, try p.queryWith(a, with_param, &one, fixed, &failure));
+    try testing.expectEqual(@as(u32, 1), p.stats().total);
+}
+
 test "libpq: a prepared-statement name collision disables reuse and retries unnamed" {
     const url = testUrl() orelse return error.SkipZigTest;
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
@@ -519,14 +569,25 @@ test "libpq: socket and pool waits are bracketed by core.blocking" {
     const a = arena_state.allocator();
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
     defer p.deinit();
-    _ = try p.query(a, "SELECT 1", &.{}, null);
+    // A reply the server delays is waited for on the socket. (A reply can
+    // already be there when we look, e.g. on a busy machine: try again.)
+    for (0..20) |_| {
+        _ = try p.query(a, "SELECT pg_sleep(0.02)", &.{}, null);
+        try testing.expectEqual(Counter.begins, Counter.ends);
+        if (Counter.begins > 0) break;
+    }
     try testing.expect(Counter.begins > 0);
-    try testing.expectEqual(Counter.begins, Counter.ends);
-    // A queued acquire (the only connection is checked out) brackets its wait.
+    // A queued acquire (the only connection is checked out) brackets its
+    // wait; the connection comes back only once that acquire is queued.
     const held = try p.acquire(a, null);
     const Releaser = struct {
+        var queued = std.atomic.Value(bool).init(false);
         fn run(pool: *pool_mod.Pool, conn: pq.Conn) void {
-            std.Thread.sleep(50 * std.time.ns_per_ms);
+            // Bounded: if the acquire never queues, release anyway and let
+            // the test fail on `queued` instead of hanging.
+            const deadline = std.time.milliTimestamp() + 5_000;
+            while (pool.stats().waiting == 0 and std.time.milliTimestamp() < deadline) std.Thread.sleep(std.time.ns_per_ms);
+            queued.store(pool.stats().waiting > 0, .release);
             pool.release(conn);
         }
     };
@@ -534,6 +595,7 @@ test "libpq: socket and pool waits are bracketed by core.blocking" {
     const before = Counter.begins;
     const again = try p.acquire(a, null);
     t.join();
+    try testing.expect(Releaser.queued.load(.acquire));
     try testing.expect(Counter.begins > before);
     try testing.expectEqual(@as(isize, 0), Counter.depth);
     p.release(again);
@@ -797,6 +859,28 @@ test "libpq: pool waiters are served FIFO and capped at max" {
     try testing.expectEqual(@as(u32, 0), end.waiting);
 }
 
+/// `base` plus a tag unique to this test process: concurrent runs sharing
+/// one database (e.g. a load test) must not receive each other's NOTIFYs or
+/// terminate each other's listeners by channel name.
+fn uniqueChannel(a: std.mem.Allocator, base: []const u8) ![]const u8 {
+    const Tag = struct {
+        var value: u32 = 0;
+        var once = std.once(init);
+        fn init() void {
+            value = std.crypto.random.int(u32);
+        }
+    };
+    Tag.once.call();
+    return std.fmt.allocPrint(a, "{s}_{x:0>8}", .{ base, Tag.value });
+}
+
+/// `LISTEN "<channel>";` as the listener sends it (quotes doubled), for
+/// matching its backend in pg_stat_activity.
+fn listenStatement(a: std.mem.Allocator, channel: []const u8) ![]const u8 {
+    const quoted = try std.mem.replaceOwned(u8, a, channel, "\"", "\"\"");
+    return std.fmt.allocPrint(a, "LISTEN \"{s}\";", .{quoted});
+}
+
 const NotifyCapture = struct {
     mutex: std.Thread.Mutex = .{},
     cond: std.Thread.Condition = .{},
@@ -807,6 +891,9 @@ const NotifyCapture = struct {
     svc: ?*DbService = null,
     listener: ?*listener_mod.Listener = null,
     unlisten_inside: bool = false,
+    /// Stay in on_disconnect this long after reporting (the listener frees
+    /// itself only once the callback returns).
+    linger_ms: u64 = 0,
 
     fn onNotification(ctx: *anyopaque, channel: []const u8, payload: []const u8) void {
         const self: *NotifyCapture = @ptrCast(@alignCast(ctx));
@@ -820,14 +907,17 @@ const NotifyCapture = struct {
     fn onDisconnect(ctx: *anyopaque, message: ?[]const u8) void {
         const self: *NotifyCapture = @ptrCast(@alignCast(ctx));
         if (self.unlisten_inside) if (self.svc) |s| s.unlisten(self.listener.?);
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        self.disconnected = true;
-        if (message) |m| {
-            self.message_len = @min(m.len, self.message.len);
-            @memcpy(self.message[0..self.message_len], m[0..self.message_len]);
+        {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            self.disconnected = true;
+            if (message) |m| {
+                self.message_len = @min(m.len, self.message.len);
+                @memcpy(self.message[0..self.message_len], m[0..self.message_len]);
+            }
+            self.cond.broadcast();
         }
-        self.cond.broadcast();
+        if (self.linger_ms > 0) std.Thread.sleep(self.linger_ms * std.time.ns_per_ms);
     }
 
     fn deinit(self: *NotifyCapture) void {
@@ -855,16 +945,21 @@ test "libpq: LISTEN round trip, disconnect and unlisten inside on_disconnect" {
     defer LogCapture.reset();
     const svc = try DbService.init(testing.allocator, null);
     defer svc.deinit();
-    var capture: NotifyCapture = .{ .svc = svc, .unlisten_inside = true };
+    // Lingering in the callback keeps the self-freeing listener thread alive
+    // past the test's end: `svc.deinit` must wait for it (else the testing
+    // allocator reports the listener leaked).
+    var capture: NotifyCapture = .{ .svc = svc, .unlisten_inside = true, .linger_ms = 200 };
     defer capture.deinit();
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const a = arena_state.allocator();
     var failure: root.Failure = .{};
-    const l = try svc.listen(&.{ "scraper_event", "Mixed\"Case" }, .{ .ctx = &capture, .on_notification = NotifyCapture.onNotification, .on_disconnect = NotifyCapture.onDisconnect }, a, &failure);
+    const event = try uniqueChannel(a, "scraper_event");
+    const mixed = try uniqueChannel(a, "Mixed\"Case");
+    const l = try svc.listen(&.{ event, mixed }, .{ .ctx = &capture, .on_notification = NotifyCapture.onNotification, .on_disconnect = NotifyCapture.onDisconnect }, a, &failure);
     capture.listener = l;
     try testing.expectEqual(@as(f64, 1), svc.metricsSnapshot().listeners);
-    _ = try svc.queryLive(a, "SELECT pg_notify('scraper_event', 'hello'), pg_notify('Mixed\"Case', '')", &.{}, &failure);
+    _ = try svc.queryLive(a, "SELECT pg_notify($1, 'hello'), pg_notify($2, '')", &.{ .{ .string = event }, .{ .string = mixed } }, &failure);
     try capture.waitFor(struct {
         fn f(c: *NotifyCapture) bool {
             return c.payloads.items.len == 2;
@@ -875,7 +970,8 @@ test "libpq: LISTEN round trip, disconnect and unlisten inside on_disconnect" {
     // Kill this listener's backend (matched by its own channel only, so other
     // suites' listeners on the same server survive): on_disconnect fires once
     // and unlistens.
-    _ = try svc.queryLive(a, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE '%LISTEN \"Mixed\"\"Case\";%' AND pid <> pg_backend_pid()", &.{}, &failure);
+    const pattern = try std.fmt.allocPrint(a, "%{s}%", .{try listenStatement(a, mixed)});
+    _ = try svc.queryLive(a, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE $1 AND pid <> pg_backend_pid()", &.{.{ .string = pattern }}, &failure);
     try capture.waitFor(struct {
         fn f(c: *NotifyCapture) bool {
             return c.disconnected;
@@ -1290,13 +1386,15 @@ test "regression: NOTIFY parsed with the LISTEN replies is delivered" {
     defer capture.deinit();
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
-    const l = try listener_mod.Listener.start(testing.allocator, .{ .conninfo = url }, &.{"early_channel"}, .{
+    const early = try uniqueChannel(arena_state.allocator(), "early_channel");
+    const notify = try std.fmt.allocPrint(arena_state.allocator(), "NOTIFY {s}, 'early'", .{early});
+    const l = try listener_mod.Listener.start(testing.allocator, .{ .conninfo = url }, &.{early}, .{
         .ctx = &capture,
         .on_notification = NotifyCapture.onNotification,
         .on_disconnect = NotifyCapture.onDisconnect,
         // The SELECT round trip guarantees libpq already parsed the NOTIFY
         // (queued in PQnotifies) before the thread's first poll.
-    }, .{ .after_listen_sql = &.{ "NOTIFY early_channel, 'early'", "SELECT 1" } }, arena_state.allocator(), null);
+    }, .{ .after_listen_sql = &.{ notify, "SELECT 1" } }, arena_state.allocator(), null);
     defer l.stop();
     try capture.waitFor(struct {
         fn f(c: *NotifyCapture) bool {
@@ -1313,14 +1411,16 @@ test "regression: a disconnected listener releases its thread and fds before sto
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const a = arena_state.allocator();
-    const l = try listener_mod.Listener.start(testing.allocator, .{ .conninfo = url }, &.{"retire_channel"}, .{
+    const retire = try uniqueChannel(a, "retire_channel");
+    const l = try listener_mod.Listener.start(testing.allocator, .{ .conninfo = url }, &.{retire}, .{
         .ctx = &capture,
         .on_notification = NotifyCapture.onNotification,
         .on_disconnect = NotifyCapture.onDisconnect,
     }, .{}, a, null);
     const killer = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
     defer killer.deinit();
-    _ = try killer.query(a, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE 'LISTEN \"retire_channel\"%'", &.{}, null);
+    const retire_pattern = try std.fmt.allocPrint(a, "{s}%", .{try listenStatement(a, retire)});
+    _ = try killer.query(a, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE $1", &.{.{ .string = retire_pattern }}, null);
     try capture.waitFor(struct {
         fn f(c: *NotifyCapture) bool {
             return c.disconnected;

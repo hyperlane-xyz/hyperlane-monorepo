@@ -20,6 +20,15 @@ pub const Diag = struct {
 pub const Sql = struct {
     sql: []const u8,
     values: []Value,
+    /// PostgreSQL may plan this select with the view's join order fixed
+    /// (`join_collapse_limit = 1`) and return exactly the same rows: its
+    /// ORDER BY ends in the unique `id` (rows are totally ordered, so no
+    /// plan can reorder ties) and every predicate uses the driving table's
+    /// columns (`Spec.driving_columns`), whose indexes the fixed order keeps
+    /// usable. Measured on the bench DB: same plans, 18-57% less planning
+    /// plus execution; predicates on joined tables (e.g. `origin_tx_hash`)
+    /// need reordering (49x slower fixed), so they never qualify.
+    fixed_join: bool = false,
 };
 
 pub const Source = struct {
@@ -63,6 +72,8 @@ const Builder = struct {
     diag: *Diag,
     table: Table,
     values: std.ArrayList(Value) = .empty,
+    /// False once a rendered predicate is not a driving-table one.
+    driving: bool = true,
 
     fn fail(self: *Builder, comptime fmt: []const u8, args: anytype) Error {
         self.diag.message = try std.fmt.allocPrint(self.arena, fmt, args);
@@ -109,7 +120,20 @@ pub fn buildSelect(arena: Allocator, table: Table, args: SelectArgs, source: ?So
     try writeOrderBy(&b, w, checked.orders, checked.cursor);
     try writeLimit(&b, w, value.present(args.limit) orelse value.integer(MAX.limit), " LIMIT ");
     if (value.present(args.offset)) |offset| try writeLimit(&b, w, offset, " OFFSET ");
-    return .{ .sql = out.written(), .values = b.values.items };
+    return .{ .sql = out.written(), .values = b.values.items, .fixed_join = fixedJoin(&b, args, checked, source) };
+}
+
+/// `Sql.fixed_join` for a validated, rendered select. An allow-list: only
+/// the shapes measured on the bench DB qualify (driving-table predicates and
+/// ORDER BY columns ending in `id`; no DISTINCT ON, OFFSET or custom
+/// relation).
+fn fixedJoin(b: *const Builder, args: SelectArgs, checked: Validated, source: ?Source) bool {
+    if (source != null or !b.driving or !b.table.spec().hasDrivingColumns()) return false;
+    if (value.present(args.distinct_on) != null or value.present(args.offset) != null) return false;
+    if (checked.orders.len == 0) return checked.cursor != null; // ORDER BY "id"
+    // Sorting on a joined column may need that table first, like a filter.
+    for (checked.orders) |order| if (!b.table.spec().isDrivingColumn(order.column)) return false;
+    return std.mem.eql(u8, checked.orders[checked.orders.len - 1].column, "id");
 }
 
 pub fn buildCount(arena: Allocator, table: Table, args: SelectArgs, count: CountArgs, diag: *Diag) Error!Sql {
@@ -349,8 +373,12 @@ const WhereRenderer = struct {
         var parts: std.ArrayList([]const u8) = .empty;
         if (value.object(item.*)) |comparisons| {
             for (0..value.len(comparisons)) |index| {
-                const rendered = try self.comparison(quoted.written(), value.keyAt(comparisons, index), value.valueAt(comparisons, index).*);
-                if (rendered.len > 0) try parts.append(self.b.arena, rendered);
+                const operator = value.keyAt(comparisons, index);
+                const operand = value.valueAt(comparisons, index).*;
+                const rendered = try self.comparison(quoted.written(), operator, operand);
+                if (rendered.len == 0) continue;
+                try parts.append(self.b.arena, rendered);
+                if (!drivingPredicate(self.b.table, column, operator, operand)) self.b.driving = false;
             }
         }
         return self.join(parts.items, " AND ");
@@ -393,6 +421,13 @@ const WhereRenderer = struct {
         return out.written();
     }
 };
+
+/// A predicate the fixed join order cannot slow down: on a driving-table
+/// column, or the Explorer's constant `send_occurred_at IS NOT NULL`.
+fn drivingPredicate(table: Table, column: []const u8, operator: []const u8, operand: Value) bool {
+    if (table.spec().isDrivingColumn(column)) return true;
+    return std.mem.eql(u8, column, "send_occurred_at") and std.mem.eql(u8, operator, "_is_null") and !value.truthy(operand);
+}
 
 const operators = std.StaticStringMap([]const u8).initComptime(.{
     .{ "_eq", "=" },
@@ -514,4 +549,62 @@ test "writeColumns matches the C13 writer: order, duplicates, unknown names, emp
         try Before.write(&b, &old.writer, selected);
         try std.testing.expectEqualStrings(old.written(), new.written());
     }
+}
+
+test "fixed_join: only selects totally ordered by id with driving-table predicates" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const Case = struct { table: Table = .message_view, args: []const u8, fixed: bool };
+    const cases = [_]Case{
+        // The bench rows and Explorer shapes measured on the bench DB.
+        .{ .args = "{\"order_by\":{\"id\":\"desc\"},\"limit\":500}", .fixed = true },
+        .{ .args = "{\"where\":{\"origin_domain_id\":{\"_in\":[42161,8453]}},\"order_by\":{\"id\":\"desc\"},\"limit\":100}", .fixed = true },
+        .{ .args = "{\"where\":{\"_and\":[{\"send_occurred_at\":{\"_is_null\":false}},{\"origin_domain_id\":{\"_in\":[1]}},{\"destination_domain_id\":{\"_in\":[2]}}]},\"order_by\":{\"id\":\"asc\"},\"limit\":20}", .fixed = true },
+        .{ .args = "{\"where\":{\"_and\":[{\"send_occurred_at\":{\"_is_null\":false}},{\"_or\":[{\"sender\":{\"_in\":[\"\\\\x01\"]}},{\"recipient\":{\"_in\":[\"\\\\x01\"]}}]}]},\"order_by\":{\"id\":\"desc\"},\"limit\":20}", .fixed = true },
+        .{ .args = "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}},\"order_by\":[{\"nonce\":\"desc\"},{\"id\":\"desc\"}],\"limit\":20}", .fixed = true },
+        .{ .args = "{\"where\":{\"_not\":{\"sender\":{\"_eq\":\"\\\\x01\"}}},\"cursor\":[{\"initial_value\":{\"id\":5},\"ordering\":\"DESC\"}],\"limit\":20}", .fixed = true },
+        // A null operand renders nothing, so it is no predicate.
+        .{ .args = "{\"where\":{\"origin_tx_hash\":{\"_eq\":null}},\"order_by\":{\"id\":\"desc\"}}", .fixed = true },
+        // Predicates or sorts on joined tables need the planner's reordering.
+        .{ .args = "{\"where\":{\"origin_tx_hash\":{\"_eq\":\"\\\\x01\"}},\"order_by\":{\"id\":\"desc\"}}", .fixed = false },
+        .{ .args = "{\"where\":{\"_or\":[{\"sender\":{\"_eq\":\"\\\\x01\"}},{\"origin_tx_sender\":{\"_eq\":\"\\\\x01\"}}]},\"order_by\":{\"id\":\"desc\"}}", .fixed = false },
+        .{ .args = "{\"where\":{\"send_occurred_at\":{\"_gte\":\"2026-01-01\"}},\"order_by\":{\"id\":\"desc\"}}", .fixed = false },
+        .{ .args = "{\"where\":{\"send_occurred_at\":{\"_is_null\":true}},\"order_by\":{\"id\":\"desc\"}}", .fixed = false },
+        .{ .args = "{\"where\":{\"is_delivered\":{\"_eq\":true}},\"order_by\":{\"id\":\"desc\"}}", .fixed = false },
+        .{ .args = "{\"where\":{\"is_provisional\":{\"_eq\":false}},\"order_by\":{\"id\":\"desc\"}}", .fixed = false },
+        .{ .args = "{\"where\":{\"origin_tx_hash\":{\"_in\":[]}},\"order_by\":{\"id\":\"desc\"}}", .fixed = false },
+        .{ .args = "{\"order_by\":[{\"send_occurred_at\":\"desc\"},{\"id\":\"desc\"}]}", .fixed = false },
+        // Not totally ordered by id, or windowed.
+        .{ .args = "{\"limit\":20}", .fixed = false },
+        .{ .args = "{\"order_by\":{\"nonce\":\"desc\"}}", .fixed = false },
+        .{ .args = "{\"order_by\":[{\"id\":\"desc\"},{\"nonce\":\"desc\"}]}", .fixed = false },
+        .{ .args = "{\"order_by\":{\"id\":\"desc\"},\"offset\":20}", .fixed = false },
+        .{ .args = "{\"distinct_on\":\"id\",\"order_by\":{\"id\":\"desc\"}}", .fixed = false },
+        // Single-table relations have no join order to fix.
+        .{ .table = .domain, .args = "{\"order_by\":{\"id\":\"asc\"}}", .fixed = false },
+        .{ .table = .raw_message_dispatch, .args = "{\"order_by\":{\"id\":\"desc\"},\"limit\":500}", .fixed = false },
+    };
+    for (cases) |case| {
+        const parsed = try value.parseLeaky(a, case.args);
+        const obj = value.object(parsed).?;
+        const args: SelectArgs = .{
+            .cursor = value.get(obj, "cursor"),
+            .distinct_on = value.get(obj, "distinct_on"),
+            .limit = value.get(obj, "limit"),
+            .offset = value.get(obj, "offset"),
+            .order_by = value.get(obj, "order_by"),
+            .where = value.get(obj, "where"),
+        };
+        var diag: Diag = .{};
+        const built = try buildSelect(a, case.table, args, null, &diag);
+        std.testing.expectEqual(case.fixed, built.fixed_join) catch |e| {
+            std.debug.print("case {s}: {s}\n", .{ case.args, built.sql });
+            return e;
+        };
+    }
+    // A custom relation (the confirmation projection) never qualifies.
+    var diag: Diag = .{};
+    const projected = try buildSelect(a, .message_view, .{ .order_by = try value.parseLeaky(a, "{\"id\":\"desc\"}") }, .{ .relation = "(SELECT 1) AS \"message_view\"" }, &diag);
+    try std.testing.expect(!projected.fixed_join);
 }

@@ -27,6 +27,9 @@ pub const Database = struct {
     /// Optional: same contract as `queryFn` for statements whose generic
     /// plan is safe to reuse (see `Plan.reusable`); null falls back to `queryFn`.
     reusableQueryFn: ?QueryFn = null,
+    /// Optional: same contract as `queryFn`, planned with the view's join
+    /// order fixed (see `Plan.fixed_join`); null falls back to `queryFn`.
+    fixedJoinQueryFn: ?QueryFn = null,
     /// Optional: the same query (planned as `plan`), with libpq's result
     /// returned unconverted (`db.LazyRows`, owned by the caller; null when
     /// the implementation cannot, e.g. a test backend).
@@ -40,7 +43,11 @@ pub const Database = struct {
     }
 
     pub fn queryPlanned(self: Database, arena: Allocator, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value {
-        const f = if (plan == .reusable) self.reusableQueryFn orelse self.queryFn else self.queryFn;
+        const f = switch (plan) {
+            .custom => self.queryFn,
+            .reusable => self.reusableQueryFn orelse self.queryFn,
+            .fixed_join => self.fixedJoinQueryFn orelse self.queryFn,
+        };
         return f(self.ctx, arena, text, values, diag);
     }
 };
@@ -51,7 +58,11 @@ pub const Database = struct {
 /// PostgreSQL may reuse; only for shapes where that plan cannot be worse:
 /// unique-key lookups and the fixed confirmation snapshot SQL (bench DB:
 /// generic never slower across 41 message ids and confirmations 0..1000).
-pub const Plan = enum { custom, reusable };
+///
+/// `fixed_join` plans like `custom` but with the view's join order fixed
+/// (`join_collapse_limit = 1`), for selects whose rows no plan can change
+/// and whose fixed-order plan is never slower (`sql.Sql.fixed_join`).
+pub const Plan = enum { custom, reusable, fixed_join };
 
 /// True when `where` pins a unique key (`id` or `msg_id`, unique or
 /// near-unique in every public table) with `_eq` in a top-level conjunct.
@@ -87,6 +98,12 @@ fn planFor(where: ?Value) Plan {
     return if (isPointLookup(where)) .reusable else .custom;
 }
 
+/// `planFor`, or `fixed_join` for a non-lookup select that qualifies.
+fn planForSelect(where: ?Value, query: sql.Sql) Plan {
+    const plan = planFor(where);
+    return if (plan == .custom and query.fixed_join) .fixed_join else plan;
+}
+
 /// `message_view` arguments: the select args plus `confirmations`.
 pub const MessageSelectArgs = struct {
     select: SelectArgs = .{},
@@ -102,7 +119,7 @@ pub const Service = struct {
 
     pub fn select(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror![]Value {
         const query = try sql.buildSelect(arena, table, args, null, diag);
-        return self.db.queryPlanned(arena, planFor(args.where), query.sql, query.values, diag);
+        return self.db.queryPlanned(arena, planForSelect(args.where, query), query.sql, query.values, diag);
     }
 
     /// `select`'s query with its rows left unconverted (`db.LazyRows`, which
@@ -111,7 +128,7 @@ pub const Service = struct {
     pub fn selectLazy(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror!?*db_mod.LazyRows {
         const f = self.db.lazyQueryFn orelse return null;
         const query = try sql.buildSelect(arena, table, args, null, diag);
-        return f(self.db.ctx, arena, planFor(args.where), query.sql, query.values, diag);
+        return f(self.db.ctx, arena, planForSelect(args.where, query), query.sql, query.values, diag);
     }
 
     /// `byPk`'s query with its rows left unconverted (at most one; null when

@@ -29,7 +29,7 @@ pub const App = struct {
         self.* = .{ .gpa = gpa, .schema = schema, .db = dbs, .diagnostics = diag };
         const config = core.config.get();
         self.route_state = route_mod.GraphqlRoute.init(gpa, schema, .{
-            .db = scraperdb.Service.init(.{ .ctx = dbs, .queryFn = query, .reusableQueryFn = queryReusable, .lazyQueryFn = queryLazy }),
+            .db = scraperdb.Service.init(.{ .ctx = dbs, .queryFn = query, .reusableQueryFn = queryReusable, .fixedJoinQueryFn = queryFixedJoin, .lazyQueryFn = queryLazy }),
             .diagnostics = if (diag != null) .{ .ctx = self, .history = history, .snapshot = snapshot } else null,
         }, .{
             .max_active_requests = @intCast(config.graphql_max_active_requests),
@@ -51,15 +51,20 @@ pub const App = struct {
     }
 
     fn query(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
-        return run(ctx, arena, text, values, diag, false);
+        return run(ctx, arena, text, values, diag, .custom);
     }
 
     /// `scraperdb` plans marked reusable (unique-key lookups, fixed SQL).
     fn queryReusable(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
-        return run(ctx, arena, text, values, diag, true);
+        return run(ctx, arena, text, values, diag, .reusable);
     }
 
-    fn run(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag, reusable: bool) anyerror![]Value {
+    /// `scraperdb` selects planned with the view's join order fixed.
+    fn queryFixedJoin(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
+        return run(ctx, arena, text, values, diag, .fixed_join);
+    }
+
+    fn run(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag, plan: scraperdb.Plan) anyerror![]Value {
         const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
         // First I/O of the request: takes its execution slot (route.zig).
         if (!execute.beforeIo()) {
@@ -68,7 +73,11 @@ pub const App = struct {
         }
         execute.afterIo();
         var failure: db.Failure = .{};
-        const rows = if (reusable) dbs.queryReusable(arena, text, values, &failure) else dbs.query(arena, text, values, &failure);
+        const rows = switch (plan) {
+            .custom => dbs.query(arena, text, values, &failure),
+            .reusable => dbs.queryReusable(arena, text, values, &failure),
+            .fixed_join => dbs.queryFixedJoin(arena, text, values, &failure),
+        };
         return rows catch |err| {
             diag.message = if (failure.message.len > 0) failure.message else @errorName(err);
             return err;
@@ -77,7 +86,8 @@ pub const App = struct {
 
     /// `run`'s query with the rows left unconverted (`db.LazyRows`, owned by
     /// the caller): the same admission, plan (custom = `query`'s unnamed
-    /// statement, reusable = `queryReusable`'s), errors and diagnostics.
+    /// statement, reusable = `queryReusable`'s, fixed_join = `queryFixedJoin`'s),
+    /// errors and diagnostics.
     fn queryLazy(ctx: *anyopaque, arena: Allocator, plan: scraperdb.Plan, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror!?*db.LazyRows {
         const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
         if (!execute.beforeIo()) {
@@ -89,6 +99,7 @@ pub const App = struct {
         const pq_plan: db.Plan = switch (plan) {
             .custom => .unnamed,
             .reusable => .reusable,
+            .fixed_join => .fixed_join,
         };
         return dbs.queryLazy(arena, text, values, pq_plan, &failure) catch |err| {
             diag.message = if (failure.message.len > 0) failure.message else @errorName(err);

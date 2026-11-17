@@ -54,6 +54,11 @@ pub fn build(b: *std.Build) void {
     const loop_hold_stats = b.option(bool, "loop-hold-stats", "Record and log live loop mutex hold and wait times") orelse false;
     const live_options = b.addOptions();
     live_options.addOption(bool, "loop_hold_stats", loop_hold_stats);
+    // Parity only: the scenario hooks (held write completions, heartbeat on
+    // demand) behind a control port on PARITY_HOOK_PORT, mirroring
+    // parity/hooks/ts-hooks.mjs. Off by default: the shipped build has none.
+    const parity_hooks = b.option(bool, "parity-hooks", "Parity-scenario hooks on PARITY_HOOK_PORT (never in shipped builds)") orelse false;
+    live_options.addOption(bool, "parity_hooks", parity_hooks);
 
     // core/fiber.zig defines its context switch in global assembly, which
     // Zig 0.15's self-hosted x86_64 backend (the Debug default there) drops,

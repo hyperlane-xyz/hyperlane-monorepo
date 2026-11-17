@@ -117,7 +117,7 @@ pub const Server = struct {
             std.fmt.bufPrint(&head_buf, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {s}\r\n\r\n", .{&accept}) catch unreachable;
         // Create the connection before answering 101, so a failure never
         // leaves the client with an upgraded but dead socket.
-        const conn = Conn.create(gpa, socket, self.options, handler) catch {
+        const conn = Conn.create(gpa, socket, &self.options, handler) catch {
             socket.destroy();
             return null;
         };
@@ -203,12 +203,15 @@ const max_batch = 16;
 /// One Node write request: frames not yet written, control bytes it carries.
 const WriteRequest = struct { open: bool = false, frames: u32 = 0, control: usize = 0 };
 
+/// A 101 response up to this size waits for the first frame (one segment).
+const max_held_head = 256;
+
 pub const Conn = struct {
     gpa: std.mem.Allocator,
     fd: posix.socket_t,
-    options: ServerOptions,
+    /// The `Server`'s (which outlives its connections).
+    options: *const ServerOptions,
     handler: Handler,
-    remote_address: std.net.Address,
     /// Free slot for the owner.
     user: ?*anyopaque = null,
 
@@ -251,8 +254,9 @@ pub const Conn = struct {
 
     /// The 101 response, not yet written: it goes out in the same `sendmsg`
     /// as the first frame sent during `on_upgrade` (one segment for 101 +
-    /// ready), or on its own at `attach`. Under `mutex`.
-    head_buf: [256]u8 = undefined,
+    /// ready), or on its own at `attach`. Under `mutex`. Allocated only
+    /// until written (an idle connection holds no handshake buffer).
+    head_buf: []u8 = &.{},
     head_len: u16 = 0,
     /// Tests only: the next `sendvLocked` writes at most this many bytes
     /// (a short write the kernel would otherwise rarely produce).
@@ -269,12 +273,12 @@ pub const Conn = struct {
     // W holder only.
     write_armed: bool = false,
 
-    fn create(gpa: std.mem.Allocator, socket: *server_mod.UpgradeSocket, options: ServerOptions, handler: Handler) !*Conn {
+    fn create(gpa: std.mem.Allocator, socket: *server_mod.UpgradeSocket, options: *const ServerOptions, handler: Handler) !*Conn {
         const self = try gpa.create(Conn);
         errdefer gpa.destroy(self);
         const initial = try gpa.dupe(u8, socket.head);
         errdefer gpa.free(initial);
-        self.* = .{ .gpa = gpa, .fd = socket.fd, .options = options, .handler = handler, .remote_address = socket.remote_address, .initial = initial };
+        self.* = .{ .gpa = gpa, .fd = socket.fd, .options = options, .handler = handler, .initial = initial };
         self.reader = .{ .conn = self };
         return self;
     }
@@ -282,8 +286,8 @@ pub const Conn = struct {
     /// Writes the 101 response; an unwritten tail is queued ahead of every
     /// frame (counted in `bufferedAmount`, like bytes in the socket's buffer).
     fn writeHandshake(self: *Conn, response: []const u8) bool {
-        if (response.len <= self.head_buf.len) {
-            @memcpy(self.head_buf[0..response.len], response);
+        if (response.len <= max_held_head) {
+            self.head_buf = self.gpa.dupe(u8, response) catch return false;
             self.head_len = @intCast(response.len);
             return true;
         }
@@ -302,9 +306,17 @@ pub const Conn = struct {
         return true;
     }
 
+    /// The 101 head is out (or moved to the queue): drop its buffer.
+    fn releaseHeadLocked(self: *Conn) void {
+        self.gpa.free(self.head_buf);
+        self.head_buf = &.{};
+        self.head_len = 0;
+    }
+
     /// Undo `create` before the connection was handed out (fd stays with
     /// the caller).
     fn abandon(self: *Conn) void {
+        self.gpa.free(self.head_buf);
         for (self.queue.items) |f| self.gpa.free(f.bytes);
         self.queue.deinit(self.gpa);
         self.close_reason.deinit(self.gpa);
@@ -328,6 +340,7 @@ pub const Conn = struct {
 
     pub fn release(self: *Conn) void {
         if (self.refs.fetchSub(1, .acq_rel) != 1) return;
+        self.gpa.free(self.head_buf);
         self.queue.deinit(self.gpa);
         self.pass_done.deinit(self.gpa);
         self.delivering.deinit(self.gpa);
@@ -652,7 +665,7 @@ pub const Conn = struct {
             return error.WouldBlock;
         };
         var all: [1024]posix.iovec_const = undefined;
-        all[0] = .{ .base = &self.head_buf, .len = self.head_len };
+        all[0] = .{ .base = self.head_buf.ptr, .len = self.head_len };
         const n = @min(iov.len, all.len - 1);
         @memcpy(all[1 .. 1 + n], iov[0..n]);
         const msg: posix.msghdr_const = .{ .name = null, .namelen = 0, .iov = &all, .iovlen = @intCast(1 + n), .control = null, .controllen = 0, .flags = 0 };
@@ -663,7 +676,7 @@ pub const Conn = struct {
             return error.WouldBlock;
         }
         const user = sent - self.head_len;
-        self.head_len = 0;
+        self.releaseHeadLocked();
         return user;
     }
 
@@ -677,7 +690,7 @@ pub const Conn = struct {
             return error.OutOfMemory;
         };
         self.noteQueuedLocked(0);
-        self.head_len = 0;
+        self.releaseHeadLocked();
     }
 
     /// A frame joins the queue (lock held, or before `attach`).

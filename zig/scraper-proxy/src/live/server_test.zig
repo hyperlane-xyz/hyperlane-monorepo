@@ -362,6 +362,8 @@ const FakeListen = struct {
     unlogged: usize = 0,
     /// "listening on" lines: one per logged `listen` plus `log_listening`.
     logged: usize = 0,
+    /// When set, `unlisten` waits for it.
+    unlisten_gate: ?*std.Thread.ResetEvent = null,
 
     fn api(self: *FakeListen) live.Listen {
         return .{ .ctx = self, .listen = listen, .listen_unlogged = listenUnlogged, .log_listening = logListening, .unlisten = unlisten };
@@ -387,6 +389,8 @@ const FakeListen = struct {
     }
     fn unlisten(ctx: *anyopaque, _: *anyopaque) void {
         const self: *FakeListen = @ptrCast(@alignCast(ctx));
+        // A pending listener shutdown (`stopListening()` not yet resolved).
+        if (self.unlisten_gate) |gate| gate.wait();
         self.stopped += 1;
     }
     fn notify(self: *FakeListen, channel: []const u8, payload: []const u8) void {
@@ -2732,4 +2736,185 @@ test "validators: a group rollback is broadcast at once, in the validator frame'
     // Synchronous with the notification (no task, no send wait).
     try testing.expectEqual(@as(usize, 4), s.count());
     try testing.expectEqualStrings("{\"type\":\"rollback\",\"eventType\":\"merkle_tree_insertion\",\"domain\":1,\"confirmations\":0,\"fromHeight\":\"11\",\"toHeight\":\"9\"}", s.frame(3));
+}
+
+// ---------------------------------------------------------------------------
+// `-Dparity-hooks` (parity/hooks/ts-hooks.mjs's protocol)
+
+test "parity hooks: held event callbacks keep pending bytes until released; an error release fails the send" {
+    if (comptime !@import("runtime.zig").parity_hooks) return error.SkipZigTest;
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    const s, _ = subscribeLiveDispatch(&h);
+    h.server.hookMode(.all);
+    notifyThreeDispatches(&h);
+    try h.waitFrames(s, 6);
+    h.settle();
+    // Written to the client, callbacks held in order.
+    try testing.expectEqual(@as(usize, 3), h.server.hookHeld());
+    try testing.expect(h.server.metricsSnapshot().outboundPendingBytes > 0);
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().maxClientBufferedBytes);
+    var released = h.server.hookRelease(null);
+    try testing.expect(released.released);
+    try testing.expectEqual(@as(usize, 2), released.held);
+    const failures = core.metrics.websocket_send_failures.get(.{"send_error"});
+    released = h.server.hookRelease("write EPIPE");
+    try testing.expectEqual(@as(usize, 1), released.held);
+    try waitClosed(s);
+    try testing.expect(s.terminated);
+    try testing.expectEqual(failures + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
+    // After the close, a failed release is not another send failure.
+    _ = h.server.hookRelease("write ECANCELED");
+    try testing.expectEqual(failures + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
+    try testing.expectEqual(@as(usize, 0), h.server.hookHeld());
+    h.settle();
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().outboundPendingBytes);
+}
+
+test "parity hooks: the 30 s heartbeat runs only on tick; mode off holds nothing new" {
+    if (comptime !@import("runtime.zig").parity_hooks) return error.SkipZigTest;
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 30_000; // ts-hooks intercepts exactly the 30 s interval
+    try h.init(limits);
+    defer h.deinit();
+    const s, _ = h.agent();
+    try h.waitFrames(s, 1);
+    std.Thread.sleep(150 * std.time.ns_per_ms);
+    try testing.expectEqual(@as(usize, 1), s.count());
+    try testing.expectEqual(@as(usize, 1), h.server.hookTick());
+    try h.waitFrames(s, 2);
+    try testing.expect(std.mem.indexOf(u8, s.frame(1), "\"type\":\"heartbeat\"") != null);
+    h.server.hookMode(.all);
+    h.server.hookMode(.off);
+    _, _ = subscribeLiveDispatch(&h);
+    notifyThreeDispatches(&h);
+    h.settle();
+    try testing.expectEqual(@as(usize, 0), h.server.hookHeld());
+}
+
+test "parity hooks: stop with a held awaited send ends its task silently (no hang, no leak)" {
+    if (comptime !@import("runtime.zig").parity_hooks) return error.SkipZigTest;
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try validatorHarness(&h, limits);
+    h.db.add(.{ .contains = "unnest(", .persistent = true, .rows = group_heads });
+    const s, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(s, 2);
+    try waitSetups(&h);
+    h.server.hookMode(.all);
+    h.db.add(.{ .contains = "confirmation_events", .rows = "[{\"domain\":1,\"merkle_tree_hook\":\"\\\\x" ++ "22" ** 32 ++ "\",\"leaf_index\":1,\"message_id\":\"\\\\x" ++ "aa" ** 32 ++ "\",\"block_number\":11,\"block_hash\":\"\\\\x" ++ "bb" ** 32 ++ "\",\"frontier_id\":\"1\",\"frontier_height\":\"11\"}]" });
+    const s2, const agent = h.agent();
+    try h.waitFrames(s2, 1);
+    h.server.onMessage(agent, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1],\"confirmations\":0}]}");
+    try h.waitFrames(s2, 3);
+    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"5\",\"headHeight\":\"11\",\"indexedHeight\":\"11\",\"previousIndexedHeight\":\"10\"}");
+    h.t.fake.tick(100);
+    for (0..2000) |_| {
+        if (h.server.hookHeld() >= 1) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expect(h.server.hookHeld() >= 1);
+    const failures = core.metrics.websocket_send_failures.get(.{"send_error"});
+    h.deinit(); // stop settles the held callbacks; the pool joins the drain task
+    try testing.expectEqual(failures, core.metrics.websocket_send_failures.get(.{"send_error"}));
+}
+
+test "abandons an in-flight head range while listener shutdown is pending (67)" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    var read_gate: FirstQueryGate = .{ .contains = "\"frontier_row\"" };
+    h.db.before_query = .{ .ctx = &read_gate, .func = FirstQueryGate.before };
+    defer read_gate.released.set();
+    var listener_gate: std.Thread.ResetEvent = .{};
+    h.listen.unlisten_gate = &listener_gate;
+    defer listener_gate.set();
+    h.db.on("\"frontier_row\"", "[{\"frontier_id\":\"1\",\"frontier_height\":\"10\",\"msg_id\":\"\\\\x" ++ "ab" ** 32 ++ "\"}]");
+    const s, _ = h.explorer("/messages", null);
+    try h.waitFrames(s, 1);
+    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"previousConfirmedHeight\":\"9\",\"confirmedHeight\":\"10\"}");
+    h.t.fake.tick(100);
+    read_gate.started.wait();
+    // stop() blocks in the listener shutdown; the range's read finishes meanwhile.
+    const Stopper = struct {
+        fn run(server: *live.Server, done: *std.Thread.ResetEvent) void {
+            server.stop();
+            done.set();
+        }
+    };
+    var stopped: std.Thread.ResetEvent = .{};
+    const stopper = try std.Thread.spawn(.{}, Stopper.run, .{ h.server, &stopped });
+    for (0..1000) |_| {
+        h.t.loop.lock();
+        const is_stopped = h.server.stopped;
+        h.t.loop.unlock();
+        if (is_stopped) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    read_gate.released.set();
+    h.settle();
+    h.t.loop.lock();
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().notificationQueue.messages);
+    h.t.loop.unlock();
+    {
+        h.db.mutex.lock();
+        defer h.db.mutex.unlock();
+        var reads: usize = 0;
+        for (h.db.queries.items) |query| reads += @intFromBool(std.mem.indexOf(u8, query, "\"frontier_row\"") != null);
+        try testing.expectEqual(@as(usize, 1), reads); // shutdown must not read the rest of the range
+    }
+    try testing.expect(!stopped.isSet());
+    listener_gate.set();
+    stopper.join();
+    try testing.expectEqual(@as(usize, 0), countFrames(s, "\"type\":\"message_upsert\""));
+}
+
+test "a heartbeat turn gives back an idle peer's list capacity" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 200;
+    try h.init(limits);
+    defer h.deinit();
+    const s, const peer = subscribeLiveDispatch(&h);
+    const e, const explorer = h.explorer("/messages", null);
+    try h.waitFrames(e, 1);
+    // Two upserts go through the Explorer queue (queued, then drained).
+    const first = "02" ** 32;
+    const second = "03" ** 32;
+    h.db.on("FROM \"message_view\"", comptime upsertRows(&.{ first, second }));
+    notifyExplorer(&h, first);
+    notifyExplorer(&h, second);
+    h.t.fake.tick(100);
+    try h.waitFrames(e, 3);
+    h.settle();
+    {
+        h.t.loop.lock();
+        defer h.t.loop.unlock();
+        try testing.expect(explorer.explorer.queue.capacity > 0);
+    }
+    // ready, subscribed, live start; then the first heartbeat.
+    h.t.fake.tick(200);
+    try h.waitFrames(s, 4);
+    try h.waitFrames(e, 4);
+    h.server.onPong(peer);
+    h.server.onPong(explorer);
+    h.settle();
+    h.t.loop.lock();
+    defer h.t.loop.unlock();
+    for ([_]*live.Peer{ peer, explorer }) |p| {
+        try testing.expectEqual(@as(usize, 0), p.cork.bytes.capacity);
+        try testing.expectEqual(@as(usize, 0), p.cork.frames.capacity);
+        try testing.expectEqual(@as(usize, 0), p.cork.outcomes.capacity);
+        try testing.expectEqual(@as(usize, 0), p.requests.capacity);
+        try testing.expectEqual(@as(usize, 0), p.completed.capacity);
+    }
+    try testing.expectEqual(@as(usize, 0), explorer.explorer.queue.capacity);
+    try testing.expectEqual(@as(usize, 0), explorer.explorer.queue_head);
 }

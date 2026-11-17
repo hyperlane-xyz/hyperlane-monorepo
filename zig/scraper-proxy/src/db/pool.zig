@@ -549,11 +549,11 @@ pub const Pool = struct {
     /// thread waiter. With one loop every fiber waiter is on `home`: plain
     /// FIFO. Deadlines are untouched (a skipped waiter times out as before).
     /// Mutex held.
-    fn handoffWaiter(self: *Pool, home: ?*anyopaque) ?*Waiter {
+    fn handoffWaiter(self: *Pool, home: ?*anyopaque, now_ns: i128) ?*Waiter {
         const head = self.head orelse return null;
         const h = home orelse return self.popWaiter();
         if (head.loop == null or head.loop == h) return self.popWaiter();
-        if (std.time.nanoTimestamp() - head.queued_ns >= @as(i128, self.options.affinity_bound_ms) * std.time.ns_per_ms) {
+        if (now_ns - head.queued_ns >= @as(i128, self.options.affinity_bound_ms) * std.time.ns_per_ms) {
             if (hold_stats) self.hold.count(.handoff_starved);
             return self.popWaiter();
         }
@@ -594,7 +594,7 @@ pub const Pool = struct {
             conn.deinit();
             return;
         }
-        if (self.handoffWaiter(conn.home)) |w| {
+        if (self.handoffWaiter(conn.home, std.time.nanoTimestamp())) |w| {
             if (hold_stats) {
                 self.hold.count(if (w.loop == null) .thread else if (w.loop == conn.home) .handoff_same else .handoff_other);
             }
@@ -693,7 +693,9 @@ test "hand-off: own loop first within the bound, FIFO otherwise, threads never p
     defer p.deinit();
     var loop_a: u8 = 0;
     var loop_b: u8 = 0;
-    const now = std.time.nanoTimestamp();
+    // A fixed clock: the bound is judged against `now`, never the wall
+    // clock, so a slow or preempted run cannot age a waiter past it.
+    const now: i128 = 1_000 * std.time.ns_per_s;
     const Q = struct {
         fn set(pool: *Pool, ws: []Waiter) void {
             pool.head = null;
@@ -710,28 +712,32 @@ test "hand-off: own loop first within the bound, FIFO otherwise, threads never p
     // b (oldest, fresh), a, a: the first waiter of loop a goes first.
     var ws = [_]Waiter{ .{ .loop = &loop_b, .queued_ns = now }, .{ .loop = &loop_a, .queued_ns = now }, .{ .loop = &loop_a, .queued_ns = now } };
     Q.set(p, &ws);
-    try std.testing.expectEqual(&ws[1], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&ws[1], p.handoffWaiter(&loop_a, now).?);
     try std.testing.expectEqual(&ws[0], p.head.?);
     try std.testing.expectEqual(&ws[2], p.head.?.next.?);
     try std.testing.expectEqual(&ws[2], p.tail.?);
     // The last waiter can be taken too (tail fix-up).
-    try std.testing.expectEqual(&ws[2], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&ws[2], p.handoffWaiter(&loop_a, now).?);
     try std.testing.expectEqual(&ws[0], p.tail.?);
     // No waiter of the connection's loop: FIFO.
-    try std.testing.expectEqual(&ws[0], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&ws[0], p.handoffWaiter(&loop_a, now).?);
     try std.testing.expect(p.head == null and p.tail == null);
-    // The oldest waited past the bound: FIFO.
-    var starved = [_]Waiter{ .{ .loop = &loop_b, .queued_ns = now - 2 * std.time.ns_per_ms }, .{ .loop = &loop_a, .queued_ns = now } };
+    // The oldest waited past the bound: FIFO. Just inside it: own loop.
+    const bound: i128 = @as(i128, p.options.affinity_bound_ms) * std.time.ns_per_ms;
+    var inside = [_]Waiter{ .{ .loop = &loop_b, .queued_ns = now - bound + 1 }, .{ .loop = &loop_a, .queued_ns = now } };
+    Q.set(p, &inside);
+    try std.testing.expectEqual(&inside[1], p.handoffWaiter(&loop_a, now).?);
+    var starved = [_]Waiter{ .{ .loop = &loop_b, .queued_ns = now - bound }, .{ .loop = &loop_a, .queued_ns = now } };
     Q.set(p, &starved);
-    try std.testing.expectEqual(&starved[0], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&starved[0], p.handoffWaiter(&loop_a, now).?);
     // A thread waiter is never passed over, at the head or further back.
     var threads = [_]Waiter{ .{ .loop = &loop_b, .queued_ns = now }, .{ .loop = null }, .{ .loop = &loop_a, .queued_ns = now } };
     Q.set(p, &threads);
-    try std.testing.expectEqual(&threads[0], p.handoffWaiter(&loop_a).?);
-    try std.testing.expectEqual(&threads[1], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&threads[0], p.handoffWaiter(&loop_a, now).?);
+    try std.testing.expectEqual(&threads[1], p.handoffWaiter(&loop_a, now).?);
     // A connection no fiber waited on (no home), or one loop only: FIFO.
     var one = [_]Waiter{ .{ .loop = &loop_a, .queued_ns = now }, .{ .loop = &loop_a, .queued_ns = now } };
     Q.set(p, &one);
-    try std.testing.expectEqual(&one[0], p.handoffWaiter(null).?);
-    try std.testing.expectEqual(&one[1], p.handoffWaiter(&loop_a).?);
+    try std.testing.expectEqual(&one[0], p.handoffWaiter(null, now).?);
+    try std.testing.expectEqual(&one[1], p.handoffWaiter(&loop_a, now).?);
 }

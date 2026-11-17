@@ -164,6 +164,10 @@ const Echo = struct {
             return reply.sendText("got");
         }
         if (std.mem.eql(u8, req.query, "loopthread")) return reply.sendText(if (core.onEventLoopThread()) "loop" else "other");
+        if (std.mem.eql(u8, req.query, "fibercache")) {
+            const text = std.fmt.allocPrint(req.arena, "{d}", .{core.fiber.cachedFibers()}) catch "?";
+            return reply.sendText(text);
+        }
         if (std.mem.eql(u8, req.query, "big")) {
             const big = req.arena.alloc(u8, 16 * 1024 * 1024) catch return;
             @memset(big, 'b');
@@ -2000,9 +2004,10 @@ test "websocket: allocation failures never leave a dead upgraded socket" {
     try c.send("GET /oom HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
     try testing.expect(c.closedByPeer());
     try testing.expectEqual(@as(usize, 0), c.len);
-    // Upgrade succeeds (1 allocation: the Conn), the message buffer fails: the
-    // reader destroys the socket instead of ignoring input forever.
-    var fail_read = std.testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 1 });
+    // Upgrade succeeds (2 allocations: the Conn and its pending 101 head),
+    // the message buffer fails: the reader destroys the socket instead of
+    // ignoring input forever.
+    var fail_read = std.testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 2 });
     h.wse.failing = fail_read.allocator();
     var c2 = try h.connect();
     defer c2.close();
@@ -2604,4 +2609,41 @@ test "startFiber at shutdown: every job either runs or gets on_fail" {
     // Each ran (if it reached the loop in time) or was told it did not.
     try testing.expectEqual(@as(u32, 100), StartProbe.done.load(.acquire) + StartProbe.failed.load(.acquire));
     try testing.expectEqual(StartProbe.ran.load(.acquire), StartProbe.done.load(.acquire));
+}
+
+test "a burst of fibers leaves a stack cache the idle loop trims once idle long enough" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    // Shortened for the test (set before the loop starts).
+    const saved = core.fiber.idle_trim_ms;
+    core.fiber.idle_trim_ms = 1_000;
+    defer core.fiber.idle_trim_ms = saved;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    // 20 requests parked at once: 20 fibers, then 20 cached stacks.
+    const Slow = struct {
+        fn run(port: u16) void {
+            const addr = std.net.Address.parseIp("127.0.0.1", port) catch return;
+            const stream = std.net.tcpConnectToAddress(addr) catch return;
+            var cl: Client = .{ .fd = stream.handle };
+            defer cl.close();
+            var ar = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer ar.deinit();
+            _ = cl.request(ar.allocator(), "GET /graphql?sleep HTTP/1.1\r\nHost: a\r\n\r\n") catch return;
+        }
+    };
+    var threads: [20]std.Thread = undefined;
+    for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Slow.run, .{h.server.port()});
+    for (threads) |t| t.join();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    // Right after the burst the cache is fat (this request runs on one of them).
+    const busy = try std.fmt.parseInt(usize, (try c.request(arena.allocator(), "GET /graphql?fibercache HTTP/1.1\r\nHost: a\r\n\r\n")).body, 10);
+    try testing.expect(busy > core.fiber.idle_keep);
+    // After a quiet second the loop wakes on its own and trims it.
+    std.Thread.sleep(@intCast((core.fiber.idle_trim_ms + 300) * std.time.ns_per_ms));
+    const idle = try std.fmt.parseInt(usize, (try c.request(arena.allocator(), "GET /graphql?fibercache HTTP/1.1\r\nHost: a\r\n\r\n")).body, 10);
+    try testing.expect(idle < core.fiber.idle_keep);
 }

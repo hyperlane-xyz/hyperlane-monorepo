@@ -83,6 +83,9 @@ pub const EventWebSocketServer = struct {
             message.* = std.fmt.bufPrint(&self.start_error, "Invalid heartbeatMs {d}: must be an integer between 1 and 2147483647", .{self.server.limits.heartbeat_ms}) catch null;
             return err;
         };
+        // Parity builds: the scenario control port (ts-hooks.mjs's protocol).
+        if (comptime runtime.parity_hooks) @import("parity_hooks.zig").start(self.server) catch |err|
+            std.debug.panic("live: parity hooks need a free PARITY_HOOK_PORT: {s}", .{@errorName(err)});
     }
 
     /// Open the LISTEN connection while the rest of startup runs (`start`

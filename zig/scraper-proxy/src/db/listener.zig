@@ -22,7 +22,28 @@ pub const Options = struct {
     /// Test seam: statements run on the connection after the LISTENs,
     /// before the notification thread starts (e.g. a self-NOTIFY).
     after_listen_sql: []const []const u8 = &.{},
+    /// Counts this listener's thread while it runs (`awaitThreads`).
+    threads: ?*ThreadCount = null,
 };
+
+/// Counts an owner's running listener threads (`Options.threads`),
+/// including detached ones that free their listener after a callback
+/// stopped it.
+pub const ThreadCount = std.atomic.Value(u32);
+
+/// Waits until every thread `count` tracks has exited (at most
+/// `timeout_ms`; false on timeout). A listener stopped from inside its own
+/// callback frees itself on its thread after the callback returns, so an
+/// owner tearing down (e.g. `DbService.close`) waits here before the memory
+/// goes away.
+pub fn awaitThreads(count: *const ThreadCount, timeout_ms: u64) bool {
+    const deadline = pq.nowMs() + @as(i64, @intCast(timeout_ms));
+    while (count.load(.acquire) > 0) {
+        if (pq.nowMs() >= deadline) return false;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    return true;
+}
 
 pub const Listener = struct {
     gpa: std.mem.Allocator,
@@ -89,7 +110,9 @@ pub const Listener = struct {
         // set before the thread can detach itself.
         self.mutex.lock();
         defer self.mutex.unlock();
+        if (options.threads) |t| _ = t.fetchAdd(1, .acq_rel);
         self.thread = std.Thread.spawn(.{}, loop, .{self}) catch {
+            if (options.threads) |t| _ = t.fetchSub(1, .acq_rel);
             std.posix.close(pipe[0]);
             std.posix.close(pipe[1]);
             return error.ConnectionFailed;
@@ -145,6 +168,11 @@ pub const Listener = struct {
     }
 
     fn loop(self: *Listener) void {
+        // Last: after any self-destroy below (`self` may be gone).
+        const threads = self.options.threads;
+        defer if (threads) |t| {
+            _ = t.fetchSub(1, .acq_rel);
+        };
         self.mutex.lock();
         self.thread_id = std.Thread.getCurrentId();
         self.mutex.unlock();

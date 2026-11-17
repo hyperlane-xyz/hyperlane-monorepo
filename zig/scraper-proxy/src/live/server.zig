@@ -212,6 +212,8 @@ pub const SendJob = struct {
     request: u64 = 0,
     /// Outcome reported by ws (`complete`), applied in `passEnd`.
     ok: bool = false,
+    /// `-Dparity-hooks`: its callback is held once written (`Hooks`).
+    held: if (runtime.parity_hooks) bool else void = if (runtime.parity_hooks) false else {},
 
     const Kind = union(enum) {
         none,
@@ -360,6 +362,9 @@ pub const Peer = struct {
     closed: bool = false,
     /// `/validators`: its `validatorClients` entry (route `.validator`).
     validator: ValidatorClient = .{},
+    /// A heartbeat trim found write requests in flight: give their list
+    /// capacity back once they are all released.
+    trim_requests: bool = false,
     /// Non-awaited frames sent this turn, written with one syscall when the
     /// turn ends or before any other operation on the socket (`flushCork`).
     cork: Cork = .{},
@@ -602,6 +607,8 @@ pub const Server = struct {
     lookahead_unconsumed: usize = 0,
     /// Peers corked this turn (one reference each; a flushed peer stays).
     corked: std.ArrayList(*Peer) = .empty,
+    /// A heartbeat ran this turn: `clearCorked` trims the corked peers.
+    trim_after_turn: bool = false,
     /// Cork non-awaited and drain frames per peer and turn (tests compare
     /// against uncorked writes).
     coalesce: bool = true,
@@ -623,6 +630,8 @@ pub const Server = struct {
     early_listen: ?*EarlyListen = null,
     /// Listener callback contexts, freed in `destroy` (callbacks may race shutdown).
     listener_contexts: std.ArrayList(*ListenerContext) = .empty,
+    /// `-Dparity-hooks` builds only.
+    hooks: if (runtime.parity_hooks) Hooks else void = if (runtime.parity_hooks) .{} else {},
 
     pub fn create(
         allocator: Allocator,
@@ -657,6 +666,7 @@ pub const Server = struct {
     /// After `stop()` and once every socket has closed.
     pub fn destroy(self: *Server) void {
         const a = self.allocator;
+        if (comptime runtime.parity_hooks) self.hooks.deinit(a);
         self.store.deinit();
         self.validator_store.deinit();
         // Reservations of sockets that never reported 'close' (a forced shutdown).
@@ -728,11 +738,40 @@ pub const Server = struct {
     }
 
     fn clearCorked(self: *Server) void {
+        const trim = self.trim_after_turn;
+        self.trim_after_turn = false;
         for (self.corked.items) |peer| {
             peer.cork.listed = false;
+            if (trim) self.trimIdlePeer(peer);
             peer.release();
         }
         self.corked.clearRetainingCapacity();
+    }
+
+    /// Heartbeat turns: an idle peer gives back the list capacity its last
+    /// burst left (cork, write requests, completions, Explorer queue);
+    /// busy lists keep theirs.
+    fn trimIdlePeer(self: *Server, peer: *Peer) void {
+        const a = self.allocator;
+        const cork = &peer.cork;
+        if (cork.frames.items.len == 0 and cork.outcomes.items.len == 0 and cork.lookahead == null) {
+            cork.bytes.clearAndFree(a);
+            cork.frames.clearAndFree(a);
+            cork.outcomes.clearAndFree(a);
+            cork.outcome_head = 0;
+        }
+        // Write requests still in flight (e.g. this heartbeat's frame): the
+        // completion that empties them trims instead (`applyCompletions`).
+        if (peer.requests.items.len == 0) peer.requests.clearAndFree(a) else peer.trim_requests = true;
+        {
+            peer.completion_mutex.lock();
+            defer peer.completion_mutex.unlock();
+            if (peer.completed.items.len == 0) peer.completed.clearAndFree(a);
+        }
+        if (peer.in_explorer and peer.explorer.queueLength() == 0) {
+            peer.explorer.queue.clearAndFree(a);
+            peer.explorer.queue_head = 0;
+        }
     }
 
     /// A frame handed to ws that was not written whole at once (loop mutex
@@ -788,8 +827,23 @@ pub const Server = struct {
             self.released_scratch.appendSlice(self.allocator, request.jobs.items) catch oom();
             request.jobs.deinit(self.allocator);
         }
-        const released = self.allocator.dupe(*SendJob, self.released_scratch.items) catch oom();
-        defer self.allocator.free(released);
+        const released_all = self.allocator.dupe(*SendJob, self.released_scratch.items) catch oom();
+        defer self.allocator.free(released_all);
+        var released = released_all;
+        if (comptime runtime.parity_hooks) {
+            // Written: Node's writable length drops; the callback waits (`hookRelease`).
+            var kept: usize = 0;
+            for (released_all) |job| {
+                if (job.held) {
+                    peer.subBuffered(job.len);
+                    self.hooks.held.append(self.allocator, job) catch oom();
+                } else {
+                    released_all[kept] = job;
+                    kept += 1;
+                }
+            }
+            released = released_all[0..kept];
+        }
         // Callbacks: the bytes leave the counts.
         var failed = false;
         for (released) |job| {
@@ -798,6 +852,13 @@ pub const Server = struct {
             failed = failed or !job.ok;
         }
         if (failed) self.failSend(peer, "WebSocket is not open");
+        if (peer.trim_requests and peer.requests.items.len == 0) {
+            peer.trim_requests = false;
+            peer.requests.clearAndFree(self.allocator);
+            peer.completion_mutex.lock();
+            defer peer.completion_mutex.unlock();
+            if (peer.completed.items.len == 0) peer.completed.clearAndFree(self.allocator);
+        }
         // Continuations (Node's microtasks), in order, before any other
         // turn: a blocked task resumes in its turn (`Loop.lockHandoff`), the
         // others run when they reach the head of the queue.
@@ -864,7 +925,11 @@ pub const Server = struct {
             stream.start();
             self.loop.lock();
         }
-        self.heartbeat_timer = self.loop.scheduler.schedule(heartbeat_ms, self, onHeartbeatTimer);
+        // Parity hooks: the 30 s heartbeat runs only on `/tick` (ts-hooks.mjs
+        // intercepts exactly `setInterval(…, 30_000)`; other periods run).
+        const intercepted = runtime.parity_hooks and heartbeat_ms == HEARTBEAT_MS;
+        if (comptime runtime.parity_hooks) self.hooks.heartbeat_intercepted = intercepted;
+        if (!intercepted) self.heartbeat_timer = self.loop.scheduler.schedule(heartbeat_ms, self, onHeartbeatTimer);
         self.logger.info("event websockets listening on {s}, {s}, {s} batchSize={d} maxAgentClients={d} maxValidatorClients={d} maxBufferedBytes={d} maxTotalBufferedBytes={d}", .{
             AGENT_PATH,                        MESSAGE_PATH,                   VALIDATOR_PATH,                       self.store.batch_size, self.limits.max_agent_clients,
             self.limits.max_validator_clients, self.limits.max_buffered_bytes, self.limits.max_total_buffered_bytes,
@@ -895,6 +960,7 @@ pub const Server = struct {
         if (early) |taken| if (taken.result) |handle| self.listen_api.unlisten(self.listen_api.ctx, handle) else |_| {};
         self.loop.lock();
         self.closeClients("Server stopping", 1001);
+        if (comptime runtime.parity_hooks) self.settleHeldOnStop();
         self.loop.unlock();
         // In-flight `query_async` reads finish (their continuations then see
         // closed clients and run in `Pool.deinit`).
@@ -2039,6 +2105,162 @@ pub const Server = struct {
             const request = if (subscription.*) |*value| value else continue;
             if (request.confirmations == null) self.failSocket(peer, message);
         }
+    }
+
+    // -- parity hooks (`-Dparity-hooks` builds; parity/hooks/ts-hooks.mjs) ----------
+
+    /// Held write callbacks: a frame chosen when it is sent (`decide`, the
+    /// wrapped `WebSocket#send`) is written as usual, but once ws reports it
+    /// written its callback (pendingBytes, the awaited continuation, a send
+    /// failure) waits for `/release`, oldest first.
+    pub const Hooks = struct {
+        pub const Mode = enum { off, all, first_explorer };
+        mode: Mode = .off,
+        /// `first_explorer`: the first socket that sent a `message_upsert` (a reference).
+        explorer: ?*Peer = null,
+        held: std.ArrayList(*SendJob) = .empty,
+        /// `start` left the 30 s heartbeat to `/tick`.
+        heartbeat_intercepted: bool = false,
+
+        fn decide(self: *Hooks, peer: *Peer, bytes: []const u8) bool {
+            if (self.mode == .off) return false;
+            var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+            defer arena.deinit();
+            const value = json.parse(arena.allocator(), bytes, .{}) catch return false;
+            const kind = value.get("type") orelse return false;
+            if (kind != .string) return false;
+            const name = kind.string;
+            switch (self.mode) {
+                .off => return false,
+                .all => return std.mem.eql(u8, name, "event") or std.mem.eql(u8, name, "diagnostics") or std.mem.eql(u8, name, "message_upsert"),
+                .first_explorer => {
+                    if (!std.mem.eql(u8, name, "message_upsert")) return false;
+                    if (self.explorer == null) {
+                        peer.retain();
+                        self.explorer = peer;
+                    }
+                    return self.explorer == peer;
+                },
+            }
+        }
+
+        fn dropExplorer(self: *Hooks) void {
+            if (self.explorer) |peer| peer.release();
+            self.explorer = null;
+        }
+
+        /// Teardown: the held callbacks never run (as in Node at exit).
+        fn deinit(self: *Hooks, allocator: Allocator) void {
+            for (self.held.items) |job| {
+                const peer = job.peer;
+                allocator.destroy(job);
+                peer.release();
+            }
+            self.held.deinit(allocator);
+            self.dropExplorer();
+        }
+    };
+
+    /// `/hold?mode=`.
+    pub fn hookMode(self: *Server, mode: Hooks.Mode) void {
+        if (comptime !runtime.parity_hooks) unreachable;
+        self.loop.lock();
+        defer self.loop.unlock();
+        self.hooks.mode = mode;
+        if (mode != .first_explorer) self.hooks.dropExplorer();
+    }
+
+    /// `GET /held`.
+    pub fn hookHeld(self: *Server) usize {
+        if (comptime !runtime.parity_hooks) unreachable;
+        self.loop.lock();
+        defer self.loop.unlock();
+        return self.hooks.held.items.len;
+    }
+
+    /// `/release[?error=]`: the oldest held callback, failed with `failure`
+    /// when given (else the write's own outcome). Returns whether one ran.
+    pub fn hookRelease(self: *Server, failure: ?[]const u8) struct { released: bool, held: usize } {
+        if (comptime !runtime.parity_hooks) unreachable;
+        self.loop.lock();
+        defer self.loop.unlock();
+        if (self.hooks.held.items.len == 0) return .{ .released = false, .held = 0 };
+        const job = self.hooks.held.orderedRemove(0);
+        self.runHeldCallback(job, failure);
+        return .{ .released = true, .held = self.hooks.held.items.len };
+    }
+
+    /// `/release-all`: every held callback, oldest first, with its own outcome.
+    pub fn hookReleaseAll(self: *Server) usize {
+        if (comptime !runtime.parity_hooks) unreachable;
+        self.loop.lock();
+        defer self.loop.unlock();
+        var count: usize = 0;
+        while (self.hooks.held.items.len > 0) : (count += 1) self.runHeldCallback(self.hooks.held.orderedRemove(0), null);
+        return count;
+    }
+
+    /// `/tick`: the heartbeat now (its interval never fires in hooks builds).
+    /// Returns the heartbeats run (none once stopped: `clearInterval`).
+    pub fn hookTick(self: *Server) usize {
+        if (comptime !runtime.parity_hooks) unreachable;
+        self.loop.lock();
+        defer self.loop.unlock();
+        if (self.stopped or !self.hooks.heartbeat_intercepted) return 0;
+        self.heartbeat();
+        return 1;
+    }
+
+    /// `stop`: Node exits with held callbacks pending; here their awaiting
+    /// tasks and continuations must end (the pool joins its workers), so each
+    /// completes as failed, silently (no `failSend`: no log, no metric).
+    fn settleHeldOnStop(self: *Server) void {
+        const held = self.hooks.held.toOwnedSlice(self.allocator) catch oom();
+        defer self.allocator.free(held);
+        for (held) |job| {
+            const peer = job.peer;
+            _ = self.pending_bytes.fetchSub(job.len, .monotonic);
+            switch (job.kind) {
+                .none => {
+                    self.allocator.destroy(job);
+                    peer.release();
+                },
+                .waiter => |waiter| {
+                    self.allocator.destroy(job);
+                    peer.release();
+                    resumeWaiter(self.loop, waiter, false);
+                },
+                .explorer_drain, .diagnostics, .resumable => {
+                    job.ok = false;
+                    self.loop.handOff(.{ .run = .{ .ctx = job, .func = continueSend } });
+                },
+            }
+        }
+    }
+
+    /// The TS send callback: pendingBytes, the continuation, then a failure's `failSend`.
+    fn runHeldCallback(self: *Server, job: *SendJob, failure: ?[]const u8) void {
+        const peer = job.peer;
+        const ok = failure == null and job.ok;
+        _ = self.pending_bytes.fetchSub(job.len, .monotonic);
+        peer.retain();
+        defer peer.release();
+        switch (job.kind) {
+            .none => {
+                self.allocator.destroy(job);
+                peer.release();
+            },
+            .waiter => |waiter| {
+                self.allocator.destroy(job);
+                peer.release();
+                resumeWaiter(self.loop, waiter, ok);
+            },
+            .explorer_drain, .diagnostics, .resumable => {
+                job.ok = ok;
+                self.loop.handOff(.{ .run = .{ .ctx = job, .func = continueSend } });
+            },
+        }
+        if (!ok) self.failSend(peer, failure orelse "WebSocket is not open");
     }
 
     // -- agent protocol ------------------------------------------------------------
@@ -3875,8 +4097,12 @@ pub const Server = struct {
                 alive.* = false;
                 peer.wsPing();
                 _ = self.send(peer, frame);
+                // Not corked (written at once or queued): trim now.
+                if (!peer.cork.listed) self.trimIdlePeer(peer);
             }
         }
+        // Corked heartbeat frames are written at the turn's end; trim then.
+        self.trim_after_turn = true;
     }
 
     // -- sending ---------------------------------------------------------------------
@@ -3917,7 +4143,11 @@ pub const Server = struct {
         if (peer.terminated) return .failed;
         self.observeSend(peer);
         if (peer.cork.lookahead) |lookahead| if (lookahead.bytes.ptr == bytes.ptr) return self.sendLookahead(peer, kind);
-        if (self.coalesce and (kind == .none or kind == .explorer_drain) and peer.socket.vtable.try_send_inline_many != null) {
+        // Parity hooks: a frame whose callback will be held takes ws's write
+        // path, so its completion arrives where Node's write callback fires;
+        // while holding, nothing is corked (no drain lookahead runs ahead).
+        const cork_ok = if (comptime runtime.parity_hooks) self.hooks.mode == .off else true;
+        if (cork_ok and self.coalesce and (kind == .none or kind == .explorer_drain) and peer.socket.vtable.try_send_inline_many != null) {
             if (self.corkFrame(peer, bytes, kind)) |outcome| return outcome;
         }
         // Anything else goes out after the frames corked before it.
@@ -3934,16 +4164,20 @@ pub const Server = struct {
             self.failSocket(peer, "outbound buffer limit exceeded");
             return .failed;
         }
+        // Parity hooks: decided where ts-hooks' wrapped `WebSocket#send` runs
+        // (after TS's readyState and buffer checks).
+        const hold = if (comptime runtime.parity_hooks) self.hooks.decide(peer, bytes) else false;
         // Charged and referenced before the attempt: a partial write's
         // completion may run on another thread before the call returns.
         _ = self.pending_bytes.fetchAdd(bytes.len, .monotonic);
         peer.addBuffered(bytes.len);
         const job = self.allocator.create(SendJob) catch oom();
         job.* = .{ .server = self, .peer = peer, .len = bytes.len, .kind = kind };
+        if (comptime runtime.parity_hooks) job.held = hold;
         peer.retain();
         // Node writes at once only while no request is in flight; otherwise
         // the frame waits behind it (whatever ws holds right now).
-        if (kind != .diagnostics and peer.requests.items.len == 0) if (peer.socket.vtable.try_send_inline) |try_inline| {
+        if (!hold and kind != .diagnostics and peer.requests.items.len == 0) if (peer.socket.vtable.try_send_inline) |try_inline| {
             switch (try_inline(peer.socket.ptr, bytes, job)) {
                 .written => {
                     // Written whole at once: never in `bufferedAmount`.

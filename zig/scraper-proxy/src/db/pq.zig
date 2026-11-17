@@ -108,6 +108,13 @@ pub const Plan = enum {
     /// shapes whose generic plan cannot be worse (unique-key lookups, fixed
     /// SQL); generic plans for list shapes are up to 47x slower.
     reusable,
+    /// node-pg's unnamed statement, planned with the session's join order
+    /// fixed (`join_collapse_limit = 1`, switched pipelined with the
+    /// execute; other statements switch it back). Only for selects whose
+    /// rows no plan can change and whose fixed-order plan is never slower
+    /// (scraperdb `Sql.fixed_join`). Off with named statements (`guard`): a
+    /// session setting must not leak through a transaction pooler.
+    fixed_join,
 };
 
 pub const QueryOptions = struct {
@@ -236,6 +243,10 @@ fn canonicalInt(text: []const u8) bool {
 /// `force_custom_plan` at startup, switched (pipelined with the execute)
 /// only when a statement needs the other mode.
 const PlanMode = enum { custom, auto, unknown };
+
+/// The session's `join_collapse_limit` as far as this connection knows:
+/// its startup value (`default`) or 1 (`fixed`, `Plan.fixed_join`).
+const JoinMode = enum { default, fixed, unknown };
 
 /// Turns named statements off for a whole pool once the server behaves like
 /// a transaction pooler sits in front of it (statements vanish or collide
@@ -488,6 +499,9 @@ pub const Conn = struct {
     /// Named statements (`Plan.custom`/`.reusable`), allocated on first use.
     statements: ?*Statements = null,
     plan_mode: PlanMode = .custom,
+    join_mode: JoinMode = .default,
+    /// The join order the query in progress needs (`queryWith`).
+    join_need: JoinMode = .default,
 
     /// Connects within `connect_timeout_ms`. Failure messages follow node-pg:
     /// timeout -> "Connection terminated due to connection timeout", other
@@ -698,7 +712,10 @@ pub const Conn = struct {
 
     pub fn queryWith(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: QueryOptions, failure: ?*Failure) Error!root.Result {
         const deadline: ?i64 = if (self.query_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
-        const named = opts.plan != .unnamed and params.len > 0 and (if (opts.guard) |g| g.active() else true);
+        const reuse = params.len > 0 and (if (opts.guard) |g| g.active() else true);
+        const named = (opts.plan == .custom or opts.plan == .reusable) and reuse;
+        self.join_need = if (opts.plan == .fixed_join and reuse) .fixed else .default;
+        defer self.join_need = .default;
         self.lazy_mode = opts.lazy;
         defer self.lazy_mode = false;
         errdefer self.dropLazy();
@@ -726,8 +743,43 @@ pub const Conn = struct {
     }
 
     fn runUnnamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, deadline: ?i64, failure: ?*Failure) Error!root.Result {
+        if (self.join_mode != self.join_need) {
+            if (params.len == 0) {
+                // The simple protocol (multi-statement text) cannot share a
+                // pipeline: reset in its own round trip (rare: a statement
+                // without parameters after a fixed-join one).
+                try self.resetJoin(arena, deadline, failure);
+            } else {
+                var local: Failure = .{};
+                var failed: Step = .execute;
+                const values = try textParams(arena, params);
+                if (self.pipeline(arena, .{ .unnamed = sql }, values, self.plan_mode, deadline, &local, &failed)) |result| {
+                    return result;
+                } else |e| {
+                    // Housekeeping must not fail the caller's query: run it
+                    // as it comes (`join_mode` is unknown, retried next time).
+                    if (e != error.QueryFailed or failed != .set) return pass(failure, local, e);
+                }
+            }
+        }
         try self.sendUnnamed(arena, sql, params, deadline, failure);
         return self.collect(arena, deadline, failure);
+    }
+
+    /// `RESET join_collapse_limit` on its own; a server error only leaves
+    /// `join_mode` unknown.
+    fn resetJoin(self: *Conn, arena: std.mem.Allocator, deadline: ?i64, failure: ?*Failure) Error!void {
+        const lazy = self.lazy_mode;
+        self.lazy_mode = false;
+        defer self.lazy_mode = lazy;
+        var local: Failure = .{};
+        try self.flushSent(PQsendQuery(self.pg, "RESET join_collapse_limit"), arena, deadline, failure);
+        _ = self.collect(arena, deadline, &local) catch |e| {
+            if (e != error.QueryFailed) return pass(failure, local, e);
+            self.join_mode = .unknown;
+            return;
+        };
+        self.join_mode = .default;
     }
 
     fn sendUnnamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, deadline: ?i64, failure: ?*Failure) Error!void {
@@ -759,7 +811,7 @@ pub const Conn = struct {
             .hit => |entry| {
                 var local: Failure = .{};
                 var failed: Step = .execute;
-                if (self.pipeline(arena, entry, null, values, need, deadline, &local, &failed)) |result| {
+                if (self.pipeline(arena, .{ .named = .{ .entry = entry } }, values, need, deadline, &local, &failed)) |result| {
                     return result;
                 } else |e| {
                     const code = serverCode(e, local);
@@ -790,7 +842,7 @@ pub const Conn = struct {
         const entry = try statements.add(sql);
         var local: Failure = .{};
         var failed: Step = .execute;
-        return self.pipeline(arena, entry, sql, values, need, deadline, &local, &failed) catch |e| {
+        return self.pipeline(arena, .{ .named = .{ .entry = entry, .prepare_sql = sql } }, values, need, deadline, &local, &failed) catch |e| {
             if (e != error.QueryFailed) return pass(failure, local, e);
             const code = serverCode(e, local);
             // Before `execute` ran, the statement was not created.
@@ -815,18 +867,31 @@ pub const Conn = struct {
 
     const Step = enum { set, prepare, execute };
 
-    /// Executes `entry`, preceded in one round trip (libpq pipeline mode) by
-    /// a `plan_cache_mode` switch if this session needs one and by its Parse
-    /// when `prepare_sql` is set. `failed` names the step of a server error.
-    fn pipeline(self: *Conn, arena: std.mem.Allocator, entry: *const Statements.Entry, prepare_sql: ?[]const u8, values: []const ?[*:0]const u8, need: PlanMode, deadline: ?i64, failure: ?*Failure, failed: *Step) Error!root.Result {
+    /// What `pipeline` executes: a named statement (prepared first when
+    /// `prepare_sql` is set) or an unnamed one (`sql`).
+    const Exec = union(enum) {
+        named: struct { entry: *const Statements.Entry, prepare_sql: ?[]const u8 = null },
+        unnamed: []const u8,
+    };
+
+    /// Executes `exec`, preceded in one round trip (libpq pipeline mode) by
+    /// the `plan_cache_mode` and `join_collapse_limit` switches this session
+    /// needs (`need`, `join_need`) and by the Parse of a new named
+    /// statement. `failed` names the step of a server error.
+    fn pipeline(self: *Conn, arena: std.mem.Allocator, exec: Exec, values: []const ?[*:0]const u8, need: PlanMode, deadline: ?i64, failure: ?*Failure, failed: *Step) Error!root.Result {
         const switch_mode = self.plan_mode != need;
+        const switch_join = self.join_mode != self.join_need;
+        const prepare_sql = switch (exec) {
+            .named => |named| named.prepare_sql,
+            .unnamed => null,
+        };
         failed.* = .execute;
-        if (!switch_mode and prepare_sql == null) {
-            try self.flushSent(PQsendQueryPrepared(self.pg, entry.nameZ(), @intCast(values.len), values.ptr, null, null, 0), arena, deadline, failure);
+        if (!switch_mode and !switch_join and prepare_sql == null) {
+            try self.flushSent(try self.sendExecute(arena, exec, values), arena, deadline, failure);
             return self.collect(arena, deadline, failure);
         }
         if (PQenterPipelineMode(self.pg) != 1) return self.transportFailure(arena, failure);
-        var steps: [3]Step = undefined;
+        var steps: [4]Step = undefined;
         var n: usize = 0;
         var sent = true;
         if (switch_mode) {
@@ -835,13 +900,19 @@ pub const Conn = struct {
             steps[n] = .set;
             n += 1;
         }
+        if (switch_join) {
+            const set: [*:0]const u8 = if (self.join_need == .fixed) "SET join_collapse_limit = 1" else "RESET join_collapse_limit";
+            sent = sent and PQsendQueryParams(self.pg, set, 0, null, null, null, null, 0) == 1;
+            steps[n] = .set;
+            n += 1;
+        }
         if (prepare_sql) |sql| {
             const sql_z = try arena.dupeZ(u8, sql);
-            sent = sent and PQsendPrepare(self.pg, entry.nameZ(), sql_z, @intCast(values.len), null) == 1;
+            sent = sent and PQsendPrepare(self.pg, exec.named.entry.nameZ(), sql_z, @intCast(values.len), null) == 1;
             steps[n] = .prepare;
             n += 1;
         }
-        sent = sent and PQsendQueryPrepared(self.pg, entry.nameZ(), @intCast(values.len), values.ptr, null, null, 0) == 1;
+        sent = sent and try self.sendExecute(arena, exec, values) == 1;
         steps[n] = .execute;
         n += 1;
         sent = sent and PQpipelineSync(self.pg) == 1;
@@ -851,7 +922,15 @@ pub const Conn = struct {
         if (PQexitPipelineMode(self.pg) != 1) return self.transportFailure(arena, failure);
         // A failed pipeline rolls back its implicit transaction, SET included.
         if (switch_mode) self.plan_mode = if (result) |_| need else |_| .unknown;
+        if (switch_join) self.join_mode = if (result) |_| self.join_need else |_| .unknown;
         return result;
+    }
+
+    fn sendExecute(self: *Conn, arena: std.mem.Allocator, exec: Exec, values: []const ?[*:0]const u8) Error!c_int {
+        return switch (exec) {
+            .named => |named| PQsendQueryPrepared(self.pg, named.entry.nameZ(), @intCast(values.len), values.ptr, null, null, 0),
+            .unnamed => |sql| PQsendQueryParams(self.pg, try arena.dupeZ(u8, sql), @intCast(values.len), null, values.ptr, null, null, 0),
+        };
     }
 
     /// `collect` for a pipeline: results of each step (each ended by a null
