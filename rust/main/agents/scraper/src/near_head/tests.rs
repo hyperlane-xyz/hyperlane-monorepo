@@ -790,8 +790,12 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert_eq!(row.try_get::<i64>("", "n")?, 1);
 
-    assert!(store.hash(1).await?.is_none());
-    assert!(store.hash(0).await?.is_none()); // Superseded cutover anchor.
+    // Recent canonical checkpoints remain available for custom stream starts.
+    assert_eq!(
+        store.hash(1).await?,
+        Some(chain.header(1u64.into()).await?.hash)
+    );
+    assert_eq!(store.hash(0).await?, Some(anchor.hash));
     assert!(store.hash(2).await?.is_some()); // Confirmed boundary.
     assert!(store.hash(3).await?.is_some()); // Unconfirmed suffix.
 
@@ -877,26 +881,84 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
     let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
     let store = Store { db, domain: 1 };
-    let chain = Chain::new(10);
+    let head = store::CHECKPOINT_HISTORY_BLOCKS + 10;
+    let chain = Chain::new(head);
     store
         .initialize(&chain.header(0u64.into()).await?, &contracts())
         .await?;
-    ingest_head(&chain, &store).await?;
+    let state = observe(&chain, &store).await?;
+    let headers = chain
+        .headers
+        .lock()
+        .unwrap()
+        .values()
+        .skip(1)
+        .map(|header| (header.clone(), vec![]))
+        .collect::<Vec<_>>();
+    store.append(&state, &headers).await?;
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(5)).await?;
+    assert_eq!(store.checkpoint(head - 3).await?, head - 3);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(2)).await?;
     let state = store.state().await?.unwrap();
-    assert_eq!(state.confirmed, 8);
+    assert_eq!(state.confirmed, head - 2);
     let row = store.db.query_one(Statement::from_string(DbBackend::Postgres,
         "SELECT count(*) AS n,min(height) AS first,max(height) AS last FROM scraper_checkpoint WHERE domain=1".to_owned())).await?.unwrap();
     assert_eq!(row.try_get::<i64>("", "first")?, 8);
-    assert_eq!(row.try_get::<i64>("", "last")?, 10);
-    assert!(row.try_get::<i64>("", "n")? <= 3);
+    assert_eq!(row.try_get::<i64>("", "last")?, i64::try_from(head)?);
+    assert_eq!(
+        row.try_get::<i64>("", "n")?,
+        i64::try_from(store::CHECKPOINT_HISTORY_BLOCKS)? + 3
+    );
+    // Finality two blocks behind the head must not remove a three-block policy's anchor.
+    assert_eq!(store.checkpoint(head - 3).await?, head - 3);
+    assert_eq!(
+        store.hash(head - 3).await?,
+        Some(chain.header((head - 3).into()).await?.hash)
+    );
     let blocks = count(&store, "block").await?;
     chain.header_calls.store(0, Ordering::Relaxed);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
-    assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
-    assert_eq!(store.checkpoint(10).await?, 10);
+    assert_eq!(
+        count(&store, "scraper_checkpoint").await?,
+        i64::try_from(store::CHECKPOINT_HISTORY_BLOCKS)? + 1
+    );
+    assert_eq!(store.checkpoint(head).await?, head);
+    assert_eq!(store.checkpoint(head - 3).await?, head - 3);
+    assert!(store.hash(9).await?.is_none());
+    assert!(store.hash(10).await?.is_some());
     assert_eq!(count(&store, "block").await?, blocks);
+
+    // Sparse slots/state versions still need the checkpoint preceding the window.
+    let sparse = Store {
+        db: Database::connect(&url).await?,
+        domain: 137,
+    };
+    let chain = Chain::new(head * 3);
+    let anchor = chain.header(0u64.into()).await?;
+    let tip = chain.header((head * 3).into()).await?;
+    sparse.initialize(&anchor, &contracts()).await?;
+    let initial = sparse.state().await?.unwrap();
+    sparse.observe(&initial, &anchor, &tip).await?;
+    sparse
+        .append(&sparse.state().await?.unwrap(), &[(tip.clone(), vec![])])
+        .await?;
+    sparse
+        .confirm(
+            &sparse.state().await?.unwrap(),
+            &tip,
+            MIN_CONFIRMATION_LEASE,
+        )
+        .await?;
+    assert_eq!(sparse.checkpoint(tip.height - 3).await?, 0);
+    assert_eq!(
+        count(&sparse, "scraper_checkpoint").await?,
+        i64::try_from(store::CHECKPOINT_HISTORY_BLOCKS)? + 3
+    );
+    assert!(
+        store.hash(10).await?.is_some(),
+        "another domain's pruning must be isolated"
+    );
     Ok(())
 }
 
