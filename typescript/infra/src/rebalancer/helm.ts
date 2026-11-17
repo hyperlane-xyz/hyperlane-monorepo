@@ -71,6 +71,9 @@ export function buildRebalancerHelmValues(
       ...(deployment.swapsXyzApiKeySecret
         ? { swapsXyzApiKeySecret: deployment.swapsXyzApiKeySecret }
         : {}),
+      ...(deployment.relayApiKeySecret
+        ? { relayApiKeySecret: deployment.relayApiKeySecret }
+        : {}),
     },
   };
 }
