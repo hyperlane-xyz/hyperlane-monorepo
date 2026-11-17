@@ -4,7 +4,13 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, ops::Add, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Add,
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use ethers::utils::hex;
@@ -16,7 +22,7 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160, U256};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, ReorgPeriod, H160, U256};
 use itertools::Itertools;
 use redact::Secret;
 use serde::{Deserialize, Serialize};
@@ -87,6 +93,8 @@ pub struct RelayerSettings {
     pub igp_indexing_enabled: bool,
     /// Preferred live indexing source; RPC fills history and handles fallback.
     pub websocket_url: Option<Secret<url::Url>>,
+    /// Existing chain overrides; also select custom websocket confirmation policies.
+    pub reorg_period_overrides: HashMap<String, ReorgPeriod>,
     /// Whether to enable the relay API endpoint (default: false)
     ///
     /// # Deployment requirement
@@ -481,6 +489,11 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 );
             }
         }
+        let reorg_period_overrides = p
+            .chain(&mut err)
+            .get_opt_key("reorgPeriodOverrides")
+            .parse_value("Expected chain reorg period overrides")
+            .unwrap_or_default();
         let relay_api_enabled = p
             .chain(&mut err)
             .get_opt_key("relayApiEnabled")
@@ -560,6 +573,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             tx_id_indexing_enabled,
             igp_indexing_enabled,
             websocket_url: websocket_url.map(Secret::new),
+            reorg_period_overrides,
             relay_api_enabled,
             relay_api_port,
             relay_api_rate_limit_max_requests,
@@ -808,11 +822,28 @@ mod test {
         let settings = parse_settings(json!({
             "relaychains": "legacy",
             "websocketurl": "wss://scraper.example/ws/events",
+            "reorgperiodoverrides": {"legacy": "0", "ethereum": 3, "polygon": "finalized"},
             "chains": {
                 "legacy": chain_config("legacy", 1000),
             },
         }))
         .expect("valid WebSocket URL should parse");
+
+        assert_eq!(
+            settings.reorg_period_overrides["legacy"]
+                .as_blocks()
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            settings.reorg_period_overrides["ethereum"]
+                .as_blocks()
+                .unwrap(),
+            3
+        );
+        assert!(settings.reorg_period_overrides["polygon"]
+            .as_blocks()
+            .is_err());
 
         assert_eq!(
             settings

@@ -62,6 +62,7 @@ impl Kind {
 pub(crate) struct ScraperSource {
     chain: String,
     domain: u32,
+    confirmations: Option<u32>,
     mailbox: H256,
     merkle_tree_hook: H256,
     interchain_gas_paymaster: H256,
@@ -75,10 +76,11 @@ pub(crate) struct ScraperSource {
     control: Arc<Authority>,
 }
 impl ScraperSource {
-    pub(crate) fn from_origin(origin: &Origin) -> Self {
+    pub(crate) fn from_origin(origin: &Origin, confirmations: Option<u32>) -> Self {
         Self {
             chain: origin.domain.name().to_owned(),
             domain: origin.domain.id(),
+            confirmations,
             mailbox: origin.chain_conf.addresses.mailbox,
             merkle_tree_hook: origin.chain_conf.addresses.merkle_tree_hook,
             interchain_gas_paymaster: origin.chain_conf.addresses.interchain_gas_paymaster,
@@ -116,7 +118,7 @@ impl ScraperSource {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Boundary {
     height: u64,
     hash: H256,
@@ -183,6 +185,11 @@ impl ScraperWebSocketMonitor {
     fn subscription(&self) -> SubscribeMessage<'static> {
         SubscribeMessage {
             message_type: "subscribe",
+            confirmations_by_domain: self
+                .sources
+                .values()
+                .filter_map(|s| s.confirmations.map(|count| (s.domain.to_string(), count)))
+                .collect(),
             streams: Kind::ALL
                 .into_iter()
                 .filter_map(|kind| {
@@ -196,8 +203,6 @@ impl ScraperWebSocketMonitor {
                     (!domains.is_empty()).then_some(SubscribeStream {
                         event_type: kind.label(),
                         domains: Some(domains),
-                        // Canonical events use each chain's standard reorg period.
-                        confirmations: None,
                     })
                 })
                 .collect(),
@@ -287,7 +292,7 @@ impl ScraperWebSocketMonitor {
                     for source in self.sources.values() {
                         self.active.with_label_values(&[&source.chain]).set(1);
                     }
-                    info!("Subscribed to canonical live scraper events; RPC fills history");
+                    info!("Subscribed to live scraper events; RPC fills history");
                 }
                 SessionEvent::Message(ServerMessage::LiveStart(boundary)) => {
                     ensure!(subscribed, "Boundary before subscription acknowledgement");
@@ -427,6 +432,7 @@ struct SourceState<'a> {
     started: Instant,
     last_probe: Option<Instant>,
     boundary: Option<Boundary>,
+    boundary_streams: [bool; 3],
     boundary_verified: bool,
     next: [Option<u32>; 2],
     pending: VecDeque<LiveEvent>,
@@ -441,6 +447,7 @@ impl<'a> SourceState<'a> {
             started: Instant::now(),
             last_probe: None,
             boundary: None,
+            boundary_streams: [false; 3],
             boundary_verified: false,
             next: [None, None],
             pending: VecDeque::new(),
@@ -547,14 +554,21 @@ impl<'a> SourceState<'a> {
     }
     fn accept_boundary(&mut self, wire: LiveStartBoundary) -> Result<()> {
         ensure!(
-            wire.confirmations.is_none(),
-            "Expected canonical live-start boundary"
+            wire.confirmations == self.source.confirmations,
+            "Unexpected live-start confirmation policy"
         );
+        ensure!(!self.authoritative, "Duplicate live-start boundary");
+        let boundary = Boundary {
+            height: wire.height.parse()?,
+            hash: parse_address(&wire.hash)?,
+        };
+        // Custom policies emit one marker per event type from the same snapshot.
         ensure!(
-            self.boundary.is_none() && !self.authoritative,
-            "Duplicate live-start boundary"
+            self.boundary.is_none_or(|previous| previous == boundary),
+            "Conflicting live-start boundaries"
         );
-        let mut seen = [false; 3];
+        let mut seen = self.boundary_streams;
+        ensure!(!wire.streams.is_empty(), "Empty live-start streams");
         for stream in wire.streams {
             let (kind, address) = match stream.event_type.as_str() {
                 "dispatch" => (Kind::Dispatch, self.source.mailbox),
@@ -562,6 +576,10 @@ impl<'a> SourceState<'a> {
                 "gas_payment" => (Kind::Gas, self.source.interchain_gas_paymaster),
                 _ => bail!("Unexpected live-start event type"),
             };
+            ensure!(
+                kind != Kind::Gas || self.source.gas_indexing,
+                "Unexpected gas live-start stream"
+            );
             ensure!(!seen[kind.index()], "Duplicate live-start stream");
             ensure!(
                 parse_address(&stream.address)? == address,
@@ -570,17 +588,18 @@ impl<'a> SourceState<'a> {
             seen[kind.index()] = true;
         }
         ensure!(
-            seen == [true, true, self.source.gas_indexing],
+            self.source.confirmations.is_some() || seen == [true, true, self.source.gas_indexing],
             "Incomplete live-start streams"
         );
-        self.boundary = Some(Boundary {
-            height: wire.height.parse()?,
-            hash: parse_address(&wire.hash)?,
-        });
+        self.boundary_streams = seen;
+        self.boundary = Some(boundary);
         Ok(())
     }
     fn handoff_sequences(&self) -> Option<[u32; 2]> {
-        let boundary = self.boundary.filter(|_| self.boundary_verified)?;
+        let boundary = self.boundary.filter(|_| {
+            self.boundary_verified
+                && self.boundary_streams == [true, true, self.source.gas_indexing]
+        })?;
         self.source.control.recovered_sequences(
             self.started,
             boundary.height,

@@ -7,11 +7,15 @@ pub use session::{ScraperSession, SessionEvent};
 
 use eyre::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// A scraper-proxy stream subscription request.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeMessage<'a> {
+    /// Custom delays by domain; omitted to use the scraper's canonical policies.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub confirmations_by_domain: BTreeMap<String, u32>,
     /// Streams requested on this connection.
     pub streams: Vec<SubscribeStream<'a>>,
     /// Protocol message type.
@@ -25,7 +29,7 @@ impl SubscribeMessage<'_> {
         self.streams
             .iter()
             .map(|stream| SubscribedStream {
-                confirmations: stream.confirmations,
+                confirmations: None,
                 domains: stream.domains.clone(),
                 event_type: stream.event_type.to_owned(),
             })
@@ -48,9 +52,6 @@ pub fn validate_subscription(
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeStream<'a> {
-    /// Custom live confirmation delay; omitted for canonical streams.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub confirmations: Option<u32>,
     /// Domains included in the stream.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domains: Option<Vec<u32>>,
@@ -65,7 +66,11 @@ pub enum ServerMessage<T> {
     /// The connection is ready to receive a subscription.
     Ready,
     /// The subscription was accepted.
+    #[serde(rename_all = "camelCase")]
     Subscribed {
+        /// Custom delays accepted by scraper-proxy.
+        #[serde(default)]
+        confirmations_by_domain: BTreeMap<String, u32>,
         /// Streams accepted by scraper-proxy.
         streams: Vec<SubscribedStream>,
     },
@@ -249,10 +254,10 @@ mod tests {
     }
 
     #[test]
-    fn custom_confirmation_acknowledgement_must_match_requested_delay() {
+    fn subscription_acknowledgement_must_match_requested_streams() {
         let request = SubscribeMessage {
+            confirmations_by_domain: BTreeMap::from([("1".to_owned(), 3)]),
             streams: vec![SubscribeStream {
-                confirmations: Some(3),
                 domains: Some(vec![1]),
                 event_type: "merkle_tree_insertion",
             }],
@@ -263,6 +268,7 @@ mod tests {
         actual[0].confirmations = Some(1);
         assert!(validate_subscription(&request.confirmation(), &actual).is_err());
         actual[0].confirmations = None;
+        actual[0].domains = Some(vec![2]);
         assert!(validate_subscription(&request.confirmation(), &actual).is_err());
         assert!(matches!(
             serde_json::from_str::<ServerMessage<serde_json::Value>>(
@@ -275,8 +281,8 @@ mod tests {
     #[test]
     fn serializes_live_subscription() {
         let message = SubscribeMessage {
+            confirmations_by_domain: BTreeMap::new(),
             streams: vec![SubscribeStream {
-                confirmations: None,
                 domains: Some(vec![5]),
                 event_type: "gas_payment",
             }],
@@ -356,7 +362,7 @@ mod tests {
         .expect("subscription confirmation should deserialize");
 
         match message {
-            ServerMessage::Subscribed { streams } => assert_eq!(
+            ServerMessage::Subscribed { streams, .. } => assert_eq!(
                 streams,
                 vec![SubscribedStream {
                     confirmations: None,

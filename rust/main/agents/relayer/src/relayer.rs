@@ -501,7 +501,16 @@ impl BaseAgent for Relayer {
         }
         debug!(elapsed = ?start_entity_init.elapsed(), event = "initialized message contexts", "Relayer startup duration measurement");
 
-        let scraper_sources = origins.values().map(ScraperSource::from_origin).collect();
+        let scraper_sources = origins
+            .values()
+            .map(|origin| {
+                let confirmations = settings
+                    .reorg_period_overrides
+                    .get(origin.domain.name())
+                    .and_then(|period| period.as_blocks().ok());
+                ScraperSource::from_origin(origin, confirmations)
+            })
+            .collect();
         let scraper_websocket_monitor = settings
             .websocket_url
             .map(|url| {

@@ -40,6 +40,7 @@ pub struct ScraperSession<P, C = ()> {
     ticker: Interval,
     probes: Option<BoxStream<'static, P>>,
     expected_subscription: Option<Vec<SubscribedStream>>,
+    expected_confirmations: std::collections::BTreeMap<String, u32>,
     cutovers: FuturesUnordered<BoxFuture<'static, (u32, C)>>,
     pending_cutovers: HashSet<u32>,
 }
@@ -72,6 +73,7 @@ impl<P: Send + 'static, C: Send + 'static> ScraperSession<P, C> {
             ticker,
             probes: None,
             expected_subscription: None,
+            expected_confirmations: Default::default(),
             cutovers: FuturesUnordered::new(),
             pending_cutovers: HashSet::new(),
         }
@@ -84,6 +86,7 @@ impl<P: Send + 'static, C: Send + 'static> ScraperSession<P, C> {
             .subscribe(serde_json::to_string(&subscription)?)
             .await?;
         self.expected_subscription = Some(expected);
+        self.expected_confirmations = subscription.confirmations_by_domain;
         Ok(())
     }
 
@@ -130,10 +133,14 @@ impl<P: Send + 'static, C: Send + 'static> ScraperSession<P, C> {
                 }
                 message = self.socket.recv() => {
                     let message = message?;
-                    if let Some(ServerMessage::Subscribed { streams }) = &message {
+                    if let Some(ServerMessage::Subscribed { streams, confirmations_by_domain }) = &message {
                         let expected = self.expected_subscription.as_ref()
                             .ok_or_else(|| eyre::eyre!("Scraper acknowledged a subscription before it was sent"))?;
                         validate_subscription(expected, streams)?;
+                        eyre::ensure!(
+                            confirmations_by_domain == &self.expected_confirmations,
+                            "Scraper-proxy confirmation policies do not match request"
+                        );
                     }
                     return Ok(message.map(SessionEvent::Message));
                 },
@@ -217,7 +224,15 @@ mod tests {
 
     #[tokio::test]
     async fn subscription_confirmation_is_checked_before_delivery() {
-        for matching in [true, false] {
+        for (requested, echoed, domain, matching) in [
+            (None, None, 1, true),
+            (None, None, 2, false),
+            (Some(0), Some(0), 1, true),
+            (Some(3), Some(3), 1, true),
+            (Some(3), None, 1, false),
+            (Some(3), Some(1), 1, false),
+            (None, Some(0), 1, false),
+        ] {
             let (client, mut server) = connection(Duration::from_secs(75)).await;
             let mut session = ScraperSession::<u32>::new(client, Duration::from_secs(30));
             server
@@ -230,8 +245,11 @@ mod tests {
                 .expect("ready");
             session
                 .subscribe(SubscribeMessage {
+                    confirmations_by_domain: requested
+                        .map(|count| ("1".to_owned(), count))
+                        .into_iter()
+                        .collect(),
                     streams: vec![super::super::SubscribeStream {
-                        confirmations: None,
                         domains: Some(vec![1]),
                         event_type: "merkle_tree_insertion",
                     }],
@@ -240,8 +258,14 @@ mod tests {
                 .await
                 .expect("subscribe");
             server.next().await.expect("request").expect("read request");
-            let domain = if matching { 1 } else { 2 };
-            server.send(Message::Text(format!(r#"{{"type":"subscribed","streams":[{{"domains":[{domain}],"eventType":"merkle_tree_insertion"}}]}}"#).into())).await.expect("ack");
+            let mut ack = serde_json::json!({"type":"subscribed","streams":[{"domains":[domain],"eventType":"merkle_tree_insertion"}]});
+            if let Some(count) = echoed {
+                ack["confirmationsByDomain"] = serde_json::json!({"1":count});
+            }
+            server
+                .send(Message::Text(ack.to_string().into()))
+                .await
+                .expect("ack");
             let result = session
                 .next::<Value>(false, || stream::empty().boxed())
                 .await;
@@ -251,10 +275,7 @@ mod tests {
                     Some(SessionEvent::Message(ServerMessage::Subscribed { .. }))
                 ));
             } else {
-                assert!(result
-                    .expect_err("wrong domain")
-                    .to_string()
-                    .contains("confirmation does not match"));
+                assert!(result.is_err(), "changed stream or confirmation policy");
             }
         }
     }

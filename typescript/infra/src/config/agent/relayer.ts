@@ -175,7 +175,8 @@ export interface RelayApiConfig {
 }
 
 // Full relayer-specific agent config for a single chain
-export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
+export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig> &
+  Pick<BaseRelayerConfig, 'reorgPeriodOverrides'>;
 // Config intended to be set as configMap values, these are usually really long
 // and are intended to derisk hitting max env var length limits. The message
 // blacklist alone is ~43 KB and grows with every denylist PR.
@@ -249,6 +250,13 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.relayChains.join(','),
+      reorgPeriodOverrides:
+        baseConfig.reorgPeriodOverrides &&
+        Object.fromEntries(
+          Object.entries(baseConfig.reorgPeriodOverrides).filter(
+            ([chain, period]) => period !== getChain(chain).blocks?.reorgPeriod,
+          ),
+        ),
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 

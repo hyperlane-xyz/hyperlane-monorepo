@@ -1124,7 +1124,7 @@ const fastPath: RootAgentConfig = {
     messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
-    // Fast Path stays on RPC until the proxy supports per-chain confirmations on one connection.
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,
