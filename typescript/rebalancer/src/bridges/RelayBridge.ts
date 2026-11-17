@@ -31,10 +31,13 @@ import type {
   BridgeTransferStatus,
   IExternalBridge,
 } from '../interfaces/IExternalBridge.js';
-import { minimumOutputForLoss } from '../utils/quoteBudget.js';
+import {
+  maximumInputForLoss,
+  minimumOutputForLoss,
+} from '../utils/quoteBudget.js';
 import { isReceiptFinalized } from '../utils/receiptFinality.js';
 
-import { approveErc20IfNeeded } from './erc20Approve.js';
+import { approveErc20IfNeeded, Erc20ApprovalMode } from './erc20Approve.js';
 import {
   RelayAddressSchema,
   RelayClient,
@@ -55,6 +58,7 @@ const ERC20_ABI = [
 const ERC20_INTERFACE = new utils.Interface(ERC20_ABI);
 const TRANSFER_TOPIC = ERC20_INTERFACE.getEventTopic('Transfer');
 const MAX_PREPARATION_AGE_MS = 30_000;
+const MAX_PREPARATION_ATTEMPTS = 3;
 const POSITIVE_AMOUNT = z.string().regex(/^[1-9][0-9]*$/);
 const RelayBridgeRouteSchema = z.object({
   response: RelayQuoteResponseSchema,
@@ -91,6 +95,7 @@ export class RelayBridge implements IExternalBridge {
   private readonly maxQuoteLossBps: number;
   private readonly defaultSlippage: number;
   private executionLock: Promise<unknown> = Promise.resolve();
+  private readonly chainNamesById = new Map<number, string>();
 
   constructor(
     config: RelayBridgeConfig,
@@ -103,7 +108,21 @@ export class RelayBridge implements IExternalBridge {
     this.maxQuoteLossBps = config.maxQuoteLossBps ?? 100;
     this.defaultSlippage = config.defaultSlippage ?? 0.001;
     minimumOutputForLoss(1n, 0, 0, this.maxQuoteLossBps);
+    assert(
+      this.maxQuoteLossBps < 10_000,
+      'Relay requires a finite input loss budget',
+    );
     this.slippageBps(this.defaultSlippage);
+    for (const name of this.multiProvider.getKnownChainNames()) {
+      const metadata = this.multiProvider.getChainMetadata(name);
+      if (metadata.protocol !== ProtocolType.Ethereum) continue;
+      const chainId = z.number().int().positive().parse(metadata.chainId);
+      assert(
+        !this.chainNamesById.has(chainId),
+        `Duplicate Relay EVM chain ID ${chainId}`,
+      );
+      this.chainNamesById.set(chainId, name);
+    }
   }
 
   getNativeTokenAddress(): string {
@@ -135,6 +154,30 @@ export class RelayBridge implements IExternalBridge {
     });
     await this.validateResponse(params, response);
     const { currencyIn, currencyOut } = response.details;
+    const executionBudget =
+      params.toAmount !== undefined
+        ? {
+            maxInputAmount: maximumInputForLoss(
+              params.toAmount,
+              currencyIn.currency.decimals,
+              currencyOut.currency.decimals,
+              this.maxQuoteLossBps,
+            ),
+            minOutputAmount: params.toAmount,
+          }
+        : {
+            maxInputAmount: BigInt(currencyIn.amount),
+            minOutputAmount: minimumOutputForLoss(
+              BigInt(currencyIn.amount),
+              currencyIn.currency.decimals,
+              currencyOut.currency.decimals,
+              this.maxQuoteLossBps,
+            ),
+          };
+    assert(
+      BigInt(currencyIn.amount) <= executionBudget.maxInputAmount,
+      'Relay input exceeds execution budget',
+    );
     return {
       id: response.requestId,
       tool: this.externalBridgeId,
@@ -147,21 +190,23 @@ export class RelayBridge implements IExternalBridge {
       feeCosts: 0n,
       route: { response, preparedAt },
       requestParams: params,
+      executionBudget,
     };
   }
 
   /** Refresh unsigned calldata without weakening the caller's accepted input/output bounds. */
   async prepare(accepted: BridgeQuote): Promise<BridgeQuote<RelayBridgeRoute>> {
+    const budget = this.executionBudget(accepted);
     const refreshed = await this.quote(accepted.requestParams);
     assert(
-      refreshed.fromAmount <= accepted.fromAmount,
-      'Relay refreshed input exceeds accepted input',
+      refreshed.fromAmount <= budget.maxInputAmount,
+      'Relay refreshed input exceeds reserved budget',
     );
     assert(
-      refreshed.toAmountMin >= accepted.toAmountMin,
-      'Relay refreshed minimum below accepted minimum',
+      refreshed.toAmountMin >= budget.minOutputAmount,
+      'Relay refreshed minimum below execution budget',
     );
-    return refreshed;
+    return { ...refreshed, executionBudget: budget };
   }
 
   execute(
@@ -207,87 +252,140 @@ export class RelayBridge implements IExternalBridge {
     assert(key, 'Relay requires an EVM inventory key');
     const wallet = new Wallet(
       key,
-      this.multiProvider.getProvider(accepted.requestParams.fromChain),
+      this.multiProvider.getProvider(
+        this.chainName(accepted.requestParams.fromChain),
+      ),
     );
     assert(
       this.sameAddress(wallet.address, accepted.requestParams.fromAddress),
       'Relay signer does not match quote sender',
     );
 
-    let fresh = await this.prepare(accepted);
-    const firstDeposit = this.deposit(fresh.route.response);
-    const spender = this.approvalSpender(fresh.route.response);
+    const budget = this.executionBudget(accepted);
+    const first = await this.prepare(accepted);
+    const firstDeposit = this.deposit(first.route.response);
+    const spender = this.approvalSpender(first.route.response);
     await approveErc20IfNeeded(
       wallet,
       accepted.requestParams.fromToken,
       spender,
-      fresh.fromAmount,
+      budget.maxInputAmount,
       this.logger,
-      options,
+      {
+        ...options,
+        mode: Erc20ApprovalMode.Bounded,
+        maxAmount: budget.maxInputAmount,
+      },
     );
-    // Approvals may take time. Always refresh after their receipt and recheck every bound.
-    fresh = await this.prepare(accepted);
-    const deposit = this.deposit(fresh.route.response);
-    assert(
-      this.sameAddress(this.approvalSpender(fresh.route.response), spender),
-      'Relay approval target changed during preparation',
-    );
-    assert(
-      this.sameAddress(firstDeposit.to, deposit.to),
-      'Relay deposit target changed during preparation',
-    );
-    // A lower exact-output input needs a correspondingly lower allowance too.
-    await approveErc20IfNeeded(
-      wallet,
-      accepted.requestParams.fromToken,
-      spender,
-      fresh.fromAmount,
-      this.logger,
-      options,
-    );
-    assert(
-      Date.now() - fresh.route.preparedAt < MAX_PREPARATION_AGE_MS,
-      'Relay payload expired during approval',
-    );
-    const transaction = {
-      to: deposit.to,
-      data: deposit.data,
-      value: BigNumber.from(0),
-      chainId: deposit.chainId,
-    };
-    await wallet.estimateGas(transaction);
-    assert(
-      Date.now() - fresh.route.preparedAt < MAX_PREPARATION_AGE_MS,
-      'Relay payload expired during estimation',
-    );
-    const transferId = JSON.stringify(
-      TransferIdentitySchema.parse({
-        version: 1,
-        requestId: fresh.id,
+    // Approval may take longer than a payload's lifetime. Refresh after its
+    // receipt, with no further approvals for movement inside the reserved cap.
+    for (let attempt = 1; attempt <= MAX_PREPARATION_ATTEMPTS; attempt++) {
+      const fresh = await this.prepare(accepted);
+      const deposit = this.deposit(fresh.route.response);
+      assert(
+        this.sameAddress(this.approvalSpender(fresh.route.response), spender),
+        'Relay approval target changed during preparation',
+      );
+      assert(
+        this.sameAddress(firstDeposit.to, deposit.to),
+        'Relay deposit target changed during preparation',
+      );
+      const expired = () =>
+        Date.now() - fresh.route.preparedAt >= MAX_PREPARATION_AGE_MS;
+      if (expired()) {
+        this.logger.warn(
+          { attempt },
+          'Relay payload expired during preparation',
+        );
+        continue;
+      }
+      const transaction = {
+        to: deposit.to,
+        data: deposit.data,
+        value: BigNumber.from(0),
+        chainId: deposit.chainId,
+      };
+      await wallet.estimateGas(transaction);
+      if (expired()) {
+        this.logger.warn(
+          { attempt },
+          'Relay payload expired during estimation',
+        );
+        continue;
+      }
+      const transferId = JSON.stringify(
+        TransferIdentitySchema.parse({
+          version: 1,
+          requestId: fresh.id,
+          fromChain: accepted.requestParams.fromChain,
+          toChain: accepted.requestParams.toChain,
+          fromToken: accepted.requestParams.fromToken,
+          toToken: accepted.requestParams.toToken,
+          fromAddress: accepted.requestParams.fromAddress,
+          toAddress:
+            accepted.requestParams.toAddress ??
+            accepted.requestParams.fromAddress,
+          inputAmount: fresh.fromAmount.toString(),
+          minimumAmount: budget.minOutputAmount.toString(),
+        }),
+      );
+      await options.onTransferId?.(transferId);
+      if (expired()) {
+        this.logger.warn(
+          { attempt },
+          'Relay payload expired while recording identity',
+        );
+        continue;
+      }
+      // Never retry after the submission boundary, including unknown outcomes.
+      const submitted = await submitEvmLikeTransaction(
+        wallet,
+        transaction,
+        options,
+      );
+      return {
+        txHash: submitted.hash,
         fromChain: accepted.requestParams.fromChain,
         toChain: accepted.requestParams.toChain,
-        fromToken: accepted.requestParams.fromToken,
-        toToken: accepted.requestParams.toToken,
-        fromAddress: accepted.requestParams.fromAddress,
-        toAddress:
-          accepted.requestParams.toAddress ??
-          accepted.requestParams.fromAddress,
-        inputAmount: fresh.fromAmount.toString(),
-        minimumAmount: accepted.toAmountMin.toString(),
-      }),
-    );
-    await options.onTransferId?.(transferId);
-    const submitted = await submitEvmLikeTransaction(
-      wallet,
-      transaction,
-      options,
-    );
-    return {
-      txHash: submitted.hash,
-      fromChain: accepted.requestParams.fromChain,
-      toChain: accepted.requestParams.toChain,
-      transferId,
+        transferId,
+      };
+    }
+    throw new Error('Relay payload expired after bounded preparation attempts');
+  }
+
+  private executionBudget(quote: BridgeQuote) {
+    const { response } = RelayBridgeRouteSchema.parse(quote.route);
+    const { currencyIn, currencyOut } = response.details;
+    const maxInput =
+      quote.requestParams.toAmount === undefined
+        ? quote.fromAmount
+        : maximumInputForLoss(
+            quote.requestParams.toAmount,
+            currencyIn.currency.decimals,
+            currencyOut.currency.decimals,
+            this.maxQuoteLossBps,
+          );
+    const minOutput =
+      quote.requestParams.toAmount ??
+      minimumOutputForLoss(
+        quote.fromAmount,
+        currencyIn.currency.decimals,
+        currencyOut.currency.decimals,
+        this.maxQuoteLossBps,
+      );
+    const budget = quote.executionBudget ?? {
+      maxInputAmount: quote.fromAmount,
+      minOutputAmount: quote.toAmountMin,
     };
+    assert(
+      budget.maxInputAmount >= quote.fromAmount &&
+        budget.maxInputAmount <= maxInput &&
+        budget.minOutputAmount >= minOutput &&
+        budget.minOutputAmount > 0n &&
+        budget.minOutputAmount <= quote.toAmountMin,
+      'Invalid Relay execution budget',
+    );
+    return budget;
   }
 
   async getStatus(
@@ -312,8 +410,8 @@ export class RelayBridge implements IExternalBridge {
         identity.toChain === destinationChainId,
       'Relay status chain identity mismatch',
     );
-    this.validateChain(fromChain);
-    this.validateChain(toChain);
+    this.validateChain(originChainId);
+    this.validateChain(destinationChainId);
     let status;
     try {
       status = await this.client.getStatus(identity.requestId);
@@ -326,6 +424,20 @@ export class RelayBridge implements IExternalBridge {
       status.status !== RelayStatus.Success &&
       status.status !== RelayStatus.Refund
     ) {
+      if (status.status === RelayStatus.Failure || status.refundFailReason) {
+        this.logger.error(
+          {
+            requestId: identity.requestId,
+            txHash,
+            fromChain,
+            toChain,
+            status: status.status,
+            failReason: status.failReason,
+            refundFailReason: status.refundFailReason,
+          },
+          'Relay transfer requires manual reconciliation; source inventory remains reserved',
+        );
+      }
       return {
         status: 'pending',
         substatus: status.refundFailReason
@@ -350,12 +462,14 @@ export class RelayBridge implements IExternalBridge {
         status: 'pending',
         substatus: 'Relay settlement transaction not indexed',
       };
-    const sourceProvider = this.multiProvider.getProvider(fromChain);
+    const sourceProvider = this.multiProvider.getProvider(
+      this.chainName(originChainId),
+    );
     const sourceReceipt = await sourceProvider.getTransactionReceipt(txHash);
     if (
       !sourceReceipt ||
       sourceReceipt.status !== 1 ||
-      !(await this.finalized(fromChain, sourceReceipt))
+      !(await this.finalized(originChainId, sourceReceipt))
     ) {
       return {
         status: 'pending',
@@ -378,7 +492,7 @@ export class RelayBridge implements IExternalBridge {
       'Relay source token debit mismatch',
     );
     const settlementChain =
-      status.status === RelayStatus.Refund ? fromChain : toChain;
+      status.status === RelayStatus.Refund ? originChainId : destinationChainId;
     const token =
       status.status === RelayStatus.Refund
         ? identity.fromToken
@@ -387,7 +501,9 @@ export class RelayBridge implements IExternalBridge {
       status.status === RelayStatus.Refund
         ? identity.fromAddress
         : identity.toAddress;
-    const provider = this.multiProvider.getProvider(settlementChain);
+    const provider = this.multiProvider.getProvider(
+      this.chainName(settlementChain),
+    );
     let amount = 0n;
     for (const hash of new Set(hashes.map((hash) => hash.toLowerCase()))) {
       const receipt = await provider.getTransactionReceipt(hash);
@@ -577,8 +693,16 @@ export class RelayBridge implements IExternalBridge {
     );
   }
 
+  private chainName(chainId: number): string {
+    const name = this.chainNamesById.get(chainId);
+    assert(name, `Unknown Relay EVM chain ID ${chainId}`);
+    return name;
+  }
+
   private validateChain(chainId: number): void {
-    const metadata = this.multiProvider.getChainMetadata(chainId);
+    const metadata = this.multiProvider.getChainMetadata(
+      this.chainName(chainId),
+    );
     assert(
       metadata.protocol === ProtocolType.Ethereum &&
         metadata.availability?.status !== ChainStatus.Disabled,
@@ -590,7 +714,7 @@ export class RelayBridge implements IExternalBridge {
     const value: unknown = await new Contract(
       token,
       ERC20_ABI,
-      this.multiProvider.getProvider(chainId),
+      this.multiProvider.getProvider(this.chainName(chainId)),
     ).decimals();
     return z.number().int().min(0).max(255).parse(value);
   }
@@ -617,9 +741,9 @@ export class RelayBridge implements IExternalBridge {
     receipt: providers.TransactionReceipt,
   ): Promise<boolean> {
     return isReceiptFinalized(
-      this.multiProvider.getProvider(chainId),
+      this.multiProvider.getProvider(this.chainName(chainId)),
       receipt,
-      this.multiProvider.getChainMetadata(chainId).blocks,
+      this.multiProvider.getChainMetadata(this.chainName(chainId)).blocks,
       ProtocolType.Ethereum,
     );
   }

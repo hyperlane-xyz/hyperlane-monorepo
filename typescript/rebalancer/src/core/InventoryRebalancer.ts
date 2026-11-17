@@ -1756,11 +1756,26 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         quote = await quoteWithMode(quoteModeUsed);
       }
 
-      const inputRequired = quote.fromAmount;
-      if (inputRequired > maxSourceInput) {
+      if (quote.fromAmount > maxSourceInput) {
         return {
           success: false,
-          error: `Bridge input ${inputRequired} exceeded planned source capacity ${maxSourceInput}`,
+          error: `Bridge input ${quote.fromAmount} exceeded planned source capacity ${maxSourceInput}`,
+        };
+      }
+      // Refreshes may spend more than the indicative quote, but never more than
+      // the source capacity reserved for this movement.
+      const budget = quote.executionBudget;
+      const quotedInputCap = budget?.maxInputAmount ?? quote.fromAmount;
+      const inputRequired =
+        quotedInputCap < maxSourceInput ? quotedInputCap : maxSourceInput;
+      assert(
+        inputRequired >= quote.fromAmount,
+        'Bridge budget below quoted input',
+      );
+      if (budget) {
+        quote = {
+          ...quote,
+          executionBudget: { ...budget, maxInputAmount: inputRequired },
         };
       }
 

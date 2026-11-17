@@ -178,6 +178,72 @@ describe('RelayClient', () => {
     ).to.be.rejectedWith(RelayRequestError, 'NO_SWAP_ROUTES_FOUND');
   });
 
+  for (const status of [404, 429, 502]) {
+    it(`preserves HTTP ${status} for a non-JSON gateway response`, async () => {
+      sinon
+        .stub(globalThis, 'fetch')
+        .resolves(new Response('<html>error</html>', { status }));
+      try {
+        await new RelayClient().getStatus(requestId);
+        expect.fail('Expected an HTTP error');
+      } catch (error) {
+        expect(error).to.be.instanceOf(RelayRequestError);
+        if (!(error instanceof RelayRequestError)) throw error;
+        expect(error.status).to.equal(status);
+      }
+    });
+  }
+
+  for (const retryAfter of ['120', 'Tue, 17 Nov 2026 10:02:00 GMT']) {
+    it(`defers requests until Retry-After ${retryAfter} without sleeping`, async () => {
+      const clock = sinon.useFakeTimers({
+        now: Date.parse('2026-11-17T10:00:00Z'),
+        toFake: ['Date'],
+      });
+      const fetch = sinon.stub(globalThis, 'fetch');
+      fetch.onFirstCall().resolves(
+        new Response('', {
+          status: 429,
+          headers: { 'Retry-After': retryAfter },
+        }),
+      );
+      fetch
+        .onSecondCall()
+        .resolves(
+          new Response(JSON.stringify({ status: RelayStatus.Pending })),
+        );
+      const client = new RelayClient();
+      await expect(client.getStatus(requestId)).to.be.rejectedWith('HTTP 429');
+      clock.tick(119_999);
+      await expect(client.getStatus(requestId)).to.be.rejectedWith('HTTP 429');
+      expect(fetch.callCount).to.equal(1);
+      clock.tick(1);
+      expect((await client.getStatus(requestId)).status).to.equal(
+        RelayStatus.Pending,
+      );
+      expect(fetch.callCount).to.equal(2);
+    });
+  }
+
+  it('uses a one-minute cooldown for malformed Retry-After', async () => {
+    const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+    const fetch = sinon.stub(globalThis, 'fetch').callsFake(
+      async () =>
+        new Response('', {
+          status: 429,
+          headers: { 'Retry-After': 'invalid' },
+        }),
+    );
+    const client = new RelayClient();
+    await expect(client.getStatus(requestId)).to.be.rejectedWith('HTTP 429');
+    clock.tick(59_999);
+    await expect(client.getStatus(requestId)).to.be.rejectedWith('HTTP 429');
+    expect(fetch.callCount).to.equal(1);
+    clock.tick(1);
+    await expect(client.getStatus(requestId)).to.be.rejectedWith('HTTP 429');
+    expect(fetch.callCount).to.equal(2);
+  });
+
   it('bounds a response body that never resolves', async () => {
     const response = new Response('{}');
     sinon.stub(response, 'json').returns(new Promise(() => undefined));

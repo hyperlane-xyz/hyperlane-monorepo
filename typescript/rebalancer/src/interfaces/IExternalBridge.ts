@@ -63,6 +63,11 @@ export interface BridgeQuote<R = unknown> {
   feeCosts: bigint; // Sum of non-included fee costs (protocol fees, etc.)
   route: R; // Bridge-specific route data for execution
   requestParams: BridgeQuoteParams; // Original request parameters
+  /** Fixed bounds for refreshed execution. Reserve maxInputAmount before sending. */
+  executionBudget?: {
+    maxInputAmount: bigint;
+    minOutputAmount: bigint;
+  };
 }
 
 /**

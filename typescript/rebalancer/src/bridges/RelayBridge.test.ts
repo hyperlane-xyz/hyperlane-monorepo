@@ -207,6 +207,10 @@ describe('RelayBridge', () => {
     Parameters<providers.Provider['sendTransaction']>,
     ReturnType<providers.Provider['sendTransaction']>
   >;
+  let estimateGas: sinon.SinonStub<
+    Parameters<Wallet['estimateGas']>,
+    ReturnType<Wallet['estimateGas']>
+  >;
   let sourceReceipt: sinon.SinonStub<
     Parameters<providers.StaticJsonRpcProvider['getTransactionReceipt']>,
     ReturnType<providers.StaticJsonRpcProvider['getTransactionReceipt']>
@@ -273,7 +277,7 @@ describe('RelayBridge', () => {
     sinon
       .stub(sourceProvider, 'getTransaction')
       .resolves(transaction(SOURCE_HASH));
-    sinon
+    estimateGas = sinon
       .stub(Wallet.prototype, 'estimateGas')
       .resolves(BigNumber.from(100000));
     sinon
@@ -431,16 +435,14 @@ describe('RelayBridge', () => {
     expect(apiQuote.called).to.equal(false);
   });
 
-  it('refuses refreshed minimum drift before approval', async () => {
+  it('accepts refreshed minimum movement within the fixed loss budget', async () => {
     const quote = await bridge.quote(params);
     apiQuote.resolves(response('10000000', '9970000', '9959999'));
-    await expect(
-      bridge.execute(quote, { [ProtocolType.Ethereum]: wallet.privateKey }),
-    ).to.be.rejectedWith('below accepted minimum');
-    expect(broadcasts).to.have.length(0);
+    await bridge.execute(quote, { [ProtocolType.Ethereum]: wallet.privateKey });
+    expect(broadcasts).to.have.length(2);
   });
 
-  it('refuses increased exact-output input', async () => {
+  it('accepts increased exact-output input within the reserved cap', async () => {
     apiQuote.resolves(response('10000000', '9970000', '9970000'));
     const quote = await bridge.quote({
       ...params,
@@ -448,9 +450,102 @@ describe('RelayBridge', () => {
       toAmount: 9_970_000n,
     });
     apiQuote.resolves(response('10000001', '9970000', '9970000'));
+    expect((await bridge.prepare(quote)).fromAmount).to.equal(10_000_001n);
+  });
+
+  it('rejects a refresh above a caller-clamped source reservation', async () => {
+    apiQuote.resolves(response('10000000', '9970000', '9970000'));
+    const quote = await bridge.quote({
+      ...params,
+      fromAmount: undefined,
+      toAmount: 9_970_000n,
+    });
+    quote.executionBudget = {
+      maxInputAmount: 10_000_000n,
+      minOutputAmount: 9_970_000n,
+    };
+    apiQuote.resolves(response('10000001', '9970000', '9970000'));
+    await expect(bridge.prepare(quote)).to.be.rejectedWith('reserved budget');
+    expect(broadcasts).to.have.length(0);
+  });
+
+  it('retains legacy bounds when a quote has no execution budget', async () => {
+    const quote = await bridge.quote(params);
+    delete quote.executionBudget;
+    apiQuote.resolves(response('10000000', '9970000', '9959999'));
     await expect(bridge.prepare(quote)).to.be.rejectedWith(
-      'input exceeds accepted',
+      'below execution budget',
     );
+  });
+
+  it('rejects caller-widened execution budgets before approval', async () => {
+    const quote = await bridge.quote(params);
+    quote.executionBudget = {
+      maxInputAmount: 10_000_001n,
+      minOutputAmount: 9_900_000n,
+    };
+    await expect(
+      bridge.execute(quote, { [ProtocolType.Ethereum]: wallet.privateKey }),
+    ).to.be.rejectedWith('Invalid Relay execution budget');
+    expect(broadcasts).to.have.length(0);
+  });
+
+  it('uses one bounded approval when exact-output input moves after approval', async () => {
+    apiQuote.resolves(response('10000000', '9970000', '9970000'));
+    const quote = await bridge.quote({
+      ...params,
+      fromAmount: undefined,
+      toAmount: 9_970_000n,
+    });
+    apiQuote.onCall(2).resolves(response('10000001', '9970000', '9970000'));
+    const result = await bridge.execute(quote, {
+      [ProtocolType.Ethereum]: wallet.privateKey,
+    });
+    expect(broadcasts).to.have.length(2);
+    expect(allowance).to.equal(10_070_707n);
+    if (!result.transferId) throw new Error('Missing transfer identity');
+    expect(JSON.parse(result.transferId).inputAmount).to.equal('10000001');
+    expect(JSON.parse(result.transferId).minimumAmount).to.equal('9970000');
+  });
+
+  it('refreshes expired estimation without another approval', async () => {
+    const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+    estimateGas.onFirstCall().callsFake(async () => {
+      clock.tick(30_001);
+      return BigNumber.from(100000);
+    });
+    const quote = await bridge.quote(params);
+    await bridge.execute(quote, { [ProtocolType.Ethereum]: wallet.privateKey });
+    expect(apiQuote.callCount).to.equal(4);
+    expect(broadcasts).to.have.length(2);
+  });
+
+  it('stops after three expired preparations without submitting a deposit', async () => {
+    const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+    estimateGas.callsFake(async () => {
+      clock.tick(30_001);
+      return BigNumber.from(100000);
+    });
+    const quote = await bridge.quote(params);
+    await expect(
+      bridge.execute(quote, { [ProtocolType.Ethereum]: wallet.privateKey }),
+    ).to.be.rejectedWith('bounded preparation attempts');
+    expect(apiQuote.callCount).to.equal(5);
+    expect(broadcasts).to.have.length(1);
+    expect(broadcasts[0].to?.toLowerCase()).to.equal(TOKEN);
+  });
+
+  it('quotes by EVM chain ID even when another chain has that domain', async () => {
+    const provider = new MultiProvider({
+      base: { ...metadata.base, domainId: 84530 },
+      elysium: { ...metadata.elysium, domainId: 8453 },
+    });
+    provider.setProvider('base', sourceProvider);
+    provider.setProvider('elysium', destinationProvider);
+    bridge = new RelayBridge({}, logger, client, provider);
+    const quote = await bridge.quote(params);
+    await bridge.execute(quote, { [ProtocolType.Ethereum]: wallet.privateKey });
+    expect(send.callCount).to.equal(2);
   });
 
   it('uses an exact approval and records request identity before the source attempt', async () => {
@@ -461,7 +556,7 @@ describe('RelayBridge', () => {
       { [ProtocolType.Ethereum]: wallet.privateKey },
       {
         onTransferId: (identity) => {
-          expect(JSON.parse(identity).minimumAmount).to.equal('9960000');
+          expect(JSON.parse(identity).minimumAmount).to.equal('9900000');
           observations.push('identity');
         },
         onSubmissionAttempt: () => {
@@ -481,12 +576,12 @@ describe('RelayBridge', () => {
     expect(result.transferId).to.be.a('string');
   });
 
-  it('does not deposit if the post-approval quote changes recipient or output floor', async () => {
+  it('does not deposit if the post-approval quote exceeds the loss budget', async () => {
     const quote = await bridge.quote(params);
-    apiQuote.onCall(2).resolves(response('10000000', '9970000', '9959999'));
+    apiQuote.onCall(2).resolves(response('10000000', '9970000', '9899999'));
     await expect(
       bridge.execute(quote, { [ProtocolType.Ethereum]: wallet.privateKey }),
-    ).to.be.rejectedWith('below accepted minimum');
+    ).to.be.rejectedWith('total loss budget');
     expect(broadcasts).to.have.length(1);
     expect(broadcasts[0].to?.toLowerCase()).to.equal(TOKEN);
   });
@@ -597,6 +692,7 @@ describe('RelayBridge', () => {
   });
 
   it('keeps failure and manual-refund-required outcomes pending', async () => {
+    const errorLog = sinon.spy(logger, 'error');
     apiStatus.resolves({ status: RelayStatus.Failure, failReason: 'SLIPPAGE' });
     expect(
       (await bridge.getStatus(SOURCE_HASH, 8453, 99901, identity())).status,
@@ -611,6 +707,7 @@ describe('RelayBridge', () => {
       status: 'pending',
       substatus: 'Relay manual refund required: AMOUNT_TOO_LOW_TO_REFUND',
     });
+    expect(errorLog.callCount).to.equal(2);
   });
 
   it('rejects destination receipts without sufficient net token credit', async () => {

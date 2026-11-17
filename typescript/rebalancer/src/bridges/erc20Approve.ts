@@ -22,6 +22,7 @@ const ERC20_ABI = [
 
 export enum Erc20ApprovalMode {
   Exact = 'exact',
+  Bounded = 'bounded',
   Infinite = 'infinite',
 }
 
@@ -36,10 +37,11 @@ export interface Erc20ApprovalOptions extends Pick<
   'onApproval'
 > {
   /**
-   * Exact is required for dynamic, API-provided spenders. Infinite is reserved
-   * for trusted, fixed contracts such as an OFT endpoint.
+   * Dynamic spenders use Exact or Bounded, which requires a finite reserved cap.
+   * Infinite is reserved for trusted, fixed contracts such as an OFT endpoint.
    */
   mode?: Erc20ApprovalMode;
+  maxAmount?: bigint;
   contractFactory?: Erc20ContractFactory;
 }
 
@@ -136,6 +138,14 @@ export async function approveErc20IfNeeded(
 
   const contractFactory = options.contractFactory ?? defaultContractFactory;
   const mode = options.mode ?? Erc20ApprovalMode.Exact;
+  if (mode === Erc20ApprovalMode.Bounded) {
+    assert(
+      options.maxAmount !== undefined &&
+        options.maxAmount >= amount &&
+        options.maxAmount < ethers.constants.MaxUint256.toBigInt(),
+      'Bounded approval requires a finite cap covering the requested amount',
+    );
+  }
   const readContract = contractFactory(token, ERC20_ABI, signer);
   const ownerAddress = await signer.getAddress();
   const currentAllowance: ethers.BigNumber = await readContract.allowance(
@@ -146,7 +156,18 @@ export async function approveErc20IfNeeded(
   const targetAllowance =
     mode === Erc20ApprovalMode.Infinite
       ? ethers.constants.MaxUint256
-      : requiredAllowance;
+      : ethers.BigNumber.from(
+          options.maxAmount !== undefined && mode === Erc20ApprovalMode.Bounded
+            ? options.maxAmount.toString()
+            : amount.toString(),
+        );
+
+  if (
+    mode === Erc20ApprovalMode.Bounded &&
+    currentAllowance.gte(requiredAllowance) &&
+    currentAllowance.lte(targetAllowance)
+  )
+    return;
 
   if (currentAllowance.eq(targetAllowance)) return;
 

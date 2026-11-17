@@ -6,6 +6,7 @@ import { fetchWithDeadline } from '../utils/fetchWithDeadline.js';
 
 export const RELAY_API_URL = 'https://api.relay.link';
 const REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 60_000;
 
 export const RelayAddressSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 export const RelayHashSchema = z.string().regex(/^0x[0-9a-fA-F]{64}$/);
@@ -118,6 +119,7 @@ export class RelayRequestError extends Error {
   constructor(
     readonly status: number,
     readonly code?: string,
+    readonly retryAfterMs?: number,
   ) {
     super(`Relay HTTP ${status}${code ? ` (${code})` : ''}`);
     this.name = 'RelayRequestError';
@@ -127,6 +129,7 @@ export class RelayRequestError extends Error {
 /** Bounded, unsigned Relay requests. Execution never follows API-provided URLs. */
 export class RelayClient {
   private readonly apiUrl: string;
+  private retryAt = 0;
 
   constructor(private readonly config: RelayClientConfig = {}) {
     const url = new URL(config.apiUrl ?? RELAY_API_URL);
@@ -166,6 +169,12 @@ export class RelayClient {
   }
 
   private request(path: string, init: RequestInit): Promise<unknown> {
+    const retryAfterMs = this.retryAt - Date.now();
+    if (retryAfterMs > 0) {
+      return Promise.reject(
+        new RelayRequestError(429, undefined, retryAfterMs),
+      );
+    }
     return fetchWithDeadline(
       `${this.apiUrl}${path}`,
       {
@@ -178,7 +187,26 @@ export class RelayClient {
       this.config.requestTimeoutMs ?? REQUEST_TIMEOUT_MS,
       async (response) => {
         if (!response.ok) {
-          const body: unknown = await response.json();
+          const retryAfter = response.headers.get('retry-after');
+          const delay =
+            retryAfter === null
+              ? DEFAULT_RATE_LIMIT_COOLDOWN_MS
+              : /^\d+(?:\.\d+)?$/.test(retryAfter)
+                ? Number(retryAfter) * 1000
+                : Date.parse(retryAfter) - Date.now();
+          const cooldown =
+            Number.isFinite(delay) && delay >= 0
+              ? delay
+              : DEFAULT_RATE_LIMIT_COOLDOWN_MS;
+          if (response.status === 429) this.retryAt = Date.now() + cooldown;
+          // Gateways can return HTML or an empty body. Preserve the HTTP status
+          // even when no structured provider code can be recovered.
+          let body: unknown;
+          try {
+            body = await response.json();
+          } catch (error) {
+            if (!(error instanceof SyntaxError)) throw error;
+          }
           const error = z
             .object({
               code: z.string().optional(),
@@ -190,6 +218,7 @@ export class RelayClient {
             error.success
               ? (error.data.code ?? error.data.errorCode)
               : undefined,
+            response.status === 429 ? cooldown : undefined,
           );
         }
         return response.json();
