@@ -1,14 +1,15 @@
 warpRouteId: USDC/radix
 
 deployment:
-  imageTag: 6040d28-20261110-130043
-  imageDigest: sha256:bca8117fd58bf6e824deee1206ee5182fc6ff15a910d618485b1392bd18a4ee5
+  imageTag: f18b00f-20261117-125013
+  imageDigest: sha256:df310dadc204b6cddbd4dff591fbcc6450bfd306e030d1c12b7315bd8083022b
   registryCommit: d36ac66ef726bdce6691d4ce4be8ab3dab39cb29
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
 pendingTransferMiddlewares:
   - type: relayerDenylist
     url: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json
+    refreshIntervalSecs: 60
 
 inventorySigners:
   ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9'
