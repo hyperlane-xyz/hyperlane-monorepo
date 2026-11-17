@@ -22,6 +22,8 @@ export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_INTENT_TTL_S,
+  ExecutionType,
+  ExternalBridgeType,
   getStrategyChainConfig,
   getStrategyChainNames,
   PendingTransferMiddlewareType,

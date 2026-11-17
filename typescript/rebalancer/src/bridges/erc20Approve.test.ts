@@ -164,6 +164,55 @@ describe('approveErc20IfNeeded', () => {
     expect(contract.approveStub.called).to.equal(false);
   });
 
+  it('reuses a sufficient finite allowance within the execution cap', async () => {
+    contract.allowanceStub.resolves(ethers.BigNumber.from(30));
+    await approveErc20IfNeeded(signer, token, spender, 25n, logger, {
+      contractFactory,
+      mode: Erc20ApprovalMode.Bounded,
+      maxAmount: 35n,
+    });
+    expect(contract.approveStub.called).to.equal(false);
+  });
+
+  it('replaces an excessive allowance with the finite execution cap', async () => {
+    contract.allowanceStub.resolves(ethers.constants.MaxUint256);
+    contract.approveStub.onCall(0).resolves(makeTransaction('0xrevoke'));
+    contract.approveStub.onCall(1).resolves(makeTransaction('0xapprove'));
+    await approveErc20IfNeeded(signer, token, spender, 25n, logger, {
+      contractFactory,
+      mode: Erc20ApprovalMode.Bounded,
+      maxAmount: 35n,
+    });
+    expect(contract.approveStub.callCount).to.equal(2);
+    expect(
+      ethers.BigNumber.from(contract.approveStub.firstCall.args[1]).isZero(),
+    ).to.equal(true);
+    expect(
+      ethers.BigNumber.from(contract.approveStub.secondCall.args[1]).eq(35),
+    ).to.equal(true);
+  });
+
+  it('rejects bounded approvals without a finite covering cap', async () => {
+    for (const maxAmount of [
+      undefined,
+      24n,
+      ethers.constants.MaxUint256.toBigInt(),
+    ]) {
+      try {
+        await approveErc20IfNeeded(signer, token, spender, 25n, logger, {
+          contractFactory,
+          mode: Erc20ApprovalMode.Bounded,
+          maxAmount,
+        });
+        expect.fail('Expected invalid bounded approval');
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        expect(error.message).to.include('finite cap');
+      }
+    }
+    expect(contractFactory.called).to.equal(false);
+  });
+
   it('sets a zero allowance to the exact requested amount', async () => {
     const approvalTx = makeTransaction('0xapprove');
     contract.allowanceStub.resolves(ethers.constants.Zero);

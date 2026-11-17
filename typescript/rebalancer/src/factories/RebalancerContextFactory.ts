@@ -751,6 +751,21 @@ export class RebalancerContextFactory {
           }
           break;
         }
+        case ExternalBridgeType.Relay: {
+          const relayConfig = externalBridges?.relay;
+          if (relayConfig) {
+            const { RelayBridge } = await import('../bridges/RelayBridge.js');
+            registry[ExternalBridgeType.Relay] = new RelayBridge(
+              {
+                ...relayConfig,
+                apiKey: this.externalBridgeApiKeys?.[ExternalBridgeType.Relay],
+                chainMetadata: bridgeChainMetadata,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
         case ExternalBridgeType.SwapsXyz: {
           const swapsxyzConfig = externalBridges?.swapsxyz;
           if (swapsxyzConfig) {

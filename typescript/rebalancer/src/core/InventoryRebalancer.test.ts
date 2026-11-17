@@ -2509,6 +2509,61 @@ describe('InventoryRebalancer E2E', () => {
       expect(quotedTargetOutput).to.equal(1_050_000_000_000_000_000n);
     });
 
+    for (const quotedCap of [
+      1_100_000_000_000_000_000n,
+      3_000_000_000_000_000_000n,
+    ]) {
+      it(`reserves the execution cap ${quotedCap} bounded by source capacity before sending`, async () => {
+        const amount = 1_000_000_000_000_000_000n;
+        const sourceInventory = 2_000_000_000_000_000_000n;
+        const target = (amount * 105n) / 100n;
+        const reserved =
+          quotedCap < sourceInventory ? quotedCap : sourceInventory;
+        const route = createTestRoute({ amount });
+        createTestIntent({ amount });
+        inventoryRebalancer.setInventoryBalances({
+          [SOLANA_CHAIN]: 0n,
+          [ARBITRUM_CHAIN]: sourceInventory,
+        });
+        bridge.quote.onFirstCall().resolves(
+          createMockBridgeQuote({
+            fromAmount: sourceInventory,
+            toAmount: sourceInventory,
+            toAmountMin: sourceInventory,
+          }),
+        );
+        bridge.quote.onSecondCall().resolves(
+          createMockBridgeQuote({
+            fromAmount: target,
+            toAmount: target,
+            toAmountMin: target,
+            executionBudget: {
+              maxInputAmount: quotedCap,
+              minOutputAmount: target,
+            },
+          }),
+        );
+        bridge.execute.resolves({
+          txHash: '0xBudgetedBridgeTx',
+          fromChain: 42161,
+          toChain: 1399811149,
+        });
+        const result = await inventoryRebalancer.rebalance([route]);
+        expect(result[0].success).to.equal(true);
+        expect(bridge.execute.calledOnce).to.equal(true);
+        expect(
+          actionTracker.createRebalanceAction.firstCall.args[0].amount,
+        ).to.equal(reserved);
+        expect(
+          actionTracker.createRebalanceAction.calledBefore(bridge.execute),
+        ).to.equal(true);
+        expect(bridge.execute.firstCall.args[0].executionBudget).to.deep.equal({
+          maxInputAmount: reserved,
+          minOutputAmount: target,
+        });
+      });
+    }
+
     it('retries forward execution when reverse quote exceeds planned source capacity', async () => {
       const amount = BigInt(1e18);
       const sourceInventory = BigInt(2e18);
