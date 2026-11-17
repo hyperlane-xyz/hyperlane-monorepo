@@ -443,12 +443,12 @@ test "parseHead acceptance rules" {
 
 test "chunk-size lines and trailers follow llhttp" {
     for ([_]struct { []const u8, ?u64 }{
-        .{ "a", 10 },             .{ "A", 10 },          .{ "000a", 10 },         .{ "a;x=1", 10 },
-        .{ "a;x", 10 },           .{ "a;x=", 10 },       .{ "a;x=1;y=2", 10 },    .{ "a;x=\"q\\\"z\"", 10 },
-        .{ "+a", null },          .{ "1_0", null },      .{ "a ", null },         .{ " a", null },
-        .{ "a ;x=1", null },      .{ "a;", null },       .{ "a; x=1", null },     .{ "a;x =1", null },
-        .{ "a;x= 1", null },      .{ "a;x=\"open", null }, .{ "a;x=1 ", null },   .{ "a\t", null },
-        .{ "a;x=@", null },       .{ "0xa", null },      .{ "ffffffffffffffffff", null }, .{ "", null },
+        .{ "a", 10 },        .{ "A", 10 },            .{ "000a", 10 },                 .{ "a;x=1", 10 },
+        .{ "a;x", 10 },      .{ "a;x=", 10 },         .{ "a;x=1;y=2", 10 },            .{ "a;x=\"q\\\"z\"", 10 },
+        .{ "+a", null },     .{ "1_0", null },        .{ "a ", null },                 .{ " a", null },
+        .{ "a ;x=1", null }, .{ "a;", null },         .{ "a; x=1", null },             .{ "a;x =1", null },
+        .{ "a;x= 1", null }, .{ "a;x=\"open", null }, .{ "a;x=1 ", null },             .{ "a\t", null },
+        .{ "a;x=@", null },  .{ "0xa", null },        .{ "ffffffffffffffffff", null }, .{ "", null },
     }) |case| try std.testing.expectEqual(case[1], parseChunkSize(case[0]));
     try std.testing.expect(validTrailer("X: y") and validTrailer("X:y"));
     try std.testing.expect(!validTrailer("X : y") and !validTrailer("Bad Trailer"));

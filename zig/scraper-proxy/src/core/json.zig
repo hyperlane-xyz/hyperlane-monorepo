@@ -1166,7 +1166,6 @@ fn writeEscapedBefore(w: *Writer, s: []const u8, from: usize) Writer.Error!void 
     try w.writeByte('"');
 }
 
-
 test "writeString: inline escapes match the C9 writer and the scalar reference (fuzz)" {
     var prng = std.Random.DefaultPrng.init(0x57a1_9e5c);
     const r = prng.random();

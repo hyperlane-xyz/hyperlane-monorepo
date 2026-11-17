@@ -928,13 +928,13 @@ test "libpq: row conversion is byte-equal to convertCell on every column type's 
     // Each row: a SQL expression of some type. The same values as text
     // (`::text`) through convertCell are the old path's result.
     const exprs = [_][]const u8{
-        "0::int2",                 "(-32768)::int2",       "32767::int2",           "0::int4",               "(-2147483648)::int4",
-        "2147483647::int4",        "4294967295::oid",      "0::oid",                "true",                  "false",
-        "9223372036854775807::int8", "(-9223372036854775808)::int8", "12345678901234567890.000100::numeric", "'NaN'::numeric", "1e-30::numeric",
-        "''::text",                "E'\\u2028\\u2029 \\U0001F600 \"\\\\ \\t\\n'::text", "'v'::varchar", "'x'::name",
-        "'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid", "1.5::float8", "(-0.0)::float8", "'Infinity'::float4", "'{\"b\":[1,2.50]}'::jsonb",
-        "'{\"b\": 1}'::json",     "'\\x00ff'::bytea",    "'2020-02-29'::date",    "'2020-02-29 12:34:56.789+02'::timestamptz", "'{1,NULL,3}'::int4[]",
-        "'{t,f}'::bool[]",          "'{\"a b\",c}'::text[]", "NULL::int4",            "NULL::text",            "NULL::bool",
+        "0::int2",                   "(-32768)::int2",                                    "32767::int2",                               "0::int4",                   "(-2147483648)::int4",
+        "2147483647::int4",          "4294967295::oid",                                   "0::oid",                                    "true",                      "false",
+        "9223372036854775807::int8", "(-9223372036854775808)::int8",                      "12345678901234567890.000100::numeric",      "'NaN'::numeric",            "1e-30::numeric",
+        "''::text",                  "E'\\u2028\\u2029 \\U0001F600 \"\\\\ \\t\\n'::text", "'v'::varchar",                              "'x'::name",                 "'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'::uuid",
+        "1.5::float8",               "(-0.0)::float8",                                    "'Infinity'::float4",                        "'{\"b\":[1,2.50]}'::jsonb", "'{\"b\": 1}'::json",
+        "'\\x00ff'::bytea",          "'2020-02-29'::date",                                "'2020-02-29 12:34:56.789+02'::timestamptz", "'{1,NULL,3}'::int4[]",      "'{t,f}'::bool[]",
+        "'{\"a b\",c}'::text[]",     "NULL::int4",                                        "NULL::text",                                "NULL::bool",
     };
     var sql: std.ArrayList(u8) = .empty;
     var sql_text: std.ArrayList(u8) = .empty;

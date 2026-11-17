@@ -415,7 +415,7 @@ pub const GraphqlRoute = struct {
                     // Zero-copy: the stored body is written directly and released in on_done.
                     st.hit = hit;
                     reply.header("cache-control", try cache_mod.cacheControlHeader(a, hit.ttl));
-                    reply.@"type"("application/json; charset=utf-8");
+                    reply.type("application/json; charset=utf-8");
                     reply.sendText(hit.body);
                     return;
                 }

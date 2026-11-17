@@ -333,7 +333,6 @@ const surplus_linger_ms = 50;
 const wake_udata: u64 = std.math.maxInt(u64) - 1;
 const tick_udata: u64 = std.math.maxInt(u64) - 2;
 
-
 pub const Event = struct {
     udata: u64,
     readable: bool = false,
@@ -1273,7 +1272,6 @@ pub const Loop = struct {
     }
 
     // -- pollers ----------------------------------------------------------------------
-
 
     /// Waits for up to `out.len` events.
     const WaitResult = union(enum) { events: usize, timeout, interrupted };

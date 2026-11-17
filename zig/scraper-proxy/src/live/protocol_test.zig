@@ -173,8 +173,8 @@ test "normalizes only valid signed database domain encodings" {
     defer f.deinit();
     const a = f.arena.allocator();
     const valid = [_]struct { []const u8, u32 }{
-        .{ "-2147483648", 0x8000_0000 },     .{ "-1", 0xffff_ffff },        .{ "0", 0 },
-        .{ "2147483647", 0x7fff_ffff },      .{ "2147483648", 0x8000_0000 }, .{ "4294967295", 0xffff_ffff },
+        .{ "-2147483648", 0x8000_0000 },     .{ "-1", 0xffff_ffff },             .{ "0", 0 },
+        .{ "2147483647", 0x7fff_ffff },      .{ "2147483648", 0x8000_0000 },     .{ "4294967295", 0xffff_ffff },
         .{ "\"-2147483648\"", 0x8000_0000 }, .{ "\"4294967295\"", 0xffff_ffff },
     };
     for (valid) |case| {
@@ -332,17 +332,17 @@ test "rejects replay options for every agent event stream" {
 
 test "node net.isIP vectors" {
     const cases = [_]struct { []const u8, bool }{
-        .{ "1.2.3.4", true },              .{ "01.2.3.4", false },             .{ "255.255.255.255", true },
-        .{ "256.1.1.1", false },           .{ "::", true },                    .{ "::1", true },
-        .{ "1::", true },                  .{ "1:2:3:4:5:6:7::", true },       .{ "1:2:3:4:5:6:7:8", true },
-        .{ "1:2:3:4:5:6:7:8:9", false },   .{ "::ffff:1.2.3.4", true },        .{ "1:2:3:4:5:6:1.2.3.4", true },
-        .{ "1:2:3:4:5:6:7:1.2.3.4", false }, .{ "fe80::1%eth0", true },        .{ "fe80::1%", false },
-        .{ "1::2::3", false },             .{ ":1:2:3:4:5:6:7", false },       .{ "12345::", false },
-        .{ "::1.2.3.4", true },            .{ "1:2:3:4:5::1.2.3.4", true },    .{ "1.2.3.04", false },
-        .{ "", false },                    .{ " 1.2.3.4", false },             .{ "1.2.3.4 ", false },
-        .{ "FE80::A", true },              .{ "fe80::1%a.b-c:d", true },       .{ "1:2:3:4:5:6:7::8", false },
-        .{ "::1:2:3:4:5:6:7", true },      .{ "::1:2:3:4:5:6:7:8", false },    .{ "1.2.3", false },
-        .{ "0.0.0.0", true },              .{ "1:2:3:4:5:6::1.2.3.4", false },
+        .{ "1.2.3.4", true },                .{ "01.2.3.4", false },             .{ "255.255.255.255", true },
+        .{ "256.1.1.1", false },             .{ "::", true },                    .{ "::1", true },
+        .{ "1::", true },                    .{ "1:2:3:4:5:6:7::", true },       .{ "1:2:3:4:5:6:7:8", true },
+        .{ "1:2:3:4:5:6:7:8:9", false },     .{ "::ffff:1.2.3.4", true },        .{ "1:2:3:4:5:6:1.2.3.4", true },
+        .{ "1:2:3:4:5:6:7:1.2.3.4", false }, .{ "fe80::1%eth0", true },          .{ "fe80::1%", false },
+        .{ "1::2::3", false },               .{ ":1:2:3:4:5:6:7", false },       .{ "12345::", false },
+        .{ "::1.2.3.4", true },              .{ "1:2:3:4:5::1.2.3.4", true },    .{ "1.2.3.04", false },
+        .{ "", false },                      .{ " 1.2.3.4", false },             .{ "1.2.3.4 ", false },
+        .{ "FE80::A", true },                .{ "fe80::1%a.b-c:d", true },       .{ "1:2:3:4:5:6:7::8", false },
+        .{ "::1:2:3:4:5:6:7", true },        .{ "::1:2:3:4:5:6:7:8", false },    .{ "1.2.3", false },
+        .{ "0.0.0.0", true },                .{ "1:2:3:4:5:6::1.2.3.4", false },
     };
     for (cases) |case| {
         if (p.isIp(case[0]) != case[1]) {
@@ -567,15 +567,15 @@ test "rejects ambiguous domains, unsafe counts and extra validator options" {
     var f = Fixture.init();
     defer f.deinit();
     for ([_][]const u8{
-        "",                                      "domain=",                                 "domain=-1",
-        "domain=4294967296",                     "domain=1,2",                              "domain=1&domain=2",
-        "domain=1&domain=1",                     "domain=1.5",                              "domain=1e2",
-        "domains=1",                             "domain=1&confirmations=",                 "domain=1&confirmations=-1",
-        "domain=1&confirmations=1.5",            "domain=1&confirmations=NaN",              "domain=1&confirmations=9007199254740992",
-        "domain=1&confirmations=safe",           "domain=1&confirmations=0&confirmations=0", "domain=1&blocks=true",
-        "domain=1&eventType=dispatch",           "domain=1&includeZeroConfirmations=true",  "domain=1&afterSequence=0",
-        "domain=1&confirmationsByDomain={}",     "domain=1&%64omain=2",                     "domain",
-        "=1&domain=1",                           "domain=+1",
+        "",                                  "domain=",                                  "domain=-1",
+        "domain=4294967296",                 "domain=1,2",                               "domain=1&domain=2",
+        "domain=1&domain=1",                 "domain=1.5",                               "domain=1e2",
+        "domains=1",                         "domain=1&confirmations=",                  "domain=1&confirmations=-1",
+        "domain=1&confirmations=1.5",        "domain=1&confirmations=NaN",               "domain=1&confirmations=9007199254740992",
+        "domain=1&confirmations=safe",       "domain=1&confirmations=0&confirmations=0", "domain=1&blocks=true",
+        "domain=1&eventType=dispatch",       "domain=1&includeZeroConfirmations=true",   "domain=1&afterSequence=0",
+        "domain=1&confirmationsByDomain={}", "domain=1&%64omain=2",                      "domain",
+        "=1&domain=1",                       "domain=+1",
     }) |query| {
         const params = try f.params(query);
         if (p.parseValidatorSubscription(&params)) |accepted| {

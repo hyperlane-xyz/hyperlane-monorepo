@@ -597,9 +597,8 @@ test "live starts: custom streams in request order, then canonical boundaries in
     try h.waitFrames(s, 1);
     const checkpoint = "\"hash\":\"" ++ "AB" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"";
     // Custom heads: domain 1 has a checkpoint at or below its frontier, 2 none.
-    h.db.on("SELECT h.domain, h.head_height",
-        "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":\"17\"," ++ checkpoint ++ "}," ++
-            "{\"domain\":2,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":null,\"hash\":null,\"mailbox\":null,\"merkle_tree_hook\":null,\"interchain_gas_paymaster\":null}]");
+    h.db.on("SELECT h.domain, h.head_height", "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":\"17\"," ++ checkpoint ++ "}," ++
+        "{\"domain\":2,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":null,\"hash\":null,\"mailbox\":null,\"merkle_tree_hook\":null,\"interchain_gas_paymaster\":null}]");
     // Canonical boundaries in database row order (no ORDER BY).
     h.db.on("JOIN scraper_checkpoint c", "[{\"domain\":3,\"height\":\"15\"," ++ checkpoint ++ "},{\"domain\":-2,\"height\":\"9007199254740993\"," ++ checkpoint ++ "}]");
     h.server.onMessage(peer,

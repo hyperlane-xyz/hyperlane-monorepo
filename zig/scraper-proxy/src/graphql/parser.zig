@@ -639,11 +639,11 @@ const Parser = struct {
 };
 
 const directive_locations = [_][]const u8{
-    "QUERY",                "MUTATION",              "SUBSCRIPTION",     "FIELD",
-    "FRAGMENT_DEFINITION",  "FRAGMENT_SPREAD",       "INLINE_FRAGMENT",  "VARIABLE_DEFINITION",
-    "SCHEMA",               "SCALAR",                "OBJECT",           "FIELD_DEFINITION",
-    "ARGUMENT_DEFINITION",  "INTERFACE",             "UNION",            "ENUM",
-    "ENUM_VALUE",           "INPUT_OBJECT",          "INPUT_FIELD_DEFINITION", "DIRECTIVE_DEFINITION",
+    "QUERY",               "MUTATION",        "SUBSCRIPTION",           "FIELD",
+    "FRAGMENT_DEFINITION", "FRAGMENT_SPREAD", "INLINE_FRAGMENT",        "VARIABLE_DEFINITION",
+    "SCHEMA",              "SCALAR",          "OBJECT",                 "FIELD_DEFINITION",
+    "ARGUMENT_DEFINITION", "INTERFACE",       "UNION",                  "ENUM",
+    "ENUM_VALUE",          "INPUT_OBJECT",    "INPUT_FIELD_DEFINITION", "DIRECTIVE_DEFINITION",
 };
 
 fn isDirectiveLocation(name: []const u8) bool {

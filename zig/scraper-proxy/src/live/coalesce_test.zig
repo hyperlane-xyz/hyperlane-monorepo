@@ -1240,7 +1240,6 @@ test "a partly written lookahead finished by ws before the callbacks is released
     try testing.expectEqual(@as(f64, 0), coalesced.pending);
 }
 
-
 // ---------------------------------------------------------------------------
 // Node's write requests, checked against real Node (node-order.mjs; see
 // IMPLEMENTATION.md "Node's write requests"): a custom stream's awaited row

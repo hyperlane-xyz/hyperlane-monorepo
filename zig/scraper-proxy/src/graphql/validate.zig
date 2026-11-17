@@ -1035,7 +1035,7 @@ const IntrospectionNode = union(enum) {
 };
 
 const standard_type_names = [_][]const u8{
-    "String",  "Int",     "Float",       "Boolean",      "ID",        "__Schema",          "__Directive",
+    "String",              "Int",    "Float",   "Boolean",      "ID",          "__Schema",   "__Directive",
     "__DirectiveLocation", "__Type", "__Field", "__InputValue", "__EnumValue", "__TypeKind",
 };
 

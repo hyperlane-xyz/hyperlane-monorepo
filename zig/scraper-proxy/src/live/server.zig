@@ -872,7 +872,7 @@ pub const Server = struct {
         }
         self.heartbeat_timer = self.loop.scheduler.schedule(heartbeat_ms, self, onHeartbeatTimer);
         self.logger.info("event websockets listening on {s}, {s}, {s} batchSize={d} maxAgentClients={d} maxValidatorClients={d} maxBufferedBytes={d} maxTotalBufferedBytes={d}", .{
-            AGENT_PATH,                       MESSAGE_PATH,                      VALIDATOR_PATH,                         self.store.batch_size, self.limits.max_agent_clients,
+            AGENT_PATH,                        MESSAGE_PATH,                   VALIDATOR_PATH,                       self.store.batch_size, self.limits.max_agent_clients,
             self.limits.max_validator_clients, self.limits.max_buffered_bytes, self.limits.max_total_buffered_bytes,
         });
     }

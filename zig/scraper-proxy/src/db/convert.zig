@@ -639,7 +639,7 @@ test "isoString matches the zero-padded fmt rendering across the 4-digit range" 
         const m = if (mp < 10) mp + 3 else mp - 9;
         const y = yoe + era * 400 + @as(i64, if (m <= 2) 1 else 0);
         const expected = try std.fmt.allocPrint(a, "{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}.{d:0>3}Z", .{
-            @as(u64, @intCast(y)),                            @as(u64, @intCast(m)),                         @as(u64, @intCast(d)),
+            @as(u64, @intCast(y)),                            @as(u64, @intCast(m)),                                          @as(u64, @intCast(d)),
             @as(u64, @intCast(@divFloor(in_day, 3_600_000))), @as(u64, @intCast(@divFloor(@mod(in_day, 3_600_000), 60_000))), @as(u64, @intCast(@divFloor(@mod(in_day, 60_000), 1000))),
             @as(u64, @intCast(@mod(in_day, 1000))),
         });
