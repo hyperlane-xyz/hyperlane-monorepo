@@ -82,3 +82,39 @@ test('scans the actual index and redacts diagnostics', () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+for (const size of [2, 17]) {
+  test(`handles a ${size} MiB staged diff without exposing content`, () => {
+    const directory = mkdtempSync(join(tmpdir(), 'staged-key-large-'));
+    try {
+      const git = (...args) => execFileSync('git', args, { cwd: directory });
+      git('init', '--quiet');
+      git('config', 'color.ui', 'always');
+      git('config', 'diff.noprefix', 'true');
+      git('config', 'diff.mnemonicPrefix', 'true');
+      git('config', 'diff.outputIndicatorNew', '>');
+      writeFileSync(
+        join(directory, 'config.yaml'),
+        'safe: value\n'.repeat(Math.ceil((size * 1024 * 1024) / 12)) +
+          `key: ${evm}\n`,
+      );
+      git('add', 'config.yaml');
+      const script = fileURLToPath(
+        new URL('../check-staged-private-keys.mjs', import.meta.url),
+      );
+      const result = spawnSync(process.execPath, [script], {
+        cwd: directory,
+        encoding: 'utf8',
+      });
+      assert.equal(result.status, 1);
+      assert.match(
+        result.stderr,
+        size === 2 ? /config.yaml: possible EVM private key/ : /commit blocked/,
+      );
+      assert.ok(!result.stderr.includes(evm));
+      assert.ok(!result.stdout.includes(evm));
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}

@@ -48,7 +48,7 @@ export function buildRebalancerHelmValues(
   );
   return {
     image: {
-      repository: deployment.imageRepository ?? DockerImageRepos.NODE_SERVICES,
+      repository: DockerImageRepos.NODE_SERVICES,
       tag: deployment.imageTag ?? mainnetDockerTags.rebalancer,
       ...(deployment.imageDigest ? { digest: deployment.imageDigest } : {}),
     },
@@ -70,6 +70,9 @@ export function buildRebalancerHelmValues(
       externalBridgeProviders: Object.keys(config.externalBridges ?? {}),
       ...(deployment.swapsXyzApiKeySecret
         ? { swapsXyzApiKeySecret: deployment.swapsXyzApiKeySecret }
+        : {}),
+      ...(deployment.relayApiKeySecret
+        ? { relayApiKeySecret: deployment.relayApiKeySecret }
         : {}),
     },
   };

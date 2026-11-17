@@ -34,7 +34,7 @@ describe('Elysium USDC inventory policy', () => {
       weight: 3n,
       tolerance: 3n,
     });
-    expect(strategy.chains.elysium.bridgeMinAcceptedAmount).to.equal(2500);
+    expect(strategy.chains.elysium.bridgeMinAcceptedAmount).to.equal(undefined);
     expect(strategy.chains.elysium.enabled).to.equal(false);
     for (const override of Object.values(
       strategy.chains.elysium.override ?? {},

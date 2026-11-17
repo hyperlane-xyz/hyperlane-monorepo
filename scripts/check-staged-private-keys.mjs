@@ -44,13 +44,36 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  const findings = scanPrivateKeys(
-    execFileSync('git', ['diff', '--cached', '--no-ext-diff'], {
-      encoding: 'utf8',
-    }),
-  );
-  for (const { file, kind } of findings) {
-    console.error(`${file}: possible ${kind} private key (value redacted)`);
+  try {
+    const findings = scanPrivateKeys(
+      execFileSync(
+        'git',
+        [
+          'diff',
+          '--cached',
+          '--no-ext-diff',
+          '--no-textconv',
+          '--no-color',
+          '--src-prefix=a/',
+          '--dst-prefix=b/',
+          '--unified=0',
+          '--output-indicator-new=+',
+        ],
+        {
+          encoding: 'utf8',
+          maxBuffer: 16 * 1024 * 1024,
+        },
+      ),
+    );
+    for (const { file, kind } of findings) {
+      console.error(`${file}: possible ${kind} private key (value redacted)`);
+    }
+    if (findings.length > 0) process.exitCode = 1;
+  } catch {
+    // execFileSync errors include stdout: never print an error containing the diff.
+    console.error(
+      'Could not scan staged changes (git failed or diff exceeded 16 MiB); commit blocked.',
+    );
+    process.exitCode = 1;
   }
-  if (findings.length > 0) process.exitCode = 1;
 }

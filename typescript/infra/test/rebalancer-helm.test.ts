@@ -181,12 +181,10 @@ describe('Rebalancer Helm deployment', () => {
     }
   }
 
-  it('renders a dedicated secret, image repository, digest, registry pin and monitor-only mode', () => {
-    const repository = 'us-east1-docker.pkg.dev/test/rebalancer';
+  it('renders a dedicated secret, image digest, registry pin and monitor-only mode', () => {
     const digest = `sha256:${'b'.repeat(64)}`;
     const loaded = config({
       deployment: {
-        imageRepository: repository,
         imageTag: 'candidate',
         imageDigest: digest,
         swapsXyzApiKeySecret: 'mainnet3-swapsxyz-api-key-ousdt',
@@ -208,7 +206,9 @@ describe('Rebalancer Helm deployment', () => {
     ).to.equal('mainnet3-swapsxyz-api-key-ousdt');
     const container = documents.find((d) => d.kind === 'StatefulSet').spec
       .template.spec.containers[0];
-    expect(container.image).to.equal(`${repository}@${digest}`);
+    expect(container.image).to.equal(
+      `${DockerImageRepos.NODE_SERVICES}@${digest}`,
+    );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
       value: 'true',
@@ -222,10 +222,39 @@ describe('Rebalancer Helm deployment', () => {
     expect(runtime).not.to.have.property('deployment');
   });
 
+  for (const enabled of [true, false]) {
+    for (const secretName of [undefined, 'mainnet3-relay-api-key']) {
+      it(`renders optional Relay credentials only with provider=${enabled} and secret=${secretName}`, () => {
+        const loaded = config({
+          externalBridges: enabled ? { relay: {} } : {},
+          deployment: secretName ? { relayApiKeySecret: secretName } : {},
+        });
+        const values = buildRebalancerHelmValues(loaded, options);
+        const documents = renderRebalancerValues(values);
+        const secret = documents.find((d) => d.kind === 'ExternalSecret');
+        const configured = enabled && secretName !== undefined;
+        expect('RELAY_API_KEY' in secret.spec.target.template.data).to.equal(
+          configured,
+        );
+        const refs = secret.spec.data.filter(
+          (d: { secretKey: string }) => d.secretKey === 'relay_api_key',
+        );
+        expect(refs).to.have.length(configured ? 1 : 0);
+        if (configured) expect(refs[0].remoteRef.key).to.equal(secretName);
+        expect(parse(values.hyperlane.rebalancerConfig)).not.to.have.property(
+          'deployment',
+        );
+      });
+    }
+  }
+
   it('rejects invalid deployment metadata and a mismatched route', () => {
     expect(() => config({ unknownControl: true })).to.throw('unknownControl');
-    expect(() => config({ deployment: { imageRepository: '' } })).to.throw();
+    expect(() =>
+      config({ deployment: { imageRepository: 'custom/repository' } }),
+    ).to.throw();
     expect(() => config({ deployment: { imageDigest: 'latest' } })).to.throw();
+    expect(() => config({ deployment: { relayApiKeySecret: '' } })).to.throw();
     expect(() => config({ deployment: { imageDgiest: 'typo' } })).to.throw();
     expect(() =>
       buildRebalancerHelmValues(config(), {
