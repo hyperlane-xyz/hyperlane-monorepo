@@ -107,6 +107,13 @@ describe('USDT Eni production manifest', () => {
       ],
     );
     expect(runtime).not.to.have.property('deployment');
+    expect(runtime.pendingTransferMiddlewares).to.deep.equal([
+      {
+        type: 'relayerDenylist',
+        url: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json',
+        refreshIntervalSecs: 60,
+      },
+    ]);
     expect(runtime.intentTTL).to.equal(1209600);
     expect(runtime.externalBridges).to.deep.equal({
       debridge: {
