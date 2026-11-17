@@ -306,6 +306,12 @@ pub const DbService = struct {
         return self.run(.main, self.main_role, arena, sql, params, .{ .plan = .serial_generic }, failure);
     }
 
+    /// `query` as a named statement that always uses its generic plan
+    /// (`pq.Plan.generic`): same SQL, rows and errors.
+    pub fn queryGeneric(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
+        return self.run(.main, self.main_role, arena, sql, params, .{ .plan = .generic }, failure);
+    }
+
     /// The validator WebSocket's reads on the primary (`validator_primary`;
     /// own pool of `MAX_VALIDATOR_POOL_CLIENTS`, queued checkouts time out
     /// after DATABASE_QUERY_TIMEOUT_MS like TS's connectionTimeoutMillis).

@@ -89,8 +89,24 @@ const Harness = struct {
         return result.rows;
     }
 
+    /// Like `query`, with libpq's result left unconverted (the app's lazy
+    /// path): the confirmation snapshot then binds PostgreSQL's own text.
+    fn queryLazy(ctx: *anyopaque, arena: Allocator, _: service.Plan, text: []const u8, values: []const Value, diag: *sql.Diag) anyerror!?*db.LazyRows {
+        const self: *Harness = @ptrCast(@alignCast(ctx));
+        var failure: db.Failure = .{};
+        const result = self.conn.queryWith(arena, text, values, .{ .lazy = true }, &failure) catch |err| {
+            diag.message = failure.message;
+            return err;
+        };
+        return result.lazy;
+    }
+
     fn svc(self: *Harness) service.Service {
         return service.Service.init(.{ .ctx = self, .queryFn = query });
+    }
+
+    fn lazySvc(self: *Harness) service.Service {
+        return service.Service.init(.{ .ctx = self, .queryFn = query, .lazyQueryFn = queryLazy });
     }
 
     /// `service.selectMessages(JSON.parse(args_json))`.
@@ -114,10 +130,17 @@ const Harness = struct {
             .order_by = value.get(obj, "order_by"),
             .where = value.get(obj, "where"),
         };
-        return self.svc().selectMessages(self.arena, .{ .select = select, .confirmations = value.get(obj, "confirmations") }, &diag) catch |err| {
+        const msg_args: service.MessageSelectArgs = .{ .select = select, .confirmations = value.get(obj, "confirmations") };
+        const rows = self.svc().selectMessages(self.arena, msg_args, &diag) catch |err| {
             if (err == error.AssertionFailed) std.debug.print("assert: {s}\n", .{diag.message});
             return err;
         };
+        // The snapshot as PostgreSQL's text (lazy path) projects the same
+        // rows, and none of its internal values reaches a row.
+        const lazy_rows = try self.lazySvc().selectMessages(self.arena, msg_args, &diag);
+        try testing.expectEqualStrings(try value.stringifyAlloc(self.arena, Value{ .array = rows }), try value.stringifyAlloc(self.arena, Value{ .array = lazy_rows }));
+        try testing.expect(!containsLiteral(.{ .array = lazy_rows }));
+        return rows;
     }
 
     fn rejects(self: *Harness, args_json: []const u8, needle: []const u8) !void {
@@ -125,11 +148,24 @@ const Harness = struct {
         const args = try value.parseLeaky(self.arena, args_json);
         const obj = value.object(args).?;
         const select: sql.SelectArgs = .{ .cursor = value.get(obj, "cursor"), .where = value.get(obj, "where") };
-        const result = self.svc().selectMessages(self.arena, .{ .select = select, .confirmations = value.get(obj, "confirmations") }, &diag);
-        try testing.expectError(error.AssertionFailed, result);
-        try testing.expect(std.mem.indexOf(u8, diag.message, needle) != null);
+        for ([_]service.Service{ self.svc(), self.lazySvc() }) |s| {
+            const result = s.selectMessages(self.arena, .{ .select = select, .confirmations = value.get(obj, "confirmations") }, &diag);
+            try testing.expectError(error.AssertionFailed, result);
+            try testing.expect(std.mem.indexOf(u8, diag.message, needle) != null);
+        }
     }
 };
+
+/// True when `v` holds a `db.convert.literalValue` anywhere.
+fn containsLiteral(v: Value) bool {
+    if (db.convert.literal(v) != null) return true;
+    switch (v) {
+        .array => |items| for (items) |item| if (containsLiteral(item)) return true,
+        .object => |members| for (members) |m| if (containsLiteral(m.value)) return true,
+        else => {},
+    }
+    return false;
+}
 
 fn field(row: Value, key: []const u8) Value {
     return value.get(value.object(row).?, key) orelse .null;

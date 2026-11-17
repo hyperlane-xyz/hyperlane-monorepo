@@ -201,9 +201,12 @@ reproduces the observable rule, not the scheduling.
   that duplicate-msg_id case, a different plan cannot change any response: a
   stress run forcing every statement generic differed only on non-unique
   lookups, which stay unnamed. A text is
-  prepared on its second use; a full cache (8 per connection) evicts only an
-  entry idle for 64 named queries, so one-off shapes cost no more than
-  node-pg's unnamed path. Parse, and the switch to `plan_cache_mode=auto`
+  prepared on its second use. Each connection keeps two budgets: 6 slots for
+  confirmation projections (`serial_generic`, below) and 8 for every other
+  named statement; a full budget evicts only its own entry idle for 64 named
+  queries, otherwise the newcomer runs unnamed, so one-off shapes cost no
+  more than node-pg's unnamed path and cheap lookups never take a
+  projection's slot. Parse, and the switch to `plan_cache_mode=auto`
   these statements need (sessions start with `force_custom_plan`), are
   pipelined with the execute, so neither adds a round trip. All other
   queries are unnamed statements, as in node-pg.
@@ -211,8 +214,27 @@ reproduces the observable rule, not the scheduling.
   reach clients: 0A000 after view DDL is re-prepared; 26000/42P05 (e.g.
   behind a transaction pooler) are retried unnamed, and named statements are
   switched off for the pool, with one warning, on a 42P05 or a second 26000
-  within 60 s. Backend memory: at most 8 statements (about 15 MB) per
-  connection.
+  within 60 s. Backend memory (measured, generic plan built): about 2.4 MB
+  per projection, 0.57 MB per `message_view` lookup, 0.41 MB per
+  transaction-hash lookup, 0.17 MB per confirmation snapshot, so at most about
+  19 MB per connection (6 x 2.4 + 8 x 0.6). TS keeps none: node-pg sends
+  every query as an unnamed statement, whose plan PostgreSQL drops at the
+  next Parse.
+- **Generic plans for transaction-hash lookups (not client-visible).** A
+  `message_view` select ordered by `id` whose top-level conjunct pins
+  `origin_tx_hash` or `destination_tx_hash` with `_eq` runs as a
+  per-connection named statement that always uses its generic plan
+  (`set_config('plan_cache_mode', 'force_generic_plan', true)` pipelined with
+  it, transaction-scoped); its first use and any fallback run unnamed.
+  `transaction.hash` is unique across all domains (scraper migration
+  `create_table_transaction`), so the select reads the messages of one
+  transaction whatever the value or the other filters, and `id` totally
+  orders them: no plan can change a response. On the 1M-message bench DB the
+  generic plan has the same shape as the custom one for hits, misses and with
+  a busy relayer as an extra sender filter, and saves 1.4-1.9 ms of planning
+  per select (Explorer tx-hash search: two such selects per request). Selects
+  pinning only `origin_tx_sender` / `destination_tx_sender` stay planned per
+  call: a busy relayer's generic plan is 56-345x slower.
 - **Join order fixed for id-ordered `message_view` selects (not
   client-visible).** A select whose ORDER BY ends in the unique `id` and
   whose predicates and ORDER BY columns all come from the view's driving

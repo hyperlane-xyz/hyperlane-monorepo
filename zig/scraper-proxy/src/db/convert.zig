@@ -152,6 +152,9 @@ const ArrayParser = struct {
     i: usize = 0,
     a: Allocator,
     kind: Element,
+    /// Unescaped text of the quoted element in hand (reused: every
+    /// element's conversion copies what it keeps).
+    buf: std.ArrayList(u8) = .empty,
 
     fn parse(p: *ArrayParser) error{ OutOfMemory, Malformed }!Value {
         if (p.i >= p.s.len or p.s[p.i] != '{') return error.Malformed;
@@ -168,14 +171,14 @@ const ArrayParser = struct {
                 '{' => try items.append(p.a, try p.parse()),
                 '"' => {
                     p.i += 1;
-                    var buf: std.ArrayList(u8) = .empty;
+                    p.buf.clearRetainingCapacity();
                     while (p.i < p.s.len and p.s[p.i] != '"') : (p.i += 1) {
                         if (p.s[p.i] == '\\' and p.i + 1 < p.s.len) p.i += 1;
-                        try buf.append(p.a, p.s[p.i]);
+                        try p.buf.append(p.a, p.s[p.i]);
                     }
                     if (p.i >= p.s.len) return error.Malformed;
                     p.i += 1;
-                    try items.append(p.a, try convertElement(p.a, p.kind, buf.items));
+                    try items.append(p.a, try convertElement(p.a, p.kind, p.buf.items));
                 },
                 else => {
                     const start = p.i;
@@ -191,20 +194,47 @@ const ArrayParser = struct {
     }
 };
 
-/// node `Buffer#toJSON` for a bytea hex literal (`\x...`).
+/// Hex digit values (either case); `invalid_hex` for anything else.
+const invalid_hex: u8 = 0xff;
+const hex_values: [256]u8 = blk: {
+    var t: [256]u8 = @splat(invalid_hex);
+    for ("0123456789abcdef", 0..) |c, v| t[c] = v;
+    for ("ABCDEF", 10..) |c, v| t[c] = v;
+    break :blk t;
+};
+const hex_digits = "0123456789abcdef";
+
+/// node `Buffer#toJSON` for a bytea hex literal (`\x...`): pairs of hex
+/// digits up to the first pair that is not one (`Buffer.from(hex, 'hex')`).
 fn bufferValue(a: Allocator, text: []const u8) Allocator.Error!Value {
-    var bytes: std.ArrayList(Value) = .empty;
+    var items: []Value = undefined;
     if (std.mem.startsWith(u8, text, "\\x")) {
-        var i: usize = 2;
-        while (i + 1 < text.len) : (i += 2) {
-            const b = std.fmt.parseInt(u8, text[i .. i + 2], 16) catch break;
-            try bytes.append(a, .{ .number = @floatFromInt(b) });
+        const digits = text[2..];
+        items = try a.alloc(Value, digits.len / 2);
+        var n: usize = 0;
+        while (n < items.len) : (n += 1) {
+            const hi = hex_values[digits[2 * n]];
+            const lo = hex_values[digits[2 * n + 1]];
+            if (hi == invalid_hex or lo == invalid_hex) break;
+            items[n] = .{ .number = @floatFromInt(hi << 4 | lo) };
         }
-    } else for (text) |b| try bytes.append(a, .{ .number = @floatFromInt(b) });
+        items = items[0..n];
+    } else {
+        items = try a.alloc(Value, text.len);
+        for (text, items) |b, *item| item.* = .{ .number = @floatFromInt(b) };
+    }
     const members = try a.alloc(core.json.Member, 2);
     members[0] = .{ .key = buffer_type_key, .value = .{ .string = "Buffer" } };
-    members[1] = .{ .key = "data", .value = .{ .array = try bytes.toOwnedSlice(a) } };
+    members[1] = .{ .key = "data", .value = .{ .array = items } };
     return .{ .object = members };
+}
+
+/// Appends `bytes` as lowercase hex digits (`{x}` formatting of a slice).
+fn appendHex(out: []u8, bytes: []const u8) void {
+    for (bytes, 0..) |b, i| {
+        out[2 * i] = hex_digits[b >> 4];
+        out[2 * i + 1] = hex_digits[b & 0xf];
+    }
 }
 
 /// Buffers (bytea[] elements) are `Buffer#toJSON` objects whose first key is
@@ -222,6 +252,70 @@ pub fn bufferBytes(a: Allocator, v: Value) Allocator.Error!?[]u8 {
     const out = try a.alloc(u8, data.array.len);
     for (data.array, out) |item, *b| b.* = @intFromFloat(item.number);
     return out;
+}
+
+/// A value PostgreSQL returned, kept as its text and bound back unchanged
+/// (a parameter's text form is its value: `array_in(array_out(v)) = v`),
+/// so a result that only feeds the next query is never converted and
+/// re-encoded. `convertText(oid, text)` is the value node-pg would hold:
+/// query logs show that (`logValue`), and `literalArrayLen` counts its
+/// elements. Internal to the DB layer's callers: never part of a response.
+const literal_key: []const u8 = "pgLiteral";
+
+pub fn literalValue(a: Allocator, oid: u32, text: []const u8) Allocator.Error!Value {
+    const members = try a.alloc(core.json.Member, 2);
+    members[0] = .{ .key = literal_key, .value = .{ .number = @floatFromInt(oid) } };
+    members[1] = .{ .key = "text", .value = .{ .string = try a.dupe(u8, text) } };
+    return .{ .object = members };
+}
+
+pub const Literal = struct { oid: u32, text: []const u8 };
+
+/// A `literalValue`'s oid and text (pointer identity of the key, so client
+/// JSON that looks alike stays an object), or null.
+pub fn literal(v: Value) ?Literal {
+    if (v != .object or v.object.len != 2) return null;
+    const first = v.object[0];
+    if (first.key.ptr != literal_key.ptr or first.key.len != literal_key.len) return null;
+    return .{ .oid = @intFromFloat(first.value.number), .text = v.object[1].value.string };
+}
+
+/// Top-level elements of an array literal (`{…}` as PostgreSQL prints
+/// it), or null when `l` is not one.
+pub fn literalArrayLen(l: Literal) ?usize {
+    var text = l.text;
+    // `array_out` prefixes bounds other than 1 (`[0:2]={…}`), like `arrayValue`.
+    if (text.len > 0 and text[0] == '[') text = text[(std.mem.indexOfScalar(u8, text, '=') orelse return null) + 1 ..];
+    if (text.len < 2 or text[0] != '{' or text[text.len - 1] != '}') return null;
+    if (text.len == 2) return 0;
+    // One-dimensional bytea[]/int2[]/int4[]/int8[]: elements are hex or
+    // digits, never a comma or brace, so every comma separates two.
+    switch (l.oid) {
+        1001, 1005, 1007, 1016 => if (std.mem.indexOfScalar(u8, text[1..], '{') == null)
+            return std.mem.count(u8, text, ",") + 1,
+        else => {},
+    }
+    var count: usize = 1;
+    var depth: usize = 0;
+    var quoted = false;
+    var i: usize = 1;
+    while (i < text.len - 1) : (i += 1) {
+        const c = text[i];
+        if (quoted) {
+            if (c == '\\') i += 1 else if (c == '"') quoted = false;
+            continue;
+        }
+        switch (c) {
+            '"' => quoted = true,
+            '{' => depth += 1,
+            '}' => depth -|= 1,
+            ',' => if (depth == 0) {
+                count += 1;
+            },
+            else => {},
+        }
+    }
+    return count;
 }
 
 /// Wraps raw bytes as a Buffer value (what node-pg returns for bytea[] items).
@@ -418,8 +512,15 @@ pub fn prepareValue(a: Allocator, v: Value) Allocator.Error!?[:0]const u8 {
             break :blk try out.toOwnedSliceSentinel(a, 0);
         },
         .object => blk: {
+            if (literal(v)) |l| break :blk try a.dupeZ(u8, l.text);
             // node-pg sends a Buffer as bytea; `\x<hex>` text is the same value.
-            if (try bufferBytes(a, v)) |bytes| break :blk try std.fmt.allocPrintSentinel(a, "\\x{x}", .{bytes}, 0);
+            if (try bufferBytes(a, v)) |bytes| {
+                const text = try a.allocSentinel(u8, 2 + 2 * bytes.len, 0);
+                text[0] = '\\';
+                text[1] = 'x';
+                appendHex(text[2..], bytes);
+                break :blk text;
+            }
             const text = try core.json.stringifyAlloc(a, v);
             break :blk try a.dupeZ(u8, text);
         },
@@ -453,7 +554,8 @@ fn arrayString(a: Allocator, out: *std.ArrayList(u8), items: []const Value) Allo
             },
             .object => if (try bufferBytes(a, item)) |bytes| {
                 // node-pg arrayString: unquoted `\\x<hex>` for Buffers.
-                try out.print(a, "\\\\x{x}", .{bytes});
+                try out.appendSlice(a, "\\\\x");
+                appendHex(try out.addManyAsSlice(a, 2 * bytes.len), bytes);
             } else try appendQuoted(a, out, item),
             else => try appendQuoted(a, out, item),
         }
@@ -482,6 +584,8 @@ pub fn logValue(a: Allocator, v: Value) Allocator.Error!Value {
 const log_depth_limit = 64;
 
 fn logValueAt(a: Allocator, v: Value, depth: usize) Allocator.Error!Value {
+    // Logged as the value node-pg would have bound.
+    if (literal(v)) |l| return logValueAt(a, try convertText(a, l.oid, l.text), depth);
     if (depth >= log_depth_limit and (v == .array or v == .object)) return .{ .string = "…" };
     switch (v) {
         .string => |s| {
@@ -753,4 +857,111 @@ test "columnKind agrees with convertCell's branches" {
             .int => try std.testing.expect(oid == 21 or oid == 23 or oid == 26),
         }
     }
+}
+
+test "bytea hex decode and encode are byte-identical to the std.fmt versions (fuzz)" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const Before = struct {
+        fn decode(al: Allocator, text: []const u8) !Value {
+            var bytes: std.ArrayList(Value) = .empty;
+            if (std.mem.startsWith(u8, text, "\\x")) {
+                var i: usize = 2;
+                while (i + 1 < text.len) : (i += 2) {
+                    const b = std.fmt.parseInt(u8, text[i .. i + 2], 16) catch break;
+                    try bytes.append(al, .{ .number = @floatFromInt(b) });
+                }
+            } else for (text) |b| try bytes.append(al, .{ .number = @floatFromInt(b) });
+            const members = try al.alloc(core.json.Member, 2);
+            members[0] = .{ .key = buffer_type_key, .value = .{ .string = "Buffer" } };
+            members[1] = .{ .key = "data", .value = .{ .array = try bytes.toOwnedSlice(al) } };
+            return .{ .object = members };
+        }
+    };
+    var prng = std.Random.DefaultPrng.init(0xb17ea);
+    const r = prng.random();
+    // Hex digits of both cases, plus bytes std.fmt.parseInt and node's hex
+    // decoder both reject. Signs are excluded: parseInt reads "+f" and "-0"
+    // as numbers where node (and the table) stop; PostgreSQL prints neither.
+    const alphabet = "0123456789abcdefABCDEF\"\\gGxX_ ,}{\x00\xff";
+    for (0..20_000) |n| {
+        const len = r.uintLessThan(usize, 80);
+        const text = try a.alloc(u8, len + 2);
+        text[0] = '\\';
+        text[1] = 'x';
+        const valid = n % 3 != 0; // mostly what PostgreSQL prints
+        for (text[2..]) |*c| c.* = if (valid) "0123456789abcdef"[r.uintLessThan(usize, 16)] else alphabet[r.uintLessThan(usize, alphabet.len)];
+        const inputs = [_][]const u8{ text, text[2..] }; // with and without the \x prefix
+        for (inputs) |input| {
+            const old = try core.json.stringifyAlloc(a, try Before.decode(a, input));
+            const new = try core.json.stringifyAlloc(a, try bufferValue(a, input));
+            try testing.expectEqualStrings(old, new);
+        }
+        // Encode: the decoded Buffer binds as the same `\x<hex>` text.
+        const bytes = try a.alloc(u8, r.uintLessThan(usize, 64));
+        r.bytes(bytes);
+        const buf = try bufferValueFromBytes(a, bytes);
+        try testing.expectEqualStrings(try std.fmt.allocPrint(a, "\\x{x}", .{bytes}), (try prepareValue(a, buf)).?);
+        var items = [_]Value{ buf, .null, buf };
+        try testing.expectEqualStrings(
+            try std.fmt.allocPrint(a, "{{\\\\x{x},NULL,\\\\x{x}}}", .{ bytes, bytes }),
+            (try prepareValue(a, .{ .array = &items })).?,
+        );
+    }
+}
+
+test "bench: bytea[] snapshot round trip (opt-in DB_BENCH, use -Drelease=true)" {
+    if (std.posix.getenv("DB_BENCH") == null) return error.SkipZigTest;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // 214 32-byte message ids as PostgreSQL prints a bytea[] (the bench DB's
+    // confirmations-0 snapshot), decoded then bound as the next parameter.
+    var text: std.ArrayList(u8) = .empty;
+    try text.append(a, '{');
+    var prng = std.Random.DefaultPrng.init(1);
+    for (0..214) |i| {
+        if (i > 0) try text.append(a, ',');
+        var id: [32]u8 = undefined;
+        prng.random().bytes(&id);
+        try text.print(a, "\"\\\\x{x}\"", .{&id});
+    }
+    try text.append(a, '}');
+    const rounds = 2_000;
+    var timer = try std.time.Timer.start();
+    var inner = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer inner.deinit();
+    for (0..rounds) |_| {
+        _ = inner.reset(.retain_capacity);
+        const v = try convertText(inner.allocator(), 1001, text.items);
+        std.mem.doNotOptimizeAway((try prepareValue(inner.allocator(), v)).?.len);
+    }
+    std.debug.print("bytea[] 214 ids decode+bind: {d:.1} us/round\n", .{@as(f64, @floatFromInt(timer.read())) / rounds / 1000});
+    timer.reset();
+    for (0..rounds) |_| {
+        _ = inner.reset(.retain_capacity);
+        const v = try literalValue(inner.allocator(), 1001, text.items);
+        std.mem.doNotOptimizeAway(literalArrayLen(literal(v).?).?);
+        std.mem.doNotOptimizeAway((try prepareValue(inner.allocator(), v)).?.len);
+    }
+    std.debug.print("bytea[] 214 ids literal count+bind: {d:.1} us/round\n", .{@as(f64, @floatFromInt(timer.read())) / rounds / 1000});
+}
+
+test "literalArrayLen counts top-level elements of PostgreSQL array text" {
+    const cases = [_]struct { oid: u32, text: []const u8, len: ?usize }{
+        .{ .oid = 1001, .text = "{}", .len = 0 },
+        .{ .oid = 1001, .text = "{\"\\\\x01ab\",\"\\\\x\"}", .len = 2 },
+        .{ .oid = 1007, .text = "{1,8453,42161}", .len = 3 },
+        .{ .oid = 1007, .text = "{{1,2},{3,4}}", .len = 2 },
+        .{ .oid = 1009, .text = "{a,\"b,c\",\"d\\\"}\",NULL}", .len = 4 },
+        .{ .oid = 1009, .text = "{\"{x,y}\",z}", .len = 2 },
+        .{ .oid = 1009, .text = "{{\"a,b\"},{c}}", .len = 2 },
+        .{ .oid = 1007, .text = "[0:2]={7,8,9}", .len = 3 },
+        .{ .oid = 1009, .text = "[2:3]={\"a,b\",c}", .len = 2 },
+        .{ .oid = 1007, .text = "[0:2]", .len = null },
+        .{ .oid = 1001, .text = "not an array", .len = null },
+        .{ .oid = 1009, .text = "{", .len = null },
+    };
+    for (cases) |case| try testing.expectEqual(case.len, literalArrayLen(.{ .oid = case.oid, .text = case.text }));
 }

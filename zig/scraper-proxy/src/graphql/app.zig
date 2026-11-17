@@ -29,7 +29,7 @@ pub const App = struct {
         self.* = .{ .gpa = gpa, .schema = schema, .db = dbs, .diagnostics = diag };
         const config = core.config.get();
         self.route_state = route_mod.GraphqlRoute.init(gpa, schema, .{
-            .db = scraperdb.Service.init(.{ .ctx = dbs, .queryFn = query, .reusableQueryFn = queryReusable, .fixedJoinQueryFn = queryFixedJoin, .serialQueryFn = querySerial, .serialGenericQueryFn = querySerialGeneric, .lazyQueryFn = queryLazy }),
+            .db = scraperdb.Service.init(.{ .ctx = dbs, .queryFn = query, .plannedQueryFn = queryPlanned, .lazyQueryFn = queryLazy }),
             .diagnostics = if (diag != null) .{ .ctx = self, .history = history, .snapshot = snapshot } else null,
         }, .{
             .max_active_requests = @intCast(config.graphql_max_active_requests),
@@ -54,24 +54,9 @@ pub const App = struct {
         return run(ctx, arena, text, values, diag, .custom);
     }
 
-    /// `scraperdb` plans marked reusable (unique-key lookups, fixed SQL).
-    fn queryReusable(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
-        return run(ctx, arena, text, values, diag, .reusable);
-    }
-
-    /// `scraperdb` selects planned with the view's join order fixed.
-    fn queryFixedJoin(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
-        return run(ctx, arena, text, values, diag, .fixed_join);
-    }
-
-    /// `scraperdb` statements planned without parallel workers.
-    fn querySerial(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
-        return run(ctx, arena, text, values, diag, .serial);
-    }
-
-    /// `scraperdb` statements with a reused generic plan, built serially.
-    fn querySerialGeneric(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
-        return run(ctx, arena, text, values, diag, .serial_generic);
+    /// `scraperdb` statements with a planner hint (`scraperdb.Plan`).
+    fn queryPlanned(ctx: *anyopaque, arena: Allocator, plan: scraperdb.Plan, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
+        return run(ctx, arena, text, values, diag, plan);
     }
 
     fn run(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag, plan: scraperdb.Plan) anyerror![]Value {
@@ -89,6 +74,7 @@ pub const App = struct {
             .fixed_join => dbs.queryFixedJoin(arena, text, values, &failure),
             .serial => dbs.querySerial(arena, text, values, &failure),
             .serial_generic => dbs.querySerialGeneric(arena, text, values, &failure),
+            .generic => dbs.queryGeneric(arena, text, values, &failure),
         };
         return rows catch |err| {
             diag.message = if (failure.message.len > 0) failure.message else @errorName(err);
@@ -98,8 +84,7 @@ pub const App = struct {
 
     /// `run`'s query with the rows left unconverted (`db.LazyRows`, owned by
     /// the caller): the same admission, plan (custom = `query`'s unnamed
-    /// statement, reusable = `queryReusable`'s, fixed_join = `queryFixedJoin`'s),
-    /// errors and diagnostics.
+    /// statement, the others `queryPlanned`'s), errors and diagnostics.
     fn queryLazy(ctx: *anyopaque, arena: Allocator, plan: scraperdb.Plan, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror!?*db.LazyRows {
         const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
         if (!execute.beforeIo()) {
@@ -114,6 +99,7 @@ pub const App = struct {
             .fixed_join => .fixed_join,
             .serial => .serial,
             .serial_generic => .serial_generic,
+            .generic => .generic,
         };
         return dbs.queryLazy(arena, text, values, pq_plan, &failure) catch |err| {
             diag.message = if (failure.message.len > 0) failure.message else @errorName(err);

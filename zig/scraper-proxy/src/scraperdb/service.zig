@@ -2,6 +2,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const core = @import("core");
 const db_mod = @import("db");
 const provisional = @import("provisional_message.zig");
 const sql = @import("sql.zig");
@@ -23,26 +24,19 @@ pub const MAX_AFFECTED_EVENTS = 10_000;
 /// becomes the GraphQL error message, as in TS) and returns an error.
 pub const Database = struct {
     ctx: *anyopaque,
+    /// Runs a statement planned as node-pg would (`Plan.custom`); test
+    /// backends need only this.
     queryFn: QueryFn,
-    /// Optional: same contract as `queryFn` for statements whose generic
-    /// plan is safe to reuse (see `Plan.reusable`); null falls back to `queryFn`.
-    reusableQueryFn: ?QueryFn = null,
-    /// Optional: same contract as `queryFn`, planned with the view's join
-    /// order fixed (see `Plan.fixed_join`); null falls back to `queryFn`.
-    fixedJoinQueryFn: ?QueryFn = null,
-    /// Optional: same contract as `queryFn`, planned without parallel
-    /// workers (see `Plan.serial`); null falls back to `queryFn`.
-    serialQueryFn: ?QueryFn = null,
-    /// Optional: same contract as `queryFn`, as a named statement with a
-    /// reused generic plan built without parallel workers (see
-    /// `Plan.serial_generic`); null falls back to `serialQueryFn`.
-    serialGenericQueryFn: ?QueryFn = null,
+    /// Optional: the same contract, planned as `plan` (see `Plan`); null
+    /// runs every plan through `queryFn`.
+    plannedQueryFn: ?PlannedQueryFn = null,
     /// Optional: the same query (planned as `plan`), with libpq's result
     /// returned unconverted (`db.LazyRows`, owned by the caller; null when
     /// the implementation cannot, e.g. a test backend).
     lazyQueryFn: ?LazyQueryFn = null,
 
     pub const QueryFn = *const fn (ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value;
+    pub const PlannedQueryFn = *const fn (ctx: *anyopaque, arena: Allocator, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value;
     pub const LazyQueryFn = *const fn (ctx: *anyopaque, arena: Allocator, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror!?*db_mod.LazyRows;
 
     pub fn query(self: Database, arena: Allocator, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value {
@@ -50,14 +44,8 @@ pub const Database = struct {
     }
 
     pub fn queryPlanned(self: Database, arena: Allocator, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value {
-        const f = switch (plan) {
-            .custom => self.queryFn,
-            .reusable => self.reusableQueryFn orelse self.queryFn,
-            .fixed_join => self.fixedJoinQueryFn orelse self.queryFn,
-            .serial => self.serialQueryFn orelse self.queryFn,
-            .serial_generic => self.serialGenericQueryFn orelse self.serialQueryFn orelse self.queryFn,
-        };
-        return f(self.ctx, arena, text, values, diag);
+        const f = self.plannedQueryFn orelse return self.queryFn(self.ctx, arena, text, values, diag);
+        return f(self.ctx, arena, plan, text, values, diag);
     }
 };
 
@@ -85,7 +73,11 @@ pub const Database = struct {
 /// per call at 214 messages; -24% to -98% from 0 to 500, also with one
 /// origin or one sender holding all of them), while larger sets need
 /// plans for their values (generic +27% to +488% from 2,000 up).
-pub const Plan = enum { custom, reusable, fixed_join, serial, serial_generic };
+///
+/// `generic` always uses the generic plan of a named statement, for
+/// `message_view` selects ordered by `id` that pin a transaction hash
+/// (`pinsTxHash`): their plan never depends on the value.
+pub const Plan = enum { custom, reusable, fixed_join, serial, serial_generic, generic };
 
 /// The largest affected-message set whose projection reuses a generic plan
 /// (`Plan.serial_generic`); larger sets are planned per call (`serial`).
@@ -106,17 +98,35 @@ pub fn isMessageIdLookup(where: ?Value) bool {
 }
 
 fn pinsKey(where: ?Value, allow_id: bool) bool {
+    const keys: []const []const u8 = if (allow_id) &.{ "msg_id", "id" } else &.{"msg_id"};
+    return pinsAny(where, keys);
+}
+
+/// True when `where` pins `origin_tx_hash` or `destination_tx_hash` with
+/// `_eq` in a top-level conjunct: `transaction.hash` is globally unique
+/// (scraper migration `create_table_transaction`), so the select reads the
+/// messages of one transaction whatever the value, and a generic plan keeps
+/// its shape (bench DB: identical plan, 1.4-1.9 ms planning saved, hit and
+/// miss). The `*_tx_sender` columns are excluded: a busy relayer's generic
+/// plan is 56-345x slower.
+pub fn pinsTxHash(where: ?Value) bool {
+    return pinsAny(where, &.{ "origin_tx_hash", "destination_tx_hash" });
+}
+
+fn pinsAny(where: ?Value, keys: []const []const u8) bool {
     const obj = value.object(value.present(where)) orelse return false;
     for (0..value.len(obj)) |index| {
         const key = value.keyAt(obj, index);
         const item = value.valueAt(obj, index);
-        if (std.mem.eql(u8, key, "msg_id") or (allow_id and std.mem.eql(u8, key, "id"))) {
+        if (std.mem.eql(u8, key, "_and")) {
+            for (value.listOrSingle(item)) |child| if (pinsAny(child, keys)) return true;
+            continue;
+        }
+        for (keys) |k| if (std.mem.eql(u8, key, k)) {
             if (value.object(item.*)) |comparisons| {
                 if (value.present(value.get(comparisons, "_eq")) != null) return true;
             }
-        } else if (std.mem.eql(u8, key, "_and")) {
-            for (value.listOrSingle(item)) |child| if (pinsKey(child, allow_id)) return true;
-        }
+        };
     }
     return false;
 }
@@ -125,16 +135,21 @@ fn planFor(where: ?Value) Plan {
     return if (isPointLookup(where)) .reusable else .custom;
 }
 
-/// `planFor`, or `fixed_join` for a non-lookup select that qualifies.
-fn planForSelect(where: ?Value, query: sql.Sql) Plan {
+/// `planFor`; for a non-lookup select, `generic` when it pins a
+/// transaction hash and is totally ordered by `id` (no plan can reorder its
+/// rows), else `fixed_join` when it qualifies.
+fn planForSelect(table: Table, where: ?Value, query: sql.Sql) Plan {
     const plan = planFor(where);
-    return if (plan == .custom and query.fixed_join) .fixed_join else plan;
+    if (plan != .custom) return plan;
+    if (table == .message_view and query.ordered_by_id and pinsTxHash(where)) return .generic;
+    return if (query.fixed_join) .fixed_join else plan;
 }
 
 /// The snapshot row's affected message ids (`buildProjection` already
 /// checked it is an array).
 fn affectedCount(snapshot_row: Value) usize {
     const ids = value.get(value.object(snapshot_row).?, "message_ids").?;
+    if (db_mod.convert.literal(ids)) |l| return db_mod.convert.literalArrayLen(l).?;
     return value.array(ids).?.len;
 }
 
@@ -153,7 +168,7 @@ pub const Service = struct {
 
     pub fn select(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror![]Value {
         const query = try sql.buildSelect(arena, table, args, null, diag);
-        return self.db.queryPlanned(arena, planForSelect(args.where, query), query.sql, query.values, diag);
+        return self.db.queryPlanned(arena, planForSelect(table, args.where, query), query.sql, query.values, diag);
     }
 
     /// `select`'s query with its rows left unconverted (`db.LazyRows`, which
@@ -162,7 +177,7 @@ pub const Service = struct {
     pub fn selectLazy(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror!?*db_mod.LazyRows {
         const f = self.db.lazyQueryFn orelse return null;
         const query = try sql.buildSelect(arena, table, args, null, diag);
-        return f(self.db.ctx, arena, planForSelect(args.where, query), query.sql, query.values, diag);
+        return f(self.db.ctx, arena, planForSelect(table, args.where, query), query.sql, query.values, diag);
     }
 
     /// `byPk`'s query with its rows left unconverted (at most one; null when
@@ -178,15 +193,42 @@ pub const Service = struct {
         const confirmations = value.present(args.confirmations) orelse
             return self.select(arena, .message_view, select_args, diag);
         const queries = try buildMessageQueries(arena, select_args, confirmations, diag);
-        const rows = try self.db.queryPlanned(arena, .reusable, queries.snapshot.sql, queries.snapshot.values, diag);
-        const projection = try buildProjection(arena, select_args, if (rows.len > 0) rows[0] else null, diag);
+        const snapshot = try self.snapshotRow(arena, queries.snapshot, diag);
+        const projection = try buildProjection(arena, select_args, snapshot, diag);
+        // buildProjection rejected a missing snapshot and a message_ids that
+        // is not an array, so `affectedCount(snapshot.?)` holds below.
         const plan: Plan = if (isMessageIdLookup(select_args.where))
             .reusable
-        else if (affectedCount(rows[0]) <= GENERIC_PROJECTION_MAX_IDS)
+        else if (affectedCount(snapshot.?) <= GENERIC_PROJECTION_MAX_IDS)
             .serial_generic
         else
             .serial;
         return self.db.queryPlanned(arena, plan, projection.sql, projection.values, diag);
+    }
+
+    /// The confirmation snapshot's row (null: none). Its arrays only feed
+    /// the projection's parameters, so with a lazy backend they stay
+    /// PostgreSQL's text (`db.convert.literalValue`) instead of being
+    /// converted (a Buffer per message id) and re-encoded.
+    fn snapshotRow(self: Service, arena: Allocator, snapshot: sql.Sql, diag: *Diag) anyerror!?Value {
+        const f = self.db.lazyQueryFn orelse {
+            const rows = try self.db.queryPlanned(arena, .reusable, snapshot.sql, snapshot.values, diag);
+            return if (rows.len > 0) rows[0] else null;
+        };
+        const lazy = try f(self.db.ctx, arena, .reusable, snapshot.sql, snapshot.values, diag) orelse {
+            const rows = try self.db.queryPlanned(arena, .reusable, snapshot.sql, snapshot.values, diag);
+            return if (rows.len > 0) rows[0] else null;
+        };
+        defer lazy.deinit();
+        if (lazy.rows == 0) return null;
+        const members = try arena.alloc(core.json.Member, lazy.columns.len);
+        for (lazy.columns, members, 0..) |column, *m, i| {
+            m.* = .{
+                .key = column.name,
+                .value = if (lazy.cell(0, i)) |text| try db_mod.convert.literalValue(arena, column.oid, text) else .null,
+            };
+        }
+        return .{ .object = members };
     }
 
     pub fn byPk(self: Service, arena: Allocator, table: Table, id: Value, columns: ?[]const []const u8, diag: *Diag) anyerror!?Value {
@@ -273,7 +315,9 @@ pub fn buildProjection(arena: Allocator, select_args: SelectArgs, snapshot_row: 
             "Confirmation snapshot exceeds {d} affected events; query canonical history or narrow msg_id",
             .{MAX_AFFECTED_EVENTS},
         ));
-    if (message_ids == null or message_ids.? != .array) return fail(diag, "Invalid confirmation snapshot");
+    const is_array = if (message_ids) |ids| ids == .array or
+        (if (db_mod.convert.literal(ids)) |l| db_mod.convert.literalArrayLen(l) != null else false) else false;
+    if (!is_array) return fail(diag, "Invalid confirmation snapshot");
     // Branches retain every column used by outer filters, ordering, or DISTINCT.
     var branch_args = select_args;
     branch_args.columns = null;

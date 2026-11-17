@@ -408,32 +408,18 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
             }
             return try arena.dupe(Value, &.{row});
         }
-        fn record(self: *@This(), plan: service.Plan) void {
+        fn custom(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *sql.Diag) anyerror![]Value {
+            return planned(ctx, arena, .custom, text, values, diag);
+        }
+        fn planned(ctx: *anyopaque, arena: Allocator, plan: service.Plan, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
             self.plans.append(self.arena, plan) catch unreachable;
-        }
-        fn custom(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
-            const self: *@This() = @ptrCast(@alignCast(ctx));
-            self.record(.custom);
-            return try arena.dupe(Value, &.{try value.parseLeaky(arena, "{\"message_ids\":[],\"domains\":[],\"heights\":[]}")});
-        }
-        fn reusable(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
-            const self: *@This() = @ptrCast(@alignCast(ctx));
-            self.record(.reusable);
-            return self.snapshot(arena);
-        }
-        fn serial(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
-            const self: *@This() = @ptrCast(@alignCast(ctx));
-            self.record(.serial);
-            return try arena.dupe(Value, &.{});
-        }
-        fn serialGeneric(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
-            const self: *@This() = @ptrCast(@alignCast(ctx));
-            self.record(.serial_generic);
-            return try arena.dupe(Value, &.{});
+            // Snapshots are the reusable statements of these requests.
+            return if (plan == .reusable) self.snapshot(arena) else try arena.dupe(Value, &.{});
         }
     };
     var routing: Routing = .{ .arena = a };
-    const svc = service.Service.init(.{ .ctx = &routing, .queryFn = Routing.custom, .reusableQueryFn = Routing.reusable, .serialQueryFn = Routing.serial, .serialGenericQueryFn = Routing.serialGeneric });
+    const svc = service.Service.init(.{ .ctx = &routing, .queryFn = Routing.custom, .plannedQueryFn = Routing.planned });
     var diag: sql.Diag = .{};
     _ = try svc.select(a, .message_view, try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
     _ = try svc.select(a, .message_view, try args(a, "{\"where\":{\"sender\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
@@ -451,6 +437,29 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
         _ = try svc.selectMessages(a, .{ .select = limit_args, .confirmations = .{ .number = 2 } }, &diag);
         const projection: service.Plan = if (affected <= service.GENERIC_PROJECTION_MAX_IDS) .serial_generic else .serial;
         try testing.expectEqualSlices(service.Plan, &.{ .reusable, projection }, routing.plans.items);
+    }
+    // A select pinning a transaction hash, totally ordered by id, always
+    // uses a generic plan; unordered, or pinning a tx sender (skewed), not.
+    routing.plans.clearRetainingCapacity();
+    const nn = "{\"send_occurred_at\":{\"_is_null\":false}}";
+    const hash_cases = [_]struct { args: []const u8, plan: service.Plan }{
+        .{ .args = "{\"where\":{\"_and\":[" ++ nn ++ ",{\"origin_tx_hash\":{\"_eq\":\"\\\\x01\"}}]},\"order_by\":{\"id\":\"desc\"},\"limit\":20}", .plan = .generic },
+        .{ .args = "{\"where\":{\"destination_tx_hash\":{\"_eq\":\"\\\\x01\"}},\"order_by\":[{\"send_occurred_at\":\"desc\"},{\"id\":\"asc\"}]}", .plan = .generic },
+        .{ .args = "{\"where\":{\"origin_tx_hash\":{\"_eq\":\"\\\\x01\"}},\"limit\":20}", .plan = .custom },
+        .{ .args = "{\"where\":{\"origin_tx_hash\":{\"_in\":[\"\\\\x01\"]}},\"order_by\":{\"id\":\"desc\"}}", .plan = .custom },
+        .{ .args = "{\"where\":{\"_or\":[{\"origin_tx_hash\":{\"_eq\":\"\\\\x01\"}}]},\"order_by\":{\"id\":\"desc\"}}", .plan = .custom },
+        .{ .args = "{\"where\":{\"_and\":[" ++ nn ++ ",{\"destination_tx_sender\":{\"_eq\":\"\\\\x01\"}}]},\"order_by\":{\"id\":\"desc\"},\"limit\":20}", .plan = .custom },
+        .{ .args = "{\"where\":{\"origin_tx_sender\":{\"_eq\":\"\\\\x01\"}},\"order_by\":{\"id\":\"desc\"}}", .plan = .custom },
+        // A hash pins the rows whatever its siblings filter (bench DB: the
+        // busiest relayer as sender, generic as fast as custom).
+        .{ .args = "{\"where\":{\"_and\":[{\"origin_tx_hash\":{\"_eq\":\"\\\\x01\"}},{\"destination_tx_sender\":{\"_eq\":\"\\\\x02\"}}]},\"order_by\":{\"id\":\"desc\"}}", .plan = .generic },
+        .{ .args = "{\"where\":{\"origin_tx_hash\":{\"_eq\":\"\\\\x01\"},\"origin_tx_sender\":{\"_eq\":\"\\\\x02\"}},\"order_by\":{\"id\":\"desc\"}}", .plan = .generic },
+        .{ .args = "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"},\"origin_tx_hash\":{\"_eq\":\"\\\\x01\"}},\"order_by\":{\"id\":\"desc\"}}", .plan = .reusable },
+    };
+    for (hash_cases) |case| {
+        routing.plans.clearRetainingCapacity();
+        _ = try svc.select(a, .message_view, try args(a, case.args), &diag);
+        try testing.expectEqualSlices(service.Plan, &.{case.plan}, routing.plans.items);
     }
     try testing.expect(!service.isMessageIdLookup(try value.parseLeaky(a, "{\"id\":{\"_eq\":7}}")));
     try testing.expect(service.isMessageIdLookup(try value.parseLeaky(a, "{\"_and\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}")));

@@ -123,6 +123,12 @@ pub const Plan = enum {
     /// affected messages, where planning dominates; its first use, and any
     /// fallback (named statements off, a failed prepare), run as `serial`.
     serial_generic,
+    /// Per-connection named statement whose generic plan is always used
+    /// (`plan_cache_mode = force_generic_plan`, transaction-scoped like
+    /// `fixed_join`): for lookups whose plan never depends on the value
+    /// (scraperdb: a transaction-hash `_eq`). Its first use and any
+    /// fallback run as `unnamed`.
+    generic,
     /// node-pg's unnamed statement, planned without parallel workers
     /// (`max_parallel_workers_per_gather` 0, set like `fixed_join`).
     /// Only for statements whose parallel plan only adds worker start-up
@@ -271,6 +277,7 @@ fn tuneSql(plan: Plan) ?[*:0]const u8 {
         // One statement, so both are in force before the Parse and Bind
         // that build and choose the plan.
         .serial_generic => "SELECT set_config('max_parallel_workers_per_gather', '0', true), set_config('plan_cache_mode', 'force_generic_plan', true)",
+        .generic => "SELECT set_config('plan_cache_mode', 'force_generic_plan', true)",
         .unnamed, .custom, .reusable => null,
     };
 }
@@ -303,8 +310,9 @@ pub const ReuseGuard = struct {
 
 /// Named statements of one connection, bounded because each holds its query
 /// tree and generic plan in the backend (measured: 0.17 MB for the
-/// confirmation snapshot, 0.57 MB for a message_view lookup, 1.9 MB for a
-/// confirmation projection), so at most ~15 MB per connection.
+/// confirmation snapshot, 0.41 MB for a transaction-hash select, 0.57 MB for
+/// a message_view lookup, 2.4 MB for a confirmation projection), so at most
+/// ~19 MB per connection (`Class`). node-pg keeps none (unnamed only).
 ///
 /// A statement costs one extra round trip (Parse) and pays off only after
 /// PostgreSQL's five custom plans, so churn must never make the connection
@@ -313,7 +321,18 @@ pub const ReuseGuard = struct {
 /// entry idle for `stale_after` reusable queries (otherwise the newcomer runs
 /// unnamed instead of thrashing DEALLOCATE/Parse).
 const Statements = struct {
-    const capacity = 8;
+    /// Slot budgets per class. Confirmation projections (`serial_generic`,
+    /// ~2.4 MB each) never compete with lookups and snapshots (~0.2-0.6 MB
+    /// each) for a slot, and each class evicts only its own entries, so a
+    /// mix of cheap statements cannot crowd out the projections' planning
+    /// savings. Worst case ~6 x 2.4 + 8 x 0.6 = ~19 MB per connection (as
+    /// C17's single 8-slot cache could reach with projections alone). Six
+    /// covers the Explorer's mixed traffic: page, origin, destination and
+    /// status pages, address and hash search (bench: 4 slots re-planned
+    /// projections 2.8x more often than C17's shared 8).
+    const Class = enum { general, projection };
+    const class_capacity = std.EnumArray(Class, usize).init(.{ .general = 8, .projection = 6 });
+    const capacity = class_capacity.get(.general) + class_capacity.get(.projection);
     const stale_after = 64;
     const seen_capacity = 32;
     entries: [capacity]Entry = undefined,
@@ -331,6 +350,7 @@ const Statements = struct {
         name: [24]u8,
         name_len: usize,
         last_use: u64,
+        class: Class,
 
         fn nameZ(self: *const Entry) [*:0]const u8 {
             return @ptrCast(self.name[0..self.name_len :0].ptr);
@@ -344,11 +364,18 @@ const Statements = struct {
         prepare: ?*Entry,
     };
 
-    fn decide(self: *Statements, sql: []const u8) Decision {
+    fn classOf(plan: Plan) Class {
+        return if (plan == .serial_generic) .projection else .general;
+    }
+
+    fn decide(self: *Statements, sql: []const u8, class: Class) Decision {
         self.tick += 1;
         const hash = hashOf(sql);
         for (self.entries[0..self.len]) |*e| {
             if (e.hash == hash and std.mem.eql(u8, e.sql, sql)) {
+                // One text, one class: a re-prepare (`add`) must not move an
+                // entry into another class's budget unchecked.
+                std.debug.assert(e.class == class);
                 e.last_use = self.tick;
                 return .{ .hit = e };
             }
@@ -359,12 +386,14 @@ const Statements = struct {
             self.seen_next = (self.seen_next + 1) % seen_capacity;
             return .unnamed;
         }
-        if (self.len < capacity) return .{ .prepare = null };
-        var oldest = &self.entries[0];
-        for (self.entries[1..self.len]) |*e| if (e.last_use < oldest.last_use) {
-            oldest = e;
+        var used: usize = 0;
+        var oldest: ?*Entry = null;
+        for (self.entries[0..self.len]) |*e| if (e.class == class) {
+            used += 1;
+            if (oldest == null or e.last_use < oldest.?.last_use) oldest = e;
         };
-        if (self.tick - oldest.last_use < stale_after) return .unnamed;
+        if (used < class_capacity.get(class)) return .{ .prepare = null };
+        if (self.tick - oldest.?.last_use < stale_after) return .unnamed;
         return .{ .prepare = oldest };
     }
 
@@ -380,12 +409,12 @@ const Statements = struct {
         self.len -= 1;
     }
 
-    fn add(self: *Statements, sql: []const u8) error{OutOfMemory}!*Entry {
+    fn add(self: *Statements, sql: []const u8, class: Class) error{OutOfMemory}!*Entry {
         std.debug.assert(self.len < capacity);
         const copy = try std.heap.c_allocator.dupe(u8, sql);
         self.next_id += 1;
         const e = &self.entries[self.len];
-        e.* = .{ .hash = hashOf(sql), .sql = copy, .name = undefined, .name_len = 0, .last_use = self.tick };
+        e.* = .{ .hash = hashOf(sql), .sql = copy, .name = undefined, .name_len = 0, .last_use = self.tick, .class = class };
         e.name_len = (std.fmt.bufPrintZ(&e.name, "sp_{d}", .{self.next_id}) catch unreachable).len;
         self.len += 1;
         return e;
@@ -747,11 +776,20 @@ pub const Conn = struct {
 
     pub fn queryWith(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: QueryOptions, failure: ?*Failure) Error!root.Result {
         const deadline: ?i64 = if (self.query_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
-        const named = (opts.plan == .custom or opts.plan == .reusable or opts.plan == .serial_generic) and params.len > 0 and (if (opts.guard) |g| g.active() else true);
+        const named = switch (opts.plan) {
+            .custom, .reusable, .serial_generic, .generic => true,
+            .unnamed, .fixed_join, .serial => false,
+        } and params.len > 0 and (if (opts.guard) |g| g.active() else true);
         // The extended protocol (one implicit transaction per pipeline);
         // parameterless text may hold several statements, so it runs as is.
         self.tune = if (params.len > 0) tuneSql(opts.plan) else null;
-        self.tune_unnamed = if (params.len > 0) tuneSql(if (opts.plan == .serial_generic) .serial else opts.plan) else null;
+        // Unnamed statements are planned for their values: no generic mode.
+        const unnamed_plan: Plan = switch (opts.plan) {
+            .serial_generic => .serial,
+            .generic => .unnamed,
+            else => opts.plan,
+        };
+        self.tune_unnamed = if (params.len > 0) tuneSql(unnamed_plan) else null;
         defer {
             self.tune = null;
             self.tune_unnamed = null;
@@ -826,12 +864,12 @@ pub const Conn = struct {
         // (`tune`): the session's mode stays as it is.
         const need: PlanMode = switch (plan) {
             .reusable => .auto,
-            .serial_generic => self.plan_mode,
+            .serial_generic, .generic => self.plan_mode,
             else => .custom,
         };
         const values = try textParams(arena, params);
         var evict: ?*Statements.Entry = null;
-        switch (statements.decide(sql)) {
+        switch (statements.decide(sql, Statements.classOf(plan))) {
             .unnamed => return self.runUnnamed(arena, sql, params, deadline, failure),
             .prepare => |old| evict = old,
             .hit => |entry| {
@@ -865,7 +903,7 @@ pub const Conn = struct {
             };
             statements.remove(old);
         }
-        const entry = try statements.add(sql);
+        const entry = try statements.add(sql, Statements.classOf(plan));
         var local: Failure = .{};
         var failed: Step = .execute;
         return self.pipeline(arena, .{ .named = .{ .entry = entry, .prepare_sql = sql } }, values, need, deadline, &local, &failed) catch |e| {

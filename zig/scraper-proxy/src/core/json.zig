@@ -331,8 +331,14 @@ inline fn firstSpecial(block: Block) ?usize {
 }
 
 pub fn writeString(w: *Writer, s: []const u8) Writer.Error!void {
-    try w.writeByte('"');
     var i: usize = 0;
+    // bytea text (`\x<hex>`, most cells of Explorer rows): the quote and
+    // escaped prefix at once, so the block scan doesn't stop at byte 0.
+    if (s.len >= 2 and s[0] == '\\' and s[1] == 'x' and w.buffer.len - w.end >= 4) {
+        w.buffer[w.end..][0..4].* = "\"\\\\x".*;
+        w.end += 4;
+        i = 2;
+    } else try w.writeByte('"');
     while (i < s.len) {
         // Room for the rest, one escape and a block of slack: copy 16-byte
         // blocks straight into the buffer while checking them (one pass);
@@ -1189,6 +1195,7 @@ test "writeString: inline escapes match the C9 writer and the scalar reference (
             },
         }
         if (len > 0 and r.boolean()) buf[0] = '\\'; // bytea's leading backslash
+        if (len > 1 and r.boolean()) buf[1] = 'x'; // and its `\x` prefix
         const s = buf[0..len];
         // Prefix (alignment) and capacity (fast vs slow path) vary.
         const prefix = r.uintLessThan(usize, 20);

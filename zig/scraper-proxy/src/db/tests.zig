@@ -580,6 +580,74 @@ test "libpq: serial_generic reuses a generic plan built and chosen without paral
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 
+test "libpq: generic statements always reuse their generic plan; projections keep slots of their own" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    var failure: root.Failure = .{};
+    const one = [_]Value{.{ .number = 1 }};
+    const settings = "SELECT current_setting('plan_cache_mode') || '/' || current_setting('max_parallel_workers_per_gather') AS v WHERE $1::int = 1";
+    const session = try a.dupe(u8, (try p.query(a, settings, &one, &failure)).rows[0].get("v").?.string);
+    const slash = std.mem.indexOfScalar(u8, session, '/').?;
+    const generic: pq.QueryOptions = .{ .plan = .generic };
+    // First use unnamed (planned for its values), then named and forced
+    // generic for its own transaction only; parallel workers untouched.
+    try testing.expectEqualStrings(session, (try p.queryWith(a, settings, &one, generic, &failure)).rows[0].get("v").?.string);
+    for (0..3) |_| try testing.expectEqualStrings(try std.fmt.allocPrint(a, "force_generic_plan{s}", .{session[slash..]}), (try p.queryWith(a, settings, &one, generic, &failure)).rows[0].get("v").?.string);
+    try testing.expectEqualStrings(session, (try p.query(a, settings, &one, &failure)).rows[0].get("v").?.string);
+    const prepared = "SELECT count(*)::int AS n FROM pg_prepared_statements";
+    const count = struct {
+        fn n(pool: *pool_mod.Pool, al: std.mem.Allocator, q: []const u8, f: *root.Failure) !f64 {
+            return (try pool.query(al, q, &.{}, f)).rows[0].get("n").?.number;
+        }
+    }.n;
+    // A fresh pool so the statement cache starts empty.
+    const q = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer q.deinit();
+    // Fill the general class (8) with hot lookups, then the projection
+    // class (6): every projection still gets a slot.
+    for (0..2) |_| for (0..8) |i| {
+        _ = try q.queryWith(a, try std.fmt.allocPrint(a, "SELECT $1::int AS g{d}", .{i}), &one, .{ .plan = .reusable }, &failure);
+    };
+    try testing.expectEqual(@as(f64, 8), try count(q, a, prepared, &failure));
+    for (0..2) |_| for (0..6) |i| {
+        _ = try q.queryWith(a, try std.fmt.allocPrint(a, "SELECT $1::int AS p{d}", .{i}), &one, .{ .plan = .serial_generic }, &failure);
+    };
+    try testing.expectEqual(@as(f64, 14), try count(q, a, prepared, &failure));
+    // Full on both sides: newcomers run unnamed; nothing is evicted
+    // (every entry was used within the last 64 named queries).
+    for (0..2) |_| {
+        _ = try q.queryWith(a, "SELECT $1::int AS g_extra", &one, .{ .plan = .reusable }, &failure);
+        _ = try q.queryWith(a, "SELECT $1::int AS p_extra", &one, .{ .plan = .serial_generic }, &failure);
+    }
+    try testing.expectEqual(@as(f64, 14), try count(q, a, prepared, &failure));
+    const names = (try q.query(a, "SELECT count(*) FILTER (WHERE statement LIKE '%AS p%')::int AS p, count(*) FILTER (WHERE statement LIKE '%AS g%')::int AS g FROM pg_prepared_statements", &.{}, &failure)).rows[0];
+    try testing.expectEqual(@as(f64, 6), names.get("p").?.number);
+    try testing.expectEqual(@as(f64, 8), names.get("g").?.number);
+    // A burst of general statements never takes a projection's slot: once
+    // a general entry has idled for 64 named queries it is the one evicted.
+    for (0..70) |_| _ = try q.queryWith(a, "SELECT $1::int AS g0", &one, .{ .plan = .reusable }, &failure);
+    for (0..2) |_| _ = try q.queryWith(a, "SELECT $1::int AS g_new", &one, .{ .plan = .reusable }, &failure);
+    const after = (try q.query(a, "SELECT count(*) FILTER (WHERE statement LIKE '%AS p%')::int AS p, count(*) FILTER (WHERE statement = 'SELECT $1::int AS g_new')::int AS g FROM pg_prepared_statements", &.{}, &failure)).rows[0];
+    try testing.expectEqual(@as(f64, 6), after.get("p").?.number);
+    try testing.expectEqual(@as(f64, 1), after.get("g").?.number);
+    // The reverse: projections first, then the general class still gets
+    // all of its slots.
+    const r = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer r.deinit();
+    for (0..2) |_| for (0..8) |i| {
+        _ = try r.queryWith(a, try std.fmt.allocPrint(a, "SELECT $1::int AS rp{d}", .{i}), &one, .{ .plan = .serial_generic }, &failure);
+    };
+    try testing.expectEqual(@as(f64, 6), try count(r, a, prepared, &failure));
+    for (0..2) |_| for (0..8) |i| {
+        _ = try r.queryWith(a, try std.fmt.allocPrint(a, "SELECT $1::int AS rg{d}", .{i}), &one, .{ .plan = .generic }, &failure);
+    };
+    try testing.expectEqual(@as(f64, 14), try count(r, a, prepared, &failure));
+}
+
 test "libpq: a prepared-statement name collision disables reuse and retries unnamed" {
     const url = testUrl() orelse return error.SkipZigTest;
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
@@ -2249,4 +2317,63 @@ test "libpq: queryValidator binds int4[] and int8[] array params (validator conf
     var bad = [_]Value{.{ .number = 1.5 }};
     try testing.expectError(error.QueryFailed, svc.queryValidator(a, "SELECT * FROM unnest($1::integer[])", &.{.{ .array = &bad }}, &failure));
     try testing.expect(std.mem.indexOf(u8, failure.message, "invalid input syntax for type integer") != null);
+}
+
+test "libpq: literal parameters bind the decoded values and log byte-identically (slow and failed queries)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    core.config.set(.{ .database_url = url, .database_slow_query_ms = 1 });
+    core.log.setSink(LogCapture.sink, null);
+    defer core.log.setSink(null, null);
+    defer LogCapture.reset();
+    const svc = try DbService.init(testing.allocator, null);
+    defer svc.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var failure: root.Failure = .{};
+    // The confirmation snapshot's shapes: 214 message ids (a summarised
+    // log array), int4[] domains, text[] heights, and NULL (over the cap).
+    const row_sql =
+        \\SELECT (SELECT array_agg(decode(lpad(to_hex(g), 64, '0'), 'hex') ORDER BY g) FROM generate_series(1, 214) g) AS message_ids,
+        \\  ARRAY[1, 8453, 42161]::int4[] AS domains, ARRAY['10', '9223372036854775807', '0']::text[] AS heights,
+        \\  NULL::bytea[] AS none, '{}'::bytea[] AS empty
+    ;
+    const decoded = (try svc.query(a, row_sql, &.{}, &failure))[0];
+    const lazy = (try svc.queryLazy(a, row_sql, &.{}, .unnamed, &failure)).?;
+    defer lazy.deinit();
+    var literal: [5]Value = undefined;
+    var plain: [5]Value = undefined;
+    for (lazy.columns, 0..) |column, i| {
+        literal[i] = if (lazy.cell(0, i)) |text| try convert.literalValue(a, column.oid, text) else .null;
+        plain[i] = decoded.get(column.name).?;
+    }
+    try testing.expectEqual(@as(?usize, 214), convert.literalArrayLen(convert.literal(literal[0]).?));
+    try testing.expectEqual(@as(?usize, 0), convert.literalArrayLen(convert.literal(literal[4]).?));
+    // PostgreSQL reads both texts as the same values.
+    const params = try std.mem.concat(a, Value, &.{ &literal, &plain });
+    const same = try svc.query(a, "SELECT $1::bytea[] = $6::bytea[] AND $2::int4[] = $7::int4[] AND $3::text[] = $8::text[] AND $4::bytea[] IS NULL AND $9::bytea[] IS NULL AND $5::bytea[] = $10::bytea[] AS same", params, &failure);
+    try testing.expect(same[0].get("same").?.bool);
+    // Slow and failed query lines show the same values either way.
+    const Lines = struct {
+        fn of(s: *DbService, al: std.mem.Allocator, sql: []const u8, values: []const Value, fails: bool) ![]const u8 {
+            LogCapture.reset();
+            var f: root.Failure = .{};
+            if (fails) {
+                try testing.expectError(error.QueryFailed, s.query(al, sql, values, &f));
+            } else _ = try s.query(al, sql, values, &f);
+            LogCapture.mutex.lock();
+            defer LogCapture.mutex.unlock();
+            try testing.expectEqual(@as(usize, 1), LogCapture.warnings.items.len);
+            const line = LogCapture.warnings.items[0];
+            // Only the query id and duration may differ.
+            const role = std.mem.indexOf(u8, line, " role=").?;
+            const dur = std.mem.indexOf(u8, line, " durationMs=").?;
+            const after_dur = std.mem.indexOfScalarPos(u8, line, dur + 1, ' ').?;
+            return std.fmt.allocPrint(al, "{s}{s}|{s}", .{ line[0..std.mem.indexOf(u8, line, " id=").?], line[role..dur], line[after_dur..] });
+        }
+    };
+    const slow = "SELECT pg_sleep(0.01), $1::bytea[] AS i, $2::int4[] AS d, $3::text[] AS h, $4::bytea[] AS n, $5::bytea[] AS e";
+    const failing = "SELECT 1 / 0, $1::bytea[] AS i, $2::int4[] AS d, $3::text[] AS h, $4::bytea[] AS n, $5::bytea[] AS e";
+    try testing.expectEqualStrings(try Lines.of(svc, a, slow, &plain, false), try Lines.of(svc, a, slow, &literal, false));
+    try testing.expectEqualStrings(try Lines.of(svc, a, failing, &plain, true), try Lines.of(svc, a, failing, &literal, true));
 }

@@ -406,11 +406,15 @@ test "raw rows: column lookup at the map threshold, duplicate names keep the las
 
 const Counted = struct {
     var inner: ?@import("scraperdb").Database = null;
+    /// Lazy queries for raw rows.
     var lazy_calls: usize = 0;
+    /// Lazy confirmation snapshots (scraperdb binds their arrays back as
+    /// text; the rows themselves are not raw).
+    var snapshot_calls: usize = 0;
 
     fn lazyQuery(_: *anyopaque, arena: Allocator, plan: @import("scraperdb").service.Plan, text: []const u8, vals: []const Value, diag: *@import("scraperdb").Diag) anyerror!?*@import("db").LazyRows {
         const db = inner.?;
-        lazy_calls += 1;
+        if (std.mem.startsWith(u8, text, "WITH custom_frontier AS (")) snapshot_calls += 1 else lazy_calls += 1;
         return db.lazyQueryFn.?(db.ctx, arena, plan, text, vals, diag);
     }
 };
@@ -485,7 +489,7 @@ test "raw rows: PostgreSQL results through the App adapters match today's bytes"
     const domain_id = ids[0].get("d").?.number;
     const rmd_id = ids[0].get("r").?.string;
 
-    const Case = struct { query: []const u8, vars: ?[]const u8 = null, lazy: bool };
+    const Case = struct { query: []const u8, vars: ?[]const u8 = null, lazy: bool, snapshot: bool = false };
     const cases = [_]Case{
         .{ .query = "{ domain(order_by: {id: asc}) { id name chain_id native_token is_test_net is_deprecated } }", .lazy = true },
         .{ .query = try std.fmt.allocPrint(ca, "{{ a: domain(limit: 3, order_by: {{id: desc}}) {{ x: id id name name n2: native_token }} b: domain_by_pk(id: {d}) {{ chain_id id is_test_net }} c: domain_by_pk(id: -1) {{ id }} }}", .{domain_id}), .lazy = true },
@@ -500,7 +504,7 @@ test "raw rows: PostgreSQL results through the App adapters match today's bytes"
         .{ .query = "{ message_view(order_by: {id: desc}, limit: 500) { id nonce is_delivered is_provisional origin_chain_id origin_block_height destination_chain_id total_payment num_payments origin_domain destination_domain } }", .lazy = true },
         // Fallbacks: __typename, confirmations, aggregate.
         .{ .query = "{ domain(limit: 2) { __typename id } }", .lazy = false },
-        .{ .query = "{ message_view(confirmations: 0, order_by: {id: desc}, limit: 20) { id nonce is_provisional } }", .lazy = false },
+        .{ .query = "{ message_view(confirmations: 0, order_by: {id: desc}, limit: 20) { id nonce is_provisional } }", .lazy = false, .snapshot = true },
         .{ .query = "{ message_view_aggregate(where: {is_delivered: {_eq: true}}) { aggregate { count } nodes { id nonce } } }", .lazy = false },
         .{ .query = "{ raw_message_dispatch(limit: 20, order_by: {id: asc}) { id nonce origin_domain destination_domain origin_block_height } }", .lazy = true },
         // Errors: PostgreSQL's and the builder's, through the lazy query.
@@ -511,14 +515,15 @@ test "raw rows: PostgreSQL results through the App adapters match today's bytes"
     for (cases) |c| {
         _ = arena_state.reset(.retain_capacity);
         const before = Counted.lazy_calls;
+        const snapshots_before = Counted.snapshot_calls;
         const today = try runDb(a, &f.off, c.query, c.vars);
         const raw = try runDb(a, &f.on, c.query, c.vars);
         if (!std.mem.eql(u8, today, raw)) {
             std.debug.print("query: {s}\n today: {s}\n   raw: {s}\n", .{ c.query, today, raw });
             return error.TestUnexpectedResult;
         }
-        if (c.lazy != (Counted.lazy_calls > before)) {
-            std.debug.print("query: {s}: expected lazy={}, calls {d}\n body: {s}\n", .{ c.query, c.lazy, Counted.lazy_calls - before, today[0..@min(today.len, 300)] });
+        if (c.lazy != (Counted.lazy_calls > before) or c.snapshot != (Counted.snapshot_calls > snapshots_before)) {
+            std.debug.print("query: {s}: expected lazy={} snapshot={}, calls {d} and {d}\n body: {s}\n", .{ c.query, c.lazy, c.snapshot, Counted.lazy_calls - before, Counted.snapshot_calls - snapshots_before, today[0..@min(today.len, 300)] });
             return error.TestUnexpectedResult;
         }
     }

@@ -29,6 +29,10 @@ pub const Sql = struct {
     /// plus execution; predicates on joined tables (e.g. `origin_tx_hash`)
     /// need reordering (49x slower fixed), so they never qualify.
     fixed_join: bool = false,
+    /// The ORDER BY ends in `id` (or the cursor orders by it): unique in
+    /// every public relation built without a custom one, so no plan can
+    /// reorder the rows.
+    ordered_by_id: bool = false,
 };
 
 pub const Source = struct {
@@ -120,7 +124,17 @@ pub fn buildSelect(arena: Allocator, table: Table, args: SelectArgs, source: ?So
     try writeOrderBy(&b, w, checked.orders, checked.cursor);
     try writeLimit(&b, w, value.present(args.limit) orelse value.integer(MAX.limit), " LIMIT ");
     if (value.present(args.offset)) |offset| try writeLimit(&b, w, offset, " OFFSET ");
-    return .{ .sql = out.written(), .values = b.values.items, .fixed_join = fixedJoin(&b, args, checked, source) };
+    return .{
+        .sql = out.written(),
+        .values = b.values.items,
+        .fixed_join = fixedJoin(&b, args, checked, source),
+        .ordered_by_id = source == null and orderedById(checked),
+    };
+}
+
+fn orderedById(checked: Validated) bool {
+    if (checked.orders.len == 0) return checked.cursor != null; // ORDER BY "id"
+    return std.mem.eql(u8, checked.orders[checked.orders.len - 1].column, "id");
 }
 
 /// `Sql.fixed_join` for a validated, rendered select. An allow-list: only
