@@ -42,7 +42,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
-import { ExternalBridgeType, getStrategyChainNames } from './config/types.js';
+import {
+  ExternalBridgeType,
+  getInventoryRouteChainNames,
+  getStrategyChainNames,
+} from './config/types.js';
 import { RebalancerService } from './core/RebalancerService.js';
 import { configureRebalancerSigners } from './utils/rebalancerSigners.js';
 import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
@@ -149,7 +153,12 @@ async function main(): Promise<void> {
     const multiProvider = new MultiProvider(chainMetadata);
     const rebalancerSignerSetup = configureRebalancerSigners(
       multiProvider,
-      getStrategyChainNames(rebalancerConfig.strategyConfig),
+      Array.from(
+        new Set([
+          ...getStrategyChainNames(rebalancerConfig.strategyConfig),
+          ...getInventoryRouteChainNames(rebalancerConfig.inventoryRoutes),
+        ]),
+      ),
       rebalancerPrivateKey,
     );
     logger.info(
@@ -259,6 +268,7 @@ async function main(): Promise<void> {
             mergedInventorySigners,
             rebalancerConfig.externalBridges,
             rebalancerConfig.pendingTransferMiddlewares,
+            rebalancerConfig.inventoryRoutes,
           )
         : rebalancerConfig;
 
