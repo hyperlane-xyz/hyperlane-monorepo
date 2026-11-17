@@ -3,10 +3,15 @@ warpRouteId: ETH/viction
 # Deployment stays monitor-only until rollout validation is complete.
 deployment:
   monitorOnly: true
-  imageTag: 6040d28-20261110-130043
-  imageDigest: sha256:bca8117fd58bf6e824deee1206ee5182fc6ff15a910d618485b1392bd18a4ee5
+  imageTag: f18b00f-20261117-125013
+  imageDigest: sha256:df310dadc204b6cddbd4dff591fbcc6450bfd306e030d1c12b7315bd8083022b
   registryCommit: a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
+
+pendingTransferMiddlewares:
+  - type: relayerDenylist
+    url: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json
+    refreshIntervalSecs: 60
 
 intentTTL: 1209600
 
@@ -17,7 +22,8 @@ externalBridges:
   swapsxyz:
     defaultSlippage: 0.005
     maxQuoteLossBps: 50
-    maxEvmNativeFeeWei: '10000000000000000'
+    # Additional provider native fee: at most 0.5% of the 0.1 ETH minimum.
+    maxEvmNativeFeeWei: '500000000000000'
 
 strategy:
   rebalanceStrategy: weighted
