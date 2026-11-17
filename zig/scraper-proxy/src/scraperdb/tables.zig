@@ -94,8 +94,8 @@ const domain = spec(&.{ "chain_id", "id", "is_deprecated", "is_test_net", "name"
 /// column comes from a joined table (domain, transaction, block, payments,
 /// delivered_message) or is the projection's `is_provisional` constant.
 const message_view = withDriving(message_view_columns, &.{
-    "destination_domain_id", "id",       "message_body", "msg_id",          "nonce", "origin_domain_id",
-    "origin_mailbox",        "origin_tx_id", "recipient", "send_scraped_at", "sender",
+    "destination_domain_id", "id",           "message_body", "msg_id",          "nonce",  "origin_domain_id",
+    "origin_mailbox",        "origin_tx_id", "recipient",    "send_scraped_at", "sender",
 });
 
 const message_view_columns = spec(&.{
