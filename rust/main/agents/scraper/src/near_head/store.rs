@@ -40,8 +40,10 @@ fn signed(value: u32) -> i32 {
     i32::from_ne_bytes(value.to_ne_bytes())
 }
 
-// Keep a bounded native-height window for custom confirmation policies, plus
-// its preceding checkpoint so sparse chains still have a recovery anchor.
+// Match the 1,000-confirmation budget in scraper-proxy's
+// src/scraperdb/scraperdb.service.ts (MAX_CONFIRMATIONS); review both when raising it.
+// Websocket requests are uncapped and may lack a live-start checkpoint beyond
+// this window. Keep its preceding checkpoint for sparse native heights too.
 pub(super) const CHECKPOINT_HISTORY_BLOCKS: u64 = 1_000;
 
 const EVENTS: [(&str, &str, &str); 4] = [
