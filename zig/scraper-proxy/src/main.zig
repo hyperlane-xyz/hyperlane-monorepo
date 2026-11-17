@@ -176,7 +176,7 @@ fn startup(app: *App, config: core.config.Config) !void {
         return e;
     };
     app.server = server;
-    // Live's per-subscribe reads run as fibers on these loops (-Dlive-fiber-queries).
+    // Live's subscribe, Explorer and validator setup reads run as fibers on these loops.
     if (has_events) app.events.?.setFiberHost(&server.loop);
     try server.start();
 }

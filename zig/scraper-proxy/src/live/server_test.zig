@@ -269,8 +269,7 @@ const FakeDb = struct {
     /// Called before each query, without any lock (the loop mutex is released).
     before_query: ?struct { ctx: *anyopaque, func: *const fn (ctx: *anyopaque, sql: []const u8) void } = null,
 
-    /// `query_async` (on a thread of its own, after `before_query`), when set.
-    async_queries: bool = false,
+    /// `query_async` reads started (each on a thread of its own, after `before_query`).
     async_started: usize = 0,
 
     fn db(self: *FakeDb) es.Db {
@@ -409,12 +408,9 @@ const Harness = struct {
         return self.initBatch(limits, 500);
     }
 
-    /// With canonical-only subscribes inline and `query_async` reads.
+    /// Kept for the tests written against the continuation path (now the only one).
     fn initAsync(self: *Harness, limits: live.Limits) !void {
         try self.initBatch(limits, 500);
-        self.t.loop.lock();
-        self.server.async_subscribes = true;
-        self.t.loop.unlock();
     }
 
     fn initBatch(self: *Harness, limits: live.Limits, batch_size: u64) !void {
@@ -1825,7 +1821,7 @@ test "an early listener lost before start is replaced by a logged connect" {
     try testing.expectEqual(@as(usize, 1), h.listen.logged);
 }
 
-// -- -Dlive-fiber-queries: canonical-only subscribes inline, async boundary read
+// -- canonical-only subscribes inline, then the async boundary read
 
 test "async canonical subscribe: subscribed at once, live starts after the boundary read" {
     var h: Harness = .{};

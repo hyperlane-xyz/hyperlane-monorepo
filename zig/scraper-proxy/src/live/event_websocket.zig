@@ -28,7 +28,7 @@ pub const EventWebSocketServer = struct {
     explorer_ws: ws.Server = .{ .options = .{ .max_payload = live.MAX_EXPLORER_MESSAGE_BYTES } },
     validator_ws: ws.Server = .{ .options = .{ .max_payload = live.MAX_VALIDATOR_MESSAGE_BYTES } },
     start_error: [128]u8 = undefined,
-    /// `-Dlive-fiber-queries`: where `queryAsync` runs its fibers.
+    /// Where `queryAsync` runs its fibers.
     fiber_host: ?*FiberHost = null,
 
     /// `new EventWebSocketServer(db, {}, diagnostics)`.
@@ -52,7 +52,7 @@ pub const EventWebSocketServer = struct {
         errdefer self.scheduler.deinit();
         self.loop = .{ .allocator = gpa, .pool = &self.pool, .scheduler = self.scheduler.scheduler() };
         const config = core.config.get();
-        self.server = try live.Server.create(gpa, &self.loop, .{ .ctx = self, .query = query, .query_async = if (runtime.fiber_queries) queryAsync else null }, .{
+        self.server = try live.Server.create(gpa, &self.loop, .{ .ctx = self, .query = query, .query_async = queryAsync }, .{
             .ctx = self,
             .listen = listen,
             .listen_unlogged = listenUnlogged,
@@ -62,14 +62,13 @@ pub const EventWebSocketServer = struct {
             .limits = live.Limits.fromConfig(config),
             .batch_size = config.event_stream_batch_size,
             .production = if (config.node_env) |env| std.mem.eql(u8, env, "production") else false,
-            // Validator setups always run as continuations (`query_async`).
             .validator_db = .{ .ctx = self, .query = queryValidator, .query_async = queryValidatorAsync },
         }, self.diagnostics_stream);
         return self;
     }
 
     /// The HTTP server whose loops run live's database fibers; before it
-    /// accepts (`-Dlive-fiber-queries`).
+    /// accepts.
     pub fn setFiberHost(self: *EventWebSocketServer, host: *FiberHost) void {
         self.fiber_host = host;
     }
@@ -117,7 +116,7 @@ pub const EventWebSocketServer = struct {
     fn onUpgrade(ctx: *anyopaque, req: *http.Request, socket: *http.UpgradeSocket) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
         // Wiring, all builds: main hands the loops over before accepting.
-        if (self.fiber_host == null) @panic("live: an upgrade before setFiberHost (validator setups always read through query_async)");
+        if (self.fiber_host == null) @panic("live: an upgrade before setFiberHost");
         // stop() removes the TS 'upgrade' listener.
         self.loop.lock();
         const stopped = self.server.stopped;

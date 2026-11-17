@@ -31,10 +31,10 @@ const Oid = enum(u32) {
 
     fn kind(self: Oid) ?execute.FastKind {
         return switch (self) {
-            .int2, .int4, .oid => .number_text,
+            .int2, .int4 => .number_text,
             .int8, .numeric, .text, .varchar => .string_text,
             .bool => .bool_tf,
-            .timestamptz, .bytea, .jsonb => null,
+            .oid, .timestamptz, .bytea, .jsonb => null,
         };
     }
 
@@ -93,9 +93,8 @@ const Table = struct {
         return self.cells[r][c];
     }
 
-    fn writeCell(ctx: *anyopaque, w: *std.Io.Writer, a: Allocator, r: usize, c: usize) (std.Io.Writer.Error || Allocator.Error)!void {
+    fn writeText(ctx: *anyopaque, w: *std.Io.Writer, a: Allocator, c: usize, text: []const u8) (std.Io.Writer.Error || Allocator.Error)!void {
         const self: *Table = @ptrCast(@alignCast(ctx));
-        const text = self.cells[r][c] orelse return w.writeAll("null");
         // Not fast: stringify(convertCell), like LazyRows.writeCell.
         const kind = self.oids[c].kind() orelse return json.stringify(w, try self.oids[c].convert(a, text));
         switch (kind) {
@@ -138,7 +137,7 @@ const Fake = struct {
             .columns = try self.table.columns(a),
             .cell_fn = Table.cell,
             .materialize_fn = Table.materialize,
-            .write_cell_fn = Table.writeCell,
+            .write_text_fn = Table.writeText,
             .deinit_fn = Table.deinit,
         };
         return if (single(info.field_name)) .{ .row = raw } else .{ .rows = raw };
@@ -189,6 +188,10 @@ test "raw rows: domain list, by_pk, aliases, NULLs and fallbacks match today's b
         "{ domain { id __typename } }", // __typename: today's path
         "{ domain { ...F } } fragment F on domain { id name }",
         "{ domain { id @skip(if: true) name @include(if: true) } }",
+        // No fields left after @skip/@include: rows are `{}`.
+        "{ domain { id @skip(if: true) } }",
+        "{ domain { name @include(if: false) ...F @skip(if: true) } } fragment F on domain { id }",
+        "{ domain_by_pk(id: 1) { name @include(if: false) } }",
         "{ x: domain { id } y: domain_by_pk(id: 1) { is_test_net } }",
     };
     for (queries) |q| try expectSame(a, q, &table);
@@ -455,6 +458,7 @@ test "raw rows: PostgreSQL results through the App adapters match today's bytes"
         .{ .query = try std.fmt.allocPrint(ca, "{{ a: domain(limit: 3, order_by: {{id: desc}}) {{ x: id id name name n2: native_token }} b: domain_by_pk(id: {d}) {{ chain_id id is_test_net }} c: domain_by_pk(id: -1) {{ id }} }}", .{domain_id}), .lazy = true },
         .{ .query = "{ domain(limit: 5) { ...F ... on domain { id is_deprecated } } } fragment F on domain { name chain_id }", .lazy = true },
         .{ .query = "{ domain(where: {id: {_lt: -5}}) { id name } }", .lazy = true },
+        .{ .query = "{ a: domain(limit: 3) { id @skip(if: true) } b: domain_by_pk(id: -1) { name @include(if: false) } }", .lazy = true },
         .{ .query = "query ($n: Int) { domain(limit: $n, order_by: {name: desc}) { native_token chain_id } }", .vars = "{\"n\":7}", .lazy = true },
         // Custom scalars over converted columns (bytea, timestamp, interval): today's path.
         .{ .query = "{ raw_message_dispatch(order_by: {id: desc}, limit: 50) { id msg_id nonce origin_domain destination_domain sender recipient msg_body origin_block_height origin_tx_hash time_created } }", .lazy = true },
@@ -640,6 +644,8 @@ test "raw rows stage bench: today vs raw from one result (opt-in)" {
     }
     for ([_]Bench{
         .{ .name = "rmd 500 with bodies", .sql = "SELECT \"id\", \"msg_id\", \"nonce\", \"origin_domain\", \"destination_domain\", \"sender\", \"recipient\", \"msg_body\", \"origin_block_height\", \"origin_tx_hash\", \"time_created\" FROM \"raw_message_dispatch\" ORDER BY \"id\" DESC LIMIT 500", .query = "{ raw_message_dispatch { id msg_id nonce origin_domain destination_domain sender recipient msg_body origin_block_height origin_tx_hash time_created } }", .n = 2000 },
+        .{ .name = "mv 500 Explorer stub", .sql = "SELECT \"id\", \"msg_id\", \"nonce\", \"sender\", \"recipient\", \"is_delivered\", \"is_provisional\", \"send_occurred_at\", \"delivery_occurred_at\", \"delivery_latency\", \"origin_chain_id\", \"origin_block_height\", \"origin_domain_id\", \"origin_tx_id\", \"origin_tx_hash\", \"origin_tx_sender\", \"origin_tx_recipient\", \"destination_chain_id\", \"destination_domain_id\", \"destination_tx_id\", \"destination_tx_hash\", \"destination_tx_sender\", \"destination_tx_recipient\", \"message_body\" FROM (SELECT *, FALSE AS is_provisional FROM \"message_view\") AS \"message_view\" ORDER BY \"id\" DESC LIMIT 500", .query = "{ message_view { id msg_id nonce sender recipient is_delivered is_provisional send_occurred_at delivery_occurred_at delivery_latency origin_chain_id origin_block_height origin_domain_id origin_tx_id origin_tx_hash origin_tx_sender origin_tx_recipient destination_chain_id destination_domain_id destination_tx_id destination_tx_hash destination_tx_sender destination_tx_recipient message_body } }", .n = 1000 },
+        .{ .name = "mv list 100", .sql = "SELECT \"id\", \"msg_id\", \"nonce\", \"sender\", \"recipient\", \"is_delivered\", \"send_occurred_at\", \"delivery_occurred_at\", \"delivery_latency\", \"origin_tx_hash\", \"destination_tx_hash\", \"total_payment\", \"num_payments\" FROM (SELECT *, FALSE AS is_provisional FROM \"message_view\") AS \"message_view\" WHERE \"origin_domain_id\" IN (42161, 8453) ORDER BY \"id\" DESC LIMIT 100", .query = "{ message_view { id msg_id nonce sender recipient is_delivered send_occurred_at delivery_occurred_at delivery_latency origin_tx_hash destination_tx_hash total_payment num_payments } }", .n = 5000 },
         .{ .name = "domains 63", .sql = "SELECT \"id\", \"name\", \"chain_id\", \"native_token\", \"is_test_net\", \"is_deprecated\" FROM \"domain\" ORDER BY \"id\" ASC", .query = "{ domain { id name chain_id native_token is_test_net is_deprecated } }", .n = 40000 },
     }) |b| {
         Stage.lazy = (try f.dbs.queryLazy(keep.allocator(), b.sql, &.{}, .unnamed, &failure)).?;

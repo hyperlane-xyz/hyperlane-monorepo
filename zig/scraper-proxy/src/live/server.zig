@@ -358,8 +358,6 @@ pub const Peer = struct {
     diagnostics_subscription: ?*diagnostics.stream.Subscription = null,
     /// ws 'close' has been handled.
     closed: bool = false,
-    /// Domain reported by the last `ConfirmationUnavailable` failure.
-    unavailable_domain: u32 = 0,
     /// `/validators`: its `validatorClients` entry (route `.validator`).
     validator: ValidatorClient = .{},
     /// Non-awaited frames sent this turn, written with one syscall when the
@@ -587,10 +585,6 @@ pub const Server = struct {
     listener_attempt: u64 = 0,
     /// Write callbacks of frames written inline, run at the end of the turn.
     deferred: std.ArrayList(Deferred) = .empty,
-    /// Subscribes run as continuations, their database reads through
-    /// `Db.query_async`: no worker waits for one (`-Dlive-fiber-queries`;
-    /// tests set it).
-    async_subscribes: bool = runtime.fiber_queries,
     /// `query_async` reads whose `done` has not finished (`stop` waits for
     /// none: `done` touches the pool). Own lock: `done` never takes live's.
     async_mutex: std.Thread.Mutex = .{},
@@ -1109,13 +1103,11 @@ pub const Server = struct {
         if (!blocks and custom == null) {
             // No reads: finish synchronously like the TS async function.
             self.finishExplorer(peer, setup);
-        } else if (self.async_subscribes and self.store.db.query_async != null) {
-            self.explorerAsync(peer, setup);
-        } else self.loop.spawn(finishExplorer, .{ self, peer, setup });
+        } else self.explorerAsync(peer, setup);
         return peer;
     }
 
-    // -- Explorer setup as continuations (`async_subscribes`) ------------------
+    // -- Explorer setup as continuations -----------------------------------------
 
     /// `connectExplorer` after its synchronous prefix, without a task: the
     /// block heads and heads snapshot reads go through `query_async`.
@@ -1244,25 +1236,15 @@ pub const Server = struct {
         return peer;
     }
 
-    /// The part of `connectExplorer` after its first await.
+    /// `connectExplorer` without reads (no blocks, no custom stream).
     fn finishExplorer(self: *Server, peer: *Peer, setup: *ExplorerSetup) void {
         defer {
             if (setup.custom) |c| self.allocator.free(c.domains);
             self.allocator.destroy(setup);
             peer.release();
         }
-        var stream: ?*ConfirmationStream = null;
-        if (setup.blocks) self.loadBlocks(peer) catch |err| return self.failSocket(peer, errorMessage(err));
-        if (setup.custom) |c| {
-            stream = self.createConfirmationStream(peer, c.confirmations, c.domains) catch |err| {
-                if (err == error.ConfirmationUnavailable) {
-                    var buffer: [96]u8 = undefined;
-                    return self.rejectNegotiation(peer, unavailableMessage(&buffer, self.lastUnavailableDomain(peer)));
-                }
-                return self.failSocket(peer, errorMessage(err));
-            };
-        }
-        self.completeExplorer(peer, setup, stream);
+        std.debug.assert(!setup.blocks and setup.custom == null);
+        self.completeExplorer(peer, setup, null);
     }
 
     /// `connectExplorer` after its reads: `ready`, start, diagnostics.
@@ -2096,8 +2078,7 @@ pub const Server = struct {
             if (stream.kind == .blocks) continue;
             event_streams.appendSlice(arena.allocator(), protocol.splitConfirmationStreams(arena.allocator(), stream, subscribe_message.confirmations_by_domain) catch oom()) catch oom();
         }
-        const async_subscribe = self.async_subscribes and self.store.db.query_async != null;
-        if (async_subscribe and canonicalOnly(streams, event_streams.items)) {
+        if (canonicalOnly(streams, event_streams.items)) {
             // `await Promise.all([])` is a microtask: TS runs on to the
             // boundary read before anything else; nothing here may wait.
             self.subscribeCanonical(peer, subscribe_message, event_streams.items);
@@ -2119,9 +2100,7 @@ pub const Server = struct {
             .policies = policies,
         };
         arena_owned = false;
-        if (async_subscribe) return self.subscribeAsync(peer, job);
-        peer.retain();
-        self.loop.spawn(subscribe, .{ self, peer, job });
+        self.subscribeAsync(peer, job);
     }
 
     /// One `onMessage` subscribe. Its custom streams initialize like TS's
@@ -2141,7 +2120,7 @@ pub const Server = struct {
         by_domain: ?[]const protocol.DomainConfirmations = null,
         /// Every requested domain/policy pair (the batched snapshot's input).
         policies: []const es.EventStore.Policy = &.{},
-        /// The subscribe task plus one per snapshot read in flight.
+        /// The flow plus one per snapshot read in flight.
         refs: usize = 1,
         /// Heads snapshots, newest last (`snapshots` in `onMessage`).
         snapshots: std.ArrayList(*HeadsSnapshot) = .empty,
@@ -2154,11 +2133,7 @@ pub const Server = struct {
         failure_message: [256]u8 = undefined,
         failure_len: usize = 0,
         unavailable_domain: u32 = 0,
-        /// The subscribe task awaiting the outcome (`Promise.all`); resumed
-        /// through the handoff queue, before anything else takes the mutex.
-        waiter: ?*Waiter = null,
-        // Continuations (`async_subscribes`): no task; the flow holds a reference.
-        async_flow: bool = false,
+        /// The flow's peer (a reference).
         peer: ?*Peer = null,
         /// Custom streams created (retained), in request order.
         custom: std.ArrayList(CustomStream) = .empty,
@@ -2193,7 +2168,7 @@ pub const Server = struct {
         err: anyerror = error.Failed,
         message: [256]u8 = undefined,
         message_len: usize = 0,
-        /// `async_subscribes`: its read.
+        /// Its read.
         work: AsyncWork = undefined,
         job: *SubscribeJob = undefined,
     };
@@ -2217,8 +2192,8 @@ pub const Server = struct {
     }
 
     /// `readHeads(confirmations)` in `onMessage`: the subscribe's snapshot
-    /// unless a rollback happened since it was taken; a new one is read on a
-    /// task (or as a `query_async` read).
+    /// unless a rollback happened since it was taken; a new one is a
+    /// `query_async` read.
     fn snapshotFor(self: *Server, job: *SubscribeJob) *HeadsSnapshot {
         if (job.snapshots.getLastOrNull()) |latest| {
             if (latest.revision == self.confirmation_revision) return latest;
@@ -2227,16 +2202,14 @@ pub const Server = struct {
         snapshot.* = .{ .revision = self.confirmation_revision };
         job.snapshots.append(self.allocator, snapshot) catch oom();
         job.refs += 1;
-        if (job.async_flow) {
-            snapshot.job = job;
-            snapshot.work = .{ .query = self.newQuery(), .run = runSnapshotRead };
-            // Never null: the reading stream's own pairs are in `policies`.
-            const statement = (es.EventStore.confirmationSnapshotsQuery(snapshot.work.query.arena.allocator(), job.policies) catch oom()) orelse
-                @panic("live: confirmation snapshot without policies");
-            snapshot.work.query.sql = statement.sql;
-            snapshot.work.query.params = statement.params;
-            self.issueRead(&snapshot.work);
-        } else self.loop.spawn(readSnapshot, .{ self, job, snapshot });
+        snapshot.job = job;
+        snapshot.work = .{ .query = self.newQuery(), .run = runSnapshotRead };
+        // Never null: the reading stream's own pairs are in `policies`.
+        const statement = (es.EventStore.confirmationSnapshotsQuery(snapshot.work.query.arena.allocator(), job.policies) catch oom()) orelse
+            @panic("live: confirmation snapshot without policies");
+        snapshot.work.query.sql = statement.sql;
+        snapshot.work.query.params = statement.params;
+        self.issueRead(&snapshot.work);
         return snapshot;
     }
 
@@ -2246,27 +2219,6 @@ pub const Server = struct {
             if (policy.confirmations == confirmations) return heads;
         }
         return null;
-    }
-
-    /// The snapshot query, then its reactions: every stream awaiting it, in
-    /// order, with the mutex held throughout.
-    fn readSnapshot(self: *Server, job: *SubscribeJob, snapshot: *HeadsSnapshot) void {
-        defer self.releaseJob(job);
-        if (self.store.confirmationSnapshots(self.allocator, job.policies)) |snapshots| {
-            snapshot.snapshots = snapshots;
-            snapshot.state = .ok;
-        } else |err| {
-            const message = errorMessage(err);
-            snapshot.message_len = @min(message.len, snapshot.message.len);
-            @memcpy(snapshot.message[0..snapshot.message_len], message[0..snapshot.message_len]);
-            snapshot.err = err;
-            snapshot.state = .failed;
-        }
-        for (job.inits) |*init| {
-            if (init.done or init.waiting != snapshot) continue;
-            init.waiting = null;
-            self.continueInit(job, init, snapshot);
-        }
     }
 
     /// `initialize`'s loop head: register the read (or finish when inactive).
@@ -2304,13 +2256,7 @@ pub const Server = struct {
                 if (err == error.ConfirmationUnavailable) job.unavailable_domain = init.stream.unavailable_domain;
             }
         } else self.warnCanonicalDomains(init.stream, init.event_type);
-        // Continuations: settled by the caller once its reactions ran.
-        if (job.async_flow) return;
-        // `await Promise.all(...)` resumes once every stream finished or one failed.
-        if (job.initializing > 0 and job.failure == null) return;
-        const waiter = job.waiter orelse return;
-        job.waiter = null;
-        resumeWaiter(self.loop, waiter, true);
+        // Settled (`Promise.all`) by the caller once its reactions ran.
     }
 
     const CustomStream = struct { event_type: EventType, stream: *ConfirmationStream };
@@ -2376,7 +2322,7 @@ pub const Server = struct {
         return policies;
     }
 
-    // -- subscribes as continuations (`async_subscribes`) ---------------------
+    // -- subscribes as continuations -------------------------------------------
     //
     // `onMessage` with blocks or custom streams, without a task: each await
     // (block heads, heads snapshots, awaited live starts, the boundary read)
@@ -2385,7 +2331,6 @@ pub const Server = struct {
 
     /// The synchronous prefix (mutex held, on the ws thread): never waits.
     fn subscribeAsync(self: *Server, peer: *Peer, job: *SubscribeJob) void {
-        job.async_flow = true;
         job.peer = peer;
         peer.retain();
         if (peer.blocks) |subscription| {
@@ -2553,41 +2498,6 @@ pub const Server = struct {
         self.continueCustomLiveStarts(job);
     }
 
-    /// `onMessage` after its first await.
-    fn subscribe(self: *Server, peer: *Peer, job: *SubscribeJob) void {
-        var custom: std.ArrayList(CustomStream) = .empty;
-        defer {
-            for (custom.items) |entry| entry.stream.release();
-            custom.deinit(self.allocator);
-            self.releaseJob(job);
-            peer.release();
-        }
-        self.subscribeStreams(peer, job, &custom) catch |err| {
-            if (err == error.ConfirmationUnavailable) {
-                var buffer: [96]u8 = undefined;
-                self.rejectNegotiation(peer, unavailableMessage(&buffer, job.unavailable_domain));
-            } else self.failSocket(peer, errorMessage(err));
-            return;
-        };
-        if (!peer.in_clients) return self.dropStreams(peer);
-        self.acknowledge(peer, .{ .streams = job.streams, .confirmations_by_domain = job.by_domain }, job.event_streams);
-        if (peer.streams) |streams| {
-            // `forEach(stream => stream.start())` over a snapshot.
-            const snapshot = self.allocator.dupe(*ConfirmationStream, streams.items) catch oom();
-            defer self.allocator.free(snapshot);
-            for (snapshot) |stream| stream.retain();
-            for (snapshot) |stream| stream.start();
-            for (snapshot) |stream| stream.release();
-        }
-        self.startBlocks(peer);
-        for (custom.items) |entry| {
-            for (entry.stream.domains) |domain| {
-                if (!self.sendLiveStart(peer, domain, &[_]EventType{entry.event_type}, entry.stream.liveStart(domain), entry.stream.confirmations)) return;
-            }
-        }
-        self.sendLiveStarts(peer, job.event_streams) catch |err| self.failSocket(peer, errorMessage(err));
-    }
-
     /// `client.subscriptions.set(...)` for the event streams (custom groups
     /// only where no group is stored yet: the canonical group filters live
     /// publication), then `subscribed`.
@@ -2701,7 +2611,7 @@ pub const Server = struct {
         self.async_mutex.lock();
         self.async_outstanding += 1;
         self.async_mutex.unlock();
-        db.query_async.?(db.ctx, &work.query);
+        db.query_async(db.ctx, &work.query);
     }
 
     /// `async_mutex` held: `work`'s continuation joins the drain.
@@ -2812,47 +2722,6 @@ pub const Server = struct {
         job.server.continueLiveStarts(job);
     }
 
-    /// `subscribeBlocks` and the concurrent `createConfirmationStream` calls.
-    /// Custom streams that were created are appended to `custom` (retained),
-    /// in request order.
-    fn subscribeStreams(self: *Server, peer: *Peer, job: *SubscribeJob, custom: *std.ArrayList(CustomStream)) !void {
-        if (peer.blocks != null) try self.loadBlocks(peer);
-        var specs = self.streamSpecs(job);
-        defer specs.deinit(self.allocator);
-        if (specs.items.len == 0) return;
-        // Every call awaits the same flush, then returns undefined if the
-        // socket disconnected meanwhile; otherwise all register before any
-        // snapshot resolves.
-        self.confirmation_updates.flush();
-        if (!peer.in_clients and !peer.in_explorer) return;
-        for (specs.items) |spec| {
-            const stream = self.newConfirmationStream(peer, spec.confirmations, spec.domains, spec.event_type);
-            stream.retain();
-            custom.append(self.allocator, .{ .event_type = spec.event_type, .stream = stream }) catch oom();
-        }
-        // All register their reads before any resolves (one microtask burst).
-        const inits = job.arena.allocator().alloc(StreamInit, specs.items.len) catch oom();
-        for (specs.items, custom.items, inits) |spec, entry, *init| {
-            entry.stream.retain();
-            init.* = .{ .stream = entry.stream, .event_type = spec.event_type, .allow_unavailable = spec.allow_unavailable };
-        }
-        job.inits = inits;
-        job.initializing = inits.len;
-        for (inits) |*init| self.startInit(job, init);
-        if (job.initializing > 0 and job.failure == null) {
-            var waiter: Waiter = .{};
-            job.waiter = &waiter;
-            runtime.assertMayBlock();
-            self.loop.unlock();
-            waiter.event.wait();
-            self.loop.lockHandoff(&waiter);
-        }
-        if (job.failure) |err| {
-            if (err == error.Failed) return runtime.fail("{s}", .{job.failure_message[0..job.failure_len]});
-            return err;
-        }
-    }
-
     /// `sendLiveStarts`' streams and domains (its prefix). Owns copies.
     const CanonicalPlan = struct {
         arena: std.heap.ArenaAllocator,
@@ -2894,53 +2763,6 @@ pub const Server = struct {
             return if (self.every_stream_has_domains) self.requested_domains else null;
         }
     };
-
-    /// `sendLiveStarts`: canonical streams start at the confirmed checkpoint
-    /// read after their subscriptions were registered.
-    fn sendLiveStarts(self: *Server, peer: *Peer, requests: []const protocol.StreamRequest) !void {
-        var plan = CanonicalPlan.init(self.allocator, requests) orelse return;
-        defer plan.deinit();
-        var boundaries = try self.store.liveStartBoundaries(plan.domainFilter());
-        defer boundaries.deinit(self.allocator);
-        self.sendCanonicalLiveStarts(peer, &plan, &boundaries);
-    }
-
-    /// `sendLiveStarts` after its boundary read.
-    fn sendCanonicalLiveStarts(self: *Server, peer: *Peer, plan: *const CanonicalPlan, boundaries: *const es.EventStore.Boundaries) void {
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const a = arena.allocator();
-        // `new Set([...boundaries.keys(), ...requested domains])`.
-        var requested: std.ArrayList(u32) = .empty;
-        requested.appendSlice(a, boundaries.keys()) catch oom();
-        for (plan.requested_domains) |domain| if (std.mem.indexOfScalar(u32, requested.items, domain) == null)
-            requested.append(a, domain) catch oom();
-        var event_types: std.ArrayList(EventType) = .empty;
-        for (requested.items) |domain| {
-            event_types.clearRetainingCapacity();
-            for (plan.streams) |stream| {
-                if (stream.hasDomain(domain)) event_types.append(a, stream.kind.eventType().?) catch oom();
-            }
-            if (!self.sendLiveStart(peer, domain, event_types.items, boundaries.get(domain), null)) return;
-        }
-    }
-
-    /// `sendLiveStart`: false (nothing sent) once the client is gone, else
-    /// the awaited send's result.
-    fn sendLiveStart(
-        self: *Server,
-        peer: *Peer,
-        domain: u32,
-        event_types: []const EventType,
-        boundary: ?protocol.LiveStartBoundary,
-        confirmations: ?u64,
-    ) bool {
-        if (!peer.in_clients) return false;
-        var out: std.Io.Writer.Allocating = .init(self.allocator);
-        defer out.deinit();
-        writeLiveStart(&out.writer, domain, event_types, boundary, confirmations) catch oom();
-        return self.sendAndWait(peer, out.written());
-    }
 
     fn writeLiveStart(w: *std.Io.Writer, domain: u32, event_types: []const EventType, boundary: ?protocol.LiveStartBoundary, confirmations: ?u64) !void {
         var o = try frames.Object.begin(w);
@@ -3016,15 +2838,6 @@ pub const Server = struct {
         subscription.* = .{ .domains = if (domains) |d| self.allocator.dupe(u32, d) catch oom() else null };
         peer.blocks = subscription;
         self.block_subscriptions.put(self.allocator, peer, {}) catch oom();
-    }
-
-    /// The snapshot read of `subscribeBlocks`; notifications that arrived
-    /// during the query win.
-    fn loadBlocks(self: *Server, peer: *Peer) !void {
-        const domains = if (peer.blocks) |b| b.domains else return;
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        try self.applyBlockRows(peer, try self.store.blockHeads(arena.allocator(), domains));
     }
 
     /// `subscribeBlocks` after its read: the latest head per domain.
@@ -3183,10 +2996,6 @@ pub const Server = struct {
             self.peer.release();
             server_.allocator.destroy(self);
         }
-        fn readHeads(ctx: *anyopaque, allocator: Allocator) anyerror!cs.Heads {
-            const self: *StreamBinding = @ptrCast(@alignCast(ctx));
-            return self.server().store.confirmationHeads(allocator, self.domains);
-        }
     };
 
     /// `new ConfirmationStream(...)` registered on the peer (its reference).
@@ -3226,23 +3035,6 @@ pub const Server = struct {
         return stream;
     }
 
-    /// Explorer `createConfirmationStream` (all domains may be canonical).
-    /// Null when the socket disconnected while older heads were delivered.
-    fn createConfirmationStream(self: *Server, peer: *Peer, confirmations: u64, domains: []const u32) !?*ConfirmationStream {
-        // Deliver older queued heads before this stream takes its initial snapshot.
-        self.confirmation_updates.flush();
-        // Disconnect may have removed this socket while setup awaited a DB read.
-        if (!peer.in_clients and !peer.in_explorer) return null;
-        const stream = self.newConfirmationStream(peer, confirmations, domains, null);
-        stream.retain();
-        defer stream.release();
-        stream.initialize(.{ .ctx = stream.io.ctx, .read = StreamBinding.readHeads }, true) catch |err| {
-            if (err == error.ConfirmationUnavailable) peer.unavailable_domain = stream.unavailable_domain;
-            return err;
-        };
-        return stream;
-    }
-
     fn warnCanonicalDomains(self: *Server, stream: *ConfirmationStream, event_type: ?EventType) void {
         const kind = event_type orelse return;
         var canonical: std.ArrayList(u8) = .empty;
@@ -3254,10 +3046,6 @@ pub const Server = struct {
         }
         if (canonical.items.len > 0)
             self.logger.warn("websocket skipped advisory confirmations={d} eventType={s} domains={s}: near-head state unavailable", .{ stream.confirmations, kind.name(), canonical.items });
-    }
-
-    fn lastUnavailableDomain(_: *Server, peer: *Peer) u32 {
-        return peer.unavailable_domain;
     }
 
     fn unavailableMessage(buffer: []u8, domain: u32) []const u8 {

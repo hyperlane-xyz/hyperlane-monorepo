@@ -92,9 +92,10 @@ pub const Resolvers = struct {
 };
 
 /// What a fast column's JSON is (the database adapter decides per column
-/// type; `RawRows.write_cell_fn` writes it byte-equal to today's path).
+/// type; `RawRows.write_text_fn` writes it byte-equal to today's path).
 pub const FastKind = enum {
-    /// A JSON number (int2/int4).
+    /// A JSON number from an int2/int4 column: always a 32-bit integer, so an
+    /// Int field takes it without a range check.
     number_text,
     /// A JSON string (int8, numeric, text-like).
     string_text,
@@ -118,8 +119,9 @@ pub const RawRows = struct {
     cell_fn: *const fn (ctx: *anyopaque, row: usize, col: usize) ?[]const u8,
     /// Today's row values (`[]Value` objects), allocated in `a`.
     materialize_fn: *const fn (ctx: *anyopaque, a: Allocator) Allocator.Error![]Value,
-    /// Writes cell (row, col) as today's JSON for its value (NULL: `null`).
-    write_cell_fn: *const fn (ctx: *anyopaque, w: *std.Io.Writer, a: Allocator, row: usize, col: usize) (std.Io.Writer.Error || Allocator.Error)!void,
+    /// Writes a non-NULL cell's `text` (from `cell_fn`) of column `col` as
+    /// today's JSON for its value.
+    write_text_fn: *const fn (ctx: *anyopaque, w: *std.Io.Writer, a: Allocator, col: usize, text: []const u8) (std.Io.Writer.Error || Allocator.Error)!void,
     deinit_fn: *const fn (ctx: *anyopaque) void,
 
     fn cell(self: RawRows, row: usize, col: usize) ?[]const u8 {
@@ -689,6 +691,9 @@ pub const Executor = struct {
     /// miss the partial output is dropped and false returned: materialize.
     fn writeRawRows(self: *Executor, plan: RawPlan, raw: RawRows, single: bool) Err!bool {
         const fields = plan.collected.names.len;
+        // No fields (all skipped): rows are `{}`, which the lead-ins below
+        // cannot express; today's path writes them.
+        if (fields == 0) return false;
         const cols = try self.a.alloc(usize, fields);
         for (plan.collected.defs, plan.scalars, cols) |maybe_def, scalar, *col| {
             // The column the row object holds for this field (the default
@@ -706,7 +711,7 @@ pub const Executor = struct {
                 .int => k == .number_text,
                 .boolean => k == .bool_tf,
                 // Pass-through: today's output is the converted cell as JSON,
-                // which `write_cell_fn` writes for any column type.
+                // which `write_text_fn` writes for any column type.
                 .custom => true,
                 .float => false,
             };
@@ -720,27 +725,25 @@ pub const Executor = struct {
             try self.writeRaw("null");
             return true;
         }
+        // Each field's lead-in, `{"key":` or `,"key":`, written once per row.
+        const leads = try self.a.alloc([]const u8, fields);
+        for (leads, plan.collected.keys, 0..) |*lead, key, i| lead.* = try std.mem.concat(self.a, u8, &.{ if (i == 0) "{" else ",", key });
         const mark = w.end;
         if (!single) try self.writeRaw("[");
         for (0..rows) |r| {
             if (r > 0) try self.writeRaw(",");
-            try self.writeRaw("{");
-            for (plan.collected.keys, plan.scalars, cols, 0..) |key, scalar, c, i| {
-                if (i > 0) try self.writeRaw(",");
-                try self.writeRaw(key);
-                // A NULL (or a converted json `null`) in a non-null field, or
-                // an Int outside 32 bits: today's error or coercion path.
+            for (leads, plan.scalars, cols) |lead, scalar, c| {
+                try self.writeRaw(lead);
+                // A NULL (or a converted json `null`) in a non-null field:
+                // today's error path. (Int fields read int2/int4 columns
+                // only, so no cell needs Int's range coercion.)
                 const text = raw.cell(r, c) orelse {
                     if (scalar.non_null) return self.dropRaw(mark);
                     try self.writeRaw("null");
                     continue;
                 };
-                if (scalar.kind == .int) {
-                    const n = std.fmt.parseInt(i64, text, 10) catch return self.dropRaw(mark);
-                    if (n > std.math.maxInt(i32) or n < std.math.minInt(i32)) return self.dropRaw(mark);
-                }
                 if (scalar.non_null and raw.columns[c].kind == null and std.mem.eql(u8, text, "null")) return self.dropRaw(mark);
-                raw.write_cell_fn(raw.ctx, w, self.a, r, c) catch return error.OutOfMemory;
+                raw.write_text_fn(raw.ctx, w, self.a, c, text) catch return error.OutOfMemory;
             }
             try self.writeRaw("}");
         }

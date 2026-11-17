@@ -188,10 +188,15 @@ rule, not the scheduling.
   statements). The GraphQL pool keeps per-connection named statements for
   `*_by_pk`, selects pinning `id`/`msg_id` with `_eq`, the fixed confirmation
   snapshot and confirmation projections bounded by `msg_id` `_eq`, so
-  PostgreSQL may reuse a generic plan. Key lookups read at most one row per
-  key, and the snapshot's arrays only feed `= ANY`/`unnest`, so a different
-  plan cannot change any response (a stress run forcing every statement
-  generic differed only on non-unique lookups, which stay unnamed). A text is
+  PostgreSQL may reuse a generic plan. `id` lookups read at most one row
+  (primary key). `msg_id` is not unique in the schema (a hash index only; the
+  unique key is origin, origin_mailbox, nonce): the port relies on msg_id, a
+  message hash, being unique in practice. If duplicates ever existed, a
+  `msg_id` `_eq` select with LIMIT and no ORDER BY could return a different
+  row than TS. The snapshot's arrays only feed `= ANY`/`unnest`. Apart from
+  that duplicate-msg_id case, a different plan cannot change any response: a
+  stress run forcing every statement generic differed only on non-unique
+  lookups, which stay unnamed. A text is
   prepared on its second use; a full cache (8 per connection) evicts only an
   entry idle for 64 named queries, so one-off shapes cost no more than
   node-pg's unnamed path. Parse, and the switch to `plan_cache_mode=auto`

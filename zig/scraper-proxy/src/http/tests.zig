@@ -2245,11 +2245,8 @@ test "trySendInline: partial write queues the tail; busy queue falls back withou
     for (big, 0..) |*b, i| b.* = @intCast('a' + i % 26);
     var counts: CompletionCount = .{};
     // The client is not reading: the kernel takes only part of 4 MiB.
-    std.debug.print("A\n", .{});
     try testing.expect(try conn.trySendInline(big, false, counts.cb()));
-    std.debug.print("B\n", .{});
     const queued = conn.bufferedAmount();
-    std.debug.print("C queued={d}\n", .{queued});
     try testing.expect(queued > 0 and queued < big.len + 10);
     try testing.expectEqual(@as(u32, 0), counts.ok.load(.monotonic));
     // Queue busy: nothing written, no callback, accounting untouched.
@@ -2259,9 +2256,7 @@ test "trySendInline: partial write queues the tail; busy queue falls back withou
     try testing.expectEqual(@as(u32, 0), small_counts.ok.load(.monotonic) + small_counts.failed.load(.monotonic));
     try conn.send("small", false, small_counts.cb());
     // Drain: the big frame arrives intact, then the fallback frame.
-    std.debug.print("D\n", .{});
     const first = try wsReadLarge(&c, a);
-    std.debug.print("E\n", .{});
     try testing.expectEqual(@as(u8, 0x1), first.opcode);
     try testing.expectEqualSlices(u8, big, first.payload);
     const second = try wsRead(&c);

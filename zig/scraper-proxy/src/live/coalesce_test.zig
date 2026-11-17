@@ -383,7 +383,7 @@ const MessageDb = struct {
     sizes: [16]usize = undefined,
 
     fn db(self: *MessageDb) es.Db {
-        return .{ .ctx = self, .query = query };
+        return .{ .ctx = self, .query = query, .query_async = @import("test_db.zig").threadAsync(query) };
     }
 
     fn query(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) anyerror![]json.Value {
@@ -729,7 +729,7 @@ const StreamDb = struct {
     batch: u64,
 
     fn db(self: *StreamDb) es.Db {
-        return .{ .ctx = self, .query = query };
+        return .{ .ctx = self, .query = query, .query_async = @import("test_db.zig").threadAsync(query) };
     }
 
     fn query(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) anyerror![]json.Value {
@@ -942,8 +942,13 @@ fn quiesceAll(t: *TestLoop, server: *live.Server, sockets: []const *KernelSocket
             };
         }
         t.pool.mutex.lock();
-        const idle_exactly = t.pool.head == t.pool.queue.items.len and t.pool.idle + waiters.count() == t.pool.threads;
+        const pool_idle = t.pool.head == t.pool.queue.items.len and t.pool.idle + waiters.count() == t.pool.threads;
         t.pool.mutex.unlock();
+        // No `query_async` read in flight or awaiting its continuation.
+        server.async_mutex.lock();
+        const reads_idle = server.async_outstanding == 0 and server.finished_reads.items.len == 0 and !server.reads_draining;
+        server.async_mutex.unlock();
+        const idle_exactly = pool_idle and reads_idle;
         t.loop.unlock();
         if (stable.settled(idle_exactly)) return;
     }

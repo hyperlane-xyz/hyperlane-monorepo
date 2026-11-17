@@ -54,11 +54,6 @@ pub fn build(b: *std.Build) void {
     const loop_hold_stats = b.option(bool, "loop-hold-stats", "Record and log live loop mutex hold and wait times") orelse false;
     const live_options = b.addOptions();
     live_options.addOption(bool, "loop_hold_stats", loop_hold_stats);
-    // Live's per-subscribe database reads as fibers on the HTTP loops (no
-    // live worker per waiting subscribe). On by default; -Dlive-fiber-queries=false
-    // keeps the task path testable.
-    const live_fiber_queries = b.option(bool, "live-fiber-queries", "Run live's per-subscribe database reads as fibers on the HTTP loops (default true)") orelse true;
-    live_options.addOption(bool, "live_fiber_queries", live_fiber_queries);
 
     // core/fiber.zig defines its context switch in global assembly, which
     // Zig 0.15's self-hosted x86_64 backend (the Debug default there) drops,

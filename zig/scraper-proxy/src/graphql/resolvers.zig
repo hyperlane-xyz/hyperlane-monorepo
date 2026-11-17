@@ -151,19 +151,27 @@ fn rawFailed(err: anyerror, message: []const u8) Allocator.Error!RawResult {
 pub fn rawRows(a: Allocator, lazy: *db.LazyRows) Allocator.Error!execute.RawRows {
     errdefer lazy.deinit();
     const columns = try a.alloc(execute.RawColumn, lazy.columns.len);
-    for (columns, lazy.columns) |*out, c| out.* = .{ .name = c.name, .kind = switch (c.kind) {
-        .number => .number_text,
-        .string => .string_text,
-        .boolean => .bool_tf,
-        .none => null,
-    } };
+    for (columns, lazy.columns) |*out, c| out.* = .{
+        .name = c.name,
+        .kind = switch (c.kind) {
+            .number => blk: {
+                // `FastKind.number_text` promises a 32-bit integer (Int fields
+                // skip the range check): only int2/int4 qualify.
+                std.debug.assert(c.oid == 21 or c.oid == 23);
+                break :blk .number_text;
+            },
+            .string => .string_text,
+            .boolean => .bool_tf,
+            .none => null,
+        },
+    };
     return .{
         .ctx = lazy,
         .n_rows = lazy.rows,
         .columns = columns,
         .cell_fn = LazyAdapter.cell,
         .materialize_fn = LazyAdapter.materialize,
-        .write_cell_fn = LazyAdapter.writeCell,
+        .write_text_fn = LazyAdapter.writeText,
         .deinit_fn = LazyAdapter.deinit,
     };
 }
@@ -178,8 +186,8 @@ const LazyAdapter = struct {
     fn materialize(ctx: *anyopaque, a: Allocator) Allocator.Error![]Value {
         return of(ctx).materialize(a);
     }
-    fn writeCell(ctx: *anyopaque, w: *std.Io.Writer, a: Allocator, row: usize, col: usize) (std.Io.Writer.Error || Allocator.Error)!void {
-        return of(ctx).writeCell(w, a, row, col);
+    fn writeText(ctx: *anyopaque, w: *std.Io.Writer, a: Allocator, col: usize, text: []const u8) (std.Io.Writer.Error || Allocator.Error)!void {
+        return db.LazyRows.writeText(w, a, of(ctx).columns[col].oid, text);
     }
     fn deinit(ctx: *anyopaque) void {
         of(ctx).deinit();

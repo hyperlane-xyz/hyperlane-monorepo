@@ -26,7 +26,7 @@ const Recorder = struct {
     }
 
     fn db(self: *Recorder) es.Db {
-        return .{ .ctx = self, .query = query };
+        return .{ .ctx = self, .query = query, .query_async = @import("test_db.zig").threadAsync(query) };
     }
 };
 

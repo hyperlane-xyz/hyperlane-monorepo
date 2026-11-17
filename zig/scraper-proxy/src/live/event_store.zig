@@ -24,10 +24,10 @@ pub const Row = Value;
 pub const Db = struct {
     ctx: *anyopaque,
     query: *const fn (ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const Value) anyerror![]Value,
-    /// Runs `query` without a live worker waiting (`-Dlive-fiber-queries`):
-    /// `query.done(query)` follows on whatever thread finished it, never
-    /// holding live's loop mutex and never inside this call.
-    query_async: ?*const fn (ctx: *anyopaque, query: *AsyncQuery) void = null,
+    /// Runs `query` without a live worker waiting (subscribe, Explorer and
+    /// validator setup reads): `query.done(query)` follows on whatever thread
+    /// finished it, never holding live's loop mutex and never inside this call.
+    query_async: *const fn (ctx: *anyopaque, query: *AsyncQuery) void,
 };
 
 /// One `Db.query_async` read. The caller owns it (and `arena`, which holds
@@ -543,6 +543,9 @@ pub const EventStore = struct {
         return .{ .array = values };
     }
 
+    /// `blockHeads(domains?)`.
+    /// Blocking form, kept as the golden-SQL test's entry point (the server
+    /// runs the `*Query` statement through `query_async` and its parser).
     pub fn blockHeads(self: *EventStore, arena: Allocator, domains: ?[]const u32) ![]Value {
         if (domains) |list| return self.query(arena, sql.block_heads_filtered, &.{try domainArray(arena, list)});
         return self.query(arena, sql.block_heads, &.{});
@@ -558,6 +561,8 @@ pub const EventStore = struct {
 
     /// `liveStartBoundaries(domains?)`: every healthy domain's confirmed
     /// checkpoint, in row order (no ORDER BY). Malformed rows are skipped.
+    /// Blocking form, kept as the golden-SQL test's entry point (the server
+    /// runs the `*Query` statement through `query_async` and its parser).
     pub fn liveStartBoundaries(self: *EventStore, domains: ?[]const u32) !Boundaries {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
@@ -588,6 +593,8 @@ pub const EventStore = struct {
 
     /// `confirmationHeads(domains)`: the plain head read (custom streams
     /// read `confirmationSnapshots`).
+    /// Blocking form, kept as the golden-SQL test's entry point (the server
+    /// runs the `*Query` statement through `query_async` and its parser).
     pub fn confirmationHeads(self: *EventStore, allocator: Allocator, domains: []const u32) !cs.Heads {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
@@ -603,6 +610,8 @@ pub const EventStore = struct {
     pub const Statement = struct { sql: []const u8, params: []const Value };
 
     /// `domainExists(domain)`.
+    /// Blocking form, kept as the golden-SQL test's entry point (the server
+    /// runs the `*Query` statement through `query_async` and its parser).
     pub fn domainExists(self: *EventStore, domain: u32) !bool {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
@@ -620,6 +629,8 @@ pub const EventStore = struct {
 
     /// `confirmationSnapshots(policies)`: one heads map per policy, aligned
     /// with `policies` (allocated with `allocator`).
+    /// Blocking form, kept as the golden-SQL test's entry point (the server
+    /// runs the `*Query` statement through `query_async` and its parser).
     pub fn confirmationSnapshots(self: *EventStore, allocator: Allocator, policies: []const Policy) ![]cs.Heads {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
