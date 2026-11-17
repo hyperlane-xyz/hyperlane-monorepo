@@ -397,6 +397,17 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
     const Routing = struct {
         plans: std.ArrayList(service.Plan) = .empty,
         arena: Allocator,
+        /// Affected message ids the reusable (snapshot) query returns.
+        affected: usize = 0,
+        fn snapshot(self: *@This(), arena: Allocator) ![]Value {
+            const ids = try arena.alloc(Value, self.affected);
+            for (ids) |*id| id.* = .{ .string = "\\x01" };
+            const row = try value.parseLeaky(arena, "{\"message_ids\":[],\"domains\":[],\"heights\":[]}");
+            for (row.object) |*member| {
+                if (std.mem.eql(u8, member.key, "message_ids")) member.value = .{ .array = ids };
+            }
+            return try arena.dupe(Value, &.{row});
+        }
         fn record(self: *@This(), plan: service.Plan) void {
             self.plans.append(self.arena, plan) catch unreachable;
         }
@@ -408,16 +419,21 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
         fn reusable(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
             const self: *@This() = @ptrCast(@alignCast(ctx));
             self.record(.reusable);
-            return try arena.dupe(Value, &.{try value.parseLeaky(arena, "{\"message_ids\":[],\"domains\":[],\"heights\":[]}")});
+            return self.snapshot(arena);
         }
         fn serial(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
             const self: *@This() = @ptrCast(@alignCast(ctx));
             self.record(.serial);
             return try arena.dupe(Value, &.{});
         }
+        fn serialGeneric(ctx: *anyopaque, arena: Allocator, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            self.record(.serial_generic);
+            return try arena.dupe(Value, &.{});
+        }
     };
     var routing: Routing = .{ .arena = a };
-    const svc = service.Service.init(.{ .ctx = &routing, .queryFn = Routing.custom, .reusableQueryFn = Routing.reusable, .serialQueryFn = Routing.serial });
+    const svc = service.Service.init(.{ .ctx = &routing, .queryFn = Routing.custom, .reusableQueryFn = Routing.reusable, .serialQueryFn = Routing.serial, .serialGenericQueryFn = Routing.serialGeneric });
     var diag: sql.Diag = .{};
     _ = try svc.select(a, .message_view, try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
     _ = try svc.select(a, .message_view, try args(a, "{\"where\":{\"sender\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
@@ -425,8 +441,17 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
     _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), .confirmations = .{ .number = 0 } }, &diag);
     _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"limit\":20}"), .confirmations = .{ .number = 2 } }, &diag);
     _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"where\":{\"id\":{\"_eq\":7}}}"), .confirmations = .{ .number = 0 } }, &diag);
-    // Confirmation projections not bounded by msg_id run without parallel workers.
-    try testing.expectEqualSlices(service.Plan, &.{ .reusable, .custom, .reusable, .reusable, .reusable, .reusable, .serial, .reusable, .serial }, routing.plans.items);
+    // Confirmation projections not bounded by msg_id run without parallel
+    // workers, on a reused generic plan while few messages are affected.
+    try testing.expectEqualSlices(service.Plan, &.{ .reusable, .custom, .reusable, .reusable, .reusable, .reusable, .serial_generic, .reusable, .serial_generic }, routing.plans.items);
+    const limit_args = try args(a, "{\"limit\":20}");
+    for ([_]usize{ service.GENERIC_PROJECTION_MAX_IDS, service.GENERIC_PROJECTION_MAX_IDS + 1 }) |affected| {
+        routing.plans.clearRetainingCapacity();
+        routing.affected = affected;
+        _ = try svc.selectMessages(a, .{ .select = limit_args, .confirmations = .{ .number = 2 } }, &diag);
+        const projection: service.Plan = if (affected <= service.GENERIC_PROJECTION_MAX_IDS) .serial_generic else .serial;
+        try testing.expectEqualSlices(service.Plan, &.{ .reusable, projection }, routing.plans.items);
+    }
     try testing.expect(!service.isMessageIdLookup(try value.parseLeaky(a, "{\"id\":{\"_eq\":7}}")));
     try testing.expect(service.isMessageIdLookup(try value.parseLeaky(a, "{\"_and\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}")));
 }

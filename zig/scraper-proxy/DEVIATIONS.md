@@ -249,10 +249,20 @@ reproduces the observable rule, not the scheduling.
   workers) over a `Parallel Append` of the dispatch branches feeding a `Sort` (quicksort, or
   top-N heapsort under the LIMIT) on that key; Gather delivers rows in worker-arrival order and
   PostgreSQL's sorts are not stable, so TS returns such tied rows in an order that varies
-  between runs, including which tied rows land inside the LIMIT. On Depot (n=8) the Explorer page and search requests use 44-56% less
+  between runs, including which tied rows land inside the LIMIT. While at most
+  500 messages are affected, the projection runs as a per-connection named statement
+  whose generic plan is built and reused under the same transaction-scoped settings
+  (`plan_cache_mode = force_generic_plan` with `max_parallel_workers_per_gather = 0`, one
+  `set_config(…, true)` statement pipelined before its Parse and Bind); larger sets, a statement
+  text's first use and any fallback (named statements off, a failed prepare) are planned per call
+  as above. A generic plan is another plan for the same statement, so the same holds: only rows
+  equal on every ORDER BY column, and under a LIMIT which of them are returned, can differ.
+  On Depot (n=8) the Explorer page and search requests use 44-56% less
   PostgreSQL CPU (projection exec 36 → 7.5 ms per call), p99 drops 43-53%, and a 3,372-message
   confirmations window 55% less CPU; on the bench DB it is never slower from 0 to 10,000
-  affected messages.
+  affected messages. The generic plan then cuts the page and search requests' PostgreSQL CPU a
+  further 36-69% (Depot n=8; planning 12.6 → 0.03 ms per call), with the 914- and
+  3,372-message windows unchanged.
 - **Deeply nested parameter values.** node-pg formats parameters
   recursively, so TS fails with V8's "Maximum call stack size exceeded" once
   a parameter (a custom-scalar variable carries any JSON) nests deep enough,

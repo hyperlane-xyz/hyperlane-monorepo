@@ -33,6 +33,10 @@ pub const Database = struct {
     /// Optional: same contract as `queryFn`, planned without parallel
     /// workers (see `Plan.serial`); null falls back to `queryFn`.
     serialQueryFn: ?QueryFn = null,
+    /// Optional: same contract as `queryFn`, as a named statement with a
+    /// reused generic plan built without parallel workers (see
+    /// `Plan.serial_generic`); null falls back to `serialQueryFn`.
+    serialGenericQueryFn: ?QueryFn = null,
     /// Optional: the same query (planned as `plan`), with libpq's result
     /// returned unconverted (`db.LazyRows`, owned by the caller; null when
     /// the implementation cannot, e.g. a test backend).
@@ -51,6 +55,7 @@ pub const Database = struct {
             .reusable => self.reusableQueryFn orelse self.queryFn,
             .fixed_join => self.fixedJoinQueryFn orelse self.queryFn,
             .serial => self.serialQueryFn orelse self.queryFn,
+            .serial_generic => self.serialGenericQueryFn orelse self.serialQueryFn orelse self.queryFn,
         };
         return f(self.ctx, arena, text, values, diag);
     }
@@ -73,7 +78,18 @@ pub const Database = struct {
 /// messages, never slower from 0 to 10,000), and its result order differs
 /// only among rows tying on the ORDER BY, which the parallel plan (TS's
 /// too) already leaves unspecified.
-pub const Plan = enum { custom, reusable, fixed_join, serial };
+///
+/// `serial_generic` is `serial` with a reused generic plan, for that same
+/// projection when at most `GENERIC_PROJECTION_MAX_IDS` messages are
+/// affected: planning is most of its cost there (bench DB: 7.9 -> 1.9 ms
+/// per call at 214 messages; -24% to -98% from 0 to 500, also with one
+/// origin or one sender holding all of them), while larger sets need
+/// plans for their values (generic +27% to +488% from 2,000 up).
+pub const Plan = enum { custom, reusable, fixed_join, serial, serial_generic };
+
+/// The largest affected-message set whose projection reuses a generic plan
+/// (`Plan.serial_generic`); larger sets are planned per call (`serial`).
+pub const GENERIC_PROJECTION_MAX_IDS = 500;
 
 /// True when `where` pins a unique key (`id` or `msg_id`, unique or
 /// near-unique in every public table) with `_eq` in a top-level conjunct.
@@ -113,6 +129,13 @@ fn planFor(where: ?Value) Plan {
 fn planForSelect(where: ?Value, query: sql.Sql) Plan {
     const plan = planFor(where);
     return if (plan == .custom and query.fixed_join) .fixed_join else plan;
+}
+
+/// The snapshot row's affected message ids (`buildProjection` already
+/// checked it is an array).
+fn affectedCount(snapshot_row: Value) usize {
+    const ids = value.get(value.object(snapshot_row).?, "message_ids").?;
+    return value.array(ids).?.len;
 }
 
 /// `message_view` arguments: the select args plus `confirmations`.
@@ -157,7 +180,12 @@ pub const Service = struct {
         const queries = try buildMessageQueries(arena, select_args, confirmations, diag);
         const rows = try self.db.queryPlanned(arena, .reusable, queries.snapshot.sql, queries.snapshot.values, diag);
         const projection = try buildProjection(arena, select_args, if (rows.len > 0) rows[0] else null, diag);
-        const plan: Plan = if (isMessageIdLookup(select_args.where)) .reusable else .serial;
+        const plan: Plan = if (isMessageIdLookup(select_args.where))
+            .reusable
+        else if (affectedCount(rows[0]) <= GENERIC_PROJECTION_MAX_IDS)
+            .serial_generic
+        else
+            .serial;
         return self.db.queryPlanned(arena, plan, projection.sql, projection.values, diag);
     }
 

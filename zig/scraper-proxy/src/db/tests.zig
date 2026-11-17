@@ -518,6 +518,68 @@ test "libpq: fixed_join and serial statements set their planner setting for them
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 
+test "libpq: serial_generic reuses a generic plan built and chosen without parallel workers; serial never runs it" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    var failure: root.Failure = .{};
+    const sql = "SELECT current_setting('plan_cache_mode') || '/' || current_setting('max_parallel_workers_per_gather') AS v WHERE $1::int = 1";
+    const one = [_]Value{.{ .number = 1 }};
+    const Check = struct {
+        fn expect(want: []const u8, r: root.Result) !void {
+            try testing.expectEqualStrings(want, r.rows[0].get("v").?.string);
+        }
+    };
+    const session = try a.dupe(u8, (try p.query(a, sql, &one, &failure)).rows[0].get("v").?.string);
+    const session_mode = session[0..std.mem.indexOfScalar(u8, session, '/').?];
+    const generic: pq.QueryOptions = .{ .plan = .serial_generic };
+    const notices_before = pq.test_notices.load(.monotonic);
+    // First use runs unnamed, planned for its values (serial).
+    try Check.expect(try std.fmt.allocPrint(a, "{s}/0", .{session_mode}), try p.queryWith(a, sql, &one, generic, &failure));
+    // From the second use (Parse in the same pipeline) on: both settings
+    // are in force for the statement's Parse and Bind.
+    for (0..4) |_| try Check.expect("force_generic_plan/0", try p.queryWith(a, sql, &one, generic, &failure));
+    // Nothing outlives the statement.
+    try Check.expect(session, try p.query(a, sql, &one, &failure));
+    const counts_sql = "SELECT generic_plans::int AS g, custom_plans::int AS c FROM pg_prepared_statements WHERE statement = $1";
+    const counts = struct {
+        fn get(pool: *pool_mod.Pool, al: std.mem.Allocator, text: []const u8, f: *root.Failure, q: []const u8) ![2]f64 {
+            const rows = (try pool.query(al, q, &.{.{ .string = text }}, f)).rows;
+            try testing.expectEqual(@as(usize, 1), rows.len);
+            return .{ rows[0].get("g").?.number, rows[0].get("c").?.number };
+        }
+    }.get;
+    // pg_prepared_statements counts plans from PostgreSQL 14 on.
+    const version = (try p.query(a, "SELECT current_setting('server_version_num')::int AS v", &.{}, &failure)).rows[0].get("v").?.number;
+    const counted = version >= 140000;
+    // Every named execution used the generic plan.
+    if (counted) try testing.expectEqual([2]f64{ 4, 0 }, try counts(p, a, sql, &failure, counts_sql));
+    // The large-set path (`serial`) runs unnamed: the named statement and
+    // its generic plan are never executed.
+    for (0..3) |_| try Check.expect(try std.fmt.allocPrint(a, "{s}/0", .{session_mode}), try p.queryWith(a, sql, &one, .{ .plan = .serial }, &failure));
+    if (counted) try testing.expectEqual([2]f64{ 4, 0 }, try counts(p, a, sql, &failure, counts_sql));
+    try Check.expect("force_generic_plan/0", try p.queryWith(a, sql, &one, generic, &failure));
+    if (counted) try testing.expectEqual([2]f64{ 5, 0 }, try counts(p, a, sql, &failure, counts_sql));
+    // A failing execute: the plain error text, and nothing persists.
+    const failing = "SELECT 1 / ($1::int - 1) AS x";
+    try testing.expectError(error.QueryFailed, p.query(a, failing, &one, &failure));
+    const plain_message = try a.dupe(u8, failure.message);
+    for (0..3) |_| {
+        try testing.expectError(error.QueryFailed, p.queryWith(a, failing, &one, generic, &failure));
+        try testing.expectEqualStrings(plain_message, failure.message);
+    }
+    try Check.expect(session, try p.query(a, sql, &one, &failure));
+    try testing.expectEqual(notices_before, pq.test_notices.load(.monotonic));
+    // Named statements off (a transaction pooler): unnamed and serial.
+    p.reuse_guard.disabled.store(true, .monotonic);
+    try Check.expect(try std.fmt.allocPrint(a, "{s}/0", .{session_mode}), try p.queryWith(a, sql, &one, generic, &failure));
+    try Check.expect(session, try p.query(a, sql, &one, &failure));
+    try testing.expectEqual(@as(u32, 1), p.stats().total);
+}
+
 test "libpq: a prepared-statement name collision disables reuse and retries unnamed" {
     const url = testUrl() orelse return error.SkipZigTest;
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
@@ -706,8 +768,12 @@ test "libpq: behind a transaction pooler, a tuned statement's setting never reac
     const start = (try other.query(a, sql, &one, &failure)).rows[0].get("v").?.string;
     const defaults = start[0..std.mem.lastIndexOfScalar(u8, start, '/').?];
     const notices_before = pq.test_notices.load(.monotonic);
-    for (0..20) |i| {
-        const opts: pq.QueryOptions = .{ .plan = if (i % 2 == 0) .fixed_join else .serial };
+    for (0..30) |i| {
+        const opts: pq.QueryOptions = .{ .plan = switch (i % 3) {
+            0 => .fixed_join,
+            1 => .serial,
+            else => .serial_generic,
+        } };
         const mine = (try tuned.queryWith(a, sql, &one, opts, &failure)).rows[0].get("v").?.string;
         try testing.expect(!std.mem.startsWith(u8, mine, defaults));
         const theirs = (try other.query(a, sql, &one, &failure)).rows[0].get("v").?.string;

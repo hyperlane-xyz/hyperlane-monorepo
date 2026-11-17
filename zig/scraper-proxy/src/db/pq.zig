@@ -116,6 +116,13 @@ pub const Plan = enum {
     /// backend sees it). Only for selects whose rows no plan can change and
     /// whose fixed-order plan is never slower (scraperdb `Sql.fixed_join`).
     fixed_join,
+    /// Per-connection named statement with a generic plan built and reused
+    /// without parallel workers (`plan_cache_mode = force_generic_plan`
+    /// and `max_parallel_workers_per_gather = 0`, both transaction-scoped
+    /// like `fixed_join`). Only for the confirmation projection over few
+    /// affected messages, where planning dominates; its first use, and any
+    /// fallback (named statements off, a failed prepare), run as `serial`.
+    serial_generic,
     /// node-pg's unnamed statement, planned without parallel workers
     /// (`max_parallel_workers_per_gather` 0, set like `fixed_join`).
     /// Only for statements whose parallel plan only adds worker start-up
@@ -261,6 +268,9 @@ fn tuneSql(plan: Plan) ?[*:0]const u8 {
     return switch (plan) {
         .fixed_join => "SELECT set_config('join_collapse_limit', '1', true)",
         .serial => "SELECT set_config('max_parallel_workers_per_gather', '0', true)",
+        // One statement, so both are in force before the Parse and Bind
+        // that build and choose the plan.
+        .serial_generic => "SELECT set_config('max_parallel_workers_per_gather', '0', true), set_config('plan_cache_mode', 'force_generic_plan', true)",
         .unnamed, .custom, .reusable => null,
     };
 }
@@ -521,8 +531,12 @@ pub const Conn = struct {
     /// Named statements (`Plan.custom`/`.reusable`), allocated on first use.
     statements: ?*Statements = null,
     plan_mode: PlanMode = .custom,
-    /// The setting the query in progress pipelines first (`queryWith`).
+    /// The setting the query in progress pipelines first (`queryWith`):
+    /// before a named statement's Parse/Bind (`tune`), or before an unnamed
+    /// execute (`tune_unnamed`; `serial_generic` runs unnamed as `serial`,
+    /// planned for its values).
     tune: ?[*:0]const u8 = null,
+    tune_unnamed: ?[*:0]const u8 = null,
 
     /// Connects within `connect_timeout_ms`. Failure messages follow node-pg:
     /// timeout -> "Connection terminated due to connection timeout", other
@@ -733,11 +747,15 @@ pub const Conn = struct {
 
     pub fn queryWith(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: QueryOptions, failure: ?*Failure) Error!root.Result {
         const deadline: ?i64 = if (self.query_timeout_ms) |ms| (if (ms > 0) nowMs() + @as(i64, @intCast(ms)) else null) else null;
-        const named = (opts.plan == .custom or opts.plan == .reusable) and params.len > 0 and (if (opts.guard) |g| g.active() else true);
+        const named = (opts.plan == .custom or opts.plan == .reusable or opts.plan == .serial_generic) and params.len > 0 and (if (opts.guard) |g| g.active() else true);
         // The extended protocol (one implicit transaction per pipeline);
         // parameterless text may hold several statements, so it runs as is.
         self.tune = if (params.len > 0) tuneSql(opts.plan) else null;
-        defer self.tune = null;
+        self.tune_unnamed = if (params.len > 0) tuneSql(if (opts.plan == .serial_generic) .serial else opts.plan) else null;
+        defer {
+            self.tune = null;
+            self.tune_unnamed = null;
+        }
         self.lazy_mode = opts.lazy;
         defer self.lazy_mode = false;
         errdefer self.dropLazy();
@@ -765,7 +783,10 @@ pub const Conn = struct {
     }
 
     fn runUnnamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, deadline: ?i64, failure: ?*Failure) Error!root.Result {
-        if (self.tune != null) {
+        if (self.tune_unnamed) |unnamed_tune| {
+            const named_tune = self.tune;
+            self.tune = unnamed_tune;
+            defer self.tune = named_tune;
             var local: Failure = .{};
             var failed: Step = .execute;
             const values = try textParams(arena, params);
@@ -801,7 +822,13 @@ pub const Conn = struct {
             self.statements = s;
             break :blk s;
         };
-        const need: PlanMode = if (plan == .reusable) .auto else .custom;
+        // serial_generic sets its plan_cache_mode for its own transaction
+        // (`tune`): the session's mode stays as it is.
+        const need: PlanMode = switch (plan) {
+            .reusable => .auto,
+            .serial_generic => self.plan_mode,
+            else => .custom,
+        };
         const values = try textParams(arena, params);
         var evict: ?*Statements.Entry = null;
         switch (statements.decide(sql)) {
