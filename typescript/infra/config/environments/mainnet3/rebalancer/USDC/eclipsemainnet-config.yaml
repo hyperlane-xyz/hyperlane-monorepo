@@ -2,8 +2,8 @@ warpRouteId: USDC/eclipsemainnet
 
 deployment:
   monitorOnly: false
-  imageTag: 11861e5-20261110-130055
-  imageDigest: sha256:b77396a69e3c295d4b8dea9b9566aac0905a43442ec472d225985e2455ac8260
+  imageTag: 414e6d0-20261117-110629
+  imageDigest: sha256:9634d69284072f94ecfed6abbaf1096dd19506a15cedabdd90b2e7a5daf8572c
   registryCommit: 774cf8fadf1a3472a59065b45d193f2b27891f3e
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
 
