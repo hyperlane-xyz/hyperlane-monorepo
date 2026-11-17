@@ -21,7 +21,11 @@ import {
   type StrategyConfig,
   StrategyConfigSchema,
   SwapsXyzBridgeConfigSchema,
+  ElysiumNativeBridgeConfigSchema,
+  RebalancerConfigSchema,
   getAllBridges,
+  getInventoryRouteChainNames,
+  InventoryRoutesConfigSchema,
 } from './types.js';
 
 const TEST_CONFIG_PATH = join(tmpdir(), 'rebalancer-config-test.yaml');
@@ -170,6 +174,76 @@ describe('RebalancerConfig', () => {
       inventorySigners: undefined,
       externalBridges: undefined,
       pendingTransferMiddlewares: undefined,
+      inventoryRoutes: undefined,
+    });
+  });
+
+  describe('physical inventory route configuration', () => {
+    beforeEach(() => {
+      const strategy = getStrategyArray(data)[0];
+      strategy.chains.chain1.executionType = ExecutionType.Inventory;
+      strategy.chains.chain1.externalBridge = ExternalBridgeType.LiFi;
+      data.inventorySigners = {
+        ethereum: { address: ethers.constants.AddressZero },
+      };
+      data.externalBridges = { lifi: { integrator: 'test' }, debridge: {} };
+    });
+
+    it('loads physical pair overrides without requiring the source in the strategy', () => {
+      data.inventoryRoutes = {
+        neutral: {
+          chain2: { externalBridge: ExternalBridgeType.DeBridge, priority: 1 },
+        },
+      };
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      expect(
+        RebalancerConfig.load(TEST_CONFIG_PATH).inventoryRoutes,
+      ).to.deep.equal(data.inventoryRoutes);
+      expect(getInventoryRouteChainNames(data.inventoryRoutes)).to.deep.equal([
+        'neutral',
+        'chain2',
+      ]);
+      expect(getInventoryRouteChainNames(undefined)).to.deep.equal([]);
+    });
+
+    it('rejects missing providers and self-directed movements', () => {
+      for (const inventoryRoutes of [
+        {
+          chain1: { chain2: { externalBridge: ExternalBridgeType.LayerZero } },
+        },
+        { chain1: { chain1: { enabled: false } } },
+      ]) {
+        writeYamlOrJson(TEST_CONFIG_PATH, { ...data, inventoryRoutes });
+        expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw();
+      }
+    });
+
+    it('rejects misspelled rules and invalid priorities', () => {
+      for (const policy of [
+        { enable: false },
+        { priority: -1 },
+        { priority: 0.5 },
+        { priority: Number.MAX_SAFE_INTEGER + 1 },
+      ]) {
+        expect(
+          InventoryRoutesConfigSchema.safeParse({ chain1: { chain2: policy } })
+            .success,
+        ).to.equal(false);
+      }
+      expect(
+        InventoryRoutesConfigSchema.parse({
+          chain1: { chain2: { enabled: false, priority: 0 } },
+        }),
+      ).to.deep.equal({ chain1: { chain2: { enabled: false, priority: 0 } } });
+    });
+
+    it('requires an inventory strategy for physical movement policy', () => {
+      delete getStrategyArray(data)[0].chains.chain1.executionType;
+      data.inventoryRoutes = { chain1: { chain2: { enabled: false } } };
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+        'inventoryRoutes requires an inventory execution strategy',
+      );
     });
   });
 
@@ -1615,4 +1689,53 @@ describe('pendingTransferMiddlewares configuration', () => {
         .that.does.not.include('hunter2');
     });
   }
+});
+
+describe('Elysium native bridge configuration', () => {
+  it('requires an explicit configuration when the adapter is selected', () => {
+    const config = {
+      warpRouteId: 'USDC/test',
+      strategy: {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          hyperevm: {
+            weighted: { weight: 1, tolerance: 0 },
+            executionType: ExecutionType.Inventory,
+            externalBridge: ExternalBridgeType.ElysiumNative,
+          },
+        },
+      },
+      inventorySigners: {
+        ethereum: '0x1111111111111111111111111111111111111111',
+      },
+    };
+    expect(RebalancerConfigSchema.safeParse(config).success).to.equal(false);
+    const parsed = RebalancerConfigSchema.parse({
+      ...config,
+      externalBridges: {
+        elysiumNative: { maxNativeValueWei: '10000000000000000' },
+      },
+    });
+    expect(parsed.externalBridges?.elysiumNative?.maxNativeValueWei).to.equal(
+      10_000_000_000_000_000n,
+    );
+  });
+
+  it('rejects misspelled native delivery budget settings', () => {
+    expect(
+      ElysiumNativeBridgeConfigSchema.safeParse({
+        maxNativeValueWEI: '10000000000000000',
+      }).success,
+    ).to.equal(false);
+  });
+
+  it('uses the default budget when omitted and rejects nonpositive budgets', () => {
+    expect(ElysiumNativeBridgeConfigSchema.parse({})).to.deep.equal({});
+    for (const maxNativeValueWei of ['0', '-1']) {
+      expect(
+        ElysiumNativeBridgeConfigSchema.safeParse({ maxNativeValueWei })
+          .success,
+      ).to.equal(false);
+    }
+  });
 });

@@ -24,3 +24,21 @@ export function minimumOutputForLoss(
   const denominator = 10n ** BigInt(sourceDecimals) * 10_000n;
   return (numerator + denominator - 1n) / denominator;
 }
+
+/** Largest source amount that preserves the requested output's loss budget. */
+export function maximumInputForLoss(
+  output: bigint,
+  sourceDecimals: number,
+  destinationDecimals: number,
+  lossBps: number,
+): bigint {
+  minimumOutputForLoss(output, sourceDecimals, destinationDecimals, lossBps);
+  assert(
+    lossBps < 10_000,
+    'A finite input budget requires loss below 10000 bps',
+  );
+  return (
+    (output * 10n ** BigInt(sourceDecimals) * 10_000n) /
+    (10n ** BigInt(destinationDecimals) * (10_000n - BigInt(lossBps)))
+  );
+}

@@ -333,6 +333,12 @@ where
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
     }
+
+    async fn sequence_count_at_block(&self, block: u32) -> ChainResult<Option<u32>> {
+        Ok(Some(
+            self.contract.nonce().block(u64::from(block)).call().await?,
+        ))
+    }
 }
 
 #[async_trait]

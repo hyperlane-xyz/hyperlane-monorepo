@@ -303,7 +303,7 @@ impl ScraperWebSocket {
             Some(ServerMessage::LiveStart(_) | ServerMessage::LiveStartUnavailable { .. }) => {
                 self.state.require_subscribed("live-start boundary")?
             }
-            Some(ServerMessage::Rollback) => self.state.require_subscribed("rollback")?,
+            Some(ServerMessage::Rollback { .. }) => self.state.require_subscribed("rollback")?,
             _ => {}
         }
         Ok(message)
@@ -553,12 +553,14 @@ pub(super) mod tests {
                 "URL clients must not send a subscribe frame"
             );
             server
-                .send(Message::Text(r#"{"type":"rollback"}"#.into()))
+                .send(Message::Text(
+                    r#"{"type":"rollback","domain":1,"fromHeight":"15","toHeight":"12"}"#.into(),
+                ))
                 .await
                 .unwrap();
             assert!(matches!(
                 client.recv::<serde_json::Value>().await.unwrap(),
-                Some(ServerMessage::Rollback)
+                Some(ServerMessage::Rollback { domain: 1, .. })
             ));
             server
                 .send(Message::Text(ready.to_string().into()))

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+
+import type { ChainMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType, isAddressEvm } from '@hyperlane-xyz/utils';
 
 const SEALEVEL_ADDRESS_REGEX = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -41,6 +43,37 @@ export enum ExternalBridgeType {
   DeBridge = 'debridge',
   LayerZero = 'layerzero',
   SwapsXyz = 'swapsxyz',
+  Relay = 'relay',
+  ElysiumNative = 'elysiumNative',
+}
+
+/** Rules for physical inventory movements, independent of strategy route direction. */
+export const InventoryRouteConfigSchema = z.strictObject({
+  enabled: z.boolean().optional(),
+  externalBridge: z.enum(ExternalBridgeType).optional(),
+  priority: z.number().int().nonnegative().optional(),
+});
+
+export const InventoryRoutesConfigSchema = z.record(
+  z.string().min(1),
+  z.record(z.string().min(1), InventoryRouteConfigSchema),
+);
+
+export type InventoryRoutesConfig = ChainMap<
+  ChainMap<z.infer<typeof InventoryRouteConfigSchema>>
+>;
+
+export function getInventoryRouteChainNames(
+  routes: InventoryRoutesConfig | undefined,
+): string[] {
+  return Array.from(
+    new Set(
+      Object.entries(routes ?? {}).flatMap(([source, destinations]) => [
+        source,
+        ...Object.keys(destinations),
+      ]),
+    ),
+  );
 }
 
 export enum TokenBridgeStatusAdapterType {
@@ -223,11 +256,24 @@ export const SwapsXyzBridgeConfigSchema = z
     },
   );
 
+export const RelayBridgeConfigSchema = z.strictObject({
+  apiUrl: z.string().url().startsWith('https://').optional(),
+  defaultSlippage: z.number().min(0).max(0.1).default(0.001),
+  maxQuoteLossBps: z.number().int().min(0).max(10_000).default(100),
+});
+
+export const ElysiumNativeBridgeConfigSchema = z.strictObject({
+  /** Native HYPE prepaid for child delivery; parent transaction gas is separate. */
+  maxNativeValueWei: z.coerce.bigint().positive().optional(),
+});
+
 export const ExternalBridgesConfigSchema = z.object({
   lifi: LiFiBridgeConfigSchema.optional(),
   debridge: DeBridgeBridgeConfigSchema.optional(),
   layerzero: LayerZeroBridgeConfigSchema.optional(),
   swapsxyz: SwapsXyzBridgeConfigSchema.optional(),
+  relay: RelayBridgeConfigSchema.optional(),
+  elysiumNative: ElysiumNativeBridgeConfigSchema.optional(),
 });
 
 export const PendingTransferMiddlewareType = {
@@ -319,6 +365,7 @@ export const RebalancerConfigSchema = z
       .describe(
         'Ordered middlewares applied to pending user transfers read from the Explorer; item 0 runs first on the raw result. Omit to disable.',
       ),
+    inventoryRoutes: InventoryRoutesConfigSchema.optional(),
     intentTTL: z
       .number()
       .positive()
@@ -551,6 +598,51 @@ export const RebalancerConfigSchema = z
       }
     }
 
+    const checkExternalBridge = (
+      externalBridge: ExternalBridgeType | undefined,
+      subject: string,
+      path: (string | number)[],
+    ) => {
+      if (externalBridge === undefined) return;
+      const isConfigured =
+        config.externalBridges?.[externalBridge] !== undefined &&
+        (externalBridge !== ExternalBridgeType.LiFi ||
+          !!config.externalBridges?.lifi?.integrator);
+      if (!isConfigured) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${subject} uses externalBridge: '${externalBridge}' but externalBridges.${externalBridge} is not configured`,
+          path,
+        });
+      }
+    };
+
+    for (const [source, destinations] of Object.entries(
+      config.inventoryRoutes ?? {},
+    )) {
+      for (const [destination, route] of Object.entries(destinations)) {
+        if (source === destination) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Inventory movement source and destination must differ',
+            path: ['inventoryRoutes', source, destination],
+          });
+        }
+        checkExternalBridge(
+          route.externalBridge,
+          `Inventory route '${source}' to '${destination}'`,
+          ['inventoryRoutes', source, destination, 'externalBridge'],
+        );
+      }
+    }
+    if (Object.keys(config.inventoryRoutes ?? {}).length > 0 && !hasInventory) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'inventoryRoutes requires an inventory execution strategy',
+        path: ['inventoryRoutes'],
+      });
+    }
+
     for (
       let strategyIndex = 0;
       strategyIndex < config.strategy.length;
@@ -558,36 +650,11 @@ export const RebalancerConfigSchema = z
     ) {
       const strategy = config.strategy[strategyIndex];
       for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
-        const checkExternalBridge = (
-          externalBridge: ExternalBridgeType | undefined,
-          path: (string | number)[],
-        ) => {
-          const isConfigured =
-            externalBridge === undefined ||
-            (externalBridge === ExternalBridgeType.LiFi &&
-              !!config.externalBridges?.lifi?.integrator) ||
-            (externalBridge === ExternalBridgeType.DeBridge &&
-              config.externalBridges?.debridge !== undefined) ||
-            (externalBridge === ExternalBridgeType.LayerZero &&
-              config.externalBridges?.layerzero !== undefined) ||
-            (externalBridge === ExternalBridgeType.SwapsXyz &&
-              config.externalBridges?.swapsxyz !== undefined);
-          if (!isConfigured) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `Chain '${chainName}' uses externalBridge: '${externalBridge}' but externalBridges.${externalBridge} is not configured`,
-              path,
-            });
-          }
-        };
-
-        checkExternalBridge(chainConfig.externalBridge, [
-          'strategy',
-          strategyIndex,
-          'chains',
-          chainName,
-          'externalBridge',
-        ]);
+        checkExternalBridge(
+          chainConfig.externalBridge,
+          `Chain '${chainName}'`,
+          ['strategy', strategyIndex, 'chains', chainName, 'externalBridge'],
+        );
 
         if (chainConfig.override) {
           for (const [destination, overrideConfig] of Object.entries(
@@ -597,6 +664,7 @@ export const RebalancerConfigSchema = z
               RebalancerBridgeConfigSchema.partial().parse(overrideConfig);
             checkExternalBridge(
               parsedOverride.externalBridge ?? chainConfig.externalBridge,
+              `Chain '${chainName}'`,
               [
                 'strategy',
                 strategyIndex,

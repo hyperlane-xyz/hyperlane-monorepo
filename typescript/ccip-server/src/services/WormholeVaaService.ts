@@ -7,7 +7,12 @@ import {
   WormholeVaaHookIsm__factory,
 } from '@hyperlane-xyz/core';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert, parseMessage, sleep } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  parseMessage,
+  redactErrorMessage,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import type { CcipApp } from '../http.js';
 import {
@@ -316,7 +321,7 @@ export class WormholeVaaService extends BaseService {
           destinationDomain,
           requestRouter,
           error_reason: reason,
-          error: error instanceof Error ? error.message : String(error),
+          error: redactErrorMessage(error),
         },
         'Unable to resolve Wormhole route',
       );

@@ -49,7 +49,7 @@ fn boundary(source: &ScraperSource, height: u64) -> LiveStartBoundary {
         domain: source.domain,
         height: height.to_string(),
         hash: format!("{:#x}", H256::from_low_u64_be(100)),
-        confirmations: None,
+        confirmations: source.confirmations,
         streams: Kind::ALL
             .into_iter()
             .filter(|k| *k != Kind::Gas || source.gas_indexing)
@@ -108,6 +108,7 @@ fn fixture() -> (tempfile::TempDir, ScraperSource, CoreMetrics) {
     let source = ScraperSource {
         chain: "base".into(),
         domain: 8453,
+        confirmations: None,
         mailbox: H256::from_low_u64_be(1),
         merkle_tree_hook: H256::from_low_u64_be(2),
         interchain_gas_paymaster: H256::from_low_u64_be(3),
@@ -422,6 +423,71 @@ async fn quiet_boundary_requires_verified_hash_and_all_rpc_history_including_gas
 }
 
 #[tokio::test]
+async fn custom_boundaries_require_all_streams_at_the_same_checkpoint() {
+    for confirmations in [0, 3] {
+        for gas_indexing in [false, true] {
+            let (_dir, mut source, metrics) = fixture();
+            source.confirmations = Some(confirmations);
+            source.gas_indexing = gas_indexing;
+            let monitor = ScraperWebSocketMonitor::new(
+                Url::parse("ws://localhost/agents").unwrap(),
+                vec![source.clone()],
+                &metrics,
+            )
+            .unwrap();
+            let request = serde_json::to_value(monitor.subscription()).unwrap();
+            assert_eq!(
+                request["confirmationsByDomain"],
+                serde_json::json!({"8453": confirmations})
+            );
+            assert!(request["streams"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|s| s.get("confirmations").is_none()));
+            let mut state = SourceState::new(&source);
+            let marker = boundary(&source, 100);
+            let stream_count = marker.streams.len();
+            for (index, stream) in marker.streams.into_iter().enumerate() {
+                let mut partial = boundary(&source, 100);
+                partial.streams = vec![stream];
+                state.accept_boundary(partial.clone()).unwrap();
+                assert!(state.accept_boundary(partial).is_err(), "duplicate marker");
+                state
+                    .observe_probe(
+                        source.control.generation(),
+                        Ok(Some(RpcProbe::BoundaryVerified)),
+                    )
+                    .unwrap();
+                progress(&source, &Kind::ALL, true).await;
+                assert_eq!(
+                    state.handoff_sequences().is_some(),
+                    index + 1 == stream_count
+                );
+            }
+            state.finish_handoff().unwrap();
+            assert!(state.authoritative);
+
+            for wrong_height in [false, true] {
+                let mut state = SourceState::new(&source);
+                let mut first = boundary(&source, 100);
+                first.streams.truncate(1);
+                state.accept_boundary(first).unwrap();
+                let mut wrong = boundary(&source, if wrong_height { 101 } else { 100 });
+                wrong.streams.remove(0);
+                if !wrong_height {
+                    wrong.hash = format!("{:#x}", H256::zero());
+                }
+                assert!(
+                    state.accept_boundary(wrong).is_err(),
+                    "conflicting checkpoint"
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn boundary_rejects_wrong_hash_contracts_policy_and_incomplete_streams() {
     let (_dir, source, _) = fixture();
     let mut wrong = boundary(&source, 100);
@@ -587,6 +653,47 @@ fn wire_boundary(source: &ScraperSource) -> Message {
     let marker = boundary(source, 100);
     Message::Text(serde_json::json!({"type":"live_start", "domain":marker.domain,"height":marker.height,"hash":marker.hash,
         "streams":marker.streams.iter().map(|s| serde_json::json!({"eventType":s.event_type,"address":s.address})).collect::<Vec<_>>()}).to_string().into())
+}
+
+#[tokio::test]
+async fn rollback_records_origin_and_heights_before_restoring_rpc() {
+    let (_dir, source, metrics) = fixture();
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+    let url =
+        Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+    let monitor =
+        ScraperWebSocketMonitor::new(url, vec![source.clone()], &metrics).expect("monitor");
+    let server = async {
+        let (mut socket, _) = subscribed_socket(&listener).await;
+        socket
+            .send(Message::Text(
+                serde_json::json!({
+                    "type":"rollback", "domain":source.domain,
+                    "eventType":"dispatch", "confirmations":1,
+                    "fromHeight":"100", "toHeight":"99"
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .expect("rollback");
+        let _ = socket.next().await;
+    };
+    let (result, ()) = timeout(Duration::from_secs(3), async {
+        tokio::join!(monitor.stream(StreamTimeouts::default()), server)
+    })
+    .await
+    .expect("session terminates");
+    let error = result.expect_err("rollback restores RPC");
+    assert!(error
+        .to_string()
+        .contains(&format!("domain {} from 100 to 99", source.domain)));
+    assert_eq!(
+        monitor.rollbacks.with_label_values(&[&source.chain]).get(),
+        1
+    );
+    assert_eq!(monitor.active.with_label_values(&[&source.chain]).get(), 0);
+    assert!(!source.control.desired());
 }
 
 #[tokio::test]

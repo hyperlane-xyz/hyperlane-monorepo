@@ -12,6 +12,7 @@ hyperlane:
   withMetrics: true
   monitorOnly: false
   swapsXyzApiKeySecret: ''
+  relayApiKeySecret: ''
   # Used for fetching private RPC secrets
   chains: []
   inventorySignerProtocols: []

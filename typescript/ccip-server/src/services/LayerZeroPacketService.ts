@@ -11,7 +11,7 @@ import {
   MultiProvider,
   ProviderMethod,
 } from '@hyperlane-xyz/sdk';
-import { assert, parseMessage } from '@hyperlane-xyz/utils';
+import { assert, parseMessage, redactErrorMessage } from '@hyperlane-xyz/utils';
 
 import type { CcipApp } from '../http.js';
 import {
@@ -164,7 +164,7 @@ export class LayerZeroPacketService extends BaseService {
           destinationDomain: parsed.destination,
           requestRouter,
           error_reason: reason,
-          error: error instanceof Error ? error.message : String(error),
+          error: redactErrorMessage(error),
         },
         'Unable to resolve LayerZero route',
       );
@@ -234,7 +234,7 @@ export class LayerZeroPacketService extends BaseService {
           destinationDomain: parsed.destination,
           receiver: destination.router,
           error_reason: reason,
-          error: error instanceof Error ? error.message : String(error),
+          error: redactErrorMessage(error),
         },
         'Unable to resolve a ready LayerZero receive library',
       );

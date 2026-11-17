@@ -2,11 +2,15 @@ import type { Interface } from '@ethersproject/abi';
 import type { BaseContract } from 'ethers';
 import type { FastifyReply } from 'fastify';
 
+import { redactErrorMessage, redactErrorStack } from '@hyperlane-xyz/utils';
+
 import type { CcipRequest } from '../http.js';
 import {
   AttestationPendingError,
   CommitmentAccessDeniedError,
+  INTERNAL_SERVER_ERROR,
   InvalidOriginTxHashError,
+  LookupPendingError,
 } from './errors.js';
 
 export interface AbiRequestBody {
@@ -121,7 +125,7 @@ export function createAbiHandler<
       if (error instanceof InvalidOriginTxHashError) {
         return reply.code(400).send({ error: error.message });
       }
-      const message = error instanceof Error ? error.message : String(error);
+      const message = redactErrorMessage(error);
       if (error instanceof AttestationPendingError) {
         // Expected polling state: keep the response contract and request metrics,
         // but avoid repeatedly serializing calldata and stacks at error level.
@@ -131,12 +135,18 @@ export function createAbiHandler<
           {
             ...logContext,
             error: message,
-            stack: error instanceof Error ? error.stack : undefined,
+            stack: redactErrorStack(error),
           },
           `Error in ABI handler ${functionName}`,
         );
       }
-      return reply.code(500).send({ error: message });
+      // Relayers read pending messages to decide whether to retry.
+      return reply.code(500).send({
+        error:
+          error instanceof LookupPendingError
+            ? error.message
+            : INTERNAL_SERVER_ERROR,
+      });
     }
   };
 }

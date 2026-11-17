@@ -40,6 +40,12 @@ fn signed(value: u32) -> i32 {
     i32::from_ne_bytes(value.to_ne_bytes())
 }
 
+// Match the 1,000-confirmation budget in scraper-proxy's
+// src/scraperdb/scraperdb.service.ts (MAX_CONFIRMATIONS); review both when raising it.
+// Websocket requests are uncapped and may lack a live-start checkpoint beyond
+// this window. Keep its preceding checkpoint for sparse native heights too.
+pub(super) const CHECKPOINT_HISTORY_BLOCKS: u64 = 1_000;
+
 const EVENTS: [(&str, &str, &str); 4] = [
     (
         "raw_message_dispatch",
@@ -491,8 +497,13 @@ impl Store {
         ))
         .await?;
         tx.execute(sql(
-            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<$2",
-            vec![self.domain(), number(through)?],
+            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<(
+                SELECT max(height) FROM scraper_checkpoint WHERE domain=$1 AND height<=$2
+            )",
+            vec![
+                self.domain(),
+                number(through.saturating_sub(CHECKPOINT_HISTORY_BLOCKS))?,
+            ],
         ))
         .await?;
         let row = tx.query_one(sql(
