@@ -148,6 +148,20 @@ describe('Agent configs', () => {
           expect(relayer.configMapConfig).not.to.have.property(
             'messageActivityDatabaseUrl',
           );
+          expect(relayer.envConfig.reorgPeriodOverrides).to.deep.equal(
+            context === Contexts.FastPath
+              ? environment === 'mainnet'
+                ? {
+                    arbitrum: 1,
+                    base: 1,
+                    bsc: 3,
+                    citrea: 1,
+                    ethereum: 1,
+                    polygon: 3,
+                  }
+                : { arbitrumsepolia: 1, sepolia: 1 }
+              : undefined,
+          );
           expect(relayer.configMapConfig).not.to.have.property('blacklist');
           expect(relayer.envConfig).not.to.have.property('blacklist');
         }
@@ -403,7 +417,7 @@ describe('Agent configs', () => {
       if (relayer) {
         it(`configures ${environment}/${context} relayer indexing`, () => {
           expect(relayer.websocketUrl).to.equal(
-            context === Contexts.FastPath
+            context === Contexts.FastPath && environment === 'testnet4'
               ? undefined
               : `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
           );
