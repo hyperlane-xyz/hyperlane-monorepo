@@ -20,7 +20,7 @@ const Fixture = struct {
     }
     fn subscribe(self: *Fixture, raw: []const u8) ![]const p.StreamRequest {
         const message = try self.parse(raw);
-        return message.subscribe;
+        return message.subscribe.streams;
     }
     /// Asserts a validation failure whose message contains `expected`.
     fn rejects(self: *Fixture, raw: []const u8, expected: []const u8) !void {
@@ -432,5 +432,166 @@ test "deeply nested client messages are handled like their shallow equivalents (
         const want = try outcome(case.shallow);
         defer testing.allocator.free(want);
         try testing.expectEqualStrings(want, got);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// `domain-confirmations.test.ts`
+
+fn groupsOf(a: std.mem.Allocator, message: p.ClientMessage, index: usize) ![]const p.StreamRequest {
+    return p.splitConfirmationStreams(a, message.subscribe.streams[index], message.subscribe.confirmations_by_domain);
+}
+
+test "domain overrides take precedence for every event type, including zero" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const a = f.arena.allocator();
+    for ([_][]const u8{ "dispatch", "delivery", "gas_payment", "merkle_tree_insertion" }) |event_type| {
+        for ([_]?u64{ null, 12 }) |confirmations| {
+            const extra = if (confirmations) |c| try std.fmt.allocPrint(a, ",\"confirmations\":{d}", .{c}) else "";
+            const raw = try std.fmt.allocPrint(a, "{{\"type\":\"subscribe\",\"confirmationsByDomain\":{{\"1\":0,\"2\":3,\"5\":3}},\"streams\":[{{\"eventType\":\"{s}\",\"domains\":[1,2,3,4,5]{s}}}]}}", .{ event_type, extra });
+            const message = try f.parse(raw);
+            const groups = try groupsOf(a, message, 0);
+            try testing.expectEqual(@as(usize, 3), groups.len);
+            try testing.expectEqual(@as(?u64, 0), groups[0].confirmations);
+            try testing.expectEqualSlices(u32, &.{1}, groups[0].domains.?);
+            try testing.expectEqual(@as(?u64, 3), groups[1].confirmations);
+            try testing.expectEqualSlices(u32, &.{ 2, 5 }, groups[1].domains.?);
+            try testing.expectEqual(confirmations, groups[2].confirmations);
+            try testing.expectEqualSlices(u32, &.{ 3, 4 }, groups[2].domains.?);
+            try testing.expectEqualSlices(u32, &.{ 1, 2, 3, 4, 5 }, message.subscribe.streams[0].domains.?);
+            for (groups) |group| try testing.expectEqual(message.subscribe.streams[0].kind, group.kind);
+        }
+    }
+}
+
+test "omitted or empty domain overrides retain legacy subscriptions" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const a = f.arena.allocator();
+    for ([_][]const u8{ "", ",\"confirmationsByDomain\":{}" }) |map| {
+        for ([_][]const u8{ "{\"eventType\":\"dispatch\"}", "{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}" }) |stream| {
+            const message = try f.parse(try std.fmt.allocPrint(a, "{{\"type\":\"subscribe\"{s},\"streams\":[{s}]}}", .{ map, stream }));
+            try testing.expectEqual(map.len > 0, message.subscribe.confirmations_by_domain != null);
+            const groups = try groupsOf(a, message, 0);
+            try testing.expectEqual(@as(usize, 1), groups.len);
+            try testing.expectEqual(message.subscribe.streams[0].confirmations, groups[0].confirmations);
+            try testing.expectEqual(message.subscribe.streams[0].domains, groups[0].domains);
+        }
+    }
+}
+
+test "merges domain overrides with matching legacy confirmations" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const message = try f.parse("{\"type\":\"subscribe\",\"confirmationsByDomain\":{\"1\":3,\"3\":0},\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1,2,3],\"confirmations\":3}]}");
+    const groups = try groupsOf(f.arena.allocator(), message, 0);
+    try testing.expectEqual(@as(usize, 2), groups.len);
+    try testing.expectEqual(@as(?u64, 3), groups[0].confirmations);
+    try testing.expectEqualSlices(u32, &.{ 1, 2 }, groups[0].domains.?);
+    try testing.expectEqual(@as(?u64, 0), groups[1].confirmations);
+    try testing.expectEqualSlices(u32, &.{3}, groups[1].domains.?);
+}
+
+test "supports the full uint32 domain range, Object.entries order, and leaves block streams unchanged" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const message = try f.parse("{\"type\":\"subscribe\",\"confirmationsByDomain\":{\"4294967295\":5,\"7\":1,\"0\":0},\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[0,4294967295,7]},{\"eventType\":\"blocks\"}]}");
+    const entries = message.subscribe.confirmations_by_domain.?;
+    try testing.expectEqual(@as(usize, 3), entries.len);
+    try testing.expectEqual(p.DomainConfirmations{ .domain = 0, .confirmations = 0 }, entries[0]);
+    try testing.expectEqual(p.DomainConfirmations{ .domain = 7, .confirmations = 1 }, entries[1]);
+    try testing.expectEqual(p.DomainConfirmations{ .domain = 4294967295, .confirmations = 5 }, entries[2]);
+    try testing.expectEqual(@as(?[]const u32, null), message.subscribe.streams[1].domains);
+}
+
+test "rejects malformed domain maps and confirmation values" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const a = f.arena.allocator();
+    for ([_][]const u8{ "null", "[]", "1", "\"1\"" }) |value| {
+        try f.rejects(try std.fmt.allocPrint(a, "{{\"type\":\"subscribe\",\"confirmationsByDomain\":{s},\"streams\":[{{\"eventType\":\"dispatch\",\"domains\":[1]}}]}}", .{value}), "confirmationsByDomain must be a domain-to-confirmations object");
+    }
+    for ([_][]const u8{ "-1", "4294967296", "01", "1.5", "1e3", "", "__proto__", "-0", " 1" }) |key| {
+        try f.rejects(try std.fmt.allocPrint(a, "{{\"type\":\"subscribe\",\"confirmationsByDomain\":{{\"{s}\":2}},\"streams\":[{{\"eventType\":\"dispatch\",\"domains\":[1]}}]}}", .{key}), "confirmationsByDomain keys must be uint32 domain IDs");
+    }
+    for ([_][]const u8{ "null", "-1", "1.5", "\"2\"", "9007199254740992" }) |value| {
+        try f.rejects(try std.fmt.allocPrint(a, "{{\"type\":\"subscribe\",\"confirmationsByDomain\":{{\"1\":{s}}},\"streams\":[{{\"eventType\":\"dispatch\",\"domains\":[1]}}]}}", .{value}), "confirmations must be a non-negative safe integer");
+    }
+    // Index keys are checked first: the count error wins over a later bad key.
+    try f.rejects("{\"type\":\"subscribe\",\"confirmationsByDomain\":{\"x\":1,\"5\":-1},\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[5]}]}", "confirmations must be a non-negative safe integer");
+    // -0 is a non-negative safe integer.
+    const zero = try f.parse("{\"type\":\"subscribe\",\"confirmationsByDomain\":{\"1\":-0},\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
+    try testing.expectEqual(@as(u64, 0), zero.subscribe.confirmations_by_domain.?[0].confirmations);
+}
+
+test "requires explicit domains and rejects replay regardless of domain overrides" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const a = f.arena.allocator();
+    for ([_][]const u8{
+        "{\"eventType\":\"dispatch\",\"domains\":[1]}",
+        "{\"eventType\":\"blocks\",\"domains\":[2]}",
+        "{\"eventType\":\"dispatch\",\"domains\":[1]},{\"eventType\":\"blocks\",\"domains\":[2]}",
+    }) |streams| {
+        try f.rejects(try std.fmt.allocPrint(a, "{{\"type\":\"subscribe\",\"confirmationsByDomain\":{{\"2\":0}},\"streams\":[{s}]}}", .{streams}), "Unused confirmationsByDomain domain 2");
+    }
+    try f.rejects("{\"type\":\"subscribe\",\"confirmationsByDomain\":{\"1\":2},\"streams\":[{\"eventType\":\"dispatch\"}]}", "confirmationsByDomain requires explicit event stream domains");
+    for ([_][]const u8{ "", ",\"confirmationsByDomain\":{}", ",\"confirmationsByDomain\":{\"1\":0}", ",\"confirmationsByDomain\":{\"2\":0}" }) |map| {
+        try f.rejects(try std.fmt.allocPrint(a, "{{\"type\":\"subscribe\"{s},\"streams\":[{{\"eventType\":\"dispatch\",\"domains\":[1],\"cursors\":[]}}]}}", .{map}), "live-only");
+    }
+    // Stream errors come before map errors.
+    try f.rejects("{\"type\":\"subscribe\",\"confirmationsByDomain\":null,\"streams\":[{\"eventType\":\"dispatch\"},{\"eventType\":\"dispatch\"}]}", "Duplicate eventType subscription");
+}
+
+// ---------------------------------------------------------------------------
+// `validator-protocol.test.ts`
+
+test "requires one domain and preserves canonical or explicit confirmations" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const a = f.arena.allocator();
+    for ([_]u32{ 0, 1, 4294967295 }) |domain| {
+        const params = try f.params(try std.fmt.allocPrint(a, "domain={d}", .{domain}));
+        try testing.expectEqual(p.ValidatorSubscription{ .domain = domain }, p.parseValidatorSubscription(&params).?);
+        for ([_]u64{ 0, 2, 9007199254740991 }) |confirmations| {
+            const with = try f.params(try std.fmt.allocPrint(a, "domain={d}&confirmations={d}", .{ domain, confirmations }));
+            try testing.expectEqual(p.ValidatorSubscription{ .domain = domain, .confirmations = confirmations }, p.parseValidatorSubscription(&with).?);
+        }
+    }
+    const padded = try f.params("domain=0001&confirmations=007&");
+    try testing.expectEqual(p.ValidatorSubscription{ .domain = 1, .confirmations = 7 }, p.parseValidatorSubscription(&padded).?);
+}
+
+test "rejects ambiguous domains, unsafe counts and extra validator options" {
+    var f = Fixture.init();
+    defer f.deinit();
+    for ([_][]const u8{
+        "",                                      "domain=",                                 "domain=-1",
+        "domain=4294967296",                     "domain=1,2",                              "domain=1&domain=2",
+        "domain=1&domain=1",                     "domain=1.5",                              "domain=1e2",
+        "domains=1",                             "domain=1&confirmations=",                 "domain=1&confirmations=-1",
+        "domain=1&confirmations=1.5",            "domain=1&confirmations=NaN",              "domain=1&confirmations=9007199254740992",
+        "domain=1&confirmations=safe",           "domain=1&confirmations=0&confirmations=0", "domain=1&blocks=true",
+        "domain=1&eventType=dispatch",           "domain=1&includeZeroConfirmations=true",  "domain=1&afterSequence=0",
+        "domain=1&confirmationsByDomain={}",     "domain=1&%64omain=2",                     "domain",
+        "=1&domain=1",                           "domain=+1",
+    }) |query| {
+        const params = try f.params(query);
+        if (p.parseValidatorSubscription(&params)) |accepted| {
+            std.debug.print("accepted {s}: {any}\n", .{ query, accepted });
+            return error.TestUnexpectedResult;
+        }
+    }
+}
+
+test "accepts only ping after URL negotiation" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const a = f.arena.allocator();
+    try testing.expect(p.isValidatorPing(try core.json.parse(a, "{ \"type\": \"ping\" }", .{})));
+    try testing.expect(p.isValidatorPing(try core.json.parse(a, "{\"type\":\"x\",\"type\":\"ping\"}", .{})));
+    for ([_][]const u8{ "null", "[]", "1", "{}", "{\"type\":\"subscribe\",\"streams\":[]}", "{\"type\":\"ping\",\"domain\":2}" }) |raw| {
+        try testing.expect(!p.isValidatorPing(try core.json.parse(a, raw, .{})));
     }
 }

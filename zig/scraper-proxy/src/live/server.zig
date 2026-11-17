@@ -34,6 +34,13 @@ pub const AGENT_PATH = "/agents";
 pub const MAX_AGENT_MESSAGE_BYTES = 65_536;
 pub const MESSAGE_PATH = "/messages";
 pub const MAX_EXPLORER_MESSAGE_BYTES = 4_096;
+pub const VALIDATOR_PATH = "/validators";
+/// The URL and inbound frame limit of `/validators`.
+pub const MAX_VALIDATOR_MESSAGE_BYTES = 1_024;
+const MAX_VALIDATOR_CLIENTS = 500;
+const MAX_VALIDATOR_CLIENTS_PER_IP = 100;
+const MAX_VALIDATOR_PENDING_SETUPS = 32;
+const MAX_VALIDATOR_PENDING_SETUPS_PER_IP = 8;
 pub const EVENT_CHANNEL = "scraper_event";
 pub const EXPLORER_CHANNEL = "scraper_explorer_event";
 pub const HEAD_CHANNEL = "scraper_head";
@@ -58,7 +65,7 @@ const MAX_CORKED_FRAMES = 256;
 const MAX_CORKED_BYTES = 256 * 1024;
 
 const AGENT_READY_FRAME =
-    \\{"confirmations":{"unit":"blocks","liveOnly":true},"eventTypes":["dispatch","delivery","gas_payment","merkle_tree_insertion","blocks"],"historicalStreaming":false,"liveStartVersion":1,"type":"ready"}
+    \\{"confirmations":{"unit":"blocks","liveOnly":true,"byDomain":true},"eventTypes":["dispatch","delivery","gas_payment","merkle_tree_insertion","blocks"],"historicalStreaming":false,"liveStartVersion":1,"type":"ready"}
 ;
 
 pub const Limits = struct {
@@ -66,6 +73,8 @@ pub const Limits = struct {
     max_agent_clients: u64,
     max_buffered_bytes: u64,
     max_explorer_clients: u64 = MAX_EXPLORER_CLIENTS,
+    max_validator_clients: u64 = MAX_VALIDATOR_CLIENTS,
+    max_validator_clients_per_ip: u64 = MAX_VALIDATOR_CLIENTS_PER_IP,
     max_total_buffered_bytes: u64,
 
     pub fn fromConfig(config: *const core.config.Config) Limits {
@@ -82,6 +91,8 @@ pub const Options = struct {
     batch_size: u64,
     /// `process.env.NODE_ENV === 'production'` (clientIp ignores the peer address).
     production: bool = false,
+    /// `db.queryValidator` (the validator pool); `db` when null (tests).
+    validator_db: ?es.Db = null,
 };
 
 // ---------------------------------------------------------------------------
@@ -329,7 +340,7 @@ const BlockSubscription = struct {
     latest: std.AutoArrayHashMapUnmanaged(u32, *SharedFrame) = .empty,
 };
 
-pub const Route = enum { agent, explorer };
+pub const Route = enum { agent, explorer, validator };
 
 pub const Peer = struct {
     server: *Server,
@@ -349,6 +360,8 @@ pub const Peer = struct {
     closed: bool = false,
     /// Domain reported by the last `ConfirmationUnavailable` failure.
     unavailable_domain: u32 = 0,
+    /// `/validators`: its `validatorClients` entry (route `.validator`).
+    validator: ValidatorClient = .{},
     /// Non-awaited frames sent this turn, written with one syscall when the
     /// turn ends or before any other operation on the socket (`flushCork`).
     cork: Cork = .{},
@@ -420,6 +433,8 @@ pub const Peer = struct {
         server.clearExplorerQueue(self);
         if (self.explorer.message_ids) |ids| freeStrings(server.allocator, ids);
         if (self.explorer.ip.len > 0) server.allocator.free(self.explorer.ip);
+        std.debug.assert(!self.validator.reserved and self.validator.group == null);
+        if (self.validator.ip.len > 0) server.allocator.free(self.validator.ip);
         self.explorer.queue.deinit(server.allocator);
         self.cork.deinit(server.allocator);
         std.debug.assert(self.requests.items.len == 0 and self.completed.items.len == 0);
@@ -428,6 +443,42 @@ pub const Peer = struct {
         self.socket.vtable.release(self.socket.ptr);
         server.allocator.destroy(self);
     }
+};
+
+/// A `/validators` connection's `ValidatorClient`: counted against the
+/// validator limits (`reserved`, one peer reference) until its setup ended
+/// and its socket closed.
+const ValidatorClient = struct {
+    reserved: bool = false,
+    pending: bool = false,
+    /// Owned.
+    ip: []const u8 = "",
+    /// The shared custom reader it joined.
+    group: ?*ValidatorGroup = null,
+};
+
+const ValidatorGroupKey = struct { domain: u32, confirmations: u64 };
+
+/// One shared `(domain, confirmations)` reader for `/validators`. Freed with
+/// its stream (`io.deinit`), which outlives drains in flight; `refs` counts
+/// the map entry, setups awaiting `ready` and the initialization in flight,
+/// and drops the stream's owner reference at zero.
+const ValidatorGroup = struct {
+    server: *Server,
+    key: ValidatorGroupKey,
+    stream: *ConfirmationStream = undefined,
+    members: std.AutoArrayHashMapUnmanaged(*Peer, void) = .empty,
+    refs: usize = 1,
+    /// `ready`: the first `stream.initialize(readHeads)`.
+    state: enum { initializing, ready, failed } = .initializing,
+    failure: anyerror = error.Failed,
+    failure_message: [256]u8 = undefined,
+    failure_len: usize = 0,
+    /// Setups awaiting `ready`, in registration order (one reference each).
+    waiters: std.ArrayList(*Server.ValidatorSetup) = .empty,
+    /// The initialization's heads read and its revision.
+    work: Server.AsyncWork = undefined,
+    revision: u64 = 0,
 };
 
 const Cork = struct {
@@ -507,6 +558,15 @@ pub const Server = struct {
     explorer_clients_by_ip: std.StringArrayHashMapUnmanaged(usize) = .empty,
     explorer_notifications: NotificationQueue(void) = .{},
     notifications: NotificationQueue(protocol.EventNotification) = .{},
+    /// `validatorStore`: reads on the validator pool.
+    validator_store: es.EventStore,
+    /// `validatorClients`: reservations in insertion order (one peer reference each).
+    validator_clients: std.AutoArrayHashMapUnmanaged(*Peer, void) = .empty,
+    validator_groups: std.AutoArrayHashMapUnmanaged(ValidatorGroupKey, *ValidatorGroup) = .empty,
+    /// Canonical notifications only validators want (keyed by id).
+    validator_notifications: NotificationQueue(protocol.EventNotification) = .{},
+    validator_head_ranges: std.AutoArrayHashMapUnmanaged(u32, HeadRange) = .empty,
+    validator_updates: NotificationWorker = undefined,
     pending_heads: std.AutoArrayHashMapUnmanaged(u32, protocol.HeadNotification) = .empty,
     head_ranges: std.AutoArrayHashMapUnmanaged(u32, HeadRange) = .empty,
     head_range_seq: u64 = 0,
@@ -584,6 +644,7 @@ pub const Server = struct {
             .loop = loop,
             .logger = core.log.child("EventWebSocketServer"),
             .store = es.EventStore.init(allocator, loop, db, options.batch_size),
+            .validator_store = es.EventStore.init(allocator, loop, options.validator_db orelse db, options.batch_size),
             .listen_api = listen_api,
             .limits = options.limits,
             .production = options.production,
@@ -594,6 +655,7 @@ pub const Server = struct {
         self.explorer_updates = .init(loop, NOTIFICATION_BATCH_MS, self, drainExplorerThunk, failExplorerThunk);
         self.confirmation_updates = .init(loop, NOTIFICATION_BATCH_MS, self, drainConfirmationThunk, failExplorerThunk);
         self.head_updates = .init(loop, NOTIFICATION_BATCH_MS, self, drainHeadThunk, failHeadThunk);
+        self.validator_updates = .init(loop, NOTIFICATION_BATCH_MS, self, drainValidatorThunk, failValidatorThunk);
         loop.turn_end = .{ .ctx = self, .func = endTurnThunk };
         return self;
     }
@@ -602,6 +664,17 @@ pub const Server = struct {
     pub fn destroy(self: *Server) void {
         const a = self.allocator;
         self.store.deinit();
+        self.validator_store.deinit();
+        // Reservations of sockets that never reported 'close' (a forced shutdown).
+        for (self.validator_clients.keys()) |peer| {
+            peer.validator.reserved = false;
+            peer.release();
+        }
+        std.debug.assert(self.validator_groups.count() == 0);
+        self.validator_clients.deinit(a);
+        self.validator_groups.deinit(a);
+        self.validator_notifications.deinit(a);
+        self.validator_head_ranges.deinit(a);
         self.clients.deinit(a);
         self.block_subscriptions.deinit(a);
         self.confirmation_streams.deinit(a);
@@ -798,8 +871,9 @@ pub const Server = struct {
             self.loop.lock();
         }
         self.heartbeat_timer = self.loop.scheduler.schedule(heartbeat_ms, self, onHeartbeatTimer);
-        self.logger.info("event websockets listening on {s}, {s} batchSize={d} maxAgentClients={d} maxBufferedBytes={d} maxTotalBufferedBytes={d}", .{
-            AGENT_PATH, MESSAGE_PATH, self.store.batch_size, self.limits.max_agent_clients, self.limits.max_buffered_bytes, self.limits.max_total_buffered_bytes,
+        self.logger.info("event websockets listening on {s}, {s}, {s} batchSize={d} maxAgentClients={d} maxValidatorClients={d} maxBufferedBytes={d} maxTotalBufferedBytes={d}", .{
+            AGENT_PATH,                       MESSAGE_PATH,                      VALIDATOR_PATH,                         self.store.batch_size, self.limits.max_agent_clients,
+            self.limits.max_validator_clients, self.limits.max_buffered_bytes, self.limits.max_total_buffered_bytes,
         });
     }
 
@@ -813,7 +887,7 @@ pub const Server = struct {
         if (self.listener_retry_timer) |id| self.loop.scheduler.cancel(id);
         self.heartbeat_timer = null;
         self.listener_retry_timer = null;
-        for ([_]*NotificationWorker{ &self.agent_notifications, &self.explorer_updates, &self.head_updates, &self.confirmation_updates }) |worker| worker.stop();
+        for ([_]*NotificationWorker{ &self.agent_notifications, &self.validator_updates, &self.explorer_updates, &self.head_updates, &self.confirmation_updates }) |worker| worker.stop();
         self.clearExplorerNotifications();
         self.clearNotifications();
         self.head_ranges.clearRetainingCapacity();
@@ -842,16 +916,37 @@ pub const Server = struct {
         return .{ .ctx = self, .snapshot = snapshotThunk };
     }
 
-    fn snapshotThunk(ctx: *anyopaque) metrics.WebSocketMetricsSnapshot {
+    fn snapshotThunk(ctx: *anyopaque, a: std.mem.Allocator) std.mem.Allocator.Error!metrics.WebSocketMetricsSnapshot {
         const self: *Server = @ptrCast(@alignCast(ctx));
         self.loop.lock();
         defer self.loop.unlock();
-        return self.metricsSnapshot();
+        return self.metricsSnapshotIn(a);
     }
 
+    /// Without `validatorSubscriptions` (tests).
     pub fn metricsSnapshot(self: *Server) metrics.WebSocketMetricsSnapshot {
+        return self.metricsSnapshotIn(null) catch unreachable;
+    }
+
+    /// `validatorSubscriptions` is allocated with `a` (the scrape's arena).
+    pub fn metricsSnapshotIn(self: *Server, a: ?Allocator) Allocator.Error!metrics.WebSocketMetricsSnapshot {
         var snapshot: metrics.WebSocketMetricsSnapshot = .{};
+        var validator_subscriptions: std.ArrayList(metrics.ValidatorSubscription) = .empty;
         for (self.clients.keys()) |peer| {
+            if (peer.validator.reserved) {
+                const request = peer.agent.subscriptions.getPtr(.merkle_tree_insertion).* orelse continue;
+                const allocator = a orelse continue;
+                for (request.domains orelse &.{}) |domain| {
+                    const counts = for (validator_subscriptions.items) |*entry| {
+                        if (entry.domain == domain) break entry;
+                    } else blk: {
+                        try validator_subscriptions.append(allocator, .{ .domain = domain });
+                        break :blk &validator_subscriptions.items[validator_subscriptions.items.len - 1];
+                    };
+                    if (request.confirmations == null) counts.canonical += 1 else counts.custom += 1;
+                }
+                continue;
+            }
             for (std.enums.values(EventType)) |event_type| {
                 if (peer.agent.subscriptions.get(event_type) == null) continue;
                 const count = switch (event_type) {
@@ -879,7 +974,28 @@ pub const Server = struct {
         }
         var max_per_ip: usize = 0;
         for (self.explorer_clients_by_ip.values()) |count| max_per_ip = @max(max_per_ip, count);
-        snapshot.connections = .{ .agent = f(self.clients.count()), .messages = f(self.explorer_clients.count()) };
+        const validators = self.validatorCount();
+        snapshot.connections = .{ .agent = f(self.clients.count() - validators), .messages = f(self.explorer_clients.count()), .validators = f(validators) };
+        var pending: usize = 0;
+        var ips: std.ArrayList(struct { ip: []const u8, count: usize }) = .empty;
+        defer ips.deinit(self.allocator);
+        for (self.validator_clients.keys()) |peer| {
+            pending += @intFromBool(peer.validator.pending);
+            for (ips.items) |*entry| {
+                if (std.mem.eql(u8, entry.ip, peer.validator.ip)) {
+                    entry.count += 1;
+                    break;
+                }
+            } else ips.append(self.allocator, .{ .ip = peer.validator.ip, .count = 1 }) catch oom();
+        }
+        var max_validator_per_ip: usize = 0;
+        for (ips.items) |entry| max_validator_per_ip = @max(max_validator_per_ip, entry.count);
+        snapshot.validatorPendingSetups = f(pending);
+        snapshot.validatorReservedConnections = f(self.validator_clients.count());
+        snapshot.validatorSharedReaders = f(self.validator_groups.count());
+        snapshot.validatorSubscriptions = validator_subscriptions.items;
+        snapshot.validatorClientIps = f(ips.items.len);
+        snapshot.validatorMaxConnectionsPerIp = f(max_validator_per_ip);
         snapshot.explorerPendingMessages = f(explorer_messages);
         snapshot.explorerPendingBytes = f(explorer_bytes);
         snapshot.maxExplorerPendingBytes = f(max_explorer_bytes);
@@ -893,13 +1009,17 @@ pub const Server = struct {
             .explorerPendingMessages = MAX_EXPLORER_PENDING_MESSAGES,
             .messageConnections = f(self.limits.max_explorer_clients),
             .messageConnectionsPerIp = MAX_EXPLORER_CLIENTS_PER_IP,
+            .validatorConnections = f(self.limits.max_validator_clients),
+            .validatorSetups = MAX_VALIDATOR_PENDING_SETUPS,
+            .validatorConnectionsPerIp = f(self.limits.max_validator_clients_per_ip),
+            .validatorMessageBytes = MAX_VALIDATOR_MESSAGE_BYTES,
             .notificationEvents = MAX_PENDING_NOTIFICATIONS,
             .socketBufferedBytes = f(self.limits.max_buffered_bytes),
             .totalPendingBytes = f(self.limits.max_total_buffered_bytes),
         };
         snapshot.listenerReady = self.listener_ready;
         snapshot.maxClientBufferedBytes = f(max_buffered);
-        snapshot.notificationQueue = .{ .agent = f(self.notifications.count()), .messages = f(self.explorer_notifications.count()) };
+        snapshot.notificationQueue = .{ .agent = f(self.notifications.count()), .messages = f(self.explorer_notifications.count()), .validators = f(self.validator_notifications.count()) };
         snapshot.outboundPendingBytes = f(self.pending_bytes.load(.monotonic));
         return snapshot;
     }
@@ -1079,7 +1199,7 @@ pub const Server = struct {
     }
 
     fn explorerHeadsQuery(arena: Allocator, domains: []const u32) Allocator.Error!es.EventStore.Statement {
-        return es.EventStore.confirmationHeadsQuery(arena, domains, null);
+        return es.EventStore.confirmationHeadsQuery(arena, domains);
     }
 
     fn runExplorerHeads(self: *Server, work: *AsyncWork) void {
@@ -1269,7 +1389,7 @@ pub const Server = struct {
             return false;
         }
         const full = if (peer.route == .agent)
-            self.clients.count() >= self.limits.max_agent_clients
+            self.clients.count() - self.validatorCount() >= self.limits.max_agent_clients
         else
             self.explorer_clients.count() >= self.limits.max_explorer_clients;
         if (!self.listener_ready or full) {
@@ -1320,6 +1440,8 @@ pub const Server = struct {
         self.loop.lock();
         self.disconnect(peer);
         peer.closed = true;
+        // readyState is CLOSED from here: `disconnect`'s `releaseValidator`.
+        self.releaseValidator(peer);
         const subscription = peer.diagnostics_subscription;
         peer.diagnostics_subscription = null;
         if (subscription) |s| {
@@ -1331,6 +1453,610 @@ pub const Server = struct {
         }
         peer.release();
         self.loop.unlock();
+    }
+
+    // -- validators (`/validators`) -----------------------------------------------
+
+    pub const ValidatorRequest = struct {
+        /// Raw `request.url`.
+        url: []const u8,
+        /// `cf-connecting-ip` header (duplicates joined like Node), if present.
+        cf_connecting_ip: ?[]const u8,
+        /// `request.socket.remoteAddress`.
+        remote_address: ?[]const u8,
+    };
+
+    pub const ValidatorAdmission = union(enum) {
+        /// Answered with `HTTP/1.1 <status> Rejected` before upgrading.
+        rejected: u16,
+        admitted: struct { ip: []const u8, subscription: protocol.ValidatorSubscription },
+    };
+
+    /// `handleUpgrade`'s `/validators` admission, before `ws.handleUpgrade`.
+    /// Loop mutex held; the caller keeps it until `connectValidator`, so
+    /// admission and reservation are one step (in Node, ws's callback runs
+    /// synchronously). An admitted `ip` is owned by the caller.
+    pub fn admitValidator(self: *Server, request: ValidatorRequest) ValidatorAdmission {
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const subscription = blk: {
+            // `Buffer.byteLength(request.url)`: Node decodes the target as latin1.
+            var bytes: usize = request.url.len;
+            for (request.url) |byte| bytes += @intFromBool(byte >= 0x80);
+            if (bytes > MAX_VALIDATOR_MESSAGE_BYTES) break :blk null;
+            const params = protocol.QueryParams.fromUrl(arena.allocator(), request.url) catch oom();
+            break :blk protocol.parseValidatorSubscription(&params);
+        } orelse return self.rejectValidator(400, "invalid_subscription");
+        const ip = validatorClientIp(self.production, request) orelse return self.rejectValidator(403, "invalid_client_ip");
+        if (!self.listener_ready) return self.rejectValidator(503, "listener_unavailable");
+        if (self.validator_clients.count() >= self.limits.max_validator_clients) return self.rejectValidator(503, "connection_limit");
+        var pending: usize = 0;
+        var peers: usize = 0;
+        var peers_pending: usize = 0;
+        for (self.validator_clients.keys()) |peer| {
+            const same = std.mem.eql(u8, peer.validator.ip, ip);
+            pending += @intFromBool(peer.validator.pending);
+            peers += @intFromBool(same);
+            peers_pending += @intFromBool(same and peer.validator.pending);
+        }
+        if (pending >= MAX_VALIDATOR_PENDING_SETUPS) return self.rejectValidator(503, "setup_limit");
+        if (peers_pending >= MAX_VALIDATOR_PENDING_SETUPS_PER_IP) return self.rejectValidator(429, "per_ip_setup_limit");
+        if (peers >= self.limits.max_validator_clients_per_ip) return self.rejectValidator(429, "per_ip_limit");
+        return .{ .admitted = .{ .ip = self.allocator.dupe(u8, ip) catch oom(), .subscription = subscription } };
+    }
+
+    fn rejectValidator(_: *Server, status: u16, reason: []const u8) ValidatorAdmission {
+        incValidatorRejection(reason);
+        return .{ .rejected = status };
+    }
+
+    /// `websocketConnectionRejections.inc({ route: 'validators', reason })`.
+    fn incValidatorRejection(reason: []const u8) void {
+        metrics.websocket_connection_rejections.incOrdered(.{ reason, "validators" }, 1, .{ 1, 0 });
+    }
+
+    /// `validatorClientIp`: only a loopback peer (the cloudflared sidecar) is
+    /// trusted, and its `cf-connecting-ip` names the client (outside
+    /// production, the peer itself when absent).
+    fn validatorClientIp(production: bool, request: ValidatorRequest) ?[]const u8 {
+        const remote = request.remote_address orelse return null;
+        const peer = if (std.mem.startsWith(u8, remote, "::ffff:")) remote[7..] else remote;
+        if (peer.len == 0 or !protocol.isIp(peer)) return null;
+        if (!std.mem.eql(u8, peer, "::1") and !std.mem.startsWith(u8, peer, "127.")) return null;
+        const ip = request.cf_connecting_ip orelse (if (production) return null else peer);
+        return if (protocol.isIp(ip)) ip else null;
+    }
+
+    /// `connectValidator`'s synchronous part (loop mutex held, right after
+    /// the upgrade): register and reserve, then the setup continues on
+    /// `query_async` reads. Takes ownership of `admission.ip`.
+    pub fn connectValidator(self: *Server, socket: Socket, ip: []const u8, subscription: protocol.ValidatorSubscription) *Peer {
+        const peer = self.newPeer(socket, .validator);
+        peer.in_clients = true;
+        peer.agent = .{ .message_window = self.loop.now(), .subscribing = true };
+        self.clients.put(self.allocator, peer, {}) catch oom();
+        peer.validator = .{ .reserved = true, .pending = true, .ip = ip };
+        peer.retain(); // the reservation
+        self.validator_clients.put(self.allocator, peer, {}) catch oom();
+        metrics.websocket_connections.inc(.{"validators"}, 1);
+        const setup = self.allocator.create(ValidatorSetup) catch oom();
+        setup.* = .{
+            .server = self,
+            .peer = peer,
+            .domain = subscription.domain,
+            .confirmations = subscription.confirmations,
+            .work = .{ .query = self.newQuery(), .run = runValidatorRead },
+        };
+        peer.retain(); // the setup
+        // Disconnected negotiations retain their work slot until the DB read ends.
+        const statement = es.EventStore.domainExistsQuery(setup.work.query.arena.allocator(), setup.domain) catch oom();
+        self.issueValidatorRead(&setup.work, statement);
+        return peer;
+    }
+
+    /// One validator negotiation (`connectValidator` after its first await),
+    /// as a continuation state machine: each await is a `query_async` read
+    /// on the validator pool, a group's `ready`, or an awaited send.
+    const ValidatorSetup = struct {
+        server: *Server,
+        peer: *Peer,
+        domain: u32,
+        confirmations: ?u64,
+        phase: enum { exists, heads, boundary } = .exists,
+        work: AsyncWork,
+        /// The joined group (a reference) and whether it existed already.
+        group: ?*ValidatorGroup = null,
+        joining: bool = false,
+        /// A joiner's heads read: the revision it was registered at.
+        revision: u64 = 0,
+        boundary: ?protocol.LiveStartBoundary = null,
+        frame: std.ArrayList(u8) = .empty,
+        resumable: Resumable = .{ .func = resumeValidatorLiveStart },
+    };
+
+    /// Mutex held. `issueRead` on the validator pool (a fresh query when the
+    /// work's previous one was consumed).
+    fn issueValidatorRead(self: *Server, work: *AsyncWork, statement: es.EventStore.Statement) void {
+        work.query.sql = statement.sql;
+        work.query.params = statement.params;
+        self.issueReadOn(work, self.validator_store.db);
+    }
+
+    fn runValidatorRead(self: *Server, work: *AsyncWork) void {
+        const setup: *ValidatorSetup = @alignCast(@fieldParentPtr("work", work));
+        if (work.query.failure()) |err| return self.validatorSetupFailed(setup, err);
+        switch (setup.phase) {
+            .exists => self.validatorDomainChecked(setup),
+            .heads => self.validatorJoinHeads(setup),
+            .boundary => self.validatorBoundaryRead(setup),
+        }
+    }
+
+    fn validatorDomainChecked(self: *Server, setup: *ValidatorSetup) void {
+        const peer = setup.peer;
+        if (!peer.in_clients) return self.finishValidatorSetup(setup);
+        if (setup.work.query.rows.len == 0) {
+            var buffer: [64]u8 = undefined;
+            self.rejectNegotiation(peer, std.fmt.bufPrint(&buffer, "Unknown domain {d}", .{setup.domain}) catch unreachable);
+            return self.finishValidatorSetup(setup);
+        }
+        const confirmations = setup.confirmations orelse return self.validatorSubscribed(setup);
+        // `joinValidatorGroup`: older queued heads first (the confirmation
+        // drain is synchronous, so this flush runs it now).
+        std.debug.assert(!self.confirmation_updates.running);
+        self.confirmation_updates.flush();
+        if (!peer.in_clients) return self.finishValidatorSetup(setup);
+        const key: ValidatorGroupKey = .{ .domain = setup.domain, .confirmations = confirmations };
+        const existing = self.validator_groups.get(key);
+        setup.joining = existing != null;
+        const group = existing orelse self.createValidatorGroup(key);
+        group.members.put(self.allocator, peer, {}) catch oom();
+        peer.validator.group = group;
+        group.refs += 1;
+        setup.group = group;
+        if (existing == null) self.startGroupInit(group);
+        // `await group.ready`.
+        if (group.state == .initializing) {
+            group.refs += 1;
+            group.waiters.append(self.allocator, setup) catch oom();
+            return;
+        }
+        self.validatorGroupReady(setup);
+    }
+
+    /// `joinValidatorGroup` after `await group.ready`.
+    fn validatorGroupReady(self: *Server, setup: *ValidatorSetup) void {
+        const group = setup.group.?;
+        if (group.state == .failed) {
+            const err = if (group.failure == error.Failed) runtime.fail("{s}", .{group.failure_message[0..group.failure_len]}) else group.failure;
+            return self.validatorSetupFailed(setup, err);
+        }
+        if (!setup.peer.in_clients) return self.finishValidatorSetup(setup);
+        setup.boundary = group.stream.liveStart(setup.domain);
+        // Joining connections need a current boundary. Register before the
+        // read; retry if a rollback invalidates that snapshot.
+        if (!setup.joining) return self.validatorSubscribed(setup);
+        self.readJoinHeads(setup);
+    }
+
+    fn readJoinHeads(self: *Server, setup: *ValidatorSetup) void {
+        setup.phase = .heads;
+        setup.revision = self.confirmation_revision;
+        const policies = [_]es.EventStore.Policy{.{ .confirmations = setup.group.?.key.confirmations, .domains = &.{setup.domain} }};
+        setup.work.query.deinit();
+        setup.work.query = self.newQuery();
+        const statement = (es.EventStore.confirmationSnapshotsQuery(setup.work.query.arena.allocator(), &policies) catch oom()).?;
+        self.issueValidatorRead(&setup.work, statement);
+    }
+
+    fn validatorJoinHeads(self: *Server, setup: *ValidatorSetup) void {
+        const policies = [_]es.EventStore.Policy{.{ .confirmations = setup.group.?.key.confirmations, .domains = &.{setup.domain} }};
+        const snapshots = es.EventStore.parseConfirmationSnapshots(self.allocator, &policies, setup.work.query.rows) catch |err|
+            return self.validatorSetupFailed(setup, err);
+        defer {
+            for (snapshots) |*heads| heads.deinit(self.allocator);
+            self.allocator.free(snapshots);
+        }
+        if (!setup.peer.in_clients) return self.finishValidatorSetup(setup);
+        if (setup.revision != self.confirmation_revision) return self.readJoinHeads(setup);
+        setup.boundary = if (snapshots[0].get(setup.domain)) |head| head.live_start else null;
+        self.validatorSubscribed(setup);
+    }
+
+    /// `connectValidator` after the domain check (and the group join):
+    /// subscribe, `ready`, then the live start.
+    fn validatorSubscribed(self: *Server, setup: *ValidatorSetup) void {
+        const peer = setup.peer;
+        if (!peer.in_clients) return self.finishValidatorSetup(setup);
+        const client = &peer.agent;
+        client.subscriptions.set(.merkle_tree_insertion, .{
+            .confirmations = setup.confirmations,
+            .domains = self.allocator.dupe(u32, &.{setup.domain}) catch oom(),
+        });
+        client.subscribing = false;
+        var out: std.Io.Writer.Allocating = .init(self.allocator);
+        defer out.deinit();
+        writeValidatorReady(&out.writer, setup.domain, setup.confirmations) catch oom();
+        _ = self.send(peer, out.written());
+        if (setup.group) |group| {
+            group.stream.start();
+            return self.sendValidatorLiveStart(setup);
+        }
+        // The canonical boundary is read even if the client is gone by now.
+        setup.phase = .boundary;
+        setup.work.query.deinit();
+        setup.work.query = self.newQuery();
+        const statement = es.EventStore.liveStartBoundariesQuery(setup.work.query.arena.allocator(), &.{setup.domain}) catch oom();
+        self.issueValidatorRead(&setup.work, statement);
+    }
+
+    fn validatorBoundaryRead(self: *Server, setup: *ValidatorSetup) void {
+        var boundaries = self.validator_store.parseLiveStartBoundaries(setup.work.query.rows) catch |err|
+            return self.validatorSetupFailed(setup, err);
+        defer boundaries.deinit(self.allocator);
+        setup.boundary = boundaries.get(setup.domain);
+        self.sendValidatorLiveStart(setup);
+    }
+
+    /// `await this.sendLiveStart(...)`, then the setup ends.
+    fn sendValidatorLiveStart(self: *Server, setup: *ValidatorSetup) void {
+        const peer = setup.peer;
+        if (!peer.in_clients) return self.finishValidatorSetup(setup);
+        var out: std.Io.Writer.Allocating = .fromArrayList(self.allocator, &setup.frame);
+        writeLiveStart(&out.writer, setup.domain, &[_]EventType{.merkle_tree_insertion}, setup.boundary, setup.confirmations) catch oom();
+        setup.frame = out.toArrayList();
+        switch (self.sendFrame(peer, setup.frame.items, .{ .resumable = &setup.resumable })) {
+            .failed, .written => self.finishValidatorSetup(setup),
+            .queued => {}, // `resumeValidatorLiveStart`
+        }
+    }
+
+    fn resumeValidatorLiveStart(resumable: *Resumable, _: bool) void {
+        const setup: *ValidatorSetup = @alignCast(@fieldParentPtr("resumable", resumable));
+        setup.server.finishValidatorSetup(setup);
+    }
+
+    /// `connectValidator`'s catch: no identity guard (a client gone by now
+    /// is still counted and logged).
+    fn validatorSetupFailed(self: *Server, setup: *ValidatorSetup, err: anyerror) void {
+        // After `stop` reads fail at once ("Server stopping"); TS's reads still
+        // run and their setups find the client gone: nothing is counted or logged.
+        if (self.stopped) return self.finishValidatorSetup(setup);
+        if (err == error.ConfirmationUnavailable) {
+            var buffer: [96]u8 = undefined;
+            const domain = if (setup.group) |group| group.stream.unavailable_domain else setup.domain;
+            self.rejectNegotiationAs(setup.peer, unavailableMessage(&buffer, domain), "invalid_subscription", 1008);
+        } else self.rejectNegotiationAs(setup.peer, errorMessage(err), "setup_error", 1013);
+        self.finishValidatorSetup(setup);
+    }
+
+    /// `finally`: the setup slot is free; a socket gone meanwhile releases
+    /// its reservation once closed.
+    fn finishValidatorSetup(self: *Server, setup: *ValidatorSetup) void {
+        const peer = setup.peer;
+        peer.validator.pending = false;
+        if (!peer.in_clients) self.releaseValidator(peer);
+        if (setup.group) |group| self.releaseValidatorGroup(group);
+        setup.work.query.deinit();
+        setup.frame.deinit(self.allocator);
+        self.allocator.destroy(setup);
+        peer.release();
+    }
+
+    /// `releaseValidator`: drop the reservation once the setup ended and the
+    /// socket closed.
+    fn releaseValidator(self: *Server, peer: *Peer) void {
+        const client = &peer.validator;
+        if (!client.reserved or client.pending or !peer.closed) return;
+        client.reserved = false;
+        _ = self.validator_clients.orderedRemove(peer);
+        peer.release();
+    }
+
+    fn writeValidatorReady(w: *std.Io.Writer, domain: u32, confirmations: ?u64) !void {
+        var o = try frames.Object.begin(w);
+        try o.string("type", "ready");
+        try o.int("domain", domain);
+        if (confirmations) |count| try o.int("confirmations", count);
+        try o.strings("eventTypes", &.{"merkle_tree_insertion"});
+        try o.boolean("historicalStreaming", false);
+        try o.int("liveStartVersion", 1);
+        try o.end();
+    }
+
+    // Shared custom readers.
+
+    fn createValidatorGroup(self: *Server, key: ValidatorGroupKey) *ValidatorGroup {
+        const group = self.allocator.create(ValidatorGroup) catch oom();
+        group.* = .{ .server = self, .key = key };
+        group.stream = ConfirmationStream.create(self.allocator, self.loop, key.confirmations, &.{key.domain}, .{
+            .ctx = group,
+            .active = GroupBinding.active,
+            .read = GroupBinding.read,
+            .send = GroupBinding.send,
+            .rollback = GroupBinding.rollback,
+            .fail = GroupBinding.fail,
+            .deinit = GroupBinding.free,
+        }) catch oom();
+        self.validator_groups.put(self.allocator, key, group) catch oom();
+        return group;
+    }
+
+    /// Drop a group reference; the last drops the stream's owner reference
+    /// (the group is freed with the stream).
+    fn releaseValidatorGroup(_: *Server, group: *ValidatorGroup) void {
+        group.refs -= 1;
+        if (group.refs == 0) group.stream.release();
+    }
+
+    /// `group.ready = Promise.resolve().then(() => stream.initialize(readHeads))`:
+    /// the initialization's loop head (the first member is registered).
+    fn startGroupInit(self: *Server, group: *ValidatorGroup) void {
+        const revision = group.stream.initializeRead() orelse return self.settleGroup(group, null);
+        group.revision = revision;
+        group.refs += 1; // the read
+        group.work = .{ .query = self.newQuery(), .run = runGroupInitRead };
+        const policies = [_]es.EventStore.Policy{.{ .confirmations = group.key.confirmations, .domains = &.{group.key.domain} }};
+        const statement = (es.EventStore.confirmationSnapshotsQuery(group.work.query.arena.allocator(), &policies) catch oom()).?;
+        self.issueValidatorRead(&group.work, statement);
+    }
+
+    fn runGroupInitRead(self: *Server, work: *AsyncWork) void {
+        const group: *ValidatorGroup = @alignCast(@fieldParentPtr("work", work));
+        defer self.releaseValidatorGroup(group);
+        // Taken over: a retry (`startGroupInit`) reuses `group.work`.
+        var query = work.query;
+        defer query.deinit();
+        if (query.failure()) |err| return self.settleGroup(group, err);
+        const policies = [_]es.EventStore.Policy{.{ .confirmations = group.key.confirmations, .domains = &.{group.key.domain} }};
+        const snapshots = es.EventStore.parseConfirmationSnapshots(self.allocator, &policies, query.rows) catch |err|
+            return self.settleGroup(group, err);
+        defer {
+            for (snapshots) |*heads| heads.deinit(self.allocator);
+            self.allocator.free(snapshots);
+        }
+        const done = group.stream.initializeWith(group.revision, &snapshots[0], false) catch |err| return self.settleGroup(group, err);
+        if (done) return self.settleGroup(group, null);
+        self.startGroupInit(group);
+    }
+
+    /// `ready` settled: every awaiting setup continues, in order.
+    fn settleGroup(self: *Server, group: *ValidatorGroup, failure: ?anyerror) void {
+        if (failure) |err| {
+            group.state = .failed;
+            group.failure = err;
+            const message = errorMessage(err);
+            group.failure_len = @min(message.len, group.failure_message.len);
+            @memcpy(group.failure_message[0..group.failure_len], message[0..group.failure_len]);
+        } else group.state = .ready;
+        const waiters = group.waiters.toOwnedSlice(self.allocator) catch oom();
+        defer self.allocator.free(waiters);
+        group.refs += 1;
+        defer self.releaseValidatorGroup(group);
+        for (waiters) |setup| {
+            self.releaseValidatorGroup(group); // the waiter's reference
+            self.validatorGroupReady(setup);
+        }
+    }
+
+    /// Serialize once; every member past its `ready` gets the frame without
+    /// awaiting send callbacks. True while the group has members.
+    fn broadcastValidatorGroup(self: *Server, group: *ValidatorGroup, frame: []const u8) bool {
+        const peers = self.allocator.dupe(*Peer, group.members.keys()) catch oom();
+        defer self.allocator.free(peers);
+        for (peers) |peer| peer.retain();
+        defer for (peers) |peer| peer.release();
+        for (peers) |peer| {
+            if (!group.members.contains(peer)) continue;
+            if (peer.in_clients and !peer.agent.subscribing) _ = self.sendSerialized(peer, frame, .none);
+        }
+        return group.members.count() > 0;
+    }
+
+    const GroupBinding = struct {
+        fn of(ctx: *anyopaque) *ValidatorGroup {
+            return @ptrCast(@alignCast(ctx));
+        }
+        fn active(ctx: *anyopaque) bool {
+            const group = of(ctx);
+            return !group.server.stopped and group.members.count() > 0;
+        }
+        fn read(ctx: *anyopaque, _: u32, after: cs.Position, through: i128, _: *const cs.Frontiers) anyerror!cs.Reader {
+            const group = of(ctx);
+            return group.server.validator_store.confirmationEventRows(.merkle_tree_insertion, group.key.domain, after, through, group.key.confirmations);
+        }
+        fn send(ctx: *anyopaque, message: cs.Message) bool {
+            const group = of(ctx);
+            return group.server.broadcastValidatorGroup(group, message.frame);
+        }
+        fn rollback(ctx: *anyopaque, _: u32, from: i128, to: i128) void {
+            const group = of(ctx);
+            var buffer: [256]u8 = undefined;
+            var w = std.Io.Writer.fixed(&buffer);
+            var o = frames.Object.begin(&w) catch unreachable;
+            o.string("type", "rollback") catch unreachable;
+            o.string("eventType", "merkle_tree_insertion") catch unreachable;
+            o.int("domain", group.key.domain) catch unreachable;
+            o.int("confirmations", group.key.confirmations) catch unreachable;
+            o.bigString("fromHeight", from) catch unreachable;
+            o.bigString("toHeight", to) catch unreachable;
+            o.end() catch unreachable;
+            _ = group.server.broadcastValidatorGroup(group, w.buffered());
+        }
+        fn fail(ctx: *anyopaque, err: anyerror) void {
+            const group = of(ctx);
+            const server_ = group.server;
+            const peers = server_.allocator.dupe(*Peer, group.members.keys()) catch oom();
+            defer server_.allocator.free(peers);
+            for (peers) |peer| peer.retain();
+            defer for (peers) |peer| peer.release();
+            var copy: [512]u8 = undefined;
+            const message = errorMessage(err);
+            const owned = copy[0..@min(copy.len, message.len)];
+            @memcpy(owned, message[0..owned.len]);
+            for (peers) |peer| server_.failSocket(peer, owned);
+        }
+        fn free(ctx: *anyopaque) void {
+            const group = of(ctx);
+            std.debug.assert(group.members.count() == 0 and group.waiters.items.len == 0);
+            group.members.deinit(group.server.allocator);
+            group.waiters.deinit(group.server.allocator);
+            group.server.allocator.destroy(group);
+        }
+    };
+
+    /// `disconnect`: leave the group; the last member deletes it.
+    fn leaveValidatorGroup(self: *Server, peer: *Peer) void {
+        const group = peer.validator.group orelse return;
+        peer.validator.group = null;
+        _ = group.members.orderedRemove(peer);
+        if (group.members.count() == 0 and self.validator_groups.get(group.key) == group) {
+            _ = self.validator_groups.orderedRemove(group.key);
+            self.releaseValidatorGroup(group);
+        }
+    }
+
+    /// The validator socket's 'message' handler: only `{"type":"ping"}`.
+    pub fn onValidatorMessage(self: *Server, peer: *Peer, data: []const u8, binary: bool) void {
+        self.loop.lock();
+        defer self.loop.unlock();
+        if (!peer.in_clients) return;
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        var reason: []const u8 = "invalid_message";
+        const message: []const u8 = blk: {
+            if (!self.consumeMessage(&peer.agent)) {
+                reason = "message_rate_limit";
+                metrics.websocket_client_message_rejections.inc(.{}, 1);
+                break :blk "Client message rate limit exceeded";
+            }
+            if (binary) break :blk "Expected a text ping";
+            const value = json.parse(arena.allocator(), data, .{}) catch |err| switch (err) {
+                error.OutOfMemory => oom(),
+                error.SyntaxError => break :blk core.v8json.errorMessage(arena.allocator(), data) catch oom(),
+            };
+            if (!protocol.isValidatorPing(value)) break :blk protocol.VALIDATOR_PING_ERROR;
+            _ = self.send(peer, "{\"type\":\"pong\"}");
+            return;
+        };
+        self.rejectNegotiationAs(peer, message, reason, 1008);
+    }
+
+    /// Connected `/validators` sockets (reservations still in `clients`).
+    fn validatorCount(self: *Server) usize {
+        var count: usize = 0;
+        for (self.validator_clients.keys()) |peer| count += @intFromBool(peer.in_clients);
+        return count;
+    }
+
+    // Canonical publication for validators only (their own queue, worker and pool).
+
+    fn queueValidatorNotification(self: *Server, notification: protocol.EventNotification) void {
+        // Validators subscribe to Merkle insertions only, so the id alone is a key.
+        std.debug.assert(notification.event_type == .merkle_tree_insertion);
+        var buffer: [48]u8 = undefined;
+        const key = std.fmt.bufPrint(&buffer, "{d}", .{notification.id}) catch unreachable;
+        if (!self.validator_notifications.contains(key) and self.validator_notifications.count() >= MAX_PENDING_NOTIFICATIONS) {
+            metrics.websocket_notification_queue_overflows.inc(.{"validators"}, 1);
+            metrics.websocket_send_failures.inc(.{"notification_queue_limit"}, 1);
+            self.failValidatorStream("Validator notification queue limit exceeded");
+            return;
+        }
+        self.validator_notifications.put(self.allocator, key, notification) catch oom();
+        self.validator_updates.schedule();
+    }
+
+    fn drainValidatorThunk(ctx: *anyopaque) anyerror!void {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        return self.drainValidatorUpdates();
+    }
+
+    fn failValidatorThunk(ctx: *anyopaque, err: anyerror) void {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        self.failValidatorStream(errorMessage(err));
+    }
+
+    fn drainValidatorUpdates(self: *Server) !void {
+        var batch: std.ArrayList(NotificationQueue(protocol.EventNotification).Entry) = .empty;
+        defer batch.deinit(self.allocator);
+        var notifications: std.ArrayList(protocol.EventNotification) = .empty;
+        defer notifications.deinit(self.allocator);
+        while (self.validator_notifications.count() > 0) {
+            self.validator_notifications.takeFront(self.allocator, NOTIFICATION_BATCH_SIZE, &batch) catch oom();
+            defer for (batch.items) |entry| self.allocator.free(entry.key);
+            notifications.clearRetainingCapacity();
+            for (batch.items) |entry| notifications.append(self.allocator, entry.value) catch oom();
+            self.publishNotificationsWith(&self.validator_store, .merkle_tree_insertion, notifications.items) catch |err| {
+                var copy: [512]u8 = undefined;
+                const message = errorMessage(err);
+                const owned = copy[0..@min(copy.len, message.len)];
+                @memcpy(owned, message[0..owned.len]);
+                var domains: std.ArrayList(u32) = .empty;
+                defer domains.deinit(self.allocator);
+                for (notifications.items) |notification| {
+                    if (std.mem.indexOfScalar(u32, domains.items, notification.domain) == null) domains.append(self.allocator, notification.domain) catch oom();
+                }
+                for (domains.items) |domain| self.failValidatorDomain(domain, owned);
+            };
+        }
+        // JS Map iteration: insertion order, entries added meanwhile included.
+        var visited: u64 = 0;
+        while (true) {
+            var next: ?struct { domain: u32, range: HeadRange } = null;
+            for (self.validator_head_ranges.keys(), self.validator_head_ranges.values()) |domain, range| {
+                if (range.seq <= visited) continue;
+                if (next == null or range.seq < next.?.range.seq) next = .{ .domain = domain, .range = range };
+            }
+            const entry = next orelse break;
+            visited = entry.range.seq;
+            var pages = self.validator_store.headEvents(.merkle_tree_insertion, entry.domain, entry.range.after, entry.range.through);
+            defer pages.deinit();
+            const published: anyerror!void = blk: {
+                while (pages.next() catch |err| break :blk err) |events| {
+                    if (self.stopped) return;
+                    for (events) |row| self.publish(pages.page.allocator(), .merkle_tree_insertion, row) catch |err| break :blk err;
+                }
+            };
+            published catch |err| {
+                var copy: [512]u8 = undefined;
+                const message = errorMessage(err);
+                const owned = copy[0..@min(copy.len, message.len)];
+                @memcpy(owned, message[0..owned.len]);
+                self.failValidatorDomain(entry.domain, owned);
+            };
+            releaseRange(&self.validator_head_ranges, entry.domain, entry.range);
+        }
+        if (self.validator_head_ranges.count() > 0) self.validator_updates.schedule();
+    }
+
+    /// Canonical validators of `domain` fail (custom readers stay).
+    fn failValidatorDomain(self: *Server, domain: u32, message: []const u8) void {
+        const peers = self.allocator.dupe(*Peer, self.validator_clients.keys()) catch oom();
+        defer self.allocator.free(peers);
+        for (peers) |peer| peer.retain();
+        defer for (peers) |peer| peer.release();
+        for (peers) |peer| {
+            if (!peer.in_clients) continue;
+            const subscription = peer.agent.subscriptions.getPtr(.merkle_tree_insertion);
+            const request = if (subscription.*) |*value| value else continue;
+            if (request.confirmations == null and request.domains != null and request.matchesDomain(domain)) self.failSocket(peer, message);
+        }
+    }
+
+    fn failValidatorStream(self: *Server, message: []const u8) void {
+        self.logger.err("validator event stream failed: {s}", .{message});
+        self.validator_notifications.clear(self.allocator);
+        self.validator_head_ranges.clearRetainingCapacity();
+        const peers = self.allocator.dupe(*Peer, self.validator_clients.keys()) catch oom();
+        defer self.allocator.free(peers);
+        for (peers) |peer| peer.retain();
+        defer for (peers) |peer| peer.release();
+        for (peers) |peer| {
+            if (!peer.in_clients) continue;
+            const subscription = peer.agent.subscriptions.getPtr(.merkle_tree_insertion);
+            const request = if (subscription.*) |*value| value else continue;
+            if (request.confirmations == null) self.failSocket(peer, message);
+        }
     }
 
     // -- agent protocol ------------------------------------------------------------
@@ -1352,22 +2078,29 @@ pub const Server = struct {
             self.sendError(peer, if (err == error.Invalid) diag.message else @errorName(err));
             return;
         };
-        const streams = switch (message) {
+        const subscribe_message = switch (message) {
             .ping => {
                 _ = self.send(peer, "{\"type\":\"pong\"}");
                 return;
             },
-            .subscribe => |streams| streams,
+            .subscribe => |value| value,
         };
+        const streams = subscribe_message.streams;
         if (client.count() > 0 or client.subscribing or peer.blocks != null) {
             self.sendError(peer, "Already subscribed");
             return;
         }
+        // `eventStreams`: every event stream split by effective confirmations.
+        var event_streams: std.ArrayList(protocol.StreamRequest) = .empty;
+        for (streams) |stream| {
+            if (stream.kind == .blocks) continue;
+            event_streams.appendSlice(arena.allocator(), protocol.splitConfirmationStreams(arena.allocator(), stream, subscribe_message.confirmations_by_domain) catch oom()) catch oom();
+        }
         const async_subscribe = self.async_subscribes and self.store.db.query_async != null;
-        if (async_subscribe and canonicalOnly(streams)) {
+        if (async_subscribe and canonicalOnly(streams, event_streams.items)) {
             // `await Promise.all([])` is a microtask: TS runs on to the
             // boundary read before anything else; nothing here may wait.
-            self.subscribeCanonical(peer, streams);
+            self.subscribeCanonical(peer, subscribe_message, event_streams.items);
             return;
         }
         client.subscribing = true;
@@ -1376,8 +2109,15 @@ pub const Server = struct {
             // query win, including lower heights and replacement hashes.
             if (request.kind == .blocks) self.registerBlocks(peer, request.domains);
         }
+        const policies = subscribePolicies(arena.allocator(), event_streams.items);
         const job = self.allocator.create(SubscribeJob) catch oom();
-        job.* = .{ .arena = arena, .streams = streams };
+        job.* = .{
+            .arena = arena,
+            .streams = streams,
+            .event_streams = event_streams.items,
+            .by_domain = subscribe_message.confirmations_by_domain,
+            .policies = policies,
+        };
         arena_owned = false;
         if (async_subscribe) return self.subscribeAsync(peer, job);
         peer.retain();
@@ -1386,14 +2126,21 @@ pub const Server = struct {
 
     /// One `onMessage` subscribe. Its custom streams initialize like TS's
     /// concurrent `createConfirmationStream` calls: every stream registers its
-    /// heads read at once (`readHeads` snapshots shared per confirmations and
-    /// domain set), and when a snapshot resolves, every stream waiting on it
+    /// heads read at once (`readHeads`: one snapshot of every domain/policy
+    /// pair, re-read after a rollback), and when a snapshot resolves, every stream waiting on it
     /// continues in order before anything else runs (the promise's reactions,
     /// microtasks). The first failure settles the subscribe (`Promise.all`);
     /// the other streams still finish. Freed with the last reference.
     const SubscribeJob = struct {
         arena: std.heap.ArenaAllocator,
+        /// `message.streams`, as sent.
         streams: []const protocol.StreamRequest,
+        /// `eventStreams`: the event streams split by effective confirmations.
+        event_streams: []const protocol.StreamRequest = &.{},
+        /// `message.confirmationsByDomain`.
+        by_domain: ?[]const protocol.DomainConfirmations = null,
+        /// Every requested domain/policy pair (the batched snapshot's input).
+        policies: []const es.EventStore.Policy = &.{},
         /// The subscribe task plus one per snapshot read in flight.
         refs: usize = 1,
         /// Heads snapshots, newest last (`snapshots` in `onMessage`).
@@ -1436,17 +2183,13 @@ pub const Server = struct {
         done: bool = false,
     };
 
-    /// A primary `confirmationHeads(domains, confirmations)` read shared by
-    /// the streams of one subscribe with the same confirmations and domains.
+    /// A primary `confirmationSnapshots(policies)` read shared by every
+    /// stream of one subscribe (until a rollback bumps the revision).
     const HeadsSnapshot = struct {
-        confirmations: u64,
-        /// Sorted (the key).
-        domains: []u32,
-        /// The first reader's domains, in its order (the query's parameter).
-        query_domains: []u32,
         revision: u64,
         state: enum { pending, ok, failed } = .pending,
-        heads: cs.Heads = .empty,
+        /// One heads map per `job.policies` entry.
+        snapshots: []cs.Heads = &.{},
         err: anyerror = error.Failed,
         message: [256]u8 = undefined,
         message_len: usize = 0,
@@ -1464,9 +2207,8 @@ pub const Server = struct {
         job.frame.deinit(self.allocator);
         if (job.peer) |peer| peer.release();
         for (job.snapshots.items) |snapshot| {
-            snapshot.heads.deinit(self.allocator);
-            self.allocator.free(snapshot.domains);
-            self.allocator.free(snapshot.query_domains);
+            for (snapshot.snapshots) |*heads| heads.deinit(self.allocator);
+            self.allocator.free(snapshot.snapshots);
             self.allocator.destroy(snapshot);
         }
         job.snapshots.deinit(self.allocator);
@@ -1474,34 +2216,23 @@ pub const Server = struct {
         self.allocator.destroy(job);
     }
 
-    /// `readHeads(confirmations, domains)` in `onMessage`: the snapshot for
-    /// this key unless a rollback happened since it was taken; a new one is
-    /// read on a task.
-    fn snapshotFor(self: *Server, job: *SubscribeJob, confirmations: u64, domains: []const u32) *HeadsSnapshot {
-        const key = self.allocator.dupe(u32, domains) catch oom();
-        std.mem.sort(u32, key, {}, std.sort.asc(u32));
-        var index = job.snapshots.items.len;
-        while (index > 0) {
-            index -= 1;
-            const candidate = job.snapshots.items[index];
-            if (candidate.confirmations != confirmations or !std.mem.eql(u32, candidate.domains, key)) continue;
-            if (candidate.revision != self.confirmation_revision) break;
-            self.allocator.free(key);
-            return candidate;
+    /// `readHeads(confirmations)` in `onMessage`: the subscribe's snapshot
+    /// unless a rollback happened since it was taken; a new one is read on a
+    /// task (or as a `query_async` read).
+    fn snapshotFor(self: *Server, job: *SubscribeJob) *HeadsSnapshot {
+        if (job.snapshots.getLastOrNull()) |latest| {
+            if (latest.revision == self.confirmation_revision) return latest;
         }
         const snapshot = self.allocator.create(HeadsSnapshot) catch oom();
-        snapshot.* = .{
-            .confirmations = confirmations,
-            .domains = key,
-            .query_domains = self.allocator.dupe(u32, domains) catch oom(),
-            .revision = self.confirmation_revision,
-        };
+        snapshot.* = .{ .revision = self.confirmation_revision };
         job.snapshots.append(self.allocator, snapshot) catch oom();
         job.refs += 1;
         if (job.async_flow) {
             snapshot.job = job;
             snapshot.work = .{ .query = self.newQuery(), .run = runSnapshotRead };
-            const statement = es.EventStore.confirmationHeadsQuery(snapshot.work.query.arena.allocator(), snapshot.query_domains, confirmations) catch oom();
+            // Never null: the reading stream's own pairs are in `policies`.
+            const statement = (es.EventStore.confirmationSnapshotsQuery(snapshot.work.query.arena.allocator(), job.policies) catch oom()) orelse
+                @panic("live: confirmation snapshot without policies");
             snapshot.work.query.sql = statement.sql;
             snapshot.work.query.params = statement.params;
             self.issueRead(&snapshot.work);
@@ -1509,12 +2240,20 @@ pub const Server = struct {
         return snapshot;
     }
 
+    /// `(await snapshot.heads).get(confirmations)`.
+    fn snapshotHeads(job: *const SubscribeJob, snapshot: *const HeadsSnapshot, confirmations: u64) ?*const cs.Heads {
+        for (job.policies, snapshot.snapshots) |policy, *heads| {
+            if (policy.confirmations == confirmations) return heads;
+        }
+        return null;
+    }
+
     /// The snapshot query, then its reactions: every stream awaiting it, in
     /// order, with the mutex held throughout.
     fn readSnapshot(self: *Server, job: *SubscribeJob, snapshot: *HeadsSnapshot) void {
         defer self.releaseJob(job);
-        if (self.store.confirmationHeads(self.allocator, snapshot.query_domains, snapshot.confirmations)) |heads| {
-            snapshot.heads = heads;
+        if (self.store.confirmationSnapshots(self.allocator, job.policies)) |snapshots| {
+            snapshot.snapshots = snapshots;
             snapshot.state = .ok;
         } else |err| {
             const message = errorMessage(err);
@@ -1534,7 +2273,7 @@ pub const Server = struct {
     fn startInit(self: *Server, job: *SubscribeJob, init: *StreamInit) void {
         const revision = init.stream.initializeRead() orelse return self.finishInit(job, init, null);
         init.revision = revision;
-        const snapshot = self.snapshotFor(job, init.stream.confirmations, init.stream.domains);
+        const snapshot = self.snapshotFor(job);
         // Resolved already (never for a fresh read): continue in turn.
         if (snapshot.state != .pending) return self.continueInit(job, init, snapshot);
         init.waiting = snapshot;
@@ -1546,7 +2285,9 @@ pub const Server = struct {
             const err = if (snapshot.err == error.Failed) runtime.fail("{s}", .{snapshot.message[0..snapshot.message_len]}) else snapshot.err;
             return self.finishInit(job, init, err);
         }
-        const done = init.stream.initializeWith(init.revision, &snapshot.heads, init.allow_unavailable) catch |err| return self.finishInit(job, init, err);
+        const heads = snapshotHeads(job, snapshot, init.stream.confirmations) orelse
+            return self.finishInit(job, init, runtime.fail("Missing confirmation policy", .{}));
+        const done = init.stream.initializeWith(init.revision, heads, init.allow_unavailable) catch |err| return self.finishInit(job, init, err);
         if (done) return self.finishInit(job, init, null);
         self.startInit(job, init);
     }
@@ -1573,6 +2314,67 @@ pub const Server = struct {
     }
 
     const CustomStream = struct { event_type: EventType, stream: *ConfirmationStream };
+
+    const StreamSpec = struct { event_type: EventType, confirmations: u64, domains: []const u32, allow_unavailable: bool };
+
+    /// `addStream` calls in order: every custom group, then one advisory
+    /// zero-confirmation reader per event type over its domains whose
+    /// effective count is not 0. Domains live in the job's arena.
+    fn streamSpecs(self: *Server, job: *SubscribeJob) std.ArrayList(StreamSpec) {
+        var specs: std.ArrayList(StreamSpec) = .empty;
+        for (job.event_streams) |request| {
+            const event_type = request.kind.eventType() orelse continue;
+            const domains = request.domains orelse continue;
+            const confirmations = request.confirmations orelse continue;
+            specs.append(self.allocator, .{ .event_type = event_type, .confirmations = confirmations, .domains = domains, .allow_unavailable = false }) catch oom();
+        }
+        const overrides: protocol.Subscribe = .{ .streams = job.streams, .confirmations_by_domain = job.by_domain };
+        for (job.streams) |request| {
+            const event_type = request.kind.eventType() orelse continue;
+            if (request.include_zero_confirmations != true) continue;
+            const domains = request.domains orelse continue;
+            var advisory: std.ArrayList(u32) = .empty;
+            for (domains) |domain| {
+                if ((overrides.override(domain) orelse request.confirmations) == 0) continue;
+                advisory.append(job.arena.allocator(), domain) catch oom();
+            }
+            if (advisory.items.len == 0) continue;
+            specs.append(self.allocator, .{ .event_type = event_type, .confirmations = 0, .domains = advisory.items, .allow_unavailable = true }) catch oom();
+        }
+        return specs;
+    }
+
+    /// `policies` in `onMessage`: count → domains, in first-seen order.
+    fn subscribePolicies(arena: Allocator, event_streams: []const protocol.StreamRequest) []const es.EventStore.Policy {
+        const Building = struct { confirmations: u64, domains: std.ArrayList(u32) };
+        var building: std.ArrayList(Building) = .empty;
+        for (event_streams) |request| {
+            var counts: [2]u64 = undefined;
+            var count: usize = 0;
+            if (request.confirmations) |confirmations| {
+                counts[count] = confirmations;
+                count += 1;
+            }
+            if (request.include_zero_confirmations == true and !(count == 1 and counts[0] == 0)) {
+                counts[count] = 0;
+                count += 1;
+            }
+            for (counts[0..count]) |confirmations| {
+                const entry = for (building.items) |*item| {
+                    if (item.confirmations == confirmations) break item;
+                } else blk: {
+                    building.append(arena, .{ .confirmations = confirmations, .domains = .empty }) catch oom();
+                    break :blk &building.items[building.items.len - 1];
+                };
+                for (request.domains orelse &.{}) |domain| {
+                    if (std.mem.indexOfScalar(u32, entry.domains.items, domain) == null) entry.domains.append(arena, domain) catch oom();
+                }
+            }
+        }
+        const policies = arena.alloc(es.EventStore.Policy, building.items.len) catch oom();
+        for (policies, building.items) |*policy, item| policy.* = .{ .confirmations = item.confirmations, .domains = item.domains.items };
+        return policies;
+    }
 
     // -- subscribes as continuations (`async_subscribes`) ---------------------
     //
@@ -1625,17 +2427,8 @@ pub const Server = struct {
     /// stream's heads read, settle once they resolved.
     fn subscribeStreamsAsync(self: *Server, job: *SubscribeJob) void {
         const peer = job.peer.?;
-        const Spec = struct { event_type: EventType, confirmations: u64, domains: []const u32, allow_unavailable: bool };
-        var specs: std.ArrayList(Spec) = .empty;
+        var specs = self.streamSpecs(job);
         defer specs.deinit(self.allocator);
-        for (job.streams) |request| {
-            const event_type = request.kind.eventType() orelse continue;
-            const domains = request.domains orelse continue;
-            if (request.confirmations) |confirmations|
-                specs.append(self.allocator, .{ .event_type = event_type, .confirmations = confirmations, .domains = domains, .allow_unavailable = false }) catch oom();
-            if (request.include_zero_confirmations == true and request.confirmations != 0)
-                specs.append(self.allocator, .{ .event_type = event_type, .confirmations = 0, .domains = domains, .allow_unavailable = true }) catch oom();
-        }
         if (specs.items.len == 0) return self.subscribeSettled(job);
         // The confirmation drain is synchronous (never waits): this flush
         // runs it now, as the first `flush()` of TS's burst.
@@ -1670,8 +2463,8 @@ pub const Server = struct {
             snapshot.message_len = snapshot.work.query.message_len;
             @memcpy(snapshot.message[0..snapshot.message_len], snapshot.work.query.message[0..snapshot.message_len]);
             snapshot.state = .failed;
-        } else if (es.EventStore.parseConfirmationHeads(self.allocator, snapshot.work.query.rows)) |heads| {
-            snapshot.heads = heads;
+        } else if (es.EventStore.parseConfirmationSnapshots(self.allocator, job.policies, snapshot.work.query.rows)) |snapshots| {
+            snapshot.snapshots = snapshots;
             snapshot.state = .ok;
         } else |err| {
             const message = errorMessage(err);
@@ -1712,7 +2505,7 @@ pub const Server = struct {
             self.dropStreams(peer);
             return self.releaseJob(job);
         }
-        self.acknowledge(peer, job.streams);
+        self.acknowledge(peer, .{ .streams = job.streams, .confirmations_by_domain = job.by_domain }, job.event_streams);
         if (peer.streams) |streams| {
             // `forEach(stream => stream.start())` over a snapshot.
             const snapshot = self.allocator.dupe(*ConfirmationStream, streams.items) catch oom();
@@ -1749,7 +2542,7 @@ pub const Server = struct {
                 .queued => return, // `resumeCustomLiveStarts`
             }
         }
-        self.startCanonicalRead(peer, job.streams);
+        self.startCanonicalRead(peer, job.event_streams);
         self.releaseJob(job);
     }
 
@@ -1777,7 +2570,7 @@ pub const Server = struct {
             return;
         };
         if (!peer.in_clients) return self.dropStreams(peer);
-        self.acknowledge(peer, job.streams);
+        self.acknowledge(peer, .{ .streams = job.streams, .confirmations_by_domain = job.by_domain }, job.event_streams);
         if (peer.streams) |streams| {
             // `forEach(stream => stream.start())` over a snapshot.
             const snapshot = self.allocator.dupe(*ConfirmationStream, streams.items) catch oom();
@@ -1792,14 +2585,17 @@ pub const Server = struct {
                 if (!self.sendLiveStart(peer, domain, &[_]EventType{entry.event_type}, entry.stream.liveStart(domain), entry.stream.confirmations)) return;
             }
         }
-        self.sendLiveStarts(peer, job.streams) catch |err| self.failSocket(peer, errorMessage(err));
+        self.sendLiveStarts(peer, job.event_streams) catch |err| self.failSocket(peer, errorMessage(err));
     }
 
-    /// `client.subscriptions.set(...)` for every event stream, then `subscribed`.
-    fn acknowledge(self: *Server, peer: *Peer, streams: []const protocol.StreamRequest) void {
+    /// `client.subscriptions.set(...)` for the event streams (custom groups
+    /// only where no group is stored yet: the canonical group filters live
+    /// publication), then `subscribed`.
+    fn acknowledge(self: *Server, peer: *Peer, message: protocol.Subscribe, event_streams: []const protocol.StreamRequest) void {
         const client = &peer.agent;
-        for (streams) |request| {
+        for (event_streams) |request| {
             const event_type = request.kind.eventType() orelse continue;
+            if (request.confirmations != null and client.subscriptions.get(event_type) != null) continue;
             if (client.subscriptions.get(event_type)) |previous| if (previous.domains) |domains| self.allocator.free(domains);
             client.subscriptions.set(event_type, .{
                 .confirmations = request.confirmations,
@@ -1809,15 +2605,16 @@ pub const Server = struct {
         client.subscribing = false;
         var out: std.Io.Writer.Allocating = .init(self.allocator);
         defer out.deinit();
-        writeSubscribed(&out.writer, streams) catch oom();
+        writeSubscribed(&out.writer, message) catch oom();
         _ = self.send(peer, out.written());
     }
 
     /// No `blocks` stream and no custom confirmations: nothing to await
     /// before the canonical boundary read.
-    fn canonicalOnly(streams: []const protocol.StreamRequest) bool {
-        for (streams) |request| {
-            if (request.kind == .blocks or request.confirmations != null or request.include_zero_confirmations == true) return false;
+    fn canonicalOnly(streams: []const protocol.StreamRequest, event_streams: []const protocol.StreamRequest) bool {
+        for (streams) |request| if (request.kind == .blocks) return false;
+        for (event_streams) |request| {
+            if (request.confirmations != null or request.include_zero_confirmations == true) return false;
         }
         return true;
     }
@@ -1825,9 +2622,9 @@ pub const Server = struct {
     /// A canonical-only `onMessage` after its microtask: acknowledge, then
     /// issue the boundary read; its continuation sends the live starts.
     /// Mutex held; never waits.
-    fn subscribeCanonical(self: *Server, peer: *Peer, streams: []const protocol.StreamRequest) void {
-        self.acknowledge(peer, streams);
-        self.startCanonicalRead(peer, streams);
+    fn subscribeCanonical(self: *Server, peer: *Peer, message: protocol.Subscribe, event_streams: []const protocol.StreamRequest) void {
+        self.acknowledge(peer, message, event_streams);
+        self.startCanonicalRead(peer, event_streams);
     }
 
     /// `sendLiveStarts` up to its boundary read; `finishCanonical` goes on.
@@ -1884,6 +2681,11 @@ pub const Server = struct {
     /// Mutex held. After `stop` no query starts: the read fails at once and
     /// its continuation still runs (so its flow releases what it holds).
     fn issueRead(self: *Server, work: *AsyncWork) void {
+        self.issueReadOn(work, self.store.db);
+    }
+
+    /// `issueRead` on `db` (the live or the validator pool).
+    fn issueReadOn(self: *Server, work: *AsyncWork, db: es.Db) void {
         if (self.stopped) {
             // Straight into the query: this thread's error buffer may hold a
             // message a caller up the stack (a reaction loop) still reads.
@@ -1899,7 +2701,7 @@ pub const Server = struct {
         self.async_mutex.lock();
         self.async_outstanding += 1;
         self.async_mutex.unlock();
-        self.store.db.query_async.?(self.store.db.ctx, &work.query);
+        db.query_async.?(db.ctx, &work.query);
     }
 
     /// `async_mutex` held: `work`'s continuation joins the drain.
@@ -2015,17 +2817,8 @@ pub const Server = struct {
     /// in request order.
     fn subscribeStreams(self: *Server, peer: *Peer, job: *SubscribeJob, custom: *std.ArrayList(CustomStream)) !void {
         if (peer.blocks != null) try self.loadBlocks(peer);
-        const Spec = struct { event_type: EventType, confirmations: u64, domains: []const u32, allow_unavailable: bool };
-        var specs: std.ArrayList(Spec) = .empty;
+        var specs = self.streamSpecs(job);
         defer specs.deinit(self.allocator);
-        for (job.streams) |request| {
-            const event_type = request.kind.eventType() orelse continue;
-            const domains = request.domains orelse continue;
-            if (request.confirmations) |confirmations|
-                specs.append(self.allocator, .{ .event_type = event_type, .confirmations = confirmations, .domains = domains, .allow_unavailable = false }) catch oom();
-            if (request.include_zero_confirmations == true and request.confirmations != 0)
-                specs.append(self.allocator, .{ .event_type = event_type, .confirmations = 0, .domains = domains, .allow_unavailable = true }) catch oom();
-        }
         if (specs.items.len == 0) return;
         // Every call awaits the same flush, then returns undefined if the
         // socket disconnected meanwhile; otherwise all register before any
@@ -2180,10 +2973,21 @@ pub const Server = struct {
         try o.end();
     }
 
-    /// `subscriptionResponse`: `{confirmations?, includeZeroConfirmations?, domains?, eventType}`.
-    fn writeSubscribed(w: *std.Io.Writer, streams: []const protocol.StreamRequest) !void {
-        try w.writeAll("{\"streams\":[");
-        for (streams, 0..) |request, index| {
+    /// `{confirmationsByDomain?, streams: subscriptionResponse[], type}`;
+    /// each stream `{confirmations?, includeZeroConfirmations?, domains?, eventType}`.
+    fn writeSubscribed(w: *std.Io.Writer, message: protocol.Subscribe) !void {
+        try w.writeByte('{');
+        if (message.confirmations_by_domain) |entries| {
+            // `Object.fromEntries(map)`: the keys are domains ascending.
+            try w.writeAll("\"confirmationsByDomain\":{");
+            for (entries, 0..) |entry, index| {
+                if (index > 0) try w.writeByte(',');
+                try w.print("\"{d}\":{d}", .{ entry.domain, entry.confirmations });
+            }
+            try w.writeAll("},");
+        }
+        try w.writeAll("\"streams\":[");
+        for (message.streams, 0..) |request, index| {
             if (index > 0) try w.writeByte(',');
             var o = try frames.Object.begin(w);
             if (request.confirmations) |confirmations| try o.int("confirmations", confirmations);
@@ -2381,7 +3185,7 @@ pub const Server = struct {
         }
         fn readHeads(ctx: *anyopaque, allocator: Allocator) anyerror!cs.Heads {
             const self: *StreamBinding = @ptrCast(@alignCast(ctx));
-            return self.server().store.confirmationHeads(allocator, self.domains, null);
+            return self.server().store.confirmationHeads(allocator, self.domains);
         }
     };
 
@@ -2482,6 +3286,14 @@ pub const Server = struct {
             // JS Map iteration skips entries deleted meanwhile.
             if (!self.confirmation_streams.contains(entry.peer)) continue;
             entry.stream.notify(head);
+        }
+        const groups = self.allocator.dupe(*ValidatorGroup, self.validator_groups.values()) catch oom();
+        defer self.allocator.free(groups);
+        for (groups) |group| group.refs += 1;
+        defer for (groups) |group| self.releaseValidatorGroup(group);
+        for (groups) |group| {
+            if (self.validator_groups.get(group.key) != group) continue;
+            group.stream.notify(head);
         }
     }
 
@@ -2677,6 +3489,10 @@ pub const Server = struct {
         } else {
             const notification = try protocol.parseEventNotification(a, payload, diag);
             if (!self.hasSubscriber(notification.domain, notification.event_type)) return;
+            if (!self.hasSubscriberOf(notification.domain, notification.event_type, true)) {
+                self.queueValidatorNotification(notification);
+                return;
+            }
             const key = std.fmt.allocPrint(a, "{s}:{d}", .{ notification.event_type.name(), notification.id }) catch oom();
             if (!self.notifications.contains(key) and self.notifications.count() >= MAX_PENDING_NOTIFICATIONS) {
                 metrics.websocket_send_failures.inc(.{"notification_queue_limit"}, 1);
@@ -2761,17 +3577,31 @@ pub const Server = struct {
                 if (list.items.len == 0) order.append(self.allocator, notification.event_type) catch oom();
                 list.append(self.allocator, notification) catch oom();
             }
-            for (order.items) |event_type| try self.publishNotifications(event_type, grouped.get(event_type).items);
+            var live: std.ArrayList(protocol.EventNotification) = .empty;
+            defer live.deinit(self.allocator);
+            for (order.items) |event_type| {
+                live.clearRetainingCapacity();
+                for (grouped.get(event_type).items) |notification| {
+                    if (self.hasSubscriberOf(notification.domain, notification.event_type, true)) {
+                        live.append(self.allocator, notification) catch oom();
+                    } else if (self.hasSubscriber(notification.domain, notification.event_type)) self.queueValidatorNotification(notification);
+                }
+                if (live.items.len > 0) try self.publishNotifications(event_type, live.items);
+            }
         }
     }
 
     fn publishNotifications(self: *Server, event_type: EventType, notifications: []const protocol.EventNotification) !void {
+        return self.publishNotificationsWith(&self.store, event_type, notifications);
+    }
+
+    fn publishNotificationsWith(self: *Server, store: *es.EventStore, event_type: EventType, notifications: []const protocol.EventNotification) !void {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const a = arena.allocator();
         var expected: std.StringArrayHashMapUnmanaged(protocol.EventNotification) = .empty;
         for (notifications) |notification| expected.put(a, std.fmt.allocPrint(a, "{d}", .{notification.id}) catch oom(), notification) catch oom();
-        const rows = try self.store.notifiedEvents(a, event_type, expected.keys());
+        const rows = try store.notifiedEvents(a, event_type, expected.keys());
         var returned: std.StringArrayHashMapUnmanaged(void) = .empty;
         for (rows) |row| {
             const id = es.parseId(row.get("notification_id")) catch |err| {
@@ -2997,9 +3827,13 @@ pub const Server = struct {
 
     /// Drop a handled range, keeping any extension that arrived meanwhile.
     fn releaseHeadRange(self: *Server, domain: u32, range: HeadRange) void {
-        const current = self.head_ranges.getPtr(domain) orelse return;
+        releaseRange(&self.head_ranges, domain, range);
+    }
+
+    fn releaseRange(ranges: *std.AutoArrayHashMapUnmanaged(u32, HeadRange), domain: u32, range: HeadRange) void {
+        const current = ranges.getPtr(domain) orelse return;
         if (current.through <= range.through) {
-            _ = self.head_ranges.orderedRemove(domain);
+            _ = ranges.orderedRemove(domain);
         } else {
             current.after = range.through;
         }
@@ -3017,6 +3851,17 @@ pub const Server = struct {
             const agent_interested = self.hasSubscriber(domain, event_type);
             const explorer_interested = self.explorer_clients.count() > 0 and (event_type == .delivery or event_type == .gas_payment);
             if (!agent_interested and !explorer_interested) continue;
+            if (agent_interested and !explorer_interested and !self.hasSubscriberOf(domain, event_type, true)) {
+                if (self.validator_head_ranges.getPtr(domain)) |current| {
+                    if (range.after < current.after) current.after = range.after;
+                    if (range.through > current.through) current.through = range.through;
+                } else {
+                    self.head_range_seq += 1;
+                    self.validator_head_ranges.put(self.allocator, domain, .{ .after = range.after, .through = range.through, .seq = self.head_range_seq }) catch oom();
+                }
+                self.validator_updates.scheduleAfter(0);
+                continue;
+            }
             var pages = self.store.headEvents(event_type, domain, range.after, range.through);
             defer pages.deinit();
             self.publishHeadPages(a, &pages, event_type, agent_interested, explorer_interested, &agent_published, &explorer_ids) catch |err| {
@@ -3078,7 +3923,13 @@ pub const Server = struct {
     }
 
     fn hasSubscriber(self: *Server, domain: u32, event_type: EventType) bool {
+        return self.hasSubscriberOf(domain, event_type, false);
+    }
+
+    /// `hasSubscriber(notification, agentsOnly)`.
+    fn hasSubscriberOf(self: *Server, domain: u32, event_type: EventType, agents_only: bool) bool {
         for (self.clients.keys()) |peer| {
+            if (agents_only and peer.validator.reserved) continue;
             const subscription = peer.agent.subscriptions.getPtr(event_type);
             const request = if (subscription.*) |*value| value else continue;
             if (request.confirmations == null and request.matchesDomain(domain)) return true;
@@ -3167,6 +4018,8 @@ pub const Server = struct {
 
     fn closeAgentClients(self: *Server, reason: []const u8, code: u16) void {
         self.clearNotifications();
+        self.validator_notifications.clear(self.allocator);
+        self.validator_head_ranges.clearRetainingCapacity();
         self.head_ranges.clearRetainingCapacity();
         self.head_failures.clearRetainingCapacity();
         const peers = self.allocator.dupe(*Peer, self.clients.keys()) catch oom();
@@ -3712,6 +4565,7 @@ pub const Server = struct {
 
     fn failSocket(self: *Server, peer: *Peer, reason: []const u8) void {
         if (peer.terminated) return;
+        if (peer.validator.pending and peer.in_clients) return self.rejectNegotiationAs(peer, reason, "setup_error", 1013);
         self.logger.warn("terminating websocket: {s}", .{reason});
         self.terminateSocket(peer);
     }
@@ -3738,6 +4592,8 @@ pub const Server = struct {
             peer.in_clients = false;
             _ = self.clients.orderedRemove(peer);
         }
+        self.leaveValidatorGroup(peer);
+        self.releaseValidator(peer);
         if (peer.in_explorer) {
             peer.in_explorer = false;
             self.clearExplorerQueue(peer);
@@ -3766,9 +4622,17 @@ pub const Server = struct {
     }
 
     fn rejectNegotiation(self: *Server, peer: *Peer, message: []const u8) void {
-        self.sendError(peer, message);
+        self.rejectNegotiationAs(peer, message, "invalid_subscription", 1008);
+    }
+
+    /// `rejectNegotiation(socket, error, reason, code)`: disconnect first
+    /// (a failing error frame then terminates instead of re-entering), the
+    /// error frame unless 1013, then close.
+    fn rejectNegotiationAs(self: *Server, peer: *Peer, message: []const u8, reason: []const u8, code: u16) void {
+        if (peer.validator.reserved) incValidatorRejection(reason);
         self.disconnect(peer);
-        peer.wsClose(1008, "Invalid subscription");
+        if (code == 1013) self.logger.warn("stream setup failed: {s}", .{message}) else self.sendError(peer, message);
+        peer.wsClose(code, if (code == 1013) "Stream unavailable" else "Invalid subscription");
     }
 
     fn sendError(self: *Server, peer: *Peer, message: []const u8) void {

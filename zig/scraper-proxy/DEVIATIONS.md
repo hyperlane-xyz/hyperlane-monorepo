@@ -94,9 +94,7 @@ rule, not the scheduling.
   connection.
 - **Stalled clients cost memory, not threads:** a client that stops reading
   a response or never finishes a body (Node has no timeout for either) parks
-  its socket with its unsent bytes or buffered body, like Node. Exception: a
-  WebSocket handshake abort response waits for writability on its poller
-  thread if the socket buffer is full.
+  its socket with its unsent bytes or buffered body, like Node.
 - **Listen backlog:** TS listens with Node's default of 511; the port asks
   for 4096 (the kernel clamps it to `net.core.somaxconn`). Under connection
   overload, clients queue in the accept queue instead of seeing SYN drops

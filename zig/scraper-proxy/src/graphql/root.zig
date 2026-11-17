@@ -17,7 +17,8 @@ pub const resolvers = @import("resolvers.zig");
 pub const compat = @import("compat.zig");
 pub const cache = @import("cache.zig");
 pub const request_schema = @import("request_schema.zig");
-pub const v8json = @import("v8json.zig");
+/// Moved to core (live uses it too); re-exported for existing callers.
+pub const v8json = @import("core").v8json;
 pub const route = @import("route.zig");
 pub const root_pool = @import("root_pool.zig");
 pub const App = @import("app.zig").App;

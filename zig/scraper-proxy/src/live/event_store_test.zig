@@ -61,11 +61,17 @@ test "event store SQL and parameters match TS byte for byte" {
     boundaries = try store.liveStartBoundaries(&.{ 1, 4294967295 });
     boundaries.deinit(testing.allocator);
     try names.append(a, "confirmationHeads");
-    var heads = try store.confirmationHeads(testing.allocator, &.{ 1, 4294967295 }, null);
+    var heads = try store.confirmationHeads(testing.allocator, &.{ 1, 4294967295 });
     heads.deinit(testing.allocator);
-    try names.append(a, "confirmationHeads:confirmations");
-    heads = try store.confirmationHeads(testing.allocator, &.{ 1, 4294967295 }, 3);
-    heads.deinit(testing.allocator);
+    try names.append(a, "confirmationSnapshots");
+    const snapshots = try store.confirmationSnapshots(testing.allocator, &.{
+        .{ .confirmations = 3, .domains = &.{ 1, 4294967295 } },
+        .{ .confirmations = 0, .domains = &.{1} },
+    });
+    for (snapshots) |*entry| entry.deinit(testing.allocator);
+    testing.allocator.free(snapshots);
+    try names.append(a, "domainExists");
+    try testing.expect(!try store.domainExists(4294967295));
     try names.append(a, "canonicalMessages");
     _ = try store.canonicalMessages(a, &.{"\\x" ++ "ab" ** 32});
     for (types) |event_type| {
@@ -142,10 +148,12 @@ test "live-start and confirmation SQL match TS main byte for byte" {
         "SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])",
         es.sql.confirmation_heads,
     );
+    // TS #10047 (9807309e85) `confirmationSnapshots`.
     try testing.expectEqualStrings(
-        "SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,\n                  c.height::text AS height, encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster\n           FROM scraper_head h LEFT JOIN LATERAL (\n             SELECT height, hash FROM scraper_checkpoint\n             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-$2::bigint)\n             ORDER BY height DESC LIMIT 1\n           ) c ON h.healthy AND NOT h.halted\n           WHERE h.domain=ANY($1::integer[])",
-        es.sql.confirmation_heads_live_start,
+        "SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,\n                  requested.confirmations, c.height::text AS height, encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster\n           FROM unnest($1::integer[], $2::bigint[]) requested(domain, confirmations)\n           JOIN scraper_head h ON h.domain=requested.domain\n           LEFT JOIN LATERAL (\n             SELECT height, hash FROM scraper_checkpoint\n             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-requested.confirmations)\n             ORDER BY height DESC LIMIT 1\n           ) c ON h.healthy AND NOT h.halted",
+        es.sql.confirmation_snapshots,
     );
+    try testing.expectEqualStrings("SELECT id FROM domain WHERE id=$1", es.sql.domain_exists);
     try testing.expectEqualStrings(
         "/* confirmation_events */ SELECT \"event_row\".\"domain\", \"event_row\".\"merkle_tree_hook\", \"event_row\".\"leaf_index\", \"event_row\".\"message_id\", \"event_row\".\"block_number\", event_row.block_hash, event_row.id AS frontier_id, event_row.\"block_number\" AS frontier_height\n         FROM (SELECT * FROM \"merkle_tree_insertion\" WHERE \"domain\"=$1\n           AND (\"block_number\", id)>($2::bigint,$3::bigint) AND \"block_number\"<=$4::bigint\n           ORDER BY \"block_number\", id LIMIT $5) event_row\n         ORDER BY event_row.\"block_number\", event_row.id",
         es.sql.confirmationEvents(.merkle_tree_insertion),
@@ -248,4 +256,56 @@ test "live-start boundaries follow liveStartBoundary" {
         copy.getPtr(mutation.key).?.* = mutation.value;
         try testing.expect(es.liveStartBoundary(copy) == null);
     }
+}
+
+test "binds every domain/policy pair in one confirmation snapshot" {
+    var t: TestLoop = undefined;
+    t.init();
+    defer t.deinit();
+    var recorder: Recorder = .{ .arena = .init(testing.allocator) };
+    defer recorder.arena.deinit();
+    var store = es.EventStore.init(testing.allocator, &t.loop, recorder.db(), 500);
+    defer store.deinit();
+    t.loop.lock();
+    defer t.loop.unlock();
+    const snapshots = try store.confirmationSnapshots(testing.allocator, &.{
+        .{ .confirmations = 0, .domains = &.{ 1, 4294967294 } },
+        .{ .confirmations = 12, .domains = &.{1} },
+    });
+    defer {
+        for (snapshots) |*entry| entry.deinit(testing.allocator);
+        testing.allocator.free(snapshots);
+    }
+    try testing.expectEqual(@as(usize, 1), recorder.queries.items.len);
+    try testing.expectEqualStrings("[[1,-2,1],[0,0,12]]", recorder.queries.items[0].params);
+    try testing.expect(std.mem.indexOf(u8, recorder.queries.items[0].sql, "unnest($1::integer[], $2::bigint[])") != null);
+    try testing.expect(std.mem.indexOf(u8, recorder.queries.items[0].sql, "h.head_height-requested.confirmations") != null);
+    try testing.expectEqual(@as(usize, 2), snapshots.len);
+    for (snapshots) |entry| try testing.expectEqual(@as(usize, 0), entry.count());
+    // No pairs: no query.
+    const none = try store.confirmationSnapshots(testing.allocator, &.{});
+    testing.allocator.free(none);
+    try testing.expectEqual(@as(usize, 1), recorder.queries.items.len);
+}
+
+test "maps snapshot rows to their policy and rejects unknown policies" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const policies = [_]es.EventStore.Policy{ .{ .confirmations = 0, .domains = &.{1} }, .{ .confirmations = 12, .domains = &.{1} } };
+    const rows = try json.parse(a,
+        \\[{"domain":1,"head_height":"10","indexed_height":"10","confirmed_height":"5","confirmations":"12","height":null},
+        \\ {"domain":-2,"head_height":"10","indexed_height":"9","confirmed_height":"5","confirmations":"0","height":null}]
+    , .{});
+    const snapshots = try es.EventStore.parseConfirmationSnapshots(testing.allocator, &policies, rows.array);
+    defer {
+        for (snapshots) |*entry| entry.deinit(testing.allocator);
+        testing.allocator.free(snapshots);
+    }
+    try testing.expectEqual(@as(i128, 9), snapshots[0].get(4294967294).?.indexed);
+    try testing.expectEqual(@as(i128, 10), snapshots[1].get(1).?.indexed);
+    const unknown = try json.parse(a,
+        \\[{"domain":1,"head_height":"10","indexed_height":"10","confirmed_height":"5","confirmations":"7"}]
+    , .{});
+    try testing.expectError(error.Failed, es.EventStore.parseConfirmationSnapshots(testing.allocator, &policies, unknown.array));
 }

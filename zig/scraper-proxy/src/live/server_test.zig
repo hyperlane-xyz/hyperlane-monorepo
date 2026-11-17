@@ -307,9 +307,31 @@ const FakeDb = struct {
             if (!rule.persistent) _ = self.rules.orderedRemove(index);
             if (rule.fail) return runtime.fail("permission denied for table", .{});
             const rows = try json.parse(arena, rule.rows, .{});
+            if (std.mem.indexOf(u8, sql, "unnest($1::integer[], $2::bigint[])") != null) return expandPairs(arena, rows.array, params);
             return rows.array;
         }
         return &.{};
+    }
+
+    /// `confirmationSnapshots`: `unnest(domains, confirmations) JOIN
+    /// scraper_head`, i.e. each rule row (one per domain) once per requested
+    /// pair of its domain, with `confirmations` set.
+    fn expandPairs(arena: std.mem.Allocator, rows: []json.Value, params: []const json.Value) ![]json.Value {
+        var out: std.ArrayList(json.Value) = .empty;
+        for (params[0].array, params[1].array) |domain, count| {
+            for (rows) |row| {
+                const row_domain = row.get("domain") orelse continue;
+                const stored: f64 = if (row_domain.number > 0x7fff_ffff) row_domain.number - 0x1_0000_0000 else row_domain.number;
+                if (stored != domain.number) continue;
+                var members: std.ArrayList(json.Member) = .empty;
+                for (row.object) |member| {
+                    if (!std.mem.eql(u8, member.key, "confirmations")) try members.append(arena, member);
+                }
+                try members.append(arena, .{ .key = "confirmations", .value = .{ .string = try std.fmt.allocPrint(arena, "{d}", .{count.number}) } });
+                try out.append(arena, .{ .object = members.items });
+            }
+        }
+        return out.items;
     }
 
     /// One-shot: the next query containing `contains` returns `rows`.
@@ -443,6 +465,42 @@ const Harness = struct {
         return .{ s, peer };
     }
 
+    const ValidatorOutcome = union(enum) { rejected: u16, connected: struct { *FakeSocket, *live.Peer } };
+
+    /// `/validators` upgrade: admission, then `connectValidator` in one step.
+    fn validator(self: *Harness, url: []const u8, ip: ?[]const u8) ValidatorOutcome {
+        self.t.loop.lock();
+        defer self.t.loop.unlock();
+        const admission = self.server.admitValidator(.{ .url = url, .cf_connecting_ip = ip, .remote_address = "::ffff:127.0.0.1" });
+        const admitted = switch (admission) {
+            .rejected => |status| return .{ .rejected = status },
+            .admitted => |value| value,
+        };
+        const s = self.newSocket();
+        const peer = self.server.connectValidator(s.socket(), admitted.ip, admitted.subscription);
+        self.peers.append(a, peer) catch unreachable;
+        return .{ .connected = .{ s, peer } };
+    }
+
+    fn connectedValidator(self: *Harness, url: []const u8, ip: ?[]const u8) !struct { *FakeSocket, *live.Peer } {
+        return switch (self.validator(url, ip)) {
+            .connected => |pair| pair,
+            .rejected => |status| {
+                std.debug.print("{s} rejected with {d}\n", .{ url, status });
+                return error.TestUnexpectedResult;
+            },
+        };
+    }
+
+    /// ws 'close' for one peer (removed from the deinit list).
+    fn close(self: *Harness, peer: *live.Peer) void {
+        for (self.peers.items, 0..) |item, index| if (item == peer) {
+            _ = self.peers.orderedRemove(index);
+            break;
+        };
+        self.server.onClose(peer);
+    }
+
     fn settle(_: *Harness) void {
         std.Thread.sleep(30 * std.time.ns_per_ms);
     }
@@ -476,7 +534,7 @@ test "agent negotiation: ready, ping, errors and duplicate subscriptions" {
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
     try testing.expectEqualStrings(
-        \\{"confirmations":{"unit":"blocks","liveOnly":true},"eventTypes":["dispatch","delivery","gas_payment","merkle_tree_insertion","blocks"],"historicalStreaming":false,"liveStartVersion":1,"type":"ready"}
+        \\{"confirmations":{"unit":"blocks","liveOnly":true,"byDomain":true},"eventTypes":["dispatch","delivery","gas_payment","merkle_tree_insertion","blocks"],"historicalStreaming":false,"liveStartVersion":1,"type":"ready"}
     , s.frame(0));
     h.server.onMessage(peer, "{\"type\":\"ping\"}");
     h.server.onMessage(peer, "nope");
@@ -571,7 +629,7 @@ test "live starts: custom streams in request order, then canonical boundaries in
     try testing.expectEqual(@as(usize, 1), boundary_reads);
 }
 
-test "custom streams with the same confirmations and domains share one heads snapshot" {
+test "every custom stream of a subscribe shares one batched heads snapshot (#10047)" {
     var h: Harness = .{};
     var limits = defaultLimits();
     limits.heartbeat_ms = 1_000_000;
@@ -594,8 +652,12 @@ test "custom streams with the same confirmations and domains share one heads sna
     for (h.db.queries.items) |query| {
         if (std.mem.indexOf(u8, query, "SELECT h.domain, h.head_height") != null) reads += 1;
     }
-    // (2, [1,2]) once for both streams, (5, [1]) once.
-    try testing.expectEqual(@as(usize, 2), reads);
+    // One read of every (confirmations, domain) pair: (2, 1), (2, 2), (5, 1).
+    try testing.expectEqual(@as(usize, 1), reads);
+    for (h.db.queries.items) |query| {
+        if (std.mem.indexOf(u8, query, "SELECT h.domain, h.head_height") != null)
+            try testing.expect(std.mem.indexOf(u8, query, "unnest($1::integer[], $2::bigint[])") != null);
+    }
 }
 
 test "agent message rate limit closes with 1008" {
@@ -2105,7 +2167,7 @@ test "async subscribe: a failed heads snapshot read fails the socket (not a nego
     try testing.expectEqual(@as(usize, 1), s.count()); // ready only: no error frame, no subscribed
 }
 
-test "async subscribe: one stream failing settles at once; the other's later read frees the job" {
+test "async subscribe: one stream failing on the shared snapshot settles the subscribe" {
     var h: Harness = .{};
     var limits = defaultLimits();
     limits.heartbeat_ms = 1_000_000;
@@ -2114,17 +2176,20 @@ test "async subscribe: one stream failing settles at once; the other's later rea
     var gate: FirstQueryGate = .{ .contains = "SELECT h.domain, h.head_height" };
     h.db.before_query = .{ .ctx = &gate, .func = FirstQueryGate.before };
     defer gate.released.set();
-    // dispatch (2, [1]) is read first and held; delivery (3, [7]) has no head.
+    // The batched read (dispatch (2, [1]), delivery (3, [7])) is held;
+    // domain 7 has no head.
     h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .domain = null, .rows = "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":null}]" });
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
     h.server.onMessage(peer,
         \\{"type":"subscribe","streams":[{"eventType":"dispatch","confirmations":2,"domains":[1]},{"eventType":"delivery","confirmations":3,"domains":[7]}]}
     );
+    gate.started.wait();
+    try testing.expectEqual(@as(usize, 1), s.count()); // nothing settles before the read
+    gate.released.set();
     try h.waitFrames(s, 2);
     try testing.expectEqualStrings("{\"error\":\"Custom confirmations unavailable for domain 7\",\"type\":\"error\"}", s.frame(1));
     try waitClosed(s);
-    gate.released.set(); // the held read completes after the subscribe settled
     h.settle();
     try testing.expectEqual(@as(usize, 2), s.count());
 }
@@ -2211,4 +2276,465 @@ test "async reads after stop fail at once and still release their flow" {
     h.t.loop.lock();
     h.server.stopped = false;
     h.t.loop.unlock();
+}
+
+// ---------------------------------------------------------------------------
+// `/validators` (TS #10061)
+
+const domain_one = "SELECT id FROM domain";
+const validator_boundary = "[{\"domain\":1,\"height\":\"100\",\"hash\":\"" ++ "ab" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
+
+fn validatorHarness(h: *Harness, limits: live.Limits) !void {
+    try h.initAsync(limits);
+    h.db.add(.{ .contains = domain_one, .persistent = true, .domain = 1, .rows = "[{\"id\":1}]" });
+}
+
+/// Every validator setup ended (its live start's send completed).
+fn waitSetups(h: *Harness) !void {
+    for (0..10_000) |_| {
+        if (h.server.metricsSnapshot().validatorPendingSetups == 0) return;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    return error.Timeout;
+}
+
+fn rejectionCount(reason: []const u8) f64 {
+    return core.metrics.websocket_connection_rejections.get(.{ reason, "validators" });
+}
+
+test "validators: URL admission answers with a status before any read" {
+    var h: Harness = .{};
+    try validatorHarness(&h, defaultLimits());
+    defer h.deinit();
+    const long = "/validators?domain=1&" ++ "x" ** 1024;
+    for ([_][]const u8{ "/validators", "/validators?domain=1,2", "/validators?domain=1&domain=2", "/validators?domain=1&blocks=true", long, "/validators?domain=1&%64omain=1" }) |url| {
+        try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 400 }, h.validator(url, null));
+    }
+    // A latin1 byte counts twice in `Buffer.byteLength`.
+    const at_limit = "/validators?domain=1&" ++ "x" ** (1024 - 21);
+    try testing.expect(h.validator(at_limit, null) == .rejected);
+    try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 403 }, h.validator("/validators?domain=1", "not-an-ip"));
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    try testing.expectEqual(@as(usize, 0), h.db.queries.items.len);
+}
+
+test "validators: canonical ready, live start, ping-only frames" {
+    var h: Harness = .{};
+    try validatorHarness(&h, defaultLimits());
+    defer h.deinit();
+    h.db.on("JOIN scraper_checkpoint c", validator_boundary);
+    const s, const peer = try h.connectedValidator("/validators?domain=1", null);
+    try h.waitFrames(s, 2);
+    try testing.expectEqualStrings("{\"type\":\"ready\",\"domain\":1,\"eventTypes\":[\"merkle_tree_insertion\"],\"historicalStreaming\":false,\"liveStartVersion\":1}", s.frame(0));
+    try testing.expectEqualStrings("{\"type\":\"live_start\",\"domain\":1,\"height\":\"100\",\"hash\":\"0x" ++ "ab" ** 32 ++ "\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"address\":\"0x" ++ "22" ** 32 ++ "\"}]}", s.frame(1));
+    try waitSetups(&h);
+    const snapshot = h.server.metricsSnapshot();
+    try testing.expectEqual(@as(f64, 0), snapshot.connections.agent);
+    try testing.expectEqual(@as(f64, 1), snapshot.connections.validators);
+    try testing.expectEqual(@as(f64, 0), snapshot.subscriptions.merkle_tree_insertion);
+    try testing.expectEqual(@as(f64, 0), snapshot.validatorPendingSetups);
+    try testing.expectEqual(@as(f64, 1), snapshot.validatorClientIps);
+    {
+        var arena = std.heap.ArenaAllocator.init(a);
+        defer arena.deinit();
+        h.t.loop.lock();
+        const full = try h.server.metricsSnapshotIn(arena.allocator());
+        h.t.loop.unlock();
+        try testing.expectEqual(@as(usize, 1), full.validatorSubscriptions.len);
+        try testing.expectEqual(core.metrics.ValidatorSubscription{ .domain = 1, .canonical = 1 }, full.validatorSubscriptions[0]);
+    }
+    h.server.onValidatorMessage(peer, "{\"type\":\"ping\"}", false);
+    try h.waitFrames(s, 3);
+    try testing.expectEqualStrings("{\"type\":\"pong\"}", s.frame(2));
+    const before = rejectionCount("invalid_message");
+    h.server.onValidatorMessage(peer, "invalid", false);
+    try h.waitFrames(s, 4);
+    try testing.expectEqualStrings("{\"error\":\"Unexpected token 'i', \\\"invalid\\\" is not valid JSON\",\"type\":\"error\"}", s.frame(3));
+    try testing.expectEqual(@as(?u16, 1008), s.close_code);
+    try testing.expectEqualStrings("Invalid subscription", s.reason());
+    try testing.expectEqual(before + 1, rejectionCount("invalid_message"));
+}
+
+test "validators: binary, subscription and other frames are rejected" {
+    var h: Harness = .{};
+    try validatorHarness(&h, defaultLimits());
+    defer h.deinit();
+    const cases = [_]struct { data: []const u8, binary: bool, message: []const u8 }{
+        .{ .data = "{\"type\":\"ping\"}", .binary = true, .message = "Expected a text ping" },
+        .{ .data = "{\"type\":\"subscribe\",\"streams\":[]}", .binary = false, .message = "Only ping is allowed; reconnect to change the subscription" },
+        .{ .data = "{\"type\":\"ping\",\"domain\":2}", .binary = false, .message = "Only ping is allowed; reconnect to change the subscription" },
+    };
+    for (cases) |case| {
+        const s, const peer = try h.connectedValidator("/validators?domain=1", null);
+        try h.waitFrames(s, 2);
+        h.server.onValidatorMessage(peer, case.data, case.binary);
+        try h.waitFrames(s, 3);
+        try testing.expect(std.mem.indexOf(u8, s.frame(2), case.message) != null);
+        try testing.expectEqual(@as(?u16, 1008), s.close_code);
+        h.close(peer);
+    }
+    // The 31st message in a minute.
+    const s, const peer = try h.connectedValidator("/validators?domain=1", null);
+    try h.waitFrames(s, 2);
+    for (0..31) |_| h.server.onValidatorMessage(peer, "{\"type\":\"ping\"}", false);
+    try h.waitFrames(s, 33);
+    try testing.expectEqualStrings("{\"error\":\"Client message rate limit exceeded\",\"type\":\"error\"}", s.frame(32));
+    try testing.expectEqualStrings("Invalid subscription", s.reason());
+}
+
+test "validators: an unknown domain closes 1008 before any reader" {
+    var h: Harness = .{};
+    try validatorHarness(&h, defaultLimits());
+    defer h.deinit();
+    const s, _ = try h.connectedValidator("/validators?domain=999&confirmations=0", null);
+    try h.waitFrames(s, 1);
+    try testing.expectEqualStrings("{\"error\":\"Unknown domain 999\",\"type\":\"error\"}", s.frame(0));
+    try waitClosed(s);
+    try testing.expectEqual(@as(?u16, 1008), s.close_code);
+    h.settle();
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorSharedReaders);
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    try testing.expectEqual(@as(usize, 1), h.db.queries.items.len);
+}
+
+test "validators: limits by IP, total and pending setups; reservations last until close and setup end" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.max_validator_clients = 4;
+    limits.max_validator_clients_per_ip = 2;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    var gate: QueryGate = .{ .contains = domain_one };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    _, const first = try h.connectedValidator("/validators?domain=1", "203.0.113.1");
+    _ = try h.connectedValidator("/validators?domain=1", "203.0.113.1");
+    try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 429 }, h.validator("/validators?domain=1", "203.0.113.1"));
+    _ = try h.connectedValidator("/validators?domain=1", "203.0.113.2");
+    _ = try h.connectedValidator("/validators?domain=1", "203.0.113.3");
+    try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 503 }, h.validator("/validators?domain=1", "203.0.113.4"));
+    gate.started.wait();
+    try testing.expectEqual(@as(f64, 4), h.server.metricsSnapshot().validatorPendingSetups);
+    // A disconnected pending setup keeps its reservation, even once closed.
+    h.close(first);
+    var snapshot = h.server.metricsSnapshot();
+    try testing.expectEqual(@as(f64, 3), snapshot.connections.validators);
+    try testing.expectEqual(@as(f64, 4), snapshot.validatorReservedConnections);
+    try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 503 }, h.validator("/validators?domain=1", "203.0.113.4"));
+    gate.released.set();
+    for (0..1000) |_| {
+        if (h.server.metricsSnapshot().validatorPendingSetups == 0) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    snapshot = h.server.metricsSnapshot();
+    try testing.expectEqual(@as(f64, 3), snapshot.validatorReservedConnections);
+    try testing.expectEqual(@as(f64, 0), snapshot.validatorPendingSetups);
+    _ = try h.connectedValidator("/validators?domain=1", "203.0.113.4");
+}
+
+test "validators: a rejected socket keeps its reservation until it closes" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.max_validator_clients = 2;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    const s, const peer = try h.connectedValidator("/validators?domain=1", "203.0.113.80");
+    _ = try h.connectedValidator("/validators?domain=1", "203.0.113.81");
+    try h.waitFrames(s, 2);
+    try waitSetups(&h);
+    h.server.onValidatorMessage(peer, "{\"type\":\"subscribe\"}", false);
+    try waitClosed(s);
+    const snapshot = h.server.metricsSnapshot();
+    try testing.expectEqual(@as(f64, 1), snapshot.connections.validators);
+    try testing.expectEqual(@as(f64, 2), snapshot.validatorReservedConnections);
+    try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 503 }, h.validator("/validators?domain=1", null));
+    h.close(peer);
+    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().validatorReservedConnections);
+    _ = try h.connectedValidator("/validators?domain=1", null);
+}
+
+test "validators: one shared custom reader per domain and count; the last member releases it" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .domain = null, .rows = "[{\"domain\":1,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"5\",\"height\":\"10\",\"hash\":\"" ++ "ab" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]" });
+    const s1, const p1 = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(s1, 2);
+    const s2, const p2 = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(s2, 2);
+    for ([_]*FakeSocket{ s1, s2 }) |s| {
+        try testing.expectEqualStrings("{\"type\":\"ready\",\"domain\":1,\"confirmations\":0,\"eventTypes\":[\"merkle_tree_insertion\"],\"historicalStreaming\":false,\"liveStartVersion\":1}", s.frame(0));
+        try testing.expect(std.mem.startsWith(u8, s.frame(1), "{\"type\":\"live_start\",\"domain\":1,\"confirmations\":0,\"height\":\"10\""));
+    }
+    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().validatorSharedReaders);
+    {
+        h.db.mutex.lock();
+        defer h.db.mutex.unlock();
+        var snapshots: usize = 0;
+        for (h.db.queries.items) |query| snapshots += @intFromBool(std.mem.indexOf(u8, query, "unnest(") != null);
+        // The creator's initialization plus the joiner's current boundary.
+        try testing.expectEqual(@as(usize, 2), snapshots);
+    }
+    h.close(p1);
+    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().validatorSharedReaders);
+    h.close(p2);
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorSharedReaders);
+}
+
+test "validators: an unavailable custom policy closes 1008; a failed read closes 1013 without a frame" {
+    var h: Harness = .{};
+    try validatorHarness(&h, defaultLimits());
+    defer h.deinit();
+    const s, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(s, 1);
+    try testing.expectEqualStrings("{\"error\":\"Custom confirmations unavailable for domain 1\",\"type\":\"error\"}", s.frame(0));
+    try waitClosed(s);
+    try testing.expectEqual(@as(?u16, 1008), s.close_code);
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .fail = true });
+    const before = rejectionCount("setup_error");
+    const s2, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try waitClosed(s2);
+    try testing.expectEqual(@as(?u16, 1013), s2.close_code);
+    try testing.expectEqualStrings("Stream unavailable", s2.reason());
+    try testing.expectEqual(@as(usize, 0), s2.count());
+    try testing.expectEqual(before + 1, rejectionCount("setup_error"));
+    h.settle();
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorPendingSetups);
+}
+
+test "validators: validator-only canonical notifications use their own queue; agent ones reach validators too" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    const s, _ = try h.connectedValidator("/validators?domain=1", null);
+    try h.waitFrames(s, 2);
+    try waitSetups(&h);
+    h.db.add(.{ .contains = "notification_id", .persistent = true, .rows = "[{\"notification_id\":\"7\",\"domain\":1,\"merkle_tree_hook\":\"\\\\x22\",\"leaf_index\":1,\"message_id\":\"\\\\xaa\",\"block_number\":\"9\",\"id\":\"7\"}]" });
+    h.listen.notify("scraper_event", "{\"eventType\":\"merkle_tree_insertion\",\"domain\":1,\"id\":\"7\"}");
+    h.t.loop.lock();
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().notificationQueue.agent);
+    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().notificationQueue.validators);
+    h.t.loop.unlock();
+    h.t.fake.tick(100);
+    try h.waitFrames(s, 3);
+    try testing.expect(std.mem.startsWith(u8, s.frame(2), "{\"type\":\"event\",\"eventType\":\"merkle_tree_insertion\""));
+    // Another domain or event type: not queued at all.
+    h.listen.notify("scraper_event", "{\"eventType\":\"merkle_tree_insertion\",\"domain\":2,\"id\":\"8\"}");
+    h.listen.notify("scraper_event", "{\"eventType\":\"dispatch\",\"domain\":1,\"id\":\"9\"}");
+    h.t.loop.lock();
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().notificationQueue.validators);
+    h.t.loop.unlock();
+    // With an agent subscriber the agent queue carries it; validators get it too.
+    const as, const agent = h.agent();
+    try h.waitFrames(as, 1);
+    h.server.onMessage(agent, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1]}]}");
+    try h.waitFrames(as, 3);
+    h.listen.notify("scraper_event", "{\"eventType\":\"merkle_tree_insertion\",\"domain\":1,\"id\":\"7\"}");
+    h.t.loop.lock();
+    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().notificationQueue.agent);
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().notificationQueue.validators);
+    h.t.loop.unlock();
+    h.t.fake.tick(100);
+    try h.waitFrames(as, 4);
+    try h.waitFrames(s, 4);
+}
+
+test "per-domain confirmations: echoed map, custom group first, canonical publication excludes overridden domains" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .domain = null, .rows = "[{\"domain\":1,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"5\",\"height\":null},{\"domain\":2,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"5\",\"height\":null}]" });
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","confirmationsByDomain":{"2":0,"1":3},"streams":[{"eventType":"dispatch","domains":[1,2,7],"includeZeroConfirmations":true}]}
+    );
+    // subscribed, custom (3,[1]), custom (0,[2]), advisory zero over [1,7], canonical [7].
+    try h.waitFrames(s, 7);
+    try testing.expectEqualStrings(
+        \\{"confirmationsByDomain":{"1":3,"2":0},"streams":[{"includeZeroConfirmations":true,"domains":[1,2,7],"eventType":"dispatch"}],"type":"subscribed"}
+    , s.frame(1));
+    try testing.expect(std.mem.startsWith(u8, s.frame(2), "{\"type\":\"live_start_unavailable\",\"domain\":1,\"confirmations\":3,"));
+    try testing.expect(std.mem.startsWith(u8, s.frame(3), "{\"type\":\"live_start_unavailable\",\"domain\":2,\"confirmations\":0,"));
+    try testing.expect(std.mem.startsWith(u8, s.frame(4), "{\"type\":\"live_start_unavailable\",\"domain\":1,\"confirmations\":0,"));
+    try testing.expect(std.mem.startsWith(u8, s.frame(5), "{\"type\":\"live_start_unavailable\",\"domain\":7,\"confirmations\":0,"));
+    try testing.expect(std.mem.startsWith(u8, s.frame(6), "{\"type\":\"live_start_unavailable\",\"domain\":7,\"eventTypes\""));
+    h.settle();
+    try testing.expectEqual(@as(usize, 7), s.count());
+    h.db.mutex.lock();
+    var snapshots: usize = 0;
+    for (h.db.queries.items) |query| snapshots += @intFromBool(std.mem.indexOf(u8, query, "unnest(") != null);
+    h.db.mutex.unlock();
+    try testing.expectEqual(@as(usize, 1), snapshots);
+    // Canonical publication only covers domain 7.
+    h.listen.notify("scraper_event", "{\"eventType\":\"dispatch\",\"domain\":1,\"id\":\"5\"}");
+    h.listen.notify("scraper_event", "{\"eventType\":\"dispatch\",\"domain\":7,\"id\":\"6\"}");
+    h.t.loop.lock();
+    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().notificationQueue.agent);
+    h.t.loop.unlock();
+}
+
+const group_heads = "[{\"domain\":1,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"5\",\"height\":\"10\",\"hash\":\"" ++ "ab" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
+const group_heads_rolled_back = "[{\"domain\":1,\"head_height\":\"8\",\"indexed_height\":\"8\",\"confirmed_height\":\"5\",\"height\":\"8\",\"hash\":\"" ++ "cd" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
+const group_rollback = "{\"domain\":1,\"confirmedHeight\":\"5\",\"indexedHeight\":\"8\",\"previousIndexedHeight\":\"10\",\"headHeight\":\"8\"}";
+
+fn snapshotReads(h: *Harness) usize {
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    var reads: usize = 0;
+    for (h.db.queries.items) |query| reads += @intFromBool(std.mem.indexOf(u8, query, "unnest(") != null);
+    return reads;
+}
+
+test "validators: a rollback during the group's first heads read retries on a fresh read" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    var gate: FirstQueryGate = .{ .contains = "unnest(" };
+    h.db.before_query = .{ .ctx = &gate, .func = FirstQueryGate.before };
+    defer gate.released.set();
+    h.db.on("unnest(", group_heads);
+    h.db.on("unnest(", group_heads_rolled_back);
+    const s, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    gate.started.wait();
+    h.listen.notify(live.HEAD_CHANNEL, group_rollback);
+    gate.released.set();
+    try h.waitFrames(s, 2);
+    try testing.expect(std.mem.startsWith(u8, s.frame(1), "{\"type\":\"live_start\",\"domain\":1,\"confirmations\":0,\"height\":\"8\",\"hash\":\"0x" ++ "cd" ** 32));
+    try testing.expectEqual(@as(usize, 2), snapshotReads(&h));
+}
+
+test "validators: every member awaiting a group shares its failure; a later joiner starts a fresh group" {
+    var h: Harness = .{};
+    try validatorHarness(&h, defaultLimits());
+    defer h.deinit();
+    var gate: FirstQueryGate = .{ .contains = "unnest(" };
+    h.db.before_query = .{ .ctx = &gate, .func = FirstQueryGate.before };
+    defer gate.released.set();
+    // Domain 1 exists but has no head: ConfirmationUnavailable.
+    const s1, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    gate.started.wait();
+    const s2, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    for (0..1000) |_| {
+        h.t.loop.lock();
+        const pending = h.server.metricsSnapshot().validatorPendingSetups;
+        h.t.loop.unlock();
+        // s2 joined (its domain check done) and awaits the same `ready`.
+        if (pending == 2 and h.db.queries.items.len >= 3) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    h.settle();
+    gate.released.set();
+    for ([_]*FakeSocket{ s1, s2 }) |s| {
+        try h.waitFrames(s, 1);
+        try testing.expectEqualStrings("{\"error\":\"Custom confirmations unavailable for domain 1\",\"type\":\"error\"}", s.frame(0));
+        try waitClosed(s);
+    }
+    // One initialization read served both.
+    try testing.expectEqual(@as(usize, 1), snapshotReads(&h));
+    try waitSetups(&h);
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorSharedReaders);
+    const s3, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(s3, 1);
+    try testing.expectEqual(@as(usize, 2), snapshotReads(&h));
+}
+
+test "validators: a joiner re-reads its boundary when a rollback lands during its heads read" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    h.db.on("unnest(", group_heads);
+    const s1, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(s1, 2);
+    try waitSetups(&h);
+    var gate: FirstQueryGate = .{ .contains = "unnest(" };
+    h.db.mutex.lock();
+    h.db.before_query = .{ .ctx = &gate, .func = FirstQueryGate.before };
+    h.db.mutex.unlock();
+    defer gate.released.set();
+    h.db.on("unnest(", group_heads);
+    h.db.on("unnest(", group_heads_rolled_back);
+    const s2, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    gate.started.wait();
+    h.listen.notify(live.HEAD_CHANNEL, group_rollback);
+    gate.released.set();
+    try h.waitFrames(s2, 2);
+    try testing.expect(std.mem.startsWith(u8, s2.frame(1), "{\"type\":\"live_start\",\"domain\":1,\"confirmations\":0,\"height\":\"8\""));
+    // The creator's read, then the joiner's two.
+    try testing.expectEqual(@as(usize, 3), snapshotReads(&h));
+}
+
+test "validators: the last member failing during a group broadcast frees the group safely" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    // ready and live_start fit; an event row does not.
+    limits.max_buffered_bytes = 1_000;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    h.db.add(.{ .contains = "unnest(", .persistent = true, .rows = group_heads });
+    const s, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(s, 2);
+    try waitSetups(&h);
+    h.db.add(.{ .contains = "confirmation_events", .rows = "[{\"domain\":1,\"merkle_tree_hook\":\"\\\\x" ++ "22" ** 32 ++ "\",\"leaf_index\":1,\"message_id\":\"\\\\x" ++ "aa" ** 32 ++ "\",\"block_number\":11,\"block_hash\":\"\\\\x" ++ "bb" ** 32 ++ "\",\"frontier_id\":\"1\",\"frontier_height\":\"11\",\"padding\":\"" ++ "x" ** 1500 ++ "\"}]" });
+    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"5\",\"headHeight\":\"11\",\"indexedHeight\":\"11\",\"previousIndexedHeight\":\"10\"}");
+    h.t.fake.tick(100);
+    try waitClosed(s);
+    try testing.expect(s.terminated);
+    h.settle();
+    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorSharedReaders);
+}
+
+test "validators: stop with pending setups counts and logs nothing for them" {
+    var h: Harness = .{};
+    try validatorHarness(&h, defaultLimits());
+    var gate: QueryGate = .{ .contains = domain_one };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    _ = try h.connectedValidator("/validators?domain=1", null);
+    _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    gate.started.wait();
+    const before = rejectionCount("setup_error");
+    const Releaser = struct {
+        fn run(g: *QueryGate) void {
+            std.Thread.sleep(100 * std.time.ns_per_ms);
+            g.released.set();
+        }
+    };
+    const releaser = try std.Thread.spawn(.{}, Releaser.run, .{&gate});
+    h.deinit(); // stop waits for the held reads; their setups end silently
+    releaser.join();
+    try testing.expectEqual(before, rejectionCount("setup_error"));
+}
+
+test "validators: a group rollback is broadcast at once, in the validator frame's key order" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    h.db.add(.{ .contains = "unnest(", .persistent = true, .rows = group_heads });
+    const s, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(s, 2);
+    try waitSetups(&h);
+    h.db.add(.{ .contains = "confirmation_events", .rows = "[{\"domain\":1,\"merkle_tree_hook\":\"\\\\x" ++ "22" ** 32 ++ "\",\"leaf_index\":1,\"message_id\":\"\\\\x" ++ "aa" ** 32 ++ "\",\"block_number\":11,\"block_hash\":\"\\\\x" ++ "bb" ** 32 ++ "\",\"frontier_id\":\"1\",\"frontier_height\":\"11\"}]" });
+    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"5\",\"headHeight\":\"11\",\"indexedHeight\":\"11\",\"previousIndexedHeight\":\"10\"}");
+    h.t.fake.tick(100);
+    try h.waitFrames(s, 3);
+    try testing.expect(std.mem.startsWith(u8, s.frame(2), "{\"type\":\"event\",\"eventType\":\"merkle_tree_insertion\",\"domain\":1,"));
+    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"5\",\"headHeight\":\"9\",\"indexedHeight\":\"9\",\"previousIndexedHeight\":\"11\"}");
+    // Synchronous with the notification (no task, no send wait).
+    try testing.expectEqual(@as(usize, 4), s.count());
+    try testing.expectEqualStrings("{\"type\":\"rollback\",\"eventType\":\"merkle_tree_insertion\",\"domain\":1,\"confirmations\":0,\"fromHeight\":\"11\",\"toHeight\":\"9\"}", s.frame(3));
 }

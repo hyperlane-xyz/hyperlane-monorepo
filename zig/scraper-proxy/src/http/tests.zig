@@ -268,6 +268,12 @@ const WsEcho = struct {
         const greet = std.mem.eql(u8, req.path, "/greet");
         const kill = std.mem.eql(u8, req.path, "/kill");
         const short = std.mem.eql(u8, req.path, "/short");
+        if (std.mem.eql(u8, req.path, "/reject")) return socket.endWith(reject_response);
+        if (std.mem.eql(u8, req.path, "/reject-big")) {
+            const big = req.arena.alloc(u8, reject_big_len) catch return socket.destroy();
+            @memset(big, 'r');
+            return socket.endWith(big);
+        }
         if (!std.mem.eql(u8, req.path, "/agents") and !oom and !keep and !greet and !kill and !short) return socket.destroy();
         const gpa = if (oom) self.failing.? else testing.allocator;
         const conn = self.wss.handleUpgrade(gpa, req, socket, .{
@@ -425,7 +431,7 @@ const Client = struct {
     }
 
     fn send(self: *Client, bytes: []const u8) !void {
-        if (!server_mod.writeFd(self.fd, bytes)) return error.WriteFailed;
+        if (!server_mod.blockingWriteForTests(self.fd, bytes)) return error.WriteFailed;
     }
 
     fn fill(self: *Client) !usize {
@@ -542,7 +548,7 @@ test "metrics snapshot providers never run on a fiber (they take OS mutexes)" {
     const Probe = struct {
         var calls = std.atomic.Value(u32).init(0);
         var on_fiber = std.atomic.Value(bool).init(false);
-        fn snapshot(_: *anyopaque) core.metrics.WebSocketMetricsSnapshot {
+        fn snapshot(_: *anyopaque, _: std.mem.Allocator) std.mem.Allocator.Error!core.metrics.WebSocketMetricsSnapshot {
             _ = calls.fetchAdd(1, .monotonic);
             if (core.fiber.inFiber()) on_fiber.store(true, .monotonic);
             return .{};
@@ -1098,7 +1104,7 @@ test "a steal racing the end of a stalled dispatch loses and repeats nothing" {
     for (0..5) |_| {
         for (cs, 0..) |fd, i| {
             const req: []const u8 = if (i == 0) "GET /graphql?stall HTTP/1.1\r\nHost: a\r\n\r\n" else "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n";
-            if (!server_mod.writeFd(fd, req)) return error.WriteFailed;
+            if (!server_mod.blockingWriteForTests(fd, req)) return error.WriteFailed;
         }
         // Exactly one response each: none lost (a lost edge hangs the read),
         // none run twice (an extra response would desync the next round).
@@ -1122,7 +1128,7 @@ test "close() while upgrades are in flight never treats a WebSocket as HTTP" {
             for (0..20) |_| {
                 const stream = std.net.tcpConnectToAddress(addr) catch return;
                 defer stream.close();
-                _ = server_mod.writeFd(stream.handle, "GET /agents HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+                _ = server_mod.blockingWriteForTests(stream.handle, "GET /agents HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
             }
         }
     };
@@ -1342,6 +1348,88 @@ test "late requests during close get 503" {
 // ---------------------------------------------------------------------------
 // WebSocket
 // ---------------------------------------------------------------------------
+
+const reject_response = "HTTP/1.1 429 Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n";
+const reject_big_len = 8 * 1024 * 1024;
+
+test "close() returns while an endWith write is parked, and the write still completes" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    const fd = try posix.socket(posix.AF.INET, posix.SOCK.STREAM, 0);
+    defer posix.close(fd);
+    try posix.setsockopt(fd, posix.SOL.SOCKET, posix.SO.RCVBUF, &std.mem.toBytes(@as(c_int, 4096)));
+    const addr = try std.net.Address.parseIp("127.0.0.1", h.server.port());
+    try posix.connect(fd, &addr.any, addr.getOsSockLen());
+    var slow: Client = .{ .fd = fd };
+    try slow.send("GET /reject-big HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+    std.Thread.sleep(100 * std.time.ns_per_ms);
+    // Like an in-flight response: close() waits for it until its timeout.
+    const t0 = std.time.milliTimestamp();
+    h.server.close(300);
+    const waited = std.time.milliTimestamp() - t0;
+    try testing.expect(waited >= 250 and waited < 3_000);
+    // The parked write is intact: reading drains it, then EOF, so deinit
+    // (`h.stop`) finds no connection left.
+    var buf: [64 * 1024]u8 = undefined;
+    var total: usize = 0;
+    while (true) {
+        const n = try posix.read(fd, &buf);
+        if (n == 0) break;
+        total += n;
+    }
+    try testing.expectEqual(@as(usize, reject_big_len), total);
+}
+
+test "endWith never blocks the loop on a client that stops reading" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    // A client with a tiny receive window that does not read yet: the
+    // server's write has to wait for it.
+    const fd = try posix.socket(posix.AF.INET, posix.SOCK.STREAM, 0);
+    defer posix.close(fd);
+    try posix.setsockopt(fd, posix.SOL.SOCKET, posix.SO.RCVBUF, &std.mem.toBytes(@as(c_int, 4096)));
+    const addr = try std.net.Address.parseIp("127.0.0.1", h.server.port());
+    try posix.connect(fd, &addr.any, addr.getOsSockLen());
+    var slow: Client = .{ .fd = fd };
+    try slow.send("GET /reject-big HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+    std.Thread.sleep(100 * std.time.ns_per_ms);
+    // The loop still serves others while that write waits.
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    const r = try c.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqual(@as(u16, 404), r.status);
+    // Reading now drains every byte, then EOF (FIN, then destroy).
+    var buf: [64 * 1024]u8 = undefined;
+    var total: usize = 0;
+    while (true) {
+        const n = try posix.read(fd, &buf);
+        if (n == 0) break;
+        for (buf[0..n]) |b| try testing.expectEqual(@as(u8, 'r'), b);
+        total += n;
+    }
+    try testing.expectEqual(@as(usize, reject_big_len), total);
+}
+
+test "an upgrade rejected with endWith gets exactly those bytes, then EOF" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var c = try h.connect();
+    defer c.close();
+    try c.send("GET /reject HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+    var buf: [256]u8 = undefined;
+    var len: usize = 0;
+    while (true) {
+        const n = try posix.read(c.fd, buf[len..]);
+        if (n == 0) break;
+        len += n;
+    }
+    try testing.expectEqualStrings(reject_response, buf[0..len]);
+}
 
 fn wsHandshake(c: *Client, a: std.mem.Allocator, path: []const u8) !Response {
     const req = try std.fmt.allocPrint(a, "GET {s} HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n", .{path});
@@ -1763,8 +1851,8 @@ test "websocket transitions: no deadlock between the owner's tick and reader tra
     const close_frame = try wsFrame(a, 0x8, &.{ 0x03, 0xe8 }, true, true);
     const garbage = try wsFrame(a, 0x1, "x", false, true); // unmasked: protocol error
     for (fds, 0..) |fd, i| switch (i % 3) {
-        0 => _ = server_mod.writeFd(fd, close_frame),
-        1 => _ = server_mod.writeFd(fd, garbage),
+        0 => _ = server_mod.blockingWriteForTests(fd, close_frame),
+        1 => _ = server_mod.blockingWriteForTests(fd, garbage),
         else => {
             posix.close(fd);
             fds[i] = -1;

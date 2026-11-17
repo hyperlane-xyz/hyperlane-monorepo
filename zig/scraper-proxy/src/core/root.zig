@@ -8,6 +8,7 @@ pub const metrics = @import("metrics.zig");
 pub const scheduler = @import("scheduler.zig");
 pub const blocking = @import("blocking.zig");
 pub const fiber = @import("fiber.zig");
+pub const v8json = @import("v8json.zig");
 /// See `fiber.onEventLoopThread`.
 pub const onEventLoopThread = fiber.onEventLoopThread;
 

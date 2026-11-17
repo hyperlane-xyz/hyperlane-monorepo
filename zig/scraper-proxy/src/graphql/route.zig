@@ -19,7 +19,7 @@ const execute = @import("execute.zig");
 const resolvers_mod = @import("resolvers.zig");
 const cache_mod = @import("cache.zig");
 const request_schema = @import("request_schema.zig");
-const v8json = @import("v8json.zig");
+const v8json = @import("core").v8json;
 const js = @import("js.zig");
 const root_pool = @import("root_pool.zig");
 

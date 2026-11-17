@@ -85,9 +85,27 @@ pub const StreamRequest = struct {
     }
 };
 
+/// One `confirmationsByDomain` entry.
+pub const DomainConfirmations = struct { domain: u32, confirmations: u64 };
+
+pub const Subscribe = struct {
+    streams: []const StreamRequest,
+    /// `confirmationsByDomain`: null when absent (an empty map is kept and
+    /// echoed). `Map` order, i.e. `Object.entries`: domains ascending.
+    confirmations_by_domain: ?[]const DomainConfirmations = null,
+
+    /// `confirmationsByDomain?.get(domain)`.
+    pub fn override(self: *const Subscribe, domain: u32) ?u64 {
+        for (self.confirmations_by_domain orelse return null) |entry| {
+            if (entry.domain == domain) return entry.confirmations;
+        }
+        return null;
+    }
+};
+
 pub const ClientMessage = union(enum) {
     ping,
-    subscribe: []const StreamRequest,
+    subscribe: Subscribe,
 };
 
 pub const EventNotification = struct {
@@ -150,7 +168,107 @@ pub fn parseClientMessage(arena: std.mem.Allocator, raw: []const u8, diag: *Diag
             if (previous.kind == stream.kind) return diag.fail("Duplicate eventType subscription");
         }
     }
-    return .{ .subscribe = streams };
+    const by_domain = try parseDomainConfirmations(arena, object.get("confirmationsByDomain"), diag);
+    if (by_domain) |entries| if (entries.len > 0) {
+        for (streams) |stream| {
+            if (stream.kind != .blocks and stream.domains == null)
+                return diag.fail("confirmationsByDomain requires explicit event stream domains");
+        }
+        for (entries) |entry| {
+            const used = for (streams) |stream| {
+                if (stream.kind != .blocks and std.mem.indexOfScalar(u32, stream.domains.?, entry.domain) != null) break true;
+            } else false;
+            if (!used) return diag.fail(try std.fmt.allocPrint(arena, "Unused confirmationsByDomain domain {d}", .{entry.domain}));
+        }
+    };
+    return .{ .subscribe = .{ .streams = streams, .confirmations_by_domain = by_domain } };
+}
+
+/// `parseDomainConfirmations`. Members are checked in `Object.entries`
+/// order: array-index keys ascending, then the other keys as written (the
+/// parser keeps one member per key, last value). Index keys are canonical
+/// uint32 below 2^32-1, so they can only fail on their counts.
+fn parseDomainConfirmations(arena: std.mem.Allocator, value: ?json.Value, diag: *Diag) Error!?[]const DomainConfirmations {
+    const present = value orelse return null;
+    if (present != .object) return diag.fail("confirmationsByDomain must be a domain-to-confirmations object");
+    const members = present.object;
+    var entries: std.ArrayList(DomainConfirmations) = .empty;
+    // Index phase, ascending.
+    var previous: ?u32 = null;
+    while (true) {
+        var selected: ?usize = null;
+        var smallest: u32 = std.math.maxInt(u32);
+        for (members, 0..) |member, i| {
+            const index = arrayIndex(member.key) orelse continue;
+            if ((previous == null or index > previous.?) and index < smallest) {
+                smallest = index;
+                selected = i;
+            }
+        }
+        const i = selected orelse break;
+        previous = smallest;
+        try entries.append(arena, .{ .domain = smallest, .confirmations = try parseConfirmationCount(members[i].value, diag) });
+    }
+    for (members) |member| {
+        if (arrayIndex(member.key) != null) continue;
+        // `String(Number(key)) === key` with `isDomain`: only 4294967295 is
+        // left outside the index range.
+        if (!std.mem.eql(u8, member.key, "4294967295"))
+            return diag.fail("confirmationsByDomain keys must be uint32 domain IDs");
+        try entries.append(arena, .{ .domain = std.math.maxInt(u32), .confirmations = try parseConfirmationCount(member.value, diag) });
+    }
+    return entries.items;
+}
+
+/// JS array index: canonical decimal (no sign, no leading zero) below 2^32-1.
+fn arrayIndex(key: []const u8) ?u32 {
+    if (key.len == 0 or key.len > 10 or !isDigits(key)) return null;
+    if (key.len > 1 and key[0] == '0') return null;
+    const number = std.fmt.parseInt(u64, key, 10) catch return null;
+    if (number >= std.math.maxInt(u32)) return null;
+    return @intCast(number);
+}
+
+/// `parseConfirmationCount`.
+fn parseConfirmationCount(value: json.Value, diag: *Diag) Failure!u64 {
+    const number = asNumber(value) orelse return diag.fail("confirmations must be a non-negative safe integer");
+    if (!isSafeInteger(number) or number < 0)
+        return diag.fail("confirmations must be a non-negative safe integer");
+    return @intFromFloat(number);
+}
+
+fn sameCount(a: ?u64, b: ?u64) bool {
+    if (a == null or b == null) return a == null and b == null;
+    return a.? == b.?;
+}
+
+/// `splitConfirmationStreams`: one request per effective count, in the order
+/// each count's first domain appears; the parse guarantees explicit domains
+/// whenever the map is non-empty.
+pub fn splitConfirmationStreams(arena: std.mem.Allocator, request: StreamRequest, by_domain: ?[]const DomainConfirmations) std.mem.Allocator.Error![]const StreamRequest {
+    const entries = by_domain orelse &.{};
+    if (entries.len == 0) return arena.dupe(StreamRequest, &.{request});
+    const subscribe: Subscribe = .{ .streams = &.{}, .confirmations_by_domain = entries };
+    var counts: std.ArrayList(?u64) = .empty;
+    var groups: std.ArrayList(std.ArrayList(u32)) = .empty;
+    for (request.domains.?) |domain| {
+        const confirmations = subscribe.override(domain) orelse request.confirmations;
+        const index = for (counts.items, 0..) |count, i| {
+            if (sameCount(count, confirmations)) break i;
+        } else blk: {
+            try counts.append(arena, confirmations);
+            try groups.append(arena, .empty);
+            break :blk counts.items.len - 1;
+        };
+        try groups.items[index].append(arena, domain);
+    }
+    const out = try arena.alloc(StreamRequest, counts.items.len);
+    for (out, counts.items, groups.items) |*group, confirmations, domains| {
+        group.* = request;
+        group.confirmations = confirmations;
+        group.domains = domains.items;
+    }
+    return out;
 }
 
 /// Keys of the removed replay protocol; any of them rejects the stream.
@@ -388,6 +506,52 @@ pub fn parseExplorerBlocks(params: *const QueryParams, diag: *Diag) Failure!bool
     if (std.mem.eql(u8, value, "false")) return false;
     if (!std.mem.eql(u8, value, "true")) return diag.fail("Expected blocks=true");
     return true;
+}
+
+// ---------------------------------------------------------------------------
+// Validator (`/validators`) negotiation
+
+pub const ValidatorSubscription = struct {
+    domain: u32,
+    confirmations: ?u64 = null,
+};
+
+/// `parseValidatorSubscription`. The upgrade answers any failure with a bare
+/// 400, so failures carry no message.
+pub fn parseValidatorSubscription(params: *const QueryParams) ?ValidatorSubscription {
+    for (params.entries) |entry| {
+        if (!std.mem.eql(u8, entry.name, "domain") and !std.mem.eql(u8, entry.name, "confirmations")) return null;
+        var count: usize = 0;
+        for (params.entries) |other| {
+            if (std.mem.eql(u8, other.name, entry.name)) count += 1;
+        }
+        if (count != 1) return null;
+    }
+    const raw_domain = params.get("domain") orelse return null;
+    // `UNSIGNED_INTEGER_REGEX` then `isDomain(Number(raw))`.
+    const domain = digitsValue(raw_domain, std.math.maxInt(u32)) orelse return null;
+    const raw_count = params.get("confirmations") orelse return .{ .domain = @intCast(domain) };
+    // `Number(count)` then `parseConfirmationCount`: values past 2^53-1 are
+    // unsafe (rounding never lands below 2^53).
+    const confirmations = digitsValue(raw_count, 9007199254740991) orelse return null;
+    return .{ .domain = @intCast(domain), .confirmations = confirmations };
+}
+
+/// `/^\d+$/` text whose value is at most `max` (leading zeros allowed).
+fn digitsValue(text: []const u8, max: u64) ?u64 {
+    if (!isDigits(text)) return null;
+    const trimmed = std.mem.trimLeft(u8, text, "0");
+    if (trimmed.len > 20) return null;
+    const value = if (trimmed.len == 0) 0 else std.fmt.parseInt(u64, trimmed, 10) catch return null;
+    return if (value <= max) value else null;
+}
+
+pub const VALIDATOR_PING_ERROR = "Only ping is allowed; reconnect to change the subscription";
+
+/// `parseValidatorPing` after a successful `JSON.parse`: exactly
+/// `{"type":"ping"}`. Returns false for any other value.
+pub fn isValidatorPing(value: json.Value) bool {
+    return value == .object and value.object.len == 1 and isString(value.get("type"), "ping");
 }
 
 /// WHATWG `URLSearchParams` over the query of `new URL(request.url, base)`.

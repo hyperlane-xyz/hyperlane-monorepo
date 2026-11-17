@@ -59,11 +59,20 @@ const AtomicF64 = struct {
 };
 
 /// Append-only, lock-free-readable list of labeled series with sharded data.
+fn identity(comptime n: usize) [n]u8 {
+    var order: [n]u8 = undefined;
+    for (&order, 0..) |*o, i| o.* = @intCast(i);
+    return order;
+}
+
 fn SeriesList(comptime n: usize, comptime Shard: type) type {
     return struct {
         const List = @This();
         pub const Node = struct {
             labels: [n][]const u8,
+            /// Rendering order of the labels (prom-client prints them in the
+            /// key order of the call that created the series).
+            order: [n]u8 = identity(n),
             next: std.atomic.Value(?*Node) = .init(null),
             shards: [shard_count]Shard = @splat(.{}),
 
@@ -90,12 +99,17 @@ fn SeriesList(comptime n: usize, comptime Shard: type) type {
         }
 
         pub fn get(self: *List, labels: [n][]const u8) *Node {
+            return self.getOrdered(labels, identity(n));
+        }
+
+        /// `get`; a series it creates renders its labels in `order`.
+        pub fn getOrdered(self: *List, labels: [n][]const u8, order: [n]u8) *Node {
             if (self.find(labels)) |node| return node;
             self.mutex.lock();
             defer self.mutex.unlock();
             if (self.find(labels)) |node| return node;
             const node = gpa.create(Node) catch @panic("OOM");
-            node.* = .{ .labels = undefined };
+            node.* = .{ .labels = undefined, .order = order };
             for (labels, 0..) |l, i| node.labels[i] = gpa.dupe(u8, l) catch @panic("OOM");
             if (self.tail) |t| t.next.store(node, .release) else self.head.store(node, .release);
             self.tail = node;
@@ -148,6 +162,13 @@ pub fn Scalar(comptime kind: Kind, comptime label_names: []const []const u8) typ
             self.series.get(labels).shard().value.add(value);
         }
 
+        /// `inc`; a series it creates prints its labels in `order` (indexes
+        /// into `label_names`), like a TS `inc({ b, a })` with b listed first.
+        pub fn incOrdered(self: *Self, labels: Labels, value: f64, order: [n]u8) void {
+            self.ensureBase();
+            self.series.getOrdered(labels, order).shard().value.add(value);
+        }
+
         pub fn dec(self: *Self, labels: Labels, value: f64) void {
             comptime std.debug.assert(kind == .gauge);
             self.inc(labels, -value);
@@ -187,7 +208,13 @@ pub fn Scalar(comptime kind: Kind, comptime label_names: []const []const u8) typ
             while (it) |node| : (it = node.next.load(.acquire)) {
                 try w.writeByte('\n');
                 try w.writeAll(self.name);
-                try writeLabels(w, label_names, &node.labels, null);
+                var names: [n][]const u8 = undefined;
+                var values: [n][]const u8 = undefined;
+                for (node.order, 0..) |o, i| {
+                    names[i] = label_names[o];
+                    values[i] = node.labels[o];
+                }
+                try writeLabels(w, &names, &values, null);
                 try w.writeByte(' ');
                 try writeValue(w, sum(node));
             }
@@ -330,18 +357,31 @@ pub fn writeValue(w: *std.Io.Writer, value: f64) !void {
 
 pub const PoolMetrics = struct { idle: f64 = 0, limit: f64 = 0, total: f64 = 0, waiting: f64 = 0 };
 
-/// `DatabaseMetricsSnapshot`; pools enumerate `live` then `main` like TS.
+/// `DatabaseMetricsSnapshot`; pools enumerate `live`, `main`, `validator`
+/// (the TS object literal's order).
 pub const DatabaseMetricsSnapshot = struct {
     listeners: f64 = 0,
-    pools: struct { live: PoolMetrics = .{}, main: PoolMetrics = .{} } = .{},
+    pools: struct { live: PoolMetrics = .{}, main: PoolMetrics = .{}, validator: PoolMetrics = .{} } = .{},
 };
 
-pub const RouteCounts = struct { agent: f64 = 0, messages: f64 = 0 };
+pub const RouteCounts = struct { agent: f64 = 0, messages: f64 = 0, validators: f64 = 0 };
+
+/// One `validatorSubscriptions` entry: active subscriptions on a domain by
+/// canonical/custom policy.
+pub const ValidatorSubscription = struct { domain: u32, canonical: f64 = 0, custom: f64 = 0 };
 
 /// `WebSocketMetricsSnapshot`; `subscriptions` field order matches the TS
 /// object literal (delivery, dispatch, gas_payment, merkle_tree_insertion).
 pub const WebSocketMetricsSnapshot = struct {
     connections: RouteCounts = .{},
+    validatorPendingSetups: f64 = 0,
+    validatorReservedConnections: f64 = 0,
+    validatorSharedReaders: f64 = 0,
+    /// In the provider's order (one gauge series pair per entry); allocated
+    /// from the allocator the provider is given.
+    validatorSubscriptions: []const ValidatorSubscription = &.{},
+    validatorClientIps: f64 = 0,
+    validatorMaxConnectionsPerIp: f64 = 0,
     explorerPendingBytes: f64 = 0,
     explorerPendingMessages: f64 = 0,
     maxExplorerPendingBytes: f64 = 0,
@@ -355,6 +395,10 @@ pub const WebSocketMetricsSnapshot = struct {
         explorerPendingMessages: f64 = 0,
         messageConnections: f64 = 0,
         messageConnectionsPerIp: f64 = 0,
+        validatorConnections: f64 = 0,
+        validatorSetups: f64 = 0,
+        validatorConnectionsPerIp: f64 = 0,
+        validatorMessageBytes: f64 = 0,
         notificationEvents: f64 = 0,
         socketBufferedBytes: f64 = 0,
         totalPendingBytes: f64 = 0,
@@ -376,7 +420,11 @@ pub fn Provider(comptime T: type) type {
     return struct { ctx: *anyopaque, snapshot: *const fn (ctx: *anyopaque) T };
 }
 pub const DatabaseMetricsProvider = Provider(DatabaseMetricsSnapshot);
-pub const WebSocketMetricsProvider = Provider(WebSocketMetricsSnapshot);
+/// Its snapshot's slices come from `a` (the scrape's arena).
+pub const WebSocketMetricsProvider = struct {
+    ctx: *anyopaque,
+    snapshot: *const fn (ctx: *anyopaque, a: std.mem.Allocator) std.mem.Allocator.Error!WebSocketMetricsSnapshot,
+};
 
 var provider_mutex: std.Thread.Mutex = .{};
 var database_provider: ?DatabaseMetricsProvider = null;
@@ -406,6 +454,7 @@ pub const DatabaseQueryRole = enum {
     graphql_primary,
     graphql_replica,
     live_primary,
+    validator_primary,
     pub fn label(self: DatabaseQueryRole) []const u8 {
         return @tagName(self);
     }
@@ -435,16 +484,21 @@ pub fn init() void {
 
 fn initMetrics() void {
     process.init();
-    for ([_][]const u8{ "graphql_primary", "graphql_replica", "live_primary" }) |role| {
+    for ([_][]const u8{ "graphql_primary", "graphql_replica", "live_primary", "validator_primary" }) |role| {
         for ([_][]const u8{ "error", "success" }) |outcome| database_queries.inc(.{ outcome, role }, 0);
         database_rows.inc(.{role}, 0);
     }
     for ([_][]const u8{ "buffer_limit", "notification_queue_limit", "queue_limit", "send_error" }) |reason| websocket_send_failures.inc(.{reason}, 0);
-    for ([_][]const u8{ "agent", "messages" }) |route| {
+    for ([_][]const u8{ "agent", "messages", "validators" }) |route| {
         for ([_][]const u8{ "connection_limit", "listener_unavailable" }) |reason| websocket_connection_rejections.inc(.{ reason, route }, 0);
     }
-    for ([_][]const u8{ "invalid_client_ip", "per_ip_limit" }) |reason| websocket_connection_rejections.inc(.{ reason, "messages" }, 0);
-    for ([_][]const u8{ "agent", "messages" }) |route| websocket_notification_queue_overflows.inc(.{route}, 0);
+    for ([_][]const u8{ "messages", "validators" }) |route| {
+        for ([_][]const u8{ "invalid_client_ip", "per_ip_limit" }) |reason| websocket_connection_rejections.inc(.{ reason, route }, 0);
+    }
+    websocket_connections.inc(.{"validators"}, 0);
+    // TS: `inc({ route: 'validators', reason: 'invalid_subscription' }, 0)`.
+    websocket_connection_rejections.incOrdered(.{ "invalid_subscription", "validators" }, 0, .{ 1, 0 });
+    for ([_][]const u8{ "agent", "messages", "validators" }) |route| websocket_notification_queue_overflows.inc(.{route}, 0);
 }
 
 /// `metricsRegistry.metrics()`.
@@ -453,11 +507,15 @@ pub fn render(a: std.mem.Allocator) std.mem.Allocator.Error![]u8 {
     // The exposition is ~17-25 KiB; size once instead of growing.
     var out: std.Io.Writer.Allocating = try .initCapacity(a, 32 * 1024);
     errdefer out.deinit();
-    renderTo(&out.writer) catch return error.OutOfMemory;
+    // The WebSocket snapshot's slices live until the text is written.
+    var snapshot_arena = std.heap.ArenaAllocator.init(a);
+    defer snapshot_arena.deinit();
+    renderTo(snapshot_arena.allocator(), &out.writer) catch return error.OutOfMemory;
     return out.toOwnedSlice();
 }
 
-pub fn renderTo(w: *std.Io.Writer) std.Io.Writer.Error!void {
+/// `a`: the WebSocket provider's snapshot allocations (an arena is best).
+pub fn renderTo(a: std.mem.Allocator, w: *std.Io.Writer) (std.Io.Writer.Error || std.mem.Allocator.Error)!void {
     try process.render(w);
     try graphql_active_requests.render(w);
     try w.writeAll("\n\n");
@@ -479,13 +537,12 @@ pub fn renderTo(w: *std.Io.Writer) std.Io.Writer.Error!void {
     try w.writeAll("\n\n");
     try websocket_connection_rejections.render(w);
     try w.writeAll("\n\n");
-    try w.writeAll("\n\n");
     try websocket_client_message_rejections.render(w);
     try w.writeAll("\n\n");
     try websocket_send_failures.render(w);
     try w.writeAll("\n\n");
     try websocket_notification_queue_overflows.render(w);
-    try renderSnapshotGauges(w);
+    try renderSnapshotGauges(a, w);
     try w.writeByte('\n');
 }
 
@@ -508,7 +565,7 @@ fn snapshotGauge(w: *std.Io.Writer, comptime name: []const u8, help: []const u8,
     }
 }
 
-fn renderSnapshotGauges(w: *std.Io.Writer) !void {
+fn renderSnapshotGauges(a: std.mem.Allocator, w: *std.Io.Writer) !void {
     provider_mutex.lock();
     const dbp = database_provider;
     const wsp = websocket_provider;
@@ -524,18 +581,22 @@ fn renderSnapshotGauges(w: *std.Io.Writer) !void {
         .{ .labels = &.{ "live", "idle" }, .value = d.pools.live.idle },
         .{ .labels = &.{ "main", "active" }, .value = d.pools.main.total - d.pools.main.idle },
         .{ .labels = &.{ "main", "idle" }, .value = d.pools.main.idle },
+        .{ .labels = &.{ "validator", "active" }, .value = d.pools.validator.total - d.pools.validator.idle },
+        .{ .labels = &.{ "validator", "idle" }, .value = d.pools.validator.idle },
     }, has_db);
     try snapshotGauge(w, "database_pool_connection_limit", "Maximum database connections by pool.", &pool, &.{
         .{ .labels = &.{"live"}, .value = d.pools.live.limit },
         .{ .labels = &.{"main"}, .value = d.pools.main.limit },
+        .{ .labels = &.{"validator"}, .value = d.pools.validator.limit },
     }, has_db);
     try snapshotGauge(w, "database_pool_waiting_requests", "Current requests waiting for a database connection by pool.", &pool, &.{
         .{ .labels = &.{"live"}, .value = d.pools.live.waiting },
         .{ .labels = &.{"main"}, .value = d.pools.main.waiting },
+        .{ .labels = &.{"validator"}, .value = d.pools.validator.waiting },
     }, has_db);
     try snapshotGauge(w, "database_listener_connections", "Current dedicated PostgreSQL listener connections.", &.{}, &.{.{ .value = d.listeners }}, has_db);
 
-    const ws_snapshot: ?WebSocketMetricsSnapshot = if (wsp) |p| p.snapshot(p.ctx) else null;
+    const ws_snapshot: ?WebSocketMetricsSnapshot = if (wsp) |p| try p.snapshot(p.ctx, a) else null;
     const s = ws_snapshot orelse WebSocketMetricsSnapshot{};
     const has = ws_snapshot != null;
     const route = [_][]const u8{"route"};
@@ -543,11 +604,31 @@ fn renderSnapshotGauges(w: *std.Io.Writer) !void {
     try snapshotGauge(w, "websocket_connections", "Current WebSocket connections by route.", &route, &.{
         .{ .labels = &.{"agent"}, .value = s.connections.agent },
         .{ .labels = &.{"messages"}, .value = s.connections.messages },
+        .{ .labels = &.{"validators"}, .value = s.connections.validators },
     }, has);
     try snapshotGauge(w, "websocket_connection_limit", "Maximum WebSocket connections by route.", &route, &.{
         .{ .labels = &.{"agent"}, .value = s.limits.agentConnections },
         .{ .labels = &.{"messages"}, .value = s.limits.messageConnections },
+        .{ .labels = &.{"validators"}, .value = s.limits.validatorConnections },
     }, has);
+    try snapshotGauge(w, "websocket_validator_pending_setups", "Validator negotiations awaiting database reads, including disconnected clients.", &none, &.{.{ .value = s.validatorPendingSetups }}, has);
+    try snapshotGauge(w, "websocket_validator_connection_limit_per_ip", "Maximum /validators WebSocket connections per client IP.", &none, &.{.{ .value = s.limits.validatorConnectionsPerIp }}, has);
+    {
+        // One canonical and one custom series per domain, in snapshot order.
+        const series = try a.alloc(SnapshotSeries, s.validatorSubscriptions.len * 2);
+        for (s.validatorSubscriptions, 0..) |sub, i| {
+            const domain = try std.fmt.allocPrint(a, "{d}", .{sub.domain});
+            series[2 * i] = .{ .labels = try a.dupe([]const u8, &.{ domain, "canonical" }), .value = sub.canonical };
+            series[2 * i + 1] = .{ .labels = try a.dupe([]const u8, &.{ domain, "custom" }), .value = sub.custom };
+        }
+        try snapshotGauge(w, "websocket_validator_subscriptions", "Active validator subscriptions by domain and canonical/custom policy.", &.{ "domain", "policy" }, series, has);
+    }
+    try snapshotGauge(w, "websocket_validator_setup_limit", "Maximum unfinished validator setups.", &none, &.{.{ .value = s.limits.validatorSetups }}, has);
+    try snapshotGauge(w, "websocket_validator_reserved_connections", "Validator connection reservations, including closing sockets and unfinished setups.", &none, &.{.{ .value = s.validatorReservedConnections }}, has);
+    try snapshotGauge(w, "websocket_validator_shared_readers", "Active shared domain/confirmation readers.", &none, &.{.{ .value = s.validatorSharedReaders }}, has);
+    try snapshotGauge(w, "websocket_validator_client_ips", "Current number of distinct validator client IPs.", &none, &.{.{ .value = s.validatorClientIps }}, has);
+    try snapshotGauge(w, "websocket_validator_max_connections_per_ip", "Largest current validator connection count for one client IP.", &none, &.{.{ .value = s.validatorMaxConnectionsPerIp }}, has);
+    try snapshotGauge(w, "websocket_validator_client_message_limit_bytes", "Maximum inbound validator WebSocket message size.", &none, &.{.{ .value = s.limits.validatorMessageBytes }}, has);
     try snapshotGauge(w, "websocket_message_client_ips", "Current number of distinct /messages client IPs.", &none, &.{.{ .value = s.messageClientIps }}, has);
     try snapshotGauge(w, "websocket_message_connection_limit_per_ip", "Maximum /messages WebSocket connections per client IP.", &none, &.{.{ .value = s.limits.messageConnectionsPerIp }}, has);
     try snapshotGauge(w, "websocket_message_max_connections_per_ip", "Largest current /messages connection count for one client IP.", &none, &.{.{ .value = s.messageMaxConnectionsPerIp }}, has);
@@ -563,10 +644,12 @@ fn renderSnapshotGauges(w: *std.Io.Writer) !void {
     try snapshotGauge(w, "websocket_notification_queue", "Current queued database notifications by route.", &route, &.{
         .{ .labels = &.{"agent"}, .value = s.notificationQueue.agent },
         .{ .labels = &.{"messages"}, .value = s.notificationQueue.messages },
+        .{ .labels = &.{"validators"}, .value = s.notificationQueue.validators },
     }, has);
     try snapshotGauge(w, "websocket_notification_queue_limit", "Maximum queued PostgreSQL notifications before route clients are closed.", &route, &.{
         .{ .labels = &.{"agent"}, .value = s.limits.notificationEvents },
         .{ .labels = &.{"messages"}, .value = s.limits.notificationEvents },
+        .{ .labels = &.{"validators"}, .value = s.limits.notificationEvents },
     }, has);
     try snapshotGauge(w, "websocket_explorer_pending_bytes", "Current serialized Explorer bytes queued behind send callbacks.", &none, &.{.{ .value = s.explorerPendingBytes }}, has);
     try snapshotGauge(w, "websocket_explorer_max_pending_bytes", "Largest current serialized Explorer byte queue for one client.", &none, &.{.{ .value = s.maxExplorerPendingBytes }}, has);
@@ -733,11 +816,19 @@ const TestProviders = struct {
         return .{ .listeners = 1, .pools = .{
             .live = .{ .idle = 1, .limit = 10, .total = 2, .waiting = 0 },
             .main = .{ .idle = 3, .limit = 10, .total = 5, .waiting = 2 },
+            .validator = .{ .idle = 0, .limit = 5, .total = 5, .waiting = 7 },
         } };
     }
-    fn ws(_: *anyopaque) WebSocketMetricsSnapshot {
+    var validator_subscriptions: []const ValidatorSubscription = &.{.{ .domain = 1, .canonical = 1, .custom = 1 }};
+    fn ws(_: *anyopaque, a: std.mem.Allocator) std.mem.Allocator.Error!WebSocketMetricsSnapshot {
         return .{
-            .connections = .{ .agent = 3, .messages = 4 },
+            .connections = .{ .agent = 3, .messages = 4, .validators = 2 },
+            .validatorPendingSetups = 1,
+            .validatorReservedConnections = 2,
+            .validatorSharedReaders = 1,
+            .validatorSubscriptions = try a.dupe(ValidatorSubscription, validator_subscriptions),
+            .validatorClientIps = 1,
+            .validatorMaxConnectionsPerIp = 2,
             .explorerPendingBytes = 1_024,
             .explorerPendingMessages = 9,
             .maxExplorerPendingBytes = 512,
@@ -751,13 +842,17 @@ const TestProviders = struct {
                 .explorerPendingMessages = 2_000,
                 .messageConnections = 400,
                 .messageConnectionsPerIp = 5,
+                .validatorConnections = 500,
+                .validatorSetups = 32,
+                .validatorConnectionsPerIp = 5,
+                .validatorMessageBytes = 1024,
                 .notificationEvents = 10_000,
                 .socketBufferedBytes = 1_024,
                 .totalPendingBytes = 4_096,
             },
             .listenerReady = true,
             .maxClientBufferedBytes = 128,
-            .notificationQueue = .{ .agent = 6, .messages = 7 },
+            .notificationQueue = .{ .agent = 6, .messages = 7, .validators = 8 },
             .outboundPendingBytes = 256,
             .subscriptions = .{
                 .delivery = 1,
@@ -786,6 +881,17 @@ test "serves current usage and limits (metrics.test.ts)" {
     defer testing.allocator.free(output);
     const p = prefix;
     try expectContains(output, p ++ "websocket_connections{route=\"agent\"} 3\n");
+    try expectContains(output, p ++ "websocket_connections{route=\"validators\"} 2\n");
+    try expectContains(output, p ++ "websocket_connection_limit{route=\"validators\"} 500\n");
+    try expectContains(output, p ++ "websocket_validator_pending_setups 1\n");
+    try expectContains(output, p ++ "websocket_validator_subscriptions{domain=\"1\",policy=\"canonical\"} 1\n");
+    try expectContains(output, p ++ "websocket_validator_subscriptions{domain=\"1\",policy=\"custom\"} 1\n");
+    try expectContains(output, p ++ "websocket_validator_setup_limit 32\n");
+    try expectContains(output, "websocket_validator_reserved_connections 2\n");
+    try expectContains(output, "websocket_validator_shared_readers 1\n");
+    try expectContains(output, p ++ "websocket_validator_client_ips 1\n");
+    try expectContains(output, p ++ "websocket_validator_max_connections_per_ip 2\n");
+    try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n");
     try expectContains(output, p ++ "websocket_connection_limit{route=\"messages\"} 400\n");
     try expectContains(output, p ++ "websocket_subscriptions{event_type=\"dispatch\"} 2\n");
     try expectContains(output, p ++ "websocket_outbound_pending_bytes 256\n");
@@ -803,21 +909,36 @@ test "serves current usage and limits (metrics.test.ts)" {
             return error.TestUnexpectedSeries;
         }
     }
-    for ([_][]const u8{ "agent", "messages" }) |route| {
+    for ([_][]const u8{ "agent", "messages", "validators" }) |route| {
         var buf: [256]u8 = undefined;
         try expectContains(output, try std.fmt.bufPrint(&buf, "websocket_notification_queue_overflows_total{{route=\"{s}\"}} 0\n", .{route}));
         for ([_][]const u8{ "connection_limit", "listener_unavailable" }) |reason| {
             try expectContains(output, try std.fmt.bufPrint(&buf, "websocket_connection_rejections_total{{reason=\"{s}\",route=\"{s}\"}} 0\n", .{ reason, route }));
         }
     }
-    for ([_][]const u8{ "invalid_client_ip", "per_ip_limit" }) |reason| {
+    for ([_][]const u8{ "messages", "validators" }) |route| for ([_][]const u8{ "invalid_client_ip", "per_ip_limit" }) |reason| {
         var buf: [256]u8 = undefined;
-        try expectContains(output, try std.fmt.bufPrint(&buf, "websocket_connection_rejections_total{{reason=\"{s}\",route=\"messages\"}} 0\n", .{reason}));
-    }
+        try expectContains(output, try std.fmt.bufPrint(&buf, "websocket_connection_rejections_total{{reason=\"{s}\",route=\"{s}\"}} 0\n", .{ reason, route }));
+    };
+    // TS increments this one with `route` first, and prom-client keeps it.
+    try expectContains(output, p ++ "websocket_connection_rejections_total{route=\"validators\",reason=\"invalid_subscription\"} 0\n");
+    try expectContains(output, p ++ "websocket_connections_total{route=\"validators\"} 0\n");
+    try expectContains(output, p ++ "database_queries_total{outcome=\"success\",role=\"validator_primary\"} 0\n");
     try expectContains(output, p ++ "database_pool_connections{pool=\"main\",state=\"active\"} 2\n");
     try expectContains(output, p ++ "database_pool_waiting_requests{pool=\"main\"} 2\n");
+    try expectContains(output, p ++ "database_pool_waiting_requests{pool=\"validator\"} 7\n");
+    try expectContains(output, p ++ "database_pool_connection_limit{pool=\"validator\"} 5\n");
     try expectContains(output, p ++ "process_cpu");
+    try expectContains(output, "websocket_notification_queue{route=\"validators\"} 8\n");
     try testing.expect(std.mem.endsWith(u8, output, p ++ "websocket_client_buffered_byte_limit 1024\n"));
+
+    // No validator subscriptions: no per-domain series.
+    const saved = TestProviders.validator_subscriptions;
+    defer TestProviders.validator_subscriptions = saved;
+    TestProviders.validator_subscriptions = &.{};
+    const empty = try render(testing.allocator);
+    defer testing.allocator.free(empty);
+    try testing.expect(std.mem.indexOf(u8, empty, "websocket_validator_subscriptions{domain=") == null);
 }
 
 test "exposition format matches prom-client for counters, histograms and escaping" {

@@ -226,12 +226,15 @@ pub const sql = struct {
         " FROM \"message_view\" WHERE \"msg_id\" = ANY($1::bytea[]) AND \"send_occurred_at\" IS NOT NULL";
     pub const confirmation_heads = "SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])";
     const live_start_columns = "encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster";
-    /// `confirmationHeads(domains, confirmations)`: the last retained
-    /// checkpoint at or below each domain's confirmation frontier.
-    pub const confirmation_heads_live_start = "SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,\n                  c.height::text AS height, " ++
-        live_start_columns ++ "\n           FROM scraper_head h LEFT JOIN LATERAL (\n             SELECT height, hash FROM scraper_checkpoint\n" ++
-        "             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-$2::bigint)\n             ORDER BY height DESC LIMIT 1\n" ++
-        "           ) c ON h.healthy AND NOT h.halted\n           WHERE h.domain=ANY($1::integer[])";
+    /// `confirmationSnapshots(policies)`: every requested domain/policy pair
+    /// in one statement, each with the last retained checkpoint at or below
+    /// its confirmation frontier.
+    pub const confirmation_snapshots = "SELECT h.domain, h.head_height, h.indexed_height, h.confirmed_height,\n                  requested.confirmations, c.height::text AS height, " ++
+        live_start_columns ++ "\n           FROM unnest($1::integer[], $2::bigint[]) requested(domain, confirmations)\n           JOIN scraper_head h ON h.domain=requested.domain\n" ++
+        "           LEFT JOIN LATERAL (\n             SELECT height, hash FROM scraper_checkpoint\n" ++
+        "             WHERE domain=h.domain AND height<=LEAST(h.indexed_height,h.head_height-requested.confirmations)\n             ORDER BY height DESC LIMIT 1\n" ++
+        "           ) c ON h.healthy AND NOT h.halted";
+    pub const domain_exists = "SELECT id FROM domain WHERE id=$1";
     const live_start_boundaries_prefix = "SELECT h.domain, c.height::text AS height, " ++ live_start_columns ++
         "\n       FROM scraper_head h JOIN scraper_checkpoint c\n         ON c.domain=h.domain AND c.height=h.confirmed_height\n       WHERE h.healthy AND NOT h.halted\n         ";
     pub const live_start_boundaries = live_start_boundaries_prefix;
@@ -583,23 +586,104 @@ pub const EventStore = struct {
         return boundaries;
     }
 
-    /// `confirmationHeads(domains, confirmations?)`. With confirmations, each
-    /// head carries the live start of its custom stream.
-    pub fn confirmationHeads(self: *EventStore, allocator: Allocator, domains: []const u32, confirmations: ?u64) !cs.Heads {
+    /// `confirmationHeads(domains)`: the plain head read (custom streams
+    /// read `confirmationSnapshots`).
+    pub fn confirmationHeads(self: *EventStore, allocator: Allocator, domains: []const u32) !cs.Heads {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
-        const statement = try confirmationHeadsQuery(arena.allocator(), domains, confirmations);
+        const statement = try confirmationHeadsQuery(arena.allocator(), domains);
         return parseConfirmationHeads(allocator, try self.query(arena.allocator(), statement.sql, statement.params));
     }
 
     /// `confirmationHeads`' statement (parameters in `arena`).
-    pub fn confirmationHeadsQuery(arena: Allocator, domains: []const u32, confirmations: ?u64) Allocator.Error!Statement {
-        if (confirmations) |count|
-            return .{ .sql = sql.confirmation_heads_live_start, .params = try arena.dupe(Value, &.{ try domainArray(arena, domains), json.int(count) }) };
+    pub fn confirmationHeadsQuery(arena: Allocator, domains: []const u32) Allocator.Error!Statement {
         return .{ .sql = sql.confirmation_heads, .params = try arena.dupe(Value, &.{try domainArray(arena, domains)}) };
     }
 
     pub const Statement = struct { sql: []const u8, params: []const Value };
+
+    /// `domainExists(domain)`.
+    pub fn domainExists(self: *EventStore, domain: u32) !bool {
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const statement = try domainExistsQuery(arena.allocator(), domain);
+        return (try self.query(arena.allocator(), statement.sql, statement.params)).len > 0;
+    }
+
+    pub fn domainExistsQuery(arena: Allocator, domain: u32) Allocator.Error!Statement {
+        return .{ .sql = sql.domain_exists, .params = try arena.dupe(Value, &.{storedDomainValue(domain)}) };
+    }
+
+    /// One `confirmationSnapshots` policy: a confirmation count and its
+    /// domains (JS `Set` order). Policies are distinct and in `Map` order.
+    pub const Policy = struct { confirmations: u64, domains: []const u32 };
+
+    /// `confirmationSnapshots(policies)`: one heads map per policy, aligned
+    /// with `policies` (allocated with `allocator`).
+    pub fn confirmationSnapshots(self: *EventStore, allocator: Allocator, policies: []const Policy) ![]cs.Heads {
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const statement = try confirmationSnapshotsQuery(arena.allocator(), policies) orelse
+            return parseConfirmationSnapshots(allocator, policies, &.{});
+        return parseConfirmationSnapshots(allocator, policies, try self.query(arena.allocator(), statement.sql, statement.params));
+    }
+
+    /// `confirmationSnapshots`' statement, or null when no pair is requested
+    /// (TS returns the empty maps without a query).
+    pub fn confirmationSnapshotsQuery(arena: Allocator, policies: []const Policy) Allocator.Error!?Statement {
+        var domains: std.ArrayList(Value) = .empty;
+        var counts: std.ArrayList(Value) = .empty;
+        for (policies) |policy| for (policy.domains) |domain| {
+            try domains.append(arena, storedDomainValue(domain));
+            try counts.append(arena, json.int(policy.confirmations));
+        };
+        if (domains.items.len == 0) return null;
+        return .{ .sql = sql.confirmation_snapshots, .params = try arena.dupe(Value, &.{ .{ .array = domains.items }, .{ .array = counts.items } }) };
+    }
+
+    /// `confirmationSnapshots`' rows → one heads map per policy.
+    pub fn parseConfirmationSnapshots(allocator: Allocator, policies: []const Policy, rows: []const Value) ![]cs.Heads {
+        const snapshots = try allocator.alloc(cs.Heads, policies.len);
+        for (snapshots) |*heads| heads.* = .empty;
+        errdefer {
+            for (snapshots) |*heads| heads.deinit(allocator);
+            allocator.free(snapshots);
+        }
+        for (rows) |row| {
+            // `snapshots.get(Number(row.confirmations))`.
+            const count = rowNumber(row.get("confirmations"));
+            const index = for (policies, 0..) |policy, i| {
+                if (count != null and @as(f64, @floatFromInt(policy.confirmations)) == count.?) break i;
+            } else return fail("Unexpected confirmation policy", .{});
+            var diag: protocol.Diag = .{};
+            const domain = protocol.parseDatabaseDomain(row.get("domain"), "", &diag) catch return fail("Invalid head domain", .{});
+            try snapshots[index].put(allocator, domain, try confirmationHead(row));
+        }
+        return snapshots;
+    }
+
+    /// `confirmationHead(row)`.
+    fn confirmationHead(row: Value) !cs.ConfirmationHead {
+        return .{
+            .head = try parseId(row.get("head_height")),
+            .indexed = try parseId(row.get("indexed_height")),
+            .confirmed = try parseId(row.get("confirmed_height")),
+            .live_start = liveStartBoundary(row),
+        };
+    }
+
+    /// `Number(value)` for a row value (number or numeric text); null for
+    /// NaN (absent, null or non-numeric).
+    fn rowNumber(value: ?Value) ?f64 {
+        const present = value orelse return null;
+        return switch (present) {
+            .number => |number| number,
+            .raw, .string => |text| std.fmt.parseFloat(f64, std.mem.trim(u8, text, " \t\n\r")) catch null,
+            .bool => |flag| if (flag) 1 else 0,
+            .null => 0,
+            else => null,
+        };
+    }
 
     /// `blockHeads`' statement (parameters in `arena`).
     pub fn blockHeadsQuery(arena: Allocator, domains: ?[]const u32) Allocator.Error!Statement {
@@ -615,12 +699,7 @@ pub const EventStore = struct {
             var diag: protocol.Diag = .{};
             const domain = protocol.parseDatabaseDomain(row.get("domain"), "", &diag) catch return fail("Invalid head domain", .{});
             // `new Map(rows.map(...))`: a later duplicate replaces the value in place.
-            try heads.put(allocator, domain, .{
-                .head = try parseId(row.get("head_height")),
-                .indexed = try parseId(row.get("indexed_height")),
-                .confirmed = try parseId(row.get("confirmed_height")),
-                .live_start = liveStartBoundary(row),
-            });
+            try heads.put(allocator, domain, try confirmationHead(row));
         }
         return heads;
     }

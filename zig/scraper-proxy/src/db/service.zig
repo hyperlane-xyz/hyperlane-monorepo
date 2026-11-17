@@ -15,6 +15,8 @@ const Role = metrics.DatabaseQueryRole;
 
 pub const MIN_POOL_CLIENTS = 5;
 pub const MAX_POOL_CLIENTS = 10;
+/// The validator WebSocket's pool (#10061): bounded apart from the live pool.
+pub const MAX_VALIDATOR_POOL_CLIENTS = 5;
 pub const STATS_INTERVAL_MS = 60_000;
 pub const IDLE_TIMEOUT_MS = 300_000;
 
@@ -48,6 +50,7 @@ pub const DbService = struct {
     mutex: std.Thread.Mutex = .{},
     main_pool: ?*pool_mod.Pool = null,
     live_pool: ?*pool_mod.Pool = null,
+    validator_pool: ?*pool_mod.Pool = null,
     listeners: std.ArrayList(*listener_mod.Listener) = .empty,
     /// Disconnected listeners awaiting `unlisten`/`close`.
     retired: std.ArrayList(*listener_mod.Listener) = .empty,
@@ -180,7 +183,7 @@ pub const DbService = struct {
         if (first_error) |e| return e;
     }
 
-    /// `close()`: listeners, live pool, main pool.
+    /// `close()`: listeners, live pool, validator pool, main pool.
     pub fn close(self: *DbService) !void {
         self.stats_mutex.lock();
         self.closing = true;
@@ -209,8 +212,10 @@ pub const DbService = struct {
         var retired = self.retired;
         self.retired = .empty;
         const live = self.live_pool;
+        const validator = self.validator_pool;
         const main = self.main_pool;
         self.live_pool = null;
+        self.validator_pool = null;
         self.main_pool = null;
         self.mutex.unlock();
         for (listeners.items) |l| self.stopListener(l);
@@ -219,6 +224,7 @@ pub const DbService = struct {
         retired.deinit(self.gpa);
         // Pools wait for (bounded) checked-out connections before freeing.
         if (live) |p| p.deinit();
+        if (validator) |p| p.deinit();
         if (main) |p| p.deinit();
         if (!self.leaked) {
             for (self.idle_hooks.items) |h| self.gpa.destroy(h);
@@ -233,7 +239,11 @@ pub const DbService = struct {
         defer self.mutex.unlock();
         return .{
             .listeners = @floatFromInt(self.listeners.items.len),
-            .pools = .{ .live = poolMetrics(self.live_pool), .main = poolMetrics(self.main_pool) },
+            .pools = .{
+                .live = poolMetrics(self.live_pool, MAX_POOL_CLIENTS),
+                .main = poolMetrics(self.main_pool, MAX_POOL_CLIENTS),
+                .validator = poolMetrics(self.validator_pool, MAX_VALIDATOR_POOL_CLIENTS),
+            },
         };
     }
 
@@ -257,6 +267,13 @@ pub const DbService = struct {
     /// (`pq.Plan.reusable`): unique-key lookups and fixed SQL.
     pub fn queryReusable(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
         return self.run(.main, self.main_role, arena, sql, params, .{ .plan = .reusable }, failure);
+    }
+
+    /// The validator WebSocket's reads on the primary (`validator_primary`;
+    /// own pool of `MAX_VALIDATOR_POOL_CLIENTS`, queued checkouts time out
+    /// after DATABASE_QUERY_TIMEOUT_MS like TS's connectionTimeoutMillis).
+    pub fn queryValidator(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
+        return self.run(.validator, .validator_primary, arena, sql, params, .{}, failure);
     }
 
     /// Live workload on the primary (`live_primary`).
@@ -380,27 +397,39 @@ pub const DbService = struct {
         };
     }
 
-    const PoolKind = enum { main, live };
+    const PoolKind = enum { main, live, validator };
 
     fn pool(self: *DbService, kind: PoolKind) Error!*pool_mod.Pool {
         self.mutex.lock();
         defer self.mutex.unlock();
-        const slot = if (kind == .main) &self.main_pool else &self.live_pool;
+        const slot = switch (kind) {
+            .main => &self.main_pool,
+            .live => &self.live_pool,
+            .validator => &self.validator_pool,
+        };
         if (slot.*) |p| return p;
         // No resurrection after close (TS would lazily recreate the pool).
         if (self.ended) return error.PoolClosed;
         const replica = self.config.database_read_replica_url;
         const conninfo = if (kind == .main) replica orelse self.config.database_url else self.config.database_url;
-        const timeout: ?u64 = if (kind == .main and replica != null) self.config.database_query_timeout_ms else null;
+        const timeout: ?u64 = switch (kind) {
+            .main => if (replica != null) self.config.database_query_timeout_ms else null,
+            .live => null,
+            .validator => self.config.database_query_timeout_ms,
+        };
         const hook = try self.gpa.create(IdleHook);
-        hook.* = .{ .service = self, .role = if (kind == .main) self.main_role else .live_primary };
+        hook.* = .{ .service = self, .role = switch (kind) {
+            .main => self.main_role,
+            .live => .live_primary,
+            .validator => .validator_primary,
+        } };
         self.idle_hooks.append(self.gpa, hook) catch {
             self.gpa.destroy(hook);
             return error.OutOfMemory;
         };
         slot.* = pool_mod.Pool.init(self.gpa, .{
             .conn = self.connOptions(conninfo, timeout),
-            .max = MAX_POOL_CLIENTS,
+            .max = if (kind == .validator) MAX_VALIDATOR_POOL_CLIENTS else MAX_POOL_CLIENTS,
             .min = if (kind == .main) MIN_POOL_CLIENTS else 0,
             .idle_timeout_ms = IDLE_TIMEOUT_MS,
             .on_idle_error = .{ .ctx = hook, .func = IdleHook.call },
@@ -576,6 +605,7 @@ pub const DbService = struct {
         defer self.mutex.unlock();
         if (self.main_pool) |p| self.logger.info("db pool hold pool=main {f}", .{&p.hold});
         if (self.live_pool) |p| self.logger.info("db pool hold pool=live {f}", .{&p.hold});
+        if (self.validator_pool) |p| self.logger.info("db pool hold pool=validator {f}", .{&p.hold});
     }
 };
 
@@ -584,9 +614,9 @@ pub fn jsRound(x: f64) i64 {
     return @intFromFloat(@floor(x + 0.5));
 }
 
-fn poolMetrics(p: ?*pool_mod.Pool) metrics.PoolMetrics {
+fn poolMetrics(p: ?*pool_mod.Pool, limit: u32) metrics.PoolMetrics {
     const s: pool_mod.Stats = if (p) |x| x.stats() else .{ .total = 0, .idle = 0, .waiting = 0 };
-    return .{ .idle = @floatFromInt(s.idle), .limit = MAX_POOL_CLIENTS, .total = @floatFromInt(s.total), .waiting = @floatFromInt(s.waiting) };
+    return .{ .idle = @floatFromInt(s.idle), .limit = @floatFromInt(limit), .total = @floatFromInt(s.total), .waiting = @floatFromInt(s.waiting) };
 }
 
 /// `queryDetails(text, values)`: `sql=<whitespace-collapsed> values=<json>`.

@@ -138,8 +138,8 @@ fn abort(socket: *server_mod.UpgradeSocket, code: u16, message: []const u8, extr
     const text = std.fmt.bufPrint(&buf, "HTTP/1.1 {d} {s}\r\nConnection: close\r\nContent-Type: text/html\r\nContent-Length: {d}\r\n{s}\r\n{s}", .{
         code, server_mod.statusText(code), message.len, extra orelse "", message,
     }) catch return null;
-    _ = server_mod.writeFd(socket.fd, text);
-    socket.destroy();
+    // Copied: the connection writes it after `on_upgrade` returns.
+    socket.endWith(text);
     return null;
 }
 

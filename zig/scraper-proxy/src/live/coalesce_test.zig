@@ -736,7 +736,7 @@ const StreamDb = struct {
         const self: *StreamDb = @ptrCast(@alignCast(ctx));
         var rows: std.ArrayList(json.Value) = .empty;
         if (std.mem.indexOf(u8, sql, "SELECT h.domain, h.head_height") != null) {
-            try rows.append(arena, try json.parse(arena, "{\"domain\":1,\"head_height\":\"0\",\"indexed_height\":\"0\",\"confirmed_height\":\"0\",\"height\":null}", .{}));
+            try rows.append(arena, try json.parse(arena, "{\"domain\":1,\"head_height\":\"0\",\"indexed_height\":\"0\",\"confirmed_height\":\"0\",\"confirmations\":\"0\",\"height\":null}", .{}));
             return rows.items;
         }
         if (std.mem.indexOf(u8, sql, "\"event_row\".\"id\" = ANY") != null) {

@@ -39,9 +39,15 @@ await run('liveStartBoundaries:domains', () =>
 await run('confirmationHeads', () =>
   store.confirmationHeads(new Set([1, 4294967295])),
 );
-await run('confirmationHeads:confirmations', () =>
-  store.confirmationHeads(new Set([1, 4294967295]), 3),
+await run('confirmationSnapshots', () =>
+  store.confirmationSnapshots(
+    new Map([
+      [3, new Set([1, 4294967295])],
+      [0, new Set([1])],
+    ]),
+  ),
 );
+await run('domainExists', () => store.domainExists(4294967295));
 await run('canonicalMessages', () =>
   store.canonicalMessages(['\\x' + 'ab'.repeat(32)]),
 );

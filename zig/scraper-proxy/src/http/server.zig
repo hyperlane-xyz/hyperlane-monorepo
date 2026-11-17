@@ -42,15 +42,33 @@ pub const UpgradeSocket = struct {
     /// Bytes received after the request head (Node `head`).
     head: []const u8,
     remote_address: std.net.Address,
+    /// The request's arena (`endWith` copies into it).
+    arena: std.mem.Allocator,
     /// Set by `ws` when it takes over the socket: the server attaches it to
     /// the poller set after `on_upgrade` returns.
     takeover: ?*ws.Conn = null,
     destroyed: bool = false,
+    /// `endWith`'s bytes, written by the connection after `on_upgrade`.
+    end_bytes: ?[]const u8 = null,
 
     /// `socket.destroy()`.
     pub fn destroy(self: *UpgradeSocket) void {
         if (self.destroyed or self.takeover != null) return;
         self.destroyed = true;
+    }
+
+    /// `socket.end(bytes, () => socket.destroy())`: once `on_upgrade`
+    /// returns, the connection writes `bytes` on its normal write path
+    /// (never blocking: a client that stops reading parks it like any
+    /// response), sends FIN, then destroys the socket.
+    pub fn endWith(self: *UpgradeSocket, bytes: []const u8) void {
+        if (self.destroyed or self.takeover != null) return;
+        self.destroyed = true;
+        self.end_bytes = self.arena.dupe(u8, bytes) catch {
+            // Destroyed without the response (as when the write fails).
+            log.warn("upgrade rejection dropped: out of memory copying {d} bytes", .{bytes.len});
+            return;
+        };
     }
 };
 
@@ -621,6 +639,8 @@ const After = enum {
     continue_100,
     /// Lingering close (Node `socket.end()`).
     end,
+    /// FIN, then destroy (Node `socket.end(bytes, () => socket.destroy())`).
+    end_destroy,
     /// Destroy the socket.
     close,
 };
@@ -934,6 +954,10 @@ const Connection = struct {
             .complete => if (ok) self.afterResponse(self.ex.?.keep_alive and !self.server.isClosing()) else self.destroy(),
             .continue_100 => if (ok) self.routeExchange() catch self.destroy() else self.destroy(),
             .end => self.startLinger(),
+            .end_destroy => {
+                if (ok) posix.shutdown(self.fd, .send) catch {};
+                return self.destroy();
+            },
             .close => self.destroy(),
         };
     }
@@ -1404,11 +1428,14 @@ const Connection = struct {
         }
     }
 
-    fn upgrade(self: *Connection, handler: UpgradeHandler) Step {
+    fn upgrade(self: *Connection, handler: UpgradeHandler) ?Step {
         const ex = self.ex.?;
-        var socket: UpgradeSocket = .{ .fd = self.fd, .head = self.buf[self.start..self.end], .remote_address = self.remote };
+        var socket: UpgradeSocket = .{ .fd = self.fd, .head = self.buf[self.start..self.end], .remote_address = self.remote, .arena = ex.req.arena };
         handler.on_upgrade(handler.ctx, &ex.req, &socket);
-        const conn = socket.takeover orelse return self.destroy();
+        const conn = socket.takeover orelse {
+            if (socket.end_bytes) |bytes| return self.write(bytes, "", .end_destroy);
+            return self.destroy();
+        };
         // The slot (and fd) now belong to the WebSocket, which closes it.
         const server = self.server;
         const index = self.index;
@@ -1483,15 +1510,17 @@ fn notFound(req: *Request, reply: *Reply) void {
     reply.sendJson(.{ .object = &members });
 }
 
-/// Blocking-style write of all `bytes` (waits for writability on a
-/// non-blocking socket). For tests and handshake responses.
-pub fn writeFd(fd: posix.socket_t, bytes: []const u8) bool {
-    return writeVecFd(fd, &.{bytes});
+/// Tests only (client side): writes all `bytes`, blocking in poll() until
+/// the socket takes them. Never call it on an event-loop thread (a peer that
+/// stops reading would stall the loop): servers write through a
+/// connection's write path (`Connection.write`, `UpgradeSocket.endWith`).
+pub fn blockingWriteForTests(fd: posix.socket_t, bytes: []const u8) bool {
+    if (!builtin.is_test) @compileError("blockingWriteForTests is test-only");
+    return blockingWriteVec(fd, &.{bytes});
 }
 
-/// Writes all `parts` with as few `sendmsg` calls as possible, waiting for
-/// writability when the socket is non-blocking.
-pub fn writeVecFd(fd: posix.socket_t, parts: []const []const u8) bool {
+/// `blockingWriteForTests` with up to 4 parts.
+fn blockingWriteVec(fd: posix.socket_t, parts: []const []const u8) bool {
     var iov_buf: [4]posix.iovec_const = undefined;
     std.debug.assert(parts.len <= iov_buf.len);
     var count: usize = 0;

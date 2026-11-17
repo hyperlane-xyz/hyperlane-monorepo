@@ -138,6 +138,7 @@ test "keeps replica health from gating primary live queries" {
     const before_success = M.database_queries.get(.{ "success", "graphql_replica" });
     const before_error = M.database_queries.get(.{ "error", "graphql_replica" });
     const before_live = M.database_queries.get(.{ "success", "live_primary" });
+    const before_validator = M.database_queries.get(.{ "success", "validator_primary" });
     const before_rows = M.database_rows.get(.{"graphql_replica"});
 
     const svc = try DbService.init(testing.allocator, core.log.child("DbServiceTest"));
@@ -164,6 +165,9 @@ test "keeps replica health from gating primary live queries" {
     fake.mutex.unlock();
     const live_rows = try svc.queryLive(arena, "SELECT 1", &.{}, null);
     try testing.expectEqualStrings("[{\"ready\":1}]", try core.json.stringifyAlloc(arena, .{ .array = live_rows }));
+    const validator_rows = try svc.queryValidator(arena, "SELECT validator", &.{}, null);
+    try testing.expectEqualStrings("[{\"ready\":1}]", try core.json.stringifyAlloc(arena, .{ .array = validator_rows }));
+    try testing.expectEqualStrings(primary_url, fake.urls.get("SELECT validator").?);
     try testing.expectEqualStrings(replica_url, fake.urls.get("SELECT pg_sleep(1)").?);
     try testing.expectEqualStrings(primary_url, fake.urls.get("SELECT 1").?);
     fake.mutex.lock();
@@ -189,6 +193,7 @@ test "keeps replica health from gating primary live queries" {
     try testing.expectEqual(before_success + 2, M.database_queries.get(.{ "success", "graphql_replica" }));
     try testing.expectEqual(before_error + 1, M.database_queries.get(.{ "error", "graphql_replica" }));
     try testing.expectEqual(before_live + 2, M.database_queries.get(.{ "success", "live_primary" }));
+    try testing.expectEqual(before_validator + 1, M.database_queries.get(.{ "success", "validator_primary" }));
     try testing.expectEqual(before_rows + 2, M.database_rows.get(.{"graphql_replica"}));
     const exposition = try M.render(testing.allocator);
     defer testing.allocator.free(exposition);
@@ -206,6 +211,56 @@ fn stalledListener() !struct { fd: std.posix.socket_t, port: u16 } {
     var len: std.posix.socklen_t = @sizeOf(std.net.Address);
     try std.posix.getsockname(fd, &bound.any, &len);
     return .{ .fd = fd, .port = bound.getPort() };
+}
+
+test "bounds the validator pool and times out queued acquisition independently of the live pool" {
+    const stalled = try stalledListener();
+    defer std.posix.close(stalled.fd);
+    var url_buf: [128]u8 = undefined;
+    const url = try std.fmt.bufPrint(&url_buf, "postgresql://u:p@127.0.0.1:{d}/x", .{stalled.port});
+    core.config.set(.{ .database_url = url, .database_query_timeout_ms = 1000 });
+    core.log.setSink(LogCapture.sink, null);
+    defer core.log.setSink(null, null);
+    defer LogCapture.reset();
+    const svc = try DbService.init(testing.allocator, null);
+    defer svc.deinit();
+    // Before first use the pool is reported at its limit, empty (TS).
+    const empty = svc.metricsSnapshot().pools.validator;
+    try testing.expectEqual(@as(f64, 5), empty.limit);
+    try testing.expectEqual(@as(f64, 0), empty.total);
+    const Query = struct {
+        message: [96]u8 = @splat(0),
+        err: ?anyerror = null,
+        fn run(s: *DbService, q: *@This()) void {
+            var a = std.heap.ArenaAllocator.init(testing.allocator);
+            defer a.deinit();
+            var failure: root.Failure = .{};
+            _ = s.queryValidator(a.allocator(), "SELECT 1", &.{}, &failure) catch |e| {
+                q.err = e;
+                const n = @min(failure.message.len, q.message.len);
+                @memcpy(q.message[0..n], failure.message[0..n]);
+            };
+        }
+    };
+    var queries: [6]Query = @splat(.{});
+    var threads: [6]std.Thread = undefined;
+    for (&threads, &queries) |*t, *q| t.* = try std.Thread.spawn(.{}, Query.run, .{ svc, q });
+    // Five connecting, one queued; the live pool is untouched.
+    var snap = svc.metricsSnapshot();
+    var waited: usize = 0;
+    while ((snap.pools.validator.total < 5 or snap.pools.validator.waiting < 1) and waited < 400) : (waited += 1) {
+        std.Thread.sleep(std.time.ns_per_ms);
+        snap = svc.metricsSnapshot();
+    }
+    try testing.expectEqual(@as(f64, 5), snap.pools.validator.limit);
+    try testing.expectEqual(@as(f64, 5), snap.pools.validator.total);
+    try testing.expectEqual(@as(f64, 1), snap.pools.validator.waiting);
+    try testing.expectEqual(@as(f64, 0), snap.pools.live.total);
+    for (threads) |t| t.join();
+    for (queries) |q| {
+        try testing.expectEqual(@as(?anyerror, error.ConnectionFailed), q.err);
+        try testing.expect(std.ascii.indexOfIgnoreCase(&q.message, "timeout") != null);
+    }
 }
 
 test "times out stalled replica connections" {
@@ -1093,7 +1148,7 @@ test "libpq on a fiber: idle checks skip the socket until the loop saw input; a 
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 
-test "libpq: close stops listeners, then the live and main pools" {
+test "libpq: close stops listeners, then the live, validator and main pools" {
     const url = testUrl() orelse return error.SkipZigTest;
     core.config.set(.{ .database_url = url });
     core.log.setSink(LogCapture.sink, null);
@@ -1110,14 +1165,18 @@ test "libpq: close stops listeners, then the live and main pools" {
     _ = try svc.listen(&.{"scraper_event"}, .{ .ctx = &capture, .on_notification = NotifyCapture.onNotification, .on_disconnect = NotifyCapture.onDisconnect }, a, &failure);
     _ = try svc.query(a, "SELECT 1", &.{}, &failure);
     _ = try svc.queryLive(a, "SELECT 1", &.{}, &failure);
+    _ = try svc.queryValidator(a, "SELECT 1", &.{}, &failure);
     const before = svc.metricsSnapshot();
     try testing.expectEqual(@as(f64, 1), before.listeners);
     try testing.expectEqual(@as(f64, 1), before.pools.main.total);
     try testing.expectEqual(@as(f64, 1), before.pools.live.total);
+    try testing.expectEqual(@as(f64, 1), before.pools.validator.total);
+    try testing.expectEqual(@as(f64, 5), before.pools.validator.limit);
     try svc.close();
     const after = svc.metricsSnapshot();
     try testing.expectEqual(@as(f64, 0), after.listeners);
     try testing.expectEqual(@as(f64, 0), after.pools.main.total);
+    try testing.expectEqual(@as(f64, 0), after.pools.validator.total);
     // A stopped listener never reports a disconnect.
     try testing.expect(!capture.disconnected);
     // Closing twice is a no-op.
@@ -1920,4 +1979,28 @@ test "libpq: connect errors read the same on a fiber (both start paths) as a dir
         try core.fiber.testing.run(FiberBurst.root_, &burst);
         try testing.expectEqualStrings(direct.message, std.mem.sliceTo(&burst.messages[0], 0));
     }
+}
+
+test "libpq: queryValidator binds int4[] and int8[] array params (validator confirmation snapshots)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    core.config.set(.{ .database_url = url });
+    const svc = try DbService.init(testing.allocator, null);
+    defer svc.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var failure: root.Failure = .{};
+    // The shape of live's confirmationSnapshots: unnest of an integer[] of
+    // stored domains (signed: > 2^31 wraps) and a bigint[] of confirmations.
+    var domains = [_]Value{ .{ .number = 1 }, .{ .number = -1 }, .{ .number = 2147483647 } };
+    var confs = [_]Value{ .{ .number = 0 }, .{ .number = 3 }, .{ .number = 9007199254740991 } };
+    const rows = try svc.queryValidator(a, "SELECT requested.domain, requested.confirmations::text AS c FROM unnest($1::integer[], $2::bigint[]) requested(domain, confirmations) ORDER BY 1", &.{ .{ .array = &domains }, .{ .array = &confs } }, &failure);
+    try testing.expectEqualStrings(
+        "[{\"domain\":-1,\"c\":\"3\"},{\"domain\":1,\"c\":\"0\"},{\"domain\":2147483647,\"c\":\"9007199254740991\"}]",
+        try core.json.stringifyAlloc(a, .{ .array = rows }),
+    );
+    // A bad element fails with PostgreSQL's text, as queryLive would.
+    var bad = [_]Value{.{ .number = 1.5 }};
+    try testing.expectError(error.QueryFailed, svc.queryValidator(a, "SELECT * FROM unnest($1::integer[])", &.{.{ .array = &bad }}, &failure));
+    try testing.expect(std.mem.indexOf(u8, failure.message, "invalid input syntax for type integer") != null);
 }

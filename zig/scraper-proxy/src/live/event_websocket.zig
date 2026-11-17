@@ -26,6 +26,7 @@ pub const EventWebSocketServer = struct {
     diagnostics_stream: ?*diagnostics.stream.Stream,
     agent_ws: ws.Server = .{ .options = .{ .max_payload = live.MAX_AGENT_MESSAGE_BYTES } },
     explorer_ws: ws.Server = .{ .options = .{ .max_payload = live.MAX_EXPLORER_MESSAGE_BYTES } },
+    validator_ws: ws.Server = .{ .options = .{ .max_payload = live.MAX_VALIDATOR_MESSAGE_BYTES } },
     start_error: [128]u8 = undefined,
     /// `-Dlive-fiber-queries`: where `queryAsync` runs its fibers.
     fiber_host: ?*FiberHost = null,
@@ -61,6 +62,8 @@ pub const EventWebSocketServer = struct {
             .limits = live.Limits.fromConfig(config),
             .batch_size = config.event_stream_batch_size,
             .production = if (config.node_env) |env| std.mem.eql(u8, env, "production") else false,
+            // Validator setups always run as continuations (`query_async`).
+            .validator_db = .{ .ctx = self, .query = queryValidator, .query_async = queryValidatorAsync },
         }, self.diagnostics_stream);
         return self;
     }
@@ -114,7 +117,7 @@ pub const EventWebSocketServer = struct {
     fn onUpgrade(ctx: *anyopaque, req: *http.Request, socket: *http.UpgradeSocket) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
         // Wiring, all builds: main hands the loops over before accepting.
-        if (runtime.fiber_queries and self.fiber_host == null) @panic("live: -Dlive-fiber-queries without setFiberHost");
+        if (self.fiber_host == null) @panic("live: an upgrade before setFiberHost (validator setups always read through query_async)");
         // stop() removes the TS 'upgrade' listener.
         self.loop.lock();
         const stopped = self.server.stopped;
@@ -125,11 +128,12 @@ pub const EventWebSocketServer = struct {
             .agent
         else if (std.mem.eql(u8, req.path, live.MESSAGE_PATH))
             .explorer
+        else if (std.mem.eql(u8, req.path, live.VALIDATOR_PATH))
+            .validator
         else {
             socket.destroy();
             return;
         };
-        const ws_server = if (route == .agent) &self.agent_ws else &self.explorer_ws;
         const handler: ws.Handler = .{
             .ctx = self,
             .on_message = onMessage,
@@ -139,10 +143,13 @@ pub const EventWebSocketServer = struct {
             .transition = onTransition,
             .on_pass_end = onPassEnd,
         };
+        if (route == .validator) return self.upgradeValidator(req, socket, handler);
+        const ws_server = if (route == .agent) &self.agent_ws else &self.explorer_ws;
         const conn = ws_server.handleUpgrade(self.gpa, req, socket, handler) orelse return;
         const sock: live.Socket = .{ .ptr = conn, .vtable = &conn_vtable };
         // The reader loop starts after on_upgrade returns, so `user` is set first.
         conn.user = switch (route) {
+            .validator => unreachable,
             .agent => self.server.connectAgent(sock),
             .explorer => blk: {
                 var buffer: [64]u8 = undefined;
@@ -156,6 +163,36 @@ pub const EventWebSocketServer = struct {
         };
     }
 
+    /// `/validators`: admission before the upgrade (a bare HTTP status on
+    /// rejection), then `connectValidator`, all under live's mutex so the
+    /// reservation is taken in the same step as the checks.
+    fn upgradeValidator(self: *EventWebSocketServer, req: *http.Request, socket: *http.UpgradeSocket, handler: ws.Handler) void {
+        var buffer: [64]u8 = undefined;
+        const remote = req.remoteIp(&buffer);
+        self.loop.lock();
+        defer self.loop.unlock();
+        if (self.server.stopped) return socket.destroy();
+        const admission = self.server.admitValidator(.{
+            .url = req.url,
+            .cf_connecting_ip = req.header("cf-connecting-ip"),
+            .remote_address = if (remote.len > 0) remote else null,
+        });
+        const admitted = switch (admission) {
+            .rejected => |status| {
+                var response: [96]u8 = undefined;
+                socket.endWith(std.fmt.bufPrint(&response, "HTTP/1.1 {d} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n", .{status}) catch unreachable);
+                return;
+            },
+            .admitted => |value| value,
+        };
+        // ws's handshake only buffers or writes without blocking.
+        const conn = self.validator_ws.handleUpgrade(self.gpa, req, socket, handler) orelse {
+            self.gpa.free(admitted.ip);
+            return;
+        };
+        conn.user = self.server.connectValidator(.{ .ptr = conn, .vtable = &conn_vtable }, admitted.ip, admitted.subscription);
+    }
+
     fn peerOf(conn: *ws.Conn) *live.Peer {
         return @ptrCast(@alignCast(conn.user.?));
     }
@@ -163,6 +200,7 @@ pub const EventWebSocketServer = struct {
     fn onMessage(ctx: *anyopaque, conn: *ws.Conn, data: []const u8, binary: bool) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
         const peer = peerOf(conn);
+        if (peer.route == .validator) return self.server.onValidatorMessage(peer, data, binary);
         // `/messages` registers no message handler.
         if (peer.route != .agent) return;
         if (!binary) return self.server.onMessage(peer, data);
@@ -282,6 +320,21 @@ pub const EventWebSocketServer = struct {
             runtime.fail("{s}", .{core.log.formatError(err, if (failure.message.len > 0) failure.message else null)});
     }
 
+    fn queryValidator(ctx: *anyopaque, arena: Allocator, sql: []const u8, params: []const core.json.Value) anyerror![]core.json.Value {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        var failure: db.Failure = .{};
+        return self.db.queryValidator(arena, sql, params, &failure) catch |err|
+            runtime.fail("{s}", .{core.log.formatError(err, if (failure.message.len > 0) failure.message else null)});
+    }
+
+    /// `queryAsync` on the validator pool.
+    fn queryValidatorAsync(ctx: *anyopaque, request: *es.AsyncQuery) void {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        request.backend = self;
+        request.run_query = queryValidator;
+        dispatchQuery(&self.pool, self.fiber_host, request);
+    }
+
     /// `Db.query_async`: on an HTTP loop thread, a fiber on that loop (its
     /// pool checkout and socket waits park the fiber); otherwise, or if the
     /// fiber cannot be created, a pool job (a worker waits, as `query`).
@@ -296,7 +349,7 @@ pub const EventWebSocketServer = struct {
     /// `queryAsync`'s choice (tests drive it with their own pool and host).
     pub fn dispatchQuery(pool: *runtime.Pool, fiber_host: ?*FiberHost, request: *es.AsyncQuery) void {
         // `setFiberHost` before accepts is wiring (main always calls it).
-        if (fiber_host == null and core.fiber.onEventLoopThread()) @panic("live: -Dlive-fiber-queries without setFiberHost");
+        if (fiber_host == null and core.fiber.onEventLoopThread()) @panic("live: a query_async read on an HTTP loop thread without setFiberHost");
         if (core.fiber.onEventLoopThread()) if (fiber_host) |host| {
             // The calling thread's loop: the fiber is created and reaped on
             // this thread (its fiber cache), with no cross-thread post.

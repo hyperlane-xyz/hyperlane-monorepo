@@ -1,10 +1,22 @@
 //! V8 `JSON.parse` SyntaxError messages (Node 26) for text that fails to
-//! parse. Only reachable from GET `variables`/`extensions` (mercurius
-//! `tryJSONParse` surfaces `err.message`). Positions are UTF-16 indices.
+//! parse: GraphQL GET `variables`/`extensions` (mercurius `tryJSONParse`
+//! surfaces `err.message`) and /validators client frames (`JSON.parse` in
+//! `parseValidatorPing`). Positions are UTF-16 indices.
 const std = @import("std");
-const ast = @import("ast.zig");
 
 const Allocator = std.mem.Allocator;
+
+/// JS string length (UTF-16 code units) of UTF-8 `bytes`.
+pub fn utf16Length(bytes: []const u8) u32 {
+    var n: u32 = 0;
+    for (bytes) |b| {
+        if (b & 0xC0 != 0x80) n += 1; // lead or ASCII byte
+        if (b >= 0xF0) n += 1; // supplementary plane -> surrogate pair
+    }
+    return n;
+}
+
+const SourceLocation = struct { line: u32, column: u32 };
 
 const max_context = 10;
 const min_source_for_context = max_context * 2 + 1;
@@ -33,7 +45,7 @@ const Scanner = struct {
     fn atPosition(self: *Scanner, what: []const u8, pos: usize) Err {
         const p: u32 = @intCast(pos);
         const loc = lineColumn(self.s, p);
-        self.message = try std.fmt.allocPrint(self.a, "{s} in JSON at position {d} (line {d} column {d})", .{ what, ast.utf16Length(self.s[0..pos]), loc.line, loc.column });
+        self.message = try std.fmt.allocPrint(self.a, "{s} in JSON at position {d} (line {d} column {d})", .{ what, utf16Length(self.s[0..pos]), loc.line, loc.column });
         return error.Invalid;
     }
 
@@ -41,7 +53,7 @@ const Scanner = struct {
     fn atPositionRaw(self: *Scanner, what: []const u8, pos: usize) Err {
         const p: u32 = @intCast(pos);
         const loc = lineColumn(self.s, p);
-        self.message = try std.fmt.allocPrint(self.a, "{s} at position {d} (line {d} column {d})", .{ what, ast.utf16Length(self.s[0..pos]), loc.line, loc.column });
+        self.message = try std.fmt.allocPrint(self.a, "{s} at position {d} (line {d} column {d})", .{ what, utf16Length(self.s[0..pos]), loc.line, loc.column });
         return error.Invalid;
     }
 
@@ -52,8 +64,8 @@ const Scanner = struct {
         }
         const len = std.unicode.utf8ByteSequenceLength(self.s[self.i]) catch 1;
         const token = self.s[self.i..@min(self.s.len, self.i + len)];
-        const total = ast.utf16Length(self.s);
-        const pos = ast.utf16Length(self.s[0..self.i]);
+        const total = utf16Length(self.s);
+        const pos = utf16Length(self.s[0..self.i]);
         if (total < min_source_for_context) {
             self.message = try std.fmt.allocPrint(self.a, "Unexpected token '{s}', \"{s}\" is not valid JSON", .{ token, self.s });
         } else if (pos < max_context) {
@@ -211,14 +223,14 @@ const Scanner = struct {
     }
 };
 
-fn lineColumn(s: []const u8, pos: u32) ast.SourceLocation {
+fn lineColumn(s: []const u8, pos: u32) SourceLocation {
     var line: u32 = 1;
     var start: usize = 0;
     for (s[0..pos], 0..) |c, i| if (c == '\n') {
         line += 1;
         start = i + 1;
     };
-    return .{ .line = line, .column = 1 + ast.utf16Length(s[start..pos]) };
+    return .{ .line = line, .column = 1 + utf16Length(s[start..pos]) };
 }
 
 /// Byte slice covering UTF-16 index range [from, to).

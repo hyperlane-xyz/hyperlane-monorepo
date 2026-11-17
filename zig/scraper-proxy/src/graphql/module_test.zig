@@ -284,7 +284,7 @@ const Client = struct {
     }
 
     fn send(self: *Client, bytes: []const u8) !void {
-        if (!http.server.writeFd(self.fd, bytes)) return error.WriteFailed;
+        if (!http.server.blockingWriteForTests(self.fd, bytes)) return error.WriteFailed;
     }
 
     fn fill(self: *Client) !usize {

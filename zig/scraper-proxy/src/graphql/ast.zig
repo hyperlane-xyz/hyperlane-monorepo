@@ -225,14 +225,7 @@ pub fn location(source: []const u8, offset: u32) SourceLocation {
 }
 
 /// Number of UTF-16 code units for UTF-8 bytes (4-byte sequences count twice).
-pub fn utf16Length(bytes: []const u8) u32 {
-    var n: u32 = 0;
-    for (bytes) |b| {
-        if (b & 0xC0 != 0x80) n += 1; // lead or ASCII byte
-        if (b >= 0xF0) n += 1; // supplementary plane -> surrogate pair
-    }
-    return n;
-}
+pub const utf16Length = @import("core").v8json.utf16Length;
 
 test "location counts utf16 columns" {
     const src = "# h\xc3\xa9llo \xf0\x9f\x98\x80\n{ \xf0\x9f\x98\x80 }";
