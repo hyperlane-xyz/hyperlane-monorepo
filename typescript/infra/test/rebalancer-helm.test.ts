@@ -4,12 +4,19 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { pino } from 'pino';
 import { pathToFileURL } from 'url';
 import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
-import { TokenStandard, WarpCoreConfigSchema } from '@hyperlane-xyz/sdk';
+import { StrategyFactory } from '@hyperlane-xyz/rebalancer';
+import {
+  MultiProtocolProvider,
+  TokenStandard,
+  WarpCore,
+  WarpCoreConfigSchema,
+} from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos, mainnetDockerTags } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
@@ -442,6 +449,60 @@ describe('Rebalancer Helm deployment', () => {
 
 describe('oUSDT production manifest', () => {
   afterEach(() => Sinon.restore());
+  it('starts with observed collateral and replenishes Ethereum below its minimum', () => {
+    const loaded = readRebalancerConfig(
+      path.join(
+        getInfraPath(),
+        'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
+      ),
+    );
+    const warpCore = WarpCoreConfigSchema.parse(
+      parse(
+        fs.readFileSync(
+          path.join(
+            getInfraPath(),
+            'test/fixtures/rebalancer/oUSDT-production-warp-core.yaml',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+    const tokens = Object.fromEntries(
+      WarpCore.FromConfig(new MultiProtocolProvider({}), warpCore).tokens.map(
+        (token) => [token.chainName, token],
+      ),
+    );
+    const construct = (collateral: bigint) =>
+      StrategyFactory.createStrategy(
+        loaded.config.strategy,
+        tokens,
+        collateral,
+        pino({ level: 'silent' }),
+      );
+    // The old 374k aggregate target rejected this observed collateral snapshot.
+    const strategy = construct(366_200_995_414n);
+    expect(() => construct(28_999_999_999n)).to.throw(
+      'Consider reducing the targets',
+    );
+    const balances = {
+      ethereum: 10_000_000_000n,
+      arbitrum: 3_000_000_000n,
+      celo: 40_000_000_000n,
+      tron: 3_000_000_000n,
+    };
+    expect(strategy.getRebalancingRoutes(balances)).to.be.empty;
+    const routes = strategy.getRebalancingRoutes({
+      ...balances,
+      ethereum: 9_999_000_000n,
+    });
+    expect(routes).to.have.length(1);
+    expect(routes[0]).to.include({
+      origin: 'celo',
+      destination: 'ethereum',
+      amount: 10_001_000_000n,
+    });
+  });
+
   it('renders the actual route YAML with its credentials and limits', async () => {
     const loaded = readRebalancerConfig(
       path.join(
@@ -533,6 +594,13 @@ describe('oUSDT production manifest', () => {
     expect(runtime).not.to.have.property('deployment');
     expect(runtime).not.to.have.property('stateStore');
     expect(sts.spec).not.to.have.property('volumeClaimTemplates');
+    expect(runtime.pendingTransferMiddlewares).to.deep.equal([
+      {
+        type: 'relayerDenylist',
+        url: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json',
+        refreshIntervalSecs: 60,
+      },
+    ]);
     expect(runtime.intentTTL).to.equal(1209600);
     expect(loaded.config.intentTTL).to.equal(1209600000);
     expect(runtime.inventorySigners).to.deep.equal({
@@ -552,10 +620,14 @@ describe('oUSDT production manifest', () => {
         maxEvmNativeFeeWei: '10000000000000000',
       },
     });
+    expect(runtime.inventoryRoutes).to.deep.equal({
+      celo: { tron: { enabled: false } },
+      tron: { celo: { enabled: false } },
+    });
     const chains = runtime.strategy.chains;
     expect(chains.ethereum.minAmount).to.deep.equal({
-      min: 345000,
-      target: 365000,
+      min: 10000,
+      target: 20000,
       type: 'absolute',
     });
     for (const chain of ['arbitrum', 'celo', 'tron']) {

@@ -3,10 +3,15 @@ warpRouteId: oUSDT/production
 # Deployment stays monitor-only until rollout validation is complete.
 deployment:
   monitorOnly: true
-  imageTag: 6040d28-20261110-130043
-  imageDigest: sha256:bca8117fd58bf6e824deee1206ee5182fc6ff15a910d618485b1392bd18a4ee5
+  imageTag: f18b00f-20261117-125013
+  imageDigest: sha256:df310dadc204b6cddbd4dff591fbcc6450bfd306e030d1c12b7315bd8083022b
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key-ousdt
   registryCommit: 0b7518b88967309b0ca30827ec418852873bdc7e
+
+pendingTransferMiddlewares:
+  - type: relayerDenylist
+    url: https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json
+    refreshIntervalSecs: 60
 
 intentTTL: 1209600
 
@@ -26,6 +31,15 @@ externalBridges:
     defaultSlippage: 0.005
     maxQuoteLossBps: 50
     maxEvmNativeFeeWei: '10000000000000000'
+
+# Block these physical funding legs as well as the economic proposals below.
+inventoryRoutes:
+  celo:
+    tron:
+      enabled: false
+  tron:
+    celo:
+      enabled: false
 
 strategy:
   rebalanceStrategy: minAmount
@@ -73,8 +87,8 @@ strategy:
       executionType: inventory
       externalBridge: layerzero
       minAmount:
-        min: 345000
-        target: 365000
+        min: 10000
+        target: 20000
         type: absolute
       override:
         celo:

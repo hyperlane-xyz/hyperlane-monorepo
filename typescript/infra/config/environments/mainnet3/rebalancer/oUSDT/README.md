@@ -6,7 +6,7 @@ registry commit, and persisted monitor-only mode. A digest takes precedence over
 the shared image and credential defaults. Deployment metadata is stripped from
 the runtime ConfigMap.
 
-The checked-in image was built from the shared stack tip and is pinned by digest.
+The checked-in image was built from merged main at `f18b00f` and is pinned by digest.
 It remains a monitor-only validation candidate. Complete the gates below before
 enabling execution.
 
@@ -23,6 +23,14 @@ commit used by the runtime:
 the strategy manages only Ethereum, Arbitrum, Celo, and Tron. All pinned route
 chains remain monitored and require their RPC secrets.
 
+Deployment blocker observed on 2026-11-17: the sole endpoint in
+`mainnet3-rpc-endpoints-tea` failed DNS resolution, preventing complete monitor
+cycles. The same config completed two cycles with a local-only
+`RPC_URL_TEA=https://tea.drpc.org` override after chain-ID and fresh-block checks.
+The production secret was deliberately left unchanged. Do not redeploy until
+Tea's configured RPC is healthy and the unmodified environment completes the
+monitor checks; changing the registry pin alone does not override this secret.
+
 Before replacement, archive Helm values/manifests, the live ExternalSecret,
 resolved image digest, ConfigMap and `/state/tracking` files. Revision 5's saved
 manifest uses the generic swaps.xyz secret; the live mapping is
@@ -36,18 +44,27 @@ retrying an ambiguous or source-started submission after expiry. The new release
 has no `stateStore` or persistence values; never restore stale tracking files.
 
 Refresh strategy collateral immediately before rollout. Count Ethereum's
-collateral once. Ethereum must retain its 345,000 minimum and 365,000 target;
-Arbitrum, Celo and Tron each retain 1,000/3,000. Aggregate collateral must be
-strictly above the 374,000 aggregate target. Halt if insufficient.
+lockbox collateral once. Ethereum has a 10,000 minimum and 20,000 target;
+Arbitrum, Celo and Tron each retain 1,000/3,000. Aggregate targets are 29,000.
+Halt if aggregate collateral is insufficient. Ethereum is replenished only
+below its minimum, toward its target; the target is not an instruction to drain
+Ethereum to 20,000. Collateral above the minimum can fund other legs' deficits.
+
+The relayer-denylist middleware reads the live mainnet denylist every 60 seconds
+and excludes blocked user transfers from collateral demand. Only explicit
+message-ID rules affect rebalance accounting; reconcile settlement before
+adding a rebalancer-owned message. Inventory reservations are retained.
+Startup requires a valid denylist; refresh failures retain the last good rules.
 
 Economic routes into Ethereum from Arbitrum or Tron use USDT/OFT inventory through
 LayerZero. Ethereum's router does not support movable collateral and is not
 enrolled as a movable-collateral recipient. Arbitrum-to-Tron and Tron-to-Arbitrum
 retain movable collateral; Ethereum-origin routes use inventory, and Celo uses
 swaps.xyz. The Celo-to-Tron and Tron-to-Celo
-`enabled: false` overrides suppress economic strategy proposals. Physical
-inventory sourcing for another enabled proposal can still move inventory between
-Celo and Tron when the provider returns a valid quote. All provider quote-loss
+`enabled: false` overrides suppress economic strategy proposals. Matching
+`inventoryRoutes` entries also disable physical inventory movement in both
+directions, including funding for another enabled proposal. Other inventory
+pairs retain their existing policy. All provider quote-loss
 caps are 50 bps. Validate provider access and executable quotes separately:
 monitor-only startup skips executor construction and cannot validate execution
 credentials or quotes.
