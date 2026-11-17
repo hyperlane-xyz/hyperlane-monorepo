@@ -29,7 +29,6 @@ impl SubscribeMessage<'_> {
         self.streams
             .iter()
             .map(|stream| SubscribedStream {
-                confirmations: None,
                 domains: stream.domains.clone(),
                 event_type: stream.event_type.to_owned(),
             })
@@ -43,7 +42,9 @@ pub fn validate_subscription(
     actual: &[SubscribedStream],
 ) -> Result<()> {
     if actual != expected {
-        bail!("Scraper-proxy subscription confirmation does not match request");
+        bail!(RejectedStream(
+            "Scraper-proxy subscription confirmation does not match request".to_owned()
+        ));
     }
     Ok(())
 }
@@ -82,7 +83,15 @@ pub enum ServerMessage<T> {
         domain: u32,
     },
     /// Provisional history was rolled back; consumers must recover before resuming.
-    Rollback,
+    #[serde(rename_all = "camelCase")]
+    Rollback {
+        /// Origin whose provisional history was invalidated.
+        domain: u32,
+        /// Previously exposed native height.
+        from_height: String,
+        /// Last retained native height.
+        to_height: String,
+    },
     /// One event from a requested stream.
     Event(EventMessage<T>),
     /// The server rejected the request or stream.
@@ -125,8 +134,6 @@ pub struct LiveStartStream {
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SubscribedStream {
-    /// Custom confirmation delay accepted by the server.
-    pub confirmations: Option<u32>,
     /// Domains accepted for this stream.
     pub domains: Option<Vec<u32>>,
     /// Scraper event type.
@@ -265,16 +272,20 @@ mod tests {
         };
         let mut actual = request.confirmation();
         validate_subscription(&request.confirmation(), &actual).expect("test protocol");
-        actual[0].confirmations = Some(1);
-        assert!(validate_subscription(&request.confirmation(), &actual).is_err());
-        actual[0].confirmations = None;
+        for confirmations in [serde_json::Value::Null, serde_json::json!(1)] {
+            let legacy = serde_json::json!({"confirmations":confirmations,"domains":[1],"eventType":"merkle_tree_insertion"});
+            let error = serde_json::from_value::<SubscribedStream>(legacy)
+                .expect_err("legacy confirmations must be rejected");
+            assert!(error.to_string().contains("unknown field `confirmations`"));
+        }
         actual[0].domains = Some(vec![2]);
         assert!(validate_subscription(&request.confirmation(), &actual).is_err());
         assert!(matches!(
             serde_json::from_str::<ServerMessage<serde_json::Value>>(
-                r#"{"type":"rollback","domain":1,"eventType":"merkle_tree_insertion","toHeight":"12"}"#
+                r#"{"type":"rollback","domain":1,"eventType":"merkle_tree_insertion","fromHeight":"15","toHeight":"12"}"#
             ).expect("test protocol"),
-            ServerMessage::Rollback
+            ServerMessage::Rollback { domain: 1, from_height, to_height }
+                if from_height == "15" && to_height == "12"
         ));
     }
 
@@ -365,7 +376,6 @@ mod tests {
             ServerMessage::Subscribed { streams, .. } => assert_eq!(
                 streams,
                 vec![SubscribedStream {
-                    confirmations: None,
                     domains: Some(vec![5, 9]),
                     event_type: "dispatch".to_owned(),
                 }]

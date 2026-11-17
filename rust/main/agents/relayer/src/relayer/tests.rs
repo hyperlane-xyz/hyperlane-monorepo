@@ -304,6 +304,53 @@ fn generate_test_relayer_settings(
     }
 }
 
+#[test]
+fn scraper_websocket_uses_effective_rpc_depth_for_selected_domains() {
+    let dir = tempfile::tempdir().expect("test database");
+    let mut chain = generate_test_chain_conf(
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Base),
+        None,
+        "http://localhost:8545",
+    );
+    let mut settings = generate_test_relayer_settings(dir.path(), vec![], &[], &[], 0);
+    settings.websocket_url = Some(Url::parse("ws://localhost/agents").expect("URL").into());
+    settings
+        .reorg_period_overrides
+        .insert("base".into(), ReorgPeriod::from_blocks(3));
+    for depth in [0, 2] {
+        chain.reorg_period = ReorgPeriod::from_blocks(depth);
+        assert_eq!(
+            settings
+                .scraper_confirmations(&chain)
+                .expect("effective depth"),
+            Some(depth)
+        );
+    }
+    chain.reorg_period = ReorgPeriod::Tag("finalized".into());
+    let error = settings
+        .scraper_confirmations(&chain)
+        .expect_err("tag cannot become canonical");
+    assert!(error.to_string().contains("numeric reorg period for base"));
+
+    settings.reorg_period_overrides.clear();
+    assert_eq!(
+        settings
+            .scraper_confirmations(&chain)
+            .expect("canonical domain"),
+        None
+    );
+    settings
+        .reorg_period_overrides
+        .insert("base".into(), ReorgPeriod::from_blocks(3));
+    settings.websocket_url = None;
+    assert_eq!(
+        settings
+            .scraper_confirmations(&chain)
+            .expect("RPC-only tag"),
+        None
+    );
+}
+
 #[tokio::test]
 #[tracing_test::traced_test]
 async fn test_failed_build_destinations() {

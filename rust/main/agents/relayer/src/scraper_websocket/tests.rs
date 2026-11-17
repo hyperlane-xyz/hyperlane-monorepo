@@ -656,6 +656,47 @@ fn wire_boundary(source: &ScraperSource) -> Message {
 }
 
 #[tokio::test]
+async fn rollback_records_origin_and_heights_before_restoring_rpc() {
+    let (_dir, source, metrics) = fixture();
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+    let url =
+        Url::parse(&format!("ws://{}", listener.local_addr().expect("address"))).expect("URL");
+    let monitor =
+        ScraperWebSocketMonitor::new(url, vec![source.clone()], &metrics).expect("monitor");
+    let server = async {
+        let (mut socket, _) = subscribed_socket(&listener).await;
+        socket
+            .send(Message::Text(
+                serde_json::json!({
+                    "type":"rollback", "domain":source.domain,
+                    "eventType":"dispatch", "confirmations":1,
+                    "fromHeight":"100", "toHeight":"99"
+                })
+                .to_string()
+                .into(),
+            ))
+            .await
+            .expect("rollback");
+        let _ = socket.next().await;
+    };
+    let (result, ()) = timeout(Duration::from_secs(3), async {
+        tokio::join!(monitor.stream(StreamTimeouts::default()), server)
+    })
+    .await
+    .expect("session terminates");
+    let error = result.expect_err("rollback restores RPC");
+    assert!(error
+        .to_string()
+        .contains(&format!("domain {} from 100 to 99", source.domain)));
+    assert_eq!(
+        monitor.rollbacks.with_label_values(&[&source.chain]).get(),
+        1
+    );
+    assert_eq!(monitor.active.with_label_values(&[&source.chain]).get(), 0);
+    assert!(!source.control.desired());
+}
+
+#[tokio::test]
 async fn unavailable_boundary_is_retried_with_a_fresh_subscription() {
     let (_dir, source, metrics) = fixture();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

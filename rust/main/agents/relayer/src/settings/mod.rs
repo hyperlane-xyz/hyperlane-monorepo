@@ -19,7 +19,7 @@ use hyperlane_base::{
     impl_loadable_from_settings,
     settings::{
         parser::{parse_json_array, parse_matching_list, RawAgentConf, ValueParser},
-        Settings,
+        ChainConf, Settings,
     },
 };
 use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, ReorgPeriod, H160, U256};
@@ -117,6 +117,25 @@ pub struct RelayerSettings {
     pub relay_api_rate_limit_window_secs: Option<u64>,
     /// Relay API allowed CORS origins (comma-separated). Defaults to https://nexus.hyperlane.xyz.
     pub relay_api_cors_origins: Vec<String>,
+}
+
+impl RelayerSettings {
+    /// Use the effective RPC depth for explicitly selected websocket domains.
+    pub(crate) fn scraper_confirmations(&self, chain: &ChainConf) -> eyre::Result<Option<u32>> {
+        if self.websocket_url.is_none()
+            || !self
+                .reorg_period_overrides
+                .contains_key(chain.domain.name())
+        {
+            return Ok(None);
+        }
+        chain.reorg_period.as_blocks().map(Some).with_context(|| {
+            format!(
+                "Custom websocket confirmations require a numeric reorg period for {}",
+                chain.domain.name()
+            )
+        })
+    }
 }
 
 /// Config for gas payment enforcement

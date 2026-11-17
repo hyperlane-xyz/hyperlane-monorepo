@@ -531,7 +531,7 @@ impl MerkleTreeHookWebSocketSync {
                         }
                     }
                     ServerMessage::Error { error } => return Err(RejectedStream(error).into()),
-                    ServerMessage::Rollback => {
+                    ServerMessage::Rollback { .. } => {
                         bail!("Scraper stream rolled back; resuming RPC indexing")
                     }
                     _ => {}
@@ -1289,7 +1289,7 @@ mod tests {
         wait_until(|| active.get() == 1).await;
         frames
             .send(Message::Text(
-                serde_json::json!({"type":"rollback"}).to_string().into(),
+                serde_json::json!({"type":"rollback","domain":1,"fromHeight":"100","toHeight":"99"}).to_string().into(),
             ))
             .await
             .expect("rollback");

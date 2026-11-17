@@ -12,8 +12,8 @@ use serde::de::DeserializeOwned;
 use tokio::time::{interval, Instant, Interval, MissedTickBehavior};
 
 use super::{
-    validate_subscription, ScraperWebSocket, ServerMessage, StreamTimeouts, SubscribeMessage,
-    SubscribedStream,
+    validate_subscription, RejectedStream, ScraperWebSocket, ServerMessage, StreamTimeouts,
+    SubscribeMessage, SubscribedStream,
 };
 
 /// Work produced by a scraper session. Probe results carry agent-specific data.
@@ -139,7 +139,7 @@ impl<P: Send + 'static, C: Send + 'static> ScraperSession<P, C> {
                         validate_subscription(expected, streams)?;
                         eyre::ensure!(
                             confirmations_by_domain == &self.expected_confirmations,
-                            "Scraper-proxy confirmation policies do not match request"
+                            RejectedStream("Scraper-proxy confirmation policies do not match request".to_owned())
                         );
                     }
                     return Ok(message.map(SessionEvent::Message));
@@ -275,7 +275,18 @@ mod tests {
                     Some(SessionEvent::Message(ServerMessage::Subscribed { .. }))
                 ));
             } else {
-                assert!(result.is_err(), "changed stream or confirmation policy");
+                let error = result.expect_err("changed stream or confirmation policy");
+                let expected = if domain != 1 {
+                    "Scraper-proxy subscription confirmation does not match request"
+                } else {
+                    "Scraper-proxy confirmation policies do not match request"
+                };
+                assert!(error.to_string().contains(expected), "{error}");
+                assert!(error.downcast_ref::<RejectedStream>().is_some());
+                assert_eq!(
+                    super::super::stream_retry_delay(&Err(error), super::super::RETRY_DELAY),
+                    super::super::REJECTED_STREAM_RETRY_DELAY + super::super::RETRY_DELAY
+                );
             }
         }
     }

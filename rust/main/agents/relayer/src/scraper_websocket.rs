@@ -20,7 +20,7 @@ use hyperlane_base::{
     ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{HyperlaneMessage, HyperlaneProvider, MerkleTreeInsertion, H256};
-use prometheus::IntGaugeVec;
+use prometheus::{IntCounterVec, IntGaugeVec};
 use rpc::Authority;
 pub(crate) use rpc::{AuthorityCommand, RpcRecovery, ScraperAuthorityReceiver};
 use std::{
@@ -29,7 +29,7 @@ use std::{
     time::Duration,
 };
 use tokio::time::{sleep_until, timeout, Instant};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use url::Url;
 
 const MAX_HANDOFF_EVENTS: usize = 4096;
@@ -139,6 +139,7 @@ pub(crate) struct ScraperWebSocketMonitor {
     url: Url,
     active: IntGaugeVec,
     authority: IntGaugeVec,
+    rollbacks: IntCounterVec,
 }
 impl ScraperWebSocketMonitor {
     pub(crate) fn new(
@@ -159,10 +160,16 @@ impl ScraperWebSocketMonitor {
                 "Whether scraper replaces RPC indexing",
                 &["chain"],
             )?,
+            rollbacks: metrics.new_int_counter(
+                "relayer_scraper_websocket_rollbacks",
+                "Rollback notifications received from scraper-proxy",
+                &["chain"],
+            )?,
         };
         for source in monitor.sources.values() {
             monitor.active.with_label_values(&[&source.chain]).set(0);
             monitor.authority.with_label_values(&[&source.chain]).set(0);
+            monitor.rollbacks.with_label_values(&[&source.chain]);
         }
         Ok(monitor)
     }
@@ -395,8 +402,24 @@ impl ScraperWebSocketMonitor {
                         "Live-start checkpoint verified; live scraper indexing is authoritative"
                     );
                 }
-                SessionEvent::Message(ServerMessage::Rollback) => {
-                    bail!("Scraper rolled back; restoring RPC indexing")
+                SessionEvent::Message(ServerMessage::Rollback {
+                    domain,
+                    from_height,
+                    to_height,
+                }) => {
+                    let source = self
+                        .sources
+                        .get(&domain)
+                        .context("Unexpected rollback domain")?;
+                    self.rollbacks.with_label_values(&[&source.chain]).inc();
+                    error!(
+                        domain,
+                        chain = source.chain,
+                        from_height,
+                        to_height,
+                        "Scraper rolled back provisional history; restoring RPC indexing"
+                    );
+                    bail!("Scraper rolled back domain {domain} from {from_height} to {to_height}; restoring RPC indexing")
                 }
                 SessionEvent::Message(ServerMessage::Error { error }) => {
                     return Err(RejectedStream(error).into());
