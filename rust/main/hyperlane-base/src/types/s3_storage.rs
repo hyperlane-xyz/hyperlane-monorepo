@@ -7,8 +7,11 @@ use std::{
 use async_trait::async_trait;
 use aws_config::{timeout::TimeoutConfig, BehaviorVersion, ConfigLoader, Region};
 use aws_sdk_s3::{
-    error::SdkError, operation::get_object::GetObjectError as SdkGetObjectError,
-    primitives::ByteStream, Client,
+    config::{RequestChecksumCalculation, ResponseChecksumValidation},
+    error::SdkError,
+    operation::get_object::GetObjectError as SdkGetObjectError,
+    primitives::ByteStream,
+    Client,
 };
 use bytes::Bytes;
 use dashmap::DashMap;
@@ -218,6 +221,10 @@ impl S3Storage {
             )
             .behavior_version(BehaviorVersion::latest())
             .region(self.region.clone())
+            // Recent SDKs send and validate CRC checksums by default, which some
+            // S3-compatible stores reject. Only use them where an operation requires it.
+            .request_checksum_calculation(RequestChecksumCalculation::WhenRequired)
+            .response_checksum_validation(ResponseChecksumValidation::WhenRequired)
     }
 
     fn get_composite_key(&self, key: String) -> String {
@@ -721,6 +728,104 @@ mod tests {
             serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
             serde_json::from_slice::<serde_json::Value>(&pretty).unwrap()
         );
+    }
+
+    /// Recent AWS SDKs add CRC checksum headers to uploads and request checksum
+    /// validation on downloads by default. Some S3-compatible stores reject
+    /// those headers, so requests must only carry checksums the operation requires.
+    #[tokio::test]
+    async fn requests_carry_only_required_checksum_headers() {
+        use hyper::{service::service_fn, Body, Response};
+
+        let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_requests = Arc::clone(&requests);
+        let server = tokio::spawn(async move {
+            loop {
+                let (socket, _) = listener.accept().await.unwrap();
+                let requests = Arc::clone(&server_requests);
+                tokio::spawn(hyper::server::conn::Http::new().serve_connection(
+                    socket,
+                    service_fn(move |request: hyper::Request<Body>| {
+                        let requests = Arc::clone(&requests);
+                        async move {
+                            let body = if request.method() == hyper::Method::GET {
+                                Body::from("{}")
+                            } else {
+                                Body::empty()
+                            };
+                            requests
+                                .lock()
+                                .unwrap()
+                                .push((request.method().clone(), request.headers().clone()));
+                            Ok::<_, std::convert::Infallible>(Response::new(body))
+                        }
+                    }),
+                ));
+            }
+        });
+
+        let storage = S3Storage::new(
+            "test-bucket".into(),
+            None,
+            Region::new("test-checksum-headers"),
+            None,
+        );
+        // Build both clients the way the storage does, pointed at the mock. FIPS and
+        // dual-stack are pinned off so a local AWS profile can't reject the endpoint.
+        let http_client = aws_smithy_http_client::hyper_014::HyperClientBuilder::new()
+            .build(hyper::client::HttpConnector::new());
+        let loader = || {
+            storage
+                .default_aws_sdk_config_loader()
+                .endpoint_url(format!("http://{address}"))
+                .use_fips(false)
+                .use_dual_stack(false)
+                .http_client(http_client.clone())
+        };
+        let authenticated = loader()
+            .credentials_provider(aws_sdk_s3::config::Credentials::for_tests())
+            .load()
+            .await;
+        let anonymous = loader().no_credentials().load().await;
+        storage
+            .authenticated_client
+            .set(Client::new(&authenticated))
+            .unwrap();
+        anonymous_client_cell(storage.region.clone())
+            .set(Client::new(&anonymous))
+            .unwrap();
+
+        storage
+            .write_to_bucket("checkpoint_latest_index.json".into(), b"7".to_vec())
+            .await
+            .unwrap();
+        storage
+            .anonymously_read_from_bucket("checkpoint_latest_index.json".into())
+            .await
+            .unwrap();
+        server.abort();
+
+        let requests = requests.lock().unwrap();
+        let headers = |method: hyper::Method| {
+            requests
+                .iter()
+                .find(|(m, _)| *m == method)
+                .map(|(_, headers)| headers.clone())
+                .unwrap_or_else(|| panic!("no {method} request"))
+        };
+        let put = headers(hyper::Method::PUT);
+        for name in put.keys() {
+            assert!(
+                !name.as_str().starts_with("x-amz-checksum-")
+                    && name.as_str() != "x-amz-sdk-checksum-algorithm",
+                "unexpected PUT header {name}"
+            );
+        }
+        assert!(headers(hyper::Method::GET)
+            .get("x-amz-checksum-mode")
+            .is_none());
     }
 
     #[tokio::test]
