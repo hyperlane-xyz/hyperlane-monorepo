@@ -59,15 +59,18 @@ export class BroadcastQueue {
       this.fail(socket);
       return false;
     }
+    const incoming = new Set(messages);
     const added = () => {
       let total = 0;
-      for (const message of new Set(messages))
+      for (const message of incoming)
         if (!this.refs.has(message)) total += message.length;
       return total;
     };
     while (this.bytes + added() > this.limits.totalBytes) {
       let victim = socket;
       let largest = this.exclusiveBytes(client) + added();
+      let largestBacklog = client.bytes + bytes;
+      let backlogPeer = socket;
       for (const [peer, queued] of this.clients) {
         if (peer === socket) continue;
         const held = this.exclusiveBytes(queued);
@@ -75,7 +78,14 @@ export class BroadcastQueue {
           victim = peer;
           largest = held;
         }
+        if (queued.bytes > largestBacklog) {
+          backlogPeer = peer;
+          largestBacklog = queued.bytes;
+        }
       }
+      // A deeper backlog can be held jointly even if no peer has enough
+      // exclusive bytes to win. Its frames are reclaimed on the last release.
+      if (victim === socket) victim = backlogPeer;
       this.fail(victim);
       if (victim === socket) return false;
     }

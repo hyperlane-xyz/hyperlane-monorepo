@@ -304,9 +304,39 @@ void it('sheds the retaining policy under global pressure instead of an unrelate
   f.source.notify(head(101n, 100n, 2));
   await until(() => other.frames.length === 1);
   assert.equal(retainer.errors.length, 1);
+  await assert.rejects(f.subscribe(4), /temporarily unavailable/);
   assert.deepEqual(live.errors, []);
   assert.deepEqual(other.errors, []);
   f.source.stop();
+});
+
+void it('starts from the remaining checkpoint when a stale reader disconnects', async (t) => {
+  const f = fixture({ rows: 4, bytes: 100_000 });
+  t.after(() => f.source.stop());
+  const previous = await f.subscribe();
+  f.setHead(110n);
+  const current = await f.subscribe();
+  previous.close();
+  f.source.notify(head(111n, 110n));
+  assert.deepEqual(
+    f.calls.map(({ after }) => after),
+    [110n],
+  );
+  await until(() => current.frames.length === 1);
+  assert.equal(current.frames[0].height, '111');
+  assert.deepEqual(current.errors, []);
+});
+
+void it('lets eligible publications drain before shedding under cache pressure', async (t) => {
+  const f = fixture({ rows: 7, bytes: 100_000 });
+  t.after(() => f.source.stop());
+  const readers = await Promise.all(
+    Array.from({ length: 70 }, () => f.subscribe()),
+  );
+  readers.push(await f.subscribe(0, [2]), await f.subscribe(0, [3]));
+  for (const domain of [1, 2, 3]) f.source.notify(head(103n, 100n, domain));
+  await until(() => readers.every(({ frames }) => frames.length === 3));
+  assert(readers.every(({ errors }) => errors.length === 0));
 });
 
 void it('fails only the affected domain on a same-height hash replacement', async () => {
@@ -356,6 +386,28 @@ void it('invalidates handoff and suppresses stale fanout when rollback arrives b
     assert.equal(sub.starts[0].boundary, undefined);
   }
   f.source.stop();
+});
+
+void it('defers untouched rows after a head-only retreat during publication', async (t) => {
+  const f = fixture();
+  t.after(() => f.source.stop());
+  f.setHead(102n);
+  const subscribers = await Promise.all(
+    Array.from({ length: 100 }, () => f.subscribe(2)),
+  );
+  const indexed = head(102n, 102n);
+  f.source.notify({ ...indexed, headHeight: 104n });
+  await until(() => subscribers.some(({ frames }) => frames.length));
+  f.source.notify({ ...indexed, headHeight: 103n });
+  await until(() => f.source.metrics().rows === 1);
+  assert(
+    subscribers.every(
+      ({ frames }) => frames.length === 1 && frames[0].height === '101',
+    ),
+  );
+  f.source.notify({ ...indexed, headHeight: 104n });
+  await until(() => subscribers.every(({ frames }) => frames.length === 2));
+  assert(subscribers.every(({ frames }) => frames[1].height === '102'));
 });
 
 void it('retries a rolled-back setup snapshot, but not an ordinary advance', async () => {

@@ -106,6 +106,8 @@ const MAX_EXPLORER_REFRESHES = 4;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
 const MAX_HEAD_PUBLICATION_FAILURES = 3;
+const FANOUT_BYTES_PER_TURN = 256 * 1024;
+const FANOUT_MESSAGES_PER_TURN = 64;
 const VALIDATOR_SOURCE_LIMITS = {
   rows: 10_000,
   bytes: 8 * 1024 * 1024,
@@ -1096,24 +1098,38 @@ export class EventWebSocketServer {
     );
   }
 
-  private async publish(eventType: EventType, row: Row): Promise<void> {
+  private async publish(eventType: EventType, rows: Row[]): Promise<void> {
+    const budget = Math.min(
+      FANOUT_BYTES_PER_TURN,
+      this.outboundQuota('validators'),
+    );
     let bytes = 0;
-    const domain = rowDomain(row, STREAMS[eventType].domain);
-    let serialized: SerializedMessage | undefined;
-    for (const [socket, client] of this.clients) {
-      const request = client.subscriptions.get(eventType);
-      if (
-        !request ||
-        request.confirmations !== undefined ||
-        !matchesDomain(request, domain)
-      )
-        continue;
-      serialized ??= serialize(eventMessage(eventType, row));
-      this.queueData(socket, serialized);
-      bytes += serialized.length;
-      if (bytes >= 256 * 1024) {
-        bytes = 0;
-        await nextTurn();
+    let sends = 0;
+    for (const row of rows) {
+      const domain = rowDomain(row, STREAMS[eventType].domain);
+      let serialized: SerializedMessage | undefined;
+      for (const [socket, client] of this.clients) {
+        const request = client.subscriptions.get(eventType);
+        if (
+          !request ||
+          request.confirmations !== undefined ||
+          !matchesDomain(request, domain)
+        )
+          continue;
+        serialized ??= serialize(eventMessage(eventType, row));
+        if (bytes && bytes + serialized.length > budget) {
+          bytes = 0;
+          sends = 0;
+          await nextTurn();
+          if (this.clients.get(socket) !== client) continue;
+        }
+        this.queueData(socket, serialized);
+        bytes += serialized.length;
+        if (++sends >= FANOUT_MESSAGES_PER_TURN || bytes >= budget) {
+          bytes = 0;
+          sends = 0;
+          await nextTurn();
+        }
       }
     }
   }
@@ -1315,8 +1331,7 @@ export class EventWebSocketServer {
           range.through,
         )) {
           if (this.stopped) return;
-          for (const row of rows)
-            await this.publish('merkle_tree_insertion', row);
+          await this.publish('merkle_tree_insertion', rows);
         }
       } catch (error) {
         this.failValidatorDomain(domain, error);
@@ -1425,7 +1440,7 @@ export class EventWebSocketServer {
           if (this.stopped) return;
           if (agentInterested) {
             agentPublished = true;
-            for (const row of events) await this.publish(eventType, row);
+            await this.publish(eventType, events);
           }
           if (explorerInterested && this.explorerClients.size) {
             const batch: string[] = [];
@@ -1527,7 +1542,7 @@ export class EventWebSocketServer {
       }
     });
     events.sort((a, b) => compareRows(eventType, a, b));
-    for (const row of events) await this.publish(eventType, row);
+    await this.publish(eventType, events);
   }
 
   private hasExplorerSubscriber(messageId: string): boolean {
@@ -1584,18 +1599,36 @@ export class EventWebSocketServer {
       id: row.msg_id,
       frame: serialize({ data: row, type: 'message_upsert' }),
     }));
+    const budget = Math.min(
+      FANOUT_BYTES_PER_TURN,
+      this.outboundQuota('messages'),
+    );
+    let bytes = 0;
     for (const [socket, client] of this.explorerClients) {
       if (!client.ready || client.custom) continue;
-      this.explorerQueue.enqueue(
-        socket,
-        messages
-          .filter(
-            ({ id }) =>
-              !client.messageIds ||
-              (typeof id === 'string' && client.messageIds.has(id)),
-          )
-          .map(({ frame }) => frame),
+      const frames = messages
+        .filter(
+          ({ id }) =>
+            !client.messageIds ||
+            (typeof id === 'string' && client.messageIds.has(id)),
+        )
+        .map(({ frame }) => frame);
+      if (!frames.length) continue;
+      const frameBytes = frames.reduce(
+        (total, frame) => total + frame.length,
+        0,
       );
+      if (bytes && bytes + frameBytes > budget) {
+        bytes = 0;
+        await nextTurn();
+        if (this.explorerClients.get(socket) !== client) continue;
+      }
+      this.explorerQueue.enqueue(socket, frames);
+      bytes += frameBytes;
+      if (bytes >= budget) {
+        bytes = 0;
+        await nextTurn();
+      }
     }
   }
 

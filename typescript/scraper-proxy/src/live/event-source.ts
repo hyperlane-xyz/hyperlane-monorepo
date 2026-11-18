@@ -69,6 +69,7 @@ export class EventSource {
     string,
     { until: number; confirmations: number }
   >();
+  private readonly publications = new Set<Promise<void>>();
   private running = 0;
   private readonly limits: Limits;
   private version = 0;
@@ -189,7 +190,7 @@ export class EventSource {
       start: () => {
         if (!io.active() || this.stopped) return;
         owner.started = true;
-        for (const window of this.windows.values()) this.schedule(window);
+        this.scheduleAvailable();
       },
       stop: () => this.remove(owner),
     };
@@ -265,16 +266,18 @@ export class EventSource {
   }
 
   private schedule(window: Window) {
-    if (window.running || this.stopped || !this.needsRead(window)) return;
-    if (this.running >= this.limits.parallel) return;
+    if (
+      window.running ||
+      this.stopped ||
+      this.running >= this.limits.parallel ||
+      !this.needsRead(window)
+    )
+      return;
     this.running++;
     window.running = true;
     void this.advance(window)
       .catch((error: unknown) => {
-        this.retryAfter.set(window.key, {
-          until: Date.now() + 30_000,
-          confirmations: 0,
-        });
+        this.cooldown(window, 0);
         for (const cursor of window.cursors) this.fail(cursor.owner, error);
       })
       .finally(() => {
@@ -286,17 +289,27 @@ export class EventSource {
           this.windows.delete(window.key);
           this.windows.set(window.key, window);
         }
-        for (const next of this.windows.values()) this.schedule(next);
+        this.scheduleAvailable();
       });
   }
 
+  private scheduleAvailable() {
+    if (this.stopped) return;
+    for (const window of this.windows.values()) {
+      if (this.running >= this.limits.parallel) break;
+      this.schedule(window);
+    }
+  }
+
   private needsRead(window: Window) {
-    return [...window.cursors].some(
-      (cursor) =>
+    for (const cursor of window.cursors)
+      if (
         cursor.owner.started &&
         cursor.owner.active() &&
-        cursor.target > completedHeight(cursor),
-    );
+        cursor.target > completedHeight(cursor)
+      )
+        return true;
+    return false;
   }
 
   private async advance(window: Window) {
@@ -355,11 +368,24 @@ export class EventSource {
             this.rows + pending.length > this.limits.rows ||
             this.bytes + bytes > this.limits.bytes
           ) {
+            // An in-progress publication can free space without shedding a
+            // subscriber. Publishers do not wait on pending scan admission.
+            if (this.publications.size) {
+              await Promise.race(this.publications);
+              if (
+                this.stopped ||
+                !window.cursors.size ||
+                revision !== window.revision ||
+                (prefix && end !== window.floor)
+              )
+                return;
+              continue;
+            }
             // A new historical prefix must pay for itself. Growing live ranges
             // shed the policy retaining the largest cache, not an unrelated
             // zero-confirmation subscriber that happens to publish next.
             if (prefix || !this.evictRetainer()) throw new CapacityError();
-            if (!window.cursors.size) return;
+            if (!window.cursors.size || revision !== window.revision) return;
           }
           window.rows = prefix
             ? [...pending, ...window.rows]
@@ -378,12 +404,10 @@ export class EventSource {
               window.cursors.has(cursor),
             );
             if (!affected.length) return;
-            this.retryAfter.set(window.key, {
-              until: Date.now() + 30_000,
-              confirmations: Math.min(
-                ...affected.map((cursor) => cursor.confirmations),
-              ),
-            });
+            this.cooldown(
+              window,
+              Math.min(...affected.map((cursor) => cursor.confirmations)),
+            );
             for (const cursor of affected) this.fail(cursor.owner, error);
             return;
           }
@@ -393,8 +417,15 @@ export class EventSource {
           this.pendingRows -= pending.length;
         }
       }
-      if (!(await this.publish(window))) return;
-      this.trim(window);
+      const publication = this.publish(window)
+        .then((completed) => {
+          if (completed) this.trim(window);
+        })
+        .finally(() => {
+          this.publications.delete(publication);
+        });
+      this.publications.add(publication);
+      await publication;
     }
   }
 
@@ -413,7 +444,8 @@ export class EventSource {
     let sentBytes = 0;
     for (const row of window.rows) {
       const frames = new Map<number, Record<string, unknown>>();
-      for (const { cursor, target } of cursors) {
+      for (const pass of cursors) {
+        const { cursor } = pass;
         // Skipped rows also consume fanout work. Recheck ancestry after yielding.
         if (++sent >= 64 || sentBytes >= 256 * 1024) {
           sent = 0;
@@ -426,9 +458,10 @@ export class EventSource {
           )
             return false;
         }
+        if (cursor.target < pass.target) pass.target = cursor.target;
         if (
           !cursor.owner.started ||
-          row.position[0] > target ||
+          row.position[0] > pass.target ||
           comparePosition(row.position, cursor.position) <= 0
         )
           continue;
@@ -445,7 +478,9 @@ export class EventSource {
     }
     for (const { cursor, target } of cursors) {
       if (!cursor.owner.started) continue;
-      if (target >= cursor.position[0]) cursor.position = endOfHeight(target);
+      const completed = cursor.target < target ? cursor.target : target;
+      if (completed >= cursor.position[0])
+        cursor.position = endOfHeight(completed);
     }
     return true;
   }
@@ -460,20 +495,49 @@ export class EventSource {
     window.bytes -= bytes;
     this.bytes -= bytes;
     this.rows -= removed.length;
-    window.floor = floor < window.through ? floor : window.through;
+    window.floor = floor;
+    if (floor > window.through) {
+      // A newer checkpoint can outlive every reader of the skipped interval.
+      window.through = floor;
+      window.revision++;
+    }
   }
 
   private evictRetainer(): boolean {
-    let victim: Window | undefined;
-    for (const window of this.windows.values())
-      if (window.rows.length && (!victim || window.bytes > victim.bytes))
-        victim = window;
+    let victim: { window: Window; retainers: Cursor[] } | undefined;
+    for (const window of this.windows.values()) {
+      const last = window.rows.at(-1);
+      if (!last || (victim && window.bytes <= victim.window.bytes)) continue;
+      const oldest = minimumPosition(window);
+      const retainers = [...window.cursors].filter(
+        (cursor) =>
+          completedHeight(cursor) === oldest &&
+          cursor.target < last.position[0],
+      );
+      if (retainers.length) victim = { window, retainers };
+    }
     if (!victim) return false;
-    const oldest = minimumPosition(victim);
-    for (const cursor of victim.cursors)
-      if (completedHeight(cursor) === oldest)
+    this.cooldown(
+      victim.window,
+      Math.min(...victim.retainers.map((cursor) => cursor.confirmations)),
+    );
+    for (const cursor of victim.retainers) {
+      if (victim.window.cursors.has(cursor))
         this.fail(cursor.owner, new CapacityError());
+    }
     return true;
+  }
+
+  private cooldown(window: Window, confirmations: number) {
+    const now = Date.now();
+    const previous = this.retryAfter.get(window.key);
+    this.retryAfter.set(window.key, {
+      until: now + 30_000,
+      confirmations:
+        previous && previous.until > now
+          ? Math.min(previous.confirmations, confirmations)
+          : confirmations,
+    });
   }
 
   private fail(owner: Subscriber, error: unknown) {
@@ -512,10 +576,12 @@ export class EventSource {
 }
 
 function minimumPosition(window: Window) {
-  let floor = window.through;
-  for (const cursor of window.cursors)
-    if (completedHeight(cursor) < floor) floor = completedHeight(cursor);
-  return floor;
+  let floor: bigint | undefined;
+  for (const cursor of window.cursors) {
+    const completed = completedHeight(cursor);
+    if (floor === undefined || completed < floor) floor = completed;
+  }
+  return floor ?? window.through;
 }
 
 function completedHeight(cursor: Cursor) {

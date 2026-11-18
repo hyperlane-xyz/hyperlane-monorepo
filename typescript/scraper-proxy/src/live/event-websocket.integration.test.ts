@@ -1060,9 +1060,13 @@ for (const kind of ['canonical validator', 'public blocks']) {
       waitFor(frames, 'ready'),
       waitFor(agentFrames, 'ready'),
     ]);
+    let holdPong = false;
     const completions = delayServerSendCompletions(
       context,
-      (frame) => frame.type === 'event' || frame.type === 'block',
+      (frame) =>
+        frame.type === 'event' ||
+        frame.type === 'block' ||
+        (holdPong && frame.type === 'pong'),
     );
     try {
       const route = kind === 'canonical validator' ? 'validators' : 'messages';
@@ -1117,10 +1121,17 @@ for (const kind of ['canonical validator', 'public blocks']) {
         0,
         'disconnect immediately releases the stalled reservation',
       );
-      completions.splice(0).forEach((complete) => complete());
+      const lateCallback = completions.shift();
+      assert(lateCallback);
+      holdPong = true;
+      agent.send(JSON.stringify({ type: 'ping' }));
+      await waitUntil(() => completions.length === 1);
+      const agentReservation = events.metricsSnapshot().outboundPendingBytes;
+      assert(agentReservation > 0);
+      lateCallback();
       assert.equal(
         events.metricsSnapshot().outboundPendingBytes,
-        0,
+        agentReservation,
         'late callbacks cannot subtract another reservation',
       );
     } finally {
@@ -4748,7 +4759,7 @@ void it('rejects out-of-range heartbeat intervals without starting timers', asyn
   }
 });
 
-void it('bounds aggregate Explorer outbound buffering', async () => {
+void it('bounds aggregate Explorer outbound buffering when sends stall', async (t) => {
   const sockets = Array.from({ length: 4 }, () => new WebSocket(messagesUrl));
   const messages: Record<string, unknown>[][] = sockets.map(() => []);
   const closeCodes: number[] = [];
@@ -4758,21 +4769,29 @@ void it('bounds aggregate Explorer outbound buffering', async () => {
     );
     socket.on('close', (code) => closeCodes.push(code));
   });
-  await Promise.all(messages.map((items) => waitFor(items, 'ready')));
-  notify(
-    'scraper_explorer_event',
-    JSON.stringify({ messageId: msgId.slice(2) }),
+  const completions = delayServerSendCompletions(
+    t,
+    ({ type }) => type === 'message_upsert',
   );
-  await waitUntil(
-    () =>
-      messages.flat().some(({ type }) => type === 'message_upsert') &&
-      closeCodes.includes(1006),
-  );
-  assert(closeCodes.includes(1006));
-  sockets.forEach((socket) => socket.close());
-  await waitUntil(() =>
-    sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
-  );
+  try {
+    await Promise.all(messages.map((items) => waitFor(items, 'ready')));
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitUntil(
+      () =>
+        messages.flat().some(({ type }) => type === 'message_upsert') &&
+        closeCodes.includes(1006),
+    );
+    assert(events.metricsSnapshot().outboundPendingBytes <= 1_024);
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    sockets.forEach((socket) => socket.terminate());
+    await waitUntil(() =>
+      sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
+    );
+  }
 });
 
 void it('skips oversized diagnostics and retries fanout without interrupting normal updates', async (t) => {
@@ -4890,12 +4909,14 @@ void it('skips oversized diagnostics and retries fanout without interrupting nor
 });
 
 void it(
-  'serves 500 message and 2000 validator sockets with constant read counts',
+  'serves 500 message and 2000 validator sockets under a 1 MiB send budget',
   { skip: process.env.SCRAPER_CAPACITY_TEST !== '1', timeout: 90_000 },
   async (t) => {
     const { EventWebSocketServer } = await import('./event-websocket.js');
     await events.stop();
-    events = new EventWebSocketServer(db);
+    events = new EventWebSocketServer(db, {
+      maxTotalBufferedBytes: 1024 * 1024,
+    });
     await events.start(http);
     const reads = { agent: 0, validators: 0, messages: 0 };
     const original = db.queryLive.bind(db);
@@ -4924,6 +4945,12 @@ void it(
             frontier_id: values[3],
           },
         ]);
+      if (sql.includes('"message_view"')) {
+        const rows = await original<T>(sql, values);
+        return queryRows<T>(
+          rows.map((row) => ({ ...row, msg_body: 'x'.repeat(20 * 1024) })),
+        );
+      }
       return original<T>(sql, values);
     }
     t.mock.method(
