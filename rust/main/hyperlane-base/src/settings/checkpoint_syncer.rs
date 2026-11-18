@@ -45,6 +45,14 @@ pub enum CheckpointSyncerConf {
         /// Identity) instead of a key file or user secrets.
         use_application_default: bool,
     },
+    /// A "fast validator" HTTP API that signs checkpoints on demand.
+    /// Announced as `https+sign://host/path` (or `http+sign://` for local
+    /// testing). The relayer POSTs message context to `<base>/sign` and
+    /// receives a signed checkpoint back.
+    HttpSign {
+        /// Base URL of the validator API (e.g. `https://validator.example.com/v1`).
+        url: String,
+    },
 }
 
 /// Checkpoint Syncer errors
@@ -115,6 +123,12 @@ impl FromStr for CheckpointSyncerConf {
                     }),
                 }
             }
+            "https+sign" => Ok(CheckpointSyncerConf::HttpSign {
+                url: format!("https://{suffix}"),
+            }),
+            "http+sign" => Ok(CheckpointSyncerConf::HttpSign {
+                url: format!("http://{suffix}"),
+            }),
             _ => Err(eyre!("Unknown storage location prefix `{prefix}`")),
         }
     }
@@ -180,6 +194,9 @@ impl CheckpointSyncerConf {
                         .build(bucket, folder.to_owned())
                         .await?,
                 )
+            }
+            CheckpointSyncerConf::HttpSign { url } => {
+                Box::new(crate::HttpSignSyncer::new(url.clone()))
             }
         })
     }
@@ -328,6 +345,30 @@ mod test {
                 assert_eq!(region.as_ref(), "eu-central-2");
             }
             _ => panic!("Expected S3 checkpoint syncer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_https_sign_storage_location() {
+        use super::*;
+        let conf = CheckpointSyncerConf::from_str("https+sign://validator.example.com/v1").unwrap();
+        match conf {
+            CheckpointSyncerConf::HttpSign { url } => {
+                assert_eq!(url, "https://validator.example.com/v1");
+            }
+            _ => panic!("Expected HttpSign checkpoint syncer"),
+        }
+    }
+
+    #[test]
+    fn test_parse_http_sign_storage_location_for_local_testing() {
+        use super::*;
+        let conf = CheckpointSyncerConf::from_str("http+sign://localhost:8080/v1").unwrap();
+        match conf {
+            CheckpointSyncerConf::HttpSign { url } => {
+                assert_eq!(url, "http://localhost:8080/v1");
+            }
+            _ => panic!("Expected HttpSign checkpoint syncer"),
         }
     }
 }
