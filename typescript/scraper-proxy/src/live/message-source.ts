@@ -56,7 +56,7 @@ type Entry = {
 function awaitingTransactions(facts: MessageFacts) {
   return (
     facts.pending.origin_tx_id === null ||
-    facts.deliveries.some(({ fields }) => fields.destination_tx_id === null)
+    facts.delivery?.fields.destination_tx_id === null
   );
 }
 

@@ -154,21 +154,17 @@ export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
 
 // Keep native pg column types for the wire row, especially bigint, bytea and intervals.
 // Payment buckets use decimal strings inside JSON to preserve 256-bit precision.
-export const MAX_MESSAGE_FACTS = 256;
 export const MAX_PAYMENT_HEIGHTS = 8;
 export const LIVE_MESSAGE_FACTS_QUERY = `
   /* live_message_facts */
   WITH ${DISPATCHES}, eligible_dispatch AS (SELECT * FROM dispatches)
   SELECT delivery.domain AS delivery_domain, delivery.block_number AS delivery_height,
-    CASE WHEN delivery.ordinal IS NULL OR delivery.ordinal=1 THEN payment.buckets END AS payment_buckets,
-    CASE WHEN delivery.ordinal IS NULL OR delivery.ordinal=1 THEN ${MESSAGE_BODY} END AS message_body,
+    payment.buckets AS payment_buckets,
+    ${MESSAGE_BODY} AS message_body,
     ${MESSAGE_COLUMNS}
   ${MESSAGE_FROM}
-  LEFT JOIN LATERAL (
-    SELECT d.*, row_number() OVER (ORDER BY block_number DESC NULLS LAST, id DESC) AS ordinal
-    FROM (SELECT * FROM delivered_message WHERE msg_id=dispatch.msg_id
-      ORDER BY block_number DESC NULLS LAST, id DESC LIMIT ${MAX_MESSAGE_FACTS + 1}) d
-  ) delivery ON TRUE
+  -- delivered_message.msg_id is unique, so each message has at most one delivery.
+  LEFT JOIN delivered_message delivery ON delivery.msg_id=dispatch.msg_id
   ${DELIVERY_METADATA}
   LEFT JOIN LATERAL (
     SELECT json_agg(b) AS buckets FROM (
@@ -185,7 +181,6 @@ export const LIVE_MESSAGE_FACTS_QUERY = `
         CASE WHEN rank<=${MAX_PAYMENT_HEIGHTS} THEN block_number END
     ) b
   ) payment ON TRUE
-  ORDER BY dispatch.msg_id, delivery.block_number DESC NULLS LAST, delivery.id DESC
 `;
 
 export function buildProvisionalMessageAffectedQuery(
