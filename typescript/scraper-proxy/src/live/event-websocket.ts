@@ -235,6 +235,9 @@ export class EventWebSocketServer {
   );
   private pendingBytes = 0;
   private explorerQueuedBytes = 0;
+  // Explorer clients share serialized frames; the global budget counts each
+  // queued buffer once, however many clients hold it.
+  private readonly explorerQueuedRefs = new Map<SerializedMessage, number>();
   private listenerReady = false;
   private stopped = false;
   private stopListening?: () => Promise<void>;
@@ -247,10 +250,9 @@ export class EventWebSocketServer {
   private messageSource: MessageSource;
   private readonly validatorStore: EventStore;
   private readonly diagnostics?: DiagnosticsStream;
-  private readonly serializedDiagnostics = new WeakMap<
-    DiagnosticsFrame,
-    SerializedMessage
-  >();
+  // Frames shared by many sockets (message upserts, blocks, diagnostics) are
+  // encoded once.
+  private readonly serializedFrames = new WeakMap<object, SerializedMessage>();
 
   constructor(
     private readonly db: EventDatabase,
@@ -845,7 +847,8 @@ export class EventWebSocketServer {
       this.messageSource.subscribe(
         custom,
         messageIds,
-        (frame) => this.enqueueExplorer(socket, client, [serialize(frame)]),
+        (frame) =>
+          this.enqueueExplorer(socket, client, [this.serializeShared(frame)]),
         (error) => this.failSocket(socket, formatError(error)),
       );
     client.unsubscribe = subscription?.unsubscribe;
@@ -922,7 +925,8 @@ export class EventWebSocketServer {
     const subscription = this.blockSubscriptions.get(socket);
     if (!subscription) return;
     subscription.started = true;
-    for (const block of subscription.latest.values()) this.send(socket, block);
+    for (const block of subscription.latest.values())
+      this.sendSerialized(socket, this.serializeShared(block));
   }
 
   private publishBlock(block: Block): void {
@@ -937,7 +941,8 @@ export class EventWebSocketServer {
       )
         continue;
       subscription.latest.set(block.domain, block);
-      if (subscription.started) this.send(socket, block);
+      if (subscription.started)
+        this.sendSerialized(socket, this.serializeShared(block));
     }
   }
 
@@ -1784,8 +1789,14 @@ export class EventWebSocketServer {
       this.failSocket(socket, 'outbound message queue limit exceeded');
       return;
     }
+    const added = () => {
+      let total = 0;
+      for (const message of new Set(messages))
+        if (!this.explorerQueuedRefs.has(message)) total += message.length;
+      return total;
+    };
     while (
-      this.explorerQueuedBytes + bytes >
+      this.explorerQueuedBytes + added() >
       MAX_EXPLORER_TOTAL_PENDING_BYTES
     ) {
       let victim = socket;
@@ -1795,14 +1806,36 @@ export class EventWebSocketServer {
           victim = peer;
           largest = queued.queuedBytes;
         }
+      const before = this.explorerQueuedBytes;
       websocketSendFailures.inc({ reason: 'queue_limit' });
       this.failSocket(victim, 'outbound message queue limit exceeded');
       if (victim === socket) return;
+      // A victim whose frames are all shared frees nothing; shed the sender
+      // instead of evicting clients that cannot make room.
+      if (this.explorerQueuedBytes >= before) {
+        this.failSocket(socket, 'outbound message queue limit exceeded');
+        return;
+      }
     }
+    for (const message of messages) this.retainExplorerMessage(message);
     client.queue.push(...messages);
     client.queuedBytes += bytes;
-    this.explorerQueuedBytes += bytes;
     if (!client.sending) void this.drainExplorerClient(socket, client);
+  }
+
+  private retainExplorerMessage(message: SerializedMessage): void {
+    const refs = this.explorerQueuedRefs.get(message) ?? 0;
+    if (!refs) this.explorerQueuedBytes += message.length;
+    this.explorerQueuedRefs.set(message, refs + 1);
+  }
+
+  private releaseExplorerMessage(message: SerializedMessage): void {
+    const refs = this.explorerQueuedRefs.get(message) ?? 0;
+    if (refs > 1) this.explorerQueuedRefs.set(message, refs - 1);
+    else {
+      this.explorerQueuedRefs.delete(message);
+      this.explorerQueuedBytes -= message.length;
+    }
   }
 
   private async drainExplorerClient(
@@ -1814,7 +1847,7 @@ export class EventWebSocketServer {
       while (this.explorerClients.get(socket) === client) {
         const message = client.queue.shift();
         if (!message) return;
-        this.explorerQueuedBytes -= message.length;
+        this.releaseExplorerMessage(message);
         client.queuedBytes = Math.max(0, client.queuedBytes - message.length);
         if (!(await this.sendSerializedAndWait(socket, message))) return;
       }
@@ -1974,6 +2007,15 @@ export class EventWebSocketServer {
     }
   }
 
+  private serializeShared(frame: Record<string, unknown>): SerializedMessage {
+    let message = this.serializedFrames.get(frame);
+    if (!message) {
+      message = serialize(frame);
+      this.serializedFrames.set(frame, message);
+    }
+    return message;
+  }
+
   private send(socket: WebSocket, message: Record<string, unknown>): boolean {
     return this.sendSerialized(socket, serialize(message));
   }
@@ -1989,8 +2031,7 @@ export class EventWebSocketServer {
       complete?.(false);
       return false;
     }
-    const message = this.serializedDiagnostics.get(frame) ?? serialize(frame);
-    this.serializedDiagnostics.set(frame, message);
+    const message = this.serializeShared(frame);
     // Leave at least half of both outbound budgets available for normal traffic.
     if (
       socket.bufferedAmount + message.length >
@@ -2108,7 +2149,7 @@ export class EventWebSocketServer {
   }
 
   private clearExplorerQueue(client: ExplorerClient): void {
-    this.explorerQueuedBytes -= client.queuedBytes;
+    for (const message of client.queue) this.releaseExplorerMessage(message);
     client.queue.length = 0;
     client.queuedBytes = 0;
   }

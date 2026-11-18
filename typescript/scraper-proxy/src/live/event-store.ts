@@ -292,11 +292,22 @@ export class EventStore {
         id: string;
         msg_id: string;
       }>(
+        // Each arm applies the cursor and limit itself, so a page reads at most
+        // three batches instead of every row left in the range.
         `/* confirmation_messages */ SELECT * FROM (
-          SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint
-          UNION ALL SELECT block_number, 1, id, msg_id FROM delivered_message WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
-          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
-        ) changes WHERE (height, source, id)>($2::bigint,$3::integer,$4::bigint) ORDER BY height, source, id LIMIT $6`,
+          (SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch
+            WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint
+              AND (origin_block_height,0,id)>($2::bigint,$3::integer,$4::bigint)
+            ORDER BY origin_block_height, id LIMIT $6)
+          UNION ALL (SELECT block_number, 1, id, msg_id FROM delivered_message
+            WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
+              AND (block_number,1,id)>($2::bigint,$3::integer,$4::bigint)
+            ORDER BY block_number, id LIMIT $6)
+          UNION ALL (SELECT block_number, 2, id, msg_id FROM gas_payment
+            WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
+              AND (block_number,2,id)>($2::bigint,$3::integer,$4::bigint)
+            ORDER BY block_number, id LIMIT $6)
+        ) changes ORDER BY height, source, id LIMIT $6`,
         [
           storedDomain(domain),
           position[0].toString(),

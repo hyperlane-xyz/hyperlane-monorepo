@@ -1,8 +1,5 @@
 import type { Row } from './event-store.js';
-import {
-  MAX_MESSAGE_FACTS,
-  MAX_PAYMENT_HEIGHTS,
-} from './provisional-message.js';
+import { MAX_PAYMENT_HEIGHTS } from './provisional-message.js';
 import { parseDatabaseDomain, parseId } from './protocol.js';
 
 type PaymentBucket = {
@@ -27,7 +24,7 @@ export type MessageFacts = {
   destination: number;
   height: bigint;
   pending: Row;
-  deliveries: Delivery[];
+  delivery?: Delivery;
   payments: {
     domain: number;
     height: bigint | null;
@@ -115,26 +112,24 @@ function collectValidFacts(rows: FactRow[]) {
         height: parseId(data.origin_block_height),
         pending,
         payments,
-        deliveries: [],
         bytes:
           Buffer.byteLength(JSON.stringify(pending)) +
           Buffer.byteLength(JSON.stringify(payment_buckets)),
       };
       facts.set(data.msg_id, message);
     }
-    if (delivery_domain != null) {
-      if (message.deliveries.length >= MAX_MESSAGE_FACTS)
-        throw new Error('Message delivery limit exceeded');
+    // Legacy duplicate canonical rows can repeat the one delivery.
+    if (delivery_domain != null && !message.delivery) {
       const domain = parseDatabaseDomain(
         delivery_domain,
         'Invalid delivery domain',
       );
       message.dependencies.add(domain);
-      message.deliveries.push({
+      message.delivery = {
         domain,
         height: delivery_height === null ? null : parseId(delivery_height),
         fields,
-      });
+      };
       message.bytes += Buffer.byteLength(JSON.stringify(fields));
     }
   }
@@ -159,8 +154,10 @@ export function projectMessage(
     return true;
   };
   if (!visible(facts.origin, facts.height)) return;
-  // SQL returns deliveries in block_number DESC NULLS LAST, id DESC order.
-  const delivery = facts.deliveries.find((d) => visible(d.domain, d.height));
+  const delivery =
+    facts.delivery && visible(facts.delivery.domain, facts.delivery.height)
+      ? facts.delivery
+      : undefined;
   let count = 0n,
     payment = 0n,
     gas = 0n;
