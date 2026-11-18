@@ -1,4 +1,4 @@
-import { MAX_EXPLORER_CONFIRMATIONS } from './protocol.js';
+import { MAX_CONFIRMATIONS } from './protocol.js';
 
 // Keep ID eligibility identical to the wide projection without delivery/payment work.
 const DISPATCHES = `dispatches AS (
@@ -181,7 +181,7 @@ export const LIVE_MESSAGE_FACTS_QUERY = `
       -- payments are unconditionally visible and keep their own bucket.
       GROUP BY p.domain, p.block_number IS NULL,
         CASE WHEN p.block_number > least(h.confirmed_height,h.indexed_height,
-          h.head_height-${MAX_EXPLORER_CONFIRMATIONS * 2}) THEN p.block_number END
+          h.head_height-${MAX_CONFIRMATIONS * 2}) THEN p.block_number END
       LIMIT ${MAX_MESSAGE_FACTS + 1}
     ) b
   ) payment ON TRUE

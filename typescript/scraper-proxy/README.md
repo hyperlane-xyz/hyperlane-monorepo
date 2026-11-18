@@ -227,7 +227,8 @@ subscription is declared in URL query parameters; clients do not send a
 `messageIds` accepts at most 50 IDs. It filters the updates sent to that socket. Diagnostics requires between 1 and 50 explicit IDs.
 
 Production `/messages` requests must include a valid `CF-Connecting-IP` header.
-The direct peer must be the loopback cloudflared sidecar. At most five connections
+The direct peer must be the loopback cloudflared sidecar. Each proxy accepts at
+most **500 message connections**. At most five connections
 are allowed per client IP. Unfinished setup reads are capped at 32 globally and
 two per IP; disconnecting does not release their reservation until the read ends.
 Subscription URLs are capped at 8 KiB, with at most 512 domains and 1,000
@@ -361,7 +362,7 @@ wss://<public-scraper-host>/validators?domain=1&confirmations=0
 
 The domain must exist in the scraper DB's `domain` table. Omitted confirmations
 use the scraper's configured canonical policy. An explicit nonnegative safe
-integer uses the custom-confirmation flow, capped by indexed progress; zero
+integer up to 1,000 uses the custom-confirmation flow, capped by indexed progress; zero
 streams near-head events. Custom counts require near-head state and never fall
 back to canonical. Keep the policy consistent with the validator's configuration.
 
@@ -383,20 +384,42 @@ block-tag policies omit confirmations and use the scraper's canonical policy.
 It validates the negotiated policy before using the existing RPC handoff.
 No WebSocket backfill is performed.
 
-Limits per process: **500 connections**, 100 per exact client IP address,
+Limits per process: **2,000 validator connections**, 100 per exact client IP address,
 32 unfinished setups in total, and 8 unfinished setups per IP budget. URLs/client frames
 are limited to 1 KiB and application messages to 30 per minute. Admission limits
 reject with HTTP 400/403/429/503 before upgrading. Disconnected setups retain
 connection, IP and setup reservations until their DB work ends. Connection/IP
 reservations also remain until the socket has actually closed.
 
-Connections with the same `(domain, confirmations)` share one custom reader.
-Events are serialized once and broadcast without waiting for individual send
-callbacks; slow clients remain subject to socket and aggregate buffer limits.
-The final member disconnecting releases its reader. Heartbeat limits also apply.
+Agents and validators reuse the event-source implementation with separate instances,
+retention, and read admission. Each route shares one custom range per
+`(domain, eventType)` per proxy process across its confirmation counts. Connections own release cursors;
+new head ranges are read once, and cached rows are released as each policy matures.
+The validator URL is adapted to the same event subscription setup used by agents,
+with the Merkle event type and one domain fixed by the endpoint.
+Connecting still takes a current checkpoint snapshot for the RPC handoff.
+Events are serialized once per effective count and broadcast through independent
+bounded FIFOs. The final subscriber disconnecting releases its range.
+Heartbeat limits also apply.
+
+The agent source admits at most 2,048 ranges and four concurrent scans. The
+validator source admits at most 512 ranges and two concurrent scans. Their
+combined retained and loading data are bounded to 50,000
+rows and 64 MiB of serialized event data. A single range load accepts at most
+5,000 rows / 4 MiB. Oversized joining ranges fail only the deeper subscribers;
+cache pressure sheds retaining policies within the affected route. Failed policies have a 30-second
+retry cooldown. Clients retain their existing RPC recovery on disconnect.
+Each socket has a 2,000-frame / 16 MiB queue. Aggregate queue budgets are 16 MiB
+for agents, 8 MiB for validators, and 32 MiB for messages. Canonical events and
+block frames use the same paced queues. Queued bytes/messages are exposed by route.
+In-flight sends reserve half the process byte budget for agents and a quarter
+each for validators and messages (with a 1 KiB minimum capped by the process
+budget). Control frames share those quotas. Buffer pressure sheds the largest
+pending sender in the affected route; disconnects release its reservation immediately.
 
 Validator-only reads use a dedicated five-connection primary pool with acquisition
-timeouts. Canonical events already needed by internal agents reuse that existing
+timeouts and separate scan admission. Custom agent ranges always use the live
+pool; validator subscriptions cannot expand or pin them. Canonical events already needed by internal agents reuse that existing
 live-pool read and broadcast, without adding a public query to the live pool.
 Validator-only canonical publication has its own bounded queue and worker, so
 waiting for that pool does not stall internal agent notification or head drains.
@@ -406,12 +429,13 @@ Validator metrics use the `hyperlane_scraper_proxy_` prefix:
 
 | Metric                                                                                      | Labels / meaning                                                                               |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `websocket_connections`, `websocket_connection_limit`                                       | `route="validators"`: active connections and the 500-connection cap                            |
+| `websocket_connections`, `websocket_connection_limit`                                       | `route="validators"`: active connections and the 2,000-connection cap                          |
 | `websocket_connections_total`, `websocket_connection_rejections_total`                      | Accepted/rejected connections by route and reason                                              |
 | `websocket_validator_subscriptions`                                                         | Active subscriptions by `domain` and `policy="canonical"` or `"custom"`                        |
 | `websocket_validator_reserved_connections`                                                  | Connections counted against the cap, including closing sockets and disconnected pending setups |
 | `websocket_validator_pending_setups`, `websocket_validator_setup_limit`                     | Unfinished DB setups and the global setup cap                                                  |
-| `websocket_validator_shared_readers`                                                        | Active custom domain/confirmation readers                                                      |
+| `websocket_validator_shared_readers`                                                        | Active custom validator ranges, one per domain across policies                                 |
+| `websocket_queued_bytes`, `websocket_queued_messages`                                       | Queue backlog by `route` (`agent`, `validators`, `messages`)                                   |
 | `websocket_validator_client_ips`                                                            | Public IP budgets currently reserved                                                           |
 | `websocket_validator_max_connections_per_ip`, `websocket_validator_connection_limit_per_ip` | Largest public IP reservation count and its limit                                              |
 | `websocket_validator_client_message_limit_bytes`                                            | Inbound frame limit                                                                            |
@@ -648,7 +672,10 @@ supported during agent migration.
 
 The map requires explicit domains on event streams; its keys do not subscribe to
 additional domains. Unused keys are rejected, including keys used only by `blocks`.
-Counts must be nonnegative safe integers and keys must be uint32 domain IDs.
+Counts must be integers from 0 through 1,000 and keys must be uint32 domain IDs.
+Custom/advisory subscriptions allow at most 512 domains and a 10,000 domain-block
+budget, using the largest requested count per domain and counting zero as one.
+Canonical-only fleet subscriptions retain their existing domain capacity.
 All agent streams are live-only; recover history through RPC.
 `blocks` subscriptions still report raw indexed heads and ignore this map.
 The `subscribed` response echoes the map alongside the original streams.
@@ -658,10 +685,11 @@ policy, including a domain override, requires near-head state for every affected
 domain. A missing head rejects the whole subscription with close code 1008;
 advisory zero-confirmation streams retain their existing canonical fallback.
 
-Domains sharing a count are grouped into the existing custom readers. All requested
-domain/count pairs, including advisory zero-confirmation pairs, share one initial
-database snapshot per subscription. Advisory zero-confirmation domains use one
-reader per event type. Rollbacks during setup refresh the snapshot.
+All requested domain/count pairs, including advisory zero-confirmation pairs,
+share one initial database snapshot per subscription. After setup, agents and
+validators share domain/event-type ranges across policies within their own isolated route.
+Rollbacks during setup refresh the snapshot; active rollbacks invalidate cached
+rows before replacement events are published.
 Canonical publication excludes overridden domains; the same event is not
 also emitted at the configured default. Handoff boundaries and rollback frames
 retain the effective numeric confirmation count. A domain can receive multiple
@@ -691,8 +719,8 @@ The extra stream leaves canonical live delivery unchanged. At depth 0,
 events are sent once. Rollback frames
 identify the affected stream by `eventType` and `confirmations`.
 Provisional Merkle event envelopes also include `blockHash`.
-The extra stream is best-effort: domains without near-head state are logged and
-skipped until reconnect, without rejecting canonical live delivery. Explicit numeric
+The extra stream is best-effort: domains without near-head state report an unavailable
+boundary and are skipped until reconnect, without rejecting canonical live delivery. Explicit numeric
 confirmation subscriptions still require near-head state for every requested domain.
 
 Server frame types:

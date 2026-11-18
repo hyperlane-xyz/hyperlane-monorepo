@@ -4,13 +4,11 @@ import {
   confirmationHeight,
   endOfHeight,
   type ConfirmationHead,
-} from './confirmation-stream.js';
-import type { EventStore, MessageChange } from './event-store.js';
-import { projectMessage, type MessageFacts } from './message-facts.js';
-import {
-  MAX_EXPLORER_CONFIRMATIONS,
+  MAX_CONFIRMATIONS,
   type HeadNotification,
 } from './protocol.js';
+import type { EventStore, MessageChange } from './event-store.js';
+import { projectMessage, type MessageFacts } from './message-facts.js';
 
 const MAX_CHANGES = 50_000;
 const MAX_FACT_BYTES = 64 * 1024 * 1024;
@@ -159,7 +157,7 @@ export class MessageSource {
       for (const entry of this.entries.values()) this.invalidate(entry);
     } else if (window && !window.loading) {
       // Retain unprocessed advances. A stalled domain cannot pin old rows forever.
-      const floor = confirmationHeight(next, 2 * MAX_EXPLORER_CONFIRMATIONS);
+      const floor = confirmationHeight(next, 2 * MAX_CONFIRMATIONS);
       if (floor > window.through && !this.readsDomain(head.domain)) {
         this.dropWindow(head.domain, window);
         return;

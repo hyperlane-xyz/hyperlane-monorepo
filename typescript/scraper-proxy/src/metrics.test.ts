@@ -24,6 +24,13 @@ void it('serves current usage and limits from /metrics', async () => {
     connections: { agent: 3, messages: 4, validators: 2 },
     explorerPendingSetups: 2,
     messageSource: { ranges: 1, changes: 3, factBytes: 512 },
+    eventSource: { ranges: 2, rows: 4, bytes: 1024 },
+    validatorSource: { ranges: 1, rows: 2, bytes: 512 },
+    queues: {
+      agent: { bytes: 1024, messages: 2 },
+      validators: { bytes: 2048, messages: 3 },
+      messages: { bytes: 1024, messages: 9 },
+    },
     validatorPendingSetups: 1,
     validatorReservedConnections: 2,
     validatorSharedReaders: 1,

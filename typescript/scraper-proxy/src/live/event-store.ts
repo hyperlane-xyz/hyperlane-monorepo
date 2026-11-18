@@ -1,12 +1,10 @@
 import { config } from '../config.js';
 import type { DbService } from '../db/db.service.js';
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
-import type {
-  ConfirmationHead,
-  ConfirmationRow,
-  Position,
-} from './confirmation-stream.js';
 import {
+  type ConfirmationHead,
+  type ConfirmationRow,
+  type Position,
   type LiveStartBoundary,
   type EventType,
   displayAddress,
@@ -236,7 +234,6 @@ export class EventStore {
     domain: number,
     after: Position,
     through: bigint,
-    confirmations: number,
   ): AsyncIterable<ConfirmationRow> {
     const stream = STREAMS[eventType];
     const table = stream.table.replace('confirmed_', '');
@@ -269,7 +266,6 @@ export class EventStore {
           position,
           message: {
             ...eventMessage(eventType, row),
-            confirmations,
             height: position[0].toString(),
             blockHash: block_hash,
           },
