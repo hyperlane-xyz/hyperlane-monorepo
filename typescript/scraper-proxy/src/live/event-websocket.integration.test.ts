@@ -4171,6 +4171,111 @@ void it('sheds a large stalled queue before a healthy browser at the global byte
   }
 });
 
+void it('evicts the browser holding the most unshared bytes at the global byte limit', async (context) => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer(db);
+  await new Promise<void>((resolve) =>
+    localHttp.listen(0, '127.0.0.1', resolve),
+  );
+  const address = localHttp.address();
+  assert(address && typeof address !== 'string');
+  await localEvents.start(localHttp);
+  const endpoint = `ws://127.0.0.1:${address.port}/messages`;
+  const [shared, own, probe, extra] = ['0a', '0b', '0d', '0e'].map((byte) =>
+    byte.repeat(32),
+  );
+  // Two stalled browsers share one message's frames; a third holds its own.
+  const sockets = [
+    new WebSocket(`${endpoint}?messageIds=0x${shared}`),
+    new WebSocket(`${endpoint}?messageIds=0x${shared}`),
+    new WebSocket(`${endpoint}?messageIds=0x${own}`),
+    new WebSocket(endpoint),
+  ];
+  const messages = sockets.map(captureMessages);
+  await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(_sql: string, values: unknown[] = []) =>
+      queryRows<T>(
+        stringArray(values[0]).map((id) => ({
+          msg_id: id,
+          msg_body: 'x'.repeat(335_000),
+        })),
+      ),
+  );
+  const completions: Array<() => void> = [];
+  const healthy = new WeakSet<WebSocket>();
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
+  const originalSend = WebSocket.prototype.send;
+  context.mock.method(
+    WebSocket.prototype,
+    'send',
+    function (
+      this: WebSocket,
+      data: Parameters<WebSocket['send']>[0],
+      optionsOrCallback?:
+        | Parameters<WebSocket['send']>[1]
+        | ((error?: Error) => void),
+      callback?: (error?: Error) => void,
+    ): void {
+      const completion =
+        typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
+      const row = message?.data;
+      if (
+        message?.type === 'message_upsert' &&
+        row &&
+        typeof row === 'object' &&
+        'msg_id' in row &&
+        String(row.msg_id).endsWith(probe)
+      )
+        healthy.add(this);
+      const completed =
+        completion && message?.type === 'message_upsert' && !healthy.has(this)
+          ? () => completions.push(() => completion())
+          : completion;
+      if (typeof optionsOrCallback === 'function' || !optionsOrCallback) {
+        originalSend.call(this, data, completed);
+      } else {
+        originalSend.call(this, data, optionsOrCallback, completed);
+      }
+    },
+  );
+  const upserts = () =>
+    messages[3].filter((f) => f.type === 'message_upsert').length;
+  try {
+    notify('scraper_explorer_event', JSON.stringify({ messageId: probe }));
+    await waitUntil(() => upserts() === 1);
+    // Just under each browser's 16 MiB queue: about 16.75 MB shared by the
+    // pair and 16.75 MB held by the third, below the 32 MiB global budget.
+    for (let count = 0; count < 102; count++) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: count % 2 ? own : shared }),
+      );
+      await waitUntil(() => upserts() === count + 2);
+    }
+    assert(sockets.every((s) => s.readyState === WebSocket.OPEN));
+    notify('scraper_explorer_event', JSON.stringify({ messageId: extra }));
+    // One more frame for the healthy browser crosses the global budget.
+    await waitUntil(() => upserts() === 104);
+    await waitUntil(() => sockets[2].readyState === WebSocket.CLOSED);
+    assert.equal(sockets[0].readyState, WebSocket.OPEN);
+    assert.equal(sockets[1].readyState, WebSocket.OPEN);
+    assert.equal(sockets[3].readyState, WebSocket.OPEN);
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    sockets.forEach((socket) => socket.terminate());
+    await localEvents.stop();
+    await new Promise<void>((resolve) => localHttp.close(() => resolve()));
+  }
+});
+
 void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (context) => {
   const sockets = [new WebSocket(messagesUrl), new WebSocket(messagesUrl)];
   const received = sockets.map((socket) => {

@@ -19,6 +19,8 @@ const FACT_BATCH_SIZE = 64;
 const MAX_FACT_QUERIES = 2;
 const DOMAIN_RETRY_MS = 30_000;
 const MAX_EXPOSED = 10_000;
+// Distinct frontier keys are bounded by distinct policies; this caps a churn of them.
+const MAX_PROJECTIONS_PER_FACT = 16;
 const PRUNE_INTERVAL_MS = 1_000;
 
 class MessageRangeCapacityError extends Error {
@@ -99,9 +101,11 @@ export class MessageSource {
   private readonly retryAfter = new Map<number, number>();
   private readonly windows = new Map<number, Window>();
   private readonly entries = new Map<string, Entry>();
+  // One row per distinct frontier key, so subscribers with interleaved
+  // policies still share rows and frames.
   private readonly projections = new WeakMap<
     MessageFacts,
-    { key: string; row: ReturnType<typeof projectMessage> }
+    Map<string, ReturnType<typeof projectMessage>>
   >();
   // Subscribers with the same projection share one frame object, so the
   // websocket layer serializes it once.
@@ -451,20 +455,24 @@ export class MessageSource {
       const from = sub.frontiers.get(domain);
       if (from === undefined) continue;
       const to = confirmationHeight(head, sub.confirmations);
-      if (rollback && to < from) {
-        sub.frontiers.set(domain, to);
-        sub.send({
-          type: 'rollback',
-          domain,
-          confirmations: sub.confirmations,
-          fromHeight: String(from),
-          toHeight: String(to),
-        });
-        // Rows whose facts on this domain are all at or below `to` are intact.
+      if (rollback) {
+        if (to < from) {
+          sub.frontiers.set(domain, to);
+          sub.send({
+            type: 'rollback',
+            domain,
+            confirmations: sub.confirmations,
+            fromHeight: String(from),
+            toHeight: String(to),
+          });
+        }
+        // Rows whose facts on this domain all survive the rewind are intact.
+        // Without a lower frontier, a removed payment can still shift a fold.
+        const floor = to < from ? to : indexedHeight;
         const ids = new Set<string>();
         for (const [id, heights] of sub.exposed)
           if (this.settled(sub, heights)) sub.exposed.delete(id);
-          else if ((heights.get(domain) ?? to) > to) ids.add(id);
+          else if ((heights.get(domain) ?? floor) > floor) ids.add(id);
         if (ids.size) refresh.set(sub, ids);
       }
       if (to > from && sub.ids?.size !== 0) needed = true;
@@ -660,16 +668,14 @@ export class MessageSource {
   }
 
   // A rollback never rewinds below the confirmed height, so a followed
-  // domain's frontier stays at or above `confirmed - confirmations`; other
-  // domains project at the confirmed height itself. Facts at or below that
-  // stay visible to this subscriber whatever rolls back.
+  // domain's frontier stays at or above `confirmed - confirmations`. Facts at
+  // or below that stay visible to this subscriber whatever rolls back.
   private settled(sub: Subscriber, heights: ReadonlyMap<number, bigint>) {
     for (const [domain, height] of heights) {
+      // Only a rollback on a followed domain refreshes this subscriber.
+      if (!sub.frontiers.has(domain)) continue;
       const confirmed = this.heads.get(domain)?.confirmed ?? 0n;
-      const limit = sub.frontiers.has(domain)
-        ? confirmed - BigInt(sub.confirmations)
-        : confirmed;
-      if (height > limit) return false;
+      if (height > confirmed - BigInt(sub.confirmations)) return false;
     }
     return true;
   }
@@ -738,10 +744,15 @@ export class MessageSource {
     const key = [...facts.dependencies]
       .map((domain) => frontier(domain)?.toString() ?? '*')
       .join(',');
-    const previous = this.projections.get(facts);
-    if (previous?.key === key) return previous.row;
+    let rows = this.projections.get(facts);
+    if (!rows) {
+      rows = new Map();
+      this.projections.set(facts, rows);
+    }
+    if (rows.has(key)) return rows.get(key);
+    if (rows.size >= MAX_PROJECTIONS_PER_FACT) rows.clear();
     const row = projectMessage(facts, frontier);
-    this.projections.set(facts, { key, row });
+    rows.set(key, row);
     return row;
   }
 
