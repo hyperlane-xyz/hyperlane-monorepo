@@ -1195,6 +1195,7 @@ void it('applies domain overrides across event types with legacy and canonical f
             domain: 1,
             indexed_height: '10',
             head_height: '10',
+            confirmed_height: '5',
             hash: liveStartRow.hash,
           },
         ]);
@@ -2632,6 +2633,8 @@ for (const { eventType, byDomain } of [
       }
       await waitUntil(() => completions.length === 1);
       advance('11', '9', '10');
+      // Rollbacks follow earlier upserts on the same bounded Explorer FIFO.
+      if (eventType === 'messages') completions.shift()?.();
       const rollback = await waitFor(messages, 'rollback');
       assert.equal(rollback.fromHeight, '10');
       assert.equal(rollback.toHeight, '9');
@@ -3621,6 +3624,37 @@ void it('keeps agents connected when an Explorer query fails', async () => {
   }
 });
 
+void it('keeps unrelated message domains and block-only browsers connected after a domain failure', async () => {
+  const sockets = [
+    new WebSocket(`${messagesUrl}?confirmations=0&domains=1`),
+    new WebSocket(`${messagesUrl}?confirmations=0&domains=2`),
+    new WebSocket(`${messagesUrl}?blocks=true&messageIds=`),
+  ];
+  const messages = sockets.map(captureMessages);
+  try {
+    await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
+    headQueryError = new Error('domain unavailable');
+    headQueryErrorDomain = 1;
+    headQueryErrorEventType = 'delivery';
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        previousConfirmedHeight: '10',
+        confirmedHeight: '11',
+      }),
+    );
+    await waitUntil(() => sockets[0].readyState === WebSocket.CLOSED, 5000);
+    assert.equal(sockets[1].readyState, WebSocket.OPEN);
+    assert.equal(sockets[2].readyState, WebSocket.OPEN);
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    headQueryErrorEventType = undefined;
+    sockets.forEach((socket) => socket.terminate());
+  }
+});
+
 void it('keeps Explorer connected when an agent query fails', async () => {
   const explorer = new WebSocket(messagesUrl);
   const explorerMessages: Record<string, unknown>[] = [];
@@ -3921,6 +3955,58 @@ void it('releases a peer-closed Explorer queue immediately', async (context) => 
   assert.equal(events.metricsSnapshot().explorerPendingMessages, 0);
   assert.equal(events.metricsSnapshot().explorerPendingBytes, 0);
   for (const complete of completions.splice(0)) complete();
+});
+
+void it('sheds a large stalled queue before a healthy browser at the global byte limit', async (context) => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer(db);
+  await new Promise<void>((resolve) =>
+    localHttp.listen(0, '127.0.0.1', resolve),
+  );
+  const address = localHttp.address();
+  assert(address && typeof address !== 'string');
+  await localEvents.start(localHttp);
+  const endpoint = `ws://127.0.0.1:${address.port}/messages`;
+  const sockets = Array.from({ length: 4 }, () => new WebSocket(endpoint));
+  const messages = sockets.map(captureMessages);
+  await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
+  const body = 'x'.repeat(300_000);
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(_sql: string, values: unknown[] = []) =>
+      queryRows<T>(
+        stringArray(values[0]).map((id) => ({ msg_id: id, msg_body: body })),
+      ),
+  );
+  // Stall three browsers. The last browser keeps draining every update.
+  const completions = delayServerSendCompletions(context);
+  try {
+    for (let count = 1; count <= 40; count++) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: msgId.slice(2) }),
+      );
+      await waitUntil(
+        () =>
+          messages[3].filter((f) => f.type === 'message_upsert').length ===
+          count,
+      );
+      await waitUntil(() => completions.length >= (count === 1 ? 4 : 1));
+      completions.pop()?.();
+    }
+    assert.equal(sockets[3].readyState, WebSocket.OPEN);
+    assert(sockets.slice(0, 3).some((s) => s.readyState === WebSocket.CLOSED));
+    assert(
+      localEvents.metricsSnapshot().explorerPendingBytes <= 32 * 1024 * 1024,
+    );
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    sockets.forEach((socket) => socket.terminate());
+    await localEvents.stop();
+    await new Promise<void>((resolve) => localHttp.close(() => resolve()));
+  }
 });
 
 void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (context) => {

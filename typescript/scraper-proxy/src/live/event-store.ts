@@ -84,7 +84,7 @@ const EVENT_DOMAIN_COLUMNS: Record<EventType, readonly string[]> = {
   merkle_tree_insertion: ['domain'],
 };
 
-export type MessageChange = { position: Position; id: string };
+export type MessageChange = { height: bigint; id: string };
 
 /** Database reads for live event and message publication. */
 export class EventStore {
@@ -96,19 +96,6 @@ export class EventStore {
       [storedDomain(domain)],
     );
     return rows.length > 0;
-  }
-
-  blockHeads(domains?: Set<number>) {
-    return this.db.queryLive<{
-      domain: number;
-      indexed_height: string;
-      hash: string;
-      head_height: string;
-    }>(
-      `SELECT domain, indexed_height, encode(indexed_hash, 'hex') AS hash, head_height
-       FROM scraper_head${domains ? ' WHERE domain=ANY($1::integer[])' : ''}`,
-      domains ? [[...domains].map(storedDomain)] : [],
-    );
   }
 
   /** Read all event types' confirmed boundary in one primary-database snapshot. */
@@ -190,9 +177,10 @@ export class EventStore {
     }
   }
 
-  async messageHeads() {
+  async messageHeads(domains?: Set<number>) {
     const rows = await this.db.queryLive<Row>(
-      "SELECT domain, head_height, indexed_height, confirmed_height, encode(indexed_hash, 'hex') AS hash FROM scraper_head",
+      `SELECT domain, head_height, indexed_height, confirmed_height, encode(indexed_hash, 'hex') AS hash FROM scraper_head${domains ? ' WHERE domain=ANY($1::integer[])' : ''}`,
+      domains ? [[...domains].map(storedDomain)] : [],
     );
     return new Map(
       rows.map((row) => [
@@ -321,7 +309,7 @@ export class EventStore {
       if (!changes.length) return;
       const page = changes.map((change) => {
         position = [parseId(change.height), change.source, parseId(change.id)];
-        return { position, id: change.msg_id };
+        return { height: position[0], id: change.msg_id };
       });
       yield page;
       if (changes.length < config.EVENT_STREAM_BATCH_SIZE) return;

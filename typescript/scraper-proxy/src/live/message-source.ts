@@ -1,9 +1,9 @@
 // Per-process source for /messages. A browser owns only a projection cursor.
-// Range scans and hydration of the retained range never use subscriber parameters.
+// Range scans are shared by domain. Only requested rows are hydrated.
 import {
   confirmationHeight,
+  endOfHeight,
   type ConfirmationHead,
-  type Position,
 } from './confirmation-stream.js';
 import type { EventStore, MessageChange } from './event-store.js';
 import { projectMessage, type MessageFacts } from './message-facts.js';
@@ -18,28 +18,59 @@ const MAX_PARALLEL_DOMAINS = 4;
 const FACT_BATCH_SIZE = 64;
 const MAX_FACT_QUERIES = 2;
 const DOMAIN_RETRY_MS = 30_000;
-const END_ID = 9_223_372_036_854_775_807n;
+
+class MessageRangeCapacityError extends Error {
+  constructor() {
+    super('Message source range limit exceeded');
+  }
+}
 
 type Head = ConfirmationHead & { hash?: string };
 type Window = {
   floor: bigint;
   through: bigint;
   changes: MessageChange[];
-  loading?: Promise<void>;
+  loading?: boolean;
 };
 type Entry = {
   refs: number;
   bytes: number;
-  value?: Promise<MessageFacts | undefined>;
-  loading?: Pending;
+  value?: Promise<MessageFacts | Error | undefined>;
 };
-type Pending = {
-  started: boolean;
-  resolve: (facts?: MessageFacts) => void;
-  reject: (error: unknown) => void;
+
+// Share the same bounded FIFO admission rule for range scans and fact batches.
+function limitReads(limit: number) {
+  let active = 0;
+  const queue: (() => void)[] = [];
+  return async <T>(read: () => Promise<T>): Promise<T> => {
+    if (active < limit) active++;
+    else {
+      if (queue.length >= 512)
+        throw new Error('Message source read queue full');
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    try {
+      return await read();
+    } finally {
+      const next = queue.shift();
+      if (next) next();
+      else active--;
+    }
+  };
+}
+
+type Policy = { confirmations: number; domains: Set<number> };
+type Subscriber = Policy & {
+  ids?: Set<string>;
+  frontiers: Map<number, bigint>;
+  exposed: Map<string, Map<number, bigint>>;
+  send: (frame: Record<string, unknown>) => void;
+  fail: (error: unknown) => void;
 };
 
 export class MessageSource {
+  private readonly subscribers = new Set<Subscriber>();
+  private readonly advances = new Map<number, { head: ConfirmationHead }>();
   private readonly heads = new Map<number, Head>();
   private snapshot?: Promise<Map<number, Head>>;
   private readonly retryAfter = new Map<number, number>();
@@ -47,18 +78,12 @@ export class MessageSource {
   private readonly entries = new Map<string, Entry>();
   private readonly projections = new WeakMap<
     MessageFacts,
-    {
-      heights: Map<number, bigint | undefined>;
-      row: ReturnType<typeof projectMessage>;
-    }
+    { key: string; row: ReturnType<typeof projectMessage> }
   >();
-  private readonly pending = new Map<string, Pending>();
-  private scheduled = false;
-  private factQueries = 0;
+  private readonly scan = limitReads(MAX_PARALLEL_DOMAINS);
+  private readonly hydrate = limitReads(MAX_FACT_QUERIES);
   private changes = 0;
   private bytes = 0;
-  private running = 0;
-  private readonly waiting: (() => void)[] = [];
   private stopped = false;
 
   constructor(
@@ -94,7 +119,7 @@ export class MessageSource {
     return this.snapshot;
   }
 
-  observe(head: HeadNotification, interested: () => boolean) {
+  observe(head: HeadNotification) {
     if (!this.snapshot) return;
     const previous = this.heads.get(head.domain);
     const indexed = head.indexedHeight ?? previous?.indexed;
@@ -120,20 +145,27 @@ export class MessageSource {
       (head.previousIndexedHeight !== undefined &&
         indexed < head.previousIndexedHeight)
     ) {
+      this.advances.delete(head.domain);
       if (window) this.dropWindow(head.domain, window);
+      if (replaced) {
+        for (const sub of this.subscribers)
+          if (sub.frontiers.has(head.domain))
+            sub.fail(
+              new Error('Message block replaced without rollback boundary'),
+            );
+      }
       // Cross-domain projections can include a removed delivery/payment even
       // when the retained change is on a different domain.
       for (const entry of this.entries.values()) this.invalidate(entry);
     } else if (window && !window.loading) {
       // Retain unprocessed advances. A stalled domain cannot pin old rows forever.
       const floor = confirmationHeight(next, 2 * MAX_EXPLORER_CONFIRMATIONS);
-      if (floor > window.through && !interested()) {
+      if (floor > window.through && !this.readsDomain(head.domain)) {
         this.dropWindow(head.domain, window);
         return;
       }
       this.trim(window, floor < window.through ? floor : window.through);
     }
-    return replaced;
   }
 
   invalidateIds(ids: readonly string[]) {
@@ -144,19 +176,16 @@ export class MessageSource {
   }
 
   private invalidate(entry: Entry) {
-    // The pending query will see the change if it has not reached PostgreSQL yet.
-    if (entry.loading && !entry.loading.started) return;
     this.bytes -= entry.bytes;
     entry.bytes = 0;
     entry.value = undefined;
-    entry.loading = undefined;
   }
 
   private trim(window: Window, floor: bigint) {
     if (floor <= window.floor) return;
     let removed = 0;
     for (const change of window.changes) {
-      if (change.position[0] > floor) break;
+      if (change.height > floor) break;
       const entry = this.entries.get(change.id);
       if (entry) entry.refs--;
       removed++;
@@ -169,7 +198,8 @@ export class MessageSource {
   private dropWindow(domain: number, window: Window) {
     if (this.windows.get(domain) !== window) return;
     this.windows.delete(domain);
-    this.trim(window, END_ID);
+    const last = window.changes.at(-1);
+    if (last) this.trim(window, last.height);
   }
 
   private entry(id: string) {
@@ -178,7 +208,7 @@ export class MessageSource {
       if (this.entries.size >= MAX_CHANGES) {
         this.evictIdle();
         if (this.entries.size >= MAX_CHANGES)
-          throw new Error('Message source ID limit exceeded');
+          throw new MessageRangeCapacityError();
       }
       entry = { refs: 0, bytes: 0 };
       this.entries.set(id, entry);
@@ -186,227 +216,442 @@ export class MessageSource {
     return entry;
   }
 
+  private readsDomain(domain: number) {
+    for (const sub of this.subscribers)
+      if (sub.ids?.size !== 0 && sub.frontiers.has(domain)) return true;
+    return false;
+  }
+
+  private wantsId(id: string) {
+    for (const sub of this.subscribers)
+      if (!sub.ids || sub.ids.has(id)) return true;
+    return false;
+  }
+
   private evictIdle() {
+    // An idle or offline domain may never send another head to trim its window.
+    for (const [domain, window] of this.windows)
+      if (!this.advances.has(domain) && !this.readsDomain(domain))
+        this.dropWindow(domain, window);
     for (const [id, entry] of this.entries) {
-      if (entry.refs || entry.loading) continue;
+      if (entry.refs || (entry.value && !entry.bytes)) continue;
       this.invalidate(entry);
       this.entries.delete(id);
     }
   }
 
-  private facts(id: string) {
-    const entry = this.entry(id);
-    if (!entry.value) {
-      entry.value = new Promise<MessageFacts | undefined>((resolve, reject) => {
-        const request = { resolve, reject, started: false };
-        entry.loading = request;
-        this.pending.set(id, request);
-      });
-      this.scheduleFacts();
-    }
-    return entry.value;
-  }
-
-  private scheduleFacts() {
-    if (
-      this.scheduled ||
-      !this.pending.size ||
-      this.factQueries >= MAX_FACT_QUERIES
-    )
-      return;
-    this.scheduled = true;
-    setImmediate(() => {
-      this.scheduled = false;
-      while (this.pending.size && this.factQueries < MAX_FACT_QUERIES) {
-        const batch = new Map<string, Pending>();
-        for (const [id, request] of this.pending) {
-          this.pending.delete(id);
-          request.started = true;
-          batch.set(id, request);
-          if (batch.size === FACT_BATCH_SIZE) break;
-        }
-        this.factQueries++;
-        void this.fetchFacts(batch).finally(() => {
-          this.factQueries--;
-          this.scheduleFacts();
-        });
-      }
+  private fetchBatch(batch: { id: string; entry: Entry }[]) {
+    const result = this.hydrate(async () => {
+      const ids = batch.map(({ id }) => id).filter((id) => this.wantsId(id));
+      if (this.stopped || !ids.length)
+        return new Map<string, MessageFacts | Error>();
+      return this.store.messageFacts(ids);
     });
-  }
-
-  private async fetchFacts(batch: Map<string, Pending>) {
-    try {
-      if (this.stopped) throw new Error('Message source stopped');
-      const result = await this.store.messageFacts([...batch.keys()]);
-      const bytes = [...result.values()].reduce(
-        (sum, facts) => sum + facts.bytes,
-        0,
-      );
-      if (this.bytes + bytes > MAX_FACT_BYTES) {
-        this.evictIdle();
-        if (this.bytes + bytes > MAX_FACT_BYTES)
-          throw new Error('Message source byte limit exceeded');
-      }
-      for (const [id, request] of batch) {
-        const facts = result.get(id);
-        const entry = this.entries.get(id);
-        if (entry && entry.loading === request) {
-          entry.loading = undefined;
-          entry.bytes = facts?.bytes ?? 0;
-          this.bytes += entry.bytes;
-        }
-        request.resolve(facts);
-      }
-    } catch (err) {
-      for (const [id, request] of batch) {
-        const entry = this.entries.get(id);
-        if (entry && entry.loading === request) this.invalidate(entry);
-        request.reject(err);
-      }
+    for (const { id, entry } of batch) {
+      const value = result
+        .then((rows) => {
+          const facts = rows.get(id);
+          if (entry.value === value) {
+            const bytes = facts instanceof Error ? 1 : (facts?.bytes ?? 1);
+            if (this.bytes + bytes > MAX_FACT_BYTES) this.evictIdle();
+            if (this.bytes + bytes > MAX_FACT_BYTES)
+              throw new Error('Message source byte limit exceeded');
+            entry.bytes = bytes;
+            this.bytes += bytes;
+          }
+          return facts;
+        })
+        .catch((err: unknown) => {
+          if (entry.value === value) this.invalidate(entry);
+          throw err;
+        });
+      entry.value = value;
     }
   }
 
-  private async extend(domain: number, window: Window, through: bigint) {
-    if (this.running >= MAX_PARALLEL_DOMAINS)
-      await new Promise<void>((resolve) => this.waiting.push(resolve));
-    else this.running++;
-    try {
-      if (this.stopped || this.windows.get(domain) !== window) return;
-      for await (const page of this.store.messageChanges(
-        domain,
-        [window.through, 3, END_ID],
-        through,
-      )) {
-        if (this.stopped || this.windows.get(domain) !== window) return;
-        if (this.changes + page.length > MAX_CHANGES)
-          throw new Error('Message source range limit exceeded');
-        const ids = new Set<string>();
-        for (const change of page) {
-          this.entry(change.id).refs++;
-          window.changes.push(change);
-          this.changes++;
-          ids.add(change.id);
-        }
-        const changed = [...ids];
-        this.invalidateIds(changed);
-        await Promise.all(changed.map((id) => this.facts(id)));
-      }
-      window.through = through;
-    } catch (err) {
-      if (this.windows.get(domain) === window)
-        this.retryAfter.set(domain, Date.now() + DOMAIN_RETRY_MS);
-      this.dropWindow(domain, window);
-      throw err;
-    } finally {
-      const next = this.waiting.shift();
-      if (next) next();
-      else this.running--;
-    }
-  }
-
-  async prepare(domain: number, after: bigint, through: bigint) {
-    const head = this.heads.get(domain);
-    if (!head || this.stopped) return;
+  private async prepare(
+    domain: number,
+    after: bigint,
+    head: ConfirmationHead,
+  ): Promise<Window> {
     let window = this.windows.get(domain);
     if (!window) {
       if ((this.retryAfter.get(domain) ?? 0) > Date.now())
         throw new Error('Message range temporarily unavailable');
       this.retryAfter.delete(domain);
-      const oldest = confirmationHeight(head, MAX_EXPLORER_CONFIRMATIONS);
-      const floor = oldest < after ? oldest : after;
+      const floor = after;
       window = { floor, through: floor, changes: [] };
       this.windows.set(domain, window);
     }
-    while (window.through < through) {
-      if (this.stopped || this.windows.get(domain) !== window) return;
-      window.loading ??= this.extend(domain, window, through).finally(() => {
-        window.loading = undefined;
-      });
-      await window.loading;
-    }
-  }
-
-  async *read(
-    domain: number,
-    after: Position,
-    through: bigint,
-    frontiers: Map<number, bigint>,
-    confirmations: number,
-    ids?: Set<string>,
-  ) {
-    if (ids?.size === 0) return;
-    // Rollbacks are delivered immediately and can also advance a lagging cursor.
-    await this.prepare(domain, after[0], through);
-    const window = this.windows.get(domain);
-    if (!window || this.stopped) return;
-    if (after[0] < window.floor)
-      throw new Error('Message subscription fell behind the retained range');
-    // A slow socket must neither retain evicted pages nor skip newly-trimmed rows.
-    let floor = window.floor;
-    let cursor = after;
-    let i = firstAfter(window.changes, cursor);
-    while (i < window.changes.length || floor !== window.floor) {
-      if (this.stopped || this.windows.get(domain) !== window) return;
-      if (floor !== window.floor) {
-        if (cursor[0] < window.floor)
-          throw new Error(
-            'Message subscription fell behind the retained range',
-          );
-        floor = window.floor;
-        i = firstAfter(window.changes, cursor);
+    const through = confirmationHeight(head, 0);
+    if (after < window.floor || window.through < through) {
+      const current = window;
+      current.loading = true;
+      try {
+        await this.scan(async () => {
+          const active = () =>
+            !this.stopped &&
+            this.windows.get(domain) === current &&
+            this.readsDomain(domain);
+          if (!active()) return;
+          const start = after < current.floor ? after : current.through;
+          const end = after < current.floor ? current.floor : through;
+          const prefix: MessageChange[] = [];
+          let installed = false;
+          try {
+            for await (const page of this.store.messageChanges(
+              domain,
+              endOfHeight(start),
+              end,
+            )) {
+              if (!active()) return;
+              if (this.changes + page.length > MAX_CHANGES) this.evictIdle();
+              if (this.changes + page.length > MAX_CHANGES)
+                throw new MessageRangeCapacityError();
+              for (const change of page) {
+                const entry = this.entry(change.id);
+                entry.refs++;
+                this.invalidate(entry);
+                prefix.push(change);
+                this.changes++;
+              }
+              // Check before the iterator can issue its next page query.
+              if (!active()) return;
+            }
+            if (!active()) return;
+            if (start < current.floor) {
+              current.changes = [...prefix, ...current.changes];
+              current.floor = start;
+            } else {
+              current.changes = [...current.changes, ...prefix];
+              current.through = through;
+            }
+            installed = true;
+          } finally {
+            if (!installed)
+              for (const change of prefix) {
+                const entry = this.entries.get(change.id);
+                if (entry) entry.refs--;
+                this.changes--;
+              }
+          }
+        });
+      } finally {
+        current.loading = false;
       }
-      const change = window.changes[i++];
-      if (!change || change.position[0] > through) return;
-      cursor = change.position;
-      if (ids && !ids.has(change.id)) continue;
-      const facts = await this.facts(change.id);
-      const projection = facts && this.project(facts, frontiers);
-      yield {
-        position: change.position,
-        domains: projection?.domains,
-        message: projection && {
-          type: 'message_upsert',
-          confirmations,
+    }
+    if (
+      this.readsDomain(domain) &&
+      this.windows.get(domain) === window &&
+      window.through < through
+    )
+      return this.prepare(domain, after, head);
+    return window;
+  }
+
+  subscribe(
+    policy: Policy,
+    ids: Set<string> | undefined,
+    send: Subscriber['send'],
+    fail: Subscriber['fail'],
+  ) {
+    const frontiers = new Map<number, bigint>();
+    for (const domain of policy.domains) {
+      const head = this.heads.get(domain);
+      if (head)
+        frontiers.set(domain, confirmationHeight(head, policy.confirmations));
+    }
+    const sub: Subscriber = {
+      ...policy,
+      ids,
+      send,
+      fail,
+      frontiers,
+      exposed: new Map(),
+    };
+    this.subscribers.add(sub);
+    return {
+      customDomains: [...frontiers.keys()],
+      canonicalDomains: [...policy.domains].filter((d) => !frontiers.has(d)),
+      unsubscribe: () => {
+        this.subscribers.delete(sub);
+        for (const domain of frontiers.keys()) {
+          if (this.readsDomain(domain)) continue;
+          this.advances.delete(domain);
+          const window = this.windows.get(domain);
+          if (window) this.dropWindow(domain, window);
+        }
+      },
+    };
+  }
+
+  notify(event: HeadNotification) {
+    const { domain, indexedHeight, headHeight, confirmedHeight } = event;
+    if (indexedHeight === undefined || headHeight === undefined) return;
+    const head = {
+      indexed: indexedHeight,
+      head: headHeight,
+      confirmed: confirmedHeight,
+    };
+    const rollback =
+      event.previousIndexedHeight !== undefined &&
+      indexedHeight < event.previousIndexedHeight;
+    const refresh = new Set<string>();
+    const rolledBack = new Set<Subscriber>();
+    let needed = false;
+    for (const sub of this.subscribers) {
+      const from = sub.frontiers.get(domain);
+      if (from === undefined) continue;
+      const to = confirmationHeight(head, sub.confirmations);
+      if (rollback && to < from) {
+        sub.frontiers.set(domain, to);
+        sub.send({
+          type: 'rollback',
           domain,
-          height: String(through),
-          data: projection.data,
-        },
-      };
+          confirmations: sub.confirmations,
+          fromHeight: String(from),
+          toHeight: String(to),
+        });
+        rolledBack.add(sub);
+        for (const id of sub.exposed.keys()) refresh.add(id);
+      }
+      if (to > from && sub.ids?.size !== 0) needed = true;
+      if (sub.ids?.size === 0) sub.frontiers.set(domain, to);
+      if (event.previousConfirmedHeight !== confirmedHeight)
+        for (const [id, deps] of sub.exposed) {
+          if (
+            [...deps].every(
+              ([d, height]) => height <= (this.heads.get(d)?.confirmed ?? 0n),
+            )
+          )
+            sub.exposed.delete(id);
+        }
+    }
+    if (refresh.size) void this.refresh([...refresh], rolledBack, true);
+    const pending = this.advances.get(domain);
+    if (pending) pending.head = head;
+    else if (needed) {
+      const work = { head };
+      this.advances.set(domain, work);
+      void this.advance(domain, work);
     }
   }
 
-  async enrich(ids: string[], frontiers: Map<number, bigint>) {
-    const facts = await Promise.all(ids.map((id) => this.facts(id)));
-    return facts.flatMap((f) => {
-      const row = f && this.project(f, frontiers);
-      return row ? [row] : [];
+  private async advance(domain: number, work: { head: ConfirmationHead }) {
+    try {
+      while (this.advances.get(domain) === work) {
+        const head = work.head;
+        const ranges = [...this.subscribers].flatMap((sub) => {
+          const from = sub.frontiers.get(domain);
+          const to = confirmationHeight(head, sub.confirmations);
+          return from !== undefined && from < to && sub.ids?.size !== 0
+            ? [{ sub, from, to }]
+            : [];
+        });
+        if (!ranges.length) return;
+        const after = ranges.reduce(
+          (min, r) => (r.from < min ? r.from : min),
+          ranges[0].from,
+        );
+        let window: Window;
+        try {
+          window = await this.prepare(domain, after, head);
+        } catch (error) {
+          if (!(error instanceof MessageRangeCapacityError)) throw error;
+          const retained = this.windows.get(domain);
+          if (retained && retained.floor === retained.through)
+            this.dropWindow(domain, retained);
+          // The deepest cursor owns an expansion that does not fit. Preserve
+          // the existing window and let shallower subscribers advance.
+          for (const { sub, from } of ranges)
+            if (from === after) {
+              this.subscribers.delete(sub);
+              sub.fail(error);
+            }
+          continue;
+        }
+        if (this.advances.get(domain) !== work) return;
+        // Keep one range per domain. Store only two indexes per subscriber,
+        // even when every browser subscribes to the same busy chain.
+        const changes = window.changes;
+        const ids = new Set<string>();
+        const releases = ranges.flatMap(({ sub, from, to }) => {
+          if (!this.subscribers.has(sub)) return [];
+          if (from < window.floor) {
+            sub.fail(new Error('Message cursor fell behind retained range'));
+            return [];
+          }
+          const start = firstAfter(changes, from),
+            end = firstAfter(changes, to);
+          for (let i = start; i < end; i++) {
+            const id = changes[i].id;
+            if (!sub.ids || sub.ids.has(id)) ids.add(id);
+          }
+          return [{ sub, to, start, end }];
+        });
+        const facts = await this.load(ids);
+        if (this.advances.get(domain) !== work) return;
+        for (const { sub, to, start, end } of releases) {
+          if (
+            !this.subscribers.has(sub) ||
+            to > confirmationHeight(work.head, sub.confirmations)
+          )
+            continue;
+          sub.frontiers.set(domain, to);
+          const fields = { domain, height: String(to) };
+          const sent = new Set<string>();
+          for (let i = start; i < end && this.subscribers.has(sub); i++) {
+            const id = changes[i].id;
+            if ((!sub.ids || sub.ids.has(id)) && !sent.has(id)) {
+              sent.add(id);
+              this.upsert(sub, id, facts.get(id), fields);
+            }
+          }
+        }
+        if (head === work.head) return;
+      }
+    } catch (e) {
+      if (this.advances.get(domain) === work) {
+        const window = this.windows.get(domain);
+        if (window) {
+          this.retryAfter.set(domain, Date.now() + DOMAIN_RETRY_MS);
+          this.dropWindow(domain, window);
+        }
+        for (const sub of this.subscribers) {
+          if (sub.frontiers.has(domain) && sub.ids?.size !== 0) sub.fail(e);
+        }
+      }
+    } finally {
+      if (this.advances.get(domain) === work) this.advances.delete(domain);
+    }
+  }
+
+  private async load(ids: Iterable<string>) {
+    const reads: { id: string; entry: Entry }[] = [];
+    try {
+      for (const id of ids) {
+        const entry = this.entry(id);
+        entry.refs++;
+        reads.push({ id, entry });
+      }
+      // Recheck the entire batch after the last read settles. A receipt or fork
+      // can invalidate an early result while another ID is still loading.
+      for (let attempt = 0; attempt < 3 && !this.stopped; attempt++) {
+        const missing = reads.filter(({ entry }) => !entry.value);
+        for (let i = 0; i < missing.length; i += FACT_BATCH_SIZE)
+          this.fetchBatch(missing.slice(i, i + FACT_BATCH_SIZE));
+        const pending = reads.map(({ entry }) => {
+          if (!entry.value) throw new Error('Missing scheduled message read');
+          return entry.value;
+        });
+        const rows = await Promise.all(pending);
+        if (reads.every(({ entry }, i) => entry.value === pending[i]))
+          return new Map(reads.map(({ id }, i) => [id, rows[i]]));
+      }
+      throw new Error('Message snapshot invalidated during publication');
+    } finally {
+      for (const { entry } of reads) entry.refs--;
+    }
+  }
+
+  async refresh(ids: string[], targets = this.subscribers, rollback = false) {
+    const recipients = [...targets];
+    const interested = (sub: Subscriber, id: string) =>
+      (!sub.ids || sub.ids.has(id)) && (!rollback || sub.exposed.has(id));
+    const selected = ids.filter((id) =>
+      recipients.some((sub) => interested(sub, id)),
+    );
+    if (!selected.length) return;
+    try {
+      const facts = await this.load(selected);
+      for (const sub of recipients)
+        for (const [id, row] of facts) {
+          if (!this.subscribers.has(sub)) break;
+          if (
+            interested(sub, id) &&
+            row &&
+            (rollback ||
+              row instanceof Error ||
+              sub.domains.has(row.origin) ||
+              sub.domains.has(row.destination))
+          )
+            this.upsert(sub, id, row);
+        }
+    } catch (error) {
+      for (const sub of recipients)
+        if (
+          this.subscribers.has(sub) &&
+          selected.some((id) => interested(sub, id))
+        )
+          sub.fail(error);
+    }
+  }
+
+  private upsert(
+    sub: Subscriber,
+    id: string,
+    facts: MessageFacts | Error | undefined,
+    fields?: Record<string, unknown>,
+  ) {
+    if (facts instanceof Error) {
+      sub.exposed.delete(id);
+      if (sub.ids) sub.fail(facts);
+      else
+        sub.send({
+          type: 'error',
+          messageId: id,
+          error: facts.message,
+        });
+      return;
+    }
+    const row = facts && this.project(facts, sub);
+    if (!row) {
+      sub.exposed.delete(id);
+      return;
+    }
+    const deps = new Map<number, bigint>();
+    for (const d of row.domains) {
+      const height = sub.frontiers.get(d);
+      if (height !== undefined && height > (this.heads.get(d)?.confirmed ?? 0n))
+        deps.set(d, height);
+    }
+    if (deps.size) sub.exposed.set(id, deps);
+    else sub.exposed.delete(id);
+    if (sub.exposed.size > 10_000) {
+      sub.fail(new Error('Custom provisional message limit exceeded'));
+      return;
+    }
+    sub.send({
+      type: 'message_upsert',
+      confirmations: sub.confirmations,
+      ...fields,
+      data: row.data,
     });
   }
 
-  private project(facts: MessageFacts, frontiers: Map<number, bigint>) {
+  private project(facts: MessageFacts, sub: Subscriber) {
     const frontier = (domain: number) =>
-      frontiers.get(domain) ?? this.heads.get(domain)?.confirmed;
+      sub.frontiers.get(domain) ?? this.heads.get(domain)?.confirmed;
+    const key = [...facts.dependencies]
+      .map((domain) => frontier(domain)?.toString() ?? '*')
+      .join(',');
     const previous = this.projections.get(facts);
-    if (previous) {
-      let current = true;
-      for (const [domain, height] of previous.heights) {
-        if (frontier(domain) !== height) {
-          current = false;
-          break;
-        }
-      }
-      if (current) return previous.row;
+    if (previous?.key === key) return previous.row;
+    try {
+      const row = projectMessage(facts, frontier);
+      this.projections.set(facts, { key, row });
+      return row;
+    } catch (error) {
+      // A delayed cursor may fall inside an aggregated payment bucket.
+      sub.fail(error);
+      return undefined;
     }
-    const heights = new Map(
-      [...facts.dependencies].map((domain) => [domain, frontier(domain)]),
-    );
-    const row = projectMessage(facts, frontier);
-    this.projections.set(facts, { heights, row });
-    return row;
   }
 
   stop() {
     this.stopped = true;
+    this.advances.clear();
+    this.subscribers.clear();
     for (const [domain, window] of this.windows)
       this.dropWindow(domain, window);
     for (const entry of this.entries.values()) this.invalidate(entry);
@@ -414,18 +659,12 @@ export class MessageSource {
   }
 }
 
-function firstAfter(changes: MessageChange[], position: Position): number {
+function firstAfter(changes: MessageChange[], height: bigint): number {
   let lo = 0,
     hi = changes.length;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    const [height, source, id] = changes[mid].position;
-    if (
-      height < position[0] ||
-      (height === position[0] &&
-        (source < position[1] || (source === position[1] && id <= position[2])))
-    )
-      lo = mid + 1;
+    if (changes[mid].height <= height) lo = mid + 1;
     else hi = mid;
   }
   return lo;

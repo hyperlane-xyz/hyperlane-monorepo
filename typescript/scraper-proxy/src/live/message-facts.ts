@@ -50,6 +50,25 @@ function deliveryField(key: string) {
 }
 
 export function collectMessageFacts(rows: FactRow[]) {
+  const grouped = new Map<string, FactRow[]>();
+  for (const row of rows) {
+    const group = grouped.get(row.msg_id) ?? [];
+    group.push(row);
+    grouped.set(row.msg_id, group);
+  }
+  const result = new Map<string, MessageFacts | Error>();
+  for (const [id, group] of grouped) {
+    try {
+      const message = collectValidFacts(group).get(id);
+      if (message) result.set(id, message);
+    } catch (error) {
+      result.set(id, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+  return result;
+}
+
+function collectValidFacts(rows: FactRow[]) {
   const facts = new Map<string, MessageFacts>();
   for (const {
     delivery_height,

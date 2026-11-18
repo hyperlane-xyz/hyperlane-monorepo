@@ -47,28 +47,15 @@ async function fixture(
     domain: number,
     after: Position,
     through: bigint,
-    frontiers: Map<number, bigint>,
   ) => AsyncIterable<ConfirmationRow>,
   send?: () => Promise<void>,
-  enrich?: (
-    ids: string[],
-    frontiers: Map<number, bigint>,
-  ) => Promise<Record<string, unknown>[]>,
-  initial = 9n,
-  domains = new Set([1, 2]),
 ) {
+  const domains = new Set([1, 2]);
   const messages: Record<string, unknown>[] = [];
   let active = true;
   const stream = new ConfirmationStream(0, domains, {
     active: () => active,
     read,
-    enrich: enrich
-      ? async (ids, frontiers) =>
-          (await enrich(ids, frontiers)).map((message) => ({ message }))
-      : undefined,
-    messageId: enrich
-      ? (message) => (typeof message.id === 'string' ? message.id : undefined)
-      : undefined,
     send: async (message) => {
       messages.push(message);
       await send?.();
@@ -86,7 +73,7 @@ async function fixture(
       new Map(
         [...domains].map((domain) => [
           domain,
-          { head: initial, indexed: initial, confirmed: 0n },
+          { head: 9n, indexed: 9n, confirmed: 0n },
         ]),
       ),
   );
@@ -129,6 +116,7 @@ void it('validates live-only confirmations on both endpoints', () => {
     '?confirmations=-1&domains=1',
     '?confirmations=0&domains=',
     '?confirmations=1001&domains=1',
+    `?confirmations=1000&domains=${Array.from({ length: 11 }, (_, i) => i + 1).join(',')}`,
     `?confirmations=0&domains=${Array.from({ length: 513 }, (_, i) => i).join(',')}`,
   ])
     assert.throws(() => parseExplorerConfirmations(new URLSearchParams(url)));
@@ -284,89 +272,6 @@ void it('does not retry negotiation for an advancing head or emit rollback befor
   stream.notify(head(8n, 9n));
 });
 
-for (const rollbackDomain of [1, 2]) {
-  void it(`refreshes previously exposed messages after domain ${rollbackDomain} rolls back`, async () => {
-    const changes = [
-      { id: 'six', height: 6n },
-      { id: 'nine', height: 9n },
-    ];
-    const f = await fixture(
-      async function* (domain, after, through) {
-        if (domain !== 1) return;
-        for (const { id, height } of changes) {
-          if (height > after[0] && height <= through)
-            yield {
-              position: [height, 0, 1n],
-              message: { id, delivered: true },
-            };
-        }
-      },
-      undefined,
-      async (ids, frontiers) =>
-        changes
-          .filter(
-            ({ id, height }) =>
-              ids.includes(id) && height <= (frontiers.get(1) ?? 0n),
-          )
-          .map(({ id }) => ({ id, delivered: (frontiers.get(2) ?? 0n) >= 6n })),
-      5n,
-    );
-    try {
-      f.stream.notify(head(6n, 5n, 6n, 2));
-      f.stream.notify(head(10n, 5n));
-      await until(() => f.messages.length === 2);
-      f.stream.notify(
-        rollbackDomain === 1 ? head(8n, 10n) : head(5n, 6n, 5n, 2),
-      );
-      await until(() => f.messages.filter((m) => m.id === 'six').length === 2);
-      assert.equal(f.messages[2].type, 'rollback');
-      assert.equal(f.messages[3].id, 'six');
-      if (rollbackDomain === 2) {
-        assert.equal(f.messages[3].delivered, false);
-        await until(
-          () => f.messages.filter((m) => m.id === 'nine').length === 2,
-        );
-      } else assert.equal(f.messages.filter((m) => m.id === 'nine').length, 1);
-    } finally {
-      f.stop();
-    }
-  });
-}
-
-void it('stops retaining messages after their exposed frontiers become canonical', async () => {
-  let enrichments = 0;
-  const f = await fixture(
-    async function* (_domain, after, through) {
-      if (after[0] < 10n && through >= 10n)
-        yield {
-          domains: [1],
-          position: [10n, 0, 1n],
-          message: { id: 'canonical' },
-        };
-    },
-    undefined,
-    async () => {
-      enrichments++;
-      return [];
-    },
-    9n,
-    new Set([1, 2, 3]),
-  );
-  try {
-    f.stream.notify(head(10n, 9n));
-    await until(() => f.messages.length === 1);
-    f.stream.notify({ ...head(10n), confirmedHeight: 10n });
-    f.stream.notify({ ...head(12n, 10n), confirmedHeight: 10n });
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    f.stream.notify({ ...head(11n, 12n), confirmedHeight: 10n });
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(f.messages.at(-1)?.type, 'rollback');
-    assert.equal(enrichments, 0);
-  } finally {
-    f.stop();
-  }
-});
-
 void it('retains the exposed snapshot height when a head-only drop interrupts a page', async () => {
   const held = gate();
   let reads = 0;
@@ -391,38 +296,6 @@ void it('retains the exposed snapshot height when a head-only drop interrupts a 
       from: 11n,
       to: 10n,
     });
-  } finally {
-    f.stop();
-    held.release();
-  }
-});
-
-void it('re-reads Explorer metadata if its frontier rolls back during enrichment', async () => {
-  const held = gate();
-  let reads = 0;
-  const f = await fixture(
-    () => {
-      throw new Error('No height range expected');
-    },
-    undefined,
-    async (_ids, frontiers) => {
-      const height = frontiers.get(1);
-      reads++;
-      if (reads === 1) await held.promise;
-      return [{ height }];
-    },
-  );
-  try {
-    f.stream.refresh(['message']);
-    await until(() => reads === 1);
-    f.stream.notify(head(8n, 9n));
-    held.release();
-    await until(() => f.messages.some((m) => m.height === 8n));
-    assert.equal(
-      f.messages.some((m) => m.height === 9n),
-      false,
-    );
-    assert.equal(reads, 2);
   } finally {
     f.stop();
     held.release();

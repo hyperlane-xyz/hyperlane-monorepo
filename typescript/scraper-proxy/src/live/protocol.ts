@@ -342,6 +342,8 @@ export function parseExplorerConfirmations(
     throw new Error(
       `confirmations must not exceed ${MAX_EXPLORER_CONFIRMATIONS}`,
     );
+  if (domains.size * Math.max(1, confirmations) > 10_000)
+    throw new Error('Subscription exceeds 10000 domain confirmation blocks');
   return { confirmations, domains };
 }
 

@@ -233,13 +233,23 @@ two per IP; disconnecting does not release their reservation until the read ends
 Subscription URLs are capped at 8 KiB, with at most 512 domains and 1,000
 confirmations. Application frames from clients are rejected with code 1008;
 WebSocket protocol pongs remain supported.
+Subscriptions also have a 10,000 domain-confirmation-block budget, counting zero
+confirmations as one block for this admission check.
 
 Each proxy instance shares one head snapshot and one paginated dispatch,
-delivery, and payment range per active domain. The first advance seeds the
-recent range for delayed confirmations. Joining and reconnecting use the current
+delivery, and payment range per active domain. The first advance starts at the
+oldest active subscriber frontier. A deeper subscriber extends the retained
+range backward as needed. Joining and reconnecting use the current
 in-memory heads. Delivery and gas totals use the requested confirmation count
 on negotiated custom domains and scraper finality elsewhere. Late receipts
 refresh the shared message data. Relayer diagnostics use their own database.
+
+The range stores heights and IDs. Full rows are read only for IDs that at least
+one browser needs, in batches of 64 with at most two fact queries in flight.
+Block-only subscriptions skip message reads. Explorer outbound queues share
+a 32 MiB limit across sockets.
+When this budget fills, the largest queued subscriber is disconnected first.
+Queued scans recheck subscriber interest before issuing database work.
 
 Range reads run on at most four domains concurrently. The source retains at
 most 50,000 changes and 64 MiB of serialized message facts, with at most 256
@@ -247,6 +257,12 @@ delivery candidates and 256 payment buckets per message. Older payments are
 aggregated per domain. A subscription that falls outside the retained window
 or cannot obtain a complete projection disconnects and can reconnect at the
 current head.
+Invalid message facts are isolated by message ID. A global custom stream emits
+the existing `error` frame with `messageId` and `error` and continues with other IDs.
+An explicit ID subscription disconnects if its message cannot be projected.
+Domain recovery failures disconnect overlapping message subscriptions while
+unrelated domains and block-only subscriptions continue. Multi-domain browsers
+reconnect when a subscribed domain fails.
 
 ### Frames
 
