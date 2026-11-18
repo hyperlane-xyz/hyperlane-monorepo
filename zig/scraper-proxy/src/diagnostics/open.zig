@@ -34,6 +34,7 @@ pub const Diagnostics = struct {
         const pool = try db.Pool.init(gpa, .{
             .conn = conn,
             .max = 3,
+            .idle_check_ms = db.service.IDLE_CHECK_MS,
             .on_idle_error = .{ .ctx = self, .func = onPoolError },
         });
         self.* = .{

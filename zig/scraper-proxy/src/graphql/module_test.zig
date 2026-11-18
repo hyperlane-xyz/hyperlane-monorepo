@@ -915,6 +915,58 @@ test "diagnostics resolvers report DIAGNOSTICS_UNAVAILABLE when not configured" 
     try expectJson(try app.postQuery(a, "{ domain { id } message_activity(message_id: \"x\") { has_more } }"), 200, "{\"data\":null,\"errors\":[{\"message\":\"Diagnostics are not configured\",\"locations\":[{\"line\":1,\"column\":17}],\"path\":[\"message_activity\"],\"extensions\":{\"code\":\"DIAGNOSTICS_UNAVAILABLE\"}}]}");
 }
 
+test "a type-system extension in a request is reported at its `extend` keyword (ExecutableDefinitions)" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try expectJson(try app.postQuery(a, "{ __typename } extend type domain { z: Int }"), 400, "{\"data\":null,\"errors\":[{\"message\":\"The \\\"domain\\\" definition is not executable.\",\"locations\":[{\"line\":1,\"column\":16}]}]}");
+    try expectJson(try app.postQuery(a, "{ __typename }\n  extend schema { mutation: domain }"), 400, "{\"data\":null,\"errors\":[{\"message\":\"The schema definition is not executable.\",\"locations\":[{\"line\":2,\"column\":3}]}]}");
+}
+
+test "GET variables that are not an object, array or null fail graphql-js's execution-argument check" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const not_object = "{\"data\":null,\"errors\":[{\"message\":\"Variables must be provided as an Object where each property is a variable value. Perhaps look to see if an unparsed JSON string was provided.\"}]}";
+    // The raw empty string, and JSON that parses to a string, number or boolean.
+    for ([_][]const u8{ "", "%22x%22", "1", "0", "false", "true", "%22%22" }) |v| {
+        try expectJson(try app.get(a, try std.fmt.allocPrint(a, "query=%7B__typename%7D&variables={s}", .{v}), true), 200, not_object);
+    }
+    // null, an object or an array pass the check (POST bodies are schema-checked instead).
+    for ([_][]const u8{ "null", "%7B%7D", "%5B%5D" }) |v| {
+        try expectJson(try app.get(a, try std.fmt.allocPrint(a, "query=%7B__typename%7D&variables={s}", .{v}), true), 200, "{\"data\":{\"__typename\":\"query_root\"}}");
+    }
+}
+
+test "a non-null root field failing synchronously starts no later root field (graphql-js executeFields)" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const unavailable = "{\"message\":\"Diagnostics are not configured\",\"locations\":[{\"line\":1,\"column\":";
+    // message_activity throws before any promise (TS): the fields after it never start.
+    var r = try app.postQuery(a, "{ message_activity(message_id: \"x\") { has_more } d: domain { id } r: raw_message_dispatch(limit: 1) { id } }");
+    try testing.expect(std.mem.startsWith(u8, r.body, "{\"data\":null,\"errors\":[" ++ unavailable ++ "3}]"));
+    try testing.expectEqual(@as(u32, 0), app.db.count());
+    // The field before it has already started and still runs; only the sync error is reported.
+    r = try app.postQuery(a, "{ d: domain { id } message_activity(message_id: \"x\") { has_more } r: raw_message_dispatch(limit: 1) { id } }");
+    try testing.expect(std.mem.startsWith(u8, r.body, "{\"data\":null,\"errors\":[" ++ unavailable ++ "20}]"));
+    try testing.expectEqual(@as(u32, 1), app.db.count());
+    // message_diagnostics is async in TS (a rejection): later fields start.
+    r = try app.postQuery(a, "{ message_diagnostics(message_id: \"x\") { partial } d: domain { id } }");
+    try testing.expect(std.mem.startsWith(u8, r.body, "{\"data\":null,\"errors\":[" ++ unavailable ++ "3}]"));
+    try testing.expectEqual(@as(u32, 2), app.db.count());
+}
+
 test "concurrent root fields collect errors in settle order (graphql-js)" {
     var app: App = .{};
     // x settles last (delayed I/O), z settles first; both nullable I/O failures.

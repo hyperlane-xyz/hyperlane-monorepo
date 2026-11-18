@@ -213,6 +213,53 @@ fn stalledListener() !struct { fd: std.posix.socket_t, port: u16 } {
     return .{ .fd = fd, .port = bound.getPort() };
 }
 
+test "libpq: connect failures read as node-pg's socket errors (refused, unresolvable, closed; a reset as closed)" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const Probe = struct {
+        fn text(al: std.mem.Allocator, url: []const u8) ![]const u8 {
+            var failure: root.Failure = .{};
+            if (pq.Conn.connect(.{ .conninfo = url, .connect_timeout_ms = 5_000 }, al, &failure)) |c| {
+                var conn = c;
+                conn.deinit();
+                return error.TestUnexpectedResult;
+            } else |_| return failure.message;
+        }
+    };
+    // Nothing listens on port 1.
+    try testing.expectEqualStrings("connect ECONNREFUSED 127.0.0.1:1", try Probe.text(a, "postgresql://u:p@127.0.0.1:1/x"));
+    // `.invalid` never resolves (RFC 6761); without DNS it is a temporary failure.
+    const unresolved = try Probe.text(a, "postgresql://u:p@no-such-host.invalid:5432/x");
+    try testing.expect(std.mem.eql(u8, unresolved, "getaddrinfo ENOTFOUND no-such-host.invalid") or std.mem.eql(u8, unresolved, "getaddrinfo EAI_AGAIN no-such-host.invalid"));
+    // A server that reads the startup packet, then closes, or resets.
+    for ([_]bool{ false, true }) |reset| {
+        const listener = try stalledListener();
+        defer std.posix.close(listener.fd);
+        const Server = struct {
+            fn serve(fd: std.posix.socket_t, rst: bool) void {
+                const client = std.posix.accept(fd, null, null, std.posix.SOCK.CLOEXEC) catch return;
+                var buf: [512]u8 = undefined;
+                _ = std.posix.read(client, &buf) catch {};
+                if (rst) {
+                    // SO_LINGER {on, 0}: close sends RST.
+                    const linger = extern struct { onoff: c_int, linger: c_int }{ .onoff = 1, .linger = 0 };
+                    std.posix.setsockopt(client, std.posix.SOL.SOCKET, std.posix.SO.LINGER, std.mem.asBytes(&linger)) catch {};
+                }
+                std.posix.close(client);
+            }
+        };
+        const t = try std.Thread.spawn(.{}, Server.serve, .{ listener.fd, reset });
+        const url = try std.fmt.allocPrint(a, "postgresql://u:p@127.0.0.1:{d}/x", .{listener.port});
+        const got = try Probe.text(a, url);
+        t.join();
+        // libpq reports a reset read as "server closed the connection
+        // unexpectedly", the same as a FIN, so a reset cannot read as
+        // node-pg's "read ECONNRESET" (DEVIATIONS).
+        try testing.expectEqualStrings("Connection terminated unexpectedly", got);
+    }
+}
+
 test "bounds the validator pool and times out queued acquisition independently of the live pool" {
     const stalled = try stalledListener();
     defer std.posix.close(stalled.fd);
@@ -1033,9 +1080,12 @@ test "libpq: the deepest jsonb PostgreSQL returns converts and re-serializes wit
     const a = arena_state.allocator();
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
     defer p.deinit();
-    // PostgreSQL's default max_stack_depth (2 MB) caps jsonb output at about
-    // 16k levels; 15k stays below that and far above any native recursion.
-    const depth = 15_000;
+    // PostgreSQL's default max_stack_depth (2 MB) caps jsonb nesting: about
+    // 16k levels on PostgreSQL 16, but under 15k on PostgreSQL 12 built with
+    // glibc (Debian postgres:12 12.22: 12k works, 15k fails with "stack depth
+    // limit exceeded", in psql too). 12k fits both and stays far above any
+    // native recursion.
+    const depth = 12_000;
     const r = try p.query(a, "SELECT (repeat('[', $1::int) || repeat(']', $1::int))::jsonb AS j", &.{.{ .number = depth }}, null);
     const text = try core.json.stringifyAlloc(a, r.rows[0].get("j").?);
     try testing.expectEqual(@as(usize, depth * 2), text.len);
@@ -2244,8 +2294,9 @@ test "stress: pool reaper vs bursts, discards, kills, listener churn and close" 
     const url = testUrl() orelse return error.SkipZigTest;
     const cycles: usize = if (std.posix.getenv("DB_STRESS_CYCLES")) |c| std.fmt.parseInt(usize, c, 10) catch 12 else 12;
     for (0..2) |round| {
-        _ = round;
-        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 10, .min = 5, .idle_timeout_ms = 40 });
+        // The second round adds the idle sweep, racing the reap, the kills
+        // and the close.
+        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 10, .min = 5, .idle_timeout_ms = 40, .idle_check_ms = if (round == 1) 1 else 0 });
         var stress: Stress = .{ .pool = p, .url = url };
         const churn = try std.Thread.spawn(.{}, Stress.listenerChurn, .{&stress});
         for (0..cycles) |cycle| {
@@ -3121,4 +3172,307 @@ test "listener hub: stopping the last listener and registering the next at once,
     capture.mutex.lock();
     defer capture.mutex.unlock();
     try testing.expectEqual(@as(?i64, null), capture.disconnected_at);
+}
+
+/// `on_idle_error` capture for the idle-sweep tests.
+const SweepHook = struct {
+    count: std.atomic.Value(u32) = .init(0),
+    message: [128]u8 = undefined,
+    message_len: usize = 0,
+
+    fn call(ctx: *anyopaque, m: []const u8) void {
+        const self: *SweepHook = @ptrCast(@alignCast(ctx));
+        self.message_len = @min(m.len, self.message.len);
+        @memcpy(self.message[0..self.message_len], m[0..self.message_len]);
+        _ = self.count.fetchAdd(1, .release);
+    }
+
+    fn hook(self: *SweepHook) pool_mod.IdleErrorHook {
+        return .{ .ctx = self, .func = call };
+    }
+
+    /// Waits (5 s bound) for `n` reports; the message is the last one's.
+    fn waitCount(self: *SweepHook, n: u32) !void {
+        var waited: usize = 0;
+        while (self.count.load(.acquire) < n) : (waited += 1) {
+            if (waited >= 500) return error.Timeout;
+            std.Thread.sleep(10 * std.time.ns_per_ms);
+        }
+    }
+
+    fn text(self: *const SweepHook) []const u8 {
+        return self.message[0..self.message_len];
+    }
+};
+
+fn terminateBackend(a: std.mem.Allocator, url: []const u8, pid: Value) !void {
+    var killer = try pq.Conn.connect(.{ .conninfo = url }, a, null);
+    defer killer.deinit();
+    _ = try killer.query(a, "SELECT pg_terminate_backend($1)", &.{pid}, null);
+}
+
+test "libpq: the idle sweep reports a server-closed idle connection without a checkout and does not replace it (pg-pool idle listener)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const uri = try std.Uri.parse(url);
+    const host = switch (uri.host.?) {
+        .raw, .percent_encoded => |h| h,
+    };
+    var timers = core.scheduler.Scheduler.init(testing.allocator);
+    try timers.start();
+    defer timers.deinit();
+    // Both reaper drivers: the shared timer thread and the private thread.
+    for ([_]?*core.scheduler.Scheduler{ &timers, null }) |scheduler| {
+        // A terminated backend: reported with the FATAL it sent first.
+        {
+            var hook: SweepHook = .{};
+            const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 2, .idle_check_ms = 20, .scheduler = scheduler, .on_idle_error = hook.hook() });
+            defer p.deinit();
+            const r = try p.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null);
+            try terminateBackend(a, url, r.rows[0].get("pid").?);
+            try hook.waitCount(1);
+            try testing.expectEqualStrings("terminating connection due to administrator command", hook.text());
+            // Dropped, not replaced (pg-pool's `min` only limits reaping).
+            const st = p.stats();
+            try testing.expectEqual(@as(u32, 0), st.total);
+            try testing.expectEqual(@as(u32, 0), st.idle);
+            // With nothing idle the tick stops (no timer left), and the
+            // next release re-arms it.
+            if (scheduler) |t| {
+                var waited: usize = 0;
+                while (t.pending() != 0) : (waited += 1) {
+                    if (waited >= 500) return error.Timeout;
+                    std.Thread.sleep(10 * std.time.ns_per_ms);
+                }
+            }
+            // The next query opens a new connection; the report was once.
+            _ = try p.query(a, "SELECT 1", &.{}, null);
+            try testing.expectEqual(@as(u32, 1), hook.count.load(.acquire));
+            if (scheduler) |t| try testing.expectEqual(@as(usize, 1), t.pending());
+        }
+        // A bare EOF (no FATAL): node-pg's "Connection terminated unexpectedly".
+        {
+            const proxy = try HoleProxy.start(host, uri.port orelse 5432);
+            var hook: SweepHook = .{};
+            const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = try throughPort(a, url, proxy.port), .connect_timeout_ms = 2_000 }, .max = 1, .idle_check_ms = 20, .scheduler = scheduler, .on_idle_error = hook.hook() });
+            defer p.deinit();
+            _ = try p.query(a, "SELECT 1", &.{}, null);
+            proxy.stop();
+            try hook.waitCount(1);
+            try testing.expectEqualStrings("Connection terminated unexpectedly", hook.text());
+            try testing.expectEqual(@as(u32, 0), p.stats().total);
+        }
+    }
+}
+
+test "libpq: a dead idle connection the reaper closes is still reported (idle sweep or not)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var timers = core.scheduler.Scheduler.init(testing.allocator);
+    try timers.start();
+    defer timers.deinit();
+    var hook: SweepHook = .{};
+    // No sweep: only the reap can see it.
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1, .idle_timeout_ms = 300, .scheduler = &timers, .on_idle_error = hook.hook() });
+    defer p.deinit();
+    const r = try p.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null);
+    try terminateBackend(a, url, r.rows[0].get("pid").?);
+    try waitIdleReadable(p);
+    try hook.waitCount(1);
+    try testing.expectEqualStrings("terminating connection due to administrator command", hook.text());
+    try testing.expectEqual(@as(u32, 0), p.stats().total);
+}
+
+test "libpq on a fiber: the idle sweep reads the loop's readiness word and polls only after an edge" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    // Stands in for the HTTP loop's readiness word (`core.fiber.readiness`).
+    const Loop = struct {
+        var bits: std.atomic.Value(u32) = .init(0);
+        fn readiness(_: std.posix.fd_t) ?*const std.atomic.Value(u32) {
+            return &bits;
+        }
+    };
+    Loop.bits.store(0, .release);
+    core.fiber.fd_readiness = Loop.readiness;
+    defer core.fiber.fd_readiness = null;
+    var hook: SweepHook = .{};
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1, .idle_check_ms = 20, .on_idle_error = hook.hook() });
+    defer p.deinit();
+    const Ctx = struct {
+        pool: *pool_mod.Pool,
+        pid: f64 = 0,
+        err: ?anyerror = null,
+        fn run(arg: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(arg));
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            // A fiber wait: the connection picks up its readiness word.
+            const r = self.pool.query(arena.allocator(), "SELECT pg_backend_pid() AS pid, pg_sleep(0.02)", &.{}, null) catch |e| {
+                self.err = e;
+                return;
+            };
+            self.pid = r.rows[0].get("pid").?.number;
+        }
+    };
+    var ctx: Ctx = .{ .pool = p };
+    try core.fiber.testing.run(Ctx.run, &ctx);
+    try testing.expect(ctx.err == null);
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    try terminateBackend(a, url, .{ .number = ctx.pid });
+    try waitIdleReadable(p);
+    // The loop has not recorded the edge: the sweep makes no syscall and
+    // leaves the connection (a negative check; 10 sweeps' worth).
+    std.Thread.sleep(200 * std.time.ns_per_ms);
+    try testing.expectEqual(@as(u32, 0), hook.count.load(.acquire));
+    try testing.expectEqual(@as(u32, 1), p.stats().idle);
+    // The loop records it: reported and dropped without a checkout.
+    Loop.bits.store(core.fiber.Events.read, .release);
+    try hook.waitCount(1);
+    try testing.expectEqualStrings("terminating connection due to administrator command", hook.text());
+    try testing.expectEqual(@as(u32, 0), p.stats().total);
+}
+
+test "stress: the idle sweep puts healthy connections back in release order while checkouts and close race it" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var hook: SweepHook = .{};
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 4, .idle_check_ms = 1, .on_idle_error = hook.hook() });
+    var closed = false;
+    defer if (!closed) p.deinit();
+    // The first and third connections LISTEN, so a NOTIFY makes them
+    // readable while they stay healthy; the sweep takes out only those.
+    var conns: [4]pq.Conn = undefined;
+    for (&conns, 0..) |*c, i| {
+        c.* = try p.acquire(a, null);
+        if (i % 2 == 0) _ = try c.query(a, "LISTEN idle_sweep", &.{}, null);
+    }
+    for (conns) |c| p.release(c);
+    var order: [4]std.posix.fd_t = undefined;
+    p.mutex.lock();
+    for (p.idle.items, &order) |item, *fd| fd.* = item.conn.socket();
+    p.mutex.unlock();
+    var notifier = try pq.Conn.connect(.{ .conninfo = url }, a, null);
+    defer notifier.deinit();
+    const before = pq.Conn.idle_socket_checks.load(.monotonic);
+    _ = try notifier.query(a, "NOTIFY idle_sweep", &.{}, null);
+    // Both were taken out, checked and put back where they were.
+    var waited: usize = 0;
+    while (pq.Conn.idle_socket_checks.load(.monotonic) < before + 2 or p.stats().idle < 4) : (waited += 1) {
+        if (waited >= 500) return error.Timeout;
+        std.Thread.sleep(10 * std.time.ns_per_ms);
+    }
+    p.mutex.lock();
+    for (p.idle.items, order, 0..) |item, fd, i| {
+        try testing.expectEqual(fd, item.conn.socket());
+        if (i > 0) try testing.expect(p.idle.items[i - 1].since_ms <= item.since_ms);
+    }
+    p.mutex.unlock();
+    try testing.expectEqual(@as(u32, 0), hook.count.load(.acquire));
+
+    // Checkouts race a sweep (every 10 ms, the reaper's floor) that keeps
+    // finding input, 10,000 checkouts in all. No connection is ever owned
+    // twice: by two checkouts, or by a checkout while still idle.
+    const Race = struct {
+        pool: *pool_mod.Pool,
+        url: []const u8,
+        stop: std.atomic.Value(bool) = .init(false),
+        failed: std.atomic.Value(bool) = .init(false),
+        max_total: std.atomic.Value(u32) = .init(0),
+        owned_mutex: std.Thread.Mutex = .{},
+        owned: [8]std.posix.fd_t = @splat(-1),
+
+        /// False when another checkout already owns `fd`.
+        fn own(self: *@This(), fd: std.posix.fd_t) bool {
+            self.owned_mutex.lock();
+            defer self.owned_mutex.unlock();
+            for (self.owned) |slot| if (slot == fd) return false;
+            for (&self.owned) |*slot| if (slot.* == -1) {
+                slot.* = fd;
+                return true;
+            };
+            return false;
+        }
+
+        fn disown(self: *@This(), fd: std.posix.fd_t) void {
+            self.owned_mutex.lock();
+            defer self.owned_mutex.unlock();
+            for (&self.owned) |*slot| if (slot.* == fd) {
+                slot.* = -1;
+                return;
+            };
+        }
+
+        fn idleHas(self: *@This(), fd: std.posix.fd_t) bool {
+            self.pool.mutex.lock();
+            defer self.pool.mutex.unlock();
+            for (self.pool.idle.items) |item| if (item.conn.socket() == fd) return true;
+            return false;
+        }
+
+        fn worker(self: *@This()) void {
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            for (0..2_500) |_| {
+                _ = arena.reset(.retain_capacity);
+                const wa = arena.allocator();
+                var conn = self.pool.acquire(wa, null) catch |e| {
+                    std.debug.print("idle sweep race: {s}\n", .{@errorName(e)});
+                    self.failed.store(true, .release);
+                    return;
+                };
+                const fd = conn.socket();
+                if (!self.own(fd) or self.idleHas(fd)) {
+                    std.debug.print("idle sweep race: connection fd {d} owned twice\n", .{fd});
+                    self.failed.store(true, .release);
+                }
+                _ = self.max_total.fetchMax(self.pool.stats().total, .monotonic);
+                _ = conn.query(wa, "SELECT pg_backend_pid() AS pid", &.{}, null) catch |e| {
+                    std.debug.print("idle sweep race: {s}\n", .{@errorName(e)});
+                    self.failed.store(true, .release);
+                };
+                self.disown(fd);
+                self.pool.release(conn);
+            }
+        }
+
+        fn notify(self: *@This()) void {
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            var conn = pq.Conn.connect(.{ .conninfo = self.url }, arena.allocator(), null) catch {
+                self.failed.store(true, .release);
+                return;
+            };
+            defer conn.deinit();
+            while (!self.stop.load(.acquire)) {
+                _ = arena.reset(.retain_capacity);
+                _ = conn.query(arena.allocator(), "NOTIFY idle_sweep", &.{}, null) catch {};
+                std.Thread.sleep(std.time.ns_per_ms);
+            }
+        }
+    };
+    var race: Race = .{ .pool = p, .url = url };
+    const notify_thread = try std.Thread.spawn(.{}, Race.notify, .{&race});
+    var workers: [4]std.Thread = undefined;
+    for (&workers) |*w| w.* = try std.Thread.spawn(.{}, Race.worker, .{&race});
+    for (workers) |w| w.join();
+    const st = p.stats();
+    try testing.expect(!race.failed.load(.acquire));
+    try testing.expect(race.max_total.load(.monotonic) <= 4);
+    try testing.expect(st.total <= 4);
+    try testing.expectEqual(@as(u32, 0), st.waiting);
+    try testing.expectEqual(@as(u32, 0), hook.count.load(.acquire));
+    // Close while the sweep keeps taking connections out: none is put back
+    // after `end`, none leaks (the testing allocator checks).
+    closed = true;
+    p.deinit();
+    race.stop.store(true, .release);
+    notify_thread.join();
 }

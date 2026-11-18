@@ -34,6 +34,15 @@ pub const UpgradeHandler = struct {
     /// callee owns `socket` from here on: hand it to `ws.Server.handleUpgrade`
     /// or call `socket.destroy()`.
     on_upgrade: *const fn (ctx: *anyopaque, req: *Request, socket: *UpgradeSocket) void,
+    /// Set by the owner when it removes its 'upgrade' listener (TS: at the
+    /// end of stop()'s awaits, `httpServer.off('upgrade')`): from then Node
+    /// routes upgrade requests like any other. Null: never removed.
+    removed: ?*const std.atomic.Value(bool) = null,
+
+    fn listening(self: UpgradeHandler) bool {
+        const flag = self.removed orelse return true;
+        return !flag.load(.acquire);
+    }
 };
 
 /// A socket detached from HTTP processing (Node `Duplex` in 'upgrade').
@@ -225,6 +234,8 @@ pub const Server = struct {
     /// Upgraded sockets whose reader still runs.
     upgraded: u32 = 0,
     closing: std.atomic.Value(bool) = .init(false),
+    /// `beginClose`: new requests get the closing 503; the listener stays.
+    refusing: std.atomic.Value(bool) = .init(false),
     listener_closed: bool = false,
     /// Free request arenas (bounded).
     arenas: ?*ArenaBox = null,
@@ -316,13 +327,42 @@ pub const Server = struct {
         return self.closing.load(.acquire);
     }
 
+    /// Fastify sets `closing` before its preClose hooks: from here every new
+    /// routed request gets the closing 503 while the listener still accepts,
+    /// until `close()` stops it. Upgrades still reach the owner until it
+    /// removes its listener (`UpgradeHandler.removed`), as in TS.
+    pub fn beginClose(self: *Server) void {
+        self.refusing.store(true, .release);
+    }
+
+    /// New requests get the closing 503 (`beginClose` or `close`).
+    fn refusesRequests(self: *const Server) bool {
+        return self.refusing.load(.acquire) or self.isClosing();
+    }
+
+    /// Waits (bounded) until every upgraded socket has finished, as TS's
+    /// preClose awaits each `ws` server's `close()` (all clients closed: the
+    /// close handshake done or `ws`'s close timeout). Returns how many are
+    /// still open (0: all finished).
+    pub fn waitUpgraded(self: *Server, timeout_ms: u64) u32 {
+        const deadline = monoMs() + @as(i64, @intCast(timeout_ms));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (self.upgraded > 0) {
+            const remaining = deadline - monoMs();
+            if (remaining <= 0) break;
+            self.cond.timedWait(&self.mutex, @as(u64, @intCast(remaining)) * std.time.ns_per_ms) catch {};
+        }
+        return self.upgraded;
+    }
+
     /// Fastify `close()` server part: stop accepting, close idle keep-alive
     /// connections, answer requests that arrive meanwhile with 503 and wait
     /// for in-flight HTTP requests (bounded by `timeout_ms`). Upgraded
     /// sockets are not touched (their owner closes them).
     pub fn close(self: *Server, timeout_ms: u64) void {
         if (self.closing.swap(true, .acq_rel)) return;
-        const deadline = std.time.milliTimestamp() + @as(i64, @intCast(timeout_ms));
+        const deadline = monoMs() + @as(i64, @intCast(timeout_ms));
         if (!self.started) {
             for (self.listeners[0..self.listener_count]) |l| self.closeListener(l.index);
         } else {
@@ -359,7 +399,7 @@ pub const Server = struct {
         }
         self.mutex.lock();
         while (self.connections > 0) {
-            const remaining = deadline - std.time.milliTimestamp();
+            const remaining = deadline - monoMs();
             if (remaining <= 0) break;
             self.cond.timedWait(&self.mutex, @as(u64, @intCast(remaining)) * std.time.ns_per_ms) catch {};
         }
@@ -372,9 +412,9 @@ pub const Server = struct {
     pub fn deinit(self: *Server) void {
         self.close(10_000);
         self.mutex.lock();
-        const deadline = std.time.milliTimestamp() + 35_000;
+        const deadline = monoMs() + 35_000;
         while (self.upgraded > 0 or self.connections > 0) {
-            const remaining = deadline - std.time.milliTimestamp();
+            const remaining = deadline - monoMs();
             if (remaining <= 0) break;
             self.cond.timedWait(&self.mutex, @as(u64, @intCast(remaining)) * std.time.ns_per_ms) catch {};
         }
@@ -1099,8 +1139,11 @@ const Connection = struct {
         const req = &ex.req;
 
         // Node: CONNECT and upgrade requests go to their events, unprocessed.
+        // Once the owner removed its 'upgrade' listener (TS: late in stop(),
+        // after its awaits), or the server closed, Node routes an upgrade
+        // request like any other (during shutdown: the closing 503).
         if (std.mem.eql(u8, req.method, "CONNECT")) return self.destroy();
-        if (server.options.upgrade) |handler| if (isUpgrade(req)) return self.upgrade(handler);
+        if (server.options.upgrade) |handler| if (isUpgrade(req) and handler.listening() and !server.isClosing()) return self.upgrade(handler);
 
         // Node `requireHostHeader`.
         if (head.major == 1 and head.minor == 1 and req.header("host") == null) {
@@ -1129,7 +1172,7 @@ const Connection = struct {
         const a = req.arena;
 
         // Fastify `return503OnClosing`.
-        if (server.isClosing()) {
+        if (server.refusesRequests()) {
             var out: std.Io.Writer.Allocating = .init(a);
             try out.writer.print("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: 80\r\nDate: {s}\r\n\r\n{{\"error\":\"Service Unavailable\",\"message\":\"Service Unavailable\",\"statusCode\":503}}", .{httpDate()});
             return self.write(out.written(), "", .final_close);

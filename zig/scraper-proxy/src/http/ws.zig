@@ -73,7 +73,10 @@ pub const Handler = struct {
 pub const Transition = union(enum) {
     close_frame: struct { code: u16, reason: []const u8 },
     receiver_error: struct { code: u16, message: []const u8 },
+    /// The peer's FIN (a read returned 0).
     eof,
+    /// A read failed (reset or socket error).
+    reset,
     close_timeout,
 };
 
@@ -85,6 +88,10 @@ pub const SendCallback = struct {
 };
 
 pub const SendError = error{ NotOpen, OutOfMemory };
+
+/// `Conn.writeStalled`: how long a writer waits for room with no progress
+/// before its peer counts as not reading.
+pub const write_stall_ms = 100;
 
 pub const ServerOptions = struct {
     /// ws default 100 MiB.
@@ -260,6 +267,16 @@ pub const Conn = struct {
     close_reason: std.ArrayList(u8) = .empty,
     close_deadline: ?i64 = null,
     destroyed: bool = false,
+    /// Node's text for the write error that destroyed the socket (null: it
+    /// was destroyed otherwise; `sendFailureText`).
+    write_failure: ?[]const u8 = null,
+    /// The peer's FIN came with frames still queued: like `ws`'s
+    /// socketOnEnd (CLOSING, then `socket.end()`), the queue is written
+    /// before the socket closes, with no failed sends.
+    ending: bool = false,
+    /// Monotonic ms since the writer has been waiting for room after
+    /// `EAGAIN` with no progress (0: not waiting); `writeStalled`.
+    blocked_since: std.atomic.Value(i64) = .init(0),
     reader_done: bool = false,
     /// Reader thread only: a read's bytes are being parsed (`feeding`), and
     /// its callback batch is open (`on_read_begin` ran).
@@ -414,7 +431,7 @@ pub const Conn = struct {
             const sent = self.sendvLocked(&iov) catch |e| switch (e) {
                 error.WouldBlock => return false,
                 else => blk: {
-                    kick = self.destroyLocked();
+                    kick = self.writeFailedLocked(e);
                     outcome = .failed;
                     break :blk total;
                 },
@@ -491,7 +508,10 @@ pub const Conn = struct {
         locked: {
             self.lockConn();
             defer self.unlockConn();
-            if (self.destroyed or self.state != .open) return error.NotOpen;
+            // A turn's frames corked while OPEN still go out if the peer's FIN was
+            // read before the turn flushed them (`ending`): Node wrote them before
+            // it processed 'end'. Plain sends after the FIN still get NotOpen.
+            if (self.destroyed or !(self.state == .open or self.ending)) return error.NotOpen;
             const end = 2 * payloads.len;
             var at: usize = 0; // first iovec not fully written
             if (self.queue_head == self.queue.items.len) {
@@ -499,7 +519,7 @@ pub const Conn = struct {
                     var sent = self.sendvLocked(iov[at..end]) catch |e| switch (e) {
                         error.WouldBlock => break,
                         else => {
-                            kick = self.destroyLocked();
+                            kick = self.writeFailedLocked(e);
                             failed = true;
                             break :locked;
                         },
@@ -632,9 +652,13 @@ pub const Conn = struct {
     /// `ws.terminate()`: destroy the socket now.
     pub fn terminate(self: *Conn) void {
         self.lockConn();
+        // Flushing after the peer's FIN: the reader is done and the writer
+        // may wait for room that never comes; it tears down once scheduled.
+        const flushing = self.ending and self.reader_done and !self.destroyed;
         const kick = self.destroyLocked();
         self.unlockConn();
         if (kick) self.kickReader();
+        if (flushing) self.scheduleFlush();
     }
 
     /// Marks the socket destroyed and shuts it down. True when the reader
@@ -647,6 +671,57 @@ pub const Conn = struct {
         if (self.state != .closed) self.state = .closing;
         posix.shutdown(self.fd, .both) catch {};
         return self.server != null and !self.reader_done;
+    }
+
+    /// `destroyLocked` for a failed write: records Node's error text first
+    /// (`write EPIPE`, ...), unless the socket was already destroyed.
+    fn writeFailedLocked(self: *Conn, e: posix.SendMsgError) bool {
+        // Stalled (Linux): Node's writes were queued in libuv, whose read of
+        // the reset comes first (uv__stream_io), so they fail as cancelled.
+        if (!self.destroyed and self.write_failure == null)
+            self.write_failure = if (self.writeStalled()) "write ECANCELED" else writeErrorText(e);
+        return self.destroyLocked();
+    }
+
+    /// The reader met a reset with frames queued and the writer not
+    /// stalled: Node writes those frames synchronously, so its next write
+    /// meets the reset first (`write ECONNRESET`), whichever side of this
+    /// connection noticed it first.
+    fn readFailed(self: *Conn, e: posix.ReadError) void {
+        self.lockConn();
+        defer self.unlockConn();
+        if (self.destroyed or self.write_failure != null or self.queue_head == self.queue.items.len or self.writeStalled()) return;
+        self.write_failure = switch (e) {
+            // macOS: the write after a reset fails EPIPE (TS, measured).
+            error.ConnectionResetByPeer => if (builtin.os.tag == .linux) "write ECONNRESET" else "write EPIPE",
+            // Unmeasured (a dead peer's retransmit timeout); rare.
+            error.ConnectionTimedOut => "write ETIMEDOUT",
+            else => "write EPIPE",
+        };
+    }
+
+    /// The `error.message` Node passes a failed send's callback: the write
+    /// error that destroyed the socket (`write ECONNRESET`), else
+    /// `write ECANCELED`, the error of writes still queued in libuv when a
+    /// read error, hangup or `terminate` destroys the socket (TS, measured).
+    pub fn sendFailureText(self: *Conn) []const u8 {
+        self.lockConn();
+        defer self.unlockConn();
+        return self.write_failure orelse "write ECANCELED";
+    }
+
+    /// The writer has waited for room for at least `write_stall_ms` with no
+    /// progress: the peer stopped reading. libuv's write queue is non-empty
+    /// only then (a reading peer drains Node's per-frame writes at once);
+    /// a shorter wait is this writer outpacing the peer, not a stall. A
+    /// heuristic for log text only: under CPU starvation a reading peer can
+    /// look stalled (TS's text is timing-dependent here too).
+    /// Linux only: on macOS Node's write meets the reset first either way
+    /// (kqueue reports the write filter on its own; measured `write EPIPE`).
+    pub fn writeStalled(self: *const Conn) bool {
+        if (builtin.os.tag != .linux) return false;
+        const since = self.blocked_since.load(.acquire);
+        return since != 0 and loop_mod.monoMs() - since >= write_stall_ms;
     }
 
     /// Hands R (with KICK) to a poller, or flags KICK for the current reader.
@@ -770,7 +845,7 @@ pub const Conn = struct {
             const sent = self.sendvLocked(&one) catch |e| switch (e) {
                 error.WouldBlock => 0,
                 else => {
-                    const kick = self.destroyLocked();
+                    const kick = self.writeFailedLocked(e);
                     self.unlockConn();
                     self.gpa.free(bytes);
                     if (kick) self.kickReader();
@@ -831,7 +906,7 @@ pub const Conn = struct {
             _ = self.sendvLocked(&.{}) catch |e| switch (e) {
                 error.WouldBlock => 0,
                 else => blk: {
-                    _ = self.destroyLocked();
+                    _ = self.writeFailedLocked(e);
                     break :blk 0;
                 },
             };
@@ -899,8 +974,9 @@ pub const Conn = struct {
                     self.readable = false;
                     return false;
                 },
-                else => {
-                    self.transition(.eof);
+                else => |err| {
+                    self.readFailed(err);
+                    self.transition(.reset);
                     return true;
                 },
             };
@@ -939,11 +1015,27 @@ pub const Conn = struct {
     fn readerDone(self: *Conn) void {
         self.lockConn();
         self.reader_done = true;
-        _ = self.destroyLocked();
-        self.state = .closed;
+        const flushing = self.ending and !self.destroyed;
+        if (!flushing) {
+            _ = self.destroyLocked();
+            self.state = .closed;
+        }
         self.unlockConn();
         const slot = self.server.?.loop.slot(self.index);
         var s = slot.state.load(.acquire);
+        if (flushing) {
+            // The writer finishes the queue, then tears down (R_DONE).
+            while (true) {
+                const writer_busy = loop_mod.Slot.bitsOf(s) & loop_mod.W != 0;
+                const next = s | loop_mod.R_DONE | (if (writer_busy) 0 else loop_mod.W);
+                if (slot.state.cmpxchgWeak(s, next, .acq_rel, .acquire)) |actual| {
+                    s = actual;
+                    continue;
+                }
+                if (!writer_busy) self.runWriter();
+                return;
+            }
+        }
         while (true) {
             const writer_busy = loop_mod.Slot.bitsOf(s) & loop_mod.W != 0;
             const next = s | (if (writer_busy) loop_mod.R_DONE else loop_mod.W);
@@ -964,6 +1056,10 @@ pub const Conn = struct {
             const drained = self.writePass();
             self.lockConn();
             self.endRequestsLocked();
+            // After the peer's FIN the reader is done; teardown waits for
+            // the queue (or a failure) unless nothing is left to write.
+            // Re-checked under the lock: a turn's corked frames may have joined the queue.
+            const flushing = self.ending and !self.destroyed and (!drained or self.queue_head != self.queue.items.len);
             self.unlockConn();
             // Completions leave with the pass; the next writer's wait here
             // (it holds W by then) keeps passes in order.
@@ -975,7 +1071,7 @@ pub const Conn = struct {
             var s = slot.state.load(.acquire);
             const outcome: enum { released, again, teardown } = while (true) {
                 const bits = loop_mod.Slot.bitsOf(s);
-                if (bits & loop_mod.R_DONE != 0) break .teardown;
+                if (bits & loop_mod.R_DONE != 0 and !flushing) break .teardown;
                 // Release W fully (W_AGAIN too): the completions run after.
                 const next = s & ~@as(u64, loop_mod.W | loop_mod.W_AGAIN);
                 if (slot.state.cmpxchgWeak(s, next, .acq_rel, .acquire)) |actual| {
@@ -1057,6 +1153,7 @@ pub const Conn = struct {
             const nosignal: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.NOSIGNAL else 0;
             var sent = posix.sendmsg(self.fd, &msg, posix.MSG.DONTWAIT | nosignal) catch |e| switch (e) {
                 error.WouldBlock => {
+                    if (self.blocked_since.load(.acquire) == 0) self.blocked_since.store(loop_mod.monoMs(), .release);
                     if (!self.write_armed) {
                         self.write_armed = true;
                         server.loop.enableWrite(self.fd, self.index, self.gen) catch self.terminate();
@@ -1064,10 +1161,14 @@ pub const Conn = struct {
                     return false;
                 },
                 else => {
-                    self.terminate();
+                    self.lockConn();
+                    const kick = self.writeFailedLocked(e);
+                    self.unlockConn();
+                    if (kick) self.kickReader();
                     return false;
                 },
             };
+            self.blocked_since.store(0, .release);
             // Pop what was fully written; callbacks run when the pass ends.
             self.lockConn();
             while (self.queue_head < self.queue.items.len) {
@@ -1180,8 +1281,18 @@ pub const Conn = struct {
                 self.unlockConn();
                 self.close(e.code, "");
             },
+            // `ws` socketOnEnd: CLOSING, then `socket.end()` writes what is
+            // queued and FINs; the reader finishes and the writer tears down.
+            .eof => {
+                self.lockConn();
+                if (!self.destroyed and self.queue_head != self.queue.items.len) {
+                    self.ending = true;
+                    if (self.state == .open) self.state = .closing;
+                } else _ = self.destroyLocked();
+                self.unlockConn();
+            },
             // The reader sees `destroyed` and tears down after the hook returns.
-            .eof, .close_timeout => {
+            .reset, .close_timeout => {
                 self.lockConn();
                 _ = self.destroyLocked();
                 self.unlockConn();
@@ -1358,4 +1469,19 @@ test "handshake key validation and subprotocol parsing" {
     try std.testing.expectEqualStrings("a", parseFirstProtocol("a, b").?);
     try std.testing.expect(parseFirstProtocol("a, a") == null);
     try std.testing.expect(parseFirstProtocol("a,,b") == null);
+}
+
+/// Node's `errnoException(err, 'write')` message for a failed send.
+fn writeErrorText(e: posix.SendMsgError) []const u8 {
+    return switch (e) {
+        error.BrokenPipe => "write EPIPE",
+        error.ConnectionResetByPeer => "write ECONNRESET",
+        error.NetworkUnreachable => "write ENETUNREACH",
+        error.NetworkSubsystemFailed => "write ENETDOWN",
+        error.SystemResources => "write ENOBUFS",
+        error.AccessDenied => "write EACCES",
+        error.MessageTooBig => "write EMSGSIZE",
+        error.SocketNotConnected => "write ENOTCONN",
+        inline else => |x| "write " ++ @errorName(x),
+    };
 }

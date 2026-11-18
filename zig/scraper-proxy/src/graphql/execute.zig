@@ -89,6 +89,10 @@ pub const Resolvers = struct {
     /// (`RawResult`), asked only when the selection can be written straight
     /// from it (see `rawPlan`). `.none`: use `resolve`.
     resolve_raw: ?*const fn (ctx: *anyopaque, a: Allocator, info: *const Info, parent: Value, args: Value) Allocator.Error!RawResult = null,
+    /// Optional: whether TS's resolver for this root field throws before
+    /// returning a promise (graphql-js then starts no later root field when
+    /// the field is non-null; see `executeRoots`).
+    fails_synchronously: ?*const fn (ctx: *anyopaque, field_name: []const u8) bool = null,
 };
 
 /// What a fast column's JSON is (the database adapter decides per column
@@ -427,23 +431,36 @@ pub const Executor = struct {
             t.* = .{ .parent = self, .root = root, .name = name, .nodes = fields.entries.get(name).?.items, .arena = arena, .allocator = allocator };
         }
         result.arenas = arenas[0..created];
+        // graphql-js executeFields: a non-null root field whose resolver throws
+        // synchronously ends the loop, so later root fields never start (the
+        // ones before it keep running) and the response has that error alone.
+        var sync_stop: ?usize = null;
+        if (self.resolvers.fails_synchronously) |fails| for (tasks, 0..) |*t, i| {
+            const field_name = t.nodes[0].name.value;
+            const def = self.schema.fieldDef(root, field_name) orelse continue;
+            if (def.type.isNonNull() and fails(self.resolvers.ctx, field_name)) {
+                sync_stop = i;
+                break;
+            }
+        };
+        const started = tasks[0..if (sync_stop) |i| i + 1 else n];
         const pooled = try self.a.alloc(bool, n);
         @memset(pooled, false);
         // On a fiber the extra fields are sibling fibers on the same loop
         // (they interleave at I/O like graphql-js's promises; no threads);
         // otherwise they go to the RootPool.
         const on_fiber = parallel != null and core.fiber.inFiber();
-        if (parallel) |p| for (tasks[1..], pooled[1..]) |*t, *started| {
+        if (parallel) |p| for (started[1..], pooled[1..started.len]) |*t, *in_pool| {
             if (on_fiber) {
                 // No fiber for it (out of memory): run it right away on this
                 // fiber rather than after the joins of the fields before it
                 // (`runFiber` wakes its `job.done`, so the join returns at once).
                 core.fiber.spawn(RootTask.runFiber, t) catch RootTask.runFiber(t);
-                started.* = true;
-            } else started.* = p.pool.submit(&t.job); // false (pool full): runs here below
+                in_pool.* = true;
+            } else in_pool.* = p.pool.submit(&t.job); // false (pool full): runs here below
         };
         RootTask.run(&tasks[0]);
-        for (tasks[1..], pooled[1..]) |*t, in_pool| {
+        for (started[1..], pooled[1..started.len]) |*t, in_pool| {
             if (!in_pool) {
                 RootTask.run(t);
             } else if (on_fiber) {
@@ -456,17 +473,22 @@ pub const Executor = struct {
                 t.job.done.wait();
             }
         }
-        for (tasks) |*t| if (t.oom) return error.OutOfMemory;
+        for (started) |*t| if (t.oom) return error.OutOfMemory;
+        if (sync_stop) |i| if (tasks[i].propagated) {
+            try self.errors.append(self.a, tasks[i].pending);
+            result.errors = self.errors.items;
+            return result;
+        };
 
         // Settle order: I/O-free fields in document order, then I/O fields by completion.
-        const order = try self.a.alloc(*RootTask, n);
+        const order = try self.a.alloc(*RootTask, started.len);
         var k: usize = 0;
-        for (tasks) |*t| if (!t.io) {
+        for (started) |*t| if (!t.io) {
             order[k] = t;
             k += 1;
         };
         const io_start = k;
-        for (tasks) |*t| if (t.io) {
+        for (started) |*t| if (t.io) {
             order[k] = t;
             k += 1;
         };
@@ -494,13 +516,13 @@ pub const Executor = struct {
         }
         for (order) |t| try self.errors.appendSlice(self.a, t.errors);
         var size: usize = 2;
-        for (tasks) |*t| if (t.value) |v| {
+        for (started) |*t| if (t.value) |v| {
             size += t.name.len + v.len + 8;
         };
         self.out = try .initCapacity(self.a, size + body_prefix.len);
         const w = &self.out.writer;
         w.writeAll(body_prefix ++ "{") catch return error.OutOfMemory;
-        for (tasks) |*t| if (t.value) |v| {
+        for (started) |*t| if (t.value) |v| {
             try self.writeKey(t.name);
             w.writeAll(v) catch return error.OutOfMemory;
         };
@@ -508,7 +530,7 @@ pub const Executor = struct {
         result.data = .{ .raw = self.out.written()[body_prefix.len..] };
         result.errors = self.errors.items;
         result.body = self.out;
-        for (tasks) |*t| result.deep_scalar = result.deep_scalar or t.deep_scalar;
+        for (started) |*t| result.deep_scalar = result.deep_scalar or t.deep_scalar;
         return result;
     }
 

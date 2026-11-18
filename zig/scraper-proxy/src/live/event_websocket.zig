@@ -116,7 +116,7 @@ pub const EventWebSocketServer = struct {
     }
 
     pub fn upgradeHandler(self: *EventWebSocketServer) http.UpgradeHandler {
-        return .{ .ctx = self, .on_upgrade = onUpgrade };
+        return .{ .ctx = self, .on_upgrade = onUpgrade, .removed = &self.server.upgrade_removed };
     }
 
     // -- HTTP upgrade (`handleUpgrade`) ---------------------------------------
@@ -125,11 +125,9 @@ pub const EventWebSocketServer = struct {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
         // Wiring, all builds: main hands the loops over before accepting.
         if (self.fiber_host == null) @panic("live: an upgrade before setFiberHost");
-        // stop() removes the TS 'upgrade' listener.
-        self.loop.lock();
-        const stopped = self.server.stopped;
-        self.loop.unlock();
-        if (stopped) return socket.destroy();
+        // stop() removes the TS 'upgrade' listener only after its awaits
+        // (`upgrade_removed`; HTTP then answers upgrades itself): an upgrade
+        // in that window is accepted, then closed 1001 (`accept`).
         // `request.url?.split('?', 1)[0]`, compared exactly (no Fastify routing).
         const route: live.Route = if (std.mem.eql(u8, req.path, live.AGENT_PATH))
             .agent
@@ -183,7 +181,6 @@ pub const EventWebSocketServer = struct {
         const remote = req.remoteIp(&buffer);
         self.loop.lock();
         defer self.loop.unlock();
-        if (self.server.stopped) return socket.destroy();
         const admission = self.server.admitValidator(.{
             .url = req.url,
             .cf_connecting_ip = req.header("cf-connecting-ip"),
@@ -292,7 +289,12 @@ pub const EventWebSocketServer = struct {
         .release = connRelease,
         .try_send_inline = connTrySendInline,
         .try_send_inline_many = connTrySendInlineMany,
+        .send_failure_text = connSendFailureText,
     };
+
+    fn connSendFailureText(ptr: *anyopaque) []const u8 {
+        return asConn(ptr).sendFailureText();
+    }
 
     fn asConn(ptr: *anyopaque) *ws.Conn {
         return @ptrCast(@alignCast(ptr));

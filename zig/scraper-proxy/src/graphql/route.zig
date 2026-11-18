@@ -593,7 +593,14 @@ pub const GraphqlRoute = struct {
         defer if (doc_ref) |d| self.documents.release(d);
         const admission: execute.Admission = .{ .ctx = st, .enter = enterSlot };
         execute.admission = admission;
-        const run = self.runGraphql(a, std.mem.eql(u8, req.method, "GET"), query, variables, operation_name, &doc_ref, admission);
+        // GET `variables` reach graphql-js as the query string (or what it
+        // parses to): anything but null, an object or an array fails its
+        // execution-argument check (POST bodies are schema-checked first).
+        const variables_not_object = is_get and variables == .value and switch (variables.value) {
+            .null, .object, .array => false,
+            else => true,
+        };
+        const run = self.runGraphql(a, std.mem.eql(u8, req.method, "GET"), query, variables, variables_not_object, operation_name, &doc_ref, admission);
         execute.admission = null;
         const outcome = try run;
         if (self.after_execute_hook) |hook| hook(self);
@@ -626,7 +633,7 @@ pub const GraphqlRoute = struct {
     /// `fastifyGraphQl(source, context, variables, operationName)`.
     /// On return `doc_ref` holds the document reference the caller must
     /// release after serializing the outcome.
-    fn runGraphql(self: *GraphqlRoute, a: Allocator, is_get_exact: bool, query: []const u8, variables: VariablesInput, operation_name: ?[]const u8, doc_ref: *?*CachedDocument, admission: execute.Admission) !Outcome {
+    fn runGraphql(self: *GraphqlRoute, a: Allocator, is_get_exact: bool, query: []const u8, variables: VariablesInput, variables_not_object: bool, operation_name: ?[]const u8, doc_ref: *?*CachedDocument, admission: execute.Admission) !Outcome {
         const doc = switch (try self.obtainDocument(a, query)) {
             .errors => |errors| return .{ .thrown = errors },
             .document => |d| d,
@@ -637,6 +644,10 @@ pub const GraphqlRoute = struct {
             if (cache_mod.getOperation(document, operation_name) == null) {
                 return .{ .thrown = try a.dupe(GqlError, &.{.{ .message = "Cannot read properties of null (reading 'operation')" }}) };
             }
+        }
+        // graphql-js assertValidExecutionArguments (before buildExecutionContext).
+        if (variables_not_object) {
+            return .{ .executed = .{ .data = null, .errors = try a.dupe(GqlError, &.{.{ .message = "Variables must be provided as an Object where each property is a variable value. Perhaps look to see if an unparsed JSON string was provided." }}) } };
         }
         // buildExecutionContext: operation selection and variable coercion.
         const op = switch (try selectOperation(a, document, operation_name)) {

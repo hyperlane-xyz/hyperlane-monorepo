@@ -748,7 +748,7 @@ pub const Conn = struct {
             Kw.add(&kw_buf, &val_buf, &n_kw, "gssencmode", "disable");
         const pg = PQconnectStartParams(&kw_buf, &val_buf, 1) orelse return error.OutOfMemory;
         if (PQstatus(pg) == 1) { // CONNECTION_BAD
-            setFailure(failure, arena, trimMessage(std.mem.span(PQerrorMessage(pg))), null);
+            setFailure(failure, arena, connectFailureText(std.mem.span(PQerrorMessage(pg)), arena), null);
             PQfinish(pg);
             return error.ConnectionFailed;
         }
@@ -773,7 +773,7 @@ pub const Conn = struct {
             switch (state) {
                 PGRES_POLLING_OK => break,
                 PGRES_POLLING_FAILED => {
-                    setFailure(failure, arena, trimMessage(std.mem.span(PQerrorMessage(pg))), null);
+                    setFailure(failure, arena, connectFailureText(std.mem.span(PQerrorMessage(pg)), arena), null);
                     return error.ConnectionFailed;
                 },
                 else => {
@@ -1493,6 +1493,113 @@ pub fn freeNotify(n: *PGnotify) void {
     PQfreemem(n);
 }
 
+/// node-pg's text for a connection that failed before it was established,
+/// from libpq's. libpq writes one "connection to server … failed: <reason>"
+/// line per address it tried (in getaddrinfo order, as Node's happy-eyeballs
+/// connect does). Node stops at the first address that completes TCP, so the
+/// first attempt that reached a server decides: its server error (e.g.
+/// `password authentication failed for user "x"`) as the server sent it, or
+/// "Connection terminated unexpectedly" for a server that closed the socket.
+/// If every attempt failed at the socket: one address gives Node's
+/// `connect <ERRNO> <address>:<port>` (the address tried; a Unix socket's
+/// path), several give its AggregateError, whose message is empty. A name
+/// that does not resolve gives `getaddrinfo ENOTFOUND <host>`. Anything not
+/// recognised keeps libpq's wording (trimmed).
+fn connectFailureText(raw: []const u8, arena: std.mem.Allocator) []const u8 {
+    const text = std.mem.trim(u8, raw, " \n\r\t");
+    const first_line = text[0 .. std.mem.indexOfScalar(u8, text, '\n') orelse text.len];
+    // `could not translate host name "h" to address: <gai_strerror>`
+    const translate = "could not translate host name \"";
+    if (std.mem.startsWith(u8, first_line, translate)) {
+        const rest = first_line[translate.len..];
+        const end = std.mem.indexOf(u8, rest, "\" to address: ") orelse return trimMessage(text);
+        const host = rest[0..end];
+        const reason = rest[end + "\" to address: ".len ..];
+        const code: []const u8 = if (std.mem.indexOf(u8, reason, "emporary failure") != null) "EAI_AGAIN" else if (std.mem.indexOf(u8, reason, "not known") != null or std.mem.indexOf(u8, reason, "No address associated") != null) "ENOTFOUND" else return trimMessage(text);
+        return std.fmt.allocPrint(arena, "getaddrinfo {s} {s}", .{ code, host }) catch trimMessage(text);
+    }
+    var attempts: usize = 0;
+    var socket_failure: ?Attempt = null;
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |line| {
+        const attempt = Attempt.parse(line) orelse continue;
+        attempts += 1;
+        if (socketErrno(attempt.reason) == null) {
+            // This address reached a server: what Node reports.
+            if (std.mem.startsWith(u8, attempt.reason, "server closed the connection unexpectedly")) return "Connection terminated unexpectedly";
+            if (std.mem.startsWith(u8, attempt.reason, "could not receive data from server: Connection reset by peer")) return "read ECONNRESET";
+            return trimMessage(line);
+        }
+        if (socket_failure == null) socket_failure = attempt;
+    }
+    const failure = socket_failure orelse return trimMessage(text);
+    if (attempts > 1) return "";
+    const code = socketErrno(failure.reason).?;
+    const address = failure.address(arena) catch return trimMessage(text);
+    // A connect() that fails synchronously (no source address, no route,
+    // refused by policy) also names the unbound local address, as Node's
+    // getsockname reports it; ECONNREFUSED, ETIMEDOUT and EHOSTUNREACH
+    // arrive asynchronously, without it.
+    const synchronous = std.mem.eql(u8, code, "EADDRNOTAVAIL") or std.mem.eql(u8, code, "ENETUNREACH") or std.mem.eql(u8, code, "EACCES");
+    if (synchronous and !failure.unix)
+        return std.fmt.allocPrint(arena, "connect {s} {s} - Local ({s})", .{ code, address, if (std.mem.indexOfScalar(u8, failure.host, ':') != null) ":::0" else "0.0.0.0:0" }) catch trimMessage(text);
+    return std.fmt.allocPrint(arena, "connect {s} {s}", .{ code, address }) catch trimMessage(text);
+}
+
+/// One `connection to server … failed: <reason>` line of libpq's text.
+const Attempt = struct {
+    /// The address tried (the resolved one, in parentheses, for a name), or
+    /// a Unix socket's path.
+    host: []const u8,
+    port: []const u8 = "",
+    unix: bool = false,
+    reason: []const u8,
+
+    fn parse(line: []const u8) ?Attempt {
+        const failed = std.mem.indexOf(u8, line, " failed: ") orelse return null;
+        const target = line[0..failed];
+        const reason = line[failed + " failed: ".len ..];
+        const on_socket = "connection to server on socket \"";
+        if (std.mem.startsWith(u8, target, on_socket))
+            return .{ .host = std.mem.trimRight(u8, target[on_socket.len..], "\""), .unix = true, .reason = reason };
+        const at = "connection to server at \"";
+        if (!std.mem.startsWith(u8, target, at)) return null;
+        const after = target[at.len..];
+        const close = std.mem.indexOfScalar(u8, after, '"') orelse return null;
+        var host = after[0..close];
+        var tail = after[close + 1 ..];
+        if (std.mem.startsWith(u8, tail, " (")) if (std.mem.indexOfScalar(u8, tail, ')')) |paren| {
+            host = tail[2..paren];
+            tail = tail[paren + 1 ..];
+        };
+        const port_at = std.mem.indexOf(u8, tail, ", port ") orelse return null;
+        return .{ .host = host, .port = tail[port_at + ", port ".len ..], .reason = reason };
+    }
+
+    /// Node's form: `<address>:<port>` (IPv6 unbracketed), or the path.
+    fn address(self: Attempt, arena: std.mem.Allocator) ![]const u8 {
+        if (self.unix) return self.host;
+        return std.fmt.allocPrint(arena, "{s}:{s}", .{ self.host, self.port });
+    }
+};
+
+/// The errno name for libpq's text of a failed connect (strerror).
+fn socketErrno(reason: []const u8) ?[]const u8 {
+    const Errno = struct { reason: []const u8, code: []const u8 };
+    for ([_]Errno{
+        .{ .reason = "Connection refused", .code = "ECONNREFUSED" },
+        .{ .reason = "Connection timed out", .code = "ETIMEDOUT" },
+        .{ .reason = "Operation timed out", .code = "ETIMEDOUT" }, // macOS
+        .{ .reason = "Cannot assign requested address", .code = "EADDRNOTAVAIL" },
+        .{ .reason = "Can't assign requested address", .code = "EADDRNOTAVAIL" }, // BSD/macOS
+        .{ .reason = "No route to host", .code = "EHOSTUNREACH" },
+        .{ .reason = "Network is unreachable", .code = "ENETUNREACH" },
+        .{ .reason = "No such file or directory", .code = "ENOENT" },
+        .{ .reason = "Permission denied", .code = "EACCES" },
+    }) |e| if (std.mem.eql(u8, reason, e.reason)) return e.code;
+    return null;
+}
+
 /// libpq messages carry "FATAL:  " / "ERROR:  " severity prefixes and a
 /// trailing newline; node-pg reports the bare text.
 pub fn trimMessage(message: []const u8) []const u8 {
@@ -1869,4 +1976,39 @@ test "wireParam: node-pg's wire text; a NUL ends the value with 0xFF and is repo
     nul = false;
     try std.testing.expectEqualStrings("\xff", try wireParam(a, "\x00", &nul));
     try std.testing.expect(nul);
+}
+
+test "connectFailureText: node-pg's texts for libpq's connect failures" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const Case = struct { libpq: []const u8, node: []const u8 };
+    for ([_]Case{
+        .{ .libpq = "connection to server at \"127.0.0.1\", port 1 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\n", .node = "connect ECONNREFUSED 127.0.0.1:1" },
+        .{ .libpq = "connection to server at \"db.internal\" (10.0.0.5), port 5432 failed: Connection timed out\n\tIs the server running on that host and accepting TCP/IP connections?\n", .node = "connect ETIMEDOUT 10.0.0.5:5432" },
+        .{ .libpq = "connection to server at \"::1\", port 1 failed: Connection refused\n", .node = "connect ECONNREFUSED ::1:1" },
+        .{ .libpq = "connection to server on socket \"/tmp/.s.PGSQL.1\" failed: No such file or directory\n\tIs the server running locally and accepting connections on that socket?\n", .node = "connect ENOENT /tmp/.s.PGSQL.1" },
+        // Two addresses tried (dual-stack name): Node's AggregateError.
+        .{ .libpq = "connection to server at \"localhost\" (::1), port 1 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at \"localhost\" (127.0.0.1), port 1 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\n", .node = "" },
+        .{ .libpq = "could not translate host name \"no-such-host.invalid\" to address: nodename nor servname provided, or not known\n", .node = "getaddrinfo ENOTFOUND no-such-host.invalid" },
+        .{ .libpq = "could not translate host name \"no-such-host.invalid\" to address: Name or service not known\n", .node = "getaddrinfo ENOTFOUND no-such-host.invalid" },
+        .{ .libpq = "could not translate host name \"db\" to address: Temporary failure in name resolution\n", .node = "getaddrinfo EAI_AGAIN db" },
+        .{ .libpq = "connection to server at \"127.0.0.1\", port 5 failed: server closed the connection unexpectedly\n\tThis probably means the server terminated abnormally\n\tbefore or while processing the request.\n", .node = "Connection terminated unexpectedly" },
+        .{ .libpq = "connection to server at \"127.0.0.1\", port 5 failed: could not receive data from server: Connection reset by peer\n", .node = "read ECONNRESET" },
+        // Several addresses: the first that reached a server decides.
+        .{ .libpq = "connection to server at \"localhost\" (::1), port 5 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at \"localhost\" (127.0.0.1), port 5 failed: FATAL:  password authentication failed for user \"x\"\n", .node = "password authentication failed for user \"x\"" },
+        .{ .libpq = "connection to server at \"localhost\" (::1), port 5 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at \"localhost\" (127.0.0.1), port 5 failed: server closed the connection unexpectedly\n\tThis probably means the server terminated abnormally\n\tbefore or while processing the request.\n", .node = "Connection terminated unexpectedly" },
+        // Docker without IPv6: ::1 has no source address, then a refusal (Node: AggregateError).
+        .{ .libpq = "connection to server at \"localhost\" (::1), port 1 failed: Cannot assign requested address\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at \"localhost\" (127.0.0.1), port 1 failed: Connection refused\n\tIs the server running on that host and accepting TCP/IP connections?\n", .node = "" },
+        // Measured (node-pg 8.23 in a container with IPv6 disabled): a
+        // connect that fails at once names the unbound local address.
+        .{ .libpq = "connection to server at \"::1\", port 1 failed: Cannot assign requested address\n\tIs the server running on that host and accepting TCP/IP connections?\n", .node = "connect EADDRNOTAVAIL ::1:1 - Local (:::0)" },
+        .{ .libpq = "connection to server at \"10.0.0.5\", port 5432 failed: Operation timed out\n", .node = "connect ETIMEDOUT 10.0.0.5:5432" },
+        // Measured (node-pg 8.23, a container without a route to the address).
+        .{ .libpq = "connection to server at \"10.255.0.1\", port 5432 failed: Network is unreachable\n", .node = "connect ENETUNREACH 10.255.0.1:5432 - Local (0.0.0.0:0)" },
+        .{ .libpq = "connection to server at \"2001:db8::1\", port 5432 failed: Network is unreachable\n\tIs the server running on that host and accepting TCP/IP connections?\n", .node = "connect ENETUNREACH 2001:db8::1:5432 - Local (:::0)" },
+        // Server errors keep the server's message.
+        .{ .libpq = "connection to server at \"127.0.0.1\", port 5 failed: FATAL:  password authentication failed for user \"x\"\n", .node = "password authentication failed for user \"x\"" },
+        .{ .libpq = "connection to server at \"localhost\" (::1), port 5 failed: FATAL:  database \"x\" does not exist\n", .node = "database \"x\" does not exist" },
+    }) |c| try std.testing.expectEqualStrings(c.node, connectFailureText(c.libpq, a));
 }

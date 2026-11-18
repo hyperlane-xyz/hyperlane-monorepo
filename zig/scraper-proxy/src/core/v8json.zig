@@ -57,23 +57,26 @@ const Scanner = struct {
         return error.Invalid;
     }
 
+    fn unexpectedEnd(self: *Scanner) Err {
+        self.message = "Unexpected end of JSON input";
+        return error.Invalid;
+    }
+
     fn unexpectedToken(self: *Scanner) Err {
-        if (self.i >= self.s.len) {
-            self.message = "Unexpected end of JSON input";
-            return error.Invalid;
-        }
-        const len = std.unicode.utf8ByteSequenceLength(self.s[self.i]) catch 1;
-        const token = self.s[self.i..@min(self.s.len, self.i + len)];
+        if (self.i >= self.s.len) return self.unexpectedEnd();
+        // V8 reports the code unit at the error: a supplementary character's
+        // high surrogate alone (WTF-8 here; JSON output escapes it as \\udXXX).
         const total = utf16Length(self.s);
         const pos = utf16Length(self.s[0..self.i]);
+        const token = try utf16Slice(self.a, self.s, pos, pos + 1);
         if (total < min_source_for_context) {
             self.message = try std.fmt.allocPrint(self.a, "Unexpected token '{s}', \"{s}\" is not valid JSON", .{ token, self.s });
         } else if (pos < max_context) {
-            self.message = try std.fmt.allocPrint(self.a, "Unexpected token '{s}', \"{s}\"... is not valid JSON", .{ token, utf16Slice(self.s, 0, pos + max_context) });
+            self.message = try std.fmt.allocPrint(self.a, "Unexpected token '{s}', \"{s}\"... is not valid JSON", .{ token, try utf16Slice(self.a, self.s, 0, pos + max_context) });
         } else if (pos < total - max_context) {
-            self.message = try std.fmt.allocPrint(self.a, "Unexpected token '{s}', ...\"{s}\"... is not valid JSON", .{ token, utf16Slice(self.s, pos - max_context, pos + max_context) });
+            self.message = try std.fmt.allocPrint(self.a, "Unexpected token '{s}', ...\"{s}\"... is not valid JSON", .{ token, try utf16Slice(self.a, self.s, pos - max_context, pos + max_context) });
         } else {
-            self.message = try std.fmt.allocPrint(self.a, "Unexpected token '{s}', ...\"{s}\" is not valid JSON", .{ token, utf16Slice(self.s, pos - max_context, total) });
+            self.message = try std.fmt.allocPrint(self.a, "Unexpected token '{s}', ...\"{s}\" is not valid JSON", .{ token, try utf16Slice(self.a, self.s, pos - max_context, total) });
         }
         return error.Invalid;
     }
@@ -177,19 +180,25 @@ const Scanner = struct {
             }
             if (c < 0x20) return self.atPosition("Bad control character in string literal", self.i);
             if (c == '\\') {
-                if (self.i + 1 >= self.s.len) break;
+                if (self.i + 1 >= self.s.len) return self.unexpectedEnd();
                 switch (self.s[self.i + 1]) {
                     '"', '\\', '/', 'b', 'f', 'n', 'r', 't' => self.i += 2,
                     'u' => {
+                        // V8 points at the first non-hex digit (or the end).
                         var k: usize = 0;
                         while (k < 4) : (k += 1) {
                             const at = self.i + 2 + k;
-                            if (at >= self.s.len) return self.atPosition("Bad Unicode escape", self.i);
-                            if (!std.ascii.isHex(self.s[at])) return self.atPosition("Bad Unicode escape", self.i);
+                            if (at >= self.s.len or !std.ascii.isHex(self.s[at])) return self.atPosition("Bad Unicode escape", at);
                         }
                         self.i += 6;
                     },
-                    else => return self.atPosition("Bad escaped character", self.i + 1),
+                    // A Latin-1 character (below U+0100: one byte, or a C2/C3 lead)
+                    // is a bad escape; anything wider is V8's "Unexpected token".
+                    else => |next| {
+                        self.i += 1;
+                        if (next < 0x80 or next == 0xC2 or next == 0xC3) return self.atPosition("Bad escaped character", self.i);
+                        return self.unexpectedToken();
+                    },
                 }
                 continue;
             }
@@ -233,24 +242,36 @@ fn lineColumn(s: []const u8, pos: u32) SourceLocation {
     return .{ .line = line, .column = 1 + utf16Length(s[start..pos]) };
 }
 
-/// Byte slice covering UTF-16 index range [from, to).
-fn utf16Slice(s: []const u8, from: usize, to: usize) []const u8 {
+/// The UTF-16 index range [from, to) of UTF-8 `s` (JS `slice`): a surrogate
+/// pair cut by either end leaves its half as WTF-8, as V8's message does.
+fn utf16Slice(a: Allocator, s: []const u8, from: usize, to: usize) Allocator.Error![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
     var units: usize = 0;
-    var start: usize = s.len;
-    var end: usize = s.len;
     var i: usize = 0;
-    while (i < s.len) {
-        if (units == from and start == s.len) start = i;
-        if (units >= to) {
-            end = i;
-            break;
+    while (i < s.len and units < to) {
+        const len = @min(std.unicode.utf8ByteSequenceLength(s[i]) catch 1, s.len - i);
+        const seq = s[i .. i + len];
+        const cp: ?u21 = if (len == 4) std.unicode.utf8Decode(seq) catch null else null;
+        if (cp != null and cp.? >= 0x10000) {
+            const v = cp.? - 0x10000;
+            const halves = [2]u21{ @intCast(0xD800 + (v >> 10)), @intCast(0xDC00 + (v & 0x3FF)) };
+            const take_high = units >= from and units < to;
+            const take_low = units + 1 >= from and units + 1 < to;
+            if (take_high and take_low) {
+                try out.appendSlice(a, seq);
+            } else for ([2]bool{ take_high, take_low }, halves) |take, unit| if (take) {
+                var buf: [3]u8 = undefined;
+                buf = .{ @intCast(0xE0 | (unit >> 12)), @intCast(0x80 | ((unit >> 6) & 0x3F)), @intCast(0x80 | (unit & 0x3F)) };
+                try out.appendSlice(a, &buf);
+            };
+            units += 2;
+        } else {
+            if (units >= from) try out.appendSlice(a, seq);
+            units += if (len == 4) 2 else 1; // an undecodable 4-byte lead counts as utf16Length does
         }
-        const len = std.unicode.utf8ByteSequenceLength(s[i]) catch 1;
-        units += if (len == 4) 2 else 1;
         i += len;
     }
-    if (start == s.len and units == from) start = i;
-    return s[@min(start, end)..end];
+    return out.items;
 }
 
 test "v8 JSON.parse messages" {
@@ -267,6 +288,12 @@ test "v8 JSON.parse messages" {
         .{ "1 2", "Unexpected non-whitespace character after JSON at position 2 (line 1 column 3)" },
         .{ "\"abc", "Unterminated string in JSON at position 4 (line 1 column 5)" },
         .{ "\"a\\x\"", "Bad escaped character in JSON at position 3 (line 1 column 4)" },
+        .{ "\"\\\u{E9}\"", "Bad escaped character in JSON at position 2 (line 1 column 3)" },
+        .{ "\"\\\u{4E2D}\"", "Unexpected token '\u{4E2D}', \"\"\\\u{4E2D}\"\" is not valid JSON" },
+        .{ "\"abc\\", "Unexpected end of JSON input" },
+        .{ "\"\\u12\"", "Bad Unicode escape in JSON at position 5 (line 1 column 6)" },
+        .{ "\"\\u", "Bad Unicode escape in JSON at position 3 (line 1 column 4)" },
+        .{ "{\"a\":\"\\u12\"}", "Bad Unicode escape in JSON at position 10 (line 1 column 11)" },
         .{ "\"\x01\"", "Bad control character in string literal in JSON at position 1 (line 1 column 2)" },
         .{ "-", "No number after minus sign in JSON at position 1 (line 1 column 2)" },
         .{ "1.", "Unterminated fractional number in JSON at position 2 (line 1 column 3)" },
@@ -277,6 +304,11 @@ test "v8 JSON.parse messages" {
         .{ "{\"query\":\"aaaaaaaaaaaaaaaaaaaaaaaa\" bbbbbbbbbbbbbbbbbbbbbbbbbbbbb}", "Expected ',' or '}' after property value in JSON at position 36 (line 1 column 37)" },
         .{ "[[[[[}]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]", "Unexpected token '}', \"[[[[[}]]]]]]]]]\"... is not valid JSON" },
         .{ "\n\n  {x", "Expected property name or '}' in JSON at position 5 (line 3 column 4)" },
+        // UTF-16 units (Node 26): an emoji's high surrogate as the token, and context
+        // snippets that cut a pair at either end (WTF-8 halves: ED A0 BD, ED B8 80).
+        .{ "{\"a\":\u{1F600}}", "Unexpected token '\xed\xa0\xbd', \"{\"a\":\u{1F600}}\" is not valid JSON" },
+        .{ "a" ++ "\u{1F600}" ** 11, "Unexpected token 'a', \"a" ++ "\u{1F600}" ** 4 ++ "\xed\xa0\xbd\"... is not valid JSON" },
+        .{ "{\"" ++ "\u{1F600}" ** 11 ++ "\": \u{1F600}}", "Unexpected token '\xed\xa0\xbd', ...\"\xed\xb8\x80" ++ "\u{1F600}" ** 3 ++ "\": \u{1F600}}\" is not valid JSON" },
     };
     for (cases) |c| try std.testing.expectEqualStrings(c[1], try errorMessage(a, c[0]));
 }

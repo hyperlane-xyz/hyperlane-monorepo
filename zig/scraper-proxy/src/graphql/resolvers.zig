@@ -32,7 +32,16 @@ pub const ResolverMap = struct {
     diagnostics: ?Diagnostics = null,
 
     pub fn resolvers(self: *ResolverMap) execute.Resolvers {
-        return .{ .ctx = self, .resolve = resolve, .resolve_raw = resolveRaw, .parent_types = &.{ "query_root", "message_view_aggregate_fields" } };
+        return .{ .ctx = self, .resolve = resolve, .resolve_raw = resolveRaw, .fails_synchronously = failsSynchronously, .parent_types = &.{ "query_root", "message_view_aggregate_fields" } };
+    }
+
+    /// resolver-map.ts: `message_activity` is a plain function whose
+    /// `getDiagnostics()` throws "Diagnostics are not configured" before any
+    /// promise; every other root resolver is async (or returns a promise), so
+    /// its failures are rejections.
+    fn failsSynchronously(ctx: *anyopaque, field_name: []const u8) bool {
+        const self: *ResolverMap = @ptrCast(@alignCast(ctx));
+        return self.diagnostics == null and std.mem.eql(u8, field_name, "message_activity");
     }
 
     /// `resolve`'s table fields with the rows left as libpq's result: the

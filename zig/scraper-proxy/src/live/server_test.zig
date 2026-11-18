@@ -22,6 +22,8 @@ const FakeSocket = struct {
     pings: usize = 0,
     buffered: usize = 0,
     fail_sends: bool = false,
+    /// `ws.Conn.sendFailureText`'s answer (null: none offered).
+    failure_text: ?[]const u8 = null,
     /// Hold send completions until `releaseHeld` (a stalled socket).
     hold: bool = false,
     /// Complete each queued send before `send` returns (ws's poller wrote
@@ -50,7 +52,13 @@ const FakeSocket = struct {
         .ping = ping,
         .release = release,
         .try_send_inline = trySendInline,
+        .send_failure_text = sendFailureText,
     };
+
+    fn sendFailureText(ptr: *anyopaque) []const u8 {
+        const self: *FakeSocket = @ptrCast(@alignCast(ptr));
+        return self.failure_text orelse "write ECANCELED";
+    }
     const vtable_many: live.Socket.VTable = blk: {
         var v = vtable_single;
         v.try_send_inline_many = trySendInlineMany;
@@ -778,6 +786,27 @@ test "heartbeat pings, then terminates clients that never pong" {
     try testing.expect(s.isTerminated());
 }
 
+test "heartbeat reads the clock per client, as TS's new Date() per send" {
+    var h: Harness = .{};
+    try h.init(defaultLimits());
+    defer h.deinit();
+    const first, _ = h.agent();
+    const second, _ = h.agent();
+    h.t.fake.mutex.lock();
+    h.t.fake.read_step_ms = 1;
+    h.t.fake.mutex.unlock();
+    h.t.fake.tick(250);
+    try h.waitFrames(first, 2);
+    try h.waitFrames(second, 2);
+    h.t.fake.mutex.lock();
+    h.t.fake.read_step_ms = 0;
+    h.t.fake.mutex.unlock();
+    const prefix = "{\"serverTime\":\"1970-01-01T00:00:00.";
+    try testing.expect(std.mem.startsWith(u8, first.frame(1), prefix) and std.mem.startsWith(u8, second.frame(1), prefix));
+    // The second client's send reads a later clock than the first's.
+    try testing.expect(std.mem.order(u8, first.frame(1), second.frame(1)) == .lt);
+}
+
 test "outbound buffer limit terminates the socket" {
     var h: Harness = .{};
     var limits = defaultLimits();
@@ -1021,13 +1050,30 @@ test "releases a peer-closed Explorer queue immediately (63)" {
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
 }
 
-test "reports an active send failure once (65)" {
+test "reports an active send failure once (65), with the socket's write error text" {
     var h: Harness = .{};
     try h.init(defaultLimits());
     defer h.deinit();
+    const Capture = struct {
+        var mutex: std.Thread.Mutex = .{};
+        var line: [128]u8 = undefined;
+        var len: usize = 0;
+        var count: usize = 0;
+        fn sink(_: ?*anyopaque, _: core.log.Level, _: []const u8, msg: []const u8) void {
+            if (std.mem.indexOf(u8, msg, "send failed") == null) return;
+            mutex.lock();
+            defer mutex.unlock();
+            len = @min(msg.len, line.len);
+            @memcpy(line[0..len], msg[0..len]);
+            count += 1;
+        }
+    };
+    Capture.count = 0;
+    core.log.setSink(Capture.sink, null);
     const s, _ = h.explorer("/messages", "1.2.3.4");
     try h.waitFrames(s, 1);
     h.settle();
+    s.failure_text = "write ECONNRESET";
     s.fail_sends = true;
     const before = core.metrics.websocket_send_failures.get(.{"send_error"});
     const id = "06" ** 32;
@@ -1041,6 +1087,10 @@ test "reports an active send failure once (65)" {
     h.settle();
     try testing.expect(s.isTerminated());
     try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
+    Capture.mutex.lock();
+    defer Capture.mutex.unlock();
+    try testing.expectEqual(@as(usize, 1), Capture.count);
+    try testing.expectEqualStrings("terminating websocket: send failed: write ECONNRESET", Capture.line[0..Capture.len]);
 }
 
 test "does not report heartbeat cleanup as a send failure (68)" {
@@ -2329,7 +2379,9 @@ test "async reads after stop fail at once and still release their flow" {
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
     h.t.loop.lock();
-    h.server.stopped = true; // as after stop(): a read issued now must not start
+    // As after stop() removed the upgrade listener: a read issued now must not start.
+    h.server.stopped = true;
+    h.server.upgrade_removed.store(true, .release);
     h.t.loop.unlock();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
     // The read fails at once; its failure ends the socket on a pool thread.
@@ -2338,6 +2390,42 @@ test "async reads after stop fail at once and still release their flow" {
     try testing.expect(s.isTerminated());
     h.t.loop.lock();
     h.server.stopped = false;
+    h.server.upgrade_removed.store(false, .release);
+    h.t.loop.unlock();
+}
+
+test "between stop() starting and its unlisten, connects are accepted and reads still run (TS removes the upgrade listener after the unlisten)" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    h.t.loop.lock();
+    h.server.stopped = true; // stop() under way, the upgrade listener not yet removed
+    h.t.loop.unlock();
+    // A new agent still gets `ready` (TS: 101, then ready, then closeClients' 1001).
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    try testing.expect(std.mem.indexOf(u8, s.frame(0), "\"type\":\"ready\"") != null);
+    // A custom subscribe's read starts (TS's reads run until its pools close).
+    h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
+    for (0..5_000) |_| {
+        if (asyncStarted(&h) > 0) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expect(asyncStarted(&h) > 0);
+    h.settle();
+    // Once the listener is removed, a connect that slipped past HTTP's check is closed with 1001.
+    h.t.loop.lock();
+    h.server.upgrade_removed.store(true, .release);
+    h.t.loop.unlock();
+    const late, _ = h.agent();
+    try waitClosed(late);
+    try testing.expectEqual(@as(?u16, 1001), late.close_code);
+    try testing.expectEqual(@as(usize, 0), late.count());
+    h.t.loop.lock();
+    h.server.stopped = false;
+    h.server.upgrade_removed.store(false, .release);
     h.t.loop.unlock();
 }
 

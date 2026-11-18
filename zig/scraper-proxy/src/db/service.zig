@@ -19,6 +19,9 @@ pub const MAX_POOL_CLIENTS = 10;
 pub const MAX_VALIDATOR_POOL_CLIENTS = 5;
 pub const STATS_INTERVAL_MS = 60_000;
 pub const IDLE_TIMEOUT_MS = 300_000;
+/// pg-pool's idle listener reports a server-closed idle connection at once;
+/// the pools look at idle connections this often (`Pool.Options.idle_check_ms`).
+pub const IDLE_CHECK_MS = 1_000;
 
 pub const EVENT_STREAM_SCHEMA_CHECKS = [_][]const u8{
     "scraper_head_exists",
@@ -475,6 +478,7 @@ pub const DbService = struct {
             .max = if (kind == .validator) MAX_VALIDATOR_POOL_CLIENTS else MAX_POOL_CLIENTS,
             .min = if (kind == .main) MIN_POOL_CLIENTS else 0,
             .idle_timeout_ms = IDLE_TIMEOUT_MS,
+            .idle_check_ms = IDLE_CHECK_MS,
             .on_idle_error = .{ .ctx = hook, .func = IdleHook.call },
         }) catch return error.OutOfMemory;
         return slot.*.?;

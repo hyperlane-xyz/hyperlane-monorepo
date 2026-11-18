@@ -6,8 +6,10 @@
 //!   waiter gives up with "timeout exceeded when trying to connect".
 //! * release: hand straight to the oldest waiter, else park idle.
 //! * idle connections above `min` close after `idle_timeout_ms` (reaper thread).
-//! * idle connections that the server closed are detected at checkout and
-//!   reported through `on_idle_error` (pg-pool's `'error'` event).
+//! * idle connections that the server closed are reported through
+//!   `on_idle_error` (pg-pool's `'error'` event) and dropped, not replaced:
+//!   by the idle sweep on the reaper's tick (`idle_check_ms`), else at
+//!   checkout.
 //! * `end()` closes idle connections and refuses new work; connections in use
 //!   close when released.
 const std = @import("std");
@@ -34,6 +36,11 @@ pub const Options = struct {
     /// pg-pool default 10s; 0 disables reaping.
     idle_timeout_ms: u64 = 10_000,
     on_idle_error: ?IdleErrorHook = null,
+    /// pg-pool's idle listener: every this many ms the reaper's tick looks
+    /// at the idle connections (before reaping) and reports and drops the
+    /// ones the server closed, rather than waiting for their next checkout.
+    /// 0: checkout only.
+    idle_check_ms: u64 = 0,
     /// Timer thread for the idle reaper; null uses the process scheduler
     /// (`core.scheduler.current()`) or, without one (tests), a private thread.
     scheduler: ?*Scheduler = null,
@@ -79,7 +86,9 @@ pub const HoldHistogram = struct {
     }
 };
 
-const Idle = struct { conn: pq.Conn, since_ms: i64 };
+/// `seq`: release order (ties in `since_ms` are common), kept when the
+/// idle sweep puts a connection back.
+const Idle = struct { conn: pq.Conn, since_ms: i64, seq: u64 = 0 };
 
 const Waiter = struct {
     cond: std.Thread.Condition = .{},
@@ -284,6 +293,8 @@ pub const Pool = struct {
     reuse_guard: pq.ReuseGuard = .{},
     /// Signalled whenever `total` drops (for `deinit` draining).
     drained: std.Thread.Condition = .{},
+    /// The next idle entry's `seq` (under `mutex`).
+    release_seq: u64 = 0,
 
     pub fn init(gpa: std.mem.Allocator, options: Options) !*Pool {
         const self = try gpa.create(Pool);
@@ -294,10 +305,12 @@ pub const Pool = struct {
         opts.conn.conninfo = conninfo;
         if (opts.conn.options) |o| opts.conn.options = try gpa.dupe(u8, o);
         self.* = .{ .gpa = gpa, .options = opts, .conninfo = conninfo };
-        if (opts.idle_timeout_ms > 0) {
+        if (opts.idle_timeout_ms > 0 or opts.idle_check_ms > 0) {
             if (opts.scheduler orelse core.scheduler.current()) |timers| {
                 self.timers = timers;
-                self.reap_timer = try timers.schedule(opts.idle_timeout_ms, self, reapTick);
+                // With the idle sweep the tick runs only while connections
+                // are idle: the first release arms it (`putBack`).
+                if (opts.idle_check_ms == 0) self.reap_timer = try timers.schedule(opts.idle_timeout_ms, self, reapTick);
             } else self.reaper = try std.Thread.spawn(.{}, reapLoop, .{self});
         }
         return self;
@@ -320,7 +333,9 @@ pub const Pool = struct {
             self.mutex.lock();
             const id = self.reap_timer;
             self.mutex.unlock();
-            _ = timers.cancel(id);
+            // 0: no tick pending or running (`Scheduler.cancel(0)` would
+            // wait for an idle scheduler).
+            if (id != 0) _ = timers.cancel(id);
         }
         self.mutex.lock();
         const deadline = pq.nowMs() + @as(i64, @intCast(drain_timeout_ms));
@@ -586,6 +601,16 @@ pub const Pool = struct {
         var conn = conn_in;
         if (hold_stats and conn.checked_out_ns != 0) self.hold.record(std.time.nanoTimestamp() - conn.checked_out_ns);
         if (!conn.ok()) return self.discard(&conn);
+        self.putBack(.{ .conn = conn, .since_ms = pq.nowMs() }, false);
+    }
+
+    /// Hands a usable connection to a waiter, else parks it idle: a release
+    /// goes last (newest); the sweep puts a healthy connection back where
+    /// it was (`swept`: its `seq` and `since_ms` kept), so LIFO checkout and
+    /// the reaper's ages are unchanged.
+    fn putBack(self: *Pool, entry_in: Idle, swept: bool) void {
+        var entry = entry_in;
+        var conn = entry.conn;
         self.mutex.lock();
         if (self.closed) {
             self.total -= 1;
@@ -603,13 +628,28 @@ pub const Pool = struct {
             self.mutex.unlock();
             return;
         }
-        self.idle.append(self.gpa, .{ .conn = conn, .since_ms = pq.nowMs() }) catch {
+        var at = self.idle.items.len;
+        if (swept) {
+            while (at > 0 and self.idle.items[at - 1].seq > entry.seq) at -= 1;
+        } else {
+            entry.seq = self.release_seq;
+            self.release_seq += 1;
+        }
+        self.idle.insert(self.gpa, at, entry) catch {
             self.total -= 1;
             self.drained.broadcast();
             self.mutex.unlock();
             conn.deinit();
             return;
         };
+        // An idle connection restarts the idle sweep's tick if it stopped
+        // (it stops while none is idle; the reaper has nothing to do then).
+        if (self.options.idle_check_ms > 0) {
+            if (self.timers) |timers| {
+                // Out of memory: the next release tries again.
+                if (self.reap_timer == 0) self.reap_timer = timers.schedule(self.nextTick(if (self.options.idle_timeout_ms > 0) @intCast(self.options.idle_timeout_ms) else null), self, reapTick) catch 0;
+            } else if (self.idle.items.len == 1) self.reaper_cond.signal();
+        }
         self.mutex.unlock();
     }
 
@@ -622,10 +662,80 @@ pub const Pool = struct {
         self.mutex.unlock();
     }
 
-    /// One reaper pass on the shared timer thread: closes idle connections
-    /// past `idle_timeout_ms` (above `min`) and re-arms for the next expiry.
+    /// Whether an idle connection may hold input (a FATAL, an EOF): the
+    /// event loop's readiness word when a fiber ever waited on it (no
+    /// syscall unless an edge arrived; the word stays set until the next
+    /// fiber wait, so a stale one costs a poll), else a poll. Mutex held:
+    /// the connection is in `idle`, so its readiness record is still its own.
+    fn idleInputPending(conn: *const pq.Conn) bool {
+        if (conn.readiness) |bits| if (!core.fiber.inputSeen(bits)) return false;
+        var fds = [_]std.posix.pollfd{.{ .fd = conn.socket(), .events = std.posix.POLL.IN, .revents = 0 }};
+        const ready = std.posix.poll(&fds, 0) catch return true;
+        return ready > 0;
+    }
+
+    /// pg-pool's idle listener (`idle_check_ms`): idle connections with
+    /// input are taken out of `idle` (which makes them the sweep's, as a
+    /// checkout's) and checked off the mutex. One the server closed is
+    /// reported (`on_idle_error`) and dropped, not replaced; a healthy one
+    /// (e.g. a stray notice) goes back in release order, or closes if the
+    /// pool ended meanwhile. Mutex not held.
+    fn sweep(self: *Pool) void {
+        if (self.options.idle_check_ms == 0) return;
+        var taken: [16]Idle = undefined;
+        var n: usize = 0;
+        self.mutex.lock();
+        if (!self.closed) {
+            var i: usize = 0;
+            while (i < self.idle.items.len and n < taken.len) {
+                if (idleInputPending(&self.idle.items[i].conn)) {
+                    taken[n] = self.idle.orderedRemove(i);
+                    n += 1;
+                } else i += 1;
+            }
+        }
+        self.mutex.unlock();
+        if (n == 0) return;
+        var arena_state = std.heap.ArenaAllocator.init(self.gpa);
+        defer arena_state.deinit();
+        for (taken[0..n]) |*entry| {
+            var failure: Failure = .{};
+            if (entry.conn.checkIdle(arena_state.allocator(), &failure)) {
+                self.putBack(entry.*, true);
+                continue;
+            }
+            if (self.options.on_idle_error) |hook| hook.func(hook.ctx, failure.message);
+            self.discard(&entry.conn);
+        }
+    }
+
+    /// An idle connection the reaper is closing: if the server closed it
+    /// first, report it as pg-pool's idle listener would have (it may have
+    /// died since the last sweep). Mutex not held.
+    fn reportIfDead(self: *Pool, conn: *pq.Conn) void {
+        const hook = self.options.on_idle_error orelse return;
+        var arena_state = std.heap.ArenaAllocator.init(self.gpa);
+        defer arena_state.deinit();
+        var failure: Failure = .{};
+        if (!conn.checkIdle(arena_state.allocator(), &failure)) hook.func(hook.ctx, failure.message);
+    }
+
+    /// The reaper's next wait: the next expiry, at most `idle_check_ms`.
+    fn nextTick(self: *const Pool, next_expiry: ?i64) u64 {
+        const check: i64 = @intCast(self.options.idle_check_ms);
+        const wait = if (next_expiry) |e| (if (check > 0) @min(e, check) else e) else check;
+        return @intCast(@max(wait, 10));
+    }
+
+    /// One reaper pass on the shared timer thread: the idle sweep, then
+    /// closes idle connections past `idle_timeout_ms` (above `min`) and
+    /// re-arms for the next expiry or sweep. With the sweep, a tick that
+    /// finds no idle connection does not re-arm (`putBack` does). A tick in
+    /// progress is `reap_timer` until its last locked section, so `deinit`'s
+    /// cancel waits for it; nothing touches the pool after that section.
     fn reapTick(ctx: *anyopaque, _: u64) void {
         const self: *Pool = @ptrCast(@alignCast(ctx));
+        self.sweep();
         const timeout: i64 = @intCast(self.options.idle_timeout_ms);
         var expired: [16]pq.Conn = undefined;
         while (true) {
@@ -633,29 +743,45 @@ pub const Pool = struct {
             self.mutex.lock();
             const now = pq.nowMs();
             var next_check: i64 = timeout;
+            // Expired connections stay counted in `total` until closed (and
+            // reported), so `deinit` waits for them.
+            var counted = self.total;
             var i: usize = 0;
-            while (i < self.idle.items.len) {
+            while (timeout > 0 and i < self.idle.items.len) {
                 const age = now - self.idle.items[i].since_ms;
-                if (age >= timeout and self.total > self.options.min and n < expired.len) {
+                if (age >= timeout and counted > self.options.min and n < expired.len) {
                     expired[n] = self.idle.orderedRemove(i).conn;
                     n += 1;
-                    self.total -= 1;
+                    counted -= 1;
                     continue;
                 }
                 next_check = @min(next_check, timeout - age);
                 i += 1;
             }
-            if (n > 0) self.drained.broadcast();
-            const more = n == expired.len;
-            if (!more and !self.closed) {
-                const wait_ms: u64 = @intCast(@max(next_check, 10));
-                // Out of memory leaves the pool without a reaper (as a
-                // failed thread spawn would): idle connections then stay open.
-                self.reap_timer = self.timers.?.schedule(wait_ms, self, reapTick) catch 0;
-            }
             self.mutex.unlock();
             // Quick: PQfinish sends Terminate and closes the socket.
-            for (expired[0..n]) |*conn| conn.deinit();
+            for (expired[0..n]) |*conn| {
+                self.reportIfDead(conn);
+                conn.deinit();
+            }
+            self.mutex.lock();
+            if (n > 0) {
+                self.total -= @intCast(n);
+                self.wakeOne();
+                self.drained.broadcast();
+            }
+            const more = n == expired.len;
+            if (!more and !self.closed) {
+                if (self.options.idle_check_ms > 0 and self.idle.items.len == 0) {
+                    self.reap_timer = 0;
+                } else {
+                    // Out of memory leaves the pool without a reaper (as a
+                    // failed thread spawn would): idle connections then stay
+                    // open (with the sweep, until the next release re-arms).
+                    self.reap_timer = self.timers.?.schedule(self.nextTick(if (timeout > 0) next_check else null), self, reapTick) catch 0;
+                }
+            }
+            self.mutex.unlock();
             if (!more) return;
         }
     }
@@ -665,16 +791,23 @@ pub const Pool = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         while (!self.closed) {
+            if (self.options.idle_check_ms > 0) {
+                self.mutex.unlock();
+                self.sweep();
+                self.mutex.lock();
+                if (self.closed) break;
+            }
             const now = pq.nowMs();
             var next_check: i64 = timeout;
             var i: usize = 0;
-            while (i < self.idle.items.len) {
+            while (timeout > 0 and i < self.idle.items.len) {
                 const age = now - self.idle.items[i].since_ms;
                 if (age >= timeout and self.total > self.options.min) {
                     var conn = self.idle.orderedRemove(i).conn;
                     self.total -= 1;
                     self.drained.broadcast();
                     self.mutex.unlock();
+                    self.reportIfDead(&conn);
                     conn.deinit();
                     self.mutex.lock();
                     continue;
@@ -682,7 +815,12 @@ pub const Pool = struct {
                 next_check = @min(next_check, timeout - age);
                 i += 1;
             }
-            const wait_ms: u64 = @intCast(@max(next_check, 10));
+            if (self.options.idle_check_ms > 0 and self.idle.items.len == 0) {
+                // Nothing to sweep or reap until a release (`putBack`) or `end`.
+                self.reaper_cond.wait(&self.mutex);
+                continue;
+            }
+            const wait_ms = self.nextTick(if (timeout > 0) next_check else null);
             self.reaper_cond.timedWait(&self.mutex, wait_ms * std.time.ns_per_ms) catch {};
         }
     }

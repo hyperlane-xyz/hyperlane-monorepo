@@ -136,12 +136,19 @@ fn planFor(where: ?Value) Plan {
 }
 
 /// `planFor`; for a non-lookup select, `generic` when it pins a
-/// transaction hash and is totally ordered by `id` (no plan can reorder its
-/// rows), else `fixed_join` when it qualifies.
+/// transaction hash, or reads all of `domain`, and is totally ordered by
+/// `id` (no plan can reorder its rows), else `fixed_join` when it qualifies.
 fn planForSelect(table: Table, where: ?Value, query: sql.Sql) Plan {
     const plan = planFor(where);
     if (plan != .custom) return plan;
     if (table == .message_view and query.ordered_by_id and pinsTxHash(where)) return .generic;
+    // An unfiltered `domain` select (a small table): a generic plan, reused,
+    // skips planning each call. Only when the rows are totally ordered by
+    // `id`, so no plan can reorder them, and with no `where`: a custom plan
+    // (node-pg's) evaluates a filter's constants while planning, a generic
+    // one only against rows, so with a filter the two could fail
+    // differently.
+    if (table == .domain and query.ordered_by_id and where == null) return .generic;
     return if (query.fixed_join) .fixed_join else plan;
 }
 

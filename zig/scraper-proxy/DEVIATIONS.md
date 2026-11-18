@@ -51,9 +51,7 @@ reproduces the observable rule, not the scheduling.
   fields in completion order; the first non-null failure in that order nulls
   `data` and ends collection. When two roots both fail in PostgreSQL, TS's
   order is timing-dependent (about 75/25 and 50/50 in two samples) and so is
-  the port's. Not reproduced: a non-null resolver that throws synchronously
-  (only "Diagnostics are not configured") stops graphql-js from starting
-  later root fields; here they run.
+  the port's.
 - **Live event timing windows.** A loop mutex reproduces "nothing runs
   between awaits" and synchronous prefixes run inline
   (`src/live/IMPLEMENTATION.md`). Tasks take the loop mutex for the first
@@ -135,12 +133,13 @@ reproduces the observable rule, not the scheduling.
 
 - **mercurius JIT.** From a query's 4th execution TS switches to graphql-jit
   (adaptive `minCount: 3`, when event-loop utilisation < 0.8); the port
-  always follows graphql-js. Only error collection order for repeated,
-  failing multi-root queries can differ (jit-compiled TS also includes
-  nullable I/O errors that settle before a non-null I/O-free failure is
-  serialized), and graphql-jit serializes responses nested deeper than
-  graphql-js can (below), so from a query's 4th execution TS answers depths
-  the port rejects.
+  always follows graphql-js. From that execution on, three things can
+  differ: error collection order for repeated, failing multi-root queries
+  (jit-compiled TS also includes nullable I/O errors that settle before a
+  non-null I/O-free failure is serialized); depth, since graphql-jit
+  serializes responses nested deeper than graphql-js can (below), so TS
+  answers depths the port rejects; and the checks the compiled query skips
+  (`operationName` and GET `variables`, below).
 - **Deeply nested JSON in a response.** A custom-scalar value (e.g. a
   diagnostics activity) can nest arbitrarily. On the graphql-js path TS's
   `JSON.stringify` of a response nested 5547 or more levels deep (the
@@ -160,15 +159,25 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   non-AST JSON
   (numbers, strings, `{}`, arrays), different for a hand-written JSON
   `Document`, which TS would execute.
-- **Type-system definitions in a request.** ExecutableDefinitions and
-  KnownTypeNames are reproduced; other graphql-js rules that also visit SDL
-  nodes (directive/argument rules) are not. The request is rejected either
-  way; the error list can differ.
-- **`operationName` after JIT.** Once mercurius has JIT-compiled a query
-  text (see above), TS runs its compiled operation whatever `operationName`
-  says, so a name matching no operation in that document stops failing and
-  the query answers with data; the port, like graphql-js and TS's first
-  executions of a text, keeps answering `Unknown operation named "…".`
+- **Type-system definitions in a request.** Both answer 400.
+  ExecutableDefinitions and KnownTypeNames are reproduced; the other
+  graphql-js rules that also visit SDL nodes are not (KnownDirectives,
+  UniqueDirectivesPerLocation, KnownArgumentNames, ProvidedRequiredArguments
+  and UniqueArgumentNames on directives; ValuesOfCorrectType and
+  UniqueInputFieldNames in their arguments), and directives defined in the
+  document are not known. So the error lists can differ: TS's can include
+  errors the port's lacks, and a directive defined in the request and used
+  in its operation is unknown to the port (an extra `Unknown directive`
+  error).
+- **`operationName` and GET `variables` after JIT.** Once mercurius has
+  JIT-compiled a query text (see above), TS runs its compiled operation
+  whatever `operationName` says, so a name matching no operation in that
+  document stops failing and the query answers with data; the port, like
+  graphql-js and TS's first executions of a text, keeps answering
+  `Unknown operation named "…".` Likewise GET `variables` that are not an
+  object, array or null: the compiled query skips graphql-js's
+  execution-argument check and answers with data, where the port keeps the
+  error.
 - **Stack overflow on deep nesting.** graphql-js parses and coerces
   recursively, so TS answers deeply nested input with V8's
   `Maximum call stack size exceeded`: a 400 with that message alone from the
@@ -190,11 +199,10 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   shape (`{a: [[` nesting) the port rejects one level earlier than the
   measured cold TS. JSON bodies, variables and WebSocket messages have no
   depth limit on either side.
-- **`Did you mean` lists** use graphql-js `suggestionList`, but lowercase
-  folding is ASCII-only, so suggestions for non-ASCII input can differ.
 - **V8 `JSON.parse` messages** (GET `variables`/`extensions`, and
-  unparsable `/validators` client frames) are emulated for the common cases;
-  rare V8 messages (e.g. lone-surrogate inputs) may differ.
+  unparsable `/validators` client frames) are emulated for the message
+  classes a 912-case differential fuzz covers (escapes, surrogates, context
+  snippets); other V8 messages may differ.
 - **Lone surrogates (not client-visible).** `"\ud800"` in request JSON
   becomes WTF-8 bytes internally; locations count it as one UTF-16 unit and
   messages print it as JS does.
@@ -237,11 +245,19 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
 - **libpq instead of node-pg.** Connection strings use libpq URI/keyword
   semantics (sslmode etc.), not pg-connection-string. Server errors are
   identical (message, SQLSTATE `code`). Client-side connection errors use
-  libpq text with the `connection to server ... failed:` prefix stripped
-  (node-pg: e.g. `connect ECONNREFUSED ...`). Timeouts use node-pg's texts
-  (`Connection terminated due to connection timeout`, `Query read timeout`,
-  `timeout exceeded when trying to connect`). A client-side query timeout
-  closes the connection (node-pg keeps it).
+  node-pg's texts (`connect ECONNREFUSED 127.0.0.1:5432`,
+  `getaddrinfo ENOTFOUND host`, `connect ETIMEDOUT …`, and an empty message
+  when every address of a dual-stack name fails), except that a connection
+  reset reads as `Connection terminated unexpectedly` (node-pg:
+  `read ECONNRESET`): libpq reports a reset read as a closed connection.
+  Node adds ` - Local (…)` to a connect error raised at once; the port adds
+  it for EADDRNOTAVAIL, ENETUNREACH and EACCES, so an ENETUNREACH that a
+  router reports later (Node: no suffix) still gets it, as libpq's text is
+  the same either way.
+  Other libpq-only failures keep libpq's text with the
+  `connection to server ... failed:` prefix stripped. Timeouts use node-pg's
+  texts (`Connection terminated due to connection timeout`,
+  `Query read timeout`, `timeout exceeded when trying to connect`).
 - **Dates.** node-pg turns `timestamptz`/`date` (and their arrays) into JS
   `Date`s in the process time zone; the port renders `JSON.stringify(date)`
   (ISO, UTC, ms) and reads zone-less values as UTC. Production runs with no
@@ -363,16 +379,18 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   Other resolvers' V8 limits differ by a few levels, so their exact boundary
   may differ slightly; the response at and beyond it is the same. Query logs
   show parameters nested deeper than 64 levels as "…".
-- **Dead idle connections are noticed at checkout.** pg-pool watches idle
-  clients: when the server ends one (`pg_terminate_backend`, a restart), it
-  logs
-  `idle database connection failed role=…: <first FATAL message, else Connection terminated unexpectedly>`
-  at once and drops it without replacing it. The port notices at the connection's next checkout, logs
-  the same line then, and uses another connection. Responses are
-  unaffected; only the log line's timing differs, and a dead connection the
-  idle reaper closes, or one never checked out again, is not logged. The
+- **Dead idle connections are noticed within about 1 s.** pg-pool watches
+  idle clients: when the server ends one (`pg_terminate_backend`, a
+  restart), it logs `idle database connection failed role=…: <message>` at
+  once (the first FATAL, else `Connection terminated unexpectedly`) and
+  drops it without replacing it. The port notices a dead idle connection by
+  the idle sweep within about 1 s (one atomic load per idle connection per
+  second; a `poll` once input arrived, or for a connection no event loop has
+  waited on yet), or at checkout if that comes sooner. Either way it logs
+  the same line and drops the connection without a replacement; one the
+  idle reaper closes is logged too. Only the log line's timing differs. The
   listener's `database listener disconnected: <message>` line uses the same
-  message as TS (first FATAL, else `Connection terminated unexpectedly`).
+  message as TS.
 - **A connection whose query failed is kept.** pg-pool's `pool.query`
   releases a client with the query's error (any server error: invalid input,
   division by zero, a statement timeout), and pg-pool then ends that backend
@@ -382,7 +400,9 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   `database_pool_connections{pool="…",state="idle"}` drops by one and stays
   lower until load grows the pool again (on `main`, below its 5 warmed
   connections) while the port's stays put, and TS disconnects and later
-  reconnects one backend, which the port does not.
+  reconnects one backend, which the port does not. A client-side
+  `Query read timeout` is not one of these: both close that connection (the
+  backend finishes its statement) and the pool gauges drop by one.
 - **Inputs GraphQL coercion cannot produce** are handled deterministically
   instead of reproducing JS accidents: a non-list value for a list argument
   (`distinct_on`, `cursor`, `order_by`) is treated as a one-element list; a
@@ -437,12 +457,16 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   many corked sockets, the end-of-tick writes run on several threads; each
   socket's order is unchanged and all bookkeeping runs in order afterwards,
   so only which socket is written first differs.
-- **Heartbeat `serverTime`** is computed once per heartbeat sweep (TS: per
-  client, within the same millisecond in practice).
-- **Upgrades after `stop()`.** TS removes its 'upgrade' listener, so Node
-  treats later upgrade requests as plain HTTP; the port destroys the socket
-  (or closes an upgrade already past that check with 1001 "Server
-  stopping"). Only reachable during shutdown.
+- **Upgrades during shutdown: timing only.** As in TS, upgrades reach the
+  WebSocket server until `stop()` removes its upgrade listener (101, `ready`,
+  then close 1001 "Server stopping") and get the closing 503 after that.
+  TS's window lasts until the awaits in its `stop()` settle (a few
+  milliseconds); the port's is well under one, so an upgrade sent right at
+  SIGTERM more often gets the 503. An upgrade that passes the HTTP check just
+  before the listener is removed gets 101 and close 1001 without `ready` (TS
+  cannot interleave there). If `stop()` itself ran past Fastify's 10 s
+  `pluginTimeout`, TS closes the listener at 10 s and the port when `stop()`
+  returns; both then log the timeout and exit 1.
 - **`ws.close(code, reason)`** truncates reasons over 123 bytes and does not
   validate the code (`ws` throws); the proxy only passes valid codes and
   short reasons, so this is unreachable.
@@ -458,12 +482,34 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
 - **Logs** are pino-shaped JSON lines on stdout with the same events and
   levels (`LOG_FORMAT=pretty` prints the message only); exact bytes are not
   part of the contract. Lines from different threads may interleave in a
-  different order. `send failed: <reason>` uses the fixed reason
-  "WebSocket is not open" instead of the Node socket error text (the
-  `send_error` metric and termination match). One warning has no TS
-  counterpart: `cannot watch a waiting request's socket (…): no early abort`,
-  if the event loop cannot watch a socket whose request waits (that request
-  then learns of a client hangup only when it answers).
+  different order. One warning has no TS counterpart:
+  `cannot watch a waiting request's socket (…): no early abort`, if the event
+  loop cannot watch a socket whose request waits (that request then learns of
+  a client hangup only when it answers).
+- **Send failures after a client reset.** When a client resets the connection
+  while the server is still sending, both TS and the port log
+  `send failed: write ECONNRESET`, `send failed: write EPIPE` or
+  `send failed: write ECANCELED`, or no line. Which line appears depends on
+  timing. How often each appears differs between TS and the port. The
+  direction of the difference differs by OS. The cause is not established.
+  Measured with parity case 98 (a reset while the client reads):
+
+  | Outcome            | Linux TS (20 runs) | Linux port (20 runs) | macOS TS (30 runs) | macOS port (30 runs) |
+  | ------------------ | -----------------: | -------------------: | -----------------: | -------------------: |
+  | `write ECONNRESET` |                 10 |                   19 |                  3 |                    1 |
+  | `write EPIPE`      |                  0 |                    0 |                 16 |                    9 |
+  | `write ECANCELED`  |                  2 |                    0 |                  2 |                    0 |
+  | no line            |                  8 |                    1 |                  9 |                   20 |
+
+  A reset after the client stopped reading logs `write ECANCELED` on Linux
+  (TS in 19 of 20 runs, the port in 20 of 20). A client FIN logs no line in
+  both. Before C22 the port logged `send failed: WebSocket is not open`
+  instead. Measured on Linux over 20 runs, it logged that line after a reset
+  while the client read in 19 runs. It also logged it after a client FIN
+  while the client read in 16 runs, where TS logged no line. The current port
+  logs no line after a FIN. After a reset while the client reads, it logs a
+  line as often as before.
+
 - **Startup failure:** the error message goes to stderr and the process
   exits 1 (Node prints a stack trace for the uncaught rejection).
 - **SIGTERM while the listener reconnects.** TS main does not exit: the

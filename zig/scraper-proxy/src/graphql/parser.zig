@@ -581,8 +581,13 @@ const Parser = struct {
             const kinds = [_][]const u8{ "schema", "scalar", "type", "interface", "union", "enum", "input" };
             for (kinds) |name| {
                 if (eql(keyword.value, name)) {
+                    // graphql-js's extension node starts at `extend` (its loc and
+                    // ExecutableDefinitions' error location).
+                    const start = self.cur().start;
                     try self.expectKeyword("extend");
-                    return self.parseTypeSystemDefinition(name, true);
+                    const def = try self.parseTypeSystemDefinition(name, true);
+                    def.loc = start;
+                    return def;
                 }
             }
         }
@@ -721,4 +726,8 @@ test "parse sdl" {
     , .{}, &diag);
     try std.testing.expectEqual(@as(usize, 7), doc.definitions.len);
     try std.testing.expect(doc.definitions[1].type_system.extension);
+    // An extension starts at `extend` (graphql-js loc; ExecutableDefinitions points there).
+    const source = doc.source;
+    try std.testing.expectEqualStrings("extend type q", source[doc.definitions[1].type_system.loc..][0.."extend type q".len]);
+    try std.testing.expectEqualStrings("\"doc\" type q", source[doc.definitions[2].type_system.loc..][0.."\"doc\" type q".len]);
 }

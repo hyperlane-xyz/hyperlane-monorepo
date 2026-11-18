@@ -461,6 +461,23 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
         _ = try svc.select(a, .message_view, try args(a, case.args), &diag);
         try testing.expectEqualSlices(service.Plan, &.{case.plan}, routing.plans.items);
     }
+    // Unfiltered `domain` selects totally ordered by id reuse a generic
+    // plan; filtered ones (a custom plan evaluates the filter's constants
+    // while planning) or ordered by another column (ties) are planned per
+    // call as before.
+    const domain_cases = [_]struct { args: []const u8, plan: service.Plan }{
+        .{ .args = "{\"order_by\":{\"id\":\"asc\"}}", .plan = .generic },
+        .{ .args = "{\"order_by\":[{\"name\":\"asc\"},{\"id\":\"asc\"}],\"limit\":5}", .plan = .generic },
+        .{ .args = "{\"where\":{\"is_test_net\":{\"_eq\":false}},\"order_by\":{\"id\":\"asc\"}}", .plan = .custom },
+        .{ .args = "{\"where\":{\"_and\":[{\"id\":{\"_in\":[1,2]}},{\"name\":{\"_neq\":\"x\"}}]},\"order_by\":{\"id\":\"asc\"},\"limit\":0}", .plan = .custom },
+        .{ .args = "{\"order_by\":{\"name\":\"asc\"}}", .plan = .custom },
+        .{ .args = "{\"limit\":5}", .plan = .custom },
+    };
+    for (domain_cases) |case| {
+        routing.plans.clearRetainingCapacity();
+        _ = try svc.select(a, .domain, try args(a, case.args), &diag);
+        try testing.expectEqualSlices(service.Plan, &.{case.plan}, routing.plans.items);
+    }
     try testing.expect(!service.isMessageIdLookup(try value.parseLeaky(a, "{\"id\":{\"_eq\":7}}")));
     try testing.expect(service.isMessageIdLookup(try value.parseLeaky(a, "{\"_and\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}")));
 }

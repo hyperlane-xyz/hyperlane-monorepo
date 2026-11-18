@@ -545,6 +545,9 @@ pub const FakeScheduler = struct {
     allocator: std.mem.Allocator,
     mutex: std.Thread.Mutex = .{},
     now_ms: i64 = 0,
+    /// Advances the clock by this much after each `now()` read (tests of
+    /// per-client clock reads).
+    read_step_ms: i64 = 0,
     next_id: u64 = 1,
     timers: std.ArrayList(Entry) = .empty,
 
@@ -570,6 +573,7 @@ pub const FakeScheduler = struct {
         const self: *FakeScheduler = @ptrCast(@alignCast(ptr.?));
         self.mutex.lock();
         defer self.mutex.unlock();
+        defer self.now_ms += self.read_step_ms;
         return self.now_ms;
     }
 

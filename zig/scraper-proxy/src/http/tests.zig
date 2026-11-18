@@ -251,6 +251,8 @@ const Echo = struct {
 
 const WsEcho = struct {
     wss: ws.Server = .{ .options = .{ .max_payload = 4096, .close_timeout_ms = 500 } },
+    /// `UpgradeHandler.removed`: the 'upgrade' listener is gone.
+    upgrade_removed: std.atomic.Value(bool) = .init(false),
     mutex: std.Thread.Mutex = .{},
     cond: std.Thread.Condition = .{},
     errors: std.ArrayList([]u8) = .empty,
@@ -453,7 +455,7 @@ const Harness = struct {
             .host = "127.0.0.1",
             .port = 0,
             .routes = &self.routes,
-            .upgrade = .{ .ctx = &self.wse, .on_upgrade = WsEcho.onUpgrade },
+            .upgrade = .{ .ctx = &self.wse, .on_upgrade = WsEcho.onUpgrade, .removed = &self.wse.upgrade_removed },
             .request_timeout_ms = request_timeout_ms,
             .loops = self.loops,
         });
@@ -2098,6 +2100,70 @@ test "late requests during close get 503" {
     h.stop();
 }
 
+test "an upgrade request while the server is closing gets the closing 503, like any request (TS: no 'upgrade' listener)" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const idle_parks = server_mod.test_idle_parks.load(.acquire);
+    var c = try h.connect();
+    defer c.close();
+    // A keep-alive connection that is idle when close() begins (as in the
+    // late-request test), then sends an upgrade request.
+    _ = try c.request(a, "GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n");
+    var idle_waited: u32 = 0;
+    while (server_mod.test_idle_parks.load(.acquire) == idle_parks) : (idle_waited += 1) {
+        if (idle_waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    h.server.closing.store(true, .release);
+    const r = try c.request(a, "GET /agents HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+    try testing.expectEqual(@as(u16, 503), r.status);
+    try testing.expectEqualStrings("{\"error\":\"Service Unavailable\",\"message\":\"Service Unavailable\",\"statusCode\":503}", r.body);
+    try expectHeader(r, "connection", "close");
+    try testing.expect(c.closedByPeer());
+    h.server.closing.store(false, .release);
+    h.stop();
+}
+
+test "beginClose: requests get the 503 while the listener accepts; upgrades reach the owner until it removes its listener; waitUpgraded counts open WebSockets" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const upgrade = "GET /agents HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n";
+    // An open WebSocket, as TS's clients when preClose begins.
+    var w = try h.connect();
+    defer w.close();
+    try testing.expectEqual(@as(u16, 101), (try wsHandshake(&w, a, "/agents")).status);
+    h.server.beginClose();
+    // New connections are still accepted: plain requests get the 503.
+    var c = try h.connect();
+    defer c.close();
+    try testing.expectEqual(@as(u16, 503), (try c.request(a, "GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n")).status);
+    try testing.expect(c.closedByPeer());
+    // TS's stop() is still awaiting (its listener is on): an upgrade reaches the owner.
+    var u = try h.connect();
+    defer u.close();
+    try u.send(upgrade);
+    try testing.expectEqual(@as(u16, 101), (try u.read(a, true)).status);
+    // Listener removed: Node routes the upgrade like any request.
+    h.wse.upgrade_removed.store(true, .release);
+    defer h.wse.upgrade_removed.store(false, .release);
+    var r = try h.connect();
+    defer r.close();
+    try testing.expectEqual(@as(u16, 503), (try r.request(a, upgrade)).status);
+    // Two WebSockets open: the wait times out with both counted.
+    try testing.expectEqual(@as(u32, 2), h.server.waitUpgraded(100));
+    // Their close handshakes complete: the wait returns 0.
+    try w.send(try wsFrame(a, 0x8, &.{ 0x03, 0xe8 }, true, true));
+    try u.send(try wsFrame(a, 0x8, &.{ 0x03, 0xe8 }, true, true));
+    try testing.expectEqual(@as(u32, 0), h.server.waitUpgraded(5_000));
+}
+
 // ---------------------------------------------------------------------------
 // WebSocket
 // ---------------------------------------------------------------------------
@@ -2404,7 +2470,7 @@ const TickOwner = struct {
         self.record(switch (event) {
             .close_frame => 'F',
             .receiver_error => 'R',
-            .eof => 'E',
+            .eof, .reset => 'E',
             .close_timeout => 'T',
         });
         conn.applyTransition(event);
@@ -2916,6 +2982,201 @@ fn passLog(h: *Harness, a: std.mem.Allocator) ![]i32 {
     h.wse.mutex.lock();
     defer h.wse.mutex.unlock();
     return a.dupe(i32, h.wse.pass_log.items);
+}
+
+/// Waits until a send callback reported a failure (`PassTag`: tag + 1000).
+fn waitFailedSend(h: *Harness, a: std.mem.Allocator) !void {
+    var waited: u32 = 0;
+    while (waited < 5_000) : (waited += 1) {
+        for (try passLog(h, a)) |v| if (v >= 1000) return;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    return error.Timeout;
+}
+
+test "a peer FIN with frames queued: they are all written, then FIN; no send fails (ws socketOnEnd)" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    // The client reads nothing yet: frames queue and the writer waits for room.
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    const tags = try a.alloc(PassTag, 4000);
+    const payload = try a.alloc(u8, 4000);
+    @memset(payload, 'p');
+    var n: usize = 0;
+    while (conn.bufferedAmount() < 256 * 1024) : (n += 1) {
+        if (n == tags.len) return error.Timeout;
+        tags[n] = .{ .echo = &h.wse, .tag = @intCast(n) };
+        try conn.send(payload, true, tags[n].cb());
+        if (n % 64 == 63) std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // The peer half-closes, then reads everything.
+    try posix.shutdown(c.fd, .send);
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try testing.expect(conn.readyState() != .open);
+    try setRecvTimeout(c.fd);
+    var got: usize = 0;
+    var buf: [64 * 1024]u8 = undefined;
+    while (true) {
+        const r = try posix.read(c.fd, &buf);
+        if (r == 0) break;
+        got += r;
+    }
+    // Every frame (4-byte header + 4000), then the FIN.
+    try testing.expectEqual(n * (4 + 4000), got);
+    try h.wse.waitCloses(1);
+    for (try passLog(&h, a)) |v| try testing.expect(v < 1000);
+}
+
+test "frames a turn corked while OPEN still go out when the peer's FIN is read before the turn flushes them" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    // Frames queue behind a client that reads nothing yet.
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    const tags = try a.alloc(PassTag, 4002);
+    const payload = try a.alloc(u8, 4000);
+    @memset(payload, 'p');
+    var n: usize = 0;
+    while (conn.bufferedAmount() < 256 * 1024) : (n += 1) {
+        if (n == 4000) return error.Timeout;
+        tags[n] = .{ .echo = &h.wse, .tag = @intCast(n) };
+        try conn.send(payload, true, tags[n].cb());
+        if (n % 64 == 63) std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // The peer's FIN is read (CLOSING, flushing) between a turn's cork and its flush.
+    try posix.shutdown(c.fd, .send);
+    var waited: u32 = 0;
+    while (conn.readyState() == .open) : (waited += 1) {
+        if (waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // The turn's flush: Node wrote these before it processed 'end'.
+    tags[n] = .{ .echo = &h.wse, .tag = @intCast(n) };
+    tags[n + 1] = .{ .echo = &h.wse, .tag = @intCast(n + 1) };
+    const corked = try conn.sendInlineCorked(&.{ payload, payload }, true, &.{ tags[n].cb(), tags[n + 1].cb() }, 2);
+    try testing.expectEqual(@as(usize, 2), corked.written + corked.queued);
+    // A plain send after the FIN is refused, as for ws's CLOSING.
+    try testing.expectError(error.NotOpen, conn.send(payload, true, null));
+    try setRecvTimeout(c.fd);
+    var got: usize = 0;
+    var buf: [64 * 1024]u8 = undefined;
+    while (true) {
+        const r = try posix.read(c.fd, &buf);
+        if (r == 0) break;
+        got += r;
+    }
+    try testing.expectEqual((n + 2) * (4 + 4000), got);
+    try h.wse.waitCloses(1);
+    for (try passLog(&h, a)) |v| try testing.expect(v < 1000);
+}
+
+test "send failure text: a reset after the peer stopped reading fails the queue 'write ECANCELED' (Node reads first)" {
+    if (@import("builtin").os.tag != .linux) return error.SkipZigTest; // epoll HUP|ERR edge
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    // The client reads nothing: frames queue and the writer waits for room.
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    // Until the kernel buffers on both sides are full and frames wait.
+    const tags = try a.alloc(PassTag, 4000);
+    const payload = try a.alloc(u8, 4000);
+    @memset(payload, 'p');
+    var n: usize = 0;
+    while (conn.bufferedAmount() < 256 * 1024) : (n += 1) {
+        if (n == tags.len) return error.Timeout;
+        tags[n] = .{ .echo = &h.wse, .tag = @intCast(n) };
+        try conn.send(payload, true, tags[n].cb());
+        if (n % 64 == 63) std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // Stalled: no write progress for longer than `write_stall_ms`.
+    std.Thread.sleep((ws.write_stall_ms + 50) * std.time.ns_per_ms);
+    try testing.expect(conn.bufferedAmount() > 0);
+    closeWithReset(c.fd);
+    try waitFailedSend(&h, a);
+    try testing.expectEqualStrings("write ECANCELED", conn.sendFailureText());
+    // Teardown has run every callback (`tags` lives in the arena) once 'close' is out.
+    try h.wse.waitCloses(1);
+}
+
+test "send failure text: a reset while the writer only just hit EAGAIN fails the write 'write ECONNRESET' (Node writes first)" {
+    if (@import("builtin").os.tag != .linux) return error.SkipZigTest; // epoll HUP|ERR edge
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    // The client reads nothing: frames queue and the writer waits for room.
+    try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    // Until the kernel buffers on both sides are full and frames wait.
+    const tags = try a.alloc(PassTag, 4000);
+    const payload = try a.alloc(u8, 4000);
+    @memset(payload, 'p');
+    var n: usize = 0;
+    while (conn.bufferedAmount() < 256 * 1024) : (n += 1) {
+        if (n == tags.len) return error.Timeout;
+        tags[n] = .{ .echo = &h.wse, .tag = @intCast(n) };
+        try conn.send(payload, true, tags[n].cb());
+        if (n % 64 == 63) std.Thread.sleep(std.time.ns_per_ms);
+    }
+    // Right away: the writer is behind, not stalled.
+    try testing.expect(!conn.writeStalled());
+    closeWithReset(c.fd);
+    try waitFailedSend(&h, a);
+    try testing.expectEqualStrings("write ECONNRESET", conn.sendFailureText());
+    // Teardown has run every callback (`tags` lives in the arena) once 'close' is out.
+    try h.wse.waitCloses(1);
+}
+
+test "send failure text: a write that fails after a reset gives Node's 'write ECONNRESET'/'write EPIPE'" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    const conn = try keptConn(&h, &c, a);
+    defer conn.release();
+    // The loop is held: the reset is not read before the write hits it.
+    var hold: LoopHold = .{};
+    try hold.hold(&h);
+    closeWithReset(c.fd);
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    var tag: PassTag = .{ .echo = &h.wse, .tag = 0 };
+    _ = conn.trySendInline("x", false, tag.cb()) catch {};
+    hold.release();
+    try h.wse.waitCloses(1);
+    const text = conn.sendFailureText();
+    if (!std.mem.eql(u8, text, "write ECONNRESET") and !std.mem.eql(u8, text, "write EPIPE")) {
+        std.debug.print("unexpected send failure text: {s}\n", .{text});
+        return error.TestUnexpectedResult;
+    }
 }
 
 test "write passes complete their frames together, in order, then report drained" {

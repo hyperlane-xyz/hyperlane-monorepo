@@ -73,10 +73,26 @@ const App = struct {
     /// Fastify `app.close()`. Returns false when a close step failed.
     fn close(self: *App) bool {
         var ok = true;
-        // preClose
+        // Fastify sets `closing` before preClose: from here new requests get
+        // the 503 while the listener still accepts (upgrades reach live until
+        // its stop() removes the 'upgrade' listener).
+        if (self.server) |s| s.beginClose();
+        // preClose: events.stop(), which in TS also awaits each ws server's
+        // close(), i.e. every client closed (its close handshake, or ws's
+        // 30 s close timeout). avvio bounds the hook by Fastify's
+        // pluginTimeout: past it, close goes on (the listener closes) and
+        // app.close() rejects with the timeout once everything else is done.
+        const pre_close_started = std.time.milliTimestamp();
         if (has_events) if (self.events) |e| e.stop();
-        // server close
-        if (self.server) |s| s.close(30_000);
+        const pre_close_left: u64 = @intCast(@max(0, plugin_timeout_ms - (std.time.milliTimestamp() - pre_close_started)));
+        // A stop() that alone used the whole bound has timed out too.
+        const pre_close_in_time = pre_close_left > 0 and (if (self.server) |s| s.waitUpgraded(pre_close_left) == 0 else true);
+        // server close; Node's close callback also waits for the upgraded
+        // sockets (still the server's connections).
+        if (self.server) |s| {
+            s.close(30_000);
+            _ = s.waitUpgraded(35_000);
+        }
         // onClose (registration order: graphql plugin timer, db, diagnostics)
         if (has_graphql_app) if (self.graphql_app) |g| g.deinit();
         // Live tears down its sockets/streams before the db listeners go away.
@@ -86,9 +102,16 @@ const App = struct {
             ok = false;
         };
         if (self.diag) |d| d.close();
+        if (!pre_close_in_time) {
+            log.err("shutdown failed: Plugin did not start in time: ''. You may have forgotten to call 'done' function or to resolve a Promise", .{});
+            ok = false;
+        }
         return ok;
     }
 };
+
+/// Fastify's default `pluginTimeout` (avvio's bound on each preClose hook).
+const plugin_timeout_ms: i64 = 10_000;
 
 /// glibc's mallopt (M_ARENA_MAX = -8).
 extern "c" fn mallopt(param: c_int, value: c_int) c_int;

@@ -133,7 +133,18 @@ pub const Socket = struct {
         /// done. `.failed`: the write failed (the socket is destroyed). In
         /// both no job is touched.
         try_send_inline_many: ?*const fn (ptr: *anyopaque, payloads: []const []const u8, jobs: []const *SendJob, required: usize) ManyResult = null,
+        /// Optional: the `error.message` Node gives a failed send's callback
+        /// (`ws.Conn.sendFailureText`); without it, "write ECANCELED".
+        send_failure_text: ?*const fn (ptr: *anyopaque) []const u8 = null,
     };
+
+    /// `send failed: <reason>`: the write error that destroyed the socket
+    /// ("write ECONNRESET", "write EPIPE"), else "write ECANCELED" (writes
+    /// still queued when a read error, hangup or terminate destroyed it).
+    pub fn sendFailureText(self: Socket) []const u8 {
+        const text = self.vtable.send_failure_text orelse return "write ECANCELED";
+        return text(self.ptr);
+    }
 
     pub const ManyResult = union(enum) { done: struct { written: usize, queued: usize }, closed, failed };
 
@@ -588,6 +599,12 @@ pub const Server = struct {
     pending_bytes: std.atomic.Value(usize) = .init(0),
     listener_ready: bool = false,
     stopped: bool = false,
+    /// TS `httpServer.off('upgrade')` in stop(), after its awaits (the
+    /// diagnostics stream and the unlisten), just before the clients get
+    /// 1001: read by the HTTP server (`http.UpgradeHandler.removed`). Until
+    /// then upgrades, accepts and reads go on as in TS; from then on HTTP
+    /// answers upgrades itself (the closing 503) and no read starts.
+    upgrade_removed: std.atomic.Value(bool) = .init(false),
     listener: ?*anyopaque = null,
     /// Ignore callbacks from listeners that were replaced or stopped.
     listener_attempt: u64 = 0,
@@ -854,7 +871,7 @@ pub const Server = struct {
             _ = self.pending_bytes.fetchSub(job.len, .monotonic);
             failed = failed or !job.ok;
         }
-        if (failed) self.failSend(peer, "WebSocket is not open");
+        if (failed) self.failSend(peer, peer.socket.sendFailureText());
         if (peer.trim_requests and peer.requests.items.len == 0) {
             peer.trim_requests = false;
             peer.requests.clearAndFree(self.allocator);
@@ -962,6 +979,10 @@ pub const Server = struct {
         if (listener) |handle| self.listen_api.unlisten(self.listen_api.ctx, handle);
         if (early) |taken| if (taken.result) |handle| self.listen_api.unlisten(self.listen_api.ctx, handle) else |_| {};
         self.loop.lock();
+        // `await this.stopListening?.(); this.httpServer?.off('upgrade', …)`,
+        // then closeClients: under the loop mutex, so `accept` and the read
+        // gate see it together with the 1001s.
+        self.upgrade_removed.store(true, .release);
         self.closeClients("Server stopping", 1001);
         if (comptime runtime.parity_hooks) self.settleHeldOnStop();
         self.loop.unlock();
@@ -1436,8 +1457,11 @@ pub const Server = struct {
     }
 
     fn accept(self: *Server, peer: *Peer) bool {
-        // An upgrade that raced stop() (TS removes the 'upgrade' listener synchronously).
-        if (self.stopped) {
+        // An upgrade HTTP handed over just before stop() removed the 'upgrade'
+        // listener, reaching here after the 1001s went out (TS cannot: its
+        // upgrade, accept and closeClients never interleave). Earlier, while
+        // stop() awaits, TS accepts as usual (101, ready, then the 1001).
+        if (self.upgrade_removed.load(.acquire)) {
             peer.wsClose(1001, "Server stopping");
             return false;
         }
@@ -1809,9 +1833,10 @@ pub const Server = struct {
     /// `connectValidator`'s catch: no identity guard (a client gone by now
     /// is still counted and logged).
     fn validatorSetupFailed(self: *Server, setup: *ValidatorSetup, err: anyerror) void {
-        // After `stop` reads fail at once ("Server stopping"); TS's reads still
-        // run and their setups find the client gone: nothing is counted or logged.
-        if (self.stopped) return self.finishValidatorSetup(setup);
+        // Once `stop` removed the upgrade listener reads fail at once ("Server
+        // stopping"); TS's reads still run and their setups find the client
+        // gone: nothing is counted or logged.
+        if (self.upgrade_removed.load(.acquire)) return self.finishValidatorSetup(setup);
         if (err == error.ConfirmationUnavailable) {
             var buffer: [96]u8 = undefined;
             const domain = if (setup.group) |group| group.stream.unavailable_domain else setup.domain;
@@ -2307,7 +2332,7 @@ pub const Server = struct {
                 self.loop.handOff(.{ .run = .{ .ctx = job, .func = continueSend } });
             },
         }
-        if (!ok) self.failSend(peer, failure orelse "WebSocket is not open");
+        if (!ok) self.failSend(peer, failure orelse peer.socket.sendFailureText());
     }
 
     // -- agent protocol ------------------------------------------------------------
@@ -2839,7 +2864,10 @@ pub const Server = struct {
     /// `sendLiveStarts` up to its boundary read; `finishCanonical` goes on.
     fn startCanonicalRead(self: *Server, peer: *Peer, streams: []const protocol.StreamRequest) void {
         var plan = CanonicalPlan.init(self.allocator, streams) orelse return;
-        if (self.stopped) return plan.deinit();
+        // TS's sendLiveStarts has no `stopped` check: while stop() awaits, a
+        // subscribe's live starts still go out; once the upgrade listener is
+        // gone no read starts.
+        if (self.upgrade_removed.load(.acquire)) return plan.deinit();
         const job = self.allocator.create(CanonicalRead) catch oom();
         job.* = .{ .server = self, .peer = peer, .plan = plan, .work = .{ .query = self.newQuery(), .run = runCanonicalRead } };
         peer.retain();
@@ -2887,7 +2915,7 @@ pub const Server = struct {
         run: *const fn (self: *Server, work: *AsyncWork) void,
     };
 
-    /// Mutex held. After `stop` no query starts: the read fails at once and
+    /// Mutex held. Once `stop` removed the upgrade listener no query starts: the read fails at once and
     /// its continuation still runs (so its flow releases what it holds).
     fn issueRead(self: *Server, work: *AsyncWork) void {
         self.issueReadOn(work, self.store.db);
@@ -2895,7 +2923,7 @@ pub const Server = struct {
 
     /// `issueRead` on `db` (the live or the validator pool).
     fn issueReadOn(self: *Server, work: *AsyncWork, db: es.Db) void {
-        if (self.stopped) {
+        if (self.upgrade_removed.load(.acquire)) {
             // Straight into the query: this thread's error buffer may hold a
             // message a caller up the stack (a reaction loop) still reads.
             const message = "Server stopping";
@@ -4156,8 +4184,12 @@ pub const Server = struct {
     }
 
     fn heartbeat(self: *Server) void {
+        // TS sends each client `new Date().toISOString()` after its ping;
+        // the text only changes with the millisecond, so it is reformatted
+        // only then (sends copy the bytes).
         var buffer: [80]u8 = undefined;
-        const frame = std.fmt.bufPrint(&buffer, "{{\"serverTime\":\"{s}\",\"type\":\"heartbeat\"}}", .{isoTime(self.loop.now())}) catch unreachable;
+        var frame: []const u8 = "";
+        var frame_ms: ?i64 = null;
         for ([_]Route{ .agent, .explorer }) |route| {
             const map = if (route == .agent) &self.clients else &self.explorer_clients;
             const peers = self.allocator.dupe(*Peer, map.keys()) catch oom();
@@ -4173,6 +4205,11 @@ pub const Server = struct {
                 }
                 alive.* = false;
                 peer.wsPing();
+                const now = self.loop.now();
+                if (frame_ms != now) {
+                    frame = std.fmt.bufPrint(&buffer, "{{\"serverTime\":\"{s}\",\"type\":\"heartbeat\"}}", .{isoTime(now)}) catch unreachable;
+                    frame_ms = now;
+                }
                 _ = self.send(peer, frame);
                 // Not corked (written at once or queued): trim now.
                 if (!peer.cork.listed) self.trimIdlePeer(peer);
@@ -4299,7 +4336,7 @@ pub const Server = struct {
                     if (kind == .waiter) kind.waiter.finish(false);
                     // A socket that closed since the check: `sendSerialized`
                     // returns false, as for `readyState !== OPEN`.
-                    if (result == .failed) self.failSend(peer, "WebSocket is not open");
+                    if (result == .failed) self.failSend(peer, peer.socket.sendFailureText());
                     return .failed;
                 },
                 .busy => {},
@@ -4310,7 +4347,7 @@ pub const Server = struct {
             peer.subBuffered(bytes.len);
             self.allocator.destroy(job);
             peer.release();
-            self.failSend(peer, "WebSocket is not open");
+            self.failSend(peer, peer.socket.sendFailureText());
             return .failed;
         }
         self.trackQueued(peer, job);
@@ -4410,7 +4447,7 @@ pub const Server = struct {
                 self.allocator.destroy(job);
                 peer.release();
                 // Closed meanwhile: like `readyState !== OPEN`, no failure.
-                if (peer.socket.isOpen()) self.failSend(peer, "WebSocket is not open");
+                if (peer.socket.isOpen()) self.failSend(peer, peer.socket.sendFailureText());
                 return .failed;
             },
         }
@@ -4557,7 +4594,7 @@ pub const Server = struct {
         cork.frames.clearRetainingCapacity();
         cork.bytes.clearRetainingCapacity();
         cork.framed = 0;
-        if (failed and !closed) self.failSend(peer, "WebSocket is not open");
+        if (failed and !closed) self.failSend(peer, peer.socket.sendFailureText());
     }
 
     /// At the start of the turn's write callbacks: write every unflushed cork
