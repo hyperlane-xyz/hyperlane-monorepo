@@ -19,9 +19,6 @@ const config: StorybookConfig = {
     name: '@storybook/react-vite',
     options: {},
   },
-  docs: {
-    autodocs: true,
-  },
   async viteFinal(config, { configType: _configType }) {
     return mergeConfig(config, {
       define: { 'process.env': {} },
