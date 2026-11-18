@@ -16,7 +16,7 @@ use tracing::{info, warn};
 use super::{dispatches::PageResult, schedule::Scan};
 
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
-const READ_TIMEOUT: Duration = Duration::from_secs(2);
+const READ_ADMISSION_TIMEOUT: Duration = Duration::from_secs(2);
 // Dedicated read lanes keep sweeps out of discovery/retry admission.
 static LIVE_READS: Semaphore = Semaphore::const_new(1);
 static SWEEP_READS: Semaphore = Semaphore::const_new(1);
@@ -28,7 +28,9 @@ impl ReadPermit {
         self,
         query: impl Future<Output = eyre::Result<T>>,
     ) -> eyre::Result<T> {
-        let result = timeout(READ_TIMEOUT, query).await?;
+        // Reconciliation statements have server-side deadlines. Keep the permit
+        // until the driver reports that the statement has finished.
+        let result = query.await;
         drop(self.0);
         result
     }
@@ -92,7 +94,7 @@ impl ReconciliationMetrics {
         } else {
             &LIVE_READS
         };
-        let permit = match timeout(READ_TIMEOUT, gate.acquire()).await {
+        let permit = match timeout(READ_ADMISSION_TIMEOUT, gate.acquire()).await {
             Ok(Ok(permit)) => ReadPermit(permit),
             error => {
                 warn!(?error, chain, kind, "Reconciliation read admission failed");
