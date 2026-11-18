@@ -330,6 +330,12 @@ fn deadlineAfter(ms: i64) i64 {
     return std.time.milliTimestamp() + ms;
 }
 
+/// An opt-in test's companion setting is missing: say which, then fail.
+fn missingSetting(name: []const u8) error{MissingTestSetting} {
+    std.debug.print("{s} is not set (required with this test's URL setting)\n", .{name});
+    return error.MissingTestSetting;
+}
+
 fn testUrl() ?[]const u8 {
     return std.posix.getenv("SCRAPER_PROXY_TEST_DATABASE_URL");
 }
@@ -885,14 +891,18 @@ test "libpq: custom statements never go generic while reusable ones may, on one 
         const r = try p.queryWith(a, reusable_sql, &.{.{ .number = x }}, .{ .plan = .reusable }, &failure);
         try testing.expectEqual(x + 2, r.rows[0].get("n").?.number);
     }
-    const stats = try p.query(a, "SELECT statement, generic_plans::int AS g, custom_plans::int AS c FROM pg_prepared_statements ORDER BY statement", &.{}, &failure);
-    try testing.expectEqual(@as(usize, 2), stats.rows.len);
-    for (stats.rows) |row| {
-        const generic = row.get("g").?.number;
-        if (std.mem.eql(u8, row.get("statement").?.string, custom_sql)) {
-            try testing.expectEqual(@as(f64, 0), generic);
-            try testing.expectEqual(@as(f64, 11), row.get("c").?.number);
-        } else try testing.expect(generic > 0);
+    // pg_prepared_statements counts plans from PostgreSQL 14 on.
+    const version = (try p.query(a, "SELECT current_setting('server_version_num')::int AS v", &.{}, &failure)).rows[0].get("v").?.number;
+    if (version >= 140000) {
+        const stats = try p.query(a, "SELECT statement, generic_plans::int AS g, custom_plans::int AS c FROM pg_prepared_statements ORDER BY statement", &.{}, &failure);
+        try testing.expectEqual(@as(usize, 2), stats.rows.len);
+        for (stats.rows) |row| {
+            const generic = row.get("g").?.number;
+            if (std.mem.eql(u8, row.get("statement").?.string, custom_sql)) {
+                try testing.expectEqual(@as(f64, 0), generic);
+                try testing.expectEqual(@as(f64, 11), row.get("c").?.number);
+            } else try testing.expect(generic > 0);
+        }
     }
     // The session ends up in whichever mode the last statement needed;
     // a failed pipeline (SET rolled back) is re-synchronised next time.
@@ -1267,6 +1277,8 @@ test "libpq: LISTEN round trip, disconnect and unlisten inside on_disconnect" {
         }
     }.f);
     try testing.expectEqual(@as(f64, 0), svc.metricsSnapshot().listeners);
+    // node-pg: the client's first 'error' is the FATAL the server sent.
+    try testing.expectEqualStrings("terminating connection due to administrator command", capture.message[0..capture.message_len]);
 }
 
 test "libpq: close outlived by a listener thread warns and leaves the service allocated" {
@@ -1398,7 +1410,11 @@ test "libpq: idle connection killed by the server is replaced and reported" {
     const url = testUrl() orelse return error.SkipZigTest;
     const Hook = struct {
         var count: std.atomic.Value(u32) = .init(0);
-        fn call(_: *anyopaque, _: []const u8) void {
+        var message: [128]u8 = undefined;
+        var message_len: usize = 0;
+        fn call(_: *anyopaque, m: []const u8) void {
+            message_len = @min(m.len, message.len);
+            @memcpy(message[0..message_len], m[0..message_len]);
             _ = count.fetchAdd(1, .monotonic);
         }
     };
@@ -1417,6 +1433,208 @@ test "libpq: idle connection killed by the server is replaced and reported" {
     const again = try p.query(a, "SELECT 1 AS one", &.{}, null);
     try testing.expectEqual(@as(f64, 1), again.rows[0].get("one").?.number);
     try testing.expectEqual(@as(u32, 1), Hook.count.load(.monotonic));
+    // node-pg's idle client 'error': the FATAL the server sent before closing
+    // (libpq hands it to the notice receiver, the connection being idle).
+    try testing.expectEqualStrings("terminating connection due to administrator command", Hook.message[0..Hook.message_len]);
+}
+
+test "libpq: idle and LISTEN connections report a server's shutdown or crash like node-pg (opt-in SCRAPER_PROXY_TEST_FATAL_URL)" {
+    // Driven by szig-scratch/db-diag/fatal-matrix.sh against a disposable
+    // server: once READY is written, the script terminates the backends,
+    // shuts the server down or crashes it; EXPECT_IDLE/EXPECT_LISTEN are
+    // node-pg's first 'error' texts for the same event.
+    const url = std.posix.getenv("SCRAPER_PROXY_TEST_FATAL_URL") orelse return error.SkipZigTest;
+    const ready = std.posix.getenv("SCRAPER_PROXY_TEST_FATAL_READY") orelse return missingSetting("SCRAPER_PROXY_TEST_FATAL_READY");
+    const expect_idle = std.posix.getenv("SCRAPER_PROXY_TEST_FATAL_EXPECT_IDLE") orelse return missingSetting("SCRAPER_PROXY_TEST_FATAL_EXPECT_IDLE");
+    const expect_listen = std.posix.getenv("SCRAPER_PROXY_TEST_FATAL_EXPECT_LISTEN") orelse return missingSetting("SCRAPER_PROXY_TEST_FATAL_EXPECT_LISTEN");
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const Hook = struct {
+        var message: [128]u8 = undefined;
+        var message_len: usize = 0;
+        fn call(_: *anyopaque, m: []const u8) void {
+            message_len = @min(m.len, message.len);
+            @memcpy(message[0..message_len], m[0..message_len]);
+        }
+    };
+    var dummy: u8 = 0;
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .connect_timeout_ms = 2_000 }, .max = 1, .on_idle_error = .{ .ctx = &dummy, .func = Hook.call } });
+    defer p.deinit();
+    _ = try p.query(a, "SELECT 1", &.{}, null);
+    var capture: NotifyCapture = .{};
+    defer capture.deinit();
+    const l = try listener_mod.Listener.start(testing.allocator, .{ .conninfo = url }, &.{"fatal_probe"}, .{ .ctx = &capture, .on_notification = NotifyCapture.onNotification, .on_disconnect = NotifyCapture.onDisconnect }, .{}, a, null);
+    defer l.stop();
+    {
+        const f = try std.fs.createFileAbsolute(ready, .{});
+        f.close();
+    }
+    try waitIdleReadable(p);
+    _ = p.query(a, "SELECT 1", &.{}, null) catch {};
+    capture.mutex.lock();
+    const deadline = std.time.milliTimestamp() + 30_000;
+    while (!capture.disconnected and std.time.milliTimestamp() < deadline) capture.cond.timedWait(&capture.mutex, 100 * std.time.ns_per_ms) catch {};
+    capture.mutex.unlock();
+    std.debug.print("ZIG idle=[{s}] listen=[{s}]\n", .{ Hook.message[0..Hook.message_len], capture.message[0..capture.message_len] });
+    try testing.expectEqualStrings(expect_idle, Hook.message[0..Hook.message_len]);
+    try testing.expectEqualStrings(expect_listen, capture.message[0..capture.message_len]);
+}
+
+test "libpq: a backend terminated mid-query fails the query with the server's FATAL, like node-pg (every plan)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const killer = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer killer.deinit();
+    const Victim = struct {
+        pool: *pool_mod.Pool,
+        plan: pq.Plan,
+        failure: root.Failure = .{},
+        err: ?anyerror = null,
+        fn run(self: *@This()) void {
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            _ = self.pool.queryWith(arena.allocator(), "SELECT pg_sleep(10) WHERE $1::int = 1", &.{.{ .number = 1 }}, .{ .plan = self.plan }, &self.failure) catch |e| {
+                self.err = e;
+                self.failure.message = testing.allocator.dupe(u8, self.failure.message) catch "";
+            };
+        }
+    };
+    for ([_]pq.Plan{ .unnamed, .custom, .serial }) |plan| {
+        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+        defer p.deinit();
+        const pid = (try p.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null)).rows[0].get("pid").?.number;
+        var victim: Victim = .{ .pool = p, .plan = plan };
+        const t = try std.Thread.spawn(.{}, Victim.run, .{&victim});
+        // Wait until the backend sleeps, then terminate it.
+        const until = deadlineAfter(wait_bound_ms);
+        while (std.time.milliTimestamp() < until) {
+            const r = try killer.query(a, "SELECT count(*)::int AS n FROM pg_stat_activity WHERE pid = $1 AND wait_event = 'PgSleep'", &.{.{ .number = pid }}, null);
+            if (r.rows[0].get("n").?.number == 1) break;
+            std.Thread.sleep(5 * std.time.ns_per_ms);
+        }
+        _ = try killer.query(a, "SELECT pg_terminate_backend($1)", &.{.{ .number = pid }}, null);
+        t.join();
+        defer testing.allocator.free(victim.failure.message);
+        try testing.expect(victim.err != null);
+        testing.expectEqualStrings("terminating connection due to administrator command", victim.failure.message) catch |e| {
+            std.debug.print("plan {s}\n", .{@tagName(plan)});
+            return e;
+        };
+        // The pool replaces the connection.
+        try testing.expectEqual(@as(f64, 1), (try p.query(a, "SELECT 1 AS one", &.{}, null)).rows[0].get("one").?.number);
+    }
+}
+
+test "libpq: a terminated backend's message reads the same under a non-English lc_messages (opt-in SCRAPER_PROXY_TEST_LOCALE_URL)" {
+    // A server with the locale generated (szig-scratch/db-diag/locale-check.sh):
+    // the mid-query failure (from libpq's error text) and the idle one (from
+    // the notice's fields) carry the same localised message, as node-pg's do.
+    const base = std.posix.getenv("SCRAPER_PROXY_TEST_LOCALE_URL") orelse return error.SkipZigTest;
+    const locale = std.posix.getenv("SCRAPER_PROXY_TEST_LOCALE") orelse return missingSetting("SCRAPER_PROXY_TEST_LOCALE");
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const options = try std.fmt.allocPrint(a, "-c lc_messages={s}", .{locale});
+    const killer = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = base }, .max = 1 });
+    defer killer.deinit();
+    const Hook = struct {
+        var message: [256]u8 = undefined;
+        var message_len: usize = 0;
+        fn call(_: *anyopaque, m: []const u8) void {
+            message_len = @min(m.len, message.len);
+            @memcpy(message[0..message_len], m[0..message_len]);
+        }
+    };
+    var dummy: u8 = 0;
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = base, .options = options }, .max = 1, .on_idle_error = .{ .ctx = &dummy, .func = Hook.call } });
+    defer p.deinit();
+    // Idle: the notice receiver's FATAL.
+    var pid = (try p.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null)).rows[0].get("pid").?.number;
+    _ = try killer.query(a, "SELECT pg_terminate_backend($1)", &.{.{ .number = pid }}, null);
+    try waitIdleReadable(p);
+    pid = (try p.query(a, "SELECT pg_backend_pid() AS pid", &.{}, null)).rows[0].get("pid").?.number;
+    const idle = Hook.message[0..Hook.message_len];
+    try testing.expect(idle.len > 0 and !std.mem.eql(u8, idle, "terminating connection due to administrator command"));
+    // Mid-query: libpq's error text.
+    const Victim = struct {
+        fn run(pool: *pool_mod.Pool, failure: *root.Failure, out: *[256]u8, len: *usize) void {
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            _ = pool.query(arena.allocator(), "SELECT pg_sleep(10)", &.{}, failure) catch {};
+            len.* = @min(failure.message.len, out.len);
+            @memcpy(out[0..len.*], failure.message[0..len.*]);
+        }
+    };
+    var failure: root.Failure = .{};
+    var got: [256]u8 = undefined;
+    var got_len: usize = 0;
+    const t = try std.Thread.spawn(.{}, Victim.run, .{ p, &failure, &got, &got_len });
+    const until = deadlineAfter(wait_bound_ms);
+    while (std.time.milliTimestamp() < until) {
+        const r = try killer.query(a, "SELECT count(*)::int AS n FROM pg_stat_activity WHERE pid = $1 AND wait_event = 'PgSleep'", &.{.{ .number = pid }}, null);
+        if (r.rows[0].get("n").?.number == 1) break;
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+    }
+    _ = try killer.query(a, "SELECT pg_terminate_backend($1)", &.{.{ .number = pid }}, null);
+    t.join();
+    std.debug.print("LOCALE idle=[{s}] query=[{s}]\n", .{ idle, got[0..got_len] });
+    try testing.expectEqualStrings(idle, got[0..got_len]);
+}
+
+test "libpq: a connection the server closes without a word reads as node-pg's 'Connection terminated unexpectedly' (idle pool, listener)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const uri = try std.Uri.parse(url);
+    const host = switch (uri.host.?) {
+        .raw, .percent_encoded => |h| h,
+    };
+    const Hook = struct {
+        var message: [128]u8 = undefined;
+        var message_len: usize = 0;
+        fn call(_: *anyopaque, m: []const u8) void {
+            message_len = @min(m.len, message.len);
+            @memcpy(message[0..message_len], m[0..message_len]);
+        }
+    };
+    // Idle pool connection: the proxy closes both sides (a FIN, no FATAL).
+    {
+        const proxy = try HoleProxy.start(host, uri.port orelse 5432);
+        var dummy: u8 = 0;
+        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = try throughPort(a, url, proxy.port), .connect_timeout_ms = 2_000 }, .max = 1, .on_idle_error = .{ .ctx = &dummy, .func = Hook.call } });
+        defer p.deinit();
+        _ = try p.query(a, "SELECT 1", &.{}, null);
+        // A failed query leaves its error in libpq's text: not the reason.
+        var failure: root.Failure = .{};
+        try testing.expectError(error.QueryFailed, p.query(a, "SELECT 1/0", &.{}, &failure));
+        try testing.expectEqualStrings("division by zero", failure.message);
+        proxy.stop();
+        try waitIdleReadable(p);
+        // The check at checkout reports the dead connection; the reconnect
+        // then fails (the proxy is gone).
+        try testing.expectError(error.ConnectionFailed, p.query(a, "SELECT 1", &.{}, null));
+        try testing.expectEqualStrings("Connection terminated unexpectedly", Hook.message[0..Hook.message_len]);
+    }
+    // Listener: the same cut, reported to on_disconnect.
+    {
+        const proxy = try HoleProxy.start(host, uri.port orelse 5432);
+        var capture: NotifyCapture = .{};
+        defer capture.deinit();
+        const channel = try uniqueChannel(a, "closed_quietly");
+        const l = try listener_mod.Listener.start(testing.allocator, .{ .conninfo = try throughPort(a, url, proxy.port) }, &.{channel}, .{ .ctx = &capture, .on_notification = NotifyCapture.onNotification, .on_disconnect = NotifyCapture.onDisconnect }, .{}, a, null);
+        defer l.stop();
+        proxy.stop();
+        try capture.waitFor(struct {
+            fn f(c: *NotifyCapture) bool {
+                return c.disconnected;
+            }
+        }.f);
+        try testing.expectEqualStrings("Connection terminated unexpectedly", capture.message[0..capture.message_len]);
+    }
 }
 
 /// Waits (event, not a fixed sleep) until the server has closed the pool's
@@ -1526,7 +1744,11 @@ test "libpq on a fiber: idle checks skip the socket until the loop saw input; a 
     defer core.fiber.fd_readiness = null;
     const Hook = struct {
         var count: std.atomic.Value(u32) = .init(0);
-        fn call(_: *anyopaque, _: []const u8) void {
+        var message: [128]u8 = undefined;
+        var message_len: usize = 0;
+        fn call(_: *anyopaque, m: []const u8) void {
+            message_len = @min(m.len, message.len);
+            @memcpy(message[0..message_len], m[0..message_len]);
             _ = count.fetchAdd(1, .monotonic);
         }
     };
@@ -1571,6 +1793,7 @@ test "libpq on a fiber: idle checks skip the socket until the loop saw input; a 
     try testing.expectEqual(@as(f64, 1), again.rows[0].get("one").?.number);
     try testing.expect(pq.Conn.idle_socket_checks.load(.monotonic) > before);
     try testing.expectEqual(@as(u32, 1), Hook.count.load(.monotonic));
+    try testing.expectEqualStrings("terminating connection due to administrator command", Hook.message[0..Hook.message_len]);
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 

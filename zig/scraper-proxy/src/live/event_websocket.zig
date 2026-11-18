@@ -141,7 +141,7 @@ pub const EventWebSocketServer = struct {
             socket.destroy();
             return;
         };
-        const handler: ws.Handler = .{
+        var handler: ws.Handler = .{
             .ctx = self,
             .on_message = onMessage,
             .on_pong = onPong,
@@ -150,6 +150,11 @@ pub const EventWebSocketServer = struct {
             .transition = onTransition,
             .on_pass_end = onPassEnd,
         };
+        // Once ws.zig reports read boundaries (io, C21): one read's frames are one turn.
+        if (comptime @hasField(ws.Handler, "on_read_begin")) {
+            handler.on_read_begin = onReadBegin;
+            handler.on_read_end = onReadEnd;
+        }
         if (route == .validator) return self.upgradeValidator(req, socket, handler);
         const ws_server = if (route == .agent) &self.agent_ws else &self.explorer_ws;
         const conn = ws_server.handleUpgrade(self.gpa, req, socket, handler) orelse return;
@@ -204,17 +209,31 @@ pub const EventWebSocketServer = struct {
         return @ptrCast(@alignCast(conn.user.?));
     }
 
+    /// The frames parsed from one socket read follow, then `onReadEnd`
+    /// (Node's ws emits them in one 'data' macrotask).
+    fn onReadBegin(ctx: *anyopaque, conn: *ws.Conn) void {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        self.server.beginRead(peerOf(conn));
+    }
+
+    fn onReadEnd(ctx: *anyopaque, conn: *ws.Conn) void {
+        const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        self.server.endRead(peerOf(conn));
+    }
+
     fn onMessage(ctx: *anyopaque, conn: *ws.Conn, data: []const u8, binary: bool) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
         const peer = peerOf(conn);
-        if (peer.route == .validator) return self.server.onValidatorMessage(peer, data, binary);
+        if (peer.route == .validator) {
+            if (peer.read_batch) return self.server.onValidatorMessageLocked(peer, data, binary);
+            return self.server.onValidatorMessage(peer, data, binary);
+        }
         // `/messages` registers no message handler.
         if (peer.route != .agent) return;
-        if (!binary) return self.server.onMessage(peer, data);
         // `rawData`: Buffer#toString('utf8') for binary frames.
-        const text = core.json.toWellFormedUtf8(self.gpa, data) catch return;
+        const text = if (binary) core.json.toWellFormedUtf8(self.gpa, data) catch return else data;
         defer if (text.ptr != data.ptr) self.gpa.free(text);
-        self.server.onMessage(peer, text);
+        if (peer.read_batch) self.server.onMessageLocked(peer, text) else self.server.onMessage(peer, text);
     }
 
     /// Node processes a peer's close frame, a protocol error or EOF as an I/O
@@ -222,6 +241,14 @@ pub const EventWebSocketServer = struct {
     /// frames it sent) is over, so every frame sent in that tick sees OPEN.
     fn onTransition(ctx: *anyopaque, conn: *ws.Conn, event: ws.Transition) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
+        // Within a read, in order with its frames: ws's receiverOnConclude
+        // closes synchronously in the 'data' handler, so continuations of
+        // earlier frames in that read see CLOSING.
+        const peer = peerOf(conn);
+        if (peer.read_batch) {
+            self.server.beforeTransition(peer);
+            return conn.applyTransition(event);
+        }
         self.loop.lock();
         defer self.loop.unlock();
         conn.applyTransition(event);
@@ -229,12 +256,14 @@ pub const EventWebSocketServer = struct {
 
     fn onPong(ctx: *anyopaque, conn: *ws.Conn) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
-        self.server.onPong(peerOf(conn));
+        const peer = peerOf(conn);
+        if (peer.read_batch) self.server.onPongLocked(peer) else self.server.onPong(peer);
     }
 
     fn onError(ctx: *anyopaque, conn: *ws.Conn, message: []const u8) void {
         const self: *EventWebSocketServer = @ptrCast(@alignCast(ctx));
-        self.server.onError(peerOf(conn), message);
+        const peer = peerOf(conn);
+        if (peer.read_batch) self.server.onErrorLocked(peer, message) else self.server.onError(peer, message);
     }
 
     /// ws ended a write pass (frames' callbacks recorded just before): live

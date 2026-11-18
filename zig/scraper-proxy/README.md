@@ -37,6 +37,15 @@ Tests that need PostgreSQL are skipped unless `SCRAPER_PROXY_TEST_DATABASE_URL`,
 database with the scraper schema (`cargo run --release -p migration --bin init-db`
 in `rust/main`).
 
+The WebSocket limits TS's tests pass to its server constructor
+(`maxExplorerClients`, `maxValidatorClients`, `maxValidatorClientsPerIp`,
+`heartbeatMs`) are set through `live.Limits` in the port's tests; neither binary
+exposes them beyond the TS environment variables. For differential testing,
+`-Dparity-hooks` builds a test-only binary (never shipped) with a loopback control
+port (`PARITY_HOOK_PORT`) that holds WebSocket send completions and runs the
+heartbeat on demand; while holding, it writes those frames uncorked. The
+differential runner gives the TS service the same controls through a preload.
+
 ## Fixtures
 
 Several tests compare against output recorded from the TypeScript service. The

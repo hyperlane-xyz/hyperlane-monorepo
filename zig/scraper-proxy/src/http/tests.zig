@@ -96,6 +96,17 @@ const Echo = struct {
     reject_uploads: bool = false,
     body_pending: bool = false,
     write_blocked: u32 = 0,
+    peer_closed: u32 = 0,
+    /// The status `on_peer_closed` read with `statusNow`.
+    peer_closed_status: u16 = 0,
+
+    fn onPeerClosed(ctx: *anyopaque, _: *types.Request, reply: *types.Reply) void {
+        const self: *Echo = @ptrCast(@alignCast(ctx));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.peer_closed += 1;
+        self.peer_closed_status = reply.statusNow();
+    }
 
     fn onWriteBlocked(ctx: *anyopaque, _: *types.Request, _: *types.Reply) void {
         const self: *Echo = @ptrCast(@alignCast(ctx));
@@ -256,6 +267,28 @@ const WsEcho = struct {
     pass_log: std.ArrayList(i32) = .empty,
     send_in_pass_end: std.atomic.Value(bool) = .init(false),
     sent_in_pass_end: std.atomic.Value(bool) = .init(false),
+    /// `/batch` connections: B/E read batch, m message, p pong, e error, c close.
+    events: std.ArrayList(u8) = .empty,
+
+    fn event(self: *WsEcho, e: u8) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.events.append(testing.allocator, e) catch @panic("oom");
+    }
+
+    fn onReadBegin(ctx: *anyopaque, _: *ws.Conn) void {
+        @as(*WsEcho, @ptrCast(@alignCast(ctx))).event('B');
+    }
+
+    fn onReadEnd(ctx: *anyopaque, _: *ws.Conn) void {
+        @as(*WsEcho, @ptrCast(@alignCast(ctx))).event('E');
+    }
+
+    /// `/batch`: reader-side transitions (t), applied inline like live's hook.
+    fn onTransition(ctx: *anyopaque, conn: *ws.Conn, ev: ws.Transition) void {
+        @as(*WsEcho, @ptrCast(@alignCast(ctx))).event('t');
+        conn.applyTransition(ev);
+    }
 
     fn onPassEnd(ctx: *anyopaque, conn: *ws.Conn, drained: bool) void {
         const self: *WsEcho = @ptrCast(@alignCast(ctx));
@@ -291,13 +324,14 @@ const WsEcho = struct {
         const greet = std.mem.eql(u8, req.path, "/greet");
         const kill = std.mem.eql(u8, req.path, "/kill");
         const short = std.mem.eql(u8, req.path, "/short");
+        const batch = std.mem.eql(u8, req.path, "/batch");
         if (std.mem.eql(u8, req.path, "/reject")) return socket.endWith(reject_response);
         if (std.mem.eql(u8, req.path, "/reject-big")) {
             const big = req.arena.alloc(u8, reject_big_len) catch return socket.destroy();
             @memset(big, 'r');
             return socket.endWith(big);
         }
-        if (!std.mem.eql(u8, req.path, "/agents") and !oom and !keep and !greet and !kill and !short) return socket.destroy();
+        if (!std.mem.eql(u8, req.path, "/agents") and !oom and !keep and !greet and !kill and !short and !batch) return socket.destroy();
         const gpa = if (oom) self.failing.? else testing.allocator;
         const conn = self.wss.handleUpgrade(gpa, req, socket, .{
             .ctx = self,
@@ -306,6 +340,9 @@ const WsEcho = struct {
             .on_error = onError,
             .on_close = onClose,
             .on_pass_end = onPassEnd,
+            .on_read_begin = if (batch) onReadBegin else null,
+            .on_read_end = if (batch) onReadEnd else null,
+            .transition = if (batch) onTransition else null,
         }) orelse return;
         if (keep) {
             self.kept = conn; // released by the test
@@ -331,6 +368,7 @@ const WsEcho = struct {
 
     fn onMessage(ctx: *anyopaque, conn: *ws.Conn, data: []const u8, binary: bool) void {
         const self: *WsEcho = @ptrCast(@alignCast(ctx));
+        self.event('m');
         if (std.mem.eql(u8, data, "close-me")) return conn.close(1008, "Invalid subscription");
         if (std.mem.eql(u8, data, "close-then-send")) {
             conn.close(1000, "bye");
@@ -347,6 +385,7 @@ const WsEcho = struct {
 
     fn onPong(ctx: *anyopaque, _: *ws.Conn) void {
         const self: *WsEcho = @ptrCast(@alignCast(ctx));
+        self.event('p');
         self.mutex.lock();
         defer self.mutex.unlock();
         self.pongs += 1;
@@ -354,6 +393,7 @@ const WsEcho = struct {
 
     fn onError(ctx: *anyopaque, _: *ws.Conn, message: []const u8) void {
         const self: *WsEcho = @ptrCast(@alignCast(ctx));
+        self.event('e');
         self.mutex.lock();
         defer self.mutex.unlock();
         self.errors.append(testing.allocator, testing.allocator.dupe(u8, message) catch return) catch {};
@@ -361,6 +401,7 @@ const WsEcho = struct {
 
     fn onClose(ctx: *anyopaque, _: *ws.Conn, code: u16, _: []const u8) void {
         const self: *WsEcho = @ptrCast(@alignCast(ctx));
+        self.event('c');
         self.mutex.lock();
         defer self.mutex.unlock();
         self.closes.append(testing.allocator, code) catch {};
@@ -383,6 +424,7 @@ const WsEcho = struct {
         self.errors.deinit(testing.allocator);
         self.closes.deinit(testing.allocator);
         self.pass_log.deinit(testing.allocator);
+        self.events.deinit(testing.allocator);
     }
 };
 
@@ -401,8 +443,10 @@ const Harness = struct {
                 .methods = &.{ "GET", "POST" },
                 .path = "/graphql",
                 .ctx = &self.echo,
-                .hooks = .{ .on_request = Echo.onRequest, .handler = Echo.handler, .error_handler = Echo.errorHandler, .on_done = Echo.onDone, .on_write_blocked = Echo.onWriteBlocked },
+                .hooks = .{ .on_request = Echo.onRequest, .handler = Echo.handler, .error_handler = Echo.errorHandler, .on_done = Echo.onDone, .on_write_blocked = Echo.onWriteBlocked, .on_peer_closed = Echo.onPeerClosed },
                 .text_content_types = &.{"application/graphql"},
+                // Like graphql: TS answers it after an await.
+                .ts_async = true,
             },
         };
         self.server = try server_mod.Server.init(testing.allocator, .{
@@ -500,7 +544,32 @@ const Client = struct {
     fn closedByPeer(self: *Client) bool {
         return (self.fill() catch return false) == 0;
     }
+
+    /// Nothing left unread, then the server's FIN: EOF, not a reset (5 s).
+    fn expectFin(self: *Client) !void {
+        try testing.expectEqual(@as(usize, 0), self.len);
+        var fds = [_]posix.pollfd{.{ .fd = self.fd, .events = posix.POLL.IN, .revents = 0 }};
+        if (try posix.poll(&fds, 5_000) == 0) return error.Timeout;
+        var b: [1]u8 = undefined;
+        try testing.expectEqual(@as(usize, 0), try posix.read(self.fd, &b));
+    }
 };
+
+/// The FIN alone aborts a waiting exchange (`hangup_policy` `.eof_drop`, as
+/// Node); under `.reset_only` the half-closed client is answered.
+fn finAborts() bool {
+    const S = server_mod.Server;
+    return S.abortsOn(S.hangupPolicyNow(), false);
+}
+
+/// Waits until the server classified another FIN after `seen`.
+fn waitFinSeen(seen: u32) !void {
+    var waited: u32 = 0;
+    while (server_mod.test_fin_hangups.load(.monotonic) == seen) : (waited += 1) {
+        if (waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+}
 
 fn expectHeader(resp: Response, name: []const u8, value: []const u8) !void {
     const actual = resp.header(name) orelse {
@@ -960,6 +1029,451 @@ test "chunked bodies count received bytes against the limit (Fastify), not decla
     try testing.expectEqual(@as(u16, 413), r.status);
 }
 
+fn waitEcho(h: *Harness, comptime field: []const u8, n: u32) !void {
+    var waited: u32 = 0;
+    while (@field(h.echo.snapshot(), field) < n) : (waited += 1) {
+        if (waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+}
+
+/// Closes `fd` with RST (SO_LINGER 0).
+fn closeWithReset(fd: posix.socket_t) void {
+    const linger: extern struct { onoff: c_int, linger: c_int } = .{ .onoff = 1, .linger = 0 };
+    posix.setsockopt(fd, posix.SOL.SOCKET, posix.SO.LINGER, std.mem.asBytes(&linger)) catch {};
+    posix.close(fd);
+}
+
+test "a peer hangup while the handler waits aborts the exchange: on_peer_closed once, no response, then on_done(.closed)" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    closeGate();
+    defer openGate();
+    // EOF (half-close, Linux RDHUP / kqueue EV_EOF): Node's socketOnEnd ends the
+    // socket, so the response never goes out.
+    eof: {
+        const before = h.echo.snapshot();
+        var c = try h.connect();
+        defer c.close();
+        try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\n\r\n");
+        try waitEcho(&h, "handled", before.handled + 1);
+        const fins = server_mod.test_fin_hangups.load(.monotonic);
+        const resets = server_mod.test_reset_hangups.load(.monotonic);
+        try posix.shutdown(c.fd, .send);
+        if (!finAborts()) {
+            // reset_only: the FIN is seen, the response still goes out.
+            try waitFinSeen(fins);
+            openGate();
+            var arena = std.heap.ArenaAllocator.init(testing.allocator);
+            defer arena.deinit();
+            try testing.expectEqual(@as(u16, 200), (try c.read(arena.allocator(), false)).status);
+            try waitEcho(&h, "done_finished", before.done_finished + 1);
+            try testing.expectEqual(before.peer_closed, h.echo.snapshot().peer_closed);
+            break :eof;
+        }
+        // The hook runs while the handler still waits at the gate.
+        try waitEcho(&h, "peer_closed", before.peer_closed + 1);
+        try testing.expectEqual(before.done_closed, h.echo.snapshot().done_closed);
+        try testing.expectEqual(@as(u16, 200), h.echo.snapshot().peer_closed_status);
+        // Classified as a bare FIN (the half-close decision), not a reset.
+        try testing.expect(server_mod.test_fin_hangups.load(.monotonic) > fins);
+        try testing.expectEqual(resets, server_mod.test_reset_hangups.load(.monotonic));
+        openGate();
+        try waitEcho(&h, "done_closed", before.done_closed + 1);
+        // No byte of the response: EOF only.
+        try testing.expect(c.closedByPeer());
+        try testing.expectEqual(@as(usize, 0), c.len);
+        const after = h.echo.snapshot();
+        try testing.expectEqual(before.peer_closed + 1, after.peer_closed);
+        try testing.expectEqual(before.done_finished, after.done_finished);
+    }
+    closeGate();
+    // RST while the handler waits.
+    {
+        const before = h.echo.snapshot();
+        var c = try h.connect();
+        try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\n\r\n");
+        try waitEcho(&h, "handled", before.handled + 1);
+        const resets = server_mod.test_reset_hangups.load(.monotonic);
+        closeWithReset(c.fd);
+        try waitEcho(&h, "peer_closed", before.peer_closed + 1);
+        // Classified as a reset: it aborts whatever the half-close policy.
+        try testing.expect(server_mod.test_reset_hangups.load(.monotonic) > resets);
+        try testing.expectEqual(before.done_closed, h.echo.snapshot().done_closed);
+        openGate();
+        try waitEcho(&h, "done_closed", before.done_closed + 1);
+        const after = h.echo.snapshot();
+        try testing.expectEqual(before.peer_closed + 1, after.peer_closed);
+        try testing.expectEqual(before.done_finished, after.done_finished);
+    }
+    // A hangup after the response: finish already won, no hook.
+    {
+        const before = h.echo.snapshot();
+        var c = try h.connect();
+        const r = try c.request(std.testing.allocator, "GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n");
+        std.testing.allocator.free(r.head);
+        std.testing.allocator.free(r.body);
+        try waitEcho(&h, "done_finished", before.done_finished + 1);
+        try posix.shutdown(c.fd, .send);
+        std.Thread.sleep(50 * std.time.ns_per_ms);
+        c.close();
+        std.Thread.sleep(50 * std.time.ns_per_ms);
+        try testing.expectEqual(before.peer_closed, h.echo.snapshot().peer_closed);
+    }
+}
+
+test "hangup policy: eof_drop aborts on FIN and reset; reset_only only on reset" {
+    const S = server_mod.Server;
+    try testing.expect(S.abortsOn(.eof_drop, false));
+    try testing.expect(S.abortsOn(.eof_drop, true));
+    try testing.expect(!S.abortsOn(.reset_only, false));
+    try testing.expect(S.abortsOn(.reset_only, true));
+}
+
+/// Holds the loop's only thread (a fiber that does not yield) so input
+/// queues up in the kernel; `release` lets the loop see it all in one wait.
+const LoopHold = struct {
+    started: std.atomic.Value(bool) = .init(false),
+    held: std.atomic.Value(bool) = .init(true),
+
+    fn run(arg: *anyopaque) void {
+        const self: *LoopHold = @ptrCast(@alignCast(arg));
+        self.started.store(true, .release);
+        while (self.held.load(.acquire)) std.Thread.sleep(std.time.ns_per_ms);
+    }
+
+    fn hold(self: *LoopHold, h: *Harness) !void {
+        try h.server.loop.startFiber(run, self, null);
+        var waited: u32 = 0;
+        while (!self.started.load(.acquire)) : (waited += 1) {
+            if (waited >= 5_000) return error.Timeout;
+            std.Thread.sleep(std.time.ns_per_ms);
+        }
+    }
+
+    fn release(self: *LoopHold) void {
+        self.held.store(false, .release);
+    }
+};
+
+test "a hangup read together with the request still aborts once the handler waits (FIN merged, RST merged)" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    closeGate();
+    defer openGate();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    // Request plus FIN queued while the loop is held: the loop reads both in
+    // one go, so no event follows once the handler waits.
+    fin: {
+        const before = h.echo.snapshot();
+        const merged = server_mod.test_merged_hangups.load(.monotonic);
+        const fins = server_mod.test_fin_hangups.load(.monotonic);
+        var c = try h.connect();
+        defer c.close();
+        _ = try c.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+        var hold: LoopHold = .{};
+        try hold.hold(&h);
+        try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\n\r\n");
+        try posix.shutdown(c.fd, .send);
+        std.Thread.sleep(50 * std.time.ns_per_ms);
+        hold.release();
+        if (!finAborts()) {
+            // reset_only: the FIN is seen, the response still goes out.
+            try waitFinSeen(fins);
+            openGate();
+            try testing.expectEqual(@as(u16, 200), (try c.read(arena.allocator(), false)).status);
+            try testing.expectEqual(merged, server_mod.test_merged_hangups.load(.monotonic));
+            try testing.expectEqual(before.peer_closed, h.echo.snapshot().peer_closed);
+            closeGate();
+            break :fin;
+        }
+        try waitEcho(&h, "peer_closed", before.peer_closed + 1);
+        // Decided on the merged path (right after the handler parked), as a FIN.
+        try testing.expectEqual(merged + 1, server_mod.test_merged_hangups.load(.monotonic));
+        try testing.expect(server_mod.test_fin_hangups.load(.monotonic) > fins);
+        openGate();
+        try waitEcho(&h, "done_closed", before.done_closed + 1);
+        try testing.expect(c.closedByPeer());
+        try testing.expectEqual(@as(usize, 0), c.len);
+        try testing.expectEqual(before.done_finished, h.echo.snapshot().done_finished);
+        closeGate();
+    }
+    // Request plus RST queued while the loop is held: a reset, whatever the
+    // half-close policy. If the reset kept the request from being read, no
+    // handler runs; either way no response finishes.
+    {
+        const before = h.echo.snapshot();
+        const resets = server_mod.test_reset_hangups.load(.monotonic);
+        var c = try h.connect();
+        _ = try c.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+        var hold: LoopHold = .{};
+        try hold.hold(&h);
+        try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\n\r\n");
+        std.Thread.sleep(20 * std.time.ns_per_ms);
+        closeWithReset(c.fd);
+        std.Thread.sleep(50 * std.time.ns_per_ms);
+        hold.release();
+        std.Thread.sleep(100 * std.time.ns_per_ms);
+        const mid = h.echo.snapshot();
+        if (mid.handled > before.handled) {
+            try waitEcho(&h, "peer_closed", before.peer_closed + 1);
+            try testing.expect(server_mod.test_reset_hangups.load(.monotonic) > resets);
+        }
+        openGate();
+        if (mid.handled > before.handled) try waitEcho(&h, "done_closed", before.done_closed + 1);
+        try testing.expectEqual(before.done_finished, h.echo.snapshot().done_finished);
+    }
+}
+
+test "under the reset_only policy a client that only half-closed still gets its response" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    server_mod.test_reset_only.store(true, .monotonic);
+    defer server_mod.test_reset_only.store(false, .monotonic);
+    closeGate();
+    defer openGate();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const before = h.echo.snapshot();
+    const fins = server_mod.test_fin_hangups.load(.monotonic);
+    var c = try h.connect();
+    defer c.close();
+    try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\n\r\n");
+    try waitEcho(&h, "handled", before.handled + 1);
+    try posix.shutdown(c.fd, .send);
+    var waited: u32 = 0;
+    while (server_mod.test_fin_hangups.load(.monotonic) == fins and waited < 5_000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
+    try testing.expect(server_mod.test_fin_hangups.load(.monotonic) > fins);
+    openGate();
+    const r = try c.read(arena.allocator(), false);
+    try testing.expectEqual(@as(u16, 200), r.status);
+    try testing.expectEqual(before.peer_closed, h.echo.snapshot().peer_closed);
+}
+
+/// Sends `bytes` on a fresh connection and returns everything the server
+/// sends until it closes (bounded 5 s).
+fn exchangeAll(h: *Harness, a: std.mem.Allocator, bytes: []const u8) ![]const u8 {
+    var c = try h.connect();
+    defer c.close();
+    try c.send(bytes);
+    try setRecvTimeout(c.fd);
+    var out: std.ArrayList(u8) = .empty;
+    var buf: [16 * 1024]u8 = undefined;
+    while (true) {
+        const n = posix.read(c.fd, &buf) catch break;
+        if (n == 0) break;
+        try out.appendSlice(a, buf[0..n]);
+    }
+    return out.items;
+}
+
+fn statusLines(a: std.mem.Allocator, all: []const u8) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    var it = std.mem.splitSequence(u8, all, "HTTP/1.1 ");
+    _ = it.next();
+    while (it.next()) |part| {
+        if (out.items.len > 0) try out.append(a, '+');
+        try out.appendSlice(a, part[0..3]);
+    }
+    return out.items;
+}
+
+test "data after a non-keep-alive request: the answer policy (default) ignores it; node_400 matches TS per request" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const close = "Connection: close\r\n";
+    // The answer policy: the response, nothing else.
+    if (server_mod.Server.closed_connection_policy == .answer)
+        try testing.expectEqualStrings("404", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx")));
+    server_mod.test_node_400.store(true, .monotonic);
+    defer server_mod.test_node_400.store(false, .monotonic);
+    // TS (rig probes): a sync route answers, then clientError's 400.
+    try testing.expectEqualStrings("404+400", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx")));
+    try testing.expectEqualStrings("404+400", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.0\r\n\r\nGET /nope HTTP/1.1\r\nHost: a\r\n\r\n")));
+    try testing.expectEqualStrings("404+400", try statusLines(a, try exchangeAll(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Transfer-Encoding: chunked\r\n\r\n0\r\n\r\nx")));
+    try testing.expectEqualStrings("204+400", try statusLines(a, try exchangeAll(&h, a, "OPTIONS /graphql HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Origin: http://o\r\nAccess-Control-Request-Method: POST\r\n\r\nx")));
+    // CR/LF after the message is skipped (llhttp's closed state).
+    try testing.expectEqualStrings("404", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\n\r\n")));
+    // An async route (and any parsed body): only the 400; the response is dropped.
+    const before = h.echo.snapshot();
+    const all = try exchangeAll(&h, a, "GET /graphql HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx");
+    try testing.expectEqualStrings("400", try statusLines(a, all));
+    try testing.expect(std.mem.endsWith(u8, all, "{\"error\":\"Bad Request\",\"message\":\"Client Error\",\"statusCode\":400}"));
+    try waitEcho(&h, "done_closed", before.done_closed + 1);
+    try testing.expect(h.echo.snapshot().peer_closed > before.peer_closed);
+    try testing.expectEqualStrings("400", try statusLines(a, try exchangeAll(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Type: application/json\r\nContent-Length: 7\r\n\r\n{\"a\":1}x")));
+    try testing.expectEqualStrings("400", try statusLines(a, try exchangeAll(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Type: text/plain\r\nContent-Length: 0\r\n\r\nx")));
+    try testing.expectEqualStrings("400", try statusLines(a, try exchangeAll(&h, a, "GET /metrics HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx")));
+    // A body no parser reads: Node's parser never reaches the closed state.
+    try testing.expectEqualStrings("404", try statusLines(a, try exchangeAll(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Length: 5\r\n\r\nhellox")));
+    try testing.expectEqualStrings("404", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Length: 5\r\n\r\nhellox")));
+    try testing.expectEqualStrings("204", try statusLines(a, try exchangeAll(&h, a, "OPTIONS /graphql HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Origin: http://o\r\nAccess-Control-Request-Method: POST\r\nContent-Length: 2\r\n\r\n{}x")));
+}
+
+test "node_400: a byte arriving while an async route's handler waits replaces its response with the 400" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    server_mod.test_node_400.store(true, .monotonic);
+    defer server_mod.test_node_400.store(false, .monotonic);
+    closeGate();
+    defer openGate();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const before = h.echo.snapshot();
+    var c = try h.connect();
+    defer c.close();
+    try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\nConnection: close\r\n\r\n");
+    try waitEcho(&h, "handled", before.handled + 1);
+    // CR/LF alone changes nothing (more than one peek's worth); another
+    // byte aborts (Node reads it at once).
+    try c.send("\r\n" ** 1500);
+    std.Thread.sleep(30 * std.time.ns_per_ms);
+    try testing.expectEqual(before.peer_closed, h.echo.snapshot().peer_closed);
+    try c.send("\r\n" ** 1500 ++ "x");
+    try waitEcho(&h, "peer_closed", before.peer_closed + 1);
+    // The 400 and the FIN while the handler still waits (Node destroys the
+    // socket at once); the junk was read, so no reset.
+    const r = try c.read(a, false);
+    try testing.expectEqual(@as(u16, 400), r.status);
+    try c.expectFin();
+    openGate();
+    try waitEcho(&h, "done_closed", before.done_closed + 1);
+    try testing.expectEqual(before.done_finished, h.echo.snapshot().done_finished);
+}
+
+test "node_400: data before a hangup in the same read still gets the 400 (Node's 'data' before 'end')" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    server_mod.test_node_400.store(true, .monotonic);
+    defer server_mod.test_node_400.store(false, .monotonic);
+    closeGate();
+    defer openGate();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Request + junk + FIN read in one go while the loop was held.
+    {
+        const before = h.echo.snapshot();
+        var c = try h.connect();
+        defer c.close();
+        _ = try c.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+        var hold: LoopHold = .{};
+        try hold.hold(&h);
+        try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\nConnection: close\r\n\r\nx");
+        try posix.shutdown(c.fd, .send);
+        std.Thread.sleep(50 * std.time.ns_per_ms);
+        hold.release();
+        try waitEcho(&h, "peer_closed", before.peer_closed + 1);
+        try testing.expectEqual(@as(u16, 400), (try c.read(a, false)).status);
+        try c.expectFin();
+        openGate();
+        try waitEcho(&h, "done_closed", before.done_closed + 1);
+        try testing.expectEqual(before.peer_closed + 1, h.echo.snapshot().peer_closed);
+        try testing.expectEqual(before.done_finished, h.echo.snapshot().done_finished);
+        closeGate();
+    }
+    // Junk + FIN in one edge while the handler waits.
+    {
+        const before = h.echo.snapshot();
+        var c = try h.connect();
+        defer c.close();
+        try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\nConnection: close\r\n\r\n");
+        try waitEcho(&h, "handled", before.handled + 1);
+        var hold: LoopHold = .{};
+        try hold.hold(&h);
+        try c.send("x");
+        try posix.shutdown(c.fd, .send);
+        std.Thread.sleep(50 * std.time.ns_per_ms);
+        hold.release();
+        try waitEcho(&h, "peer_closed", before.peer_closed + 1);
+        try testing.expectEqual(@as(u16, 400), (try c.read(a, false)).status);
+        try c.expectFin();
+        openGate();
+        try waitEcho(&h, "done_closed", before.done_closed + 1);
+        try testing.expectEqual(before.peer_closed + 1, h.echo.snapshot().peer_closed);
+        try testing.expectEqual(before.done_finished, h.echo.snapshot().done_finished);
+    }
+}
+
+test "node_400: body bytes no parser reads, arriving while an async handler waits, are not data after the message" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    server_mod.test_node_400.store(true, .monotonic);
+    defer server_mod.test_node_400.store(false, .monotonic);
+    closeGate();
+    defer openGate();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const before = h.echo.snapshot();
+    var c = try h.connect();
+    defer c.close();
+    // GET: no parser, so the handler runs before its body arrives (TS: response only).
+    try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 5\r\n\r\n");
+    try waitEcho(&h, "handled", before.handled + 1);
+    try c.send("hello");
+    std.Thread.sleep(30 * std.time.ns_per_ms);
+    try testing.expectEqual(before.peer_closed, h.echo.snapshot().peer_closed);
+    openGate();
+    try testing.expectEqual(@as(u16, 200), (try c.read(arena.allocator(), false)).status);
+    try testing.expect(c.closedByPeer());
+    try testing.expectEqual(before.peer_closed, h.echo.snapshot().peer_closed);
+}
+
+test "pipelined keep-alive requests, then a half-close while the first waits: neither is answered" {
+    if (!server_mod.fibers) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    closeGate();
+    defer openGate();
+    const before = h.echo.snapshot();
+    var c = try h.connect();
+    defer c.close();
+    try c.send("GET /graphql?gated HTTP/1.1\r\nHost: a\r\n\r\nGET /graphql HTTP/1.1\r\nHost: a\r\n\r\n");
+    try waitEcho(&h, "handled", before.handled + 1);
+    const fins = server_mod.test_fin_hangups.load(.monotonic);
+    try posix.shutdown(c.fd, .send);
+    if (!finAborts()) {
+        // reset_only: both are answered, then the server closes.
+        try waitFinSeen(fins);
+        openGate();
+        var arena = std.heap.ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        try testing.expectEqual(@as(u16, 200), (try c.read(arena.allocator(), false)).status);
+        try testing.expectEqual(@as(u16, 200), (try c.read(arena.allocator(), false)).status);
+        try testing.expect(c.closedByPeer());
+        try testing.expectEqual(before.peer_closed, h.echo.snapshot().peer_closed);
+        return;
+    }
+    try waitEcho(&h, "peer_closed", before.peer_closed + 1);
+    openGate();
+    try waitEcho(&h, "done_closed", before.done_closed + 1);
+    try testing.expect(c.closedByPeer());
+    try testing.expectEqual(@as(usize, 0), c.len);
+    // The port never starts the second request (it is parsed only after the
+    // first response). Node may have emitted it already: see the TS probe.
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try testing.expectEqual(before.handled + 1, h.echo.snapshot().handled);
+}
+
 test "a hangup that arrives with data during a slow request is not lost" {
     var h: Harness = .{};
     try h.start(10_000);
@@ -967,29 +1481,38 @@ test "a hangup that arrives with data during a slow request is not lost" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    // Keep-alive: a pipelined request plus the client's FIN reach the
-    // server while it is busy; both responses arrive, then EOF.
+    // Keep-alive: a pipelined request plus the client's FIN reach the server
+    // while it is busy. Node (httpAllowHalfOpen false) ends the socket on the
+    // FIN, so neither response goes out (TS, measured): EOF only.
     var c = try h.connect();
     defer c.close();
     _ = try c.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    const before = h.echo.snapshot();
     try c.send("GET /graphql?sleep HTTP/1.1\r\nHost: a\r\n\r\n");
-    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try waitEcho(&h, "handled", before.handled + 1);
     try c.send("GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
     try posix.shutdown(c.fd, .send);
-    try testing.expectEqual(@as(u16, 200), (try c.read(a, false)).status);
-    try testing.expectEqual(@as(u16, 404), (try c.read(a, false)).status);
+    if (!finAborts()) {
+        // reset_only: both are answered, then the server closes.
+        try testing.expectEqual(@as(u16, 200), (try c.read(a, false)).status);
+        try testing.expectEqual(@as(u16, 404), (try c.read(a, false)).status);
+    }
     try testing.expect(c.closedByPeer());
-    // Upload: a partial body plus FIN behind a slow request reports on_done(.closed).
+    try testing.expectEqual(@as(usize, 0), c.len);
+    // Upload: a partial body plus FIN behind a slow request: the slow one is
+    // aborted (on_done(.closed)), nothing is answered.
     var c2 = try h.connect();
     defer c2.close();
+    const before2 = h.echo.snapshot();
     try c2.send("GET /graphql?sleep HTTP/1.1\r\nHost: a\r\n\r\n");
-    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try waitEcho(&h, "handled", before2.handled + 1);
     try c2.send("POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{");
     try posix.shutdown(c2.fd, .send);
-    try testing.expectEqual(@as(u16, 200), (try c2.read(a, false)).status);
-    var waited: u32 = 0;
-    while (h.echo.snapshot().done_closed == 0 and waited < 1000) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
-    try testing.expectEqual(@as(u32, 1), h.echo.snapshot().done_closed);
+    // reset_only: the slow one is answered; the cut-off upload never is.
+    if (!finAborts()) try testing.expectEqual(@as(u16, 200), (try c2.read(a, false)).status);
+    try testing.expect(c2.closedByPeer());
+    try testing.expectEqual(@as(usize, 0), c2.len);
+    try waitEcho(&h, "done_closed", before2.done_closed + 1);
     // WebSocket: a frame plus close behind a slow message handler -> on_close.
     var c3 = try h.connect();
     defer c3.close();
@@ -2113,6 +2636,96 @@ test "websocket transitions: no deadlock between the owner's tick and reader tra
     for (owner.conns.items) |conn| conn.release();
     owner.conns.deinit(testing.allocator);
     server.deinit();
+}
+
+fn wsEvents(h: *Harness, a: std.mem.Allocator) ![]u8 {
+    h.wse.mutex.lock();
+    defer h.wse.mutex.unlock();
+    return a.dupe(u8, h.wse.events.items);
+}
+
+test "websocket read batches: one read's frames share one on_read_begin/on_read_end, closed before on_close" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    // Message, pong, message, ping (auto-pong, no callback) and a close frame
+    // in one write: one batch around all of them, then on_close.
+    var c = try h.connect();
+    defer c.close();
+    _ = try wsHandshake(&c, a, "/batch");
+    var one: std.ArrayList(u8) = .empty;
+    try one.appendSlice(a, try wsFrame(a, 0x1, "a", true, true));
+    try one.appendSlice(a, try wsFrame(a, 0xA, "", true, true));
+    try one.appendSlice(a, try wsFrame(a, 0x1, "b", true, true));
+    try one.appendSlice(a, try wsFrame(a, 0x9, "", true, true));
+    try one.appendSlice(a, try wsFrame(a, 0x8, &.{ 0x03, 0xe8 }, true, true));
+    try c.send(one.items);
+    try h.wse.waitCloses(1);
+    // The close frame's transition is inside the batch; the close timeout's
+    // (the client never closes) comes after it, outside.
+    try testing.expectEqualStrings("BmpmtEtc", try wsEvents(&h, a));
+}
+
+test "websocket read batches: a protocol error mid-read reports on_error inside the batch" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    _ = try wsHandshake(&c, a, "/batch");
+    // A message, then an unmasked client frame (protocol error), in one write.
+    var one: std.ArrayList(u8) = .empty;
+    try one.appendSlice(a, try wsFrame(a, 0x1, "a", true, true));
+    try one.appendSlice(a, try wsFrame(a, 0x1, "x", false, true));
+    try c.send(one.items);
+    try h.wse.waitCloses(1);
+    // `fail`: the receiver-error transition, then on_error, both inside; the
+    // close timeout's transition comes after, outside.
+    try testing.expectEqualStrings("BmteEtc", try wsEvents(&h, a));
+}
+
+fn waitWsEvents(h: *Harness, a: std.mem.Allocator, want: []const u8) !void {
+    var waited: u32 = 0;
+    while (!std.mem.eql(u8, try wsEvents(h, a), want)) : (waited += 1) {
+        if (waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+}
+
+test "websocket read batches: separate reads are separate batches; a read without callbacks opens none; EOF is outside" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var c = try h.connect();
+    defer c.close();
+    _ = try wsHandshake(&c, a, "/batch");
+    // Two reads (the second sent once the first was handled): two batches.
+    try c.send(try wsFrame(a, 0x1, "a", true, true));
+    try waitWsEvents(&h, a, "BmE");
+    testing.allocator.free((try wsRead(&c)).payload); // echo of "a"
+    try c.send(try wsFrame(a, 0x1, "b", true, true));
+    try waitWsEvents(&h, a, "BmEBmE");
+    testing.allocator.free((try wsRead(&c)).payload);
+    // A lone ping: auto-pong, no callback, so no batch.
+    try c.send(try wsFrame(a, 0x9, "", true, true));
+    const pong = try wsRead(&c);
+    defer testing.allocator.free(pong.payload);
+    try testing.expectEqual(@as(u8, 0xA), pong.opcode);
+    try c.send(try wsFrame(a, 0x1, "c", true, true));
+    try waitWsEvents(&h, a, "BmEBmEBmE");
+    // EOF: the reader's eof transition is outside any batch.
+    try posix.shutdown(c.fd, .send);
+    try h.wse.waitCloses(1);
+    try testing.expectEqualStrings("BmEBmEBmEtc", try wsEvents(&h, a));
 }
 
 test "websocket: protocol violations close like ws" {

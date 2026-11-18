@@ -79,6 +79,7 @@ const PGRES_TUPLES_OK = 2;
 const PGRES_FATAL_ERROR = 7;
 const PGRES_PIPELINE_SYNC = 10;
 const PG_DIAG_SQLSTATE: c_int = 'C';
+const PG_DIAG_SEVERITY_NONLOCALIZED: c_int = 'V';
 const PG_DIAG_MESSAGE_PRIMARY: c_int = 'M';
 
 pub const ConnOptions = struct {
@@ -518,8 +519,28 @@ pub fn nowMs() i64 {
 /// Test builds: notices the server sent (e.g. a SET LOCAL warning).
 pub var test_notices: std.atomic.Value(u32) = .init(0);
 
-fn ignoreNotice(_: ?*anyopaque, _: *const PGresult) callconv(.c) void {
+/// What a connection's notice receiver keeps: the first FATAL or PANIC
+/// the server sent. libpq hands an ErrorResponse that arrives while no query
+/// is in flight (the server explaining why it is about to close the
+/// connection, e.g. `terminating connection due to administrator command`)
+/// to the notice receiver, where node-pg emits it as the client's 'error'.
+/// Heap-allocated: `Conn` is copied by value (the pool's idle list) and
+/// libpq keeps the receiver's argument pointer.
+const Notices = struct {
+    fatal_len: usize = 0,
+    fatal: [512]u8 = undefined,
+};
+
+fn receiveNotice(arg: ?*anyopaque, res: *const PGresult) callconv(.c) void {
     if (builtin.is_test) _ = test_notices.fetchAdd(1, .monotonic);
+    const notices: *Notices = @ptrCast(@alignCast(arg orelse return));
+    if (notices.fatal_len > 0) return;
+    const severity = std.mem.span(PQresultErrorField(res, PG_DIAG_SEVERITY_NONLOCALIZED) orelse return);
+    if (!std.mem.eql(u8, severity, "FATAL") and !std.mem.eql(u8, severity, "PANIC")) return;
+    const message = std.mem.span(PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY) orelse return);
+    const n = @min(message.len, notices.fatal.len);
+    @memcpy(notices.fatal[0..n], message[0..n]);
+    notices.fatal_len = n;
 }
 
 fn setFailure(failure: ?*Failure, arena: std.mem.Allocator, message: []const u8, code: ?[]const u8) void {
@@ -544,16 +565,7 @@ const CHARACTER_NOT_IN_REPERTOIRE = "22021";
 ///   same parameter, after the same earlier errors, with the same code and
 ///   message but 0xff (`Conn.serverMessage` reports 0x00).
 fn wireParam(arena: std.mem.Allocator, text: [:0]const u8, nul: *bool) std.mem.Allocator.Error![:0]const u8 {
-    // Only NUL or a surrogate (ED A0..BF) changes anything; ED 80..9F is
-    // U+D000..U+D7FF (Hangul syllables among them), kept as is.
-    const first = blk: {
-        var at: usize = 0;
-        while (std.mem.indexOfAnyPos(u8, text, at, "\x00\xed")) |i| {
-            if (text[i] == 0 or (i + 1 < text.len and text[i + 1] >= 0xa0)) break :blk i;
-            at = i + 1;
-        }
-        return text;
-    };
+    const first = firstToRewrite(text) orelse return text;
     var out: std.ArrayList(u8) = try .initCapacity(arena, text.len + 1);
     out.appendSliceAssumeCapacity(text[0..first]);
     var i = first;
@@ -583,6 +595,34 @@ fn wireParam(arena: std.mem.Allocator, text: [:0]const u8, nul: *bool) std.mem.A
         i += 1;
     }
     return out.toOwnedSliceSentinel(arena, 0);
+}
+
+/// The first NUL or WTF-8 surrogate (ED A0..BF) in `text`; ED 80..9F is
+/// U+D000..U+D7FF (Hangul syllables among them), kept as is. Vectorised:
+/// every parameter's text is scanned, and a confirmation projection's
+/// bytea[] literal runs to tens of kilobytes (a scalar scan cost ~30 µs on
+/// 70 KB; this ~1.5 µs).
+fn firstToRewrite(text: []const u8) ?usize {
+    const len = comptime std.simd.suggestVectorLength(u8) orelse 16;
+    const V = @Vector(len, u8);
+    var i: usize = 0;
+    while (i + len <= text.len) : (i += len) {
+        const v: V = text[i..][0..len].*;
+        const hit = (v == @as(V, @splat(0))) | (v == @as(V, @splat(0xed)));
+        if (@reduce(.Or, hit)) {
+            if (firstToRewriteScalar(text, i, i + len)) |at| return at;
+        }
+    }
+    return firstToRewriteScalar(text, i, text.len);
+}
+
+fn firstToRewriteScalar(text: []const u8, from: usize, to: usize) ?usize {
+    var i = from;
+    while (i < to) : (i += 1) {
+        const c = text[i];
+        if (c == 0 or (c == 0xed and i + 1 < text.len and text[i + 1] >= 0xa0)) return i;
+    }
+    return null;
 }
 
 /// The UTF-16 code unit of a WTF-8 surrogate (`ED A0..BF 80..BF`).
@@ -622,6 +662,8 @@ pub const Conn = struct {
     owner: u64 = 0,
     /// Named statements (`Plan.custom`/`.reusable`), allocated on first use.
     statements: ?*Statements = null,
+    /// The notice receiver's state (`Notices`), owned; freed by `deinit`.
+    notices: ?*Notices = null,
     plan_mode: PlanMode = .custom,
     /// The setting the query in progress pipelines first (`queryWith`):
     /// before a named statement's Parse/Bind (`tune`), or before an unnamed
@@ -744,7 +786,13 @@ pub const Conn = struct {
             }
             state = if (poller) |p| p.poll(p.ctx, pg) else PQconnectPoll(pg);
         }
-        _ = PQsetNoticeReceiver(pg, ignoreNotice, null);
+        const notices = try std.heap.c_allocator.create(Notices);
+        notices.* = .{};
+        _ = PQsetNoticeReceiver(pg, receiveNotice, notices);
+        errdefer {
+            _ = PQsetNoticeReceiver(pg, receiveNotice, null);
+            std.heap.c_allocator.destroy(notices);
+        }
         if (PQsslInUse(pg) != 0) tls.logMode();
         if (PQsetnonblocking(pg, 1) != 0) {
             setFailure(failure, arena, trimMessage(std.mem.span(PQerrorMessage(pg))), null);
@@ -755,7 +803,7 @@ pub const Conn = struct {
         // (left by a socket closed without telling the loop, or by our own
         // connect if it waited on a fiber); the socket is open and ours.
         core.fiber.forgetFd(sock);
-        return .{ .pg = pg, .query_timeout_ms = st.query_timeout_ms, .sock = sock, .owner = owner };
+        return .{ .pg = pg, .query_timeout_ms = st.query_timeout_ms, .sock = sock, .owner = owner, .notices = notices };
     }
 
     pub fn deinit(self: *Conn) void {
@@ -767,6 +815,23 @@ pub const Conn = struct {
         if (self.sock >= 0) core.fiber.forgetFd(self.sock);
         self.sock = -1;
         PQfinish(self.pg);
+        if (self.notices) |n| std.heap.c_allocator.destroy(n);
+        self.notices = null;
+    }
+
+    /// node-pg's text for an idle connection that ended: the FATAL the
+    /// server sent before closing it (`receiveNotice`), else "Connection
+    /// terminated unexpectedly". Never libpq's error text: it still holds
+    /// the last query's error (libpq clears it only when a query starts) and
+    /// appends its own. Owned by the connection: copy it before `deinit`.
+    pub fn closedMessage(self: *const Conn) []const u8 {
+        return self.fatalNotice() orelse "Connection terminated unexpectedly";
+    }
+
+    /// The FATAL or PANIC the server sent while no query was in flight.
+    fn fatalNotice(self: *const Conn) ?[]const u8 {
+        const n = self.notices orelse return null;
+        return if (n.fatal_len > 0) n.fatal[0..n.fatal_len] else null;
     }
 
     /// libpq closes the socket itself when it meets EOF or a transport
@@ -810,24 +875,25 @@ pub const Conn = struct {
             const ready = std.posix.poll(&fds, 0) catch return false;
             if (ready == 0) return self.ok();
             if (PQconsumeInput(self.pg) == 0 or PQstatus(self.pg) != CONNECTION_OK) {
-                if (failure) |f| if (f.message.len == 0) setFailure(failure, arena, idleMessage(self.pg), null);
+                if (failure) |f| if (f.message.len == 0) setFailure(failure, arena, self.closedMessage(), null);
                 self.broken = true;
                 self.noteDropped();
                 return false;
             }
             // An idle connection only receives an error when the server is
             // about to drop it (e.g. "terminating connection due to
-            // administrator command"): node-pg's idle client 'error'.
+            // administrator command"): libpq passes it to the notice
+            // receiver, node-pg emits it as the idle client's 'error' and
+            // pg-pool drops the client, even before the server's FIN.
+            if (self.fatalNotice()) |m| {
+                setFailure(failure, arena, m, null);
+                self.broken = true;
+                return false;
+            }
             while (PQisBusy(self.pg) == 0) {
                 const res = PQgetResult(self.pg) orelse break;
-                defer PQclear(res);
-                if (PQresultStatus(res) == PGRES_FATAL_ERROR) {
-                    const m = if (PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY)) |x| std.mem.span(x) else idleMessage(self.pg);
-                    setFailure(failure, arena, m, null);
-                    self.broken = true;
-                }
+                PQclear(res);
             }
-            if (self.broken) return false;
         }
         return self.ok();
     }
@@ -1076,12 +1142,12 @@ pub const Conn = struct {
                     setFailure(failure, arena, "Query read timeout", null);
                     return error.QueryTimeout;
                 }
-                if (!self.consumeAll(.reply)) return self.transportFailure(arena, failure);
+                if (!self.consumeAll(.reply)) return self.lostInPipeline(arena, failure, server_error);
             }
             const res = PQgetResult(self.pg) orelse {
                 index += 1;
                 // More step ends than steps, or a dead connection: give up.
-                if (index > steps.len or PQstatus(self.pg) != CONNECTION_OK) return self.transportFailure(arena, failure);
+                if (index > steps.len or PQstatus(self.pg) != CONNECTION_OK) return self.lostInPipeline(arena, failure, server_error);
                 continue;
             };
             var kept = false;
@@ -1289,11 +1355,58 @@ pub const Conn = struct {
         return if (deadline) |d| @min(d, cap) else cap;
     }
 
+    /// The connection ended mid-pipeline. A step's server error already
+    /// taken (e.g. the FATAL a terminated backend sends before closing) is
+    /// what the query failed with: keep its message.
+    fn lostInPipeline(self: *Conn, arena: std.mem.Allocator, failure: ?*Failure, server_error: bool) Error {
+        if (!server_error) return self.transportFailure(arena, failure);
+        self.broken = true;
+        self.noteDropped();
+        return error.ConnectionFailed;
+    }
+
     fn transportFailure(self: *Conn, arena: std.mem.Allocator, failure: ?*Failure) Error {
         self.broken = true;
         self.noteDropped();
-        setFailure(failure, arena, "Connection terminated unexpectedly", null);
+        // A server that ends the connection mid-query (pg_terminate_backend,
+        // shutdown) first sends the query its FATAL ErrorResponse; libpq
+        // parsed it before meeting EOF. node-pg fails the query with it.
+        // Server results carry their severity ('V'); libpq's own (the lost
+        // connection) do not.
+        var reported = false;
+        while (PQisBusy(self.pg) == 0) {
+            const res = PQgetResult(self.pg) orelse break;
+            defer PQclear(res);
+            if (reported or PQresultStatus(res) != PGRES_FATAL_ERROR or PQresultErrorField(res, PG_DIAG_SEVERITY_NONLOCALIZED) == null) continue;
+            const message = PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY) orelse continue;
+            const code = if (PQresultErrorField(res, PG_DIAG_SQLSTATE)) |c| std.mem.span(c) else null;
+            setFailure(failure, arena, std.mem.span(message), code);
+            reported = true;
+        }
+        if (!reported) setFailure(failure, arena, self.queryServerError() orelse "Connection terminated unexpectedly", null);
         return error.ConnectionFailed;
+    }
+
+    /// The server's error for the query in flight when the connection
+    /// ended, if libpq kept no result for it. libpq (14+) drops a parsed
+    /// ErrorResponse's result when it meets EOF next (`pqSaveErrorResult`)
+    /// and keeps only its text, "<severity>:  <message>" then DETAIL/HINT
+    /// lines and its own "server closed the connection unexpectedly". The
+    /// severity word follows the server's lc_messages; the layout (colon,
+    /// two spaces) is libpq's own, unlocalised, and its own messages use one
+    /// space. libpq resets the text when a query starts, so it is this
+    /// query's. Else the FATAL the notice receiver kept (idle).
+    fn queryServerError(self: *const Conn) ?[]const u8 {
+        const text = std.mem.trimLeft(u8, std.mem.span(PQerrorMessage(self.pg)), " \n\r\t");
+        const first = text[0 .. std.mem.indexOfScalar(u8, text, '\n') orelse text.len];
+        if (std.mem.indexOf(u8, first, ":  ")) |sep| {
+            const severity = first[0..sep];
+            if (severity.len > 0 and severity.len <= 32 and std.mem.indexOfScalar(u8, severity, ':') == null) {
+                const message = std.mem.trimRight(u8, first[sep + 3 ..], " \r\t");
+                if (message.len > 0) return message;
+            }
+        }
+        return self.fatalNotice();
     }
 
     /// Reads pending input and returns the next queued notification (caller
@@ -1378,11 +1491,6 @@ pub const Conn = struct {
 
 pub fn freeNotify(n: *PGnotify) void {
     PQfreemem(n);
-}
-
-fn idleMessage(pg: *PGconn) []const u8 {
-    const m = trimMessage(std.mem.span(PQerrorMessage(pg)));
-    return if (m.len == 0) "Connection terminated unexpectedly" else m;
 }
 
 /// libpq messages carry "FATAL:  " / "ERROR:  " severity prefixes and a
@@ -1694,6 +1802,49 @@ test "LazyRows.writeText equals stringify(convertCell) on random values" {
             try s.appendSlice(a, enc[0..len]);
         }
         try expectFastEqualsConvert(a, 25, s.items);
+    }
+}
+
+test "firstToRewrite: same answer as a byte-by-byte scan at every position and vector boundary" {
+    var buf: [200]u8 = undefined;
+    for (0..buf.len) |pos| {
+        for ([_][]const u8{ "\x00", "\xed\xa0\x80", "\xed\x9f\xbf" }) |needle| {
+            @memset(&buf, 'a');
+            if (pos + needle.len > buf.len) continue;
+            @memcpy(buf[pos..][0..needle.len], needle);
+            const want: ?usize = if (needle[0] == 0 or needle[1] >= 0xa0) pos else null;
+            try std.testing.expectEqual(want, firstToRewrite(&buf));
+        }
+    }
+    // A lone ED as the very last byte is not a surrogate.
+    try std.testing.expectEqual(@as(?usize, null), firstToRewrite("abc\xed"));
+    // In one vector block, Hangul (ED 9F BF) before a NUL or a surrogate
+    // must not hide what follows it.
+    try std.testing.expectEqual(@as(?usize, 5), firstToRewrite("a\xed\x9f\xbfb\x00cdefghijklmnop"));
+    try std.testing.expectEqual(@as(?usize, 5), firstToRewrite("a\xed\x9f\xbfb\xed\xa0\x80defghijklmnop"));
+}
+
+test "firstToRewrite: seeded differential against the scalar scan it replaced" {
+    const Old = struct {
+        fn scan(text: []const u8) ?usize {
+            var at: usize = 0;
+            while (std.mem.indexOfAnyPos(u8, text, at, "\x00\xed")) |i| {
+                if (text[i] == 0 or (i + 1 < text.len and text[i + 1] >= 0xa0)) return i;
+                at = i + 1;
+            }
+            return null;
+        }
+    };
+    var prng = std.Random.DefaultPrng.init(0x5eed_c0de);
+    const r = prng.random();
+    // Mostly ASCII with ED, 9F/A0/BF and NUL sprinkled in, at lengths around
+    // vector multiples.
+    const alphabet = "abcdefgh\xed\xed\x9f\xa0\xbf\x80\x00";
+    var buf: [300]u8 = undefined;
+    for (0..5_000) |_| {
+        const len = r.uintAtMost(usize, buf.len);
+        for (buf[0..len]) |*b| b.* = if (r.uintLessThan(u8, 8) == 0) alphabet[r.uintLessThan(usize, alphabet.len)] else 'x';
+        try std.testing.expectEqual(Old.scan(buf[0..len]), firstToRewrite(buf[0..len]));
     }
 }
 

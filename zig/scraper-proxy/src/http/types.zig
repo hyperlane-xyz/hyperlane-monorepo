@@ -170,7 +170,13 @@ pub const Reply = struct {
     error_value: ?FastifyError = null,
 
     pub fn code(self: *Reply, status: u16) void {
-        self.status = status;
+        @atomicStore(u16, &self.status, status, .monotonic);
+    }
+
+    /// The status as set so far, safe to read from `on_peer_closed` while
+    /// the handler may still call `code`.
+    pub fn statusNow(self: *const Reply) u16 {
+        return @atomicLoad(u16, &self.status, .monotonic);
     }
 
     pub fn header(self: *Reply, name: []const u8, value: []const u8) void {
@@ -290,6 +296,13 @@ pub const Hooks = struct {
     /// block and the rest waits for the client to read.
     on_write_blocked: ?*const fn (ctx: *anyopaque, req: *Request, reply: *Reply) void = null,
     on_done: ?*const fn (ctx: *anyopaque, req: *Request, reply: *Reply, reason: DoneReason) void = null,
+    /// Node's response 'close' before it finished: the peer hung up (EOF or
+    /// RST) while the handler's fiber was still waiting. At most once, on a
+    /// poller of the request's loop, possibly while the handler runs, but
+    /// never concurrently with or after `on_send`, and never with `on_done`.
+    /// The reply is then discarded; `on_done(.closed)` follows once the
+    /// handler returns.
+    on_peer_closed: ?*const fn (ctx: *anyopaque, req: *Request, reply: *Reply) void = null,
 };
 
 pub const Route = struct {
@@ -305,6 +318,10 @@ pub const Route = struct {
     text_content_types: []const []const u8 = &.{},
     /// Fastify `bodyLimit`.
     body_limit: usize = 100 * 1024,
+    /// TS answers this route only after an `await` (async hooks or handler):
+    /// with data after a non-keep-alive request, Node's clientError 400 then
+    /// goes out instead of the response (`ClosedConnectionPolicy.node_400`).
+    ts_async: bool = false,
 };
 
 test "remoteIp formatting" {

@@ -20,5 +20,5 @@ fn handler(_: *anyopaque, req: *types.Request, reply: *types.Reply) void {
 }
 
 pub fn route() types.Route {
-    return .{ .methods = &.{"GET"}, .path = "/metrics", .ctx = &ctx_dummy, .hooks = .{ .handler = handler } };
+    return .{ .methods = &.{"GET"}, .path = "/metrics", .ctx = &ctx_dummy, .hooks = .{ .handler = handler }, .ts_async = true };
 }

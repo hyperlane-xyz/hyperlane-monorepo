@@ -2252,6 +2252,59 @@ test "async subscribe: a failed custom live start (resume with !ok) ends the flo
     try testing.expectEqual(@as(usize, 0), boundaryReads(&h)); // no canonical read after a failed send
 }
 
+const canonical_subscribe = "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}";
+
+/// Frames as one socket read delivers them (`beginRead`/`endRead`, the ws hook).
+fn oneRead(h: *Harness, peer: *live.Peer, messages: []const []const u8) void {
+    h.server.beginRead(peer);
+    for (messages) |message| h.server.onMessageLocked(peer, message);
+    h.server.endRead(peer);
+}
+
+test "one read: a repeated canonical subscribe is rejected before the first is acknowledged" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    oneRead(&h, peer, &.{ canonical_subscribe, canonical_subscribe });
+    try h.waitFrames(s, 3);
+    // TS: the first subscribe's ack waits for `await Promise.all([])`.
+    try testing.expectEqualStrings("{\"error\":\"Already subscribed\",\"type\":\"error\"}", s.frame(1));
+    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"type\":\"subscribed\"") != null);
+}
+
+test "one read: a ping after a canonical subscribe is answered before the ack" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    oneRead(&h, peer, &.{ canonical_subscribe, "{\"type\":\"ping\"}" });
+    try h.waitFrames(s, 3);
+    try testing.expectEqualStrings("{\"type\":\"pong\"}", s.frame(1));
+    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"type\":\"subscribed\"") != null);
+}
+
+test "separate reads: a repeated canonical subscribe is acknowledged, then rejected" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, canonical_subscribe);
+    h.server.onMessage(peer, canonical_subscribe);
+    try h.waitFrames(s, 3);
+    try testing.expect(std.mem.indexOf(u8, s.frame(1), "\"type\":\"subscribed\"") != null);
+    try testing.expectEqualStrings("{\"error\":\"Already subscribed\",\"type\":\"error\"}", s.frame(2));
+}
+
 test "async subscribe: a client gone during the custom live starts gets no more frames" {
     var h: Harness = .{};
     var limits = defaultLimits();

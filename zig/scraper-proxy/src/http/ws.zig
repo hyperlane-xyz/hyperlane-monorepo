@@ -56,6 +56,18 @@ pub const Handler = struct {
     /// writes (`trySendInline`, `sendInlineCorked` written whole) are not
     /// passes.
     on_pass_end: ?*const fn (ctx: *anyopaque, conn: *Conn, drained: bool) void = null,
+    /// Optional: brackets the callbacks one socket read produced (Node's ws
+    /// emits every frame parsed from one 'data' chunk in one macrotask).
+    /// `on_read_begin` runs right before the first callback that read
+    /// produces (`on_message`, `on_pong`, `on_error`, or `transition` for a
+    /// close frame or receiver error), `on_read_end` right after the read's
+    /// last frame was handled, on the reader thread, never nested, and
+    /// always before teardown (`on_close`). A read that produces no callback
+    /// (partial frame, a ping) opens no batch. EOF and the close timeout are
+    /// never inside a batch, and no write pass completes inside one (sends
+    /// only schedule the writer).
+    on_read_begin: ?*const fn (ctx: *anyopaque, conn: *Conn) void = null,
+    on_read_end: ?*const fn (ctx: *anyopaque, conn: *Conn) void = null,
 };
 
 pub const Transition = union(enum) {
@@ -249,6 +261,10 @@ pub const Conn = struct {
     close_deadline: ?i64 = null,
     destroyed: bool = false,
     reader_done: bool = false,
+    /// Reader thread only: a read's bytes are being parsed (`feeding`), and
+    /// its callback batch is open (`on_read_begin` ran).
+    feeding: bool = false,
+    batch_open: bool = false,
     refs: std.atomic.Value(u32) = .init(2),
     initial: []u8,
 
@@ -829,7 +845,7 @@ pub const Conn = struct {
         self.unlockConn();
         if (queued) self.scheduleFlush();
         // A terminate() before attach is seen by the reader below.
-        self.reader.feed(self.initial);
+        self.feedRead(self.initial);
         self.gpa.free(self.initial);
         self.initial = &.{};
         self.readable = false;
@@ -895,8 +911,27 @@ pub const Conn = struct {
             // Edge-triggered: a short read drained the socket (unless the
             // peer hung up in the same edge: then read on to EOF).
             if (n < buf.len and !self.hup) self.readable = false;
-            self.reader.feed(buf[0..n]);
+            self.feedRead(buf[0..n]);
         }
+    }
+
+    /// Parses one read's bytes; its callbacks form one batch (`on_read_begin`
+    /// .. `on_read_end`), closed before the reader can tear down.
+    fn feedRead(self: *Conn, data: []const u8) void {
+        self.feeding = true;
+        self.reader.feed(data);
+        self.feeding = false;
+        if (self.batch_open) {
+            self.batch_open = false;
+            if (self.handler.on_read_end) |f| f(self.handler.ctx, self);
+        }
+    }
+
+    /// Before a callback produced by the read being parsed: open its batch.
+    fn openBatch(self: *Conn) void {
+        if (!self.feeding or self.batch_open) return;
+        self.batch_open = true;
+        if (self.handler.on_read_begin) |f| f(self.handler.ctx, self);
     }
 
     /// The reader is finished (R stays held): tear down now, or let the
@@ -1109,12 +1144,14 @@ pub const Conn = struct {
     /// Receiver error: close with `code` (no reason), emit 'error', ignore
     /// further input until the peer closes or the close timeout fires.
     fn fail(self: *Conn, code: u16, message: []const u8) void {
+        self.openBatch();
         self.transition(.{ .receiver_error = .{ .code = code, .message = message } });
         // After the state change, outside any lock (the owner's included).
         if (self.handler.on_error) |f| f(self.handler.ctx, self, message);
     }
 
     fn onCloseFrame(self: *Conn, code: u16, reason: []const u8) void {
+        self.openBatch();
         self.transition(.{ .close_frame = .{ .code = code, .reason = reason } });
     }
 
@@ -1269,6 +1306,7 @@ const Reader = struct {
         if (fin) {
             const binary = opcode == 2;
             if (!binary and !std.unicode.utf8ValidateSlice(self.message.items)) return self.err(1007, true, "invalid UTF-8 sequence");
+            self.conn.openBatch();
             self.conn.handler.on_message(self.conn.handler.ctx, self.conn, self.message.items, binary);
             // Idle sockets keep no large message buffer.
             if (self.message.capacity > 16 * 1024) self.message.clearAndFree(gpa) else self.message.clearRetainingCapacity();
@@ -1301,7 +1339,10 @@ const Reader = struct {
                 // autoPong (only while open, like ws).
                 if (self.conn.readyState() == .open) self.conn.enqueueFrame(0xA, payload, null, false) catch {};
             },
-            0xA => if (self.conn.handler.on_pong) |f| f(self.conn.handler.ctx, self.conn),
+            0xA => if (self.conn.handler.on_pong) |f| {
+                self.conn.openBatch();
+                f(self.conn.handler.ctx, self.conn);
+            },
             else => {},
         }
     }

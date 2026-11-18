@@ -128,6 +128,17 @@ pub var test_idle_parks: std.atomic.Value(u32) = .init(0);
 pub var test_head_parks: std.atomic.Value(u32) = .init(0);
 pub var test_write_parks: std.atomic.Value(u32) = .init(0);
 
+/// Tests only: hangups `hangupAborts` classified as reset/error and
+/// as a bare FIN (never touched in other builds).
+pub var test_reset_hangups: std.atomic.Value(u32) = .init(0);
+pub var test_fin_hangups: std.atomic.Value(u32) = .init(0);
+/// Tests only: hangups decided right after the handler parked (read with the
+/// request), and the `reset_only` policy in place of `hangup_policy`.
+pub var test_merged_hangups: std.atomic.Value(u32) = .init(0);
+pub var test_reset_only: std.atomic.Value(bool) = .init(false);
+/// Tests only: `ClosedConnectionPolicy.node_400` in place of the build's.
+pub var test_node_400: std.atomic.Value(bool) = .init(false);
+
 fn closeTurnMs() i64 {
     return if (builtin.is_test) test_close_turn_ms.load(.monotonic) else 0;
 }
@@ -421,9 +432,59 @@ pub const Server = struct {
             if (!ev.readable and !ev.hup) return;
         }
         // A hangup merged into this edge must survive a short read (sticky).
-        const again = loop_mod.R_AGAIN | (if (ev.hup) loop_mod.R_HUP else 0);
-        if (loop_mod.claim(slot, gen, loop_mod.R, again) != .claimed) return;
+        const again = loop_mod.R_AGAIN | (if (ev.hup) loop_mod.R_HUP else 0) | (if (ev.reset) loop_mod.R_RESET else 0);
+        if (loop_mod.claim(slot, gen, loop_mod.R, again) != .claimed) {
+            // R is held: by a waiting handler, a hangup aborts its exchange.
+            // Under node_400, data in the same edge goes first (Node's 'data',
+            // the parser error and its 400, come before 'end').
+            if (slot.kind == .http) {
+                const junk = closedConnectionPolicy() == .node_400 and (ev.readable or ev.hup) and Connection.dataWhileDetached(slot, gen);
+                if (!junk and ev.hup and hangupAborts(ev.reset)) Connection.peerClosedWhileDetached(slot, gen);
+            }
+            return;
+        }
+        if (ev.reset and slot.kind == .http) @as(*Connection, @ptrCast(@alignCast(slot.ptr.?))).reset = true;
         self.runSlot(index, if (ev.hup) .hup else .io, false);
+    }
+
+    /// Which peer hangups abort a response still being prepared (the
+    /// handler's fiber waits; `on_peer_closed`, no response).
+    pub const HangupPolicy = enum {
+        /// Node, `httpAllowHalfOpen = false`: the client's FIN alone ends the
+        /// socket (`socketOnEnd` -> `socket.end()`), so every in-flight and
+        /// pipelined response is dropped, as on RST.
+        eof_drop,
+        /// Only a reset or socket error aborts; a client that half-closed
+        /// still gets its response (Node with `httpAllowHalfOpen = true`).
+        reset_only,
+    };
+    pub const hangup_policy: HangupPolicy = .eof_drop;
+
+    /// Paired with `hangup_policy` (one decision for both).
+    pub const ClosedConnectionPolicy = enum {
+        /// The port's behaviour so far: bytes after a non-keep-alive request
+        /// are ignored, the response is sent.
+        answer,
+        /// Node: llhttp's HPE_CLOSED_CONNECTION -> Fastify clientError 400
+        /// (after a sync route's response, instead of an async one's).
+        node_400,
+    };
+    pub const closed_connection_policy: ClosedConnectionPolicy = .answer;
+
+    pub fn abortsOn(policy: HangupPolicy, reset: bool) bool {
+        return reset or policy == .eof_drop;
+    }
+
+    /// `hangup_policy` (tests: `test_reset_only` overrides it).
+    pub fn hangupPolicyNow() HangupPolicy {
+        if (builtin.is_test and test_reset_only.load(.monotonic)) return .reset_only;
+        return hangup_policy;
+    }
+
+    /// `hangup_policy` applied to a hangup (`reset`: RST/error, else a FIN).
+    fn hangupAborts(reset: bool) bool {
+        if (builtin.is_test) _ = (if (reset) &test_reset_hangups else &test_fin_hangups).fetchAdd(1, .monotonic);
+        return abortsOn(hangupPolicyNow(), reset);
     }
 
     fn onPosted(ctx: *anyopaque, index: u32, gen: u32, token: u32) void {
@@ -673,6 +734,13 @@ const Exchange = struct {
     req: Request,
     reply: Reply,
     route: ?*const Route = null,
+    /// A parser read the body (Fastify `contentTypeParser.run`, async in TS).
+    parsed_body: bool = false,
+    /// Data after a non-keep-alive request (`closedConnAction`), once decided.
+    closed_conn: ?ClosedConnAction = null,
+    /// `node_400`: the message is complete and nothing but CR/LF followed it
+    /// yet, so later input reaches Node's closed state (`dataWhileDetached`).
+    probe_late: bool = false,
     keep_alive: bool,
     /// Keep-alive decision of the written response.
     keep_after: bool = false,
@@ -699,6 +767,10 @@ const Connection = struct {
     /// The peer hung up (or the socket failed): read until EOF/error.
     hup: bool = false,
     registered: bool = false,
+    /// A handler fiber was detached with `DETACHED` set (`finish` clears it).
+    detached: bool = false,
+    /// The hangup in `hup` was a reset or socket error (not just a FIN).
+    reset: bool = false,
     write_armed: bool = false,
     first: bool = true,
     phase: Phase = .idle,
@@ -735,7 +807,7 @@ const Connection = struct {
             if (self.drive(kicked) != .park) return;
             const pending = loop_mod.release(self.slot(), loop_mod.R, loop_mod.r_pending);
             if (pending == 0) return;
-            self.noteIo(loop_mod.Io.fromPending(pending));
+            self.notePending(pending);
             kicked = pending & loop_mod.KICK != 0;
         }
     }
@@ -751,6 +823,11 @@ const Connection = struct {
         }
     }
 
+    fn notePending(self: *Connection, pending: u32) void {
+        self.noteIo(loop_mod.Io.fromPending(pending));
+        if (pending & loop_mod.R_RESET != 0) self.reset = true;
+    }
+
     /// A new socket another poller should serve: register it and let go.
     fn handOff(self: *Connection) void {
         if (self.park() == .gone) return;
@@ -758,7 +835,7 @@ const Connection = struct {
         if (pending == 0) return;
         // Input arrived meanwhile: another poller serves it. Running it here
         // could block in a handler while this thread still holds the listener.
-        self.noteIo(loop_mod.Io.fromPending(pending));
+        self.notePending(pending);
         self.server.loop.post(self.index, self.gen, loop_mod.R | (pending & loop_mod.KICK));
     }
 
@@ -1158,6 +1235,7 @@ const Connection = struct {
             },
             else => {},
         }
+        ex.parsed_body = true;
         self.phase = .body;
         return null;
     }
@@ -1208,6 +1286,141 @@ const Connection = struct {
     }
 
     /// `on_done(.closed)` for a request that failed before its response.
+    /// The peer hung up while the handler waited and `on_peer_closed` ran:
+    /// drop the response, report `on_done(.closed)` once, close.
+    fn aborted(self: *Connection) Step {
+        const sl = self.slot();
+        while (loop_mod.Slot.bitsOf(sl.state.load(.acquire)) & loop_mod.ABORT_RUNNING != 0) std.atomic.spinLoopHint();
+        loop_mod.clearBits(sl, loop_mod.ABORTED);
+        self.doneClosed();
+        return self.destroy();
+    }
+
+    /// A hangup event while a handler fiber holds R (`DETACHED`): claim the
+    /// abort (once, unless `finish` already cleared `DETACHED`) and run the
+    /// route's `on_peer_closed`. `finish` waits for it before freeing anything.
+    fn peerClosedWhileDetached(sl: *loop_mod.Slot, gen: u32) void {
+        var s = sl.state.load(.acquire);
+        while (true) {
+            if (loop_mod.Slot.genOf(s) != gen) return;
+            const b = loop_mod.Slot.bitsOf(s);
+            if (b & loop_mod.DETACHED == 0 or b & loop_mod.ABORTED != 0) return;
+            if (b & loop_mod.ABORT_RUNNING != 0) {
+                // A data probe is deciding: once it is done, look again.
+                std.atomic.spinLoopHint();
+                s = sl.state.load(.acquire);
+                continue;
+            }
+            const next = s | loop_mod.ABORTED | loop_mod.ABORT_RUNNING;
+            if (sl.state.cmpxchgWeak(s, next, .acq_rel, .acquire)) |actual| {
+                s = actual;
+                continue;
+            }
+            break;
+        }
+        const self: *Connection = @ptrCast(@alignCast(sl.ptr.?));
+        const ex = self.ex.?;
+        if (ex.route) |r| if (r.hooks.on_peer_closed) |hook| hook(r.ctx, &ex.req, &ex.reply);
+        loop_mod.clearBits(sl, loop_mod.ABORT_RUNNING);
+    }
+
+    /// What Node does with bytes after a non-keep-alive request (llhttp's
+    /// closed state skips CR/LF; anything else is HPE_CLOSED_CONNECTION ->
+    /// Fastify's clientError 400 + destroy). `.answer`: nothing (the port's
+    /// behaviour so far). `.node_400`: `.after_response` when TS's route
+    /// answers synchronously inside the parse (response, then 400),
+    /// `.instead` when it answers after an await or parses a body (400 only).
+    /// A body no parser reads keeps Node's parser in the body: no 400.
+    fn closedConnAction(self: *Connection, route_async: bool) ClosedConnAction {
+        if (closedConnectionPolicy() != .node_400) return .none;
+        const ex = self.ex.?;
+        if (ex.keep_alive) return .none;
+        const start = self.start;
+        defer self.start = start;
+        if (!self.body.done()) {
+            switch (self.body.framing) {
+                .length => |n| if (n > 0) return .none,
+                else => {},
+            }
+            var probe = self.body;
+            const progress = probe.consume(self, null, null, std.math.maxInt(usize)) catch return .none;
+            if (progress != .done or probe.total > 0) return .none;
+        }
+        for (self.buf[self.start..self.end]) |b| {
+            if (b != '\r' and b != '\n') return if (ex.parsed_body or route_async) .instead else .after_response;
+        }
+        // Complete, nothing after it yet: input that arrives while a handler
+        // waits is checked then (a body still unread is Node's body, not this).
+        ex.probe_late = true;
+        return .none;
+    }
+
+    /// `.instead` decided while the handler waits: claim the abort like a
+    /// hangup, run `on_peer_closed`, and write clientError's 400 now (the
+    /// response is dropped; `finish` sees `ABORTED` and destroys).
+    fn closedConnAbort(sl: *loop_mod.Slot, gen: u32) void {
+        var s = sl.state.load(.acquire);
+        while (true) {
+            if (loop_mod.Slot.genOf(s) != gen) return;
+            const b = loop_mod.Slot.bitsOf(s);
+            if (b & (loop_mod.DETACHED | loop_mod.ABORTED | loop_mod.ABORT_RUNNING) != loop_mod.DETACHED) return;
+            if (sl.state.cmpxchgWeak(s, s | loop_mod.ABORTED | loop_mod.ABORT_RUNNING, .acq_rel, .acquire)) |actual| {
+                s = actual;
+                continue;
+            }
+            break;
+        }
+        const self: *Connection = @ptrCast(@alignCast(sl.ptr.?));
+        self.abortWith400();
+        loop_mod.clearBits(sl, loop_mod.ABORT_RUNNING);
+    }
+
+    /// Under `ABORTED|ABORT_RUNNING`: the hook, then the 400 (best effort: a
+    /// fresh socket takes 145 bytes at once). Then, as Node's destroy right
+    /// after clientError's write: the input Node's read took is discarded and
+    /// the socket shut down both ways, so the client sees the FIN now (no RST
+    /// for unread junk), not when the waiting handler ends and frees `self`.
+    fn abortWith400(self: *Connection) void {
+        const ex = self.ex.?;
+        if (ex.route) |r| if (r.hooks.on_peer_closed) |hook| hook(r.ctx, &ex.req, &ex.reply);
+        var parts = [2][]const u8{ ClientError.bad_request.bytes(), "" };
+        _ = writeSome(self.fd, &parts);
+        var buf: [4096]u8 = undefined;
+        var left: usize = 64 * 1024; // one Node read
+        while (left > 0) {
+            const n = posix.recv(self.fd, buf[0..@min(buf.len, left)], dontwait) catch break;
+            if (n == 0) break;
+            left -= n;
+        }
+        posix.shutdown(self.fd, .both) catch {};
+    }
+
+    /// Input while a complete non-keep-alive request's handler waits (Node
+    /// reads it at once): under `node_400`, any non-CR/LF byte aborts with the
+    /// 400 (true). Holds `ABORT_RUNNING` while deciding, so `finish` and a
+    /// hangup wait; nothing else reads the socket while `DETACHED`.
+    fn dataWhileDetached(sl: *loop_mod.Slot, gen: u32) bool {
+        var s = sl.state.load(.acquire);
+        while (true) {
+            if (loop_mod.Slot.genOf(s) != gen) return false;
+            const b = loop_mod.Slot.bitsOf(s);
+            if (b & (loop_mod.DETACHED | loop_mod.ABORTED | loop_mod.ABORT_RUNNING) != loop_mod.DETACHED) return false;
+            if (sl.state.cmpxchgWeak(s, s | loop_mod.ABORT_RUNNING, .acq_rel, .acquire)) |actual| {
+                s = actual;
+                continue;
+            }
+            break;
+        }
+        const self: *Connection = @ptrCast(@alignCast(sl.ptr.?));
+        const junk = self.ex.?.probe_late and lateJunk(self.fd);
+        if (junk) {
+            loop_mod.setBits(sl, loop_mod.ABORTED);
+            self.abortWith400();
+        }
+        loop_mod.clearBits(sl, loop_mod.ABORT_RUNNING);
+        return junk;
+    }
+
     fn doneClosed(self: *Connection) void {
         const ex = self.ex.?;
         if (ex.route) |r| if (r.hooks.on_done) |hook| hook(r.ctx, &ex.req, &ex.reply, .closed);
@@ -1253,6 +1466,7 @@ const Connection = struct {
     /// Route handler (or the 404 handler) unless a reply was already sent.
     fn handle(self: *Connection) !?Step {
         const ex = self.ex.?;
+        if (ex.closed_conn == null) ex.closed_conn = self.closedConnAction(if (ex.route) |r| r.ts_async else false);
         if (!ex.reply.sent) {
             if (ex.route) |r| {
                 if (fibers) {
@@ -1306,7 +1520,39 @@ const Connection = struct {
             s.arena = null;
         }
         self.phase = .respond;
-        if (loop.runFiber(f) == null) return true;
+        // A peer hangup while the handler waits aborts the exchange (Node
+        // 'close'): the socket must be watched, and the slot marked.
+        if (!self.registered) {
+            if (loop.register(self.fd, self.index, self.gen)) |_| {
+                self.registered = true;
+            } else |e| log.warn("cannot watch a waiting request's socket ({s}): no early abort", .{@errorName(e)});
+        }
+        self.detached = true;
+        const sl = self.slot();
+        loop_mod.setBits(sl, loop_mod.DETACHED);
+        // A hangup read together with the request brings no later event:
+        // decide it now, once the handler waits (read before `runFiber`: the
+        // exchange may finish and free `self` on another poller after it).
+        // A hangup event that came while this thread held R (during the
+        // request read) is still pending in the slot word.
+        const pend = loop_mod.Slot.bitsOf(sl.state.load(.acquire));
+        const hup_seen = self.hup or pend & loop_mod.R_HUP != 0;
+        const reset_seen = self.reset or pend & loop_mod.R_RESET != 0;
+        // node_400: data read with the request (or still unread in the
+        // kernel, no edge to come) goes before a hangup, as Node's 'data'
+        // before 'end'.
+        const instead = self.ex.?.closed_conn == .instead;
+        const probe = self.ex.?.probe_late;
+        const gen = self.gen;
+        if (loop.runFiber(f) == null) {
+            if (instead) {
+                Connection.closedConnAbort(sl, gen);
+            } else if (!(probe and Connection.dataWhileDetached(sl, gen)) and hup_seen and Server.hangupAborts(reset_seen)) {
+                if (builtin.is_test) _ = test_merged_hangups.fetchAdd(1, .monotonic);
+                Connection.peerClosedWhileDetached(sl, gen);
+            }
+            return true;
+        }
         // Finished without waiting: re-attach and go on here.
         if (own_arena and s.arena == null) {
             s.arena = self.arena_box;
@@ -1338,7 +1584,23 @@ const Connection = struct {
     }
 
     fn finish(self: *Connection, route: ?*const Route) !?Step {
+        if (self.detached) {
+            self.detached = false;
+            const sl = self.slot();
+            _ = sl.state.fetchAnd(~@as(u64, loop_mod.DETACHED), .acq_rel);
+            // A data probe (`dataWhileDetached`) may be deciding: wait it out.
+            while (loop_mod.Slot.bitsOf(sl.state.load(.acquire)) & loop_mod.ABORT_RUNNING != 0) std.atomic.spinLoopHint();
+            if (loop_mod.Slot.bitsOf(sl.state.load(.acquire)) & loop_mod.ABORTED != 0) return self.aborted();
+        }
         const ex = self.ex.?;
+        if (ex.closed_conn == null) ex.closed_conn = self.closedConnAction(if (route) |r| r.ts_async else false);
+        if (ex.closed_conn.? == .instead) {
+            // Node's parser hit the data before this response: clientError's
+            // 400 and destroy; the response is dropped ('close' first).
+            if (route) |r| if (r.hooks.on_peer_closed) |hook| hook(r.ctx, &ex.req, &ex.reply);
+            self.doneClosed();
+            return self.write(ClientError.bad_request.bytes(), "", .close);
+        }
         const req = &ex.req;
         const reply = &ex.reply;
         const a = req.arena;
@@ -1386,6 +1648,9 @@ const Connection = struct {
         const ex = self.ex.?;
         if (ex.route) |r| if (r.hooks.on_done) |hook| hook(r.ctx, &ex.req, &ex.reply, if (written) .finished else .closed);
         if (!written or ex.reply.destroy_after) return self.destroy();
+        // A sync route answered inside Node's parse; the data after the
+        // request then raised clientError: its 400 follows, then destroy.
+        if (ex.closed_conn == .after_response) return self.clientError(.bad_request);
         return self.afterResponse(ex.keep_after);
     }
 
@@ -1517,6 +1782,31 @@ const Connection = struct {
 const WriteResult = enum { done, would_block, failed };
 
 /// One non-blocking `sendmsg` pass over `parts` (consumed in place).
+const ClosedConnAction = enum { none, after_response, instead };
+
+fn closedConnectionPolicy() Server.ClosedConnectionPolicy {
+    if (builtin.is_test and test_node_400.load(.monotonic)) return .node_400;
+    return Server.closed_connection_policy;
+}
+
+const dontwait: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.DONTWAIT else std.c.MSG.DONTWAIT;
+
+/// True when the socket's unread input has a byte other than CR/LF (left
+/// unread). Leading CR/LF is consumed, as llhttp's closed state skips it, up
+/// to 1 MiB per call (more waits for the next input edge).
+fn lateJunk(fd: posix.socket_t) bool {
+    var buf: [512]u8 = undefined;
+    var skipped: usize = 0;
+    while (skipped < 1024 * 1024) {
+        const n = posix.recv(fd, &buf, std.posix.MSG.PEEK | dontwait) catch return false;
+        if (n == 0) return false;
+        for (buf[0..n]) |b| if (b != '\r' and b != '\n') return true;
+        _ = posix.recv(fd, buf[0..n], dontwait) catch return false;
+        skipped += n;
+    }
+    return false;
+}
+
 fn writeSome(fd: posix.socket_t, parts: *[2][]const u8) WriteResult {
     const flags: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.NOSIGNAL else 0;
     while (parts[0].len + parts[1].len > 0) {

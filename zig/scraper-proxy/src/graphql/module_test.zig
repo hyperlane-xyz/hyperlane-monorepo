@@ -41,10 +41,20 @@ const FakeDb = struct {
     fail_sql_message: []const u8 = "boom",
     /// Queries whose SQL contains this needle sleep first (completion order).
     delay_sql: ?[]const u8 = null,
+    /// Queries whose SQL contains this needle wait before their first read
+    /// takes its execution slot, until `releasePreIo` (off-fiber only).
+    pre_io_sql: ?[]const u8 = null,
+    pre_io_waiting: u32 = 0,
+    /// Queries numbered `from..to` (1-based, in start order) wait until their
+    /// gate opens (`openGate`); fiber or thread alike.
+    gates: [4]Gate = @splat(.{}),
+
+    const Gate = struct { from: u32 = 0, to: u32 = 0, open: bool = true };
 
     const Seen = struct { admission: ?*anyopaque, io_events: u32 };
 
-    fn mustWait(self: *const FakeDb, text: []const u8) bool {
+    fn mustWait(self: *const FakeDb, text: []const u8, n: u32) bool {
+        for (self.gates) |g| if (!g.open and n >= g.from and n <= g.to) return true;
         if (self.blocked) return true;
         const needle = self.block_sql orelse return false;
         return std.mem.indexOf(u8, text, needle) != null;
@@ -54,6 +64,13 @@ const FakeDb = struct {
         const self: *FakeDb = @ptrCast(@alignCast(ctx));
         const execute = @import("execute.zig");
         const seen: Seen = .{ .admission = if (execute.admission) |adm| adm.ctx else null, .io_events = execute.io_events };
+        self.mutex.lock();
+        if (self.pre_io_sql) |needle| if (std.mem.indexOf(u8, text, needle) != null) {
+            self.pre_io_waiting += 1;
+            self.cond.broadcast();
+            while (self.pre_io_sql != null) self.cond.wait(&self.mutex);
+        };
+        self.mutex.unlock();
         if (!execute.beforeIo()) {
             diag.message = route_mod.capacity_message;
             return error.CapacityExceeded;
@@ -68,10 +85,10 @@ const FakeDb = struct {
             self.seen_len += 1;
         }
         self.cond.broadcast();
-        if (self.mustWait(text)) {
+        if (self.mustWait(text, n)) {
             if (core.fiber.inFiber()) {
                 // The loop thread must keep serving: park this fiber.
-                while (self.mustWait(text)) {
+                while (self.mustWait(text, n)) {
                     var w: core.fiber.Waiter = .{};
                     if (self.parked_len == self.parked.len) @panic("FakeDb: more than 64 parked queries");
                     self.parked[self.parked_len] = &w;
@@ -83,7 +100,7 @@ const FakeDb = struct {
             } else {
                 core.blocking.begin();
                 defer core.blocking.end();
-                while (self.mustWait(text)) self.cond.wait(&self.mutex);
+                while (self.mustWait(text, n)) self.cond.wait(&self.mutex);
             }
         }
         const fail = self.fail;
@@ -142,6 +159,34 @@ const FakeDb = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         self.blocked = true;
+    }
+
+    fn gate(self: *FakeDb, i: usize, from: u32, to: u32) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.gates[i] = .{ .from = from, .to = to, .open = false };
+    }
+
+    fn openGate(self: *FakeDb, i: usize) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.gates[i].open = true;
+        self.cond.broadcast();
+        for (self.parked[0..self.parked_len]) |w| w.wake();
+        self.parked_len = 0;
+    }
+
+    fn waitPreIo(self: *FakeDb, n: u32) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (self.pre_io_waiting < n) self.cond.wait(&self.mutex);
+    }
+
+    fn releasePreIo(self: *FakeDb) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.pre_io_sql = null;
+        self.cond.broadcast();
     }
 
     fn release(self: *FakeDb) void {
@@ -300,6 +345,14 @@ const Client = struct {
     len: usize = 0,
 
     fn close(self: *Client) void {
+        posix.close(self.fd);
+    }
+
+    /// Closes with RST (SO_LINGER 0): a hangup that aborts under either
+    /// `http.server` hangup policy (a bare FIN aborts only under `.eof_drop`).
+    fn closeWithReset(self: *Client) void {
+        const linger: extern struct { onoff: c_int, linger: c_int } = .{ .onoff = 1, .linger = 0 };
+        posix.setsockopt(self.fd, posix.SOL.SOCKET, posix.SO.LINGER, std.mem.asBytes(&linger)) catch {};
         posix.close(self.fd);
     }
 
@@ -462,7 +515,7 @@ test "serializes the production query surface consistently" {
 
 test "bounds concurrent pathological GraphQL requests" {
     var app: App = .{};
-    app.db.blocked = true;
+    app.db.block();
     try app.start();
     defer app.stop();
     var threads: [25]std.Thread = undefined;
@@ -1090,7 +1143,7 @@ test "single-flight: concurrent misses on one key run one query, same bytes" {
     app.db.rows = "[{\"id\":7}]";
     try app.start();
     defer app.stop();
-    app.db.blocked = true;
+    app.db.block();
     const leader = try Flock.start(&app, 1, flight_query);
     defer leader.deinit();
     app.db.waitStarted(1);
@@ -1117,7 +1170,7 @@ test "single-flight: a failed leader's waiters each run their own query" {
     app.db.fail_first_only = true;
     try app.start();
     defer app.stop();
-    app.db.blocked = true;
+    app.db.block();
     const leader = try Flock.start(&app, 1, flight_query);
     defer leader.deinit();
     app.db.waitStarted(1);
@@ -1144,7 +1197,7 @@ test "single-flight: after a failed miss, the key's next misses run at once (TS 
     const failed = try app.postQuery(arena.allocator(), flight_query);
     try testing.expectEqualStrings("no-store", failed.header("cache-control").?);
     // Within the mark's second: concurrent misses all reach the database.
-    app.db.blocked = true;
+    app.db.block();
     const burst = try Flock.start(&app, 6, flight_query);
     defer burst.deinit();
     app.db.waitStarted(7);
@@ -1165,7 +1218,7 @@ test "single-flight: an uncacheable (oversized) response sends waiters to their 
     app.db.rows = rows;
     try app.start();
     defer app.stop();
-    app.db.blocked = true;
+    app.db.block();
     const q = "query @cached(ttl: 300) { domain(limit: 1) { id name } }";
     const leader = try Flock.start(&app, 1, q);
     defer leader.deinit();
@@ -1186,7 +1239,7 @@ test "single-flight: only requests with the same ttl share a flight" {
     app.db.rows = "[{\"id\":7}]";
     try app.start();
     defer app.stop();
-    app.db.blocked = true;
+    app.db.block();
     const leader = try Flock.start(&app, 1, "query @cached(ttl: 30) { domain(limit: 1) { id } }");
     defer leader.deinit();
     app.db.waitStarted(1);
@@ -1209,7 +1262,7 @@ test "single-flight: refresh and ttl 0 requests never wait on a flight" {
     app.db.rows = "[{\"id\":7}]";
     try app.start();
     defer app.stop();
-    app.db.blocked = true;
+    app.db.block();
     const leader = try Flock.start(&app, 1, flight_query);
     defer leader.deinit();
     app.db.waitStarted(1);
@@ -1238,7 +1291,7 @@ test "single-flight: past the waiter cap, misses run their own query" {
     defer app.stop();
     const cap = 8;
     app.route.response_cache.max_waiters = cap;
-    app.db.blocked = true;
+    app.db.block();
     const leader = try Flock.start(&app, 1, flight_query);
     defer leader.deinit();
     app.db.waitStarted(1);
@@ -1259,12 +1312,12 @@ test "single-flight: past the waiter cap, misses run their own query" {
     try testing.expectEqual(@as(u32, 4), app.db.count());
 }
 
-test "single-flight: the leader's client going away still releases its waiters" {
+test "single-flight: the leader's client going away sends its waiters to their own queries" {
     var app: App = .{};
     app.db.rows = "[{\"id\":7}]";
     try app.start();
     defer app.stop();
-    app.db.blocked = true;
+    app.db.block();
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const body = try std.fmt.allocPrint(arena.allocator(), "{{\"query\":{f}}}", .{Value{ .string = flight_query }});
@@ -1274,14 +1327,15 @@ test "single-flight: the leader's client going away still releases its waiters" 
     const waiters = try Flock.start(&app, 8, flight_query);
     defer waiters.deinit();
     try waitFlightWaiters(&app.route, 8);
-    c.close();
-    std.Thread.sleep(20 * std.time.ns_per_ms);
+    c.closeWithReset();
+    // The close ends the flight unwritten (TS's onSend after 'close' caches
+    // nothing), so each waiter runs its own query, as TS's concurrent misses
+    // did, while the leader's query is still blocked.
+    app.db.waitStarted(9);
     app.db.release();
     waiters.join();
-    // The port finishes (and caches) the leader's response after its client
-    // left (see DEVIATIONS.md); its waiters get that entry.
     for (waiters.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
-    try testing.expectEqual(@as(u32, 1), app.db.count());
+    try testing.expectEqual(@as(u32, 9), app.db.count());
 }
 
 var flight_clock = struct {
@@ -1306,7 +1360,7 @@ test "single-flight: a waiter answers as the TS miss it stands for (own ttl, mis
     flight_clock.later_ms = 1_000;
     flight_clock.at_base.store(1 << 30, .monotonic);
     app.route.response_cache.now_ms = flightNow;
-    app.db.blocked = true;
+    app.db.block();
     const leader = try Flock.start(&app, 1, flight_query);
     defer leader.deinit();
     app.db.waitStarted(1);
@@ -1360,7 +1414,7 @@ test "single-flight: waiters on two event loops all wake (no lost wakeups)" {
         defer app.stop();
         flight_loops_len = 0;
         app.route.flight_park_hook = recordFlightLoop;
-        app.db.blocked = true;
+        app.db.block();
         const leader = try Flock.start(&app, 1, flight_query);
         defer leader.deinit();
         app.db.waitStarted(1);
@@ -1375,4 +1429,339 @@ test "single-flight: waiters on two event loops all wake (no lost wakeups)" {
         try testing.expectEqual(@as(u32, 1), app.db.count());
         try testing.expectEqual(@as(usize, 2), flight_loops_len);
     }
+}
+
+// ---- client abort (TS `complete()` on 'close'): the peer-close hook, called the way the
+// HTTP layer will (on another thread while the handler is parked; never with onSend/onDone).
+
+/// A request run through the route's hooks on its own thread (no socket),
+/// so a test can call `on_peer_closed` while the handler is parked.
+const Direct = struct {
+    route: http.Route,
+    /// The HTTP layer skips `on_send` after a peer close (one reading of
+    /// its contract): `on_done` alone must still land a flight.
+    skip_on_send_after_close: bool = true,
+    closed: std.atomic.Value(bool) = .init(false),
+    arena: std.heap.ArenaAllocator = .init(testing.allocator),
+    req: http.Request = undefined,
+    reply: http.Reply = undefined,
+    thread: std.Thread = undefined,
+
+    fn start(self: *Direct, query: []const u8) !void {
+        const a = self.arena.allocator();
+        const body = try std.fmt.allocPrint(a, "{{\"query\":{f}}}", .{Value{ .string = query }});
+        const headers = try a.dupe(http.Header, &.{ .{ .name = "Host", .value = "x" }, .{ .name = "Content-Type", .value = "application/json" } });
+        self.req = .{ .arena = a, .method = "POST", .url = "/graphql", .path = "/graphql", .query = "", .headers = headers, .remote_address = std.net.Address.initIp4(.{ 127, 0, 0, 1 }, 1), .body = .{ .json = try core.json.parse(a, body, .{}) }, .raw_body = body, .complete = true };
+        self.reply = .{ .arena = a };
+        self.thread = try std.Thread.spawn(.{}, run, .{self});
+    }
+
+    fn run(self: *Direct) void {
+        const h = self.route.hooks;
+        h.on_request.?(self.route.ctx, &self.req, &self.reply);
+        if (!self.reply.sent) h.handler(self.route.ctx, &self.req, &self.reply);
+        if (!(self.skip_on_send_after_close and self.closed.load(.acquire))) h.on_send.?(self.route.ctx, &self.req, &self.reply);
+        h.on_done.?(self.route.ctx, &self.req, &self.reply, .closed);
+    }
+
+    fn peerClosed(self: *Direct) void {
+        self.closed.store(true, .release);
+        self.route.hooks.on_peer_closed.?(self.route.ctx, &self.req, &self.reply);
+    }
+
+    fn finish(self: *Direct) void {
+        self.thread.join();
+        self.arena.deinit();
+    }
+};
+
+fn successes() f64 {
+    return core.metrics.graphql_requests.get(.{"success"});
+}
+
+/// "GraphQL request error" log lines (a `core.log` sink; tests run one at a time).
+const ErrorLines = struct {
+    var count: std.atomic.Value(u32) = .init(0);
+    fn capture(_: ?*anyopaque, _: core.log.Level, _: []const u8, msg: []const u8) void {
+        if (std.mem.indexOf(u8, msg, "GraphQL request error") != null) _ = count.fetchAdd(1, .monotonic);
+    }
+};
+
+test "client abort: a query failing after the close counts no GraphQL error and logs none" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    core.log.setLevel(.warn);
+    defer core.log.setLevel(.@"error");
+    ErrorLines.count.store(0, .monotonic);
+    core.log.setSink(ErrorLines.capture, null);
+    defer core.log.setSink(null, null);
+    app.db.block();
+    var d: Direct = .{ .route = app.route.route() };
+    const errors_before = core.metrics.graphql_errors.get(.{});
+    const stats_before = app.route.stats.errors.load(.monotonic);
+    const before = successes();
+    try d.start("{ domain(limit: 1) { id } }");
+    app.db.waitStarted(1);
+    d.peerClosed();
+    try testing.expectEqual(before + 1, successes());
+    // The backend dies after the client left (e.g. pg_terminate_backend).
+    app.db.mutex.lock();
+    app.db.fail = "terminating connection due to administrator command";
+    app.db.mutex.unlock();
+    app.db.release();
+    d.finish();
+    // TS errorFormatter finds no request state after complete(): no count, no log.
+    try testing.expectEqual(errors_before, core.metrics.graphql_errors.get(.{}));
+    try testing.expectEqual(stats_before, app.route.stats.errors.load(.monotonic));
+    try testing.expectEqual(@as(u32, 0), ErrorLines.count.load(.monotonic));
+    try testing.expectEqual(before + 1, successes());
+}
+
+test "client abort: the slot is freed and the request recorded at close, once" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    app.db.block();
+    var d: Direct = .{ .route = app.route.route() };
+    const before = successes();
+    try d.start("{ domain(limit: 1) { id } }");
+    app.db.waitStarted(1);
+    try testing.expectEqual(@as(u32, 1), app.route.active_requests.load(.monotonic));
+    d.peerClosed();
+    // TS frees the slot and records (status 200 so far) while the query runs.
+    try testing.expectEqual(@as(u32, 0), app.route.active_requests.load(.monotonic));
+    try testing.expectEqual(@as(f64, 0), core.metrics.graphql_active_requests.get(.{}));
+    try testing.expectEqual(before + 1, successes());
+    app.db.release();
+    d.finish();
+    // The handler's own completion records nothing more.
+    try testing.expectEqual(before + 1, successes());
+    try testing.expectEqual(@as(u32, 0), app.route.active_requests.load(.monotonic));
+}
+
+test "client abort: an aborted @cached miss is not cached" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    app.db.block();
+    var d: Direct = .{ .route = app.route.route() };
+    try d.start(flight_query);
+    app.db.waitStarted(1);
+    d.peerClosed();
+    app.db.release();
+    d.finish();
+    // The next request is a miss (TS onSend found no state: no write).
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const r = try app.postQuery(arena.allocator(), flight_query);
+    try testing.expectEqualStrings("max-age=300, public", r.header("cache-control").?);
+    try testing.expectEqual(@as(u32, 2), app.db.count());
+}
+
+test "client abort: an aborted leader ends its flight; its waiters each run their own query" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    app.db.block();
+    var d: Direct = .{ .route = app.route.route() };
+    try d.start(flight_query);
+    app.db.waitStarted(1);
+    const waiters = try Flock.start(&app, 3, flight_query);
+    defer waiters.deinit();
+    try waitFlightWaiters(&app.route, 3);
+    d.peerClosed();
+    // Woken with nothing stored: each runs its own query (a TS miss), now
+    // parked on the still-blocked database.
+    app.db.waitStarted(4);
+    try testing.expectEqual(@as(u32, 0), app.route.flight_waiters.load(.monotonic));
+    app.db.release();
+    d.finish();
+    waiters.join();
+    for (waiters.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+    try testing.expectEqual(@as(u32, 4), app.db.count());
+}
+
+test "client abort: an aborted leader with on_send skipped ends its flight and caches nothing" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    app.db.block();
+    var d: Direct = .{ .route = app.route.route(), .skip_on_send_after_close = true };
+    try d.start(flight_query);
+    app.db.waitStarted(1);
+    d.peerClosed();
+    app.db.release();
+    d.finish();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    // The flight is gone (landed at close) and nothing was cached.
+    try testing.expectEqualStrings("max-age=300, public", (try app.postQuery(arena.allocator(), flight_query)).header("cache-control").?);
+    try testing.expectEqual(@as(u32, 2), app.db.count());
+}
+
+fn outcomes(name: []const u8) f64 {
+    return core.metrics.graphql_requests.get(.{name});
+}
+
+test "client abort: closed before its first read decided, then refused the last slot: the 503 TS's preHandler would have counted" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    // R is admitted (slots free) and stops just before its first read.
+    app.db.pre_io_sql = "\"name\"";
+    var d: Direct = .{ .route = app.route.route() };
+    try d.start("{ domain(limit: 1) { name } }");
+    app.db.waitPreIo(1);
+    // 25 others take every slot meanwhile.
+    app.db.block_sql = "\"id\"";
+    const fillers = try Flock.start(&app, 25, "{ domain(limit: 1) { id } }");
+    defer fillers.deinit();
+    app.db.waitStarted(25);
+    const success = outcomes("success");
+    const rejected = outcomes("capacity_rejected");
+    d.peerClosed(); // undecided: not recorded yet
+    try testing.expectEqual(success, outcomes("success"));
+    app.db.releasePreIo(); // R's read loses the last slot
+    d.finish();
+    try testing.expectEqual(rejected + 1, outcomes("capacity_rejected"));
+    try testing.expectEqual(success, outcomes("success"));
+    app.db.release();
+    fillers.join();
+}
+
+test "client abort: closed before its first read decided, then admitted: completed at that read with the close's status" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    app.db.pre_io_sql = "\"name\"";
+    app.db.block_sql = "\"name\"";
+    var d: Direct = .{ .route = app.route.route() };
+    try d.start("{ domain(limit: 1) { name } }");
+    app.db.waitPreIo(1);
+    const success = outcomes("success");
+    d.peerClosed();
+    try testing.expectEqual(success, outcomes("success"));
+    app.db.releasePreIo();
+    app.db.waitStarted(1); // its read took a slot, saw the close, gave it back
+    try testing.expectEqual(success + 1, outcomes("success"));
+    try testing.expectEqual(@as(u32, 0), app.route.active_requests.load(.monotonic));
+    app.db.release();
+    d.finish();
+    try testing.expectEqual(success + 1, outcomes("success"));
+}
+
+test "client abort: a waiter parked on a flight is completed at the close (TS: a miss holding its slot)" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    app.db.block();
+    const leader = try Flock.start(&app, 1, flight_query);
+    defer leader.deinit();
+    app.db.waitStarted(1);
+    var d: Direct = .{ .route = app.route.route() };
+    try d.start(flight_query);
+    try waitFlightWaiters(&app.route, 1);
+    const success = outcomes("success");
+    d.peerClosed();
+    try testing.expectEqual(success + 1, outcomes("success"));
+    app.db.release();
+    leader.join();
+    d.finish(); // served the leader's entry; recorded nothing more
+    try testing.expectEqual(success + 2, outcomes("success")); // + the leader
+    try testing.expectEqual(@as(u32, 1), app.db.count());
+}
+
+var pause_gate = struct {
+    mutex: std.Thread.Mutex = .{},
+    cond: std.Thread.Condition = .{},
+    paused: bool = false,
+    open: bool = false,
+}{};
+
+fn pauseAfterAdmission(_: *route_mod.GraphqlRoute) void {
+    pause_gate.mutex.lock();
+    defer pause_gate.mutex.unlock();
+    pause_gate.paused = true;
+    pause_gate.cond.broadcast();
+    while (!pause_gate.open) pause_gate.cond.wait(&pause_gate.mutex);
+}
+
+test "client abort: closed after admission, before leading a flight: the flight it then leads ends in on_done" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    pause_gate = .{};
+    app.route.after_admission_hook = pauseAfterAdmission;
+    var d: Direct = .{ .route = app.route.route() }; // on_send skipped after the close
+    const success = outcomes("success");
+    try d.start(flight_query);
+    {
+        pause_gate.mutex.lock();
+        defer pause_gate.mutex.unlock();
+        while (!pause_gate.paused) pause_gate.cond.wait(&pause_gate.mutex);
+    }
+    d.peerClosed(); // admitted, no slot, no flight yet: nothing to land, not recorded
+    try testing.expectEqual(success, outcomes("success"));
+    app.route.after_admission_hook = null;
+    {
+        pause_gate.mutex.lock();
+        defer pause_gate.mutex.unlock();
+        pause_gate.open = true;
+        pause_gate.cond.broadcast();
+    }
+    d.finish(); // leads, reads (completed at that read), on_send skipped, on_done lands
+    try testing.expectEqual(success + 1, outcomes("success"));
+    try testing.expectEqual(@as(u32, 0), app.route.active_requests.load(.monotonic));
+    // The flight ended (a new request is not stranded on it: the key was marked
+    // uncacheable for 1 s, so it runs as a plain miss) and nothing was cached.
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    try testing.expectEqualStrings("max-age=300, public", (try app.postQuery(arena.allocator(), flight_query)).header("cache-control").?);
+    try testing.expectEqual(@as(u32, 2), app.db.count());
+    try testing.expectEqual(@as(u32, 0), app.route.flight_waiters.load(.monotonic));
+}
+
+test "client abort: a closed waiter whose leader cached nothing runs its query without a slot (no 503 for the 25th live request)" {
+    var app: App = .{};
+    // Uncacheable: a null in a non-null field (an error, no-store).
+    app.db.rows = "[{\"id\":null,\"name\":\"x\"}]";
+    try app.start();
+    defer app.stop();
+    // Query order: 23 fillers, the leader, one more filler, the waiter's own query.
+    app.db.gate(0, 1, 23);
+    app.db.gate(1, 24, 24);
+    app.db.gate(2, 25, 25);
+    app.db.gate(3, 26, 26);
+    const fillers = try Flock.start(&app, 23, "{ domain(limit: 1) { name } }");
+    defer fillers.deinit();
+    app.db.waitStarted(23);
+    const leader = try Flock.start(&app, 1, flight_query);
+    defer leader.deinit();
+    app.db.waitStarted(24);
+    var d: Direct = .{ .route = app.route.route() };
+    try d.start(flight_query); // admitted (24 active), parks on the leader's flight
+    try waitFlightWaiters(&app.route, 1);
+    const last_filler = try Flock.start(&app, 1, "{ domain(limit: 1) { name } }");
+    defer last_filler.deinit();
+    app.db.waitStarted(25); // 25 active: the leader and 24 fillers
+    d.peerClosed();
+    app.db.openGate(1); // the leader fails (not cached): the waiter runs its own query
+    leader.join();
+    app.db.waitStarted(26); // the waiter's query, parked at its gate
+    // 24 fillers hold slots; the closed waiter's query holds none (TS: uncounted).
+    try testing.expectEqual(@as(u32, 24), app.route.active_requests.load(.monotonic));
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const live = try app.postQuery(arena.allocator(), "{ domain(limit: 1) { name } }");
+    try testing.expectEqual(@as(u16, 200), live.status);
+    for (0..4) |i| app.db.openGate(i);
+    fillers.join();
+    last_filler.join();
+    d.finish();
 }

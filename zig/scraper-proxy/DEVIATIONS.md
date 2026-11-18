@@ -38,7 +38,12 @@ reproduces the observable rule, not the scheduling.
   loser has already dropped its cache entry; a diagnostics request with
   invalid arguments holds a slot for the instant before failing; a blocked
   response write takes its slot without the bound, so the count can exceed
-  the limit by the requests racing at that moment.
+  the limit by the requests racing at that moment. A client that closes
+  mid-request frees its slot and is recorded at that moment, as TS's
+  'close' handler does; if the close comes before the request's first read
+  has taken its slot, that read decides as TS's preHandler did (a refusal
+  is counted as the 503, an admission is completed with the close's time
+  and status).
 - **GraphQL root fields run concurrently** (as sibling fibers), and errors are merged
   the way graphql-js collects them on a query's first execution (checked
   case by case in `parity/corpus/graphql-errors.mjs`): failures without I/O
@@ -98,12 +103,33 @@ reproduces the observable rule, not the scheduling.
   for 4096 (the kernel clamps it to `net.core.somaxconn`). Under connection
   overload, clients queue in the accept queue instead of seeing SYN drops
   and the 1 s SYN retransmit. Otherwise identical.
-- **Header count:** like Node's `maxHeadersCount` (2000), extra request
-  headers are ignored, not rejected (they still count towards the 16 KiB
-  limit).
-- **Not measured, taken from Node/Fastify source:** the 503 for requests
-  arriving while the server closes, and the silent close of an idle
-  keep-alive socket after 72 s.
+- **Bytes after a closing request.** After a request that ends its
+  connection (`Connection: close`, or HTTP/1.0 without keep-alive), Node's
+  parser rejects any further byte other than CR/LF and Fastify's
+  `clientError` writes `400 Bad Request` and destroys the socket. A route
+  that answers synchronously (the 404 fallback without a body, a CORS
+  preflight, Node's own 400/417) has written its response by then, so the
+  client gets it and then the 400; one that answers after an `await` or a
+  body parse (`/graphql`, `/metrics`, a body Fastify parses) loses its
+  response and the client gets the 400 alone. The port ignores those bytes
+  and sends the response, then closes. This is a deliberate choice for now,
+  made as one decision with the half-close rule (which follows Node: a
+  client's FIN aborts a request still waiting, with no response): only a
+  client that sends more after asking to close (pipelining after
+  `Connection: close` or on HTTP/1.0, or a body longer than its
+  `Content-Length`) sees it, and it gets its answer where TS sends a 400, or
+  nothing if it also half-closed while its request waited on PostgreSQL
+  (TS: the 400). CR/LF after the request is ignored by both.
+- **Pipelined `/graphql` requests behind a request whose client hung up.**
+  TS has already parsed them and runs their preHandler/handler, recording
+  each in the GraphQL metrics at close and taking an admission slot
+  meanwhile; the port parses pipelined requests only after the current
+  response, so after the abort it never starts them. Neither runtime sends
+  any of their responses.
+- **Not measured, taken from Node/Fastify source:** the silent close of an
+  idle keep-alive socket after 72 s. (The 503 for a request whose head is
+  still arriving when the server closes is measured: the differential
+  runner's shutdown case.)
 
 ## GraphQL (mercurius / graphql-js)
 
@@ -169,9 +195,9 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
 - **V8 `JSON.parse` messages** (GET `variables`/`extensions`, and
   unparsable `/validators` client frames) are emulated for the common cases;
   rare V8 messages (e.g. lone-surrogate inputs) may differ.
-- **Lone surrogates** (`"\ud800"` in request JSON) become WTF-8 bytes;
-  locations count them as one UTF-16 unit like JS, but printing them in
-  graphql-js messages is not byte-identical.
+- **Lone surrogates (not client-visible).** `"\ud800"` in request JSON
+  becomes WTF-8 bytes internally; locations count it as one UTF-16 unit and
+  messages print it as JS does.
 - **Caches (not observable).** mercurius' two-generation QuickLRU is an
   exact LRU of the same capacity (1024, error LRU likewise); the response
   cache's prepared documents keep TS's 256 / 8192-byte bounds. TS keys the
@@ -187,8 +213,8 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   finishes, then read the cache once: an entry of their own ttl is served
   as the TS miss each stands for (the stored body, `max-age` = its ttl,
   a miss's header order), and a miss (the first response was an error,
-  `no-store`, over 1 MB, or
-  its execution was refused a slot) runs its own query, so those waiters
+  `no-store`, over 1 MB, its execution was refused a slot, or its client
+  closed first) runs its own query, so those waiters
   pay the first request's time plus their own. After such a miss the key's
   misses run at once, as in TS, for 1 s (the last 256 such keys are
   remembered, by hash), so a key that never caches keeps TS's concurrency.
@@ -337,8 +363,26 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   Other resolvers' V8 limits differ by a few levels, so their exact boundary
   may differ slightly; the response at and beyond it is the same. Query logs
   show parameters nested deeper than 64 levels as "…".
-- **Idle connection errors** are detected at checkout (pg-pool reacts to
-  the socket event at once); the log line and replacement behaviour match.
+- **Dead idle connections are noticed at checkout.** pg-pool watches idle
+  clients: when the server ends one (`pg_terminate_backend`, a restart), it
+  logs
+  `idle database connection failed role=…: <first FATAL message, else Connection terminated unexpectedly>`
+  at once and drops it without replacing it. The port notices at the connection's next checkout, logs
+  the same line then, and uses another connection. Responses are
+  unaffected; only the log line's timing differs, and a dead connection the
+  idle reaper closes, or one never checked out again, is not logged. The
+  listener's `database listener disconnected: <message>` line uses the same
+  message as TS (first FATAL, else `Connection terminated unexpectedly`).
+- **A connection whose query failed is kept.** pg-pool's `pool.query`
+  releases a client with the query's error (any server error: invalid input,
+  division by zero, a statement timeout), and pg-pool then ends that backend
+  instead of returning it to the idle list; it opens a new client only when
+  none is idle. The port keeps the connection, idle and usable after a server
+  error, and reuses it. Responses are identical. After each failed query, TS's
+  `database_pool_connections{pool="…",state="idle"}` drops by one and stays
+  lower until load grows the pool again (on `main`, below its 5 warmed
+  connections) while the port's stays put, and TS disconnects and later
+  reconnects one backend, which the port does not.
 - **Inputs GraphQL coercion cannot produce** are handled deterministically
   instead of reproducing JS accidents: a non-list value for a list argument
   (`distinct_on`, `cursor`, `order_by`) is treated as a one-element list; a
@@ -402,15 +446,6 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
 - **`ws.close(code, reason)`** truncates reasons over 123 bytes and does not
   validate the code (`ws` throws); the proxy only passes valid codes and
   short reasons, so this is unreachable.
-- **Limits are not configurable beyond TS's env surface.** TS tests pass
-  `maxExplorerClients`, `maxValidatorClients`, `maxValidatorClientsPerIp`
-  and `heartbeatMs` to the server constructor; the port's tests do the same
-  through `live.Limits`, and neither binary exposes them. A test-only
-  `-Dparity-hooks` build (never shipped) adds a loopback control port
-  (`PARITY_HOOK_PORT`) that holds send completions and runs the heartbeat on
-  demand, for the parity runner's scenarios; while holding, it writes those
-  frames uncorked. The TS side gets the same through a preload
-  (`parity/hooks/ts-hooks.mjs`).
 
 ## Metrics, logs, process
 
@@ -425,6 +460,15 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   part of the contract. Lines from different threads may interleave in a
   different order. `send failed: <reason>` uses the fixed reason
   "WebSocket is not open" instead of the Node socket error text (the
-  `send_error` metric and termination match).
+  `send_error` metric and termination match). One warning has no TS
+  counterpart: `cannot watch a waiting request's socket (…): no early abort`,
+  if the event loop cannot watch a socket whose request waits (that request
+  then learns of a client hangup only when it answers).
 - **Startup failure:** the error message goes to stderr and the process
   exits 1 (Node prints a stack trace for the uncaught rejection).
+- **SIGTERM while the listener reconnects.** TS main does not exit: the
+  LISTEN connection it acquires after shutdown began stays open and keeps
+  the process alive (measured: SIGTERM 0.5 s into a reconnect delayed by
+  1.5 s, no exit within 120 s; a fix is open in #9971). The port closes
+  that connection when its acquisition completes and exits 0 (measured:
+  1.0 s after SIGTERM). Once #9971 lands this is parity and the entry goes.

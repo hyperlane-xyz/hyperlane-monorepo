@@ -82,6 +82,8 @@ pub const Listener = struct {
     health_unflushed: bool = false,
     /// The health query's result so far (a failure may precede its end).
     health: pq.Conn.SimpleState = .{},
+    /// The ended connection's message (`closedText`), kept past its close.
+    closed_text: [512]u8 = undefined,
     /// `hub_stats` builds: notification callbacks run, and their longest and
     /// total durations (ns).
     callbacks: if (hub_stats) struct { count: u64 = 0, max_ns: u64 = 0, total_ns: u64 = 0, first_channel: [64]u8 = undefined, channel_len: usize = 0 } else void = if (hub_stats) .{} else {},
@@ -176,7 +178,7 @@ pub const Listener = struct {
         }
         const pending = self.health_deadline != null;
         if (pending and self.health_unflushed and revents & std.posix.POLL.OUT != 0) {
-            self.health_unflushed = !(self.conn.flushPending() catch return "Connection terminated unexpectedly");
+            self.health_unflushed = !(self.conn.flushPending() catch return self.closedText());
         }
         const readable = revents & (std.posix.POLL.IN | std.posix.POLL.ERR | std.posix.POLL.HUP | std.posix.POLL.NVAL) != 0;
         // TLS without the exact OpenSSL check: input a bounded drain left
@@ -185,7 +187,7 @@ pub const Listener = struct {
         if (readable or capped) {
             self.conn.consumeInput(pending) catch {
                 self.deliver();
-                return "Connection terminated unexpectedly";
+                return self.closedText();
             };
             if (pending) switch (self.conn.takeSimple(&self.health)) {
                 .busy => {},
@@ -205,13 +207,25 @@ pub const Listener = struct {
             if (now >= due) return "Query read timeout";
         } else if (self.next_health) |due| if (now >= due) {
             self.health = .{};
-            self.conn.sendSimple("SELECT 1") catch return "Connection terminated unexpectedly";
-            self.health_unflushed = !(self.conn.flushPending() catch return "Connection terminated unexpectedly");
+            self.conn.sendSimple("SELECT 1") catch return self.closedText();
+            self.health_unflushed = !(self.conn.flushPending() catch return self.closedText());
             // `query`'s deadline: the connection's query timeout (none: no limit).
             const timeout = self.conn.query_timeout_ms orelse 0;
             self.health_deadline = if (timeout > 0) now + @as(i64, @intCast(timeout)) else std.math.maxInt(i64);
         };
         return null;
+    }
+
+    /// node-pg's message for the connection that just ended: the FATAL the
+    /// server sent before closing it (`terminating connection due to
+    /// administrator command`), else "Connection terminated unexpectedly"
+    /// (`Conn.closedMessage`). Copied: the hub closes the connection before
+    /// `on_disconnect` runs.
+    fn closedText(self: *Listener) []const u8 {
+        const m = self.conn.closedMessage();
+        const n = @min(m.len, self.closed_text.len);
+        @memcpy(self.closed_text[0..n], m[0..n]);
+        return self.closed_text[0..n];
     }
 
     /// The earliest moment this connection needs a pass without input.
@@ -431,7 +445,8 @@ const Hub = struct {
     fn disconnect(self: *Hub, listener: *Listener, message: []const u8) void {
         self.mutex.lock();
         // Like node-pg after 'error'/'end': the socket is gone. The message
-        // is a literal or in `health.buffer`, not connection-owned. Closed
+        // is a literal, in `health.buffer` or in `closed_text`, not
+        // connection-owned. Closed
         // outside the shared lock (nothing else touches it now).
         var conn = listener.conn;
         listener.conn_closed = true;

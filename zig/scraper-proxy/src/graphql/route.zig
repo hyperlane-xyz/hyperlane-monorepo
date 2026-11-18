@@ -5,6 +5,7 @@
 //! `defaultErrorFormatter` status rule) and its response serialization
 //! (fast-json-stringify for 2xx, JSON.stringify otherwise).
 const std = @import("std");
+const builtin = @import("builtin");
 const core = @import("core");
 const http = @import("http");
 const json = core.json;
@@ -69,7 +70,9 @@ fn tryAcquire(counter: *std.atomic.Value(u32), max: u32) bool {
 }
 
 /// Execution slot of an admitted request (see "Execution admission" below).
-const Slot = enum(u8) { none, deciding, held, rejected };
+/// `released`: admitted, its slot already returned at the client's close
+/// (TS `complete()`); later reads run uncounted, as TS's query keeps running.
+const Slot = enum(u8) { none, deciding, held, rejected, released };
 
 /// Per-request hook state (`requestStates` / `uploadReleases` WeakMaps).
 const RequestState = struct {
@@ -80,14 +83,30 @@ const RequestState = struct {
     upload_held: bool = false,
     /// Passed the preHandler capacity check (recorded on completion).
     admitted: bool = false,
+    /// Admitted and not yet recorded: claimed once, by `onDone` or by the
+    /// peer-close hook (TS `complete()`, on 'finish' or 'close').
+    open: std.atomic.Value(bool) = .init(false),
+    /// The client went away first (TS `requestStates.delete`): no cache
+    /// write and no cache-control; the slot was freed at close.
+    aborted: std.atomic.Value(bool) = .init(false),
+    /// When and with what status the client closed (recorded then).
+    closed_ms: std.atomic.Value(i64) = .init(0),
+    close_status: std.atomic.Value(u16) = .init(200),
+    /// Parked on another request's single-flight: in TS it would be a miss
+    /// holding its own slot, so a close completes it at once.
+    on_flight: std.atomic.Value(bool) = .init(false),
+    /// For the close's log line (set at admission).
+    req: ?*http.Request = null,
     slot: std.atomic.Value(Slot) = .init(.none),
     started_ms: i64 = 0,
     failed: bool = false,
     prepared: ?cache_mod.PreparedCacheRequest = null,
     /// Shared cached body being written (released in on_done).
     hit: ?cache_mod.SharedHit = null,
-    /// Leads its key's single-flight: `land` once (onSend, else onDone).
+    /// Leads its key's single-flight: `land` once (onSend, the peer-close
+    /// hook, else onDone; `leading_set` is the claim).
     leading: ?cache_mod.PreparedCacheRequest = null,
+    leading_set: std.atomic.Value(bool) = .init(false),
 };
 
 const FiberLocals = struct {
@@ -120,6 +139,10 @@ pub const GraphqlRoute = struct {
     flight_waiters: std.atomic.Value(u32) = .init(0),
     /// Test seam: runs on the waiting fiber right before it parks on a flight.
     flight_park_hook: ?*const fn (*GraphqlRoute) void = null,
+    /// Test-only pause right after admission, before the cache lookup (a
+    /// close can then land before the request leads a flight). Absent from
+    /// non-test builds.
+    after_admission_hook: if (builtin.is_test) ?*const fn (*GraphqlRoute) void else void = if (builtin.is_test) null else {},
 
     fn defaultNow() i64 {
         return std.time.milliTimestamp();
@@ -193,6 +216,7 @@ pub const GraphqlRoute = struct {
                 .on_send = onSend,
                 .on_write_blocked = onWriteBlocked,
                 .on_done = onDone,
+                .on_peer_closed = onPeerClosed,
             },
             .text_content_types = &.{"application/graphql"},
             .body_limit = max_request_bytes,
@@ -227,15 +251,21 @@ pub const GraphqlRoute = struct {
         const st: *RequestState = @ptrCast(@alignCast(ctx));
         while (true) {
             switch (st.slot.load(.acquire)) {
-                .held => return true,
+                .held, .released => return true,
                 .rejected => return false,
                 .deciding => std.atomic.spinLoopHint(), // another root field of this request
                 .none => {
                     if (st.slot.cmpxchgWeak(.none, .deciding, .acquire, .monotonic) != null) continue;
                     const self = st.route;
+                    // Decided as TS's preHandler did, even after a close (the
+                    // close then completes it below, or the 503 path records).
                     const ok = tryAcquire(&self.active_requests, self.options.max_active_requests);
                     if (ok) metrics.graphql_active_requests.inc(.{}, 1);
-                    st.slot.store(if (ok) .held else .rejected, .release);
+                    st.slot.store(if (ok) .held else .rejected, .seq_cst);
+                    // Closed before (or while) this read decided: complete it
+                    // now as TS's 'close' did for its admitted request (seq_cst
+                    // pairs with the hook's `aborted` store and slot load).
+                    if (ok and st.aborted.load(.seq_cst)) self.completeClosed(st);
                     return ok;
                 },
             }
@@ -243,8 +273,8 @@ pub const GraphqlRoute = struct {
     }
 
     fn releaseSlot(self: *GraphqlRoute, st: *RequestState) void {
-        if (st.slot.load(.acquire) != .held) return;
-        st.slot.store(.none, .release);
+        // The close and onDone may both try: one releases.
+        if (st.slot.cmpxchgStrong(.held, .none, .seq_cst, .seq_cst) != null) return;
         _ = self.active_requests.fetchSub(1, .monotonic);
         metrics.graphql_active_requests.dec(.{}, 1);
     }
@@ -317,6 +347,9 @@ pub const GraphqlRoute = struct {
         // Waiters wake after the entry is written (or not), before this
         // response is written to a possibly slow client.
         defer self.land(st);
+        // TS onSend after the client left: no state, so no cache write and
+        // no cache-control (the reply is discarded anyway).
+        if (st.aborted.load(.acquire)) return;
         const prepared = st.prepared orelse return;
         if (st.failed) {
             reply.header("cache-control", "no-store");
@@ -339,9 +372,48 @@ pub const GraphqlRoute = struct {
 
     /// Ends the request's single-flight if it leads one.
     fn land(self: *GraphqlRoute, st: *RequestState) void {
-        const request = st.leading orelse return;
-        st.leading = null;
-        self.response_cache.land(request);
+        if (!st.leading_set.swap(false, .acq_rel)) return;
+        self.response_cache.land(st.leading.?);
+    }
+
+    /// TS `complete()` on the response's 'close' before 'finish': free the
+    /// slot and record the request now (status as it stands, 200 unless the
+    /// handler already set one), forget its cache state, and end a flight it
+    /// leads (unwritten, so its waiters each run their own query, as TS's
+    /// concurrent misses did). The handler keeps running; its reply is
+    /// discarded and onDone records nothing more.
+    fn onPeerClosed(ctx: *anyopaque, req: *http.Request, reply: *http.Reply) void {
+        const self: *GraphqlRoute = @ptrCast(@alignCast(ctx));
+        const st = self.state(req);
+        if (!st.open.load(.acquire)) return; // not admitted, or already recorded
+        st.close_status.store(reply.statusNow(), .release);
+        st.closed_ms.store(self.now_ms(), .release);
+        st.aborted.store(true, .seq_cst);
+        self.land(st);
+        // TS admitted it at preHandler and completes it now. Here a request
+        // holding its slot (or parked on a flight, a TS miss holding one) is
+        // that request. One whose first read has not decided yet is completed
+        // by that read (enterSlot), or recorded by the 503 path if it loses
+        // the last slot, as TS's preHandler would have refused it; one that
+        // never reads finishes as TS's synchronous request did (onDone).
+        if (st.on_flight.load(.acquire)) {
+            // A parked waiter holds no slot; once completed, a query it runs
+            // later (its leader cached nothing) runs uncounted, as TS's
+            // admitted miss kept running after its close.
+            _ = st.slot.cmpxchgStrong(.none, .released, .seq_cst, .seq_cst);
+            self.completeClosed(st);
+        } else if (st.slot.load(.seq_cst) == .held) self.completeClosed(st);
+    }
+
+    /// TS `complete()` at the close: the slot back, the request recorded
+    /// with the close's time and status. Once, whoever calls it.
+    fn completeClosed(self: *GraphqlRoute, st: *RequestState) void {
+        if (st.slot.cmpxchgStrong(.held, .released, .seq_cst, .seq_cst) == null) {
+            _ = self.active_requests.fetchSub(1, .monotonic);
+            metrics.graphql_active_requests.dec(.{}, 1);
+        }
+        if (!st.open.swap(false, .acq_rel)) return;
+        self.recordRequestAt(st.started_ms, st.closed_ms.load(.acquire), st.close_status.load(.acquire), false, st.req);
     }
 
     /// The response did not fit the socket: TS keeps the slot it took at
@@ -372,6 +444,7 @@ pub const GraphqlRoute = struct {
         self.releaseSlot(st);
         if (!st.admitted) return;
         st.admitted = false;
+        if (!st.open.swap(false, .acq_rel)) return; // recorded at close
         self.recordRequest(st.started_ms, reply.status, false, req);
     }
 
@@ -384,7 +457,11 @@ pub const GraphqlRoute = struct {
 
     /// `req` null = the capacity rejection (`REQUEST /graphql` label).
     fn recordRequest(self: *GraphqlRoute, started: i64, status: u16, rejected: bool, req: ?*http.Request) void {
-        const duration = self.now_ms() - started;
+        self.recordRequestAt(started, self.now_ms(), status, rejected, req);
+    }
+
+    fn recordRequestAt(self: *GraphqlRoute, started: i64, end: i64, status: u16, rejected: bool, req: ?*http.Request) void {
+        const duration = end - started;
         const outcome: []const u8 = if (rejected) "capacity_rejected" else if (status >= 500) "server_error" else if (status >= 400) "client_error" else "success";
         metrics.graphql_requests.inc(.{outcome}, 1);
         metrics.graphql_request_duration.observe(.{}, @as(f64, @floatFromInt(duration)) / 1000);
@@ -425,6 +502,10 @@ pub const GraphqlRoute = struct {
         }
         st.admitted = true;
         st.started_ms = started;
+        st.req = req;
+        // Published last: a peer-close hook that claims `open` reads started_ms.
+        st.open.store(true, .release);
+        if (comptime builtin.is_test) if (self.after_admission_hook) |hook| hook(self);
 
         // preHandler: response cache.
         if (validated == .ok) {
@@ -441,6 +522,7 @@ pub const GraphqlRoute = struct {
                     .hit => |hit| hit,
                     .lead => blk: {
                         st.leading = prepared;
+                        st.leading_set.store(true, .release);
                         break :blk null;
                     },
                     .miss => null,
@@ -450,7 +532,9 @@ pub const GraphqlRoute = struct {
                     .wait => blk: {
                         _ = self.flight_waiters.fetchAdd(1, .monotonic);
                         if (self.flight_park_hook) |hook| hook(self);
+                        st.on_flight.store(true, .release);
                         flight_waiter.waiter.wait();
+                        st.on_flight.store(false, .release);
                         _ = self.flight_waiters.fetchSub(1, .monotonic);
                         waited = true;
                         break :blk self.response_cache.readSharedForWaiter(prepared);
@@ -518,6 +602,8 @@ pub const GraphqlRoute = struct {
             if (outcome == .executed) outcome.executed.deinit();
             st.admitted = false;
             st.prepared = null;
+            // Already recorded by the peer-close hook: the reply is discarded.
+            if (!st.open.swap(false, .acq_rel)) return reply.sendText(capacity_message);
             return self.sendCapacityRejection(reply, started);
         }
         switch (outcome) {
@@ -666,7 +752,10 @@ pub const GraphqlRoute = struct {
     /// graphql.ts errorFormatter wrapper: failed flag, stats, metrics, logs.
     fn formatterSideEffects(self: *GraphqlRoute, req: *http.Request, errors: []const GqlError) void {
         const st = self.state(req);
-        if (!st.admitted or errors.len == 0) return;
+        // TS errorFormatter acts only while the request has state; complete()
+        // at the client's 'close' deleted it, so a query failing after the
+        // close counts and logs nothing.
+        if (!st.admitted or st.aborted.load(.acquire) or errors.len == 0) return;
         st.failed = true;
         _ = self.stats.errors.fetchAdd(errors.len, .monotonic);
         metrics.graphql_errors.inc(.{}, @floatFromInt(errors.len));

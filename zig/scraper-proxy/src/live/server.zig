@@ -350,6 +350,9 @@ pub const Peer = struct {
     /// Atomic: send completions drop their reference without the loop mutex.
     refs: std.atomic.Value(usize) = .init(1),
     route: Route,
+    /// Reader thread only: inside the frames of one socket read, which hold
+    /// the loop mutex as one turn (Node's 'data' macrotask).
+    read_batch: bool = false,
     terminated: bool = false,
     in_clients: bool = false,
     agent: AgentClient = .{},
@@ -1469,20 +1472,57 @@ pub const Server = struct {
     pub fn onMessage(self: *Server, peer: *Peer, data: []const u8) void {
         self.loop.lock();
         defer self.loop.unlock();
+        self.onMessageLocked(peer, data);
+    }
+
+    /// Inside a read batch (`beginRead`): the mutex is already held.
+    pub fn onMessageLocked(self: *Server, peer: *Peer, data: []const u8) void {
+        self.loop.assertHeld();
         self.handleMessage(peer, data);
     }
 
     pub fn onPong(self: *Server, peer: *Peer) void {
         self.loop.lock();
         defer self.loop.unlock();
+        self.onPongLocked(peer);
+    }
+
+    pub fn onPongLocked(self: *Server, peer: *Peer) void {
+        self.loop.assertHeld();
         if (peer.in_clients) peer.agent.alive = true else if (peer.in_explorer) peer.explorer.alive = true;
     }
 
     pub fn onError(self: *Server, peer: *Peer, message: []const u8) void {
         self.loop.lock();
         defer self.loop.unlock();
+        self.onErrorLocked(peer, message);
+    }
+
+    pub fn onErrorLocked(self: *Server, peer: *Peer, message: []const u8) void {
+        self.loop.assertHeld();
         self.logger.warn("websocket error: {s}", .{message});
         self.disconnect(peer);
+    }
+
+    /// The frames of one socket read run as one turn, as Node's ws emits
+    /// them inside one 'data' macrotask: continuations (microtasks) queued by
+    /// a frame run after the last of them, at `endRead`.
+    pub fn beginRead(self: *Server, peer: *Peer) void {
+        self.loop.lock();
+        peer.read_batch = true;
+    }
+
+    pub fn endRead(self: *Server, peer: *Peer) void {
+        peer.read_batch = false;
+        self.loop.unlock();
+    }
+
+    /// A close frame or receiver error applied inside a read batch (mutex
+    /// held): frames this peer sent earlier in the batch were written while
+    /// it was OPEN (Node's `ws.send` writes at once), so its cork goes first.
+    pub fn beforeTransition(self: *Server, peer: *Peer) void {
+        self.loop.assertHeld();
+        self.flushCork(peer, false);
     }
 
     /// ws 'close' (exactly once). Drops the connection's peer reference.
@@ -1970,6 +2010,11 @@ pub const Server = struct {
     pub fn onValidatorMessage(self: *Server, peer: *Peer, data: []const u8, binary: bool) void {
         self.loop.lock();
         defer self.loop.unlock();
+        self.onValidatorMessageLocked(peer, data, binary);
+    }
+
+    pub fn onValidatorMessageLocked(self: *Server, peer: *Peer, data: []const u8, binary: bool) void {
+        self.loop.assertHeld();
         if (!peer.in_clients) return;
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
@@ -2303,9 +2348,15 @@ pub const Server = struct {
             event_streams.appendSlice(arena.allocator(), protocol.splitConfirmationStreams(arena.allocator(), stream, subscribe_message.confirmations_by_domain) catch oom()) catch oom();
         }
         if (canonicalOnly(streams, event_streams.items)) {
-            // `await Promise.all([])` is a microtask: TS runs on to the
-            // boundary read before anything else; nothing here may wait.
-            self.subscribeCanonical(peer, subscribe_message, event_streams.items);
+            // `await Promise.all([])` is a microtask: frames later in the same
+            // socket read (one Node macrotask) are handled first and see
+            // `subscribing`; then the ack and the boundary read.
+            client.subscribing = true;
+            const job = self.allocator.create(CanonicalAck) catch oom();
+            job.* = .{ .server = self, .peer = peer, .arena = arena, .message = subscribe_message, .event_streams = event_streams.items };
+            arena_owned = false;
+            peer.retain();
+            self.loop.handOff(.{ .run = .{ .ctx = job, .func = CanonicalAck.run } });
             return;
         }
         client.subscribing = true;
@@ -2752,6 +2803,30 @@ pub const Server = struct {
         }
         return true;
     }
+
+    /// A canonical-only subscribe's `await Promise.all([])` continuation.
+    const CanonicalAck = struct {
+        server: *Server,
+        peer: *Peer,
+        arena: std.heap.ArenaAllocator,
+        message: protocol.Subscribe,
+        event_streams: []const protocol.StreamRequest,
+
+        /// Mutex held (a handoff callback).
+        fn run(ctx: *anyopaque) void {
+            const job: *CanonicalAck = @ptrCast(@alignCast(ctx));
+            const self = job.server;
+            const peer = job.peer;
+            defer {
+                job.arena.deinit();
+                self.allocator.destroy(job);
+                peer.release();
+            }
+            // `if (this.clients.get(socket) !== client) return;`
+            if (!peer.in_clients) return;
+            self.subscribeCanonical(peer, job.message, job.event_streams);
+        }
+    };
 
     /// A canonical-only `onMessage` after its microtask: acknowledge, then
     /// issue the boundary read; its continuation sends the live starts.

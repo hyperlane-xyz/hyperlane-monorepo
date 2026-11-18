@@ -34,9 +34,18 @@ pub const KICK: u32 = 1 << 4; // timer expiry / server close: re-evaluate
 pub const R_DONE: u32 = 1 << 5; // WebSocket reader finished: W holder tears down
 pub const WANT_W: u32 = 1 << 6; // WebSocket frames wait: writable events matter
 pub const R_HUP: u32 = 1 << 7; // peer hangup/error seen while R was held
+/// HTTP: a handler fiber holds R and waits; a peer hangup now aborts the
+/// exchange (`on_peer_closed`) instead of waiting for the response.
+pub const DETACHED: u32 = 1 << 8;
+/// HTTP: the peer closed while `DETACHED`; the response is discarded.
+pub const ABORTED: u32 = 1 << 9;
+/// HTTP: `on_peer_closed` is running (the exchange must outlive it).
+pub const ABORT_RUNNING: u32 = 1 << 10;
+/// With `R_HUP`: that hangup was a reset or socket error, not just a FIN.
+pub const R_RESET: u32 = 1 << 11;
 
 /// Pending bits an R holder must handle before it can release.
-pub const r_pending: u32 = R_AGAIN | KICK | R_HUP;
+pub const r_pending: u32 = R_AGAIN | KICK | R_HUP | R_RESET;
 
 /// What woke a reader: nothing (kick/post), input, or input plus hangup.
 pub const Io = enum {
@@ -347,6 +356,9 @@ pub const Event = struct {
     readable: bool = false,
     writable: bool = false,
     hup: bool = false,
+    /// Part of `hup`: the connection is gone both ways or failed (RST, socket
+    /// error), not just the peer's FIN (half-close).
+    reset: bool = false,
     /// Non-zero: not readiness but a slot whose `token` another thread
     /// claimed (`post`); it runs as `on_posted`.
     token: u32 = 0,
@@ -1400,6 +1412,7 @@ pub const Loop = struct {
                     .readable = m & (linux.EPOLL.IN | linux.EPOLL.RDHUP | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
                     .writable = m & (linux.EPOLL.OUT | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
                     .hup = m & (linux.EPOLL.RDHUP | linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
+                    .reset = m & (linux.EPOLL.HUP | linux.EPOLL.ERR) != 0,
                 };
             }
             return .{ .events = rc };
@@ -1414,6 +1427,8 @@ pub const Loop = struct {
             .readable = e.filter == std.c.EVFILT.READ,
             .writable = e.filter == std.c.EVFILT.WRITE,
             .hup = e.flags & (std.c.EV.EOF | std.c.EV.ERROR) != 0,
+            // EV_EOF carries the socket error (e.g. ECONNRESET) in fflags.
+            .reset = e.flags & std.c.EV.ERROR != 0 or (e.flags & std.c.EV.EOF != 0 and e.fflags != 0),
         };
         return .{ .events = n };
     }
