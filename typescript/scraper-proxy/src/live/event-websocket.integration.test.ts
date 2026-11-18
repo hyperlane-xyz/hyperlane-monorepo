@@ -4082,7 +4082,14 @@ void it('sheds a large stalled queue before a healthy browser at the global byte
   assert(address && typeof address !== 'string');
   await localEvents.start(localHttp);
   const endpoint = `ws://127.0.0.1:${address.port}/messages`;
-  const sockets = Array.from({ length: 4 }, () => new WebSocket(endpoint));
+  // Shared frames count once globally, so each stalled browser follows its own
+  // message to hold distinct bytes. The last browser follows everything.
+  const ids = ['0a', '0b', '0c'].map((byte) => byte.repeat(32));
+  const probe = '0d'.repeat(32);
+  const sockets = [
+    ...ids.map((id) => new WebSocket(`${endpoint}?messageIds=0x${id}`)),
+    new WebSocket(endpoint),
+  ];
   const messages = sockets.map(captureMessages);
   await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
   const body = 'x'.repeat(300_000);
@@ -4094,24 +4101,65 @@ void it('sheds a large stalled queue before a healthy browser at the global byte
         stringArray(values[0]).map((id) => ({ msg_id: id, msg_body: body })),
       ),
   );
-  // Stall three browsers. The last browser keeps draining every update.
-  const completions = delayServerSendCompletions(context);
+  // Stall every server socket except the one that receives the probe, which
+  // only the unfiltered browser follows.
+  const completions: Array<() => void> = [];
+  const healthy = new WeakSet<WebSocket>();
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
+  const originalSend = WebSocket.prototype.send;
+  context.mock.method(
+    WebSocket.prototype,
+    'send',
+    function (
+      this: WebSocket,
+      data: Parameters<WebSocket['send']>[0],
+      optionsOrCallback?:
+        | Parameters<WebSocket['send']>[1]
+        | ((error?: Error) => void),
+      callback?: (error?: Error) => void,
+    ): void {
+      const completion =
+        typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
+      const row = message?.data;
+      if (
+        message?.type === 'message_upsert' &&
+        row &&
+        typeof row === 'object' &&
+        'msg_id' in row &&
+        String(row.msg_id).endsWith(probe)
+      )
+        healthy.add(this);
+      const completed =
+        completion && message?.type === 'message_upsert' && !healthy.has(this)
+          ? () => completions.push(() => completion())
+          : completion;
+      if (typeof optionsOrCallback === 'function' || !optionsOrCallback) {
+        originalSend.call(this, data, completed);
+      } else {
+        originalSend.call(this, data, optionsOrCallback, completed);
+      }
+    },
+  );
+  const upserts = () =>
+    messages[3].filter((f) => f.type === 'message_upsert').length;
   try {
-    for (let count = 1; count <= 40; count++) {
+    notify('scraper_explorer_event', JSON.stringify({ messageId: probe }));
+    await waitUntil(() => upserts() === 1);
+    for (let count = 0; count < 120; count++) {
       notify(
         'scraper_explorer_event',
-        JSON.stringify({ messageId: msgId.slice(2) }),
+        JSON.stringify({ messageId: ids[count % 3] }),
       );
-      await waitUntil(
-        () =>
-          messages[3].filter((f) => f.type === 'message_upsert').length ===
-          count,
-      );
-      await waitUntil(() => completions.length >= (count === 1 ? 4 : 1));
-      completions.pop()?.();
+      await waitUntil(() => upserts() === count + 2);
     }
     assert.equal(sockets[3].readyState, WebSocket.OPEN);
-    assert(sockets.slice(0, 3).some((s) => s.readyState === WebSocket.CLOSED));
+    await waitUntil(() =>
+      sockets.slice(0, 3).some((s) => s.readyState === WebSocket.CLOSED),
+    );
     assert(
       localEvents.metricsSnapshot().explorerPendingBytes <= 32 * 1024 * 1024,
     );
@@ -4160,9 +4208,10 @@ void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (cont
     await waitUntil(() => completions.length === 2);
     assert.equal(events.metricsSnapshot().outboundPendingBytes, 2 * firstBytes);
     assert.equal(events.metricsSnapshot().explorerPendingMessages, 2);
+    // Both clients queue the same shared buffer; the global budget counts it once.
     assert.equal(
       events.metricsSnapshot().explorerPendingBytes,
-      2 * Buffer.byteLength(JSON.stringify(expected[1])),
+      Buffer.byteLength(JSON.stringify(expected[1])),
     );
     for (const complete of completions.splice(0)) complete();
     await waitUntil(() => completions.length === 2);
