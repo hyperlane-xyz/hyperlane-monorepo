@@ -3,7 +3,8 @@ import { it } from 'node:test';
 import { once, EventEmitter } from 'node:events';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { MessageSource } from './message-source.js';
-import { collectMessageFacts } from './message-facts.js';
+import { collectMessageFacts, projectMessage } from './message-facts.js';
+import { MAX_PAYMENT_HEIGHTS } from './provisional-message.js';
 
 const initialHeads = async () =>
   new Map(
@@ -217,6 +218,8 @@ void it('hides a folded payment bucket until its newest payment is visible', asy
       policy(n),
       ids,
       (frame) => {
+        // A cursor inside a fold gets partial totals, never an error frame.
+        assert.notEqual(frame.type, 'error');
         const data = frame.data;
         if (data && typeof data === 'object' && 'total_payment' in data)
           totals.push(
@@ -670,4 +673,125 @@ void it('selects rollback refreshes per subscriber', async () => {
   await rollback(20n, 15n);
   assert.deepEqual(zero, ['paid:1', 'rollback', 'paid:0']);
   assert.deepEqual(two, ['paid:0', 'rollback']);
+});
+
+void it('does not refresh rows whose only facts on a rolled-back domain have no height', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 20n, indexed: 20n, confirmed: 5n }]]),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '15'),
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+          payment_buckets: [
+            { domain: 1, height: null, count: '1', payment: '1', gas: '1' },
+          ],
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  await source.refresh(['legacy']);
+  const head = {
+    domain: 1,
+    confirmedHeight: 5n,
+    indexedHeight: 18n,
+    headHeight: 18n,
+    previousIndexedHeight: 20n,
+  };
+  source.observe(head);
+  source.notify(head);
+  await nextTurn();
+  // Origin at 15 survives a rollback to 18, and the payment has no height.
+  assert.deepEqual(reads, ['legacy']);
+});
+
+void it('depends on the newest payment of a folded domain', () => {
+  const facts = collectMessageFacts([
+    {
+      ...fact('m', '1'),
+      payment_buckets: Array.from(
+        { length: 2 * MAX_PAYMENT_HEIGHTS + 1 },
+        (_, i) => ({
+          domain: 2,
+          height: String(i + 1),
+          count: '1',
+          payment: '1',
+          gas: '1',
+        }),
+      ),
+    },
+  ]).get('m');
+  assert(facts && !(facts instanceof Error));
+  const row = projectMessage(facts, (domain) => (domain === 2 ? 3n : 100n));
+  // Only heights 1-3 are visible, but removing any newer payment can change
+  // which payments fold, so the rollback dependency is the newest one.
+  assert.equal(row?.heights.get(2), BigInt(2 * MAX_PAYMENT_HEIGHTS + 1));
+  assert.equal(row?.data.num_payments, '3');
+});
+
+void it('refreshes a confirmed fact a deep subscriber can lose in a rollback', async () => {
+  const reads: string[] = [];
+  let rolledBack = false;
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 110n, indexed: 110n, confirmed: 100n }]]),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '90'),
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+          payment_buckets: [
+            { domain: 1, height: '99', count: '1', payment: '1', gas: '1' },
+          ],
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  const payments: string[] = [];
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 8 },
+    undefined,
+    (frame) => {
+      const data = frame.data;
+      if (data && typeof data === 'object' && 'num_payments' in data)
+        payments.push(String(data.num_payments));
+    },
+    assert.fail,
+  );
+  await source.refresh(['m']);
+  rolledBack = true;
+  const head = {
+    domain: 1,
+    confirmedHeight: 100n,
+    indexedHeight: 105n,
+    headHeight: 105n,
+    previousIndexedHeight: 110n,
+  };
+  source.observe(head);
+  source.notify(head);
+  for (let i = 0; i < 5 && payments.length < 2; i++) await nextTurn();
+  // The frontier drops from 102 to 97, below the confirmed payment at 99.
+  assert(rolledBack);
+  assert.deepEqual(reads, ['m', 'm']);
+  assert.deepEqual(payments, ['1', '0']);
 });

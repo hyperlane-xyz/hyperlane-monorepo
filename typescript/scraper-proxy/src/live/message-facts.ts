@@ -1,5 +1,8 @@
 import type { Row } from './event-store.js';
-import { MAX_MESSAGE_FACTS } from './provisional-message.js';
+import {
+  MAX_MESSAGE_FACTS,
+  MAX_PAYMENT_HEIGHTS,
+} from './provisional-message.js';
 import { parseDatabaseDomain, parseId } from './protocol.js';
 
 type PaymentBucket = {
@@ -142,15 +145,17 @@ export function projectMessage(
   facts: MessageFacts,
   frontier: (domain: number) => bigint | undefined,
 ) {
-  // Highest visible fact per domain; a rollback to or above it cannot change
-  // this row. Height-less rows count as the frontier itself.
+  // Highest visible fact per domain that a rollback could remove; a rollback
+  // to or above it cannot change this row. Facts without a height are never
+  // rewound, so they are not tracked.
   const heights = new Map<number, bigint>();
+  const see = (domain: number, height: bigint) => {
+    if (height > (heights.get(domain) ?? -1n)) heights.set(domain, height);
+  };
   const visible = (domain: number, height: bigint | null) => {
     const limit = frontier(domain);
     if (height !== null && limit !== undefined && height > limit) return false;
-    const seen = height ?? limit;
-    if (seen !== undefined && seen > (heights.get(domain) ?? -1n))
-      heights.set(domain, seen);
+    if (height !== null) see(domain, height);
     return true;
   };
   if (!visible(facts.origin, facts.height)) return;
@@ -159,12 +164,27 @@ export function projectMessage(
   let count = 0n,
     payment = 0n,
     gas = 0n;
+  const exact = new Map<number, { buckets: number; newest: bigint }>();
   for (const bucket of facts.payments) {
+    if (bucket.height !== null) {
+      const domain = exact.get(bucket.domain);
+      exact.set(bucket.domain, {
+        buckets: (domain?.buckets ?? 0) + 1,
+        newest:
+          domain && domain.newest > bucket.height
+            ? domain.newest
+            : bucket.height,
+      });
+    }
     if (!visible(bucket.domain, bucket.height)) continue;
     count += bucket.count;
     payment += bucket.payment;
     gas += bucket.gas;
   }
+  // A folded domain's membership is ranked from its newest payments, so any
+  // rollback that removes one can move a payment into or out of the fold.
+  for (const [domain, { buckets, newest }] of exact)
+    if (buckets > 2 * MAX_PAYMENT_HEIGHTS) see(domain, newest);
   const data: Row = {
     ...facts.pending,
     ...delivery?.fields,

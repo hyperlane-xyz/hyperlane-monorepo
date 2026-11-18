@@ -441,14 +441,9 @@ export class MessageSource {
       if (to > from && sub.ids?.size !== 0) needed = true;
       if (sub.ids?.size === 0) sub.frontiers.set(domain, to);
       if (event.previousConfirmedHeight !== confirmedHeight)
-        for (const [id, deps] of sub.exposed) {
-          if (
-            [...deps].every(
-              ([d, height]) => height <= (this.heads.get(d)?.confirmed ?? 0n),
-            )
-          )
+        for (const [id, deps] of sub.exposed)
+          if ([...deps].every(([d, height]) => this.settled(sub, d, height)))
             sub.exposed.delete(id);
-        }
     }
     if (refresh.size)
       void this.refresh(
@@ -630,6 +625,14 @@ export class MessageSource {
     }
   }
 
+  // A rollback never rewinds below the confirmed height, so this subscriber's
+  // frontier stays at or above `confirmed - confirmations`. A fact at or below
+  // that stays visible to it whatever rolls back.
+  private settled(sub: Subscriber, domain: number, height: bigint) {
+    const confirmed = this.heads.get(domain)?.confirmed ?? 0n;
+    return height <= confirmed - BigInt(sub.confirmations);
+  }
+
   private upsert(
     sub: Subscriber,
     id: string,
@@ -654,7 +657,7 @@ export class MessageSource {
     }
     const deps = new Map<number, bigint>();
     for (const [d, height] of row.heights)
-      if (sub.frontiers.has(d) && height > (this.heads.get(d)?.confirmed ?? 0n))
+      if (sub.frontiers.has(d) && !this.settled(sub, d, height))
         deps.set(d, height);
     if (deps.size) sub.exposed.set(id, deps);
     else sub.exposed.delete(id);
