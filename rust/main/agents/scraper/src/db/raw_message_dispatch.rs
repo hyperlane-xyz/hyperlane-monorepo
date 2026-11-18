@@ -1,5 +1,8 @@
 use eyre::Result;
-use sea_orm::{prelude::*, ConnectionTrait, FromQueryResult, QuerySelect, Statement};
+use sea_orm::{
+    prelude::*, ConnectionTrait, DatabaseTransaction, FromQueryResult, QuerySelect, Statement,
+    TransactionTrait,
+};
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -30,6 +33,25 @@ impl RawDispatchForEnrichment {
 }
 
 impl ScraperDb {
+    async fn begin_reconciliation_read(&self) -> Result<DatabaseTransaction> {
+        let tx = self.0.begin().await?;
+        // Apply the deadline on the server and keep any stricter session limit.
+        tx.execute_unprepared(
+            r#"SELECT set_config(
+                'statement_timeout',
+                CASE
+                    WHEN current_setting('statement_timeout')::interval
+                         BETWEEN INTERVAL '1ms' AND INTERVAL '2s'
+                    THEN current_setting('statement_timeout')
+                    ELSE '2s'
+                END,
+                true
+            )"#,
+        )
+        .await?;
+        Ok(tx)
+    }
+
     /// Get the latest raw dispatch that can become a reconciliation candidate.
     ///
     /// This snapshots a stable upper bound for a discovery or completeness scan.
@@ -40,6 +62,7 @@ impl ScraperDb {
         origin_domain: u32,
         origin_mailbox: &H256,
     ) -> Result<i64> {
+        let tx = self.begin_reconciliation_read().await?;
         let result = raw_message_dispatch::Entity::find()
             // Bind the domain directly so PostgreSQL reads the confirmed height once.
             .filter(Expr::cust_with_values(
@@ -56,8 +79,9 @@ impl ScraperDb {
             )
             .filter(raw_message_dispatch::Column::MsgBody.is_not_null())
             .into_tuple::<Option<i64>>()
-            .one(&self.0)
+            .one(&tx)
             .await?;
+        tx.commit().await?;
 
         Ok(result
             .ok_or_else(|| eyre::eyre!("Error getting latest reconcilable raw dispatch id"))?
@@ -73,8 +97,9 @@ impl ScraperDb {
         through_id: i64,
         limit: u64,
     ) -> Result<(Vec<RawDispatchForEnrichment>, Option<i64>)> {
-        let rows = self.0.query_all(Statement::from_sql_and_values(
-            self.0.get_database_backend(),
+        let tx = self.begin_reconciliation_read().await?;
+        let rows = tx.query_all(Statement::from_sql_and_values(
+            tx.get_database_backend(),
             r#"
             WITH page AS (
                 SELECT id, origin_domain, origin_mailbox, nonce, origin_block_height FROM raw_message_dispatch
@@ -99,6 +124,7 @@ impl ScraperDb {
             [(origin_domain as i32).into(), address_to_bytes(origin_mailbox).into(),
                 after_id.into(), through_id.into(), (limit as i64).into()],
         )).await?;
+        tx.commit().await?;
         let mut candidates = Vec::new();
         let mut next = None;
         for row in rows {
@@ -126,9 +152,10 @@ impl ScraperDb {
             return Ok(Vec::new());
         }
 
+        let tx = self.begin_reconciliation_read().await?;
         let raw_dispatches = raw_message_dispatch::Entity::find()
             .from_raw_sql(Statement::from_sql_and_values(
-                self.0.get_database_backend(),
+                tx.get_database_backend(),
                 r#"
                 SELECT raw_message_dispatch.*
                 FROM raw_message_dispatch
@@ -151,8 +178,9 @@ impl ScraperDb {
                     raw_ids.to_vec().into(),
                 ],
             ))
-            .all(&self.0)
+            .all(&tx)
             .await?;
+        tx.commit().await?;
 
         raw_dispatches
             .into_iter()
@@ -196,7 +224,7 @@ mod tests {
     use super::*;
     use hyperlane_core::{h256_to_bytes, h512_to_bytes, H512};
     use migration::MigratorTrait;
-    use sea_orm::{Database, IntoActiveModel};
+    use sea_orm::{ConnectOptions, Database, DbBackend, IntoActiveModel};
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
     use time::{
@@ -364,6 +392,82 @@ mod tests {
             sweep.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
             vec![1, 3, 4]
         );
+        db.0.execute_unprepared(
+            r#"INSERT INTO scraper_head (
+                domain, start_height, indexed_height, indexed_hash, head_height,
+                confirmed_height, mailbox, merkle_tree_hook, interchain_gas_paymaster
+            ) SELECT 1, 0, 5, origin_block_hash, 5, 3, origin_mailbox, origin_mailbox, origin_mailbox
+              FROM raw_message_dispatch WHERE id = 2;
+            INSERT INTO raw_message_dispatch (
+                id, msg_id, origin_tx_hash, origin_block_hash, origin_block_height,
+                nonce, origin_domain, destination_domain, sender, recipient, origin_mailbox, msg_body
+            ) SELECT n, decode(lpad(to_hex(n), 64, '0'), 'hex'), origin_tx_hash,
+                     origin_block_hash, CASE WHEN n = 2006 THEN 3 ELSE 5 END,
+                     n, origin_domain, destination_domain, sender, recipient, origin_mailbox, msg_body
+              FROM raw_message_dispatch CROSS JOIN generate_series(6, 2006) AS ids(n)
+              WHERE id = 2"#,
+        )
+        .await?;
+        let (unconfirmed, next) = db
+            .retrieve_unenriched_raw_dispatches(1, &mailbox, 5, 2006, 100)
+            .await?;
+        assert!(unconfirmed.is_empty());
+        assert_eq!(next, Some(2005));
+        let (confirmed, next) = db
+            .retrieve_unenriched_raw_dispatches(1, &mailbox, 2005, 2006, 100)
+            .await?;
+        assert_eq!(
+            confirmed.iter().map(|row| row.raw_id).collect::<Vec<_>>(),
+            vec![2006]
+        );
+        assert_eq!(next, None);
+        let direct = db
+            .retrieve_unenriched_raw_dispatches_by_ids(1, &mailbox, &[3, 4, 5])
+            .await?;
+        assert_eq!(
+            direct.iter().map(|row| row.raw_id).collect::<Vec<_>>(),
+            vec![3]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reconciliation_read_uses_a_scoped_server_statement_deadline() -> Result<()> {
+        let postgres = Postgres::default().start().await?;
+        let port = postgres.get_host_port_ipv4(5432).await?;
+        let mut options = ConnectOptions::new(format!(
+            "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+        ));
+        options.max_connections(1);
+        let db = ScraperDb::with_connection(Database::connect(options).await?);
+
+        async fn statement_timeout(connection: &impl ConnectionTrait) -> Result<String> {
+            let row = connection
+                .query_one(Statement::from_string(
+                    DbBackend::Postgres,
+                    "SHOW statement_timeout".to_owned(),
+                ))
+                .await?
+                .ok_or_else(|| eyre::eyre!("missing statement_timeout"))?;
+            Ok(row.try_get("", "statement_timeout")?)
+        }
+
+        let tx = db.begin_reconciliation_read().await?;
+        assert_eq!(statement_timeout(&tx).await?, "2s");
+        tx.commit().await?;
+        assert_eq!(statement_timeout(&db.0).await?, "0");
+
+        db.0.execute_unprepared("SET statement_timeout = '100ms'")
+            .await?;
+        let tx = db.begin_reconciliation_read().await?;
+        assert_eq!(statement_timeout(&tx).await?, "100ms");
+        let error = tx
+            .execute_unprepared("SELECT pg_sleep(5)")
+            .await
+            .expect_err("PostgreSQL should cancel the read");
+        assert!(error.to_string().contains("statement timeout"), "{error}");
+        tx.rollback().await?;
+        assert_eq!(statement_timeout(&db.0).await?, "100ms");
         Ok(())
     }
 }
