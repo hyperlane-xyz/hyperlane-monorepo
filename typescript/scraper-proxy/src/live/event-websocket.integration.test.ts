@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { after, before, it, type TestContext } from 'node:test';
+import { afterEach, beforeEach, it, type TestContext } from 'node:test';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 
 import { WebSocket } from 'ws';
@@ -188,7 +188,7 @@ let url: string;
 let messagesUrl: string;
 let validatorsUrl: string;
 
-before(async () => {
+beforeEach(async () => {
   process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
   const { EventWebSocketServer } = await import('./event-websocket.js');
   events = new EventWebSocketServer(db, {
@@ -208,7 +208,7 @@ before(async () => {
   await events.start(http);
 });
 
-after(async () => {
+afterEach(async () => {
   await events.stop();
   await new Promise<void>((resolve, reject) =>
     http.close((error) => (error ? reject(error) : resolve())),
@@ -1805,8 +1805,15 @@ for (const route of ['agents', 'messages']) {
             indexed_height: '100',
             head_height: '101',
             hash: 'ab'.repeat(32),
+            confirmed_height: '90',
           },
-          { domain: 3, indexed_height: '100', head_height: '101', hash: 'ab' },
+          {
+            domain: 3,
+            confirmed_height: '90',
+            indexed_height: '100',
+            head_height: '101',
+            hash: 'ab',
+          },
         ]);
       },
     );
@@ -2252,6 +2259,95 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
   }
 });
 
+void it('publishes other domains during a stalled shared scan and starts new browsers at the current head', async (t) => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let snapshots = 0;
+  const scans: number[] = [];
+  const id = (d: number) => '\\x' + String(d).repeat(64);
+  t.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (
+        sql.includes('FROM scraper_head') &&
+        !sql.includes('live_message_facts')
+      ) {
+        snapshots++;
+        return queryRows<T>(
+          [1, 2].map((domain) => ({
+            domain,
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+          })),
+        );
+      }
+      if (sql.includes('confirmation_messages')) {
+        const domain = Number(values[0]);
+        scans.push(domain);
+        if (domain === 1) await gate;
+        return queryRows<T>([
+          { id: '1', height: '11', source: 0, msg_id: id(domain) },
+        ]);
+      }
+      if (sql.includes('live_message_facts'))
+        return queryRows<T>(
+          stringArray(values[0]).map((msg_id) => ({
+            msg_id,
+            origin_domain_id: msg_id === id(1) ? 1 : 2,
+            destination_domain_id: 3,
+            origin_block_height: '11',
+            payment_buckets: null,
+          })),
+        );
+      assert.fail(sql);
+    },
+  );
+  const endpoint = messagesUrl + '?confirmations=0&domains=1,2';
+  const first = new WebSocket(endpoint);
+  const events = captureMessages(first);
+  let second: WebSocket | undefined;
+  const advance = (domain: number) =>
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousIndexedHeight: '10',
+        confirmedHeight: '5',
+      }),
+    );
+  try {
+    await waitFor(events, 'ready');
+    advance(1);
+    await waitUntil(() => scans.includes(1));
+    second = new WebSocket(endpoint);
+    const joined = captureMessages(second);
+    await waitFor(joined, 'ready');
+    advance(2);
+    for (const frames of [events, joined])
+      assert.equal((await waitFor(frames, 'message_upsert')).domain, 2);
+    release();
+    await waitUntil(() =>
+      events.some((f) => f.type === 'message_upsert' && f.domain === 1),
+    );
+    assert.deepEqual(scans, [1, 2]);
+    assert.equal(snapshots, 1);
+    assert.equal(joined.filter((f) => f.type === 'message_upsert').length, 1);
+  } finally {
+    release();
+    first.terminate();
+    second?.terminate();
+  }
+});
+
 void it('shares equivalent Explorer enrichment and invalidates it after rollback', async (context) => {
   let queries = 0;
   context.mock.method(
@@ -2271,14 +2367,17 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
           },
         ]);
       if (sql.includes('confirmation_messages')) return [];
-      if (sql.includes('provisional_message_view')) {
+      if (sql.includes('live_message_facts')) {
         queries++;
         return queryRows<T>([
           {
             msg_id: msgId,
             origin_domain_id: 1,
             destination_domain_id: 2,
-            payment_domain_ids: [3],
+            origin_block_height: '6',
+            payment_buckets: [
+              { domain: 3, height: null, count: '1', payment: '0', gas: '0' },
+            ],
           },
         ]);
       }
@@ -2441,10 +2540,12 @@ for (const { eventType, byDomain } of [
             delete projected.block_number;
           return queryRows<T>([projected]);
         }
-        if (sql.includes('provisional_message_view'))
+        if (sql.includes('live_message_facts'))
           return queryRows<T>([
             {
               msg_id: messageId,
+              origin_block_height: '10',
+              payment_buckets: null,
               origin_domain_id: 1,
               destination_domain_id: 2,
             },
@@ -2605,16 +2706,21 @@ for (const supported of [true, false]) {
                 ]
               : [],
           );
-        if (sql.includes('provisional_message_view')) {
+        if (sql.includes('live_message_facts')) {
           queries.push(values);
           return queryRows<T>([
             {
               msg_id: msgId,
               origin_domain_id: 2,
               destination_domain_id: 3,
-              is_delivered: true,
+              origin_block_height: '1',
+              delivery_domain: 3,
+              delivery_height: null,
+              payment_buckets: null,
             },
             {
+              origin_block_height: '1',
+              payment_buckets: null,
               msg_id: 'unrelated',
               origin_domain_id: 3,
               destination_domain_id: 4,
@@ -2637,10 +2743,7 @@ for (const supported of [true, false]) {
       const upsert = await waitFor(messages, 'message_upsert');
       assert.equal(record(upsert.data).msg_id, msgId);
       assert.equal(record(upsert.data).is_delivered, true);
-      assert.deepEqual(
-        queries[0].slice(1),
-        supported ? [[1], ['9']] : [[], []],
-      );
+      assert.deepEqual(queries, [[[msgId]]]);
       assert.equal(
         messages.filter((m) => m.type === 'message_upsert').length,
         1,

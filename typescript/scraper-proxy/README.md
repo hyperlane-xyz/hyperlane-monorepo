@@ -224,8 +224,7 @@ subscription is declared in URL query parameters; clients do not send a
 | `/messages?confirmations=2&domains=1,42161`  | Message projection two blocks behind the head for supported domains |
 | `/messages?diagnostics=true&messageIds=0xID` | Message updates plus relayer diagnostics for selected IDs           |
 
-`messageIds` accepts at most 50 IDs. It filters ordinary message updates before
-database enrichment. Diagnostics requires between 1 and 50 explicit IDs.
+`messageIds` accepts at most 50 IDs. It filters the updates sent to that socket. Diagnostics requires between 1 and 50 explicit IDs.
 
 Production `/messages` requests must include a valid `CF-Connecting-IP` header.
 The direct peer must be the loopback cloudflared sidecar. At most five connections
@@ -234,6 +233,20 @@ two per IP; disconnecting does not release their reservation until the read ends
 Subscription URLs are capped at 8 KiB, with at most 512 domains and 1,000
 confirmations. Application frames from clients are rejected with code 1008;
 WebSocket protocol pongs remain supported.
+
+Each proxy instance shares one head snapshot and one paginated dispatch,
+delivery, and payment range per active domain. The first advance seeds the
+recent range for delayed confirmations. Joining and reconnecting use the current
+in-memory heads. Delivery and gas totals use the requested confirmation count
+on negotiated custom domains and scraper finality elsewhere. Late receipts
+refresh the shared message data. Relayer diagnostics use their own database.
+
+Range reads run on at most four domains concurrently. The source retains at
+most 50,000 changes and 64 MiB of serialized message facts, with at most 256
+delivery candidates and 256 payment buckets per message. Older payments are
+aggregated per domain. A subscription that falls outside the retained window
+or cannot obtain a complete projection disconnects and can reconnect at the
+current head.
 
 ### Frames
 

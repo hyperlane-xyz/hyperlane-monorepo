@@ -23,6 +23,7 @@ void it('serves current usage and limits from /metrics', async () => {
   setWebSocketMetricsProvider(() => ({
     connections: { agent: 3, messages: 4, validators: 2 },
     explorerPendingSetups: 2,
+    messageSource: { ranges: 1, changes: 3, factBytes: 512 },
     validatorPendingSetups: 1,
     validatorReservedConnections: 2,
     validatorSharedReaders: 1,

@@ -101,6 +101,23 @@ export class ConfirmationStream {
     }
   }
 
+  /** First height still needed when warming a shared Explorer range. */
+  pendingAfter(head: HeadNotification): bigint | undefined {
+    const state = this.states.get(head.domain);
+    if (
+      !state ||
+      head.headHeight === undefined ||
+      head.indexedHeight === undefined
+    )
+      return;
+    const target = confirmationHeight(
+      { head: head.headHeight, indexed: head.indexedHeight },
+      this.confirmations,
+    );
+    if (state.position[0] < target) return state.position[0];
+    return;
+  }
+
   liveStart(domain: number): LiveStartBoundary | undefined {
     return this.states.get(domain)?.liveStart;
   }

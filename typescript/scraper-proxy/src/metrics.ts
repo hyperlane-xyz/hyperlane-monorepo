@@ -13,6 +13,7 @@ const PREFIX = 'hyperlane_scraper_proxy_';
 export type WebSocketMetricsSnapshot = {
   connections: Record<'agent' | 'messages' | 'validators', number>;
   explorerPendingSetups: number;
+  messageSource: { ranges: number; changes: number; factBytes: number };
   validatorPendingSetups: number;
   validatorReservedConnections: number;
   validatorSharedReaders: number;
@@ -346,6 +347,21 @@ snapshotGauge(
   'websocket_validator_client_message_limit_bytes',
   'Maximum inbound validator WebSocket message size.',
   (gauge, snapshot) => gauge.set(snapshot.limits.validatorMessageBytes),
+);
+snapshotGauge(
+  'websocket_message_source_ranges',
+  'Retained custom message source ranges, one per domain.',
+  (g, s) => g.set(s.messageSource.ranges),
+);
+snapshotGauge(
+  'websocket_message_source_changes',
+  'Retained dispatch, delivery and payment positions.',
+  (g, s) => g.set(s.messageSource.changes),
+);
+snapshotGauge(
+  'websocket_message_source_fact_bytes',
+  'Serialized size of retained message projection inputs.',
+  (g, s) => g.set(s.messageSource.factBytes),
 );
 snapshotGauge(
   'websocket_message_pending_setups',
