@@ -1,5 +1,7 @@
 // Per-process source for /messages. A browser owns only a projection cursor.
 // Range scans are shared by domain. Only requested rows are hydrated.
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import {
   confirmationHeight,
   endOfHeight,
@@ -49,8 +51,9 @@ type Entry = {
   value?: Promise<MessageFacts | Error | undefined>;
   // Settled facts, kept to decide which entries a rollback can affect.
   facts?: MessageFacts;
-  // Near-head transaction rows can arrive after the message without an
-  // Explorer notification; reuse such facts only within the current read.
+  // A transaction row can be stored before the receipt link that notifies
+  // Explorer commits, or the link can fail; reuse such facts only within the
+  // current read so a later reader queries again.
   stale?: boolean;
 };
 
@@ -89,6 +92,7 @@ type Subscriber = Policy & {
   frontiers: Map<number, bigint>;
   // Highest visible fact height per domain, shared with the projection.
   exposed: Map<string, ReadonlyMap<number, bigint>>;
+  prunedAt?: number;
   send: (frame: Record<string, unknown>) => void;
   fail: (error: unknown) => void;
 };
@@ -115,6 +119,7 @@ export class MessageSource {
   >();
   private readonly scan = limitReads(MAX_PARALLEL_DOMAINS);
   private readonly hydrate = limitReads(MAX_FACT_QUERIES);
+  private readonly logger = rootLogger.child({ module: 'MessageSource' });
   private changes = 0;
   private bytes = 0;
   private nextPrune = 0;
@@ -128,10 +133,13 @@ export class MessageSource {
   ) {}
 
   metrics() {
+    const now = Date.now();
     return {
       ranges: this.windows.size,
       changes: this.changes,
       factBytes: this.bytes,
+      backoffDomains: [...this.retryAfter.values()].filter((at) => at > now)
+        .length,
     };
   }
 
@@ -364,7 +372,9 @@ export class MessageSource {
               for (const change of page) {
                 const entry = this.entry(change.id);
                 entry.refs++;
-                this.invalidate(entry);
+                // Cached facts already reflect older changes; only new ones
+                // can make them stale.
+                if (start >= current.floor) this.invalidate(entry);
                 prefix.push(change);
                 this.changes++;
               }
@@ -581,9 +591,13 @@ export class MessageSource {
         }
         if (head === work.head) return;
       }
-    } catch {
+    } catch (error) {
       // Frontiers have not moved, so subscribers lose nothing by waiting.
       // Back off instead of rescanning a failing domain on every head.
+      this.logger.warn(
+        { domain, error: error instanceof Error ? error.message : error },
+        'Message range read failed; retrying after backoff',
+      );
       if (this.advances.get(domain) === work) {
         this.retryAfter.set(domain, Date.now() + DOMAIN_RETRY_MS);
         const window = this.windows.get(domain);
@@ -636,7 +650,9 @@ export class MessageSource {
     if (!selected.length) return;
     try {
       let facts: Map<string, MessageFacts | Error | undefined> | undefined;
-      while (!facts && !this.stopped) {
+      const listening = () =>
+        recipients.some((sub) => this.subscribers.has(sub));
+      while (!facts && !this.stopped && listening()) {
         try {
           facts = await this.load(selected);
         } catch (error) {
@@ -658,12 +674,22 @@ export class MessageSource {
             this.upsert(sub, id, row);
         }
     } catch (error) {
+      // A global stream keeps its rows; the next refresh or advance retries.
+      // An ID subscription or a rollback refresh cannot leave a stale row.
+      let skipped = false;
       for (const sub of recipients)
         if (
           this.subscribers.has(sub) &&
           selected.some((id) => interested(sub, id))
-        )
-          sub.fail(error);
+        ) {
+          if (sub.ids || rollback) sub.fail(error);
+          else skipped = true;
+        }
+      if (skipped)
+        this.logger.warn(
+          { error: error instanceof Error ? error.message : error },
+          'Message refresh failed; global streams keep their rows',
+        );
     }
   }
 
@@ -711,7 +737,15 @@ export class MessageSource {
     // rollback; the heights map is shared with the cached projection.
     if (this.settled(sub, row.heights)) sub.exposed.delete(id);
     else sub.exposed.set(id, row.heights);
-    if (sub.exposed.size > MAX_EXPOSED) this.prune(sub);
+    if (sub.exposed.size > MAX_EXPOSED) {
+      // A full prune is O(exposed); a subscriber pinned at the limit should
+      // not pay it on every row.
+      const now = Date.now();
+      if ((sub.prunedAt ?? 0) + PRUNE_INTERVAL_MS <= now) {
+        sub.prunedAt = now;
+        this.prune(sub);
+      }
+    }
     if (sub.exposed.size > MAX_EXPOSED) {
       sub.fail(new Error('Custom provisional message limit exceeded'));
       return;

@@ -122,6 +122,7 @@ void it('backs off a failed domain read without failing subscribers while anothe
   advance(source, 2, 11n);
   await next;
   assert.deepEqual(queries, [1, 2]);
+  assert.equal(source.metrics().backoffDomains, 1);
 });
 
 void it(
@@ -165,7 +166,7 @@ void it(
   },
 );
 
-void it('limits a failed receipt read to subscribers for the affected IDs', async () => {
+void it('limits a failed receipt read to ID subscribers for the affected IDs', async () => {
   const source = new MessageSource({
     messageHeads: initialHeads,
     async *messageChanges() {
@@ -177,14 +178,15 @@ void it('limits a failed receipt read to subscribers for the affected IDs', asyn
   });
   await source.currentHeads();
   const failed: string[] = [];
-  for (const id of ['first', 'other'])
+  for (const id of ['first', 'other', undefined])
     source.subscribe(
       { domains: new Set([1]), confirmations: 0 },
-      new Set([id]),
+      id === undefined ? undefined : new Set([id]),
       assert.fail,
-      () => failed.push(id),
+      () => failed.push(id ?? 'global'),
     );
   await source.refresh(['first']);
+  // A global stream keeps its rows and picks up the next refresh.
   assert.deepEqual(failed, ['first']);
 });
 
@@ -969,4 +971,69 @@ void it('shares frames between interleaved subscriber policies', async () => {
     );
   await source.refresh(['m']);
   assert.equal(frames.size, 2);
+});
+
+void it('stops retrying an invalidated refresh once its recipients leave', async () => {
+  let calls = 0;
+  let source!: MessageSource;
+  source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      calls++;
+      await nextTurn();
+      source.invalidateIds(ids);
+      return collectMessageFacts(ids.map((id) => fact(id)));
+    },
+  });
+  await source.currentHeads();
+  const sub = source.subscribe(policy(), undefined, () => {}, assert.fail);
+  const refresh = source.refresh(['m']);
+  await nextTurn();
+  sub.unsubscribe();
+  await refresh;
+  assert(calls <= 6, `calls=${calls}`);
+});
+
+void it('reuses cached facts when a deeper subscriber expands history', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 10n, indexed: 10n, confirmed: 5n }]]),
+    async *messageChanges(_domain, after, through) {
+      const changes = [];
+      for (let height = after[0] + 1n; height <= through; height++)
+        changes.push({ height, id: `h${height}` });
+      yield changes;
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({ ...fact(id, id.slice(1)), origin_tx_id: '1' })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  for (let height = 11n; height <= 15n; height++) {
+    advance(source, 1, height);
+    for (let i = 0; i < 5; i++) await nextTurn();
+  }
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 3 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  advance(source, 1, 16n);
+  for (let i = 0; i < 10; i++) await nextTurn();
+  // The backward fill re-reads h13-h15 changes but keeps their cached facts.
+  assert.deepEqual(reads, ['h11', 'h12', 'h13', 'h14', 'h15', 'h16']);
 });
