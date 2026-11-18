@@ -542,3 +542,135 @@ void it('rereads facts still waiting for transaction rows', async () => {
   // Reread until the transaction row arrives, then cache like any other fact.
   assert.deepEqual(reads, ['pending', 'done', 'pending']);
 });
+
+// Message facts: origin height and an optional domain 1 payment height, which a
+// rollback removes once `rolledBack` is set.
+function rollbackSource(
+  rows: Record<string, { origin: bigint; payment?: bigint }>,
+) {
+  const state = { rolledBack: false, reads: [] as string[][] };
+  const changes = Object.entries(rows)
+    .flatMap(([id, { origin, payment }]) =>
+      [origin, payment].flatMap((height) =>
+        height === undefined ? [] : [{ id, height }],
+      ),
+    )
+    .sort((a, b) => Number(a.height - b.height));
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 10n, indexed: 10n, confirmed: 5n }]]),
+    async *messageChanges(_domain, after, through) {
+      yield changes.filter((c) => c.height > after[0] && c.height <= through);
+    },
+    async messageFacts(ids) {
+      state.reads.push([...ids]);
+      return collectMessageFacts(
+        ids.map((id) => {
+          const { origin, payment } = rows[id];
+          return {
+            ...fact(id, String(origin)),
+            destination_domain_id: 1,
+            origin_tx_id: '1',
+            payment_buckets:
+              payment === undefined || state.rolledBack
+                ? null
+                : [
+                    {
+                      domain: 1,
+                      first: String(payment),
+                      height: String(payment),
+                      count: '1',
+                      payment: '1',
+                      gas: '1',
+                    },
+                  ],
+          };
+        }),
+      );
+    },
+  });
+  const frames = (confirmations = 0) => {
+    const sent: string[] = [];
+    source.subscribe(
+      { domains: new Set([1]), confirmations },
+      undefined,
+      (frame) => {
+        const data = frame.data as Record<string, unknown> | undefined;
+        sent.push(
+          frame.type === 'message_upsert'
+            ? `${String(data?.msg_id)}:${String(data?.num_payments)}`
+            : String(frame.type),
+        );
+      },
+      assert.fail,
+    );
+    return sent;
+  };
+  const rollback = async (from: bigint, to: bigint) => {
+    state.rolledBack = true;
+    const head = {
+      domain: 1,
+      confirmedHeight: 5n,
+      indexedHeight: to,
+      headHeight: to,
+      previousIndexedHeight: from,
+    };
+    source.observe(head);
+    source.notify(head);
+    for (let i = 0; i < 20; i++) await nextTurn();
+  };
+  return { source, state, frames, rollback };
+}
+
+const settle = async () => {
+  for (let i = 0; i < 20; i++) await nextTurn();
+};
+
+void it('refreshes only rows with a fact above a rollback target', async () => {
+  const { source, state, frames, rollback } = rollbackSource({
+    old: { origin: 11n },
+    new: { origin: 12n, payment: 20n },
+  });
+  await source.currentHeads();
+  const sent = frames();
+  advance(source, 1, 11n);
+  await settle();
+  advance(source, 1, 20n);
+  await settle();
+  assert.deepEqual(sent, ['old:0', 'new:1']);
+  await rollback(20n, 15n);
+  assert.deepEqual(sent, ['old:0', 'new:1', 'rollback', 'new:0']);
+  assert.deepEqual(state.reads.at(-1), ['new']);
+});
+
+void it('keeps a shallow rollback after a large head jump to the removed rows', async () => {
+  const { source, state, frames, rollback } = rollbackSource({
+    early: { origin: 11n },
+    late: { origin: 4000n, payment: 5000n },
+  });
+  await source.currentHeads();
+  const sent = frames();
+  advance(source, 1, 5000n);
+  await settle();
+  assert.deepEqual(sent, ['early:0', 'late:1']);
+  await rollback(5000n, 4999n);
+  assert.deepEqual(sent, ['early:0', 'late:1', 'rollback', 'late:0']);
+  assert.deepEqual(state.reads.at(-1), ['late']);
+});
+
+void it('selects rollback refreshes per subscriber', async () => {
+  // The payment at 19 is visible at frontier 20 but not at frontier 18.
+  const { source, frames, rollback } = rollbackSource({
+    paid: { origin: 12n, payment: 19n },
+  });
+  await source.currentHeads();
+  const zero = frames(0),
+    two = frames(2);
+  advance(source, 1, 20n);
+  await settle();
+  assert.deepEqual(zero, ['paid:1']);
+  assert.deepEqual(two, ['paid:0']);
+  await rollback(20n, 15n);
+  assert.deepEqual(zero, ['paid:1', 'rollback', 'paid:0']);
+  assert.deepEqual(two, ['paid:0', 'rollback']);
+});

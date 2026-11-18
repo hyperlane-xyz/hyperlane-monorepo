@@ -147,9 +147,16 @@ export function projectMessage(
   facts: MessageFacts,
   frontier: (domain: number) => bigint | undefined,
 ) {
+  // Highest visible fact per domain; a rollback to or above it cannot change
+  // this row. Height-less rows count as the frontier itself.
+  const heights = new Map<number, bigint>();
   const visible = (domain: number, height: bigint | null) => {
     const limit = frontier(domain);
-    return height === null || limit === undefined || height <= limit;
+    if (height !== null && limit !== undefined && height > limit) return false;
+    const seen = height ?? limit;
+    if (seen !== undefined && seen > (heights.get(domain) ?? -1n))
+      heights.set(domain, seen);
+    return true;
   };
   if (!visible(facts.origin, facts.height)) return;
   // SQL returns deliveries in block_number DESC NULLS LAST, id DESC order.
@@ -157,15 +164,12 @@ export function projectMessage(
   let count = 0n,
     payment = 0n,
     gas = 0n;
-  const domains = new Set([facts.origin, facts.destination]);
-  if (delivery) domains.add(delivery.domain);
   for (const bucket of facts.payments) {
     if (!visible(bucket.domain, bucket.height)) {
       if (bucket.first !== null && visible(bucket.domain, bucket.first))
         throw new Error('Message cursor predates payment baseline');
       continue;
     }
-    domains.add(bucket.domain);
     count += bucket.count;
     payment += bucket.payment;
     gas += bucket.gas;
@@ -178,5 +182,5 @@ export function projectMessage(
     total_payment: String(payment),
     total_gas_amount: String(gas),
   };
-  return { data, domains: [...domains] };
+  return { data, heights };
 }
