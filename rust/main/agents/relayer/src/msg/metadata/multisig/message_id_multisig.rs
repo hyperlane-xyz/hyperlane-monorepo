@@ -12,7 +12,7 @@ use derive_new::new;
 
 use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H160, H256};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
 use tokio::{sync::Semaphore, time::timeout};
 use tracing::{debug, warn};
 
@@ -28,8 +28,6 @@ static ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS: LazyLock<Mutex<HashMap<String, Arc
     LazyLock::new(Default::default);
 const LATEST_INDEX_TELEMETRY_PERMITS_PER_ORIGIN: usize = 4;
 const LATEST_INDEX_TELEMETRY_TIMEOUT: Duration = Duration::from_secs(30);
-// Bounds how long a probe waits for latest indices before querying every validator.
-const PROBE_LATEST_INDEX_TIMEOUT: Duration = Duration::from_secs(2);
 
 fn origin_latest_index_telemetry_permits(origin: &str) -> Arc<Semaphore> {
     ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS
@@ -47,6 +45,14 @@ pub struct MessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
 impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
     fn module_type(&self) -> ModuleType {
         ModuleType::MessageIdMultisig
+    }
+
+    fn report_successful_poll(
+        &self,
+        checkpoint_syncer: &MultisigCheckpointSyncer,
+        validators: &[H256],
+    ) {
+        self.spawn_latest_index_telemetry(checkpoint_syncer, validators);
     }
 
     fn token_layout(&self) -> &'static [MetadataToken] {
@@ -108,24 +114,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         if !self.signature_polling {
             self.spawn_latest_index_telemetry(checkpoint_syncer, validators);
         }
-        let probe_validators;
-        let validators = if self.narrow_signature_probe {
-            probe_validators = self
-                .validators_that_may_have_signed(checkpoint_syncer, validators, leaf_index)
-                .await;
-            if probe_validators.len() < usize::from(threshold) {
-                debug!(
-                    leaf_index,
-                    candidates = probe_validators.len(),
-                    threshold,
-                    "Too few validators have reached the leaf index to probe for a quorum"
-                );
-                return Ok(None);
-            }
-            probe_validators.as_slice()
-        } else {
-            validators
-        };
         let quorum_checkpoint = checkpoint_syncer
             .fetch_checkpoint(
                 validators,
@@ -163,37 +151,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 }
 
 impl MessageIdMultisigMetadataBuilder {
-    /// Signature probes repeat for every waiting message, so skip checkpoint GETs
-    /// for validators whose shared, coalesced latest index is below the leaf.
-    /// Validators without a readable latest index are still queried. This only
-    /// narrows probes: normal builds query every validator, so a validator with
-    /// a stale latest index still contributes its signature to delivery.
-    async fn validators_that_may_have_signed(
-        &self,
-        checkpoint_syncer: &MultisigCheckpointSyncer,
-        validators: &[H256],
-        leaf_index: u32,
-    ) -> Vec<H256> {
-        let Ok(latest) = timeout(
-            PROBE_LATEST_INDEX_TIMEOUT,
-            checkpoint_syncer.latest_indices(validators),
-        )
-        .await
-        else {
-            debug!("Timed out reading latest indices for signature probe");
-            return validators.to_vec();
-        };
-        validators
-            .iter()
-            .filter(|validator| {
-                latest
-                    .get(&H160::from(**validator))
-                    .is_none_or(|latest_index| *latest_index >= leaf_index)
-            })
-            .copied()
-            .collect()
-    }
-
     /// Refresh telemetry independently of checkpoint availability, with bounded
     /// concurrency and lifetime. Busy callers leave the active refreshes running.
     fn spawn_latest_index_telemetry(
@@ -384,47 +341,146 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ready_signatures_still_require_fresh_reorg_checks() {
-        use crate::test_utils::mock_ism::MockInterchainSecurityModule;
+    async fn validates_each_multisig_before_using_signatures() {
+        use crate::test_utils::{
+            mock_aggregation_ism::MockAggregationIsm, mock_ism::MockInterchainSecurityModule,
+        };
         use hyperlane_base::settings::CheckpointSyncerBuildError;
 
-        let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
-        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-        let message = HyperlaneMessage::default();
-        let checkpoint = CheckpointWithMessageId {
-            checkpoint: Checkpoint {
-                mailbox_domain: message.origin,
-                merkle_tree_hook_address: H256::zero(),
-                root: H256::zero(),
-                index: 1,
-            },
-            message_id: message.id(),
-        };
-        let mut validators: Vec<_> = dummy_validators().into_iter().take(1).collect();
-        validators[0].fetch_checkpoint = Some(checkpoint);
-        let address: H160 = validators[0].public_key.parse().unwrap();
-        let clients = build_mock_checkpoint_syncs(&validators)
-            .await
-            .into_iter()
-            .map(|(address, client)| {
-                let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
-                (address, client)
-            })
-            .collect();
-        let base = Arc::new(build_mock_base_builder(origin, destination.clone()));
-        base.responses
-            .build_checkpoint_syncer
-            .lock()
-            .unwrap()
-            .extend([
-                Ok(MultisigCheckpointSyncer::new(clients, None)),
-                Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
-                    exists: true,
-                    event: None,
-                    content: None,
-                })),
-            ]);
-        for _ in 0..2 {
+        #[derive(Clone, Copy)]
+        enum Validation {
+            Refused,
+            Excluded,
+            Same,
+            Replaced,
+        }
+
+        // (polling, speculative signature present, validation result)
+        for (polling, signature_present, validation) in [
+            (false, true, Validation::Refused),
+            (false, false, Validation::Refused),
+            (true, false, Validation::Refused),
+            (true, true, Validation::Refused),
+            (true, true, Validation::Excluded),
+            (true, true, Validation::Same),
+            (true, false, Validation::Replaced),
+        ] {
+            let origin = HyperlaneDomain::new_test_domain("polled-reorg-test");
+            let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+            let message = HyperlaneMessage::default();
+            let checkpoint = CheckpointWithMessageId {
+                checkpoint: Checkpoint {
+                    mailbox_domain: message.origin,
+                    merkle_tree_hook_address: H256::zero(),
+                    root: H256::zero(),
+                    index: 1,
+                },
+                message_id: message.id(),
+            };
+            let mut validators: Vec<_> = dummy_validators().into_iter().take(1).collect();
+            validators[0].fetch_checkpoint = signature_present.then_some(checkpoint);
+            let address: H160 = validators[0].public_key.parse().unwrap();
+            let latest_started = Arc::new(AtomicBool::new(false));
+            let fetch_started = Arc::new(AtomicBool::new(false));
+            let release_fetch = Arc::new(Notify::new());
+            let release_latest = Arc::new(Notify::new());
+            if !polling {
+                release_latest.notify_one();
+            }
+            let clients = build_mock_checkpoint_syncs(&validators)
+                .await
+                .into_iter()
+                .map(|(address, client)| {
+                    let client: Arc<dyn CheckpointSyncer> = Arc::new(GatedCheckpointSyncer {
+                        inner: client,
+                        latest_started: latest_started.clone(),
+                        fetch_started: fetch_started.clone(),
+                        release: release_fetch.clone(),
+                        release_latest: release_latest.clone(),
+                    });
+                    (address, client)
+                })
+                .collect();
+            let reorg_entered = Arc::new(Notify::new());
+            let release_reorg = Arc::new(Notify::new());
+            let mut base = build_mock_base_builder(origin, destination.clone());
+            base.responses.reorg_check_gate = Some((reorg_entered.clone(), release_reorg.clone()));
+            let base = Arc::new(base);
+            let unchecked = MultisigCheckpointSyncer::new(clients, None);
+            let checked = match validation {
+                Validation::Refused => {
+                    Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
+                        exists: true,
+                        event: None,
+                        content: None,
+                    }))
+                }
+                // The unchecked signer produced a quorum but flag validation excluded it.
+                Validation::Excluded => Ok(MultisigCheckpointSyncer::new(HashMap::new(), None)),
+                Validation::Same => Ok(unchecked.clone()),
+                // A different checked location can supply the previously absent checkpoint.
+                Validation::Replaced => {
+                    validators[0].fetch_checkpoint = Some(checkpoint);
+                    let clients = build_mock_checkpoint_syncs(&validators)
+                        .await
+                        .into_iter()
+                        .map(|(address, client)| {
+                            let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
+                            (address, client)
+                        })
+                        .collect();
+                    Ok(MultisigCheckpointSyncer::new(clients, None))
+                }
+            };
+            base.responses
+                .build_checkpoint_syncer
+                .lock()
+                .unwrap()
+                .extend([Ok(unchecked), checked]);
+
+            // A prioritized leaf with no quorum must still refuse delivery on
+            // a reported reorg, even though the 1-of-2 aggregate has a valid fallback.
+            let root_ism = if polling
+                && !signature_present
+                && matches!(validation, Validation::Refused)
+            {
+                let aggregate = H256::repeat_byte(1);
+                let fallback = H256::repeat_byte(2);
+                let fallback_ism = MockInterchainSecurityModule::new(
+                    fallback,
+                    destination.clone(),
+                    ModuleType::Null,
+                );
+                fallback_ism
+                    .responses
+                    .dry_run_verify
+                    .lock()
+                    .unwrap()
+                    .push_back(Ok(Some(1u32.into())));
+                base.responses
+                    .push_build_ism_response(fallback, Ok(Box::new(fallback_ism)));
+                base.responses.push_build_ism_response(
+                    aggregate,
+                    Ok(Box::new(MockInterchainSecurityModule::new(
+                        aggregate,
+                        destination.clone(),
+                        ModuleType::Aggregation,
+                    ))),
+                );
+                let aggregate_ism = MockAggregationIsm::new(aggregate, destination.clone());
+                aggregate_ism
+                    .responses
+                    .modules_and_threshold
+                    .lock()
+                    .unwrap()
+                    .push_back(Ok((vec![H256::zero(), fallback], 1)));
+                base.responses
+                    .push_build_aggregation_ism_response(aggregate, Ok(Box::new(aggregate_ism)));
+                aggregate
+            } else {
+                H256::zero()
+            };
+
             base.responses.push_build_ism_response(
                 H256::zero(),
                 Ok(Box::new(MockInterchainSecurityModule::new(
@@ -444,29 +500,81 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push_back(Ok(Box::new(ism)));
+            let fetches = if matches!(validation, Validation::Excluded | Validation::Replaced) {
+                2
+            } else {
+                1
+            };
             base.responses
                 .get_merkle_leaf_id_by_message_id
                 .lock()
                 .unwrap()
-                .push_back(Ok(Some(1)));
-        }
-        let builder = MessageMetadataBuilder::new(base.clone(), H256::zero(), &message)
+                .extend((0..fetches).map(|_| Ok(Some(1))));
+            let builder = MessageMetadataBuilder::new(base.clone(), root_ism, &message)
+                .await
+                .unwrap();
+            let build = tokio::spawn(async move {
+                builder
+                    .build_for_delivery(root_ism, &message, polling)
+                    .await
+            });
+            tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                // The signature fetch is still blocked when the reorg check starts.
+                reorg_entered.notified().await;
+                while !fetch_started.load(Ordering::SeqCst) {
+                    tokio::task::yield_now().await;
+                }
+                if !matches!(validation, Validation::Replaced) {
+                    release_fetch.notify_one();
+                }
+            })
             .await
-            .unwrap();
-        assert!(matches!(
-            builder
-                .build_for_delivery(H256::zero(), &message, true, true)
-                .await,
-            Err(MetadataBuildError::Refused(_))
-        ));
-        assert_eq!(
-            *base.requests.checkpoint_reorg_checks.lock().unwrap(),
-            vec![false, true]
-        );
+            .expect("signature fetching and validation did not reach their gates");
+            assert!(!build.is_finished());
+            if polling {
+                assert!(!latest_started.load(Ordering::SeqCst));
+            }
+            release_reorg.notify_one();
+            let result = tokio::time::timeout(std::time::Duration::from_secs(2), build)
+                .await
+                .expect("An ineligible speculative client must not delay checked metadata")
+                .unwrap();
+            match validation {
+                Validation::Refused => {
+                    assert!(matches!(result, Err(MetadataBuildError::Refused(_))));
+                }
+                Validation::Excluded => {
+                    assert_eq!(result, Err(MetadataBuildError::AwaitingValidatorSignatures));
+                }
+                Validation::Same | Validation::Replaced => assert!(result.is_ok()),
+            }
+            if !matches!(validation, Validation::Refused) {
+                assert!(base
+                    .responses
+                    .get_merkle_leaf_id_by_message_id
+                    .lock()
+                    .unwrap()
+                    .is_empty());
+            }
+            if matches!(validation, Validation::Same) {
+                tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                    while !latest_started.load(Ordering::SeqCst) {
+                        tokio::task::yield_now().await;
+                    }
+                })
+                .await
+                .expect("Successful polls should refresh latest-index telemetry");
+                release_latest.notify_one();
+            }
+            assert_eq!(
+                *base.requests.checkpoint_reorg_checks.lock().unwrap(),
+                vec![false, true]
+            );
+        }
     }
 
     #[tokio::test]
-    async fn signature_probes_skip_validators_behind_the_leaf() {
+    async fn signature_poll_fetches_exact_checkpoint_without_waiting_for_latest_indices() {
         let message = HyperlaneMessage::default();
         let checkpoint = CheckpointWithMessageId {
             checkpoint: Checkpoint {
@@ -479,24 +587,36 @@ mod tests {
         };
 
         let mut validators: Vec<_> = dummy_validators().drain(..).take(2).collect();
-        validators[0].latest_index = Some(1010);
-        validators[0].fetch_checkpoint = Some(checkpoint);
-        // Signed, but its latest index has not been published yet.
-        validators[1].latest_index = Some(990);
-        validators[1].fetch_checkpoint = Some(checkpoint);
+        for validator in &mut validators {
+            validator.latest_index = Some(990);
+            validator.fetch_checkpoint = Some(checkpoint);
+        }
         let validator_addresses = validators
             .iter()
             .map(|validator| validator.public_key.parse::<H160>().unwrap().into())
-            .collect::<Vec<_>>();
-        // Mock syncers answer each checkpoint fetch once, so each phase gets its own.
-        let multisig_syncer = || async {
-            let syncers: HashMap<_, _> = build_mock_checkpoint_syncs(&validators)
-                .await
-                .into_iter()
-                .map(|(k, v)| (k, Arc::new(v) as Arc<dyn CheckpointSyncer>))
-                .collect();
-            MultisigCheckpointSyncer::new(syncers, None)
-        };
+            .collect::<Vec<H256>>();
+        let slow_validator = H160::from(validator_addresses[0]);
+        let latest_started = Arc::new(AtomicBool::new(false));
+        let syncers = build_mock_checkpoint_syncs(&validators)
+            .await
+            .into_iter()
+            .map(|(validator, inner)| {
+                let release = Arc::new(Notify::new());
+                release.notify_one();
+                let release_latest = Arc::new(Notify::new());
+                if validator != slow_validator {
+                    release_latest.notify_one();
+                }
+                let syncer: Arc<dyn CheckpointSyncer> = Arc::new(GatedCheckpointSyncer {
+                    inner,
+                    latest_started: latest_started.clone(),
+                    fetch_started: Arc::default(),
+                    release,
+                    release_latest,
+                });
+                (validator, syncer)
+            })
+            .collect();
 
         let base_builder = build_mock_base_builder(
             HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
@@ -507,41 +627,24 @@ mod tests {
             .get_merkle_leaf_id_by_message_id
             .lock()
             .unwrap()
-            .extend([Ok(Some(1000)), Ok(Some(1000)), Ok(Some(1000))]);
+            .push_back(Ok(Some(1000)));
         let mut message_builder =
             MessageMetadataBuilder::new(Arc::new(base_builder), H256::zero(), &message)
                 .await
                 .unwrap();
-
-        // The fast-window probe only queries validators that have reached the
-        // leaf, so it cannot reach a threshold of two.
         message_builder.signature_polling = true;
-        message_builder.narrow_signature_probe = true;
-        let probe = MessageIdMultisigMetadataBuilder::new(message_builder.clone());
-        assert!(probe
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
-            .await
-            .unwrap()
-            .is_none());
 
-        // After the fast window, probes query every validator again, so a lagging
-        // latest index cannot hold delivery.
-        message_builder.narrow_signature_probe = false;
-        let late_probe = MessageIdMultisigMetadataBuilder::new(message_builder.clone());
-        assert!(late_probe
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
-            .await
-            .unwrap()
-            .is_some());
-
-        // A normal build still queries every validator.
-        message_builder.signature_polling = false;
-        let normal = MessageIdMultisigMetadataBuilder::new(message_builder);
-        assert!(normal
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
-            .await
-            .unwrap()
-            .is_some());
+        let probe = MessageIdMultisigMetadataBuilder::new(message_builder);
+        let syncer = MultisigCheckpointSyncer::new(syncers, None);
+        let metadata = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            probe.fetch_metadata(&validator_addresses, 2, &message, &syncer),
+        )
+        .await
+        .expect("ready quorum should not wait for latest indices")
+        .unwrap();
+        assert!(metadata.is_some());
+        assert!(!latest_started.load(Ordering::SeqCst));
     }
 
     #[tracing_test::traced_test]
@@ -842,7 +945,7 @@ mod tests {
             .build_checkpoint_syncer
             .lock()
             .unwrap()
-            .push_back(Ok(multisig_syncer));
+            .extend([Ok(multisig_syncer.clone()), Ok(multisig_syncer)]);
 
         let mut mock_multisig = MockMockMultisigIsm::new();
         mock_multisig
@@ -954,7 +1057,7 @@ mod tests {
             .build_checkpoint_syncer
             .lock()
             .unwrap()
-            .push_back(Ok(multisig_syncer));
+            .extend([Ok(multisig_syncer.clone()), Ok(multisig_syncer)]);
 
         let mut mock_multisig = MockMockMultisigIsm::new();
         mock_multisig

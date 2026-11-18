@@ -19,7 +19,7 @@ use hyperlane_test::mocks::MockMailboxContract;
 use crate::{
     msg::metadata::{
         BuildsBaseMetadata, DefaultIsmCache, IsmAwareAppContextClassifier, IsmBuildMetricsParams,
-        IsmCachePolicyClassifier, MetadataBuildError,
+        IsmCachePolicyClassifier, MetadataBuildError, ValidatorStorageLocations,
     },
     settings::matching_list::{Filter, ListElement, MatchingList},
 };
@@ -55,6 +55,7 @@ pub struct MockBaseMetadataBuilderResponses {
     pub build_ccip_read_ism: ResponseList<eyre::Result<Box<dyn CcipReadIsm>>>,
     pub build_checkpoint_syncer:
         ResponseList<Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>>,
+    pub reorg_check_gate: Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>,
 }
 
 impl MockBaseMetadataBuilderResponses {
@@ -269,12 +270,19 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
         _validators: &[H256],
         _app_context: Option<String>,
         check_reorg: bool,
+        _locations: &ValidatorStorageLocations,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
         self.requests
             .checkpoint_reorg_checks
             .lock()
             .unwrap()
             .push(check_reorg);
+        if check_reorg {
+            if let Some((entered, release)) = &self.responses.reorg_check_gate {
+                entered.notify_one();
+                release.notified().await;
+            }
+        }
         self.responses
             .build_checkpoint_syncer
             .lock()

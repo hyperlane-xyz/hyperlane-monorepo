@@ -96,6 +96,22 @@ impl OpQueue {
     /// Pop multiple elements at once from the queue and update metrics
     #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
+        self.pop_many_with_state(limit).await.0
+    }
+
+    /// Wait only when no operations were popped. A batch exhausted by the
+    /// denylist returns to the caller so it can retain its processing throttle.
+    pub(super) async fn pop_many_wait(&mut self, limit: usize) -> Vec<QueueOperation> {
+        loop {
+            let (batch, was_empty) = self.pop_many_with_state(limit).await;
+            if !was_empty {
+                return batch;
+            }
+            self.wait_for_ready(None).await;
+        }
+    }
+
+    async fn pop_many_with_state(&mut self, limit: usize) -> (Vec<QueueOperation>, bool) {
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
         let mut popped = vec![];
@@ -106,7 +122,8 @@ impl OpQueue {
             }
         }
         drop(queue);
-        if !popped.is_empty() {
+        let was_empty = popped.is_empty();
+        if !was_empty {
             self.space_available.notify_one();
         }
         let popped = self.evict_denied(popped).await;
@@ -120,7 +137,7 @@ impl OpQueue {
                 "Popped OpQueue operations"
             );
         }
-        popped
+        (popped, was_empty)
     }
 
     pub async fn pop_many_ready(&mut self, limit: usize) -> (Vec<QueueOperation>, Option<Instant>) {

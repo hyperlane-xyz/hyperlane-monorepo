@@ -1,9 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use derive_new::new;
 use eyre::Result;
-use futures::{stream, StreamExt};
+use futures::{stream, stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use tracing::{debug, instrument, warn};
 
@@ -13,6 +14,9 @@ use hyperlane_core::{
 };
 
 use crate::{CheckpointSyncer, CoreMetrics};
+
+const MAX_CHECKPOINT_FETCH_CONCURRENCY: usize = 10;
+const CHECKPOINT_FETCH_HEDGE_DELAY: Duration = Duration::from_millis(250);
 
 /// Sanitized observations from existing checkpoint reads; no additional I/O.
 #[derive(Clone, Debug, Serialize)]
@@ -95,6 +99,18 @@ pub struct MultisigCheckpointSyncer {
 }
 
 impl MultisigCheckpointSyncer {
+    /// Whether validation retained exactly the storage clients used to collect a quorum.
+    /// A changed set requires recollection, so excluded or replaced storage cannot contribute.
+    pub fn has_same_clients(&self, other: &Self) -> bool {
+        self.checkpoint_syncers.len() == other.checkpoint_syncers.len()
+            && self.checkpoint_syncers.iter().all(|(validator, client)| {
+                other
+                    .checkpoint_syncers
+                    .get(validator)
+                    .is_some_and(|other| Arc::ptr_eq(client, other))
+            })
+    }
+
     /// Attach an observer scoped to this metadata build, not the pooled syncers.
     pub fn with_observer(mut self, observer: Arc<dyn CheckpointObserver>) -> Self {
         self.observer = Some(observer);
@@ -311,6 +327,7 @@ impl MultisigCheckpointSyncer {
         index: u32,
         destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
+        let started_at = Instant::now();
         self.observe(CheckpointObservation::Fetching { index });
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
@@ -320,11 +337,12 @@ impl MultisigCheckpointSyncer {
             Vec<(usize, SignedCheckpointWithMessageId)>,
         > = HashMap::new();
 
-        // Keep at most threshold * 1.5 requests in flight, capped at ten. Refill
-        // completed slots immediately so a slow validator cannot hold up later
-        // validators after a fast miss. Returning a quorum drops pending reads.
-        let concurrency = (threshold as f64 * 1.5) as usize;
-        let concurrency = concurrency.clamp(1, 10);
+        // Start with threshold * 1.5 reads (at least two) and widen the window
+        // if the first reads stall. Keep storage-level retry deadlines intact.
+        let mut concurrency = threshold
+            .saturating_add(threshold / 2)
+            .clamp(2, MAX_CHECKPOINT_FETCH_CONCURRENCY);
+        let mut seen = HashSet::with_capacity(validators.len());
         // Materialize owned futures before constructing the stream so the lazy
         // iterator's borrowed closures do not cross async-trait's Send boundary.
         let requests = validators
@@ -332,7 +350,19 @@ impl MultisigCheckpointSyncer {
             .copied()
             .enumerate()
             .filter_map(|(validator_index, address)| {
-                if let Some(syncer) = self.checkpoint_syncers.get(&H160::from(address)) {
+                let signer = H160::from(address);
+                if H256::from(signer) != address {
+                    self.unavailable(
+                        address,
+                        Some(index),
+                        CheckpointUnavailableReason::SignerMismatch,
+                    );
+                    return None;
+                }
+                if !seen.insert(signer) {
+                    return None;
+                }
+                if let Some(syncer) = self.checkpoint_syncers.get(&signer) {
                     Some((validator_index, address, Arc::clone(syncer)))
                 } else {
                     self.unavailable(address, Some(index), CheckpointUnavailableReason::NoStorage);
@@ -348,9 +378,29 @@ impl MultisigCheckpointSyncer {
                 )
             })
             .collect::<Vec<_>>();
-        let mut futures = stream::iter(requests).buffer_unordered(concurrency);
+        let mut requests = requests.into_iter();
+        let mut futures = FuturesUnordered::new();
+        let hedge = tokio::time::sleep(CHECKPOINT_FETCH_HEDGE_DELAY);
+        tokio::pin!(hedge);
 
-        while let Some((validator_index, validator, checkpoint)) = futures.next().await {
+        loop {
+            while futures.len() < concurrency {
+                let Some(request) = requests.next() else {
+                    break;
+                };
+                futures.push(request);
+            }
+            let result = tokio::select! {
+                biased;
+                result = futures.next() => result,
+                _ = &mut hedge, if concurrency < MAX_CHECKPOINT_FETCH_CONCURRENCY && !requests.as_slice().is_empty() => {
+                    concurrency = MAX_CHECKPOINT_FETCH_CONCURRENCY;
+                    continue;
+                }
+            };
+            let Some((validator_index, validator, checkpoint)) = result else {
+                break;
+            };
             // Gracefully ignore an error fetching the checkpoint from a validator's
             // checkpoint syncer, which can happen if the validator has not
             // signed the checkpoint at `index`.
@@ -461,6 +511,7 @@ impl MultisigCheckpointSyncer {
                 index = index,
                 root = format!("{:#x}", root),
                 signature_count = signature_count,
+                checkpoint_fetch_elapsed_ms = started_at.elapsed().as_millis(),
                 "Found signed checkpoint"
             );
 
@@ -1074,6 +1125,104 @@ mod test {
         );
         let expected = generate_multisig_signed_checkpoint(&validators[1..], checkpoint).await;
         assert_eq!(result, expected);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn one_of_two_does_not_wait_for_the_first_validator() {
+        assert_single_signature_quorum(1, Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn one_of_three_hedges_when_both_initial_validators_stall() {
+        assert_single_signature_quorum(2, Duration::from_secs(1)).await;
+    }
+
+    async fn assert_single_signature_quorum(slow_validators: usize, deadline: Duration) {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+        let mut validators: Vec<_> = dummy_validators()
+            .into_iter()
+            .take(slow_validators.saturating_add(1))
+            .collect();
+        let ready = validators.last_mut().expect("ready validator");
+        ready.fetch_checkpoint = Some(checkpoint);
+        let signer: Signers = ready
+            .private_key
+            .parse::<ethers::signers::LocalWallet>()
+            .expect("valid test signer")
+            .into();
+        let signed = signer.sign(checkpoint).await.expect("sign checkpoint");
+
+        let activity = Arc::new(FetchActivity::default());
+        let mut syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
+        let mut addresses = Vec::new();
+        for (index, validator) in validators.iter().enumerate() {
+            let address = H160::from_str(&validator.public_key).expect("valid validator");
+            let ready = index == slow_validators;
+            syncers.insert(
+                address,
+                Arc::new(DelayedCheckpointSyncer {
+                    delay: if ready {
+                        Duration::ZERO
+                    } else {
+                        Duration::from_secs(60)
+                    },
+                    latest_index: None,
+                    checkpoint: ready.then(|| signed.clone()),
+                    checkpoint_location: None,
+                    activity: activity.clone(),
+                }),
+            );
+            addresses.push(H256::from(address));
+        }
+
+        let syncer = MultisigCheckpointSyncer::new(syncers, None);
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let result = tokio::time::timeout(
+            deadline,
+            syncer.fetch_checkpoint(&addresses, 1, 1000, &destination),
+        )
+        .await
+        .expect("ready validator must provide quorum before slow validators complete")
+        .expect("fetch checkpoint")
+        .expect("quorum");
+        assert_eq!(result.checkpoint, checkpoint);
+        assert_eq!(result.signatures, vec![signed.signature]);
+        assert_eq!(activity.peak.load(Ordering::Relaxed), addresses.len());
+        assert_eq!(activity.active.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn repeated_validator_cannot_form_a_quorum() {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+        let mut validators = dummy_validators();
+        validators.truncate(1);
+        validators[0].fetch_checkpoint = Some(checkpoint);
+        let address =
+            H256::from(H160::from_str(&validators[0].public_key).expect("valid validator"));
+        let syncer =
+            MultisigCheckpointSyncer::new(build_mock_checkpoint_syncs(&validators).await, None);
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        assert!(syncer
+            .fetch_checkpoint(&[address, address], 2, 1000, &destination)
+            .await
+            .expect("fetch checkpoint")
+            .is_none());
     }
 
     #[tokio::test]

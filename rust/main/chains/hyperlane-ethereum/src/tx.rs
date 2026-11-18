@@ -228,6 +228,31 @@ mod tests {
     }
 }
 
+pub(crate) async fn estimate_tx_gas_limit<M, D>(tx: &ContractCall<M, D>) -> ChainResult<U256>
+where
+    M: Middleware + 'static,
+    D: Detokenize,
+{
+    match tx.tx.gas() {
+        Some(&estimate) => Ok(estimate.into()),
+        None => Ok(tx.estimate_gas().await?.into()),
+    }
+}
+
+pub(crate) fn cap_tx_gas_limit(gas_limit: U256, latest_block: &Block<TxHash>) -> U256 {
+    let block_gas_limit: U256 = latest_block.gas_limit.into();
+    if !block_gas_limit.is_zero() && gas_limit > block_gas_limit {
+        warn!(
+            ?gas_limit,
+            ?block_gas_limit,
+            "Gas limit for transaction is higher than the block gas limit. Capping it to the block gas limit."
+        );
+        block_gas_limit
+    } else {
+        gas_limit
+    }
+}
+
 /// Populates the gas limit and price for a transaction
 pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
@@ -241,44 +266,24 @@ where
     M: Middleware + 'static,
     D: Detokenize,
 {
-    // either use the pre-estimated gas limit or estimate it
-    let mut estimated_gas_limit: U256 = match tx.tx.gas() {
-        Some(&estimate) => estimate.into(),
-        None => tx.estimate_gas().await?.into(),
-    };
-
+    let mut estimated_gas_limit = estimate_tx_gas_limit(&tx).await?;
     if with_gas_limit_overrides {
         estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
         if let Some(gas_limit) = transaction_overrides.gas_limit {
             estimated_gas_limit = estimated_gas_limit.max(gas_limit)
         }
     }
-    let gas_limit = estimated_gas_limit;
+
     let (cached_latest_block, cached_eip1559_fee) = {
         let cache = cache.lock().await;
         (cache.latest_block.clone(), cache.eip1559_fee)
     };
 
-    // Cap the gas limit to the block gas limit
     let latest_block = match cached_latest_block {
         Some(block) => block,
-        None => provider
-            .get_block(BlockNumber::Latest)
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?,
+        None => latest_block(provider.clone()).await?,
     };
-    let block_gas_limit: U256 = latest_block.gas_limit.into();
-    let gas_limit = if !block_gas_limit.is_zero() && gas_limit > block_gas_limit {
-        warn!(
-            ?gas_limit,
-            ?block_gas_limit,
-            "Gas limit for transaction is higher than the block gas limit. Capping it to the block gas limit."
-        );
-        block_gas_limit
-    } else {
-        gas_limit
-    };
+    let gas_limit = cap_tx_gas_limit(estimated_gas_limit, &latest_block);
     debug!(?estimated_gas_limit, gas_override=?transaction_overrides.gas_limit, used_gas_limit=?gas_limit, "Gas limit set for transaction");
 
     if let Some(gas_price) = transaction_overrides.gas_price {
@@ -406,7 +411,7 @@ pub type Eip1559Fee = (
     EthersU256, // max priority fee
 );
 
-async fn latest_block<M>(provider: Arc<M>) -> ChainResult<Block<TxHash>>
+pub(crate) async fn latest_block<M>(provider: Arc<M>) -> ChainResult<Block<TxHash>>
 where
     M: Middleware + 'static,
 {

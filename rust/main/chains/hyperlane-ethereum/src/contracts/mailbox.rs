@@ -22,9 +22,9 @@ use tracing::{instrument, warn};
 use hyperlane_core::{
     rpc_clients::call_and_retry_indefinitely, BatchItem, BatchResult, ChainCommunicationError,
     ChainResult, ContractLocator, Decode, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProtocolError, HyperlaneProvider, Indexed, Indexer,
-    LogMeta, Mailbox, QueueOperation, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H160, H256, H512, U256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
+    QueueOperation, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate,
+    TxOutcome, H160, H256, H512, U256,
 };
 
 use crate::error::HyperlaneEthereumError;
@@ -32,7 +32,8 @@ use crate::interfaces::arbitrum_node_interface::ArbitrumNodeInterface;
 use crate::interfaces::i_mailbox::{IMailbox as EthereumMailboxInternal, IMAILBOX_ABI};
 use crate::interfaces::mailbox::DispatchFilter;
 use crate::tx::{
-    call_with_reorg_period, estimate_eip1559_fees, fill_tx_gas_params, report_tx, Eip1559Fee,
+    call_with_reorg_period, cap_tx_gas_limit, estimate_eip1559_fees, estimate_tx_gas_limit,
+    fill_tx_gas_params, latest_block, report_tx, Eip1559Fee,
 };
 use crate::{
     BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod,
@@ -501,13 +502,11 @@ where
         Ok(tx)
     }
 
-    /// Returns a ContractCall that processes the provided message.
-    async fn process_contract_call(
+    fn process_call_with_sender(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
-        with_gas_estimate_buffer: bool,
     ) -> ChainResult<ContractCall<M, ()>> {
         let mut tx = self.contract_call(message, metadata, tx_gas_estimate)?;
 
@@ -520,15 +519,7 @@ where
             tx = tx.from(sender);
         }
 
-        fill_tx_gas_params(
-            tx,
-            self.provider.clone(),
-            &self.conn.transaction_overrides.clone(),
-            &self.domain,
-            with_gas_estimate_buffer,
-            self.cache.clone(),
-        )
-        .await
+        Ok(tx)
     }
 
     async fn simulate_batch(
@@ -733,9 +724,15 @@ where
         metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let contract_call = self
-            .process_contract_call(message, metadata, tx_gas_limit, true)
-            .await?;
+        let contract_call = fill_tx_gas_params(
+            self.process_call_with_sender(message, metadata, tx_gas_limit)?,
+            self.provider.clone(),
+            &self.conn.transaction_overrides,
+            &self.domain,
+            true,
+            self.cache.clone(),
+        )
+        .await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
     }
@@ -826,60 +823,62 @@ where
                 ChainCommunicationError::CustomError("Protected mailbox estimate timed out".into())
             })?;
         }
-        // this function is used to get an accurate gas estimate for the transaction
-        // rather than a gas amount that will guarantee inclusion, so we use `false`
-        // for the `with_gas_estimate_buffer` arg in `process_contract_call`
-        let contract_call = self
-            .process_contract_call(message, metadata, None, false)
-            .await?;
-        let gas_limit = contract_call
-            .tx
-            .gas()
-            .copied()
-            .ok_or(HyperlaneProtocolError::ProcessGasLimitRequired)?;
+        let call = self.process_call_with_sender(message, metadata, None)?;
+        let block = async {
+            let cached = self.cache.lock().await.latest_block.clone();
+            match cached {
+                Some(block) => Ok(block),
+                None => latest_block(self.provider.clone()).await,
+            }
+        };
+        let gas_limit = async {
+            // Return process() failures before ancillary RPC errors, including
+            // contract reverts used to classify ICA simulation failures.
+            let (estimate, block) = tokio::try_join!(
+                biased;
+                estimate_tx_gas_limit(&call),
+                async { Ok(block.await) }
+            )?;
+            Ok::<_, ChainCommunicationError>(cap_tx_gas_limit(estimate, &block?))
+        };
 
-        // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
-        // Note: estimate_retryable_ticket simulates execution via a retryable ticket, where
-        // msg.sender is the L2 alias of the sender arg (not the actual relayer address).
-        // For ISMs like TrustedRelayerIsm that check msg.sender, this simulation will fail.
-        // In that case we fall back to l2_gas_limit = None so enforceable_gas_limit() uses
-        // the direct process() gas estimate instead.
-        let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
-            let mut retryable_call = arbitrum_node_interface.estimate_retryable_ticket(
+        let l2_gas_limit = async {
+            let node = self.arbitrum_node_interface.as_ref()?;
+            // A retryable ticket aliases msg.sender, which can make TrustedRelayerIsm
+            // reject it. In that case use the direct process() estimate.
+            let mut retryable_call = node.estimate_retryable_ticket(
                 H160::zero().into(),
-                // Give the sender a deposit (100 ETH), otherwise it reverts
+                // Give the sender a deposit (100 ETH), otherwise it reverts.
                 WEI_IN_ETHER.mul(100u32),
                 self.contract.address(),
                 U256::zero().into(),
                 H160::zero().into(),
                 H160::zero().into(),
-                contract_call.calldata().unwrap_or_default(),
+                call.calldata().unwrap_or_default(),
             );
-            if let Some(sender) = self.provider.default_sender() {
+            if let Some(&sender) = call.tx.from() {
                 retryable_call = retryable_call.from(sender);
             }
             match retryable_call.estimate_gas().await {
-                Ok(estimate) => Some(estimate),
+                Ok(estimate) => Some(estimate.into()),
                 Err(err) => {
                     warn!(?err, "Failed to estimate l2_gas_limit via ArbitrumNodeInterface, falling back to direct gas estimate");
                     None
                 }
             }
-        } else {
-            None
         };
-
-        let gas_price: U256 = self
-            .provider
-            .get_gas_price()
-            .await
+        let (gas_limit, (l2_gas_limit, gas_price)) = tokio::try_join!(
+            biased;
+            gas_limit,
+            async { Ok(join!(biased; l2_gas_limit, self.provider.get_gas_price())) }
+        )?;
+        let gas_price: U256 = gas_price
             .map_err(ChainCommunicationError::from_other)?
             .into();
-
         Ok(TxCostEstimate {
-            gas_limit: gas_limit.into(),
+            gas_limit,
             gas_price: gas_price.try_into()?,
-            l2_gas_limit: l2_gas_limit.map(|v| v.into()),
+            l2_gas_limit,
         })
     }
 
@@ -917,13 +916,12 @@ impl HyperlaneAbi for EthereumMailboxAbi {
 
 #[cfg(test)]
 mod test {
-    use std::{ops::Mul, str::FromStr, sync::Arc};
+    use std::{ops::Mul, sync::Arc};
 
     use ethers::{
         providers::{MockProvider, Provider},
         types::{Block, Transaction, U256 as EthersU256},
     };
-    use ethers_core::types::FeeHistory;
     use hyperlane_core::{
         ContractLocator, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
         Metadata, TxCostEstimate, H160, H256, U256,
@@ -1071,147 +1069,133 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
-        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
-        // An Arbitrum Nitro chain
-        let (mailbox, mock_provider) = get_test_mailbox(domain.clone());
+    async fn process_estimate_costs_uses_arbitrum_retryable_gas_when_available() {
+        for retryable_supported in [true, false] {
+            let (mailbox, mock) =
+                get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum));
+            let message = HyperlaneMessage::default();
+            let metadata = Metadata::new(vec![]);
+            let gas_price = U256::from(15_000_000_000u64);
+            let gas_limit = U256::from(1_000_000u32);
+            let retryable_gas_limit = U256::from(200_000u32);
 
-        let message = HyperlaneMessage::default();
-        let metadata = Metadata::new(vec![]);
-
-        assert!(mailbox.arbitrum_node_interface.is_some());
-        // Confirm `H160::from_low_u64_ne(0xC8)` does what's expected
-        assert_eq!(
-            H160::from(mailbox.arbitrum_node_interface.as_ref().unwrap().address()),
-            H160::from_str("0x00000000000000000000000000000000000000C8").unwrap(),
-        );
-
-        // The MockProvider responses we push are processed in LIFO
-        // order, so we start with the final RPCs and work toward the first
-        // RPCs
-
-        // RPC 9: eth_gasPrice by process_estimate_costs
-        // Return 15 gwei
-        let gas_price: U256 =
-            EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
-        mock_provider.push(gas_price).unwrap();
-
-        // RPC 8: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
-        let l2_gas_limit = U256::from(200000); // 200k gas
-        mock_provider.push(l2_gas_limit).unwrap();
-
-        let fee_history = FeeHistory {
-            oldest_block: ethers::types::U256::zero(),
-            base_fee_per_gas: vec![],
-            gas_used_ratio: vec![],
-            reward: vec![vec![]],
-        };
-
-        // RPC 5-7: eth_feeHistory from the estimate_eip1559_fees_default with different percentiles
-        mock_provider.push(fee_history.clone()).unwrap();
-        mock_provider.push(fee_history.clone()).unwrap();
-        mock_provider.push(fee_history.clone()).unwrap();
-
-        // RPC 4: eth_feeHistory from the estimate_eip1559_fees_default
-        mock_provider.push(fee_history.clone()).unwrap();
-
-        let latest_block: Block<Transaction> = Block {
-            gas_limit: ethers::types::U256::MAX,
-            ..Block::<Transaction>::default()
-        };
-
-        // RPC 3: eth_getBlockByNumber from the estimate_eip1559_fees_default
-        mock_provider.push(latest_block.clone()).unwrap();
-
-        // RPC 2: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
-        // to get the latest block gas limit and for eip 1559 fee estimation
-        mock_provider.push(latest_block).unwrap();
-
-        // RPC 1: eth_estimateGas from the estimate_gas call in process_contract_call
-        // Return 1M gas
-        let gas_limit = U256::from(1000000u32);
-        mock_provider.push(gas_limit).unwrap();
-
-        let tx_cost_estimate = mailbox
-            .process_estimate_costs(&message, &metadata)
-            .await
+            // Mock results are consumed in reverse push order.
+            mock.push(gas_price).unwrap();
+            if retryable_supported {
+                mock.push(retryable_gas_limit).unwrap();
+            } else {
+                // This mock transport exposes response values only. A malformed
+                // gas quantity returns a provider error from estimate_gas.
+                mock.push::<&str, _>("not a gas quantity").unwrap();
+            }
+            mock.push(Block::<Transaction> {
+                gas_limit: EthersU256::MAX,
+                ..Default::default()
+            })
             .unwrap();
+            mock.push(gas_limit).unwrap();
 
-        assert_eq!(
-            tx_cost_estimate,
-            TxCostEstimate {
-                gas_limit,
-                gas_price: gas_price.try_into().unwrap(),
-                l2_gas_limit: Some(l2_gas_limit),
-            },
-        );
+            let estimate = mailbox
+                .process_estimate_costs(&message, &metadata)
+                .await
+                .unwrap();
+            assert_eq!(
+                estimate,
+                TxCostEstimate {
+                    gas_limit,
+                    gas_price: gas_price.try_into().unwrap(),
+                    l2_gas_limit: retryable_supported.then_some(retryable_gas_limit),
+                }
+            );
+            let call = mailbox.contract_call(&message, &metadata, None).unwrap();
+            mock.assert_request("eth_estimateGas", [&call.tx]).unwrap();
+            mock.assert_request("eth_getBlockByNumber", ("latest", false))
+                .unwrap();
+            let node = mailbox.arbitrum_node_interface.as_ref().unwrap();
+            assert_eq!(node.address(), ethers::types::H160::from_low_u64_be(0xC8));
+            let retryable = node.estimate_retryable_ticket(
+                H160::zero().into(),
+                ethers_core::utils::WEI_IN_ETHER.mul(100u32),
+                mailbox.contract.address(),
+                U256::zero().into(),
+                H160::zero().into(),
+                H160::zero().into(),
+                call.calldata().unwrap(),
+            );
+            mock.assert_request("eth_estimateGas", [&retryable.tx])
+                .unwrap();
+            mock.assert_request("eth_gasPrice", ()).unwrap();
+            assert!(mock.assert_request("eth_feeHistory", ()).is_err());
+        }
     }
 
     #[tokio::test]
-    async fn test_tx_gas_limit_caps_at_block_gas_limit() {
-        let (mailbox, mock_provider) =
+    async fn process_estimate_costs_uses_raw_sender_and_block_cap_without_submission_fees() {
+        let (mut mailbox, mock) =
             get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum));
-
+        let sender = ethers::types::H160::from_low_u64_be(42);
+        mailbox.provider = Arc::new(mailbox.provider.as_ref().clone().with_sender(sender));
+        mailbox.conn.transaction_overrides.gas_limit = Some(U256::from(2_000_000u32));
+        mailbox.conn.transaction_overrides.max_fee_per_gas = Some(U256::from(1));
         let message = HyperlaneMessage::default();
-        let metadata = Metadata::new(vec![]);
+        let metadata = Metadata::new(vec![42; 32]);
+        let expected_call = mailbox
+            .contract_call(&message, &metadata, None)
+            .unwrap()
+            .from(sender);
+        let gas_price = U256::from(15_000_000_000u64);
+        let block_gas_limit = U256::from(1_012_345u32);
+        mock.push(gas_price).unwrap();
+        mock.push(Block::<Transaction> {
+            gas_limit: block_gas_limit.into(),
+            ..Default::default()
+        })
+        .unwrap();
+        mock.push(U256::from(2_000_000u32)).unwrap();
 
-        // The MockProvider responses we push are processed in LIFO
-        // order, so we start with the final RPCs and work toward the first
-        // RPCs
-
-        // RPC 8: eth_gasPrice by process_estimate_costs
-        // Return 15 gwei
-        let gas_price: U256 =
-            EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
-        mock_provider.push(gas_price).unwrap();
-
-        let fee_history = FeeHistory {
-            oldest_block: ethers::types::U256::zero(),
-            base_fee_per_gas: vec![],
-            gas_used_ratio: vec![],
-            reward: vec![vec![]],
-        };
-
-        // RPC 5-7: eth_feeHistory from the estimate_eip1559_fees_default with different percentiles
-        mock_provider.push(fee_history.clone()).unwrap();
-        mock_provider.push(fee_history.clone()).unwrap();
-        mock_provider.push(fee_history.clone()).unwrap();
-
-        // RPC 4: eth_feeHistory from the estimate_eip1559_fees_default
-        mock_provider.push(fee_history).unwrap();
-
-        let latest_block_gas_limit = U256::from(12345u32);
-        let latest_block: Block<Transaction> = Block {
-            gas_limit: latest_block_gas_limit.into(),
-            ..Block::<Transaction>::default()
-        };
-
-        // RPC 3: eth_getBlockByNumber from the estimate_eip1559_fees_default
-        mock_provider.push(latest_block.clone()).unwrap();
-
-        // RPC 2: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
-        // to get the latest block gas limit and for eip 1559 fee estimation
-        mock_provider.push(latest_block).unwrap();
-
-        // RPC 1: eth_estimateGas from the estimate_gas call in process_contract_call
-        // Return 1M gas
-        let gas_limit = U256::from(1000000u32);
-        mock_provider.push(gas_limit).unwrap();
-
-        let tx_cost_estimate = mailbox
+        let estimate = mailbox
             .process_estimate_costs(&message, &metadata)
             .await
             .unwrap();
 
         assert_eq!(
-            tx_cost_estimate,
+            estimate,
             TxCostEstimate {
-                // The block gas limit is the cap
-                gas_limit: latest_block_gas_limit,
+                gas_limit: block_gas_limit,
                 gas_price: gas_price.try_into().unwrap(),
                 l2_gas_limit: None,
-            },
+            }
         );
+        mock.assert_request("eth_estimateGas", [&expected_call.tx])
+            .unwrap();
+        mock.assert_request("eth_getBlockByNumber", ("latest", false))
+            .unwrap();
+        mock.assert_request("eth_gasPrice", ()).unwrap();
+        assert!(mock.assert_request("eth_feeHistory", ()).is_err());
+    }
+
+    #[tokio::test]
+    async fn process_estimate_costs_returns_primary_estimate_errors() {
+        let (mailbox, mock) =
+            get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum));
+        let message = HyperlaneMessage::default();
+        let metadata = Metadata::new(vec![]);
+        let call = mailbox.contract_call(&message, &metadata, None).unwrap();
+        // The primary request fails decoding. Ancillary requests would fail
+        // with an empty response, but must never hide the contract error.
+        mock.push::<&str, _>("not a gas quantity").unwrap();
+
+        let error = mailbox
+            .process_estimate_costs(&message, &metadata)
+            .await
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            hyperlane_core::ChainCommunicationError::ContractError(_)
+        ));
+        mock.assert_request("eth_estimateGas", [&call.tx]).unwrap();
+        assert!(mock.assert_request("eth_getBlockByNumber", ()).is_err());
     }
 
     mod cctp_v2_message_sent_count {

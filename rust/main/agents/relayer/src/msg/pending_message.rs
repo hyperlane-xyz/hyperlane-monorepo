@@ -97,6 +97,14 @@ enum GasPaymentRequirementOutcome {
     RequirementNotMet(PendingOperationResult),
 }
 
+enum PreparePreflight {
+    AlreadyDelivered,
+    DeliveryCheckFailed(ChainCommunicationError),
+    RecipientNotContract,
+    RecipientCheckFailed(ChainCommunicationError),
+    GasPayment(Result<GasPolicyStatus>),
+}
+
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
 pub struct MessageContext {
@@ -509,55 +517,47 @@ impl PendingOperation for PendingMessage {
 
         self.report_first_seen();
         self.report_progress(Stage::Prepare, Outcome::Started);
-        // If the message has already been processed, e.g. due to another relayer having
-        // already processed, then mark it as already-processed, and move on to
-        // the next tick.
-        let is_already_delivered = match with_rpc_operation(
-            RpcOperation::RelayerDelivery,
-            self.ctx.destination_mailbox.delivered(self.message.id()),
-        )
-        .await
-        {
-            Ok(is_delivered) => is_delivered,
-            Err(err) => {
+        let preflight = self
+            .read_prepare_preflight(with_rpc_operation(
+                RpcOperation::RelayerDelivery,
+                self.ctx.destination_mailbox.delivered(self.message.id()),
+            ))
+            .await;
+        match preflight {
+            PreparePreflight::AlreadyDelivered => {
+                debug!("Message has already been delivered, marking as submitted.");
+                self.ctx.destination_mailbox.on_delivered(&self.message);
+                self.submitted = true;
+                self.set_next_attempt_after(CONFIRM_DELAY);
+                return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
+            }
+            PreparePreflight::DeliveryCheckFailed(err) => {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus);
             }
-        };
-        if is_already_delivered {
-            debug!("Message has already been delivered, marking as submitted.");
-            self.ctx.destination_mailbox.on_delivered(&self.message);
-            self.submitted = true;
-            self.set_next_attempt_after(CONFIRM_DELAY);
-            return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
-        }
-
-        // We cannot deliver to an address that is not a contract so check and drop if it isn't.
-        let is_contract =
-            match with_rpc_operation(RpcOperation::RelayerRecipient, self.is_recipient_contract())
-                .await
-            {
-                Ok(is_contract) => is_contract,
-                Err(reprepare_reason) => return reprepare_reason,
-            };
-        if !is_contract {
-            self.ctx
-                .metadata_builder
-                .report_activity(&self.message, Activity::RecipientNotContract);
-            info!(
-                recipient=?self.message.recipient,
-                "Dropping message because recipient is not a contract"
-            );
-            return self.terminal_drop();
-        }
-
-        // Perform a preflight check to see if we can short circuit the gas
-        // payment requirement check early without performing expensive
-        // operations like metadata building or gas estimation.
-        if let GasPaymentRequirementOutcome::RequirementNotMet(op_result) =
-            self.meets_gas_payment_requirement_preflight_check().await
-        {
-            info!("Message does not meet the gas payment requirement preflight check");
-            return op_result;
+            PreparePreflight::RecipientNotContract => {
+                self.ctx
+                    .metadata_builder
+                    .report_activity(&self.message, Activity::RecipientNotContract);
+                info!(
+                    recipient=?self.message.recipient,
+                    "Dropping message because recipient is not a contract"
+                );
+                return self.terminal_drop();
+            }
+            PreparePreflight::RecipientCheckFailed(err) => {
+                return self.on_reprepare(
+                    Some(err),
+                    ReprepareReason::ErrorCheckingIfRecipientIsContract,
+                );
+            }
+            PreparePreflight::GasPayment(gas_payment) => {
+                if let GasPaymentRequirementOutcome::RequirementNotMet(op_result) =
+                    self.gas_payment_requirement_outcome(gas_payment)
+                {
+                    info!("Message does not meet the gas payment requirement preflight check");
+                    return op_result;
+                }
+            }
         }
 
         // After the gas preflight, so unpaid messages don't cost origin RPC
@@ -1256,7 +1256,7 @@ impl PendingMessage {
     ///
     /// Implicit contract in this method: function name `is_contract` matches
     /// the name of the method `is_contract`.
-    async fn is_recipient_contract(&mut self) -> Result<bool, PendingOperationResult> {
+    async fn is_recipient_contract(&self) -> ChainResult<bool> {
         let mailbox = self.ctx.destination_mailbox.clone();
         let domain_name = mailbox.domain().name();
         let fn_key = "is_contract";
@@ -1272,12 +1272,7 @@ impl PendingMessage {
         // Construct the provider only when the cached status cannot answer.
         let provider = mailbox.provider();
         // Check if the recipient is a contract
-        let is_contract = provider.is_contract(&fn_params).await.map_err(|err| {
-            self.on_reprepare(
-                Some(err),
-                ReprepareReason::ErrorCheckingIfRecipientIsContract,
-            )
-        })?;
+        let is_contract = provider.is_contract(&fn_params).await?;
 
         // Cache the recipient contract status
         self.store_to_cache(domain_name, fn_key, &fn_params, &is_contract)
@@ -1361,47 +1356,68 @@ impl PendingMessage {
             warn!(error=?err, ?fn_key, "Error caching result");
         }
     }
-    /// A preflight check to see if a message could possibly meet
-    /// a gas payment requirement prior to undertaking expensive operations
-    /// like metadata building or gas estimation.
-    /// If the message does not meet the gas payment requirement,
-    /// Err(PendingOperationResult) is returned, with the PendingOperationResult intended
-    /// to be propagated up by the prepare fn.
-    async fn meets_gas_payment_requirement_preflight_check(
-        &mut self,
-    ) -> GasPaymentRequirementOutcome {
-        // We test if the message may meet the gas payment requirement
-        // with the most simple tx cost estimate: one that has zero cost
-        // whatsoever. If the message does not meet the gas payment requirement
-        // with zero cost, we can skip the metadata building and gas estimation
-        // altogether. This covers the case of a message that did not pay our IGP,
-        // which may violate the gas payment enforcement policies depending on
-        // the configuration, but also allows us to be tolerant of the configuration
-        // allowing no payment at all.
-        let zero_cost = TxCostEstimate {
-            gas_limit: U256::zero(),
-            gas_price: FixedPointNumber::zero(),
-            l2_gas_limit: None,
+    async fn read_prepare_preflight(
+        &self,
+        delivery_status: impl std::future::Future<Output = ChainResult<bool>>,
+    ) -> PreparePreflight {
+        let delivery = async {
+            match delivery_status.await {
+                Ok(false) => Ok(()),
+                Ok(true) => Err(PreparePreflight::AlreadyDelivered),
+                Err(err) => Err(PreparePreflight::DeliveryCheckFailed(err)),
+            }
         };
-
-        self.meets_gas_payment_requirement(&zero_cost).await
+        let admission = async {
+            let result =
+                with_rpc_operation(RpcOperation::RelayerRecipient, self.is_recipient_contract())
+                    .await;
+            Ok(match result {
+                Ok(true) => {
+                    // A zero-cost estimate detects unpaid messages before building metadata.
+                    let zero_cost = TxCostEstimate {
+                        gas_limit: U256::zero(),
+                        gas_price: FixedPointNumber::zero(),
+                        l2_gas_limit: None,
+                    };
+                    PreparePreflight::GasPayment(
+                        self.read_gas_payment_requirement(&zero_cost).await,
+                    )
+                }
+                Ok(false) => PreparePreflight::RecipientNotContract,
+                Err(err) => PreparePreflight::RecipientCheckFailed(err),
+            })
+        };
+        // Poll delivery first: if it rejects the message, drop the admission
+        // future immediately. Any completed admission result waits for delivery.
+        match tokio::try_join!(biased; delivery, admission) {
+            Err(result) | Ok(((), result)) => result,
+        }
     }
 
-    /// Returns the gas limit if the message meets the gas payment requirement,
-    /// otherwise returns an Err(PendingOperationResult), with the PendingOperationResult intended
-    /// to be propagated up by the prepare fn.
-    async fn meets_gas_payment_requirement(
-        &mut self,
+    async fn read_gas_payment_requirement(
+        &self,
         tx_cost_estimate: &TxCostEstimate,
-    ) -> GasPaymentRequirementOutcome {
-        let gas_limit = self
-            .ctx
+    ) -> Result<GasPolicyStatus> {
+        self.ctx
             .origin_gas_payment_enforcer
             .read()
             .await
             .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
-            .await;
+            .await
+    }
 
+    async fn meets_gas_payment_requirement(
+        &mut self,
+        tx_cost_estimate: &TxCostEstimate,
+    ) -> GasPaymentRequirementOutcome {
+        let gas_limit = self.read_gas_payment_requirement(tx_cost_estimate).await;
+        self.gas_payment_requirement_outcome(gas_limit)
+    }
+
+    fn gas_payment_requirement_outcome(
+        &mut self,
+        gas_limit: Result<GasPolicyStatus>,
+    ) -> GasPaymentRequirementOutcome {
         let gas_limit = match gas_limit {
             Ok(gas_limit) => gas_limit,
             Err(err) => {
@@ -1598,16 +1614,6 @@ impl PendingMessage {
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
         true
-    }
-
-    /// Whether accelerated signature polling is still within its fast window.
-    fn in_signature_poll_window(&self, now: SystemTime) -> bool {
-        self.signature_retry.as_ref().is_some_and(|state| {
-            state.backoff_retries == 0
-                && now
-                    .duration_since(state.started_at)
-                    .is_ok_and(|elapsed| elapsed < SIGNATURE_POLL_WINDOW)
-        })
     }
 
     /// Returns an accelerated polling delay, or `None` to consume a normal retry.
@@ -1810,12 +1816,9 @@ impl PendingMessage {
             self.status,
             PendingOperationStatus::Retry(ReprepareReason::AwaitingValidatorSignatures)
         );
-        // Probes only skip validators behind the leaf during the fast window, so
-        // a lagging latest index can delay delivery by at most that window.
-        let narrow_probe = self.in_signature_poll_window(SystemTime::now());
         let build_metadata_start = Instant::now();
         let metadata_res = message_metadata_builder
-            .build_for_delivery(ism_address, &self.message, polling, narrow_probe)
+            .build_for_delivery(ism_address, &self.message, polling)
             .await;
 
         tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
@@ -1932,7 +1935,7 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
+    use super::{PendingMessage, PreparePreflight, DEFAULT_MAX_MESSAGE_RETRIES};
 
     fn unix_millis(time: SystemTime) -> u64 {
         time.duration_since(UNIX_EPOCH)
@@ -2471,7 +2474,7 @@ mod test {
         for expected in [false, true] {
             let mut mailbox = contract_test_mailbox();
             mailbox.expect__provider().times(0);
-            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            let (_dir, pending) = pending_with_mailbox(mailbox, None);
             pending
                 .store_to_cache(
                     "arbitrum",
@@ -2498,7 +2501,7 @@ mod test {
                     calls: provider_calls.clone(),
                 })
             });
-            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            let (_dir, pending) = pending_with_mailbox(mailbox, None);
             for _ in 0..10 {
                 assert_eq!(pending.is_recipient_contract().await.unwrap(), expected);
             }
@@ -2715,10 +2718,60 @@ mod test {
     }
 
     #[tokio::test]
+    async fn delivery_preflight_overlaps_recipient_reads_and_keeps_delivery_priority() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::task::Poll;
+
+        for recipient_result in [Some(true), None] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let provider_calls = calls.clone();
+            let mut mailbox = contract_test_mailbox();
+            mailbox.expect__provider().once().returning(move || {
+                Box::new(ContractProvider {
+                    result: recipient_result,
+                    calls: provider_calls.clone(),
+                })
+            });
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            Arc::get_mut(&mut pending.ctx).unwrap().cache = OptionalCache::new(None);
+            // A contract recipient cannot finish gas admission while the write lock is held.
+            let _gas_admission_gate = pending.ctx.origin_gas_payment_enforcer.write().await;
+            let (release_delivery, delivery) = tokio::sync::oneshot::channel();
+            let mut preflight =
+                Box::pin(pending.read_prepare_preflight(async { delivery.await.unwrap() }));
+
+            assert!(futures::poll!(&mut preflight).is_pending());
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+            release_delivery.send(Ok(true)).unwrap();
+            assert!(matches!(
+                futures::poll!(&mut preflight),
+                Poll::Ready(PreparePreflight::AlreadyDelivered)
+            ));
+            assert_eq!(pending.num_retries, 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn already_delivered_prepare_skips_admission_reads_when_status_is_ready() {
+        let mut mailbox = contract_test_mailbox();
+        mailbox.expect__delivered().once().returning(|_| Ok(true));
+        mailbox.expect__provider().times(0);
+        let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+        assert!(matches!(
+            pending.prepare().await,
+            PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted)
+        ));
+    }
+
+    #[tokio::test]
     async fn contract_status_error_reprepares_and_does_not_cache() {
         let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let provider_calls = calls.clone();
         let mut mailbox = contract_test_mailbox();
+        mailbox
+            .expect__delivered()
+            .times(2)
+            .returning(|_| Ok(false));
         mailbox.expect__provider().times(2).returning(move || {
             Box::new(ContractProvider {
                 result: None,
@@ -2727,11 +2780,12 @@ mod test {
         });
         let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
         for _ in 0..2 {
+            pending.next_attempt_after = None;
             assert!(matches!(
-                pending.is_recipient_contract().await,
-                Err(PendingOperationResult::Reprepare(
+                pending.prepare().await,
+                PendingOperationResult::Reprepare(
                     ReprepareReason::ErrorCheckingIfRecipientIsContract
-                ))
+                )
             ));
         }
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);

@@ -16,7 +16,7 @@ use strum::Display;
 use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::{MetadataBuildError, MetadataBuildRefused};
-use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
+use crate::msg::metadata::base_builder::{IsmBuildMetricsParams, ValidatorStorageLocations};
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
 use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, MetadataBuilder};
 
@@ -103,6 +103,13 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError>;
+
+    fn report_successful_poll(
+        &self,
+        _checkpoint_syncer: &MultisigCheckpointSyncer,
+        _validators: &[H256],
+    ) {
+    }
 
     fn token_layout(&self) -> &'static [MetadataToken];
 
@@ -259,61 +266,105 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
 
     info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
 
-    let checkpoint_syncer = match ism_builder
-        .as_ref()
-        .base_builder()
-        .build_checkpoint_syncer(
-            message,
-            &validators,
-            ism_builder.as_ref().app_context.clone(),
-            !ism_builder.as_ref().signature_polling,
-        )
-        .await
-    {
-        Ok(syncer) => syncer,
-        Err(CheckpointSyncerBuildError::ReorgFlag(reorg_resp)) => {
-            return Err(MetadataBuildError::Refused(MetadataBuildRefused::Reorg(
-                reorg_resp,
-            )));
-        }
-        Err(e) => {
-            return Err(MetadataBuildError::FailedToBuild(e.to_string()));
-        }
+    let builder = ism_builder.as_ref();
+    let validator_slice = validators.as_slice();
+    let locations = &ValidatorStorageLocations::new();
+    let build_syncer = |check_reorg| async move {
+        builder
+            .base_builder()
+            .build_checkpoint_syncer(
+                message,
+                validator_slice,
+                builder.app_context.clone(),
+                check_reorg,
+                locations,
+            )
+            .await
+            .map_err(|error| match error {
+                CheckpointSyncerBuildError::ReorgFlag(event) => {
+                    MetadataBuildError::Refused(MetadataBuildRefused::Reorg(event))
+                }
+                error => MetadataBuildError::FailedToBuild(error.to_string()),
+            })
     };
+    let checkpoint_syncer = build_syncer(false).await?;
 
-    let observer = ism_builder
-        .as_ref()
-        .base_builder()
-        .activity_reporter()
-        .map(|reporter| {
+    let checkpoint_observer = || {
+        builder.base_builder().activity_reporter().map(|reporter| {
             reporter.checkpoint_observer_for_node(
                 message,
                 (!ism_address.is_zero()).then_some(ism_address),
                 threshold,
-                Some(&ism_builder.as_ref().node_id),
+                Some(&builder.node_id),
             )
-        });
+        })
+    };
+    let mut observer = checkpoint_observer();
     let checkpoint_syncer = if let Some(observer) = &observer {
         checkpoint_syncer.with_observer(observer.clone())
     } else {
         checkpoint_syncer
     };
-    let result = ism_builder
-        .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
-        .await;
+    let result = async {
+        let checked = {
+            let fetch =
+                ism_builder.fetch_metadata(&validators, threshold, message, &checkpoint_syncer);
+            let validate = build_syncer(true);
+            tokio::pin!(fetch, validate);
+            // Validation is required even if the fetch ends without a quorum.
+            let (metadata, checked) = tokio::select! {
+                metadata = &mut fetch => (Some(metadata), validate.await?),
+                checked = &mut validate => (None, checked?),
+            };
+
+            if checkpoint_syncer.has_same_clients(&checked) {
+                let metadata = match metadata {
+                    Some(metadata) => metadata,
+                    None => fetch.await,
+                };
+                if builder.signature_polling && matches!(&metadata, Ok(Some(_))) {
+                    ism_builder.report_successful_poll(&checkpoint_syncer, &validators);
+                }
+                return metadata.map_err(|_| MetadataBuildError::CouldNotFetch);
+            }
+            // Drop any pending speculative fetch before collecting from checked clients.
+            checked
+        };
+        // A changed location or unreadable flag can remove a signer. Re-fetch
+        // this leaf with the checked clients, reusing positive cached reads.
+        if let Some(observer) = observer.take() {
+            observer.report();
+        }
+        let observer = checkpoint_observer();
+        let checked = if let Some(observer) = &observer {
+            checked.with_observer(observer.clone())
+        } else {
+            checked
+        };
+        let recollected = ism_builder
+            .fetch_metadata(&validators, threshold, message, &checked)
+            .await
+            .map_err(|_| MetadataBuildError::CouldNotFetch);
+        if builder.signature_polling && matches!(&recollected, Ok(Some(_))) {
+            ism_builder.report_successful_poll(&checked, &validators);
+        }
+        if let Some(observer) = observer {
+            observer.report();
+        }
+        recollected
+    }
+    .await;
     // Report failures too, but not abandoned aggregation children.
     if let Some(observer) = observer {
         observer.report();
     }
-    let metadata = result
-        .map_err(|_| MetadataBuildError::CouldNotFetch)?
-        .ok_or_else(|| {
-            info!(
-                hyp_message=?message, ?validators, threshold, %ism_address,
-                "Could not fetch metadata: Unable to reach quorum"
-            );
-            MetadataBuildError::AwaitingValidatorSignatures
-        })?;
+    let metadata = result?.ok_or_else(|| {
+        info!(
+            hyp_message=?message, ?validators, threshold, %ism_address,
+            "Could not fetch metadata: Unable to reach quorum"
+        );
+        MetadataBuildError::AwaitingValidatorSignatures
+    })?;
 
     debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
     let formatted = ism_builder

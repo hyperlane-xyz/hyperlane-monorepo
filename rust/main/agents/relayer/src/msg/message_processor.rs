@@ -630,11 +630,11 @@ async fn submit_classic_task(
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
-        let mut batch = submit_queue.pop_many(recv_limit).await;
+        let mut batch = submit_queue.pop_many_wait(recv_limit).await;
 
         match batch.len().cmp(&1) {
             std::cmp::Ordering::Less => {
-                // The queue is empty, so give some time before checking again to prevent burning CPU
+                // Every popped operation was denied. Keep the throttle between batches.
                 sleep(Duration::from_millis(100)).await;
                 continue;
             }
@@ -666,7 +666,7 @@ async fn submit_lander_task<E: Entrypoint + Send + Sync + 'static>(
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
-        let batch = submit_queue.pop_many(recv_limit).await;
+        let batch = submit_queue.pop_many_wait(recv_limit).await;
 
         // Filter operations based on their current payload status
         let operations_to_process = filter_operations_for_submit(

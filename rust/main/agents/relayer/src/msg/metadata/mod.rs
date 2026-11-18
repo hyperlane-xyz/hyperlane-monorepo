@@ -16,5 +16,6 @@ pub(crate) use base::{
 #[allow(unused_imports)]
 pub(crate) use base_builder::{
     BaseMetadataBuilder, BuildsBaseMetadata, CheckpointSyncerPool, IsmBuildMetricsParams,
+    ValidatorStorageLocations,
 };
 pub(crate) use message_builder::MessageMetadataBuilder;

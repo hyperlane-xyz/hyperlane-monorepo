@@ -942,6 +942,46 @@ fn deny_message_id(id: H256) -> Arc<RuntimeDenylist> {
     ])))
 }
 
+#[tokio::test(start_paused = true)]
+async fn submit_wait_wakes_on_push_with_closed_retry_channel() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let mut queue = initialize_queue(&broadcaster);
+    let producer = queue.clone();
+    drop(broadcaster);
+
+    let pop = queue.pop_many_wait(1);
+    tokio::pin!(pop);
+    assert!(futures::poll!(&mut pop).is_pending());
+
+    let op = MockPendingOperation::new(0, KnownHyperlaneDomain::Base.into());
+    let id = op.id();
+    let start = tokio::time::Instant::now();
+    producer.push(Box::new(op), None).await;
+
+    let batch = tokio::time::timeout(Duration::from_millis(1), pop)
+        .await
+        .unwrap();
+    assert_eq!(batch[0].id(), id);
+    assert_eq!(start.elapsed(), Duration::ZERO);
+}
+
+#[tokio::test(start_paused = true)]
+async fn submit_wait_returns_after_a_fully_denied_batch() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Base);
+    let denied = MockPendingOperation::new(1, destination.clone());
+    let allowed = MockPendingOperation::new(2, destination);
+    let allowed_id = allowed.id();
+    let mut queue =
+        initialize_queue(&broadcaster).with_runtime_denylist(deny_message_id(denied.id()));
+    queue.push(Box::new(denied), None).await;
+    queue.push(Box::new(allowed), None).await;
+
+    // An empty result after eviction leaves throttling to the submission loop.
+    assert!(queue.pop_many_wait(1).await.is_empty());
+    assert_eq!(queue.pop_many_wait(1).await[0].id(), allowed_id);
+}
+
 #[tokio::test]
 async fn pop_many_drops_denied_operations() {
     let broadcaster = sync::broadcast::Sender::new(10);
