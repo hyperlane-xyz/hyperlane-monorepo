@@ -1,5 +1,4 @@
 import type { IncomingMessage, Server } from 'node:http';
-import { isIP } from 'node:net';
 import type { Duplex } from 'node:stream';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -94,6 +93,9 @@ const NOTIFICATION_BATCH_SIZE = 1_000;
 const EXPLORER_NOTIFICATION_BATCH_SIZE = 100;
 const MAX_EXPLORER_CLIENTS = 400;
 const MAX_EXPLORER_CLIENTS_PER_IP = 5;
+const MAX_EXPLORER_PENDING_SETUPS = 32;
+const MAX_EXPLORER_PENDING_SETUPS_PER_IP = 2;
+const MAX_EXPLORER_SUBSCRIPTION_BYTES = 8_192;
 const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
@@ -179,6 +181,8 @@ export class EventWebSocketServer {
   private readonly terminatedSockets = new WeakSet<WebSocket>();
   private readonly explorerClients = new Map<WebSocket, ExplorerClient>();
   private readonly explorerClientsByIp = new Map<string, number>();
+  private readonly explorerPendingSetups = new Map<WebSocket, string>();
+  private readonly explorerPendingSetupsByIp = new Map<string, number>();
   private readonly explorerNotifications = new Set<string>();
   private readonly notifications = new Map<string, EventNotification>();
   private readonly validatorNotifications = new Map<
@@ -387,6 +391,7 @@ export class EventWebSocketServer {
       validatorPendingSetups: [...this.validatorClients.values()].filter(
         (client) => client.pending,
       ).length,
+      explorerPendingSetups: this.explorerPendingSetups.size,
       validatorReservedConnections: this.validatorClients.size,
       validatorSharedReaders: this.validatorGroups.size,
       validatorSubscriptions: [...validatorSubscriptions.values()],
@@ -424,6 +429,8 @@ export class EventWebSocketServer {
         explorerPendingMessages: MAX_EXPLORER_PENDING_MESSAGES,
         messageConnections: this.limits.maxExplorerClients,
         messageConnectionsPerIp: MAX_EXPLORER_CLIENTS_PER_IP,
+        messageSetups: MAX_EXPLORER_PENDING_SETUPS,
+        messageSetupsPerIp: MAX_EXPLORER_PENDING_SETUPS_PER_IP,
         validatorConnections: this.limits.maxValidatorClients,
         validatorSetups: MAX_VALIDATOR_PENDING_SETUPS,
         validatorConnectionsPerIp: this.limits.maxValidatorClientsPerIp,
@@ -749,6 +756,10 @@ export class EventWebSocketServer {
     let diagnostics: boolean;
     let messageIds: Set<string> | undefined;
     try {
+      if (
+        Buffer.byteLength(request.url ?? '') > MAX_EXPLORER_SUBSCRIPTION_BYTES
+      )
+        throw new Error('Explorer subscription URL too long');
       const params = new URL(request.url ?? '/', 'http://localhost')
         .searchParams;
       custom = parseExplorerConfirmations(params);
@@ -759,8 +770,10 @@ export class EventWebSocketServer {
       this.rejectNegotiation(socket, formatError(error));
       return;
     }
-    const ip = clientIp(request);
-    if (!ip) {
+    let ip: string;
+    try {
+      ip = validatorClientIp(request);
+    } catch {
       websocketConnectionRejections.inc({
         reason: 'invalid_client_ip',
         route: 'messages',
@@ -777,6 +790,25 @@ export class EventWebSocketServer {
       socket.close(1008, 'Maximum connections per client reached');
       return;
     }
+    if (this.explorerPendingSetups.size >= MAX_EXPLORER_PENDING_SETUPS) {
+      websocketConnectionRejections.inc({
+        reason: 'setup_limit',
+        route: 'messages',
+      });
+      socket.close(1013, 'Maximum message setups reached');
+      return;
+    }
+    const pendingForIp = this.explorerPendingSetupsByIp.get(ip) ?? 0;
+    if (pendingForIp >= MAX_EXPLORER_PENDING_SETUPS_PER_IP) {
+      websocketConnectionRejections.inc({
+        reason: 'per_ip_setup_limit',
+        route: 'messages',
+      });
+      socket.close(1008, 'Maximum setups per client reached');
+      return;
+    }
+    this.explorerPendingSetups.set(socket, ip);
+    this.explorerPendingSetupsByIp.set(ip, pendingForIp + 1);
     this.explorerClientsByIp.set(ip, connections + 1);
     this.explorerClients.set(socket, {
       alive: true,
@@ -788,6 +820,11 @@ export class EventWebSocketServer {
       sending: false,
     });
     websocketConnections.inc({ route: 'messages' });
+    socket.on('message', () => {
+      if (!this.explorerClients.has(socket)) return;
+      websocketClientMessageRejections.inc();
+      this.rejectNegotiation(socket, 'Client messages are unsupported');
+    });
     let confirmationStream: ConfirmationStream | undefined;
     try {
       if (blocks) await this.subscribeBlocks(socket, custom?.domains);
@@ -801,6 +838,8 @@ export class EventWebSocketServer {
       if (!(error instanceof ConfirmationUnavailableError)) throw error;
       this.rejectNegotiation(socket, formatError(error));
       return;
+    } finally {
+      this.releaseExplorerSetup(socket);
     }
     // Initialization awaits DB reads; the peer may already have disconnected.
     if (
@@ -2059,6 +2098,15 @@ export class EventWebSocketServer {
     else this.explorerClientsByIp.set(ip, connections - 1);
   }
 
+  private releaseExplorerSetup(socket: WebSocket): void {
+    const ip = this.explorerPendingSetups.get(socket);
+    if (!ip) return;
+    this.explorerPendingSetups.delete(socket);
+    const pending = this.explorerPendingSetupsByIp.get(ip);
+    if (!pending || pending === 1) this.explorerPendingSetupsByIp.delete(ip);
+    else this.explorerPendingSetupsByIp.set(ip, pending - 1);
+  }
+
   private releaseValidator(socket: WebSocket): void {
     const client = this.validatorClients.get(socket);
     if (!client || client.pending || socket.readyState !== WebSocket.CLOSED)
@@ -2120,18 +2168,4 @@ function consumeMessage(client: Client): boolean {
     client.messages = 0;
   }
   return ++client.messages <= MAX_CLIENT_MESSAGES;
-}
-
-function clientIp(request: IncomingMessage): string | undefined {
-  const cloudflareIp = request.headers['cf-connecting-ip'];
-  if (cloudflareIp !== undefined) {
-    return typeof cloudflareIp === 'string' && isIP(cloudflareIp)
-      ? cloudflareIp
-      : undefined;
-  }
-  if (process.env.NODE_ENV === 'production') return undefined;
-  const remoteIp = request.socket.remoteAddress;
-  if (!remoteIp) return undefined;
-  const ipv4 = remoteIp.startsWith('::ffff:') ? remoteIp.slice(7) : remoteIp;
-  return isIP(ipv4) ? ipv4 : undefined;
 }

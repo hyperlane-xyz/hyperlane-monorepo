@@ -181,42 +181,29 @@ rate(hyperlane_lander_finalized_transactions[5m])
 
 ## Hyperlane Explorer Integration
 
-Use the Explorer GraphQL endpoint to identify stuck messages **before** querying GCP logs.
-
-**Endpoint:** `https://explorer4.hasura.app/v1/graphql`
-
-**Find unprocessed messages:**
+Query the scraper proxy at `https://explorer-api.hyperlane.xyz/graphql` for messages on the route under investigation.
 
 ```graphql
-query GetMessages {
+query RecentRouteMessages($origin: Int!, $destination: Int!) {
   message_view(
     where: {
-      # Modify filters as needed:
-      origin_domain: { _eq: "hyperevm" }
-      destination_domain: { _eq: "ethereum" }
-      is_delivered: { _eq: false } # false = undelivered
-      send_occurred_at: { _gte: "2025-08-09T00:00:00Z" } # adjust time range
+      origin_domain_id: { _eq: $origin }
+      destination_domain_id: { _eq: $destination }
     }
-    limit: 10
-    order_by: { send_occurred_at: desc }
+    order_by: { id: desc }
+    limit: 50
   ) {
+    id
     msg_id
     send_occurred_at
-    delivery_occurred_at
     is_delivered
-    origin_tx_hash
-    destination_tx_hash
   }
 }
 ```
 
-**Workflow:**
-
-1. Query Explorer for stuck messages (`is_delivered: false` with old timestamps)
-2. Extract `msg_id` (convert bytea `\x05bf...` to hex `0x05bf...`)
-3. Use message ID in targeted GCP log query: `[BASE_QUERY] AND "0x05bf..."`
-
-This provides concrete message IDs for efficient log analysis instead of guessing which messages are stuck.
+1. Supply the Hyperlane origin and destination domain IDs. Check the returned page for rows with `is_delivered: false` and a send time before the incident cutoff.
+2. To inspect the next page, pass the last row's `id` in `cursor: [{initial_value: {id: $before}, ordering: DESC}]` and declare `$before: bigint!`.
+3. Convert the selected `msg_id` from PostgreSQL bytea (`\x…`) to hex (`0x…`) and search the GCP logs for that message.
 
 ## Quick Diagnosis for Common Issues
 

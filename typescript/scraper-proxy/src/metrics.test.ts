@@ -22,6 +22,7 @@ void it('serves current usage and limits from /metrics', async () => {
   const validatorSubscriptions = [{ domain: 1, canonical: 1, custom: 1 }];
   setWebSocketMetricsProvider(() => ({
     connections: { agent: 3, messages: 4, validators: 2 },
+    explorerPendingSetups: 2,
     validatorPendingSetups: 1,
     validatorReservedConnections: 2,
     validatorSharedReaders: 1,
@@ -41,6 +42,8 @@ void it('serves current usage and limits from /metrics', async () => {
       explorerPendingMessages: 2_000,
       messageConnections: 400,
       messageConnectionsPerIp: 5,
+      messageSetups: 32,
+      messageSetupsPerIp: 2,
       validatorConnections: 500,
       validatorSetups: 32,
       validatorConnectionsPerIp: 5,
@@ -107,6 +110,18 @@ void it('serves current usage and limits from /metrics', async () => {
   assert.match(
     output,
     /hyperlane_scraper_proxy_websocket_connection_limit\{route="messages"\} 400/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_message_pending_setups 2/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_message_setup_limit 32/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_message_setup_limit_per_ip 2/,
   );
   assert.match(
     output,

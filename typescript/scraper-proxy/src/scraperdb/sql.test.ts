@@ -17,6 +17,10 @@ void describe('scraper database SQL', () => {
       'SELECT "id", "name" FROM "domain" WHERE (((("id" >= $1)) OR (("name" = $2)))) ORDER BY "id" DESC NULLS FIRST LIMIT $3 OFFSET $4',
     );
     assert.deepEqual(query.values, [1, 'ethereum', 5, 2]);
+    assert.throws(
+      () => buildSelect('message_view', { limit: 501 }),
+      /limit exceeds maximum of 500/,
+    );
   });
 
   void it('preserves parameters supplied by a custom relation', () => {

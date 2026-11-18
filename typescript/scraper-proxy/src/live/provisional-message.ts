@@ -119,13 +119,18 @@ export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
   ) delivery ON TRUE
   LEFT JOIN "transaction" identified_destination_tx
     ON identified_destination_tx.id=delivery.destination_tx_id
-  LEFT JOIN block destination_block ON destination_block.domain=delivery.domain
-    AND (destination_block.hash=delivery.block_hash OR
-      (delivery.block_hash IS NULL AND
-        destination_block.id=identified_destination_tx.block_id))
-  LEFT JOIN "transaction" destination_tx ON destination_tx.id=delivery.destination_tx_id
-    OR (delivery.destination_tx_id IS NULL AND destination_tx.block_id=destination_block.id
-      AND destination_tx.hash=delivery.transaction_hash)
+  LEFT JOIN LATERAL (
+    SELECT b.* FROM block b WHERE b.domain=delivery.domain AND b.hash=delivery.block_hash
+    UNION ALL
+    SELECT b.* FROM block b WHERE delivery.block_hash IS NULL
+      AND b.domain=delivery.domain AND b.id=identified_destination_tx.block_id
+  ) destination_block ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT identified_destination_tx.* WHERE delivery.destination_tx_id IS NOT NULL
+    UNION ALL
+    SELECT tx.* FROM "transaction" tx WHERE delivery.destination_tx_id IS NULL
+      AND tx.block_id=destination_block.id AND tx.hash=delivery.transaction_hash
+  ) destination_tx ON TRUE
   LEFT JOIN LATERAL (
     SELECT count(*)::bigint AS num_payments,
       array_agg(DISTINCT payment.domain) AS domains,
@@ -142,11 +147,12 @@ export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
 
 export function buildProvisionalMessageAffectedQuery(
   filterByMessageIds = false,
+  zeroConfirmations = false,
 ): string {
   const messageFilter = filterByMessageIds
     ? 'AND event.msg_id=ANY($2::bytea[])'
     : '';
-  return `
+  const eventScans = `
   -- Only reproject events between the canonical and requested frontiers.
   -- OFFSET 0 keeps these small per-domain index scans from being flattened
   -- into full-history scans by the planner.
@@ -167,7 +173,10 @@ export function buildProvisionalMessageAffectedQuery(
     ) event
   `,
     )
-    .join(' UNION ALL ')}
+    .join(' UNION ALL ')}`;
+  // At zero confirmations the indexed head is always at or above confirmed height.
+  if (zeroConfirmations) return eventScans;
+  return `${eventScans}
   UNION ALL
   -- A stricter frontier can also hide historical dispatches without raw rows.
   SELECT legacy.msg_id

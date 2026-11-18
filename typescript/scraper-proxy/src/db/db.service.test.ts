@@ -129,6 +129,33 @@ void it('times out stalled replica connections', async (context) => {
   assert(duration < 3_000);
 });
 
+void it('bounds unfinished GraphQL database work independently of HTTP clients', async (context) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  context.mock.method(pg.Pool.prototype, 'query', async () => {
+    await held;
+    return { rowCount: 0, rows: [] };
+  });
+  const { config } = await import('../config.js');
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.close());
+
+  const pending = Array.from(
+    { length: config.DATABASE_MAX_PENDING_GRAPHQL_QUERIES },
+    () => db.query('SELECT 1'),
+  );
+  await assert.rejects(
+    db.query('SELECT rejected'),
+    /database query capacity exceeded/i,
+  );
+  release();
+  await Promise.all(pending);
+  assert.deepEqual(await db.query('SELECT recovered'), []);
+});
+
 void it('bounds the validator pool and times out queued acquisition independently of the live pool', async (context) => {
   context.mock.method(Socket.prototype, 'connect', function () {
     return this;

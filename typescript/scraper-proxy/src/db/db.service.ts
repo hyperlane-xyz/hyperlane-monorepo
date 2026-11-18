@@ -49,6 +49,7 @@ export class DbService implements ScraperDbDatabase {
   private readonly mainRole = config.DATABASE_READ_REPLICA_URL
     ? DatabaseQueryRole.GraphqlReplica
     : DatabaseQueryRole.GraphqlPrimary;
+  private pendingMainQueries = 0;
   private nextQueryId = 0;
   private livePool?: pg.Pool;
   private validatorPool?: pg.Pool;
@@ -110,11 +111,20 @@ export class DbService implements ScraperDbDatabase {
     };
   }
 
-  query<T extends pg.QueryResultRow>(
+  async query<T extends pg.QueryResultRow>(
     text: string,
     values: unknown[] = [],
   ): Promise<T[]> {
-    return this.run(this.pool(), this.mainRole, text, values);
+    assert(
+      this.pendingMainQueries < config.DATABASE_MAX_PENDING_GRAPHQL_QUERIES,
+      'GraphQL database query capacity exceeded',
+    );
+    this.pendingMainQueries++;
+    try {
+      return await this.run(this.pool(), this.mainRole, text, values);
+    } finally {
+      this.pendingMainQueries--;
+    }
   }
 
   queryLive<T extends pg.QueryResultRow>(

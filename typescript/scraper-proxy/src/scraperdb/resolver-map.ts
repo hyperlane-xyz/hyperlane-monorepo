@@ -6,19 +6,25 @@ import {
   type FieldNode,
 } from 'graphql';
 
+import type { MercuriusContext } from 'mercurius';
+
 import type { DiagnosticsService } from '../diagnostics/service.js';
+import { validateHistoryRequest } from './history-policy.js';
 import { scalarResolvers } from './scalars.js';
-import {
-  type MessageSelectArgs,
+import type {
+  MessageSelectArgs,
   ScraperDbService,
 } from './scraperdb.service.js';
 import type { CountArgs, SelectArgs } from './sql.js';
 import type { TableName } from './tables.js';
 
-export function buildResolvers(
-  db: ScraperDbService,
-  diagnostics?: DiagnosticsService,
-) {
+declare module 'mercurius' {
+  interface MercuriusContext {
+    scraperDb: ScraperDbService;
+  }
+}
+
+export function buildResolvers(diagnostics?: DiagnosticsService) {
   const getDiagnostics = () => {
     if (!diagnostics)
       throw new GraphQLError('Diagnostics are not configured', {
@@ -31,7 +37,7 @@ export function buildResolvers(
     (
       _parent: unknown,
       args: SelectArgs,
-      _context: unknown,
+      { scraperDb: db }: MercuriusContext,
       info: GraphQLResolveInfo,
     ) =>
       db.select(table, { ...args, columns: selectedColumns(info) });
@@ -40,16 +46,19 @@ export function buildResolvers(
     (
       _parent: unknown,
       { id }: { id: number | string },
-      _context: unknown,
+      { scraperDb: db }: MercuriusContext,
       info: GraphQLResolveInfo,
     ) =>
       db.byPk(table, id, selectedColumns(info));
   const aggregate = (
     _parent: unknown,
     args: SelectArgs,
-    _context: unknown,
+    { scraperDb: db }: MercuriusContext,
     info: GraphQLResolveInfo,
-  ) => db.aggregate('message_view', args, nestedColumns(info, 'nodes'));
+  ) => {
+    validateHistoryRequest(args, true);
+    return db.aggregate('message_view', args, nestedColumns(info, 'nodes'));
+  };
 
   return {
     ...scalarResolvers,
@@ -57,6 +66,7 @@ export function buildResolvers(
       count: (
         { args, table }: { args: SelectArgs; table: TableName },
         count: CountArgs,
+        { scraperDb: db }: MercuriusContext,
       ) => db.count(table, args, count),
     },
     query_root: {
@@ -74,9 +84,12 @@ export function buildResolvers(
       message_view: (
         _parent: unknown,
         args: MessageSelectArgs,
-        _context: unknown,
+        { scraperDb: db }: MercuriusContext,
         info: GraphQLResolveInfo,
-      ) => db.selectMessages({ ...args, columns: selectedColumns(info) }),
+      ) => {
+        validateHistoryRequest(args);
+        return db.selectMessages({ ...args, columns: selectedColumns(info) });
+      },
       message_view_aggregate: aggregate,
       raw_message_dispatch: select('raw_message_dispatch'),
       raw_message_dispatch_by_pk: byPk('raw_message_dispatch'),
