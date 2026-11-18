@@ -25,6 +25,13 @@ class MessageRangeCapacityError extends Error {
   }
 }
 
+// Every invalidation schedules its own refresh or advance, so callers retry.
+class MessageSnapshotInvalidatedError extends Error {
+  constructor() {
+    super('Message snapshot invalidated during publication');
+  }
+}
+
 type Head = ConfirmationHead & { hash?: string };
 type Window = {
   floor: bigint;
@@ -222,12 +229,6 @@ export class MessageSource {
     return false;
   }
 
-  private wantsId(id: string) {
-    for (const sub of this.subscribers)
-      if (!sub.ids || sub.ids.has(id)) return true;
-    return false;
-  }
-
   private evictIdle() {
     // An idle or offline domain may never send another head to trim its window.
     for (const [domain, window] of this.windows)
@@ -241,12 +242,13 @@ export class MessageSource {
   }
 
   private fetchBatch(batch: { id: string; entry: Entry }[]) {
-    const result = this.hydrate(async () => {
-      const ids = batch.map(({ id }) => id).filter((id) => this.wantsId(id));
-      if (this.stopped || !ids.length)
-        return new Map<string, MessageFacts | Error>();
-      return this.store.messageFacts(ids);
-    });
+    // Read every scheduled ID. A filtered ID would be cached as a missing
+    // message and served to a later subscriber that does want it.
+    const result = this.hydrate(async () =>
+      this.stopped
+        ? new Map<string, MessageFacts | Error>()
+        : this.store.messageFacts(batch.map(({ id }) => id)),
+    );
     for (const { id, entry } of batch) {
       const value = result
         .then((rows) => {
@@ -276,9 +278,6 @@ export class MessageSource {
   ): Promise<Window> {
     let window = this.windows.get(domain);
     if (!window) {
-      if ((this.retryAfter.get(domain) ?? 0) > Date.now())
-        throw new Error('Message range temporarily unavailable');
-      this.retryAfter.delete(domain);
       const floor = after;
       window = { floor, through: floor, changes: [] };
       this.windows.set(domain, window);
@@ -430,7 +429,8 @@ export class MessageSource {
     if (refresh.size) void this.refresh([...refresh], rolledBack, true);
     const pending = this.advances.get(domain);
     if (pending) pending.head = head;
-    else if (needed) {
+    else if (needed && (this.retryAfter.get(domain) ?? 0) <= Date.now()) {
+      this.retryAfter.delete(domain);
       const work = { head };
       this.advances.set(domain, work);
       void this.advance(domain, work);
@@ -489,7 +489,13 @@ export class MessageSource {
           }
           return [{ sub, to, start, end }];
         });
-        const facts = await this.load(ids);
+        let facts: Map<string, MessageFacts | Error | undefined>;
+        try {
+          facts = await this.load(ids);
+        } catch (error) {
+          if (error instanceof MessageSnapshotInvalidatedError) continue;
+          throw error;
+        }
         if (this.advances.get(domain) !== work) return;
         for (const { sub, to, start, end } of releases) {
           if (
@@ -510,16 +516,13 @@ export class MessageSource {
         }
         if (head === work.head) return;
       }
-    } catch (e) {
+    } catch {
+      // Frontiers have not moved, so subscribers lose nothing by waiting.
+      // Back off instead of rescanning a failing domain on every head.
       if (this.advances.get(domain) === work) {
+        this.retryAfter.set(domain, Date.now() + DOMAIN_RETRY_MS);
         const window = this.windows.get(domain);
-        if (window) {
-          this.retryAfter.set(domain, Date.now() + DOMAIN_RETRY_MS);
-          this.dropWindow(domain, window);
-        }
-        for (const sub of this.subscribers) {
-          if (sub.frontiers.has(domain) && sub.ids?.size !== 0) sub.fail(e);
-        }
+        if (window) this.dropWindow(domain, window);
       }
     } finally {
       if (this.advances.get(domain) === work) this.advances.delete(domain);
@@ -548,7 +551,7 @@ export class MessageSource {
         if (reads.every(({ entry }, i) => entry.value === pending[i]))
           return new Map(reads.map(({ id }, i) => [id, rows[i]]));
       }
-      throw new Error('Message snapshot invalidated during publication');
+      throw new MessageSnapshotInvalidatedError();
     } finally {
       for (const { entry } of reads) entry.refs--;
     }
@@ -563,7 +566,15 @@ export class MessageSource {
     );
     if (!selected.length) return;
     try {
-      const facts = await this.load(selected);
+      let facts: Map<string, MessageFacts | Error | undefined> | undefined;
+      while (!facts && !this.stopped) {
+        try {
+          facts = await this.load(selected);
+        } catch (error) {
+          if (!(error instanceof MessageSnapshotInvalidatedError)) throw error;
+        }
+      }
+      if (!facts) return;
       for (const sub of recipients)
         for (const [id, row] of facts) {
           if (!this.subscribers.has(sub)) break;
@@ -604,7 +615,7 @@ export class MessageSource {
         });
       return;
     }
-    const row = facts && this.project(facts, sub);
+    const row = facts && this.project(facts, sub, id);
     if (!row) {
       sub.exposed.delete(id);
       return;
@@ -629,7 +640,7 @@ export class MessageSource {
     });
   }
 
-  private project(facts: MessageFacts, sub: Subscriber) {
+  private project(facts: MessageFacts, sub: Subscriber, id: string) {
     const frontier = (domain: number) =>
       sub.frontiers.get(domain) ?? this.heads.get(domain)?.confirmed;
     const key = [...facts.dependencies]
@@ -643,7 +654,14 @@ export class MessageSource {
       return row;
     } catch (error) {
       // A delayed cursor may fall inside an aggregated payment bucket.
-      sub.fail(error);
+      // Like an invalid fact, this affects one ID, not a global stream.
+      if (sub.ids) sub.fail(error);
+      else
+        sub.send({
+          type: 'error',
+          messageId: id,
+          error: error instanceof Error ? error.message : String(error),
+        });
       return undefined;
     }
   }
