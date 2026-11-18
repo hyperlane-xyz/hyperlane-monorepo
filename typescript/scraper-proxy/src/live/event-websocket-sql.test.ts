@@ -98,4 +98,11 @@ void it('reads one domain range across dispatch, delivery and gas with a stable 
     'gas_payment',
   ])
     assert.ok(queries[0].sql.includes(table));
+  // Each arm must bound its own scan; an outer-only LIMIT re-reads the range per page.
+  assert.equal(
+    queries[0].sql.match(
+      /\)>\(\$2::bigint,\$3::integer,\$4::bigint\)\s+ORDER BY \w+, id LIMIT \$6\)/g,
+    )?.length,
+    3,
+  );
 });

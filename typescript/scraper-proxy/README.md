@@ -254,8 +254,13 @@ Queued scans recheck subscriber interest before issuing database work.
 
 Range reads run on at most four domains concurrently. The source retains at
 most 50,000 changes and 64 MiB of serialized message facts, with at most 256
-delivery candidates and 256 payment buckets per message. Older payments are
-aggregated per domain. A subscription that falls outside the retained window
+delivery candidates per message. Gas payments keep the 8 oldest and 8 newest
+block heights per paying domain exact and fold the rest into one bucket at its
+newest height, which a subscriber sees once that height is within its
+frontier. During a payment flood, a subscriber with 8 or more confirmations can
+see a message's total fall below a value it already received until the fold's
+newest payment reaches its frontier; zero-confirmation subscribers stay exact.
+A subscription that falls outside the retained window
 or cannot obtain a complete projection disconnects and can reconnect at the
 current head.
 Invalid message facts are isolated by message ID. A global custom stream emits

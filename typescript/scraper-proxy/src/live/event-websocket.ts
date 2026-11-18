@@ -99,6 +99,9 @@ const MAX_EXPLORER_SUBSCRIPTION_BYTES = 8_192;
 const MAX_EXPLORER_PENDING_BYTES = 16 * 1024 * 1024;
 const MAX_EXPLORER_TOTAL_PENDING_BYTES = 32 * 1024 * 1024;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
+// Each refresh reads at most a few fact batches; this keeps a notification
+// backlog well inside the shared read queue.
+const MAX_EXPLORER_REFRESHES = 4;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
 const MAX_HEAD_PUBLICATION_FAILURES = 3;
@@ -243,6 +246,7 @@ export class EventWebSocketServer {
     Record<string, unknown>,
     Buffer
   >();
+  private readonly explorerRefreshes = new Set<Promise<void>>();
   private listenerReady = false;
   private stopped = false;
   private stopListening?: () => Promise<void>;
@@ -257,10 +261,9 @@ export class EventWebSocketServer {
   private validatorSource: EventSource;
   private readonly validatorStore: EventStore;
   private readonly diagnostics?: DiagnosticsStream;
-  private readonly serializedDiagnostics = new WeakMap<
-    DiagnosticsFrame,
-    SerializedMessage
-  >();
+  // Frames shared by many sockets (message upserts, blocks, diagnostics) are
+  // encoded once.
+  private readonly serializedFrames = new WeakMap<object, SerializedMessage>();
 
   constructor(
     private readonly db: EventDatabase,
@@ -748,7 +751,8 @@ export class EventWebSocketServer {
       this.messageSource.subscribe(
         custom,
         messageIds,
-        (frame) => this.explorerQueue.enqueue(socket, [serialize(frame)]),
+        (frame) =>
+          this.explorerQueue.enqueue(socket, [this.serializeShared(frame)]),
         (error) => this.failSocket(socket, formatError(error)),
       );
     client.unsubscribe = subscription?.unsubscribe;
@@ -826,7 +830,7 @@ export class EventWebSocketServer {
     if (!subscription) return;
     subscription.started = true;
     for (const block of subscription.latest.values())
-      this.queueData(socket, serialize(block));
+      this.queueData(socket, this.serializeShared(block));
   }
 
   private publishBlock(block: Block): void {
@@ -841,7 +845,8 @@ export class EventWebSocketServer {
       )
         continue;
       subscription.latest.set(block.domain, block);
-      if (subscription.started) this.queueData(socket, serialize(block));
+      if (subscription.started)
+        this.queueData(socket, this.serializeShared(block));
     }
   }
 
@@ -1386,11 +1391,10 @@ export class EventWebSocketServer {
     { after, through }: HeadRange,
   ): Promise<void> {
     let agentPublished = false;
+    // Near-head deliveries and payments have no insert notification, so this
+    // range is the only refresh for a message whose origin is another domain.
     const hasMessageClients = [...this.explorerClients.values()].some(
-      (client) =>
-        client.ready &&
-        client.messageIds?.size !== 0 &&
-        (!client.domains || client.domains.has(domain)),
+      (client) => client.ready && client.messageIds?.size !== 0,
     );
     let explorerPending = hasMessageClients;
     // Delivery and gas share message ids; queue each Explorer id once per range.
@@ -1548,10 +1552,15 @@ export class EventWebSocketServer {
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
     this.messageSource.invalidateIds(messageIds);
-    await Promise.all([
-      this.messageSource.refresh(messageIds),
-      this.publishCanonicalMessages(messageIds),
-    ]);
+    // Shared fact reads should not hold back head publication, but a backlog
+    // must pace the drain rather than overflow the shared read queue.
+    const refresh = this.messageSource
+      .refresh(messageIds)
+      .finally(() => this.explorerRefreshes.delete(refresh));
+    this.explorerRefreshes.add(refresh);
+    while (this.explorerRefreshes.size > MAX_EXPLORER_REFRESHES)
+      await Promise.race(this.explorerRefreshes);
+    await this.publishCanonicalMessages(messageIds);
   }
 
   private async publishCanonicalMessages(messageIds: string[]): Promise<void> {
@@ -1781,6 +1790,15 @@ export class EventWebSocketServer {
     }
   }
 
+  private serializeShared(frame: Record<string, unknown>): SerializedMessage {
+    let message = this.serializedFrames.get(frame);
+    if (!message) {
+      message = serialize(frame);
+      this.serializedFrames.set(frame, message);
+    }
+    return message;
+  }
+
   private send(socket: WebSocket, message: Record<string, unknown>): boolean {
     return this.sendSerialized(socket, serialize(message));
   }
@@ -1796,8 +1814,7 @@ export class EventWebSocketServer {
       complete?.(false);
       return false;
     }
-    const message = this.serializedDiagnostics.get(frame) ?? serialize(frame);
-    this.serializedDiagnostics.set(frame, message);
+    const message = this.serializeShared(frame);
     // Leave at least half of both outbound budgets available for normal traffic.
     if (
       socket.bufferedAmount + message.length >

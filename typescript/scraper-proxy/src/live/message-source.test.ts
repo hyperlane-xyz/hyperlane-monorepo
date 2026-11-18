@@ -3,7 +3,7 @@ import { it } from 'node:test';
 import { once, EventEmitter } from 'node:events';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { MessageSource } from './message-source.js';
-import { collectMessageFacts } from './message-facts.js';
+import { collectMessageFacts, projectMessage } from './message-facts.js';
 
 const initialHeads = async () =>
   new Map(
@@ -85,7 +85,7 @@ void it('never reinstalls stale receipt data when older SQL finishes last', asyn
   assert.equal(calls, 2);
 });
 
-void it('backs off failed domain reads across reconnects while another domain continues', async () => {
+void it('backs off a failed domain read without failing subscribers while another domain continues', async () => {
   const queried = new EventEmitter();
   const queries: number[] = [];
   const source = new MessageSource({
@@ -99,22 +99,19 @@ void it('backs off failed domain reads across reconnects while another domain co
     messageFacts: async () => new Map(),
   });
   await source.currentHeads();
-  for (const { height, reason } of [
-    { height: 11n, reason: /read timed out/ },
-    { height: 12n, reason: /temporarily unavailable/ },
-  ]) {
-    const failed = once(queried, 'failed');
-    const sub = source.subscribe(
-      { domains: new Set([1]), confirmations: 0 },
-      undefined,
-      assert.fail,
-      (err) => queried.emit('failed', err),
-    );
-    advance(source, 1, height);
-    const [error] = await failed;
-    assert.match(String(error), reason);
-    sub.unsubscribe();
-  }
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    assert.fail,
+    (error) => assert.fail(String(error)),
+  );
+  const failed = once(queried, 'query');
+  advance(source, 1, 11n);
+  await failed;
+  await nextTurn();
+  // A head during the backoff does not rescan the failing domain.
+  advance(source, 1, 12n);
+  await nextTurn();
   source.subscribe(
     { domains: new Set([2]), confirmations: 0 },
     undefined,
@@ -125,6 +122,7 @@ void it('backs off failed domain reads across reconnects while another domain co
   advance(source, 2, 11n);
   await next;
   assert.deepEqual(queries, [1, 2]);
+  assert.equal(source.metrics().backoffDomains, 1);
 });
 
 void it(
@@ -168,7 +166,7 @@ void it(
   },
 );
 
-void it('limits a failed receipt read to subscribers for the affected IDs', async () => {
+void it('limits a failed receipt read to ID subscribers for the affected IDs', async () => {
   const source = new MessageSource({
     messageHeads: initialHeads,
     async *messageChanges() {
@@ -180,54 +178,63 @@ void it('limits a failed receipt read to subscribers for the affected IDs', asyn
   });
   await source.currentHeads();
   const failed: string[] = [];
-  for (const id of ['first', 'other'])
+  for (const id of ['first', 'other', undefined])
     source.subscribe(
       { domains: new Set([1]), confirmations: 0 },
-      new Set([id]),
+      id === undefined ? undefined : new Set([id]),
       assert.fail,
-      () => failed.push(id),
+      () => failed.push(id ?? 'global'),
     );
   await source.refresh(['first']);
+  // A global stream keeps its rows and picks up the next refresh.
   assert.deepEqual(failed, ['first']);
 });
 
-void it('isolates a cursor inside an aggregated payment bucket', async () => {
+void it('hides a payment bucket until its height is visible', async () => {
   const source = new MessageSource({
     messageHeads: initialHeads,
-    async *messageChanges() {
-      yield [];
+    async *messageChanges(domain) {
+      yield domain === 2 ? [{ height: 9n, id: 'id' }] : [];
     },
     async messageFacts() {
       return collectMessageFacts([
         {
           ...fact('id'),
           payment_buckets: [
-            {
-              domain: 2,
-              first: '6',
-              height: '9',
-              count: '2',
-              payment: '3',
-              gas: '4',
-            },
+            { domain: 2, height: '6', count: '1', payment: '1', gas: '1' },
+            { domain: 2, height: '9', count: '2', payment: '3', gas: '4' },
           ],
         },
       ]);
     },
   });
   await source.currentHeads();
-  const failed: number[] = [],
-    sent: number[] = [];
-  for (const n of [2, 0])
+  const totals: string[] = [];
+  for (const [n, ids] of [
+    [2, new Set(['id'])],
+    [2, undefined],
+    [0, undefined],
+  ] as const)
     source.subscribe(
       policy(n),
-      undefined,
-      () => sent.push(n),
-      () => failed.push(n),
+      ids,
+      (frame) => {
+        // A cursor inside a fold gets partial totals, never an error frame.
+        assert.notEqual(frame.type, 'error');
+        const data = frame.data;
+        if (data && typeof data === 'object' && 'total_payment' in data)
+          totals.push(
+            `${n}:${ids ? 'id' : 'all'}:${String(data.total_payment)}`,
+          );
+      },
+      assert.fail,
     );
   await source.refresh(['id']);
-  assert.deepEqual(failed, [2]);
-  assert.deepEqual(sent, [0]);
+  assert.deepEqual(totals, ['2:id:1', '2:all:1', '0:all:4']);
+  totals.length = 0;
+  advance(source, 2, 11n);
+  await nextTurn();
+  assert.deepEqual(totals, ['2:id:4', '2:all:4']);
 });
 
 void it('isolates an invalid ID in a shared fact batch and preserves global subscribers', async () => {
@@ -243,14 +250,9 @@ void it('isolates an invalid ID in a shared fact batch and preserves global subs
       return collectMessageFacts([
         {
           ...fact('bad', '11'),
-          payment_buckets: Array.from({ length: 257 }, () => ({
-            domain: 1,
-            first: '11',
-            height: '11',
-            count: '1',
-            payment: '1',
-            gas: '1',
-          })),
+          payment_buckets: [
+            { domain: 1.5, height: '11', count: '1', payment: '1', gas: '1' },
+          ],
         },
         fact('good', '11'),
       ]);
@@ -279,7 +281,7 @@ void it('isolates an invalid ID in a shared fact batch and preserves global subs
     {
       type: 'error',
       messageId: 'bad',
-      error: 'Message payment bucket limit exceeded',
+      error: 'Invalid payment domain',
     },
   ]);
 });
@@ -390,4 +392,648 @@ void it('rejects an oversized history expansion while the zero-confirmation subs
   await nextTurn();
   assert.equal(rejected, 1);
   assert.equal(sent, 2);
+});
+
+void it('does not cache a skipped read for a later subscriber', async () => {
+  const gates: (() => void)[] = [];
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      if (ids.some((id) => id !== 'm'))
+        await new Promise<void>((resolve) => gates.push(resolve));
+      return collectMessageFacts(ids.map((id) => fact(id)));
+    },
+  });
+  await source.currentHeads();
+  for (const id of ['x', 'y'])
+    source.subscribe(policy(), new Set([id]), () => {}, assert.fail);
+  const first = source.subscribe(
+    policy(),
+    new Set(['m']),
+    () => {},
+    assert.fail,
+  );
+  const busy = [source.refresh(['x']), source.refresh(['y'])];
+  const queued = source.refresh(['m']);
+  first.unsubscribe();
+  await nextTurn();
+  for (const release of gates) release();
+  await Promise.all([...busy, queued]);
+  const sent: unknown[] = [];
+  source.subscribe(
+    policy(),
+    undefined,
+    (frame) => sent.push(frame.type),
+    assert.fail,
+  );
+  await source.refresh(['m']);
+  assert.deepEqual(sent, ['message_upsert']);
+});
+
+void it('retries a fact read invalidated by repeated rollbacks without failing subscribers', async () => {
+  let calls = 0;
+  let source!: MessageSource;
+  const rollback = () => {
+    const head = {
+      domain: 2,
+      confirmedHeight: 5n,
+      indexedHeight: 9n,
+      headHeight: 9n,
+      previousIndexedHeight: 10n,
+    };
+    source.observe(head);
+    source.notify(head);
+  };
+  source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [{ height: 11n, id: 'm' }];
+    },
+    async messageFacts(ids) {
+      if (++calls <= 3) {
+        await nextTurn();
+        rollback();
+      }
+      return collectMessageFacts(ids.map((id) => fact(id, '11')));
+    },
+  });
+  await source.currentHeads();
+  const upserts: unknown[] = [];
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    (frame) => {
+      if (frame.type === 'message_upsert') upserts.push(frame);
+    },
+    (error) => assert.fail(String(error)),
+  );
+  advance(source, 1, 11n);
+  for (let i = 0; i < 20 && !upserts.length; i++) await nextTurn();
+  assert.equal(upserts.length, 1);
+  assert(calls > 3, `calls=${calls}`);
+});
+
+void it('keeps cached facts a rollback cannot affect', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map(
+        [1, 2, 3].map((domain) => [
+          domain,
+          { head: 10n, indexed: 10n, confirmed: 5n, hash: undefined },
+        ]),
+      ),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id),
+          destination_domain_id: id === 'to3' ? 3 : 2,
+          origin_tx_id: '1',
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1, 2, 3]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  await source.refresh(['to2', 'to3']);
+  const head = {
+    domain: 2,
+    confirmedHeight: 5n,
+    indexedHeight: 9n,
+    headHeight: 9n,
+    previousIndexedHeight: 10n,
+  };
+  source.observe(head);
+  await source.refresh(['to2', 'to3']);
+  assert.deepEqual(reads, ['to2', 'to3', 'to2']);
+});
+
+void it('rereads facts still waiting for transaction rows', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id),
+          origin_tx_id: reads.length > 2 || id === 'done' ? '1' : null,
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(policy(), undefined, () => {}, assert.fail);
+  for (let i = 0; i < 3; i++) await source.refresh(['pending', 'done']);
+  // Reread until the transaction row arrives, then cache like any other fact.
+  assert.deepEqual(reads, ['pending', 'done', 'pending']);
+});
+
+// Message facts: origin height and an optional domain 1 payment height, which a
+// rollback removes once `rolledBack` is set.
+function rollbackSource(
+  rows: Record<string, { origin: bigint; payment?: bigint }>,
+) {
+  const state = { rolledBack: false, reads: [] as string[][] };
+  const changes = Object.entries(rows)
+    .flatMap(([id, { origin, payment }]) =>
+      [origin, payment].flatMap((height) =>
+        height === undefined ? [] : [{ id, height }],
+      ),
+    )
+    .sort((a, b) => Number(a.height - b.height));
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 10n, indexed: 10n, confirmed: 5n }]]),
+    async *messageChanges(_domain, after, through) {
+      yield changes.filter((c) => c.height > after[0] && c.height <= through);
+    },
+    async messageFacts(ids) {
+      state.reads.push([...ids]);
+      return collectMessageFacts(
+        ids.map((id) => {
+          const { origin, payment } = rows[id];
+          return {
+            ...fact(id, String(origin)),
+            destination_domain_id: 1,
+            origin_tx_id: '1',
+            payment_buckets:
+              payment === undefined || state.rolledBack
+                ? null
+                : [
+                    {
+                      domain: 1,
+                      height: String(payment),
+                      count: '1',
+                      payment: '1',
+                      gas: '1',
+                    },
+                  ],
+          };
+        }),
+      );
+    },
+  });
+  const frames = (confirmations = 0) => {
+    const sent: string[] = [];
+    source.subscribe(
+      { domains: new Set([1]), confirmations },
+      undefined,
+      (frame) => {
+        const data = frame.data as Record<string, unknown> | undefined;
+        sent.push(
+          frame.type === 'message_upsert'
+            ? `${String(data?.msg_id)}:${String(data?.num_payments)}`
+            : String(frame.type),
+        );
+      },
+      assert.fail,
+    );
+    return sent;
+  };
+  const rollback = async (from: bigint, to: bigint) => {
+    state.rolledBack = true;
+    const head = {
+      domain: 1,
+      confirmedHeight: 5n,
+      indexedHeight: to,
+      headHeight: to,
+      previousIndexedHeight: from,
+    };
+    source.observe(head);
+    source.notify(head);
+    for (let i = 0; i < 20; i++) await nextTurn();
+  };
+  return { source, state, frames, rollback };
+}
+
+const settle = async () => {
+  for (let i = 0; i < 20; i++) await nextTurn();
+};
+
+void it('refreshes only rows with a fact above a rollback target', async () => {
+  const { source, state, frames, rollback } = rollbackSource({
+    old: { origin: 11n },
+    new: { origin: 12n, payment: 20n },
+  });
+  await source.currentHeads();
+  const sent = frames();
+  advance(source, 1, 11n);
+  await settle();
+  advance(source, 1, 20n);
+  await settle();
+  assert.deepEqual(sent, ['old:0', 'new:1']);
+  await rollback(20n, 15n);
+  assert.deepEqual(sent, ['old:0', 'new:1', 'rollback', 'new:0']);
+  assert.deepEqual(state.reads.at(-1), ['new']);
+});
+
+void it('keeps a shallow rollback after a large head jump to the removed rows', async () => {
+  const { source, state, frames, rollback } = rollbackSource({
+    early: { origin: 11n },
+    late: { origin: 4000n, payment: 5000n },
+  });
+  await source.currentHeads();
+  const sent = frames();
+  advance(source, 1, 5000n);
+  await settle();
+  assert.deepEqual(sent, ['early:0', 'late:1']);
+  await rollback(5000n, 4999n);
+  assert.deepEqual(sent, ['early:0', 'late:1', 'rollback', 'late:0']);
+  assert.deepEqual(state.reads.at(-1), ['late']);
+});
+
+void it('selects rollback refreshes per subscriber', async () => {
+  // The payment at 19 is visible at frontier 20 but not at frontier 18.
+  const { source, frames, rollback } = rollbackSource({
+    paid: { origin: 12n, payment: 19n },
+  });
+  await source.currentHeads();
+  const zero = frames(0),
+    two = frames(2);
+  advance(source, 1, 20n);
+  await settle();
+  assert.deepEqual(zero, ['paid:1']);
+  assert.deepEqual(two, ['paid:0']);
+  await rollback(20n, 15n);
+  assert.deepEqual(zero, ['paid:1', 'rollback', 'paid:0']);
+  // The removed payment was never visible at frontier 18, but payments above
+  // the frontier can shift a fold, so this subscriber's row is rechecked too.
+  assert.deepEqual(two, ['paid:0', 'rollback', 'paid:0']);
+});
+
+void it('does not refresh rows whose only facts on a rolled-back domain have no height', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 20n, indexed: 20n, confirmed: 5n }]]),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '15'),
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+          payment_buckets: [
+            { domain: 1, height: null, count: '1', payment: '1', gas: '1' },
+          ],
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  await source.refresh(['legacy']);
+  const head = {
+    domain: 1,
+    confirmedHeight: 5n,
+    indexedHeight: 18n,
+    headHeight: 18n,
+    previousIndexedHeight: 20n,
+  };
+  source.observe(head);
+  source.notify(head);
+  await nextTurn();
+  // Origin at 15 survives a rollback to 18, and the payment has no height.
+  assert.deepEqual(reads, ['legacy']);
+});
+
+void it('depends on the newest payment of every paying domain', () => {
+  const facts = collectMessageFacts([
+    {
+      ...fact('m', '1'),
+      payment_buckets: ['1', '2', '9'].map((height) => ({
+        domain: 2,
+        height,
+        count: '1',
+        payment: '1',
+        gas: '1',
+      })),
+    },
+  ]).get('m');
+  assert(facts && !(facts instanceof Error));
+  const row = projectMessage(facts, (domain) => (domain === 2 ? 3n : 100n));
+  // Height 9 is hidden, but folds rank from the newest payments, so removing
+  // it can change which payments are visible.
+  assert.equal(row?.heights.get(2), 9n);
+  assert.equal(row?.data.num_payments, '2');
+});
+
+void it('refreshes a fold shift from a rollback that does not lower the frontier', async () => {
+  let rolledBack = false;
+  const bucket = (height: string, count = '1') => ({
+    domain: 1,
+    height,
+    count,
+    payment: count,
+    gas: count,
+  });
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 30n, indexed: 30n, confirmed: 0n }]]),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      // 1-8 and the newest 8 stay exact; the middle folds at its newest height.
+      const buckets = rolledBack
+        ? [
+            ...['1', '2', '3', '4', '5', '6', '7', '8'].map((h) => bucket(h)),
+            bucket('9'),
+            ...['15', '23', '24', '25', '26', '27', '28', '29'].map((h) =>
+              bucket(h),
+            ),
+          ]
+        : [
+            ...['1', '2', '3', '4', '5', '6', '7', '8'].map((h) => bucket(h)),
+            bucket('15', '2'),
+            ...['23', '24', '25', '26', '27', '28', '29', '30'].map((h) =>
+              bucket(h),
+            ),
+          ];
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '1'),
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+          payment_buckets: buckets,
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  const payments: string[] = [];
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 18 },
+    undefined,
+    (frame) => {
+      const data = frame.data;
+      if (data && typeof data === 'object' && 'num_payments' in data)
+        payments.push(String(data.num_payments));
+    },
+    assert.fail,
+  );
+  await source.refresh(['m']);
+  rolledBack = true;
+  // Indexed 30 -> 29 with head 30 keeps the 18-confirmation frontier at 12.
+  const head = {
+    domain: 1,
+    confirmedHeight: 0n,
+    indexedHeight: 29n,
+    headHeight: 30n,
+    previousIndexedHeight: 30n,
+  };
+  source.observe(head);
+  source.notify(head);
+  for (let i = 0; i < 5 && payments.length < 2; i++) await nextTurn();
+  // Payment 9 left the fold at 15, so it is now visible at frontier 12.
+  assert.deepEqual(payments, ['8', '9']);
+});
+
+void it('refreshes a confirmed fact a deep subscriber can lose in a rollback', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 120n, indexed: 104n, confirmed: 100n }]]),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '90'),
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+          payment_buckets: [
+            { domain: 1, height: '99', count: '1', payment: '1', gas: '1' },
+          ],
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  const payments: string[] = [];
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 8 },
+    undefined,
+    (frame) => {
+      const data = frame.data;
+      if (data && typeof data === 'object' && 'num_payments' in data)
+        payments.push(String(data.num_payments));
+    },
+    assert.fail,
+  );
+  await source.refresh(['m']);
+  const head = {
+    domain: 1,
+    confirmedHeight: 100n,
+    indexedHeight: 101n,
+    headHeight: 104n,
+    previousIndexedHeight: 104n,
+  };
+  source.observe(head);
+  source.notify(head);
+  for (let i = 0; i < 5 && payments.length < 2; i++) await nextTurn();
+  // The frontier drops from 104 to 96, below the confirmed payment at 99.
+  assert.deepEqual(reads, ['m', 'm']);
+  assert.deepEqual(payments, ['1', '0']);
+});
+
+void it('sends one shared frame object to subscribers with the same projection', async () => {
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    messageFacts: async (ids) =>
+      collectMessageFacts(
+        ids.map((id) => ({ ...fact(id), origin_tx_id: '1' })),
+      ),
+  });
+  await source.currentHeads();
+  const frames: Record<string, unknown>[][] = [[], [], []];
+  for (const [i, confirmations] of [0, 0, 2].entries())
+    source.subscribe(
+      policy(confirmations),
+      undefined,
+      (frame) => frames[i].push(frame),
+      assert.fail,
+    );
+  await source.refresh(['m']);
+  assert.equal(frames[0][0], frames[1][0]);
+  assert.notEqual(frames[0][0], frames[2][0]);
+});
+
+void it('retains changes only above the lowest active frontier', async () => {
+  let height = 10n;
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges(_domain, _after, through) {
+      yield Array.from({ length: 5 }, (_, i) => ({
+        height: through,
+        id: `${through}:${i}`,
+      }));
+    },
+    messageFacts: async (ids) =>
+      collectMessageFacts(
+        ids.map((id) => ({ ...fact(id), origin_tx_id: '1' })),
+      ),
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  for (let i = 0; i < 50; i++) {
+    advance(source, 1, ++height);
+    for (let j = 0; j < 5; j++) await nextTurn();
+  }
+  advance(source, 1, ++height);
+  for (let j = 0; j < 5; j++) await nextTurn();
+  assert(source.metrics().changes <= 10, `changes=${source.metrics().changes}`);
+});
+
+void it('settles exposure on a domain the subscriber does not follow and that has no head', async () => {
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    messageFacts: async (ids) =>
+      collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '50'),
+          origin_domain_id: 3,
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+        })),
+      ),
+  });
+  await source.currentHeads();
+  let failed = false;
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => {},
+    () => (failed = true),
+  );
+  const ids = Array.from({ length: 10_001 }, (_, i) => `m${i}`);
+  await source.refresh(ids);
+  // Domain 3 has no head; a rollback there can never refresh this subscriber.
+  assert.equal(failed, false);
+});
+
+void it('shares frames between interleaved subscriber policies', async () => {
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    messageFacts: async (ids) =>
+      collectMessageFacts(
+        ids.map((id) => ({ ...fact(id), origin_tx_id: '1' })),
+      ),
+  });
+  await source.currentHeads();
+  const frames = new Set<Record<string, unknown>>();
+  for (let i = 0; i < 10; i++)
+    source.subscribe(
+      policy(i % 2 ? 2 : 0),
+      undefined,
+      (frame) => frames.add(frame),
+      assert.fail,
+    );
+  await source.refresh(['m']);
+  assert.equal(frames.size, 2);
+});
+
+void it('stops retrying an invalidated refresh once its recipients leave', async () => {
+  let calls = 0;
+  let source!: MessageSource;
+  source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      calls++;
+      await nextTurn();
+      source.invalidateIds(ids);
+      return collectMessageFacts(ids.map((id) => fact(id)));
+    },
+  });
+  await source.currentHeads();
+  const sub = source.subscribe(policy(), undefined, () => {}, assert.fail);
+  const refresh = source.refresh(['m']);
+  await nextTurn();
+  sub.unsubscribe();
+  await refresh;
+  assert(calls <= 6, `calls=${calls}`);
+});
+
+void it('reuses cached facts when a deeper subscriber expands history', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 10n, indexed: 10n, confirmed: 5n }]]),
+    async *messageChanges(_domain, after, through) {
+      const changes = [];
+      for (let height = after[0] + 1n; height <= through; height++)
+        changes.push({ height, id: `h${height}` });
+      yield changes;
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({ ...fact(id, id.slice(1)), origin_tx_id: '1' })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  for (let height = 11n; height <= 15n; height++) {
+    advance(source, 1, height);
+    for (let i = 0; i < 5; i++) await nextTurn();
+  }
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 3 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  advance(source, 1, 16n);
+  for (let i = 0; i < 10; i++) await nextTurn();
+  // The backward fill re-reads h13-h15 changes but keeps their cached facts.
+  assert.deepEqual(reads, ['h11', 'h12', 'h13', 'h14', 'h15', 'h16']);
 });

@@ -1,11 +1,9 @@
 import type { Row } from './event-store.js';
-import { MAX_MESSAGE_FACTS } from './provisional-message.js';
 import { parseDatabaseDomain, parseId } from './protocol.js';
 
 type PaymentBucket = {
   domain: number;
   height: string | null;
-  first: string | null;
   count: string;
   payment: string;
   gas: string;
@@ -25,11 +23,10 @@ export type MessageFacts = {
   destination: number;
   height: bigint;
   pending: Row;
-  deliveries: Delivery[];
+  delivery?: Delivery;
   payments: {
     domain: number;
     height: bigint | null;
-    first: bigint | null;
     count: bigint;
     payment: bigint;
     gas: bigint;
@@ -81,8 +78,6 @@ function collectValidFacts(rows: FactRow[]) {
     for (const [key, value] of Object.entries(data))
       if (deliveryField(key)) fields[key] = value;
     if (!message) {
-      if ((payment_buckets?.length ?? 0) > MAX_MESSAGE_FACTS)
-        throw new Error('Message payment bucket limit exceeded');
       const origin = parseDatabaseDomain(
         data.origin_domain_id,
         'Invalid origin domain',
@@ -101,7 +96,6 @@ function collectValidFacts(rows: FactRow[]) {
       const payments = (payment_buckets ?? []).map((b) => ({
         domain: parseDatabaseDomain(b.domain, 'Invalid payment domain'),
         height: b.height === null ? null : parseId(b.height),
-        first: b.first == null ? null : parseId(b.first),
         count: parseId(b.count),
         payment: parseId(b.payment),
         gas: parseId(b.gas),
@@ -117,26 +111,24 @@ function collectValidFacts(rows: FactRow[]) {
         height: parseId(data.origin_block_height),
         pending,
         payments,
-        deliveries: [],
         bytes:
           Buffer.byteLength(JSON.stringify(pending)) +
           Buffer.byteLength(JSON.stringify(payment_buckets)),
       };
       facts.set(data.msg_id, message);
     }
-    if (delivery_domain != null) {
-      if (message.deliveries.length >= MAX_MESSAGE_FACTS)
-        throw new Error('Message delivery limit exceeded');
+    // Legacy duplicate canonical rows can repeat the one delivery.
+    if (delivery_domain != null && !message.delivery) {
       const domain = parseDatabaseDomain(
         delivery_domain,
         'Invalid delivery domain',
       );
       message.dependencies.add(domain);
-      message.deliveries.push({
+      message.delivery = {
         domain,
         height: delivery_height === null ? null : parseId(delivery_height),
         fields,
-      });
+      };
       message.bytes += Buffer.byteLength(JSON.stringify(fields));
     }
   }
@@ -147,25 +139,32 @@ export function projectMessage(
   facts: MessageFacts,
   frontier: (domain: number) => bigint | undefined,
 ) {
+  // Highest visible fact per domain that a rollback could remove; a rollback
+  // to or above it cannot change this row. Facts without a height are never
+  // rewound, so they are not tracked.
+  const heights = new Map<number, bigint>();
+  const see = (domain: number, height: bigint) => {
+    if (height > (heights.get(domain) ?? -1n)) heights.set(domain, height);
+  };
   const visible = (domain: number, height: bigint | null) => {
     const limit = frontier(domain);
-    return height === null || limit === undefined || height <= limit;
+    if (height !== null && limit !== undefined && height > limit) return false;
+    if (height !== null) see(domain, height);
+    return true;
   };
   if (!visible(facts.origin, facts.height)) return;
-  // SQL returns deliveries in block_number DESC NULLS LAST, id DESC order.
-  const delivery = facts.deliveries.find((d) => visible(d.domain, d.height));
+  const delivery =
+    facts.delivery && visible(facts.delivery.domain, facts.delivery.height)
+      ? facts.delivery
+      : undefined;
   let count = 0n,
     payment = 0n,
     gas = 0n;
-  const domains = new Set([facts.origin, facts.destination]);
-  if (delivery) domains.add(delivery.domain);
   for (const bucket of facts.payments) {
-    if (!visible(bucket.domain, bucket.height)) {
-      if (bucket.first !== null && visible(bucket.domain, bucket.first))
-        throw new Error('Message cursor predates payment baseline');
-      continue;
-    }
-    domains.add(bucket.domain);
+    // Folds are ranked from a domain's newest payments, so removing any of
+    // them, visible or not, can move a payment into or out of a fold.
+    if (bucket.height !== null) see(bucket.domain, bucket.height);
+    if (!visible(bucket.domain, bucket.height)) continue;
     count += bucket.count;
     payment += bucket.payment;
     gas += bucket.gas;
@@ -178,5 +177,5 @@ export function projectMessage(
     total_payment: String(payment),
     total_gas_amount: String(gas),
   };
-  return { data, domains: [...domains] };
+  return { data, heights };
 }

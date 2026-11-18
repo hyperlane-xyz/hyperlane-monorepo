@@ -1,5 +1,7 @@
 // Per-process source for /messages. A browser owns only a projection cursor.
 // Range scans are shared by domain. Only requested rows are hydrated.
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import {
   confirmationHeight,
   endOfHeight,
@@ -16,10 +18,21 @@ const MAX_PARALLEL_DOMAINS = 4;
 const FACT_BATCH_SIZE = 64;
 const MAX_FACT_QUERIES = 2;
 const DOMAIN_RETRY_MS = 30_000;
+const MAX_EXPOSED = 10_000;
+// Distinct frontier keys are bounded by distinct policies; this caps a churn of them.
+const MAX_PROJECTIONS_PER_FACT = 16;
+const PRUNE_INTERVAL_MS = 1_000;
 
 class MessageRangeCapacityError extends Error {
   constructor() {
     super('Message source range limit exceeded');
+  }
+}
+
+// Every invalidation schedules its own refresh or advance, so callers retry.
+class MessageSnapshotInvalidatedError extends Error {
+  constructor() {
+    super('Message snapshot invalidated during publication');
   }
 }
 
@@ -34,7 +47,21 @@ type Entry = {
   refs: number;
   bytes: number;
   value?: Promise<MessageFacts | Error | undefined>;
+  // Settled facts, kept to decide which entries a rollback can affect.
+  facts?: MessageFacts;
+  // A transaction row can be stored before the receipt link that notifies
+  // Explorer commits, or the link can fail; reuse such facts only within the
+  // current read so a later reader queries again.
+  stale?: boolean;
 };
+
+// Origin/destination transaction rows join after the dispatch or delivery.
+function awaitingTransactions(facts: MessageFacts) {
+  return (
+    facts.pending.origin_tx_id === null ||
+    facts.delivery?.fields.destination_tx_id === null
+  );
+}
 
 // Share the same bounded FIFO admission rule for range scans and fact batches.
 function limitReads(limit: number) {
@@ -61,7 +88,9 @@ type Policy = { confirmations: number; domains: Set<number> };
 type Subscriber = Policy & {
   ids?: Set<string>;
   frontiers: Map<number, bigint>;
-  exposed: Map<string, Map<number, bigint>>;
+  // Highest visible fact height per domain, shared with the projection.
+  exposed: Map<string, ReadonlyMap<number, bigint>>;
+  prunedAt?: number;
   send: (frame: Record<string, unknown>) => void;
   fail: (error: unknown) => void;
 };
@@ -74,14 +103,24 @@ export class MessageSource {
   private readonly retryAfter = new Map<number, number>();
   private readonly windows = new Map<number, Window>();
   private readonly entries = new Map<string, Entry>();
+  // One row per distinct frontier key, so subscribers with interleaved
+  // policies still share rows and frames.
   private readonly projections = new WeakMap<
     MessageFacts,
-    { key: string; row: ReturnType<typeof projectMessage> }
+    Map<string, ReturnType<typeof projectMessage>>
+  >();
+  // Subscribers with the same projection share one frame object, so the
+  // websocket layer serializes it once.
+  private readonly frames = new WeakMap<
+    Record<string, unknown>,
+    Map<string, Record<string, unknown>>
   >();
   private readonly scan = limitReads(MAX_PARALLEL_DOMAINS);
   private readonly hydrate = limitReads(MAX_FACT_QUERIES);
+  private readonly logger = rootLogger.child({ module: 'MessageSource' });
   private changes = 0;
   private bytes = 0;
+  private nextPrune = 0;
   private stopped = false;
 
   constructor(
@@ -92,10 +131,13 @@ export class MessageSource {
   ) {}
 
   metrics() {
+    const now = Date.now();
     return {
       ranges: this.windows.size,
       changes: this.changes,
       factBytes: this.bytes,
+      backoffDomains: [...this.retryAfter.values()].filter((at) => at > now)
+        .length,
     };
   }
 
@@ -153,11 +195,18 @@ export class MessageSource {
             );
       }
       // Cross-domain projections can include a removed delivery/payment even
-      // when the retained change is on a different domain.
-      for (const entry of this.entries.values()) this.invalidate(entry);
+      // when the retained change is on a different domain. Settled facts list
+      // every domain they read; anything else is invalidated conservatively.
+      for (const entry of this.entries.values())
+        if (!entry.facts || entry.facts.dependencies.has(head.domain))
+          this.invalidate(entry);
     } else if (window && !window.loading) {
-      // Retain unprocessed advances. A stalled domain cannot pin old rows forever.
-      const floor = confirmationHeight(next, 2 * MAX_CONFIRMATIONS);
+      // Retain only what the lowest active frontier has not processed; a
+      // deeper late joiner expands the window backward. The fixed depth still
+      // stops a stalled domain from pinning old rows forever.
+      const hard = confirmationHeight(next, 2 * MAX_CONFIRMATIONS);
+      const lowest = this.lowestFrontier(head.domain);
+      const floor = lowest === undefined || lowest < hard ? hard : lowest;
       if (floor > window.through && !this.readsDomain(head.domain)) {
         this.dropWindow(head.domain, window);
         return;
@@ -177,6 +226,8 @@ export class MessageSource {
     this.bytes -= entry.bytes;
     entry.bytes = 0;
     entry.value = undefined;
+    entry.facts = undefined;
+    entry.stale = undefined;
   }
 
   private trim(window: Window, floor: bigint) {
@@ -214,15 +265,23 @@ export class MessageSource {
     return entry;
   }
 
+  private lowestFrontier(domain: number) {
+    let lowest: bigint | undefined;
+    for (const sub of this.subscribers) {
+      const frontier = sub.frontiers.get(domain);
+      if (
+        frontier !== undefined &&
+        sub.ids?.size !== 0 &&
+        (lowest === undefined || frontier < lowest)
+      )
+        lowest = frontier;
+    }
+    return lowest;
+  }
+
   private readsDomain(domain: number) {
     for (const sub of this.subscribers)
       if (sub.ids?.size !== 0 && sub.frontiers.has(domain)) return true;
-    return false;
-  }
-
-  private wantsId(id: string) {
-    for (const sub of this.subscribers)
-      if (!sub.ids || sub.ids.has(id)) return true;
     return false;
   }
 
@@ -239,12 +298,13 @@ export class MessageSource {
   }
 
   private fetchBatch(batch: { id: string; entry: Entry }[]) {
-    const result = this.hydrate(async () => {
-      const ids = batch.map(({ id }) => id).filter((id) => this.wantsId(id));
-      if (this.stopped || !ids.length)
-        return new Map<string, MessageFacts | Error>();
-      return this.store.messageFacts(ids);
-    });
+    // Read every scheduled ID. A filtered ID would be cached as a missing
+    // message and served to a later subscriber that does want it.
+    const result = this.hydrate(async () =>
+      this.stopped
+        ? new Map<string, MessageFacts | Error>()
+        : this.store.messageFacts(batch.map(({ id }) => id)),
+    );
     for (const { id, entry } of batch) {
       const value = result
         .then((rows) => {
@@ -256,6 +316,10 @@ export class MessageSource {
               throw new Error('Message source byte limit exceeded');
             entry.bytes = bytes;
             this.bytes += bytes;
+            if (facts && !(facts instanceof Error)) {
+              entry.facts = facts;
+              entry.stale = awaitingTransactions(facts);
+            }
           }
           return facts;
         })
@@ -274,9 +338,6 @@ export class MessageSource {
   ): Promise<Window> {
     let window = this.windows.get(domain);
     if (!window) {
-      if ((this.retryAfter.get(domain) ?? 0) > Date.now())
-        throw new Error('Message range temporarily unavailable');
-      this.retryAfter.delete(domain);
       const floor = after;
       window = { floor, through: floor, changes: [] };
       this.windows.set(domain, window);
@@ -309,7 +370,9 @@ export class MessageSource {
               for (const change of page) {
                 const entry = this.entry(change.id);
                 entry.refs++;
-                this.invalidate(entry);
+                // Cached facts already reflect older changes; only new ones
+                // can make them stale.
+                if (start >= current.floor) this.invalidate(entry);
                 prefix.push(change);
                 this.changes++;
               }
@@ -394,41 +457,53 @@ export class MessageSource {
     const rollback =
       event.previousIndexedHeight !== undefined &&
       indexedHeight < event.previousIndexedHeight;
-    const refresh = new Set<string>();
-    const rolledBack = new Set<Subscriber>();
+    const refresh = new Map<Subscriber, Set<string>>();
     let needed = false;
     for (const sub of this.subscribers) {
       const from = sub.frontiers.get(domain);
       if (from === undefined) continue;
       const to = confirmationHeight(head, sub.confirmations);
-      if (rollback && to < from) {
-        sub.frontiers.set(domain, to);
-        sub.send({
-          type: 'rollback',
-          domain,
-          confirmations: sub.confirmations,
-          fromHeight: String(from),
-          toHeight: String(to),
-        });
-        rolledBack.add(sub);
-        for (const id of sub.exposed.keys()) refresh.add(id);
+      if (rollback) {
+        if (to < from) {
+          sub.frontiers.set(domain, to);
+          sub.send({
+            type: 'rollback',
+            domain,
+            confirmations: sub.confirmations,
+            fromHeight: String(from),
+            toHeight: String(to),
+          });
+        }
+        // Rows whose facts on this domain all survive the rewind are intact.
+        // Without a lower frontier, a removed payment can still shift a fold.
+        const floor = to < from ? to : indexedHeight;
+        const ids = new Set<string>();
+        for (const [id, heights] of sub.exposed)
+          if (this.settled(sub, heights)) sub.exposed.delete(id);
+          else if ((heights.get(domain) ?? floor) > floor) ids.add(id);
+        if (ids.size) refresh.set(sub, ids);
       }
       if (to > from && sub.ids?.size !== 0) needed = true;
       if (sub.ids?.size === 0) sub.frontiers.set(domain, to);
-      if (event.previousConfirmedHeight !== confirmedHeight)
-        for (const [id, deps] of sub.exposed) {
-          if (
-            [...deps].every(
-              ([d, height]) => height <= (this.heads.get(d)?.confirmed ?? 0n),
-            )
-          )
-            sub.exposed.delete(id);
-        }
     }
-    if (refresh.size) void this.refresh([...refresh], rolledBack, true);
+    if (
+      event.previousConfirmedHeight !== confirmedHeight &&
+      Date.now() >= this.nextPrune
+    ) {
+      // Exposure only feeds the rollback refresh and the size limit, and both
+      // re-check settlement, so pruning at most once per interval is enough.
+      this.nextPrune = Date.now() + PRUNE_INTERVAL_MS;
+      for (const sub of this.subscribers) this.prune(sub);
+    }
+    if (refresh.size)
+      void this.refresh(
+        [...new Set([...refresh.values()].flatMap((ids) => [...ids]))],
+        refresh,
+      );
     const pending = this.advances.get(domain);
     if (pending) pending.head = head;
-    else if (needed) {
+    else if (needed && (this.retryAfter.get(domain) ?? 0) <= Date.now()) {
+      this.retryAfter.delete(domain);
       const work = { head };
       this.advances.set(domain, work);
       void this.advance(domain, work);
@@ -487,7 +562,13 @@ export class MessageSource {
           }
           return [{ sub, to, start, end }];
         });
-        const facts = await this.load(ids);
+        let facts: Map<string, MessageFacts | Error | undefined>;
+        try {
+          facts = await this.load(ids);
+        } catch (error) {
+          if (error instanceof MessageSnapshotInvalidatedError) continue;
+          throw error;
+        }
         if (this.advances.get(domain) !== work) return;
         for (const { sub, to, start, end } of releases) {
           if (
@@ -508,16 +589,17 @@ export class MessageSource {
         }
         if (head === work.head) return;
       }
-    } catch (e) {
+    } catch (error) {
+      // Frontiers have not moved, so subscribers lose nothing by waiting.
+      // Back off instead of rescanning a failing domain on every head.
+      this.logger.warn(
+        { domain, error: error instanceof Error ? error.message : error },
+        'Message range read failed; retrying after backoff',
+      );
       if (this.advances.get(domain) === work) {
+        this.retryAfter.set(domain, Date.now() + DOMAIN_RETRY_MS);
         const window = this.windows.get(domain);
-        if (window) {
-          this.retryAfter.set(domain, Date.now() + DOMAIN_RETRY_MS);
-          this.dropWindow(domain, window);
-        }
-        for (const sub of this.subscribers) {
-          if (sub.frontiers.has(domain) && sub.ids?.size !== 0) sub.fail(e);
-        }
+        if (window) this.dropWindow(domain, window);
       }
     } finally {
       if (this.advances.get(domain) === work) this.advances.delete(domain);
@@ -530,6 +612,7 @@ export class MessageSource {
       for (const id of ids) {
         const entry = this.entry(id);
         entry.refs++;
+        if (entry.stale) this.invalidate(entry);
         reads.push({ id, entry });
       }
       // Recheck the entire batch after the last read settles. A receipt or fork
@@ -546,22 +629,35 @@ export class MessageSource {
         if (reads.every(({ entry }, i) => entry.value === pending[i]))
           return new Map(reads.map(({ id }, i) => [id, rows[i]]));
       }
-      throw new Error('Message snapshot invalidated during publication');
+      throw new MessageSnapshotInvalidatedError();
     } finally {
       for (const { entry } of reads) entry.refs--;
     }
   }
 
-  async refresh(ids: string[], targets = this.subscribers, rollback = false) {
-    const recipients = [...targets];
+  // `rollback` selects ids per subscriber when the rollback is observed; a
+  // later advance can move the frontier before these facts load.
+  async refresh(ids: string[], rollback?: Map<Subscriber, Set<string>>) {
+    const recipients = [...(rollback?.keys() ?? this.subscribers)];
     const interested = (sub: Subscriber, id: string) =>
-      (!sub.ids || sub.ids.has(id)) && (!rollback || sub.exposed.has(id));
+      (!sub.ids || sub.ids.has(id)) &&
+      (!rollback || !!rollback.get(sub)?.has(id));
     const selected = ids.filter((id) =>
       recipients.some((sub) => interested(sub, id)),
     );
     if (!selected.length) return;
     try {
-      const facts = await this.load(selected);
+      let facts: Map<string, MessageFacts | Error | undefined> | undefined;
+      const listening = () =>
+        recipients.some((sub) => this.subscribers.has(sub));
+      while (!facts && !this.stopped && listening()) {
+        try {
+          facts = await this.load(selected);
+        } catch (error) {
+          if (!(error instanceof MessageSnapshotInvalidatedError)) throw error;
+        }
+      }
+      if (!facts) return;
       for (const sub of recipients)
         for (const [id, row] of facts) {
           if (!this.subscribers.has(sub)) break;
@@ -576,13 +672,41 @@ export class MessageSource {
             this.upsert(sub, id, row);
         }
     } catch (error) {
+      // A global stream keeps its rows; the next refresh or advance retries.
+      // An ID subscription or a rollback refresh cannot leave a stale row.
+      let skipped = false;
       for (const sub of recipients)
         if (
           this.subscribers.has(sub) &&
           selected.some((id) => interested(sub, id))
-        )
-          sub.fail(error);
+        ) {
+          if (sub.ids || rollback) sub.fail(error);
+          else skipped = true;
+        }
+      if (skipped)
+        this.logger.warn(
+          { error: error instanceof Error ? error.message : error },
+          'Message refresh failed; global streams keep their rows',
+        );
     }
+  }
+
+  // A rollback never rewinds below the confirmed height, so a followed
+  // domain's frontier stays at or above `confirmed - confirmations`. Facts at
+  // or below that stay visible to this subscriber whatever rolls back.
+  private settled(sub: Subscriber, heights: ReadonlyMap<number, bigint>) {
+    for (const [domain, height] of heights) {
+      // Only a rollback on a followed domain refreshes this subscriber.
+      if (!sub.frontiers.has(domain)) continue;
+      const confirmed = this.heads.get(domain)?.confirmed ?? 0n;
+      if (height > confirmed - BigInt(sub.confirmations)) return false;
+    }
+    return true;
+  }
+
+  private prune(sub: Subscriber) {
+    for (const [id, heights] of sub.exposed)
+      if (this.settled(sub, heights)) sub.exposed.delete(id);
   }
 
   private upsert(
@@ -607,24 +731,43 @@ export class MessageSource {
       sub.exposed.delete(id);
       return;
     }
-    const deps = new Map<number, bigint>();
-    for (const d of row.domains) {
-      const height = sub.frontiers.get(d);
-      if (height !== undefined && height > (this.heads.get(d)?.confirmed ?? 0n))
-        deps.set(d, height);
+    // Only facts above this subscriber's settled height can change in a
+    // rollback; the heights map is shared with the cached projection.
+    if (this.settled(sub, row.heights)) sub.exposed.delete(id);
+    else sub.exposed.set(id, row.heights);
+    if (sub.exposed.size > MAX_EXPOSED) {
+      // A full prune is O(exposed); a subscriber pinned at the limit should
+      // not pay it on every row.
+      const now = Date.now();
+      if ((sub.prunedAt ?? 0) + PRUNE_INTERVAL_MS <= now) {
+        sub.prunedAt = now;
+        this.prune(sub);
+      }
     }
-    if (deps.size) sub.exposed.set(id, deps);
-    else sub.exposed.delete(id);
-    if (sub.exposed.size > 10_000) {
+    if (sub.exposed.size > MAX_EXPOSED) {
       sub.fail(new Error('Custom provisional message limit exceeded'));
       return;
     }
-    sub.send({
-      type: 'message_upsert',
-      confirmations: sub.confirmations,
-      ...fields,
-      data: row.data,
-    });
+    sub.send(this.upsertFrame(row.data, sub.confirmations, fields));
+  }
+
+  private upsertFrame(
+    data: Record<string, unknown>,
+    confirmations: number,
+    fields?: Record<string, unknown>,
+  ) {
+    const key = `${confirmations}:${fields ? `${String(fields.domain)}:${String(fields.height)}` : ''}`;
+    let frames = this.frames.get(data);
+    if (!frames) {
+      frames = new Map();
+      this.frames.set(data, frames);
+    }
+    let frame = frames.get(key);
+    if (!frame) {
+      frame = { type: 'message_upsert', confirmations, ...fields, data };
+      frames.set(key, frame);
+    }
+    return frame;
   }
 
   private project(facts: MessageFacts, sub: Subscriber) {
@@ -633,17 +776,16 @@ export class MessageSource {
     const key = [...facts.dependencies]
       .map((domain) => frontier(domain)?.toString() ?? '*')
       .join(',');
-    const previous = this.projections.get(facts);
-    if (previous?.key === key) return previous.row;
-    try {
-      const row = projectMessage(facts, frontier);
-      this.projections.set(facts, { key, row });
-      return row;
-    } catch (error) {
-      // A delayed cursor may fall inside an aggregated payment bucket.
-      sub.fail(error);
-      return undefined;
+    let rows = this.projections.get(facts);
+    if (!rows) {
+      rows = new Map();
+      this.projections.set(facts, rows);
     }
+    if (rows.has(key)) return rows.get(key);
+    if (rows.size >= MAX_PROJECTIONS_PER_FACT) rows.clear();
+    const row = projectMessage(facts, frontier);
+    rows.set(key, row);
+    return row;
   }
 
   stop() {
