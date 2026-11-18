@@ -100,6 +100,12 @@ export class MessageSource {
     MessageFacts,
     { key: string; row: ReturnType<typeof projectMessage> }
   >();
+  // Subscribers with the same projection share one frame object, so the
+  // websocket layer serializes it once.
+  private readonly frames = new WeakMap<
+    Record<string, unknown>,
+    Map<string, Record<string, unknown>>
+  >();
   private readonly scan = limitReads(MAX_PARALLEL_DOMAINS);
   private readonly hydrate = limitReads(MAX_FACT_QUERIES);
   private changes = 0;
@@ -181,8 +187,12 @@ export class MessageSource {
         if (!entry.facts || entry.facts.dependencies.has(head.domain))
           this.invalidate(entry);
     } else if (window && !window.loading) {
-      // Retain unprocessed advances. A stalled domain cannot pin old rows forever.
-      const floor = confirmationHeight(next, 2 * MAX_EXPLORER_CONFIRMATIONS);
+      // Retain only what the lowest active frontier has not processed; a
+      // deeper late joiner expands the window backward. The fixed depth still
+      // stops a stalled domain from pinning old rows forever.
+      const hard = confirmationHeight(next, 2 * MAX_EXPLORER_CONFIRMATIONS);
+      const lowest = this.lowestFrontier(head.domain);
+      const floor = lowest === undefined || lowest < hard ? hard : lowest;
       if (floor > window.through && !this.readsDomain(head.domain)) {
         this.dropWindow(head.domain, window);
         return;
@@ -239,6 +249,20 @@ export class MessageSource {
       this.entries.set(id, entry);
     }
     return entry;
+  }
+
+  private lowestFrontier(domain: number) {
+    let lowest: bigint | undefined;
+    for (const sub of this.subscribers) {
+      const frontier = sub.frontiers.get(domain);
+      if (
+        frontier !== undefined &&
+        sub.ids?.size !== 0 &&
+        (lowest === undefined || frontier < lowest)
+      )
+        lowest = frontier;
+    }
+    return lowest;
   }
 
   private readsDomain(domain: number) {
@@ -665,12 +689,26 @@ export class MessageSource {
       sub.fail(new Error('Custom provisional message limit exceeded'));
       return;
     }
-    sub.send({
-      type: 'message_upsert',
-      confirmations: sub.confirmations,
-      ...fields,
-      data: row.data,
-    });
+    sub.send(this.upsertFrame(row.data, sub.confirmations, fields));
+  }
+
+  private upsertFrame(
+    data: Record<string, unknown>,
+    confirmations: number,
+    fields?: Record<string, unknown>,
+  ) {
+    const key = `${confirmations}:${fields ? `${String(fields.domain)}:${String(fields.height)}` : ''}`;
+    let frames = this.frames.get(data);
+    if (!frames) {
+      frames = new Map();
+      this.frames.set(data, frames);
+    }
+    let frame = frames.get(key);
+    if (!frame) {
+      frame = { type: 'message_upsert', confirmations, ...fields, data };
+      frames.set(key, frame);
+    }
+    return frame;
   }
 
   private project(facts: MessageFacts, sub: Subscriber) {

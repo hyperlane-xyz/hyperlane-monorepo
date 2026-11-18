@@ -845,7 +845,8 @@ export class EventWebSocketServer {
       this.messageSource.subscribe(
         custom,
         messageIds,
-        (frame) => this.enqueueExplorer(socket, client, [serialize(frame)]),
+        (frame) =>
+          this.enqueueExplorer(socket, client, [serializeShared(frame)]),
         (error) => this.failSocket(socket, formatError(error)),
       );
     client.unsubscribe = subscription?.unsubscribe;
@@ -2159,6 +2160,18 @@ export class EventWebSocketServer {
   private sendError(socket: WebSocket, error: string): void {
     this.send(socket, { error, type: 'error' });
   }
+}
+
+// The shared message source sends one frame object to every subscriber with
+// the same projection; serialize it once instead of once per socket.
+const sharedFrames = new WeakMap<object, SerializedMessage>();
+function serializeShared(frame: Record<string, unknown>): SerializedMessage {
+  let message = sharedFrames.get(frame);
+  if (!message) {
+    message = serialize(frame);
+    sharedFrames.set(frame, message);
+  }
+  return message;
 }
 
 function serialize(message: Record<string, unknown>): SerializedMessage {

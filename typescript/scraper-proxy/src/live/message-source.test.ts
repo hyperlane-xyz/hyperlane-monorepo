@@ -795,3 +795,59 @@ void it('refreshes a confirmed fact a deep subscriber can lose in a rollback', a
   assert.deepEqual(reads, ['m', 'm']);
   assert.deepEqual(payments, ['1', '0']);
 });
+
+void it('sends one shared frame object to subscribers with the same projection', async () => {
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    messageFacts: async (ids) =>
+      collectMessageFacts(
+        ids.map((id) => ({ ...fact(id), origin_tx_id: '1' })),
+      ),
+  });
+  await source.currentHeads();
+  const frames: Record<string, unknown>[][] = [[], [], []];
+  for (const [i, confirmations] of [0, 0, 2].entries())
+    source.subscribe(
+      policy(confirmations),
+      undefined,
+      (frame) => frames[i].push(frame),
+      assert.fail,
+    );
+  await source.refresh(['m']);
+  assert.equal(frames[0][0], frames[1][0]);
+  assert.notEqual(frames[0][0], frames[2][0]);
+});
+
+void it('retains changes only above the lowest active frontier', async () => {
+  let height = 10n;
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges(_domain, _after, through) {
+      yield Array.from({ length: 5 }, (_, i) => ({
+        height: through,
+        id: `${through}:${i}`,
+      }));
+    },
+    messageFacts: async (ids) =>
+      collectMessageFacts(
+        ids.map((id) => ({ ...fact(id), origin_tx_id: '1' })),
+      ),
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  for (let i = 0; i < 50; i++) {
+    advance(source, 1, ++height);
+    for (let j = 0; j < 5; j++) await nextTurn();
+  }
+  advance(source, 1, ++height);
+  for (let j = 0; j < 5; j++) await nextTurn();
+  assert(source.metrics().changes <= 10, `changes=${source.metrics().changes}`);
+});
