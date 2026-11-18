@@ -605,7 +605,7 @@ describe('oUSDT production manifest', () => {
       secret.spec.data.find(
         (d: { secretKey: string }) => d.secretKey === 'swapsxyz_api_key',
       ).remoteRef.key,
-    ).to.equal('mainnet3-swapsxyz-api-key-ousdt');
+    ).to.equal('mainnet3-swapsxyz-api-key');
     expect(secret.spec.target.template.data.HYP_INVENTORY_KEY_TRON).to.equal(
       secret.spec.target.template.data.HYP_INVENTORY_KEY_ETHEREUM,
     );

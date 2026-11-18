@@ -1,7 +1,7 @@
 # oUSDT production rollout
 
 Only deploy `oUSDT/production`. Its optional `deployment` metadata in
-`production-config.yaml` selects the image tag/digest, dedicated swaps.xyz secret,
+`production-config.yaml` selects the image tag/digest, shared swaps.xyz secret,
 registry commit, and persisted monitor-only mode. A digest takes precedence over the tag. Other routes keep
 the shared image and credential defaults. Deployment metadata is stripped from
 the runtime ConfigMap.
@@ -30,9 +30,9 @@ November 17, 2026. On November 18 the replacement pod passed this check and
 proposed a 2,904.430156 USDT refill for Arbitrum.
 
 Before replacement, archive Helm values/manifests, the live ExternalSecret,
-resolved image digest, ConfigMap and `/state/tracking` files. Revision 5's saved
-manifest uses the generic swaps.xyz secret; the live mapping is
-`mainnet3-swapsxyz-api-key-ousdt`. Do not run an unqualified Helm rollback.
+resolved image digest, ConfigMap and `/state/tracking` files. Some archived manifests
+reference the former route-specific key. Check the manifest before rollback and
+preserve `mainnet3-swapsxyz-api-key` when restoring a release.
 
 Reconcile all stored user transfers against their destination routers'
 mailboxes. Separately prove every rebalancer-owned source submission is settled
@@ -84,7 +84,7 @@ execution by changing the reviewed YAML to `deployment.monitorOnly: false`,
 then redeploy without `--monitor-only`. The CLI can force monitoring on;
 `--no-monitor-only` cannot override a persisted `true`. Observe for at least 70
 minutes, including the hourly ExternalSecret refresh: require zero restarts,
-continuing polls, stable dedicated credentials and no new execution or settlement
+continuing polls, the shared swaps.xyz credential and no new execution or settlement
 failures. Track existing velo metrics errors separately.
 
 Validate the first naturally required rebalance through destination settlement
@@ -94,5 +94,5 @@ validation as pending; do not force a transfer.
 On startup/credential/configuration failure, repeated failed cycles, unsafe
 quotes or approvals, duplicate submission, or incorrect settlement: stop new
 submissions, capture and reconcile exposed transactions, then restore the
-archived baseline image/configuration while preserving the dedicated secret.
+archived baseline image/configuration with the shared swaps.xyz secret.
 Never restart automatically with ambiguous transfers outstanding.
