@@ -29,7 +29,6 @@ import {
   type EventType,
   type HeadNotification,
   type LiveStartBoundary,
-  parseDatabaseDomain,
   parseClientMessage,
   splitConfirmationStreams,
   parseEventNotification,
@@ -40,12 +39,12 @@ import {
   parseExplorerDiagnostics,
   parseValidatorSubscription,
   parseValidatorPing,
-  parseOptionalBlockHash,
   parseHeadNotification,
   parseId,
   type StreamRequest,
 } from './protocol.js';
 import {
+  type ConfirmationHead,
   ConfirmationStream,
   ConfirmationUnavailableError,
 } from './confirmation-stream.js';
@@ -57,6 +56,7 @@ import {
   rowDomain,
   EventStore,
 } from './event-store.js';
+import { MessageSource } from './message-source.js';
 import { rawData } from './websocket-data.js';
 import { NotificationWorker } from './notification-worker.js';
 import { validatorClientIp } from './validator-client.js';
@@ -96,7 +96,8 @@ const MAX_EXPLORER_CLIENTS_PER_IP = 5;
 const MAX_EXPLORER_PENDING_SETUPS = 32;
 const MAX_EXPLORER_PENDING_SETUPS_PER_IP = 2;
 const MAX_EXPLORER_SUBSCRIPTION_BYTES = 8_192;
-const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
+const MAX_EXPLORER_PENDING_BYTES = 16 * 1024 * 1024;
+const MAX_EXPLORER_TOTAL_PENDING_BYTES = 32 * 1024 * 1024;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
@@ -120,9 +121,12 @@ type ValidatorGroup = {
   ready: Promise<void>;
 };
 type ExplorerClient = {
+  domains?: Set<number>;
+  ready: boolean;
   messageIds?: Set<string>;
   alive: boolean;
   custom: boolean;
+  unsubscribe?: () => void;
   ip: string;
   queuedBytes: number;
   queue: SerializedMessage[];
@@ -217,7 +221,6 @@ export class EventWebSocketServer {
       const heads = [...this.pendingHeads.values()];
       this.pendingHeads.clear();
       if (!heads.length) return;
-      this.store.invalidateMessages();
       for (const head of heads) this.notifyConfirmationStreams(head);
     },
     (error) => this.failExplorerStream(error),
@@ -231,6 +234,7 @@ export class EventWebSocketServer {
     },
   );
   private pendingBytes = 0;
+  private explorerQueuedBytes = 0;
   private listenerReady = false;
   private stopped = false;
   private stopListening?: () => Promise<void>;
@@ -240,6 +244,7 @@ export class EventWebSocketServer {
   private validatorServer?: WebSocketServer;
   private readonly limits: Limits;
   private readonly store: EventStore;
+  private messageSource: MessageSource;
   private readonly validatorStore: EventStore;
   private readonly diagnostics?: DiagnosticsStream;
   private readonly serializedDiagnostics = new WeakMap<
@@ -254,6 +259,7 @@ export class EventWebSocketServer {
   ) {
     if (diagnostics) this.diagnostics = new DiagnosticsStream(diagnostics);
     this.store = new EventStore(db);
+    this.messageSource = new MessageSource(this.store);
     this.validatorStore = new EventStore({
       queryLive: (text, values) => db.queryValidator(text, values),
     });
@@ -392,6 +398,7 @@ export class EventWebSocketServer {
         (client) => client.pending,
       ).length,
       explorerPendingSetups: this.explorerPendingSetups.size,
+      messageSource: this.messageSource.metrics(),
       validatorReservedConnections: this.validatorClients.size,
       validatorSharedReaders: this.validatorGroups.size,
       validatorSubscriptions: [...validatorSubscriptions.values()],
@@ -401,10 +408,7 @@ export class EventWebSocketServer {
         (total, client) => total + client.queue.length,
         0,
       ),
-      explorerPendingBytes: [...this.explorerClients.values()].reduce(
-        (total, client) => total + client.queuedBytes,
-        0,
-      ),
+      explorerPendingBytes: this.explorerQueuedBytes,
       maxExplorerPendingBytes: Math.max(
         0,
         ...[...this.explorerClients.values()].map(
@@ -811,6 +815,8 @@ export class EventWebSocketServer {
     this.explorerPendingSetupsByIp.set(ip, pendingForIp + 1);
     this.explorerClientsByIp.set(ip, connections + 1);
     this.explorerClients.set(socket, {
+      domains: custom?.domains,
+      ready: false,
       alive: true,
       custom: custom !== undefined,
       messageIds,
@@ -825,35 +831,32 @@ export class EventWebSocketServer {
       websocketClientMessageRejections.inc();
       this.rejectNegotiation(socket, 'Client messages are unsupported');
     });
-    let confirmationStream: ConfirmationStream | undefined;
     try {
       if (blocks) await this.subscribeBlocks(socket, custom?.domains);
-      if (custom)
-        confirmationStream = await this.createConfirmationStream(
-          socket,
-          custom.confirmations,
-          custom.domains,
-        );
-    } catch (error) {
-      if (!(error instanceof ConfirmationUnavailableError)) throw error;
-      this.rejectNegotiation(socket, formatError(error));
-      return;
+      if (custom) await this.messageSource.currentHeads();
     } finally {
       this.releaseExplorerSetup(socket);
     }
     // Initialization awaits DB reads; the peer may already have disconnected.
-    if (
-      !this.explorerClients.has(socket) ||
-      socket.readyState !== WebSocket.OPEN
-    )
-      return;
+    const client = this.explorerClients.get(socket);
+    if (!client || socket.readyState !== WebSocket.OPEN) return;
+    const subscription =
+      custom &&
+      this.messageSource.subscribe(
+        custom,
+        messageIds,
+        (frame) => this.enqueueExplorer(socket, client, [serialize(frame)]),
+        (error) => this.failSocket(socket, formatError(error)),
+      );
+    client.unsubscribe = subscription?.unsubscribe;
+    client.ready = true;
     this.send(socket, {
       ...(messageIds && { messageIds: [...messageIds] }),
       ...(custom && {
         confirmations: custom.confirmations,
         domains: [...custom.domains],
-        customDomains: confirmationStream?.customDomains,
-        canonicalDomains: confirmationStream?.canonicalDomains,
+        customDomains: subscription?.customDomains,
+        canonicalDomains: subscription?.canonicalDomains,
       }),
       eventTypes: [
         'message_upsert',
@@ -863,7 +866,6 @@ export class EventWebSocketServer {
       ],
       type: 'ready',
     });
-    confirmationStream?.start();
     this.startBlocks(socket);
     if (diagnostics && messageIds) {
       try {
@@ -897,17 +899,21 @@ export class EventWebSocketServer {
     this.blockSubscriptions.set(socket, subscription);
     // Register before the snapshot: notifications received during the query win,
     // including lower heights and replacement hashes after a reorg.
-    const rows = await this.store.blockHeads(domains);
-    for (const row of rows) {
-      const domain = parseDatabaseDomain(row.domain, 'Invalid block domain');
-      const hash = parseOptionalBlockHash(row.hash);
-      if (hash && !subscription.latest.has(domain))
+    const heads = await (this.explorerClients.has(socket)
+      ? this.messageSource.currentHeads()
+      : this.store.messageHeads(domains));
+    for (const [domain, head] of heads) {
+      if (
+        head.hash &&
+        (!domains || domains.has(domain)) &&
+        !subscription.latest.has(domain)
+      )
         subscription.latest.set(domain, {
           type: 'block',
           domain,
-          height: row.indexed_height,
-          hash,
-          headHeight: row.head_height,
+          height: String(head.indexed),
+          headHeight: String(head.head),
+          hash: head.hash,
         });
     }
   }
@@ -961,67 +967,25 @@ export class EventWebSocketServer {
     socket: WebSocket,
     confirmations: number,
     domains: Set<number>,
-    eventType?: EventType,
-    allowUnavailable = eventType === undefined,
-    readHeads = () => this.store.confirmationHeads(domains),
+    eventType: EventType,
+    allowUnavailable: boolean,
+    readHeads: () => Promise<Map<number, ConfirmationHead>>,
   ): Promise<ConfirmationStream | undefined> {
     // Deliver older queued heads before this stream takes its initial snapshot.
     await this.confirmationUpdates.flush();
     // Disconnect may have removed this socket while setup awaited a DB read.
-    if (!this.clients.has(socket) && !this.explorerClients.has(socket)) return;
+    if (!this.clients.has(socket)) return;
     const stream = new ConfirmationStream(confirmations, domains, {
-      active: () =>
-        this.clients.has(socket) || this.explorerClients.has(socket),
-      read: (domain, after, through, frontiers) =>
-        eventType
-          ? this.store.confirmationEventRows(
-              eventType,
-              domain,
-              after,
-              through,
-              confirmations,
-            )
-          : this.store.confirmationMessageRows(
-              domain,
-              after,
-              through,
-              frontiers,
-              confirmations,
-              this.explorerClients.get(socket)?.messageIds,
-            ),
+      active: () => this.clients.has(socket),
+      read: (domain, after, through) =>
+        this.store.confirmationEventRows(
+          eventType,
+          domain,
+          after,
+          through,
+          confirmations,
+        ),
       send: (message) => this.sendAndWait(socket, message),
-      messageId: eventType
-        ? undefined
-        : (message) => {
-            const data = message.data;
-            if (
-              typeof data !== 'object' ||
-              data === null ||
-              !('msg_id' in data)
-            )
-              return undefined;
-            return typeof data.msg_id === 'string' ? data.msg_id : undefined;
-          },
-      enrich: eventType
-        ? undefined
-        : async (ids, frontiers) => {
-            const interested = this.explorerMessageIds(socket, ids);
-            if (!interested.length) return [];
-            const rows = await this.store.provisionalMessages(
-              interested,
-              frontiers,
-            );
-            return rows
-              .filter(
-                ({ data }) =>
-                  domains.has(rowDomain(data, 'origin_domain_id')) ||
-                  domains.has(rowDomain(data, 'destination_domain_id')),
-              )
-              .map(({ data, domains }) => ({
-                domains,
-                message: { type: 'message_upsert', confirmations, data },
-              }));
-          },
       rollback: (domain, from, to) => {
         this.send(socket, {
           type: 'rollback',
@@ -1038,7 +1002,7 @@ export class EventWebSocketServer {
     streams.push(stream);
     this.confirmationStreams.set(socket, streams);
     await stream.initialize(readHeads, allowUnavailable);
-    if (eventType && stream.canonicalDomains.length)
+    if (stream.canonicalDomains.length)
       this.logger.warn(
         `websocket skipped advisory confirmations=${confirmations} eventType=${eventType} domains=${stream.canonicalDomains.join(',')}: near-head state unavailable`,
       );
@@ -1329,6 +1293,7 @@ export class EventWebSocketServer {
       for (const stream of streams) stream.notify(head);
     for (const group of this.validatorGroups.values())
       group.stream.notify(head);
+    this.messageSource.notify(head);
   }
 
   private async connectListener(): Promise<void> {
@@ -1351,8 +1316,9 @@ export class EventWebSocketServer {
   ): void {
     try {
       if (channel === HEAD_CHANNEL) {
-        if (!this.clients.size && !this.explorerClients.size) return;
         const head = parseHeadNotification(payload);
+        this.messageSource.observe(head);
+        if (!this.clients.size && !this.explorerClients.size) return;
         if (
           head.indexedHeight !== undefined &&
           head.indexedHash !== undefined &&
@@ -1375,7 +1341,6 @@ export class EventWebSocketServer {
           // A rollback must invalidate in-flight readers immediately; never
           // coalesce it away with a subsequent forward observation.
           this.pendingHeads.delete(head.domain);
-          this.store.invalidateMessages();
           this.notifyConfirmationStreams(head);
         } else {
           this.pendingHeads.set(head.domain, head);
@@ -1400,6 +1365,7 @@ export class EventWebSocketServer {
         this.headUpdates.schedule();
       } else if (channel === EXPLORER_CHANNEL) {
         const messageId = parseExplorerNotification(payload).messageId;
+        this.messageSource.invalidateIds([messageId]);
         this.queueExplorerNotification(messageId);
       } else {
         const notification = parseEventNotification(payload);
@@ -1554,7 +1520,7 @@ export class EventWebSocketServer {
           ) {
             this.failAgentDomain(domain, failure.original);
             if (failure.explorerAffected && this.explorerClients.size)
-              this.failExplorerStream(failure.original);
+              this.failExplorerDomain(domain, failure.original);
             this.releaseHeadRange(domain, range);
             this.headFailures.delete(domain);
           }
@@ -1593,13 +1559,19 @@ export class EventWebSocketServer {
     { after, through }: HeadRange,
   ): Promise<void> {
     let agentPublished = false;
-    let explorerPending = this.explorerClients.size > 0;
+    const hasMessageClients = [...this.explorerClients.values()].some(
+      (client) =>
+        client.ready &&
+        client.messageIds?.size !== 0 &&
+        (!client.domains || client.domains.has(domain)),
+    );
+    let explorerPending = hasMessageClients;
     // Delivery and gas share message ids; queue each Explorer id once per range.
     const explorerIds = new Set<string>();
     for (const eventType of HEAD_PUBLICATION_ORDER) {
       const agentInterested = this.hasSubscriber({ domain, eventType });
       const explorerInterested =
-        this.explorerClients.size > 0 &&
+        hasMessageClients &&
         (eventType === 'delivery' || eventType === 'gas_payment');
       if (!agentInterested && !explorerInterested) continue;
       if (
@@ -1733,7 +1705,11 @@ export class EventWebSocketServer {
 
   private hasExplorerSubscriber(messageId: string): boolean {
     for (const client of this.explorerClients.values())
-      if (!client.messageIds || client.messageIds.has(messageId)) return true;
+      if (
+        client.ready &&
+        (!client.messageIds || client.messageIds.has(messageId))
+      )
+        return true;
     return false;
   }
 
@@ -1744,25 +1720,40 @@ export class EventWebSocketServer {
 
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
-    this.store.invalidateMessages();
+    this.messageSource.invalidateIds(messageIds);
+    await Promise.all([
+      this.messageSource.refresh(messageIds),
+      this.publishCanonicalMessages(messageIds),
+    ]);
+  }
+
+  private async publishCanonicalMessages(messageIds: string[]): Promise<void> {
     const canonicalIds = new Set<string>();
     for (const [socket, client] of this.explorerClients) {
-      const interested = this.explorerMessageIds(socket, messageIds);
-      if (!interested.length) continue;
-      if (client.custom) {
-        this.confirmationStreams
-          .get(socket)
-          ?.forEach((stream) => stream.refresh(interested));
-      } else interested.forEach((id) => canonicalIds.add(id));
+      if (client.ready && !client.custom)
+        for (const id of this.explorerMessageIds(socket, messageIds))
+          canonicalIds.add(id);
     }
     if (!canonicalIds.size) return;
-    const rows = await this.store.canonicalMessages([...canonicalIds]);
+    let rows: Row[];
+    try {
+      rows = await this.store.canonicalMessages([...canonicalIds]);
+    } catch (error) {
+      for (const [socket, client] of this.explorerClients)
+        if (
+          client.ready &&
+          !client.custom &&
+          this.explorerMessageIds(socket, [...canonicalIds]).length
+        )
+          this.failSocket(socket, formatError(error));
+      return;
+    }
     const messages = rows.map((row) => ({
       id: row.msg_id,
       frame: serialize({ data: row, type: 'message_upsert' }),
     }));
     for (const [socket, client] of this.explorerClients) {
-      if (client.custom) continue;
+      if (!client.ready || client.custom) continue;
       this.enqueueExplorer(
         socket,
         client,
@@ -1794,8 +1785,24 @@ export class EventWebSocketServer {
       this.failSocket(socket, 'outbound message queue limit exceeded');
       return;
     }
+    while (
+      this.explorerQueuedBytes + bytes >
+      MAX_EXPLORER_TOTAL_PENDING_BYTES
+    ) {
+      let victim = socket;
+      let largest = client.queuedBytes + bytes;
+      for (const [peer, queued] of this.explorerClients)
+        if (peer !== socket && queued.queuedBytes > largest) {
+          victim = peer;
+          largest = queued.queuedBytes;
+        }
+      websocketSendFailures.inc({ reason: 'queue_limit' });
+      this.failSocket(victim, 'outbound message queue limit exceeded');
+      if (victim === socket) return;
+    }
     client.queue.push(...messages);
     client.queuedBytes += bytes;
+    this.explorerQueuedBytes += bytes;
     if (!client.sending) void this.drainExplorerClient(socket, client);
   }
 
@@ -1808,6 +1815,7 @@ export class EventWebSocketServer {
       while (this.explorerClients.get(socket) === client) {
         const message = client.queue.shift();
         if (!message) return;
+        this.explorerQueuedBytes -= message.length;
         client.queuedBytes = Math.max(0, client.queuedBytes - message.length);
         if (!(await this.sendSerializedAndWait(socket, message))) return;
       }
@@ -1877,6 +1885,18 @@ export class EventWebSocketServer {
     this.closeExplorerClients('Event stream read failed');
   }
 
+  private failExplorerDomain(domain: number, error: unknown): void {
+    this.logger.error(
+      `Explorer domain ${domain} failed: ${formatError(error)}`,
+    );
+    for (const [socket, client] of this.explorerClients)
+      if (
+        client.messageIds?.size !== 0 &&
+        (!client.domains || client.domains.has(domain))
+      )
+        this.failSocket(socket, `Message domain ${domain} unavailable`);
+  }
+
   private failValidatorDomain(domain: number, error: unknown): void {
     for (const socket of this.validatorClients.keys()) {
       const subscription = this.clients
@@ -1907,7 +1927,8 @@ export class EventWebSocketServer {
   private closeClients(reason: string, code = 1013): void {
     this.confirmationStreams.clear();
     this.pendingHeads.clear();
-    this.store.invalidateMessages();
+    this.messageSource.stop();
+    this.messageSource = new MessageSource(this.store);
     this.closeAgentClients(reason, code);
     this.closeExplorerClients(reason, code);
   }
@@ -2078,6 +2099,7 @@ export class EventWebSocketServer {
     this.releaseValidator(socket);
     const explorerClient = this.explorerClients.get(socket);
     if (explorerClient) {
+      explorerClient.unsubscribe?.();
       this.clearExplorerQueue(explorerClient);
       this.releaseExplorerClient(explorerClient.ip);
     }
@@ -2087,6 +2109,7 @@ export class EventWebSocketServer {
   }
 
   private clearExplorerQueue(client: ExplorerClient): void {
+    this.explorerQueuedBytes -= client.queuedBytes;
     client.queue.length = 0;
     client.queuedBytes = 0;
   }

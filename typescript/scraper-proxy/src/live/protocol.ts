@@ -4,7 +4,7 @@ const ADDRESS_PREFIX_REGEX = /^(?:0x|\\x)/;
 const UNSIGNED_INTEGER_REGEX = /^\d+$/;
 const DOMAIN_LIST_REGEX = /^\d+(,\d+)*$/;
 const HASH_HEX_REGEX = /^[0-9a-fA-F]{64}$/;
-const MAX_EXPLORER_CONFIRMATIONS = 1_000;
+export const MAX_EXPLORER_CONFIRMATIONS = 1_000;
 const MAX_EXPLORER_DOMAINS = 512;
 
 export const EVENT_TYPES = [
@@ -342,6 +342,8 @@ export function parseExplorerConfirmations(
     throw new Error(
       `confirmations must not exceed ${MAX_EXPLORER_CONFIRMATIONS}`,
     );
+  if (domains.size * Math.max(1, confirmations) > 10_000)
+    throw new Error('Subscription exceeds 10000 domain confirmation blocks');
   return { confirmations, domains };
 }
 

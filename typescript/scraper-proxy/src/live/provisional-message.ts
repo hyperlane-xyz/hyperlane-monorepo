@@ -1,9 +1,7 @@
+import { MAX_EXPLORER_CONFIRMATIONS } from './protocol.js';
+
 // Keep ID eligibility identical to the wide projection without delivery/payment work.
-const DISPATCH_CTES = `
-  /* provisional_message_view */
-  WITH frontier(domain, height) AS (
-    SELECT * FROM unnest($2::integer[], $3::bigint[])
-  ), dispatches AS (
+const DISPATCHES = `dispatches AS (
     SELECT id, msg_id, nonce, origin_domain, destination_domain, time_created,
       sender, recipient, origin_mailbox, origin_tx_hash, origin_block_hash,
       origin_block_height, msg_body
@@ -21,7 +19,12 @@ const DISPATCH_CTES = `
     WHERE message.msg_id=ANY($1::bytea[])
       AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch raw
         WHERE raw.msg_id=message.msg_id)
-  ), eligible_dispatch AS (
+  )`;
+const DISPATCH_CTES = `
+  /* provisional_message_view */
+  WITH frontier(domain, height) AS (
+    SELECT * FROM unnest($2::integer[], $3::bigint[])
+  ), ${DISPATCHES}, eligible_dispatch AS (
     SELECT dispatch.*
     FROM dispatches dispatch
     LEFT JOIN frontier ON frontier.domain=dispatch.origin_domain
@@ -42,16 +45,11 @@ const PROJECTED_MESSAGE_FROM = `
 export const PROJECTED_MESSAGE_QUERY = `${DISPATCH_CTES}
   SELECT dispatch.msg_id ${PROJECTED_MESSAGE_FROM}`;
 
-export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
-  SELECT
+const MESSAGE_COLUMNS = `
     coalesce(canonical.id, dispatch.id) AS id,
     dispatch.msg_id,
     dispatch.nonce,
     delivery.id IS NOT NULL AS is_delivered,
-    coalesce(payment.num_payments, 0) AS num_payments,
-    coalesce(payment.total_payment, 0) AS total_payment,
-    coalesce(payment.total_gas_amount, 0) AS total_gas_amount,
-    payment.domains AS payment_domain_ids,
     dispatch.origin_domain AS origin_domain_id,
     origin_domain.chain_id AS origin_chain_id,
     origin_domain.name AS origin_domain,
@@ -98,15 +96,16 @@ export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
     destination_tx.cumulative_gas_used AS destination_tx_cumulative_gas_used,
     destination_block.id AS destination_block_id,
     coalesce(delivery.block_number, destination_block.height) AS destination_block_height,
-    coalesce(delivery.block_hash, destination_block.hash) AS destination_block_hash,
-    CASE WHEN canonical.id IS NOT NULL THEN canonical.msg_body
-      ELSE dispatch.msg_body END AS message_body
-  ${PROJECTED_MESSAGE_FROM}
+    coalesce(delivery.block_hash, destination_block.hash) AS destination_block_hash`;
+const MESSAGE_BODY =
+  'CASE WHEN canonical.id IS NOT NULL THEN canonical.msg_body ELSE dispatch.msg_body END';
+const MESSAGE_FROM = `${PROJECTED_MESSAGE_FROM}
   LEFT JOIN domain origin_domain ON origin_domain.id=dispatch.origin_domain
   LEFT JOIN domain destination_domain ON destination_domain.id=dispatch.destination_domain
   LEFT JOIN "transaction" origin_tx ON origin_tx.block_id=origin_block.id
     AND origin_tx.hash=dispatch.origin_tx_hash
-  LEFT JOIN LATERAL (
+`;
+const ELIGIBLE_DELIVERY = `LEFT JOIN LATERAL (
     SELECT delivery.*
     FROM delivered_message delivery
     LEFT JOIN frontier ON frontier.domain=delivery.domain
@@ -116,8 +115,8 @@ export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
         frontier.height, scraper_head.confirmed_height, 9223372036854775807))
     ORDER BY delivery.block_number DESC NULLS LAST, delivery.id DESC
     LIMIT 1
-  ) delivery ON TRUE
-  LEFT JOIN "transaction" identified_destination_tx
+  ) delivery ON TRUE`;
+const DELIVERY_METADATA = `LEFT JOIN "transaction" identified_destination_tx
     ON identified_destination_tx.id=delivery.destination_tx_id
   LEFT JOIN LATERAL (
     SELECT b.* FROM block b WHERE b.domain=delivery.domain AND b.hash=delivery.block_hash
@@ -130,7 +129,17 @@ export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
     UNION ALL
     SELECT tx.* FROM "transaction" tx WHERE delivery.destination_tx_id IS NULL
       AND tx.block_id=destination_block.id AND tx.hash=delivery.transaction_hash
-  ) destination_tx ON TRUE
+  ) destination_tx ON TRUE`;
+
+export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
+  SELECT coalesce(payment.num_payments, 0) AS num_payments,
+    coalesce(payment.total_payment, 0) AS total_payment,
+    coalesce(payment.total_gas_amount, 0) AS total_gas_amount,
+    payment.domains AS payment_domain_ids,
+    ${MESSAGE_COLUMNS}, ${MESSAGE_BODY} AS message_body
+  ${MESSAGE_FROM}
+  ${ELIGIBLE_DELIVERY}
+  ${DELIVERY_METADATA}
   LEFT JOIN LATERAL (
     SELECT count(*)::bigint AS num_payments,
       array_agg(DISTINCT payment.domain) AS domains,
@@ -143,6 +152,40 @@ export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
       AND (payment.block_number IS NULL OR payment.block_number<=coalesce(
         frontier.height, scraper_head.confirmed_height, 9223372036854775807))
   ) payment ON TRUE
+`;
+
+// Keep native pg column types for the wire row, especially bigint, bytea and intervals.
+// Payment buckets use decimal strings inside JSON to preserve 256-bit precision.
+export const MAX_MESSAGE_FACTS = 256;
+export const LIVE_MESSAGE_FACTS_QUERY = `
+  /* live_message_facts */
+  WITH ${DISPATCHES}, eligible_dispatch AS (SELECT * FROM dispatches)
+  SELECT delivery.domain AS delivery_domain, delivery.block_number AS delivery_height,
+    CASE WHEN delivery.ordinal IS NULL OR delivery.ordinal=1 THEN payment.buckets END AS payment_buckets,
+    CASE WHEN delivery.ordinal IS NULL OR delivery.ordinal=1 THEN ${MESSAGE_BODY} END AS message_body,
+    ${MESSAGE_COLUMNS}
+  ${MESSAGE_FROM}
+  LEFT JOIN LATERAL (
+    SELECT d.*, row_number() OVER (ORDER BY block_number DESC NULLS LAST, id DESC) AS ordinal
+    FROM (SELECT * FROM delivered_message WHERE msg_id=dispatch.msg_id
+      ORDER BY block_number DESC NULLS LAST, id DESC LIMIT ${MAX_MESSAGE_FACTS + 1}) d
+  ) delivery ON TRUE
+  ${DELIVERY_METADATA}
+  LEFT JOIN LATERAL (
+    SELECT json_agg(b) AS buckets FROM (
+      SELECT p.domain, min(p.block_number)::text AS first, max(p.block_number)::text AS height, count(*)::text AS count,
+        sum(p.payment)::text AS payment, sum(p.gas_amount)::text AS gas
+      FROM gas_payment p LEFT JOIN scraper_head h ON h.domain=p.domain
+      WHERE p.msg_id=dispatch.msg_id
+      -- Fold old payments into one baseline per domain. NULL-height legacy
+      -- payments are unconditionally visible and keep their own bucket.
+      GROUP BY p.domain, p.block_number IS NULL,
+        CASE WHEN p.block_number > least(h.confirmed_height,h.indexed_height,
+          h.head_height-${MAX_EXPLORER_CONFIRMATIONS * 2}) THEN p.block_number END
+      LIMIT ${MAX_MESSAGE_FACTS + 1}
+    ) b
+  ) payment ON TRUE
+  ORDER BY dispatch.msg_id, delivery.block_number DESC NULLS LAST, delivery.id DESC
 `;
 
 export function buildProvisionalMessageAffectedQuery(

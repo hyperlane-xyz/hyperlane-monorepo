@@ -81,7 +81,7 @@ void it('includes block identity only in the provisional Merkle projection', asy
   assert.ok(!STREAMS.merkle_tree_insertion.columns.includes('block_hash'));
 });
 
-void it('filters confirmation dispatch, delivery and gas rows in SQL before enrichment', async () => {
+void it('reads one domain range across dispatch, delivery and gas with a stable page cursor', async () => {
   const queries: { sql: string; values: unknown[] }[] = [];
   const store = new EventStore({
     queryLive: async (sql, values = []) => {
@@ -89,32 +89,14 @@ void it('filters confirmation dispatch, delivery and gas rows in SQL before enri
       return [];
     },
   });
-  const ids = new Set([`\\x${'ab'.repeat(32)}`]);
-  for await (const row of store.confirmationMessageRows(
-    1,
-    [0n, 0, 0n],
-    10n,
-    new Map(),
-    0,
-    ids,
-  )) {
-    assert.fail(`Unexpected row ${JSON.stringify(row)}`);
-  }
+  for await (const page of store.messageChanges(1, [5n, 1, 10n], 20n))
+    assert.fail('Unexpected page of length ' + page.length);
   assert.equal(queries.length, 1);
-  assert.equal(
-    queries[0]?.sql.match(/msg_id = ANY\(\$7::bytea\[\]\)/g)?.length,
-    3,
-  );
-  assert.deepEqual(queries[0]?.values[6], [...ids]);
-  for await (const row of store.confirmationMessageRows(
-    1,
-    [0n, 0, 0n],
-    10n,
-    new Map(),
-    0,
-    new Set(),
-  )) {
-    assert.fail(`Unexpected row ${JSON.stringify(row)}`);
-  }
-  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0].values.slice(0, 5), [1, '5', 1, '10', '20']);
+  for (const table of [
+    'raw_message_dispatch',
+    'delivered_message',
+    'gas_payment',
+  ])
+    assert.ok(queries[0].sql.includes(table));
 });

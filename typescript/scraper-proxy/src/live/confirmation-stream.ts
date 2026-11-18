@@ -3,12 +3,7 @@ import type { HeadNotification, LiveStartBoundary } from './protocol.js';
 // Height, source, row ID. Source distinguishes Explorer's three event tables.
 export type Position = readonly [bigint, number, bigint];
 export type ConfirmationRow = {
-  domains?: readonly number[];
   position: Position;
-  message?: Record<string, unknown>;
-};
-type EnrichedMessage = {
-  domains?: readonly number[];
   message: Record<string, unknown>;
 };
 export type ConfirmationHead = {
@@ -29,7 +24,6 @@ type DomainState = {
   through: bigint;
 };
 const END_OF_HEIGHT = 9_223_372_036_854_775_807n;
-const MAX_CUSTOM_MESSAGE_IDS = 10_000;
 
 export function confirmationHeight(
   head: Pick<ConfirmationHead, 'head' | 'indexed'>,
@@ -45,10 +39,6 @@ export class ConfirmationStream {
   private revision = 0;
   private running = false;
   private started = false;
-  private readonly refreshIds = new Set<string>();
-  private readonly exposedIds = new Map<string, Map<number, bigint>>();
-  private readonly confirmed = new Map<number, bigint>();
-
   constructor(
     readonly confirmations: number,
     readonly domains: Set<number>,
@@ -58,16 +48,10 @@ export class ConfirmationStream {
         domain: number,
         after: Position,
         through: bigint,
-        frontiers: Map<number, bigint>,
       ) => AsyncIterable<ConfirmationRow>;
       send: (message: Record<string, unknown>) => Promise<boolean>;
       rollback: (domain: number, from: bigint, to: bigint) => void;
       fail: (error: unknown) => void;
-      messageId?: (message: Record<string, unknown>) => string | undefined;
-      enrich?: (
-        ids: string[],
-        frontiers: Map<number, bigint>,
-      ) => Promise<EnrichedMessage[]>;
     },
   ) {}
 
@@ -89,7 +73,6 @@ export class ConfirmationStream {
         }
         const target = confirmationHeight(head, this.confirmations);
         const height = head.liveStart ? BigInt(head.liveStart.height) : target;
-        this.confirmed.set(domain, head.confirmed);
         this.states.set(domain, {
           position: endOfHeight(height),
           target,
@@ -105,26 +88,12 @@ export class ConfirmationStream {
     return this.states.get(domain)?.liveStart;
   }
 
-  get customDomains(): number[] {
-    return [...this.states.keys()];
-  }
-
   get canonicalDomains(): number[] {
     return [...this.domains].filter((domain) => !this.states.has(domain));
   }
 
   start(): void {
     this.started = true;
-    this.schedule();
-  }
-
-  refresh(ids: string[]): void {
-    if (!this.io.enrich) return;
-    ids.forEach((id) => this.refreshIds.add(id));
-    if (this.refreshIds.size > MAX_CUSTOM_MESSAGE_IDS) {
-      this.io.fail(new Error('Custom message notification limit exceeded'));
-      return;
-    }
     this.schedule();
   }
 
@@ -150,10 +119,6 @@ export class ConfirmationStream {
       this.confirmations,
     );
     state.target = to;
-    this.confirmed.set(head.domain, head.confirmedHeight);
-    for (const [id, frontiers] of this.exposedIds) {
-      if (this.isCanonical(frontiers)) this.exposedIds.delete(id);
-    }
     if (rollback) {
       this.revision++;
       // Never authorize handoff using a snapshot from before a rollback.
@@ -166,8 +131,6 @@ export class ConfirmationStream {
       }
       state.through = to;
       if (state.position[0] > to) state.position = endOfHeight(to);
-      // Explorer clears its entire provisional overlay on any rollback.
-      if (exposedRollback) this.refresh([...this.exposedIds.keys()]);
     }
     this.schedule();
   }
@@ -182,79 +145,23 @@ export class ConfirmationStream {
       })
       .finally(() => {
         this.running = false;
-        if (this.refreshIds.size || [...this.states.values()].some(needsRead))
-          this.schedule();
+        if ([...this.states.values()].some(needsRead)) this.schedule();
       });
-  }
-
-  private isCanonical(frontiers: Map<number, bigint>): boolean {
-    for (const [domain, height] of frontiers)
-      if (height > (this.confirmed.get(domain) ?? 0n)) return false;
-    return true;
-  }
-
-  private remember(
-    message: Record<string, unknown>,
-    frontiers: Map<number, bigint>,
-    domains?: readonly number[],
-  ): void {
-    const id = this.io.messageId?.(message);
-    if (!id) return;
-    const dependencies = new Map<number, bigint>();
-    for (const domain of domains ?? frontiers.keys()) {
-      const height = frontiers.get(domain);
-      if (height !== undefined) dependencies.set(domain, height);
-    }
-    if (this.isCanonical(dependencies)) this.exposedIds.delete(id);
-    else this.exposedIds.set(id, dependencies);
-    if (this.exposedIds.size > MAX_CUSTOM_MESSAGE_IDS)
-      this.io.fail(new Error('Custom provisional message limit exceeded'));
   }
 
   private async drain(): Promise<void> {
     while (this.io.active()) {
       const next = [...this.states].find(([, state]) => needsRead(state));
-      if (!next) {
-        if (!this.refreshIds.size || !this.io.enrich) return;
-        const ids = [...this.refreshIds].slice(0, 100);
-        ids.forEach((id) => this.refreshIds.delete(id));
-        const revision = this.revision;
-        const frontiers = new Map(
-          [...this.states].map(([id, state]) => [id, state.position[0]]),
-        );
-        const messages = await this.io.enrich(ids, frontiers);
-        for (const { message, domains } of messages) {
-          if (!this.io.active()) return;
-          if (revision !== this.revision) break;
-          this.remember(message, frontiers, domains);
-          if (!(await this.io.send(message))) {
-            this.started = false;
-            return;
-          }
-        }
-        if (revision !== this.revision)
-          ids.forEach((id) => this.refreshIds.add(id));
-        continue;
-      }
+      if (!next) return;
       const [domain, state] = next;
       const through = state.target;
       const revision = this.revision;
-      const frontiers = new Map(
-        [...this.states].map(([id, value]) => [id, value.position[0]]),
-      );
-      frontiers.set(domain, through);
       if (through > state.through) state.through = through;
-      for await (const row of this.io.read(
-        domain,
-        state.position,
-        through,
-        frontiers,
-      )) {
+      for await (const row of this.io.read(domain, state.position, through)) {
         if (!this.io.active()) return;
         if (revision !== this.revision) break;
         state.position = row.position;
-        if (row.message) this.remember(row.message, frontiers, row.domains);
-        if (row.message && !(await this.io.send(row.message))) {
+        if (!(await this.io.send(row.message))) {
           this.started = false;
           return;
         }
@@ -264,7 +171,7 @@ export class ConfirmationStream {
   }
 }
 
-function endOfHeight(height: bigint): Position {
+export function endOfHeight(height: bigint): Position {
   return [height, 3, END_OF_HEIGHT];
 }
 

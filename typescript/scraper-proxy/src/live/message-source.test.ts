@@ -1,0 +1,393 @@
+import assert from 'node:assert/strict';
+import { it } from 'node:test';
+import { once, EventEmitter } from 'node:events';
+import { setImmediate as nextTurn } from 'node:timers/promises';
+import { MessageSource } from './message-source.js';
+import { collectMessageFacts } from './message-facts.js';
+
+const initialHeads = async () =>
+  new Map(
+    [1, 2].map((domain) => [
+      domain,
+      { head: 10n, indexed: 10n, confirmed: 5n, hash: undefined },
+    ]),
+  );
+const policy = (confirmations = 0) => ({
+  domains: new Set([1, 2]),
+  confirmations,
+});
+function fact(msg_id: string, height = '5') {
+  return {
+    msg_id,
+    origin_domain_id: 1,
+    destination_domain_id: 2,
+    origin_block_height: height,
+    delivery_domain: null,
+    delivery_height: null,
+    payment_buckets: null,
+  };
+}
+function advance(source: MessageSource, domain: number, height: bigint) {
+  const head = {
+    domain,
+    confirmedHeight: 5n,
+    indexedHeight: height,
+    headHeight: height,
+  };
+  source.observe(head);
+  source.notify(head);
+}
+
+void it('never reinstalls stale receipt data when older SQL finishes last', async () => {
+  const events = new EventEmitter();
+  const started = once(events, 'started');
+  let calls = 0;
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts() {
+      const version = ++calls;
+      if (version === 1) {
+        const released = once(events, 'release');
+        events.emit('started');
+        await released;
+      }
+      return collectMessageFacts([
+        {
+          ...fact('id'),
+          origin_tx_gas_price: String(version),
+        },
+      ]);
+    },
+  });
+  await source.currentHeads();
+  const versions: unknown[] = [];
+  source.subscribe(
+    policy(),
+    undefined,
+    (frame) => {
+      const data = frame.data;
+      if (data && typeof data === 'object' && 'origin_tx_gas_price' in data)
+        versions.push(data.origin_tx_gas_price);
+    },
+    assert.fail,
+  );
+  const old = source.refresh(['id']);
+  await started;
+  source.invalidateIds(['id']);
+  await source.refresh(['id']);
+  events.emit('release');
+  await old;
+  await source.refresh(['id']);
+  assert.deepEqual(versions, ['2', '2', '2']);
+  assert.equal(calls, 2);
+});
+
+void it('backs off failed domain reads across reconnects while another domain continues', async () => {
+  const queried = new EventEmitter();
+  const queries: number[] = [];
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges(domain) {
+      queries.push(domain);
+      queried.emit('query', domain);
+      if (domain === 1) throw new Error('read timed out');
+      yield [];
+    },
+    messageFacts: async () => new Map(),
+  });
+  await source.currentHeads();
+  for (const { height, reason } of [
+    { height: 11n, reason: /read timed out/ },
+    { height: 12n, reason: /temporarily unavailable/ },
+  ]) {
+    const failed = once(queried, 'failed');
+    const sub = source.subscribe(
+      { domains: new Set([1]), confirmations: 0 },
+      undefined,
+      assert.fail,
+      (err) => queried.emit('failed', err),
+    );
+    advance(source, 1, height);
+    const [error] = await failed;
+    assert.match(String(error), reason);
+    sub.unsubscribe();
+  }
+  source.subscribe(
+    { domains: new Set([2]), confirmations: 0 },
+    undefined,
+    assert.fail,
+    assert.fail,
+  );
+  const next = once(queried, 'query');
+  advance(source, 2, 11n);
+  await next;
+  assert.deepEqual(queries, [1, 2]);
+});
+
+void it(
+  'hydrates only due IDs selected by a browser and sends a changed ID once per range',
+  { timeout: 2000 },
+  async () => {
+    const sent = new EventEmitter();
+    const first = once(sent, 'frame');
+    const reads: string[][] = [];
+    const source = new MessageSource({
+      messageHeads: initialHeads,
+      async *messageChanges() {
+        yield [
+          { height: 8n, id: 'old' },
+          { height: 11n, id: 'other' },
+          { height: 11n, id: 'wanted' },
+          { height: 11n, id: 'wanted' },
+        ];
+      },
+      async messageFacts(ids) {
+        reads.push(ids);
+        return collectMessageFacts(ids.map((id) => fact(id, '11')));
+      },
+    });
+    await source.currentHeads();
+    let sends = 0;
+    source.subscribe(
+      { domains: new Set([1]), confirmations: 0 },
+      new Set(['wanted', 'old']),
+      () => {
+        sends++;
+        sent.emit('frame');
+      },
+      assert.fail,
+    );
+    advance(source, 1, 11n);
+    await first;
+    assert.deepEqual(reads, [['wanted']]);
+    assert.equal(sends, 1);
+    source.stop();
+  },
+);
+
+void it('limits a failed receipt read to subscribers for the affected IDs', async () => {
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts() {
+      throw new Error('receipt read failed');
+    },
+  });
+  await source.currentHeads();
+  const failed: string[] = [];
+  for (const id of ['first', 'other'])
+    source.subscribe(
+      { domains: new Set([1]), confirmations: 0 },
+      new Set([id]),
+      assert.fail,
+      () => failed.push(id),
+    );
+  await source.refresh(['first']);
+  assert.deepEqual(failed, ['first']);
+});
+
+void it('isolates a cursor inside an aggregated payment bucket', async () => {
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts() {
+      return collectMessageFacts([
+        {
+          ...fact('id'),
+          payment_buckets: [
+            {
+              domain: 2,
+              first: '6',
+              height: '9',
+              count: '2',
+              payment: '3',
+              gas: '4',
+            },
+          ],
+        },
+      ]);
+    },
+  });
+  await source.currentHeads();
+  const failed: number[] = [],
+    sent: number[] = [];
+  for (const n of [2, 0])
+    source.subscribe(
+      policy(n),
+      undefined,
+      () => sent.push(n),
+      () => failed.push(n),
+    );
+  await source.refresh(['id']);
+  assert.deepEqual(failed, [2]);
+  assert.deepEqual(sent, [0]);
+});
+
+void it('isolates an invalid ID in a shared fact batch and preserves global subscribers', async () => {
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [
+        { height: 11n, id: 'bad' },
+        { height: 11n, id: 'good' },
+      ];
+    },
+    async messageFacts() {
+      return collectMessageFacts([
+        {
+          ...fact('bad', '11'),
+          payment_buckets: Array.from({ length: 257 }, () => ({
+            domain: 1,
+            first: '11',
+            height: '11',
+            count: '1',
+            payment: '1',
+            gas: '1',
+          })),
+        },
+        fact('good', '11'),
+      ]);
+    },
+  });
+  await source.currentHeads();
+  const failed: string[] = [],
+    sent: string[] = [],
+    errors: Record<string, unknown>[] = [];
+  for (const id of ['bad', 'good', 'global'])
+    source.subscribe(
+      policy(),
+      id === 'global' ? undefined : new Set([id]),
+      (frame) => {
+        sent.push(`${id}:${String(frame.type)}`);
+        if (id === 'global' && frame.type === 'error') errors.push(frame);
+      },
+      () => failed.push(id),
+    );
+  advance(source, 1, 11n);
+  await nextTurn();
+  assert.deepEqual(failed, ['bad']);
+  assert(sent.includes('good:message_upsert'));
+  assert(sent.includes('global:message_upsert'));
+  assert.deepEqual(errors, [
+    {
+      type: 'error',
+      messageId: 'bad',
+      error: 'Message payment bucket limit exceeded',
+    },
+  ]);
+});
+
+void it('cancels queued domain scans and skips hydration after disconnect', async () => {
+  const queries: number[] = [];
+  const gates: (() => void)[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map(
+        [1, 2, 3, 4, 5].map((d) => [
+          d,
+          { head: 10n, indexed: 10n, confirmed: 5n },
+        ]),
+      ),
+    async *messageChanges(domain) {
+      queries.push(domain);
+      await new Promise<void>((resolve) => gates.push(resolve));
+      yield [{ height: 11n, id: 'unused' }];
+      assert.fail('Cancelled reader fetched another page');
+    },
+    messageFacts: async () => assert.fail('Cancelled reader hydrated rows'),
+  });
+  await source.currentHeads();
+  const sub = source.subscribe(
+    { domains: new Set([1, 2, 3, 4, 5]), confirmations: 0 },
+    undefined,
+    assert.fail,
+    assert.fail,
+  );
+  for (let domain = 1; domain <= 5; domain++) advance(source, domain, 11n);
+  assert.equal(queries.length, 4);
+  sub.unsubscribe();
+  for (const release of gates) release();
+  await nextTurn();
+  assert.deepEqual(queries, [1, 2, 3, 4]);
+  assert.equal(source.metrics().changes, 0);
+});
+
+void it('starts at the requested frontier and expands history for a deeper late joiner', async () => {
+  const ranges: bigint[][] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 10000n, indexed: 10000n, confirmed: 9900n }]]),
+    async *messageChanges(_domain, after, through) {
+      ranges.push([after[0], through]);
+      yield [];
+    },
+    messageFacts: async () => new Map(),
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    assert.fail,
+    assert.fail,
+  );
+  advance(source, 1, 10001n);
+  await nextTurn();
+  assert.deepEqual(ranges, [[10000n, 10001n]]);
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 1000 },
+    undefined,
+    assert.fail,
+    assert.fail,
+  );
+  advance(source, 1, 10002n);
+  await nextTurn();
+  assert.deepEqual(ranges, [
+    [10000n, 10001n],
+    [9001n, 10000n],
+    [10001n, 10002n],
+  ]);
+});
+
+void it('rejects an oversized history expansion while the zero-confirmation subscriber continues', async () => {
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 10000n, indexed: 10000n, confirmed: 9900n }]]),
+    async *messageChanges(_domain, after, through) {
+      if (after[0] < 10000n)
+        yield Array.from({ length: 50001 }, () => ({
+          height: 9999n,
+          id: 'old',
+        }));
+      else yield [{ height: through, id: 'good' }];
+    },
+    messageFacts: async () => collectMessageFacts([fact('good', '10001')]),
+  });
+  await source.currentHeads();
+  let sent = 0,
+    rejected = 0;
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => sent++,
+    assert.fail,
+  );
+  advance(source, 1, 10001n);
+  await nextTurn();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 1000 },
+    undefined,
+    assert.fail,
+    () => rejected++,
+  );
+  advance(source, 1, 10002n);
+  await nextTurn();
+  assert.equal(rejected, 1);
+  assert.equal(sent, 2);
+});
