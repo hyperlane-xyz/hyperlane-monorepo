@@ -100,18 +100,22 @@ impl ReconciliationMetrics {
     }
 
     pub(super) fn record_page(&self, chain: &str, kind: &str, scan: Scan, result: &PageResult) {
-        info!(
-            kind,
-            candidates = result.candidate_count,
-            attempted = result.attempted_count,
-            skipped_backoff = result.skipped_backoff_count,
-            stored = result.stored_count,
-            retry_capacity_overflows = result.untracked_count,
-            after_id = scan.after_id,
-            through_id = scan.through_id,
-            domain = chain,
-            "Reconciled raw message dispatches"
-        );
+        // Bounded sweeps visit many already enriched pages. Log work and completion,
+        // while the operation/duration metrics still cover every database page.
+        if result.candidate_count != 0 || result.next_after_id.is_none() {
+            info!(
+                kind,
+                candidates = result.candidate_count,
+                attempted = result.attempted_count,
+                skipped_backoff = result.skipped_backoff_count,
+                stored = result.stored_count,
+                retry_capacity_overflows = result.untracked_count,
+                after_id = scan.after_id,
+                through_id = scan.through_id,
+                domain = chain,
+                "Reconciled raw message dispatches"
+            );
+        }
         self.retry_capacity_overflows
             .with_label_values(&[chain])
             .inc_by(result.untracked_count as u64);

@@ -1,19 +1,22 @@
 use super::*;
 
 #[tokio::test(start_paused = true)]
-async fn raw_dispatch_scan_advances_only_after_a_full_page() {
+async fn empty_candidate_page_advances_past_examined_raw_ids() {
     let started_at = Instant::now();
     let mut scan =
         Scan::new(10, 250, started_at).expect("frontier beyond the cursor should start a scan");
     let full_page = PageResult {
-        candidate_count: BATCH_SIZE as usize,
-        next_after_id: 110,
+        candidate_count: 0,
+        next_after_id: Some(110),
         ..Default::default()
     };
 
     assert!(!scan.complete_page(&full_page, started_at));
     assert_eq!(scan.after_id, 110);
-    assert_eq!(scan.next_page_at, instant_after(started_at, PAGE_DELAY));
+    assert_eq!(
+        scan.next_page_at,
+        instant_after(started_at, EMPTY_PAGE_DELAY)
+    );
 
     let final_page = PageResult {
         candidate_count: 0,
@@ -21,6 +24,26 @@ async fn raw_dispatch_scan_advances_only_after_a_full_page() {
     };
     assert!(scan.complete_page(&final_page, scan.next_page_at));
     assert_eq!(scan.through_id, 250);
+}
+
+#[tokio::test(start_paused = true)]
+async fn sparse_candidate_pages_keep_scanning_and_retain_enrichment_delay() {
+    let now = Instant::now();
+    let mut scan = Scan::new(0, 250, now).expect("non-empty range should start a scan");
+    let sparse_page = PageResult {
+        candidate_count: 1,
+        next_after_id: Some(100),
+        ..Default::default()
+    };
+    assert!(!scan.complete_page(&sparse_page, now));
+    assert_eq!(scan.after_id, 100);
+    assert_eq!(scan.next_page_at, instant_after(now, PAGE_DELAY));
+
+    let final_page = PageResult {
+        candidate_count: BATCH_SIZE as usize,
+        ..Default::default()
+    };
+    assert!(scan.complete_page(&final_page, scan.next_page_at));
 }
 
 #[tokio::test(start_paused = true)]
@@ -71,7 +94,7 @@ async fn multi_page_full_sweep_yields_to_overdue_discovery() {
         .expect("full sweep should own scan slot");
     let full_page = PageResult {
         candidate_count: BATCH_SIZE as usize,
-        next_after_id: 100,
+        next_after_id: Some(100),
         ..Default::default()
     };
     schedule.complete_full_sweep_page(sweep, &full_page, now);
@@ -88,7 +111,7 @@ async fn multi_page_full_sweep_yields_to_overdue_discovery() {
         .expect("discovery should preempt the parked sweep");
     let discovery_page = PageResult {
         candidate_count: BATCH_SIZE as usize,
-        next_after_id: 150,
+        next_after_id: Some(150),
         ..Default::default()
     };
     schedule.complete_discovery_page(discovery, &discovery_page, now);
@@ -173,7 +196,7 @@ async fn dispatch_wakeup_is_immediate_retained_during_scans_and_has_polling_fall
         scan,
         &PageResult {
             candidate_count: 100,
-            next_after_id: 100,
+            next_after_id: Some(100),
             ..Default::default()
         },
         now,
