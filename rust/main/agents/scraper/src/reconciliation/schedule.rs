@@ -1,4 +1,5 @@
 //! Discovery takes priority over full sweeps; failures defer only the affected lane.
+use ethers::core::rand::{thread_rng, Rng};
 use hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION;
 use prometheus::IntGauge;
 use std::time::Duration;
@@ -13,6 +14,8 @@ pub(super) const BATCH_SIZE: u64 = 100;
 // Fallback discovery when no confirmation wake-up arrives.
 const DISCOVERY_INTERVAL: Duration = Duration::from_secs(5);
 const PAGE_DELAY: Duration = Duration::from_secs(2);
+// Empty historical pages only read IDs and probe the message index.
+const EMPTY_PAGE_DELAY: Duration = Duration::from_millis(100);
 
 // A full sweep is only a correctness fallback for sequence commit-order races and old rows whose
 // body is populated after the incremental watermark passes them. Start sweeps on a fixed cadence
@@ -35,15 +38,19 @@ impl Scan {
         })
     }
 
-    /// Returns true once the snapshot is exhausted. A full page advances only to the last row
-    /// returned; a short page proves that every candidate through the immutable frontier was read.
+    /// Advance past every raw ID examined, including already enriched rows.
     fn complete_page(&mut self, result: &PageResult, now: Instant) -> bool {
-        if result.candidate_count < BATCH_SIZE as usize {
-            true
-        } else {
-            self.after_id = result.next_after_id;
-            self.next_page_at = instant_after(now, PAGE_DELAY);
+        if let Some(after_id) = result.next_after_id {
+            self.after_id = after_id;
+            let delay = if result.attempted_count == 0 {
+                EMPTY_PAGE_DELAY
+            } else {
+                PAGE_DELAY
+            };
+            self.next_page_at = instant_after(now, delay);
             false
+        } else {
+            true
         }
     }
 }
@@ -81,7 +88,10 @@ impl Schedule {
             full_sweep: None,
             next_discovery_at: now,
             discovery_retry_not_before: now,
-            next_full_sweep_at: now,
+            next_full_sweep_at: instant_after(
+                now,
+                Duration::from_secs(thread_rng().gen_range(0..FULL_SWEEP_INTERVAL.as_secs())),
+            ),
             retry_not_before: now,
             global_not_before,
         }

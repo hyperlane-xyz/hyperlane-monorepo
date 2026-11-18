@@ -7,12 +7,32 @@ use std::{
     panic::AssertUnwindSafe,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tokio::time::{interval, sleep, MissedTickBehavior};
+use tokio::{
+    sync::{Semaphore, SemaphorePermit},
+    time::{interval, sleep, timeout, MissedTickBehavior},
+};
 use tracing::{info, warn};
 
 use super::{dispatches::PageResult, schedule::Scan};
 
 const LIVENESS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
+const READ_TIMEOUT: Duration = Duration::from_secs(2);
+// Dedicated read lanes keep sweeps out of discovery/retry admission.
+static LIVE_READS: Semaphore = Semaphore::const_new(1);
+static SWEEP_READS: Semaphore = Semaphore::const_new(1);
+
+pub(super) struct ReadPermit(SemaphorePermit<'static>);
+
+impl ReadPermit {
+    pub(super) async fn read<T>(
+        self,
+        query: impl Future<Output = eyre::Result<T>>,
+    ) -> eyre::Result<T> {
+        let result = timeout(READ_TIMEOUT, query).await?;
+        drop(self.0);
+        result
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct ReconciliationMetrics {
@@ -61,18 +81,32 @@ impl ReconciliationMetrics {
         }
     }
 
-    pub(super) async fn run<T>(
+    pub(super) async fn run<T, F: Future<Output = eyre::Result<T>>>(
         &self,
         chain: &str,
         kind: &str,
-        operation: impl Future<Output = eyre::Result<T>>,
+        operation: impl FnOnce(ReadPermit) -> F,
     ) -> Option<T> {
+        let gate = if kind.starts_with("sweep_") {
+            &SWEEP_READS
+        } else {
+            &LIVE_READS
+        };
+        let permit = match timeout(READ_TIMEOUT, gate.acquire()).await {
+            Ok(Ok(permit)) => ReadPermit(permit),
+            error => {
+                warn!(?error, chain, kind, "Reconciliation read admission failed");
+                return None;
+            }
+        };
         self.operations.with_label_values(&[chain, kind]).inc();
         let timer = self
             .duration
             .with_label_values(&[chain, kind])
             .start_timer();
-        let result = AssertUnwindSafe(operation).catch_unwind().await;
+        let result = AssertUnwindSafe(async { operation(permit).await })
+            .catch_unwind()
+            .await;
         timer.observe_duration();
         match result {
             Ok(Ok(value)) => Some(value),
@@ -100,6 +134,9 @@ impl ReconciliationMetrics {
     }
 
     pub(super) fn record_page(&self, chain: &str, kind: &str, scan: Scan, result: &PageResult) {
+        if result.candidate_count == 0 && result.next_after_id.is_some() {
+            return;
+        }
         info!(
             kind,
             candidates = result.candidate_count,

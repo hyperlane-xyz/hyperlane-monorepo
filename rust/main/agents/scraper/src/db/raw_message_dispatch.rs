@@ -1,12 +1,12 @@
 use eyre::Result;
-use sea_orm::{prelude::*, ConnectionTrait, QuerySelect, Statement};
+use sea_orm::{prelude::*, ConnectionTrait, FromQueryResult, QuerySelect, Statement};
 use tracing::instrument;
 
 use hyperlane_core::{
     address_to_bytes, bytes_to_address, bytes_to_h512, HyperlaneMessage, LogMeta, H256, U256,
 };
 
-use crate::db::{confirmed_event, ScraperDb};
+use crate::db::ScraperDb;
 
 use super::{generated::raw_message_dispatch, StorableMessage};
 
@@ -41,14 +41,16 @@ impl ScraperDb {
         origin_mailbox: &H256,
     ) -> Result<i64> {
         let result = raw_message_dispatch::Entity::find()
-            .filter(confirmed_event(
-                "raw_message_dispatch",
-                "origin_domain",
-                "origin_block_height",
+            // Bind the domain directly so PostgreSQL reads the confirmed height once.
+            .filter(Expr::cust_with_values(
+                "raw_message_dispatch.origin_block_height <= COALESCE(
+                    (SELECT confirmed_height FROM scraper_head WHERE domain = $1), 9223372036854775807
+                )",
+                [origin_domain as i32],
             ))
             .select_only()
             .column_as(raw_message_dispatch::Column::Id.max(), "max_id")
-            .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain))
+            .filter(raw_message_dispatch::Column::OriginDomain.eq(origin_domain as i32))
             .filter(
                 raw_message_dispatch::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)),
             )
@@ -70,42 +72,46 @@ impl ScraperDb {
         after_id: i64,
         through_id: i64,
         limit: u64,
-    ) -> Result<Vec<RawDispatchForEnrichment>> {
-        let origin_mailbox = address_to_bytes(origin_mailbox);
-        let raw_dispatches = raw_message_dispatch::Entity::find()
-            .from_raw_sql(Statement::from_sql_and_values(
-                self.0.get_database_backend(),
-                r#"
-                SELECT raw_message_dispatch.*
-                FROM confirmed_raw_message_dispatch AS raw_message_dispatch
-                LEFT JOIN "message"
-                  ON "message".origin = raw_message_dispatch.origin_domain
-                 AND "message".origin_mailbox = raw_message_dispatch.origin_mailbox
-                 AND "message".nonce = raw_message_dispatch.nonce
-                WHERE raw_message_dispatch.origin_domain = $1
-                  AND raw_message_dispatch.origin_mailbox = $2
-                  AND raw_message_dispatch.msg_body IS NOT NULL
-                  AND "message".id IS NULL
-                  AND raw_message_dispatch.id > $3
-                  AND raw_message_dispatch.id <= $4
-                ORDER BY raw_message_dispatch.id ASC
-                LIMIT $5
-                "#,
-                [
-                    (origin_domain as i32).into(),
-                    origin_mailbox.into(),
-                    after_id.into(),
-                    through_id.into(),
-                    (limit as i64).into(),
-                ],
-            ))
-            .all(&self.0)
-            .await?;
-
-        raw_dispatches
-            .into_iter()
-            .map(raw_dispatch_to_candidate)
-            .collect()
+    ) -> Result<(Vec<RawDispatchForEnrichment>, Option<i64>)> {
+        let rows = self.0.query_all(Statement::from_sql_and_values(
+            self.0.get_database_backend(),
+            r#"
+            WITH page AS (
+                SELECT id, origin_domain, origin_mailbox, nonce, origin_block_height FROM raw_message_dispatch
+                WHERE origin_domain=$1 AND origin_mailbox=$2 AND msg_body IS NOT NULL
+                  AND id>$3 AND id<=$4 ORDER BY id LIMIT 2000
+            ), candidates AS (
+                SELECT r.id FROM page r
+                WHERE r.origin_block_height <= COALESCE(
+                    (SELECT confirmed_height FROM scraper_head WHERE domain=$1), 9223372036854775807)
+                  AND NOT EXISTS (SELECT 1 FROM message m WHERE m.origin=r.origin_domain
+                    AND m.origin_mailbox=r.origin_mailbox AND m.nonce=r.nonce)
+                ORDER BY r.id LIMIT $5
+            ), cursor AS (
+                SELECT CASE WHEN count(*)=$5 THEN max(id)
+                    WHEN (SELECT count(*) FROM page)=2000 THEN (SELECT max(id) FROM page)
+                    END AS next_after_id FROM candidates
+            )
+            SELECT r.*, cursor.next_after_id FROM cursor LEFT JOIN candidates ON TRUE
+            LEFT JOIN LATERAL (SELECT * FROM raw_message_dispatch WHERE id=candidates.id LIMIT 1) r ON TRUE
+            ORDER BY candidates.id
+            "#,
+            [(origin_domain as i32).into(), address_to_bytes(origin_mailbox).into(),
+                after_id.into(), through_id.into(), (limit as i64).into()],
+        )).await?;
+        let mut candidates = Vec::new();
+        let mut next = None;
+        for row in rows {
+            next = row
+                .try_get::<Option<i64>>("", "next_after_id")?
+                .filter(|id| *id < through_id);
+            if row.try_get::<Option<i64>>("", "id")?.is_some() {
+                candidates.push(raw_dispatch_to_candidate(
+                    raw_message_dispatch::Model::from_query_result(&row, "")?,
+                )?);
+            }
+        }
+        Ok((candidates, next))
     }
 
     /// Re-read known retry rows by primary key while excluding rows that another
@@ -125,16 +131,18 @@ impl ScraperDb {
                 self.0.get_database_backend(),
                 r#"
                 SELECT raw_message_dispatch.*
-                FROM confirmed_raw_message_dispatch AS raw_message_dispatch
-                LEFT JOIN "message"
-                  ON "message".origin = raw_message_dispatch.origin_domain
-                 AND "message".origin_mailbox = raw_message_dispatch.origin_mailbox
-                 AND "message".nonce = raw_message_dispatch.nonce
+                FROM raw_message_dispatch
                 WHERE raw_message_dispatch.origin_domain = $1
                   AND raw_message_dispatch.origin_mailbox = $2
                   AND raw_message_dispatch.msg_body IS NOT NULL
-                  AND "message".id IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM message m
+                    WHERE m.origin = raw_message_dispatch.origin_domain
+                      AND m.origin_mailbox = raw_message_dispatch.origin_mailbox
+                      AND m.nonce = raw_message_dispatch.nonce)
                   AND raw_message_dispatch.id = ANY($3)
+                  AND raw_message_dispatch.origin_block_height <= COALESCE(
+                    (SELECT confirmed_height FROM scraper_head WHERE domain = $1), 9223372036854775807
+                  )
                 ORDER BY raw_message_dispatch.id ASC
                 "#,
                 [
@@ -307,18 +315,19 @@ mod tests {
                 .await?,
             0
         );
-        let page = db
+        let (page, next) = db
             .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 5, 2)
             .await?;
         assert_eq!(
             page.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
             vec![3, 4]
         );
-        let tail = db
+        assert_eq!(next, Some(4));
+        let (tail, _) = db
             .retrieve_unenriched_raw_dispatches(1, &mailbox, 4, 5, 2)
             .await?;
         assert_eq!(tail.iter().map(|r| r.raw_id).collect::<Vec<_>>(), vec![5]);
-        let bounded = db
+        let (bounded, _) = db
             .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 3, 10)
             .await?;
         assert_eq!(
@@ -332,6 +341,7 @@ mod tests {
         assert!(db
             .retrieve_unenriched_raw_dispatches(2, &mailbox, 0, 5, 10)
             .await?
+            .0
             .is_empty());
         assert!(db
             .retrieve_unenriched_raw_dispatches_by_ids(1, &H256::zero(), &[3])
@@ -344,9 +354,10 @@ mod tests {
         assert!(db
             .retrieve_unenriched_raw_dispatches(1, &mailbox, 4, 5, 10)
             .await?
+            .0
             .iter()
             .all(|r| r.raw_id != 1));
-        let sweep = db
+        let (sweep, _) = db
             .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 4, 10)
             .await?;
         assert_eq!(
