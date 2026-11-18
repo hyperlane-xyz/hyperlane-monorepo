@@ -3098,20 +3098,29 @@ test "send failure text: a reset after the peer stopped reading fails the queue 
     defer conn.release();
     // The client reads nothing: frames queue and the writer waits for room.
     try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
-    // Until the kernel buffers on both sides are full and frames wait.
-    const tags = try a.alloc(PassTag, 4000);
+    // A small receive buffer stops the client's kernel autotuning its window
+    // to several MiB (GitHub's x86_64 runners), which drained the queue.
+    try posix.setsockopt(c.fd, posix.SOL.SOCKET, posix.SO.RCVBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    // Until the kernel buffers on both sides are full and frames wait, then
+    // until the writer is stalled (no progress for longer than
+    // `write_stall_ms`) with frames still queued. Fill in rounds, since how
+    // much the kernels take varies by host.
+    const tags = try a.alloc(PassTag, 8000);
     const payload = try a.alloc(u8, 4000);
     @memset(payload, 'p');
     var n: usize = 0;
-    while (conn.bufferedAmount() < 256 * 1024) : (n += 1) {
-        if (n == tags.len) return error.Timeout;
-        tags[n] = .{ .echo = &h.wse, .tag = @intCast(n) };
-        try conn.send(payload, true, tags[n].cb());
-        if (n % 64 == 63) std.Thread.sleep(std.time.ns_per_ms);
+    var round: usize = 0;
+    while (true) : (round += 1) {
+        if (round == 16) return error.Timeout;
+        while (conn.bufferedAmount() < 256 * 1024) : (n += 1) {
+            if (n == tags.len) return error.Timeout;
+            tags[n] = .{ .echo = &h.wse, .tag = @intCast(n) };
+            try conn.send(payload, true, tags[n].cb());
+            if (n % 64 == 63) std.Thread.sleep(std.time.ns_per_ms);
+        }
+        std.Thread.sleep((ws.write_stall_ms + 50) * std.time.ns_per_ms);
+        if (conn.bufferedAmount() > 0 and conn.writeStalled()) break;
     }
-    // Stalled: no write progress for longer than `write_stall_ms`.
-    std.Thread.sleep((ws.write_stall_ms + 50) * std.time.ns_per_ms);
-    try testing.expect(conn.bufferedAmount() > 0);
     closeWithReset(c.fd);
     try waitFailedSend(&h, a);
     try testing.expectEqualStrings("write ECANCELED", conn.sendFailureText());
