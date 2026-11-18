@@ -16,6 +16,7 @@ import {
   TokenStandard,
   WarpCore,
   WarpCoreConfigSchema,
+  messageAmountFromLocal,
 } from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos, mainnetDockerTags } from '../config/docker.js';
@@ -449,14 +450,8 @@ describe('Rebalancer Helm deployment', () => {
 
 describe('oUSDT production manifest', () => {
   afterEach(() => Sinon.restore());
-  it('starts with observed collateral and replenishes Ethereum below its minimum', () => {
-    const loaded = readRebalancerConfig(
-      path.join(
-        getInfraPath(),
-        'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
-      ),
-    );
-    const warpCore = WarpCoreConfigSchema.parse(
+  function loadRouteFixture() {
+    return WarpCoreConfigSchema.parse(
       parse(
         fs.readFileSync(
           path.join(
@@ -467,14 +462,32 @@ describe('oUSDT production manifest', () => {
         ),
       ),
     );
-    const tokens = Object.fromEntries(
-      WarpCore.FromConfig(new MultiProtocolProvider({}), warpCore).tokens.map(
-        (token) => [token.chainName, token],
+  }
+
+  function loadStrategyConfig() {
+    return readRebalancerConfig(
+      path.join(
+        getInfraPath(),
+        'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
       ),
+    ).config.strategy;
+  }
+
+  function loadTokens() {
+    return Object.fromEntries(
+      WarpCore.FromConfig(
+        new MultiProtocolProvider({}),
+        loadRouteFixture(),
+      ).tokens.map((token) => [token.chainName, token]),
     );
+  }
+
+  it('starts with observed collateral and replenishes Ethereum below its minimum', () => {
+    const tokens = loadTokens();
+    const strategyConfig = loadStrategyConfig();
     const construct = (collateral: bigint) =>
       StrategyFactory.createStrategy(
-        loaded.config.strategy,
+        strategyConfig,
         tokens,
         collateral,
         pino({ level: 'silent' }),
@@ -503,6 +516,43 @@ describe('oUSDT production manifest', () => {
     });
   });
 
+  it('reserves Tron collateral for a pending 5,000 USDT transfer from BSC', () => {
+    const tokens = loadTokens();
+    expect(tokens.bsc).to.include({
+      addressOrDenom: '0xc283600F0A84162C0a062f7273ABB1F8F111b40C',
+      standard: TokenStandard.EvmHypCollateral,
+      decimals: 18,
+    });
+
+    const amount = messageAmountFromLocal(
+      5_000n * 10n ** BigInt(tokens.bsc.decimals),
+      tokens.bsc.scale,
+    );
+    expect(amount).to.equal(5_000_000_000n);
+    const balances = {
+      ethereum: 20_000_000_000n,
+      arbitrum: 10_000_000_000n,
+      celo: 3_000_000_000n,
+      tron: 3_000_000_000n,
+    };
+    const strategy = StrategyFactory.createStrategy(
+      loadStrategyConfig(),
+      tokens,
+      36_000_000_000n,
+      pino({ level: 'silent' }),
+    );
+    expect(strategy.getRebalancingRoutes(balances)).to.be.empty;
+    const routes = strategy.getRebalancingRoutes(balances, {
+      pendingTransfers: [{ origin: 'bsc', destination: 'tron', amount }],
+      pendingRebalances: [],
+    });
+    expect(routes).to.have.length(1);
+    expect(routes[0]).to.include({
+      destination: 'tron',
+      amount: 5_000_000_000n,
+    });
+  });
+
   it('renders the actual route YAML with its credentials and limits', async () => {
     const loaded = readRebalancerConfig(
       path.join(
@@ -510,20 +560,10 @@ describe('oUSDT production manifest', () => {
         'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
       ),
     );
-    const registryCommit = '0b7518b88967309b0ca30827ec418852873bdc7e';
+    const registryCommit = 'aa7cc3d836cbb020a3cedab7c470d5c59824a269';
     expect(loaded.deployment.registryCommit).to.equal(registryCommit);
     expect(loaded.deployment.monitorOnly).to.equal(true);
-    const warpCore = WarpCoreConfigSchema.parse(
-      parse(
-        fs.readFileSync(
-          path.join(
-            getInfraPath(),
-            'test/fixtures/rebalancer/oUSDT-production-warp-core.yaml',
-          ),
-          'utf8',
-        ),
-      ),
-    );
+    const warpCore = loadRouteFixture();
     const getWarpRoute = Sinon.stub(
       GithubRegistry.prototype,
       'getWarpRoute',

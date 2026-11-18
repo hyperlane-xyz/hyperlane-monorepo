@@ -19,7 +19,7 @@ pnpm tsx scripts/rebalancer/deploy-rebalancer.ts -e mainnet3 \
 
 Rendering resolves route membership and RPC-secret chains from the same registry
 commit used by the runtime:
-`0b7518b88967309b0ca30827ec418852873bdc7e`. The pin includes 17 route chains;
+`aa7cc3d836cbb020a3cedab7c470d5c59824a269`. The pin includes 17 route chains;
 the strategy manages only Ethereum, Arbitrum, Celo, and Tron. All pinned route
 chains remain monitored and require their RPC secrets.
 
