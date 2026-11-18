@@ -1,0 +1,43 @@
+---
+- name: Create hyperlane group
+  group:
+    name: "{{ hyperlane_agent_group }}"
+    state: present
+
+- name: Create hyperlane user
+  user:
+    name: "{{ hyperlane_agent_user }}"
+    group: "{{ hyperlane_agent_group }}"
+    home: "{{ hyperlane_agent_home }}"
+    shell: /bin/bash
+
+- name: Create configuration directory
+  file:
+    path: "{{ hyperlane_agent_config_dir }}"
+    state: directory
+    owner: "{{ hyperlane_agent_user }}"
+    group: "{{ hyperlane_agent_group }}"
+    mode: '0755'
+
+- name: Install Hyperlane agent binary (simulated via download or copy)
+  get_url:
+    url: "https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/download/{{ hyperlane_agent_version }}/{{ hyperlane_agent_type }}"
+    dest: "{{ hyperlane_agent_bin_path }}/hyperlane-{{ hyperlane_agent_type }}"
+    mode: '0755'
+  when: hyperlane_agent_version != "latest"
+
+- name: Create systemd service file
+  template:
+    src: hyperlane_agent.service.j2
+    dest: "/etc/systemd/system/hyperlane-{{ hyperlane_agent_type }}.service"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Hyperlane agent
+
+- name: Ensure Hyperlane agent service is started and enabled
+  systemd:
+    name: "hyperlane-{{ hyperlane_agent_type }}"
+    state: started
+    enabled: yes
+    daemon_reload: yes

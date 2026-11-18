@@ -1,0 +1,12 @@
+---
+- name: Deploy Hyperlane Relayer
+  hosts: all
+  become: yes
+  roles:
+    - role: hyperlane_agent
+      vars:
+        hyperlane_agent_type: "relayer"
+        hyperlane_agent_version: "agent-v1.1.0"
+        hyperlane_agent_env_vars:
+          HYP_BASE_METRICS: "9090"
+          HYP_BASE_TRACING_LEVEL: "info"
