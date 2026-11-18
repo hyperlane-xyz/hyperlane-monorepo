@@ -14,6 +14,12 @@ export type WebSocketMetricsSnapshot = {
   connections: Record<'agent' | 'messages' | 'validators', number>;
   explorerPendingSetups: number;
   messageSource: { ranges: number; changes: number; factBytes: number };
+  eventSource: { ranges: number; rows: number; bytes: number };
+  validatorSource: { ranges: number; rows: number; bytes: number };
+  queues: Record<
+    'agent' | 'validators' | 'messages',
+    { bytes: number; messages: number }
+  >;
   validatorPendingSetups: number;
   validatorReservedConnections: number;
   validatorSharedReaders: number;
@@ -330,7 +336,7 @@ snapshotGauge(
 );
 snapshotGauge(
   'websocket_validator_shared_readers',
-  'Active shared domain/confirmation readers.',
+  'Active public validator custom Merkle ranges, one per domain.',
   (gauge, snapshot) => gauge.set(snapshot.validatorSharedReaders),
 );
 snapshotGauge(
@@ -353,6 +359,39 @@ snapshotGauge(
   'Retained custom message source ranges, one per domain.',
   (g, s) => g.set(s.messageSource.ranges),
 );
+snapshotGauge(
+  'websocket_event_source_ranges',
+  'Shared custom event ranges, one per domain and event type.',
+  (gauge, snapshot) => gauge.set(snapshot.eventSource.ranges),
+);
+snapshotGauge(
+  'websocket_event_source_rows',
+  'Custom event rows retained or being loaded by the shared source.',
+  (gauge, snapshot) => gauge.set(snapshot.eventSource.rows),
+);
+snapshotGauge(
+  'websocket_event_source_bytes',
+  'Serialized custom event bytes retained or being loaded by the shared source.',
+  (gauge, snapshot) => gauge.set(snapshot.eventSource.bytes),
+);
+for (const metric of ['ranges', 'rows', 'bytes'] as const) {
+  snapshotGauge(
+    `websocket_validator_source_${metric}`,
+    `Public validator source ${metric}, isolated from agent retention.`,
+    (gauge, snapshot) => gauge.set(snapshot.validatorSource[metric]),
+  );
+}
+for (const metric of ['bytes', 'messages'] as const) {
+  snapshotGauge(
+    `websocket_queued_${metric}`,
+    `Queued outbound ${metric} by WebSocket route.`,
+    (gauge, snapshot) => {
+      for (const route of ['agent', 'validators', 'messages'] as const)
+        gauge.set({ route }, snapshot.queues[route][metric]);
+    },
+    ['route'],
+  );
+}
 snapshotGauge(
   'websocket_message_source_changes',
   'Retained dispatch, delivery and payment positions.',

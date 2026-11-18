@@ -13,7 +13,7 @@ void it(
     // Small pages put boundaries inside one height and between sources.
     process.env.EVENT_STREAM_BATCH_SIZE = '2';
     const { EventStore } = await import('./event-store.js');
-    const { endOfHeight } = await import('./confirmation-stream.js');
+    const { endOfHeight } = await import('./protocol.js');
     const db = new pg.Client({ connectionString });
     await db.connect();
     try {

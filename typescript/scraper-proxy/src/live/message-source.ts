@@ -6,13 +6,11 @@ import {
   confirmationHeight,
   endOfHeight,
   type ConfirmationHead,
-} from './confirmation-stream.js';
-import type { EventStore, MessageChange } from './event-store.js';
-import { projectMessage, type MessageFacts } from './message-facts.js';
-import {
-  MAX_EXPLORER_CONFIRMATIONS,
+  MAX_CONFIRMATIONS,
   type HeadNotification,
 } from './protocol.js';
+import type { EventStore, MessageChange } from './event-store.js';
+import { projectMessage, type MessageFacts } from './message-facts.js';
 
 const MAX_CHANGES = 50_000;
 const MAX_FACT_BYTES = 64 * 1024 * 1024;
@@ -206,7 +204,7 @@ export class MessageSource {
       // Retain only what the lowest active frontier has not processed; a
       // deeper late joiner expands the window backward. The fixed depth still
       // stops a stalled domain from pinning old rows forever.
-      const hard = confirmationHeight(next, 2 * MAX_EXPLORER_CONFIRMATIONS);
+      const hard = confirmationHeight(next, 2 * MAX_CONFIRMATIONS);
       const lowest = this.lowestFrontier(head.domain);
       const floor = lowest === undefined || lowest < hard ? hard : lowest;
       if (floor > window.through && !this.readsDomain(head.domain)) {

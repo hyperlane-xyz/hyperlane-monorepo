@@ -8,7 +8,7 @@ void it('requires one domain and preserves canonical or explicit confirmations',
       parseValidatorSubscription(new URLSearchParams(`domain=${domain}`)),
       { domain },
     );
-    for (const confirmations of [0, 2, Number.MAX_SAFE_INTEGER])
+    for (const confirmations of [0, 2, 1_000])
       assert.deepEqual(
         parseValidatorSubscription(
           new URLSearchParams(
@@ -36,6 +36,8 @@ void it('rejects ambiguous domains, unsafe counts and extra validator options', 
     'domain=1&confirmations=-1',
     'domain=1&confirmations=1.5',
     'domain=1&confirmations=NaN',
+    'domain=1&confirmations=1001',
+    'domain=1&confirmations=9007199254740991',
     'domain=1&confirmations=9007199254740992',
     'domain=1&confirmations=safe',
     'domain=1&confirmations=0&confirmations=0',

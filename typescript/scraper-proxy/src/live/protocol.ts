@@ -4,7 +4,7 @@ const ADDRESS_PREFIX_REGEX = /^(?:0x|\\x)/;
 const UNSIGNED_INTEGER_REGEX = /^\d+$/;
 const DOMAIN_LIST_REGEX = /^\d+(,\d+)*$/;
 const HASH_HEX_REGEX = /^[0-9a-fA-F]{64}$/;
-export const MAX_EXPLORER_CONFIRMATIONS = 1_000;
+export const MAX_CONFIRMATIONS = 1_000;
 const MAX_EXPLORER_DOMAINS = 512;
 
 export const EVENT_TYPES = [
@@ -50,6 +50,38 @@ export type HeadNotification = {
   previousIndexedHeight?: bigint;
   previousConfirmedHeight?: bigint;
 };
+
+// Shared frontier math and row positions; neither owns a connection or reader.
+export type Position = readonly [bigint, number, bigint];
+export type ConfirmationRow = {
+  position: Position;
+  message: Record<string, unknown>;
+};
+export type ConfirmationHead = {
+  head: bigint;
+  indexed: bigint;
+  confirmed: bigint;
+  liveStart?: LiveStartBoundary;
+};
+export class SubscriptionCapacityError extends Error {}
+
+export class ConfirmationUnavailableError extends Error {
+  constructor(domain: number) {
+    super(`Custom confirmations unavailable for domain ${domain}`);
+  }
+}
+
+export function confirmationHeight(
+  head: Pick<ConfirmationHead, 'head' | 'indexed'>,
+  confirmations: number,
+): bigint {
+  const height = head.head - BigInt(confirmations);
+  return height < head.indexed ? height : head.indexed;
+}
+
+export function endOfHeight(height: bigint): Position {
+  return [height, 3, 9_223_372_036_854_775_807n];
+}
 
 export function parseClientMessage(raw: string): ClientMessage {
   let value: unknown;
@@ -98,6 +130,23 @@ export function parseClientMessage(raw: string): ClientMessage {
       }
     }
   }
+  const costs = new Map<number, number>();
+  for (const stream of streams) {
+    if (stream.eventType === 'blocks') continue;
+    for (const domain of stream.domains ?? []) {
+      const count = confirmationsByDomain?.get(domain) ?? stream.confirmations;
+      if (count !== undefined || stream.includeZeroConfirmations)
+        costs.set(domain, Math.max(costs.get(domain) ?? 0, count ?? 0, 1));
+    }
+  }
+  if (costs.size > MAX_EXPLORER_DOMAINS)
+    throw new SubscriptionCapacityError(
+      `custom domains must contain at most ${MAX_EXPLORER_DOMAINS} IDs`,
+    );
+  if ([...costs.values()].reduce((sum, cost) => sum + cost, 0) > 10_000)
+    throw new SubscriptionCapacityError(
+      'Confirmation subscription exceeds the domain-block budget',
+    );
   return {
     ...(confirmationsByDomain ? { confirmationsByDomain } : {}),
     streams,
@@ -156,6 +205,8 @@ function parseDomainConfirmations(
 function parseConfirmationCount(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
     throw new Error('confirmations must be a non-negative safe integer');
+  if (value > MAX_CONFIRMATIONS)
+    throw new Error(`confirmations must not exceed ${MAX_CONFIRMATIONS}`);
   return value;
 }
 
@@ -338,10 +389,6 @@ export function parseExplorerConfirmations(
     throw new Error(`domains must contain at most ${MAX_EXPLORER_DOMAINS} IDs`);
   const confirmations = parseConfirmations(Number(count), domains);
   if (confirmations === undefined) throw new Error('Missing confirmations');
-  if (confirmations > MAX_EXPLORER_CONFIRMATIONS)
-    throw new Error(
-      `confirmations must not exceed ${MAX_EXPLORER_CONFIRMATIONS}`,
-    );
   if (domains.size * Math.max(1, confirmations) > 10_000)
     throw new Error('Subscription exceeds 10000 domain confirmation blocks');
   return { confirmations, domains };

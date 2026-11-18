@@ -72,7 +72,6 @@ void it('includes block identity only in the provisional Merkle projection', asy
     1,
     [0n, 0, 0n],
     100n,
-    1,
   )) {
     assert.fail(`Unexpected row: ${JSON.stringify(row)}`);
   }
