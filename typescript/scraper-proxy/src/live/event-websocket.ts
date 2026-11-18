@@ -2,6 +2,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils/validation';
 import { formatError } from '@hyperlane-xyz/utils/errors';
 import { WebSocket, WebSocketServer } from 'ws';
 
@@ -99,6 +100,9 @@ const MAX_EXPLORER_SUBSCRIPTION_BYTES = 8_192;
 const MAX_EXPLORER_PENDING_BYTES = 16 * 1024 * 1024;
 const MAX_EXPLORER_TOTAL_PENDING_BYTES = 32 * 1024 * 1024;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
+// Each refresh reads at most a few fact batches; this keeps a notification
+// backlog well inside the shared read queue.
+const MAX_EXPLORER_REFRESHES = 4;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
 const MAX_HEAD_PUBLICATION_FAILURES = 3;
@@ -238,6 +242,7 @@ export class EventWebSocketServer {
   // Explorer clients share serialized frames; the global budget counts each
   // queued buffer once, however many clients hold it.
   private readonly explorerQueuedRefs = new Map<SerializedMessage, number>();
+  private readonly explorerRefreshes = new Set<Promise<void>>();
   private listenerReady = false;
   private stopped = false;
   private stopListening?: () => Promise<void>;
@@ -1725,9 +1730,14 @@ export class EventWebSocketServer {
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
     this.messageSource.invalidateIds(messageIds);
-    // Shared fact reads must not hold back head publication; refresh reports
-    // its own failures to the affected subscribers.
-    void this.messageSource.refresh(messageIds);
+    // Shared fact reads should not hold back head publication, but a backlog
+    // must pace the drain rather than overflow the shared read queue.
+    const refresh = this.messageSource
+      .refresh(messageIds)
+      .finally(() => this.explorerRefreshes.delete(refresh));
+    this.explorerRefreshes.add(refresh);
+    while (this.explorerRefreshes.size > MAX_EXPLORER_REFRESHES)
+      await Promise.race(this.explorerRefreshes);
     await this.publishCanonicalMessages(messageIds);
   }
 
@@ -1799,28 +1809,38 @@ export class EventWebSocketServer {
       this.explorerQueuedBytes + added() >
       MAX_EXPLORER_TOTAL_PENDING_BYTES
     ) {
+      // Evict whichever client alone holds the most queued bytes. A client's
+      // shared frames stay queued for others, so evicting it frees only the
+      // buffers no other client holds.
       let victim = socket;
-      let largest = client.queuedBytes + bytes;
-      for (const [peer, queued] of this.explorerClients)
-        if (peer !== socket && queued.queuedBytes > largest) {
+      let largest = this.exclusiveExplorerBytes(client) + added();
+      for (const [peer, queued] of this.explorerClients) {
+        if (peer === socket) continue;
+        const held = this.exclusiveExplorerBytes(queued);
+        if (held > largest) {
           victim = peer;
-          largest = queued.queuedBytes;
+          largest = held;
         }
-      const before = this.explorerQueuedBytes;
+      }
       websocketSendFailures.inc({ reason: 'queue_limit' });
       this.failSocket(victim, 'outbound message queue limit exceeded');
       if (victim === socket) return;
-      // A victim whose frames are all shared frees nothing; shed the sender
-      // instead of evicting clients that cannot make room.
-      if (this.explorerQueuedBytes >= before) {
-        this.failSocket(socket, 'outbound message queue limit exceeded');
-        return;
-      }
     }
     for (const message of messages) this.retainExplorerMessage(message);
     client.queue.push(...messages);
     client.queuedBytes += bytes;
     if (!client.sending) void this.drainExplorerClient(socket, client);
+  }
+
+  private exclusiveExplorerBytes(client: ExplorerClient): number {
+    const copies = new Map<SerializedMessage, number>();
+    for (const message of client.queue)
+      copies.set(message, (copies.get(message) ?? 0) + 1);
+    let bytes = 0;
+    for (const [message, count] of copies)
+      if (this.explorerQueuedRefs.get(message) === count)
+        bytes += message.length;
+    return bytes;
   }
 
   private retainExplorerMessage(message: SerializedMessage): void {
@@ -1831,6 +1851,7 @@ export class EventWebSocketServer {
 
   private releaseExplorerMessage(message: SerializedMessage): void {
     const refs = this.explorerQueuedRefs.get(message) ?? 0;
+    assert(refs > 0, 'Released an Explorer frame that was not queued');
     if (refs > 1) this.explorerQueuedRefs.set(message, refs - 1);
     else {
       this.explorerQueuedRefs.delete(message);
