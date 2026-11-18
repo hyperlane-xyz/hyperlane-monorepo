@@ -1,5 +1,3 @@
-import { MAX_EXPLORER_CONFIRMATIONS } from './protocol.js';
-
 // Keep ID eligibility identical to the wide projection without delivery/payment work.
 const DISPATCHES = `dispatches AS (
     SELECT id, msg_id, nonce, origin_domain, destination_domain, time_created,
@@ -157,6 +155,7 @@ export const PROVISIONAL_MESSAGE_QUERY = `${DISPATCH_CTES}
 // Keep native pg column types for the wire row, especially bigint, bytea and intervals.
 // Payment buckets use decimal strings inside JSON to preserve 256-bit precision.
 export const MAX_MESSAGE_FACTS = 256;
+export const MAX_PAYMENT_HEIGHTS = 8;
 export const LIVE_MESSAGE_FACTS_QUERY = `
   /* live_message_facts */
   WITH ${DISPATCHES}, eligible_dispatch AS (SELECT * FROM dispatches)
@@ -173,16 +172,17 @@ export const LIVE_MESSAGE_FACTS_QUERY = `
   ${DELIVERY_METADATA}
   LEFT JOIN LATERAL (
     SELECT json_agg(b) AS buckets FROM (
-      SELECT p.domain, min(p.block_number)::text AS first, max(p.block_number)::text AS height, count(*)::text AS count,
-        sum(p.payment)::text AS payment, sum(p.gas_amount)::text AS gas
-      FROM gas_payment p LEFT JOIN scraper_head h ON h.domain=p.domain
-      WHERE p.msg_id=dispatch.msg_id
-      -- Fold old payments into one baseline per domain. NULL-height legacy
-      -- payments are unconditionally visible and keep their own bucket.
-      GROUP BY p.domain, p.block_number IS NULL,
-        CASE WHEN p.block_number > least(h.confirmed_height,h.indexed_height,
-          h.head_height-${MAX_EXPLORER_CONFIRMATIONS * 2}) THEN p.block_number END
-      LIMIT ${MAX_MESSAGE_FACTS + 1}
+      SELECT domain, max(block_number)::text AS height, count(*)::text AS count,
+        sum(payment)::text AS payment, sum(gas_amount)::text AS gas
+      FROM (SELECT domain, block_number, payment, gas_amount, least(
+          dense_rank() OVER (PARTITION BY domain ORDER BY block_number),
+          dense_rank() OVER (PARTITION BY domain ORDER BY block_number DESC NULLS LAST)
+        ) AS rank FROM gas_payment WHERE msg_id=dispatch.msg_id) p
+      -- payForGas is permissionless. Keep the oldest and newest heights per
+      -- domain exact and fold the middle into one bucket, visible once its
+      -- newest payment is. NULL-height legacy payments are always visible.
+      GROUP BY domain, block_number IS NULL,
+        CASE WHEN rank<=${MAX_PAYMENT_HEIGHTS} THEN block_number END
     ) b
   ) payment ON TRUE
   ORDER BY dispatch.msg_id, delivery.block_number DESC NULLS LAST, delivery.id DESC

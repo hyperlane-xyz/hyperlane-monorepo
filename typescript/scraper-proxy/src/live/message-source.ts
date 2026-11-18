@@ -647,7 +647,7 @@ export class MessageSource {
         });
       return;
     }
-    const row = facts && this.project(facts, sub, id);
+    const row = facts && this.project(facts, sub);
     if (!row) {
       sub.exposed.delete(id);
       return;
@@ -670,7 +670,7 @@ export class MessageSource {
     });
   }
 
-  private project(facts: MessageFacts, sub: Subscriber, id: string) {
+  private project(facts: MessageFacts, sub: Subscriber) {
     const frontier = (domain: number) =>
       sub.frontiers.get(domain) ?? this.heads.get(domain)?.confirmed;
     const key = [...facts.dependencies]
@@ -678,22 +678,9 @@ export class MessageSource {
       .join(',');
     const previous = this.projections.get(facts);
     if (previous?.key === key) return previous.row;
-    try {
-      const row = projectMessage(facts, frontier);
-      this.projections.set(facts, { key, row });
-      return row;
-    } catch (error) {
-      // A delayed cursor may fall inside an aggregated payment bucket.
-      // Like an invalid fact, this affects one ID, not a global stream.
-      if (sub.ids) sub.fail(error);
-      else
-        sub.send({
-          type: 'error',
-          messageId: id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      return undefined;
-    }
+    const row = projectMessage(facts, frontier);
+    this.projections.set(facts, { key, row });
+    return row;
   }
 
   stop() {

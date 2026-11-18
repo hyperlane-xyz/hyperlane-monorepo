@@ -5,7 +5,6 @@ import { parseDatabaseDomain, parseId } from './protocol.js';
 type PaymentBucket = {
   domain: number;
   height: string | null;
-  first: string | null;
   count: string;
   payment: string;
   gas: string;
@@ -29,7 +28,6 @@ export type MessageFacts = {
   payments: {
     domain: number;
     height: bigint | null;
-    first: bigint | null;
     count: bigint;
     payment: bigint;
     gas: bigint;
@@ -81,8 +79,6 @@ function collectValidFacts(rows: FactRow[]) {
     for (const [key, value] of Object.entries(data))
       if (deliveryField(key)) fields[key] = value;
     if (!message) {
-      if ((payment_buckets?.length ?? 0) > MAX_MESSAGE_FACTS)
-        throw new Error('Message payment bucket limit exceeded');
       const origin = parseDatabaseDomain(
         data.origin_domain_id,
         'Invalid origin domain',
@@ -101,7 +97,6 @@ function collectValidFacts(rows: FactRow[]) {
       const payments = (payment_buckets ?? []).map((b) => ({
         domain: parseDatabaseDomain(b.domain, 'Invalid payment domain'),
         height: b.height === null ? null : parseId(b.height),
-        first: b.first == null ? null : parseId(b.first),
         count: parseId(b.count),
         payment: parseId(b.payment),
         gas: parseId(b.gas),
@@ -165,11 +160,7 @@ export function projectMessage(
     payment = 0n,
     gas = 0n;
   for (const bucket of facts.payments) {
-    if (!visible(bucket.domain, bucket.height)) {
-      if (bucket.first !== null && visible(bucket.domain, bucket.first))
-        throw new Error('Message cursor predates payment baseline');
-      continue;
-    }
+    if (!visible(bucket.domain, bucket.height)) continue;
     count += bucket.count;
     payment += bucket.payment;
     gas += bucket.gas;

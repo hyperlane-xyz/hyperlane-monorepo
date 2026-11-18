@@ -188,33 +188,26 @@ void it('limits a failed receipt read to subscribers for the affected IDs', asyn
   assert.deepEqual(failed, ['first']);
 });
 
-void it('isolates a cursor inside an aggregated payment bucket', async () => {
+void it('hides a folded payment bucket until its newest payment is visible', async () => {
   const source = new MessageSource({
     messageHeads: initialHeads,
-    async *messageChanges() {
-      yield [];
+    async *messageChanges(domain) {
+      yield domain === 2 ? [{ height: 9n, id: 'id' }] : [];
     },
     async messageFacts() {
       return collectMessageFacts([
         {
           ...fact('id'),
           payment_buckets: [
-            {
-              domain: 2,
-              first: '6',
-              height: '9',
-              count: '2',
-              payment: '3',
-              gas: '4',
-            },
+            { domain: 2, height: '6', count: '1', payment: '1', gas: '1' },
+            { domain: 2, height: '9', count: '2', payment: '3', gas: '4' },
           ],
         },
       ]);
     },
   });
   await source.currentHeads();
-  const failed: string[] = [],
-    sent: string[] = [];
+  const totals: string[] = [];
   for (const [n, ids] of [
     [2, new Set(['id'])],
     [2, undefined],
@@ -223,12 +216,21 @@ void it('isolates a cursor inside an aggregated payment bucket', async () => {
     source.subscribe(
       policy(n),
       ids,
-      (frame) => sent.push(`${n}:${ids ? 'id' : 'all'}:${String(frame.type)}`),
-      () => failed.push(`${n}:${ids ? 'id' : 'all'}`),
+      (frame) => {
+        const data = frame.data;
+        if (data && typeof data === 'object' && 'total_payment' in data)
+          totals.push(
+            `${n}:${ids ? 'id' : 'all'}:${String(data.total_payment)}`,
+          );
+      },
+      assert.fail,
     );
   await source.refresh(['id']);
-  assert.deepEqual(failed, ['2:id']);
-  assert.deepEqual(sent, ['2:all:error', '0:all:message_upsert']);
+  assert.deepEqual(totals, ['2:id:1', '2:all:1', '0:all:4']);
+  totals.length = 0;
+  advance(source, 2, 11n);
+  await nextTurn();
+  assert.deepEqual(totals, ['2:id:4', '2:all:4']);
 });
 
 void it('isolates an invalid ID in a shared fact batch and preserves global subscribers', async () => {
@@ -244,14 +246,9 @@ void it('isolates an invalid ID in a shared fact batch and preserves global subs
       return collectMessageFacts([
         {
           ...fact('bad', '11'),
-          payment_buckets: Array.from({ length: 257 }, () => ({
-            domain: 1,
-            first: '11',
-            height: '11',
-            count: '1',
-            payment: '1',
-            gas: '1',
-          })),
+          payment_buckets: [
+            { domain: 1.5, height: '11', count: '1', payment: '1', gas: '1' },
+          ],
         },
         fact('good', '11'),
       ]);
@@ -280,7 +277,7 @@ void it('isolates an invalid ID in a shared fact batch and preserves global subs
     {
       type: 'error',
       messageId: 'bad',
-      error: 'Message payment bucket limit exceeded',
+      error: 'Invalid payment domain',
     },
   ]);
 });
