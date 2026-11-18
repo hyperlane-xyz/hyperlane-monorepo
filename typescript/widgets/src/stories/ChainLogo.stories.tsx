@@ -1,18 +1,17 @@
-import { ComponentMeta, ComponentStory } from '@storybook/react';
+import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
 
 import { ChainLogo } from '../chains/ChainLogo.js';
 
-export default {
+const meta = {
   title: 'ChainLogo',
   component: ChainLogo,
-} as ComponentMeta<typeof ChainLogo>;
+} satisfies Meta<typeof ChainLogo>;
+export default meta;
 
-const Template: ComponentStory<typeof ChainLogo> = (args) => (
-  <ChainLogo {...args} />
-);
+const Template: StoryFn<typeof ChainLogo> = (args) => <ChainLogo {...args} />;
 
 const registry = new GithubRegistry();
 await registry.getMetadata();

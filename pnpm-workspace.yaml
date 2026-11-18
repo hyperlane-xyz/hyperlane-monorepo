@@ -216,7 +216,7 @@ overrides:
   react-dom: 18.3.1
   recursive-readdir: ^2.2.3
   underscore: ^1.13
-  undici: ^5.11
+  undici@5: ^6.29.1
   '@babel/parser': ^7.22.7
   '@typechain/ethers-v5': 11.1.2
   xmlhttprequest-ssl: 4.0.0
