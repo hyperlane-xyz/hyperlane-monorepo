@@ -28,7 +28,6 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Any, Coin,
 };
-use protobuf::Message as _;
 use tokio::sync::Mutex;
 use tonic::async_trait;
 use url::Url;
@@ -433,27 +432,10 @@ impl RpcProvider {
         response: QueryAccountResponse,
     ) -> ChainResult<BaseAccount> {
         // Injective uses custom proto type for account info. The account must exist in auth module
-        let mut eth_account = injective_protobuf::proto::account::EthAccount::parse_from_bytes(
-            response
-                .account
-                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
-                .value
-                .as_slice(),
-        )
-        .map_err(Into::<HyperlaneCosmosError>::into)?;
-
-        let base_account = eth_account.take_base_account();
-        let pub_key = base_account.pub_key.into_option();
-
-        Ok(BaseAccount {
-            address: base_account.address,
-            pub_key: pub_key.map(|pub_key| Any {
-                type_url: pub_key.type_url,
-                value: pub_key.value,
-            }),
-            account_number: base_account.account_number,
-            sequence: base_account.sequence,
-        })
+        let account = response
+            .account
+            .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
+        decode_injective_base_account(account.value.as_slice())
     }
 
     async fn get_account(&self, address: String) -> ChainResult<BaseAccount> {
@@ -605,6 +587,95 @@ impl RpcProvider {
                 Box::pin(future)
             })
             .await
+    }
+}
+
+/// Injective's `injective.types.v1beta1.EthAccount`, which wraps the Cosmos SDK `BaseAccount`.
+#[derive(Clone, PartialEq, prost::Message)]
+struct InjectiveEthAccount {
+    #[prost(message, optional, tag = "1")]
+    base_account: Option<BaseAccount>,
+    #[prost(bytes = "vec", tag = "2")]
+    code_hash: Vec<u8>,
+}
+
+/// Decodes the `BaseAccount` wrapped by Injective's `injective.types.v1beta1.EthAccount`.
+fn decode_injective_base_account(bytes: &[u8]) -> ChainResult<BaseAccount> {
+    let eth_account = InjectiveEthAccount::decode(bytes).map_err(HyperlaneCosmosError::from)?;
+    Ok(eth_account.base_account.unwrap_or_default())
+}
+
+#[cfg(test)]
+mod injective_account_tests {
+    use super::*;
+
+    fn sample_base_account() -> BaseAccount {
+        let mut pub_key = vec![0x0a, 0x21, 0x02];
+        pub_key.extend_from_slice(&[0x5c; 32]);
+        BaseAccount {
+            address: "inj1qqqsyqcyq5rqwzqfpg9scrgwpugpzysn8u4wfk".to_owned(),
+            pub_key: Some(Any {
+                type_url: "/injective.crypto.v1beta1.ethsecp256k1.PubKey".to_owned(),
+                value: pub_key,
+            }),
+            account_number: 42,
+            sequence: 7,
+        }
+    }
+
+    /// Wire encoding of `injective.types.v1beta1.EthAccount`
+    /// (`base_account = 1`, `code_hash = 2`), built by hand so the expected
+    /// bytes do not come from the decoder's own message definition.
+    fn eth_account_bytes(base_account: Option<&BaseAccount>, code_hash: &[u8]) -> Vec<u8> {
+        fn push_length_delimited(bytes: &mut Vec<u8>, tag: u8, value: &[u8]) {
+            bytes.push(tag);
+            let mut len = value.len();
+            while len >= 0x80 {
+                bytes.push((len & 0x7f) as u8 | 0x80);
+                len >>= 7;
+            }
+            bytes.push(len as u8);
+            bytes.extend_from_slice(value);
+        }
+
+        let mut bytes = Vec::new();
+        if let Some(base_account) = base_account {
+            push_length_delimited(&mut bytes, 0x0a, &base_account.encode_to_vec());
+        }
+        push_length_delimited(&mut bytes, 0x12, code_hash);
+        bytes
+    }
+
+    #[test]
+    fn decodes_base_account_wrapped_in_eth_account() {
+        let base_account = sample_base_account();
+        let bytes = eth_account_bytes(Some(&base_account), &[0xc5; 32]);
+
+        let decoded = decode_injective_base_account(&bytes).expect("valid EthAccount");
+
+        assert_eq!(decoded, base_account);
+    }
+
+    #[test]
+    fn eth_account_without_base_account_decodes_to_default() {
+        let bytes = eth_account_bytes(None, &[0xc5; 32]);
+
+        let decoded = decode_injective_base_account(&bytes).expect("valid EthAccount");
+
+        assert_eq!(decoded, BaseAccount::default());
+    }
+
+    #[test]
+    fn truncated_eth_account_is_rejected() {
+        let base_account = sample_base_account();
+        let bytes = eth_account_bytes(Some(&base_account), &[]);
+        // The encoding ends with `base_account.sequence` (field 4) and the empty
+        // `code_hash` (field 2). Cutting both leaves `base_account` shorter than
+        // its declared length; it must not decode as an account with sequence 0.
+        assert_eq!(bytes[bytes.len() - 4..], [0x20, 0x07, 0x12, 0x00]);
+        let truncated = &bytes[..bytes.len() - 4];
+
+        assert!(decode_injective_base_account(truncated).is_err());
     }
 }
 
