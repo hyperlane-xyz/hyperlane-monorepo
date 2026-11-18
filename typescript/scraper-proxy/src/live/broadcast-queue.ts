@@ -69,13 +69,11 @@ export class BroadcastQueue {
     while (this.bytes + added() > this.limits.totalBytes) {
       let victim = socket;
       let largest = this.exclusiveBytes(client) + added();
-      let hasExclusivePeer = false;
       let largestBacklog = client.bytes + bytes;
       let backlogPeer = socket;
       for (const [peer, queued] of this.clients) {
         if (peer === socket) continue;
         const held = this.exclusiveBytes(queued);
-        if (held > 0) hasExclusivePeer = true;
         if (held > largest) {
           victim = peer;
           largest = held;
@@ -85,9 +83,9 @@ export class BroadcastQueue {
           largestBacklog = queued.bytes;
         }
       }
-      // With only shared backlog, releasing a peer lets the next pass reclaim
-      // its frames once their last queued reference is removed.
-      if (victim === socket && !hasExclusivePeer) victim = backlogPeer;
+      // A deeper backlog can be held jointly even if no peer has enough
+      // exclusive bytes to win. Its frames are reclaimed on the last release.
+      if (victim === socket) victim = backlogPeer;
       this.fail(victim);
       if (victim === socket) return false;
     }

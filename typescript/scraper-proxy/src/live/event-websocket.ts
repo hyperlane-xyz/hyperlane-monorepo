@@ -1117,6 +1117,12 @@ export class EventWebSocketServer {
         )
           continue;
         serialized ??= serialize(eventMessage(eventType, row));
+        if (bytes && bytes + serialized.length > budget) {
+          bytes = 0;
+          sends = 0;
+          await nextTurn();
+          if (this.clients.get(socket) !== client) continue;
+        }
         this.queueData(socket, serialized);
         bytes += serialized.length;
         if (++sends >= FANOUT_MESSAGES_PER_TURN || bytes >= budget) {
@@ -1608,8 +1614,17 @@ export class EventWebSocketServer {
         )
         .map(({ frame }) => frame);
       if (!frames.length) continue;
+      const frameBytes = frames.reduce(
+        (total, frame) => total + frame.length,
+        0,
+      );
+      if (bytes && bytes + frameBytes > budget) {
+        bytes = 0;
+        await nextTurn();
+        if (this.explorerClients.get(socket) !== client) continue;
+      }
       this.explorerQueue.enqueue(socket, frames);
-      bytes += frames.reduce((total, frame) => total + frame.length, 0);
+      bytes += frameBytes;
       if (bytes >= budget) {
         bytes = 0;
         await nextTurn();
