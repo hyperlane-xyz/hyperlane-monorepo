@@ -3,7 +3,8 @@ import { it } from 'node:test';
 import { once, EventEmitter } from 'node:events';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 import { MessageSource } from './message-source.js';
-import { collectMessageFacts } from './message-facts.js';
+import { collectMessageFacts, projectMessage } from './message-facts.js';
+import { MAX_PAYMENT_HEIGHTS } from './provisional-message.js';
 
 const initialHeads = async () =>
   new Map(
@@ -188,33 +189,26 @@ void it('limits a failed receipt read to subscribers for the affected IDs', asyn
   assert.deepEqual(failed, ['first']);
 });
 
-void it('isolates a cursor inside an aggregated payment bucket', async () => {
+void it('hides a folded payment bucket until its newest payment is visible', async () => {
   const source = new MessageSource({
     messageHeads: initialHeads,
-    async *messageChanges() {
-      yield [];
+    async *messageChanges(domain) {
+      yield domain === 2 ? [{ height: 9n, id: 'id' }] : [];
     },
     async messageFacts() {
       return collectMessageFacts([
         {
           ...fact('id'),
           payment_buckets: [
-            {
-              domain: 2,
-              first: '6',
-              height: '9',
-              count: '2',
-              payment: '3',
-              gas: '4',
-            },
+            { domain: 2, height: '6', count: '1', payment: '1', gas: '1' },
+            { domain: 2, height: '9', count: '2', payment: '3', gas: '4' },
           ],
         },
       ]);
     },
   });
   await source.currentHeads();
-  const failed: string[] = [],
-    sent: string[] = [];
+  const totals: string[] = [];
   for (const [n, ids] of [
     [2, new Set(['id'])],
     [2, undefined],
@@ -223,12 +217,23 @@ void it('isolates a cursor inside an aggregated payment bucket', async () => {
     source.subscribe(
       policy(n),
       ids,
-      (frame) => sent.push(`${n}:${ids ? 'id' : 'all'}:${String(frame.type)}`),
-      () => failed.push(`${n}:${ids ? 'id' : 'all'}`),
+      (frame) => {
+        // A cursor inside a fold gets partial totals, never an error frame.
+        assert.notEqual(frame.type, 'error');
+        const data = frame.data;
+        if (data && typeof data === 'object' && 'total_payment' in data)
+          totals.push(
+            `${n}:${ids ? 'id' : 'all'}:${String(data.total_payment)}`,
+          );
+      },
+      assert.fail,
     );
   await source.refresh(['id']);
-  assert.deepEqual(failed, ['2:id']);
-  assert.deepEqual(sent, ['2:all:error', '0:all:message_upsert']);
+  assert.deepEqual(totals, ['2:id:1', '2:all:1', '0:all:4']);
+  totals.length = 0;
+  advance(source, 2, 11n);
+  await nextTurn();
+  assert.deepEqual(totals, ['2:id:4', '2:all:4']);
 });
 
 void it('isolates an invalid ID in a shared fact batch and preserves global subscribers', async () => {
@@ -244,14 +249,9 @@ void it('isolates an invalid ID in a shared fact batch and preserves global subs
       return collectMessageFacts([
         {
           ...fact('bad', '11'),
-          payment_buckets: Array.from({ length: 257 }, () => ({
-            domain: 1,
-            first: '11',
-            height: '11',
-            count: '1',
-            payment: '1',
-            gas: '1',
-          })),
+          payment_buckets: [
+            { domain: 1.5, height: '11', count: '1', payment: '1', gas: '1' },
+          ],
         },
         fact('good', '11'),
       ]);
@@ -280,7 +280,7 @@ void it('isolates an invalid ID in a shared fact batch and preserves global subs
     {
       type: 'error',
       messageId: 'bad',
-      error: 'Message payment bucket limit exceeded',
+      error: 'Invalid payment domain',
     },
   ]);
 });
@@ -541,4 +541,257 @@ void it('rereads facts still waiting for transaction rows', async () => {
   for (let i = 0; i < 3; i++) await source.refresh(['pending', 'done']);
   // Reread until the transaction row arrives, then cache like any other fact.
   assert.deepEqual(reads, ['pending', 'done', 'pending']);
+});
+
+// Message facts: origin height and an optional domain 1 payment height, which a
+// rollback removes once `rolledBack` is set.
+function rollbackSource(
+  rows: Record<string, { origin: bigint; payment?: bigint }>,
+) {
+  const state = { rolledBack: false, reads: [] as string[][] };
+  const changes = Object.entries(rows)
+    .flatMap(([id, { origin, payment }]) =>
+      [origin, payment].flatMap((height) =>
+        height === undefined ? [] : [{ id, height }],
+      ),
+    )
+    .sort((a, b) => Number(a.height - b.height));
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 10n, indexed: 10n, confirmed: 5n }]]),
+    async *messageChanges(_domain, after, through) {
+      yield changes.filter((c) => c.height > after[0] && c.height <= through);
+    },
+    async messageFacts(ids) {
+      state.reads.push([...ids]);
+      return collectMessageFacts(
+        ids.map((id) => {
+          const { origin, payment } = rows[id];
+          return {
+            ...fact(id, String(origin)),
+            destination_domain_id: 1,
+            origin_tx_id: '1',
+            payment_buckets:
+              payment === undefined || state.rolledBack
+                ? null
+                : [
+                    {
+                      domain: 1,
+                      first: String(payment),
+                      height: String(payment),
+                      count: '1',
+                      payment: '1',
+                      gas: '1',
+                    },
+                  ],
+          };
+        }),
+      );
+    },
+  });
+  const frames = (confirmations = 0) => {
+    const sent: string[] = [];
+    source.subscribe(
+      { domains: new Set([1]), confirmations },
+      undefined,
+      (frame) => {
+        const data = frame.data as Record<string, unknown> | undefined;
+        sent.push(
+          frame.type === 'message_upsert'
+            ? `${String(data?.msg_id)}:${String(data?.num_payments)}`
+            : String(frame.type),
+        );
+      },
+      assert.fail,
+    );
+    return sent;
+  };
+  const rollback = async (from: bigint, to: bigint) => {
+    state.rolledBack = true;
+    const head = {
+      domain: 1,
+      confirmedHeight: 5n,
+      indexedHeight: to,
+      headHeight: to,
+      previousIndexedHeight: from,
+    };
+    source.observe(head);
+    source.notify(head);
+    for (let i = 0; i < 20; i++) await nextTurn();
+  };
+  return { source, state, frames, rollback };
+}
+
+const settle = async () => {
+  for (let i = 0; i < 20; i++) await nextTurn();
+};
+
+void it('refreshes only rows with a fact above a rollback target', async () => {
+  const { source, state, frames, rollback } = rollbackSource({
+    old: { origin: 11n },
+    new: { origin: 12n, payment: 20n },
+  });
+  await source.currentHeads();
+  const sent = frames();
+  advance(source, 1, 11n);
+  await settle();
+  advance(source, 1, 20n);
+  await settle();
+  assert.deepEqual(sent, ['old:0', 'new:1']);
+  await rollback(20n, 15n);
+  assert.deepEqual(sent, ['old:0', 'new:1', 'rollback', 'new:0']);
+  assert.deepEqual(state.reads.at(-1), ['new']);
+});
+
+void it('keeps a shallow rollback after a large head jump to the removed rows', async () => {
+  const { source, state, frames, rollback } = rollbackSource({
+    early: { origin: 11n },
+    late: { origin: 4000n, payment: 5000n },
+  });
+  await source.currentHeads();
+  const sent = frames();
+  advance(source, 1, 5000n);
+  await settle();
+  assert.deepEqual(sent, ['early:0', 'late:1']);
+  await rollback(5000n, 4999n);
+  assert.deepEqual(sent, ['early:0', 'late:1', 'rollback', 'late:0']);
+  assert.deepEqual(state.reads.at(-1), ['late']);
+});
+
+void it('selects rollback refreshes per subscriber', async () => {
+  // The payment at 19 is visible at frontier 20 but not at frontier 18.
+  const { source, frames, rollback } = rollbackSource({
+    paid: { origin: 12n, payment: 19n },
+  });
+  await source.currentHeads();
+  const zero = frames(0),
+    two = frames(2);
+  advance(source, 1, 20n);
+  await settle();
+  assert.deepEqual(zero, ['paid:1']);
+  assert.deepEqual(two, ['paid:0']);
+  await rollback(20n, 15n);
+  assert.deepEqual(zero, ['paid:1', 'rollback', 'paid:0']);
+  assert.deepEqual(two, ['paid:0', 'rollback']);
+});
+
+void it('does not refresh rows whose only facts on a rolled-back domain have no height', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 20n, indexed: 20n, confirmed: 5n }]]),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '15'),
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+          payment_buckets: [
+            { domain: 1, height: null, count: '1', payment: '1', gas: '1' },
+          ],
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  await source.refresh(['legacy']);
+  const head = {
+    domain: 1,
+    confirmedHeight: 5n,
+    indexedHeight: 18n,
+    headHeight: 18n,
+    previousIndexedHeight: 20n,
+  };
+  source.observe(head);
+  source.notify(head);
+  await nextTurn();
+  // Origin at 15 survives a rollback to 18, and the payment has no height.
+  assert.deepEqual(reads, ['legacy']);
+});
+
+void it('depends on the newest payment of a folded domain', () => {
+  const facts = collectMessageFacts([
+    {
+      ...fact('m', '1'),
+      payment_buckets: Array.from(
+        { length: 2 * MAX_PAYMENT_HEIGHTS + 1 },
+        (_, i) => ({
+          domain: 2,
+          height: String(i + 1),
+          count: '1',
+          payment: '1',
+          gas: '1',
+        }),
+      ),
+    },
+  ]).get('m');
+  assert(facts && !(facts instanceof Error));
+  const row = projectMessage(facts, (domain) => (domain === 2 ? 3n : 100n));
+  // Only heights 1-3 are visible, but removing any newer payment can change
+  // which payments fold, so the rollback dependency is the newest one.
+  assert.equal(row?.heights.get(2), BigInt(2 * MAX_PAYMENT_HEIGHTS + 1));
+  assert.equal(row?.data.num_payments, '3');
+});
+
+void it('refreshes a confirmed fact a deep subscriber can lose in a rollback', async () => {
+  const reads: string[] = [];
+  let rolledBack = false;
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 110n, indexed: 110n, confirmed: 100n }]]),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '90'),
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+          payment_buckets: [
+            { domain: 1, height: '99', count: '1', payment: '1', gas: '1' },
+          ],
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  const payments: string[] = [];
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 8 },
+    undefined,
+    (frame) => {
+      const data = frame.data;
+      if (data && typeof data === 'object' && 'num_payments' in data)
+        payments.push(String(data.num_payments));
+    },
+    assert.fail,
+  );
+  await source.refresh(['m']);
+  rolledBack = true;
+  const head = {
+    domain: 1,
+    confirmedHeight: 100n,
+    indexedHeight: 105n,
+    headHeight: 105n,
+    previousIndexedHeight: 110n,
+  };
+  source.observe(head);
+  source.notify(head);
+  for (let i = 0; i < 5 && payments.length < 2; i++) await nextTurn();
+  // The frontier drops from 102 to 97, below the confirmed payment at 99.
+  assert(rolledBack);
+  assert.deepEqual(reads, ['m', 'm']);
+  assert.deepEqual(payments, ['1', '0']);
 });

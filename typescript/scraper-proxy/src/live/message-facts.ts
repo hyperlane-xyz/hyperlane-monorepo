@@ -1,11 +1,13 @@
 import type { Row } from './event-store.js';
-import { MAX_MESSAGE_FACTS } from './provisional-message.js';
+import {
+  MAX_MESSAGE_FACTS,
+  MAX_PAYMENT_HEIGHTS,
+} from './provisional-message.js';
 import { parseDatabaseDomain, parseId } from './protocol.js';
 
 type PaymentBucket = {
   domain: number;
   height: string | null;
-  first: string | null;
   count: string;
   payment: string;
   gas: string;
@@ -29,7 +31,6 @@ export type MessageFacts = {
   payments: {
     domain: number;
     height: bigint | null;
-    first: bigint | null;
     count: bigint;
     payment: bigint;
     gas: bigint;
@@ -81,8 +82,6 @@ function collectValidFacts(rows: FactRow[]) {
     for (const [key, value] of Object.entries(data))
       if (deliveryField(key)) fields[key] = value;
     if (!message) {
-      if ((payment_buckets?.length ?? 0) > MAX_MESSAGE_FACTS)
-        throw new Error('Message payment bucket limit exceeded');
       const origin = parseDatabaseDomain(
         data.origin_domain_id,
         'Invalid origin domain',
@@ -101,7 +100,6 @@ function collectValidFacts(rows: FactRow[]) {
       const payments = (payment_buckets ?? []).map((b) => ({
         domain: parseDatabaseDomain(b.domain, 'Invalid payment domain'),
         height: b.height === null ? null : parseId(b.height),
-        first: b.first == null ? null : parseId(b.first),
         count: parseId(b.count),
         payment: parseId(b.payment),
         gas: parseId(b.gas),
@@ -147,9 +145,18 @@ export function projectMessage(
   facts: MessageFacts,
   frontier: (domain: number) => bigint | undefined,
 ) {
+  // Highest visible fact per domain that a rollback could remove; a rollback
+  // to or above it cannot change this row. Facts without a height are never
+  // rewound, so they are not tracked.
+  const heights = new Map<number, bigint>();
+  const see = (domain: number, height: bigint) => {
+    if (height > (heights.get(domain) ?? -1n)) heights.set(domain, height);
+  };
   const visible = (domain: number, height: bigint | null) => {
     const limit = frontier(domain);
-    return height === null || limit === undefined || height <= limit;
+    if (height !== null && limit !== undefined && height > limit) return false;
+    if (height !== null) see(domain, height);
+    return true;
   };
   if (!visible(facts.origin, facts.height)) return;
   // SQL returns deliveries in block_number DESC NULLS LAST, id DESC order.
@@ -157,19 +164,27 @@ export function projectMessage(
   let count = 0n,
     payment = 0n,
     gas = 0n;
-  const domains = new Set([facts.origin, facts.destination]);
-  if (delivery) domains.add(delivery.domain);
+  const exact = new Map<number, { buckets: number; newest: bigint }>();
   for (const bucket of facts.payments) {
-    if (!visible(bucket.domain, bucket.height)) {
-      if (bucket.first !== null && visible(bucket.domain, bucket.first))
-        throw new Error('Message cursor predates payment baseline');
-      continue;
+    if (bucket.height !== null) {
+      const domain = exact.get(bucket.domain);
+      exact.set(bucket.domain, {
+        buckets: (domain?.buckets ?? 0) + 1,
+        newest:
+          domain && domain.newest > bucket.height
+            ? domain.newest
+            : bucket.height,
+      });
     }
-    domains.add(bucket.domain);
+    if (!visible(bucket.domain, bucket.height)) continue;
     count += bucket.count;
     payment += bucket.payment;
     gas += bucket.gas;
   }
+  // A folded domain's membership is ranked from its newest payments, so any
+  // rollback that removes one can move a payment into or out of the fold.
+  for (const [domain, { buckets, newest }] of exact)
+    if (buckets > 2 * MAX_PAYMENT_HEIGHTS) see(domain, newest);
   const data: Row = {
     ...facts.pending,
     ...delivery?.fields,
@@ -178,5 +193,5 @@ export function projectMessage(
     total_payment: String(payment),
     total_gas_amount: String(gas),
   };
-  return { data, domains: [...domains] };
+  return { data, heights };
 }

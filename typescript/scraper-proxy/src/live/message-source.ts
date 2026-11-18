@@ -417,8 +417,7 @@ export class MessageSource {
     const rollback =
       event.previousIndexedHeight !== undefined &&
       indexedHeight < event.previousIndexedHeight;
-    const refresh = new Set<string>();
-    const rolledBack = new Set<Subscriber>();
+    const refresh = new Map<Subscriber, Set<string>>();
     let needed = false;
     for (const sub of this.subscribers) {
       const from = sub.frontiers.get(domain);
@@ -433,22 +432,24 @@ export class MessageSource {
           fromHeight: String(from),
           toHeight: String(to),
         });
-        rolledBack.add(sub);
-        for (const id of sub.exposed.keys()) refresh.add(id);
+        // Rows whose facts on this domain are all at or below `to` are intact.
+        const ids = new Set<string>();
+        for (const [id, deps] of sub.exposed)
+          if ((deps.get(domain) ?? to) > to) ids.add(id);
+        if (ids.size) refresh.set(sub, ids);
       }
       if (to > from && sub.ids?.size !== 0) needed = true;
       if (sub.ids?.size === 0) sub.frontiers.set(domain, to);
       if (event.previousConfirmedHeight !== confirmedHeight)
-        for (const [id, deps] of sub.exposed) {
-          if (
-            [...deps].every(
-              ([d, height]) => height <= (this.heads.get(d)?.confirmed ?? 0n),
-            )
-          )
+        for (const [id, deps] of sub.exposed)
+          if ([...deps].every(([d, height]) => this.settled(sub, d, height)))
             sub.exposed.delete(id);
-        }
     }
-    if (refresh.size) void this.refresh([...refresh], rolledBack, true);
+    if (refresh.size)
+      void this.refresh(
+        [...new Set([...refresh.values()].flatMap((ids) => [...ids]))],
+        refresh,
+      );
     const pending = this.advances.get(domain);
     if (pending) pending.head = head;
     else if (needed && (this.retryAfter.get(domain) ?? 0) <= Date.now()) {
@@ -580,10 +581,13 @@ export class MessageSource {
     }
   }
 
-  async refresh(ids: string[], targets = this.subscribers, rollback = false) {
-    const recipients = [...targets];
+  // `rollback` selects ids per subscriber when the rollback is observed; a
+  // later advance can move the frontier before these facts load.
+  async refresh(ids: string[], rollback?: Map<Subscriber, Set<string>>) {
+    const recipients = [...(rollback?.keys() ?? this.subscribers)];
     const interested = (sub: Subscriber, id: string) =>
-      (!sub.ids || sub.ids.has(id)) && (!rollback || sub.exposed.has(id));
+      (!sub.ids || sub.ids.has(id)) &&
+      (!rollback || !!rollback.get(sub)?.has(id));
     const selected = ids.filter((id) =>
       recipients.some((sub) => interested(sub, id)),
     );
@@ -621,6 +625,14 @@ export class MessageSource {
     }
   }
 
+  // A rollback never rewinds below the confirmed height, so this subscriber's
+  // frontier stays at or above `confirmed - confirmations`. A fact at or below
+  // that stays visible to it whatever rolls back.
+  private settled(sub: Subscriber, domain: number, height: bigint) {
+    const confirmed = this.heads.get(domain)?.confirmed ?? 0n;
+    return height <= confirmed - BigInt(sub.confirmations);
+  }
+
   private upsert(
     sub: Subscriber,
     id: string,
@@ -638,17 +650,15 @@ export class MessageSource {
         });
       return;
     }
-    const row = facts && this.project(facts, sub, id);
+    const row = facts && this.project(facts, sub);
     if (!row) {
       sub.exposed.delete(id);
       return;
     }
     const deps = new Map<number, bigint>();
-    for (const d of row.domains) {
-      const height = sub.frontiers.get(d);
-      if (height !== undefined && height > (this.heads.get(d)?.confirmed ?? 0n))
+    for (const [d, height] of row.heights)
+      if (sub.frontiers.has(d) && !this.settled(sub, d, height))
         deps.set(d, height);
-    }
     if (deps.size) sub.exposed.set(id, deps);
     else sub.exposed.delete(id);
     if (sub.exposed.size > 10_000) {
@@ -663,7 +673,7 @@ export class MessageSource {
     });
   }
 
-  private project(facts: MessageFacts, sub: Subscriber, id: string) {
+  private project(facts: MessageFacts, sub: Subscriber) {
     const frontier = (domain: number) =>
       sub.frontiers.get(domain) ?? this.heads.get(domain)?.confirmed;
     const key = [...facts.dependencies]
@@ -671,22 +681,9 @@ export class MessageSource {
       .join(',');
     const previous = this.projections.get(facts);
     if (previous?.key === key) return previous.row;
-    try {
-      const row = projectMessage(facts, frontier);
-      this.projections.set(facts, { key, row });
-      return row;
-    } catch (error) {
-      // A delayed cursor may fall inside an aggregated payment bucket.
-      // Like an invalid fact, this affects one ID, not a global stream.
-      if (sub.ids) sub.fail(error);
-      else
-        sub.send({
-          type: 'error',
-          messageId: id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      return undefined;
-    }
+    const row = projectMessage(facts, frontier);
+    this.projections.set(facts, { key, row });
+    return row;
   }
 
   stop() {

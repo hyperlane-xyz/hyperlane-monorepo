@@ -10,7 +10,16 @@ import { rawData } from './websocket-data.js';
 
 import pg from 'pg';
 
-import { PROVISIONAL_MESSAGE_QUERY } from './provisional-message.js';
+import {
+  LIVE_MESSAGE_FACTS_QUERY,
+  MAX_PAYMENT_HEIGHTS,
+  PROVISIONAL_MESSAGE_QUERY,
+} from './provisional-message.js';
+import {
+  collectMessageFacts,
+  projectMessage,
+  type FactRow,
+} from './message-facts.js';
 import { ScraperDbService } from '../scraperdb/scraperdb.service.js';
 import { buildSelect } from '../scraperdb/sql.js';
 
@@ -410,6 +419,76 @@ void it(
                 paymentLoops,
                 where ? 0 : 129,
                 'payment work runs once per projected message, never for canonical exclusion',
+              );
+            }
+          } finally {
+            await db.query('ROLLBACK');
+          }
+        },
+      );
+
+      await t.test(
+        'bounds permissionless payment buckets without failing any frontier',
+        async () => {
+          await db.query('BEGIN');
+          try {
+            await db.query(`
+            INSERT INTO gas_payment SELECT 100+h, decode('01','hex'), 1, 1, 2, h FROM generate_series(11,310) h;
+            INSERT INTO gas_payment SELECT 1000+h, decode('01','hex'), 3, 1, 2, h FROM generate_series(1,20) h;
+            INSERT INTO gas_payment VALUES (5000,decode('01','hex'),1,7,7,11), (5001,decode('01','hex'),1,1,1,null);
+          `);
+            const types = {
+              getTypeParser(oid: number) {
+                if (oid === 17) return (value: string) => value;
+                return pg.types.getTypeParser(oid);
+              },
+            };
+            const { rows } = await db.query<FactRow>({
+              text: LIVE_MESSAGE_FACTS_QUERY,
+              values: [['\\x01']],
+              types,
+            });
+            const facts = collectMessageFacts(rows).get('\\x01');
+            assert(facts && !(facts instanceof Error));
+            // Domain 1: oldest/newest heights + one fold. Domain 3 (20 heights)
+            // likewise. Domains 1 and 2 also have a NULL-height bucket.
+            assert.equal(
+              facts.payments.length,
+              2 * (2 * MAX_PAYMENT_HEIGHTS + 1) + 2,
+            );
+            const fold = 310 - MAX_PAYMENT_HEIGHTS;
+            for (const [h1, exact] of [
+              [10, true],
+              [15, true],
+              [10 + MAX_PAYMENT_HEIGHTS, true],
+              [200, false],
+              [fold - 1, false],
+              [fold, true],
+              [309, true],
+              [310, true],
+            ] as const) {
+              const row = projectMessage(facts, (d) =>
+                d === 1 ? BigInt(h1) : d === 3 ? 20n : undefined,
+              );
+              assert(row);
+              const live = row.data;
+              const [sql] = (
+                await db.query(PROVISIONAL_MESSAGE_QUERY, [
+                  ['\\x01'],
+                  [1, 3],
+                  [String(h1), '20'],
+                ])
+              ).rows;
+              for (const key of [
+                'num_payments',
+                'total_payment',
+                'total_gas_amount',
+              ]) {
+                if (exact) assert.equal(live[key], sql[key], `${key} at ${h1}`);
+                else assert.notEqual(live[key], sql[key], `${key} at ${h1}`);
+              }
+              assert(
+                BigInt(String(live.num_payments)) <= BigInt(sql.num_payments),
               );
             }
           } finally {

@@ -2376,7 +2376,9 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
             origin_domain_id: 1,
             destination_domain_id: 2,
             origin_block_height: '6',
+            // The domain 1 payment at 9 is the fact the rollback removes.
             payment_buckets: [
+              { domain: 1, height: '9', count: '1', payment: '0', gas: '0' },
               { domain: 3, height: null, count: '1', payment: '0', gas: '0' },
             ],
           },
@@ -2443,6 +2445,118 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
     await waitUntil(() =>
       sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
     );
+  }
+});
+
+void it('keeps a socket open when a shallow rollback follows 2,000+ provisional rows', async (context) => {
+  // 1,050 rows at each of heights 11 and 12 fit the queue per head; 10 rows at
+  // 13 are the only ones a rollback to 12 can change.
+  const changes = [11n, 12n, 13n].flatMap((height) =>
+    Array.from({ length: height === 13n ? 10 : 1_050 }, (_, i) => ({
+      height,
+      id: BigInt(Number(height) * 10_000 + i),
+    })),
+  );
+  const msg = (id: bigint) => `\\x${id.toString(16).padStart(64, '0')}`;
+  let indexed = 10n;
+  let factIds = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (
+        sql.includes('SELECT domain, head_height') ||
+        sql.includes('SELECT h.domain, h.head_height')
+      )
+        return queryRows<T>([
+          {
+            domain: 1,
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+          },
+        ]);
+      if (sql.includes('confirmation_messages')) {
+        const [height, id, through, limit] = [1, 3, 4, 5].map((i) =>
+          BigInt(String(values[i])),
+        );
+        return queryRows<T>(
+          changes
+            .filter(
+              (c) =>
+                c.height <= through &&
+                c.height <= indexed &&
+                (c.height > height || (c.height === height && c.id > id)),
+            )
+            .slice(0, Number(limit))
+            .map((c) => ({
+              height: String(c.height),
+              source: 0,
+              id: String(c.id),
+              msg_id: msg(c.id),
+            })),
+        );
+      }
+      if (sql.includes('live_message_facts')) {
+        const ids = recordArray(values[0]).map(String);
+        factIds += ids.length;
+        return queryRows<T>(
+          changes
+            .filter((c) => c.height <= indexed && ids.includes(msg(c.id)))
+            .map((c) => ({
+              msg_id: msg(c.id),
+              origin_domain_id: 1,
+              destination_domain_id: 2,
+              origin_block_height: String(c.height),
+              origin_tx_id: '1',
+              payment_buckets: null,
+            })),
+        );
+      }
+      throw new Error(`Unexpected rollback burst query: ${sql}`);
+    },
+  );
+  const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  const messages = captureMessages(socket);
+  const upserts = () =>
+    messages.filter(({ type }) => type === 'message_upsert').length;
+  const head = (height: bigint, previous: bigint) => {
+    indexed = height;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '5',
+        previousConfirmedHeight: '5',
+        headHeight: String(height),
+        indexedHeight: String(height),
+        previousIndexedHeight: String(previous),
+      }),
+    );
+  };
+  try {
+    await waitFor(messages, 'ready');
+    for (const [height, total] of [
+      [11n, 1_050],
+      [12n, 2_100],
+      [13n, 2_110],
+    ] as const) {
+      head(height, height - 1n);
+      await waitUntil(() => upserts() === total, 500);
+    }
+    factIds = 0;
+    head(12n, 13n);
+    await waitFor(messages, 'rollback');
+    await waitUntil(() => factIds === 10, 500);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(upserts(), 2_110);
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
   }
 });
 
