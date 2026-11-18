@@ -7,13 +7,11 @@ use std::{
 use eyre::Result;
 use hyperlane_core::H512;
 use time::OffsetDateTime;
-use tokio::sync::Semaphore;
 use tracing::warn;
 
 use crate::store::{txn_id_for_meta, HyperlaneDbStore};
 
-// Shared by all chains. Release permits before enrichment can wait on RPC.
-static SCAN_DB_PERMITS: Semaphore = Semaphore::const_new(2);
+use super::metrics::ReadPermit;
 
 const INITIAL_BACKOFF_SECONDS: i64 = 60;
 const MAX_BACKOFF_SECONDS: i64 = 15 * 60;
@@ -136,32 +134,35 @@ impl RetryBackoff {
 }
 
 impl HyperlaneDbStore {
-    pub(super) async fn latest_reconcilable_raw_dispatch_id(&self) -> Result<i64> {
-        let _permit = SCAN_DB_PERMITS.acquire().await?;
-        self.db
-            .latest_reconcilable_raw_dispatch_id(self.domain.id(), &self.mailbox_address)
+    pub(super) async fn latest_reconcilable_raw_dispatch_id(
+        &self,
+        permit: ReadPermit,
+    ) -> Result<i64> {
+        permit
+            .read(
+                self.db
+                    .latest_reconcilable_raw_dispatch_id(self.domain.id(), &self.mailbox_address),
+            )
             .await
     }
 
     pub(super) async fn reconcile_page(
         &self,
+        permit: ReadPermit,
         after_id: i64,
         through_id: i64,
         limit: u64,
         retry_backoff: &mut RetryBackoff,
     ) -> Result<PageResult> {
-        let (raw_dispatches, next_after_id) = {
-            let _permit = SCAN_DB_PERMITS.acquire().await?;
-            self.db
-                .retrieve_unenriched_raw_dispatches(
-                    self.domain.id(),
-                    &self.mailbox_address,
-                    after_id,
-                    through_id,
-                    limit,
-                )
-                .await?
-        };
+        let (raw_dispatches, next_after_id) = permit
+            .read(self.db.retrieve_unenriched_raw_dispatches(
+                self.domain.id(),
+                &self.mailbox_address,
+                after_id,
+                through_id,
+                limit,
+            ))
+            .await?;
         let mut result = self
             .reconcile_candidates(raw_dispatches, retry_backoff)
             .await?;
@@ -171,19 +172,17 @@ impl HyperlaneDbStore {
 
     pub(super) async fn retry_dispatches(
         &self,
+        permit: ReadPermit,
         raw_ids: &[i64],
         retry_backoff: &mut RetryBackoff,
     ) -> Result<PageResult> {
-        let raw_dispatches = {
-            let _permit = SCAN_DB_PERMITS.acquire().await?;
-            self.db
-                .retrieve_unenriched_raw_dispatches_by_ids(
-                    self.domain.id(),
-                    &self.mailbox_address,
-                    raw_ids,
-                )
-                .await?
-        };
+        let raw_dispatches = permit
+            .read(self.db.retrieve_unenriched_raw_dispatches_by_ids(
+                self.domain.id(),
+                &self.mailbox_address,
+                raw_ids,
+            ))
+            .await?;
         let returned_raw_ids = raw_dispatches
             .iter()
             .map(|raw_dispatch| raw_dispatch.raw_id)

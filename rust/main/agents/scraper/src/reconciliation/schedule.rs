@@ -1,4 +1,5 @@
 //! Discovery takes priority over full sweeps; failures defer only the affected lane.
+use ethers::core::rand::{thread_rng, Rng};
 use hyperlane_core::rpc_clients::RPC_RETRY_SLEEP_DURATION;
 use prometheus::IntGauge;
 use std::time::Duration;
@@ -41,7 +42,7 @@ impl Scan {
     fn complete_page(&mut self, result: &PageResult, now: Instant) -> bool {
         if let Some(after_id) = result.next_after_id {
             self.after_id = after_id;
-            let delay = if result.candidate_count == 0 {
+            let delay = if result.attempted_count == 0 {
                 EMPTY_PAGE_DELAY
             } else {
                 PAGE_DELAY
@@ -87,7 +88,10 @@ impl Schedule {
             full_sweep: None,
             next_discovery_at: now,
             discovery_retry_not_before: now,
-            next_full_sweep_at: now,
+            next_full_sweep_at: instant_after(
+                now,
+                Duration::from_secs(thread_rng().gen_range(0..FULL_SWEEP_INTERVAL.as_secs())),
+            ),
             retry_not_before: now,
             global_not_before,
         }

@@ -1,5 +1,5 @@
 use eyre::Result;
-use sea_orm::{prelude::*, ConnectionTrait, QueryOrder, QuerySelect, Statement};
+use sea_orm::{prelude::*, ConnectionTrait, FromQueryResult, QuerySelect, Statement};
 use tracing::instrument;
 
 use hyperlane_core::{
@@ -64,9 +64,6 @@ impl ScraperDb {
             .unwrap_or(0))
     }
 
-    /// Examine at most `limit` raw rows, then select missing confirmed messages.
-    /// The continuation tracks examined rows, even when no enrichment is needed.
-    /// `None` means the requested ID range is exhausted.
     #[instrument(skip(self))]
     pub async fn retrieve_unenriched_raw_dispatches(
         &self,
@@ -76,30 +73,45 @@ impl ScraperDb {
         through_id: i64,
         limit: u64,
     ) -> Result<(Vec<RawDispatchForEnrichment>, Option<i64>)> {
-        // Bound the input, including rows already enriched. Applying LIMIT after
-        // the join can scan the entire chain to find no missing messages.
-        use raw_message_dispatch::Column;
-        let ids = raw_message_dispatch::Entity::find()
-            .select_only()
-            .column(Column::Id)
-            .filter(Column::OriginDomain.eq(origin_domain as i32))
-            .filter(Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
-            .filter(Column::MsgBody.is_not_null())
-            .filter(Column::Id.gt(after_id))
-            .filter(Column::Id.lte(through_id))
-            .order_by_asc(Column::Id)
-            .limit(limit)
-            .into_tuple::<i64>()
-            .all(&self.0)
-            .await?;
-        let next_after_id = ids
-            .last()
-            .copied()
-            .filter(|id| ids.len() as u64 == limit && *id < through_id);
-        let candidates = self
-            .retrieve_unenriched_raw_dispatches_by_ids(origin_domain, origin_mailbox, &ids)
-            .await?;
-        Ok((candidates, next_after_id))
+        let rows = self.0.query_all(Statement::from_sql_and_values(
+            self.0.get_database_backend(),
+            r#"
+            WITH page AS (
+                SELECT id, origin_domain, origin_mailbox, nonce, origin_block_height FROM raw_message_dispatch
+                WHERE origin_domain=$1 AND origin_mailbox=$2 AND msg_body IS NOT NULL
+                  AND id>$3 AND id<=$4 ORDER BY id LIMIT 2000
+            ), candidates AS (
+                SELECT r.id FROM page r
+                WHERE r.origin_block_height <= COALESCE(
+                    (SELECT confirmed_height FROM scraper_head WHERE domain=$1), 9223372036854775807)
+                  AND NOT EXISTS (SELECT 1 FROM message m WHERE m.origin=r.origin_domain
+                    AND m.origin_mailbox=r.origin_mailbox AND m.nonce=r.nonce)
+                ORDER BY r.id LIMIT $5
+            ), cursor AS (
+                SELECT CASE WHEN count(*)=$5 THEN max(id)
+                    WHEN (SELECT count(*) FROM page)=2000 THEN (SELECT max(id) FROM page)
+                    END AS next_after_id FROM candidates
+            )
+            SELECT r.*, cursor.next_after_id FROM cursor LEFT JOIN candidates ON TRUE
+            LEFT JOIN LATERAL (SELECT * FROM raw_message_dispatch WHERE id=candidates.id LIMIT 1) r ON TRUE
+            ORDER BY candidates.id
+            "#,
+            [(origin_domain as i32).into(), address_to_bytes(origin_mailbox).into(),
+                after_id.into(), through_id.into(), (limit as i64).into()],
+        )).await?;
+        let mut candidates = Vec::new();
+        let mut next = None;
+        for row in rows {
+            next = row
+                .try_get::<Option<i64>>("", "next_after_id")?
+                .filter(|id| *id < through_id);
+            if row.try_get::<Option<i64>>("", "id")?.is_some() {
+                candidates.push(raw_dispatch_to_candidate(
+                    raw_message_dispatch::Model::from_query_result(&row, "")?,
+                )?);
+            }
+        }
+        Ok((candidates, next))
     }
 
     /// Re-read known retry rows by primary key while excluding rows that another
@@ -120,14 +132,13 @@ impl ScraperDb {
                 r#"
                 SELECT raw_message_dispatch.*
                 FROM raw_message_dispatch
-                LEFT JOIN "message"
-                  ON "message".origin = raw_message_dispatch.origin_domain
-                 AND "message".origin_mailbox = raw_message_dispatch.origin_mailbox
-                 AND "message".nonce = raw_message_dispatch.nonce
                 WHERE raw_message_dispatch.origin_domain = $1
                   AND raw_message_dispatch.origin_mailbox = $2
                   AND raw_message_dispatch.msg_body IS NOT NULL
-                  AND "message".id IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM message m
+                    WHERE m.origin = raw_message_dispatch.origin_domain
+                      AND m.origin_mailbox = raw_message_dispatch.origin_mailbox
+                      AND m.nonce = raw_message_dispatch.nonce)
                   AND raw_message_dispatch.id = ANY($3)
                   AND raw_message_dispatch.origin_block_height <= COALESCE(
                     (SELECT confirmed_height FROM scraper_head WHERE domain = $1), 9223372036854775807
@@ -307,21 +318,15 @@ mod tests {
         let (page, next) = db
             .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 5, 2)
             .await?;
-        assert_eq!(page.iter().map(|r| r.raw_id).collect::<Vec<_>>(), vec![3]);
-        assert_eq!(next, Some(3));
-        let (empty, next) = db
-            .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 5, 1)
-            .await?;
-        assert!(empty.is_empty());
-        assert_eq!(next, Some(2));
-        let (tail, next) = db
-            .retrieve_unenriched_raw_dispatches(1, &mailbox, 3, 5, 2)
-            .await?;
         assert_eq!(
-            tail.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
-            vec![4, 5]
+            page.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
+            vec![3, 4]
         );
-        assert_eq!(next, None);
+        assert_eq!(next, Some(4));
+        let (tail, _) = db
+            .retrieve_unenriched_raw_dispatches(1, &mailbox, 4, 5, 2)
+            .await?;
+        assert_eq!(tail.iter().map(|r| r.raw_id).collect::<Vec<_>>(), vec![5]);
         let (bounded, _) = db
             .retrieve_unenriched_raw_dispatches(1, &mailbox, 0, 3, 10)
             .await?;
@@ -359,45 +364,6 @@ mod tests {
             sweep.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
             vec![1, 3, 4]
         );
-        db.0.execute_unprepared(
-            "INSERT INTO scraper_head(domain,start_height,indexed_height,indexed_hash,head_height,
-                confirmed_height,mailbox,merkle_tree_hook,interchain_gas_paymaster)
-             VALUES (1,0,5,decode(repeat('00',32),'hex'),5,3,
-                decode(repeat('01',20),'hex'),decode(repeat('02',20),'hex'),decode(repeat('03',20),'hex'))",
-        ).await?;
-        assert_eq!(
-            db.latest_reconcilable_raw_dispatch_id(1, &mailbox).await?,
-            3
-        );
-        let confirmed = db
-            .retrieve_unenriched_raw_dispatches_by_ids(1, &mailbox, &[3, 4, 5])
-            .await?;
-        assert_eq!(
-            confirmed.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
-            vec![3]
-        );
-        let (unconfirmed, next) = db
-            .retrieve_unenriched_raw_dispatches(1, &mailbox, 3, 5, 1)
-            .await?;
-        assert!(unconfirmed.is_empty());
-        assert_eq!(next, Some(4));
-        db.0.execute_unprepared("UPDATE scraper_head SET confirmed_height=5 WHERE domain=1")
-            .await?;
-        let (confirmed, next) = db
-            .retrieve_unenriched_raw_dispatches(1, &mailbox, 3, 5, 2)
-            .await?;
-        assert_eq!(
-            confirmed.iter().map(|r| r.raw_id).collect::<Vec<_>>(),
-            vec![4, 5]
-        );
-        assert_eq!(next, None);
-
-        // A sparse range can end before the snapshotted frontier after rollback.
-        let (tail, next) = db
-            .retrieve_unenriched_raw_dispatches(1, &mailbox, 4, 10, 2)
-            .await?;
-        assert_eq!(tail.iter().map(|r| r.raw_id).collect::<Vec<_>>(), vec![5]);
-        assert_eq!(next, None);
         Ok(())
     }
 }

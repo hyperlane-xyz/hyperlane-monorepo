@@ -3,19 +3,18 @@ mod dispatches;
 mod metrics;
 mod schedule;
 
-use futures::FutureExt;
 use hyperlane_base::ContractSyncMetrics;
 use hyperlane_core::{rpc_clients::RPC_RETRY_SLEEP_DURATION, HyperlaneDomain};
 use prometheus::IntGaugeVec;
-use std::{panic::AssertUnwindSafe, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::{sync::Notify, task::JoinHandle, time::Instant};
-use tracing::{info, info_span, warn, Instrument};
+use tracing::{info, info_span, Instrument};
 
 use crate::store::HyperlaneDbStore;
 use dispatches::RetryBackoff;
 pub(crate) use metrics::ReconciliationMetrics;
 use metrics::{sleep_with_liveness, update_liveness_metric};
-use schedule::{instant_after, Schedule, BATCH_SIZE};
+use schedule::{Schedule, BATCH_SIZE};
 
 const RETRY_BATCH_SIZE: usize = 100;
 const DISCOVERY_FRONTIER: &str = "discovery_frontier";
@@ -47,32 +46,20 @@ pub(crate) fn spawn(
             let max_age_metric = raw_dispatch_unenriched_max_age.with_label_values(&[&domain_name]);
             let mut retry_backoff = RetryBackoff::default();
 
-            update_liveness_metric(&liveness_metric);
-            let initial_frontier = AssertUnwindSafe(store.latest_reconcilable_raw_dispatch_id())
-                .catch_unwind()
-                .await;
-            let (discovery_watermark, global_not_before) = match initial_frontier {
-                Ok(Ok(frontier)) => (frontier, Instant::now()),
-                Ok(Err(err)) => {
-                    warn!(
-                        ?err,
-                        domain = domain_name,
-                        "Failed to initialize raw dispatch discovery watermark"
-                    );
-                    let now = Instant::now();
-                    (0, instant_after(now, RPC_RETRY_SLEEP_DURATION))
+            let watermark = loop {
+                update_liveness_metric(&liveness_metric);
+                if let Some(frontier) = reconciliation_metrics
+                    .run(&domain_name, DISCOVERY_FRONTIER, |permit| {
+                        store.latest_reconcilable_raw_dispatch_id(permit)
+                    })
+                    .await
+                {
+                    break frontier;
                 }
-                Err(_) => {
-                    warn!(
-                        domain = domain_name,
-                        "Raw dispatch discovery watermark initialization panicked; retrying"
-                    );
-                    let now = Instant::now();
-                    (0, instant_after(now, RPC_RETRY_SLEEP_DURATION))
-                }
+                sleep_with_liveness(RPC_RETRY_SLEEP_DURATION, &liveness_metric).await;
             };
             let now = Instant::now();
-            let mut schedule = Schedule::new(discovery_watermark, now, global_not_before);
+            let mut schedule = Schedule::new(watermark, now, now);
 
             loop {
                 update_liveness_metric(&liveness_metric);
@@ -91,11 +78,9 @@ pub(crate) fn spawn(
                     retry_backoff.due_raw_ids(time::OffsetDateTime::now_utc(), RETRY_BATCH_SIZE);
                 if schedule.retry_not_before <= now && !due_raw_ids.is_empty() {
                     let result = reconciliation_metrics
-                        .run(
-                            &domain_name,
-                            RETRY_PAGE,
-                            store.retry_dispatches(&due_raw_ids, &mut retry_backoff),
-                        )
+                        .run(&domain_name, RETRY_PAGE, |permit| {
+                            store.retry_dispatches(permit, &due_raw_ids, &mut retry_backoff)
+                        })
                         .await;
                     match result {
                         Some(result) => {
@@ -123,11 +108,9 @@ pub(crate) fn spawn(
                     && schedule.next_discovery_at <= now
                 {
                     let frontier = reconciliation_metrics
-                        .run(
-                            &domain_name,
-                            DISCOVERY_FRONTIER,
-                            store.latest_reconcilable_raw_dispatch_id(),
-                        )
+                        .run(&domain_name, DISCOVERY_FRONTIER, |permit| {
+                            store.latest_reconcilable_raw_dispatch_id(permit)
+                        })
                         .await;
                     match frontier {
                         Some(frontier) => schedule.start_discovery(frontier, now),
@@ -143,16 +126,15 @@ pub(crate) fn spawn(
                     .filter(|scan| !cycle_failed && scan.next_page_at <= now)
                 {
                     let result = reconciliation_metrics
-                        .run(
-                            &domain_name,
-                            DISCOVERY_PAGE,
+                        .run(&domain_name, DISCOVERY_PAGE, |permit| {
                             store.reconcile_page(
+                                permit,
                                 scan.after_id,
                                 scan.through_id,
                                 BATCH_SIZE,
                                 &mut retry_backoff,
-                            ),
-                        )
+                            )
+                        })
                         .await;
                     match result {
                         Some(result) => {
@@ -178,11 +160,9 @@ pub(crate) fn spawn(
                     && schedule.next_full_sweep_at <= now
                 {
                     let frontier = reconciliation_metrics
-                        .run(
-                            &domain_name,
-                            SWEEP_FRONTIER,
-                            store.latest_reconcilable_raw_dispatch_id(),
-                        )
+                        .run(&domain_name, SWEEP_FRONTIER, |permit| {
+                            store.latest_reconcilable_raw_dispatch_id(permit)
+                        })
                         .await;
                     match frontier {
                         Some(frontier) => schedule.start_full_sweep(frontier, now),
@@ -197,16 +177,15 @@ pub(crate) fn spawn(
                     !cycle_failed && schedule.discovery_scan.is_none() && scan.next_page_at <= now
                 }) {
                     let result = reconciliation_metrics
-                        .run(
-                            &domain_name,
-                            SWEEP_PAGE,
+                        .run(&domain_name, SWEEP_PAGE, |permit| {
                             store.reconcile_page(
+                                permit,
                                 scan.after_id,
                                 scan.through_id,
                                 BATCH_SIZE,
                                 &mut retry_backoff,
-                            ),
-                        )
+                            )
+                        })
                         .await;
                     match result {
                         Some(result) => {
