@@ -85,7 +85,7 @@ void it('never reinstalls stale receipt data when older SQL finishes last', asyn
   assert.equal(calls, 2);
 });
 
-void it('backs off failed domain reads across reconnects while another domain continues', async () => {
+void it('backs off a failed domain read without failing subscribers while another domain continues', async () => {
   const queried = new EventEmitter();
   const queries: number[] = [];
   const source = new MessageSource({
@@ -99,22 +99,19 @@ void it('backs off failed domain reads across reconnects while another domain co
     messageFacts: async () => new Map(),
   });
   await source.currentHeads();
-  for (const { height, reason } of [
-    { height: 11n, reason: /read timed out/ },
-    { height: 12n, reason: /temporarily unavailable/ },
-  ]) {
-    const failed = once(queried, 'failed');
-    const sub = source.subscribe(
-      { domains: new Set([1]), confirmations: 0 },
-      undefined,
-      assert.fail,
-      (err) => queried.emit('failed', err),
-    );
-    advance(source, 1, height);
-    const [error] = await failed;
-    assert.match(String(error), reason);
-    sub.unsubscribe();
-  }
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    assert.fail,
+    (error) => assert.fail(String(error)),
+  );
+  const failed = once(queried, 'query');
+  advance(source, 1, 11n);
+  await failed;
+  await nextTurn();
+  // A head during the backoff does not rescan the failing domain.
+  advance(source, 1, 12n);
+  await nextTurn();
   source.subscribe(
     { domains: new Set([2]), confirmations: 0 },
     undefined,
@@ -216,18 +213,22 @@ void it('isolates a cursor inside an aggregated payment bucket', async () => {
     },
   });
   await source.currentHeads();
-  const failed: number[] = [],
-    sent: number[] = [];
-  for (const n of [2, 0])
+  const failed: string[] = [],
+    sent: string[] = [];
+  for (const [n, ids] of [
+    [2, new Set(['id'])],
+    [2, undefined],
+    [0, undefined],
+  ] as const)
     source.subscribe(
       policy(n),
-      undefined,
-      () => sent.push(n),
-      () => failed.push(n),
+      ids,
+      (frame) => sent.push(`${n}:${ids ? 'id' : 'all'}:${String(frame.type)}`),
+      () => failed.push(`${n}:${ids ? 'id' : 'all'}`),
     );
   await source.refresh(['id']);
-  assert.deepEqual(failed, [2]);
-  assert.deepEqual(sent, [0]);
+  assert.deepEqual(failed, ['2:id']);
+  assert.deepEqual(sent, ['2:all:error', '0:all:message_upsert']);
 });
 
 void it('isolates an invalid ID in a shared fact batch and preserves global subscribers', async () => {
@@ -390,4 +391,154 @@ void it('rejects an oversized history expansion while the zero-confirmation subs
   await nextTurn();
   assert.equal(rejected, 1);
   assert.equal(sent, 2);
+});
+
+void it('does not cache a skipped read for a later subscriber', async () => {
+  const gates: (() => void)[] = [];
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      if (ids.some((id) => id !== 'm'))
+        await new Promise<void>((resolve) => gates.push(resolve));
+      return collectMessageFacts(ids.map((id) => fact(id)));
+    },
+  });
+  await source.currentHeads();
+  for (const id of ['x', 'y'])
+    source.subscribe(policy(), new Set([id]), () => {}, assert.fail);
+  const first = source.subscribe(
+    policy(),
+    new Set(['m']),
+    () => {},
+    assert.fail,
+  );
+  const busy = [source.refresh(['x']), source.refresh(['y'])];
+  const queued = source.refresh(['m']);
+  first.unsubscribe();
+  await nextTurn();
+  for (const release of gates) release();
+  await Promise.all([...busy, queued]);
+  const sent: unknown[] = [];
+  source.subscribe(
+    policy(),
+    undefined,
+    (frame) => sent.push(frame.type),
+    assert.fail,
+  );
+  await source.refresh(['m']);
+  assert.deepEqual(sent, ['message_upsert']);
+});
+
+void it('retries a fact read invalidated by repeated rollbacks without failing subscribers', async () => {
+  let calls = 0;
+  let source!: MessageSource;
+  const rollback = () => {
+    const head = {
+      domain: 2,
+      confirmedHeight: 5n,
+      indexedHeight: 9n,
+      headHeight: 9n,
+      previousIndexedHeight: 10n,
+    };
+    source.observe(head);
+    source.notify(head);
+  };
+  source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [{ height: 11n, id: 'm' }];
+    },
+    async messageFacts(ids) {
+      if (++calls <= 3) {
+        await nextTurn();
+        rollback();
+      }
+      return collectMessageFacts(ids.map((id) => fact(id, '11')));
+    },
+  });
+  await source.currentHeads();
+  const upserts: unknown[] = [];
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 0 },
+    undefined,
+    (frame) => {
+      if (frame.type === 'message_upsert') upserts.push(frame);
+    },
+    (error) => assert.fail(String(error)),
+  );
+  advance(source, 1, 11n);
+  for (let i = 0; i < 20 && !upserts.length; i++) await nextTurn();
+  assert.equal(upserts.length, 1);
+  assert(calls > 3, `calls=${calls}`);
+});
+
+void it('keeps cached facts a rollback cannot affect', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map(
+        [1, 2, 3].map((domain) => [
+          domain,
+          { head: 10n, indexed: 10n, confirmed: 5n, hash: undefined },
+        ]),
+      ),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id),
+          destination_domain_id: id === 'to3' ? 3 : 2,
+          origin_tx_id: '1',
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1, 2, 3]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  await source.refresh(['to2', 'to3']);
+  const head = {
+    domain: 2,
+    confirmedHeight: 5n,
+    indexedHeight: 9n,
+    headHeight: 9n,
+    previousIndexedHeight: 10n,
+  };
+  source.observe(head);
+  await source.refresh(['to2', 'to3']);
+  assert.deepEqual(reads, ['to2', 'to3', 'to2']);
+});
+
+void it('rereads facts still waiting for transaction rows', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id),
+          origin_tx_id: reads.length > 2 || id === 'done' ? '1' : null,
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(policy(), undefined, () => {}, assert.fail);
+  for (let i = 0; i < 3; i++) await source.refresh(['pending', 'done']);
+  // Reread until the transaction row arrives, then cache like any other fact.
+  assert.deepEqual(reads, ['pending', 'done', 'pending']);
 });

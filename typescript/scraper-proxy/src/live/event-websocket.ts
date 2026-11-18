@@ -1559,11 +1559,10 @@ export class EventWebSocketServer {
     { after, through }: HeadRange,
   ): Promise<void> {
     let agentPublished = false;
+    // Near-head deliveries and payments have no insert notification, so this
+    // range is the only refresh for a message whose origin is another domain.
     const hasMessageClients = [...this.explorerClients.values()].some(
-      (client) =>
-        client.ready &&
-        client.messageIds?.size !== 0 &&
-        (!client.domains || client.domains.has(domain)),
+      (client) => client.ready && client.messageIds?.size !== 0,
     );
     let explorerPending = hasMessageClients;
     // Delivery and gas share message ids; queue each Explorer id once per range.
@@ -1721,10 +1720,10 @@ export class EventWebSocketServer {
   private async publishExplorer(messageIds: string[]): Promise<void> {
     if (!this.explorerClients.size) return;
     this.messageSource.invalidateIds(messageIds);
-    await Promise.all([
-      this.messageSource.refresh(messageIds),
-      this.publishCanonicalMessages(messageIds),
-    ]);
+    // Shared fact reads must not hold back head publication; refresh reports
+    // its own failures to the affected subscribers.
+    void this.messageSource.refresh(messageIds);
+    await this.publishCanonicalMessages(messageIds);
   }
 
   private async publishCanonicalMessages(messageIds: string[]): Promise<void> {
