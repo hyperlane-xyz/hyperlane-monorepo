@@ -4,6 +4,8 @@ const ADDRESS_PREFIX_REGEX = /^(?:0x|\\x)/;
 const UNSIGNED_INTEGER_REGEX = /^\d+$/;
 const DOMAIN_LIST_REGEX = /^\d+(,\d+)*$/;
 const HASH_HEX_REGEX = /^[0-9a-fA-F]{64}$/;
+const MAX_EXPLORER_CONFIRMATIONS = 1_000;
+const MAX_EXPLORER_DOMAINS = 512;
 
 export const EVENT_TYPES = [
   'dispatch',
@@ -332,8 +334,14 @@ export function parseExplorerConfirmations(
     throw new Error('Expected confirmations=N&domains=domain,...');
   const domains = new Set(domainList.split(',').map(Number));
   if (![...domains].every(isDomain)) throw new Error('Invalid domains');
+  if (domains.size > MAX_EXPLORER_DOMAINS)
+    throw new Error(`domains must contain at most ${MAX_EXPLORER_DOMAINS} IDs`);
   const confirmations = parseConfirmations(Number(count), domains);
   if (confirmations === undefined) throw new Error('Missing confirmations');
+  if (confirmations > MAX_EXPLORER_CONFIRMATIONS)
+    throw new Error(
+      `confirmations must not exceed ${MAX_EXPLORER_CONFIRMATIONS}`,
+    );
   return { confirmations, domains };
 }
 

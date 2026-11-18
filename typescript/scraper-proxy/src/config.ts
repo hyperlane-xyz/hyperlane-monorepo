@@ -5,6 +5,11 @@ dotenvFlow.config();
 
 const ConfigSchema = z.object({
   DATABASE_QUERY_TIMEOUT_MS: z.coerce.number().int().min(1_000).default(20_000),
+  DATABASE_MAX_PENDING_GRAPHQL_QUERIES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .default(25),
   DATABASE_READ_REPLICA_URL: z.string().min(1).optional(),
   DATABASE_SLOW_QUERY_MS: z.coerce.number().int().min(1).default(1_000),
   DATABASE_STATEMENT_TIMEOUT_MS: z.coerce

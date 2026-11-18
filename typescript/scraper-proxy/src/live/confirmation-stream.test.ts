@@ -128,6 +128,8 @@ void it('validates live-only confirmations on both endpoints', () => {
     '?domains=1',
     '?confirmations=-1&domains=1',
     '?confirmations=0&domains=',
+    '?confirmations=1001&domains=1',
+    `?confirmations=0&domains=${Array.from({ length: 513 }, (_, i) => i).join(',')}`,
   ])
     assert.throws(() => parseExplorerConfirmations(new URLSearchParams(url)));
 });

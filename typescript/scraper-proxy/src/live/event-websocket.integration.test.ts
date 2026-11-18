@@ -1756,15 +1756,21 @@ for (const route of ['agents', 'messages']) {
         );
       }
       await waitUntil(() => snapshotStarted);
+      if (route === 'messages')
+        assert.equal(events.metricsSnapshot().explorerPendingSetups, 1);
       socket.close();
       await waitUntil(() => socket.readyState === WebSocket.CLOSED);
       await waitUntil(() => {
         const { connections } = events.metricsSnapshot();
         return connections.agent === 0 && connections.messages === 0;
       });
+      if (route === 'messages')
+        assert.equal(events.metricsSnapshot().explorerPendingSetups, 1);
       release();
       // Let all async setup continuations finish after the held query resolves.
       await nextTurn();
+      if (route === 'messages')
+        assert.equal(events.metricsSnapshot().explorerPendingSetups, 0);
       assert.equal(initialize.mock.callCount(), 0);
       assert(!messages.some(({ type }) => type === 'subscribed'));
     } finally {
@@ -1906,6 +1912,45 @@ for (const route of ['agents', 'messages']) {
     }
   });
 }
+
+void it('bounds unfinished message setups per IP after disconnects', async (context) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  context.mock.method(db, 'queryLive', async () => {
+    await held;
+    return [];
+  });
+  const ip = '203.0.113.90';
+  const options = { headers: { 'cf-connecting-ip': ip } };
+  const sockets = [
+    new WebSocket(`${messagesUrl}?blocks=true`, options),
+    new WebSocket(`${messagesUrl}?blocks=true`, options),
+  ];
+  try {
+    await waitUntil(() => events.metricsSnapshot().explorerPendingSetups === 2);
+    const rejected = new WebSocket(`${messagesUrl}?blocks=true`, options);
+    const [code, reason] = await new Promise<[number, string]>((resolve) =>
+      rejected.once('close', (closeCode, closeReason) =>
+        resolve([closeCode, closeReason.toString()]),
+      ),
+    );
+    assert.equal(code, 1008);
+    assert.match(reason, /Maximum setups per client reached/);
+
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
+    );
+    assert.equal(events.metricsSnapshot().explorerPendingSetups, 2);
+    release();
+    await waitUntil(() => events.metricsSnapshot().explorerPendingSetups === 0);
+  } finally {
+    release();
+    sockets.forEach((socket) => socket.terminate());
+  }
+});
 
 void it('does not send block heads or query snapshots without opting in', async (context) => {
   context.mock.method(db, 'queryLive', async () => {
@@ -2905,6 +2950,25 @@ void it('limits Explorer connections to five per IP and safely handles errors wh
       ({ readyState }) => readyState === WebSocket.CLOSED,
     ),
   );
+});
+
+void it('rejects application messages on the server-only Explorer stream', async () => {
+  const socket = explorerSocket('203.0.113.91');
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    const closed = new Promise<number>((resolve) =>
+      socket.once('close', resolve),
+    );
+    socket.send('{"unexpected":true}');
+    assert.equal(await closed, 1008);
+    assert.match(
+      String((await waitFor(messages, 'error')).error),
+      /unsupported/,
+    );
+  } finally {
+    socket.terminate();
+  }
 });
 
 void it('publishes every frontier projection without exposing pagination columns', async () => {

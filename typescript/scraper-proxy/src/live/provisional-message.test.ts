@@ -140,6 +140,10 @@ void it(
           'utf8',
         ),
       );
+      // PostgreSQL does not auto-analyze temporary tables. Give the admission
+      // check real fixture cardinalities before planning the history reads.
+      await db.query(`ANALYZE domain, scraper_head, block, "transaction", raw_message_dispatch,
+        message, delivered_message, gas_payment`);
       let lastQuery: { sql: string; values?: unknown[] } = { sql: '' };
       let lastRows: Record<string, unknown>[] = [];
       const service = new ScraperDbService({

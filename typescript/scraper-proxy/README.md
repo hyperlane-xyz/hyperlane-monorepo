@@ -96,7 +96,7 @@ Canonical message history uses scraper finality:
 
 ```graphql
 query RecentMessages {
-  message_view(order_by: [{ send_occurred_at: desc }], limit: 25) {
+  message_view(order_by: [{ id: desc }], limit: 25) {
     msg_id
     origin_domain
     destination_domain
@@ -114,9 +114,21 @@ query RecentMessages {
 
 Pass `confirmations: N` to request a provisional snapshot at `N` blocks behind
 the current chain head. Domains without near-head scraper state remain canonical.
-Custom snapshots support 0–1,000 confirmations, reject non-zero offsets, and cap
-the affected event scan at 10,000 rows. Narrow large provisional queries by
-`msg_id`.
+Custom snapshots accept an exact message or transaction identifier, or a
+zero-confirmation provisional-only feed. They cap the affected event scan at
+10,000 rows and accept up to 1,000 confirmations.
+
+Public history pages support ID ordering and cursors. Filter by message or
+transaction identifiers, participant addresses, domains, or send times.
+Read delivery status on returned rows and filter each canonical page locally.
+The provisional-only feed also supports delivery filtering and send-time
+ordering. Identifier lookups support nonce ordering and counts. History
+offsets and distinct queries are disabled. Pages contain at most 500 rows.
+PostgreSQL estimates each history statement before execution. The maximum is
+100,000 estimated cost units per
+statement and 250,000 across the operation. The database statement timeout
+also applies. At most 25 GraphQL database statements may remain active or
+queued, including work whose HTTP client disconnected.
 
 For a combined live list:
 
@@ -216,7 +228,12 @@ subscription is declared in URL query parameters; clients do not send a
 database enrichment. Diagnostics requires between 1 and 50 explicit IDs.
 
 Production `/messages` requests must include a valid `CF-Connecting-IP` header.
-At most five connections are allowed per client IP.
+The direct peer must be the loopback cloudflared sidecar. At most five connections
+are allowed per client IP. Unfinished setup reads are capped at 32 globally and
+two per IP; disconnecting does not release their reservation until the read ends.
+Subscription URLs are capped at 8 KiB, with at most 512 domains and 1,000
+confirmations. Application frames from clients are rejected with code 1008;
+WebSocket protocol pongs remain supported.
 
 ### Frames
 
