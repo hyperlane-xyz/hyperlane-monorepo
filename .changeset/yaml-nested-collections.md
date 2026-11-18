@@ -2,7 +2,6 @@
 '@hyperlane-xyz/cli': patch
 '@hyperlane-xyz/rebalancer': patch
 '@hyperlane-xyz/relayer': patch
-'@hyperlane-xyz/sdk': patch
 '@hyperlane-xyz/utils': patch
 '@hyperlane-xyz/widgets': patch
 ---
