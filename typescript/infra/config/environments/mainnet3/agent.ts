@@ -309,9 +309,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 };
 
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
-export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
-  edgenchain: true,
-};
+export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {};
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
