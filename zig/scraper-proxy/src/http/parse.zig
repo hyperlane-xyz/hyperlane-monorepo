@@ -119,11 +119,16 @@ pub fn parseHead(arena: std.mem.Allocator, raw: []const u8) HeadError!Head {
             for (value) |c| if (!std.ascii.isDigit(c)) return error.BadRequest;
             content_length = std.fmt.parseInt(u64, value, 10) catch return error.BadRequest;
         } else if (std.ascii.eqlIgnoreCase(name, "transfer-encoding")) {
-            // `chunked` may appear once, and only as the final coding.
-            var codings = std.mem.splitScalar(u8, value, ',');
+            // `chunked` may appear once, and only as the final coding. llhttp
+            // (Node 26.12.1, measured): whitespace before a coding is skipped
+            // (SP or HTAB), but after `chunked` only SP may follow; a HTAB
+            // there ("chunked\t") makes it not chunked (an invalid
+            // Transfer-Encoding), so the raw value is used, not `value`.
+            var codings = std.mem.splitScalar(u8, std.mem.trimLeft(u8, line[colon + 1 ..], " \t"), ',');
             while (codings.next()) |coding| {
                 if (chunked) return error.BadRequest;
-                if (std.ascii.eqlIgnoreCase(std.mem.trim(u8, coding, " \t"), "chunked")) chunked = true;
+                const token = std.mem.trimRight(u8, std.mem.trimLeft(u8, coding, " \t"), " ");
+                if (std.ascii.eqlIgnoreCase(token, "chunked")) chunked = true;
             }
             transfer_encoding = true;
         }
@@ -416,6 +421,27 @@ test "scanHead counts llhttp header bytes and rejects bare LF" {
     const ok = big[1..];
     @memcpy(ok[0..prefix.len], prefix);
     try std.testing.expectEqual(Scan{ .complete = ok.len }, try scanHead(ok));
+}
+
+test "Transfer-Encoding codings follow llhttp's token rules (Node 26.12.1)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const framing = struct {
+        fn f(alloc: std.mem.Allocator, te: []const u8) HeadError!Framing {
+            const head = try std.fmt.allocPrint(alloc, "POST / HTTP/1.1\r\nTransfer-Encoding: {s}\r\n\r\n", .{te});
+            return (try parseHead(alloc, head)).framing;
+        }
+    }.f;
+    // Chunked (measured: body read).
+    for ([_][]const u8{ "chunked", "Chunked", "CHUNKED", "\tchunked", "chunked ", "chunked  ", ",chunked", "gzip ,chunked", "gzip,\tchunked", "gzip\t,chunked", "gzip,,chunked", "gzip;q=1, chunked", "gzip, chunked " }) |te|
+        try std.testing.expectEqual(Framing.chunked, try framing(a, te));
+    // Not chunked (measured: HPE_INVALID_TRANSFER_ENCODING after the head).
+    for ([_][]const u8{ "chunked\t", "chunked \t", "chunked\t ", "gzip,chunked\t", "chunked;x=1", "xchunked", "chunkedx", "gzip" }) |te|
+        try std.testing.expectEqual(Framing.invalid_te, try framing(a, te));
+    // A coding after chunked fails inside the head (measured).
+    for ([_][]const u8{ "chunked,", "chunked, chunked", "chunked, gzip" }) |te|
+        try std.testing.expectError(error.BadRequest, framing(a, te));
 }
 
 test "parseHead acceptance rules" {

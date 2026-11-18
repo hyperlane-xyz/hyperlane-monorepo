@@ -17,6 +17,45 @@ const SelectArgs = sql.SelectArgs;
 pub const MAX_CONFIRMATIONS = 1_000;
 pub const MAX_AFFECTED_EVENTS = 10_000;
 
+/// TS #10076: PostgreSQL's estimate for one history statement, and for all
+/// of one GraphQL operation's history statements (`ScraperDbService`).
+pub const MAX_STATEMENT_PLAN_COST: f64 = 100_000;
+pub const OPERATION_PLAN_COST: f64 = 250_000;
+
+/// The planning budget one GraphQL operation's history statements share,
+/// concurrent aliases included (TS builds a `ScraperDbService`, and so a
+/// `remainingPlanCost`, per request). Created by the route per operation.
+pub const HistoryBudget = struct {
+    mutex: std.Thread.Mutex = .{},
+    remaining: f64 = OPERATION_PLAN_COST,
+
+    /// TS: `assert(cost <= remainingPlanCost)` then subtract, one step once
+    /// the statement's EXPLAIN returned. False when it does not fit.
+    pub fn consume(self: *HistoryBudget, cost: f64) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (!(cost <= self.remaining)) return false;
+        self.remaining -= cost;
+        return true;
+    }
+};
+
+/// `EXPLAIN (FORMAT JSON) <sql>`'s top-level `Plan."Total Cost"`, as node-pg
+/// returns the json column (`[{"Plan": {...}}]`); null when absent or not a
+/// JS number (TS `typeof cost === 'number'`).
+fn planTotalCost(rows: []const Value) ?f64 {
+    if (rows.len == 0) return null;
+    const row = value.object(rows[0]) orelse return null;
+    const document = value.get(row, "QUERY PLAN") orelse return null;
+    const items = value.array(document) orelse return null;
+    if (items.len == 0) return null;
+    const first = value.object(items[0]) orelse return null;
+    const plan = value.object(value.get(first, "Plan") orelse return null) orelse return null;
+    const cost = value.get(plan, "Total Cost") orelse return null;
+    if (!value.isJsNumber(cost)) return null;
+    return value.number(cost);
+}
+
 /// `ScraperDbDatabase`: rows are `.object` Values allocated in `arena`, with
 /// node-pg value conversion. Parameters are raw JSON Values (node-pg
 /// `prepareValue` semantics are the implementation's job). On failure the
@@ -169,21 +208,52 @@ pub const MessageSelectArgs = struct {
 pub const Service = struct {
     db: Database,
 
+    /// TS #10076 `historyQuery`'s check, before a history statement runs:
+    /// PostgreSQL's estimate for exactly this statement (`EXPLAIN (FORMAT
+    /// JSON)`, run as node-pg runs any query: unnamed, planned for the
+    /// bound values, through the same admission, pending cap, metrics and
+    /// logs), at most MAX_STATEMENT_PLAN_COST, then taken from the
+    /// operation's `budget`. The statement itself may then run with any
+    /// plan: its rows do not depend on it.
+    fn checkHistoryCost(self: Service, arena: Allocator, budget: *HistoryBudget, text: []const u8, values: []const Value, diag: *Diag) anyerror!void {
+        const explain = try std.mem.concat(arena, u8, &.{ "EXPLAIN (FORMAT JSON) ", text });
+        const rows = try self.db.query(arena, explain, values, diag);
+        const cost = planTotalCost(rows) orelse return fail(diag, "History query exceeds the database planning budget");
+        if (!std.math.isFinite(cost) or cost < 0 or cost > MAX_STATEMENT_PLAN_COST)
+            return fail(diag, "History query exceeds the database planning budget");
+        if (!budget.consume(cost)) return fail(diag, "GraphQL operation exceeds its database planning budget");
+    }
+
     pub fn init(db: Database) Service {
         return .{ .db = db };
     }
 
-    pub fn select(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror![]Value {
+    /// TS `historyQuery`: the cost check, then the statement (planned as
+    /// `plan`; the EXPLAIN is always node-pg's unnamed custom plan).
+    fn historyQuery(self: Service, arena: Allocator, budget: *HistoryBudget, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value {
+        try self.checkHistoryCost(arena, budget, text, values, diag);
+        return self.db.queryPlanned(arena, plan, text, values, diag);
+    }
+
+    /// Every table but `domain` is history (TS `select`): its statement is
+    /// checked against `budget` first.
+    pub fn select(self: Service, arena: Allocator, budget: *HistoryBudget, table: Table, args: SelectArgs, diag: *Diag) anyerror![]Value {
         const query = try sql.buildSelect(arena, table, args, null, diag);
-        return self.db.queryPlanned(arena, planForSelect(table, args.where, query), query.sql, query.values, diag);
+        const plan = planForSelect(table, args.where, query);
+        if (table == .domain) return self.db.queryPlanned(arena, plan, query.sql, query.values, diag);
+        return self.historyQuery(arena, budget, plan, query.sql, query.values, diag);
     }
 
     /// `select`'s query with its rows left unconverted (`db.LazyRows`, which
     /// the caller must `deinit`); null when the database cannot (then use
     /// `select`). Same SQL, plan, errors and diagnostics as `select`.
-    pub fn selectLazy(self: Service, arena: Allocator, table: Table, args: SelectArgs, diag: *Diag) anyerror!?*db_mod.LazyRows {
+    pub fn selectLazy(self: Service, arena: Allocator, budget: *HistoryBudget, table: Table, args: SelectArgs, diag: *Diag) anyerror!?*db_mod.LazyRows {
+        // Null before any statement makes the caller run `select` instead,
+        // with one cost check. A lazy path that returns null after the
+        // check (only `DbService` with a test backend) makes it check twice.
         const f = self.db.lazyQueryFn orelse return null;
         const query = try sql.buildSelect(arena, table, args, null, diag);
+        if (table != .domain) try self.checkHistoryCost(arena, budget, query.sql, query.values, diag);
         return f(self.db.ctx, arena, planForSelect(table, args.where, query), query.sql, query.values, diag);
     }
 
@@ -195,11 +265,12 @@ pub const Service = struct {
         return f(self.db.ctx, arena, .reusable, query.sql, query.values, diag);
     }
 
-    pub fn selectMessages(self: Service, arena: Allocator, args: MessageSelectArgs, diag: *Diag) anyerror![]Value {
+    pub fn selectMessages(self: Service, arena: Allocator, budget: *HistoryBudget, args: MessageSelectArgs, diag: *Diag) anyerror![]Value {
         const select_args = args.select;
         const confirmations = value.present(args.confirmations) orelse
-            return self.select(arena, .message_view, select_args, diag);
+            return self.select(arena, budget, .message_view, select_args, diag);
         const queries = try buildMessageQueries(arena, select_args, confirmations, diag);
+        try self.checkHistoryCost(arena, budget, queries.snapshot.sql, queries.snapshot.values, diag);
         const snapshot = try self.snapshotRow(arena, queries.snapshot, diag);
         const projection = try buildProjection(arena, select_args, snapshot, diag);
         // buildProjection rejected a missing snapshot and a message_ids that
@@ -210,7 +281,7 @@ pub const Service = struct {
             .serial_generic
         else
             .serial;
-        return self.db.queryPlanned(arena, plan, projection.sql, projection.values, diag);
+        return self.historyQuery(arena, budget, plan, projection.sql, projection.values, diag);
     }
 
     /// The confirmation snapshot's row (null: none). Its arrays only feed
@@ -245,17 +316,19 @@ pub const Service = struct {
     }
 
     /// `aggregate(...).nodes`. Without selected `nodes` columns TS returns []
-    /// without validating; validation then happens in `count`.
-    pub fn aggregateNodes(self: Service, arena: Allocator, table: Table, args: SelectArgs, columns: ?[]const []const u8, diag: *Diag) anyerror![]Value {
+    /// without validating; validation then happens in `count`. Always a
+    /// history statement (TS `historyQuery`, whatever the table).
+    pub fn aggregateNodes(self: Service, arena: Allocator, budget: *HistoryBudget, table: Table, args: SelectArgs, columns: ?[]const []const u8, diag: *Diag) anyerror![]Value {
         const selected = columns orelse return &.{};
         var with_columns = args;
         with_columns.columns = selected;
-        return self.select(arena, table, with_columns, diag);
+        const query = try sql.buildSelect(arena, table, with_columns, null, diag);
+        return self.historyQuery(arena, budget, planForSelect(table, with_columns.where, query), query.sql, query.values, diag);
     }
 
-    pub fn count(self: Service, arena: Allocator, table: Table, args: SelectArgs, count_args: sql.CountArgs, diag: *Diag) anyerror!i64 {
+    pub fn count(self: Service, arena: Allocator, budget: *HistoryBudget, table: Table, args: SelectArgs, count_args: sql.CountArgs, diag: *Diag) anyerror!i64 {
         const query = try sql.buildCount(arena, table, args, count_args, diag);
-        const rows = try self.db.query(arena, query.sql, query.values, diag);
+        const rows = try self.historyQuery(arena, budget, .custom, query.sql, query.values, diag);
         const row = if (rows.len > 0) value.object(rows[0]) else null;
         const result = if (row) |r| value.get(r, "count") else null;
         if (result) |n| if (value.isJsNumber(n) and value.isSafeInteger(n)) if (value.number(n)) |number|
@@ -269,9 +342,12 @@ const SnapshotQuery = struct { snapshot: sql.Sql };
 
 /// Validates the confirmations request and builds the snapshot query.
 pub fn buildMessageQueries(arena: Allocator, select_args: SelectArgs, confirmations: Value, diag: *Diag) sql.Error!SnapshotQuery {
-    if (!(value.isSafeInteger(confirmations) and value.number(confirmations).? >= 0))
+    // TS `Number.isSafeInteger(confirmations) && confirmations >= 0`: a
+    // non-number fails the same assert.
+    const count = (if (value.isSafeInteger(confirmations)) value.number(confirmations) else null) orelse
         return fail(diag, "confirmations must be a non-negative safe integer");
-    if (value.number(confirmations).? > MAX_CONFIRMATIONS)
+    if (!(count >= 0)) return fail(diag, "confirmations must be a non-negative safe integer");
+    if (count > MAX_CONFIRMATIONS)
         return fail(diag, std.fmt.comptimePrint("confirmations exceeds maximum of {d}", .{MAX_CONFIRMATIONS}));
     if (value.truthy(select_args.offset)) return fail(diag, "offset is unsupported with confirmations");
     if (value.present(select_args.cursor)) |cursor| {
@@ -281,14 +357,18 @@ pub fn buildMessageQueries(arena: Allocator, select_args: SelectArgs, confirmati
     // Validate filters before either database query, including recursive limits.
     _ = try sql.buildSelect(arena, .message_view, select_args, null, diag);
     const ids = try messageIds(arena, select_args.where);
-    const text = if (ids == null) snapshot_sql_unfiltered else snapshot_sql_filtered;
+    // TS `confirmations === 0`: the affected query without its legacy branch.
+    const zero = count == 0;
+    const text = if (zero)
+        (if (ids == null) snapshot_sql_zero_unfiltered else snapshot_sql_zero_filtered)
+    else if (ids == null) snapshot_sql_unfiltered else snapshot_sql_filtered;
     const values = try arena.alloc(Value, if (ids == null) 1 else 2);
     values[0] = confirmations;
     if (ids) |bound| values[1] = bound;
     return .{ .snapshot = .{ .sql = text, .values = values } };
 }
 
-fn snapshotSql(comptime filtered: bool) []const u8 {
+fn snapshotSql(comptime filtered: bool, comptime zero_confirmations: bool) []const u8 {
     return std.fmt.comptimePrint(
         \\WITH custom_frontier AS (
         \\        SELECT domain, least(indexed_height, head_height-$1::integer) AS height,
@@ -300,16 +380,24 @@ fn snapshotSql(comptime filtered: bool) []const u8 {
         \\        CASE WHEN (SELECT count(*) FROM affected)>{d}
         \\          THEN NULL ELSE ARRAY(SELECT msg_id FROM affected) END AS message_ids
         \\        FROM custom_frontier
-    , .{ provisional.affectedQuery(filtered), MAX_AFFECTED_EVENTS + 1, MAX_AFFECTED_EVENTS });
+    , .{ provisional.affectedQuery(filtered, zero_confirmations), MAX_AFFECTED_EVENTS + 1, MAX_AFFECTED_EVENTS });
 }
 
 const snapshot_sql_unfiltered = blk: {
     @setEvalBranchQuota(1_000_000);
-    break :blk snapshotSql(false);
+    break :blk snapshotSql(false, false);
 };
 const snapshot_sql_filtered = blk: {
     @setEvalBranchQuota(1_000_000);
-    break :blk snapshotSql(true);
+    break :blk snapshotSql(true, false);
+};
+const snapshot_sql_zero_unfiltered = blk: {
+    @setEvalBranchQuota(1_000_000);
+    break :blk snapshotSql(false, true);
+};
+const snapshot_sql_zero_filtered = blk: {
+    @setEvalBranchQuota(1_000_000);
+    break :blk snapshotSql(true, true);
 };
 
 /// Builds the projection query from the snapshot row (`rows[0]`, if any).

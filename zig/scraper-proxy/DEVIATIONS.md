@@ -101,23 +101,6 @@ reproduces the observable rule, not the scheduling.
   for 4096 (the kernel clamps it to `net.core.somaxconn`). Under connection
   overload, clients queue in the accept queue instead of seeing SYN drops
   and the 1 s SYN retransmit. Otherwise identical.
-- **Bytes after a closing request.** After a request that ends its
-  connection (`Connection: close`, or HTTP/1.0 without keep-alive), Node's
-  parser rejects any further byte other than CR/LF and Fastify's
-  `clientError` writes `400 Bad Request` and destroys the socket. A route
-  that answers synchronously (the 404 fallback without a body, a CORS
-  preflight, Node's own 400/417) has written its response by then, so the
-  client gets it and then the 400; one that answers after an `await` or a
-  body parse (`/graphql`, `/metrics`, a body Fastify parses) loses its
-  response and the client gets the 400 alone. The port ignores those bytes
-  and sends the response, then closes. This is a deliberate choice for now,
-  made as one decision with the half-close rule (which follows Node: a
-  client's FIN aborts a request still waiting, with no response): only a
-  client that sends more after asking to close (pipelining after
-  `Connection: close` or on HTTP/1.0, or a body longer than its
-  `Content-Length`) sees it, and it gets its answer where TS sends a 400, or
-  nothing if it also half-closed while its request waited on PostgreSQL
-  (TS: the 400). CR/LF after the request is ignored by both.
 - **Pipelined `/graphql` requests behind a request whose client hung up.**
   TS has already parsed them and runs their preHandler/handler, recording
   each in the GraphQL metrics at close and taking an admission slot
@@ -159,16 +142,6 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   non-AST JSON
   (numbers, strings, `{}`, arrays), different for a hand-written JSON
   `Document`, which TS would execute.
-- **Type-system definitions in a request.** Both answer 400.
-  ExecutableDefinitions and KnownTypeNames are reproduced; the other
-  graphql-js rules that also visit SDL nodes are not (KnownDirectives,
-  UniqueDirectivesPerLocation, KnownArgumentNames, ProvidedRequiredArguments
-  and UniqueArgumentNames on directives; ValuesOfCorrectType and
-  UniqueInputFieldNames in their arguments), and directives defined in the
-  document are not known. So the error lists can differ: TS's can include
-  errors the port's lacks, and a directive defined in the request and used
-  in its operation is unknown to the port (an extra `Unknown directive`
-  error).
 - **`operationName` and GET `variables` after JIT.** Once mercurius has
   JIT-compiled a query text (see above), TS runs its compiled operation
   whatever `operationName` says, so a name matching no operation in that
@@ -195,10 +168,20 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   accepts deeper input still. The port uses the depths of a cold TS with a
   3 KiB environment. Near the boundary TS may
   therefore return a result where the port returns the overflow error, or
-  the reverse; well below or above it both answer the same. For one mixed
-  shape (`{a: [[` nesting) the port rejects one level earlier than the
-  measured cold TS. JSON bodies, variables and WebSocket messages have no
-  depth limit on either side.
+  the reverse; well below or above it both answer the same. Since #10076 a
+  cold TS is not deterministic for `_not` nesting in variables
+  (`domain_bool_exp`). On macOS (Node 26.12.1, 8 fresh processes per depth)
+  none overflow up to 2400 levels. About 2 of 8 overflow from 2425 to 2850.
+  6 to 8 of 8 overflow from 2860. All 8 overflow from 2925. On Linux (the
+  bench image, Node 26.12.1, 16 or 24 fresh processes per depth) none
+  overflow up to 2400 levels. 7 of 16 overflow at 2950. 12 of 24 overflow
+  at 3000. 15 of 16 overflow at 3200. All overflow from 3800. The port
+  overflows from 3000 levels on every platform, where the chance crosses one
+  half on Linux. `_and` nesting in variables is unchanged at 626 levels, exact on
+  both. Nesting that mixes `_and` and `_not` in variables can differ near
+  the limit (for `_and` over `_not`, the port overflows from about 518
+  levels where TS overflows from 496). JSON bodies, variables and WebSocket
+  messages have no depth limit on either side.
 - **V8 `JSON.parse` messages** (GET `variables`/`extensions`, and
   unparsable `/validators` client frames) are emulated for the message
   classes a 912-case differential fuzz covers (escapes, surrogates, context

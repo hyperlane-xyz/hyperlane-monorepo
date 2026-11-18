@@ -56,6 +56,10 @@ pub const UpgradeSocket = struct {
     /// Set by `ws` when it takes over the socket: the server attaches it to
     /// the poller set after `on_upgrade` returns.
     takeover: ?*ws.Conn = null,
+    /// The request's body still to come (Node 26 parses it and hides the
+    /// upgrade stream's data until it completes): `ws` discards it before
+    /// any frame. Null: no body, or none left.
+    body: ?BodyReader = null,
     destroyed: bool = false,
     /// `endWith`'s bytes, written by the connection after `on_upgrade`.
     end_bytes: ?[]const u8 = null,
@@ -145,8 +149,6 @@ pub var test_fin_hangups: std.atomic.Value(u32) = .init(0);
 /// request), and the `reset_only` policy in place of `hangup_policy`.
 pub var test_merged_hangups: std.atomic.Value(u32) = .init(0);
 pub var test_reset_only: std.atomic.Value(bool) = .init(false);
-/// Tests only: `ClosedConnectionPolicy.node_400` in place of the build's.
-pub var test_node_400: std.atomic.Value(bool) = .init(false);
 
 fn closeTurnMs() i64 {
     return if (builtin.is_test) test_close_turn_ms.load(.monotonic) else 0;
@@ -475,10 +477,10 @@ pub const Server = struct {
         const again = loop_mod.R_AGAIN | (if (ev.hup) loop_mod.R_HUP else 0) | (if (ev.reset) loop_mod.R_RESET else 0);
         if (loop_mod.claim(slot, gen, loop_mod.R, again) != .claimed) {
             // R is held: by a waiting handler, a hangup aborts its exchange.
-            // Under node_400, data in the same edge goes first (Node's 'data',
-            // the parser error and its 400, come before 'end').
+            // Data in the same edge goes first (Node's 'data', the parser
+            // error and its 400, come before 'end').
             if (slot.kind == .http) {
-                const junk = closedConnectionPolicy() == .node_400 and (ev.readable or ev.hup) and Connection.dataWhileDetached(slot, gen);
+                const junk = (ev.readable or ev.hup) and Connection.dataWhileDetached(slot, gen);
                 if (!junk and ev.hup and hangupAborts(ev.reset)) Connection.peerClosedWhileDetached(slot, gen);
             }
             return;
@@ -499,17 +501,6 @@ pub const Server = struct {
         reset_only,
     };
     pub const hangup_policy: HangupPolicy = .eof_drop;
-
-    /// Paired with `hangup_policy` (one decision for both).
-    pub const ClosedConnectionPolicy = enum {
-        /// The port's behaviour so far: bytes after a non-keep-alive request
-        /// are ignored, the response is sent.
-        answer,
-        /// Node: llhttp's HPE_CLOSED_CONNECTION -> Fastify clientError 400
-        /// (after a sync route's response, instead of an async one's).
-        node_400,
-    };
-    pub const closed_connection_policy: ClosedConnectionPolicy = .answer;
 
     pub fn abortsOn(policy: HangupPolicy, reset: bool) bool {
         return reset or policy == .eof_drop;
@@ -778,7 +769,7 @@ const Exchange = struct {
     parsed_body: bool = false,
     /// Data after a non-keep-alive request (`closedConnAction`), once decided.
     closed_conn: ?ClosedConnAction = null,
-    /// `node_400`: the message is complete and nothing but CR/LF followed it
+    /// The message is complete and nothing but CR/LF followed it
     /// yet, so later input reaches Node's closed state (`dataWhileDetached`).
     probe_late: bool = false,
     keep_alive: bool,
@@ -1369,13 +1360,11 @@ const Connection = struct {
 
     /// What Node does with bytes after a non-keep-alive request (llhttp's
     /// closed state skips CR/LF; anything else is HPE_CLOSED_CONNECTION ->
-    /// Fastify's clientError 400 + destroy). `.answer`: nothing (the port's
-    /// behaviour so far). `.node_400`: `.after_response` when TS's route
+    /// Fastify's clientError 400 + destroy): `.after_response` when TS's route
     /// answers synchronously inside the parse (response, then 400),
     /// `.instead` when it answers after an await or parses a body (400 only).
     /// A body no parser reads keeps Node's parser in the body: no 400.
     fn closedConnAction(self: *Connection, route_async: bool) ClosedConnAction {
-        if (closedConnectionPolicy() != .node_400) return .none;
         const ex = self.ex.?;
         if (ex.keep_alive) return .none;
         const start = self.start;
@@ -1439,7 +1428,7 @@ const Connection = struct {
     }
 
     /// Input while a complete non-keep-alive request's handler waits (Node
-    /// reads it at once): under `node_400`, any non-CR/LF byte aborts with the
+    /// reads it at once): any non-CR/LF byte aborts with the
     /// 400 (true). Holds `ABORT_RUNNING` while deciding, so `finish` and a
     /// hangup wait; nothing else reads the socket while `DETACHED`.
     fn dataWhileDetached(sl: *loop_mod.Slot, gen: u32) bool {
@@ -1581,7 +1570,7 @@ const Connection = struct {
         const pend = loop_mod.Slot.bitsOf(sl.state.load(.acquire));
         const hup_seen = self.hup or pend & loop_mod.R_HUP != 0;
         const reset_seen = self.reset or pend & loop_mod.R_RESET != 0;
-        // node_400: data read with the request (or still unread in the
+        // Data read with the request (or still unread in the
         // kernel, no edge to come) goes before a hangup, as Node's 'data'
         // before 'end'.
         const instead = self.ex.?.closed_conn == .instead;
@@ -1784,7 +1773,11 @@ const Connection = struct {
 
     fn upgrade(self: *Connection, handler: UpgradeHandler) ?Step {
         const ex = self.ex.?;
-        var socket: UpgradeSocket = .{ .fd = self.fd, .head = self.buf[self.start..self.end], .remote_address = self.remote, .arena = ex.req.arena };
+        // llhttp: an upgrade has a body only when it is chunked or has a
+        // Content-Length above 0; its upgrade exit comes before the invalid
+        // Transfer-Encoding check, so any other Transfer-Encoding means no body.
+        const has_body = !self.body.done() and self.body.framing != .invalid_te;
+        var socket: UpgradeSocket = .{ .fd = self.fd, .head = self.buf[self.start..self.end], .remote_address = self.remote, .arena = ex.req.arena, .body = if (has_body) self.body else null };
         handler.on_upgrade(handler.ctx, &ex.req, &socket);
         const conn = socket.takeover orelse {
             if (socket.end_bytes) |bytes| return self.write(bytes, "", .end_destroy);
@@ -1826,11 +1819,6 @@ const WriteResult = enum { done, would_block, failed };
 
 /// One non-blocking `sendmsg` pass over `parts` (consumed in place).
 const ClosedConnAction = enum { none, after_response, instead };
-
-fn closedConnectionPolicy() Server.ClosedConnectionPolicy {
-    if (builtin.is_test and test_node_400.load(.monotonic)) return .node_400;
-    return Server.closed_connection_policy;
-}
 
 const dontwait: u32 = if (builtin.os.tag == .linux) std.os.linux.MSG.DONTWAIT else std.c.MSG.DONTWAIT;
 
@@ -1954,7 +1942,9 @@ fn defaultErrorBody(reply: *Reply, err: FastifyError) void {
 
 /// Resumable request body framing: consumes whatever the connection has
 /// buffered and reports `need_more` when it runs dry.
-const BodyReader = struct {
+/// A request body's framing walked over buffered bytes. `c` is any cursor
+/// with `buf`, `start` and `end` (the connection, or `ws`'s input).
+pub const BodyReader = struct {
     framing: parse.Framing,
     finished: bool = false,
     started: bool = false,
@@ -1962,16 +1952,16 @@ const BodyReader = struct {
     chunk: enum { size_line, data, data_end, trailer } = .size_line,
     total: usize = 0,
 
-    const Error = error{ BadRequest, TooLarge, OutOfMemory };
-    const Progress = enum { done, need_more };
+    pub const Error = error{ BadRequest, TooLarge, OutOfMemory };
+    pub const Progress = enum { done, need_more };
 
-    fn done(self: *const BodyReader) bool {
+    pub fn done(self: *const BodyReader) bool {
         return self.finished or self.framing == .none;
     }
 
     /// Walks the body framing over `c`'s buffered bytes, appending to `out`
     /// when given (TooLarge once more than `limit` chunked bytes arrived).
-    fn consume(self: *BodyReader, c: *Connection, a: ?std.mem.Allocator, out: ?*std.ArrayList(u8), limit: usize) Error!Progress {
+    pub fn consume(self: *BodyReader, c: anytype, a: ?std.mem.Allocator, out: ?*std.ArrayList(u8), limit: usize) Error!Progress {
         if (self.done()) return .done;
         switch (self.framing) {
             .none => {},
@@ -2033,7 +2023,7 @@ const BodyReader = struct {
     }
 
     /// A CRLF-terminated line from the buffer, or null until one arrives.
-    fn takeLine(c: *Connection) error{BadRequest}!?[]const u8 {
+    fn takeLine(c: anytype) error{BadRequest}!?[]const u8 {
         if (std.mem.indexOfScalar(u8, c.buf[c.start..c.end], '\n')) |pos| {
             if (pos == 0 or c.buf[c.start + pos - 1] != '\r') return error.BadRequest;
             const line = c.buf[c.start .. c.start + pos - 1];

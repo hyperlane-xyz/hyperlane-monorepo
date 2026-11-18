@@ -13,8 +13,10 @@ const Allocator = std.mem.Allocator;
 
 const Db = struct {
     rows: []Value,
-    fn query(ctx: *anyopaque, _: Allocator, _: []const u8, _: []const Value, _: *scraperdb.Diag) anyerror![]Value {
+    fn query(ctx: *anyopaque, a: Allocator, text: []const u8, _: []const Value, _: *scraperdb.Diag) anyerror![]Value {
         const self: *Db = @ptrCast(@alignCast(ctx));
+        // #10076 planning read before every history statement: a cheap plan.
+        if (std.mem.startsWith(u8, text, "EXPLAIN")) return (try core.json.parse(a, "[{\"QUERY PLAN\":[{\"Plan\":{\"Total Cost\":1}}]}]", .{})).array;
         return self.rows;
     }
 };

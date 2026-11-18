@@ -286,7 +286,11 @@ fn collectTableFields(schema: *Schema, name: []const u8) ![]const TableField {
     return list.items;
 }
 
-/// `schema.ts`: filter/order/cursor/comparison inputs derived from the table row types.
+/// `schema.ts`: only the small `domain` catalog gets generated comparisons on
+/// every result column (select-column enum, bool_exp, order_by and one
+/// `<type>_comparison_exp` per column type, in field order). The history
+/// tables' filter, order and cursor inputs are written out in the SDL
+/// (`history_*`), so a new response field never becomes a filter.
 pub fn generateHasuraTypes(arena: std.mem.Allocator, sdl: []const u8) ![]const u8 {
     var diag: parser.Diagnostic = .{};
     const doc = parser.parse(arena, sdl, .{}, &diag) catch |err| {
@@ -296,40 +300,30 @@ pub fn generateHasuraTypes(arena: std.mem.Allocator, sdl: []const u8) ![]const u
     var out: std.Io.Writer.Allocating = .init(arena);
     const w = &out.writer;
     var scalar_types: std.ArrayList([]const u8) = .empty;
-    const tables = [_][]const u8{ "domain", "message_view", "raw_message_dispatch" };
-    for (tables) |table| {
-        const def = findObjectDefinition(doc, table) orelse return error.MissingTable;
-        var entries: std.ArrayList(TableField) = .empty;
-        for (def.fields) |f| {
-            const scalar = if (f.type.data == .non_null) f.type.data.non_null else f.type;
-            if (scalar.data != .named) return error.ExpectedScalarColumn;
-            const type_name = scalar.data.named.value;
-            try entries.append(arena, .{ .name = f.name.value, .type_name = type_name });
-            for (scalar_types.items) |seen| {
-                if (std.mem.eql(u8, seen, type_name)) break;
-            } else try scalar_types.append(arena, type_name);
-        }
-        try w.print("\nenum {s}_select_column {{", .{table});
-        for (entries.items) |e| if (stored(e)) try w.print(" {s}", .{e.name});
-        try w.print(" }}\ninput {s}_bool_exp {{ _and: [{s}_bool_exp!] _not: {s}_bool_exp _or: [{s}_bool_exp!]", .{ table, table, table, table });
-        for (entries.items) |e| try w.print(" {s}: {s}_comparison_exp", .{ e.name, e.type_name });
-        try w.print(" }}\ninput {s}_order_by {{", .{table});
-        for (entries.items) |e| if (stored(e)) try w.print(" {s}: order_by", .{e.name});
-        try w.print(" }}\ninput {s}_stream_cursor_value_input {{", .{table});
-        for (entries.items) |e| if (stored(e)) try w.print(" {s}: {s}", .{ e.name, e.type_name });
-        try w.print(" }}\ninput {s}_stream_cursor_input {{ initial_value: {s}_stream_cursor_value_input! ordering: cursor_ordering }}\n", .{ table, table });
+    const def = findObjectDefinition(doc, "domain") orelse return error.MissingTable;
+    var entries: std.ArrayList(TableField) = .empty;
+    for (def.fields) |f| {
+        const scalar = if (f.type.data == .non_null) f.type.data.non_null else f.type;
+        if (scalar.data != .named) return error.ExpectedScalarColumn;
+        const type_name = scalar.data.named.value;
+        try entries.append(arena, .{ .name = f.name.value, .type_name = type_name });
+        for (scalar_types.items) |seen| {
+            if (std.mem.eql(u8, seen, type_name)) break;
+        } else try scalar_types.append(arena, type_name);
     }
+    try w.writeAll("\nenum domain_select_column {");
+    for (entries.items) |e| try w.print(" {s}", .{e.name});
+    try w.writeAll(" }\ninput domain_bool_exp { _and: [domain_bool_exp!] _or: [domain_bool_exp!] _not: domain_bool_exp");
+    for (entries.items) |e| try w.print(" {s}: {s}_comparison_exp", .{ e.name, e.type_name });
+    try w.writeAll(" }\ninput domain_order_by {");
+    for (entries.items) |e| try w.print(" {s}: order_by", .{e.name});
+    try w.writeAll(" }\n");
     for (scalar_types.items) |t| {
         try w.print("input {s}_comparison_exp {{", .{t});
         for ([_][]const u8{ "_eq", "_gt", "_gte", "_lt", "_lte", "_neq" }) |op| try w.print(" {s}: {s}", .{ op, t });
         try w.print(" _in: [{s}!] _nin: [{s}!] _is_null: Boolean }}\n", .{ t, t });
     }
     return out.written();
-}
-
-/// Computed snapshot state is selectable/filterable, but not a cursor/order/distinct key.
-fn stored(e: TableField) bool {
-    return !std.mem.eql(u8, e.name, "is_provisional");
 }
 
 fn findObjectDefinition(doc: *const ast.Document, name: []const u8) ?*const ast.TypeSystemDefinition {
@@ -559,11 +553,23 @@ test "removes unsupported regex operators; generated types follow schema.ts" {
     try std.testing.expect(std.mem.indexOf(u8, generated, "_regex") == null);
     try std.testing.expect(std.mem.indexOf(u8, scraperdb_sdl, "_regex") == null);
     const s = testing.scraper();
+    // domain: generated, every column (schema.ts `domainColumns`), `_and, _or, _not` first.
+    const domain_exp = s.getType("domain_bool_exp").?;
+    try std.testing.expectEqualStrings("_and", domain_exp.input_fields[0].name);
+    try std.testing.expectEqualStrings("_or", domain_exp.input_fields[1].name);
+    try std.testing.expectEqualStrings("_not", domain_exp.input_fields[2].name);
+    try std.testing.expect(s.getType("domain_select_column") != null);
+    // History tables: the SDL's explicit allowlist (#10076), nothing generated.
     const bool_exp = s.getType("message_view_bool_exp").?;
-    try std.testing.expectEqualStrings("_and", bool_exp.input_fields[0].name);
     try std.testing.expect(bool_exp.inputField("is_provisional") != null);
-    try std.testing.expect(s.getType("message_view_order_by").?.inputField("is_provisional") == null);
-    try std.testing.expect(!s.getType("message_view_select_column").?.hasEnumValue("is_provisional"));
+    try std.testing.expect(bool_exp.inputField("total_payment") == null);
+    try std.testing.expect(bool_exp.inputField("_not") == null);
+    try std.testing.expectEqual(@as(usize, 3), s.getType("message_view_order_by").?.input_fields.len);
+    try std.testing.expect(s.getType("message_view_select_column") == null);
+    try std.testing.expect(s.getType("raw_message_dispatch_select_column") == null);
+    try std.testing.expect(s.getType("numeric_comparison_exp") == null);
+    try std.testing.expect(s.query_type.field("message_view").?.arg("offset") == null);
+    try std.testing.expect(s.query_type.field("message_view").?.arg("distinct_on") == null);
     const domain = s.tableFields(.domain);
     try std.testing.expectEqualStrings("chain_id", domain[0].name);
     try std.testing.expectEqualStrings("bigint", domain[0].type_name);

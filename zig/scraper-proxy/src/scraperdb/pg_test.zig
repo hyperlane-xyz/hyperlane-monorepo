@@ -131,13 +131,16 @@ const Harness = struct {
             .where = value.get(obj, "where"),
         };
         const msg_args: service.MessageSelectArgs = .{ .select = select, .confirmations = value.get(obj, "confirmations") };
-        const rows = self.svc().selectMessages(self.arena, msg_args, &diag) catch |err| {
+        // One GraphQL operation each (TS: a service per request).
+        var budget: service.HistoryBudget = .{};
+        const rows = self.svc().selectMessages(self.arena, &budget, msg_args, &diag) catch |err| {
             if (err == error.AssertionFailed) std.debug.print("assert: {s}\n", .{diag.message});
             return err;
         };
         // The snapshot as PostgreSQL's text (lazy path) projects the same
         // rows, and none of its internal values reaches a row.
-        const lazy_rows = try self.lazySvc().selectMessages(self.arena, msg_args, &diag);
+        var lazy_budget: service.HistoryBudget = .{};
+        const lazy_rows = try self.lazySvc().selectMessages(self.arena, &lazy_budget, msg_args, &diag);
         try testing.expectEqualStrings(try value.stringifyAlloc(self.arena, Value{ .array = rows }), try value.stringifyAlloc(self.arena, Value{ .array = lazy_rows }));
         try testing.expect(!containsLiteral(.{ .array = lazy_rows }));
         return rows;
@@ -149,7 +152,8 @@ const Harness = struct {
         const obj = value.object(args).?;
         const select: sql.SelectArgs = .{ .cursor = value.get(obj, "cursor"), .where = value.get(obj, "where") };
         for ([_]service.Service{ self.svc(), self.lazySvc() }) |s| {
-            const result = s.selectMessages(self.arena, .{ .select = select, .confirmations = value.get(obj, "confirmations") }, &diag);
+            var budget: service.HistoryBudget = .{};
+            const result = s.selectMessages(self.arena, &budget, .{ .select = select, .confirmations = value.get(obj, "confirmations") }, &diag);
             try testing.expectError(error.AssertionFailed, result);
             try testing.expect(std.mem.indexOf(u8, diag.message, needle) != null);
         }
@@ -263,6 +267,12 @@ test "projects mixed-chain and legacy messages at independent frontiers" {
     _ = try h.exec(confirmed_views_sql, &.{});
     const fixture = try std.fs.cwd().readFileAlloc(a, "../../typescript/scraper-proxy/src/live/fixtures/message-view.sql", 1 << 20);
     _ = try h.exec(fixture, &.{});
+    // PostgreSQL does not auto-analyze temporary tables. Give the admission
+    // check real fixture cardinalities before planning the history reads.
+    _ = try h.exec(
+        \\ANALYZE domain, scraper_head, block, "transaction", raw_message_dispatch,
+        \\        message, delivered_message, gas_payment
+    , &.{});
 
     // preserves canonical defaults, frontier boundaries, and selection semantics
     try testing.expectEqualStrings("2", try ids(a, try h.messages("{}")));

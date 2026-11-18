@@ -14,6 +14,7 @@ pub const js = @import("js.zig");
 pub const values = @import("values.zig");
 pub const execute = @import("execute.zig");
 pub const resolvers = @import("resolvers.zig");
+pub const history_policy = @import("history_policy.zig");
 pub const compat = @import("compat.zig");
 pub const cache = @import("cache.zig");
 pub const request_schema = @import("request_schema.zig");

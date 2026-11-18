@@ -1,7 +1,8 @@
 // Dumps the TS SQL builder outputs for a fixed corpus so the Zig port can
 // assert byte-identical SQL and identical parameter values.
-// Run from the repository root:
-//   pnpm -C zig/scraper-proxy exec tsx src/scraperdb/testdata/gen-corpus.ts > zig/scraper-proxy/src/scraperdb/testdata/corpus.json
+// Run from this directory (top-level await needs ESM, and no package.json
+// here makes .ts files ESM, so run an .mts copy):
+//   cp gen-corpus.ts gen-corpus.tmp.mts && ../../../../../node_modules/.bin/tsx gen-corpus.tmp.mts > corpus.json; rm gen-corpus.tmp.mts
 import {
   buildProvisionalMessageAffectedQuery,
   PROJECTED_MESSAGE_QUERY,
@@ -676,6 +677,12 @@ const PLACEHOLDERS: [string, string][] = [
   ['{{PROJECTED}}', PROJECTED_MESSAGE_QUERY],
   ['{{AFFECTED_FILTERED}}', buildProvisionalMessageAffectedQuery(true)],
   ['{{AFFECTED}}', buildProvisionalMessageAffectedQuery(false)],
+  // Prefixes of the two above, so replaced after them.
+  [
+    '{{AFFECTED_ZERO_FILTERED}}',
+    buildProvisionalMessageAffectedQuery(true, true),
+  ],
+  ['{{AFFECTED_ZERO}}', buildProvisionalMessageAffectedQuery(false, true)],
 ];
 function compact(sql: string): string {
   for (const [name, text] of PLACEHOLDERS) sql = sql.replaceAll(text, name);
@@ -701,13 +708,19 @@ function run(c: Case): unknown {
   }
 }
 
+// Every history statement is preceded by its cost check (EXPLAIN), recorded too.
+const CHEAP_PLAN = [{ 'QUERY PLAN': [{ Plan: { 'Total Cost': 1 } }] }];
+
 async function runMessages(c: Extract<Case, { kind: 'messages' }>) {
   const queries: { sql: string; values: unknown[] }[] = [];
+  let statements = 0;
   const service = new ScraperDbService({
     async query(sql, values = []) {
       queries.push({ sql: compact(sql), values: structuredClone(values) });
+      if (sql.startsWith('EXPLAIN')) return CHEAP_PLAN;
+      statements++;
       if (
-        queries.length === 1 &&
+        statements === 1 &&
         'confirmations' in c.args &&
         c.args.confirmations != null
       ) {
@@ -737,6 +750,8 @@ const out = {
     projected: PROJECTED_MESSAGE_QUERY,
     affected: buildProvisionalMessageAffectedQuery(false),
     affectedFiltered: buildProvisionalMessageAffectedQuery(true),
+    affectedZero: buildProvisionalMessageAffectedQuery(false, true),
+    affectedZeroFiltered: buildProvisionalMessageAffectedQuery(true, true),
   },
   tables: Object.fromEntries(
     Object.entries(tables).map(([name, t]) => [

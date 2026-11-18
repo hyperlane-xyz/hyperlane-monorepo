@@ -219,6 +219,9 @@ pub const GraphqlRoute = struct {
                 .on_peer_closed = onPeerClosed,
             },
             .text_content_types = &.{"application/graphql"},
+            // graphql.ts's onRequest/preValidation/preHandler/onSend hooks
+            // are async: TS answers only after an await.
+            .ts_async = true,
             .body_limit = max_request_bytes,
         };
     }
@@ -671,7 +674,11 @@ pub const GraphqlRoute = struct {
                 return .{ .executed = .{ .data = null, .errors = errors } };
             },
         };
-        var executor = try execute.Executor.init(a, self.schema, document, coerced, self.resolver_map.resolvers());
+        // graphql.ts `context: () => ({ scraperDb: new ScraperDbService(db) })`:
+        // one planning budget per operation, shared by its aliases.
+        var operation_map = self.resolver_map;
+        operation_map.budget = .{};
+        var executor = try execute.Executor.init(a, self.schema, document, coerced, operation_map.resolvers());
         executor.admission = admission;
         const parallel: ?execute.Parallel = if (self.options.root_field_threads > 0) .{ .pool = &self.root_fields, .backing = std.heap.c_allocator } else null;
         return .{ .executed = try executor.executeQuery(op, parallel) };

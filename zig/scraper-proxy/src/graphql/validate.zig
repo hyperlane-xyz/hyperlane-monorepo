@@ -4,8 +4,9 @@
 //! at each node the rules' enter/leave handlers run in `specifiedRules`
 //! order (custom rule last), a rule returning `false` skips that subtree for
 //! itself only, and error order is visit order. `maxErrors` (100) appends the
-//! graphql-js abort error. Type-system definitions inside a request are only
-//! reported by ExecutableDefinitions (see DEVIATIONS.md).
+//! graphql-js abort error. Type-system definitions inside a request are walked
+//! in graphql-js's key order, so the rules that visit SDL nodes (directives,
+//! their arguments and values, named types) report there too.
 const std = @import("std");
 const ast = @import("ast.zig");
 const schema_mod = @import("schema.zig");
@@ -266,6 +267,13 @@ const Validator = struct {
     unused_var_defs: std.ArrayList(*const ast.VariableDefinition) = .empty,
     allowed_var_defs: std.StringHashMapUnmanaged(*const ast.VariableDefinition) = .empty,
     input_field_names: std.ArrayList(std.StringHashMapUnmanaged(ast.Name)) = .empty,
+    /// Directive definitions in the document (graphql-js rules add them to,
+    /// or let them replace, the schema's: last definition wins).
+    doc_directives: std.StringHashMapUnmanaged(*const ast.TypeSystemDefinition) = .empty,
+    /// UniqueDirectivesPerLocation: one map for the schema definition and its
+    /// extensions, one per type name across definitions and extensions.
+    schema_directives_seen: std.StringHashMapUnmanaged(u32) = .empty,
+    type_directives_seen: std.StringHashMapUnmanaged(*std.StringHashMapUnmanaged(u32)) = .empty,
     overlap: Overlap = undefined,
     introspection_visited: std.ArrayList([]const u8) = .empty,
 
@@ -275,6 +283,7 @@ const Validator = struct {
                 .fragment => |f| try self.fragments.put(self.arena, f.name.value, f),
                 .type_system => |t| if (t.name) |n| switch (t.kind) {
                     .scalar, .object, .interface, .@"union", .@"enum", .input_object => if (!t.extension) try self.doc_type_names.put(self.arena, n.value, {}),
+                    .directive => try self.doc_directives.put(self.arena, n.value, t),
                     else => {},
                 },
                 .operation => {},
@@ -530,18 +539,93 @@ const Validator = struct {
         try self.report(msg.items, try self.locs(&.{name.loc}));
     }
 
-    /// Type-system definitions in a request: only KnownTypeNames (SDL mode) is
-    /// applied beyond ExecutableDefinitions (see DEVIATIONS.md).
+    /// Type-system definitions in a request, visited in graphql-js's key order
+    /// (description, name, interfaces, directives, then fields / values /
+    /// types / operation types; a field: arguments, type, directives; an input
+    /// value: type, default value, directives). At each node that has
+    /// directives, UniqueDirectivesPerLocation runs on enter; the directive,
+    /// argument and value rules run as for executable nodes. TypeInfo has no
+    /// SDL cases, so default values and document-defined directives' arguments
+    /// carry no input type (no value errors), as in graphql-js.
     fn walkTypeSystem(self: *Validator, t: *const ast.TypeSystemDefinition) Abort!void {
-        for (t.interfaces) |n| try self.knownTypeName(n, true);
-        for (t.fields) |f| {
-            for (f.arguments) |a| try self.knownTypeName(a.type.namedType(), true);
-            try self.knownTypeName(f.type.namedType(), true);
+        const id = @intFromPtr(t);
+        if (t.kind != .directive and self.active(.unique_directives_per_location)) {
+            const seen = switch (t.kind) {
+                .schema_definition, .schema_extension => &self.schema_directives_seen,
+                else => try self.typeDirectivesSeen(t.name.?.value),
+            };
+            try self.uniqueDirectivesIn(seen, t.directives);
         }
-        for (t.union_types) |n| try self.knownTypeName(n, true);
-        for (t.input_fields) |f| try self.knownTypeName(f.type.namedType(), true);
-        for (t.operation_types) |op| try self.knownTypeName(op.type, true);
-        for (t.arguments) |a| try self.knownTypeName(a.type.namedType(), true);
+        const location: DirectiveLocation = switch (t.kind) {
+            .schema_definition, .schema_extension => .SCHEMA,
+            .scalar => .SCALAR,
+            .object => .OBJECT,
+            .interface => .INTERFACE,
+            .@"union" => .UNION,
+            .@"enum" => .ENUM,
+            .input_object => .INPUT_OBJECT,
+            .directive => .DIRECTIVE_DEFINITION,
+        };
+        switch (t.kind) {
+            .schema_definition, .schema_extension => {
+                for (t.directives) |*d| try self.walkDirective(d, location);
+                for (t.operation_types) |op| try self.knownTypeName(op.type, true);
+            },
+            .object, .interface => {
+                for (t.interfaces) |n| try self.knownTypeName(n, true);
+                for (t.directives) |*d| try self.walkDirective(d, location);
+                for (t.fields) |*f| try self.walkFieldDefinition(f);
+            },
+            .@"union" => {
+                for (t.directives) |*d| try self.walkDirective(d, location);
+                for (t.union_types) |n| try self.knownTypeName(n, true);
+            },
+            .@"enum" => {
+                for (t.directives) |*d| try self.walkDirective(d, location);
+                for (t.enum_values) |*ev| {
+                    const ev_id = @intFromPtr(ev);
+                    if (self.active(.unique_directives_per_location)) try self.uniqueDirectives(ev.directives);
+                    for (ev.directives) |*d| try self.walkDirective(d, .ENUM_VALUE);
+                    self.leaveNode(ev_id);
+                }
+            },
+            .input_object => {
+                for (t.directives) |*d| try self.walkDirective(d, location);
+                // graphql-js maps an input value to INPUT_FIELD_DEFINITION only
+                // under an input object *definition*; under an extension it
+                // reports ARGUMENT_DEFINITION.
+                const field_location: DirectiveLocation = if (t.extension) .ARGUMENT_DEFINITION else .INPUT_FIELD_DEFINITION;
+                for (t.input_fields) |*f| try self.walkInputValueDefinition(f, field_location);
+            },
+            .scalar => for (t.directives) |*d| try self.walkDirective(d, location),
+            .directive => for (t.arguments) |*a| try self.walkInputValueDefinition(a, .ARGUMENT_DEFINITION),
+        }
+        self.leaveNode(id);
+    }
+
+    fn walkFieldDefinition(self: *Validator, f: *const ast.FieldDefinition) Abort!void {
+        const id = @intFromPtr(f);
+        if (self.active(.unique_directives_per_location)) try self.uniqueDirectives(f.directives);
+        for (f.arguments) |*a| try self.walkInputValueDefinition(a, .ARGUMENT_DEFINITION);
+        try self.walkSdlTypeNode(f.type);
+        for (f.directives) |*d| try self.walkDirective(d, .FIELD_DEFINITION);
+        self.leaveNode(id);
+    }
+
+    fn walkInputValueDefinition(self: *Validator, iv: *const ast.InputValueDefinition, location: DirectiveLocation) Abort!void {
+        const id = @intFromPtr(iv);
+        if (self.active(.unique_directives_per_location)) try self.uniqueDirectives(iv.directives);
+        try self.walkSdlTypeNode(iv.type);
+        if (iv.default_value) |dv| try self.walkValue(dv);
+        for (iv.directives) |*d| try self.walkDirective(d, location);
+        self.leaveNode(id);
+    }
+
+    fn walkSdlTypeNode(self: *Validator, t: *const ast.Type) Abort!void {
+        switch (t.data) {
+            .named => |n| try self.knownTypeName(n, true),
+            .list, .non_null => |inner| try self.walkSdlTypeNode(inner),
+        }
     }
 
     fn walkSelectionSet(self: *Validator, set: *const ast.SelectionSet) Abort!void {
@@ -625,9 +709,15 @@ const Validator = struct {
     fn walkDirective(self: *Validator, d: *const ast.Directive, location: DirectiveLocation) Abort!void {
         const id = @intFromPtr(d);
         self.ti.enterDirective(d);
-        const def = self.schema.directive(d.name.value);
+        // A directive defined in the document replaces the schema's for these rules.
+        const doc_def = self.doc_directives.get(d.name.value);
+        const def = if (doc_def == null) self.schema.directive(d.name.value) else null;
         if (self.active(.known_directives)) {
-            if (def) |known| {
+            if (doc_def) |known| {
+                if (!hasLocationName(known.locations, @tagName(location))) {
+                    try self.reportf(try self.locs(&.{d.loc}), "Directive \"@{s}\" may not be used on {s}.", .{ d.name.value, @tagName(location) });
+                }
+            } else if (def) |known| {
                 if (!known.locations.contains(location)) {
                     try self.reportf(try self.locs(&.{d.loc}), "Directive \"@{s}\" may not be used on {s}.", .{ d.name.value, @tagName(location) });
                 }
@@ -636,15 +726,19 @@ const Validator = struct {
             }
         }
         if (self.active(.known_argument_names)) {
-            if (def) |known| for (d.arguments) |arg| {
-                if (known.arg(arg.name.value) != null) continue;
+            if (doc_def != null or def != null) {
                 var names: std.ArrayList([]const u8) = .empty;
-                for (known.args) |a| try names.append(self.arena, a.name);
-                var msg: std.ArrayList(u8) = .empty;
-                try msg.print(self.arena, "Unknown argument \"{s}\" on directive \"@{s}\".", .{ arg.name.value, d.name.value });
-                try suggest.didYouMean(self.arena, &msg, null, try suggest.suggestionList(self.arena, arg.name.value, names.items));
-                try self.report(msg.items, try self.locs(&.{arg.loc}));
-            };
+                if (doc_def) |known| {
+                    for (known.arguments) |a| try names.append(self.arena, a.name.value);
+                } else for (def.?.args) |a| try names.append(self.arena, a.name);
+                for (d.arguments) |arg| {
+                    if (containsName(names.items, arg.name.value)) continue;
+                    var msg: std.ArrayList(u8) = .empty;
+                    try msg.print(self.arena, "Unknown argument \"{s}\" on directive \"@{s}\".", .{ arg.name.value, d.name.value });
+                    try suggest.didYouMean(self.arena, &msg, null, try suggest.suggestionList(self.arena, arg.name.value, names.items));
+                    try self.report(msg.items, try self.locs(&.{arg.loc}));
+                }
+            }
             self.skip(.known_argument_names, id);
         }
         if (self.active(.unique_argument_names)) try self.uniqueArgumentNames(d.arguments);
@@ -652,7 +746,21 @@ const Validator = struct {
         for (d.arguments) |*arg| try self.walkArgument(arg);
 
         if (self.leaveActive(.provided_required_arguments, id)) {
-            if (def) |known| for (known.args) |a| {
+            if (doc_def) |known| {
+                // keyMap(args.filter(isRequiredArgumentNode), name): a non-null
+                // type and no default; a repeated name keeps its first
+                // position and its last definition.
+                var required: std.StringArrayHashMapUnmanaged(*const ast.Type) = .empty;
+                for (known.arguments) |a| {
+                    if (a.type.data != .non_null or a.default_value != null) continue;
+                    try required.put(self.arena, a.name.value, a.type);
+                }
+                var it = required.iterator();
+                while (it.next()) |entry| {
+                    if (hasArgument(d.arguments, entry.key_ptr.*)) continue;
+                    try self.reportf(try self.locs(&.{d.loc}), "Directive \"@{s}\" argument \"{s}\" of type \"{s}\" is required, but it was not provided.", .{ d.name.value, entry.key_ptr.*, try printer.printType(self.arena, entry.value_ptr.*) });
+                }
+            } else if (def) |known| for (known.args) |a| {
                 if (!isRequired(a)) continue;
                 if (hasArgument(d.arguments, a.name)) continue;
                 try self.reportf(try self.locs(&.{d.loc}), "Directive \"@{s}\" argument \"{s}\" of type \"{f}\" is required, but it was not provided.", .{ d.name.value, a.name, a.type });
@@ -834,13 +942,30 @@ const Validator = struct {
 
     fn uniqueDirectives(self: *Validator, directives: []const ast.Directive) Abort!void {
         var seen: std.StringHashMapUnmanaged(u32) = .empty;
+        try self.uniqueDirectivesIn(&seen, directives);
+    }
+
+    /// UniqueDirectivesPerLocation over `directives`, remembering into `seen`
+    /// (shared by a type's or the schema's definition and extensions).
+    fn uniqueDirectivesIn(self: *Validator, seen: *std.StringHashMapUnmanaged(u32), directives: []const ast.Directive) Abort!void {
         for (directives) |d| {
-            const def = self.schema.directive(d.name.value) orelse continue;
-            if (def.repeatable) continue;
+            const unique = if (self.doc_directives.get(d.name.value)) |doc_def|
+                !doc_def.repeatable
+            else if (self.schema.directive(d.name.value)) |def| !def.repeatable else false;
+            if (!unique) continue;
             if (seen.get(d.name.value)) |prev| {
                 try self.reportf(try self.locs(&.{ prev, d.loc }), "The directive \"@{s}\" can only be used once at this location.", .{d.name.value});
             } else try seen.put(self.arena, d.name.value, d.loc);
         }
+    }
+
+    fn typeDirectivesSeen(self: *Validator, type_name: []const u8) Abort!*std.StringHashMapUnmanaged(u32) {
+        const gop = try self.type_directives_seen.getOrPut(self.arena, type_name);
+        if (!gop.found_existing) {
+            gop.value_ptr.* = try self.arena.create(std.StringHashMapUnmanaged(u32));
+            gop.value_ptr.*.* = .empty;
+        }
+        return gop.value_ptr.*;
     }
 
     fn scalarLeafs(self: *Validator, f: *const ast.Field) Abort!void {
@@ -1067,6 +1192,17 @@ fn isTypeSubTypeOf(sub: *const TypeRef, super: *const TypeRef) bool {
 
 fn isRequired(a: InputValue) bool {
     return a.type.isNonNull() and a.default_value == null;
+}
+
+fn containsName(names: []const []const u8, name: []const u8) bool {
+    for (names) |n| if (std.mem.eql(u8, n, name)) return true;
+    return false;
+}
+
+/// A document directive definition's `on` list (location names as written).
+fn hasLocationName(locations: []const ast.Name, name: []const u8) bool {
+    for (locations) |l| if (std.mem.eql(u8, l.value, name)) return true;
+    return false;
 }
 
 fn hasArgument(args: []const ast.Argument, name: []const u8) bool {

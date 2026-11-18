@@ -7,6 +7,7 @@ const scraperdb = @import("scraperdb");
 const db = @import("db");
 const ast = @import("ast.zig");
 const execute = @import("execute.zig");
+const history_policy = @import("history_policy.zig");
 
 const Value = json.Value;
 const Member = json.Member;
@@ -30,6 +31,11 @@ pub const Diagnostics = struct {
 pub const ResolverMap = struct {
     db: scraperdb.Service,
     diagnostics: ?Diagnostics = null,
+    /// TS's per-operation `ScraperDbService` planning budget (#10076): the
+    /// route runs each operation on a copy of its map with a fresh budget, so
+    /// aliases (and `count` under an aggregate) share it and the next request
+    /// starts over.
+    budget: scraperdb.HistoryBudget = .{},
 
     pub fn resolvers(self: *ResolverMap) execute.Resolvers {
         return .{ .ctx = self, .resolve = resolve, .resolve_raw = resolveRaw, .fails_synchronously = failsSynchronously, .parent_types = &.{ "query_root", "message_view_aggregate_fields" } };
@@ -39,8 +45,12 @@ pub const ResolverMap = struct {
     /// `getDiagnostics()` throws "Diagnostics are not configured" before any
     /// promise; every other root resolver is async (or returns a promise), so
     /// its failures are rejections.
-    fn failsSynchronously(ctx: *anyopaque, field_name: []const u8) bool {
+    /// `message_view_aggregate`'s resolver (also a plain function) runs
+    /// `validateHistoryRequest` first, so a rejected aggregate throws
+    /// synchronously too.
+    fn failsSynchronously(ctx: *anyopaque, field_name: []const u8, args: Value) bool {
         const self: *ResolverMap = @ptrCast(@alignCast(ctx));
+        if (std.mem.eql(u8, field_name, "message_view_aggregate")) return history_policy.check(args, true) != null;
         return self.diagnostics == null and std.mem.eql(u8, field_name, "message_activity");
     }
 
@@ -59,10 +69,12 @@ pub const ResolverMap = struct {
                     .raw_message_dispatch => .raw_message_dispatch,
                     else => .message_view,
                 };
+                // resolver-map.ts: `validateHistoryRequest(args)` before any database access.
+                if (field == .message_view) if (history_policy.check(args, false)) |rejected| return .{ .failure = .{ .message = rejected, .sync = true } };
                 // `selectMessages` without confirmations is `select` (service.zig).
                 if (field == .message_view and scraperdb.value.present(args.get("confirmations")) != null) return .none;
                 const columns = try selectedColumns(a, info, info.field_nodes);
-                const lazy = scraperdb.resolvers.selectLazy(self.db, a, table, &args, columns, &message) catch |err| return rawFailed(err, message);
+                const lazy = scraperdb.resolvers.selectLazy(self.db, a, &self.budget, table, &args, columns, &message) catch |err| return rawFailed(err, message);
                 return .{ .rows = try rawRows(a, lazy orelse return .none) };
             },
             .domain_by_pk, .raw_message_dispatch_by_pk => {
@@ -84,7 +96,7 @@ pub const ResolverMap = struct {
             // Parent is `{ args, table }` from the aggregate resolver.
             const select_args = parent.get("args") orelse Value.null;
             var message: []const u8 = "";
-            const n = scraperdb.resolvers.count(self.db, a, .message_view, &select_args, &args, &message) catch |err| return failed(err, message);
+            const n = scraperdb.resolvers.count(self.db, a, &self.budget, .message_view, &select_args, &args, &message) catch |err| return failed(err, message);
             return .{ .value = .{ .number = n } };
         }
         if (!std.mem.eql(u8, parent_name, "query_root")) return .default;
@@ -93,11 +105,13 @@ pub const ResolverMap = struct {
         switch (field) {
             .domain, .raw_message_dispatch => {
                 const table: scraperdb.Table = if (field == .domain) .domain else .raw_message_dispatch;
-                const rows = scraperdb.resolvers.select(self.db, a, table, &args, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message);
+                const rows = scraperdb.resolvers.select(self.db, a, &self.budget, table, &args, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message);
                 return .{ .value = .{ .array = rows } };
             },
             .message_view => {
-                const rows = scraperdb.resolvers.selectMessages(self.db, a, &args, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message);
+                // Thrown by the resolver itself, before the async service call.
+                if (history_policy.check(args, false)) |m| return .{ .failure = .{ .message = m, .sync = true } };
+                const rows = scraperdb.resolvers.selectMessages(self.db, a, &self.budget, &args, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message);
                 return .{ .value = .{ .array = rows } };
             },
             .domain_by_pk, .raw_message_dispatch_by_pk => {
@@ -107,17 +121,19 @@ pub const ResolverMap = struct {
                 return .{ .value = row orelse .null };
             },
             .message_view_aggregate => {
+                if (history_policy.check(args, true)) |m| return .{ .failure = .{ .message = m, .sync = true } };
                 // `db.aggregate`: nodes are queried only when selected.
                 var rows: []Value = &.{};
                 if (try nestedColumns(a, info, "nodes")) |columns| {
-                    rows = scraperdb.resolvers.select(self.db, a, .message_view, &args, columns, &message) catch |err| return failed(err, message);
+                    rows = scraperdb.resolvers.select(self.db, a, &self.budget, .message_view, &args, columns, &message) catch |err| return failed(err, message);
                 }
                 const aggregate = try a.dupe(Member, &.{ .{ .key = "args", .value = args }, .{ .key = "table", .value = .{ .string = "message_view" } } });
                 const result = try a.dupe(Member, &.{ .{ .key = "aggregate", .value = .{ .object = aggregate } }, .{ .key = "nodes", .value = .{ .array = rows } } });
                 return .{ .value = .{ .object = result } };
             },
             .message_activity, .message_diagnostics => {
-                const diagnostics = self.diagnostics orelse return .{ .failure = .{ .message = "Diagnostics are not configured", .code = "DIAGNOSTICS_UNAVAILABLE" } };
+                // message_activity's resolver calls getDiagnostics() synchronously; message_diagnostics is async.
+                const diagnostics = self.diagnostics orelse return .{ .failure = .{ .message = "Diagnostics are not configured", .code = "DIAGNOSTICS_UNAVAILABLE", .sync = field == .message_activity } };
                 const message_id = stringArg(args, "message_id") orelse "";
                 var failure: execute.ResolveFailure = .{ .message = "" };
                 const result = if (field == .message_activity)

@@ -36,6 +36,17 @@ const FakeDb = struct {
     /// and `execute.io_events`), in call order.
     seen: [16]Seen = undefined,
     seen_len: usize = 0,
+    /// `EXPLAIN (FORMAT JSON)` planning reads (#10076): answered at once with
+    /// this Total Cost (TS tests' cheap plan is 1), or no plan row when null.
+    /// Not counted in `queries`/`started` and never blocked.
+    explain_cost: ?f64 = 1,
+    explains: u32 = 0,
+    /// Every call's SQL and JSON parameters (EXPLAIN included), in call order.
+    calls: [8]Call = undefined,
+    calls_len: usize = 0,
+    /// Each query's last parameter when it is a number (the LIMIT), in call order.
+    tail_numbers: [16]f64 = undefined,
+    tail_numbers_len: usize = 0,
     /// Queries whose SQL contains this needle fail with `fail_sql_message`.
     fail_sql: ?[]const u8 = null,
     fail_sql_message: []const u8 = "boom",
@@ -53,6 +64,21 @@ const FakeDb = struct {
 
     const Seen = struct { admission: ?*anyopaque, io_events: u32 };
 
+    const Call = struct {
+        sql_buf: [2048]u8 = undefined,
+        sql_len: usize = 0,
+        params_buf: [256]u8 = undefined,
+        params_len: usize = 0,
+
+        fn sql(self: *const Call) []const u8 {
+            return self.sql_buf[0..self.sql_len];
+        }
+
+        fn params(self: *const Call) []const u8 {
+            return self.params_buf[0..self.params_len];
+        }
+    };
+
     fn mustWait(self: *const FakeDb, text: []const u8, n: u32) bool {
         for (self.gates) |g| if (!g.open and n >= g.from and n <= g.to) return true;
         if (self.blocked) return true;
@@ -60,11 +86,20 @@ const FakeDb = struct {
         return std.mem.indexOf(u8, text, needle) != null;
     }
 
-    fn query(ctx: *anyopaque, arena: Allocator, text: []const u8, _: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
+    fn query(ctx: *anyopaque, arena: Allocator, text: []const u8, params: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
         const self: *FakeDb = @ptrCast(@alignCast(ctx));
         const execute = @import("execute.zig");
         const seen: Seen = .{ .admission = if (execute.admission) |adm| adm.ctx else null, .io_events = execute.io_events };
         self.mutex.lock();
+        if (self.calls_len < self.calls.len) {
+            const call = &self.calls[self.calls_len];
+            call.* = .{};
+            const sql = text[0..@min(text.len, call.sql_buf.len)];
+            @memcpy(call.sql_buf[0..sql.len], sql);
+            call.sql_len = sql.len;
+            call.params_len = (std.fmt.bufPrint(&call.params_buf, "{f}", .{Value{ .array = @constCast(params) }}) catch "").len;
+            self.calls_len += 1;
+        }
         if (self.pre_io_sql) |needle| if (std.mem.indexOf(u8, text, needle) != null) {
             self.pre_io_waiting += 1;
             self.cond.broadcast();
@@ -76,6 +111,14 @@ const FakeDb = struct {
             return error.CapacityExceeded;
         }
         execute.afterIo();
+        if (std.mem.startsWith(u8, text, "EXPLAIN")) {
+            self.mutex.lock();
+            self.explains += 1;
+            const cost = self.explain_cost;
+            self.mutex.unlock();
+            const plan = if (cost) |c| try std.fmt.allocPrint(arena, "[{{\"QUERY PLAN\":[{{\"Plan\":{{\"Total Cost\":{d}}}}}]}}]", .{c}) else "[]";
+            return (try core.json.parse(arena, plan, .{})).array;
+        }
         self.mutex.lock();
         self.queries += 1;
         self.started += 1;
@@ -83,6 +126,10 @@ const FakeDb = struct {
         if (self.seen_len < self.seen.len) {
             self.seen[self.seen_len] = seen;
             self.seen_len += 1;
+        }
+        if (params.len > 0 and params[params.len - 1] == .number and self.tail_numbers_len < self.tail_numbers.len) {
+            self.tail_numbers[self.tail_numbers_len] = params[params.len - 1].number;
+            self.tail_numbers_len += 1;
         }
         self.cond.broadcast();
         if (self.mustWait(text, n)) {
@@ -506,7 +553,7 @@ test "serializes the production query surface consistently" {
     try expectJson(try app.postQuery(a, "{ domain(limit: 1) { id name } }"), 200, "{\"data\":{\"domain\":[{\"id\":1,\"name\":\"ethereum\"}]}}");
     try expectJson(try app.post(a, "{\"query\":\"query Domain($id: Int!, $unused: String) { domain_by_pk(id: $id) { id name } }\",\"variables\":{\"id\":1,\"unused\":\"legacy-client-variable\"}}"), 200, "{\"data\":{\"domain_by_pk\":{\"id\":1,\"name\":\"ethereum\"}}}");
     try expectJson(
-        try app.postQuery(a, "{ result: message_view_aggregate(limit: 1) { aggregate { count } nodes { id msg_id nonce delivery_latency delivery_occurred_at destination_tx_gas_used } } }"),
+        try app.postQuery(a, "{ result: message_view_aggregate(where: {origin_tx_hash: {_eq: \"0x11\"}}, limit: 1) { aggregate { count } nodes { id msg_id nonce delivery_latency delivery_occurred_at destination_tx_gas_used } } }"),
         200,
         "{\"data\":{\"result\":{\"aggregate\":{\"count\":1},\"nodes\":[{\"id\":1,\"msg_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"nonce\":42,\"delivery_latency\":null,\"delivery_occurred_at\":\"2026-09-14T12:00:00.000Z\",\"destination_tx_gas_used\":\"123.45\"}]}}}",
     );
@@ -549,7 +596,7 @@ test "a parked request keeps its own fiber-locals while another runs (route Fibe
     try app.start();
     defer app.stop();
     var a_result: ParkedResult = .{};
-    const a_thread = try std.Thread.spawn(.{}, ParkedResult.run, .{ &a_result, &app, "{ message_view(confirmations: 0, limit: 1) { id } }" });
+    const a_thread = try std.Thread.spawn(.{}, ParkedResult.run, .{ &a_result, &app, "{ message_view(confirmations: 0, where: {is_provisional: {_eq: true}}, limit: 1) { id } }" });
     app.db.waitStarted(1);
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
@@ -572,7 +619,8 @@ test "a parked request keeps its own fiber-locals while another runs (route Fibe
         try testing.expect(b.admission != first.admission);
     }
     try testing.expectEqual(first.admission, last.admission);
-    try testing.expectEqual(first.io_events +% 1, last.io_events);
+    // Between them: the projection's EXPLAIN planning read (#10076).
+    try testing.expectEqual(first.io_events +% 2, last.io_events);
 }
 
 test "only requests parked on I/O hold execution slots (Node turn semantics)" {
@@ -899,7 +947,7 @@ test "keeps canonical aliases when a provisional snapshot exceeds the cap" {
     defer app.stop();
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
-    const r = try app.postQuery(arena.allocator(), "{ canonical: message_view(limit: 3) { id } provisional: message_view(confirmations: 0) { id } }");
+    const r = try app.postQuery(arena.allocator(), "{ canonical: message_view(limit: 3) { id } provisional: message_view(confirmations: 0, where: {is_provisional: {_eq: true}}) { id } }");
     try testing.expectEqual(@as(u16, 200), r.status);
     try testing.expect(std.mem.startsWith(u8, r.body, "{\"data\":{\"canonical\":[{\"id\":\"1\"}],\"provisional\":null},\"errors\":[{\"message\":\"Confirmation snapshot exceeds 10000 affected events"));
     try testing.expect(r.contains("\"path\":[\"provisional\"]"));
@@ -926,6 +974,142 @@ test "a type-system extension in a request is reported at its `extend` keyword (
     try expectJson(try app.postQuery(a, "{ __typename }\n  extend schema { mutation: domain }"), 400, "{\"data\":null,\"errors\":[{\"message\":\"The schema definition is not executable.\",\"locations\":[{\"line\":2,\"column\":3}]}]}");
 }
 
+test "history reads: unsupported filters, orders and arguments fail before any query (module.test.ts)" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    for ([_][]const u8{
+        "{ message_view(where: {is_delivered: {_eq: true}}, limit: 1) { id } }",
+        "{ message_view(confirmations: 0, where: {_or: [{is_provisional: {_eq: true}}, {is_delivered: {_eq: false}}]}) { id } }",
+        "{ message_view_aggregate(where: {_or: [{id: {_eq: \"1\"}}, {}]}) { nodes { id } aggregate { count } } }",
+        "{ message_view_aggregate(where: {msg_id: {_eq: null}}) { nodes { id } } }",
+        "{ message_view(where: {total_payment: {_gt: \"0\"}}) { id } }",
+        "{ message_view(order_by: {nonce: desc}) { id } }",
+        "{ message_view(order_by: {send_occurred_at: desc}) { id } }",
+        "{ message_view(distinct_on: [sender]) { id } }",
+        "{ raw_message_dispatch(where: {msg_body: {_eq: \"hello\"}}) { id } }",
+        "{ raw_message_dispatch(offset: 1) { id } }",
+    }) |query| {
+        const r = try app.postQuery(a, query);
+        testing.expect(r.contains("\"errors\":[")) catch |err| {
+            std.debug.print("no errors for {s}: {s}\n", .{ query, r.body });
+            return err;
+        };
+    }
+    try testing.expectEqual(@as(u32, 0), app.db.count());
+}
+
+test "history reads: Explorer's 500-row pending page, a transaction page and the domain catalog (module.test.ts)" {
+    var app: App = .{};
+    var domains: std.ArrayList(u8) = .empty;
+    defer domains.deinit(testing.allocator);
+    try domains.append(testing.allocator, '[');
+    for (0..207) |id| try domains.print(testing.allocator, "{s}{{\"id\":{d}}}", .{ if (id == 0) "" else ",", id });
+    try domains.append(testing.allocator, ']');
+    app.db.rows_by_sql = &.{.{ .needle = "FROM \"domain\"", .rows = domains.items }};
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const r = try app.postQuery(a, "query { pendingCandidates: message_view(order_by: {id: desc}, limit: 500) { id is_delivered } transactionMessages: message_view(where: {origin_tx_hash: {_eq: \"\\\\x" ++ "ab" ** 32 ++ "\"}}, order_by: {nonce: asc}, limit: 500) { id } domain { id } }");
+    try testing.expectEqual(@as(u16, 200), r.status);
+    testing.expect(!r.contains("\"errors\"")) catch |err| {
+        std.debug.print("{s}\n", .{r.body});
+        return err;
+    };
+    try testing.expect(r.contains(domains.items));
+    // Root fields run concurrently: every query's LIMIT is 500, in any order.
+    try testing.expectEqual(@as(usize, 3), app.db.tail_numbers_len);
+    for (app.db.tail_numbers[0..3]) |limit| try testing.expectEqual(@as(f64, 500), limit);
+}
+
+test "history reads: bound values reach EXPLAIN; over-budget and missing plans fail closed (module.test.ts)" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":\"123\",\"is_delivered\":true}]";
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const body = "{\"query\":\"query($id: bigint!){ message_view(where: {id: {_eq: $id}}, limit: 1) { id is_delivered } }\",\"variables\":{\"id\":\"123\"}}";
+    const over = "{\"data\":{\"message_view\":null},\"errors\":[{\"message\":\"History query exceeds the database planning budget\",\"locations\":[{\"line\":1,\"column\":22}],\"path\":[\"message_view\"]}]}";
+    for ([_]?f64{ 100_001, null, 1 }, 0..) |cost, i| {
+        app.db.mutex.lock();
+        app.db.explain_cost = cost;
+        app.db.mutex.unlock();
+        try expectJson(try app.post(a, body), 200, if (i < 2) over else "{\"data\":{\"message_view\":[{\"id\":\"123\",\"is_delivered\":true}]}}");
+    }
+    app.db.mutex.lock();
+    defer app.db.mutex.unlock();
+    try testing.expectEqual(@as(usize, 4), app.db.calls_len);
+    for (app.db.calls[0..4]) |*c| try testing.expectEqualStrings("[\"123\",1]", c.params());
+    try testing.expectEqualStrings(try std.mem.concat(a, u8, &.{ "EXPLAIN (FORMAT JSON) ", app.db.calls[3].sql() }), app.db.calls[2].sql());
+}
+
+test "history reads: aliases share one planning budget; the next request gets a fresh one (module.test.ts)" {
+    var app: App = .{};
+    app.db.explain_cost = 100_000;
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    for (1..3) |i| {
+        const r = try app.postQuery(a, "{ a: message_view { id } b: message_view { id } c: message_view { id } }");
+        try testing.expectEqual(@as(u16, 200), r.status);
+        try testing.expect(r.contains("\"errors\":[{\"message\":\"GraphQL operation exceeds its database planning budget\""));
+        try testing.expectEqual(@as(u32, @intCast(i * 2)), app.db.count());
+    }
+    // Domain reads are not planned (TS `select('domain')` skips EXPLAIN).
+    app.db.mutex.lock();
+    const explains = app.db.explains;
+    app.db.mutex.unlock();
+    try expectJson(try app.postQuery(a, "{ domain { id } }"), 200, "{\"data\":{\"domain\":[]}}");
+    app.db.mutex.lock();
+    defer app.db.mutex.unlock();
+    try testing.expectEqual(explains, app.db.explains);
+}
+test "history reads: policy rejections are synchronous throws (graphql-js executeFields)" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":\"1\"}]";
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const ordering = "Use ID ordering for history, nonce for an identifier, or send time for a provisional-only feed";
+    const aggregate = "History aggregates require an exact message or transaction identifier";
+    // A nullable rejection is recorded before an I/O-free async failure.
+    try expectJson(
+        try app.postQuery(a, "{ a: message_view(where: {msg_id: {_eq: \"0x01\"}}, confirmations: 2000) { id } b: message_view(order_by: {nonce: desc}) { id } }"),
+        200,
+        "{\"data\":{\"a\":null,\"b\":null},\"errors\":[{\"message\":\"" ++ ordering ++ "\",\"locations\":[{\"line\":1,\"column\":79}],\"path\":[\"b\"]},{\"message\":\"confirmations exceeds maximum of 1000\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"a\"]}]}",
+    );
+    // A non-null rejection ends the loop; earlier fields settle first
+    // (`promiseForObject(results).finally(() => { throw error; })`).
+    try expectJson(
+        try app.postQuery(a, "{ a: message_view(order_by: {nonce: desc}) { id } b: message_view_aggregate { nodes { id } } }"),
+        200,
+        "{\"data\":null,\"errors\":[{\"message\":\"" ++ ordering ++ "\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"a\"]},{\"message\":\"" ++ aggregate ++ "\",\"locations\":[{\"line\":1,\"column\":51}],\"path\":[\"b\"]}]}",
+    );
+    app.db.fail_sql = "msg_id";
+    try expectJson(
+        try app.postQuery(a, "{ a: message_view(where: {msg_id: {_eq: \"0x01\"}}) { id } b: message_view_aggregate { nodes { id } } }"),
+        200,
+        "{\"data\":null,\"errors\":[{\"message\":\"boom\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"a\"]},{\"message\":\"" ++ aggregate ++ "\",\"locations\":[{\"line\":1,\"column\":58}],\"path\":[\"b\"]}]}",
+    );
+    // An earlier non-null failure rejects first; `finally` replaces its error.
+    app.db.fail_sql = "\"domain\"";
+    try expectJson(
+        try app.postQuery(a, "{ a: domain(limit: 1) { id } b: message_view_aggregate { nodes { id } } }"),
+        200,
+        "{\"data\":null,\"errors\":[{\"message\":\"" ++ aggregate ++ "\",\"locations\":[{\"line\":1,\"column\":30}],\"path\":[\"b\"]}]}",
+    );
+}
 test "GET variables that are not an object, array or null fail graphql-js's execution-argument check" {
     var app: App = .{};
     try app.start();
@@ -978,8 +1162,8 @@ test "concurrent root fields collect errors in settle order (graphql-js)" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const r = try app.postQuery(a, "{ x: message_view(where: {nonce: {_eq: 1}}, limit: 1) { id } d: domain(limit: 1) { id } z: message_view(limit: 1) { id } }");
-    try expectJson(r, 200, "{\"data\":{\"x\":null,\"d\":[{\"id\":7}],\"z\":null},\"errors\":[{\"message\":\"boom\",\"locations\":[{\"line\":1,\"column\":89}],\"path\":[\"z\"]},{\"message\":\"boom\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"x\"]}]}");
+    const r = try app.postQuery(a, "{ x: message_view(where: {msg_id: {_eq: \"0x01\"}}, limit: 1) { id } d: domain(limit: 1) { id } z: message_view(limit: 1) { id } }");
+    try expectJson(r, 200, "{\"data\":{\"x\":null,\"d\":[{\"id\":7}],\"z\":null},\"errors\":[{\"message\":\"boom\",\"locations\":[{\"line\":1,\"column\":95}],\"path\":[\"z\"]},{\"message\":\"boom\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"x\"]}]}");
 }
 
 test "I/O-free failures settle before I/O failures" {
@@ -991,24 +1175,24 @@ test "I/O-free failures settle before I/O failures" {
     defer arena.deinit();
     const a = arena.allocator();
     // Nullable I/O error first in the document, nullable assertion second.
-    try expectJson(try app.postQuery(a, "{ a: message_view(limit: 1) { id } b: message_view(confirmations: 1001) { id } }"), 200, "{\"data\":{\"a\":null,\"b\":null},\"errors\":[{\"message\":\"confirmations exceeds maximum of 1000\",\"locations\":[{\"line\":1,\"column\":36}],\"path\":[\"b\"]},{\"message\":\"boom\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"a\"]}]}");
+    try expectJson(try app.postQuery(a, "{ a: message_view(limit: 1) { id } b: message_view(where: {msg_id: {_eq: \"0x01\"}}, confirmations: 1001) { id } }"), 200, "{\"data\":{\"a\":null,\"b\":null},\"errors\":[{\"message\":\"confirmations exceeds maximum of 1000\",\"locations\":[{\"line\":1,\"column\":36}],\"path\":[\"b\"]},{\"message\":\"boom\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"a\"]}]}");
     // A non-null assertion ends collection before the I/O error settles.
     try expectJson(try app.postQuery(a, "{ a: message_view(limit: 1) { id } b: domain(limit: 501) { id } }"), 200, "{\"data\":null,\"errors\":[{\"message\":\"limit exceeds maximum of 500\",\"locations\":[{\"line\":1,\"column\":36}],\"path\":[\"b\"]}]}");
     // Nullable I/O-free errors are collected before the non-null one.
-    try expectJson(try app.postQuery(a, "{ a: domain(limit: 501) { id } b: message_view(confirmations: 1001) { id } }"), 200, "{\"data\":null,\"errors\":[{\"message\":\"confirmations exceeds maximum of 1000\",\"locations\":[{\"line\":1,\"column\":32}],\"path\":[\"b\"]},{\"message\":\"limit exceeds maximum of 500\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"a\"]}]}");
+    try expectJson(try app.postQuery(a, "{ a: domain(limit: 501) { id } b: message_view(where: {msg_id: {_eq: \"0x01\"}}, confirmations: 1001) { id } }"), 200, "{\"data\":null,\"errors\":[{\"message\":\"confirmations exceeds maximum of 1000\",\"locations\":[{\"line\":1,\"column\":32}],\"path\":[\"b\"]},{\"message\":\"limit exceeds maximum of 500\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"a\"]}]}");
 }
 
 test "concurrent root fields stop at the first non-null failure" {
     var app: App = .{};
     app.db.fail_sql = "raw_message_dispatch";
-    app.db.delay_sql = "OFFSET";
+    app.db.delay_sql = "DESC";
     app.db.rows = "[{\"id\":7}]";
     try app.start();
     defer app.stop();
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     const a = arena.allocator();
-    const r = try app.postQuery(a, "{ a: domain(limit: 1) { id } b: raw_message_dispatch(limit: 1) { id } c: raw_message_dispatch(limit: 2, offset: 0) { id } }");
+    const r = try app.postQuery(a, "{ a: domain(limit: 1) { id } b: raw_message_dispatch(limit: 1) { id } c: raw_message_dispatch(limit: 2, order_by: {id: desc}) { id } }");
     try expectJson(r, 200, "{\"data\":null,\"errors\":[{\"message\":\"boom\",\"locations\":[{\"line\":1,\"column\":30}],\"path\":[\"b\"]}]}");
 }
 

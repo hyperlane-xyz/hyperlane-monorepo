@@ -284,6 +284,15 @@ pub const Conn = struct {
     batch_open: bool = false,
     refs: std.atomic.Value(u32) = .init(2),
     initial: []u8,
+    /// R holder only: the upgrade request's body still to discard
+    /// (`feedInput`), and a partial chunked-framing line held across reads.
+    body: ?server_mod.BodyReader = null,
+    body_held: std.ArrayList(u8) = .empty,
+    /// The body's chunked framing was invalid: Node's UpgradeStream then
+    /// hides every later byte and keeps the socket open (TS: measured, Node
+    /// 26.12.1); input is discarded until the peer ends or the heartbeat
+    /// terminates the connection.
+    body_failed: bool = false,
 
     /// The 101 response, not yet written: it goes out in the same `sendmsg`
     /// as the first frame sent during `on_upgrade` (one segment for 101 +
@@ -311,7 +320,7 @@ pub const Conn = struct {
         errdefer gpa.destroy(self);
         const initial = try gpa.dupe(u8, socket.head);
         errdefer gpa.free(initial);
-        self.* = .{ .gpa = gpa, .fd = socket.fd, .options = options, .handler = handler, .initial = initial };
+        self.* = .{ .gpa = gpa, .fd = socket.fd, .options = options, .handler = handler, .initial = initial, .body = socket.body };
         self.reader = .{ .conn = self };
         return self;
     }
@@ -353,6 +362,7 @@ pub const Conn = struct {
         for (self.queue.items) |f| self.gpa.free(f.bytes);
         self.queue.deinit(self.gpa);
         self.close_reason.deinit(self.gpa);
+        self.body_held.deinit(self.gpa);
         self.gpa.free(self.initial);
         self.gpa.destroy(self);
     }
@@ -378,6 +388,7 @@ pub const Conn = struct {
         self.pass_done.deinit(self.gpa);
         self.delivering.deinit(self.gpa);
         self.close_reason.deinit(self.gpa);
+        self.body_held.deinit(self.gpa);
         self.gpa.free(self.initial);
         self.gpa.destroy(self);
     }
@@ -920,7 +931,7 @@ pub const Conn = struct {
         self.unlockConn();
         if (queued) self.scheduleFlush();
         // A terminate() before attach is seen by the reader below.
-        self.feedRead(self.initial);
+        self.feedInput(self.initial);
         self.gpa.free(self.initial);
         self.initial = &.{};
         self.readable = false;
@@ -987,7 +998,48 @@ pub const Conn = struct {
             // Edge-triggered: a short read drained the socket (unless the
             // peer hung up in the same edge: then read on to EOF).
             if (n < buf.len and !self.hup) self.readable = false;
-            self.feedRead(buf[0..n]);
+            self.feedInput(buf[0..n]);
+        }
+    }
+
+    /// Input after the upgrade request's head: what is left of its body is
+    /// discarded first, as Node 26's UpgradeStream shows the upgrade only the
+    /// bytes after the body (and our 101 may already be out meanwhile); a
+    /// malformed body ends the socket (Node: a parser error destroys it).
+    fn feedInput(self: *Conn, data: []const u8) void {
+        if (self.body_failed) return;
+        if (self.body == null) return self.feedRead(data);
+        var bytes = data;
+        if (self.body_held.items.len > 0) {
+            self.body_held.appendSlice(self.gpa, data) catch return self.terminate();
+            bytes = self.body_held.items;
+        }
+        var cursor: struct { buf: []const u8, start: usize = 0, end: usize } = .{ .buf = bytes, .end = bytes.len };
+        const progress = self.body.?.consume(&cursor, null, null, std.math.maxInt(usize)) catch |e| switch (e) {
+            error.OutOfMemory => return self.terminate(),
+            else => {
+                self.body_failed = true;
+                self.body = null;
+                self.body_held.clearAndFree(self.gpa);
+                return;
+            },
+        };
+        const rest = bytes[cursor.start..];
+        switch (progress) {
+            .done => {
+                self.body = null;
+                // Frames after the body; `rest` may alias `body_held`, freed after.
+                if (rest.len > 0) self.feedRead(rest);
+                self.body_held.clearAndFree(self.gpa);
+            },
+            .need_more => {
+                // Only a partial framing line (at most 4 KiB) is left over.
+                if (rest.len == 0) return self.body_held.clearRetainingCapacity();
+                if (bytes.ptr == self.body_held.items.ptr) {
+                    std.mem.copyForwards(u8, self.body_held.items[0..rest.len], rest);
+                    self.body_held.shrinkRetainingCapacity(rest.len);
+                } else self.body_held.appendSlice(self.gpa, rest) catch return self.terminate();
+            },
         }
     }
 
@@ -1403,10 +1455,11 @@ const Reader = struct {
             return pos + n;
         }
         const gpa = self.conn.gpa;
+        // ws counts every data frame, empty ones too (receiver.js getData).
+        self.fragments += 1;
+        if (self.fragments > self.conn.options.max_fragments) return self.err(1008, false, "Too many message fragments");
         if (n > 0) {
             self.total += n;
-            self.fragments += 1;
-            if (self.fragments > self.conn.options.max_fragments) return self.err(1008, false, "Too many message fragments");
             const start = self.message.items.len;
             self.message.resize(gpa, start + n) catch {
                 self.stop();

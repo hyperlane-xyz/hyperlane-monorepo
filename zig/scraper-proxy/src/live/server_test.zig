@@ -752,6 +752,132 @@ test "explorer negotiation: ready frames, validation and per-IP limits" {
     try testing.expectEqual(@as(f64, 5), snapshot.messageMaxConnectionsPerIp);
 }
 
+test "messages (TS #10076): loopback peer only, URL and subscription caps, client frames rejected" {
+    var h: Harness = .{};
+    try h.init(defaultLimits());
+    defer h.deinit();
+    // The direct peer must be the loopback cloudflared sidecar.
+    {
+        const s = h.newSocket();
+        const peer = h.server.connectExplorer(s.socket(), .{ .url = "/messages", .cf_connecting_ip = "198.51.100.1", .remote_address = "203.0.113.5" });
+        try h.peers.append(a, peer);
+        try waitClosed(s);
+        try testing.expectEqual(@as(?u16, 1008), s.close_code);
+        try testing.expectEqualStrings("Missing or invalid client IP", s.reason());
+        try testing.expectEqual(@as(usize, 0), s.count());
+    }
+    // `Buffer.byteLength(request.url) > 8192`, before parsing.
+    // "/messages?x=" is 12 bytes: 8,193 bytes in all, then exactly 8,192.
+    const long, _ = h.explorer("/messages?x=" ++ "a" ** 8_181, "198.51.100.2");
+    try h.waitFrames(long, 1);
+    try testing.expectEqualStrings("{\"error\":\"Explorer subscription URL too long\",\"type\":\"error\"}", long.frame(0));
+    try testing.expectEqualStrings("Invalid subscription", long.reason());
+    const at_limit, _ = h.explorer("/messages?x=" ++ "a" ** 8_180, "198.51.100.2");
+    try h.waitFrames(at_limit, 1);
+    try testing.expect(std.mem.indexOf(u8, at_limit.frame(0), "\"type\":\"ready\"") != null);
+    // protocol.ts caps.
+    const deep, _ = h.explorer("/messages?confirmations=1001&domains=1", "198.51.100.3");
+    try h.waitFrames(deep, 1);
+    try testing.expectEqualStrings("{\"error\":\"confirmations must not exceed 1000\",\"type\":\"error\"}", deep.frame(0));
+    var url: std.ArrayList(u8) = .empty;
+    defer url.deinit(a);
+    try url.appendSlice(a, "/messages?confirmations=0&domains=0");
+    for (1..513) |i| try url.print(a, ",{d}", .{i});
+    const wide, _ = h.explorer(url.items, "198.51.100.4");
+    try h.waitFrames(wide, 1);
+    try testing.expectEqualStrings("{\"error\":\"domains must contain at most 512 IDs\",\"type\":\"error\"}", wide.frame(0));
+    // /messages is server-only: an application frame closes it 1008.
+    const before = core.metrics.websocket_client_message_rejections.get(.{});
+    const s, const peer = h.explorer("/messages", "198.51.100.5");
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer, "{\"unexpected\":true}");
+    try h.waitFrames(s, 2);
+    try testing.expectEqualStrings("{\"error\":\"Client messages are unsupported\",\"type\":\"error\"}", s.frame(1));
+    try waitClosed(s);
+    try testing.expectEqual(@as(?u16, 1008), s.close_code);
+    try testing.expectEqual(before + 1, core.metrics.websocket_client_message_rejections.get(.{}));
+}
+
+test "messages (TS #10076): a client frame right after the upgrade is rejected; after a failed check it is ignored" {
+    var h: Harness = .{};
+    try h.initAsync(defaultLimits());
+    defer h.deinit();
+    const before = core.metrics.websocket_client_message_rejections.get(.{});
+    // Read-free setup: TS sends `ready` before its first await, then the frame
+    // that came with the upgrade request is rejected.
+    {
+        const s, const peer = h.explorer("/messages", "198.51.100.10");
+        h.server.onMessage(peer, "{\"unexpected\":true}");
+        try h.waitFrames(s, 2);
+        try testing.expect(std.mem.indexOf(u8, s.frame(0), "\"type\":\"ready\"") != null);
+        try testing.expectEqualStrings("{\"error\":\"Client messages are unsupported\",\"type\":\"error\"}", s.frame(1));
+        try waitClosed(s);
+        try testing.expectEqual(@as(?u16, 1008), s.close_code);
+    }
+    // A setup awaiting its read: the handler is registered before the first
+    // await, so the frame is rejected and `ready` never comes.
+    {
+        var gate: QueryGate = .{ .contains = "AS hash, head_height" };
+        h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+        defer h.db.before_query = null;
+        defer gate.released.set();
+        const s, const peer = h.explorer("/messages?blocks=true", "198.51.100.11");
+        h.server.onMessage(peer, "{\"unexpected\":true}");
+        try h.waitFrames(s, 1);
+        try testing.expectEqualStrings("{\"error\":\"Client messages are unsupported\",\"type\":\"error\"}", s.frame(0));
+        try waitClosed(s);
+        gate.released.set();
+        for (0..5_000) |_| {
+            if (metricsOf(&h).explorerPendingSetups == 0) break;
+            std.Thread.sleep(std.time.ns_per_ms);
+        }
+        h.settle();
+        try testing.expectEqual(@as(usize, 1), s.count());
+    }
+    try testing.expectEqual(before + 2, core.metrics.websocket_client_message_rejections.get(.{}));
+    // After a failed check TS never registered the handler: the frame is ignored.
+    {
+        const s, const peer = h.explorer("/messages?x=" ++ "a" ** 8_182, "198.51.100.12");
+        h.server.onMessage(peer, "{\"unexpected\":true}");
+        try h.waitFrames(s, 1);
+        h.settle();
+        try testing.expectEqual(@as(usize, 1), s.count());
+        try testing.expectEqualStrings("{\"error\":\"Explorer subscription URL too long\",\"type\":\"error\"}", s.frame(0));
+    }
+    try testing.expectEqual(before + 2, core.metrics.websocket_client_message_rejections.get(.{}));
+}
+
+test "messages (TS #10076): unfinished setups are bounded per IP and held until the read ends, after a disconnect too" {
+    var h: Harness = .{};
+    try h.initAsync(defaultLimits());
+    defer h.deinit();
+    // The blocks snapshot read (`blockHeadsQuery`) is held.
+    var gate: QueryGate = .{ .contains = "AS hash, head_height" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    const ip = "203.0.113.90";
+    _, const first = h.explorer("/messages?blocks=true", ip);
+    _, const second = h.explorer("/messages?blocks=true", ip);
+    gate.started.wait();
+    try testing.expectEqual(@as(f64, 2), metricsOf(&h).explorerPendingSetups);
+    const rejected, _ = h.explorer("/messages?blocks=true", ip);
+    try waitClosed(rejected);
+    try testing.expectEqual(@as(?u16, 1008), rejected.close_code);
+    try testing.expectEqualStrings("Maximum setups per client reached", rejected.reason());
+    // Another address is unaffected (2 pending setups of 32).
+    const other, _ = h.explorer("/messages", "203.0.113.91");
+    try h.waitFrames(other, 1);
+    h.close(first);
+    h.close(second);
+    try testing.expectEqual(@as(f64, 2), metricsOf(&h).explorerPendingSetups);
+    gate.released.set();
+    for (0..5_000) |_| {
+        if (metricsOf(&h).explorerPendingSetups == 0) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).explorerPendingSetups);
+}
+
 test "blocks: snapshot after ready, then deduplicated live heads" {
     var h: Harness = .{};
     try h.init(defaultLimits());

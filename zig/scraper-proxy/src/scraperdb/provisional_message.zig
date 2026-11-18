@@ -132,13 +132,18 @@ pub const PROVISIONAL_MESSAGE_QUERY = dispatch_ctes ++
     \\  ) delivery ON TRUE
     \\  LEFT JOIN "transaction" identified_destination_tx
     \\    ON identified_destination_tx.id=delivery.destination_tx_id
-    \\  LEFT JOIN block destination_block ON destination_block.domain=delivery.domain
-    \\    AND (destination_block.hash=delivery.block_hash OR
-    \\      (delivery.block_hash IS NULL AND
-    \\        destination_block.id=identified_destination_tx.block_id))
-    \\  LEFT JOIN "transaction" destination_tx ON destination_tx.id=delivery.destination_tx_id
-    \\    OR (delivery.destination_tx_id IS NULL AND destination_tx.block_id=destination_block.id
-    \\      AND destination_tx.hash=delivery.transaction_hash)
+    \\  LEFT JOIN LATERAL (
+    \\    SELECT b.* FROM block b WHERE b.domain=delivery.domain AND b.hash=delivery.block_hash
+    \\    UNION ALL
+    \\    SELECT b.* FROM block b WHERE delivery.block_hash IS NULL
+    \\      AND b.domain=delivery.domain AND b.id=identified_destination_tx.block_id
+    \\  ) destination_block ON TRUE
+    \\  LEFT JOIN LATERAL (
+    \\    SELECT identified_destination_tx.* WHERE delivery.destination_tx_id IS NOT NULL
+    \\    UNION ALL
+    \\    SELECT tx.* FROM "transaction" tx WHERE delivery.destination_tx_id IS NULL
+    \\      AND tx.block_id=destination_block.id AND tx.hash=delivery.transaction_hash
+    \\  ) destination_tx ON TRUE
     \\  LEFT JOIN LATERAL (
     \\    SELECT count(*)::bigint AS num_payments,
     \\      array_agg(DISTINCT payment.domain) AS domains,
@@ -154,16 +159,23 @@ pub const PROVISIONAL_MESSAGE_QUERY = dispatch_ctes ++
     \\
 ;
 
-/// `buildProvisionalMessageAffectedQuery(filterByMessageIds)`, both variants
-/// built at comptime. With the filter, `$2` is the bytea[] message-id bound.
-pub fn affectedQuery(filter_by_message_ids: bool) []const u8 {
+/// `buildProvisionalMessageAffectedQuery(filterByMessageIds,
+/// zeroConfirmations)`, all four variants built at comptime. With the
+/// filter, `$2` is the bytea[] message-id bound. At zero confirmations the
+/// legacy-dispatch branch is left out (TS: the indexed head is always at or
+/// above the confirmed height).
+pub fn affectedQuery(filter_by_message_ids: bool, zero_confirmations: bool) []const u8 {
+    if (zero_confirmations) return if (filter_by_message_ids) affected_scans_filtered else affected_scans_unfiltered;
     return if (filter_by_message_ids) affected_filtered else affected_unfiltered;
 }
 
+const affected_scans_unfiltered = affectedScans(false);
+const affected_scans_filtered = affectedScans(true);
 const affected_unfiltered = buildAffected(false);
 const affected_filtered = buildAffected(true);
 
-fn buildAffected(comptime filter: bool) []const u8 {
+/// TS `eventScans`.
+fn affectedScans(comptime filter: bool) []const u8 {
     const message_filter = if (filter) "AND event.msg_id=ANY($2::bytea[])" else "";
     return 
     \\
@@ -172,25 +184,29 @@ fn buildAffected(comptime filter: bool) []const u8 {
     \\  -- into full-history scans by the planner.
 ++ "\n  " ++ affectedEvents("raw_message_dispatch", "origin_domain", "origin_block_height", message_filter) ++
     " UNION ALL " ++ affectedEvents("delivered_message", "domain", "block_number", message_filter) ++
-    " UNION ALL " ++ affectedEvents("gas_payment", "domain", "block_number", message_filter) ++
-    \\
-    \\  UNION ALL
-    \\  -- A stricter frontier can also hide historical dispatches without raw rows.
-    \\  SELECT legacy.msg_id
-    \\  FROM custom_frontier frontier
-    \\  CROSS JOIN LATERAL (
-    \\    SELECT message.msg_id
-    \\    FROM block
-    \\    JOIN "transaction" tx ON tx.block_id=block.id
-    \\    JOIN message ON message.origin_tx_id=tx.id
-    \\    WHERE block.domain=frontier.domain
-    \\      AND block.height>frontier.height AND block.height<=frontier.confirmed_height
-    \\      AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch raw WHERE raw.msg_id=message.msg_id)
-++ "\n      " ++ (if (filter) "AND message.msg_id=ANY($2::bytea[])" else "") ++
-    \\
-    \\    OFFSET 0
-    \\  ) legacy
-    \\  WHERE frontier.height<frontier.confirmed_height
+    " UNION ALL " ++ affectedEvents("gas_payment", "domain", "block_number", message_filter);
+}
+
+fn buildAffected(comptime filter: bool) []const u8 {
+    return affectedScans(filter) ++
+        \\
+        \\  UNION ALL
+        \\  -- A stricter frontier can also hide historical dispatches without raw rows.
+        \\  SELECT legacy.msg_id
+        \\  FROM custom_frontier frontier
+        \\  CROSS JOIN LATERAL (
+        \\    SELECT message.msg_id
+        \\    FROM block
+        \\    JOIN "transaction" tx ON tx.block_id=block.id
+        \\    JOIN message ON message.origin_tx_id=tx.id
+        \\    WHERE block.domain=frontier.domain
+        \\      AND block.height>frontier.height AND block.height<=frontier.confirmed_height
+        \\      AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch raw WHERE raw.msg_id=message.msg_id)
+    ++ "\n      " ++ (if (filter) "AND message.msg_id=ANY($2::bytea[])" else "") ++
+        \\
+        \\    OFFSET 0
+        \\  ) legacy
+        \\  WHERE frontier.height<frontier.confirmed_height
     ;
 }
 

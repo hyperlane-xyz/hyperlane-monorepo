@@ -110,15 +110,15 @@ test "stack high-water of the deepest request paths (opt-in GRAPHQL_STACK=1)" {
     // depth; parser.stack_budget / values.coerce_budget), plus the shapes
     // with no TS limit inside the request size limits.
     const cases = [_]Case{
-        .{ .name = "lists x1713", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain(limit: {s}) {{ id }} }}", .{try nested(a, "[", "]", "1", 1713)}), null) },
-        .{ .name = "objects x1360", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain(where: {{id: {{_eq: {s}}}}}) {{ id }} }}", .{try nested(a, "{a: ", "}", "1", 1360)}), null) },
-        .{ .name = "where _and inline x757", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain(where: {s}) {{ id }} }}", .{try nested(a, "{_and: [", "]}", "{id: {_eq: 1}}", 757)}), null) },
-        .{ .name = "where _not inline x1360", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain(where: {s}) {{ id }} }}", .{try nested(a, "{_not: ", "}", "{id: {_eq: 1}}", 1360)}), null) },
-        .{ .name = "selections x1666", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain {s} }}", .{try nested(a, "{ a ", "}", "b", 1666)}), null) },
-        .{ .name = "inline fragments x1642", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ {s} }}", .{try nested(a, "... on query_root { ", "}", "__typename", 1642)}), null) },
+        .{ .name = "lists x1714", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain(limit: {s}) {{ id }} }}", .{try nested(a, "[", "]", "1", 1714)}), null) },
+        .{ .name = "objects x1361", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain(where: {{id: {{_eq: {s}}}}}) {{ id }} }}", .{try nested(a, "{a: ", "}", "1", 1361)}), null) },
+        .{ .name = "where _and inline x758", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain(where: {s}) {{ id }} }}", .{try nested(a, "{_and: [", "]}", "{id: {_eq: 1}}", 758)}), null) },
+        .{ .name = "where _not inline x1361", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain(where: {s}) {{ id }} }}", .{try nested(a, "{_not: ", "}", "{id: {_eq: 1}}", 1361)}), null) },
+        .{ .name = "selections x1667", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ domain {s} }}", .{try nested(a, "{ a ", "}", "b", 1667)}), null) },
+        .{ .name = "inline fragments x1643", .body = try jsonBody(a, try std.fmt.allocPrint(a, "{{ {s} }}", .{try nested(a, "... on query_root { ", "}", "__typename", 1643)}), null) },
         .{ .name = "list types x4980 (no TS limit)", .body = try jsonBody(a, try std.fmt.allocPrint(a, "query ($x: {s}) {{ __typename }}", .{try nested(a, "[", "]", "Int", 4980)}), null) },
         .{ .name = "_and variables x625", .body = try jsonBody(a, "query ($w: domain_bool_exp) { domain(where: $w) { id } }", try std.fmt.allocPrint(a, "{{\"w\":{s}}}", .{try nested(a, "{\"_and\":[", "]}", "{\"id\":{\"_eq\":1}}", 625)})) },
-        .{ .name = "_not variables x2396", .body = try jsonBody(a, "query ($w: domain_bool_exp) { domain(where: $w) { id } }", try std.fmt.allocPrint(a, "{{\"w\":{s}}}", .{try nested(a, "{\"_not\":", "}", "{\"id\":{\"_eq\":1}}", 2396)})) },
+        .{ .name = "_not variables x2999", .body = try jsonBody(a, "query ($w: domain_bool_exp) { domain(where: $w) { id } }", try std.fmt.allocPrint(a, "{{\"w\":{s}}}", .{try nested(a, "{\"_not\":", "}", "{\"id\":{\"_eq\":1}}", 2999)})) },
         .{ .name = "@cached _and variables x625", .body = try jsonBody(a, "query ($w: domain_bool_exp) @cached(ttl: 5) { domain(where: $w) { id } }", try std.fmt.allocPrint(a, "{{\"w\":{s}}}", .{try nested(a, "{\"_and\":[", "]}", "{\"id\":{\"_eq\":1}}", 625)})) },
         .{ .name = "JSON body 49k deep (no TS limit)", .body = try std.fmt.allocPrint(a, "{{\"query\":\"{{ __typename }}\",\"x\":{s}}}", .{try nested(a, "[", "]", "1", 49_000)}) },
     };
@@ -273,10 +273,10 @@ test "deep nesting answers like a cold TS process at its stack limit" {
     try expectThreshold(r, a, "inline fragment", b.inline_fragment_depth, builders.inlineFragment);
     try expectThreshold(r, a, "_not variables", c.not_depth, builders.notVar);
     // Mixed shapes (not used for fitting): the cold-TS depths they overflow at.
-    try expectThreshold(r, a, "_and inline", 758, builders.andInline);
+    try expectThreshold(r, a, "_and inline", 759, builders.andInline);
     try expectThreshold(r, a, "object:list 2:1", 488, builders.obj2List1);
-    try expectThreshold(r, a, "[[{a:", 526, builders.list2Obj1);
-    try expectThreshold(r, a, "list under 600 selections", 1097, builders.listUnderSelections(600));
-    try expectThreshold(r, a, "list under 1200 selections", 480, builders.listUnderSelections(1200));
+    try expectThreshold(r, a, "[[{a:", 527, builders.list2Obj1);
+    try expectThreshold(r, a, "list under 600 selections", 1098, builders.listUnderSelections(600));
+    try expectThreshold(r, a, "list under 1200 selections", 481, builders.listUnderSelections(1200));
     try expectThreshold(r, a, "_and variables", c.and_depth, builders.andVar);
 }

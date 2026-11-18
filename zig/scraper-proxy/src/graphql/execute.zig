@@ -62,8 +62,10 @@ pub fn locationsFromOffsets(a: Allocator, source: []const u8, offsets: []const u
     return out;
 }
 
-/// Resolver failure: message + optional `extensions.code`.
-pub const ResolveFailure = struct { message: []const u8, code: ?[]const u8 = null };
+/// Resolver failure: message + optional `extensions.code`. `sync`: the
+/// resolver throws before returning a promise; on a root field graphql-js
+/// records that error during executeFields, before any promise settles.
+pub const ResolveFailure = struct { message: []const u8, code: ?[]const u8 = null, sync: bool = false };
 
 pub const ResolveResult = union(enum) {
     /// Use the default resolver (`source[fieldName]`).
@@ -89,10 +91,10 @@ pub const Resolvers = struct {
     /// (`RawResult`), asked only when the selection can be written straight
     /// from it (see `rawPlan`). `.none`: use `resolve`.
     resolve_raw: ?*const fn (ctx: *anyopaque, a: Allocator, info: *const Info, parent: Value, args: Value) Allocator.Error!RawResult = null,
-    /// Optional: whether TS's resolver for this root field throws before
-    /// returning a promise (graphql-js then starts no later root field when
-    /// the field is non-null; see `executeRoots`).
-    fails_synchronously: ?*const fn (ctx: *anyopaque, field_name: []const u8) bool = null,
+    /// Optional: whether TS's resolver for this root field, given its coerced
+    /// arguments, throws before returning a promise (graphql-js then starts no
+    /// later root field when the field is non-null; see `executeRoots`).
+    fails_synchronously: ?*const fn (ctx: *anyopaque, field_name: []const u8, args: Value) bool = null,
 };
 
 /// What a fast column's JSON is (the database adapter decides per column
@@ -237,6 +239,8 @@ pub const Executor = struct {
     out: std.Io.Writer.Allocating = undefined,
     /// See `Result.deep_scalar`.
     deep_scalar: bool = false,
+    /// A root field's resolver failed synchronously (`ResolveFailure.sync`).
+    sync_failure: bool = false,
 
     const Err = error{ OutOfMemory, Raw, Located };
 
@@ -341,6 +345,9 @@ pub const Executor = struct {
         /// The field reached the database/diagnostics service (settles after
         /// I/O, i.e. after every I/O-free root field in graphql-js).
         io: bool = false,
+        /// Its resolver threw synchronously: the error is recorded before
+        /// any other root field's settles.
+        sync: bool = false,
         /// Global completion order (settle order among I/O fields).
         stamp: u64 = 0,
         job: root_pool.Job = .{ .run = runJob },
@@ -392,11 +399,13 @@ pub const Executor = struct {
                     t.propagated = true;
                     t.pending = sub.pending;
                     t.errors = sub.errors.items;
+                    t.sync = sub.sync_failure;
                     return;
                 },
             };
             t.value = sub.out.written();
             t.errors = sub.errors.items;
+            t.sync = sub.sync_failure;
             t.deep_scalar = sub.deep_scalar;
         }
     };
@@ -436,9 +445,15 @@ pub const Executor = struct {
         // ones before it keep running) and the response has that error alone.
         var sync_stop: ?usize = null;
         if (self.resolvers.fails_synchronously) |fails| for (tasks, 0..) |*t, i| {
-            const field_name = t.nodes[0].name.value;
-            const def = self.schema.fieldDef(root, field_name) orelse continue;
-            if (def.type.isNonNull() and fails(self.resolvers.ctx, field_name)) {
+            const first = t.nodes[0];
+            const def = self.schema.fieldDef(root, first.name.value) orelse continue;
+            if (!def.type.isNonNull()) continue;
+            // Argument errors are left to the field's own run (as before).
+            const args = switch (try values.getArgumentValues(self.a, def.args, first.arguments, first.loc, self.vars)) {
+                .ok => |v| v,
+                .err => continue,
+            };
+            if (fails(self.resolvers.ctx, first.name.value, args)) {
                 sync_stop = i;
                 break;
             }
@@ -475,46 +490,25 @@ pub const Executor = struct {
         }
         for (started) |*t| if (t.oom) return error.OutOfMemory;
         if (sync_stop) |i| if (tasks[i].propagated) {
+            // `promiseForObject(results).finally(() => { throw error; })`:
+            // the fields before it settle first (their errors as below,
+            // up to a non-null failure, whose own error is replaced).
+            const order = try self.settleOrder(tasks[0..i]);
+            const failed = firstFailure(order);
+            try self.appendSettled(order, failed);
             try self.errors.append(self.a, tasks[i].pending);
             result.errors = self.errors.items;
             return result;
         };
 
-        // Settle order: I/O-free fields in document order, then I/O fields by completion.
-        const order = try self.a.alloc(*RootTask, started.len);
-        var k: usize = 0;
-        for (started) |*t| if (!t.io) {
-            order[k] = t;
-            k += 1;
-        };
-        const io_start = k;
-        for (started) |*t| if (t.io) {
-            order[k] = t;
-            k += 1;
-        };
-        std.mem.sort(*RootTask, order[io_start..], {}, struct {
-            fn lessThan(_: void, x: *RootTask, y: *RootTask) bool {
-                return x.stamp < y.stamp;
-            }
-        }.lessThan);
-
-        var failed: ?*RootTask = null;
-        for (order) |t| if (t.propagated) {
-            failed = t;
-            break;
-        };
-        if (failed) |f| {
-            // Every I/O-free field has settled before any I/O field; I/O fields
-            // that settled before the failure are included in completion order.
-            for (order) |t| {
-                if (t.io and (!f.io or t.stamp > f.stamp)) continue;
-                try self.errors.appendSlice(self.a, t.errors);
-            }
+        const order = try self.settleOrder(started);
+        if (firstFailure(order)) |f| {
+            try self.appendSettled(order, f);
             try self.errors.append(self.a, f.pending);
             result.errors = self.errors.items;
             return result;
         }
-        for (order) |t| try self.errors.appendSlice(self.a, t.errors);
+        try self.appendSettled(order, null);
         var size: usize = 2;
         for (started) |*t| if (t.value) |v| {
             size += t.name.len + v.len + 8;
@@ -534,12 +528,56 @@ pub const Executor = struct {
         return result;
     }
 
+    /// graphql-js settle order of root fields: synchronous throws (recorded
+    /// during executeFields) and then the other I/O-free fields, each in
+    /// document order, then I/O fields by completion.
+    fn settleOrder(self: *Executor, tasks: []RootTask) Allocator.Error![]*RootTask {
+        const order = try self.a.alloc(*RootTask, tasks.len);
+        var k: usize = 0;
+        for ([_]bool{ true, false }) |sync| for (tasks) |*t| if (!t.io and t.sync == sync) {
+            order[k] = t;
+            k += 1;
+        };
+        const io_start = k;
+        for (tasks) |*t| if (t.io) {
+            order[k] = t;
+            k += 1;
+        };
+        std.mem.sort(*RootTask, order[io_start..], {}, struct {
+            fn lessThan(_: void, x: *RootTask, y: *RootTask) bool {
+                return x.stamp < y.stamp;
+            }
+        }.lessThan);
+        return order;
+    }
+
+    /// The first non-null failure in settle order.
+    fn firstFailure(order: []const *RootTask) ?*RootTask {
+        for (order) |t| if (t.propagated) return t;
+        return null;
+    }
+
+    /// The fields' errors in settle order; with a non-null failure, only
+    /// those settled before it (every I/O-free field settles before any I/O
+    /// field; I/O fields by completion), excluding its own pending error.
+    fn appendSettled(self: *Executor, order: []const *RootTask, failed: ?*RootTask) Allocator.Error!void {
+        for (order) |t| {
+            if (failed) |f| if (t.io and (!f.io or t.stamp > f.stamp)) continue;
+            try self.errors.appendSlice(self.a, t.errors);
+        }
+    }
+
     // ---- errors ----
 
     fn raise(self: *Executor, message: []const u8, code: ?[]const u8, offsets: []const u32) Err {
         self.pending = .{ .message = message, .code = code };
         self.pending_offsets = offsets;
         return error.Raw;
+    }
+
+    fn raiseFailure(self: *Executor, f: ResolveFailure, path: *const Path) Err {
+        if (f.sync and path.prev == null) self.sync_failure = true;
+        return self.raise(f.message, f.code, &.{});
     }
 
     fn raisef(self: *Executor, comptime fmt: []const u8, args: anytype) Err {
@@ -655,7 +693,7 @@ pub const Executor = struct {
         if (self.resolvers.resolve_raw) |resolve_raw| if (try self.rawPlan(def, nodes)) |plan| {
             switch (try resolve_raw(self.resolvers.ctx, self.a, &info, source, args)) {
                 .none => {},
-                .failure => |f| return self.raise(f.message, f.code, &.{}),
+                .failure => |f| return self.raiseFailure(f, path),
                 inline .rows, .row => |raw, tag| {
                     defer raw.deinit_fn(raw.ctx);
                     if (try self.writeRawRows(plan, raw, tag == .row)) return;
@@ -673,7 +711,7 @@ pub const Executor = struct {
         } else switch (try self.resolvers.resolve(self.resolvers.ctx, self.a, &info, source, args)) {
             .default => resolved = if (source == .object) source.get(def.name) else null,
             .value => |v| resolved = v,
-            .failure => |f| return self.raise(f.message, f.code, &.{}),
+            .failure => |f| return self.raiseFailure(f, path),
         }
         _ = try self.writeValue(def.type, &info, path, resolved);
     }

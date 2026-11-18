@@ -78,6 +78,10 @@ pub const DbService = struct {
     ended: bool = false,
     /// Queries between admission and return (under `mutex`).
     in_flight: usize = 0,
+    /// GraphQL (main-pool) statements queued for a connection or running,
+    /// including those whose client disconnected (TS #10076
+    /// `pendingMainQueries`; capped by DATABASE_MAX_PENDING_GRAPHQL_QUERIES).
+    pending_main: usize = 0,
     in_flight_done: std.Thread.Condition = .{},
     /// True when `close` gave up waiting: memory must not be freed.
     leaked: bool = false,
@@ -521,6 +525,25 @@ pub const DbService = struct {
         return error.QueryFailed;
     }
 
+    /// TS #10076 `query`'s capacity assert: at most
+    /// DATABASE_MAX_PENDING_GRAPHQL_QUERIES GraphQL statements queued or
+    /// running at once.
+    fn enterPendingMain(self: *DbService, failure: *Failure) Error!void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (self.pending_main >= self.config.database_max_pending_graphql_queries) {
+            failure.* = .{ .message = "GraphQL database query capacity exceeded" };
+            return error.QueryFailed;
+        }
+        self.pending_main += 1;
+    }
+
+    fn leavePendingMain(self: *DbService) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.pending_main -= 1;
+    }
+
     fn run(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure_opt: ?*Failure) Error![]Value {
         return (try self.runResult(kind, role, arena, sql, params, opts, failure_opt)).rows;
     }
@@ -535,10 +558,14 @@ pub const DbService = struct {
     }
 
     fn runResult(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure_opt: ?*Failure) Error!root.Result {
-        const id = self.next_query_id.fetchAdd(1, .monotonic) + 1;
-        const started = self.clock();
         var local_failure: Failure = .{};
         const failure = failure_opt orelse &local_failure;
+        // TS `query`: the cap is asserted before the query gets an id, a
+        // metric or a log line.
+        if (kind == .main) try self.enterPendingMain(failure);
+        defer if (kind == .main) self.leavePendingMain();
+        const id = self.next_query_id.fetchAdd(1, .monotonic) + 1;
+        const started = self.clock();
         try self.admit(failure);
         defer self.leave();
         const result = blk: {

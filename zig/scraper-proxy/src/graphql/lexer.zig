@@ -273,7 +273,7 @@ pub const Lexer = struct {
             point = (point << 4) | digit;
             if (point > 0x7FFFFFFF) break; // JS `point < 0` after 32-bit overflow
         }
-        return self.fail(pos, "Invalid Unicode escape sequence: \"{s}\".", .{self.source[pos..@min(pos + size, self.source.len)]});
+        return self.fail(pos, "Invalid Unicode escape sequence: \"{s}\".", .{try self.sliceUnits(pos, size)});
     }
 
     fn readEscapedUnicodeFixedWidth(self: *Lexer, pos: usize, out: *std.ArrayList(u8)) Error!usize {
@@ -292,7 +292,7 @@ pub const Lexer = struct {
                 }
             }
         }
-        return self.fail(pos, "Invalid Unicode escape sequence: \"{s}\".", .{self.source[pos..@min(pos + 6, self.source.len)]});
+        return self.fail(pos, "Invalid Unicode escape sequence: \"{s}\".", .{try self.sliceUnits(pos, 6)});
     }
 
     fn read16BitHexCode(self: *const Lexer, pos: usize) i64 {
@@ -302,6 +302,30 @@ pub const Lexer = struct {
         const d = readHexDigit(self.at(pos + 3));
         if (a < 0 or b < 0 or c < 0 or d < 0) return -1;
         return (a << 12) | (b << 8) | (c << 4) | d;
+    }
+
+    /// graphql-js `body.slice(pos, pos + units)` for an error message: `units`
+    /// UTF-16 code units of the source from `pos` (a backslash, so never inside
+    /// a pair). A supplementary character cut by the end leaves its high
+    /// surrogate (WTF-8, which the JSON writer escapes as `\\udXXX`).
+    fn sliceUnits(self: *Lexer, pos: usize, units: usize) Error![]const u8 {
+        var out: std.ArrayList(u8) = .empty;
+        var i = pos;
+        var n: usize = 0;
+        while (i < self.source.len and n < units) {
+            const len = @min(std.unicode.utf8ByteSequenceLength(self.source[i]) catch 1, self.source.len - i);
+            if (len == 4 and n + 1 == units) {
+                if (std.unicode.utf8Decode(self.source[i .. i + 4])) |cp| {
+                    const hi: u21 = @intCast(0xD800 + ((cp - 0x10000) >> 10));
+                    try out.appendSlice(self.arena, &.{ @intCast(0xE0 | (hi >> 12)), @intCast(0x80 | ((hi >> 6) & 0x3F)), @intCast(0x80 | (hi & 0x3F)) });
+                    break;
+                } else |_| {}
+            }
+            try out.appendSlice(self.arena, self.source[i .. i + len]);
+            n += if (len == 4) 2 else 1;
+            i += len;
+        }
+        return out.items;
     }
 
     fn readEscapedCharacter(self: *Lexer, pos: usize, out: *std.ArrayList(u8)) Error!usize {
@@ -314,7 +338,7 @@ pub const Lexer = struct {
             'n' => '\n',
             'r' => '\r',
             't' => '\t',
-            else => return self.fail(pos, "Invalid character escape sequence: \"{s}\".", .{self.source[pos..@min(pos + 2 + extraUtf8(self.source, pos + 1), self.source.len)]}),
+            else => return self.fail(pos, "Invalid character escape sequence: \"{s}\".", .{try self.sliceUnits(pos, 2)}),
         };
         try out.append(self.arena, ch);
         return 2;
@@ -377,12 +401,6 @@ pub const CodePoint = struct {
         return w.print("U+{X:0>4}", .{cp});
     }
 };
-
-fn extraUtf8(src: []const u8, pos: usize) usize {
-    if (pos >= src.len) return 0;
-    const len = std.unicode.utf8ByteSequenceLength(src[pos]) catch return 0;
-    return len - 1;
-}
 
 fn decodeAt(src: []const u8, pos: usize) u21 {
     const len = std.unicode.utf8ByteSequenceLength(src[pos]) catch return 0xFFFD;
@@ -499,6 +517,19 @@ test "lexer errors" {
         .{ .src = "# a \xed\xbf\xbf b", .msg = "Syntax Error: Invalid character: U+DFFF." },
         .{ .src = "\"a\xed\xb0\x80b\"", .msg = "Syntax Error: Invalid character within String: U+DC00." },
         .{ .src = "\"\"\"a\n\xed\xbf\xbf\"\"\"", .msg = "Syntax Error: Invalid character within String: U+DFFF." },
+        // Escape-error text is graphql-js `body.slice` in UTF-16 units (Node 26 messages):
+        // a non-ASCII character is one unit, an astral one two, cut to its high half.
+        .{ .src = "\"\\u\u{E9}\") }", .msg = "Syntax Error: Invalid Unicode escape sequence: \"\\u\u{E9}\") \"." },
+        .{ .src = "\"\\u1\u{E9}23\") }", .msg = "Syntax Error: Invalid Unicode escape sequence: \"\\u1\u{E9}23\"." },
+        .{ .src = "\"\\u{1\u{E9}}\") }", .msg = "Syntax Error: Invalid Unicode escape sequence: \"\\u{1\u{E9}\"." },
+        .{ .src = "\"\\u{12345\u{E9}\") }", .msg = "Syntax Error: Invalid Unicode escape sequence: \"\\u{12345\u{E9}\"." },
+        .{ .src = "\"\\u{\u{1F600}}\") }", .msg = "Syntax Error: Invalid Unicode escape sequence: \"\\u{\xed\xa0\xbd\"." },
+        .{ .src = "\"\\u\u{1F600}\") }", .msg = "Syntax Error: Invalid Unicode escape sequence: \"\\u\u{1F600}\")\"." },
+        .{ .src = "\"\\u1\u{1F600}\") }", .msg = "Syntax Error: Invalid Unicode escape sequence: \"\\u1\u{1F600}\"\"." },
+        .{ .src = "\"\\u12\u{1F600}\") }", .msg = "Syntax Error: Invalid Unicode escape sequence: \"\\u12\u{1F600}\"." },
+        .{ .src = "\"\\\u{1F600}\") }", .msg = "Syntax Error: Invalid character escape sequence: \"\\\xed\xa0\xbd\"." },
+        .{ .src = "\"\\\u{E9}\") }", .msg = "Syntax Error: Invalid character escape sequence: \"\\\u{E9}\"." },
+        .{ .src = "\"\\\u{4E2D}\") }", .msg = "Syntax Error: Invalid character escape sequence: \"\\\u{4E2D}\"." },
     };
     for (cases) |case| {
         var diag: Diagnostic = .{};

@@ -980,8 +980,10 @@ test "a close response with body bytes in flight: input during the turn is disca
         // Second part during the turn: discarded, then a clean FIN.
         var c = try h.connect();
         defer c.close();
-        try c.send("POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n");
-        try c.send(rest[0..]);
+        // The head and the first part in one write, so the server reads them
+        // together: woken by the head alone, it answers and closes before the
+        // part arrives, and the part (not the second) meets the closed socket.
+        try c.send(try std.mem.concat(arena.allocator(), u8, &.{ "POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n", rest[0..] }));
         const r = try c.read(arena.allocator(), false);
         try testing.expectEqual(@as(u16, 404), r.status);
         std.Thread.sleep(50 * std.time.ns_per_ms);
@@ -995,8 +997,10 @@ test "a close response with body bytes in flight: input during the turn is disca
         // Second part after the turn: it meets the closed socket (RST), as with Node.
         var c = try h.connect();
         defer c.close();
-        try c.send("POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n");
-        try c.send(rest[0..]);
+        // The head and the first part in one write, so the server reads them
+        // together: woken by the head alone, it answers and closes before the
+        // part arrives, and the part (not the second) meets the closed socket.
+        try c.send(try std.mem.concat(arena.allocator(), u8, &.{ "POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n", rest[0..] }));
         const r = try c.read(arena.allocator(), false);
         try testing.expectEqual(@as(u16, 404), r.status);
         try testing.expect(c.closedByPeer());
@@ -1276,6 +1280,22 @@ fn exchangeAll(h: *Harness, a: std.mem.Allocator, bytes: []const u8) ![]const u8
     return out.items;
 }
 
+/// `exchangeAll` for a connection Node ends with clientError's 400 and a FIN:
+/// a reset instead fails (the junk byte was read, as Node's parser read it).
+fn closedExchange(h: *Harness, a: std.mem.Allocator, bytes: []const u8) ![]const u8 {
+    var c = try h.connect();
+    defer c.close();
+    try c.send(bytes);
+    try setRecvTimeout(c.fd);
+    var out: std.ArrayList(u8) = .empty;
+    var buf: [16 * 1024]u8 = undefined;
+    while (true) {
+        const n = try posix.read(c.fd, &buf);
+        if (n == 0) return out.items;
+        try out.appendSlice(a, buf[0..n]);
+    }
+}
+
 fn statusLines(a: std.mem.Allocator, all: []const u8) ![]const u8 {
     var out: std.ArrayList(u8) = .empty;
     var it = std.mem.splitSequence(u8, all, "HTTP/1.1 ");
@@ -1287,7 +1307,7 @@ fn statusLines(a: std.mem.Allocator, all: []const u8) ![]const u8 {
     return out.items;
 }
 
-test "data after a non-keep-alive request: the answer policy (default) ignores it; node_400 matches TS per request" {
+test "data after a non-keep-alive request gets Node's clientError 400, per request as TS (sync route: after its response; async or parsed body: instead)" {
     var h: Harness = .{};
     try h.start(10_000);
     defer h.stop();
@@ -1295,41 +1315,34 @@ test "data after a non-keep-alive request: the answer policy (default) ignores i
     defer arena.deinit();
     const a = arena.allocator();
     const close = "Connection: close\r\n";
-    // The answer policy: the response, nothing else.
-    if (server_mod.Server.closed_connection_policy == .answer)
-        try testing.expectEqualStrings("404", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx")));
-    server_mod.test_node_400.store(true, .monotonic);
-    defer server_mod.test_node_400.store(false, .monotonic);
     // TS (rig probes): a sync route answers, then clientError's 400.
-    try testing.expectEqualStrings("404+400", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx")));
-    try testing.expectEqualStrings("404+400", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.0\r\n\r\nGET /nope HTTP/1.1\r\nHost: a\r\n\r\n")));
-    try testing.expectEqualStrings("404+400", try statusLines(a, try exchangeAll(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Transfer-Encoding: chunked\r\n\r\n0\r\n\r\nx")));
-    try testing.expectEqualStrings("204+400", try statusLines(a, try exchangeAll(&h, a, "OPTIONS /graphql HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Origin: http://o\r\nAccess-Control-Request-Method: POST\r\n\r\nx")));
+    try testing.expectEqualStrings("404+400", try statusLines(a, try closedExchange(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx")));
+    try testing.expectEqualStrings("404+400", try statusLines(a, try closedExchange(&h, a, "GET /nope HTTP/1.0\r\n\r\nGET /nope HTTP/1.1\r\nHost: a\r\n\r\n")));
+    try testing.expectEqualStrings("404+400", try statusLines(a, try closedExchange(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Transfer-Encoding: chunked\r\n\r\n0\r\n\r\nx")));
+    try testing.expectEqualStrings("204+400", try statusLines(a, try closedExchange(&h, a, "OPTIONS /graphql HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Origin: http://o\r\nAccess-Control-Request-Method: POST\r\n\r\nx")));
     // CR/LF after the message is skipped (llhttp's closed state).
     try testing.expectEqualStrings("404", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\n\r\n")));
     // An async route (and any parsed body): only the 400; the response is dropped.
     const before = h.echo.snapshot();
-    const all = try exchangeAll(&h, a, "GET /graphql HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx");
+    const all = try closedExchange(&h, a, "GET /graphql HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx");
     try testing.expectEqualStrings("400", try statusLines(a, all));
     try testing.expect(std.mem.endsWith(u8, all, "{\"error\":\"Bad Request\",\"message\":\"Client Error\",\"statusCode\":400}"));
     try waitEcho(&h, "done_closed", before.done_closed + 1);
     try testing.expect(h.echo.snapshot().peer_closed > before.peer_closed);
-    try testing.expectEqualStrings("400", try statusLines(a, try exchangeAll(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Type: application/json\r\nContent-Length: 7\r\n\r\n{\"a\":1}x")));
-    try testing.expectEqualStrings("400", try statusLines(a, try exchangeAll(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Type: text/plain\r\nContent-Length: 0\r\n\r\nx")));
-    try testing.expectEqualStrings("400", try statusLines(a, try exchangeAll(&h, a, "GET /metrics HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx")));
+    try testing.expectEqualStrings("400", try statusLines(a, try closedExchange(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Type: application/json\r\nContent-Length: 7\r\n\r\n{\"a\":1}x")));
+    try testing.expectEqualStrings("400", try statusLines(a, try closedExchange(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Type: text/plain\r\nContent-Length: 0\r\n\r\nx")));
+    try testing.expectEqualStrings("400", try statusLines(a, try closedExchange(&h, a, "GET /metrics HTTP/1.1\r\nHost: a\r\n" ++ close ++ "\r\nx")));
     // A body no parser reads: Node's parser never reaches the closed state.
     try testing.expectEqualStrings("404", try statusLines(a, try exchangeAll(&h, a, "POST /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Length: 5\r\n\r\nhellox")));
     try testing.expectEqualStrings("404", try statusLines(a, try exchangeAll(&h, a, "GET /nope HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Content-Length: 5\r\n\r\nhellox")));
     try testing.expectEqualStrings("204", try statusLines(a, try exchangeAll(&h, a, "OPTIONS /graphql HTTP/1.1\r\nHost: a\r\n" ++ close ++ "Origin: http://o\r\nAccess-Control-Request-Method: POST\r\nContent-Length: 2\r\n\r\n{}x")));
 }
 
-test "node_400: a byte arriving while an async route's handler waits replaces its response with the 400" {
+test "a byte arriving while an async route's handler waits replaces its response with the 400" {
     if (!server_mod.fibers) return error.SkipZigTest;
     var h: Harness = .{};
     try h.start(10_000);
     defer h.stop();
-    server_mod.test_node_400.store(true, .monotonic);
-    defer server_mod.test_node_400.store(false, .monotonic);
     closeGate();
     defer openGate();
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
@@ -1357,13 +1370,11 @@ test "node_400: a byte arriving while an async route's handler waits replaces it
     try testing.expectEqual(before.done_finished, h.echo.snapshot().done_finished);
 }
 
-test "node_400: data before a hangup in the same read still gets the 400 (Node's 'data' before 'end')" {
+test "data before a hangup in the same read still gets the 400 (Node's 'data' before 'end')" {
     if (!server_mod.fibers) return error.SkipZigTest;
     var h: Harness = .{};
     try h.start(10_000);
     defer h.stop();
-    server_mod.test_node_400.store(true, .monotonic);
-    defer server_mod.test_node_400.store(false, .monotonic);
     closeGate();
     defer openGate();
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
@@ -1413,13 +1424,11 @@ test "node_400: data before a hangup in the same read still gets the 400 (Node's
     }
 }
 
-test "node_400: body bytes no parser reads, arriving while an async handler waits, are not data after the message" {
+test "body bytes no parser reads, arriving while an async handler waits, are not data after the message" {
     if (!server_mod.fibers) return error.SkipZigTest;
     var h: Harness = .{};
     try h.start(10_000);
     defer h.stop();
-    server_mod.test_node_400.store(true, .monotonic);
-    defer server_mod.test_node_400.store(false, .monotonic);
     closeGate();
     defer openGate();
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
@@ -2310,6 +2319,78 @@ fn wsRead(c: *Client) !struct { opcode: u8, payload: []const u8 } {
     return .{ .opcode = opcode, .payload = payload };
 }
 
+test "websocket: an upgrade request's body is discarded before any frame (Node 26 UpgradeStream)" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const head = "GET /agents HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n";
+    const frame = try wsFrame(a, 0x1, "hi", true, true);
+    // Body and a frame in one write: the frame is echoed (TS: measured; the body
+    // as frames would be a protocol error, close 1002).
+    for ([_][]const u8{
+        "Content-Length: 5\r\n\r\nhello",
+        "Transfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
+        "Content-Length: 0\r\n\r\n",
+        // Not chunked and no Content-Length: no body (llhttp's upgrade exit
+        // precedes its invalid-Transfer-Encoding check).
+        "Transfer-Encoding: gzip\r\n\r\n",
+    }) |rest| {
+        var c = try h.connect();
+        defer c.close();
+        try c.send(try std.mem.concat(a, u8, &.{ head, rest, frame }));
+        try testing.expectEqual(@as(u16, 101), (try c.read(a, true)).status);
+        const f = try wsRead(&c);
+        defer testing.allocator.free(f.payload);
+        try testing.expectEqual(@as(u8, 0x1), f.opcode);
+        try testing.expectEqualStrings("hi", f.payload);
+    }
+    // A coding after "chunked" fails inside the head (llhttp, Node 26.12.1:
+    // HPE_INVALID_TRANSFER_ENCODING before headers complete): a 400, no upgrade.
+    {
+        var c = try h.connect();
+        defer c.close();
+        const r = try c.request(a, try std.mem.concat(a, u8, &.{ head, "Transfer-Encoding: chunked, gzip\r\n\r\n", frame }));
+        try testing.expectEqual(@as(u16, 400), r.status);
+    }
+    // The body still arriving: the 101 is out before it completes (TS: measured),
+    // and only the bytes after it are frames; chunked framing split mid-line.
+    for ([_][2][]const u8{
+        .{ "Content-Length: 5\r\n\r\nhel", "lo" },
+        .{ "Transfer-Encoding: chunked\r\n\r\n5\r\nhel", "lo\r\n0\r\n\r\n" },
+        .{ "Transfer-Encoding: chunked\r\n\r\n5", "\r\nhello\r\n0\r\n\r\n" },
+    }) |parts| {
+        var c = try h.connect();
+        defer c.close();
+        try c.send(try std.mem.concat(a, u8, &.{ head, parts[0] }));
+        try testing.expectEqual(@as(u16, 101), (try c.read(a, true)).status);
+        try c.send(try std.mem.concat(a, u8, &.{ parts[1], frame }));
+        const f = try wsRead(&c);
+        defer testing.allocator.free(f.payload);
+        try testing.expectEqual(@as(u8, 0x1), f.opcode);
+        try testing.expectEqualStrings("hi", f.payload);
+    }
+    // Invalid chunked framing: every later byte stays hidden and the socket open
+    // (TS, measured on Node 26.12.1: no echo, no pong, no close) until the peer ends.
+    // Nothing arrives after the 101 here only because this echo server sends no
+    // greeting; on /agents both runtimes still send `ready` (server probe).
+    for ([_][]const u8{ "\r\n\r\n", "zz\r\n", "5\r\nhello\r\nzz\r\n", "5\r\nhelloXX", "0\r\nbad trailer\r\n\r\n" }) |bad| {
+        var c = try h.connect();
+        defer c.close();
+        try c.send(try std.mem.concat(a, u8, &.{ head, "Transfer-Encoding: chunked\r\n\r\n", bad, frame }));
+        try testing.expectEqual(@as(u16, 101), (try c.read(a, true)).status);
+        try testing.expectEqual(@as(usize, 0), c.len);
+        var fds = [_]posix.pollfd{.{ .fd = c.fd, .events = posix.POLL.IN, .revents = 0 }};
+        try testing.expectEqual(@as(usize, 0), try posix.poll(&fds, 300));
+        try c.send(frame);
+        try testing.expectEqual(@as(usize, 0), try posix.poll(&fds, 100));
+        try posix.shutdown(c.fd, .send);
+        try testing.expect(c.closedByPeer());
+    }
+}
+
 test "websocket: handshake, echo, ping/pong, server close handshake" {
     var h: Harness = .{};
     try h.start(10_000);
@@ -2832,6 +2913,42 @@ test "websocket: protocol violations close like ws" {
     }
 }
 
+test "websocket: empty fragments count toward maxFragments, as in ws (receiver.js getData)" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const max = (ws.ServerOptions{}).max_fragments;
+    // A text frame, then empty continuations: `total` data frames in all.
+    for ([_]usize{ max, max + 1 }, 0..) |total, i| {
+        var msg: std.ArrayList(u8) = .empty;
+        try msg.appendSlice(a, try wsFrame(a, 0x1, "x", true, false));
+        const empty = try wsFrame(a, 0x0, "", true, false);
+        for (0..total - 2) |_| try msg.appendSlice(a, empty);
+        try msg.appendSlice(a, try wsFrame(a, 0x0, "", true, true));
+        var c = try h.connect();
+        defer c.close();
+        _ = try wsHandshake(&c, a, "/agents");
+        try c.send(msg.items);
+        const reply = try wsRead(&c);
+        defer testing.allocator.free(reply.payload);
+        if (i == 0) {
+            try testing.expectEqual(@as(u8, 0x1), reply.opcode);
+            try testing.expectEqualStrings("x", reply.payload);
+            continue;
+        }
+        try testing.expectEqual(@as(u8, 0x8), reply.opcode);
+        try testing.expectEqual(@as(u16, 1008), std.mem.readInt(u16, reply.payload[0..2], .big));
+        // Both connections closed: the error was logged before this one's close.
+        try h.wse.waitCloses(2);
+        h.wse.mutex.lock();
+        defer h.wse.mutex.unlock();
+        try testing.expectEqualStrings("Too many message fragments", h.wse.errors.items[0]);
+    }
+}
+
 test "websocket: invalid handshakes and unknown paths" {
     var h: Harness = .{};
     try h.start(10_000);
@@ -3087,13 +3204,17 @@ test "frames a turn corked while OPEN still go out when the peer's FIN is read b
 
 test "send failure text: a reset after the peer stopped reading fails the queue 'write ECANCELED' (Node reads first)" {
     if (@import("builtin").os.tag != .linux) return error.SkipZigTest; // epoll HUP|ERR edge
-    var h: Harness = .{};
-    try h.start(10_000);
-    defer h.stop();
+    // The arena outlives the harness: teardown runs the queued frames' callbacks (`tags`).
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const a = arena_state.allocator();
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
     var c = try h.connect();
+    // Closed with a reset below; any earlier failure closes it before the harness stops.
+    var c_open = true;
+    defer if (c_open) c.close();
     const conn = try keptConn(&h, &c, a);
     defer conn.release();
     // The client reads nothing: frames queue and the writer waits for room.
@@ -3122,6 +3243,7 @@ test "send failure text: a reset after the peer stopped reading fails the queue 
         if (conn.bufferedAmount() > 0 and conn.writeStalled()) break;
     }
     closeWithReset(c.fd);
+    c_open = false;
     try waitFailedSend(&h, a);
     try testing.expectEqualStrings("write ECANCELED", conn.sendFailureText());
     // Teardown has run every callback (`tags` lives in the arena) once 'close' is out.
@@ -3554,6 +3676,10 @@ test "sendInlineCorked: the frames before `required` go out or queue together, i
     defer c.close();
     const conn = try keptConn(&h, &c, a);
     defer conn.release();
+    // A small receive buffer stops the client's kernel autotuning its window:
+    // with a large tcp_rmem default it took the whole 600 KB frame below, so
+    // nothing stayed queued and `after1`/`after2` were written (r3.written 2).
+    try posix.setsockopt(c.fd, posix.SOL.SOCKET, posix.SO.RCVBUF, &std.mem.toBytes(@as(c_int, 8192)));
     var counts: CompletionCount = .{};
     const cbs = [_]ws.SendCallback{ counts.cb(), counts.cb(), counts.cb() };
     // Everything fits: written, nothing queued, no callbacks.

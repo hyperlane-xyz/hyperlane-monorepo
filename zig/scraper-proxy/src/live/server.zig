@@ -52,6 +52,11 @@ const NOTIFICATION_BATCH_SIZE = 1_000;
 const EXPLORER_NOTIFICATION_BATCH_SIZE = 100;
 const MAX_EXPLORER_CLIENTS = 400;
 const MAX_EXPLORER_CLIENTS_PER_IP = 5;
+/// TS #10076: /messages setups awaiting their reads (blocks, confirmation
+/// heads), held until the read ends even after a disconnect.
+const MAX_EXPLORER_PENDING_SETUPS = 32;
+const MAX_EXPLORER_PENDING_SETUPS_PER_IP = 2;
+const MAX_EXPLORER_SUBSCRIPTION_BYTES = 8_192;
 const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
@@ -369,6 +374,8 @@ pub const Peer = struct {
     agent: AgentClient = .{},
     in_explorer: bool = false,
     explorer: ExplorerClient = .{},
+    /// Holds a /messages setup reservation (`explorer.ip`) until its reads end.
+    explorer_setup: bool = false,
     blocks: ?*BlockSubscription = null,
     streams: ?std.ArrayList(*ConfirmationStream) = null,
     diagnostics_subscription: ?*diagnostics.stream.Subscription = null,
@@ -573,6 +580,9 @@ pub const Server = struct {
     confirmation_streams: std.AutoArrayHashMapUnmanaged(*Peer, void) = .empty,
     explorer_clients: std.AutoArrayHashMapUnmanaged(*Peer, void) = .empty,
     explorer_clients_by_ip: std.StringArrayHashMapUnmanaged(usize) = .empty,
+    /// `explorerPendingSetups` (its size) and `explorerPendingSetupsByIp` (owned keys).
+    explorer_pending_setups: usize = 0,
+    explorer_pending_setups_by_ip: std.StringArrayHashMapUnmanaged(usize) = .empty,
     explorer_notifications: NotificationQueue(void) = .{},
     notifications: NotificationQueue(protocol.EventNotification) = .{},
     /// `validatorStore`: reads on the validator pool.
@@ -705,6 +715,8 @@ pub const Server = struct {
         self.explorer_clients.deinit(a);
         for (self.explorer_clients_by_ip.keys()) |ip| a.free(ip);
         self.explorer_clients_by_ip.deinit(a);
+        for (self.explorer_pending_setups_by_ip.keys()) |ip| a.free(ip);
+        self.explorer_pending_setups_by_ip.deinit(a);
         self.explorer_notifications.deinit(a);
         self.notifications.deinit(a);
         self.pending_heads.deinit(a);
@@ -1077,6 +1089,7 @@ pub const Server = struct {
         var max_validator_per_ip: usize = 0;
         for (ips.items) |entry| max_validator_per_ip = @max(max_validator_per_ip, entry.count);
         snapshot.validatorPendingSetups = f(pending);
+        snapshot.explorerPendingSetups = f(self.explorer_pending_setups);
         snapshot.validatorReservedConnections = f(self.validator_clients.count());
         snapshot.validatorSharedReaders = f(self.validator_groups.count());
         snapshot.validatorSubscriptions = validator_subscriptions.items;
@@ -1095,6 +1108,8 @@ pub const Server = struct {
             .explorerPendingMessages = MAX_EXPLORER_PENDING_MESSAGES,
             .messageConnections = f(self.limits.max_explorer_clients),
             .messageConnectionsPerIp = MAX_EXPLORER_CLIENTS_PER_IP,
+            .messageSetups = MAX_EXPLORER_PENDING_SETUPS,
+            .messageSetupsPerIp = MAX_EXPLORER_PENDING_SETUPS_PER_IP,
             .validatorConnections = f(self.limits.max_validator_clients),
             .validatorSetups = MAX_VALIDATOR_PENDING_SETUPS,
             .validatorConnectionsPerIp = f(self.limits.max_validator_clients_per_ip),
@@ -1156,12 +1171,19 @@ pub const Server = struct {
         defer arena.deinit();
         const a = arena.allocator();
         var diag: protocol.Diag = .{};
+        // `Buffer.byteLength(request.url)`: the raw URL bytes.
+        if (request.url.len > MAX_EXPLORER_SUBSCRIPTION_BYTES) {
+            self.rejectNegotiation(peer, "Explorer subscription URL too long");
+            return peer;
+        }
         const params = protocol.QueryParams.fromUrl(a, request.url) catch oom();
         const custom = protocol.parseExplorerConfirmations(a, &params, &diag) catch |err| return self.negotiationFailed(peer, err, diag);
         const blocks = protocol.parseExplorerBlocks(&params, &diag) catch |err| return self.negotiationFailed(peer, err, diag);
         const message_ids = protocol.parseExplorerMessageIds(a, &params, &diag) catch |err| return self.negotiationFailed(peer, err, diag);
         const with_diagnostics = protocol.parseExplorerDiagnostics(&params, message_ids, &diag) catch |err| return self.negotiationFailed(peer, err, diag);
-        const ip = self.clientIp(request) orelse {
+        // TS #10076: the same rule as /validators (the direct peer must be the
+        // loopback cloudflared sidecar; then its cf-connecting-ip).
+        const ip = validatorClientIp(self.production, .{ .url = request.url, .cf_connecting_ip = request.cf_connecting_ip, .remote_address = request.remote_address }) orelse {
             metrics.websocket_connection_rejections.inc(.{ "invalid_client_ip", "messages" }, 1);
             socket.close(1008, "Missing or invalid client IP");
             return peer;
@@ -1172,6 +1194,22 @@ pub const Server = struct {
             socket.close(1008, "Maximum connections per client reached");
             return peer;
         }
+        if (self.explorer_pending_setups >= MAX_EXPLORER_PENDING_SETUPS) {
+            metrics.websocket_connection_rejections.inc(.{ "setup_limit", "messages" }, 1);
+            socket.close(1013, "Maximum message setups reached");
+            return peer;
+        }
+        const pending_for_ip = self.explorer_pending_setups_by_ip.get(ip) orelse 0;
+        if (pending_for_ip >= MAX_EXPLORER_PENDING_SETUPS_PER_IP) {
+            metrics.websocket_connection_rejections.inc(.{ "per_ip_setup_limit", "messages" }, 1);
+            socket.close(1008, "Maximum setups per client reached");
+            return peer;
+        }
+        self.explorer_pending_setups += 1;
+        if (self.explorer_pending_setups_by_ip.getPtr(ip)) |count| {
+            count.* += 1;
+        } else self.explorer_pending_setups_by_ip.put(self.allocator, self.allocator.dupe(u8, ip) catch oom(), 1) catch oom();
+        peer.explorer_setup = true;
         const owned_ip = self.allocator.dupe(u8, ip) catch oom();
         if (self.explorer_clients_by_ip.getPtr(ip)) |count| {
             count.* += 1;
@@ -1237,6 +1275,7 @@ pub const Server = struct {
     }
 
     fn endExplorer(self: *Server, flow: *ExplorerFlow) void {
+        self.releaseExplorerSetup(flow.peer);
         if (flow.stream) |stream| stream.release();
         if (flow.setup.custom) |c| self.allocator.free(c.domains);
         self.allocator.destroy(flow.setup);
@@ -1314,6 +1353,8 @@ pub const Server = struct {
     /// `finishExplorer` after its reads.
     fn explorerReady(self: *Server, flow: *ExplorerFlow) void {
         defer self.endExplorer(flow);
+        // TS releases in the setup's `finally`, before `ready`.
+        self.releaseExplorerSetup(flow.peer);
         self.completeExplorer(flow.peer, flow.setup, flow.stream);
     }
 
@@ -1336,6 +1377,7 @@ pub const Server = struct {
             peer.release();
         }
         std.debug.assert(!setup.blocks and setup.custom == null);
+        self.releaseExplorerSetup(peer);
         self.completeExplorer(peer, setup, null);
     }
 
@@ -1480,15 +1522,6 @@ pub const Server = struct {
             return false;
         }
         return true;
-    }
-
-    fn clientIp(self: *Server, request: ExplorerRequest) ?[]const u8 {
-        if (request.cf_connecting_ip) |ip| return if (protocol.isIp(ip)) ip else null;
-        if (self.production) return null;
-        const remote = request.remote_address orelse return null;
-        if (remote.len == 0) return null;
-        const ipv4 = if (std.mem.startsWith(u8, remote, "::ffff:")) remote[7..] else remote;
-        return if (protocol.isIp(ipv4)) ipv4 else null;
     }
 
     // -- socket events (called without the mutex) --------------------------------
@@ -2338,7 +2371,15 @@ pub const Server = struct {
     // -- agent protocol ------------------------------------------------------------
 
     fn handleMessage(self: *Server, peer: *Peer, raw: []const u8) void {
-        if (!peer.in_clients) return;
+        if (!peer.in_clients) {
+            // TS #10076: /messages is server-only; its 'message' handler rejects
+            // (protocol pongs never reach here).
+            if (peer.in_explorer) {
+                metrics.websocket_client_message_rejections.inc(.{}, 1);
+                self.rejectNegotiation(peer, "Client messages are unsupported");
+            }
+            return;
+        }
         const client = &peer.agent;
         if (!self.consumeMessage(client)) {
             metrics.websocket_client_message_rejections.inc(.{}, 1);
@@ -4745,6 +4786,20 @@ pub const Server = struct {
             if (entry.*) |subscription| if (subscription.domains) |domains| self.allocator.free(domains);
             entry.* = null;
         }
+    }
+
+    /// `releaseExplorerSetup`: drops the peer's setup reservation (once).
+    fn releaseExplorerSetup(self: *Server, peer: *Peer) void {
+        if (!peer.explorer_setup) return;
+        peer.explorer_setup = false;
+        self.explorer_pending_setups -= 1;
+        const index = self.explorer_pending_setups_by_ip.getIndex(peer.explorer.ip) orelse return;
+        const count = &self.explorer_pending_setups_by_ip.values()[index];
+        if (count.* == 1) {
+            const key = self.explorer_pending_setups_by_ip.keys()[index];
+            self.explorer_pending_setups_by_ip.orderedRemoveAt(index);
+            self.allocator.free(key);
+        } else count.* -= 1;
     }
 
     fn releaseExplorerClient(self: *Server, ip: []const u8) void {

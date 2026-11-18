@@ -225,8 +225,11 @@ pub const EventWebSocketServer = struct {
             if (peer.read_batch) return self.server.onValidatorMessageLocked(peer, data, binary);
             return self.server.onValidatorMessage(peer, data, binary);
         }
-        // `/messages` registers no message handler.
-        if (peer.route != .agent) return;
+        // TS #10076: `/messages` rejects application frames (handleMessage).
+        if (peer.route == .explorer) {
+            if (peer.read_batch) return self.server.onMessageLocked(peer, data);
+            return self.server.onMessage(peer, data);
+        }
         // `rawData`: Buffer#toString('utf8') for binary frames.
         const text = if (binary) core.json.toWellFormedUtf8(self.gpa, data) catch return else data;
         defer if (text.ptr != data.ptr) self.gpa.free(text);

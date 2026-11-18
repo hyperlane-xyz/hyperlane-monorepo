@@ -285,6 +285,15 @@ test "binds IN lists as PostgreSQL arrays" {
 
 // ---- schema.test.ts (service paths) ----
 
+/// TS `cheapPlan`: the cost check's EXPLAIN result for fakes.
+fn cheapPlan(arena: Allocator) ![]Value {
+    return try arena.dupe(Value, &.{try value.parseLeaky(arena, "{\"QUERY PLAN\":[{\"Plan\":{\"Total Cost\":1}}]}")});
+}
+
+fn isExplain(text: []const u8) bool {
+    return std.mem.startsWith(u8, text, "EXPLAIN");
+}
+
 const RecordingDb = struct {
     arena: Allocator,
     calls: usize = 0,
@@ -297,6 +306,7 @@ const RecordingDb = struct {
         _ = diag;
         const self: *RecordingDb = @ptrCast(@alignCast(ctx));
         if (self.fail_on_query) return error.UnexpectedDatabaseQuery;
+        if (isExplain(text)) return cheapPlan(arena);
         self.calls += 1;
         if (self.calls == 1) {
             self.first_sql = text;
@@ -313,7 +323,8 @@ const RecordingDb = struct {
 
 fn selectMessages(a: Allocator, db: *RecordingDb, json_args: []const u8, diag: *sql.Diag) anyerror![]Value {
     const parsed = value.object(try value.parseLeaky(a, json_args)).?;
-    return service.Service.init(db.db()).selectMessages(a, .{
+    var budget: service.HistoryBudget = .{};
+    return service.Service.init(db.db()).selectMessages(a, &budget, .{
         .select = try args(a, json_args),
         .confirmations = value.get(parsed, "confirmations"),
     }, diag);
@@ -337,6 +348,23 @@ test "rejects invalid confirmations before querying the database" {
     try testing.expect(contains(diag.message, "paginate canonical history separately"));
     try testing.expectError(error.AssertionFailed, selectMessages(a, &db, "{\"confirmations\":0,\"offset\":1}", &diag));
     try testing.expect(contains(diag.message, "offset"));
+}
+
+test "rejects non-number confirmations with the safe-integer assert" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    // Callers other than the route (GraphQL Int coercion) may pass anything.
+    for ([_][]const u8{ "\"1\"", "true", "{}", "[0]", "1.5", "-1", "9007199254740992" }) |json| {
+        var diag: sql.Diag = .{};
+        try testing.expectError(error.AssertionFailed, service.buildMessageQueries(a, .{}, try value.parseLeaky(a, json), &diag));
+        try testing.expectEqualStrings("confirmations must be a non-negative safe integer", diag.message);
+    }
+    var diag: sql.Diag = .{};
+    _ = try service.buildMessageQueries(a, .{}, .{ .number = 0 }, &diag);
+    _ = try service.buildMessageQueries(a, .{}, .{ .number = 1000 }, &diag);
+    try testing.expectError(error.AssertionFailed, service.buildMessageQueries(a, .{}, .{ .number = 1001 }, &diag));
+    try testing.expectEqualStrings("confirmations exceeds maximum of 1000", diag.message);
 }
 
 test "bounds affected scans using necessary message ID predicates" {
@@ -409,6 +437,7 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
             return try arena.dupe(Value, &.{row});
         }
         fn custom(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *sql.Diag) anyerror![]Value {
+            if (isExplain(text)) return cheapPlan(arena);
             return planned(ctx, arena, .custom, text, values, diag);
         }
         fn planned(ctx: *anyopaque, arena: Allocator, plan: service.Plan, _: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
@@ -421,12 +450,13 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
     var routing: Routing = .{ .arena = a };
     const svc = service.Service.init(.{ .ctx = &routing, .queryFn = Routing.custom, .plannedQueryFn = Routing.planned });
     var diag: sql.Diag = .{};
-    _ = try svc.select(a, .message_view, try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
-    _ = try svc.select(a, .message_view, try args(a, "{\"where\":{\"sender\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
+    var budget: service.HistoryBudget = .{};
+    _ = try svc.select(a, &budget, .message_view, try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
+    _ = try svc.select(a, &budget, .message_view, try args(a, "{\"where\":{\"sender\":{\"_eq\":\"\\\\x01\"}}}"), &diag);
     _ = try svc.byPk(a, .raw_message_dispatch, .{ .string = "1" }, null, &diag);
-    _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), .confirmations = .{ .number = 0 } }, &diag);
-    _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"limit\":20}"), .confirmations = .{ .number = 2 } }, &diag);
-    _ = try svc.selectMessages(a, .{ .select = try args(a, "{\"where\":{\"id\":{\"_eq\":7}}}"), .confirmations = .{ .number = 0 } }, &diag);
+    _ = try svc.selectMessages(a, &budget, .{ .select = try args(a, "{\"where\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}"), .confirmations = .{ .number = 0 } }, &diag);
+    _ = try svc.selectMessages(a, &budget, .{ .select = try args(a, "{\"limit\":20}"), .confirmations = .{ .number = 2 } }, &diag);
+    _ = try svc.selectMessages(a, &budget, .{ .select = try args(a, "{\"where\":{\"id\":{\"_eq\":7}}}"), .confirmations = .{ .number = 0 } }, &diag);
     // Confirmation projections not bounded by msg_id run without parallel
     // workers, on a reused generic plan while few messages are affected.
     try testing.expectEqualSlices(service.Plan, &.{ .reusable, .custom, .reusable, .reusable, .reusable, .reusable, .serial_generic, .reusable, .serial_generic }, routing.plans.items);
@@ -434,7 +464,7 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
     for ([_]usize{ service.GENERIC_PROJECTION_MAX_IDS, service.GENERIC_PROJECTION_MAX_IDS + 1 }) |affected| {
         routing.plans.clearRetainingCapacity();
         routing.affected = affected;
-        _ = try svc.selectMessages(a, .{ .select = limit_args, .confirmations = .{ .number = 2 } }, &diag);
+        _ = try svc.selectMessages(a, &budget, .{ .select = limit_args, .confirmations = .{ .number = 2 } }, &diag);
         const projection: service.Plan = if (affected <= service.GENERIC_PROJECTION_MAX_IDS) .serial_generic else .serial;
         try testing.expectEqualSlices(service.Plan, &.{ .reusable, projection }, routing.plans.items);
     }
@@ -458,7 +488,7 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
     };
     for (hash_cases) |case| {
         routing.plans.clearRetainingCapacity();
-        _ = try svc.select(a, .message_view, try args(a, case.args), &diag);
+        _ = try svc.select(a, &budget, .message_view, try args(a, case.args), &diag);
         try testing.expectEqualSlices(service.Plan, &.{case.plan}, routing.plans.items);
     }
     // Unfiltered `domain` selects totally ordered by id reuse a generic
@@ -475,9 +505,242 @@ test "routes only unique-key lookups and confirmation snapshots to reusable plan
     };
     for (domain_cases) |case| {
         routing.plans.clearRetainingCapacity();
-        _ = try svc.select(a, .domain, try args(a, case.args), &diag);
+        _ = try svc.select(a, &budget, .domain, try args(a, case.args), &diag);
         try testing.expectEqualSlices(service.Plan, &.{case.plan}, routing.plans.items);
     }
     try testing.expect(!service.isMessageIdLookup(try value.parseLeaky(a, "{\"id\":{\"_eq\":7}}")));
     try testing.expect(service.isMessageIdLookup(try value.parseLeaky(a, "{\"_and\":{\"msg_id\":{\"_eq\":\"\\\\x01\"}}}")));
+}
+
+// ---- TS #10076: history cost checks (scraperdb.service.ts historyQuery) ----
+
+/// Records every call; EXPLAINs answer with the next scripted plan document
+/// (JSON text of the `QUERY PLAN` row, or null for no row), statements with
+/// one `{"count":1}` row.
+const CostDb = struct {
+    arena: Allocator,
+    plans: []const ?[]const u8 = &.{},
+    calls: std.ArrayList(Call) = .empty,
+
+    const Call = struct { sql: []const u8, values: []const u8, plan: ?service.Plan };
+
+    fn record(self: *CostDb, arena: Allocator, plan: ?service.Plan, text: []const u8, values: []const Value) ![]Value {
+        try self.calls.append(self.arena, .{ .sql = text, .values = try value.stringifyAlloc(self.arena, Value{ .array = @constCast(values) }), .plan = plan });
+        if (!isExplain(text)) return try arena.dupe(Value, &.{try value.parseLeaky(arena, "{\"count\":1}")});
+        const next = self.plans[0];
+        self.plans = self.plans[1..];
+        const row = next orelse return &.{};
+        return try arena.dupe(Value, &.{try value.parseLeaky(arena, row)});
+    }
+
+    /// Unplanned (node-pg's unnamed custom plan): `plan` recorded as null.
+    fn custom(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, _: *sql.Diag) anyerror![]Value {
+        const self: *CostDb = @ptrCast(@alignCast(ctx));
+        return self.record(arena, null, text, values);
+    }
+
+    fn planned(ctx: *anyopaque, arena: Allocator, plan: service.Plan, text: []const u8, values: []const Value, _: *sql.Diag) anyerror![]Value {
+        const self: *CostDb = @ptrCast(@alignCast(ctx));
+        return self.record(arena, plan, text, values);
+    }
+
+    fn svc(self: *CostDb) service.Service {
+        return service.Service.init(.{ .ctx = self, .queryFn = custom, .plannedQueryFn = planned });
+    }
+};
+
+fn costPlan(comptime cost: []const u8) ?[]const u8 {
+    return "{\"QUERY PLAN\":[{\"Plan\":{\"Total Cost\":" ++ cost ++ "}}]}";
+}
+
+test "checks each history statement's plan cost before running it" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const statement_message = "History query exceeds the database planning budget";
+    const operation_message = "GraphQL operation exceeds its database planning budget";
+    const select_args = try args(a, "{\"where\":{\"id\":{\"_eq\":\"123\"}},\"limit\":1}");
+
+    // The EXPLAIN is the same SQL with the same values, unplanned, and
+    // precedes the statement.
+    {
+        var db: CostDb = .{ .arena = a, .plans = &.{costPlan("1")} };
+        var budget: service.HistoryBudget = .{};
+        var diag: sql.Diag = .{};
+        _ = try db.svc().select(a, &budget, .message_view, select_args, &diag);
+        try testing.expectEqual(@as(usize, 2), db.calls.items.len);
+        const explain = db.calls.items[0];
+        const statement = db.calls.items[1];
+        try testing.expectEqualStrings(try std.mem.concat(a, u8, &.{ "EXPLAIN (FORMAT JSON) ", statement.sql }), explain.sql);
+        try testing.expectEqualStrings("[\"123\",1]", explain.values);
+        try testing.expectEqualStrings(statement.values, explain.values);
+        try testing.expectEqual(@as(?service.Plan, null), explain.plan);
+        try testing.expectEqual(@as(?service.Plan, .reusable), statement.plan);
+        try testing.expectEqual(service.OPERATION_PLAN_COST - 1, budget.remaining);
+    }
+
+    // Missing, malformed and over-limit plans fail closed with the statement
+    // text, run nothing and leave the budget untouched, even when the
+    // operation budget could not have covered them either.
+    const bad_plans = [_]?[]const u8{
+        null,
+        "{\"QUERY PLAN\":[]}",
+        "{\"QUERY PLAN\":{\"Plan\":{\"Total Cost\":1}}}",
+        "{\"QUERY PLAN\":[{\"Plan\":{}}]}",
+        costPlan("\"5\""),
+        costPlan("null"),
+        costPlan("-1"),
+        costPlan("100000.5"),
+        costPlan("100001"),
+        costPlan("1e400"),
+    };
+    for (bad_plans) |plan| {
+        var db: CostDb = .{ .arena = a, .plans = &.{plan} };
+        var budget: service.HistoryBudget = .{ .remaining = 50_000 };
+        var diag: sql.Diag = .{};
+        try testing.expectError(error.AssertionFailed, db.svc().select(a, &budget, .raw_message_dispatch, select_args, &diag));
+        try testing.expectEqualStrings(statement_message, diag.message);
+        try testing.expectEqual(@as(usize, 1), db.calls.items.len);
+        try testing.expectEqual(@as(f64, 50_000), budget.remaining);
+    }
+
+    // The operation budget: 100,000 is allowed per statement, and the
+    // third such statement exceeds 250,000 without running.
+    {
+        var db: CostDb = .{ .arena = a, .plans = &.{ costPlan("100000"), costPlan("100000"), costPlan("100000"), costPlan("50000") } };
+        var budget: service.HistoryBudget = .{};
+        var diag: sql.Diag = .{};
+        _ = try db.svc().select(a, &budget, .message_view, select_args, &diag);
+        _ = try db.svc().count(a, &budget, .message_view, select_args, .{}, &diag);
+        try testing.expectError(error.AssertionFailed, db.svc().select(a, &budget, .message_view, select_args, &diag));
+        try testing.expectEqualStrings(operation_message, diag.message);
+        try testing.expectEqual(@as(usize, 5), db.calls.items.len);
+        try testing.expectEqual(@as(f64, 50_000), budget.remaining);
+        // What is left still fits exactly.
+        _ = try db.svc().select(a, &budget, .message_view, select_args, &diag);
+        try testing.expectEqual(@as(f64, 0), budget.remaining);
+    }
+}
+
+test "only history reads are cost-checked" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var budget: service.HistoryBudget = .{};
+    var diag: sql.Diag = .{};
+
+    // `domain` and `*_by_pk` run directly.
+    var db: CostDb = .{ .arena = a };
+    _ = try db.svc().select(a, &budget, .domain, try args(a, "{}"), &diag);
+    _ = try db.svc().byPk(a, .raw_message_dispatch, .{ .string = "1" }, null, &diag);
+    _ = try db.svc().byPk(a, .domain, .{ .number = 1 }, null, &diag);
+    for (db.calls.items) |call| try testing.expect(!isExplain(call.sql));
+    try testing.expectEqual(@as(usize, 3), db.calls.items.len);
+
+    // Aggregate nodes (always history) and count: EXPLAIN, statement; no
+    // selected nodes columns, no query.
+    db = .{ .arena = a, .plans = &.{ costPlan("1"), costPlan("1") } };
+    try testing.expectEqual(@as(usize, 0), (try db.svc().aggregateNodes(a, &budget, .message_view, .{}, null, &diag)).len);
+    try testing.expectEqual(@as(usize, 0), db.calls.items.len);
+    _ = try db.svc().aggregateNodes(a, &budget, .message_view, .{}, &.{"id"}, &diag);
+    try testing.expectEqual(@as(i64, 1), try db.svc().count(a, &budget, .message_view, .{}, .{}, &diag));
+    try testing.expectEqual(@as(usize, 4), db.calls.items.len);
+    for (db.calls.items, 0..) |call, i| try testing.expectEqual(i % 2 == 0, isExplain(call.sql));
+}
+
+test "checks both statements of a confirmation read" {
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const Snapshot = struct {
+        calls: std.ArrayList([]const u8) = .empty,
+        arena: Allocator,
+        fail_projection: bool = false,
+        fn query(ctx: *anyopaque, arena: Allocator, text: []const u8, _: []const Value, _: *sql.Diag) anyerror![]Value {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            try self.calls.append(self.arena, text);
+            if (isExplain(text)) {
+                // The projection's EXPLAIN (the third call) is over the limit.
+                if (self.fail_projection and self.calls.items.len == 3)
+                    return try arena.dupe(Value, &.{try value.parseLeaky(arena, costPlan("100001").?)});
+                return cheapPlan(arena);
+            }
+            if (self.calls.items.len == 2) return try arena.dupe(Value, &.{try value.parseLeaky(arena, "{\"message_ids\":[],\"domains\":[],\"heights\":[]}")});
+            return &.{};
+        }
+    };
+    for ([_]f64{ 0, 2 }) |confirmations| {
+        var db: Snapshot = .{ .arena = a };
+        const svc = service.Service.init(.{ .ctx = &db, .queryFn = Snapshot.query });
+        var budget: service.HistoryBudget = .{};
+        var diag: sql.Diag = .{};
+        _ = try svc.selectMessages(a, &budget, .{ .select = try args(a, "{\"limit\":20}"), .confirmations = .{ .number = confirmations } }, &diag);
+        const calls = db.calls.items;
+        try testing.expectEqual(@as(usize, 4), calls.len);
+        for (calls, 0..) |call, i| try testing.expectEqual(i % 2 == 0, isExplain(call));
+        try testing.expectEqualStrings(try std.mem.concat(a, u8, &.{ "EXPLAIN (FORMAT JSON) ", calls[1] }), calls[0]);
+        try testing.expectEqualStrings(try std.mem.concat(a, u8, &.{ "EXPLAIN (FORMAT JSON) ", calls[3] }), calls[2]);
+        // TS `buildProvisionalMessageAffectedQuery(_, confirmations === 0)`:
+        // no legacy-dispatch branch at zero confirmations.
+        try testing.expectEqual(confirmations != 0, contains(calls[1], "legacy"));
+        try testing.expectEqual(service.OPERATION_PLAN_COST - 2, budget.remaining);
+    }
+    var db: Snapshot = .{ .arena = a, .fail_projection = true };
+    const svc = service.Service.init(.{ .ctx = &db, .queryFn = Snapshot.query });
+    var budget: service.HistoryBudget = .{};
+    var diag: sql.Diag = .{};
+    try testing.expectError(error.AssertionFailed, svc.selectMessages(a, &budget, .{ .select = try args(a, "{}"), .confirmations = .{ .number = 1 } }, &diag));
+    try testing.expectEqualStrings("History query exceeds the database planning budget", diag.message);
+    try testing.expectEqual(@as(usize, 3), db.calls.items.len);
+}
+
+test "affected-query variants match TS buildProvisionalMessageAffectedQuery" {
+    const provisional = @import("provisional_message.zig");
+    for ([_]bool{ false, true }) |filtered| {
+        const full = provisional.affectedQuery(filtered, false);
+        const zero = provisional.affectedQuery(filtered, true);
+        // `${eventScans}` then the legacy branch; zero is `eventScans` alone.
+        try testing.expect(std.mem.startsWith(u8, full, zero));
+        try testing.expect(std.mem.startsWith(u8, full[zero.len..], "\n  UNION ALL\n  -- A stricter frontier"));
+        try testing.expect(std.mem.endsWith(u8, zero, "\n    ) event\n  "));
+        try testing.expectEqual(filtered, contains(zero, "AND event.msg_id=ANY($2::bytea[])"));
+    }
+}
+
+test "a history read counts its EXPLAIN as a database query" {
+    const core = @import("core");
+    const db = @import("db");
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    core.config.set(.{ .database_url = "postgresql://scraper-proxy-test" });
+    core.metrics.init();
+    const Backend = struct {
+        fn query(_: *anyopaque, _: db.service.Backend.Which, _: []const u8, arena: Allocator, text: []const u8, _: []const Value, _: ?*db.Failure) db.Error!db.Result {
+            const rows: []Value = if (isExplain(text)) cheapPlan(arena) catch return error.OutOfMemory else &.{};
+            return .{ .rows = rows, .row_count = rows.len };
+        }
+        /// app.zig's adapter, minus admission.
+        fn run(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *sql.Diag) anyerror![]Value {
+            const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
+            var failure: db.Failure = .{};
+            return dbs.query(arena, text, values, &failure) catch |err| {
+                diag.message = failure.message;
+                return err;
+            };
+        }
+    };
+    const dbs = try db.DbService.init(testing.allocator, null);
+    defer dbs.deinit();
+    var unused: u8 = 0;
+    dbs.backend = .{ .ctx = &unused, .query = Backend.query };
+    const svc = service.Service.init(.{ .ctx = dbs, .queryFn = Backend.run });
+    const queries = &core.metrics.database_queries;
+    const before = queries.get(.{ "success", "graphql_primary" });
+    var budget: service.HistoryBudget = .{};
+    var diag: sql.Diag = .{};
+    _ = try svc.select(a, &budget, .raw_message_dispatch, try args(a, "{}"), &diag);
+    try testing.expectEqual(before + 2, queries.get(.{ "success", "graphql_primary" }));
+    _ = try svc.select(a, &budget, .domain, try args(a, "{}"), &diag);
+    try testing.expectEqual(before + 3, queries.get(.{ "success", "graphql_primary" }));
 }

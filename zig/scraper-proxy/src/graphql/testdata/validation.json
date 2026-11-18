@@ -982,17 +982,27 @@
   },
   {
     "query": "{ message_view_aggregate { aggregate { count(columns: [id]) } nodes { id } } }",
-    "errors": []
+    "errors": [
+      {
+        "message": "Unknown argument \"columns\" on field \"message_view_aggregate_fields.count\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 46
+          }
+        ]
+      }
+    ]
   },
   {
     "query": "{ message_view_aggregate { aggregate { count(columns: [nope]) } } }",
     "errors": [
       {
-        "message": "Value \"nope\" does not exist in \"message_view_select_column\" enum. Did you mean the enum value \"nonce\"?",
+        "message": "Unknown argument \"columns\" on field \"message_view_aggregate_fields.count\".",
         "locations": [
           {
             "line": 1,
-            "column": 56
+            "column": 46
           }
         ]
       }
@@ -1106,6 +1116,801 @@
           {
             "line": 1,
             "column": 17
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "type T @skip(if: true) @nope { f: Int @include(if: true) }",
+    "errors": [
+      {
+        "message": "The \"T\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@skip\" may not be used on OBJECT.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 8
+          }
+        ]
+      },
+      {
+        "message": "Unknown directive \"@nope\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 24
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@include\" may not be used on FIELD_DEFINITION.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 39
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "type T @deprecated @deprecated { f: Int }",
+    "errors": [
+      {
+        "message": "The \"T\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The directive \"@deprecated\" can only be used once at this location.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 8
+          },
+          {
+            "line": 1,
+            "column": 20
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on OBJECT.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 8
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on OBJECT.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 20
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "scalar S @specifiedBy(url: \"a\")\nextend scalar S @specifiedBy(url: \"b\")",
+    "errors": [
+      {
+        "message": "The \"S\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"S\" definition is not executable.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The directive \"@specifiedBy\" can only be used once at this location.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 10
+          },
+          {
+            "line": 2,
+            "column": 17
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "enum E { A @deprecated(reason: 1, reason: \"x\", foo: 2) B @specifiedBy }",
+    "errors": [
+      {
+        "message": "The \"E\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Unknown argument \"foo\" on directive \"@deprecated\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 48
+          }
+        ]
+      },
+      {
+        "message": "There can be only one argument named \"reason\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 24
+          },
+          {
+            "line": 1,
+            "column": 35
+          }
+        ]
+      },
+      {
+        "message": "String cannot represent a non string value: 1",
+        "locations": [
+          {
+            "line": 1,
+            "column": 32
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@specifiedBy\" may not be used on ENUM_VALUE.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 58
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@specifiedBy\" argument \"url\" of type \"String!\" is required, but it was not provided.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 58
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "directive @mine(a: Int!, b: String = \"x\") on OBJECT | FIELD\ntype T @mine { f: Int @mine(c: 1) }\n{ __typename @mine(a: 1) @mine(a: 2) }",
+    "errors": [
+      {
+        "message": "The \"mine\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"T\" definition is not executable.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@mine\" argument \"a\" of type \"Int!\" is required, but it was not provided.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 8
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@mine\" may not be used on FIELD_DEFINITION.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 23
+          }
+        ]
+      },
+      {
+        "message": "Unknown argument \"c\" on directive \"@mine\". Did you mean \"a\" or \"b\"?",
+        "locations": [
+          {
+            "line": 2,
+            "column": 29
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@mine\" argument \"a\" of type \"Int!\" is required, but it was not provided.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 23
+          }
+        ]
+      },
+      {
+        "message": "The directive \"@mine\" can only be used once at this location.",
+        "locations": [
+          {
+            "line": 3,
+            "column": 14
+          },
+          {
+            "line": 3,
+            "column": 26
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "input I { a: Int = \"x\" @deprecated(reason: 2) }\nextend input I2 { a: Int @specifiedBy(url: \"u\") }\ntype T { f(a: Int @specifiedBy(url: \"u\")): Int }",
+    "errors": [
+      {
+        "message": "The \"I\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"I2\" definition is not executable.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"T\" definition is not executable.",
+        "locations": [
+          {
+            "line": 3,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "String cannot represent a non string value: 2",
+        "locations": [
+          {
+            "line": 1,
+            "column": 44
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@specifiedBy\" may not be used on ARGUMENT_DEFINITION.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 26
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@specifiedBy\" may not be used on ARGUMENT_DEFINITION.",
+        "locations": [
+          {
+            "line": 3,
+            "column": 19
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "type T { f(a: I = {x: 1, x: 2}): Int @deprecated(reason: {r: 1, r: 2}) }",
+    "errors": [
+      {
+        "message": "The \"T\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Unknown type \"I\". Did you mean \"ID\" or \"T\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 15
+          }
+        ]
+      },
+      {
+        "message": "There can be only one input field named \"x\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 20
+          },
+          {
+            "line": 1,
+            "column": 26
+          }
+        ]
+      },
+      {
+        "message": "String cannot represent a non string value: {r: 1, r: 2}",
+        "locations": [
+          {
+            "line": 1,
+            "column": 58
+          }
+        ]
+      },
+      {
+        "message": "There can be only one input field named \"r\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 59
+          },
+          {
+            "line": 1,
+            "column": 65
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "type T implements Nope @nope { f(a: Nope2 @nope3): Nope4 @nope5 }",
+    "errors": [
+      {
+        "message": "The \"T\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Unknown type \"Nope\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 19
+          }
+        ]
+      },
+      {
+        "message": "Unknown directive \"@nope\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 24
+          }
+        ]
+      },
+      {
+        "message": "Unknown type \"Nope2\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 37
+          }
+        ]
+      },
+      {
+        "message": "Unknown directive \"@nope3\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 43
+          }
+        ]
+      },
+      {
+        "message": "Unknown type \"Nope4\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 52
+          }
+        ]
+      },
+      {
+        "message": "Unknown directive \"@nope5\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 58
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "schema @deprecated { query: Nope }\nextend schema @deprecated",
+    "errors": [
+      {
+        "message": "The schema definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The schema definition is not executable.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on SCHEMA.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 8
+          }
+        ]
+      },
+      {
+        "message": "Unknown type \"Nope\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 29
+          }
+        ]
+      },
+      {
+        "message": "The directive \"@deprecated\" can only be used once at this location.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 8
+          },
+          {
+            "line": 2,
+            "column": 15
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on SCHEMA.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 15
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "directive @r repeatable on OBJECT\ndirective @deprecated on QUERY\ntype T @r @r @deprecated { f: Int @deprecated }",
+    "errors": [
+      {
+        "message": "The \"r\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"deprecated\" definition is not executable.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"T\" definition is not executable.",
+        "locations": [
+          {
+            "line": 3,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on OBJECT.",
+        "locations": [
+          {
+            "line": 3,
+            "column": 14
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on FIELD_DEFINITION.",
+        "locations": [
+          {
+            "line": 3,
+            "column": 35
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "union U @deprecated @skip(if: 1) = T | Nope\nextend union U @deprecated",
+    "errors": [
+      {
+        "message": "The \"U\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"U\" definition is not executable.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on UNION.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 9
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@skip\" may not be used on UNION.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 21
+          }
+        ]
+      },
+      {
+        "message": "Boolean cannot represent a non boolean value: 1",
+        "locations": [
+          {
+            "line": 1,
+            "column": 31
+          }
+        ]
+      },
+      {
+        "message": "Unknown type \"T\". Did you mean \"U\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 36
+          }
+        ]
+      },
+      {
+        "message": "Unknown type \"Nope\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 40
+          }
+        ]
+      },
+      {
+        "message": "The directive \"@deprecated\" can only be used once at this location.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 9
+          },
+          {
+            "line": 2,
+            "column": 16
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on UNION.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 16
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "interface X @include { f(a: [Int!] = [1, \"x\"] @deprecated): Int }\nextend type domain @deprecated { g: Int @deprecated(reason: null) }",
+    "errors": [
+      {
+        "message": "The \"X\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"domain\" definition is not executable.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@include\" may not be used on INTERFACE.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 13
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@include\" argument \"if\" of type \"Boolean!\" is required, but it was not provided.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 13
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on OBJECT.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 20
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "directive @d(a: Int = 1 @deprecated, b: Nope) on FIELD_DEFINITION\nextend enum order_by @deprecated { Z @deprecated(reason: \"r\") @deprecated }",
+    "errors": [
+      {
+        "message": "The \"d\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "The \"order_by\" definition is not executable.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Unknown type \"Nope\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 41
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@deprecated\" may not be used on ENUM.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 22
+          }
+        ]
+      },
+      {
+        "message": "The directive \"@deprecated\" can only be used once at this location.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 38
+          },
+          {
+            "line": 2,
+            "column": 63
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "directive @foo(limit: String) on FIELD\n{ domain(limit: 1) @foo(limit: \"x\") { id } }",
+    "errors": [
+      {
+        "message": "The \"foo\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Int cannot represent non-integer value: \"x\"",
+        "locations": [
+          {
+            "line": 2,
+            "column": 32
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "directive @d(a: Int!, b: Int, a: String!) on FIELD\n{ __typename @d }",
+    "errors": [
+      {
+        "message": "The \"d\" definition is not executable.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 1
+          }
+        ]
+      },
+      {
+        "message": "Directive \"@d\" argument \"a\" of type \"String!\" is required, but it was not provided.",
+        "locations": [
+          {
+            "line": 2,
+            "column": 14
           }
         ]
       }
@@ -2039,7 +2844,17 @@
   },
   {
     "query": "{ domain { id } message_view(where: {_and: [{id: {_eq: \"1\"}}], _not: {msg_id: {_is_null: true}}}) { id is_provisional } }",
-    "errors": []
+    "errors": [
+      {
+        "message": "Field \"_not\" is not defined by type \"message_view_bool_exp\". Did you mean \"_or\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 64
+          }
+        ]
+      }
+    ]
   },
   {
     "query": "query ($c: [message_view_stream_cursor_input!]) { message_view(cursor: $c) { id } }",
@@ -2095,11 +2910,11 @@
     "query": "{ message_view(distinct_on: [id, nope]) { id } }",
     "errors": [
       {
-        "message": "Value \"nope\" does not exist in \"message_view_select_column\" enum. Did you mean the enum value \"nonce\"?",
+        "message": "Unknown argument \"distinct_on\" on field \"query_root.message_view\".",
         "locations": [
           {
             "line": 1,
-            "column": 34
+            "column": 16
           }
         ]
       }

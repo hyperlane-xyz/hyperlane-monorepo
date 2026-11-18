@@ -18,33 +18,32 @@ pub const Options = struct { max_tokens: ?u32 = null };
 /// construct open on the current path costs a share of one stack, and
 /// entering the one that reaches `limit` fails like V8 does.
 ///
-/// Calibrated against a cold TS process (Node 26.12.1, a fresh process per
-/// request, ~3 KiB environment; bench/experiments/stack-depth/
-/// ts-thresholds.mjs, exact binary search with 3 repeats at T-1/T; results
-/// in ts-thresholds.json). V8 budgets the main-thread stack shared with the
-/// environment, so TS's depths move with its size (env-size.mjs, nested
-/// lists: 1719 at 1 KiB, 1714 at 3 KiB, 1684 at 19 KiB, 1596 at 67 KiB).
-/// First
-/// depth TS rejects, in a one-field query `{ domain(...) { id } }`:
-///   lists `[[...1...]]` 1714; objects below `_eq` 1361 (n + 2 objects on the
-///   path); selection sets `{ a { a ... b } }` 1667 (n + 1 sets); inline
-///   fragments `... on query_root {` 1643 (n fragments + n + 1 sets); list
+/// Calibrated against a cold TS process (Node 26.12.1, TS 0654ab7b8c, a
+/// fresh process per request, ~3 KiB environment; bench/experiments/
+/// stack-depth/ts-thresholds.mjs, exact binary search with 3 repeats at
+/// T-1/T, and 8 fresh processes at T-1, T and T±160 with depth-shapes.mjs).
+/// V8 budgets the main-thread stack shared with the environment, so TS's
+/// depths move with its size (env-size.mjs, nested lists: 1719 at 1 KiB,
+/// 1714 at 3 KiB, 1684 at 19 KiB, 1596 at 67 KiB). #10076 moved every parser
+/// shape one level deeper (the pre-#10076 dist, measured beside it, still
+/// gives the old depths). First depth TS rejects, in a one-field query
+/// `{ domain(...) { id } }`:
+///   lists `[[...1...]]` 1715; objects below `_eq` 1362 (n + 2 objects on the
+///   path); selection sets `{ a { a ... b } }` 1668 (n + 1 sets); inline
+///   fragments `... on query_root {` 1644 (n fragments + n + 1 sets); list
 ///   type references: no overflow up to 4980 (the token limit), not budgeted.
 /// Shares are solved from the pure shapes; the one-stack total is shared by
-/// selections and values. Validation against mixed shapes not used for the
-/// fit (model / TS): `_and` inline (object+list per level) 758/758, `_not`
-/// inline 1361 / 1360-1361 (TS varies), object:list 2:1 488/488, 1:2
-/// `{a: [[` 526/527, `[[{a:` 526/526, list under 600 selections 1097/1097,
-/// under 1200 selections 480/480. `limit` sits just below 1 so the mixed
-/// shapes TS rejects one level earlier are matched; the only remaining
-/// difference is `{a: [[` at 526 (rejected here, TS accepts) and the `_not`
-/// level where TS itself varies. A warm TS (after V8's JIT) accepts deeper
-/// input; DEVIATIONS.md records that band.
+/// selections and values. Mixed shapes not used for the fit (model = TS):
+/// `_and` inline (object+list per level) 759, `_not` inline 1362, object:list
+/// 2:1 488, 1:2 `{a: [[` 527, `[[{a:` 527, list under 600 selections 1098,
+/// under 1200 selections 481. `limit` sits just below 1 so the mixed shapes
+/// TS rejects one level earlier are matched. A warm TS (after V8's JIT)
+/// accepts deeper input; DEVIATIONS.md records that band.
 pub const stack_budget = struct {
-    pub const list_depth = 1714;
-    pub const object_depth = 1361;
-    pub const selection_depth = 1667;
-    pub const inline_fragment_depth = 1643;
+    pub const list_depth = 1715;
+    pub const object_depth = 1362;
+    pub const selection_depth = 1668;
+    pub const inline_fragment_depth = 1644;
 
     const selection: f64 = 1.0 / @as(f64, selection_depth + 1);
     const list: f64 = (1.0 - selection) / @as(f64, list_depth);

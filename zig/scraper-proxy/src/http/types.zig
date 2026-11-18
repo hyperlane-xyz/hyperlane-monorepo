@@ -320,7 +320,7 @@ pub const Route = struct {
     body_limit: usize = 100 * 1024,
     /// TS answers this route only after an `await` (async hooks or handler):
     /// with data after a non-keep-alive request, Node's clientError 400 then
-    /// goes out instead of the response (`ClosedConnectionPolicy.node_400`).
+    /// goes out instead of the response (`closedConnAction`).
     ts_async: bool = false,
 };
 

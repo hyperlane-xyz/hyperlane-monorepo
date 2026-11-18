@@ -40,8 +40,11 @@ fn compact(arena: Allocator, text: []const u8) ![]const u8 {
     const placeholders = [_]struct { []const u8, []const u8 }{
         .{ "{{PROVISIONAL}}", provisional.PROVISIONAL_MESSAGE_QUERY },
         .{ "{{PROJECTED}}", provisional.PROJECTED_MESSAGE_QUERY },
-        .{ "{{AFFECTED_FILTERED}}", provisional.affectedQuery(true) },
-        .{ "{{AFFECTED}}", provisional.affectedQuery(false) },
+        .{ "{{AFFECTED_FILTERED}}", provisional.affectedQuery(true, false) },
+        .{ "{{AFFECTED}}", provisional.affectedQuery(false, false) },
+        // Prefixes of the two above, so replaced after them.
+        .{ "{{AFFECTED_ZERO_FILTERED}}", provisional.affectedQuery(true, true) },
+        .{ "{{AFFECTED_ZERO}}", provisional.affectedQuery(false, true) },
     };
     var out = text;
     for (placeholders) |entry| out = try std.mem.replaceOwned(u8, arena, out, entry[1], entry[0]);
@@ -54,9 +57,12 @@ fn json(arena: Allocator, item: anytype) ![]const u8 {
 
 const Query = struct { sql: []const u8, values: []const Value };
 
+/// gen-corpus.ts's fake: every query is recorded, EXPLAINs (the history
+/// cost checks) included and answered with a cheap plan.
 const FakeDb = struct {
     arena: Allocator,
     queries: std.ArrayList(Query) = .empty,
+    statements: usize = 0,
     snapshot_first: bool,
     snapshot: ?Value,
 
@@ -64,7 +70,10 @@ const FakeDb = struct {
         _ = diag;
         const self: *FakeDb = @ptrCast(@alignCast(ctx));
         try self.queries.append(self.arena, .{ .sql = text, .values = try arena.dupe(Value, values) });
-        if (self.queries.items.len == 1 and self.snapshot_first) {
+        if (std.mem.startsWith(u8, text, "EXPLAIN"))
+            return try arena.dupe(Value, &.{try value.parseLeaky(arena, "{\"QUERY PLAN\":[{\"Plan\":{\"Total Cost\":1}}]}")});
+        self.statements += 1;
+        if (self.statements == 1 and self.snapshot_first) {
             const row = self.snapshot orelse return &.{};
             return try arena.dupe(Value, &.{row});
         }
@@ -91,7 +100,8 @@ fn runCase(arena: Allocator, case: value.Object, default_snapshot: Value) !Outco
             .snapshot = if (value.get(case, "snapshot")) |s| (if (s == .null) null else s) else default_snapshot,
         };
         const svc = service.Service.init(.{ .ctx = &db, .queryFn = FakeDb.query });
-        _ = svc.selectMessages(arena, .{ .select = args, .confirmations = confirmations }, &diag) catch |err| switch (err) {
+        var budget: service.HistoryBudget = .{};
+        _ = svc.selectMessages(arena, &budget, .{ .select = args, .confirmations = confirmations }, &diag) catch |err| switch (err) {
             error.AssertionFailed => return .{ .queries = db.queries.items, .err = diag.message },
             else => return err,
         };
@@ -150,8 +160,10 @@ test "SQL builder matches the TS corpus" {
     const shared = value.object(value.get(root, "provisional")).?;
     try std.testing.expectEqualStrings(value.string(value.get(shared, "provisional").?).?, provisional.PROVISIONAL_MESSAGE_QUERY);
     try std.testing.expectEqualStrings(value.string(value.get(shared, "projected").?).?, provisional.PROJECTED_MESSAGE_QUERY);
-    try std.testing.expectEqualStrings(value.string(value.get(shared, "affected").?).?, provisional.affectedQuery(false));
-    try std.testing.expectEqualStrings(value.string(value.get(shared, "affectedFiltered").?).?, provisional.affectedQuery(true));
+    try std.testing.expectEqualStrings(value.string(value.get(shared, "affected").?).?, provisional.affectedQuery(false, false));
+    try std.testing.expectEqualStrings(value.string(value.get(shared, "affectedFiltered").?).?, provisional.affectedQuery(true, false));
+    try std.testing.expectEqualStrings(value.string(value.get(shared, "affectedZero").?).?, provisional.affectedQuery(false, true));
+    try std.testing.expectEqualStrings(value.string(value.get(shared, "affectedZeroFiltered").?).?, provisional.affectedQuery(true, true));
 
     const table_specs = value.object(value.get(root, "tables")).?;
     for (0..value.len(table_specs)) |table_index| {

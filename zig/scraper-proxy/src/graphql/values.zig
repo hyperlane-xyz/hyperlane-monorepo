@@ -42,19 +42,27 @@ const max_variable_errors = 50;
 /// variables with V8's RangeError, which `getVariableValues` catches and
 /// returns as its last error (mercurius: 400 "Maximum call stack size
 /// exceeded", no location). Same nesting-budget emulation as
-/// `parser.stack_budget`, calibrated against a cold TS process
-/// (bench/experiments/stack-depth/ts-thresholds.mjs; first depth TS rejects,
-/// deterministic over 3 repeats): `{"_not": ... {"id": {"_eq": 1}}}` 2397
-/// levels (n + 2 objects); `{"_and": [ ... ]}` 626 levels (n + 2 objects,
-/// n lists); the same `_and` on an @cached query (response-cache prepare
-/// coerces first) 626.
+/// `parser.stack_budget`, calibrated against a cold TS process (Node 26.12.1,
+/// TS 0654ab7b8c; bench/experiments/stack-depth/ts-thresholds.mjs, first depth
+/// TS rejects, deterministic over 3 repeats): `{"_and": [ ... ]}` 626 levels (n
+/// + 2 objects, n lists), the same `_and` on an @cached query (response-cache
+/// prepare coerces first) 626. `{"_not": ... {"id": {"_eq": 1}}}` (n + 2
+/// objects) is not deterministic in a cold TS since #10076 (before it: 2397 on
+/// macOS, between 2441 and 2450 on Linux, exact). Fresh processes per depth
+/// that overflow, macOS (8 each): 0 to 2400, about 2 from 2425 to 2850, 6-8
+/// from 2860, all from 2925. Linux, the bench image (16 or 24 each): 0 to 2400,
+/// 2/16 at 2850, 7/16 at 2950, 12/24 at 3000, 14/24 at 3050, 15/16 at 3200,
+/// 6-8/8 from 3300, all from 3800. The port takes 3000, where the chance
+/// crosses one half on Linux (production; DEVIATIONS.md).
 pub const coerce_budget = struct {
-    pub const not_depth = 2397;
+    pub const not_depth = 3000;
     pub const and_depth = 626;
 
     const object: f64 = 1.0 / @as(f64, not_depth + 2);
     const list: f64 = (1.0 - @as(f64, and_depth + 2) * object) / @as(f64, and_depth);
-    const limit: f64 = 1.0 - 0.00035;
+    /// Half an object below 1: `not_depth` objects overflow, one fewer does
+    /// not (a fixed margin would exceed one object's share past ~2857).
+    const limit: f64 = 1.0 - object / 2.0;
 };
 
 pub const stack_overflow_message = "Maximum call stack size exceeded";

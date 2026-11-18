@@ -200,6 +200,89 @@ test "keeps replica health from gating primary live queries" {
     try testing.expect(contains(exposition, "database_query_duration_seconds_count{outcome=\"success\",role=\"graphql_replica\"} 2\n"));
 }
 
+/// Holds every "SELECT held" until released (TS: a `pg.Pool.prototype.query`
+/// mock awaiting `held`); records every statement it sees.
+const HeldFake = struct {
+    mutex: std.Thread.Mutex = .{},
+    cond: std.Thread.Condition = .{},
+    entered: usize = 0,
+    released: bool = false,
+    seen: std.ArrayList([]const u8) = .empty,
+
+    fn query(ctx: *anyopaque, _: service.Backend.Which, _: []const u8, _: std.mem.Allocator, sql: []const u8, _: []const Value, _: ?*root.Failure) root.Error!root.Result {
+        const self: *HeldFake = @ptrCast(@alignCast(ctx));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.seen.append(testing.allocator, sql) catch return error.OutOfMemory;
+        if (std.mem.eql(u8, sql, "SELECT held")) {
+            self.entered += 1;
+            self.cond.broadcast();
+            while (!self.released) self.cond.wait(&self.mutex);
+        }
+        return .{ .rows = &.{}, .row_count = 0 };
+    }
+};
+
+test "bounds unfinished GraphQL database work independently of HTTP clients" {
+    core.config.set(.{ .database_url = primary_url, .database_max_pending_graphql_queries = 3 });
+    core.metrics.init();
+    LogCapture.reset();
+    core.log.setSink(LogCapture.sink, null);
+    defer core.log.setSink(null, null);
+    defer LogCapture.reset();
+    var fake: HeldFake = .{};
+    defer fake.seen.deinit(testing.allocator);
+    const M = core.metrics;
+    const before_success = M.database_queries.get(.{ "success", "graphql_primary" });
+    const before_error = M.database_queries.get(.{ "error", "graphql_primary" });
+
+    const svc = try DbService.init(testing.allocator, core.log.child("DbServiceTest"));
+    defer svc.deinit();
+    svc.backend = .{ .ctx = &fake, .query = HeldFake.query };
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const Hold = struct {
+        fn run(s: *DbService) void {
+            var a = std.heap.ArenaAllocator.init(testing.allocator);
+            defer a.deinit();
+            _ = s.query(a.allocator(), "SELECT held", &.{}, null) catch {};
+        }
+    };
+    var threads: [3]std.Thread = undefined;
+    for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Hold.run, .{svc});
+    fake.mutex.lock();
+    while (fake.entered < threads.len) fake.cond.wait(&fake.mutex);
+    fake.mutex.unlock();
+
+    // Rejected before running: no query, metric or log line, on the plain
+    // and planned main-pool paths (the lazy one shares `runResult`; with a
+    // test backend it returns null before reaching it).
+    var failure: root.Failure = .{};
+    try testing.expectError(error.QueryFailed, svc.query(arena, "SELECT rejected", &.{}, &failure));
+    try testing.expectEqualStrings("GraphQL database query capacity exceeded", failure.message);
+    failure = .{};
+    try testing.expectError(error.QueryFailed, svc.queryReusable(arena, "SELECT rejected", &.{}, &failure));
+    try testing.expectEqualStrings("GraphQL database query capacity exceeded", failure.message);
+    try testing.expectEqual(before_success, M.database_queries.get(.{ "success", "graphql_primary" }));
+    try testing.expectEqual(before_error, M.database_queries.get(.{ "error", "graphql_primary" }));
+    try testing.expectEqual(@as(usize, 0), LogCapture.warnings.items.len);
+    // The live and validator pools are not capped.
+    _ = try svc.queryLive(arena, "SELECT live", &.{}, null);
+    _ = try svc.queryValidator(arena, "SELECT validator", &.{}, null);
+
+    fake.mutex.lock();
+    fake.released = true;
+    fake.cond.broadcast();
+    fake.mutex.unlock();
+    for (threads) |t| t.join();
+    _ = try svc.query(arena, "SELECT recovered", &.{}, null);
+    for (fake.seen.items) |sql| try testing.expect(!std.mem.eql(u8, sql, "SELECT rejected"));
+    try testing.expectEqual(before_success + 4, M.database_queries.get(.{ "success", "graphql_primary" }));
+    try testing.expectEqual(before_error, M.database_queries.get(.{ "error", "graphql_primary" }));
+}
+
 /// A TCP listener that never accepts: libpq's startup packet is never
 /// answered, like the TS `Socket.prototype.connect` mock.
 fn stalledListener() !struct { fd: std.posix.socket_t, port: u16 } {
@@ -674,6 +757,53 @@ test "libpq: fixed_join and serial statements set their planner setting for them
     p.reuse_guard.disabled.store(true, .monotonic);
     try Check.expect(fixed_want, try p.queryWith(a, sql, &one, fixed, &failure));
     try Check.expect(start, try p.query(a, sql, &one, &failure));
+    try testing.expectEqual(@as(u32, 1), p.stats().total);
+}
+
+test "libpq: a history EXPLAIN after tuned statements costs what a fresh session's does (TS #10076)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var failure: root.Failure = .{};
+    // Syntactic join order is not the cheapest (the tiny VALUES list joins
+    // b first), so a leaked join_collapse_limit changes the cost; a leaked
+    // parallel setting shows in the settings read below.
+    const sql = "SELECT count(*) FROM generate_series(1, $1::int) a(x) JOIN generate_series(1, 1000) b(x) ON b.x = a.x " ++
+        "JOIN (VALUES (1), (2)) c(x) ON c.x = b.x";
+    const explain = "EXPLAIN (FORMAT JSON) " ++ sql;
+    const n = [_]Value{.{ .number = 100_000 }};
+    const Cost = struct {
+        fn of(r: root.Result) f64 {
+            const document = r.rows[0].get("QUERY PLAN").?.array;
+            return document[0].get("Plan").?.get("Total Cost").?.number;
+        }
+    };
+    // The planner settings the tuned plans change (transaction-scoped);
+    // the session's plan_cache_mode only switches between custom and auto,
+    // which plan an unnamed statement alike.
+    const settings = "SELECT current_setting('join_collapse_limit') || '/' || " ++
+        "current_setting('max_parallel_workers_per_gather') || '/' || " ++
+        "(current_setting('plan_cache_mode') = 'force_generic_plan')::text AS v";
+    const fresh = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer fresh.deinit();
+    const want = Cost.of(try fresh.query(a, explain, &n, &failure));
+    const want_settings = try a.dupe(u8, (try fresh.query(a, settings, &.{}, &failure)).rows[0].get("v").?.string);
+    // The check would notice the settings the tuned plans use.
+    _ = try fresh.query(a, "SET join_collapse_limit = 1", &.{}, &failure);
+    try testing.expect(Cost.of(try fresh.query(a, explain, &n, &failure)) != want);
+    _ = try fresh.query(a, "RESET join_collapse_limit", &.{}, &failure);
+
+    const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer p.deinit();
+    for ([_]pq.Plan{ .fixed_join, .serial, .serial_generic, .generic, .reusable, .custom, .unnamed }) |plan| {
+        // Enough runs for reusable statements to go generic; one text per
+        // plan, as in the app (a text keeps its statement class).
+        const text = try std.fmt.allocPrint(a, "{s} -- {s}", .{ sql, @tagName(plan) });
+        for (0..6) |_| _ = try p.queryWith(a, text, &n, .{ .plan = plan }, &failure);
+        try testing.expectEqual(want, Cost.of(try p.query(a, explain, &n, &failure)));
+        try testing.expectEqualStrings(want_settings, (try p.query(a, settings, &.{}, &failure)).rows[0].get("v").?.string);
+    }
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 

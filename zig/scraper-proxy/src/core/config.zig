@@ -7,6 +7,7 @@ const json = @import("json.zig");
 
 pub const Config = struct {
     database_query_timeout_ms: u64 = 20_000,
+    database_max_pending_graphql_queries: u64 = 25,
     database_read_replica_url: ?[]const u8 = null,
     database_slow_query_ms: u64 = 1_000,
     database_statement_timeout_ms: u64 = 15_000,
@@ -42,6 +43,7 @@ const Rule = union(enum) { int: IntRule, str: StrRule };
 /// Schema keys in declaration order (zod reports issues in this order).
 const rules = [_]Rule{
     .{ .int = .{ .env = "DATABASE_QUERY_TIMEOUT_MS", .field = "database_query_timeout_ms", .min = 1_000 } },
+    .{ .int = .{ .env = "DATABASE_MAX_PENDING_GRAPHQL_QUERIES", .field = "database_max_pending_graphql_queries", .min = 1 } },
     .{ .str = .{ .env = "DATABASE_READ_REPLICA_URL", .field = "database_read_replica_url", .optional = true } },
     .{ .int = .{ .env = "DATABASE_SLOW_QUERY_MS", .field = "database_slow_query_ms", .min = 1 } },
     .{ .int = .{ .env = "DATABASE_STATEMENT_TIMEOUT_MS", .field = "database_statement_timeout_ms", .min = 1_000 } },
@@ -476,6 +478,43 @@ test "zod 4 issues match TS output" {
             "{\"origin\":\"number\",\"code\":\"too_small\",\"minimum\":1,\"inclusive\":true,\"path\":[\"EVENT_STREAM_MAX_AGENT_CLIENTS\"],\"message\":\"Too small: expected number to be >=1\"}," ++
             "{\"code\":\"too_big\",\"maximum\":9007199254740991,\"note\":\"Integers must be within the safe integer range.\",\"origin\":\"int\",\"inclusive\":true,\"path\":[\"GRAPHQL_MAX_ACTIVE_UPLOADS\"],\"message\":\"Too big: expected int to be <=9007199254740991\"}," ++
             "{\"expected\":\"number\",\"code\":\"invalid_type\",\"received\":\"NaN\",\"path\":[\"PORT\"],\"message\":\"Invalid input: expected number, received NaN\"}]",
+        compact,
+    );
+}
+
+test "DATABASE_MAX_PENDING_GRAPHQL_QUERIES (#10076): int >= 1, default 25, issues in schema order" {
+    {
+        var env = try envOf(&.{.{ "DATABASE_URL", "postgresql://x" }});
+        defer env.deinit();
+        const c = try parse(testing.allocator, &env, null);
+        defer freeConfig(testing.allocator, c);
+        try testing.expectEqual(@as(u64, 25), c.database_max_pending_graphql_queries);
+    }
+    {
+        var env = try envOf(&.{ .{ "DATABASE_URL", "postgresql://x" }, .{ "DATABASE_MAX_PENDING_GRAPHQL_QUERIES", " 0x10 " } });
+        defer env.deinit();
+        const c = try parse(testing.allocator, &env, null);
+        defer freeConfig(testing.allocator, c);
+        try testing.expectEqual(@as(u64, 16), c.database_max_pending_graphql_queries);
+    }
+    // The key sits right after DATABASE_QUERY_TIMEOUT_MS in the TS schema.
+    var env = try envOf(&.{
+        .{ "DATABASE_URL", "postgresql://x" },
+        .{ "DATABASE_QUERY_TIMEOUT_MS", "1.5" },
+        .{ "DATABASE_MAX_PENDING_GRAPHQL_QUERIES", "0" },
+        .{ "DATABASE_READ_REPLICA_URL", "" },
+    });
+    defer env.deinit();
+    var out: std.Io.Writer.Allocating = .init(testing.allocator);
+    defer out.deinit();
+    try testing.expectError(error.InvalidConfig, parse(testing.allocator, &env, &out));
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const compact = try json.stringifyAlloc(arena.allocator(), try json.parse(arena.allocator(), out.written(), .{}));
+    try testing.expectEqualStrings(
+        "[{\"expected\":\"int\",\"format\":\"safeint\",\"code\":\"invalid_type\",\"path\":[\"DATABASE_QUERY_TIMEOUT_MS\"],\"message\":\"Invalid input: expected int, received number\"}," ++
+            "{\"origin\":\"number\",\"code\":\"too_small\",\"minimum\":1,\"inclusive\":true,\"path\":[\"DATABASE_MAX_PENDING_GRAPHQL_QUERIES\"],\"message\":\"Too small: expected number to be >=1\"}," ++
+            "{\"origin\":\"string\",\"code\":\"too_small\",\"minimum\":1,\"inclusive\":true,\"path\":[\"DATABASE_READ_REPLICA_URL\"],\"message\":\"Too small: expected string to have >=1 characters\"}]",
         compact,
     );
 }

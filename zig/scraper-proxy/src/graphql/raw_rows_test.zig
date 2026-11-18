@@ -499,9 +499,10 @@ test "raw rows: PostgreSQL results through the App adapters match today's bytes"
     defer arena_state.deinit();
     const a = arena_state.allocator();
     var failure: db.Failure = .{};
-    const ids = try dbs.query(ca, "SELECT (SELECT max(id) FROM domain) AS d, (SELECT min(id)::text FROM raw_message_dispatch) AS r", &.{}, &failure);
+    const ids = try dbs.query(ca, "SELECT (SELECT max(id) FROM domain) AS d, (SELECT min(id)::text FROM raw_message_dispatch) AS r, (SELECT max(id)::text FROM message_view) AS m", &.{}, &failure);
     const domain_id = ids[0].get("d").?.number;
     const rmd_id = ids[0].get("r").?.string;
+    const message_id = ids[0].get("m").?.string;
 
     const Case = struct { query: []const u8, vars: ?[]const u8 = null, lazy: bool, snapshot: bool = false };
     const cases = [_]Case{
@@ -518,8 +519,8 @@ test "raw rows: PostgreSQL results through the App adapters match today's bytes"
         .{ .query = "{ message_view(order_by: {id: desc}, limit: 500) { id nonce is_delivered is_provisional origin_chain_id origin_block_height destination_chain_id total_payment num_payments origin_domain destination_domain } }", .lazy = true },
         // Fallbacks: __typename, confirmations, aggregate.
         .{ .query = "{ domain(limit: 2) { __typename id } }", .lazy = false },
-        .{ .query = "{ message_view(confirmations: 0, order_by: {id: desc}, limit: 20) { id nonce is_provisional } }", .lazy = false, .snapshot = true },
-        .{ .query = "{ message_view_aggregate(where: {is_delivered: {_eq: true}}) { aggregate { count } nodes { id nonce } } }", .lazy = false },
+        .{ .query = "{ message_view(confirmations: 0, where: {is_provisional: {_eq: true}}, order_by: {id: desc}, limit: 20) { id nonce is_provisional } }", .lazy = false, .snapshot = true },
+        .{ .query = try std.fmt.allocPrint(ca, "{{ message_view_aggregate(where: {{id: {{_eq: \"{s}\"}}}}) {{ aggregate {{ count }} nodes {{ id nonce }} }} }}", .{message_id}), .lazy = false },
         .{ .query = "{ raw_message_dispatch(limit: 20, order_by: {id: asc}) { id nonce origin_domain destination_domain origin_block_height } }", .lazy = true },
         // Errors: PostgreSQL's and the builder's, through the lazy query.
         .{ .query = "{ domain(limit: -1) { id } }", .lazy = false }, // builder: before any query

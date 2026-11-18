@@ -516,7 +516,7 @@ fn run(scenario: Scenario, coalesce: bool, trace: *Trace) !void {
         peers[index] = server.connectExplorer(sockets[index].socket(), .{
             .url = if (scenario.blocks[index]) "/messages?blocks=true" else "/messages",
             .cf_connecting_ip = try std.fmt.bufPrint(&ip, "10.0.0.{d}", .{index + 1}),
-            .remote_address = null,
+            .remote_address = "127.0.0.1",
         });
         // With blocks the ready frame follows a (task) snapshot read.
         for (0..10_000) |_| {
@@ -649,7 +649,7 @@ test "the drain's next frame shares its predecessor's write" {
     const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = 500 }, null);
     try server.start();
     var socket: KernelSocket = .{ .capacity = 1_000_000 };
-    const peer = server.connectExplorer(socket.socket(), .{ .url = "/messages", .cf_connecting_ip = "10.0.0.1", .remote_address = null });
+    const peer = server.connectExplorer(socket.socket(), .{ .url = "/messages", .cf_connecting_ip = "10.0.0.1", .remote_address = "127.0.0.1" });
     const writes_before = socket.writes;
     for ([_]u8{ 1, 2 }) |id| {
         var buf: [64]u8 = undefined;
@@ -686,7 +686,7 @@ test "a client close arriving mid-tick takes effect after the tick's frames are 
     const server = try live.Server.create(a, &loop.loop, db.db(), listen.api(), .{ .limits = limits, .batch_size = 500 }, null);
     try server.start();
     var socket: KernelSocket = .{ .capacity = 1_000_000 };
-    const peer = server.connectExplorer(socket.socket(), .{ .url = "/messages", .cf_connecting_ip = "10.0.0.1", .remote_address = null });
+    const peer = server.connectExplorer(socket.socket(), .{ .url = "/messages", .cf_connecting_ip = "10.0.0.1", .remote_address = "127.0.0.1" });
     for ([_]u8{ 1, 2, 3 }) |id| {
         var buf: [64]u8 = undefined;
         var payload: [96]u8 = undefined;
@@ -1169,7 +1169,7 @@ fn runDrains(setup: DrainSetup) !DrainResult {
     for (&peers, 0..) |*peer, p| {
         const url = try std.fmt.bufPrint(&urls[p], "/messages?messageIds=0x{s},0x{s}", .{ ids[2 * p], ids[2 * p + 1] });
         const ip = if (p == 0) "10.0.0.1" else "10.0.0.2";
-        peer.* = server.connectExplorer(sockets[p].socket(), .{ .url = url, .cf_connecting_ip = ip, .remote_address = null });
+        peer.* = server.connectExplorer(sockets[p].socket(), .{ .url = url, .cf_connecting_ip = ip, .remote_address = "127.0.0.1" });
     }
     sockets[1].capacity = setup.second_capacity;
     sockets[1].async_complete = setup.second_async;

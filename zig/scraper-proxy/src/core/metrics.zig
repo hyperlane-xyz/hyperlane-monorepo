@@ -374,6 +374,7 @@ pub const ValidatorSubscription = struct { domain: u32, canonical: f64 = 0, cust
 /// object literal (delivery, dispatch, gas_payment, merkle_tree_insertion).
 pub const WebSocketMetricsSnapshot = struct {
     connections: RouteCounts = .{},
+    explorerPendingSetups: f64 = 0,
     validatorPendingSetups: f64 = 0,
     validatorReservedConnections: f64 = 0,
     validatorSharedReaders: f64 = 0,
@@ -395,6 +396,8 @@ pub const WebSocketMetricsSnapshot = struct {
         explorerPendingMessages: f64 = 0,
         messageConnections: f64 = 0,
         messageConnectionsPerIp: f64 = 0,
+        messageSetups: f64 = 0,
+        messageSetupsPerIp: f64 = 0,
         validatorConnections: f64 = 0,
         validatorSetups: f64 = 0,
         validatorConnectionsPerIp: f64 = 0,
@@ -470,7 +473,7 @@ pub var database_query_duration = Histogram(&.{ "outcome", "role" }, &.{ 0.005, 
 pub var database_rows = Counter(&.{"role"}).init("database_rows_total", "Database rows returned by fixed workload role.");
 pub var websocket_connections = Counter(&.{"route"}).init("websocket_connections_total", "Accepted WebSocket connections by route.");
 pub var websocket_connection_rejections = Counter(&.{ "reason", "route" }).init("websocket_connection_rejections_total", "Rejected WebSocket connections by route and reason.");
-pub var websocket_client_message_rejections = Counter(&.{}).init("websocket_client_message_rejections_total", "Agent WebSocket messages rejected by the per-client rate limit.");
+pub var websocket_client_message_rejections = Counter(&.{}).init("websocket_client_message_rejections_total", "Inbound WebSocket application messages rejected by the server.");
 pub var websocket_send_failures = Counter(&.{"reason"}).init("websocket_send_failures_total", "WebSocket send failures by reason.");
 pub var websocket_notification_queue_overflows = Counter(&.{"route"}).init("websocket_notification_queue_overflows_total", "PostgreSQL notification queue overflows by isolated route.");
 
@@ -495,6 +498,7 @@ fn initMetrics() void {
     for ([_][]const u8{ "messages", "validators" }) |route| {
         for ([_][]const u8{ "invalid_client_ip", "per_ip_limit" }) |reason| websocket_connection_rejections.inc(.{ reason, route }, 0);
     }
+    for ([_][]const u8{ "setup_limit", "per_ip_setup_limit" }) |reason| websocket_connection_rejections.inc(.{ reason, "messages" }, 0);
     websocket_connections.inc(.{"validators"}, 0);
     // TS: `inc({ route: 'validators', reason: 'invalid_subscription' }, 0)`.
     websocket_connection_rejections.incOrdered(.{ "invalid_subscription", "validators" }, 0, .{ 1, 0 });
@@ -629,6 +633,9 @@ fn renderSnapshotGauges(a: std.mem.Allocator, w: *std.Io.Writer) !void {
     try snapshotGauge(w, "websocket_validator_client_ips", "Current number of distinct validator client IPs.", &none, &.{.{ .value = s.validatorClientIps }}, has);
     try snapshotGauge(w, "websocket_validator_max_connections_per_ip", "Largest current validator connection count for one client IP.", &none, &.{.{ .value = s.validatorMaxConnectionsPerIp }}, has);
     try snapshotGauge(w, "websocket_validator_client_message_limit_bytes", "Maximum inbound validator WebSocket message size.", &none, &.{.{ .value = s.limits.validatorMessageBytes }}, has);
+    try snapshotGauge(w, "websocket_message_pending_setups", "Message negotiations awaiting database reads, including disconnected clients.", &none, &.{.{ .value = s.explorerPendingSetups }}, has);
+    try snapshotGauge(w, "websocket_message_setup_limit", "Maximum unfinished /messages setups.", &none, &.{.{ .value = s.limits.messageSetups }}, has);
+    try snapshotGauge(w, "websocket_message_setup_limit_per_ip", "Maximum unfinished /messages setups per client IP.", &none, &.{.{ .value = s.limits.messageSetupsPerIp }}, has);
     try snapshotGauge(w, "websocket_message_client_ips", "Current number of distinct /messages client IPs.", &none, &.{.{ .value = s.messageClientIps }}, has);
     try snapshotGauge(w, "websocket_message_connection_limit_per_ip", "Maximum /messages WebSocket connections per client IP.", &none, &.{.{ .value = s.limits.messageConnectionsPerIp }}, has);
     try snapshotGauge(w, "websocket_message_max_connections_per_ip", "Largest current /messages connection count for one client IP.", &none, &.{.{ .value = s.messageMaxConnectionsPerIp }}, has);
@@ -823,6 +830,7 @@ const TestProviders = struct {
     fn ws(_: *anyopaque, a: std.mem.Allocator) std.mem.Allocator.Error!WebSocketMetricsSnapshot {
         return .{
             .connections = .{ .agent = 3, .messages = 4, .validators = 2 },
+            .explorerPendingSetups = 4,
             .validatorPendingSetups = 1,
             .validatorReservedConnections = 2,
             .validatorSharedReaders = 1,
@@ -842,6 +850,8 @@ const TestProviders = struct {
                 .explorerPendingMessages = 2_000,
                 .messageConnections = 400,
                 .messageConnectionsPerIp = 5,
+                .messageSetups = 64,
+                .messageSetupsPerIp = 8,
                 .validatorConnections = 500,
                 .validatorSetups = 32,
                 .validatorConnectionsPerIp = 5,
@@ -892,6 +902,11 @@ test "serves current usage and limits (metrics.test.ts)" {
     try expectContains(output, p ++ "websocket_validator_client_ips 1\n");
     try expectContains(output, p ++ "websocket_validator_max_connections_per_ip 2\n");
     try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n");
+    // #10076: /messages setup gauges, after the validator message limit (registration order).
+    try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n\n# HELP " ++ p ++ "websocket_message_pending_setups Message negotiations awaiting database reads, including disconnected clients.\n# TYPE " ++ p ++ "websocket_message_pending_setups gauge\n" ++ p ++ "websocket_message_pending_setups 4\n");
+    try expectContains(output, "# HELP " ++ p ++ "websocket_message_setup_limit Maximum unfinished /messages setups.\n# TYPE " ++ p ++ "websocket_message_setup_limit gauge\n" ++ p ++ "websocket_message_setup_limit 64\n");
+    try expectContains(output, "# HELP " ++ p ++ "websocket_message_setup_limit_per_ip Maximum unfinished /messages setups per client IP.\n# TYPE " ++ p ++ "websocket_message_setup_limit_per_ip gauge\n" ++ p ++ "websocket_message_setup_limit_per_ip 8\n\n# HELP " ++ p ++ "websocket_message_client_ips ");
+    try expectContains(output, "# HELP " ++ p ++ "websocket_client_message_rejections_total Inbound WebSocket application messages rejected by the server.\n");
     try expectContains(output, p ++ "websocket_connection_limit{route=\"messages\"} 400\n");
     try expectContains(output, p ++ "websocket_subscriptions{event_type=\"dispatch\"} 2\n");
     try expectContains(output, p ++ "websocket_outbound_pending_bytes 256\n");
@@ -920,6 +935,10 @@ test "serves current usage and limits (metrics.test.ts)" {
         var buf: [256]u8 = undefined;
         try expectContains(output, try std.fmt.bufPrint(&buf, "websocket_connection_rejections_total{{reason=\"{s}\",route=\"{s}\"}} 0\n", .{ reason, route }));
     };
+    for ([_][]const u8{ "setup_limit", "per_ip_setup_limit" }) |reason| {
+        var buf: [256]u8 = undefined;
+        try expectContains(output, try std.fmt.bufPrint(&buf, "websocket_connection_rejections_total{{reason=\"{s}\",route=\"messages\"}} 0\n", .{reason}));
+    }
     // TS increments this one with `route` first, and prom-client keeps it.
     try expectContains(output, p ++ "websocket_connection_rejections_total{route=\"validators\",reason=\"invalid_subscription\"} 0\n");
     try expectContains(output, p ++ "websocket_connections_total{route=\"validators\"} 0\n");

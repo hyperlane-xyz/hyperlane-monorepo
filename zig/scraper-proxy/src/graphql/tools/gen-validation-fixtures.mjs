@@ -103,6 +103,27 @@ const queries = [
   '{ domain { id } } { domain { id } }',
   'type Foo { a: Int } { domain { id } }',
   'schema { query: Foo } { domain { id } }',
+  // Type-system definitions: the rules graphql-js also applies to SDL nodes, in its visit order
+  // (directives' location, uniqueness per node and per type/schema across extensions, argument
+  // rules, values in directive arguments and defaults, document-defined directives).
+  'type T @skip(if: true) @nope { f: Int @include(if: true) }',
+  'type T @deprecated @deprecated { f: Int }',
+  'scalar S @specifiedBy(url: "a")\nextend scalar S @specifiedBy(url: "b")',
+  'enum E { A @deprecated(reason: 1, reason: "x", foo: 2) B @specifiedBy }',
+  'directive @mine(a: Int!, b: String = "x") on OBJECT | FIELD\ntype T @mine { f: Int @mine(c: 1) }\n{ __typename @mine(a: 1) @mine(a: 2) }',
+  'input I { a: Int = "x" @deprecated(reason: 2) }\nextend input I2 { a: Int @specifiedBy(url: "u") }\ntype T { f(a: Int @specifiedBy(url: "u")): Int }',
+  'type T { f(a: I = {x: 1, x: 2}): Int @deprecated(reason: {r: 1, r: 2}) }',
+  'type T implements Nope @nope { f(a: Nope2 @nope3): Nope4 @nope5 }',
+  'schema @deprecated { query: Nope }\nextend schema @deprecated',
+  'directive @r repeatable on OBJECT\ndirective @deprecated on QUERY\ntype T @r @r @deprecated { f: Int @deprecated }',
+  'union U @deprecated @skip(if: 1) = T | Nope\nextend union U @deprecated',
+  'interface X @include { f(a: [Int!] = [1, "x"] @deprecated): Int }\nextend type domain @deprecated { g: Int @deprecated(reason: null) }',
+  'directive @d(a: Int = 1 @deprecated, b: Nope) on FIELD_DEFINITION\nextend enum order_by @deprecated { Z @deprecated(reason: "r") @deprecated }',
+  // A document directive's argument takes the field's same-named argument type (TypeInfo:
+  // getDirective() is schema-only, so getFieldDef() supplies it); a repeated required
+  // argument name is reported once (keyMap: first position, last definition).
+  'directive @foo(limit: String) on FIELD\n{ domain(limit: 1) @foo(limit: "x") { id } }',
+  'directive @d(a: Int!, b: Int, a: String!) on FIELD\n{ __typename @d }',
   `{ ${many(11, (i) => `a${i}: domain { id }`)} }`,
   `{ domain { ${many(251, (i) => `a${i}: id`)} } }`,
   `{ ${many(101, (i) => `f${i}`)} }`,
@@ -154,6 +175,6 @@ const out = queries.map((query) => {
 });
 writeFileSync(
   join(here, '../testdata/validation.json'),
-  JSON.stringify(out, null, 1),
+  `${JSON.stringify(out, null, 2)}\n`,
 );
 console.log(`wrote ${out.length} cases`);

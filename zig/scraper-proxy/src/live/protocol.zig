@@ -447,6 +447,11 @@ pub fn blockHashText(arena: std.mem.Allocator, text: []const u8) std.mem.Allocat
 // ---------------------------------------------------------------------------
 // Explorer (`/messages`) query parameters
 
+/// TS protocol.ts (#10076): a /messages confirmation subscription names at
+/// most this many distinct domains and asks for at most this depth.
+pub const MAX_EXPLORER_DOMAINS = 512;
+pub const MAX_EXPLORER_CONFIRMATIONS = 1_000;
+
 pub fn parseExplorerConfirmations(arena: std.mem.Allocator, params: *const QueryParams, diag: *Diag) Error!?ExplorerConfirmations {
     if (!params.has("confirmations") and !params.has("domains")) return null;
     const count = params.get("confirmations");
@@ -467,8 +472,10 @@ pub fn parseExplorerConfirmations(arena: std.mem.Allocator, params: *const Query
         if (std.mem.indexOfScalar(u32, domains.items, domain) == null) try domains.append(arena, domain);
     }
     if (!valid) return diag.fail("Invalid domains");
+    if (domains.items.len > MAX_EXPLORER_DOMAINS) return diag.fail(std.fmt.comptimePrint("domains must contain at most {d} IDs", .{MAX_EXPLORER_DOMAINS}));
     const number = std.fmt.parseFloat(f64, count.?) catch unreachable;
     const confirmations = try confirmationsNumber(number, domains.items, diag);
+    if (confirmations > MAX_EXPLORER_CONFIRMATIONS) return diag.fail(std.fmt.comptimePrint("confirmations must not exceed {d}", .{MAX_EXPLORER_CONFIRMATIONS}));
     return .{ .confirmations = confirmations, .domains = domains.items };
 }
 

@@ -23,6 +23,7 @@ pub const Database = service.Database;
 pub const Service = service.Service;
 pub const Plan = service.Plan;
 pub const MessageSelectArgs = service.MessageSelectArgs;
+pub const HistoryBudget = service.HistoryBudget;
 
 test {
     std.testing.refAllDeclsRecursive(@This());
