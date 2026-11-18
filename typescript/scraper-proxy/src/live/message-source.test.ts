@@ -474,3 +474,71 @@ void it('retries a fact read invalidated by repeated rollbacks without failing s
   assert.equal(upserts.length, 1);
   assert(calls > 3, `calls=${calls}`);
 });
+
+void it('keeps cached facts a rollback cannot affect', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map(
+        [1, 2, 3].map((domain) => [
+          domain,
+          { head: 10n, indexed: 10n, confirmed: 5n, hash: undefined },
+        ]),
+      ),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id),
+          destination_domain_id: id === 'to3' ? 3 : 2,
+          origin_tx_id: '1',
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(
+    { domains: new Set([1, 2, 3]), confirmations: 0 },
+    undefined,
+    () => {},
+    assert.fail,
+  );
+  await source.refresh(['to2', 'to3']);
+  const head = {
+    domain: 2,
+    confirmedHeight: 5n,
+    indexedHeight: 9n,
+    headHeight: 9n,
+    previousIndexedHeight: 10n,
+  };
+  source.observe(head);
+  await source.refresh(['to2', 'to3']);
+  assert.deepEqual(reads, ['to2', 'to3', 'to2']);
+});
+
+void it('rereads facts still waiting for transaction rows', async () => {
+  const reads: string[] = [];
+  const source = new MessageSource({
+    messageHeads: initialHeads,
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      reads.push(...ids);
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id),
+          origin_tx_id: reads.length > 2 || id === 'done' ? '1' : null,
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  source.subscribe(policy(), undefined, () => {}, assert.fail);
+  for (let i = 0; i < 3; i++) await source.refresh(['pending', 'done']);
+  // Reread until the transaction row arrives, then cache like any other fact.
+  assert.deepEqual(reads, ['pending', 'done', 'pending']);
+});

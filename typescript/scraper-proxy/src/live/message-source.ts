@@ -43,7 +43,20 @@ type Entry = {
   refs: number;
   bytes: number;
   value?: Promise<MessageFacts | Error | undefined>;
+  // Settled facts, kept to decide which entries a rollback can affect.
+  facts?: MessageFacts;
+  // Near-head transaction rows can arrive after the message without an
+  // Explorer notification; reuse such facts only within the current read.
+  stale?: boolean;
 };
+
+// Origin/destination transaction rows join after the dispatch or delivery.
+function awaitingTransactions(facts: MessageFacts) {
+  return (
+    facts.pending.origin_tx_id === null ||
+    facts.deliveries.some(({ fields }) => fields.destination_tx_id === null)
+  );
+}
 
 // Share the same bounded FIFO admission rule for range scans and fact batches.
 function limitReads(limit: number) {
@@ -162,8 +175,11 @@ export class MessageSource {
             );
       }
       // Cross-domain projections can include a removed delivery/payment even
-      // when the retained change is on a different domain.
-      for (const entry of this.entries.values()) this.invalidate(entry);
+      // when the retained change is on a different domain. Settled facts list
+      // every domain they read; anything else is invalidated conservatively.
+      for (const entry of this.entries.values())
+        if (!entry.facts || entry.facts.dependencies.has(head.domain))
+          this.invalidate(entry);
     } else if (window && !window.loading) {
       // Retain unprocessed advances. A stalled domain cannot pin old rows forever.
       const floor = confirmationHeight(next, 2 * MAX_EXPLORER_CONFIRMATIONS);
@@ -186,6 +202,8 @@ export class MessageSource {
     this.bytes -= entry.bytes;
     entry.bytes = 0;
     entry.value = undefined;
+    entry.facts = undefined;
+    entry.stale = undefined;
   }
 
   private trim(window: Window, floor: bigint) {
@@ -260,6 +278,10 @@ export class MessageSource {
               throw new Error('Message source byte limit exceeded');
             entry.bytes = bytes;
             this.bytes += bytes;
+            if (facts && !(facts instanceof Error)) {
+              entry.facts = facts;
+              entry.stale = awaitingTransactions(facts);
+            }
           }
           return facts;
         })
@@ -535,6 +557,7 @@ export class MessageSource {
       for (const id of ids) {
         const entry = this.entry(id);
         entry.refs++;
+        if (entry.stale) this.invalidate(entry);
         reads.push({ id, entry });
       }
       // Recheck the entire batch after the last read settles. A receipt or fork
