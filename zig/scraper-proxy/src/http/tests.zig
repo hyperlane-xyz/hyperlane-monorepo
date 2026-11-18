@@ -402,6 +402,9 @@ const Harness = struct {
         self.wse.deinit();
     }
 
+    /// macOS: under heavy loopback traffic `connect()` can report EISCONN,
+    /// which std treats as `unreachable` (a test-client/std issue, not the
+    /// server); the streaming dump test is Linux-only for that reason.
     fn connect(self: *Harness) !Client {
         const addr = try std.net.Address.parseIp("127.0.0.1", self.server.port());
         const stream = try std.net.tcpConnectToAddress(addr);
@@ -749,6 +752,142 @@ test "connection: close and HTTP/1.0 are honoured; requestTimeout covers the hea
     defer c4.close();
     const r4 = try c4.request(arena.allocator(), "GARBAGE\r\n\r\n");
     try testing.expectEqual(@as(u16, 400), r4.status);
+}
+
+test "a Connection: close response closes at once like Node's destroySoon: later bytes get RST" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    // The body follows the response: the socket is already closed (no drain).
+    var c = try h.connect();
+    defer c.close();
+    const r = try c.request(arena.allocator(), "POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 10\r\n\r\n");
+    try testing.expectEqual(@as(u16, 404), r.status);
+    try testing.expect(c.closedByPeer());
+    try c.send("0123456789");
+    // The RST sets the socket error (Linux: EPIPE in CLOSE_WAIT; macOS: ECONNRESET).
+    var reset = false;
+    var tries: u32 = 0;
+    while (!reset and tries < 50) : (tries += 1) {
+        reset = try socketError(c.fd) != 0;
+        if (!reset) std.Thread.sleep(10 * std.time.ns_per_ms);
+    }
+    try testing.expect(reset);
+    // A body already sent is discarded before the close: the response stays whole.
+    var c2 = try h.connect();
+    defer c2.close();
+    var big: std.ArrayList(u8) = .empty;
+    defer big.deinit(testing.allocator);
+    try big.appendSlice(testing.allocator, "POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n");
+    try big.appendNTimes(testing.allocator, 'x', 20000);
+    const r2 = try c2.request(arena.allocator(), big.items);
+    try testing.expectEqual(@as(u16, 404), r2.status);
+    try testing.expect(c2.closedByPeer());
+}
+
+fn socketError(fd: posix.socket_t) !i32 {
+    var err_bytes: [4]u8 = undefined;
+    try posix.getsockopt(fd, posix.SOL.SOCKET, posix.SO.ERROR, &err_bytes);
+    return std.mem.readInt(i32, &err_bytes, @import("builtin").cpu.arch.endian());
+}
+
+test "Node-written Connection: close responses (missing Host 400) dump the body before closing" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    // More body than one read takes, all of it queued before the server
+    // answers (one write that fits the socket buffers): without the dump,
+    // close() with that unread input would RST (and could take the 400 with it).
+    var req: std.ArrayList(u8) = .empty;
+    defer req.deinit(testing.allocator);
+    try req.appendSlice(testing.allocator, "POST /nope HTTP/1.1\r\nContent-Length: 100000\r\n\r\n");
+    try req.appendNTimes(testing.allocator, 'x', 100_000);
+    const r = try c.request(arena.allocator(), req.items);
+    try testing.expectEqual(@as(u16, 400), r.status);
+    // Linux (loopback buffers hold the whole write before the server answers):
+    // the dump leaves nothing unread, so a clean FIN and no RST. Elsewhere the
+    // body may still be arriving, and Node's own dump races the close there too.
+    std.Thread.sleep(50 * std.time.ns_per_ms);
+    if (@import("builtin").os.tag == .linux) try testing.expectEqual(@as(i32, 0), try socketError(c.fd));
+    var reads: u32 = 0;
+    while (try c.fill() > 0 and reads < 10) reads += 1;
+    try testing.expect(reads < 10);
+}
+
+test "the body dump before a close is bounded: a client streaming without end cannot hold the loop" {
+    // Linux only: full reads (the unbounded case) need Linux's loopback
+    // buffers, and macOS connect() can report EISCONN under this load.
+    if (@import("builtin").os.tag != .linux) return error.SkipZigTest;
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var streamer = try h.connect();
+    defer streamer.close();
+    try streamer.send("POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 1000000000\r\n\r\n");
+    const Feed = struct {
+        fn run(fd: posix.socket_t, stop: *std.atomic.Value(bool), failed: *std.atomic.Value(bool)) void {
+            const chunk = [_]u8{'x'} ** (64 * 1024);
+            while (!stop.load(.acquire)) {
+                if (!server_mod.blockingWriteForTests(fd, &chunk)) {
+                    // RST: the server closed (the failed write consumes the socket error).
+                    failed.store(true, .release);
+                    return;
+                }
+            }
+        }
+    };
+    var stop: std.atomic.Value(bool) = .init(false);
+    var failed: std.atomic.Value(bool) = .init(false);
+    const feeder = try std.Thread.spawn(.{}, Feed.run, .{ streamer.fd, &stop, &failed });
+    defer {
+        stop.store(true, .release);
+        feeder.join();
+    }
+    // The streaming client gets its 404, then the closed socket's RST.
+    const r = try streamer.read(arena.allocator(), false);
+    try testing.expectEqual(@as(u16, 404), r.status);
+    // Meanwhile the loop serves another connection promptly.
+    var other = try h.connect();
+    defer other.close();
+    const started = std.time.milliTimestamp();
+    const r2 = try other.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    try testing.expectEqual(@as(u16, 404), r2.status);
+    try testing.expect(std.time.milliTimestamp() - started < 1_000);
+    var reset = false;
+    var tries: u32 = 0;
+    while (!reset and tries < 100) : (tries += 1) {
+        reset = failed.load(.acquire) or try socketError(streamer.fd) != 0;
+        if (!reset) std.Thread.sleep(10 * std.time.ns_per_ms);
+    }
+    try testing.expect(reset);
+}
+
+test "chunked bodies count received bytes against the limit (Fastify), not declared sizes" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var c = try h.connect();
+    defer c.close();
+    // A chunk declared beyond the limit: nothing is answered until the bytes arrive.
+    try c.send("POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: text/plain\r\nTransfer-Encoding: chunked\r\n\r\n19001\r\nabc");
+    var fds = [_]posix.pollfd{.{ .fd = c.fd, .events = posix.POLL.IN, .revents = 0 }};
+    try testing.expectEqual(@as(usize, 0), try posix.poll(&fds, 200));
+    var rest: std.ArrayList(u8) = .empty;
+    defer rest.deinit(testing.allocator);
+    try rest.appendNTimes(testing.allocator, 'x', 0x19001 - 3);
+    try c.send(rest.items);
+    const r = try c.read(arena.allocator(), false);
+    try testing.expectEqual(@as(u16, 413), r.status);
 }
 
 test "a hangup that arrives with data during a slow request is not lost" {

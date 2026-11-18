@@ -91,9 +91,6 @@ reproduces the observable rule, not the scheduling.
   fired by a one-shot timer at the deadline. Node checks every 30 s
   (`connectionsCheckingInterval`), so it fires between 10 s and 40 s. Neither
   times out a stalled body.
-- **Lingering close** after a `Connection: close` response drains the
-  half-closed socket until the peer closes, like Node's `socket.end()`, but
-  for at most 10 s (Node: indefinitely) and not past server close.
 - **Stalled clients cost memory, not threads:** a client that stops reading
   a response or never finishes a body (Node has no timeout for either) parks
   its socket with its unsent bytes or buffered body, like Node.

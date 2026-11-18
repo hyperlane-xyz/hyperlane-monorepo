@@ -32,6 +32,10 @@ pub fn build(b: *std.Build) void {
     const pool_hold_stats = b.option(bool, "pool-hold-stats", "Record and log DB pool checkout hold times") orelse false;
     const db_options = b.addOptions();
     db_options.addOption(bool, "pool_hold_stats", pool_hold_stats);
+    // Diagnostics only (bench): per-listener callback durations on the shared
+    // LISTEN thread, logged at info when a listener is released. Off by default.
+    const listener_hub_stats = b.option(bool, "listener-hub-stats", "Record and log LISTEN callback durations on the shared listener thread") orelse false;
+    db_options.addOption(bool, "listener_hub_stats", listener_hub_stats);
     // Fiber-mode event loops (one pinned thread each); the default until the
     // 1-vs-N measurement decides. Not a runtime knob (TS env surface).
     const http_loops = b.option(u32, "http-loops", "HTTP event loops in fiber mode (0: auto, the process's CPUs capped by its cgroup quota, clamped 1..4; default 1)") orelse 1;

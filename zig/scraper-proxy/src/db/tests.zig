@@ -1642,9 +1642,7 @@ test "regression: a disconnected listener releases its thread and fds before sto
     }.f);
     var cleaned = false;
     for (0..200) |_| {
-        l.mutex.lock();
-        cleaned = l.self_cleaned;
-        l.mutex.unlock();
+        cleaned = l.selfCleaned();
         if (cleaned) break;
         std.Thread.sleep(5 * std.time.ns_per_ms);
     }
@@ -2376,4 +2374,359 @@ test "libpq: literal parameters bind the decoded values and log byte-identically
     const failing = "SELECT 1 / 0, $1::bytea[] AS i, $2::int4[] AS d, $3::text[] AS h, $4::bytea[] AS n, $5::bytea[] AS e";
     try testing.expectEqualStrings(try Lines.of(svc, a, slow, &plain, false), try Lines.of(svc, a, slow, &literal, false));
     try testing.expectEqualStrings(try Lines.of(svc, a, failing, &plain, true), try Lines.of(svc, a, failing, &literal, true));
+}
+
+// ---------------------------------------------------------------------------
+// The listener hub: one thread serves every LISTEN connection; a stalled or
+// failing connection never delays another's notifications.
+
+/// A TCP proxy to the test server whose forwarding can be cut off (a
+/// blackhole: sockets stay open, nothing passes either way).
+const HoleProxy = struct {
+    listen_fd: std.posix.socket_t,
+    port: u16,
+    /// The test server's host and port, as its URL names them (not always
+    /// loopback: the Linux runs reach it on the bench network).
+    upstream_host: []const u8,
+    upstream_port: u16,
+    blackhole: std.atomic.Value(bool) = .init(false),
+    done: std.atomic.Value(bool) = .init(false),
+    thread: ?std.Thread = null,
+
+    fn start(upstream_host: []const u8, upstream_port: u16) !*HoleProxy {
+        const self = try testing.allocator.create(HoleProxy);
+        errdefer testing.allocator.destroy(self);
+        const fd = try std.posix.socket(std.posix.AF.INET, std.posix.SOCK.STREAM | std.posix.SOCK.CLOEXEC, 0);
+        var address = std.net.Address.initIp4(.{ 127, 0, 0, 1 }, 0);
+        try std.posix.bind(fd, &address.any, address.getOsSockLen());
+        try std.posix.listen(fd, 4);
+        var len = address.getOsSockLen();
+        try std.posix.getsockname(fd, &address.any, &len);
+        self.* = .{ .listen_fd = fd, .port = address.getPort(), .upstream_host = upstream_host, .upstream_port = upstream_port };
+        self.thread = try std.Thread.spawn(.{}, serve, .{self});
+        return self;
+    }
+
+    fn serve(self: *HoleProxy) void {
+        const client = std.posix.accept(self.listen_fd, null, null, std.posix.SOCK.CLOEXEC) catch return;
+        defer std.posix.close(client);
+        const server = std.net.tcpConnectToHost(std.heap.page_allocator, self.upstream_host, self.upstream_port) catch return;
+        defer server.close();
+        var buf: [16384]u8 = undefined;
+        while (!self.done.load(.acquire)) {
+            var fds = [_]std.posix.pollfd{
+                .{ .fd = client, .events = std.posix.POLL.IN, .revents = 0 },
+                .{ .fd = server.handle, .events = std.posix.POLL.IN, .revents = 0 },
+            };
+            _ = std.posix.poll(&fds, 10) catch return;
+            if (self.blackhole.load(.acquire)) continue;
+            for ([_][2]std.posix.socket_t{ .{ client, server.handle }, .{ server.handle, client } }, fds) |pair, fd| {
+                if (fd.revents == 0) continue;
+                const n = std.posix.read(pair[0], &buf) catch return;
+                if (n == 0) return;
+                _ = std.posix.write(pair[1], buf[0..n]) catch return;
+            }
+        }
+    }
+
+    fn stop(self: *HoleProxy) void {
+        self.done.store(true, .release);
+        // Unblock a serve() still in accept().
+        if (std.net.tcpConnectToAddress(std.net.Address.initIp4(.{ 127, 0, 0, 1 }, self.port))) |s| s.close() else |_| {}
+        if (self.thread) |t| t.join();
+        std.posix.close(self.listen_fd);
+        testing.allocator.destroy(self);
+    }
+};
+
+/// `url` with its host:port replaced by 127.0.0.1:`port`.
+fn throughPort(a: std.mem.Allocator, url: []const u8, port: u16) ![]const u8 {
+    const uri = try std.Uri.parse(url);
+    const host = switch (uri.host.?) {
+        .raw, .percent_encoded => |h| h,
+    };
+    const old = try std.fmt.allocPrint(a, "@{s}:{d}/", .{ host, uri.port orelse 5432 });
+    const new = try std.fmt.allocPrint(a, "@127.0.0.1:{d}/", .{port});
+    return std.mem.replaceOwned(u8, a, url, old, new);
+}
+
+const LatencyCapture = struct {
+    mutex: std.Thread.Mutex = .{},
+    received: std.ArrayList(i64) = .empty,
+    /// The first disconnect (a later one must not move it).
+    disconnected_at: ?i64 = null,
+    disconnects: usize = 0,
+
+    fn onNotification(ctx: *anyopaque, _: []const u8, _: []const u8) void {
+        const self: *LatencyCapture = @ptrCast(@alignCast(ctx));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.received.append(testing.allocator, std.time.milliTimestamp()) catch {};
+    }
+    fn onDisconnect(ctx: *anyopaque, _: ?[]const u8) void {
+        const self: *LatencyCapture = @ptrCast(@alignCast(ctx));
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.disconnects += 1;
+        if (self.disconnected_at == null) self.disconnected_at = std.time.milliTimestamp();
+    }
+    fn count(self: *LatencyCapture) usize {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.received.items.len;
+    }
+};
+
+/// One healthy and one blackholed listener on the hub: the healthy one's
+/// NOTIFYs arrive promptly throughout the other's stalled health check, and
+/// the stalled one is still detected on time (health interval + query timeout).
+const HubFault = enum { blackhole, kill };
+
+extern "pq" fn PQbackendPID(conn: *const anyopaque) c_int;
+
+fn hubIsolation(blackholed_first: bool, fault: HubFault) !void {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const uri = try std.Uri.parse(url);
+    const host = switch (uri.host.?) {
+        .raw, .percent_encoded => |h| h,
+    };
+    const proxy = try HoleProxy.start(host, uri.port orelse 5432);
+    defer proxy.stop();
+    const proxied = try throughPort(a, url, proxy.port);
+    var healthy: LatencyCapture = .{};
+    defer healthy.received.deinit(testing.allocator);
+    var stalled: LatencyCapture = .{};
+    defer stalled.received.deinit(testing.allocator);
+    const health_ms = 200;
+    const timeout_ms = 400;
+    // Per process: concurrent runs on one server must not see each other's
+    // NOTIFYs (and the kill below targets one backend by PID).
+    const bad_channel = try uniqueChannel(a, "hub_iso_bad");
+    const good_channel = try uniqueChannel(a, "hub_iso_good");
+    // Registration order varies so either may be first in the hub's pass.
+    var bad: *listener_mod.Listener = undefined;
+    var good: *listener_mod.Listener = undefined;
+    const startBad = struct {
+        fn f(al: std.mem.Allocator, u: []const u8, channel: []const u8, cap: *LatencyCapture) !*listener_mod.Listener {
+            return listener_mod.Listener.start(testing.allocator, .{ .conninfo = u, .query_timeout_ms = timeout_ms }, &.{channel}, .{ .ctx = cap, .on_notification = LatencyCapture.onNotification, .on_disconnect = LatencyCapture.onDisconnect }, .{ .health_check_ms = health_ms }, al, null);
+        }
+    }.f;
+    const startGood = struct {
+        fn f(al: std.mem.Allocator, u: []const u8, channel: []const u8, cap: *LatencyCapture) !*listener_mod.Listener {
+            return listener_mod.Listener.start(testing.allocator, .{ .conninfo = u }, &.{channel}, .{ .ctx = cap, .on_notification = LatencyCapture.onNotification, .on_disconnect = LatencyCapture.onDisconnect }, .{}, al, null);
+        }
+    }.f;
+    if (blackholed_first) {
+        bad = try startBad(a, proxied, bad_channel, &stalled);
+        good = try startGood(a, url, good_channel, &healthy);
+    } else {
+        good = try startGood(a, url, good_channel, &healthy);
+        bad = try startBad(a, proxied, bad_channel, &stalled);
+    }
+    defer good.stop();
+    defer bad.stop();
+    const notifier = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+    defer notifier.deinit();
+    // The owner's reconnect, on its own thread as live's and diagnostics'
+    // are: one attempt at the faulted address (never answered when
+    // blackholed: it waits out its connect timeout), then a fresh listener
+    // on a reachable one, registered with the hub while it serves the
+    // healthy listener.
+    const Reconnect = struct {
+        stalled: *LatencyCapture,
+        channel: []const u8,
+        faulted_url: []const u8,
+        url: []const u8,
+        listener: ?*listener_mod.Listener = null,
+        attempt_ms: i64 = 0,
+        registered_at: ?i64 = null,
+        fn run(self: *@This()) void {
+            while (true) {
+                self.stalled.mutex.lock();
+                const down = self.stalled.disconnected_at != null;
+                self.stalled.mutex.unlock();
+                if (down) break;
+                std.Thread.sleep(std.time.ns_per_ms);
+            }
+            var scratch = std.heap.ArenaAllocator.init(testing.allocator);
+            defer scratch.deinit();
+            const started = std.time.milliTimestamp();
+            if (listener_mod.Listener.start(testing.allocator, .{ .conninfo = self.faulted_url, .connect_timeout_ms = 300 }, &.{self.channel}, .{ .ctx = self.stalled, .on_notification = LatencyCapture.onNotification, .on_disconnect = LatencyCapture.onDisconnect }, .{}, scratch.allocator(), null)) |l| {
+                // Reachable after all (the kill fault): use it.
+                self.listener = l;
+            } else |_| {
+                self.listener = listener_mod.Listener.start(testing.allocator, .{ .conninfo = self.url }, &.{self.channel}, .{ .ctx = self.stalled, .on_notification = LatencyCapture.onNotification, .on_disconnect = LatencyCapture.onDisconnect }, .{}, scratch.allocator(), null) catch null;
+            }
+            self.attempt_ms = std.time.milliTimestamp() - started;
+            if (self.listener != null) self.registered_at = std.time.milliTimestamp();
+        }
+    };
+    var reconnect: Reconnect = .{ .stalled = &stalled, .channel = bad_channel, .faulted_url = proxied, .url = url };
+    const reconnector = try std.Thread.spawn(.{}, Reconnect.run, .{&reconnect});
+    var reconnector_joined = false;
+    defer if (!reconnector_joined) {
+        stalled.mutex.lock();
+        if (stalled.disconnected_at == null) stalled.disconnected_at = 0;
+        stalled.mutex.unlock();
+        reconnector.join();
+        if (reconnect.listener) |l| l.stop();
+    };
+    // The fault lands anywhere in the health cycle (idle, check in flight).
+    const bad_pid = PQbackendPID(bad.conn.pg);
+    std.Thread.sleep(std.crypto.random.intRangeLessThan(u64, 0, health_ms + 50) * std.time.ns_per_ms);
+    const cut = std.time.milliTimestamp();
+    // The kill's own round trip (included in `detection`), for diagnosis.
+    var fault_ms: i64 = 0;
+    switch (fault) {
+        .blackhole => proxy.blackhole.store(true, .release),
+        // The database side goes away: exactly its backend is terminated (by
+        // PID: after a health check its query text is `SELECT 1`).
+        .kill => {
+            const killed = try notifier.query(a, "SELECT pg_terminate_backend($1)", &.{.{ .number = @floatFromInt(bad_pid) }}, null);
+            try testing.expectEqual(@as(?core.json.Value, .{ .bool = true }), killed.rows[0].get("pg_terminate_backend"));
+            fault_ms = std.time.milliTimestamp() - cut;
+        },
+    }
+    // 50 NOTIFYs over ~1.5 s: across the bad one's health send, its stall,
+    // its timeout, the hub closing it (PQfinish's Terminate included), the
+    // owner's failed attempt at the faulted address and the new listener's
+    // registration.
+    const notify_good = try std.fmt.allocPrint(a, "NOTIFY \"{s}\"", .{good_channel});
+    // Delivery is measured from the NOTIFY query's return (sent and
+    // committed; it can arrive before the reply, so this may be negative)
+    // and, as a sanity bound that also includes that query's round trip,
+    // from before it was sent.
+    var max_latency: i64 = 0;
+    var max_after_commit: i64 = std.math.minInt(i64);
+    for (0..50) |i| {
+        const before = healthy.count();
+        const sent = std.time.milliTimestamp();
+        _ = try notifier.query(a, notify_good, &.{}, null);
+        const committed = std.time.milliTimestamp();
+        var waited: usize = 0;
+        while (healthy.count() == before and waited < 2000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
+        try testing.expect(healthy.count() > before);
+        healthy.mutex.lock();
+        const got = healthy.received.items[healthy.received.items.len - 1];
+        healthy.mutex.unlock();
+        max_latency = @max(max_latency, got - sent);
+        max_after_commit = @max(max_after_commit, got - committed);
+        _ = i;
+        std.Thread.sleep(30 * std.time.ns_per_ms);
+    }
+    // Detection: the health SELECT 1 is due ≤ health_ms after the cut and
+    // times out timeout_ms later.
+    var waited: usize = 0;
+    while (waited < 3000) : (waited += 10) {
+        stalled.mutex.lock();
+        const at = stalled.disconnected_at;
+        stalled.mutex.unlock();
+        if (at != null) break;
+        std.Thread.sleep(10 * std.time.ns_per_ms);
+    }
+    stalled.mutex.lock();
+    const detected = stalled.disconnected_at;
+    stalled.mutex.unlock();
+    try testing.expect(detected != null);
+    const detection = detected.? - cut;
+    reconnector.join();
+    reconnector_joined = true;
+    defer if (reconnect.listener) |l| l.stop();
+    try testing.expect(reconnect.registered_at != null);
+    // The window measured above covers the reconnect.
+    try testing.expect(reconnect.registered_at.? <= healthy.received.items[healthy.received.items.len - 1]);
+    std.debug.print("hub isolation ({s}): close + reconnect attempt {d} ms, re-registered {d} ms after the fault\n", .{ @tagName(fault), reconnect.attempt_ms, reconnect.registered_at.? - cut });
+    std.debug.print("hub isolation ({s} {s}): healthy NOTIFY max latency {d} ms ({d} ms after its query returned); failed one detected after {d} ms (fault applied in {d} ms)\n", .{ @tagName(fault), if (blackholed_first) "first" else "second", max_latency, max_after_commit, detection, fault_ms });
+    try testing.expect(max_after_commit < 50);
+    try testing.expect(max_latency <= 250);
+    if (fault == .kill) {
+        // A terminated backend is seen at its socket's EOF, not by the health
+        // check: within 50 ms of the kill query returning. (Measured from the
+        // cut, detection also includes that query's own round trip, which a
+        // saturated machine stretches; the cut-based bound is a sanity check.)
+        try testing.expect(detection - fault_ms <= 50);
+        try testing.expect(detection <= 250);
+    } else try testing.expect(detection <= health_ms + timeout_ms + 150);
+    stalled.mutex.lock();
+    const stalled_disconnects = stalled.disconnects;
+    stalled.mutex.unlock();
+    // Only the faulted connection went (the reconnected one stays up).
+    try testing.expectEqual(@as(usize, 1), stalled_disconnects);
+    healthy.mutex.lock();
+    const good_disconnected = healthy.disconnected_at;
+    healthy.mutex.unlock();
+    try testing.expect(good_disconnected == null);
+}
+
+test "listener hub: a blackholed connection never delays another's notifications (registered first)" {
+    try hubIsolation(true, .blackhole);
+}
+
+test "listener hub: a blackholed connection never delays another's notifications (registered second)" {
+    try hubIsolation(false, .blackhole);
+}
+
+test "listener hub: a connection whose database goes away never delays another's notifications (first)" {
+    try hubIsolation(true, .kill);
+}
+
+test "listener hub: a connection whose database goes away never delays another's notifications (second)" {
+    try hubIsolation(false, .kill);
+}
+
+test "listener hub: a failing health query's error survives until its reply completes" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var conn = try pq.Conn.connect(.{ .conninfo = url }, a, null);
+    defer conn.deinit();
+    var state: pq.Conn.SimpleState = .{};
+    try conn.sendSimple("SELECT 1; SELECT 1/0; SELECT 2");
+    while (!try conn.flushPending()) _ = pq.waitSocket(conn.socket(), std.posix.POLL.OUT, null);
+    // (Whether the error and the end of the reply arrive in one read or
+    // two, the failure must be reported once the reply completes.)
+    const outcome = while (true) {
+        _ = pq.waitSocket(conn.socket(), std.posix.POLL.IN, pq.nowMs() + 2000);
+        try conn.consumeInput(true);
+        const result = conn.takeSimple(&state);
+        if (result != .busy) break result;
+    };
+    try testing.expect(outcome == .failed);
+    try testing.expectEqualStrings("division by zero", outcome.failed);
+    try testing.expectEqual(@as(?usize, null), state.failed_len);
+    // A healthy query afterwards reports ok.
+    try conn.sendSimple("SELECT 1");
+    while (!try conn.flushPending()) _ = pq.waitSocket(conn.socket(), std.posix.POLL.OUT, null);
+    const healthy = while (true) {
+        _ = pq.waitSocket(conn.socket(), std.posix.POLL.IN, pq.nowMs() + 2000);
+        try conn.consumeInput(true);
+        const result = conn.takeSimple(&state);
+        if (result != .busy) break result;
+    };
+    try testing.expect(healthy == .ok);
+}
+
+test "listener hub: stopping the last listener and registering the next at once, 1,000 times" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    var capture: LatencyCapture = .{};
+    defer capture.received.deinit(testing.allocator);
+    var threads: listener_mod.ThreadCount = .init(0);
+    // Each stop releases the hub's last listener, so the hub closes its
+    // connection and heads for exit while the next start registers (and may
+    // start a new hub): the two must never share a list.
+    for (0..1000) |_| {
+        _ = arena.reset(.retain_capacity);
+        const l = try listener_mod.Listener.start(testing.allocator, .{ .conninfo = url }, &.{try uniqueChannel(arena.allocator(), "hub_restart")}, .{ .ctx = &capture, .on_notification = LatencyCapture.onNotification, .on_disconnect = LatencyCapture.onDisconnect }, .{ .threads = &threads }, arena.allocator(), null);
+        l.stop();
+    }
+    try testing.expect(listener_mod.awaitThreads(&threads, 5_000));
+    capture.mutex.lock();
+    defer capture.mutex.unlock();
+    try testing.expectEqual(@as(?i64, null), capture.disconnected_at);
 }

@@ -115,6 +115,8 @@ pub const Options = struct {
 pub const max_loops = 64;
 
 const buf_len = 64 * 1024;
+/// Most body bytes `endAndClose` reads (and discards) before closing.
+const dump_budget = 16 * buf_len;
 
 /// Prototype: run route handlers on fibers (`core.fiber`), so a handler that
 /// waits on the database parks instead of blocking a poller thread.
@@ -193,12 +195,10 @@ pub const Server = struct {
     started: bool = false,
     mutex: std.Thread.Mutex = .{},
     cond: std.Thread.Condition = .{},
-    /// HTTP connections (not upgraded, not lingering).
+    /// HTTP connections (not upgraded).
     connections: u32 = 0,
     /// Upgraded sockets whose reader still runs.
     upgraded: u32 = 0,
-    /// Connections in a lingering close: they do not hold up `close()`.
-    lingering: u32 = 0,
     closing: std.atomic.Value(bool) = .init(false),
     listener_closed: bool = false,
     /// Free request arenas (bounded).
@@ -342,18 +342,18 @@ pub const Server = struct {
         self.loop.logStats();
     }
 
-    /// Waits for upgraded sockets to finish (after their owner closed them)
-    /// and lingering closes to end, stops the pollers, then frees the server.
+    /// Waits for upgraded sockets to finish (after their owner closed them),
+    /// stops the pollers, then frees the server.
     pub fn deinit(self: *Server) void {
         self.close(10_000);
         self.mutex.lock();
         const deadline = std.time.milliTimestamp() + 35_000;
-        while (self.upgraded > 0 or self.connections > 0 or self.lingering > 0) {
+        while (self.upgraded > 0 or self.connections > 0) {
             const remaining = deadline - std.time.milliTimestamp();
             if (remaining <= 0) break;
             self.cond.timedWait(&self.mutex, @as(u64, @intCast(remaining)) * std.time.ns_per_ms) catch {};
         }
-        const leaked = self.upgraded > 0 or self.connections > 0 or self.lingering > 0;
+        const leaked = self.upgraded > 0 or self.connections > 0;
         self.mutex.unlock();
         // Sockets still alive reference the server and the loop: leak them.
         if (leaked) return;
@@ -542,10 +542,10 @@ pub const Server = struct {
         return conn;
     }
 
-    fn connectionEnded(self: *Server, lingering: bool) void {
+    fn connectionEnded(self: *Server) void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        if (lingering) self.lingering -= 1 else self.connections -= 1;
+        self.connections -= 1;
         self.cond.broadcast();
     }
 
@@ -625,8 +625,6 @@ const Phase = enum {
     write,
     /// Node `req._dump()`: discarding the rest of a body after the response.
     drain,
-    /// Half-closed after a final response; discarding until the peer closes.
-    linger,
 };
 
 /// What follows a write.
@@ -637,8 +635,9 @@ const After = enum {
     complete,
     /// `100 Continue`, then the exchange goes on.
     continue_100,
-    /// Lingering close (Node `socket.end()`).
-    end,
+    /// A `Connection: close` response Node writes itself (`res.end()`:
+    /// missing Host 400, closing 503): body dump, FIN, close (`endAndClose`).
+    final_close,
     /// FIN, then destroy (Node `socket.end(bytes, () => socket.destroy())`).
     end_destroy,
     /// Destroy the socket.
@@ -683,11 +682,9 @@ const Connection = struct {
     registered: bool = false,
     write_armed: bool = false,
     first: bool = true,
-    in_linger: bool = false,
     phase: Phase = .idle,
     idle_since: i64,
     head_deadline: i64 = loop_mod.no_deadline,
-    linger_until: i64 = loop_mod.no_deadline,
     /// Request arena owned across parks (null: the thread's).
     arena_box: ?*ArenaBox = null,
     /// Continuation of a handler fiber that finished after waiting.
@@ -776,7 +773,6 @@ const Connection = struct {
         return switch (self.phase) {
             .idle => self.idle_since + @as(i64, if (self.first) o.request_timeout_ms else o.keep_alive_timeout_ms),
             .head => self.head_deadline,
-            .linger => self.linger_until,
             .body, .write, .drain, .respond => loop_mod.no_deadline,
         };
     }
@@ -813,9 +809,8 @@ const Connection = struct {
         posix.close(self.fd);
         if (self.pending.len > 0) server.gpa.free(self.pending);
         server.loop.freeSlot(self.index);
-        const lingering = self.in_linger;
         server.gpa.destroy(self);
-        server.connectionEnded(lingering);
+        server.connectionEnded();
         return .gone;
     }
 
@@ -862,7 +857,6 @@ const Connection = struct {
                 }
             },
             .head => if (now >= self.head_deadline) return self.clientError(.timeout),
-            .linger => if (server.isClosing() or now >= self.linger_until) return self.destroy(),
             .body, .write, .drain, .respond => {},
         }
         return null;
@@ -878,7 +872,6 @@ const Connection = struct {
                 .body => self.stepBody(),
                 .write => self.stepWrite(),
                 .drain => self.stepDrain(),
-                .linger => self.stepLinger(),
             };
             if (step) |s| return s;
         }
@@ -953,7 +946,7 @@ const Connection = struct {
             .response => self.afterReply(ok),
             .complete => if (ok) self.afterResponse(self.ex.?.keep_alive and !self.server.isClosing()) else self.destroy(),
             .continue_100 => if (ok) self.routeExchange() catch self.destroy() else self.destroy(),
-            .end => self.startLinger(),
+            .final_close => if (ok) self.endAndClose() else self.destroy(),
             .end_destroy => {
                 if (ok) posix.shutdown(self.fd, .send) catch {};
                 return self.destroy();
@@ -1003,7 +996,7 @@ const Connection = struct {
         if (head.major == 1 and head.minor == 1 and req.header("host") == null) {
             var out: std.Io.Writer.Allocating = .init(a);
             try out.writer.print("HTTP/1.1 400 Bad Request\r\nConnection: close\r\nDate: {s}\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n", .{httpDate()});
-            return self.write(out.written(), "", .end);
+            return self.write(out.written(), "", .final_close);
         }
 
         // Node `Expect` handling (HTTP/1.1 only, no checkContinue listener).
@@ -1029,7 +1022,7 @@ const Connection = struct {
         if (server.isClosing()) {
             var out: std.Io.Writer.Allocating = .init(a);
             try out.writer.print("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: 80\r\nDate: {s}\r\n\r\n{{\"error\":\"Service Unavailable\",\"message\":\"Service Unavailable\",\"statusCode\":503}}", .{httpDate()});
-            return self.write(out.written(), "", .end);
+            return self.write(out.written(), "", .final_close);
         }
 
         // find-my-way lookup (bad URLs answer before any Fastify hook).
@@ -1370,7 +1363,7 @@ const Connection = struct {
         // llhttp reports HPE_INVALID_TRANSFER_ENCODING as soon as the request
         // was dispatched, so the client error follows even `Connection: close`.
         if (self.body.framing == .invalid_te and !self.body.finished) return self.clientError(.bad_request);
-        if (!keep_alive) return self.startLinger();
+        if (!keep_alive) return self.endAndClose();
         self.phase = .drain;
         return null;
     }
@@ -1398,34 +1391,27 @@ const Connection = struct {
         return null;
     }
 
-    /// Half-closes, then discards input until the peer closes (bounded; cut
-    /// short once the server is closing). The exchange is over: the socket no
-    /// longer holds up `close()`.
-    fn startLinger(self: *Connection) ?Step {
-        self.endRequest();
-        const server = self.server;
-        server.mutex.lock();
-        server.connections -= 1;
-        server.lingering += 1;
-        server.cond.broadcast();
-        server.mutex.unlock();
-        self.in_linger = true;
-        if (server.isClosing()) return self.destroy();
-        posix.shutdown(self.fd, .send) catch return self.destroy();
-        self.linger_until = monoMs() + @as(i64, server.options.request_timeout_ms);
-        self.phase = .linger;
-        return null;
-    }
-
-    fn stepLinger(self: *Connection) ?Step {
-        while (true) {
-            self.start = 0;
-            self.end = 0;
-            _ = self.fill() catch |e| return switch (e) {
-                error.WouldBlock => self.park(),
-                error.Closed => self.destroy(),
-            };
+    /// Node `socket.destroySoon()` after a final response: FIN, then the
+    /// socket closes at once. Input arriving later meets a closed socket (the
+    /// kernel answers RST), as with Node; nothing waits for the peer.
+    fn endAndClose(self: *Connection) Step {
+        // Node's `req._dump()` of an unread body races that close and usually
+        // reads what has already arrived: discard the body bytes readable
+        // now (bounded, so a client streaming faster than we read cannot hold
+        // the loop), and only bytes still in flight meet the closed socket.
+        var budget: usize = dump_budget;
+        // Retry a read even if an earlier short read cleared `readable`: more
+        // may have arrived since. (Reads until the next short read.)
+        self.readable = true;
+        while (!self.body.done()) {
+            const progress = self.body.consume(self, null, null, std.math.maxInt(usize)) catch break;
+            if (progress == .done) break;
+            const n = self.fill() catch break;
+            if (n >= budget) break;
+            budget -= n;
         }
+        posix.shutdown(self.fd, .send) catch {};
+        return self.destroy();
     }
 
     fn upgrade(self: *Connection, handler: UpgradeHandler) ?Step {
@@ -1591,7 +1577,7 @@ const BodyReader = struct {
     }
 
     /// Walks the body framing over `c`'s buffered bytes, appending to `out`
-    /// when given (TooLarge beyond `limit` chunked bytes).
+    /// when given (TooLarge once more than `limit` chunked bytes arrived).
     fn consume(self: *BodyReader, c: *Connection, a: ?std.mem.Allocator, out: ?*std.ArrayList(u8), limit: usize) Error!Progress {
         if (self.done()) return .done;
         switch (self.framing) {
@@ -1621,8 +1607,6 @@ const BodyReader = struct {
                         self.chunk = .trailer;
                         continue;
                     }
-                    self.total +|= size;
-                    if (self.total > limit) return error.TooLarge;
                     self.remaining = size;
                     self.chunk = .data;
                 },
@@ -1633,6 +1617,9 @@ const BodyReader = struct {
                         if (out) |o| try o.appendSlice(a.?, c.buf[c.start .. c.start + take]);
                         c.start += take;
                         self.remaining -= take;
+                        // Fastify counts received bytes (not declared chunk sizes).
+                        self.total +|= take;
+                        if (self.total > limit) return error.TooLarge;
                     }
                     self.chunk = .data_end;
                 },

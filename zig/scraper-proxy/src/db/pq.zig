@@ -45,6 +45,7 @@ extern "pq" fn PQsendQueryParams(conn: *PGconn, command: [*:0]const u8, n: c_int
 extern "pq" fn PQsendPrepare(conn: *PGconn, name: [*:0]const u8, query: [*:0]const u8, n: c_int, types: ?[*]const c_uint) c_int;
 extern "pq" fn PQsendQueryPrepared(conn: *PGconn, name: [*:0]const u8, n: c_int, values: ?[*]const ?[*:0]const u8, lengths: ?[*]const c_int, formats: ?[*]const c_int, result_format: c_int) c_int;
 extern "pq" fn PQenterPipelineMode(conn: *PGconn) c_int;
+extern "pq" fn PQpipelineStatus(conn: *const PGconn) c_int;
 extern "pq" fn PQexitPipelineMode(conn: *PGconn) c_int;
 extern "pq" fn PQpipelineSync(conn: *PGconn) c_int;
 extern "pq" fn PQflush(conn: *PGconn) c_int;
@@ -1226,6 +1227,68 @@ pub const Conn = struct {
 
     pub fn nextNotify(self: *Conn) ?*PGnotify {
         return PQnotifies(self.pg);
+    }
+
+    // -- non-blocking simple query (the listener hub's health check) --------
+
+    /// Sends `sql` (simple protocol) without waiting; then `flushPending`
+    /// until true, `consumeInput` on input and `takeSimple` for the outcome.
+    pub fn sendSimple(self: *Conn, sql: [*:0]const u8) Error!void {
+        // Simple protocol only: never inside a pipeline (PQ_PIPELINE_OFF).
+        std.debug.assert(PQpipelineStatus(self.pg) == 0);
+        if (PQsendQuery(self.pg, sql) == 0) {
+            self.broken = true;
+            return error.ConnectionFailed;
+        }
+    }
+
+    /// One `PQflush`: true once everything sent was written.
+    pub fn flushPending(self: *Conn) Error!bool {
+        const flushed = PQflush(self.pg);
+        if (flushed < 0) {
+            self.broken = true;
+            return error.ConnectionFailed;
+        }
+        return flushed == 0;
+    }
+
+    /// Reads available input (notifications and replies) without discarding
+    /// results: `reply` when a query is in flight, as `consume` otherwise.
+    pub fn consumeInput(self: *Conn, reply: bool) Error!void {
+        if (!self.consumeAll(if (reply) .reply else .notifications) or PQstatus(self.pg) != CONNECTION_OK) {
+            self.broken = true;
+            return error.ConnectionFailed;
+        }
+    }
+
+    pub const SimpleOutcome = union(enum) { busy, ok, failed: []const u8 };
+
+    /// The caller's state for one in-flight simple query: a failure taken
+    /// before the reply completes survives the `.busy` calls in between.
+    pub const SimpleState = struct {
+        buffer: [256]u8 = undefined,
+        failed_len: ?usize = null,
+    };
+
+    /// The in-flight simple query's outcome once every result arrived (the
+    /// final null result); a failure's text (as `query` reports it) is kept
+    /// in `state` from the result that carried it.
+    pub fn takeSimple(self: *Conn, state: *SimpleState) SimpleOutcome {
+        while (PQisBusy(self.pg) == 0) {
+            const res = PQgetResult(self.pg) orelse {
+                defer state.failed_len = null;
+                if (state.failed_len) |len| return .{ .failed = state.buffer[0..len] };
+                return .ok;
+            };
+            defer PQclear(res);
+            if (PQresultStatus(res) == PGRES_FATAL_ERROR and state.failed_len == null) {
+                const message = if (PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY)) |m| std.mem.span(m) else trimMessage(std.mem.span(PQerrorMessage(self.pg)));
+                const len = @min(message.len, state.buffer.len);
+                @memcpy(state.buffer[0..len], message[0..len]);
+                state.failed_len = len;
+            }
+        }
+        return .busy;
     }
 };
 
