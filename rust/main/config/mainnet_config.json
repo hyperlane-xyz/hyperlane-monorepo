@@ -259,7 +259,10 @@
       "quotedCalls": "0xa9f0a79433Cd2A0c483586C8c50627577f16F16e",
       "universalRouter": "0x52dd779c1b5eeb54d5f218EfA72D52117ca04115",
       "interchainAccountRouterV3": "0x0CA10C09Cad7aFE01619a4a9acDF6481938258C4",
-      "quotedCallsV3": "0x220aA00D74C97D4f9a6d1fD5bDecA0793683D3Ad"
+      "quotedCallsV3": "0x220aA00D74C97D4f9a6d1fD5bDecA0793683D3Ad",
+      "transactionOverrides": {
+        "gasLimitCap": 16777216
+      }
     },
     "blast": {
       "aggregationHook": "0x48344fADD6fd2403729F073e570BE0f47605aDAf",
