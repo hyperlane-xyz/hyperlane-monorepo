@@ -26,7 +26,7 @@ describe('ETH Viction production manifest', () => {
     expect(registryCommit).to.equal('a24bd88a0ce60fb862a5bd5a6ba63fb7a60d79bc');
     if (!registryCommit) throw new Error('Missing ETH/viction registry pin');
 
-    expect(loaded.deployment.monitorOnly).to.equal(true);
+    expect(loaded.deployment.monitorOnly).to.equal(false);
     const warpCore = WarpCoreConfigSchema.parse(
       parse(
         fs.readFileSync(
@@ -99,7 +99,7 @@ describe('ETH Viction production manifest', () => {
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
-      value: 'true',
+      value: 'false',
     });
 
     const runtime = parse(
@@ -120,7 +120,7 @@ describe('ETH Viction production manifest', () => {
       swapsxyz: {
         defaultSlippage: 0.005,
         maxQuoteLossBps: 50,
-        maxEvmNativeFeeWei: '500000000000000',
+        maxEvmNativeFeeWei: '2500000000000000',
       },
     });
     expect(Object.keys(runtime.strategy.chains)).to.deep.equal([
@@ -138,7 +138,7 @@ describe('ETH Viction production manifest', () => {
       expect(
         runtime.strategy.chains[chain].override.robinhood
           .bridgeMinAcceptedAmount,
-      ).to.equal(0.1);
+      ).to.equal(0.5);
     }
     expect(runtime.strategy.chains.optimism.weighted).to.deep.equal({
       weight: 15,
@@ -147,13 +147,13 @@ describe('ETH Viction production manifest', () => {
     expect(
       runtime.strategy.chains.optimism.override.robinhood
         .bridgeMinAcceptedAmount,
-    ).to.equal(0.1);
+    ).to.equal(0.5);
     expect(runtime.strategy.chains.robinhood.weighted).to.deep.equal({
       weight: 8,
       tolerance: 5,
     });
     expect(runtime.strategy.chains.robinhood.bridgeMinAcceptedAmount).to.equal(
-      0.1,
+      0.5,
     );
   });
 });
