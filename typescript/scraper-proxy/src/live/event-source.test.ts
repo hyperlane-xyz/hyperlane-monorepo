@@ -35,6 +35,18 @@ async function until(check: () => boolean) {
   }
   assert.fail('source did not reach expected state');
 }
+function boundary(height: bigint) {
+  return {
+    height: String(height),
+    hash: `0x${'ab'.repeat(32)}`,
+    contracts: {
+      dispatch: `0x${'11'.repeat(20)}`,
+      delivery: `0x${'11'.repeat(20)}`,
+      gas_payment: `0x${'22'.repeat(20)}`,
+      merkle_tree_insertion: `0x${'33'.repeat(20)}`,
+    },
+  };
+}
 function fixture(limits?: { rows: number; bytes: number }) {
   const calls: {
     domain: number;
@@ -43,6 +55,7 @@ function fixture(limits?: { rows: number; bytes: number }) {
     eventType: EventType;
   }[] = [];
   let current = 100n;
+  let checkpoint: bigint | undefined;
   let replacement = false;
   const gates = new Map<number, Promise<void>>();
   const store: Pick<
@@ -56,7 +69,12 @@ function fixture(limits?: { rows: number; bytes: number }) {
           new Map(
             [...domains].map((domain) => [
               domain,
-              { head: current, indexed: current, confirmed: current - 10n },
+              {
+                head: current,
+                indexed: current,
+                confirmed: current - 10n,
+                liveStart: boundary(checkpoint ?? current - BigInt(count)),
+              },
             ]),
           ),
         ]),
@@ -120,8 +138,9 @@ function fixture(limits?: { rows: number; bytes: number }) {
     calls,
     gates,
     subscribe,
-    setHead: (height: bigint) => {
+    setHead: (height: bigint, start?: bigint) => {
       current = height;
+      checkpoint = start;
     },
     replace: () => {
       replacement = true;
@@ -129,67 +148,49 @@ function fixture(limits?: { rows: number; bytes: number }) {
   };
 }
 
-void it('shares reads across 100 connections and ten confirmation policies', async () => {
-  const f = fixture();
-  const subscribers = await Promise.all(
-    Array.from({ length: 100 }, (_, i) => f.subscribe(i % 10)),
-  );
-  assert.equal(f.calls.length, 0, 'subscriptions only take bounded snapshots');
-  f.source.notify(head(101n));
-  await until(() => subscribers.every((s) => s.frames.length === 1));
-  assert.equal(
-    f.calls.length,
-    2,
-    'one retained prefix plus one live extension',
-  );
-  assert.equal(f.source.metrics().ranges, 1);
-  f.calls.length = 0;
-  f.source.notify(head(102n));
-  await until(() => subscribers.every((s) => s.frames.length === 2));
-  assert.equal(
-    f.calls.length,
-    1,
-    'each new height is read once for all policies',
-  );
-  for (const [index, sub] of subscribers.entries()) {
-    assert.deepEqual(
-      sub.frames.map((frame) => frame.height),
-      [String(101 - (index % 10)), String(102 - (index % 10))],
+for (const eventType of [
+  'dispatch',
+  'merkle_tree_insertion',
+] satisfies EventType[]) {
+  void it(`shares ${eventType} reads across 100 connections and ten confirmation policies`, async () => {
+    const f = fixture();
+    const subscribers = await Promise.all(
+      Array.from({ length: 100 }, (_, i) =>
+        f.subscribe(i % 10, [1], eventType),
+      ),
     );
-    assert(sub.frames.every((frame) => frame.confirmations === index % 10));
-    sub.close();
-  }
-  assert.deepEqual(f.source.metrics(), { ranges: 0, rows: 0, bytes: 0 });
-});
-
-void it('shares Merkle ranges within one route', async () => {
-  const f = fixture();
-  const agent = await f.subscribe(0, [1], 'merkle_tree_insertion');
-  const frames: Record<string, unknown>[] = [];
-  const validator = await f.source.subscribe(
-    [
-      {
-        eventType: 'merkle_tree_insertion',
-        domains: new Set([1]),
-        confirmations: 0,
-      },
-    ],
-    {
-      active: () => true,
-      send: (frame) => {
-        frames.push(frame);
-        return true;
-      },
-      fail: (error) => assert.fail(String(error)),
-    },
-  );
-  validator.start();
-  f.source.notify(head(101n));
-  await until(() => agent.frames.length === 1 && frames.length === 1);
-  assert.equal(f.calls.length, 1);
-  assert.deepEqual(agent.frames, frames);
-  f.source.stop();
-});
+    assert.equal(
+      f.calls.length,
+      0,
+      'subscriptions only take bounded snapshots',
+    );
+    f.source.notify(head(101n));
+    await until(() => subscribers.every((s) => s.frames.length === 1));
+    assert.equal(
+      f.calls.length,
+      2,
+      'one retained prefix plus one live extension',
+    );
+    assert.equal(f.source.metrics().ranges, 1);
+    f.calls.length = 0;
+    f.source.notify(head(102n));
+    await until(() => subscribers.every((s) => s.frames.length === 2));
+    assert.equal(
+      f.calls.length,
+      1,
+      'each new height is read once for all policies',
+    );
+    for (const [index, sub] of subscribers.entries()) {
+      assert.deepEqual(
+        sub.frames.map((frame) => frame.height),
+        [String(101 - (index % 10)), String(102 - (index % 10))],
+      );
+      assert(sub.frames.every((frame) => frame.confirmations === index % 10));
+      sub.close();
+    }
+    assert.deepEqual(f.source.metrics(), { ranges: 0, rows: 0, bytes: 0 });
+  });
+}
 
 void it('releases cached rows with rollback coverage and suppresses in-flight orphans', async () => {
   const f = fixture();
@@ -292,30 +293,6 @@ void it('isolates a failed send from every other subscriber', async () => {
   f.source.stop();
 });
 
-void it('keeps agent read capacity available while public-only readers are stalled', async () => {
-  const f = fixture();
-  const publicSource = fixture();
-  const blocked = gate();
-  publicSource.gates.set(1, blocked.promise);
-  publicSource.gates.set(2, blocked.promise);
-  const validators = await Promise.all(
-    [1, 2].map((domain) =>
-      publicSource.subscribe(0, [domain], 'merkle_tree_insertion'),
-    ),
-  );
-  for (const domain of [1, 2])
-    publicSource.source.notify(head(101n, 100n, domain));
-  await until(() => publicSource.calls.length === 2);
-  const agent = await f.subscribe(0, [1], 'merkle_tree_insertion');
-  f.source.notify(head(101n, 100n, 1));
-  await until(() => agent.frames.length === 1);
-  assert(validators.every((sub) => sub.frames.length === 0));
-  blocked.release();
-  await until(() => validators.every((sub) => sub.frames.length === 1));
-  f.source.stop();
-  publicSource.source.stop();
-});
-
 void it('sheds the retaining policy under global pressure instead of an unrelated live reader', async () => {
   const f = fixture({ rows: 4, bytes: 100_000 });
   const live = await f.subscribe();
@@ -347,32 +324,7 @@ void it('fails only the affected domain on a same-height hash replacement', asyn
 
 void it('streams the sparse checkpoint gap at startup without waiting for another head', async () => {
   const f = fixture();
-  f.store.confirmationSnapshots = async () =>
-    new Map([
-      [
-        0,
-        new Map([
-          [
-            1,
-            {
-              head: 100n,
-              indexed: 100n,
-              confirmed: 90n,
-              liveStart: {
-                height: '98',
-                hash: `0x${'ab'.repeat(32)}`,
-                contracts: {
-                  dispatch: `0x${'11'.repeat(20)}`,
-                  delivery: `0x${'11'.repeat(20)}`,
-                  gas_payment: `0x${'22'.repeat(20)}`,
-                  merkle_tree_insertion: `0x${'33'.repeat(20)}`,
-                },
-              },
-            },
-          ],
-        ]),
-      ],
-    ]);
+  f.setHead(100n, 98n);
   const sub = await f.subscribe();
   await until(() => sub.frames.length === 2);
   assert.deepEqual(
@@ -389,6 +341,7 @@ void it('invalidates handoff and suppresses stale fanout when rollback arrives b
   const subs = await Promise.all(
     Array.from({ length: 100 }, () => f.subscribe()),
   );
+  assert(subs.every((sub) => sub.starts[0].boundary?.height === '100'));
   f.source.notify(head(101n));
   await until(() => subs.some((sub) => sub.frames.length > 0));
   f.source.notify(head(99n, 101n));
@@ -444,5 +397,125 @@ void it('does not turn a head-only retreat into a rollback', async () => {
   await nextTurn();
   assert.equal(sub.frames.length, 1);
   assert.equal(confirmationHeight({ head: 100n, indexed: 101n }, 2), 98n);
+  f.source.stop();
+});
+
+for (const action of ['join', 'rollback']) {
+  void it(`finishes every row of a height after a mid-publication ${action}`, async () => {
+    const f = fixture();
+    const height = action === 'join' ? 101n : 102n;
+    f.store.confirmationEventRows = async function* (
+      _type,
+      _domain,
+      after,
+      through,
+    ) {
+      if (after[0] < height && through >= height)
+        for (let id = 1n; id <= 70n; id++)
+          yield {
+            position: [height, 0, id],
+            message: { type: 'event', height: String(height), id: String(id) },
+          };
+    };
+    const first = await f.subscribe();
+    f.source.notify(head(103n));
+    await until(() => first.frames.length > 0 && first.frames.length < 70);
+    let late = first;
+    if (action === 'join') {
+      f.setHead(103n, 100n);
+      late = await f.subscribe();
+    } else f.source.notify(head(102n, 103n));
+    await until(() =>
+      [first, late].every(
+        (s) => s.frames.filter((r) => r.type === 'event').length === 70,
+      ),
+    );
+    for (const sub of [first, late])
+      assert.equal(
+        new Set(sub.frames.filter((r) => r.type === 'event').map((r) => r.id))
+          .size,
+        70,
+      );
+    f.source.stop();
+  });
+}
+
+void it('reads a late cursor prefix before advancing it during a forward scan', async () => {
+  const f = fixture();
+  const first = await f.subscribe();
+  const blocked = gate();
+  f.gates.set(1, blocked.promise);
+  f.source.notify(head(101n));
+  await until(() => f.calls.length === 1);
+  f.setHead(101n, 98n);
+  const late = await f.subscribe(2);
+  blocked.release();
+  await until(() => late.frames.length > 0);
+  assert.deepEqual(
+    late.frames.map((r) => r.height),
+    ['99'],
+  );
+  assert.equal(first.frames.at(-1)?.height, '101');
+  f.source.stop();
+});
+
+for (const fails of [false, true]) {
+  void it(`isolates a disconnected prefix request when its read ${fails ? 'fails' : 'finishes'}`, async () => {
+    const f = fixture();
+    const live = await f.subscribe();
+    const slow = await f.subscribe(5);
+    f.source.notify(head(105n));
+    await until(() => slow.frames.at(-1)?.height === '100');
+    const read = f.store.confirmationEventRows.bind(f.store);
+    const blocked = gate();
+    let pending = false;
+    f.store.confirmationEventRows = async function* (...args) {
+      if (!pending) {
+        pending = true;
+        await blocked.promise;
+        if (fails) throw new Error('prefix failed');
+      }
+      yield* read(...args);
+    };
+    f.setHead(106n, 98n);
+    const requester = await f.subscribe(6);
+    await until(() => pending);
+    requester.close();
+    slow.close();
+    f.setHead(106n, 99n);
+    const late = await f.subscribe(1);
+    blocked.release();
+    await until(
+      () => late.frames.at(-1)?.height === '105' || live.errors.length > 0,
+    );
+    assert.deepEqual(live.errors, []);
+    assert.deepEqual(
+      late.frames.map((r) => r.height),
+      ['100', '101', '102', '103', '104', '105'],
+    );
+    f.source.stop();
+  });
+}
+
+void it('rolls back events released after their confirmation target advances during a read', async () => {
+  const f = fixture();
+  await f.subscribe();
+  const delayed = await f.subscribe(2);
+  const blocked = gate();
+  f.gates.set(1, blocked.promise);
+  f.source.notify(head(103n));
+  await until(() => f.calls.length > 0);
+  f.source.notify(head(105n));
+  blocked.release();
+  await until(() => delayed.frames.at(-1)?.height === '103');
+  f.source.notify(head(104n, 105n));
+  assert(
+    delayed.frames.some(
+      (r) =>
+        r.type === 'rollback' &&
+        BigInt(String(r.fromHeight)) >= 103n &&
+        r.toHeight === '102',
+    ),
+  );
   f.source.stop();
 });

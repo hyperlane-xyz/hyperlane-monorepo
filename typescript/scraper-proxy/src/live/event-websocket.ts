@@ -31,6 +31,7 @@ import {
   type HeadNotification,
   type LiveStartBoundary,
   parseClientMessage,
+  SubscriptionCapacityError,
   splitConfirmationStreams,
   parseEventNotification,
   parseExplorerNotification,
@@ -242,10 +243,6 @@ export class EventWebSocketServer {
     validators: 0,
     messages: 0,
   };
-  private readonly serializedEvents = new WeakMap<
-    Record<string, unknown>,
-    Buffer
-  >();
   private readonly explorerRefreshes = new Set<Promise<void>>();
   private listenerReady = false;
   private stopped = false;
@@ -885,10 +882,7 @@ export class EventWebSocketServer {
     const events = await source.subscribe(requests, {
       active: () => this.clients.get(socket) === client,
       send: (message) => {
-        const serialized =
-          this.serializedEvents.get(message) ?? serialize(message);
-        this.serializedEvents.set(message, serialized);
-        return this.queueData(socket, serialized);
+        return this.queueData(socket, this.serializeShared(message));
       },
       fail: (error) => this.failSocket(socket, formatError(error)),
     });
@@ -924,7 +918,9 @@ export class EventWebSocketServer {
     try {
       message = parseClientMessage(raw);
     } catch (error) {
-      this.sendError(socket, formatError(error));
+      if (error instanceof SubscriptionCapacityError)
+        this.rejectNegotiation(socket, formatError(error));
+      else this.sendError(socket, formatError(error));
       return;
     }
     if (message.type === 'ping') {
@@ -1878,7 +1874,12 @@ export class EventWebSocketServer {
       let largest =
         (this.pendingSends.get(socket)?.bytes ?? 0) + message.length;
       for (const [peer, pending] of this.pendingSends) {
-        if (peer === socket || (routeFull && pending.route !== route)) continue;
+        if (
+          peer === socket ||
+          (routeFull && pending.route !== route) ||
+          (route !== 'agent' && pending.route === 'agent')
+        )
+          continue;
         if (
           pending.bytes > largest ||
           (!routeFull &&

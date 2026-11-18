@@ -12,6 +12,8 @@ import {
 } from './protocol.js';
 import type { EventStore } from './event-store.js';
 
+const END_POSITION = endOfHeight(0n);
+
 type Request = {
   eventType: EventType;
   confirmations: number;
@@ -293,7 +295,7 @@ export class EventSource {
       (cursor) =>
         cursor.owner.started &&
         cursor.owner.active() &&
-        cursor.target > cursor.position[0],
+        cursor.target > completedHeight(cursor),
     );
   }
 
@@ -312,6 +314,9 @@ export class EventSource {
           through = cursor.target;
       const after = prefix ? floor : window.through;
       const end = prefix ? window.floor : through;
+      const lagging = [...window.cursors].filter(
+        (cursor) => completedHeight(cursor) === floor,
+      );
       for (const cursor of window.cursors)
         if (cursor.owner.started && cursor.target > cursor.exposed)
           cursor.exposed = cursor.target;
@@ -344,7 +349,8 @@ export class EventSource {
               throw new CapacityError();
           }
           if (this.stopped || !window.cursors.size) return;
-          if (revision !== window.revision) return;
+          if (revision !== window.revision || (prefix && end !== window.floor))
+            return;
           while (
             this.rows + pending.length > this.limits.rows ||
             this.bytes + bytes > this.limits.bytes
@@ -368,20 +374,17 @@ export class EventSource {
           // A deeper joining policy can fail its own prefix scan without
           // interrupting subscribers already served by the retained window.
           if (prefix || error instanceof CapacityError) {
-            const oldest = minimumPosition(window);
-            const confirmations = Math.min(
-              ...[...window.cursors]
-                .filter((cursor) => cursor.position[0] === oldest)
-                .map((cursor) => cursor.confirmations),
+            const affected = lagging.filter((cursor) =>
+              window.cursors.has(cursor),
             );
+            if (!affected.length) return;
             this.retryAfter.set(window.key, {
               until: Date.now() + 30_000,
-              confirmations,
+              confirmations: Math.min(
+                ...affected.map((cursor) => cursor.confirmations),
+              ),
             });
-            for (const cursor of window.cursors)
-              if (cursor.position[0] === oldest) {
-                this.fail(cursor.owner, error);
-              }
+            for (const cursor of affected) this.fail(cursor.owner, error);
             return;
           }
           throw error;
@@ -397,27 +400,21 @@ export class EventSource {
 
   private async publish(window: Window): Promise<boolean> {
     const revision = window.revision;
+    const cursors = [...window.cursors]
+      .filter(
+        (cursor) =>
+          cursor.owner.started && completedHeight(cursor) >= window.floor,
+      )
+      .map((cursor) => ({
+        cursor,
+        target: cursor.target < window.through ? cursor.target : window.through,
+      }));
     let sent = 0;
     let sentBytes = 0;
     for (const row of window.rows) {
       const frames = new Map<number, Record<string, unknown>>();
-      for (const cursor of window.cursors) {
-        if (
-          !cursor.owner.started ||
-          row.position[0] > cursor.target ||
-          comparePosition(row.position, cursor.position) <= 0
-        )
-          continue;
-        cursor.position = row.position;
-        const frame = frames.get(cursor.confirmations) ?? {
-          ...row.message,
-          confirmations: cursor.confirmations,
-        };
-        frames.set(cursor.confirmations, frame);
-        this.send(cursor, frame);
-        sentBytes += row.bytes + 64;
-        // Let healthy sockets drain during large batches. Never await a peer's
-        // send callback here: each connection has its own bounded FIFO.
+      for (const { cursor, target } of cursors) {
+        // Skipped rows also consume fanout work. Recheck ancestry after yielding.
         if (++sent >= 64 || sentBytes >= 256 * 1024) {
           sent = 0;
           sentBytes = 0;
@@ -429,12 +426,25 @@ export class EventSource {
           )
             return false;
         }
+        if (
+          !cursor.owner.started ||
+          row.position[0] > target ||
+          comparePosition(row.position, cursor.position) <= 0
+        )
+          continue;
+        cursor.position = row.position;
+        if (row.position[0] > cursor.exposed) cursor.exposed = row.position[0];
+        const frame = frames.get(cursor.confirmations) ?? {
+          ...row.message,
+          confirmations: cursor.confirmations,
+        };
+        frames.set(cursor.confirmations, frame);
+        this.send(cursor, frame);
+        sentBytes += row.bytes + 64;
       }
     }
-    for (const cursor of window.cursors) {
+    for (const { cursor, target } of cursors) {
       if (!cursor.owner.started) continue;
-      const target =
-        cursor.target < window.through ? cursor.target : window.through;
       if (target >= cursor.position[0]) cursor.position = endOfHeight(target);
     }
     return true;
@@ -461,7 +471,7 @@ export class EventSource {
     if (!victim) return false;
     const oldest = minimumPosition(victim);
     for (const cursor of victim.cursors)
-      if (cursor.position[0] === oldest)
+      if (completedHeight(cursor) === oldest)
         this.fail(cursor.owner, new CapacityError());
     return true;
   }
@@ -502,10 +512,15 @@ export class EventSource {
 }
 
 function minimumPosition(window: Window) {
-  let floor = [...window.cursors][0]?.position[0] ?? window.through;
+  let floor = window.through;
   for (const cursor of window.cursors)
-    if (cursor.position[0] < floor) floor = cursor.position[0];
+    if (completedHeight(cursor) < floor) floor = completedHeight(cursor);
   return floor;
+}
+
+function completedHeight(cursor: Cursor) {
+  const [height] = cursor.position;
+  return cursor.position[1] === END_POSITION[1] ? height : height - 1n;
 }
 
 function comparePosition(a: Position, b: Position) {

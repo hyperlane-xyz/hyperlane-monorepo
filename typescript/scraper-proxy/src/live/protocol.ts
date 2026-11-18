@@ -63,6 +63,8 @@ export type ConfirmationHead = {
   confirmed: bigint;
   liveStart?: LiveStartBoundary;
 };
+export class SubscriptionCapacityError extends Error {}
+
 export class ConfirmationUnavailableError extends Error {
   constructor(domain: number) {
     super(`Custom confirmations unavailable for domain ${domain}`);
@@ -138,11 +140,11 @@ export function parseClientMessage(raw: string): ClientMessage {
     }
   }
   if (costs.size > MAX_EXPLORER_DOMAINS)
-    throw new Error(
+    throw new SubscriptionCapacityError(
       `custom domains must contain at most ${MAX_EXPLORER_DOMAINS} IDs`,
     );
   if ([...costs.values()].reduce((sum, cost) => sum + cost, 0) > 10_000)
-    throw new Error(
+    throw new SubscriptionCapacityError(
       'Confirmation subscription exceeds the domain-block budget',
     );
   return {
