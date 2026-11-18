@@ -132,6 +132,13 @@ export class MockActionTracker implements IActionTracker {
     );
   }
 
+  async getRecentTransfers(sinceMs: number): Promise<Transfer[]> {
+    const cutoff = Date.now() - sinceMs;
+    return Array.from(this.transfers.values()).filter(
+      (t) => t.createdAt >= cutoff,
+    );
+  }
+
   // === RebalanceIntent Management ===
 
   async createRebalanceIntent(
