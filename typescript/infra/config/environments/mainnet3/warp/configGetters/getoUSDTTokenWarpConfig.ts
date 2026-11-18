@@ -49,7 +49,6 @@ export const deploymentChains = [
   'tron',
   'bsc',
   'arbitrum',
-  'tea',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
 
@@ -115,7 +114,6 @@ const feeChains: oUSDTTokenChainName[] = [
   'tron',
   'bsc',
   'arbitrum',
-  'tea',
 ];
 // In-code quote signers (hyperlane-mainnet3-key-quotesigner GCP secret).
 const stagingQuoteSigners: Address[] = [
@@ -134,7 +132,6 @@ const productionFeeOwnerByChain: ChainMap<Address> = {
   tron: warpFeesIcas.tron,
   bsc: warpFeesIcas.bsc,
   arbitrum: warpFeesIcas.arbitrum,
-  tea: warpFeesIcas.tea,
 };
 
 // Environment-specific configuration
@@ -158,7 +155,6 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   tron: upperBufferCap,
   bsc: upperBufferCap,
   arbitrum: upperBufferCap,
-  tea: lowerBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
@@ -178,7 +174,6 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   tron: productionDefaultRateLimitPerSecond,
   bsc: productionDefaultRateLimitPerSecond,
   arbitrum: productionDefaultRateLimitPerSecond,
-  tea: lowerRateLimitPerSecond,
 };
 
 const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
@@ -325,7 +320,6 @@ const productionTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   tron: usdtTokenAddresses.tron,
   bsc: usdtTokenAddresses.bsc,
   arbitrum: usdtTokenAddresses.arbitrum,
-  tea: productionXERC20TokenAddress,
 };
 
 // Staging
@@ -369,7 +363,6 @@ const stagingTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   tron: usdtTokenAddresses.tron,
   bsc: usdtTokenAddresses.bsc,
   arbitrum: usdtTokenAddresses.arbitrum,
-  tea: stagingXERC20TokenAddress,
 };
 
 const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
