@@ -1060,9 +1060,13 @@ for (const kind of ['canonical validator', 'public blocks']) {
       waitFor(frames, 'ready'),
       waitFor(agentFrames, 'ready'),
     ]);
+    let holdPong = false;
     const completions = delayServerSendCompletions(
       context,
-      (frame) => frame.type === 'event' || frame.type === 'block',
+      (frame) =>
+        frame.type === 'event' ||
+        frame.type === 'block' ||
+        (holdPong && frame.type === 'pong'),
     );
     try {
       const route = kind === 'canonical validator' ? 'validators' : 'messages';
@@ -1117,10 +1121,17 @@ for (const kind of ['canonical validator', 'public blocks']) {
         0,
         'disconnect immediately releases the stalled reservation',
       );
-      completions.splice(0).forEach((complete) => complete());
+      const lateCallback = completions.shift();
+      assert(lateCallback);
+      holdPong = true;
+      agent.send(JSON.stringify({ type: 'ping' }));
+      await waitUntil(() => completions.length === 1);
+      const agentReservation = events.metricsSnapshot().outboundPendingBytes;
+      assert(agentReservation > 0);
+      lateCallback();
       assert.equal(
         events.metricsSnapshot().outboundPendingBytes,
-        0,
+        agentReservation,
         'late callbacks cannot subtract another reservation',
       );
     } finally {
@@ -4924,6 +4935,12 @@ void it(
             frontier_id: values[3],
           },
         ]);
+      if (sql.includes('"message_view"')) {
+        const rows = await original<T>(sql, values);
+        return queryRows<T>(
+          rows.map((row) => ({ ...row, msg_body: 'x'.repeat(20 * 1024) })),
+        );
+      }
       return original<T>(sql, values);
     }
     t.mock.method(
