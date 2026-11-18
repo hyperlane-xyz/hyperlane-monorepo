@@ -224,6 +224,12 @@ const FakeSocket = struct {
         self.open = false;
         self.terminated = true;
     }
+    /// Set by `terminate`/failed sends, possibly on a pool thread.
+    fn isTerminated(self: *FakeSocket) bool {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        return self.terminated;
+    }
     fn ping(ptr: *anyopaque) void {
         const self: *FakeSocket = @ptrCast(@alignCast(ptr));
         self.pings += 1;
@@ -512,6 +518,8 @@ const Harness = struct {
             std.Thread.sleep(std.time.ns_per_ms);
         }
         std.debug.print("expected {d} frames, got {d}\n", .{ n, s.count() });
+        s.mutex.lock();
+        defer s.mutex.unlock();
         for (s.frames.items) |item| std.debug.print("  {s}\n", .{item});
         return error.Timeout;
     }
@@ -730,11 +738,7 @@ test "explorer negotiation: ready frames, validation and per-IP limits" {
     try testing.expectEqualStrings("Maximum connections per client reached", sixth.reason());
     const other, _ = h.explorer("/messages", "::1");
     try h.waitFrames(other, 1);
-    const snapshot = blk: {
-        h.t.loop.lock();
-        defer h.t.loop.unlock();
-        break :blk h.server.metricsSnapshot();
-    };
+    const snapshot = metricsOf(&h);
     try testing.expectEqual(@as(f64, 6), snapshot.connections.messages);
     try testing.expectEqual(@as(f64, 2), snapshot.messageClientIps);
     try testing.expectEqual(@as(f64, 5), snapshot.messageMaxConnectionsPerIp);
@@ -769,9 +773,9 @@ test "heartbeat pings, then terminates clients that never pong" {
     try testing.expectEqualStrings("{\"serverTime\":\"1970-01-01T00:00:00.250Z\",\"type\":\"heartbeat\"}", s.frame(1));
     h.server.onPong(peer);
     h.t.fake.tick(250);
-    try testing.expect(!s.terminated);
+    try testing.expect(!s.isTerminated());
     h.t.fake.tick(250);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
 }
 
 test "outbound buffer limit terminates the socket" {
@@ -784,7 +788,7 @@ test "outbound buffer limit terminates the socket" {
     s.buffered = 1000;
     const peer = h.server.connectAgent(s.socket());
     try h.peers.append(a, peer);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expectEqual(@as(usize, 0), s.count());
 }
 
@@ -822,7 +826,11 @@ test "explorer canonical upserts follow message notifications and filters" {
 
 test "confirmed head ranges publish agent events and queue Explorer ids" {
     var h: Harness = .{};
-    try h.init(defaultLimits());
+    var limits = defaultLimits();
+    // The wait below advances the fake clock while the upsert's read runs on
+    // a real thread: a 250 ms heartbeat could otherwise come first.
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
     defer h.deinit();
     const agent, const peer = h.agent();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"delivery\",\"domains\":[1]}]}");
@@ -973,11 +981,11 @@ test "sheds only an Explorer client that exceeds its queue limit (62)" {
     }
     h.t.fake.tick(100);
     for (0..30_000) |_| {
-        if (slow.terminated and fast.count() >= 2101) break;
+        if (slow.isTerminated() and fast.count() >= 2101) break;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    try testing.expect(slow.terminated);
-    try testing.expect(!fast.terminated and FakeSocket.isOpen(fast));
+    try testing.expect(slow.isTerminated());
+    try testing.expect(!fast.isTerminated() and FakeSocket.isOpen(fast));
     try h.waitFrames(fast, 2101);
     try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"queue_limit"}));
     const after = metricsOf(&h);
@@ -1027,11 +1035,11 @@ test "reports an active send failure once (65)" {
     notifyExplorer(&h, id);
     h.t.fake.tick(100);
     for (0..1000) |_| {
-        if (s.terminated) break;
+        if (s.isTerminated()) break;
         std.Thread.sleep(std.time.ns_per_ms);
     }
     h.settle();
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
 }
 
@@ -1051,7 +1059,7 @@ test "does not report heartbeat cleanup as a send failure (68)" {
     const before = core.metrics.websocket_send_failures.get(.{"send_error"});
     h.t.fake.tick(250); // ping (no pong)
     h.t.fake.tick(250); // terminate
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     s.releaseHeld(false);
     h.settle();
     try testing.expectEqual(before, core.metrics.websocket_send_failures.get(.{"send_error"}));
@@ -1176,7 +1184,7 @@ fn advisoryTest(comptime available: bool) !void {
     }
     h.db.mutex.unlock();
     try testing.expectEqual(@as(usize, if (available) 1 else 0), reads);
-    for (s.frames.items) |item| try testing.expect(std.mem.indexOf(u8, item, "\"type\":\"error\"") == null);
+    try testing.expectEqual(@as(usize, 0), countFrames(s, "\"type\":\"error\""));
     try testing.expect(FakeSocket.isOpen(s));
 }
 
@@ -1261,7 +1269,7 @@ test "a heartbeat fired long after its deadline pings, then terminates a silent 
     try h.waitFrames(s, 1);
     // One tick far past several deadlines: each fire re-arms from the fire time.
     h.t.fake.tick(10_000);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expect(s.pings >= 1);
     try testing.expect(std.mem.indexOf(u8, s.frame(1), "\"type\":\"heartbeat\"") != null);
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).connections.agent);
@@ -1315,7 +1323,7 @@ test "inline write failure counts one send error and terminates" {
     s.inline_mode = .failed;
     const before = core.metrics.websocket_send_failures.get(.{"send_error"});
     h.server.onMessage(peer, "{\"type\":\"ping\"}");
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).connections.agent);
 }
@@ -1341,13 +1349,13 @@ test "inline writes stay charged until the end of the turn: aggregate Explorer b
     notifyExplorer(&h, id);
     h.t.fake.tick(100);
     for (0..10_000) |_| {
-        if (sockets[3].terminated) break;
+        if (sockets[3].isTerminated()) break;
         std.Thread.sleep(std.time.ns_per_ms);
     }
     h.settle();
     try testing.expectEqual(@as(usize, 2), sockets[0].count());
     for (sockets[1..]) |s| {
-        try testing.expect(s.terminated);
+        try testing.expect(s.isTerminated());
         try testing.expectEqual(@as(usize, 1), s.count());
     }
     try testing.expectEqual(before + 3, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
@@ -1384,17 +1392,17 @@ test "a partially written inline frame stays charged until its remainder is writ
     h.settle();
     // TS: the write went async, so its callback (and the pendingBytes release)
     // waits for the remainder; a later turn still sees the frame charged.
-    const frame_len: f64 = @floatFromInt(slow.frames.items[1].len);
+    const frame_len: f64 = @floatFromInt(slow.frame(1).len);
     try testing.expectEqual(frame_len, metricsOf(&h).outboundPendingBytes);
     notifyExplorer(&h, fast_id);
     h.t.fake.tick(100);
     for (0..10_000) |_| {
-        if (fast.terminated) break;
+        if (fast.isTerminated()) break;
         std.Thread.sleep(std.time.ns_per_ms);
     }
     h.settle();
-    try testing.expect(fast.terminated);
-    try testing.expect(!slow.terminated);
+    try testing.expect(fast.isTerminated());
+    try testing.expect(!slow.isTerminated());
     try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
     // Once the remainder is written the charge is released.
     slow.releaseHeld(true);
@@ -1441,8 +1449,8 @@ test "frames published to a peer in one turn are written with one syscall, in or
     h.settle();
     for ([_]*FakeSocket{ first, second }) |s| {
         try testing.expectEqual(@as(usize, 1), s.flushes);
-        for (s.frames.items[3..6], [_][]const u8{ "\"sequence\":\"4\"", "\"sequence\":\"5\"", "\"sequence\":\"6\"" }) |frame, needle|
-            try testing.expect(std.mem.indexOf(u8, frame, needle) != null);
+        for ([_][]const u8{ "\"sequence\":\"4\"", "\"sequence\":\"5\"", "\"sequence\":\"6\"" }, 3..) |needle, index|
+            try testing.expect(std.mem.indexOf(u8, s.frame(index), needle) != null);
     }
     // Fully written frames are released at the end of the turn.
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
@@ -1464,7 +1472,7 @@ test "corked frames are decided against the real bufferedAmount once their bound
     h.settle();
     // ws: each frame reached the kernel, bufferedAmount stayed 0, nothing
     // tripped: the third frame flushed the first two and was checked exactly.
-    try testing.expect(!s.terminated);
+    try testing.expect(!s.isTerminated());
     try testing.expectEqual(@as(usize, 1), s.flushes);
     try testing.expectEqual(@as(usize, 6), s.count());
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
@@ -1481,12 +1489,12 @@ test "a corked frame the socket cannot take whole stays charged until written" {
     try h.waitFrames(s, 6);
     h.settle();
     var expected: f64 = 0;
-    for (s.frames.items[3..6]) |frame| expected += @floatFromInt(frame.len);
+    for (3..6) |index| expected += @floatFromInt(s.frame(index).len);
     try testing.expectEqual(expected, metricsOf(&h).outboundPendingBytes);
     s.releaseHeld(true);
     h.settle();
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
-    try testing.expect(!s.terminated);
+    try testing.expect(!s.isTerminated());
 }
 
 /// `listenEarly`, then wait for the early connection (no `start` yet).
@@ -1617,7 +1625,7 @@ test "closes a failed boundary snapshot without claiming a live start" {
     try h.waitFrames(s, 1);
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
     try waitClosed(s);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expectEqual(@as(usize, 1), countFrames(s, "\"type\":\"subscribed\""));
     try testing.expectEqual(@as(usize, 0), countFrames(s, "live_start"));
 }
@@ -1839,7 +1847,7 @@ test "async canonical subscribe: subscribed at once, live starts after the bound
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1,2]}]}");
     // Inline: acknowledged before onMessage returned, the read issued.
     try testing.expectEqualStrings("{\"streams\":[{\"domains\":[1,2],\"eventType\":\"dispatch\"}],\"type\":\"subscribed\"}", s.frame(1));
-    try testing.expectEqual(@as(usize, 1), h.db.async_started);
+    try testing.expectEqual(@as(usize, 1), asyncStarted(&h));
     try h.waitFrames(s, 4);
     // Boundary rows first, then the remaining requested domains (TS's Set).
     try testing.expect(std.mem.startsWith(u8, s.frame(2), "{\"type\":\"live_start\",\"domain\":2,\"height\":\"15\""));
@@ -1885,7 +1893,7 @@ test "async canonical subscribe: a failed boundary read terminates without a liv
     try h.waitFrames(s, 1);
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
     try waitClosed(s);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expectEqual(@as(usize, 1), countFrames(s, "\"type\":\"subscribed\""));
     try testing.expectEqual(@as(usize, 0), countFrames(s, "live_start"));
 }
@@ -1914,9 +1922,10 @@ test "async canonical subscribe: a client gone before the read resolves gets not
     defer h.deinit();
     h.server.stop();
     releaser.join();
-    h.t.loop.lock();
+    // Counted under the server's async mutex (not the loop mutex).
+    h.server.async_mutex.lock();
     const outstanding = h.server.async_outstanding;
-    h.t.loop.unlock();
+    h.server.async_mutex.unlock();
     try testing.expectEqual(@as(usize, 0), outstanding);
     h.settle();
     try testing.expectEqual(@as(usize, 2), s.count()); // ready, subscribed
@@ -1936,7 +1945,7 @@ test "async subscribe with blocks: block heads, then subscribed, blocks and live
     try testing.expectEqualStrings("{\"streams\":[{\"domains\":[1],\"eventType\":\"blocks\"},{\"domains\":[1],\"eventType\":\"dispatch\"}],\"type\":\"subscribed\"}", s.frame(1));
     try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\",\"headHeight\":\"12\"}", s.frame(2));
     try testing.expect(std.mem.startsWith(u8, s.frame(3), "{\"type\":\"live_start_unavailable\",\"domain\":1"));
-    try testing.expectEqual(@as(usize, 2), h.db.async_started); // block heads, boundaries
+    try testing.expectEqual(@as(usize, 2), asyncStarted(&h)); // block heads, boundaries
 }
 
 test "async subscribe with custom streams: shared snapshot, custom live starts, then canonical" {
@@ -2063,9 +2072,10 @@ test "async live starts: a failed awaited send ends the loop, no further live st
     try h.waitFrames(s, 3); // ready, subscribed, live start 1 (held)
     h.settle();
     s.releaseHeld(false); // the awaited live start fails
-    h.settle();
+    // The failed send ends the socket on a pool thread.
+    try waitClosed(s);
     try testing.expectEqual(@as(usize, 3), s.count());
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
 }
 
 test "async reads continue in completion order, not issue order" {
@@ -2135,7 +2145,7 @@ test "async Explorer setup: block heads and the custom heads read as continuatio
         \\{"confirmations":1,"domains":[1,2],"customDomains":[1],"canonicalDomains":[2],"eventTypes":["message_upsert","rollback","block"],"type":"ready"}
     , s.frame(0));
     try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\",\"headHeight\":\"12\"}", s.frame(1));
-    try testing.expectEqual(@as(usize, 2), h.db.async_started);
+    try testing.expectEqual(@as(usize, 2), asyncStarted(&h));
 }
 
 // -- async subscribes: failure paths (phase 2)
@@ -2149,7 +2159,7 @@ test "async subscribe: a failed block heads read fails the socket, nothing ackno
     try h.waitFrames(s, 1);
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"blocks\",\"domains\":[1]},{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
     try waitClosed(s);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expectEqual(@as(usize, 0), countFrames(s, "subscribed"));
 }
 
@@ -2162,7 +2172,7 @@ test "async subscribe: a failed heads snapshot read fails the socket (not a nego
     try h.waitFrames(s, 1);
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
     try waitClosed(s);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expectEqual(@as(usize, 1), s.count()); // ready only: no error frame, no subscribed
 }
 
@@ -2269,9 +2279,10 @@ test "async reads after stop fail at once and still release their flow" {
     h.server.stopped = true; // as after stop(): a read issued now must not start
     h.t.loop.unlock();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
-    h.settle();
-    try testing.expectEqual(@as(usize, 0), h.db.async_started);
-    try testing.expect(s.terminated);
+    // The read fails at once; its failure ends the socket on a pool thread.
+    try waitClosed(s);
+    try testing.expectEqual(@as(usize, 0), asyncStarted(&h));
+    try testing.expect(s.isTerminated());
     h.t.loop.lock();
     h.server.stopped = false;
     h.t.loop.unlock();
@@ -2291,7 +2302,7 @@ fn validatorHarness(h: *Harness, limits: live.Limits) !void {
 /// Every validator setup ended (its live start's send completed).
 fn waitSetups(h: *Harness) !void {
     for (0..10_000) |_| {
-        if (h.server.metricsSnapshot().validatorPendingSetups == 0) return;
+        if (metricsOf(h).validatorPendingSetups == 0) return;
         std.Thread.sleep(std.time.ns_per_ms);
     }
     return error.Timeout;
@@ -2328,7 +2339,7 @@ test "validators: canonical ready, live start, ping-only frames" {
     try testing.expectEqualStrings("{\"type\":\"ready\",\"domain\":1,\"eventTypes\":[\"merkle_tree_insertion\"],\"historicalStreaming\":false,\"liveStartVersion\":1}", s.frame(0));
     try testing.expectEqualStrings("{\"type\":\"live_start\",\"domain\":1,\"height\":\"100\",\"hash\":\"0x" ++ "ab" ** 32 ++ "\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"address\":\"0x" ++ "22" ** 32 ++ "\"}]}", s.frame(1));
     try waitSetups(&h);
-    const snapshot = h.server.metricsSnapshot();
+    const snapshot = metricsOf(&h);
     try testing.expectEqual(@as(f64, 0), snapshot.connections.agent);
     try testing.expectEqual(@as(f64, 1), snapshot.connections.validators);
     try testing.expectEqual(@as(f64, 0), snapshot.subscriptions.merkle_tree_insertion);
@@ -2392,7 +2403,7 @@ test "validators: an unknown domain closes 1008 before any reader" {
     try waitClosed(s);
     try testing.expectEqual(@as(?u16, 1008), s.close_code);
     h.settle();
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorSharedReaders);
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).validatorSharedReaders);
     h.db.mutex.lock();
     defer h.db.mutex.unlock();
     try testing.expectEqual(@as(usize, 1), h.db.queries.items.len);
@@ -2415,22 +2426,91 @@ test "validators: limits by IP, total and pending setups; reservations last unti
     _ = try h.connectedValidator("/validators?domain=1", "203.0.113.3");
     try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 503 }, h.validator("/validators?domain=1", "203.0.113.4"));
     gate.started.wait();
-    try testing.expectEqual(@as(f64, 4), h.server.metricsSnapshot().validatorPendingSetups);
+    try testing.expectEqual(@as(f64, 4), metricsOf(&h).validatorPendingSetups);
     // A disconnected pending setup keeps its reservation, even once closed.
     h.close(first);
-    var snapshot = h.server.metricsSnapshot();
+    var snapshot = metricsOf(&h);
     try testing.expectEqual(@as(f64, 3), snapshot.connections.validators);
     try testing.expectEqual(@as(f64, 4), snapshot.validatorReservedConnections);
     try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 503 }, h.validator("/validators?domain=1", "203.0.113.4"));
     gate.released.set();
     for (0..1000) |_| {
-        if (h.server.metricsSnapshot().validatorPendingSetups == 0) break;
+        if (metricsOf(&h).validatorPendingSetups == 0) break;
         std.Thread.sleep(std.time.ns_per_ms);
     }
-    snapshot = h.server.metricsSnapshot();
+    snapshot = metricsOf(&h);
     try testing.expectEqual(@as(f64, 3), snapshot.validatorReservedConnections);
     try testing.expectEqual(@as(f64, 0), snapshot.validatorPendingSetups);
     _ = try h.connectedValidator("/validators?domain=1", "203.0.113.4");
+}
+
+test "validators: a /metrics scrape racing setups, closes and releases never reads a freed peer" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.max_validator_clients = 64;
+    limits.max_validator_clients_per_ip = 64;
+    try validatorHarness(&h, limits);
+    defer h.deinit();
+    // /metrics' path: the provider takes the loop mutex, which every peer
+    // list change and peer free also holds (metricsSnapshotIn asserts it).
+    const Scraper = struct {
+        provider: core.metrics.WebSocketMetricsProvider,
+        stop: std.atomic.Value(bool) = .init(false),
+        scrapes: usize = 0,
+        fn run(self: *@This()) void {
+            var arena_state = std.heap.ArenaAllocator.init(a);
+            defer arena_state.deinit();
+            while (!self.stop.load(.acquire)) {
+                _ = arena_state.reset(.retain_capacity);
+                _ = self.provider.snapshot(self.provider.ctx, arena_state.allocator()) catch unreachable;
+                self.scrapes += 1;
+            }
+        }
+    };
+    var scraper: Scraper = .{ .provider = h.server.metricsProvider() };
+    const thread = try std.Thread.spawn(.{}, Scraper.run, .{&scraper});
+    var joined = false;
+    defer if (!joined) {
+        scraper.stop.store(true, .release);
+        thread.join();
+    };
+    // One IP per connection: closed sockets keep their pending setups (and
+    // the per-IP setup cap) until those setups end.
+    var ip_arena = std.heap.ArenaAllocator.init(a);
+    defer ip_arena.deinit();
+    var next_ip: usize = 0;
+    const Ips = struct {
+        fn next(arena: std.mem.Allocator, counter: *usize) ![]const u8 {
+            counter.* += 1;
+            return std.fmt.allocPrint(arena, "198.51.{d}.{d}", .{ counter.* / 250, counter.* % 250 });
+        }
+    };
+    // Setups held, half the sockets closed while pending, then released:
+    // those peers are freed when their setups end.
+    var gate: QueryGate = .{ .contains = domain_one };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    var held: [8]*live.Peer = undefined;
+    for (&held) |*peer| _, peer.* = try h.connectedValidator("/validators?domain=1", try Ips.next(ip_arena.allocator(), &next_ip));
+    gate.started.wait();
+    for (held[0..4]) |peer| h.close(peer);
+    gate.released.set();
+    try waitSetups(&h);
+    for (held[4..]) |peer| h.close(peer);
+    // Then sockets closed as their setups run.
+    for (0..20) |_| {
+        var batch: [8]*live.Peer = undefined;
+        for (&batch) |*peer| _, peer.* = try h.connectedValidator("/validators?domain=1", try Ips.next(ip_arena.allocator(), &next_ip));
+        for (batch) |peer| h.close(peer);
+        try waitSetups(&h);
+    }
+    try waitSetups(&h);
+    scraper.stop.store(true, .release);
+    thread.join();
+    joined = true;
+    const snapshot = metricsOf(&h);
+    try testing.expectEqual(@as(f64, 0), snapshot.connections.validators);
+    try testing.expectEqual(@as(f64, 0), snapshot.validatorReservedConnections);
+    try testing.expect(scraper.scrapes > 0);
 }
 
 test "validators: a rejected socket keeps its reservation until it closes" {
@@ -2445,12 +2525,12 @@ test "validators: a rejected socket keeps its reservation until it closes" {
     try waitSetups(&h);
     h.server.onValidatorMessage(peer, "{\"type\":\"subscribe\"}", false);
     try waitClosed(s);
-    const snapshot = h.server.metricsSnapshot();
+    const snapshot = metricsOf(&h);
     try testing.expectEqual(@as(f64, 1), snapshot.connections.validators);
     try testing.expectEqual(@as(f64, 2), snapshot.validatorReservedConnections);
     try testing.expectEqual(Harness.ValidatorOutcome{ .rejected = 503 }, h.validator("/validators?domain=1", null));
     h.close(peer);
-    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().validatorReservedConnections);
+    try testing.expectEqual(@as(f64, 1), metricsOf(&h).validatorReservedConnections);
     _ = try h.connectedValidator("/validators?domain=1", null);
 }
 
@@ -2469,7 +2549,7 @@ test "validators: one shared custom reader per domain and count; the last member
         try testing.expectEqualStrings("{\"type\":\"ready\",\"domain\":1,\"confirmations\":0,\"eventTypes\":[\"merkle_tree_insertion\"],\"historicalStreaming\":false,\"liveStartVersion\":1}", s.frame(0));
         try testing.expect(std.mem.startsWith(u8, s.frame(1), "{\"type\":\"live_start\",\"domain\":1,\"confirmations\":0,\"height\":\"10\""));
     }
-    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().validatorSharedReaders);
+    try testing.expectEqual(@as(f64, 1), metricsOf(&h).validatorSharedReaders);
     {
         h.db.mutex.lock();
         defer h.db.mutex.unlock();
@@ -2479,9 +2559,9 @@ test "validators: one shared custom reader per domain and count; the last member
         try testing.expectEqual(@as(usize, 2), snapshots);
     }
     h.close(p1);
-    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().validatorSharedReaders);
+    try testing.expectEqual(@as(f64, 1), metricsOf(&h).validatorSharedReaders);
     h.close(p2);
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorSharedReaders);
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).validatorSharedReaders);
 }
 
 test "validators: an unavailable custom policy closes 1008; a failed read closes 1013 without a frame" {
@@ -2502,7 +2582,7 @@ test "validators: an unavailable custom policy closes 1008; a failed read closes
     try testing.expectEqual(@as(usize, 0), s2.count());
     try testing.expectEqual(before + 1, rejectionCount("setup_error"));
     h.settle();
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorPendingSetups);
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).validatorPendingSetups);
 }
 
 test "validators: validator-only canonical notifications use their own queue; agent ones reach validators too" {
@@ -2516,29 +2596,32 @@ test "validators: validator-only canonical notifications use their own queue; ag
     try waitSetups(&h);
     h.db.add(.{ .contains = "notification_id", .persistent = true, .rows = "[{\"notification_id\":\"7\",\"domain\":1,\"merkle_tree_hook\":\"\\\\x22\",\"leaf_index\":1,\"message_id\":\"\\\\xaa\",\"block_number\":\"9\",\"id\":\"7\"}]" });
     h.listen.notify("scraper_event", "{\"eventType\":\"merkle_tree_insertion\",\"domain\":1,\"id\":\"7\"}");
-    h.t.loop.lock();
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().notificationQueue.agent);
-    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().notificationQueue.validators);
-    h.t.loop.unlock();
+    {
+        const queues = metricsOf(&h);
+        try testing.expectEqual(@as(f64, 0), queues.notificationQueue.agent);
+        try testing.expectEqual(@as(f64, 1), queues.notificationQueue.validators);
+    }
     h.t.fake.tick(100);
     try h.waitFrames(s, 3);
     try testing.expect(std.mem.startsWith(u8, s.frame(2), "{\"type\":\"event\",\"eventType\":\"merkle_tree_insertion\""));
     // Another domain or event type: not queued at all.
     h.listen.notify("scraper_event", "{\"eventType\":\"merkle_tree_insertion\",\"domain\":2,\"id\":\"8\"}");
     h.listen.notify("scraper_event", "{\"eventType\":\"dispatch\",\"domain\":1,\"id\":\"9\"}");
-    h.t.loop.lock();
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().notificationQueue.validators);
-    h.t.loop.unlock();
+    {
+        const queues = metricsOf(&h);
+        try testing.expectEqual(@as(f64, 0), queues.notificationQueue.validators);
+    }
     // With an agent subscriber the agent queue carries it; validators get it too.
     const as, const agent = h.agent();
     try h.waitFrames(as, 1);
     h.server.onMessage(agent, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1]}]}");
     try h.waitFrames(as, 3);
     h.listen.notify("scraper_event", "{\"eventType\":\"merkle_tree_insertion\",\"domain\":1,\"id\":\"7\"}");
-    h.t.loop.lock();
-    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().notificationQueue.agent);
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().notificationQueue.validators);
-    h.t.loop.unlock();
+    {
+        const queues = metricsOf(&h);
+        try testing.expectEqual(@as(f64, 1), queues.notificationQueue.agent);
+        try testing.expectEqual(@as(f64, 0), queues.notificationQueue.validators);
+    }
     h.t.fake.tick(100);
     try h.waitFrames(as, 4);
     try h.waitFrames(s, 4);
@@ -2576,14 +2659,22 @@ test "per-domain confirmations: echoed map, custom group first, canonical public
     // Canonical publication only covers domain 7.
     h.listen.notify("scraper_event", "{\"eventType\":\"dispatch\",\"domain\":1,\"id\":\"5\"}");
     h.listen.notify("scraper_event", "{\"eventType\":\"dispatch\",\"domain\":7,\"id\":\"6\"}");
-    h.t.loop.lock();
-    try testing.expectEqual(@as(f64, 1), h.server.metricsSnapshot().notificationQueue.agent);
-    h.t.loop.unlock();
+    {
+        const queues = metricsOf(&h);
+        try testing.expectEqual(@as(f64, 1), queues.notificationQueue.agent);
+    }
 }
 
 const group_heads = "[{\"domain\":1,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"5\",\"height\":\"10\",\"hash\":\"" ++ "ab" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
 const group_heads_rolled_back = "[{\"domain\":1,\"head_height\":\"8\",\"indexed_height\":\"8\",\"confirmed_height\":\"5\",\"height\":\"8\",\"hash\":\"" ++ "cd" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
 const group_rollback = "{\"domain\":1,\"confirmedHeight\":\"5\",\"indexedHeight\":\"8\",\"previousIndexedHeight\":\"10\",\"headHeight\":\"8\"}";
+
+/// `query_async` reads started (the fake DB counts them under its mutex).
+fn asyncStarted(h: *Harness) usize {
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    return h.db.async_started;
+}
 
 fn snapshotReads(h: *Harness) usize {
     h.db.mutex.lock();
@@ -2625,11 +2716,12 @@ test "validators: every member awaiting a group shares its failure; a later join
     gate.started.wait();
     const s2, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
     for (0..1000) |_| {
-        h.t.loop.lock();
-        const pending = h.server.metricsSnapshot().validatorPendingSetups;
-        h.t.loop.unlock();
+        const pending = metricsOf(&h).validatorPendingSetups;
+        h.db.mutex.lock();
+        const queries = h.db.queries.items.len;
+        h.db.mutex.unlock();
         // s2 joined (its domain check done) and awaits the same `ready`.
-        if (pending == 2 and h.db.queries.items.len >= 3) break;
+        if (pending == 2 and queries >= 3) break;
         std.Thread.sleep(std.time.ns_per_ms);
     }
     h.settle();
@@ -2642,7 +2734,7 @@ test "validators: every member awaiting a group shares its failure; a later join
     // One initialization read served both.
     try testing.expectEqual(@as(usize, 1), snapshotReads(&h));
     try waitSetups(&h);
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorSharedReaders);
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).validatorSharedReaders);
     const s3, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
     try h.waitFrames(s3, 1);
     try testing.expectEqual(@as(usize, 2), snapshotReads(&h));
@@ -2691,9 +2783,9 @@ test "validators: the last member failing during a group broadcast frees the gro
     h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"5\",\"headHeight\":\"11\",\"indexedHeight\":\"11\",\"previousIndexedHeight\":\"10\"}");
     h.t.fake.tick(100);
     try waitClosed(s);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     h.settle();
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().validatorSharedReaders);
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).validatorSharedReaders);
 }
 
 test "validators: stop with pending setups counts and logs nothing for them" {
@@ -2755,8 +2847,8 @@ test "parity hooks: held event callbacks keep pending bytes until released; an e
     h.settle();
     // Written to the client, callbacks held in order.
     try testing.expectEqual(@as(usize, 3), h.server.hookHeld());
-    try testing.expect(h.server.metricsSnapshot().outboundPendingBytes > 0);
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().maxClientBufferedBytes);
+    try testing.expect(metricsOf(&h).outboundPendingBytes > 0);
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).maxClientBufferedBytes);
     var released = h.server.hookRelease(null);
     try testing.expect(released.released);
     try testing.expectEqual(@as(usize, 2), released.held);
@@ -2764,14 +2856,14 @@ test "parity hooks: held event callbacks keep pending bytes until released; an e
     released = h.server.hookRelease("write EPIPE");
     try testing.expectEqual(@as(usize, 1), released.held);
     try waitClosed(s);
-    try testing.expect(s.terminated);
+    try testing.expect(s.isTerminated());
     try testing.expectEqual(failures + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
     // After the close, a failed release is not another send failure.
     _ = h.server.hookRelease("write ECANCELED");
     try testing.expectEqual(failures + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
     try testing.expectEqual(@as(usize, 0), h.server.hookHeld());
     h.settle();
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().outboundPendingBytes);
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
 }
 
 test "parity hooks: the 30 s heartbeat runs only on tick; mode off holds nothing new" {
@@ -2860,9 +2952,10 @@ test "abandons an in-flight head range while listener shutdown is pending (67)" 
     }
     read_gate.released.set();
     h.settle();
-    h.t.loop.lock();
-    try testing.expectEqual(@as(f64, 0), h.server.metricsSnapshot().notificationQueue.messages);
-    h.t.loop.unlock();
+    {
+        const queues = metricsOf(&h);
+        try testing.expectEqual(@as(f64, 0), queues.notificationQueue.messages);
+    }
     {
         h.db.mutex.lock();
         defer h.db.mutex.unlock();

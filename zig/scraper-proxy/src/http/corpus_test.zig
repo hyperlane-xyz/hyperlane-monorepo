@@ -68,9 +68,14 @@ fn run(port: u16, chunks: []const []const u8) ![]const u8 {
     }
     var out: std.ArrayList(u8) = .empty;
     var buf: [64 * 1024]u8 = undefined;
+    // First byte within 2 s (a loaded machine), then 300 ms of quiet means the
+    // server left the connection open.
+    var first = true;
     while (true) {
         var fds = [_]posix.pollfd{.{ .fd = stream.handle, .events = posix.POLL.IN, .revents = 0 }};
-        if (try posix.poll(&fds, 300) == 0) {
+        const quiet_ms: i32 = if (first) 2_000 else 300;
+        first = false;
+        if (try posix.poll(&fds, quiet_ms) == 0) {
             try out.appendSlice(std.heap.c_allocator, "<OPEN>");
             break;
         }

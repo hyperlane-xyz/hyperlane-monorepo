@@ -661,7 +661,10 @@ test "the drain's next frame shares its predecessor's write" {
     loop.loop.unlock();
     try testing.expectEqual(@as(usize, 3), socket.delivered.items.len); // ready + 2 upserts
     try testing.expectEqual(@as(usize, 1), socket.writes - writes_before);
-    try testing.expectEqual(@as(f64, 0), server.metricsSnapshot().outboundPendingBytes);
+    loop.loop.lock();
+    const pending = server.metricsSnapshot().outboundPendingBytes;
+    loop.loop.unlock();
+    try testing.expectEqual(@as(f64, 0), pending);
     server.stop();
     server.onClose(peer);
     loop.pool.deinit();

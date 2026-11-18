@@ -153,6 +153,10 @@ pub fn rawRows(a: Allocator, lazy: *db.LazyRows) Allocator.Error!execute.RawRows
     const columns = try a.alloc(execute.RawColumn, lazy.columns.len);
     for (columns, lazy.columns) |*out, c| out.* = .{
         .name = c.name,
+        .nested = switch (c.oid) {
+            114, 3802, 199, 3807 => true, // json, jsonb, json[], jsonb[]
+            else => false,
+        },
         .kind = switch (c.kind) {
             .number => blk: {
                 // `FastKind.number_text` promises a 32-bit integer (Int fields

@@ -128,6 +128,8 @@ pub const Loop = struct {
     wait_loop_thread: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
     wait_any: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
     locked_at: if (hold_stats) i128 else void = if (hold_stats) 0 else {},
+    /// Safety builds: the thread holding the mutex (0: none), for `assertHeld`.
+    holder: if (std.debug.runtime_safety) std.atomic.Value(std.Thread.Id) else void = if (std.debug.runtime_safety) .init(0) else {},
     start_waiters: std.AutoHashMapUnmanaged(u64, *std.Thread.Condition) = .empty,
     /// Continuations a turn resolved (Node's microtasks): they run, in
     /// order, before anything else takes the mutex. `task`: a blocked task
@@ -227,11 +229,20 @@ pub const Loop = struct {
     }
 
     fn holdStart(self: *Loop) void {
+        if (std.debug.runtime_safety) self.holder.store(std.Thread.getCurrentId(), .release);
         if (hold_stats) self.locked_at = std.time.nanoTimestamp();
     }
 
     fn holdEnd(self: *Loop) void {
         if (hold_stats) self.hold.record(std.time.nanoTimestamp() - self.locked_at);
+        if (std.debug.runtime_safety) self.holder.store(0, .release);
+    }
+
+    /// Safety builds: the calling thread holds the mutex (state shared with
+    /// pool threads, such as the peer lists, is only read under it).
+    pub fn assertHeld(self: *const Loop) void {
+        if (comptime !std.debug.runtime_safety) return;
+        if (self.holder.load(.acquire) != std.Thread.getCurrentId()) @panic("live: loop mutex not held by this thread");
     }
 
     pub fn now(self: *Loop) i64 {

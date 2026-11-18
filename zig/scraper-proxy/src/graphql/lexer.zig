@@ -169,6 +169,8 @@ pub const Lexer = struct {
             if (isDigit(c) or c == '-') return self.readNumber(pos);
             if (isNameStart(c)) return self.readName(pos);
             if (c == '\'') return self.fail(pos, "Unexpected single quote character ('), did you mean to use a double quote (\")?", .{});
+            // graphql-js: an unpaired surrogate is not a Unicode scalar value.
+            if (isSurrogateAt(body, pos)) return self.fail(pos, "Invalid character: {f}.", .{CodePoint{ .lexer = self, .pos = pos }});
             return self.fail(pos, "Unexpected character: {f}.", .{CodePoint{ .lexer = self, .pos = pos }});
         }
         return tok(.eof, body.len, body.len);
@@ -176,7 +178,9 @@ pub const Lexer = struct {
 
     fn readComment(self: *Lexer, start: usize) Token {
         var pos = start + 1;
-        while (pos < self.source.len and self.source[pos] != '\n' and self.source[pos] != '\r') pos += 1;
+        // graphql-js ends a comment before an unpaired surrogate (the next
+        // token then reports it as an invalid character).
+        while (pos < self.source.len and self.source[pos] != '\n' and self.source[pos] != '\r' and !isSurrogateAt(self.source, pos)) pos += 1;
         return .{ .kind = .comment, .start = @intCast(start), .end = @intCast(pos), .value = self.source[start + 1 .. pos] };
     }
 
@@ -247,6 +251,7 @@ pub const Lexer = struct {
                 continue;
             }
             if (c == '\n' or c == '\r') break;
+            if (isSurrogateAt(body, pos)) return self.fail(pos, "Invalid character within String: {f}.", .{CodePoint{ .lexer = self, .pos = pos }});
             pos += 1;
         }
         return self.fail(pos, "Unterminated string.", .{});
@@ -343,6 +348,7 @@ pub const Lexer = struct {
                 chunk_start = pos;
                 continue;
             }
+            if (isSurrogateAt(body, pos)) return self.fail(pos, "Invalid character within String: {f}.", .{CodePoint{ .lexer = self, .pos = pos }});
             pos += 1;
         }
         return self.fail(pos, "Unterminated string.", .{});
@@ -381,7 +387,14 @@ fn extraUtf8(src: []const u8, pos: usize) usize {
 fn decodeAt(src: []const u8, pos: usize) u21 {
     const len = std.unicode.utf8ByteSequenceLength(src[pos]) catch return 0xFFFD;
     if (pos + len > src.len) return 0xFFFD;
-    return std.unicode.utf8Decode(src[pos .. pos + len]) catch 0xFFFD;
+    // WTF-8 (lone surrogates from JSON `\uD800` escapes): JS `codePointAt`.
+    return std.unicode.wtf8Decode(src[pos .. pos + len]) catch 0xFFFD;
+}
+
+/// An unpaired surrogate (WTF-8 `ED A0..BF xx`, from a JSON `\uD800`-style
+/// escape) starts at `pos`: not a GraphQL SourceCharacter.
+fn isSurrogateAt(src: []const u8, pos: usize) bool {
+    return src[pos] == 0xED and pos + 2 < src.len and src[pos + 1] >= 0xA0 and src[pos + 1] <= 0xBF;
 }
 
 fn appendCodePoint(arena: std.mem.Allocator, out: *std.ArrayList(u8), cp: u21) !void {
@@ -480,6 +493,12 @@ test "lexer errors" {
         .{ .src = "\"", .msg = "Syntax Error: Unterminated string." },
         .{ .src = "\"\"\"abc", .msg = "Syntax Error: Unterminated string." },
         .{ .src = "\x07", .msg = "Syntax Error: Unexpected character: U+0007." },
+        // Unpaired surrogates (WTF-8): invalid everywhere, comments included.
+        .{ .src = "\xed\xbf\xbf", .msg = "Syntax Error: Invalid character: U+DFFF." },
+        .{ .src = "\xed\xa0\x80", .msg = "Syntax Error: Invalid character: U+D800." },
+        .{ .src = "# a \xed\xbf\xbf b", .msg = "Syntax Error: Invalid character: U+DFFF." },
+        .{ .src = "\"a\xed\xb0\x80b\"", .msg = "Syntax Error: Invalid character within String: U+DC00." },
+        .{ .src = "\"\"\"a\n\xed\xbf\xbf\"\"\"", .msg = "Syntax Error: Invalid character within String: U+DFFF." },
     };
     for (cases) |case| {
         var diag: Diagnostic = .{};
@@ -487,6 +506,16 @@ test "lexer errors" {
         try std.testing.expectError(error.SyntaxError, lx.advance());
         try std.testing.expectEqualStrings(case.msg, diag.message);
     }
+}
+
+test "lexer: supplementary code points stay valid in comments and strings" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    var diag: Diagnostic = .{};
+    var lx = Lexer.init(arena_state.allocator(), "\"\xf0\x9f\x98\x80\" \"\"\"\xf0\x9f\x98\x80\"\"\" # \xf0\x9f\x98\x80\n", &diag);
+    try std.testing.expectEqual(TokenKind.string, (try lx.advance()).kind);
+    try std.testing.expectEqual(TokenKind.block_string, (try lx.advance()).kind);
+    try std.testing.expectEqual(TokenKind.eof, (try lx.advance()).kind);
 }
 
 test "block string dedent" {

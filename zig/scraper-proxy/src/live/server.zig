@@ -983,13 +983,15 @@ pub const Server = struct {
         return self.metricsSnapshotIn(a);
     }
 
-    /// Without `validatorSubscriptions` (tests).
+    /// Without `validatorSubscriptions` (tests). Loop mutex held.
     pub fn metricsSnapshot(self: *Server) metrics.WebSocketMetricsSnapshot {
         return self.metricsSnapshotIn(null) catch unreachable;
     }
 
     /// `validatorSubscriptions` is allocated with `a` (the scrape's arena).
     pub fn metricsSnapshotIn(self: *Server, a: ?Allocator) Allocator.Error!metrics.WebSocketMetricsSnapshot {
+        // Pool threads add, release and free peers under this mutex only.
+        self.loop.assertHeld();
         var snapshot: metrics.WebSocketMetricsSnapshot = .{};
         var validator_subscriptions: std.ArrayList(metrics.ValidatorSubscription) = .empty;
         for (self.clients.keys()) |peer| {

@@ -86,6 +86,8 @@ const RequestState = struct {
     prepared: ?cache_mod.PreparedCacheRequest = null,
     /// Shared cached body being written (released in on_done).
     hit: ?cache_mod.SharedHit = null,
+    /// Leads its key's single-flight: `land` once (onSend, else onDone).
+    leading: ?cache_mod.PreparedCacheRequest = null,
 };
 
 const FiberLocals = struct {
@@ -114,6 +116,10 @@ pub const GraphqlRoute = struct {
     root_fields: root_pool.RootPool,
     /// Test seam: runs after execution, before the response is serialized.
     after_execute_hook: ?*const fn (*GraphqlRoute) void = null,
+    /// Requests parked on another request's miss right now (tests wait on it).
+    flight_waiters: std.atomic.Value(u32) = .init(0),
+    /// Test seam: runs on the waiting fiber right before it parks on a flight.
+    flight_park_hook: ?*const fn (*GraphqlRoute) void = null,
 
     fn defaultNow() i64 {
         return std.time.milliTimestamp();
@@ -308,19 +314,34 @@ pub const GraphqlRoute = struct {
                 reply.destroy_after = true;
             }
         }
+        // Waiters wake after the entry is written (or not), before this
+        // response is written to a possibly slow client.
+        defer self.land(st);
         const prepared = st.prepared orelse return;
         if (st.failed) {
             reply.header("cache-control", "no-store");
             return;
         }
-        if (prepared.ttl == 0) {
-            reply.header("cache-control", "no-store");
-        } else {
-            reply.header("cache-control", cache_mod.cacheControlHeader(req.arena, prepared.ttl) catch return);
-        }
+        missHead(reply, req.arena, prepared) catch return;
         if (prepared.ttl > 0) {
             if (reply.body()) |body| self.response_cache.write(prepared, body) catch {};
         }
+    }
+
+    /// The head of a cacheable miss (graphql.ts onSend): content-type, which
+    /// the miss's send already set, then cache-control from the request's
+    /// ttl. A single-flight waiter answers through this too, so its head is
+    /// byte for byte the TS miss it stands for.
+    fn missHead(reply: *http.Reply, a: Allocator, prepared: cache_mod.PreparedCacheRequest) Allocator.Error!void {
+        if (reply.getHeader("content-type") == null) reply.type("application/json; charset=utf-8");
+        reply.header("cache-control", if (prepared.ttl == 0) "no-store" else try cache_mod.cacheControlHeader(a, prepared.ttl));
+    }
+
+    /// Ends the request's single-flight if it leads one.
+    fn land(self: *GraphqlRoute, st: *RequestState) void {
+        const request = st.leading orelse return;
+        st.leading = null;
+        self.response_cache.land(request);
     }
 
     /// The response did not fit the socket: TS keeps the slot it took at
@@ -342,6 +363,8 @@ pub const GraphqlRoute = struct {
         const self: *GraphqlRoute = @ptrCast(@alignCast(ctx));
         const st = self.state(req);
         self.releaseUpload(st);
+        // onSend did not run (e.g. out of memory before the reply).
+        self.land(st);
         if (st.hit) |hit| {
             st.hit = null;
             self.response_cache.release(hit);
@@ -411,11 +434,39 @@ pub const GraphqlRoute = struct {
                 error.StackOverflow => return self.sendThrown(req, reply, &.{.{ .message = values.stack_overflow_message }}),
             };
             if (prepared_or_overflow) |prepared| {
-                if (self.response_cache.readShared(prepared)) |hit| {
+                var flight_waiter: cache_mod.FlightWaiter = .{};
+                // Hits take the plain read; only a miss joins or leads a flight.
+                var waited = false;
+                const found: ?cache_mod.SharedHit = if (self.response_cache.readShared(prepared)) |hit| hit else switch (self.response_cache.lookup(prepared, &flight_waiter)) {
+                    .hit => |hit| hit,
+                    .lead => blk: {
+                        st.leading = prepared;
+                        break :blk null;
+                    },
+                    .miss => null,
+                    // Another request runs this key's query: wait for it
+                    // (holding no execution slot), then read once. A miss
+                    // now (its response was not cached) runs the query here.
+                    .wait => blk: {
+                        _ = self.flight_waiters.fetchAdd(1, .monotonic);
+                        if (self.flight_park_hook) |hook| hook(self);
+                        flight_waiter.waiter.wait();
+                        _ = self.flight_waiters.fetchSub(1, .monotonic);
+                        waited = true;
+                        break :blk self.response_cache.readSharedForWaiter(prepared);
+                    },
+                };
+                if (found) |hit| {
                     // Zero-copy: the stored body is written directly and released in on_done.
                     st.hit = hit;
-                    reply.header("cache-control", try cache_mod.cacheControlHeader(a, hit.ttl));
-                    reply.type("application/json; charset=utf-8");
+                    if (waited) {
+                        // A waiter answers as the TS miss it stands for (the
+                        // entry is one of its own ttl, just written).
+                        try missHead(reply, a, prepared);
+                    } else {
+                        reply.header("cache-control", try cache_mod.cacheControlHeader(a, hit.ttl));
+                        reply.type("application/json; charset=utf-8");
+                    }
                     reply.sendText(hit.body);
                     return;
                 }
@@ -602,6 +653,11 @@ pub const GraphqlRoute = struct {
             // `{"data":` + data already written: append errors and close.
             var body = prefixed;
             finishResponse(&body.writer, result.errors, true) catch return reply.sendSerializedJson("");
+            // TS's JSON.stringify of a response holding a deep custom-scalar
+            // value overflows V8's stack (DEVIATIONS.md).
+            if (result.deep_scalar and json.maxDepth(body.written()) >= values.response_depth_limit) {
+                return self.sendThrown(req, reply, &.{.{ .message = values.stack_overflow_message }});
+            }
             return reply.sendSerializedJson(body.written());
         }
         reply.sendSerializedJson(serializeResponse(req.arena, 200, result.data, result.errors) catch "");

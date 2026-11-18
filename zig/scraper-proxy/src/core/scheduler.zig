@@ -245,7 +245,7 @@ test "one-shot timers fire in deadline order, FIFO on ties; cancel removes" {
     _ = try scheduler.schedule(10, &a, TestCtx.fire);
     _ = try scheduler.schedule(10, &b, TestCtx.fire);
     _ = try scheduler.schedule(300, &c, TestCtx.fire);
-    const cancelled = try scheduler.schedule(200, &d, TestCtx.fire);
+    const cancelled = try scheduler.schedule(2_000, &d, TestCtx.fire);
     try testing.expect(scheduler.cancel(cancelled));
     try testing.expect(!scheduler.cancel(cancelled));
     try waitFor(&log, 3);

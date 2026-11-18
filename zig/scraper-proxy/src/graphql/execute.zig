@@ -107,6 +107,10 @@ pub const RawColumn = struct {
     name: []const u8,
     /// Null: not a fast column type (the rows must be materialized).
     kind: ?FastKind,
+    /// Values can be JSON documents of any depth (json/jsonb): custom-scalar
+    /// fields over the column take the Value path, where `writeCustom`
+    /// flags deep values for the route's depth check.
+    nested: bool = false,
 };
 
 /// A database result read in place (IMPLEMENTATION.md "rows straight to
@@ -151,6 +155,9 @@ pub const Result = struct {
     /// When `data` is set: the response body so far (`{"data":` + data), so
     /// the route finishes it in place instead of copying `data`.
     body: ?std.Io.Writer.Allocating = null,
+    /// A custom-scalar value nested at least `deep_scalar_depth` levels was
+    /// written: the route checks the response's depth (`values.response_depth_limit`).
+    deep_scalar: bool = false,
 
     pub fn deinit(self: Result) void {
         const backing = self.backing orelse return;
@@ -224,8 +231,24 @@ pub const Executor = struct {
     /// tree); an error nulls the nearest nullable position by rewinding to
     /// where that position's value started.
     out: std.Io.Writer.Allocating = undefined,
+    /// See `Result.deep_scalar`.
+    deep_scalar: bool = false,
 
     const Err = error{ OutOfMemory, Raw, Located };
+
+    /// Custom-scalar values at least this deep flag the response for the
+    /// route's depth check (no GraphQL selection in this schema nests deep
+    /// enough to make up the rest of `values.response_depth_limit`).
+    const deep_scalar_depth = 4096;
+
+    /// A custom scalar's value (`scalars.ts` serialize: pass-through). The
+    /// depth comes from the serialization itself (`json.deepest_written`,
+    /// only set past its recursion limit): no extra walk of the value.
+    fn writeCustom(self: *Executor, r: Value) Allocator.Error!void {
+        json.deepest_written = 0;
+        json.stringify(&self.out.writer, r) catch return error.OutOfMemory;
+        if (json.deepest_written >= deep_scalar_depth) self.deep_scalar = true;
+    }
 
     const SubfieldKey = struct { named: *const NamedType, nodes: [*]const *const ast.Field, len: usize };
     const Collected = struct {
@@ -284,7 +307,7 @@ pub const Executor = struct {
             };
         }
         w.writeByte('}') catch return error.OutOfMemory;
-        return .{ .data = .{ .raw = self.out.written()[body_prefix.len..] }, .errors = self.errors.items, .body = self.out };
+        return .{ .data = .{ .raw = self.out.written()[body_prefix.len..] }, .errors = self.errors.items, .body = self.out, .deep_scalar = self.deep_scalar };
     }
 
     /// Start of every 2xx response body (mercurius field order `data, errors`).
@@ -308,6 +331,7 @@ pub const Executor = struct {
         value: ?[]const u8 = null,
         propagated: bool = false,
         oom: bool = false,
+        deep_scalar: bool = false,
         errors: []const GqlError = &.{},
         pending: GqlError = .{ .message = "" },
         /// The field reached the database/diagnostics service (settles after
@@ -369,6 +393,7 @@ pub const Executor = struct {
             };
             t.value = sub.out.written();
             t.errors = sub.errors.items;
+            t.deep_scalar = sub.deep_scalar;
         }
     };
 
@@ -483,6 +508,7 @@ pub const Executor = struct {
         result.data = .{ .raw = self.out.written()[body_prefix.len..] };
         result.errors = self.errors.items;
         result.body = self.out;
+        for (tasks) |*t| result.deep_scalar = result.deep_scalar or t.deep_scalar;
         return result;
     }
 
@@ -568,7 +594,7 @@ pub const Executor = struct {
     fn writeScalarFast(self: *Executor, scalar: schema_mod.ScalarKind, r: Value) Allocator.Error!bool {
         const w = &self.out.writer;
         switch (scalar) {
-            .custom => json.stringify(w, r) catch return error.OutOfMemory,
+            .custom => try self.writeCustom(r),
             .string, .id => {
                 if (r != .string) return false;
                 json.writeString(w, r.string) catch return error.OutOfMemory;
@@ -719,7 +745,7 @@ pub const Executor = struct {
                 .boolean => k == .bool_tf,
                 // Pass-through: today's output is the converted cell as JSON,
                 // which `write_text_fn` writes for any column type.
-                .custom => true,
+                .custom => !raw.columns[i].nested,
                 .float => false,
             };
             if (!identity) return false;
@@ -798,7 +824,9 @@ pub const Executor = struct {
                 if (r == .null) return self.writeNull();
                 if (named.isLeaf()) {
                     const leaf = try self.completeLeaf(named, r);
-                    json.stringify(&self.out.writer, leaf) catch return error.OutOfMemory;
+                    if (named.kind == .scalar and named.scalar == .custom) {
+                        try self.writeCustom(leaf);
+                    } else json.stringify(&self.out.writer, leaf) catch return error.OutOfMemory;
                     return leaf == .null;
                 }
                 try self.writeObject(named, info, path, r);

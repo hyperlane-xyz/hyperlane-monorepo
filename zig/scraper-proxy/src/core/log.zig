@@ -370,7 +370,15 @@ test "a fiber waiting for log output parks until the writer progresses" {
         sibling_saw_done: ?bool = null,
 
         fn drainer(c: *@This()) void {
-            std.Thread.sleep(20 * std.time.ns_per_ms);
+            // Drain only once the writer parked (bounded: 5 s).
+            var waited: u32 = 0;
+            while (waited < 5_000) : (waited += 1) {
+                c.out.mutex.lock();
+                const parked = c.out.waiters.items.len != 0;
+                c.out.mutex.unlock();
+                if (parked) break;
+                std.Thread.sleep(std.time.ns_per_ms);
+            }
             c.out.mutex.lock();
             c.out.drainLocked(c.file);
             c.out.mutex.unlock();

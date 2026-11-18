@@ -218,7 +218,9 @@ test "bounds the validator pool and times out queued acquisition independently o
     defer std.posix.close(stalled.fd);
     var url_buf: [128]u8 = undefined;
     const url = try std.fmt.bufPrint(&url_buf, "postgresql://u:p@127.0.0.1:{d}/x", .{stalled.port});
-    core.config.set(.{ .database_url = url, .database_query_timeout_ms = 1000 });
+    // The connects time out after 3 s: the snapshot below must see all six
+    // queries started first, however slowly the threads get going.
+    core.config.set(.{ .database_url = url, .database_query_timeout_ms = 3000 });
     core.log.setSink(LogCapture.sink, null);
     defer core.log.setSink(null, null);
     defer LogCapture.reset();
@@ -247,8 +249,8 @@ test "bounds the validator pool and times out queued acquisition independently o
     for (&threads, &queries) |*t, *q| t.* = try std.Thread.spawn(.{}, Query.run, .{ svc, q });
     // Five connecting, one queued; the live pool is untouched.
     var snap = svc.metricsSnapshot();
-    var waited: usize = 0;
-    while ((snap.pools.validator.total < 5 or snap.pools.validator.waiting < 1) and waited < 400) : (waited += 1) {
+    const until = deadlineAfter(2_500);
+    while ((snap.pools.validator.total < 5 or snap.pools.validator.waiting < 1) and std.time.milliTimestamp() < until) {
         std.Thread.sleep(std.time.ns_per_ms);
         snap = svc.metricsSnapshot();
     }
@@ -320,6 +322,14 @@ test "fails startup on false or missing stream schema checks" {
 // Real PostgreSQL
 // ---------------------------------------------------------------------------
 
+/// Wall-clock bound for test waits on another thread's progress (a loaded
+/// machine can stall a thread for well over a second).
+const wait_bound_ms = 5_000;
+
+fn deadlineAfter(ms: i64) i64 {
+    return std.time.milliTimestamp() + ms;
+}
+
 fn testUrl() ?[]const u8 {
     return std.posix.getenv("SCRAPER_PROXY_TEST_DATABASE_URL");
 }
@@ -380,6 +390,102 @@ test "libpq: node-pg row conversion, params and failures" {
     try testing.expectEqualStrings("{\"b\":[{\"type\":\"Buffer\",\"data\":[1,171]},null],\"again\":[{\"type\":\"Buffer\",\"data\":[1,171]}]}", try core.json.stringifyAlloc(a, echoed.rows[0]));
     // UPDATE row counts.
     _ = try p.query(a, "CREATE TEMP TABLE IF NOT EXISTS t_rows (x int)", &.{}, &failure);
+}
+
+test "libpq: NUL and lone-surrogate parameters reach PostgreSQL as node-pg sends them (every plan)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    const S = struct {
+        fn str(text: []const u8) Value {
+            return .{ .string = text };
+        }
+    };
+    const nul_error = "22021 invalid byte sequence for encoding \"UTF8\": 0x00";
+    // Expected outcomes: node-pg 8.23 on PostgreSQL 16 and 12 (szig-scratch/db-nul/truth.js).
+    const Case = struct { sql: []const u8, params: []const Value, want: []const u8 };
+    const cases = [_]Case{
+        .{ .sql = "SELECT $1::text AS v", .params = &.{S.str("ab\x00cd")}, .want = nul_error },
+        .{ .sql = "SELECT $1::bigint AS v", .params = &.{S.str("\x00")}, .want = nul_error },
+        .{ .sql = "SELECT $1::bytea AS v", .params = &.{S.str("\x00")}, .want = nul_error },
+        .{ .sql = "SELECT $1::bytea[] AS v", .params = &.{.{ .array = @constCast(&[_]Value{S.str("\x00")}) }}, .want = nul_error },
+        .{ .sql = "SELECT $1::int8[] AS v", .params = &.{.{ .array = @constCast(&[_]Value{ S.str("1"), S.str("x\x00") }) }}, .want = nul_error },
+        .{ .sql = "SELECT 'abc' LIKE $1 AS v", .params = &.{S.str("a\x00%")}, .want = nul_error },
+        // PostgreSQL reads parameters in order: an earlier one's own error wins.
+        .{ .sql = "SELECT $1::bigint AS v, $2::text AS w", .params = &.{ S.str("x"), S.str("\x00") }, .want = "22P02 invalid input syntax for type bigint: \"x\"" },
+        .{ .sql = "SELECT $1::text AS v, $2::bigint AS w", .params = &.{ S.str("\x00"), S.str("x") }, .want = nul_error },
+        .{ .sql = "SELECT 1 AS v WHERE $1::text IS NOT NULL OR true", .params = &.{S.str("\x00")}, .want = nul_error },
+        // Lone surrogates (WTF-8) bind as U+FFFD, a split pair as its code point.
+        .{ .sql = "SELECT $1::text AS v", .params = &.{S.str("\xed\xa0\x80")}, .want = "\"\u{fffd}\"" },
+        .{ .sql = "SELECT $1::text[] AS v", .params = &.{.{ .array = @constCast(&[_]Value{ S.str("a\xed\xb0\x80"), S.str("b") }) }}, .want = "[\"a\u{fffd}\",\"b\"]" },
+        .{ .sql = "SELECT $1::text AS v", .params = &.{S.str("\xed\xa0\xbd\xed\xb8\x80")}, .want = "\"\u{1f600}\"" },
+        .{ .sql = "SELECT $1::text AS v", .params = &.{S.str("\xed\xa0\x80\x00")}, .want = nul_error },
+        // Objects go as JSON text: a NUL is the escape `\u0000`, never cut.
+        .{ .sql = "SELECT $1::jsonb AS v", .params = &.{.{ .object = @constCast(&[_]core.json.Member{.{ .key = "k", .value = S.str("\x00") }}) }}, .want = "22P05 unsupported Unicode escape sequence" },
+        .{ .sql = "SELECT $1::text AS v", .params = &.{.{ .object = @constCast(&[_]core.json.Member{.{ .key = "k", .value = S.str("\x00") }}) }}, .want = "\"{\\\"k\\\":\\\"\\\\u0000\\\"}\"" },
+    };
+    // Unnamed, named (prepared on the second run, then reused; generic too),
+    // and pipelined after a transaction-scoped setting (fixed_join, serial,
+    // serial_generic): a Bind failure mid-pipeline surfaces as exactly that
+    // error and leaves the connection clean for the next query. A text keeps
+    // one plan per session (`Statements` classes), so each plan gets its own pool.
+    for ([_]pq.Plan{ .unnamed, .custom, .reusable, .generic, .fixed_join, .serial, .serial_generic }) |plan| {
+        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+        defer p.deinit();
+        for (cases) |c| {
+            for (0..3) |_| {
+                var failure: root.Failure = .{};
+                const got = if (p.queryWith(a, c.sql, c.params, .{ .plan = plan }, &failure)) |r|
+                    try core.json.stringifyAlloc(a, r.rows[0].get("v").?)
+                else |e| blk: {
+                    try testing.expectEqual(error.QueryFailed, e);
+                    break :blk try std.fmt.allocPrint(a, "{s} {s}", .{ failure.code.?, failure.message });
+                };
+                testing.expectEqualStrings(c.want, got) catch |e| {
+                    std.debug.print("plan {s}: {s}\n", .{ @tagName(plan), c.sql });
+                    return e;
+                };
+                // The same connection serves the next query, outside any pipeline.
+                var next: root.Failure = .{};
+                try testing.expectEqual(@as(f64, 7), (try p.queryWith(a, "SELECT 7 AS seven WHERE $1::int = 1", &.{.{ .number = 1 }}, .{ .plan = plan }, &next)).rows[0].get("seven").?.number);
+                try testing.expectEqual(@as(u32, 1), p.stats().total);
+            }
+        }
+        // The connection stayed usable throughout.
+        var failure: root.Failure = .{};
+        try testing.expectEqual(@as(f64, 2), (try p.query(a, "SELECT 2 AS two", &.{}, &failure)).rows[0].get("two").?.number);
+        try testing.expectEqual(@as(u32, 1), p.stats().total);
+    }
+}
+
+test "libpq: a NUL parameter's failed-query line reads like TS's (0x00, escaped values)" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    core.config.set(.{ .database_url = url });
+    core.log.setSink(LogCapture.sink, null);
+    defer core.log.setSink(null, null);
+    defer LogCapture.reset();
+    const svc = try DbService.init(testing.allocator, null);
+    defer svc.deinit();
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var failure: root.Failure = .{};
+    LogCapture.reset();
+    // Lone surrogates log as JSON.stringify escapes them (`\udxxx`).
+    try testing.expectError(error.QueryFailed, svc.query(a, "SELECT $1::bigint AS v,\n  $2::text[] AS w, $3::text AS x, $4::text AS y", &.{
+        .{ .string = "1\x00" },
+        .{ .array = @constCast(&[_]Value{.{ .string = "\xed\xa0\x80" }}) },
+        .{ .string = "\xed\xb0\x80x" },
+        .{ .string = "\u{1f600}" },
+    }, &failure));
+    LogCapture.mutex.lock();
+    defer LogCapture.mutex.unlock();
+    try testing.expectEqual(@as(usize, 1), LogCapture.warnings.items.len);
+    const line = LogCapture.warnings.items[0];
+    // TS: `query failed id=… role=primary durationMs=… error=${formatError(error)} sql=… values=${json(values)}`.
+    try testing.expect(std.mem.startsWith(u8, line, "query failed id="));
+    try testing.expectEqualStrings(" error=invalid byte sequence for encoding \"UTF8\": 0x00 sql=SELECT $1::bigint AS v, $2::text[] AS w, $3::text AS x, $4::text AS y values=[\"1\\u0000\",[\"\\ud800\"],\"\\udc00x\",\"\u{1f600}\"]", line[std.mem.indexOf(u8, line, " error=").?..]);
 }
 
 test "libpq: reusable statements match unnamed ones, evict, and survive result type changes" {
@@ -1024,8 +1130,11 @@ test "libpq: pool waiters are served FIFO and capped at max" {
     var errors: std.atomic.Value(u32) = .init(0);
     var threads: [6]std.Thread = undefined;
     for (&threads) |*t| t.* = try std.Thread.spawn(.{}, Worker.run, .{ p, &errors });
-    std.Thread.sleep(20 * std.time.ns_per_ms);
-    const mid = p.stats();
+    // Check the cap while some worker queues behind the two connections.
+    const until = deadlineAfter(wait_bound_ms);
+    var mid = p.stats();
+    while (mid.waiting == 0 and std.time.milliTimestamp() < until) : (mid = p.stats()) std.Thread.sleep(std.time.ns_per_ms);
+    try testing.expect(mid.waiting >= 1);
     try testing.expect(mid.total <= 2);
     for (threads) |t| t.join();
     try testing.expectEqual(@as(u32, 0), errors.load(.monotonic));
@@ -1070,6 +1179,9 @@ const NotifyCapture = struct {
     /// Stay in on_disconnect this long after reporting (the listener frees
     /// itself only once the callback returns).
     linger_ms: u64 = 0,
+    /// Holds the disconnect callback until set (bounded), so the listener
+    /// thread outlives whatever the test does meanwhile.
+    hold: ?*std.Thread.ResetEvent = null,
 
     fn onNotification(ctx: *anyopaque, channel: []const u8, payload: []const u8) void {
         const self: *NotifyCapture = @ptrCast(@alignCast(ctx));
@@ -1094,6 +1206,7 @@ const NotifyCapture = struct {
             self.cond.broadcast();
         }
         if (self.linger_ms > 0) std.Thread.sleep(self.linger_ms * std.time.ns_per_ms);
+        if (self.hold) |h| h.timedWait(30 * std.time.ns_per_s) catch {};
     }
 
     fn deinit(self: *NotifyCapture) void {
@@ -1164,8 +1277,10 @@ test "libpq: close outlived by a listener thread warns and leaves the service al
     defer LogCapture.reset();
     const svc = try DbService.init(testing.allocator, null);
     svc.listener_wait_ms = 20;
-    // The callback lingers far past close's wait.
-    var capture: NotifyCapture = .{ .svc = svc, .unlisten_inside = true, .linger_ms = 500 };
+    // The callback is held until close's wait is over and checked.
+    var hold: std.Thread.ResetEvent = .{};
+    defer hold.set();
+    var capture: NotifyCapture = .{ .svc = svc, .unlisten_inside = true, .hold = &hold };
     defer capture.deinit();
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
@@ -1190,6 +1305,7 @@ test "libpq: close outlived by a listener thread warns and leaves the service al
         for (LogCapture.warnings.items) |w| warned = warned or contains(w, "listener threads still running after 20 ms at close");
         try testing.expect(warned);
     }
+    hold.set();
     try testing.expect(listener_mod.awaitThreads(&svc.listener_threads, 5_000));
     testing.allocator.destroy(svc);
 }
@@ -1548,7 +1664,15 @@ test "regression: close waits for in-flight queries, then rejects without recrea
     };
     var ok: std.atomic.Value(bool) = .init(false);
     const t = try std.Thread.spawn(.{}, Slow.run, .{ svc, &ok });
-    std.Thread.sleep(80 * std.time.ns_per_ms);
+    // Close once the query is in flight (connecting or running).
+    const until = deadlineAfter(wait_bound_ms);
+    while (std.time.milliTimestamp() < until) {
+        svc.mutex.lock();
+        const in_flight = svc.in_flight;
+        svc.mutex.unlock();
+        if (in_flight > 0) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
     const started = std.time.milliTimestamp();
     try svc.close();
     t.join();
@@ -1582,7 +1706,9 @@ test "regression: pool never exceeds max while waiters are handed freed slots" {
         }
     };
     const waiter = try std.Thread.spawn(.{}, Waiter.run, .{p});
-    while (p.stats().waiting == 0) std.Thread.sleep(std.time.ns_per_ms);
+    const until = deadlineAfter(wait_bound_ms);
+    while (p.stats().waiting == 0 and std.time.milliTimestamp() < until) std.Thread.sleep(std.time.ns_per_ms);
+    try testing.expect(p.stats().waiting == 1);
     // Discarding hands the freed slot to the queued waiter; a newcomer that
     // runs before the waiter wakes must queue, not open a second connection.
     held.broken = true;
@@ -1732,34 +1858,35 @@ test "regression: a queued request's connect timeout counts its queue time" {
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .connect_timeout_ms = timeout_ms }, .max = 1 });
     defer p.deinit();
     const Attempt = struct {
-        fn run(pool: *pool_mod.Pool, elapsed: *i64, message: *[96]u8) void {
+        fn run(pool: *pool_mod.Pool, elapsed: *std.atomic.Value(i64), message: *[96]u8) void {
             var a = std.heap.ArenaAllocator.init(testing.allocator);
             defer a.deinit();
             var failure: root.Failure = .{};
             const t0 = std.time.milliTimestamp();
             _ = pool.query(a.allocator(), "SELECT 1", &.{}, &failure) catch {};
-            elapsed.* = std.time.milliTimestamp() - t0;
+            elapsed.store(@max(1, std.time.milliTimestamp() - t0), .release);
             const n = @min(failure.message.len, message.len);
             @memcpy(message[0..n], failure.message[0..n]);
         }
     };
-    var e1: i64 = 0;
-    var e2: i64 = 0;
+    var e1: std.atomic.Value(i64) = .init(0);
+    var e2: std.atomic.Value(i64) = .init(0);
     var m1: [96]u8 = @splat(0);
     var m2: [96]u8 = @splat(0);
     // Gate on pool state, not sleeps: the first request holds the only slot
     // (connecting) before the second starts, and the second is queued.
     const t1 = try std.Thread.spawn(.{}, Attempt.run, .{ p, &e1, &m1 });
-    while (p.stats().total == 0) std.Thread.sleep(std.time.ns_per_ms);
+    const until = deadlineAfter(wait_bound_ms);
+    while (p.stats().total == 0 and e1.load(.acquire) == 0 and std.time.milliTimestamp() < until) std.Thread.sleep(std.time.ns_per_ms);
     const t2 = try std.Thread.spawn(.{}, Attempt.run, .{ p, &e2, &m2 });
-    while (p.stats().waiting == 0 and e2 == 0) std.Thread.sleep(std.time.ns_per_ms);
+    while (p.stats().waiting == 0 and e2.load(.acquire) == 0 and std.time.milliTimestamp() < until) std.Thread.sleep(std.time.ns_per_ms);
     t1.join();
     t2.join();
     try testing.expect(std.mem.startsWith(u8, &m1, "Connection terminated due to connection timeout"));
     try testing.expect(std.mem.startsWith(u8, &m2, "timeout exceeded when trying to connect"));
     // Its timer runs from its own call (about timeout_ms), not queue wait
     // plus a fresh connect (nearly 2 x timeout_ms): half a timeout of slack.
-    try testing.expect(e2 < timeout_ms + timeout_ms / 2);
+    try testing.expect(e2.load(.acquire) < timeout_ms + timeout_ms / 2);
 }
 
 test "libpq: start warms five primary connections concurrently" {
@@ -2021,21 +2148,21 @@ test "libpq on a fiber: checkout prefers the newest idle connection of the fiber
 test "libpq on fibers: a waiter on another loop passed over for affinity keeps its deadline and text" {
     const url = testUrl() orelse return error.SkipZigTest;
     // Two fiber "loops": a testing.run scheduler on each of two threads.
-    const timeout_ms = 300;
+    // B's deadline starts only once A holds the connection (`held`), and A's
+    // second fiber holds it three times as long.
+    const timeout_ms = 1_000;
     const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url, .connect_timeout_ms = timeout_ms }, .max = 1, .affinity_bound_ms = 60_000 });
     defer p.deinit();
     const State = struct {
         pool: *pool_mod.Pool,
         holder_done: std.atomic.Value(bool) = .init(false),
+        held: std.atomic.Value(bool) = .init(false),
         b_err: ?anyerror = null,
         b_message: [96]u8 = @splat(0),
         b_elapsed: i64 = 0,
         a2_got: std.atomic.Value(bool) = .init(false),
         err: ?anyerror = null,
 
-        fn waitFor(pool: *pool_mod.Pool, waiting: u32) void {
-            while (pool.stats().waiting < waiting) std.Thread.sleep(std.time.ns_per_ms);
-        }
         // Loop A, fiber 1: checks out the connection (its home becomes A),
         // and releases it once the other loop's waiter and A's second
         // waiter are both queued.
@@ -2047,6 +2174,7 @@ test "libpq on fibers: a waiter on another loop passed over for affinity keeps i
                 st.err = e;
                 return;
             };
+            st.held.store(true, .release);
             _ = conn.query(arena.allocator(), "SELECT pg_sleep(0.01)", &.{}, null) catch |e| {
                 st.err = e;
             };
@@ -2055,7 +2183,14 @@ test "libpq on fibers: a waiter on another loop passed over for affinity keeps i
             };
             // Off-fiber wait for the queue to fill (testing.run runs the
             // spawned fiber only when this one parks: park via a short query).
-            while (st.pool.stats().waiting < 2) _ = conn.query(arena.allocator(), "SELECT pg_sleep(0.005)", &.{}, null) catch {};
+            const until = deadlineAfter(wait_bound_ms);
+            while (st.pool.stats().waiting < 2) {
+                if (std.time.milliTimestamp() > until) {
+                    st.err = error.Timeout;
+                    break;
+                }
+                _ = conn.query(arena.allocator(), "SELECT pg_sleep(0.005)", &.{}, null) catch {};
+            }
             st.pool.release(conn);
             st.holder_done.store(true, .release);
         }
@@ -2066,13 +2201,19 @@ test "libpq on fibers: a waiter on another loop passed over for affinity keeps i
             var arena = std.heap.ArenaAllocator.init(testing.allocator);
             defer arena.deinit();
             // Queue only after B (FIFO position matters).
-            while (st.pool.stats().waiting < 1) _ = st.pool.stats();
+            const until = deadlineAfter(wait_bound_ms);
+            while (st.pool.stats().waiting < 1) {
+                if (std.time.milliTimestamp() > until) {
+                    st.err = error.Timeout;
+                    return;
+                }
+            }
             var conn = st.pool.acquire(arena.allocator(), null) catch |e| {
                 st.err = e;
                 return;
             };
             st.a2_got.store(true, .release);
-            _ = conn.query(arena.allocator(), "SELECT pg_sleep(0.9)", &.{}, null) catch {};
+            _ = conn.query(arena.allocator(), "SELECT pg_sleep(3)", &.{}, null) catch {};
             st.pool.release(conn);
         }
         // Loop B: the oldest waiter, passed over for A's second waiter.
@@ -2104,8 +2245,13 @@ test "libpq on fibers: a waiter on another loop passed over for affinity keeps i
     };
     var st: State = .{ .pool = p };
     const a = try std.Thread.spawn(.{}, State.runA, .{&st});
-    // B queues once A holds the connection.
-    while (p.stats().total == 0 or p.stats().idle != 0) std.Thread.sleep(std.time.ns_per_ms);
+    // B queues once A holds the connection (connected and checked out).
+    const until = deadlineAfter(wait_bound_ms);
+    while (!st.held.load(.acquire) and std.time.milliTimestamp() < until) std.Thread.sleep(std.time.ns_per_ms);
+    if (!st.held.load(.acquire)) {
+        a.join();
+        return error.TestUnexpectedResult;
+    }
     const b = try std.Thread.spawn(.{}, State.runB, .{&st});
     b.join();
     a.join();
@@ -2543,6 +2689,8 @@ fn hubIsolation(blackholed_first: bool, fault: HubFault) !void {
         listener: ?*listener_mod.Listener = null,
         attempt_ms: i64 = 0,
         registered_at: ?i64 = null,
+        /// Set once `run` is over (`listener`/`registered_at` final).
+        done: std.atomic.Value(bool) = .init(false),
         fn run(self: *@This()) void {
             while (true) {
                 self.stalled.mutex.lock();
@@ -2562,6 +2710,7 @@ fn hubIsolation(blackholed_first: bool, fault: HubFault) !void {
             }
             self.attempt_ms = std.time.milliTimestamp() - started;
             if (self.listener != null) self.registered_at = std.time.milliTimestamp();
+            self.done.store(true, .release);
         }
     };
     var reconnect: Reconnect = .{ .stalled = &stalled, .channel = bad_channel, .faulted_url = proxied, .url = url };
@@ -2590,10 +2739,11 @@ fn hubIsolation(blackholed_first: bool, fault: HubFault) !void {
             fault_ms = std.time.milliTimestamp() - cut;
         },
     }
-    // 50 NOTIFYs over ~1.5 s: across the bad one's health send, its stall,
-    // its timeout, the hub closing it (PQfinish's Terminate included), the
-    // owner's failed attempt at the faulted address and the new listener's
-    // registration.
+    // At least 50 NOTIFYs over ~1.5 s, and on until one is sent after the
+    // reconnect is over (bounded): across the bad one's health send, its
+    // stall, its timeout, the hub closing it (PQfinish's Terminate included),
+    // the owner's failed attempt at the faulted address and the new
+    // listener's registration.
     const notify_good = try std.fmt.allocPrint(a, "NOTIFY \"{s}\"", .{good_channel});
     // Delivery is measured from the NOTIFY query's return (sent and
     // committed; it can arrive before the reply, so this may be negative)
@@ -2601,7 +2751,10 @@ fn hubIsolation(blackholed_first: bool, fault: HubFault) !void {
     // from before it was sent.
     var max_latency: i64 = 0;
     var max_after_commit: i64 = std.math.minInt(i64);
-    for (0..50) |i| {
+    const window_end = deadlineAfter(wait_bound_ms);
+    var i: usize = 0;
+    while (true) : (i += 1) {
+        const reconnected = reconnect.done.load(.acquire);
         const before = healthy.count();
         const sent = std.time.milliTimestamp();
         _ = try notifier.query(a, notify_good, &.{}, null);
@@ -2614,7 +2767,8 @@ fn hubIsolation(blackholed_first: bool, fault: HubFault) !void {
         healthy.mutex.unlock();
         max_latency = @max(max_latency, got - sent);
         max_after_commit = @max(max_after_commit, got - committed);
-        _ = i;
+        if (i + 1 >= 50 and reconnected) break;
+        if (std.time.milliTimestamp() > window_end) break;
         std.Thread.sleep(30 * std.time.ns_per_ms);
     }
     // Detection: the health SELECT 1 is due ≤ health_ms after the cut and
@@ -2637,17 +2791,22 @@ fn hubIsolation(blackholed_first: bool, fault: HubFault) !void {
     defer if (reconnect.listener) |l| l.stop();
     try testing.expect(reconnect.registered_at != null);
     // The window measured above covers the reconnect.
-    try testing.expect(reconnect.registered_at.? <= healthy.received.items[healthy.received.items.len - 1]);
+    healthy.mutex.lock();
+    const last_received = healthy.received.items[healthy.received.items.len - 1];
+    healthy.mutex.unlock();
+    try testing.expect(reconnect.registered_at.? <= last_received);
     std.debug.print("hub isolation ({s}): close + reconnect attempt {d} ms, re-registered {d} ms after the fault\n", .{ @tagName(fault), reconnect.attempt_ms, reconnect.registered_at.? - cut });
     std.debug.print("hub isolation ({s} {s}): healthy NOTIFY max latency {d} ms ({d} ms after its query returned); failed one detected after {d} ms (fault applied in {d} ms)\n", .{ @tagName(fault), if (blackholed_first) "first" else "second", max_latency, max_after_commit, detection, fault_ms });
-    try testing.expect(max_after_commit < 50);
+    // Serialising behind the stalled connection would show as its timeout
+    // (timeout_ms) or more: half of that leaves room for a scheduler hiccup.
+    try testing.expect(max_after_commit < timeout_ms / 2);
     try testing.expect(max_latency <= 250);
     if (fault == .kill) {
         // A terminated backend is seen at its socket's EOF, not by the health
-        // check: within 50 ms of the kill query returning. (Measured from the
+        // check: soon after the kill query returns (150 ms bound). (Measured from the
         // cut, detection also includes that query's own round trip, which a
         // saturated machine stretches; the cut-based bound is a sanity check.)
-        try testing.expect(detection - fault_ms <= 50);
+        try testing.expect(detection - fault_ms <= 150);
         try testing.expect(detection <= 250);
     } else try testing.expect(detection <= health_ms + timeout_ms + 150);
     stalled.mutex.lock();
@@ -2686,11 +2845,16 @@ test "listener hub: a failing health query's error survives until its reply comp
     defer conn.deinit();
     var state: pq.Conn.SimpleState = .{};
     try conn.sendSimple("SELECT 1; SELECT 1/0; SELECT 2");
-    while (!try conn.flushPending()) _ = pq.waitSocket(conn.socket(), std.posix.POLL.OUT, null);
+    const until = pq.nowMs() + wait_bound_ms;
+    while (!try conn.flushPending()) {
+        if (pq.nowMs() > until) return error.Timeout;
+        _ = pq.waitSocket(conn.socket(), std.posix.POLL.OUT, until);
+    }
     // (Whether the error and the end of the reply arrive in one read or
     // two, the failure must be reported once the reply completes.)
     const outcome = while (true) {
-        _ = pq.waitSocket(conn.socket(), std.posix.POLL.IN, pq.nowMs() + 2000);
+        if (pq.nowMs() > until) return error.Timeout;
+        _ = pq.waitSocket(conn.socket(), std.posix.POLL.IN, until);
         try conn.consumeInput(true);
         const result = conn.takeSimple(&state);
         if (result != .busy) break result;
@@ -2700,9 +2864,14 @@ test "listener hub: a failing health query's error survives until its reply comp
     try testing.expectEqual(@as(?usize, null), state.failed_len);
     // A healthy query afterwards reports ok.
     try conn.sendSimple("SELECT 1");
-    while (!try conn.flushPending()) _ = pq.waitSocket(conn.socket(), std.posix.POLL.OUT, null);
+    const again = pq.nowMs() + wait_bound_ms;
+    while (!try conn.flushPending()) {
+        if (pq.nowMs() > again) return error.Timeout;
+        _ = pq.waitSocket(conn.socket(), std.posix.POLL.OUT, again);
+    }
     const healthy = while (true) {
-        _ = pq.waitSocket(conn.socket(), std.posix.POLL.IN, pq.nowMs() + 2000);
+        if (pq.nowMs() > again) return error.Timeout;
+        _ = pq.waitSocket(conn.socket(), std.posix.POLL.IN, again);
         try conn.consumeInput(true);
         const result = conn.takeSimple(&state);
         if (result != .busy) break result;

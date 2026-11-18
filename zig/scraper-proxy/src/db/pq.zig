@@ -528,6 +528,68 @@ fn setFailure(failure: ?*Failure, arena: std.mem.Allocator, message: []const u8,
     f.code = if (code) |c| arena.dupe(u8, c) catch null else null;
 }
 
+/// Invalid byte sequence for the encoding (PostgreSQL `22021`).
+const CHARACTER_NOT_IN_REPERTOIRE = "22021";
+
+/// Parameter text as node-pg puts it on the wire (`Buffer.from` of the JS
+/// string), in what libpq can send:
+/// * a lone surrogate (WTF-8, from a JSON `\udxxx` escape) becomes U+FFFD;
+///   a high surrogate directly followed by a low one is their code point;
+/// * libpq sends text parameters as C strings, so a NUL would cut the value
+///   short and PostgreSQL would run the query with another value. node-pg
+///   sends the NUL, and PostgreSQL rejects it in Bind: `invalid byte sequence
+///   for encoding "UTF8": 0x00` (22021). The text up to the NUL is sent
+///   followed by 0xFF instead (`nul` set): PostgreSQL checks a parameter's
+///   encoding before its type input, in parameter order, so it fails at the
+///   same parameter, after the same earlier errors, with the same code and
+///   message but 0xff (`Conn.serverMessage` reports 0x00).
+fn wireParam(arena: std.mem.Allocator, text: [:0]const u8, nul: *bool) std.mem.Allocator.Error![:0]const u8 {
+    // Only NUL or a surrogate (ED A0..BF) changes anything; ED 80..9F is
+    // U+D000..U+D7FF (Hangul syllables among them), kept as is.
+    const first = blk: {
+        var at: usize = 0;
+        while (std.mem.indexOfAnyPos(u8, text, at, "\x00\xed")) |i| {
+            if (text[i] == 0 or (i + 1 < text.len and text[i + 1] >= 0xa0)) break :blk i;
+            at = i + 1;
+        }
+        return text;
+    };
+    var out: std.ArrayList(u8) = try .initCapacity(arena, text.len + 1);
+    out.appendSliceAssumeCapacity(text[0..first]);
+    var i = first;
+    while (i < text.len) {
+        const c = text[i];
+        if (c == 0) {
+            nul.* = true;
+            try out.append(arena, 0xff);
+            break;
+        }
+        if (c == 0xed and i + 2 < text.len and text[i + 1] >= 0xa0) {
+            const unit = surrogate(text[i..][0..3]);
+            if (unit < 0xdc00 and i + 5 < text.len and text[i + 3] == 0xed and text[i + 4] >= 0xb0) {
+                const low = surrogate(text[i + 3 ..][0..3]);
+                const cp: u21 = 0x10000 + ((@as(u21, unit) - 0xd800) << 10) + (low - 0xdc00);
+                var buf: [4]u8 = undefined;
+                const n = std.unicode.utf8Encode(cp, &buf) catch unreachable;
+                try out.appendSlice(arena, buf[0..n]);
+                i += 6;
+            } else {
+                try out.appendSlice(arena, "\u{fffd}");
+                i += 3;
+            }
+            continue;
+        }
+        try out.append(arena, c);
+        i += 1;
+    }
+    return out.toOwnedSliceSentinel(arena, 0);
+}
+
+/// The UTF-16 code unit of a WTF-8 surrogate (`ED A0..BF 80..BF`).
+fn surrogate(bytes: *const [3]u8) u16 {
+    return 0xd000 | (@as(u16, bytes[1] & 0x3f) << 6) | (bytes[2] & 0x3f);
+}
+
 pub const Conn = struct {
     pg: *PGconn,
     query_timeout_ms: ?u64,
@@ -567,6 +629,8 @@ pub const Conn = struct {
     /// planned for its values).
     tune: ?[*:0]const u8 = null,
     tune_unnamed: ?[*:0]const u8 = null,
+    /// A parameter of the query in progress was cut at a NUL (`wireParam`).
+    nul_param: bool = false,
 
     /// Connects within `connect_timeout_ms`. Failure messages follow node-pg:
     /// timeout -> "Connection terminated due to connection timeout", other
@@ -797,6 +861,8 @@ pub const Conn = struct {
         }
         self.lazy_mode = opts.lazy;
         defer self.lazy_mode = false;
+        self.nul_param = false;
+        defer self.nul_param = false;
         errdefer self.dropLazy();
         var result = if (named)
             self.runNamed(arena, sql, params, opts.plan, opts.guard, deadline, failure)
@@ -828,7 +894,7 @@ pub const Conn = struct {
             defer self.tune = named_tune;
             var local: Failure = .{};
             var failed: Step = .execute;
-            const values = try textParams(arena, params);
+            const values = try self.textParams(arena, params);
             if (self.pipeline(arena, .{ .unnamed = sql }, values, self.plan_mode, deadline, &local, &failed)) |result| {
                 return result;
             } else |e| {
@@ -844,7 +910,7 @@ pub const Conn = struct {
     fn sendUnnamed(self: *Conn, arena: std.mem.Allocator, sql: []const u8, params: []const Value, deadline: ?i64, failure: ?*Failure) Error!void {
         const sql_z = try arena.dupeZ(u8, sql);
         const sent = if (params.len == 0) PQsendQuery(self.pg, sql_z) else blk: {
-            const values = try textParams(arena, params);
+            const values = try self.textParams(arena, params);
             break :blk PQsendQueryParams(self.pg, sql_z, @intCast(params.len), null, values.ptr, null, null, 0);
         };
         try self.flushSent(sent, arena, deadline, failure);
@@ -868,7 +934,7 @@ pub const Conn = struct {
             .serial_generic, .generic => self.plan_mode,
             else => .custom,
         };
-        const values = try textParams(arena, params);
+        const values = try self.textParams(arena, params);
         var evict: ?*Statements.Entry = null;
         switch (statements.decide(sql, Statements.classOf(plan))) {
             .unnamed => return self.runUnnamed(arena, sql, params, deadline, failure),
@@ -1029,9 +1095,8 @@ pub const Conn = struct {
                 PGRES_FATAL_ERROR => if (!server_error) {
                     server_error = true;
                     failed.* = step;
-                    const message = if (PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY)) |m| std.mem.span(m) else trimMessage(std.mem.span(PQerrorMessage(self.pg)));
                     const code = if (PQresultErrorField(res, PG_DIAG_SQLSTATE)) |c| std.mem.span(c) else null;
-                    setFailure(failure, arena, message, code);
+                    setFailure(failure, arena, try self.serverMessage(arena, res, code), code);
                 },
                 // PGRES_PIPELINE_ABORTED: steps after the failed one.
                 else => {},
@@ -1131,14 +1196,33 @@ pub const Conn = struct {
                 },
                 PGRES_FATAL_ERROR => if (!reply.server_error) {
                     reply.server_error = true;
-                    const message = if (PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY)) |m| std.mem.span(m) else trimMessage(std.mem.span(PQerrorMessage(self.pg)));
                     const code = if (PQresultErrorField(res, PG_DIAG_SQLSTATE)) |c| std.mem.span(c) else null;
-                    setFailure(failure, arena, message, code);
+                    setFailure(failure, arena, try self.serverMessage(arena, res, code), code);
                 },
                 else => {},
             }
         }
         return false;
+    }
+
+    /// node-pg `prepareValue` text for each parameter (null -> SQL NULL), as
+    /// node-pg's writer sends it (`wireParam`).
+    fn textParams(self: *Conn, arena: std.mem.Allocator, params: []const Value) Error![]?[*:0]const u8 {
+        const values = try arena.alloc(?[*:0]const u8, params.len);
+        for (params, values) |p, *v| v.* = if (try convert.prepareValue(arena, p)) |text| (try wireParam(arena, text, &self.nul_param)).ptr else null;
+        return values;
+    }
+
+    /// The server's message for a failed result. A parameter cut at a NUL
+    /// (`wireParam`) fails with 0xff where node-pg's NUL fails with 0x00:
+    /// the same error otherwise, so it reads as node-pg's.
+    fn serverMessage(self: *const Conn, arena: std.mem.Allocator, res: *PGresult, code: ?[]const u8) std.mem.Allocator.Error![]const u8 {
+        const message = if (PQresultErrorField(res, PG_DIAG_MESSAGE_PRIMARY)) |m| std.mem.span(m) else trimMessage(std.mem.span(PQerrorMessage(self.pg)));
+        // After `wireParam` every parameter is valid UTF-8 up to its 0xFF
+        // marker: an invalid-encoding error can only be that marker.
+        if (self.nul_param and code != null and std.mem.eql(u8, code.?, CHARACTER_NOT_IN_REPERTOIRE) and std.mem.endsWith(u8, message, "0xff"))
+            return std.mem.concat(arena, u8, &.{ message[0 .. message.len - 2], "00" });
+        return message;
     }
 
     /// `PQconsumeInput`, plus (TLS only) what OpenSSL already decrypted
@@ -1317,12 +1401,6 @@ pub fn trimMessage(message: []const u8) []const u8 {
 }
 
 /// node-pg `prepareValue` text for each parameter (null -> SQL NULL).
-fn textParams(arena: std.mem.Allocator, params: []const Value) Error![]?[*:0]const u8 {
-    const values = try arena.alloc(?[*:0]const u8, params.len);
-    for (params, values) |p, *v| v.* = if (try convert.prepareValue(arena, p)) |text| text.ptr else null;
-    return values;
-}
-
 fn rowCount(res: *PGresult) usize {
     const text = std.mem.span(PQcmdTuples(res));
     return std.fmt.parseInt(usize, text, 10) catch 0;
@@ -1541,7 +1619,9 @@ test "waitSocket: a reply within the poller's grace skips the hand-off" {
     var dummy: u8 = 0;
     core.blocking.hook = .{ .ctx = &dummy, .begin = Counter.begin, .end = Counter.end };
     defer core.blocking.hook = null;
-    core.blocking.grace_ns = 200 * std.time.ns_per_ms;
+    // The write comes after ~5 ms; a generous grace keeps a stalled
+    // scheduler from turning it into a reported block.
+    core.blocking.grace_ns = 2 * std.time.ns_per_s;
     defer core.blocking.grace_ns = 0;
     const fds = try std.posix.pipe();
     defer std.posix.close(fds[0]);
@@ -1615,4 +1695,27 @@ test "LazyRows.writeText equals stringify(convertCell) on random values" {
         }
         try expectFastEqualsConvert(a, 25, s.items);
     }
+}
+
+test "wireParam: node-pg's wire text; a NUL ends the value with 0xFF and is reported" {
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var nul = false;
+    const plain: [:0]const u8 = "abc é 😀 \u{d000}\u{d7a3}";
+    try std.testing.expectEqual(plain.ptr, (try wireParam(a, plain, &nul)).ptr);
+    try std.testing.expectEqualStrings("\u{d7a3}\u{fffd}", try wireParam(a, "\u{d7a3}\xed\xa0\x80", &nul));
+    try std.testing.expectEqualStrings("a\u{fffd}b", try wireParam(a, "a\xed\xa0\x80b", &nul));
+    try std.testing.expectEqualStrings("\u{fffd}\u{fffd}", try wireParam(a, "\xed\xb0\x80\xed\xa0\x80", &nul));
+    try std.testing.expectEqualStrings("\u{1f600}!", try wireParam(a, "\xed\xa0\xbd\xed\xb8\x80!", &nul));
+    try std.testing.expectEqualStrings("\u{fffd}", try wireParam(a, "\xed\xa0\xbd", &nul));
+    try std.testing.expect(!nul);
+    try std.testing.expectEqualStrings("{\"a\xff", try wireParam(a, "{\"a\x00b\"}", &nul));
+    try std.testing.expect(nul);
+    nul = false;
+    try std.testing.expectEqualStrings("\u{fffd}\xff", try wireParam(a, "\xed\xa0\x80\x00\xed\xa0\x80", &nul));
+    try std.testing.expect(nul);
+    nul = false;
+    try std.testing.expectEqualStrings("\xff", try wireParam(a, "\x00", &nul));
+    try std.testing.expect(nul);
 }

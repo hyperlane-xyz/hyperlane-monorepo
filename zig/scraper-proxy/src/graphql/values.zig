@@ -59,6 +59,14 @@ pub const coerce_budget = struct {
 
 pub const stack_overflow_message = "Maximum call stack size exceeded";
 
+/// graphql-js responses whose JSON nests this deep fail to serialize in TS
+/// (V8 `JSON.stringify`: "Maximum call stack size exceeded", sent as a
+/// thrown error). Measured on the graphql-js path (a query's first three
+/// executions; mercurius' graphql-jit serializes deeper) of a warm TS in the
+/// bench image (Node 26, Linux): depth 5546 answers, 5547 fails, for nested
+/// arrays, objects and mixed alike; a cold process fails from 5543.
+pub const response_depth_limit = 5547;
+
 /// `getVariableValues(schema, varDefs, inputs, { maxErrors: 50 })`.
 pub fn getVariableValues(a: Allocator, schema: *const Schema, var_defs: []const ast.VariableDefinition, inputs: ?Value) Allocator.Error!VariablesResult {
     var errors: std.ArrayList(CoercionError) = .empty;

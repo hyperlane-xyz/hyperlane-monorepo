@@ -165,8 +165,12 @@ test "jobs run on pool threads, in order, and can be reclaimed" {
         }
     }
     for (tasks) |t| try std.testing.expect(t.thread != 0);
-    try std.testing.expect(pool.threads <= 2);
-    try std.testing.expect(pool.head == null);
+    pool.mutex.lock();
+    const threads = pool.threads;
+    const head = pool.head;
+    pool.mutex.unlock();
+    try std.testing.expect(threads <= 2);
+    try std.testing.expect(head == null);
 }
 
 test "idle threads exit after the idle timeout" {
@@ -182,12 +186,13 @@ test "idle threads exit after the idle timeout" {
         if (pool.reclaim(&t.job)) t.job.run(&t.job) else t.job.done.wait();
     }
     var waited: usize = 0;
-    while (waited < 200) : (waited += 1) {
+    // Up to 5 s for the idle threads to exit (a loaded runner).
+    while (waited < 1000) : (waited += 1) {
         pool.mutex.lock();
         const n = pool.threads;
         pool.mutex.unlock();
         if (n == 0) break;
         std.Thread.sleep(5 * std.time.ns_per_ms);
     }
-    try std.testing.expect(waited < 200);
+    try std.testing.expect(waited < 1000);
 }

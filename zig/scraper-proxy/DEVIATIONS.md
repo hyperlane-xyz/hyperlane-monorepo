@@ -112,7 +112,22 @@ reproduces the observable rule, not the scheduling.
   always follows graphql-js. Only error collection order for repeated,
   failing multi-root queries can differ (jit-compiled TS also includes
   nullable I/O errors that settle before a non-null I/O-free failure is
-  serialized).
+  serialized), and graphql-jit serializes responses nested deeper than
+  graphql-js can (below), so from a query's 4th execution TS answers depths
+  the port rejects.
+- **Deeply nested JSON in a response.** A custom-scalar value (e.g. a
+  diagnostics activity) can nest arbitrarily. On the graphql-js path TS's
+  `JSON.stringify` of a response nested 5547 or more levels deep (the
+  response object itself is level 1) overflows V8's stack, and TS answers
+  200 `{"data":null,"errors":[{"message":"Maximum call stack size
+exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
+  port answers the same from that depth (`values.response_depth_limit`).
+  Measured on a warm TS in the bench image (Node 26, Linux): arrays, objects
+  and mixed nesting all fail at 5547; a freshly started TS fails from 5543.
+  TS's limit moves by a few levels with its JIT state and with the size of
+  the process environment (V8's stack budget shares space with it), while
+  the port's is fixed at 5547, so within a few levels below it TS may answer
+  with the error where the port returns the data.
 - **JSON-AST fallback.** When a query fails to parse but is valid JSON,
   mercurius executes it as a GraphQL AST. The port answers
   `Invalid AST Node: <inspect>.` (200) for every such value: identical for
@@ -123,6 +138,11 @@ reproduces the observable rule, not the scheduling.
   KnownTypeNames are reproduced; other graphql-js rules that also visit SDL
   nodes (directive/argument rules) are not. The request is rejected either
   way; the error list can differ.
+- **`operationName` after JIT.** Once mercurius has JIT-compiled a query
+  text (see above), TS runs its compiled operation whatever `operationName`
+  says, so a name matching no operation in that document stops failing and
+  the query answers with data; the port, like graphql-js and TS's first
+  executions of a text, keeps answering `Unknown operation named "…".`
 - **Stack overflow on deep nesting.** graphql-js parses and coerces
   recursively, so TS answers deeply nested input with V8's
   `Maximum call stack size exceeded`: a 400 with that message alone from the
@@ -159,6 +179,32 @@ reproduces the observable rule, not the scheduling.
   used variables; the port keeps those input bytes and compares them in
   full, so hits and misses are identical (bar a SHA-256 collision, which
   would be a hit in TS only).
+- **Concurrent `@cached` misses on one key run one query.** TS runs one per
+  request (its response cache has no in-flight sharing), so a herd on an
+  expired key holds an execution slot each and sheds past the 25-slot limit
+  with 503s. The port lets the first miss run; later misses on that key
+  (up to 1024; more run their own query) park without a slot until it
+  finishes, then read the cache once: an entry of their own ttl is served
+  as the TS miss each stands for (the stored body, `max-age` = its ttl,
+  a miss's header order), and a miss (the first response was an error,
+  `no-store`, over 1 MB, or
+  its execution was refused a slot) runs its own query, so those waiters
+  pay the first request's time plus their own. After such a miss the key's
+  misses run at once, as in TS, for 1 s (the last 256 such keys are
+  remembered, by hash), so a key that never caches keeps TS's concurrency.
+  `refresh: true` and `ttl: 0` requests never wait or lead, and only
+  requests with the same `ttl` share a flight (the cache key leaves out
+  `@cached`). Client impact:
+  identical response bytes; fewer database queries and 503s in a miss
+  stampede; `graphql_active_requests` counts only requests holding a slot,
+  so it reads lower than TS's (pinned at the limit) during one. Memory:
+  about 31 KiB per parked request on Linux, 35 KiB on macOS (connection,
+  buffers, arena and touched stack), at most 1024 per key; a request
+  executing on PostgreSQL holds about 70 KiB. The herd's peak stays
+  resident under load (fiber cache, allocator high-water): spare fiber
+  stacks are released after 30 s idle; allocator high-water may stay
+  resident. +1.7 MiB RSS under load against C19 (no single-flight) at 256
+  churn clients, one loop (Depot h15p2nw60d, ttl-straddle row).
 
 ## Database (node-pg / pg-pool)
 

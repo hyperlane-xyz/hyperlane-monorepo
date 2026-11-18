@@ -90,6 +90,30 @@ pub const ObjectBuilder = struct {
 // Serialization
 // ---------------------------------------------------------------------------
 
+/// Deepest container nesting in serialized JSON `bytes` (strings skipped).
+pub fn maxDepth(bytes: []const u8) usize {
+    var depth: usize = 0;
+    var max: usize = 0;
+    var i: usize = 0;
+    while (i < bytes.len) : (i += 1) {
+        switch (bytes[i]) {
+            '{', '[' => {
+                depth += 1;
+                max = @max(max, depth);
+            },
+            '}', ']' => depth -|= 1,
+            '"' => {
+                i += 1;
+                while (i < bytes.len and bytes[i] != '"') : (i += 1) {
+                    if (bytes[i] == '\\') i += 1;
+                }
+            },
+            else => {},
+        }
+    }
+    return max;
+}
+
 /// `JSON.stringify(value)`.
 pub fn stringify(w: *Writer, value: Value) Writer.Error!void {
     return stringifyAt(w, value, 0);
@@ -100,6 +124,11 @@ pub fn stringify(w: *Writer, value: Value) Writer.Error!void {
 /// more than this many recursive frames.
 const recursion_limit = 128;
 
+/// Deepest container nesting (the value itself is level 1) a `stringify` on
+/// this thread reached beyond `recursion_limit`; shallower values leave it
+/// untouched, so a caller resets it before the call it wants to measure.
+pub threadlocal var deepest_written: usize = 0;
+
 fn stringifyAt(w: *Writer, value: Value, depth: usize) Writer.Error!void {
     switch (value) {
         .null => try writeShort(w, "null"),
@@ -108,7 +137,7 @@ fn stringifyAt(w: *Writer, value: Value, depth: usize) Writer.Error!void {
         .raw => |r| try w.writeAll(r),
         .string => |s| try writeString(w, s),
         .array => |items| {
-            if (depth >= recursion_limit) return stringifyDeep(w, value);
+            if (depth >= recursion_limit) return stringifyDeep(w, value, depth);
             try w.writeByte('[');
             for (items, 0..) |item, i| {
                 if (i > 0) try w.writeByte(',');
@@ -117,7 +146,7 @@ fn stringifyAt(w: *Writer, value: Value, depth: usize) Writer.Error!void {
             try w.writeByte(']');
         },
         .object => |members| {
-            if (depth >= recursion_limit) return stringifyDeep(w, value);
+            if (depth >= recursion_limit) return stringifyDeep(w, value, depth);
             try writeObject(w, members, depth);
         },
     }
@@ -186,7 +215,8 @@ fn writeObject(w: *Writer, members: []const Member, depth: usize) Writer.Error!v
 }
 
 /// `stringify` with an explicit stack (deep values).
-fn stringifyDeep(w: *Writer, value: Value) Writer.Error!void {
+/// `value` sits `base` containers deep (see `deepest_written`).
+fn stringifyDeep(w: *Writer, value: Value, base: usize) Writer.Error!void {
     const Frame = union(enum) {
         array: struct { items: []const Value, next: usize = 0 },
         object: struct { order: MemberOrder, first: bool = true },
@@ -201,10 +231,12 @@ fn stringifyDeep(w: *Writer, value: Value) Writer.Error!void {
             .array => |items| {
                 try w.writeByte('[');
                 stack.append(gpa, .{ .array = .{ .items = items } }) catch return error.WriteFailed;
+                deepest_written = @max(deepest_written, base + stack.items.len);
             },
             .object => |members| {
                 try w.writeByte('{');
                 stack.append(gpa, .{ .object = .{ .order = MemberOrder.init(members) } }) catch return error.WriteFailed;
+                deepest_written = @max(deepest_written, base + stack.items.len);
             },
             else => try stringifyAt(w, v, 0),
         }
@@ -1471,4 +1503,11 @@ test "writeString bench: bytea-like rows (opt-in)" {
         best[v] = @min(best[v], t.read() / 20);
     };
     std.debug.print("writeString, 500 rmd rows of strings: C9 {d:.1} us, now {d:.1} us (min of 30); now/C9 {d:.3}\n", .{ @as(f64, @floatFromInt(best[0])) / 1000, @as(f64, @floatFromInt(best[1])) / 1000, @as(f64, @floatFromInt(best[1])) / @as(f64, @floatFromInt(best[0])) });
+}
+
+test "maxDepth counts container nesting outside strings" {
+    try testing.expectEqual(@as(usize, 0), maxDepth("1"));
+    try testing.expectEqual(@as(usize, 1), maxDepth("{}"));
+    try testing.expectEqual(@as(usize, 3), maxDepth("{\"a\":[{\"b\":1}],\"c\":[]}"));
+    try testing.expectEqual(@as(usize, 2), maxDepth("{\"a\":\"[[[{{\\\"]]\",\"b\":[\"\\\\\"]}"));
 }

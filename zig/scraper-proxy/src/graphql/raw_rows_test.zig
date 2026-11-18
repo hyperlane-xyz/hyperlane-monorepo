@@ -62,7 +62,7 @@ const Table = struct {
 
     fn columns(self: *const Table, a: Allocator) ![]execute.RawColumn {
         const out = try a.alloc(execute.RawColumn, self.names.len);
-        for (out, self.names, self.oids) |*c, n, o| c.* = .{ .name = n, .kind = o.kind() };
+        for (out, self.names, self.oids) |*c, n, o| c.* = .{ .name = n, .kind = o.kind(), .nested = o == .jsonb };
         return out;
     }
 
@@ -144,7 +144,7 @@ const Fake = struct {
     }
 };
 
-fn run(a: Allocator, query: []const u8, table: *Table, raw: bool) !struct { body: []const u8, raw_calls: usize } {
+fn run(a: Allocator, query: []const u8, table: *Table, raw: bool) !struct { body: []const u8, raw_calls: usize, deep_scalar: bool } {
     const schema = schema_mod.testing.scraper();
     var diag: parser.Diagnostic = .{};
     const doc = try parser.parse(a, query, .{}, &diag);
@@ -152,7 +152,7 @@ fn run(a: Allocator, query: []const u8, table: *Table, raw: bool) !struct { body
     const coerced = (try values.getVariableValues(a, schema, doc.definitions[0].operation.variable_definitions, null)).coerced;
     var ex = try execute.Executor.init(a, schema, doc, coerced, .{ .ctx = &fake, .resolve = Fake.resolve, .resolve_raw = Fake.resolveRaw });
     const result = try ex.executeQuery(doc.definitions[0].operation, null);
-    return .{ .body = try route.serializeResponse(a, 200, result.data, result.errors), .raw_calls = fake.raw_calls };
+    return .{ .body = try route.serializeResponse(a, 200, result.data, result.errors), .raw_calls = fake.raw_calls, .deep_scalar = result.deep_scalar };
 }
 
 fn expectSame(a: Allocator, query: []const u8, table: *Table) !void {
@@ -330,6 +330,20 @@ test "raw rows: custom scalars over converted columns take today's path, NULLs i
     const json_vals = [_][]const ?[]const u8{&.{ "1", "{\"a\":[1,2.5]}", "0", "[]", "2026-11-14 00:00:00", "5" }};
     var t5: Table = .{ .names = &rmd_names, .oids = &json_oids, .cells = &json_vals };
     try expectSame(a, rmd_list, &t5);
+    // json/jsonb columns never go out raw (`RawColumn.nested`): their custom
+    // fields take the Value path, where deep documents are flagged.
+    const before = t5.materializes;
+    _ = try run(a, rmd_list, &t5, true);
+    try std.testing.expect(t5.materializes > before);
+    // A jsonb document nested past the flag depth is flagged either way.
+    const deep = try a.alloc(u8, 2 * 4100 + 1);
+    @memset(deep[0..4100], '[');
+    deep[4100] = '1';
+    @memset(deep[4101..], ']');
+    const deep_vals = [_][]const ?[]const u8{&.{ "1", "{}", "0", deep, "2026-11-14 00:00:00", "5" }};
+    var t6: Table = .{ .names = &rmd_names, .oids = &json_oids, .cells = &deep_vals };
+    for ([_]bool{ false, true }) |raw| try std.testing.expect((try run(a, rmd_list, &t6, raw)).deep_scalar);
+    try std.testing.expect(!(try run(a, rmd_list, &t5, true)).deep_scalar);
 }
 
 test "raw rows: randomized converted custom columns match today's bytes (property)" {

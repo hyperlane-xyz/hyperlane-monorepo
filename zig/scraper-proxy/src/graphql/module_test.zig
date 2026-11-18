@@ -122,10 +122,26 @@ const FakeDb = struct {
         return self.queries;
     }
 
+    /// Until `n` queries started; a lost event fails the test (after 30 s)
+    /// instead of hanging the runner.
     fn waitStarted(self: *FakeDb, n: u32) void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        while (self.started < n) self.cond.wait(&self.mutex);
+        var timer = std.time.Timer.start() catch unreachable;
+        const limit = 30 * std.time.ns_per_s;
+        while (self.started < n) {
+            const spent = timer.read();
+            if (spent >= limit) std.debug.panic("FakeDb.waitStarted: {d} of {d} queries started within 30 s", .{ self.started, n });
+            self.cond.timedWait(&self.mutex, limit - spent) catch {};
+        }
+    }
+
+    /// Parks every following query until `release` (under the mutex the
+    /// query path reads it with).
+    fn block(self: *FakeDb) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.blocked = true;
     }
 
     fn release(self: *FakeDb) void {
@@ -171,6 +187,8 @@ const App = struct {
     /// Allocator for the route (caches); defaults to testing.allocator.
     gpa: ?Allocator = null,
     request_timeout_ms: u32 = 10_000,
+    /// Event loops (null: the build default).
+    loops: ?u32 = null,
     route: route_mod.GraphqlRoute = undefined,
     routes: [2]http.Route = undefined,
     server: *http.Server = undefined,
@@ -181,7 +199,9 @@ const App = struct {
         const svc = scraperdb.Service.init(.{ .ctx = &self.db, .queryFn = FakeDb.query });
         self.route = route_mod.GraphqlRoute.init(self.gpa orelse testing.allocator, schema_mod.testing.scraper(), .{ .db = svc }, .{});
         self.routes = .{ http.metricsRoute(), self.route.route() };
-        self.server = try http.Server.init(testing.allocator, .{ .host = "127.0.0.1", .port = 0, .routes = &self.routes, .request_timeout_ms = self.request_timeout_ms });
+        var options: http.Options = .{ .host = "127.0.0.1", .port = 0, .routes = &self.routes, .request_timeout_ms = self.request_timeout_ms };
+        if (self.loops) |n| options.loops = n;
+        self.server = try http.Server.init(testing.allocator, options);
         try self.server.start();
     }
 
@@ -381,8 +401,10 @@ test "preserves cached query and refresh semantics" {
     try expectJson(first, 200, "{\"data\":{\"domain\":[]}}");
     try expectJson(cached, 200, first.body);
     try testing.expectEqualStrings("max-age=30, public", first.header("cache-control").?);
+    // Remaining seconds rounded up: 30 unless the second request reads it
+    // more than a second later (a slow runner).
     const cc = cached.header("cache-control").?;
-    try testing.expect(std.mem.eql(u8, cc, "max-age=30, public") or std.mem.eql(u8, cc, "max-age=29, public"));
+    try testing.expect(std.mem.eql(u8, cc, "max-age=30, public") or std.mem.eql(u8, cc, "max-age=29, public") or std.mem.eql(u8, cc, "max-age=28, public"));
     try testing.expectEqualStrings("application/json; charset=utf-8", cached.header("content-type").?);
     try testing.expectEqual(@as(u32, 1), app.db.count());
     const refreshed = try app.postQuery(a, "query @cached(ttl: 30, refresh: true) { domain(limit: 1) { id } }");
@@ -483,7 +505,11 @@ test "a parked request keeps its own fiber-locals while another runs (route Fibe
     app.db.release();
     a_thread.join();
     try a_result.expectOk(0);
-    const seen = app.db.seen[0..app.db.seen_len];
+    app.db.mutex.lock();
+    const seen_copy = app.db.seen;
+    const seen_len = app.db.seen_len;
+    app.db.mutex.unlock();
+    const seen = seen_copy[0..seen_len];
     try testing.expectEqual(@as(usize, 4), seen.len);
     const first = seen[0];
     const last = seen[3];
@@ -506,7 +532,7 @@ test "only requests parked on I/O hold execution slots (Node turn semantics)" {
     const cached = "query @cached(ttl: 300) { domain(limit: 1) { id } }";
     try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, cached)).status);
     // 24 requests parked on the database leave one slot.
-    app.db.blocked = true;
+    app.db.block();
     const parked_query = "{ domain(limit: 2) { id } }";
     var parked: [24]std.Thread = undefined;
     var parked_results = [_]ParkedResult{.{}} ** 24;
@@ -641,6 +667,57 @@ test "does not cache pathological resolver failures" {
     try testing.expectEqual(@as(u32, 2), app.db.count());
 }
 
+test "an unpaired surrogate in the query text is graphql-js's invalid character (400)" {
+    var app: App = .{};
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try expectJson(try app.post(a, "{\"query\":\"{ domain(limit: 1) { id } } # \\udfff\"}"), 400, "{\"data\":null,\"errors\":[{\"message\":\"Syntax Error: Invalid character: U+DFFF.\",\"locations\":[{\"line\":1,\"column\":31}]}]}");
+    try expectJson(try app.post(a, "{\"query\":\"{ domain(where: {name: {_eq: \\\"a\\ud800\\\"}}) { id } }\"}"), 400, "{\"data\":null,\"errors\":[{\"message\":\"Syntax Error: Invalid character within String: U+D800.\",\"locations\":[{\"line\":1,\"column\":32}]}]}");
+    // Columns count UTF-16 units: é is 1, 😀 is 2 (graphql-js).
+    try expectJson(try app.post(a, "{\"query\":\"# \\u00e9\\ud83d\\ude00\\udfff\"}"), 400, "{\"data\":null,\"errors\":[{\"message\":\"Syntax Error: Invalid character: U+DFFF.\",\"locations\":[{\"line\":1,\"column\":6}]}]}");
+    try expectJson(try app.post(a, "{\"query\":\"{ a(b: \\\"\\u00e9\\ud83d\\ude00\\ud800\\\") }\"}"), 400, "{\"data\":null,\"errors\":[{\"message\":\"Syntax Error: Invalid character within String: U+D800.\",\"locations\":[{\"line\":1,\"column\":12}]}]}");
+    // A surrogate pair is one valid character.
+    try testing.expectEqual(@as(u16, 200), (try app.post(a, "{\"query\":\"{ domain(limit: 1) { id } } # \\ud83d\\ude00\"}")).status);
+}
+
+// ---- deep custom-scalar output (DEVIATIONS.md): TS's JSON.stringify overflows ----
+
+test "a response nested response_depth_limit deep fails like TS's JSON.stringify" {
+    const values = @import("values.zig");
+    // {"data":{"raw_message_dispatch":[{"msg_body":X}]}}: X's outermost
+    // array is at depth 5, so n nested arrays reach depth 4 + n.
+    for ([_]struct { n: usize, overflow: bool }{
+        .{ .n = values.response_depth_limit - 5, .overflow = false },
+        .{ .n = values.response_depth_limit - 4, .overflow = true },
+        .{ .n = values.response_depth_limit + 1000, .overflow = true },
+    }) |c| {
+        var arena = std.heap.ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const open = try a.alloc(u8, c.n);
+        @memset(open, '[');
+        const close = try a.alloc(u8, c.n);
+        @memset(close, ']');
+        var app: App = .{};
+        app.db.rows = try std.fmt.allocPrint(a, "[{{\"id\":\"1\",\"msg_body\":{s}0{s}}}]", .{ open, close });
+        try app.start();
+        defer app.stop();
+        for ([_][]const u8{ "{ raw_message_dispatch(limit: 1) { msg_body } }", "query @cached(ttl: 30) { raw_message_dispatch(limit: 1) { msg_body } }" }) |q| {
+            const resp = try app.postQuery(a, q);
+            if (c.overflow) {
+                try expectJson(resp, 200, "{\"data\":null,\"errors\":[{\"message\":\"Maximum call stack size exceeded\"}]}");
+                if (std.mem.indexOf(u8, q, "@cached") != null) try testing.expectEqualStrings("no-store", resp.header("cache-control").?);
+            } else {
+                try testing.expectEqual(@as(u16, 200), resp.status);
+                try testing.expect(std.mem.startsWith(u8, resp.body, "{\"data\":{\"raw_message_dispatch\":[{\"msg_body\":[[["));
+            }
+        }
+    }
+}
+
 test "keeps incomplete uploads outside GraphQL execution admission" {
     var app: App = .{};
     try app.start();
@@ -651,7 +728,7 @@ test "keeps incomplete uploads outside GraphQL execution admission" {
         try s.send("POST /graphql HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{");
     }
     defer for (&sockets) |*s| s.close();
-    std.Thread.sleep(25 * std.time.ns_per_ms);
+    try waitUploads(&app.route, 25, 5_000);
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
     try testing.expectEqual(@as(u16, 200), (try app.postQuery(arena.allocator(), "{ domain(limit: 1) { id } }")).status);
@@ -677,7 +754,7 @@ test "bounds near-limit uploads and recovers capacity after cancellation and par
         try s.send(head);
         try s.send(payload);
     }
-    std.Thread.sleep(25 * std.time.ns_per_ms);
+    try waitUploads(&app.route, 50, 5_000);
     for (0..4) |_| {
         var extra = try app.connect();
         defer extra.close();
@@ -700,7 +777,7 @@ test "bounds near-limit uploads and recovers capacity after cancellation and par
     // Aborted uploads also return capacity; completed requests can reuse it.
     for (sockets[0..open]) |*s| s.close();
     open = 0;
-    std.Thread.sleep(50 * std.time.ns_per_ms);
+    try waitUploads(&app.route, 0, 5_000);
     for (0..51) |_| try testing.expectEqual(@as(u16, 200), (try app.postQuery(a, "{ domain(limit: 1) { id } }")).status);
 }
 
@@ -919,4 +996,383 @@ test "a stalled upload keeps its slot past requestTimeout until the client close
     try testing.expectEqual(@as(u32, 1), activeUploads(&app.route));
     c.close();
     try waitUploads(&app.route, 0, 2_000);
+}
+
+// ---- single-flight (DEVIATIONS.md): concurrent misses on one @cached key ----
+
+/// One request on its own connection: status, cache-control and body.
+const FlightResult = struct {
+    status: u16 = 0,
+    cache_control: [64]u8 = undefined,
+    cache_control_len: usize = 0,
+    body: [256]u8 = undefined,
+    body_len: usize = 0,
+    /// `content-type` comes before `cache-control` (a miss's header order).
+    miss_order: bool = false,
+    /// The response head with its `Date` value masked.
+    head: [512]u8 = undefined,
+    head_len: usize = 0,
+    err: ?anyerror = null,
+
+    fn run(self: *FlightResult, ap: *App, query: []const u8) void {
+        var arena = std.heap.ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const r = ap.postQueryParked(arena.allocator(), query) catch |e| {
+            self.err = e;
+            return;
+        };
+        self.status = r.status;
+        var masked: std.ArrayList(u8) = .empty;
+        var lines = std.mem.splitSequence(u8, r.head, "\r\n");
+        while (lines.next()) |line| {
+            masked.appendSlice(arena.allocator(), if (std.ascii.startsWithIgnoreCase(line, "date:")) "Date: <masked>" else line) catch return;
+            masked.appendSlice(arena.allocator(), "\r\n") catch return;
+        }
+        self.head_len = @min(masked.items.len, self.head.len);
+        @memcpy(self.head[0..self.head_len], masked.items[0..self.head_len]);
+        if (std.ascii.indexOfIgnoreCase(r.head, "content-type:")) |ct| {
+            if (std.ascii.indexOfIgnoreCase(r.head, "cache-control:")) |cc_at| self.miss_order = ct < cc_at;
+        }
+        const cc = r.header("cache-control") orelse "";
+        self.cache_control_len = @min(cc.len, self.cache_control.len);
+        @memcpy(self.cache_control[0..self.cache_control_len], cc[0..self.cache_control_len]);
+        self.body_len = @min(r.body.len, self.body.len);
+        @memcpy(self.body[0..self.body_len], r.body[0..self.body_len]);
+    }
+
+    fn expect(self: *const FlightResult, status: u16, cache_control: []const u8, body: []const u8) !void {
+        if (self.err) |e| return e;
+        try testing.expectEqual(status, self.status);
+        try testing.expectEqualStrings(cache_control, self.cache_control[0..self.cache_control_len]);
+        try testing.expectEqualStrings(body, self.body[0..self.body_len]);
+    }
+};
+
+/// Requests on their own threads (and connections).
+const Flock = struct {
+    threads: []std.Thread,
+    results: []FlightResult,
+
+    fn start(ap: *App, n: usize, query: []const u8) !Flock {
+        const threads = try testing.allocator.alloc(std.Thread, n);
+        const results = try testing.allocator.alloc(FlightResult, n);
+        for (results) |*r| r.* = .{};
+        for (threads, results) |*t, *r| t.* = try std.Thread.spawn(.{}, FlightResult.run, .{ r, ap, query });
+        return .{ .threads = threads, .results = results };
+    }
+
+    fn join(self: Flock) void {
+        for (self.threads) |t| t.join();
+    }
+
+    fn deinit(self: Flock) void {
+        testing.allocator.free(self.threads);
+        testing.allocator.free(self.results);
+    }
+};
+
+fn waitFlightWaiters(route: *route_mod.GraphqlRoute, want: u32) !void {
+    var waited: u64 = 0;
+    while (route.flight_waiters.load(.monotonic) != want) : (waited += 1) {
+        if (waited > 10_000) {
+            std.debug.print("flight waiters: {d}, want {d}\n", .{ route.flight_waiters.load(.monotonic), want });
+            return error.Timeout;
+        }
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+}
+
+const flight_query = "query @cached(ttl: 300) { domain(limit: 1) { id } }";
+const flight_body = "{\"data\":{\"domain\":[{\"id\":7}]}}";
+
+test "single-flight: concurrent misses on one key run one query, same bytes" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    app.db.blocked = true;
+    const leader = try Flock.start(&app, 1, flight_query);
+    defer leader.deinit();
+    app.db.waitStarted(1);
+    const waiters = try Flock.start(&app, 40, flight_query);
+    defer waiters.deinit();
+    try waitFlightWaiters(&app.route, 40);
+    // Parked waiters hold no execution slot, and the active-requests gauge
+    // stays the admission count (DEVIATIONS.md: TS would count all 41).
+    try testing.expectEqual(@as(u32, 1), app.route.active_requests.load(.monotonic));
+    try testing.expectEqual(@as(f64, 1), core.metrics.graphql_active_requests.get(.{}));
+    app.db.release();
+    leader.join();
+    waiters.join();
+    try leader.results[0].expect(200, "max-age=300, public", flight_body);
+    for (waiters.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+    try testing.expectEqual(@as(u32, 1), app.db.count());
+    try testing.expectEqual(@as(u32, 0), app.route.flight_waiters.load(.monotonic));
+}
+
+test "single-flight: a failed leader's waiters each run their own query" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    app.db.fail = "database unavailable";
+    app.db.fail_first_only = true;
+    try app.start();
+    defer app.stop();
+    app.db.blocked = true;
+    const leader = try Flock.start(&app, 1, flight_query);
+    defer leader.deinit();
+    app.db.waitStarted(1);
+    const waiters = try Flock.start(&app, 10, flight_query);
+    defer waiters.deinit();
+    try waitFlightWaiters(&app.route, 10);
+    app.db.release();
+    leader.join();
+    waiters.join();
+    try leader.results[0].expect(200, "no-store", "{\"data\":null,\"errors\":[{\"message\":\"database unavailable\",\"locations\":[{\"line\":1,\"column\":27}],\"path\":[\"domain\"]}]}");
+    // Not cached: waiters read once, and each that misses runs its own query
+    // (like TS); one that reads after another waiter's write gets that hit.
+    for (waiters.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+    try testing.expect(app.db.count() >= 2 and app.db.count() <= 11);
+}
+
+test "single-flight: after a failed miss, the key's next misses run at once (TS concurrency)" {
+    var app: App = .{};
+    app.db.fail = "database unavailable";
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const failed = try app.postQuery(arena.allocator(), flight_query);
+    try testing.expectEqualStrings("no-store", failed.header("cache-control").?);
+    // Within the mark's second: concurrent misses all reach the database.
+    app.db.blocked = true;
+    const burst = try Flock.start(&app, 6, flight_query);
+    defer burst.deinit();
+    app.db.waitStarted(7);
+    try testing.expectEqual(@as(u32, 0), app.route.flight_waiters.load(.monotonic));
+    app.db.release();
+    burst.join();
+    for (burst.results) |*r| try testing.expectEqual(@as(u16, 200), r.status);
+    try testing.expectEqual(@as(u32, 7), app.db.count());
+}
+
+test "single-flight: an uncacheable (oversized) response sends waiters to their own query" {
+    var app: App = .{};
+    const big = try testing.allocator.alloc(u8, 1_100_000);
+    defer testing.allocator.free(big);
+    @memset(big, 'x');
+    const rows = try std.fmt.allocPrint(testing.allocator, "[{{\"id\":7,\"name\":\"{s}\"}}]", .{big});
+    defer testing.allocator.free(rows);
+    app.db.rows = rows;
+    try app.start();
+    defer app.stop();
+    app.db.blocked = true;
+    const q = "query @cached(ttl: 300) { domain(limit: 1) { id name } }";
+    const leader = try Flock.start(&app, 1, q);
+    defer leader.deinit();
+    app.db.waitStarted(1);
+    const waiters = try Flock.start(&app, 5, q);
+    defer waiters.deinit();
+    try waitFlightWaiters(&app.route, 5);
+    app.db.release();
+    leader.join();
+    waiters.join();
+    // (The test client's buffer is smaller than these responses: only the
+    // query count is checked.) Never cached, so every waiter ran its own.
+    try testing.expectEqual(@as(u32, 6), app.db.count());
+}
+
+test "single-flight: only requests with the same ttl share a flight" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    app.db.blocked = true;
+    const leader = try Flock.start(&app, 1, "query @cached(ttl: 30) { domain(limit: 1) { id } }");
+    defer leader.deinit();
+    app.db.waitStarted(1);
+    // Same cache key (it leaves out @cached), another ttl: not a waiter on
+    // the ttl-30 flight but its own query (a TS miss answers its own max-age).
+    const other = try Flock.start(&app, 1, flight_query);
+    defer other.deinit();
+    app.db.waitStarted(2);
+    try testing.expectEqual(@as(u32, 0), app.route.flight_waiters.load(.monotonic));
+    app.db.release();
+    leader.join();
+    other.join();
+    try leader.results[0].expect(200, "max-age=30, public", flight_body);
+    try other.results[0].expect(200, "max-age=300, public", flight_body);
+    try testing.expectEqual(@as(u32, 2), app.db.count());
+}
+
+test "single-flight: refresh and ttl 0 requests never wait on a flight" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    app.db.blocked = true;
+    const leader = try Flock.start(&app, 1, flight_query);
+    defer leader.deinit();
+    app.db.waitStarted(1);
+    // Same key (the key strips @cached): each runs its own query at once.
+    const refresh = try Flock.start(&app, 1, "query @cached(ttl: 300, refresh: true) { domain(limit: 1) { id } }");
+    defer refresh.deinit();
+    app.db.waitStarted(2);
+    const no_store = try Flock.start(&app, 1, "query @cached(ttl: 0) { domain(limit: 1) { id } }");
+    defer no_store.deinit();
+    app.db.waitStarted(3);
+    try testing.expectEqual(@as(u32, 0), app.route.flight_waiters.load(.monotonic));
+    app.db.release();
+    leader.join();
+    refresh.join();
+    no_store.join();
+    try leader.results[0].expect(200, "max-age=300, public", flight_body);
+    try refresh.results[0].expect(200, "max-age=300, public", flight_body);
+    try no_store.results[0].expect(200, "no-store", flight_body);
+    try testing.expectEqual(@as(u32, 3), app.db.count());
+}
+
+test "single-flight: past the waiter cap, misses run their own query" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    const cap = 8;
+    app.route.response_cache.max_waiters = cap;
+    app.db.blocked = true;
+    const leader = try Flock.start(&app, 1, flight_query);
+    defer leader.deinit();
+    app.db.waitStarted(1);
+    const waiters = try Flock.start(&app, cap, flight_query);
+    defer waiters.deinit();
+    try waitFlightWaiters(&app.route, cap);
+    const extra = try Flock.start(&app, 3, flight_query);
+    defer extra.deinit();
+    app.db.waitStarted(4);
+    try testing.expectEqual(@as(u32, cap), app.route.flight_waiters.load(.monotonic));
+    app.db.release();
+    leader.join();
+    waiters.join();
+    extra.join();
+    for (leader.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+    for (waiters.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+    for (extra.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+    try testing.expectEqual(@as(u32, 4), app.db.count());
+}
+
+test "single-flight: the leader's client going away still releases its waiters" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    app.db.blocked = true;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const body = try std.fmt.allocPrint(arena.allocator(), "{{\"query\":{f}}}", .{Value{ .string = flight_query }});
+    var c = try app.connect();
+    try c.send(try std.fmt.allocPrint(arena.allocator(), "POST /graphql HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {d}\r\n\r\n{s}", .{ body.len, body }));
+    app.db.waitStarted(1);
+    const waiters = try Flock.start(&app, 8, flight_query);
+    defer waiters.deinit();
+    try waitFlightWaiters(&app.route, 8);
+    c.close();
+    std.Thread.sleep(20 * std.time.ns_per_ms);
+    app.db.release();
+    waiters.join();
+    // The port finishes (and caches) the leader's response after its client
+    // left (see DEVIATIONS.md); its waiters get that entry.
+    for (waiters.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+    try testing.expectEqual(@as(u32, 1), app.db.count());
+}
+
+var flight_clock = struct {
+    base: std.atomic.Value(i64) = .init(0),
+    /// Calls left at `base`; after that, `base + later_ms`.
+    at_base: std.atomic.Value(i32) = .init(1 << 30),
+    later_ms: i64 = 0,
+}{};
+
+fn flightNow() i64 {
+    const base = flight_clock.base.load(.monotonic);
+    if (flight_clock.at_base.fetchSub(1, .monotonic) > 0) return base;
+    return base + flight_clock.later_ms;
+}
+
+test "single-flight: a waiter answers as the TS miss it stands for (own ttl, miss header order)" {
+    var app: App = .{};
+    app.db.rows = "[{\"id\":7}]";
+    try app.start();
+    defer app.stop();
+    flight_clock.base.store(1_000_000, .monotonic);
+    flight_clock.later_ms = 1_000;
+    flight_clock.at_base.store(1 << 30, .monotonic);
+    app.route.response_cache.now_ms = flightNow;
+    app.db.blocked = true;
+    const leader = try Flock.start(&app, 1, flight_query);
+    defer leader.deinit();
+    app.db.waitStarted(1);
+    const waiters = try Flock.start(&app, 4, flight_query);
+    defer waiters.deinit();
+    try waitFlightWaiters(&app.route, 4);
+    // The entry is written at `base`; waiters read it 1 s later and still
+    // answer their own ttl (a TS miss), in a miss's header order; a later
+    // plain hit answers the remaining seconds, cache-control first.
+    flight_clock.at_base.store(1, .monotonic);
+    app.db.release();
+    leader.join();
+    waiters.join();
+    try leader.results[0].expect(200, "max-age=300, public", flight_body);
+    try testing.expect(leader.results[0].miss_order);
+    for (waiters.results) |*r| {
+        try r.expect(200, "max-age=300, public", flight_body);
+        try testing.expect(r.miss_order);
+        // The whole head (Date masked) is the leader's, a miss's.
+        try testing.expectEqualStrings(leader.results[0].head[0..leader.results[0].head_len], r.head[0..r.head_len]);
+    }
+    const hit = try Flock.start(&app, 1, flight_query);
+    defer hit.deinit();
+    hit.join();
+    try hit.results[0].expect(200, "max-age=299, public", flight_body);
+    try testing.expect(!hit.results[0].miss_order);
+    try testing.expectEqual(@as(u32, 1), app.db.count());
+}
+
+var flight_loops_mutex: std.Thread.Mutex = .{};
+var flight_loops: [8]usize = undefined;
+var flight_loops_len: usize = 0;
+
+fn recordFlightLoop(_: *route_mod.GraphqlRoute) void {
+    const f = core.fiber.current() orelse return;
+    const loop = @intFromPtr(f.sched.ctx);
+    flight_loops_mutex.lock();
+    defer flight_loops_mutex.unlock();
+    for (flight_loops[0..flight_loops_len]) |l| if (l == loop) return;
+    if (flight_loops_len < flight_loops.len) {
+        flight_loops[flight_loops_len] = loop;
+        flight_loops_len += 1;
+    }
+}
+
+test "single-flight: waiters on two event loops all wake (no lost wakeups)" {
+    for (0..5) |_| {
+        var app: App = .{ .loops = 2 };
+        app.db.rows = "[{\"id\":7}]";
+        try app.start();
+        defer app.stop();
+        flight_loops_len = 0;
+        app.route.flight_park_hook = recordFlightLoop;
+        app.db.blocked = true;
+        const leader = try Flock.start(&app, 1, flight_query);
+        defer leader.deinit();
+        app.db.waitStarted(1);
+        const waiters = try Flock.start(&app, 60, flight_query);
+        defer waiters.deinit();
+        try waitFlightWaiters(&app.route, 60);
+        app.db.release();
+        leader.join();
+        waiters.join();
+        for (leader.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+        for (waiters.results) |*r| try r.expect(200, "max-age=300, public", flight_body);
+        try testing.expectEqual(@as(u32, 1), app.db.count());
+        try testing.expectEqual(@as(usize, 2), flight_loops_len);
+    }
 }

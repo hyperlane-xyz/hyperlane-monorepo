@@ -257,12 +257,14 @@ test "listener forwards only non-empty message_activity_insert notifications" {
     const Events = struct {
         mutex: std.Thread.Mutex = .{},
         payloads: usize = 0,
+        first: [64]u8 = undefined,
         last: [64]u8 = undefined,
         disconnects: usize = 0,
         fn notify(ctx: *anyopaque, payload: []const u8) void {
             const self: *@This() = @ptrCast(@alignCast(ctx));
             self.mutex.lock();
             defer self.mutex.unlock();
+            if (self.payloads == 0) @memcpy(self.first[0..@min(64, payload.len)], payload[0..@min(64, payload.len)]);
             self.payloads += 1;
             @memcpy(self.last[0..@min(64, payload.len)], payload[0..@min(64, payload.len)]);
         }
@@ -288,11 +290,15 @@ test "listener forwards only non-empty message_activity_insert notifications" {
     _ = try conn.query(arena_state.allocator(), "SELECT pg_notify('message_activity_insert', $1)", &.{.{ .string = message_hex }}, null);
     _ = try conn.query(arena_state.allocator(), "SELECT pg_notify('message_activity_insert', '')", &.{}, null);
     _ = try conn.query(arena_state.allocator(), "SELECT pg_notify('other_channel', 'x')", &.{}, null);
-    var waited: usize = 0;
-    while (events.count() == 0 and waited < 2000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
-    std.Thread.sleep(50 * std.time.ns_per_ms);
-    try testing.expectEqual(@as(usize, 1), events.count());
-    try testing.expectEqualStrings(message_hex, &events.last);
+    // One session's notifications arrive in order: once the sentinel is in,
+    // anything the listener let through would already have been counted.
+    const sentinel = "ff" ** 32;
+    _ = try conn.query(arena_state.allocator(), "SELECT pg_notify('message_activity_insert', $1)", &.{.{ .string = sentinel }}, null);
+    const until = std.time.milliTimestamp() + 5_000;
+    while (events.count() < 2 and std.time.milliTimestamp() < until) std.Thread.sleep(std.time.ns_per_ms);
+    try testing.expectEqual(@as(usize, 2), events.count());
+    try testing.expectEqualStrings(message_hex, &events.first);
+    try testing.expectEqualStrings(sentinel, &events.last);
     listener.stop(listener.ctx);
     try testing.expectEqual(@as(usize, 0), events.disconnects);
 }

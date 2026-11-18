@@ -65,6 +65,24 @@ noinline fn deepStack(levels: usize, depth: usize) usize {
 }
 
 var shared_fd: std.atomic.Value(posix.fd_t) = .init(-1);
+/// `?shared` handlers about to wait on `shared_fd` (no input yet): tests write
+/// the byte only after this moves, so the wait (and its registration) happens.
+var shared_parked: std.atomic.Value(u32) = .init(0);
+
+/// A blocking read on `fd` fails after 10 s instead of hanging the test.
+fn setRecvTimeout(fd: posix.socket_t) !void {
+    const tv: posix.timeval = .{ .sec = 10, .usec = 0 };
+    try posix.setsockopt(fd, posix.SOL.SOCKET, posix.SO.RCVTIMEO, std.mem.asBytes(&tv));
+}
+
+/// Waits until a `?shared` handler parked after `seen` earlier ones.
+fn waitSharedParked(seen: u32) !void {
+    var waited: u32 = 0;
+    while (shared_parked.load(.acquire) == seen) : (waited += 1) {
+        if (waited >= 2_000) return error.HandlerNeverParked;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+}
 /// Owner for the "shared" handler's waits (`waitFdOwned`); 0: none.
 var shared_owner: std.atomic.Value(u64) = .init(0);
 
@@ -147,6 +165,7 @@ const Echo = struct {
             while (true) {
                 const n = posix.read(fd, &b) catch |e| switch (e) {
                     error.WouldBlock => {
+                        _ = shared_parked.fetchAdd(1, .release);
                         const deadline = core.fiber.monoMs() + 5_000;
                         const owner = shared_owner.load(.acquire);
                         const waited = if (owner != 0)
@@ -693,13 +712,18 @@ test "on_request short-circuit closes the socket; aborted uploads report on_done
     defer h.stop();
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
-    // Incomplete upload then client disconnect.
+    // Incomplete upload then client disconnect (once its head was seen).
     var c = try h.connect();
+    const seen = h.echo.snapshot().on_request;
     try c.send("POST /graphql HTTP/1.1\r\nHost: a\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{");
-    std.Thread.sleep(50 * std.time.ns_per_ms);
+    var seen_waited: u32 = 0;
+    while (h.echo.snapshot().on_request == seen) : (seen_waited += 1) {
+        if (seen_waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
     c.close();
     var waited: u32 = 0;
-    while (h.echo.snapshot().done_closed == 0 and waited < 100) : (waited += 1) std.Thread.sleep(10 * std.time.ns_per_ms);
+    while (h.echo.snapshot().done_closed == 0 and waited < 500) : (waited += 1) std.Thread.sleep(10 * std.time.ns_per_ms);
     var snap = h.echo.snapshot();
     try testing.expectEqual(@as(u32, 1), snap.done_closed);
     try testing.expectEqual(@as(u32, 0), snap.handled);
@@ -770,7 +794,7 @@ test "a Connection: close response closes at once like Node's destroySoon: later
     // The RST sets the socket error (Linux: EPIPE in CLOSE_WAIT; macOS: ECONNRESET).
     var reset = false;
     var tries: u32 = 0;
-    while (!reset and tries < 50) : (tries += 1) {
+    while (!reset and tries < 500) : (tries += 1) {
         reset = try socketError(c.fd) != 0;
         if (!reset) std.Thread.sleep(10 * std.time.ns_per_ms);
     }
@@ -860,14 +884,60 @@ test "the body dump before a close is bounded: a client streaming without end ca
     const started = std.time.milliTimestamp();
     const r2 = try other.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
     try testing.expectEqual(@as(u16, 404), r2.status);
-    try testing.expect(std.time.milliTimestamp() - started < 1_000);
+    try testing.expect(std.time.milliTimestamp() - started < 3_000);
     var reset = false;
     var tries: u32 = 0;
-    while (!reset and tries < 100) : (tries += 1) {
+    while (!reset and tries < 500) : (tries += 1) {
         reset = failed.load(.acquire) or try socketError(streamer.fd) != 0;
         if (!reset) std.Thread.sleep(10 * std.time.ns_per_ms);
     }
     try testing.expect(reset);
+}
+
+test "a close response with body bytes in flight: input during the turn is discarded (FIN), after it gets RST" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    // Widen the turn (normally one loop pass) so the second part can be timed into it.
+    server_mod.test_close_turn_ms.store(1_000, .monotonic);
+    defer server_mod.test_close_turn_ms.store(0, .monotonic);
+    var rest: [10_000]u8 = undefined;
+    @memset(&rest, 'x');
+    {
+        // Second part during the turn: discarded, then a clean FIN.
+        var c = try h.connect();
+        defer c.close();
+        try c.send("POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n");
+        try c.send(rest[0..]);
+        const r = try c.read(arena.allocator(), false);
+        try testing.expectEqual(@as(u16, 404), r.status);
+        std.Thread.sleep(50 * std.time.ns_per_ms);
+        try c.send(rest[0..]);
+        try testing.expect(c.closedByPeer());
+        std.Thread.sleep(50 * std.time.ns_per_ms);
+        try testing.expectEqual(@as(i32, 0), try socketError(c.fd));
+    }
+    server_mod.test_close_turn_ms.store(0, .monotonic);
+    {
+        // Second part after the turn: it meets the closed socket (RST), as with Node.
+        var c = try h.connect();
+        defer c.close();
+        try c.send("POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n");
+        try c.send(rest[0..]);
+        const r = try c.read(arena.allocator(), false);
+        try testing.expectEqual(@as(u16, 404), r.status);
+        try testing.expect(c.closedByPeer());
+        try c.send(rest[0..]);
+        var reset = false;
+        var tries: u32 = 0;
+        while (!reset and tries < 500) : (tries += 1) {
+            reset = try socketError(c.fd) != 0;
+            if (!reset) std.Thread.sleep(10 * std.time.ns_per_ms);
+        }
+        try testing.expect(reset);
+    }
 }
 
 test "chunked bodies count received bytes against the limit (Fastify), not declared sizes" {
@@ -918,7 +988,7 @@ test "a hangup that arrives with data during a slow request is not lost" {
     try posix.shutdown(c2.fd, .send);
     try testing.expectEqual(@as(u16, 200), (try c2.read(a, false)).status);
     var waited: u32 = 0;
-    while (h.echo.snapshot().done_closed == 0 and waited < 200) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+    while (h.echo.snapshot().done_closed == 0 and waited < 1000) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
     try testing.expectEqual(@as(u32, 1), h.echo.snapshot().done_closed);
     // WebSocket: a frame plus close behind a slow message handler -> on_close.
     var c3 = try h.connect();
@@ -1069,8 +1139,9 @@ fn fdReuse(mode: enum { owned, forget_closed }) !void {
     }
     var c = try h.connect();
     defer c.close();
+    var seen = shared_parked.load(.acquire);
     try c.send("GET /graphql?shared HTTP/1.1\r\nHost: a\r\n\r\n");
-    std.Thread.sleep(5 * std.time.ns_per_ms);
+    try waitSharedParked(seen);
     _ = try posix.write(a[1], "x");
     try testing.expectEqualStrings("got", (try c.read(arena.allocator(), false)).body);
     // The owner's socket closes without forgetFd (as when libpq drops a
@@ -1086,8 +1157,9 @@ fn fdReuse(mode: enum { owned, forget_closed }) !void {
         .forget_closed => core.fiber.forgetClosedFd(number),
     }
     // The new owner's wait must see its own socket's input.
+    seen = shared_parked.load(.acquire);
     try c.send("GET /graphql?shared HTTP/1.1\r\nHost: a\r\n\r\n");
-    std.Thread.sleep(5 * std.time.ns_per_ms);
+    try waitSharedParked(seen);
     _ = try posix.write(b[1], "y");
     const t0 = std.time.milliTimestamp();
     try testing.expectEqualStrings("got", (try c.read(arena.allocator(), false)).body);
@@ -1116,8 +1188,9 @@ test "readiness: an fd fibers waited on reports later input without a waiter" {
     defer arena.deinit();
     var c = try h.connect();
     defer c.close();
+    const seen = shared_parked.load(.acquire);
     try c.send("GET /graphql?shared HTTP/1.1\r\nHost: a\r\n\r\n");
-    std.Thread.sleep(5 * std.time.ns_per_ms);
+    try waitSharedParked(seen);
     _ = try posix.write(pair[1], "x");
     try testing.expectEqualStrings("got", (try c.read(arena.allocator(), false)).body);
     const bits = core.fiber.readiness(pair[0]) orelse return error.NotRegistered;
@@ -1126,7 +1199,7 @@ test "readiness: an fd fibers waited on reports later input without a waiter" {
     // Input with no fiber waiting is still seen.
     _ = try posix.write(pair[1], "y");
     var waited: u32 = 0;
-    while (!core.fiber.inputSeen(bits) and waited < 200) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
+    while (!core.fiber.inputSeen(bits) and waited < 1000) : (waited += 1) std.Thread.sleep(5 * std.time.ns_per_ms);
     try testing.expect(core.fiber.inputSeen(bits));
 }
 
@@ -1154,8 +1227,9 @@ test "two loops: a socket fibers wait on in turn follows the waiting loop" {
     for (0..30) |_| {
         var c = try h.connect();
         defer c.close();
+        const seen = shared_parked.load(.acquire);
         try c.send("GET /graphql?shared HTTP/1.1\r\nHost: a\r\n\r\n");
-        std.Thread.sleep(2 * std.time.ns_per_ms);
+        try waitSharedParked(seen);
         _ = try posix.write(pair[1], "x");
         const r = try c.read(a, false);
         try testing.expectEqualStrings("got", r.body);
@@ -1310,7 +1384,7 @@ test "pollers settle back to one soon after a burst of blocked requests" {
     loop.mutex.unlock();
     try testing.expect(peak > 1);
     var waited: u32 = 0;
-    while (waited < 300) : (waited += 1) {
+    while (waited < 600) : (waited += 1) {
         loop.mutex.lock();
         const now = loop.threads;
         loop.mutex.unlock();
@@ -1360,8 +1434,8 @@ test "the first unhooked stall after an idle second is handed off promptly" {
     const r = try c.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
     const took = std.time.milliTimestamp() - t0;
     try testing.expectEqual(@as(u16, 404), r.status);
-    // The handler sleeps 300 ms; a hand-off answers long before.
-    try testing.expect(took < 150);
+    // The handler sleeps 300 ms; a hand-off answers before it wakes.
+    try testing.expect(took < 300);
 }
 
 test "close() ends idle keep-alive sockets with FIN; a request mid-head still gets 503" {
@@ -1371,6 +1445,7 @@ test "close() ends idle keep-alive sockets with FIN; a request mid-head still ge
     defer arena.deinit();
     const a = arena.allocator();
     // Only fds: a Client carries a 256 KiB buffer.
+    const idle_parks = server_mod.test_idle_parks.load(.acquire);
     var idle: [200]posix.socket_t = undefined;
     for (&idle) |*fd| {
         var cl = try h.connect();
@@ -1381,8 +1456,15 @@ test "close() ends idle keep-alive sockets with FIN; a request mid-head still ge
     var mid = try h.connect();
     defer mid.close();
     _ = try mid.request(a, "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
+    const head_parks = server_mod.test_head_parks.load(.acquire);
     try mid.send("GET /nope HTTP/1.1\r\n");
-    std.Thread.sleep(100 * std.time.ns_per_ms); // all parked
+    // All parked: 200 idle keep-alive sockets plus `mid`, which read its
+    // partial head first (else close() would still see it idle).
+    var parked_waited: u32 = 0;
+    while (server_mod.test_head_parks.load(.acquire) == head_parks or server_mod.test_idle_parks.load(.acquire) -% idle_parks < 201) : (parked_waited += 1) {
+        if (parked_waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
     const Closer = struct {
         fn run(server: *server_mod.Server) void {
             server.close(2_000);
@@ -1471,6 +1553,7 @@ test "late requests during close get 503" {
     try h.start(10_000);
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
+    const idle_parks = server_mod.test_idle_parks.load(.acquire);
     var c = try h.connect();
     defer c.close();
     // Start a request so the connection is busy, then close the server.
@@ -1479,7 +1562,11 @@ test "late requests during close get 503" {
     // Let the server reach its keep-alive wait first: a socket still on
     // its way back to idle when close() begins is ended instead (as Node's
     // close() ends idle sockets).
-    std.Thread.sleep(100 * std.time.ns_per_ms);
+    var idle_waited: u32 = 0;
+    while (server_mod.test_idle_parks.load(.acquire) == idle_parks) : (idle_waited += 1) {
+        if (idle_waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
     h.server.closing.store(true, .release);
     const r = try c.request(arena.allocator(), "GET /graphql HTTP/1.1\r\nHost: a\r\n\r\n");
     try testing.expectEqual(@as(u16, 503), r.status);
@@ -1505,8 +1592,14 @@ test "close() returns while an endWith write is parked, and the write still comp
     const addr = try std.net.Address.parseIp("127.0.0.1", h.server.port());
     try posix.connect(fd, &addr.any, addr.getOsSockLen());
     var slow: Client = .{ .fd = fd };
+    const write_parks = server_mod.test_write_parks.load(.acquire);
     try slow.send("GET /reject-big HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
-    std.Thread.sleep(100 * std.time.ns_per_ms);
+    // The endWith write parked on the full window.
+    var write_waited: u32 = 0;
+    while (server_mod.test_write_parks.load(.acquire) == write_parks) : (write_waited += 1) {
+        if (write_waited >= 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
     // Like an in-flight response: close() waits for it until its timeout.
     const t0 = std.time.milliTimestamp();
     h.server.close(300);
@@ -1514,6 +1607,7 @@ test "close() returns while an endWith write is parked, and the write still comp
     try testing.expect(waited >= 250 and waited < 3_000);
     // The parked write is intact: reading drains it, then EOF, so deinit
     // (`h.stop`) finds no connection left.
+    try setRecvTimeout(fd);
     var buf: [64 * 1024]u8 = undefined;
     var total: usize = 0;
     while (true) {
@@ -1546,6 +1640,7 @@ test "endWith never blocks the loop on a client that stops reading" {
     const r = try c.request(arena.allocator(), "GET /nope HTTP/1.1\r\nHost: a\r\n\r\n");
     try testing.expectEqual(@as(u16, 404), r.status);
     // Reading now drains every byte, then EOF (FIN, then destroy).
+    try setRecvTimeout(fd);
     var buf: [64 * 1024]u8 = undefined;
     var total: usize = 0;
     while (true) {
@@ -1564,6 +1659,7 @@ test "an upgrade rejected with endWith gets exactly those bytes, then EOF" {
     var c = try h.connect();
     defer c.close();
     try c.send("GET /reject HTTP/1.1\r\nHost: a\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n");
+    try setRecvTimeout(c.fd);
     var buf: [256]u8 = undefined;
     var len: usize = 0;
     while (true) {
@@ -1822,7 +1918,7 @@ fn tickConnect(server: *server_mod.Server, owner: *TickOwner, a: std.mem.Allocat
     var c: Client = .{ .fd = stream.handle };
     _ = try wsHandshake(&c, a, "/agents");
     var waited: u32 = 0;
-    while (waited < 300) : (waited += 1) {
+    while (waited < 5_000) : (waited += 1) {
         owner.mutex.lock();
         const ready = owner.conn != null;
         owner.mutex.unlock();
@@ -1981,11 +2077,13 @@ test "websocket transitions: no deadlock between the owner's tick and reader tra
         _ = try wsHandshake(&c, a, "/agents");
         fd.* = stream.handle;
     }
-    while (true) {
+    var connect_waited: u32 = 0;
+    while (true) : (connect_waited += 1) {
         owner.mutex.lock();
         const ready = owner.conns.items.len;
         owner.mutex.unlock();
         if (ready == n) break;
+        if (connect_waited >= 5_000) return error.Timeout;
         std.Thread.sleep(std.time.ns_per_ms);
     }
     const ticker = try std.Thread.spawn(.{}, StressOwner.run, .{&owner});
@@ -2178,7 +2276,7 @@ const CompletionCount = struct {
 fn keptConn(h: *Harness, c: *Client, a: std.mem.Allocator) !*ws.Conn {
     _ = try wsHandshake(c, a, "/keep");
     var waited: usize = 0;
-    while (waited < 300) : (waited += 1) {
+    while (waited < 5_000) : (waited += 1) {
         h.wse.mutex.lock();
         const kept = h.wse.kept;
         h.wse.mutex.unlock();
@@ -2316,8 +2414,12 @@ test "teardown fails the queued frames, then ends the pass undrained" {
         log = try passLog(&h, a);
     }
     // Teardown's pass end comes right after its failed callbacks.
-    std.Thread.sleep(20 * std.time.ns_per_ms);
+    waited = 0;
     log = try passLog(&h, a);
+    while (!(log.len > 0 and log[log.len - 1] == -2) and waited < 1000) : (waited += 1) {
+        std.Thread.sleep(5 * std.time.ns_per_ms);
+        log = try passLog(&h, a);
+    }
     try testing.expect(log.len > 0 and log[log.len - 1] == -2);
     try testing.expect(log[log.len - 2] >= 1000);
     // Every frame completed exactly once, written ones before failed ones.
@@ -2407,7 +2509,7 @@ test "trySendInline: partial write queues the tail; busy queue falls back withou
     defer testing.allocator.free(second.payload);
     try testing.expectEqualStrings("small", second.payload);
     var waited: usize = 0;
-    while (small_counts.ok.load(.monotonic) == 0 and waited < 1000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
+    while (small_counts.ok.load(.monotonic) == 0 and waited < 5000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
     try testing.expectEqual(@as(u32, 1), counts.ok.load(.monotonic));
     try testing.expectEqual(@as(u32, 1), small_counts.ok.load(.monotonic));
     try testing.expectEqual(@as(u32, 0), counts.failed.load(.monotonic));
@@ -2523,10 +2625,15 @@ test "a ping queued behind an in-flight write stays in control until its whole b
             return .{ .ctx = self, .func = func };
         }
     };
-    // Small buffers on both ends (macOS loopback defaults, as in the trace):
-    // the 8 MB frame must still be in flight when the ping is sent.
+    // Small buffers (as in the macOS trace), so the 8 MB frame is still in
+    // flight when the ping is sent. The receive buffer stays above loopback's
+    // 64 KiB MSS: an 8 KiB one never opens a full segment of window after a
+    // read, and the sender then waits on zero-window probes with exponential
+    // backoff (under CPU load the transfer stalled for minutes; gdb showed
+    // both sides idle with 32 KiB queued).
     try posix.setsockopt(conn.fd, posix.SOL.SOCKET, posix.SO.SNDBUF, &std.mem.toBytes(@as(c_int, 8192)));
-    try posix.setsockopt(c.fd, posix.SOL.SOCKET, posix.SO.RCVBUF, &std.mem.toBytes(@as(c_int, 8192)));
+    try posix.setsockopt(c.fd, posix.SOL.SOCKET, posix.SO.RCVBUF, &std.mem.toBytes(@as(c_int, 131072)));
+    try setRecvTimeout(c.fd);
     var f1: Seen = .{ .conn = conn };
     var heartbeat: Seen = .{ .conn = conn };
     const big = try a.alloc(u8, 8_000_000);
@@ -2597,7 +2704,7 @@ test "sendInlineCorked: the frames before `required` go out or queue together, i
     defer testing.allocator.free(p.payload);
     try testing.expectEqual(@as(u8, 0x9), p.opcode);
     var waited: usize = 0;
-    while (counts.ok.load(.monotonic) != r2.queued and waited < 1000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
+    while (counts.ok.load(.monotonic) != r2.queued and waited < 5000) : (waited += 1) std.Thread.sleep(std.time.ns_per_ms);
     try testing.expectEqual(@as(u32, @intCast(r2.queued)), counts.ok.load(.monotonic));
     // Output already queued: nothing is written, the required frames queue behind it.
     try conn.send("x" ** 600_000, false, null);
@@ -2782,7 +2889,12 @@ test "a burst of fibers leaves a stack cache the idle loop trims once idle long 
     const busy = try std.fmt.parseInt(usize, (try c.request(arena.allocator(), "GET /graphql?fibercache HTTP/1.1\r\nHost: a\r\n\r\n")).body, 10);
     try testing.expect(busy > core.fiber.idle_keep);
     // After a quiet second the loop wakes on its own and trims it.
-    std.Thread.sleep(@intCast((core.fiber.idle_trim_ms + 300) * std.time.ns_per_ms));
+    const trims = core.fiber.test_trims.load(.monotonic);
+    var waited: i64 = 0;
+    while (core.fiber.test_trims.load(.monotonic) == trims) : (waited += 1) {
+        if (waited >= core.fiber.idle_trim_ms + 5_000) return error.Timeout;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
     const idle = try std.fmt.parseInt(usize, (try c.request(arena.allocator(), "GET /graphql?fibercache HTTP/1.1\r\nHost: a\r\n\r\n")).body, 10);
     try testing.expect(idle < core.fiber.idle_keep);
 }

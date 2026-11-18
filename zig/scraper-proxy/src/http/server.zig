@@ -117,6 +117,20 @@ pub const max_loops = 64;
 const buf_len = 64 * 1024;
 /// Most body bytes `endAndClose` reads (and discards) before closing.
 const dump_budget = 16 * buf_len;
+/// Tests only: widens the `.closing` turn (normally the next loop pass) to time
+/// input into or after it. Other builds never read it (`closeTurnMs` is 0).
+pub var test_close_turn_ms: std.atomic.Value(i64) = .init(0);
+
+/// Tests only: keep-alive parks waiting for the next request (not a fresh
+/// socket's first wait), parks with a partial request head buffered, and
+/// parks with output waiting for the socket (never touched in other builds).
+pub var test_idle_parks: std.atomic.Value(u32) = .init(0);
+pub var test_head_parks: std.atomic.Value(u32) = .init(0);
+pub var test_write_parks: std.atomic.Value(u32) = .init(0);
+
+fn closeTurnMs() i64 {
+    return if (builtin.is_test) test_close_turn_ms.load(.monotonic) else 0;
+}
 
 /// Prototype: run route handlers on fibers (`core.fiber`), so a handler that
 /// waits on the database parks instead of blocking a poller thread.
@@ -625,6 +639,11 @@ const Phase = enum {
     write,
     /// Node `req._dump()`: discarding the rest of a body after the response.
     drain,
+    /// A final response is written while body bytes were still in flight:
+    /// one loop turn to discard what arrives, then FIN and close (Node's
+    /// `destroySoon` shuts down a turn after the response, its dump reading
+    /// meanwhile).
+    closing,
 };
 
 /// What follows a write.
@@ -685,6 +704,9 @@ const Connection = struct {
     phase: Phase = .idle,
     idle_since: i64,
     head_deadline: i64 = loop_mod.no_deadline,
+    /// `.closing`: when the socket closes, and the body bytes it may still discard.
+    close_at: i64 = loop_mod.no_deadline,
+    dump_left: usize = 0,
     /// Request arena owned across parks (null: the thread's).
     arena_box: ?*ArenaBox = null,
     /// Continuation of a handler fiber that finished after waiting.
@@ -773,6 +795,7 @@ const Connection = struct {
         return switch (self.phase) {
             .idle => self.idle_since + @as(i64, if (self.first) o.request_timeout_ms else o.keep_alive_timeout_ms),
             .head => self.head_deadline,
+            .closing => self.close_at,
             .body, .write, .drain, .respond => loop_mod.no_deadline,
         };
     }
@@ -790,6 +813,14 @@ const Connection = struct {
             self.arena_box = s.arena;
             s.arena = null;
         }
+        if (builtin.is_test) switch (self.phase) {
+            .idle => if (!self.first) {
+                _ = test_idle_parks.fetchAdd(1, .release);
+            },
+            .head => _ = test_head_parks.fetchAdd(1, .release),
+            .write => _ = test_write_parks.fetchAdd(1, .release),
+            else => {},
+        };
         const want_write = self.phase == .write;
         if (!self.registered) {
             self.server.loop.register(self.fd, self.index, self.gen) catch return self.destroy();
@@ -857,6 +888,7 @@ const Connection = struct {
                 }
             },
             .head => if (now >= self.head_deadline) return self.clientError(.timeout),
+            .closing => return self.closeNow(),
             .body, .write, .drain, .respond => {},
         }
         return null;
@@ -872,6 +904,7 @@ const Connection = struct {
                 .body => self.stepBody(),
                 .write => self.stepWrite(),
                 .drain => self.stepDrain(),
+                .closing => self.closeNow(),
             };
             if (step) |s| return s;
         }
@@ -1399,19 +1432,46 @@ const Connection = struct {
         // reads what has already arrived: discard the body bytes readable
         // now (bounded, so a client streaming faster than we read cannot hold
         // the loop), and only bytes still in flight meet the closed socket.
-        var budget: usize = dump_budget;
-        // Retry a read even if an earlier short read cleared `readable`: more
-        // may have arrived since. (Reads until the next short read.)
-        self.readable = true;
-        while (!self.body.done()) {
-            const progress = self.body.consume(self, null, null, std.math.maxInt(usize)) catch break;
-            if (progress == .done) break;
-            const n = self.fill() catch break;
-            if (n >= budget) break;
-            budget -= n;
+        const left = self.dumpReadable(dump_budget);
+        if (left == 0 or self.body.done()) {
+            posix.shutdown(self.fd, .send) catch {};
+            return self.destroy();
         }
+        // Body bytes may still be in flight: Node shuts down a loop turn
+        // after the response, and its dump reads what arrives meanwhile.
+        // The FIN waits too, so no input can be a reaction to it.
+        self.dump_left = left;
+        self.phase = .closing;
+        self.close_at = monoMs() + closeTurnMs();
+        return self.park();
+    }
+
+    /// The `.closing` turn is over (input or the deadline): discard what is
+    /// readable now, then FIN and close.
+    fn closeNow(self: *Connection) Step {
+        _ = self.dumpReadable(self.dump_left);
         posix.shutdown(self.fd, .send) catch {};
         return self.destroy();
+    }
+
+    /// Discards readable body bytes until the body ends, a read would block,
+    /// or `budget` bytes were read. Returns the budget left; 0 when nothing
+    /// more is worth waiting for (budget spent, peer gone, malformed body).
+    fn dumpReadable(self: *Connection, budget_in: usize) usize {
+        var budget = budget_in;
+        while (!self.body.done()) {
+            const progress = self.body.consume(self, null, null, std.math.maxInt(usize)) catch return 0;
+            if (progress == .done) break;
+            // Read until EAGAIN, even after a short read cleared `readable`.
+            self.readable = true;
+            const n = self.fill() catch |e| return switch (e) {
+                error.WouldBlock => budget,
+                error.Closed => 0,
+            };
+            if (n >= budget) return 0;
+            budget -= n;
+        }
+        return budget;
     }
 
     fn upgrade(self: *Connection, handler: UpgradeHandler) ?Step {

@@ -2,7 +2,8 @@
 //! cache. Thread-safe (one mutex); prepared documents (parse + validate +
 //! cache-key text) are memoized in a bounded LRU like the TS WeakMap/Map.
 const std = @import("std");
-const json = @import("core").json;
+const core = @import("core");
+const json = core.json;
 const ast = @import("ast.zig");
 const parser = @import("parser.zig");
 const printer = @import("printer.zig");
@@ -170,6 +171,75 @@ pub const CachedResponse = struct { body: []const u8, ttl: f64 };
 /// A cache hit sharing the stored body (no copy); `release` when written.
 pub const SharedHit = struct { entry: *anyopaque, body: []const u8, ttl: f64 };
 
+/// Most requests parked on one key's flight; later misses on that key run
+/// their own query, as without single-flight. Bounds the memory a herd
+/// holds (DEVIATIONS.md: ~31 KiB per parked request on Linux), where TS's
+/// 25-slot admission sheds the same herd with 503s.
+pub const max_flight_waiters = 1024;
+
+/// Keys whose last flight ended without a stored response (an error,
+/// `no-store`, an oversized body), remembered for `uncacheable_ms` so their
+/// misses run at once, like TS, instead of each wave waiting for a leader
+/// that will not cache either. Bounded: the oldest of `max_uncacheable`
+/// marks is overwritten. Only the key's hash is kept, so a collision can
+/// make another key's misses skip single-flight for a moment (TS's
+/// behaviour), or a write of another key clear a mark early (that key's next
+/// wave waits once more, as without marks); responses are correct either way.
+pub const max_uncacheable = 256;
+pub const uncacheable_ms = 1000;
+
+const Uncacheable = struct {
+    hashes: [max_uncacheable]u64 = @splat(0),
+    until: [max_uncacheable]i64 = @splat(0),
+    next: usize = 0,
+
+    fn marked(self: *const Uncacheable, hash: u64, now: i64) bool {
+        for (self.hashes, self.until) |h, until| {
+            if (h == hash and until > now) return true;
+        }
+        return false;
+    }
+
+    fn mark(self: *Uncacheable, hash: u64, until: i64) void {
+        self.clear(hash);
+        self.hashes[self.next] = hash;
+        self.until[self.next] = until;
+        self.next = (self.next + 1) % max_uncacheable;
+    }
+
+    fn clear(self: *Uncacheable, hash: u64) void {
+        for (self.hashes, &self.until) |h, *until| {
+            if (h == hash) until.* = 0;
+        }
+    }
+};
+
+/// A request parked on another request's miss of the same key (lives on
+/// the parked request's stack until it wakes).
+pub const FlightWaiter = struct {
+    waiter: core.fiber.Waiter = .{},
+    next: ?*FlightWaiter = null,
+};
+
+/// The miss running for a key (single-flight, DEVIATIONS.md).
+const Flight = struct {
+    /// Owned copy of the key bytes.
+    key: Key,
+    waiters: ?*FlightWaiter = null,
+    len: usize = 0,
+};
+
+/// `ResponseCache.lookup`.
+pub const Lookup = union(enum) {
+    hit: SharedHit,
+    /// First miss on the key: run the query, then `land` (always).
+    lead,
+    /// Parked target registered: `waiter.wait()`, then `readShared` once.
+    wait,
+    /// Run the query without a flight (refresh, ttl 0, a full flight).
+    miss,
+};
+
 /// `[operationName, query]` per schema (the TS WeakMap<schema, Map<JSON key>>).
 const DocKey = struct { schema: usize, operation_name: ?[]const u8, query: []const u8 };
 
@@ -218,6 +288,9 @@ const Entry = struct {
     key: Key,
     body: []const u8,
     expires: i64,
+    /// The `ttl` it was written with (a woken flight waiter only takes an
+    /// entry of its own ttl).
+    ttl: f64,
     /// The cache's reference (while stored) plus in-flight shared reads.
     /// Taken under the cache mutex; dropped lock-free, last one frees.
     refs: std.atomic.Value(u32) = .init(1),
@@ -263,6 +336,10 @@ pub const ResponseCache = struct {
     document_order: Lru(PreparedDocument) = .{},
     entries: std.HashMapUnmanaged(Key, *Entry, KeyContext, std.hash_map.default_max_load_percentage) = .empty,
     entry_order: Lru(Entry) = .{},
+    flights: std.HashMapUnmanaged(Key, *Flight, KeyContext, std.hash_map.default_max_load_percentage) = .empty,
+    /// `max_flight_waiters` (tests lower it).
+    max_waiters: usize = max_flight_waiters,
+    uncacheable: Uncacheable = .{},
     bytes: usize = 0,
     /// Millisecond clock (tests inject a fake).
     now_ms: *const fn () i64 = defaultNow,
@@ -288,6 +365,10 @@ pub const ResponseCache = struct {
             self.freeEntry(e);
         }
         self.entries.deinit(self.gpa);
+        // Every leader lands before the route is torn down, except after a
+        // forced shutdown that left a connection (and its leader) running:
+        // its flight is leaked like the connection, not freed under it.
+        if (self.flights.count() == 0) self.flights.deinit(self.gpa);
     }
 
     /// `prepare(schema, body)`: `body` is the request body / querystring object.
@@ -482,6 +563,18 @@ pub const ResponseCache = struct {
     /// `read(request)` sharing the stored body: the caller must `release` the
     /// hit after the response is written. The lock is held only for lookup.
     pub fn readShared(self: *ResponseCache, request: PreparedCacheRequest) ?SharedHit {
+        return self.readSharedTtl(request, false);
+    }
+
+    /// A woken flight waiter's read: `readShared`, but only an entry written
+    /// with the waiter's own ttl (another ttl's leader may have overwritten
+    /// the key since; TS would have answered this miss with its own max-age),
+    /// else null: the waiter runs its own query.
+    pub fn readSharedForWaiter(self: *ResponseCache, request: PreparedCacheRequest) ?SharedHit {
+        return self.readSharedTtl(request, true);
+    }
+
+    fn readSharedTtl(self: *ResponseCache, request: PreparedCacheRequest, same_ttl: bool) ?SharedHit {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (request.refresh) {
@@ -494,10 +587,84 @@ pub const ResponseCache = struct {
             self.remove(request.key);
             return null;
         }
+        if (same_ttl and entry.ttl != request.ttl) return null;
         self.entry_order.touch(entry);
         _ = entry.refs.fetchAdd(1, .monotonic);
         const remaining: f64 = @floatFromInt(entry.expires - now);
         return .{ .entry = entry, .body = entry.body, .ttl = @max(0, @ceil(remaining / 1000)) };
+    }
+
+    /// `readShared`, and on a miss single-flight: the first miss on a key
+    /// leads (runs the query, then `land`s); later misses on it register
+    /// `waiter` and park until the leader lands. `refresh` and ttl-0 requests
+    /// always run their own query (TS runs one per request; DEVIATIONS.md).
+    pub fn lookup(self: *ResponseCache, request: PreparedCacheRequest, waiter: *FlightWaiter) Lookup {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (request.refresh) {
+            self.remove(request.key);
+            return .miss;
+        }
+        if (self.entries.get(request.key)) |entry| {
+            const now = self.now_ms();
+            if (entry.expires > now) {
+                self.entry_order.touch(entry);
+                _ = entry.refs.fetchAdd(1, .monotonic);
+                const remaining: f64 = @floatFromInt(entry.expires - now);
+                return .{ .hit = .{ .entry = entry, .body = entry.body, .ttl = @max(0, @ceil(remaining / 1000)) } };
+            }
+            self.remove(request.key);
+        }
+        if (request.ttl == 0) return .miss;
+        if (self.flights.get(flightKey(request))) |flight| {
+            if (flight.len >= self.max_waiters) return .miss;
+            waiter.next = flight.waiters;
+            flight.waiters = waiter;
+            flight.len += 1;
+            return .wait;
+        }
+        if (self.uncacheable.marked(request.key.hash, self.now_ms())) return .miss;
+        // No memory for the flight: run the query without one (correct, just
+        // not coalesced).
+        self.startFlight(flightKey(request)) catch return .miss;
+        return .lead;
+    }
+
+    /// A flight's identity: the cache key plus the request's `ttl`, so a
+    /// waiter only takes a leader's entry stored with its own ttl (a TS
+    /// request would answer its own `max-age`). Same bytes, different hash.
+    fn flightKey(request: PreparedCacheRequest) Key {
+        const ttl_bits: u64 = @bitCast(request.ttl);
+        return .{ .hash = std.hash.Wyhash.hash(request.key.hash, std.mem.asBytes(&ttl_bits)), .bytes = request.key.bytes };
+    }
+
+    fn startFlight(self: *ResponseCache, key: Key) Allocator.Error!void {
+        const flight = try self.gpa.create(Flight);
+        errdefer self.gpa.destroy(flight);
+        const bytes = try self.gpa.dupe(u8, key.bytes);
+        errdefer self.gpa.free(bytes);
+        flight.* = .{ .key = .{ .hash = key.hash, .bytes = bytes } };
+        try self.flights.put(self.gpa, flight.key, flight);
+    }
+
+    /// The leader of `key`'s flight finished (its entry written or not):
+    /// wakes every waiter. Called once per `.lead`.
+    pub fn land(self: *ResponseCache, request: PreparedCacheRequest) void {
+        const key = request.key;
+        self.mutex.lock();
+        const kv = self.flights.fetchRemove(flightKey(request));
+        // Its response was not stored: the next misses on the key run at once.
+        if (!self.entries.contains(key)) self.uncacheable.mark(key.hash, self.now_ms() + uncacheable_ms);
+        self.mutex.unlock();
+        const flight = kv.?.value;
+        var next = flight.waiters;
+        self.gpa.free(flight.key.bytes);
+        self.gpa.destroy(flight);
+        while (next) |w| {
+            // Read before waking: the waiter's stack frame may go at once.
+            next = w.next;
+            w.waiter.wake();
+        }
     }
 
     pub fn release(self: *ResponseCache, hit: SharedHit) void {
@@ -537,6 +704,7 @@ pub const ResponseCache = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         self.remove(request.key);
+        self.uncacheable.clear(request.key.hash);
         const entry = try self.gpa.create(Entry);
         errdefer self.gpa.destroy(entry);
         const owned = try self.gpa.dupe(u8, body);
@@ -544,7 +712,7 @@ pub const ResponseCache = struct {
         const key_bytes = try self.gpa.dupe(u8, request.key.bytes);
         errdefer self.gpa.free(key_bytes);
         const key: Key = .{ .hash = request.key.hash, .bytes = key_bytes };
-        entry.* = .{ .key = key, .body = owned, .expires = self.now_ms() + @as(i64, @intFromFloat(request.ttl * 1000)) };
+        entry.* = .{ .key = key, .body = owned, .expires = self.now_ms() + @as(i64, @intFromFloat(request.ttl * 1000)), .ttl = request.ttl };
         try self.entries.put(self.gpa, key, entry);
         self.entry_order.push(entry);
         self.bytes += owned.len;
@@ -807,4 +975,77 @@ test "response-cache key: TS's SHA-256 input bytes, compared in full" {
     const s2 = (try cache.prepare(a, schema, static_req)).?;
     try std.testing.expect(KeyContext.eql(.{}, s1.key, s2.key));
     try std.testing.expect(s1.key.bytes.ptr != s2.key.bytes.ptr);
+}
+
+test "uncacheable marks: misses skip single-flight for a second, bounded, cleared by a write" {
+    const T = struct {
+        var now: i64 = 1_000_000;
+        fn clock() i64 {
+            return now;
+        }
+        fn req(buf: *[16]u8, i: usize) PreparedCacheRequest {
+            const bytes = std.fmt.bufPrint(buf, "key-{d}", .{i}) catch unreachable;
+            return .{ .key = .{ .hash = std.hash.Wyhash.hash(0, bytes), .bytes = bytes }, .refresh = false, .ttl = 30 };
+        }
+    };
+    var cache = ResponseCache.init(std.testing.allocator);
+    defer cache.deinit();
+    cache.now_ms = T.clock;
+    var w: FlightWaiter = .{};
+    var buf: [16]u8 = undefined;
+    // A leader that stores nothing marks its key: the next miss runs at once.
+    try std.testing.expect(cache.lookup(T.req(&buf, 0), &w) == .lead);
+    cache.land(T.req(&buf, 0));
+    try std.testing.expect(cache.lookup(T.req(&buf, 0), &w) == .miss);
+    // ...for `uncacheable_ms`, then it leads again.
+    T.now += uncacheable_ms;
+    try std.testing.expect(cache.lookup(T.req(&buf, 0), &w) == .lead);
+    // A stored response clears the mark.
+    try cache.write(T.req(&buf, 0), "{}");
+    cache.land(T.req(&buf, 0));
+    switch (cache.lookup(T.req(&buf, 0), &w)) {
+        .hit => |hit| cache.release(hit),
+        else => return error.TestUnexpectedResult,
+    }
+    // Bounded: marking more keys than `max_uncacheable` drops the oldest.
+    var bounded = ResponseCache.init(std.testing.allocator);
+    defer bounded.deinit();
+    bounded.now_ms = T.clock;
+    const n = max_uncacheable + 44;
+    for (1..n + 1) |i| {
+        try std.testing.expect(bounded.lookup(T.req(&buf, i), &w) == .lead);
+        bounded.land(T.req(&buf, i));
+    }
+    // The newest `max_uncacheable` are still marked...
+    for (n - max_uncacheable + 1..n + 1) |i| try std.testing.expect(bounded.lookup(T.req(&buf, i), &w) == .miss);
+    // ...the 44 before them were overwritten.
+    for (1..n - max_uncacheable + 1) |i| {
+        try std.testing.expect(bounded.lookup(T.req(&buf, i), &w) == .lead);
+        bounded.land(T.req(&buf, i));
+    }
+}
+
+test "a woken waiter takes only an entry of its own ttl (another ttl's write in between)" {
+    var cache = ResponseCache.init(std.testing.allocator);
+    defer cache.deinit();
+    const bytes = "op\x00query { domain { id } }\x00{}";
+    const key: Key = .{ .hash = std.hash.Wyhash.hash(0, bytes), .bytes = bytes };
+    const a: PreparedCacheRequest = .{ .key = key, .refresh = false, .ttl = 30 };
+    const b: PreparedCacheRequest = .{ .key = key, .refresh = false, .ttl = 300 };
+    var w: FlightWaiter = .{};
+    try std.testing.expect(cache.lookup(a, &w) == .lead);
+    var w2: FlightWaiter = .{};
+    try std.testing.expect(cache.lookup(a, &w2) == .wait);
+    // A writes and lands (waking its waiter); B's write lands before the
+    // waiter reads: the waiter runs its own query, a plain hit takes B's.
+    try cache.write(a, "{\"a\":1}");
+    cache.land(a);
+    try cache.write(b, "{\"b\":1}");
+    try std.testing.expect(cache.readSharedForWaiter(a) == null);
+    const hit = cache.readShared(a).?;
+    defer cache.release(hit);
+    try std.testing.expectEqualStrings("{\"b\":1}", hit.body);
+    // Same ttl: the waiter takes it.
+    const own = cache.readSharedForWaiter(b).?;
+    cache.release(own);
 }

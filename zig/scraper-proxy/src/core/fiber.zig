@@ -160,8 +160,12 @@ pub fn cachedFibers() usize {
 /// cached fibers beyond `idle_keep` and returns the touched pages of the
 /// rest, so a burst of fibers (e.g. 100 subscribes) leaves no resident
 /// stacks behind once the thread is idle. Cheap no-op otherwise.
+/// Tests only: trims that released stacks (never touched in other builds).
+pub var test_trims: std.atomic.Value(u32) = .init(0);
+
 pub fn trimIdleCache(now_ms: i64) void {
     if (free_count <= idle_keep or now_ms - last_alloc_ms < idle_trim_ms) return;
+    if (builtin.is_test) _ = test_trims.fetchAdd(1, .monotonic);
     var kept: usize = 0;
     var prev: ?*Fiber = null;
     var it = free_list;
