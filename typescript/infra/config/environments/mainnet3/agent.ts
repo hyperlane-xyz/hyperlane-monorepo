@@ -533,11 +533,6 @@ const metaswapMatchingList = [
   ),
 );
 
-// Reveals have no owner; this also covers other ICA reveals between these chains.
-const aeroV3RevealMatchingList = icaMatchingList(
-  objMap(metaswapMetaRouters, () => ({ messageType: IcaMessageType.REVEAL })),
-);
-
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -565,12 +560,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       ...veloMessageModuleMatchingList,
       // Superswap ICA matches on ICA owner address in message body
       ...superswapIcaV2CommitmentMatchingList,
-      // ICA reveal messages (does not filter on ICA owner)
-      ...icaV2RevealMatchingList,
       // Temporary Aero v3 underpayment workaround; retain a 1-wei IGP payment.
       ...aeroV3AdapterMatchingList,
       ...metaswapMatchingList,
-      ...aeroV3RevealMatchingList,
     ],
   },
   {
