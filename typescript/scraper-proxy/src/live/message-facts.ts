@@ -1,8 +1,5 @@
 import type { Row } from './event-store.js';
-import {
-  MAX_MESSAGE_FACTS,
-  MAX_PAYMENT_HEIGHTS,
-} from './provisional-message.js';
+import { MAX_MESSAGE_FACTS } from './provisional-message.js';
 import { parseDatabaseDomain, parseId } from './protocol.js';
 
 type PaymentBucket = {
@@ -164,27 +161,15 @@ export function projectMessage(
   let count = 0n,
     payment = 0n,
     gas = 0n;
-  const exact = new Map<number, { buckets: number; newest: bigint }>();
   for (const bucket of facts.payments) {
-    if (bucket.height !== null) {
-      const domain = exact.get(bucket.domain);
-      exact.set(bucket.domain, {
-        buckets: (domain?.buckets ?? 0) + 1,
-        newest:
-          domain && domain.newest > bucket.height
-            ? domain.newest
-            : bucket.height,
-      });
-    }
+    // Folds are ranked from a domain's newest payments, so removing any of
+    // them, visible or not, can move a payment into or out of a fold.
+    if (bucket.height !== null) see(bucket.domain, bucket.height);
     if (!visible(bucket.domain, bucket.height)) continue;
     count += bucket.count;
     payment += bucket.payment;
     gas += bucket.gas;
   }
-  // A folded domain's membership is ranked from its newest payments, so any
-  // rollback that removes one can move a payment into or out of the fold.
-  for (const [domain, { buckets, newest }] of exact)
-    if (buckets > 2 * MAX_PAYMENT_HEIGHTS) see(domain, newest);
   const data: Row = {
     ...facts.pending,
     ...delivery?.fields,

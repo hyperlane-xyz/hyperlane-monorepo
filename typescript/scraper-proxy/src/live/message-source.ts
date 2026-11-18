@@ -423,19 +423,23 @@ export class MessageSource {
       const from = sub.frontiers.get(domain);
       if (from === undefined) continue;
       const to = confirmationHeight(head, sub.confirmations);
-      if (rollback && to < from) {
-        sub.frontiers.set(domain, to);
-        sub.send({
-          type: 'rollback',
-          domain,
-          confirmations: sub.confirmations,
-          fromHeight: String(from),
-          toHeight: String(to),
-        });
-        // Rows whose facts on this domain are all at or below `to` are intact.
+      if (rollback) {
+        if (to < from) {
+          sub.frontiers.set(domain, to);
+          sub.send({
+            type: 'rollback',
+            domain,
+            confirmations: sub.confirmations,
+            fromHeight: String(from),
+            toHeight: String(to),
+          });
+        }
+        // Rows whose facts on this domain all survive the rewind are intact.
+        // Without a lower frontier, a removed payment can still shift a fold.
+        const floor = to < from ? to : indexedHeight;
         const ids = new Set<string>();
         for (const [id, deps] of sub.exposed)
-          if ((deps.get(domain) ?? to) > to) ids.add(id);
+          if ((deps.get(domain) ?? floor) > floor) ids.add(id);
         if (ids.size) refresh.set(sub, ids);
       }
       if (to > from && sub.ids?.size !== 0) needed = true;

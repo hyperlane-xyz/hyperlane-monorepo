@@ -189,7 +189,7 @@ void it('limits a failed receipt read to subscribers for the affected IDs', asyn
   assert.deepEqual(failed, ['first']);
 });
 
-void it('hides a folded payment bucket until its newest payment is visible', async () => {
+void it('hides a payment bucket until its height is visible', async () => {
   const source = new MessageSource({
     messageHeads: initialHeads,
     async *messageChanges(domain) {
@@ -577,7 +577,6 @@ function rollbackSource(
                 : [
                     {
                       domain: 1,
-                      first: String(payment),
                       height: String(payment),
                       count: '1',
                       payment: '1',
@@ -672,7 +671,9 @@ void it('selects rollback refreshes per subscriber', async () => {
   assert.deepEqual(two, ['paid:0']);
   await rollback(20n, 15n);
   assert.deepEqual(zero, ['paid:1', 'rollback', 'paid:0']);
-  assert.deepEqual(two, ['paid:0', 'rollback']);
+  // The removed payment was never visible at frontier 18, but payments above
+  // the frontier can shift a fold, so this subscriber's row is rechecked too.
+  assert.deepEqual(two, ['paid:0', 'rollback', 'paid:0']);
 });
 
 void it('does not refresh rows whose only facts on a rolled-back domain have no height', async () => {
@@ -719,36 +720,103 @@ void it('does not refresh rows whose only facts on a rolled-back domain have no 
   assert.deepEqual(reads, ['legacy']);
 });
 
-void it('depends on the newest payment of a folded domain', () => {
+void it('depends on the newest payment of every paying domain', () => {
   const facts = collectMessageFacts([
     {
       ...fact('m', '1'),
-      payment_buckets: Array.from(
-        { length: 2 * MAX_PAYMENT_HEIGHTS + 1 },
-        (_, i) => ({
-          domain: 2,
-          height: String(i + 1),
-          count: '1',
-          payment: '1',
-          gas: '1',
-        }),
-      ),
+      payment_buckets: ['1', '2', '9'].map((height) => ({
+        domain: 2,
+        height,
+        count: '1',
+        payment: '1',
+        gas: '1',
+      })),
     },
   ]).get('m');
   assert(facts && !(facts instanceof Error));
   const row = projectMessage(facts, (domain) => (domain === 2 ? 3n : 100n));
-  // Only heights 1-3 are visible, but removing any newer payment can change
-  // which payments fold, so the rollback dependency is the newest one.
-  assert.equal(row?.heights.get(2), BigInt(2 * MAX_PAYMENT_HEIGHTS + 1));
-  assert.equal(row?.data.num_payments, '3');
+  // Height 9 is hidden, but folds rank from the newest payments, so removing
+  // it can change which payments are visible.
+  assert.equal(row?.heights.get(2), 9n);
+  assert.equal(row?.data.num_payments, '2');
+});
+
+void it('refreshes a fold shift from a rollback that does not lower the frontier', async () => {
+  let rolledBack = false;
+  const bucket = (height: string, count = '1') => ({
+    domain: 1,
+    height,
+    count,
+    payment: count,
+    gas: count,
+  });
+  const source = new MessageSource({
+    messageHeads: async () =>
+      new Map([[1, { head: 30n, indexed: 30n, confirmed: 0n }]]),
+    async *messageChanges() {
+      yield [];
+    },
+    async messageFacts(ids) {
+      // 1-8 and the newest 8 stay exact; the middle folds at its newest height.
+      const buckets = rolledBack
+        ? [
+            ...['1', '2', '3', '4', '5', '6', '7', '8'].map((h) => bucket(h)),
+            bucket('9'),
+            ...['15', '23', '24', '25', '26', '27', '28', '29'].map((h) =>
+              bucket(h),
+            ),
+          ]
+        : [
+            ...['1', '2', '3', '4', '5', '6', '7', '8'].map((h) => bucket(h)),
+            bucket('15', '2'),
+            ...['23', '24', '25', '26', '27', '28', '29', '30'].map((h) =>
+              bucket(h),
+            ),
+          ];
+      return collectMessageFacts(
+        ids.map((id) => ({
+          ...fact(id, '1'),
+          destination_domain_id: 1,
+          origin_tx_id: '1',
+          payment_buckets: buckets,
+        })),
+      );
+    },
+  });
+  await source.currentHeads();
+  const payments: string[] = [];
+  source.subscribe(
+    { domains: new Set([1]), confirmations: 18 },
+    undefined,
+    (frame) => {
+      const data = frame.data;
+      if (data && typeof data === 'object' && 'num_payments' in data)
+        payments.push(String(data.num_payments));
+    },
+    assert.fail,
+  );
+  await source.refresh(['m']);
+  rolledBack = true;
+  // Indexed 30 -> 29 with head 30 keeps the 18-confirmation frontier at 12.
+  const head = {
+    domain: 1,
+    confirmedHeight: 0n,
+    indexedHeight: 29n,
+    headHeight: 30n,
+    previousIndexedHeight: 30n,
+  };
+  source.observe(head);
+  source.notify(head);
+  for (let i = 0; i < 5 && payments.length < 2; i++) await nextTurn();
+  // Payment 9 left the fold at 15, so it is now visible at frontier 12.
+  assert.deepEqual(payments, ['8', '9']);
 });
 
 void it('refreshes a confirmed fact a deep subscriber can lose in a rollback', async () => {
   const reads: string[] = [];
-  let rolledBack = false;
   const source = new MessageSource({
     messageHeads: async () =>
-      new Map([[1, { head: 110n, indexed: 110n, confirmed: 100n }]]),
+      new Map([[1, { head: 120n, indexed: 104n, confirmed: 100n }]]),
     async *messageChanges() {
       yield [];
     },
@@ -779,19 +847,17 @@ void it('refreshes a confirmed fact a deep subscriber can lose in a rollback', a
     assert.fail,
   );
   await source.refresh(['m']);
-  rolledBack = true;
   const head = {
     domain: 1,
     confirmedHeight: 100n,
-    indexedHeight: 105n,
-    headHeight: 105n,
-    previousIndexedHeight: 110n,
+    indexedHeight: 101n,
+    headHeight: 104n,
+    previousIndexedHeight: 104n,
   };
   source.observe(head);
   source.notify(head);
   for (let i = 0; i < 5 && payments.length < 2; i++) await nextTurn();
-  // The frontier drops from 102 to 97, below the confirmed payment at 99.
-  assert(rolledBack);
+  // The frontier drops from 104 to 96, below the confirmed payment at 99.
   assert.deepEqual(reads, ['m', 'm']);
   assert.deepEqual(payments, ['1', '0']);
 });
