@@ -247,10 +247,9 @@ export class EventWebSocketServer {
   private messageSource: MessageSource;
   private readonly validatorStore: EventStore;
   private readonly diagnostics?: DiagnosticsStream;
-  private readonly serializedDiagnostics = new WeakMap<
-    DiagnosticsFrame,
-    SerializedMessage
-  >();
+  // Frames shared by many sockets (message upserts, blocks, diagnostics) are
+  // encoded once.
+  private readonly serializedFrames = new WeakMap<object, SerializedMessage>();
 
   constructor(
     private readonly db: EventDatabase,
@@ -846,7 +845,7 @@ export class EventWebSocketServer {
         custom,
         messageIds,
         (frame) =>
-          this.enqueueExplorer(socket, client, [serializeShared(frame)]),
+          this.enqueueExplorer(socket, client, [this.serializeShared(frame)]),
         (error) => this.failSocket(socket, formatError(error)),
       );
     client.unsubscribe = subscription?.unsubscribe;
@@ -923,7 +922,8 @@ export class EventWebSocketServer {
     const subscription = this.blockSubscriptions.get(socket);
     if (!subscription) return;
     subscription.started = true;
-    for (const block of subscription.latest.values()) this.send(socket, block);
+    for (const block of subscription.latest.values())
+      this.sendSerialized(socket, this.serializeShared(block));
   }
 
   private publishBlock(block: Block): void {
@@ -938,7 +938,8 @@ export class EventWebSocketServer {
       )
         continue;
       subscription.latest.set(block.domain, block);
-      if (subscription.started) this.send(socket, block);
+      if (subscription.started)
+        this.sendSerialized(socket, this.serializeShared(block));
     }
   }
 
@@ -1975,6 +1976,15 @@ export class EventWebSocketServer {
     }
   }
 
+  private serializeShared(frame: Record<string, unknown>): SerializedMessage {
+    let message = this.serializedFrames.get(frame);
+    if (!message) {
+      message = serialize(frame);
+      this.serializedFrames.set(frame, message);
+    }
+    return message;
+  }
+
   private send(socket: WebSocket, message: Record<string, unknown>): boolean {
     return this.sendSerialized(socket, serialize(message));
   }
@@ -1990,8 +2000,7 @@ export class EventWebSocketServer {
       complete?.(false);
       return false;
     }
-    const message = this.serializedDiagnostics.get(frame) ?? serialize(frame);
-    this.serializedDiagnostics.set(frame, message);
+    const message = this.serializeShared(frame);
     // Leave at least half of both outbound budgets available for normal traffic.
     if (
       socket.bufferedAmount + message.length >
@@ -2160,18 +2169,6 @@ export class EventWebSocketServer {
   private sendError(socket: WebSocket, error: string): void {
     this.send(socket, { error, type: 'error' });
   }
-}
-
-// The shared message source sends one frame object to every subscriber with
-// the same projection; serialize it once instead of once per socket.
-const sharedFrames = new WeakMap<object, SerializedMessage>();
-function serializeShared(frame: Record<string, unknown>): SerializedMessage {
-  let message = sharedFrames.get(frame);
-  if (!message) {
-    message = serialize(frame);
-    sharedFrames.set(frame, message);
-  }
-  return message;
 }
 
 function serialize(message: Record<string, unknown>): SerializedMessage {

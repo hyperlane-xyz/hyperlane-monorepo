@@ -18,6 +18,8 @@ const MAX_PARALLEL_DOMAINS = 4;
 const FACT_BATCH_SIZE = 64;
 const MAX_FACT_QUERIES = 2;
 const DOMAIN_RETRY_MS = 30_000;
+const MAX_EXPOSED = 10_000;
+const PRUNE_INTERVAL_MS = 1_000;
 
 class MessageRangeCapacityError extends Error {
   constructor() {
@@ -83,7 +85,8 @@ type Policy = { confirmations: number; domains: Set<number> };
 type Subscriber = Policy & {
   ids?: Set<string>;
   frontiers: Map<number, bigint>;
-  exposed: Map<string, Map<number, bigint>>;
+  // Highest visible fact height per domain, shared with the projection.
+  exposed: Map<string, ReadonlyMap<number, bigint>>;
   send: (frame: Record<string, unknown>) => void;
   fail: (error: unknown) => void;
 };
@@ -110,6 +113,7 @@ export class MessageSource {
   private readonly hydrate = limitReads(MAX_FACT_QUERIES);
   private changes = 0;
   private bytes = 0;
+  private nextPrune = 0;
   private stopped = false;
 
   constructor(
@@ -458,16 +462,22 @@ export class MessageSource {
         });
         // Rows whose facts on this domain are all at or below `to` are intact.
         const ids = new Set<string>();
-        for (const [id, deps] of sub.exposed)
-          if ((deps.get(domain) ?? to) > to) ids.add(id);
+        for (const [id, heights] of sub.exposed)
+          if (this.settled(sub, heights)) sub.exposed.delete(id);
+          else if ((heights.get(domain) ?? to) > to) ids.add(id);
         if (ids.size) refresh.set(sub, ids);
       }
       if (to > from && sub.ids?.size !== 0) needed = true;
       if (sub.ids?.size === 0) sub.frontiers.set(domain, to);
-      if (event.previousConfirmedHeight !== confirmedHeight)
-        for (const [id, deps] of sub.exposed)
-          if ([...deps].every(([d, height]) => this.settled(sub, d, height)))
-            sub.exposed.delete(id);
+    }
+    if (
+      event.previousConfirmedHeight !== confirmedHeight &&
+      Date.now() >= this.nextPrune
+    ) {
+      // Exposure only feeds the rollback refresh and the size limit, and both
+      // re-check settlement, so pruning at most once per interval is enough.
+      this.nextPrune = Date.now() + PRUNE_INTERVAL_MS;
+      for (const sub of this.subscribers) this.prune(sub);
     }
     if (refresh.size)
       void this.refresh(
@@ -649,12 +659,24 @@ export class MessageSource {
     }
   }
 
-  // A rollback never rewinds below the confirmed height, so this subscriber's
-  // frontier stays at or above `confirmed - confirmations`. A fact at or below
-  // that stays visible to it whatever rolls back.
-  private settled(sub: Subscriber, domain: number, height: bigint) {
-    const confirmed = this.heads.get(domain)?.confirmed ?? 0n;
-    return height <= confirmed - BigInt(sub.confirmations);
+  // A rollback never rewinds below the confirmed height, so a followed
+  // domain's frontier stays at or above `confirmed - confirmations`; other
+  // domains project at the confirmed height itself. Facts at or below that
+  // stay visible to this subscriber whatever rolls back.
+  private settled(sub: Subscriber, heights: ReadonlyMap<number, bigint>) {
+    for (const [domain, height] of heights) {
+      const confirmed = this.heads.get(domain)?.confirmed ?? 0n;
+      const limit = sub.frontiers.has(domain)
+        ? confirmed - BigInt(sub.confirmations)
+        : confirmed;
+      if (height > limit) return false;
+    }
+    return true;
+  }
+
+  private prune(sub: Subscriber) {
+    for (const [id, heights] of sub.exposed)
+      if (this.settled(sub, heights)) sub.exposed.delete(id);
   }
 
   private upsert(
@@ -679,13 +701,12 @@ export class MessageSource {
       sub.exposed.delete(id);
       return;
     }
-    const deps = new Map<number, bigint>();
-    for (const [d, height] of row.heights)
-      if (sub.frontiers.has(d) && !this.settled(sub, d, height))
-        deps.set(d, height);
-    if (deps.size) sub.exposed.set(id, deps);
-    else sub.exposed.delete(id);
-    if (sub.exposed.size > 10_000) {
+    // Only facts above this subscriber's settled height can change in a
+    // rollback; the heights map is shared with the cached projection.
+    if (this.settled(sub, row.heights)) sub.exposed.delete(id);
+    else sub.exposed.set(id, row.heights);
+    if (sub.exposed.size > MAX_EXPOSED) this.prune(sub);
+    if (sub.exposed.size > MAX_EXPOSED) {
       sub.fail(new Error('Custom provisional message limit exceeded'));
       return;
     }
