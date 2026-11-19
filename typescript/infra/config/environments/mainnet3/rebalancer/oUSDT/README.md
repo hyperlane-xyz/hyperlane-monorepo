@@ -7,8 +7,9 @@ the shared image and credential defaults. Deployment metadata is stripped from
 the runtime ConfigMap.
 
 The checked-in image was built from merged main at `f18b00f` and is pinned by digest.
-It remains a monitor-only validation candidate. Complete the gates below before
-enabling execution.
+The production config enables execution with the shared swaps.xyz key. Expect
+a zero swaps.xyz protocol fee on the validation quote. Pass `--monitor-only`
+for a validation rollout.
 
 From `typescript/infra`, render a manifest without cluster queries or mutations:
 
@@ -78,11 +79,9 @@ then repeat the comparison and quote.
 
 Stop the old singleton after a completed cycle and audit shutdown submissions.
 Never overlap execution-enabled instances. After all gates pass, deploy the
-candidate with the command above without `--render`. Check fresh balances,
-credentials, correct digest/configuration, and zero submissions. Then enable
-execution by changing the reviewed YAML to `deployment.monitorOnly: false`,
-then redeploy without `--monitor-only`. The CLI can force monitoring on;
-`--no-monitor-only` cannot override a persisted `true`. Observe for at least 70
+candidate with `--monitor-only` in place of `--render`. Check fresh balances,
+credentials, the image digest, proposed routes, and zero submissions. Deploy
+again without `--monitor-only` to enable execution. Observe for at least 70
 minutes, including the hourly ExternalSecret refresh: require zero restarts,
 continuing polls, the shared swaps.xyz credential and no new execution or settlement
 failures. Track existing velo metrics errors separately.

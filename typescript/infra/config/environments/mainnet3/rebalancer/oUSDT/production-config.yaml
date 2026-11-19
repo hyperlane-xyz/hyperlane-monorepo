@@ -1,8 +1,7 @@
 warpRouteId: oUSDT/production
 
-# Deployment stays monitor-only until rollout validation is complete.
 deployment:
-  monitorOnly: true
+  monitorOnly: false
   imageTag: f18b00f-20261117-125013
   imageDigest: sha256:df310dadc204b6cddbd4dff591fbcc6450bfd306e030d1c12b7315bd8083022b
   swapsXyzApiKeySecret: mainnet3-swapsxyz-api-key
