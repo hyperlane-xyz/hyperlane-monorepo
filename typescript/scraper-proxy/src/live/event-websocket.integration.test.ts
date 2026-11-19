@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { after, before, it, type TestContext } from 'node:test';
+import { afterEach, beforeEach, it, type TestContext } from 'node:test';
 import { setImmediate as nextTurn } from 'node:timers/promises';
 
 import { WebSocket } from 'ws';
@@ -15,7 +15,7 @@ import {
 import type { EventDatabase, EventWebSocketServer } from './event-websocket.js';
 import { EVENT_TYPES, type EventType } from './protocol.js';
 import { rawData } from './websocket-data.js';
-import { ConfirmationStream } from './confirmation-stream.js';
+import { EventSource } from './event-source.js';
 
 const hookA = '\\xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const hookB = '\\xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -188,7 +188,7 @@ let url: string;
 let messagesUrl: string;
 let validatorsUrl: string;
 
-before(async () => {
+beforeEach(async () => {
   process.env.DATABASE_URL ??= 'postgresql://unused:unused@localhost/unused';
   const { EventWebSocketServer } = await import('./event-websocket.js');
   events = new EventWebSocketServer(db, {
@@ -208,7 +208,7 @@ before(async () => {
   await events.start(http);
 });
 
-after(async () => {
+afterEach(async () => {
   await events.stop();
   await new Promise<void>((resolve, reject) =>
     http.close((error) => (error ? reject(error) : resolve())),
@@ -400,10 +400,7 @@ void it('rejects invalid URLs before DB reads and unknown domains before readers
     queries.push(sql);
     return [];
   });
-  const initialize = context.mock.method(
-    ConfirmationStream.prototype,
-    'initialize',
-  );
+  const initialize = context.mock.method(EventSource.prototype, 'subscribe');
   for (const query of [
     '',
     '?domain=1,2',
@@ -529,10 +526,7 @@ void it('bounds setup work after disconnects and recovers capacity without creat
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  const initialize = context.mock.method(
-    ConfirmationStream.prototype,
-    'initialize',
-  );
+  const initialize = context.mock.method(EventSource.prototype, 'subscribe');
   const localHttp = createServer();
   const localEvents = new EventWebSocketServer({
     listen: async () => async () => {},
@@ -929,6 +923,228 @@ void it('samples a current boundary when joining an advanced shared validator re
   }
 });
 
+void it('keeps deep public confirmations out of agent windows and read capacity', async (context) => {
+  let release = () => {};
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const privateRanges: unknown[][] = [];
+  let publicReads = 0;
+  const query = async <T extends QueryResultRow>(
+    sql: string,
+    values: unknown[] = [],
+  ): Promise<T[]> => {
+    if (sql.startsWith('SELECT id FROM domain'))
+      return queryRows<T>([{ id: values[0] }]);
+    if (sql.includes('LEFT JOIN LATERAL'))
+      return queryRows<T>(
+        recordArray(values[0]).map((domain, i) => ({
+          ...liveStartRow,
+          domain,
+          confirmations: recordArray(values[1])[i],
+          height: String(1000 - Number(recordArray(values[1])[i])),
+          head_height: '1000',
+          indexed_height: '1000',
+          confirmed_height: '900',
+        })),
+      );
+    if (sql.includes('confirmation_events'))
+      return queryRows<T>([
+        {
+          ...row(hookA),
+          domain: values[0],
+          block_number: values[3],
+          frontier_height: values[3],
+          frontier_id: values[3],
+          block_hash: `\\x${'ab'.repeat(32)}`,
+        },
+      ]);
+    return [];
+  };
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(sql: string, values: unknown[] = []) => {
+      if (sql.includes('confirmation_events')) privateRanges.push(values);
+      return query<T>(sql, values);
+    },
+  );
+  context.mock.method(
+    db,
+    'queryValidator',
+    async <T extends QueryResultRow>(sql: string, values: unknown[] = []) => {
+      if (sql.includes('confirmation_events')) {
+        publicReads++;
+        await blocked;
+      }
+      return query<T>(sql, values);
+    },
+  );
+  const agent = new WebSocket(url);
+  const frames = captureMessages(agent);
+  const validators: WebSocket[] = [];
+  try {
+    await waitFor(frames, 'ready');
+    agent.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          {
+            eventType: 'merkle_tree_insertion',
+            domains: [1, 2, 3, 4],
+            confirmations: 0,
+          },
+        ],
+      }),
+    );
+    await waitUntil(
+      () => frames.filter((f) => f.type === 'live_start').length === 4,
+    );
+    for (const domain of [1, 2, 3, 4]) {
+      const socket = new WebSocket(
+        `${validatorsUrl}?domain=${domain}&confirmations=1000`,
+      );
+      validators.push(socket);
+      await waitFor(captureMessages(socket), 'live_start');
+    }
+    for (const height of [1001, 1002]) {
+      for (const domain of [1, 2, 3, 4])
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            domain,
+            headHeight: String(height),
+            indexedHeight: String(height),
+            previousIndexedHeight: String(height - 1),
+            confirmedHeight: '900',
+            previousConfirmedHeight: '900',
+          }),
+        );
+      await waitUntil(
+        () =>
+          frames.filter((f) => f.type === 'event').length ===
+          (height - 1000) * 4,
+      );
+    }
+    assert.equal(publicReads, 2, 'only the two public slots are blocked');
+    assert.equal(privateRanges.length, 8);
+    assert(
+      privateRanges.every((values) => Number(values[1]) >= 1000),
+      'no public prefix reached the live pool',
+    );
+    assert.equal(events.metricsSnapshot().eventSource.ranges, 4);
+    assert.equal(events.metricsSnapshot().validatorSource.ranges, 4);
+    assert.equal(agent.readyState, WebSocket.OPEN);
+  } finally {
+    release();
+    for (const socket of [agent, ...validators]) socket.close();
+    await waitUntil(() =>
+      [agent, ...validators].every(
+        (socket) => socket.readyState === WebSocket.CLOSED,
+      ),
+    );
+  }
+});
+
+for (const kind of ['canonical validator', 'public blocks']) {
+  void it(`paces ${kind} frames without exhausting agent outbound capacity`, async (context) => {
+    const socket = new WebSocket(
+      kind === 'canonical validator'
+        ? `${validatorsUrl}?domain=1`
+        : `${messagesUrl}?blocks=true`,
+    );
+    const frames = captureMessages(socket);
+    const agent = new WebSocket(url);
+    const agentFrames = captureMessages(agent);
+    await Promise.all([
+      waitFor(frames, 'ready'),
+      waitFor(agentFrames, 'ready'),
+    ]);
+    let holdPong = false;
+    const completions = delayServerSendCompletions(
+      context,
+      (frame) =>
+        frame.type === 'event' ||
+        frame.type === 'block' ||
+        (holdPong && frame.type === 'pong'),
+    );
+    try {
+      const route = kind === 'canonical validator' ? 'validators' : 'messages';
+      for (let i = 0; i < 5; i++) {
+        if (kind === 'canonical validator')
+          notify(
+            'scraper_event',
+            JSON.stringify({
+              eventType: 'merkle_tree_insertion',
+              domain: 1,
+              id: '1',
+            }),
+          );
+        else
+          notify(
+            'scraper_head',
+            JSON.stringify({
+              domain: 1,
+              headHeight: String(i + 1),
+              indexedHeight: String(i + 1),
+              indexedHash: 'ab'.repeat(32),
+              confirmedHeight: '0',
+              previousConfirmedHeight: '0',
+            }),
+          );
+        await waitUntil(() =>
+          i === 0
+            ? completions.length === 1
+            : events.metricsSnapshot().queues[route].messages === i,
+        );
+      }
+      assert.equal(
+        completions.length,
+        1,
+        'one in-flight data frame per socket',
+      );
+      assert.equal(events.metricsSnapshot().queues[route].messages, 4);
+      agent.send(JSON.stringify({ type: 'ping' }));
+      await waitFor(agentFrames, 'pong');
+      assert.equal(agent.readyState, WebSocket.OPEN);
+      assert.equal(socket.readyState, WebSocket.OPEN);
+      const beforeClose = events.metricsSnapshot().outboundPendingBytes;
+      assert(beforeClose > 0);
+      socket.close();
+      await waitUntil(
+        () =>
+          socket.readyState === WebSocket.CLOSED &&
+          events.metricsSnapshot().queues[route].messages === 0,
+      );
+      assert.equal(
+        events.metricsSnapshot().outboundPendingBytes,
+        0,
+        'disconnect immediately releases the stalled reservation',
+      );
+      const lateCallback = completions.shift();
+      assert(lateCallback);
+      holdPong = true;
+      agent.send(JSON.stringify({ type: 'ping' }));
+      await waitUntil(() => completions.length === 1);
+      const agentReservation = events.metricsSnapshot().outboundPendingBytes;
+      assert(agentReservation > 0);
+      lateCallback();
+      assert.equal(
+        events.metricsSnapshot().outboundPendingBytes,
+        agentReservation,
+        'late callbacks cannot subtract another reservation',
+      );
+    } finally {
+      completions.splice(0).forEach((complete) => complete());
+      socket.close();
+      agent.close();
+      await waitUntil(() =>
+        [socket, agent].every((peer) => peer.readyState === WebSocket.CLOSED),
+      );
+    }
+  });
+}
+
 void it('shares one custom reader and keeps reading while send completions are stalled', async (context) => {
   const original = db.queryLive.bind(db);
   let snapshots = 0;
@@ -1195,6 +1411,7 @@ void it('applies domain overrides across event types with legacy and canonical f
             domain: 1,
             indexed_height: '10',
             head_height: '10',
+            confirmed_height: '5',
             hash: liveStartRow.hash,
           },
         ]);
@@ -1321,12 +1538,8 @@ void it('applies domain overrides across event types with legacy and canonical f
   }
 });
 
-void it('batches distinct policies and uses one advisory reader per event type', async (context) => {
+void it('batches distinct policies and shares ranges across advisory and custom cursors', async (context) => {
   const snapshots: unknown[][] = [];
-  const initialize = context.mock.method(
-    ConfirmationStream.prototype,
-    'initialize',
-  );
   context.mock.method(
     db,
     'queryLive',
@@ -1372,11 +1585,6 @@ void it('batches distinct policies and uses one advisory reader per event type',
       [1, 2, 3, 2, 3],
       [0, 0, 0, 2, 3],
     ]);
-    assert.equal(
-      initialize.mock.callCount(),
-      16,
-      'three custom readers and one advisory reader per event type',
-    );
     const starts = messages.filter(
       ({ type, confirmations }) => type === 'live_start' && confirmations === 0,
     );
@@ -1732,10 +1940,7 @@ for (const route of ['agents', 'messages']) {
       await held;
       return [];
     });
-    const initialize = context.mock.method(
-      ConfirmationStream.prototype,
-      'initialize',
-    );
+    const initialize = context.mock.method(EventSource.prototype, 'subscribe');
     const socket = new WebSocket(
       route === 'agents'
         ? url
@@ -1756,15 +1961,21 @@ for (const route of ['agents', 'messages']) {
         );
       }
       await waitUntil(() => snapshotStarted);
+      if (route === 'messages')
+        assert.equal(events.metricsSnapshot().explorerPendingSetups, 1);
       socket.close();
       await waitUntil(() => socket.readyState === WebSocket.CLOSED);
       await waitUntil(() => {
         const { connections } = events.metricsSnapshot();
         return connections.agent === 0 && connections.messages === 0;
       });
+      if (route === 'messages')
+        assert.equal(events.metricsSnapshot().explorerPendingSetups, 1);
       release();
       // Let all async setup continuations finish after the held query resolves.
       await nextTurn();
+      if (route === 'messages')
+        assert.equal(events.metricsSnapshot().explorerPendingSetups, 0);
       assert.equal(initialize.mock.callCount(), 0);
       assert(!messages.some(({ type }) => type === 'subscribed'));
     } finally {
@@ -1799,8 +2010,15 @@ for (const route of ['agents', 'messages']) {
             indexed_height: '100',
             head_height: '101',
             hash: 'ab'.repeat(32),
+            confirmed_height: '90',
           },
-          { domain: 3, indexed_height: '100', head_height: '101', hash: 'ab' },
+          {
+            domain: 3,
+            confirmed_height: '90',
+            indexed_height: '100',
+            head_height: '101',
+            hash: 'ab',
+          },
         ]);
       },
     );
@@ -1906,6 +2124,45 @@ for (const route of ['agents', 'messages']) {
     }
   });
 }
+
+void it('bounds unfinished message setups per IP after disconnects', async (context) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  context.mock.method(db, 'queryLive', async () => {
+    await held;
+    return [];
+  });
+  const ip = '203.0.113.90';
+  const options = { headers: { 'cf-connecting-ip': ip } };
+  const sockets = [
+    new WebSocket(`${messagesUrl}?blocks=true`, options),
+    new WebSocket(`${messagesUrl}?blocks=true`, options),
+  ];
+  try {
+    await waitUntil(() => events.metricsSnapshot().explorerPendingSetups === 2);
+    const rejected = new WebSocket(`${messagesUrl}?blocks=true`, options);
+    const [code, reason] = await new Promise<[number, string]>((resolve) =>
+      rejected.once('close', (closeCode, closeReason) =>
+        resolve([closeCode, closeReason.toString()]),
+      ),
+    );
+    assert.equal(code, 1008);
+    assert.match(reason, /Maximum setups per client reached/);
+
+    sockets.forEach((socket) => socket.close());
+    await waitUntil(() =>
+      sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
+    );
+    assert.equal(events.metricsSnapshot().explorerPendingSetups, 2);
+    release();
+    await waitUntil(() => events.metricsSnapshot().explorerPendingSetups === 0);
+  } finally {
+    release();
+    sockets.forEach((socket) => socket.terminate());
+  }
+});
 
 void it('does not send block heads or query snapshots without opting in', async (context) => {
   context.mock.method(db, 'queryLive', async () => {
@@ -2207,6 +2464,95 @@ void it('acknowledges all subscriptions before canonical events or custom rollba
   }
 });
 
+void it('publishes other domains during a stalled shared scan and starts new browsers at the current head', async (t) => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let snapshots = 0;
+  const scans: number[] = [];
+  const id = (d: number) => '\\x' + String(d).repeat(64);
+  t.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (
+        sql.includes('FROM scraper_head') &&
+        !sql.includes('live_message_facts')
+      ) {
+        snapshots++;
+        return queryRows<T>(
+          [1, 2].map((domain) => ({
+            domain,
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+          })),
+        );
+      }
+      if (sql.includes('confirmation_messages')) {
+        const domain = Number(values[0]);
+        scans.push(domain);
+        if (domain === 1) await gate;
+        return queryRows<T>([
+          { id: '1', height: '11', source: 0, msg_id: id(domain) },
+        ]);
+      }
+      if (sql.includes('live_message_facts'))
+        return queryRows<T>(
+          stringArray(values[0]).map((msg_id) => ({
+            msg_id,
+            origin_domain_id: msg_id === id(1) ? 1 : 2,
+            destination_domain_id: 3,
+            origin_block_height: '11',
+            payment_buckets: null,
+          })),
+        );
+      assert.fail(sql);
+    },
+  );
+  const endpoint = messagesUrl + '?confirmations=0&domains=1,2';
+  const first = new WebSocket(endpoint);
+  const events = captureMessages(first);
+  let second: WebSocket | undefined;
+  const advance = (domain: number) =>
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain,
+        headHeight: '11',
+        indexedHeight: '11',
+        previousIndexedHeight: '10',
+        confirmedHeight: '5',
+      }),
+    );
+  try {
+    await waitFor(events, 'ready');
+    advance(1);
+    await waitUntil(() => scans.includes(1));
+    second = new WebSocket(endpoint);
+    const joined = captureMessages(second);
+    await waitFor(joined, 'ready');
+    advance(2);
+    for (const frames of [events, joined])
+      assert.equal((await waitFor(frames, 'message_upsert')).domain, 2);
+    release();
+    await waitUntil(() =>
+      events.some((f) => f.type === 'message_upsert' && f.domain === 1),
+    );
+    assert.deepEqual(scans, [1, 2]);
+    assert.equal(snapshots, 1);
+    assert.equal(joined.filter((f) => f.type === 'message_upsert').length, 1);
+  } finally {
+    release();
+    first.terminate();
+    second?.terminate();
+  }
+});
+
 void it('shares equivalent Explorer enrichment and invalidates it after rollback', async (context) => {
   let queries = 0;
   context.mock.method(
@@ -2226,14 +2572,19 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
           },
         ]);
       if (sql.includes('confirmation_messages')) return [];
-      if (sql.includes('provisional_message_view')) {
+      if (sql.includes('live_message_facts')) {
         queries++;
         return queryRows<T>([
           {
             msg_id: msgId,
             origin_domain_id: 1,
             destination_domain_id: 2,
-            payment_domain_ids: [3],
+            origin_block_height: '6',
+            // The domain 1 payment at 9 is the fact the rollback removes.
+            payment_buckets: [
+              { domain: 1, height: '9', count: '1', payment: '0', gas: '0' },
+              { domain: 3, height: null, count: '1', payment: '0', gas: '0' },
+            ],
           },
         ]);
       }
@@ -2298,6 +2649,118 @@ void it('shares equivalent Explorer enrichment and invalidates it after rollback
     await waitUntil(() =>
       sockets.every((socket) => socket.readyState === WebSocket.CLOSED),
     );
+  }
+});
+
+void it('keeps a socket open when a shallow rollback follows 2,000+ provisional rows', async (context) => {
+  // 1,050 rows at each of heights 11 and 12 fit the queue per head; 10 rows at
+  // 13 are the only ones a rollback to 12 can change.
+  const changes = [11n, 12n, 13n].flatMap((height) =>
+    Array.from({ length: height === 13n ? 10 : 1_050 }, (_, i) => ({
+      height,
+      id: BigInt(Number(height) * 10_000 + i),
+    })),
+  );
+  const msg = (id: bigint) => `\\x${id.toString(16).padStart(64, '0')}`;
+  let indexed = 10n;
+  let factIds = 0;
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> => {
+      if (
+        sql.includes('SELECT domain, head_height') ||
+        sql.includes('SELECT h.domain, h.head_height')
+      )
+        return queryRows<T>([
+          {
+            domain: 1,
+            head_height: '10',
+            indexed_height: '10',
+            confirmed_height: '5',
+          },
+        ]);
+      if (sql.includes('confirmation_messages')) {
+        const [height, id, through, limit] = [1, 3, 4, 5].map((i) =>
+          BigInt(String(values[i])),
+        );
+        return queryRows<T>(
+          changes
+            .filter(
+              (c) =>
+                c.height <= through &&
+                c.height <= indexed &&
+                (c.height > height || (c.height === height && c.id > id)),
+            )
+            .slice(0, Number(limit))
+            .map((c) => ({
+              height: String(c.height),
+              source: 0,
+              id: String(c.id),
+              msg_id: msg(c.id),
+            })),
+        );
+      }
+      if (sql.includes('live_message_facts')) {
+        const ids = recordArray(values[0]).map(String);
+        factIds += ids.length;
+        return queryRows<T>(
+          changes
+            .filter((c) => c.height <= indexed && ids.includes(msg(c.id)))
+            .map((c) => ({
+              msg_id: msg(c.id),
+              origin_domain_id: 1,
+              destination_domain_id: 2,
+              origin_block_height: String(c.height),
+              origin_tx_id: '1',
+              payment_buckets: null,
+            })),
+        );
+      }
+      throw new Error(`Unexpected rollback burst query: ${sql}`);
+    },
+  );
+  const socket = new WebSocket(`${messagesUrl}?confirmations=0&domains=1`);
+  const messages = captureMessages(socket);
+  const upserts = () =>
+    messages.filter(({ type }) => type === 'message_upsert').length;
+  const head = (height: bigint, previous: bigint) => {
+    indexed = height;
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        confirmedHeight: '5',
+        previousConfirmedHeight: '5',
+        headHeight: String(height),
+        indexedHeight: String(height),
+        previousIndexedHeight: String(previous),
+      }),
+    );
+  };
+  try {
+    await waitFor(messages, 'ready');
+    for (const [height, total] of [
+      [11n, 1_050],
+      [12n, 2_100],
+      [13n, 2_110],
+    ] as const) {
+      head(height, height - 1n);
+      await waitUntil(() => upserts() === total, 500);
+    }
+    factIds = 0;
+    head(12n, 13n);
+    await waitFor(messages, 'rollback');
+    await waitUntil(() => factIds === 10, 500);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(upserts(), 2_110);
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    socket.close();
+    await waitUntil(() => socket.readyState === WebSocket.CLOSED);
   }
 });
 
@@ -2396,10 +2859,12 @@ for (const { eventType, byDomain } of [
             delete projected.block_number;
           return queryRows<T>([projected]);
         }
-        if (sql.includes('provisional_message_view'))
+        if (sql.includes('live_message_facts'))
           return queryRows<T>([
             {
               msg_id: messageId,
+              origin_block_height: '10',
+              payment_buckets: null,
               origin_domain_id: 1,
               destination_domain_id: 2,
             },
@@ -2476,7 +2941,7 @@ for (const { eventType, byDomain } of [
         messages,
         eventType === 'messages' ? 'message_upsert' : 'event',
       );
-      assert.deepEqual(targets, [10n]);
+      assert.deepEqual(targets, hasAdvisory ? [] : [10n]);
       assert.equal(frame.height, '10');
       assert.equal(frame.confirmations, 2);
       assert.equal(record(frame.data).frontier_height, undefined);
@@ -2486,6 +2951,8 @@ for (const { eventType, byDomain } of [
       }
       await waitUntil(() => completions.length === 1);
       advance('11', '9', '10');
+      // Every shared feed preserves event/rollback order in a per-socket FIFO.
+      completions.shift()?.();
       const rollback = await waitFor(messages, 'rollback');
       assert.equal(rollback.fromHeight, '10');
       assert.equal(rollback.toHeight, '9');
@@ -2512,7 +2979,9 @@ for (const { eventType, byDomain } of [
               `\\x${'02'.repeat(32)}`,
         ),
       );
-      if (hasAdvisory)
+      if (hasAdvisory) {
+        await waitUntil(() => completions.length > 0);
+        completions.shift()?.();
         await waitUntil(
           () =>
             messages.filter(
@@ -2522,6 +2991,7 @@ for (const { eventType, byDomain } of [
                   record(message.data).message_id) === `\\x${'02'.repeat(32)}`,
             ).length === 2,
         );
+      }
       if (eventType === 'merkle_tree_insertion' || eventType === 'validators')
         assert.equal(messages.at(-1)?.blockHash, `\\x${'09'.repeat(32)}`);
       assert.equal(socket.readyState, WebSocket.OPEN);
@@ -2560,16 +3030,21 @@ for (const supported of [true, false]) {
                 ]
               : [],
           );
-        if (sql.includes('provisional_message_view')) {
+        if (sql.includes('live_message_facts')) {
           queries.push(values);
           return queryRows<T>([
             {
               msg_id: msgId,
               origin_domain_id: 2,
               destination_domain_id: 3,
-              is_delivered: true,
+              origin_block_height: '1',
+              delivery_domain: 3,
+              delivery_height: null,
+              payment_buckets: null,
             },
             {
+              origin_block_height: '1',
+              payment_buckets: null,
               msg_id: 'unrelated',
               origin_domain_id: 3,
               destination_domain_id: 4,
@@ -2592,10 +3067,7 @@ for (const supported of [true, false]) {
       const upsert = await waitFor(messages, 'message_upsert');
       assert.equal(record(upsert.data).msg_id, msgId);
       assert.equal(record(upsert.data).is_delivered, true);
-      assert.deepEqual(
-        queries[0].slice(1),
-        supported ? [[1], ['9']] : [[], []],
-      );
+      assert.deepEqual(queries, [[[msgId]]]);
       assert.equal(
         messages.filter((m) => m.type === 'message_upsert').length,
         1,
@@ -2905,6 +3377,25 @@ void it('limits Explorer connections to five per IP and safely handles errors wh
       ({ readyState }) => readyState === WebSocket.CLOSED,
     ),
   );
+});
+
+void it('rejects application messages on the server-only Explorer stream', async () => {
+  const socket = explorerSocket('203.0.113.91');
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    const closed = new Promise<number>((resolve) =>
+      socket.once('close', resolve),
+    );
+    socket.send('{"unexpected":true}');
+    assert.equal(await closed, 1008);
+    assert.match(
+      String((await waitFor(messages, 'error')).error),
+      /unsupported/,
+    );
+  } finally {
+    socket.terminate();
+  }
 });
 
 void it('publishes every frontier projection without exposing pagination columns', async () => {
@@ -3454,6 +3945,37 @@ void it('keeps agents connected when an Explorer query fails', async () => {
   }
 });
 
+void it('keeps unrelated message domains and block-only browsers connected after a domain failure', async () => {
+  const sockets = [
+    new WebSocket(`${messagesUrl}?confirmations=0&domains=1`),
+    new WebSocket(`${messagesUrl}?confirmations=0&domains=2`),
+    new WebSocket(`${messagesUrl}?blocks=true&messageIds=`),
+  ];
+  const messages = sockets.map(captureMessages);
+  try {
+    await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
+    headQueryError = new Error('domain unavailable');
+    headQueryErrorDomain = 1;
+    headQueryErrorEventType = 'delivery';
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain: 1,
+        previousConfirmedHeight: '10',
+        confirmedHeight: '11',
+      }),
+    );
+    await waitUntil(() => sockets[0].readyState === WebSocket.CLOSED, 5000);
+    assert.equal(sockets[1].readyState, WebSocket.OPEN);
+    assert.equal(sockets[2].readyState, WebSocket.OPEN);
+  } finally {
+    headQueryError = undefined;
+    headQueryErrorDomain = undefined;
+    headQueryErrorEventType = undefined;
+    sockets.forEach((socket) => socket.terminate());
+  }
+});
+
 void it('keeps Explorer connected when an agent query fails', async () => {
   const explorer = new WebSocket(messagesUrl);
   const explorerMessages: Record<string, unknown>[] = [];
@@ -3756,6 +4278,211 @@ void it('releases a peer-closed Explorer queue immediately', async (context) => 
   for (const complete of completions.splice(0)) complete();
 });
 
+void it('sheds a large stalled queue before a healthy browser at the global byte limit', async (context) => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer(db);
+  await new Promise<void>((resolve) =>
+    localHttp.listen(0, '127.0.0.1', resolve),
+  );
+  const address = localHttp.address();
+  assert(address && typeof address !== 'string');
+  await localEvents.start(localHttp);
+  const endpoint = `ws://127.0.0.1:${address.port}/messages`;
+  // Shared frames count once globally, so each stalled browser follows its own
+  // message to hold distinct bytes. The last browser follows everything.
+  const ids = ['0a', '0b', '0c'].map((byte) => byte.repeat(32));
+  const probe = '0d'.repeat(32);
+  const sockets = [
+    ...ids.map((id) => new WebSocket(`${endpoint}?messageIds=0x${id}`)),
+    new WebSocket(endpoint),
+  ];
+  const messages = sockets.map(captureMessages);
+  await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
+  const body = 'x'.repeat(300_000);
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(_sql: string, values: unknown[] = []) =>
+      queryRows<T>(
+        stringArray(values[0]).map((id) => ({ msg_id: id, msg_body: body })),
+      ),
+  );
+  // Stall every server socket except the one that receives the probe, which
+  // only the unfiltered browser follows.
+  const completions: Array<() => void> = [];
+  const healthy = new WeakSet<WebSocket>();
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
+  const originalSend = WebSocket.prototype.send;
+  context.mock.method(
+    WebSocket.prototype,
+    'send',
+    function (
+      this: WebSocket,
+      data: Parameters<WebSocket['send']>[0],
+      optionsOrCallback?:
+        | Parameters<WebSocket['send']>[1]
+        | ((error?: Error) => void),
+      callback?: (error?: Error) => void,
+    ): void {
+      const completion =
+        typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
+      const row = message?.data;
+      if (
+        message?.type === 'message_upsert' &&
+        row &&
+        typeof row === 'object' &&
+        'msg_id' in row &&
+        String(row.msg_id).endsWith(probe)
+      )
+        healthy.add(this);
+      const completed =
+        completion && message?.type === 'message_upsert' && !healthy.has(this)
+          ? () => completions.push(() => completion())
+          : completion;
+      if (typeof optionsOrCallback === 'function' || !optionsOrCallback) {
+        originalSend.call(this, data, completed);
+      } else {
+        originalSend.call(this, data, optionsOrCallback, completed);
+      }
+    },
+  );
+  const upserts = () =>
+    messages[3].filter((f) => f.type === 'message_upsert').length;
+  try {
+    notify('scraper_explorer_event', JSON.stringify({ messageId: probe }));
+    await waitUntil(() => upserts() === 1);
+    for (let count = 0; count < 120; count++) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: ids[count % 3] }),
+      );
+      await waitUntil(() => upserts() === count + 2);
+    }
+    assert.equal(sockets[3].readyState, WebSocket.OPEN);
+    await waitUntil(() =>
+      sockets.slice(0, 3).some((s) => s.readyState === WebSocket.CLOSED),
+    );
+    assert(
+      localEvents.metricsSnapshot().explorerPendingBytes <= 32 * 1024 * 1024,
+    );
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    sockets.forEach((socket) => socket.terminate());
+    await localEvents.stop();
+    await new Promise<void>((resolve) => localHttp.close(() => resolve()));
+  }
+});
+
+void it('evicts the browser holding the most unshared bytes at the global byte limit', async (context) => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const localHttp = createServer();
+  const localEvents = new EventWebSocketServer(db);
+  await new Promise<void>((resolve) =>
+    localHttp.listen(0, '127.0.0.1', resolve),
+  );
+  const address = localHttp.address();
+  assert(address && typeof address !== 'string');
+  await localEvents.start(localHttp);
+  const endpoint = `ws://127.0.0.1:${address.port}/messages`;
+  const [shared, own, probe, extra] = ['0a', '0b', '0d', '0e'].map((byte) =>
+    byte.repeat(32),
+  );
+  // Two stalled browsers share one message's frames; a third holds its own.
+  const sockets = [
+    new WebSocket(`${endpoint}?messageIds=0x${shared}`),
+    new WebSocket(`${endpoint}?messageIds=0x${shared}`),
+    new WebSocket(`${endpoint}?messageIds=0x${own}`),
+    new WebSocket(endpoint),
+  ];
+  const messages = sockets.map(captureMessages);
+  await Promise.all(messages.map((frames) => waitFor(frames, 'ready')));
+  context.mock.method(
+    db,
+    'queryLive',
+    async <T extends QueryResultRow>(_sql: string, values: unknown[] = []) =>
+      queryRows<T>(
+        stringArray(values[0]).map((id) => ({
+          msg_id: id,
+          msg_body: 'x'.repeat(335_000),
+        })),
+      ),
+  );
+  const completions: Array<() => void> = [];
+  const healthy = new WeakSet<WebSocket>();
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
+  const originalSend = WebSocket.prototype.send;
+  context.mock.method(
+    WebSocket.prototype,
+    'send',
+    function (
+      this: WebSocket,
+      data: Parameters<WebSocket['send']>[0],
+      optionsOrCallback?:
+        | Parameters<WebSocket['send']>[1]
+        | ((error?: Error) => void),
+      callback?: (error?: Error) => void,
+    ): void {
+      const completion =
+        typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+      const message =
+        typeof data === 'string' || Buffer.isBuffer(data)
+          ? parseRecord(data.toString())
+          : undefined;
+      const row = message?.data;
+      if (
+        message?.type === 'message_upsert' &&
+        row &&
+        typeof row === 'object' &&
+        'msg_id' in row &&
+        String(row.msg_id).endsWith(probe)
+      )
+        healthy.add(this);
+      const completed =
+        completion && message?.type === 'message_upsert' && !healthy.has(this)
+          ? () => completions.push(() => completion())
+          : completion;
+      if (typeof optionsOrCallback === 'function' || !optionsOrCallback) {
+        originalSend.call(this, data, completed);
+      } else {
+        originalSend.call(this, data, optionsOrCallback, completed);
+      }
+    },
+  );
+  const upserts = () =>
+    messages[3].filter((f) => f.type === 'message_upsert').length;
+  try {
+    notify('scraper_explorer_event', JSON.stringify({ messageId: probe }));
+    await waitUntil(() => upserts() === 1);
+    // Just under each browser's 16 MiB queue: about 16.75 MB shared by the
+    // pair and 16.75 MB held by the third, below the 32 MiB global budget.
+    for (let count = 0; count < 102; count++) {
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: count % 2 ? own : shared }),
+      );
+      await waitUntil(() => upserts() === count + 2);
+    }
+    assert(sockets.every((s) => s.readyState === WebSocket.OPEN));
+    notify('scraper_explorer_event', JSON.stringify({ messageId: extra }));
+    // One more frame for the healthy browser crosses the global budget.
+    await waitUntil(() => upserts() === 104);
+    await waitUntil(() => sockets[2].readyState === WebSocket.CLOSED);
+    assert.equal(sockets[0].readyState, WebSocket.OPEN);
+    assert.equal(sockets[1].readyState, WebSocket.OPEN);
+    assert.equal(sockets[3].readyState, WebSocket.OPEN);
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    sockets.forEach((socket) => socket.terminate());
+    await localEvents.stop();
+    await new Promise<void>((resolve) => localHttp.close(() => resolve()));
+  }
+});
+
 void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (context) => {
   const sockets = [new WebSocket(messagesUrl), new WebSocket(messagesUrl)];
   const received = sockets.map((socket) => {
@@ -3793,9 +4520,10 @@ void it('broadcasts UTF-8 text with byte-accurate queue accounting', async (cont
     await waitUntil(() => completions.length === 2);
     assert.equal(events.metricsSnapshot().outboundPendingBytes, 2 * firstBytes);
     assert.equal(events.metricsSnapshot().explorerPendingMessages, 2);
+    // Both clients queue the same shared buffer; the global budget counts it once.
     assert.equal(
       events.metricsSnapshot().explorerPendingBytes,
-      2 * Buffer.byteLength(JSON.stringify(expected[1])),
+      Buffer.byteLength(JSON.stringify(expected[1])),
     );
     for (const complete of completions.splice(0)) complete();
     await waitUntil(() => completions.length === 2);
@@ -4031,7 +4759,7 @@ void it('rejects out-of-range heartbeat intervals without starting timers', asyn
   }
 });
 
-void it('bounds aggregate Explorer outbound buffering', async () => {
+void it('bounds aggregate Explorer outbound buffering when sends stall', async (t) => {
   const sockets = Array.from({ length: 4 }, () => new WebSocket(messagesUrl));
   const messages: Record<string, unknown>[][] = sockets.map(() => []);
   const closeCodes: number[] = [];
@@ -4041,21 +4769,29 @@ void it('bounds aggregate Explorer outbound buffering', async () => {
     );
     socket.on('close', (code) => closeCodes.push(code));
   });
-  await Promise.all(messages.map((items) => waitFor(items, 'ready')));
-  notify(
-    'scraper_explorer_event',
-    JSON.stringify({ messageId: msgId.slice(2) }),
+  const completions = delayServerSendCompletions(
+    t,
+    ({ type }) => type === 'message_upsert',
   );
-  await waitUntil(
-    () =>
-      messages.flat().some(({ type }) => type === 'message_upsert') &&
-      closeCodes.includes(1006),
-  );
-  assert(closeCodes.includes(1006));
-  sockets.forEach((socket) => socket.close());
-  await waitUntil(() =>
-    sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
-  );
+  try {
+    await Promise.all(messages.map((items) => waitFor(items, 'ready')));
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitUntil(
+      () =>
+        messages.flat().some(({ type }) => type === 'message_upsert') &&
+        closeCodes.includes(1006),
+    );
+    assert(events.metricsSnapshot().outboundPendingBytes <= 1_024);
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    sockets.forEach((socket) => socket.terminate());
+    await waitUntil(() =>
+      sockets.every(({ readyState }) => readyState === WebSocket.CLOSED),
+    );
+  }
 });
 
 void it('skips oversized diagnostics and retries fanout without interrupting normal updates', async (t) => {
@@ -4075,7 +4811,7 @@ void it('skips oversized diagnostics and retries fanout without interrupting nor
       queryLive: db.queryLive,
       queryValidator: db.queryValidator,
     },
-    { maxBufferedBytes: 4_096, maxTotalBufferedBytes: 4_096 },
+    { maxBufferedBytes: 4_096, maxTotalBufferedBytes: 16_384 },
     new DiagnosticsService({
       query: async () => {
         reads++;
@@ -4172,6 +4908,276 @@ void it('skips oversized diagnostics and retries fanout without interrupting nor
   assert(sockets.every((socket) => socket.readyState === WebSocket.OPEN));
 });
 
+void it(
+  'serves 500 message and 2000 validator sockets under a 1 MiB send budget',
+  { skip: process.env.SCRAPER_CAPACITY_TEST !== '1', timeout: 90_000 },
+  async (t) => {
+    const { EventWebSocketServer } = await import('./event-websocket.js');
+    await events.stop();
+    events = new EventWebSocketServer(db, {
+      maxTotalBufferedBytes: 1024 * 1024,
+    });
+    await events.start(http);
+    const reads = { agent: 0, validators: 0, messages: 0 };
+    const original = db.queryLive.bind(db);
+    async function query<T extends QueryResultRow>(
+      sql: string,
+      values: unknown[] = [],
+    ): Promise<T[]> {
+      if (sql.includes('LEFT JOIN LATERAL'))
+        return queryRows<T>([
+          {
+            ...liveStartRow,
+            confirmations: 0,
+            height: '1000',
+            head_height: '1000',
+            indexed_height: '1000',
+            confirmed_height: '900',
+          },
+        ]);
+      if (sql.includes('confirmation_events'))
+        return queryRows<T>([
+          {
+            ...row(hookA),
+            block_number: values[3],
+            block_hash: liveStartRow.hash,
+            frontier_height: values[3],
+            frontier_id: values[3],
+          },
+        ]);
+      if (sql.includes('"message_view"')) {
+        const rows = await original<T>(sql, values);
+        return queryRows<T>(
+          rows.map((row) => ({ ...row, msg_body: 'x'.repeat(20 * 1024) })),
+        );
+      }
+      return original<T>(sql, values);
+    }
+    t.mock.method(
+      db,
+      'queryLive',
+      async <T extends QueryResultRow>(sql: string, values: unknown[] = []) => {
+        if (sql.includes('confirmation_events')) reads.agent++;
+        if (sql.includes('"message_view"')) reads.messages++;
+        return query<T>(sql, values);
+      },
+    );
+    t.mock.method(
+      db,
+      'queryValidator',
+      async <T extends QueryResultRow>(sql: string, values: unknown[] = []) => {
+        if (sql.includes('confirmation_events')) reads.validators++;
+        return query<T>(sql, values);
+      },
+    );
+    const sockets = new Set<WebSocket>();
+    const clients: Record<string, unknown>[][] = [];
+    function open(endpoint: string, index: number) {
+      const socket = new WebSocket(endpoint, {
+        headers: { 'cf-connecting-ip': `203.0.113.${1 + (index % 100)}` },
+      });
+      sockets.add(socket);
+      socket.on('error', () => {});
+      return socket;
+    }
+    async function connect(endpoint: string, index: number, agent = false) {
+      const socket = open(endpoint, index);
+      const frames = captureMessages(socket);
+      clients.push(frames);
+      if (agent) {
+        await waitFor(frames, 'ready');
+        socket.send(
+          JSON.stringify({
+            type: 'subscribe',
+            streams: [
+              {
+                eventType: 'merkle_tree_insertion',
+                domains: [1],
+                confirmations: 0,
+              },
+            ],
+          }),
+        );
+      }
+      await waitUntil(() => {
+        t.signal.throwIfAborted();
+        assert.notEqual(
+          socket.readyState,
+          WebSocket.CLOSED,
+          'closed during setup',
+        );
+        return frames.some(
+          (f) => f.type === (endpoint === messagesUrl ? 'ready' : 'live_start'),
+        );
+      });
+    }
+    try {
+      await connect(url, 0, true);
+      for (const [endpoint, count] of [
+        [messagesUrl, 500],
+        [`${validatorsUrl}?domain=1&confirmations=0`, 2000],
+      ] satisfies [string, number][]) {
+        for (let start = 0; start < count; start += 8)
+          await Promise.all(
+            Array.from({ length: Math.min(8, count - start) }, (_, i) =>
+              connect(endpoint, start + i),
+            ),
+          );
+      }
+      assert.deepEqual(events.metricsSnapshot().connections, {
+        agent: 1,
+        messages: 500,
+        validators: 2000,
+      });
+      for (const endpoint of [validatorsUrl, messagesUrl]) {
+        const probe = open(
+          `${endpoint}${endpoint === validatorsUrl ? '?domain=1' : ''}`,
+          200,
+        );
+        let status: number | undefined;
+        probe.on('unexpected-response', (_request, response) => {
+          status = response.statusCode;
+          response.resume();
+          probe.terminate();
+        });
+        probe.on('close', (code) => {
+          status ??= code;
+        });
+        const frames = captureMessages(probe);
+        await waitUntil(() => {
+          t.signal.throwIfAborted();
+          return status !== undefined || frames.length > 0;
+        });
+        assert.equal(status, endpoint === validatorsUrl ? 503 : 1013);
+        sockets.delete(probe);
+      }
+      for (let round = 1; round <= 3; round++) {
+        notify(
+          'scraper_head',
+          JSON.stringify({
+            domain: 1,
+            headHeight: String(1000 + round),
+            indexedHeight: String(1000 + round),
+            previousIndexedHeight: String(999 + round),
+            confirmedHeight: '900',
+            previousConfirmedHeight: '900',
+          }),
+        );
+        notify(
+          'scraper_explorer_event',
+          JSON.stringify({ messageId: msgId.slice(2) }),
+        );
+        await waitUntil(() => {
+          t.signal.throwIfAborted();
+          return clients.every(
+            (frames) =>
+              frames.filter(
+                (f) => f.type === 'event' || f.type === 'message_upsert',
+              ).length === round,
+          );
+        });
+        assert(
+          [...sockets].every((socket) => socket.readyState === WebSocket.OPEN),
+        );
+      }
+      assert.deepEqual(reads, { agent: 3, validators: 3, messages: 3 });
+    } finally {
+      for (const socket of sockets) socket.terminate();
+    }
+  },
+);
+
+void it('disconnects over-budget subscriptions without starting readers', async () => {
+  const socket = new WebSocket(url);
+  const frames = captureMessages(socket);
+  try {
+    await waitFor(frames, 'ready');
+    let code: number | undefined;
+    socket.on('close', (value) => {
+      code = value;
+    });
+    socket.send(
+      JSON.stringify({
+        type: 'subscribe',
+        streams: [
+          {
+            eventType: 'dispatch',
+            domains: Array.from({ length: 11 }, (_, i) => i + 1),
+            confirmations: 1000,
+          },
+        ],
+      }),
+    );
+    await waitUntil(() => code !== undefined);
+    assert.equal(code, 1008);
+    assert.equal(events.metricsSnapshot().eventSource.ranges, 0);
+  } finally {
+    socket.terminate();
+  }
+});
+
+void it('keeps pending agents alive when public traffic exceeds a small global budget', async (t) => {
+  const frames: Record<string, unknown>[] = [];
+  const agent = liveAgent(frames);
+  const browser = new WebSocket(messagesUrl);
+  const messages = captureMessages(browser);
+  await Promise.all([
+    waitFor(frames, 'subscribed'),
+    waitFor(messages, 'ready'),
+  ]);
+  const completions = delayServerSendCompletions(t);
+  rows.set('40000', { ...row(hookA), padding: 'x'.repeat(400) });
+  try {
+    notify('scraper_event', notification('40000'));
+    await waitUntil(() => completions.length === 1);
+    assert(events.metricsSnapshot().outboundPendingBytes > 512);
+    notify(
+      'scraper_explorer_event',
+      JSON.stringify({ messageId: msgId.slice(2) }),
+    );
+    await waitUntil(() => browser.readyState === WebSocket.CLOSED);
+    assert.equal(agent.readyState, WebSocket.OPEN);
+  } finally {
+    completions.splice(0).forEach((complete) => complete());
+    rows.delete('40000');
+    agent.terminate();
+    browser.terminate();
+  }
+});
+
+void it('delivers a canonical 500-row page to 100 agents without shedding healthy sockets', async () => {
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  await events.stop();
+  events = new EventWebSocketServer(db);
+  await events.start(http);
+  const clients = Array.from({ length: 100 }, () => {
+    const frames: Record<string, unknown>[] = [];
+    return { socket: liveAgent(frames), frames };
+  });
+  try {
+    await Promise.all(
+      clients.map(({ frames }) => waitFor(frames, 'subscribed')),
+    );
+    for (let i = 0; i < 500; i++) {
+      const id = String(41000 + i);
+      rows.set(id, { ...row(hookA), padding: 'x'.repeat(200) });
+      notify('scraper_event', notification(id));
+    }
+    await waitUntil(
+      () =>
+        clients.every(
+          ({ frames }) =>
+            frames.filter((f) => f.type === 'event').length === 500,
+        ),
+      500,
+    );
+    assert(clients.every(({ socket }) => socket.readyState === WebSocket.OPEN));
+  } finally {
+    for (const { socket } of clients) socket.terminate();
+    for (let i = 0; i < 500; i++) rows.delete(String(41000 + i));
+  }
+});
+
 async function upgradeRejected(
   endpoint: string,
   expected: number,
@@ -4253,6 +5259,8 @@ function liveAgent(messages: Record<string, unknown>[]): WebSocket {
 
 function delayServerSendCompletions(
   context: TestContext,
+  shouldDelay: (message: Record<string, unknown>) => boolean = (message) =>
+    ['event', 'diagnostics', 'message_upsert'].includes(String(message.type)),
 ): Array<(error?: Error) => void> {
   const completions: Array<(error?: Error) => void> = [];
   // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the socket receiver via .call below.
@@ -4274,11 +5282,7 @@ function delayServerSendCompletions(
         typeof data === 'string' || Buffer.isBuffer(data)
           ? parseRecord(data.toString())
           : undefined;
-      const delay =
-        completion &&
-        (message?.type === 'event' ||
-          message?.type === 'diagnostics' ||
-          message?.type === 'message_upsert');
+      const delay = completion && message && shouldDelay(message);
       const completed = delay
         ? (error?: Error) =>
             completions.push((override = error) => completion(override))

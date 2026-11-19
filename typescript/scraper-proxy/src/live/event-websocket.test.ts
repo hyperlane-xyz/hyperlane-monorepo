@@ -3,16 +3,93 @@ import { describe, it } from 'node:test';
 
 import {
   EVENT_TYPES,
+  confirmationHeight,
   parseClientMessage,
   parseDatabaseDomain,
   parseEventNotification,
   parseExplorerNotification,
   parseExplorerBlocks,
   parseExplorerMessageIds,
+  parseExplorerConfirmations,
   parseHeadNotification,
 } from './protocol.js';
 
 void describe('event websocket protocol', () => {
+  void it('uses the lower of indexed progress and head minus confirmations', () => {
+    assert.equal(confirmationHeight({ head: 20n, indexed: 18n }, 5), 15n);
+    assert.equal(confirmationHeight({ head: 20n, indexed: 12n }, 5), 12n);
+  });
+
+  void it('validates live-only confirmations on both endpoints', () => {
+    const parse = (fields: Record<string, unknown>) =>
+      parseClientMessage(
+        JSON.stringify({
+          type: 'subscribe',
+          streams: [{ eventType: 'dispatch', ...fields }],
+        }),
+      );
+    assert.doesNotThrow(() => parse({ confirmations: 0, domains: [1] }));
+    for (const confirmations of [
+      -1,
+      0.1,
+      '1',
+      null,
+      1001,
+      Number.MAX_SAFE_INTEGER + 1,
+    ])
+      assert.throws(() => parse({ confirmations, domains: [1] }));
+    assert.throws(() => parse({ confirmations: 0 }));
+    assert.deepEqual(
+      parseExplorerConfirmations(
+        new URLSearchParams('confirmations=2&domains=1,2'),
+      ),
+      { confirmations: 2, domains: new Set([1, 2]) },
+    );
+    for (const url of [
+      '?confirmations=0',
+      '?domains=1',
+      '?confirmations=-1&domains=1',
+      '?confirmations=0&domains=',
+      '?confirmations=1001&domains=1',
+      `?confirmations=1000&domains=${Array.from({ length: 11 }, (_, i) => i + 1).join(',')}`,
+      `?confirmations=0&domains=${Array.from({ length: 513 }, (_, i) => i).join(',')}`,
+    ])
+      assert.throws(() => parseExplorerConfirmations(new URLSearchParams(url)));
+  });
+
+  void it('bounds custom agent retention while retaining canonical fleet subscriptions', () => {
+    const parse = (
+      domains: number[],
+      confirmations?: number,
+      confirmationsByDomain?: Record<string, number>,
+    ) =>
+      parseClientMessage(
+        JSON.stringify({
+          type: 'subscribe',
+          confirmationsByDomain,
+          streams: [{ eventType: 'dispatch', domains, confirmations }],
+        }),
+      );
+    const domains = Array.from({ length: 513 }, (_, i) => i + 1);
+    assert.doesNotThrow(() => parse(domains));
+    assert.doesNotThrow(() => parse(domains.slice(0, 512), 0));
+    assert.throws(() => parse(domains, 0), /512/);
+    assert.doesNotThrow(() => parse(domains.slice(0, 10), 1000));
+    assert.throws(() => parse(domains.slice(0, 11), 1000), /budget/);
+    assert.throws(() => parse([1], 0, { 1: 1001 }), /1000/);
+    assert.throws(
+      () =>
+        parse(
+          domains.slice(0, 11),
+          0,
+          Object.fromEntries(
+            domains.slice(0, 11).map((domain) => [domain, 1000]),
+          ),
+        ),
+      /budget/,
+    );
+  });
+
   void it('accepts optional live block subscriptions alongside events', () => {
     const message = parseClientMessage(
       JSON.stringify({

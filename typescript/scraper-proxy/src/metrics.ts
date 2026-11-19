@@ -12,6 +12,14 @@ const PREFIX = 'hyperlane_scraper_proxy_';
 
 export type WebSocketMetricsSnapshot = {
   connections: Record<'agent' | 'messages' | 'validators', number>;
+  explorerPendingSetups: number;
+  messageSource: { ranges: number; changes: number; factBytes: number };
+  eventSource: { ranges: number; rows: number; bytes: number };
+  validatorSource: { ranges: number; rows: number; bytes: number };
+  queues: Record<
+    'agent' | 'validators' | 'messages',
+    { bytes: number; messages: number }
+  >;
   validatorPendingSetups: number;
   validatorReservedConnections: number;
   validatorSharedReaders: number;
@@ -35,6 +43,8 @@ export type WebSocketMetricsSnapshot = {
     explorerPendingMessages: number;
     messageConnections: number;
     messageConnectionsPerIp: number;
+    messageSetups: number;
+    messageSetupsPerIp: number;
     validatorConnections: number;
     validatorSetups: number;
     validatorConnectionsPerIp: number;
@@ -151,7 +161,7 @@ export const websocketConnectionRejections = new Counter({
 });
 
 export const websocketClientMessageRejections = new Counter({
-  help: 'Agent WebSocket messages rejected by the per-client rate limit.',
+  help: 'Inbound WebSocket application messages rejected by the server.',
   name: `${PREFIX}websocket_client_message_rejections_total`,
   registers: [metricsRegistry],
 });
@@ -184,6 +194,8 @@ for (const route of ['agent', 'messages', 'validators']) {
 for (const route of ['messages', 'validators'])
   for (const reason of ['invalid_client_ip', 'per_ip_limit'])
     websocketConnectionRejections.inc({ reason, route }, 0);
+for (const reason of ['setup_limit', 'per_ip_setup_limit'])
+  websocketConnectionRejections.inc({ reason, route: 'messages' }, 0);
 websocketConnections.inc({ route: 'validators' }, 0);
 websocketConnectionRejections.inc(
   { route: 'validators', reason: 'invalid_subscription' },
@@ -324,7 +336,7 @@ snapshotGauge(
 );
 snapshotGauge(
   'websocket_validator_shared_readers',
-  'Active shared domain/confirmation readers.',
+  'Active public validator custom Merkle ranges, one per domain.',
   (gauge, snapshot) => gauge.set(snapshot.validatorSharedReaders),
 );
 snapshotGauge(
@@ -341,6 +353,69 @@ snapshotGauge(
   'websocket_validator_client_message_limit_bytes',
   'Maximum inbound validator WebSocket message size.',
   (gauge, snapshot) => gauge.set(snapshot.limits.validatorMessageBytes),
+);
+snapshotGauge(
+  'websocket_message_source_ranges',
+  'Retained custom message source ranges, one per domain.',
+  (g, s) => g.set(s.messageSource.ranges),
+);
+snapshotGauge(
+  'websocket_event_source_ranges',
+  'Shared custom event ranges, one per domain and event type.',
+  (gauge, snapshot) => gauge.set(snapshot.eventSource.ranges),
+);
+snapshotGauge(
+  'websocket_event_source_rows',
+  'Custom event rows retained or being loaded by the shared source.',
+  (gauge, snapshot) => gauge.set(snapshot.eventSource.rows),
+);
+snapshotGauge(
+  'websocket_event_source_bytes',
+  'Serialized custom event bytes retained or being loaded by the shared source.',
+  (gauge, snapshot) => gauge.set(snapshot.eventSource.bytes),
+);
+for (const metric of ['ranges', 'rows', 'bytes'] as const) {
+  snapshotGauge(
+    `websocket_validator_source_${metric}`,
+    `Public validator source ${metric}, isolated from agent retention.`,
+    (gauge, snapshot) => gauge.set(snapshot.validatorSource[metric]),
+  );
+}
+for (const metric of ['bytes', 'messages'] as const) {
+  snapshotGauge(
+    `websocket_queued_${metric}`,
+    `Queued outbound ${metric} by WebSocket route.`,
+    (gauge, snapshot) => {
+      for (const route of ['agent', 'validators', 'messages'] as const)
+        gauge.set({ route }, snapshot.queues[route][metric]);
+    },
+    ['route'],
+  );
+}
+snapshotGauge(
+  'websocket_message_source_changes',
+  'Retained dispatch, delivery and payment positions.',
+  (g, s) => g.set(s.messageSource.changes),
+);
+snapshotGauge(
+  'websocket_message_source_fact_bytes',
+  'Serialized size of retained message projection inputs.',
+  (g, s) => g.set(s.messageSource.factBytes),
+);
+snapshotGauge(
+  'websocket_message_pending_setups',
+  'Message negotiations awaiting database reads, including disconnected clients.',
+  (gauge, snapshot) => gauge.set(snapshot.explorerPendingSetups),
+);
+snapshotGauge(
+  'websocket_message_setup_limit',
+  'Maximum unfinished /messages setups.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.messageSetups),
+);
+snapshotGauge(
+  'websocket_message_setup_limit_per_ip',
+  'Maximum unfinished /messages setups per client IP.',
+  (gauge, snapshot) => gauge.set(snapshot.limits.messageSetupsPerIp),
 );
 snapshotGauge(
   'websocket_message_client_ips',

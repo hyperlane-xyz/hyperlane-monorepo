@@ -28,12 +28,45 @@ export interface MessageSelectArgs extends SelectArgs {
 const MAX_CONFIRMATIONS = 1_000;
 const MAX_AFFECTED_EVENTS = 10_000;
 
+const MAX_STATEMENT_PLAN_COST = 100_000;
+
+// Each GraphQL operation gets its own service. Concurrent aliases share this budget.
 export class ScraperDbService {
+  private remainingPlanCost = 250_000;
+
   constructor(private readonly db: ScraperDbDatabase) {}
+
+  private async historyQuery(
+    sql: string,
+    values: unknown[],
+  ): Promise<ScraperDbRow[]> {
+    // Estimate the actual projection, bound values, joins, sorting and LIMIT.
+    // EXPLAIN without ANALYZE does not execute the history query.
+    const [row] = await this.db.query(`EXPLAIN (FORMAT JSON) ${sql}`, values);
+    const document = row?.['QUERY PLAN'];
+    const cost: unknown = Array.isArray(document)
+      ? document[0]?.Plan?.['Total Cost']
+      : undefined;
+    assert(
+      typeof cost === 'number' &&
+        Number.isFinite(cost) &&
+        cost >= 0 &&
+        cost <= MAX_STATEMENT_PLAN_COST,
+      'History query exceeds the database planning budget',
+    );
+    assert(
+      cost <= this.remainingPlanCost,
+      'GraphQL operation exceeds its database planning budget',
+    );
+    this.remainingPlanCost -= cost;
+    return this.db.query(sql, values);
+  }
 
   async select(table: TableName, args: SelectArgs): Promise<ScraperDbRow[]> {
     const query = buildSelect(table, args);
-    return this.db.query(query.sql, query.values);
+    return table === 'domain'
+      ? this.db.query(query.sql, query.values)
+      : this.historyQuery(query.sql, query.values);
   }
 
   async selectMessages(args: MessageSelectArgs): Promise<ScraperDbRow[]> {
@@ -55,12 +88,12 @@ export class ScraperDbService {
     // Validate filters before either database query, including recursive limits.
     buildSelect('message_view', selectArgs);
     const ids = messageIds(selectArgs.where);
-    const [snapshot] = await this.db.query(
+    const [snapshot] = await this.historyQuery(
       `WITH custom_frontier AS (
         SELECT domain, least(indexed_height, head_height-$1::integer) AS height,
           confirmed_height FROM scraper_head
       ), affected AS MATERIALIZED (
-        SELECT msg_id FROM (${buildProvisionalMessageAffectedQuery(ids !== undefined)}) events
+        SELECT msg_id FROM (${buildProvisionalMessageAffectedQuery(ids !== undefined, confirmations === 0)}) events
           LIMIT ${MAX_AFFECTED_EVENTS + 1}
       ) SELECT array_agg(domain) AS domains, array_agg(height::text) AS heights,
         CASE WHEN (SELECT count(*) FROM affected)>${MAX_AFFECTED_EVENTS}
@@ -91,7 +124,7 @@ export class ScraperDbService {
       relation: 'provisional_message_view',
       values: projectedQuery.values,
     });
-    return this.db.query(
+    return this.historyQuery(
       `WITH custom_frontier(domain, height) AS (
         SELECT * FROM unnest($2::integer[], $3::bigint[])
       ), projected_message AS (${PROJECTED_MESSAGE_QUERY}),
@@ -135,7 +168,7 @@ export class ScraperDbService {
     const select = columns && buildSelect(table, { ...args, columns });
     return {
       aggregate: { args, table },
-      nodes: select ? await this.db.query(select.sql, select.values) : [],
+      nodes: select ? await this.historyQuery(select.sql, select.values) : [],
     };
   }
 
@@ -145,7 +178,7 @@ export class ScraperDbService {
     countArgs: CountArgs,
   ): Promise<number> {
     const query = buildCount(table, selectArgs, countArgs);
-    const [row] = await this.db.query(query.sql, query.values);
+    const [row] = await this.historyQuery(query.sql, query.values);
     assert(typeof row?.count === 'number', 'Invalid database count result');
     return row.count;
   }

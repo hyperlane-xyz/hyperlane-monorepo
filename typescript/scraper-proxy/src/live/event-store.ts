@@ -1,12 +1,10 @@
 import { config } from '../config.js';
 import type { DbService } from '../db/db.service.js';
 import { quoteIdentifier as q, tables } from '../scraperdb/tables.js';
-import type {
-  ConfirmationHead,
-  ConfirmationRow,
-  Position,
-} from './confirmation-stream.js';
 import {
+  type ConfirmationHead,
+  type ConfirmationRow,
+  type Position,
   type LiveStartBoundary,
   type EventType,
   displayAddress,
@@ -14,7 +12,8 @@ import {
   parseDatabaseDomain,
   parseId,
 } from './protocol.js';
-import { PROVISIONAL_MESSAGE_QUERY } from './provisional-message.js';
+import { LIVE_MESSAGE_FACTS_QUERY } from './provisional-message.js';
+import { collectMessageFacts, type FactRow } from './message-facts.js';
 
 const GAS_PAYMENT_TRANSACTION = 'event_transaction';
 const GAS_PAYMENT_BLOCK = 'event_block';
@@ -83,13 +82,10 @@ const EVENT_DOMAIN_COLUMNS: Record<EventType, readonly string[]> = {
   merkle_tree_insertion: ['domain'],
 };
 
-const MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES = 128;
-type ProvisionalMessage = { data: Row; domains: number[] };
+export type MessageChange = { height: bigint; id: string };
 
 /** Database reads for live event and message publication. */
 export class EventStore {
-  private readonly cache = new Map<string, Promise<ProvisionalMessage[]>>();
-
   constructor(private readonly db: Pick<DbService, 'queryLive'>) {}
 
   async domainExists(domain: number): Promise<boolean> {
@@ -98,19 +94,6 @@ export class EventStore {
       [storedDomain(domain)],
     );
     return rows.length > 0;
-  }
-
-  blockHeads(domains?: Set<number>) {
-    return this.db.queryLive<{
-      domain: number;
-      indexed_height: string;
-      hash: string;
-      head_height: string;
-    }>(
-      `SELECT domain, indexed_height, encode(indexed_hash, 'hex') AS hash, head_height
-       FROM scraper_head${domains ? ' WHERE domain=ANY($1::integer[])' : ''}`,
-      domains ? [[...domains].map(storedDomain)] : [],
-    );
   }
 
   /** Read all event types' confirmed boundary in one primary-database snapshot. */
@@ -192,17 +175,15 @@ export class EventStore {
     }
   }
 
-  async confirmationHeads(
-    domains: Set<number>,
-  ): Promise<Map<number, ConfirmationHead>> {
+  async messageHeads(domains?: Set<number>) {
     const rows = await this.db.queryLive<Row>(
-      'SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])',
-      [[...domains].map(storedDomain)],
+      `SELECT domain, head_height, indexed_height, confirmed_height, encode(indexed_hash, 'hex') AS hash FROM scraper_head${domains ? ' WHERE domain=ANY($1::integer[])' : ''}`,
+      domains ? [[...domains].map(storedDomain)] : [],
     );
     return new Map(
       rows.map((row) => [
-        parseDatabaseDomain(row.domain, 'Invalid head domain'),
-        confirmationHead(row),
+        rowDomain(row, 'domain'),
+        { ...confirmationHead(row), hash: parseOptionalBlockHash(row.hash) },
       ]),
     );
   }
@@ -248,16 +229,11 @@ export class EventStore {
     return snapshots;
   }
 
-  invalidateMessages(): void {
-    this.cache.clear();
-  }
-
   async *confirmationEventRows(
     eventType: EventType,
     domain: number,
     after: Position,
     through: bigint,
-    confirmations: number,
   ): AsyncIterable<ConfirmationRow> {
     const stream = STREAMS[eventType];
     const table = stream.table.replace('confirmed_', '');
@@ -290,7 +266,6 @@ export class EventStore {
           position,
           message: {
             ...eventMessage(eventType, row),
-            confirmations,
             height: position[0].toString(),
             blockHash: block_hash,
           },
@@ -300,16 +275,11 @@ export class EventStore {
     }
   }
 
-  async *confirmationMessageRows(
+  async *messageChanges(
     domain: number,
     after: Position,
     through: bigint,
-    frontiers: Map<number, bigint>,
-    confirmations: number,
-    messageIds?: Set<string>,
-  ): AsyncIterable<ConfirmationRow> {
-    if (messageIds?.size === 0) return;
-    const filter = messageIds ? ' AND msg_id = ANY($7::bytea[])' : '';
+  ): AsyncIterable<MessageChange[]> {
     let position = after;
     while (true) {
       const changes = await this.db.queryLive<{
@@ -318,11 +288,22 @@ export class EventStore {
         id: string;
         msg_id: string;
       }>(
+        // Each arm applies the cursor and limit itself, so a page reads at most
+        // three batches instead of every row left in the range.
         `/* confirmation_messages */ SELECT * FROM (
-          SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint${filter}
-          UNION ALL SELECT block_number, 1, id, msg_id FROM delivered_message WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint${filter}
-          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint${filter}
-        ) changes WHERE (height, source, id)>($2::bigint,$3::integer,$4::bigint) ORDER BY height, source, id LIMIT $6`,
+          (SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch
+            WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint
+              AND (origin_block_height,0,id)>($2::bigint,$3::integer,$4::bigint)
+            ORDER BY origin_block_height, id LIMIT $6)
+          UNION ALL (SELECT block_number, 1, id, msg_id FROM delivered_message
+            WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
+              AND (block_number,1,id)>($2::bigint,$3::integer,$4::bigint)
+            ORDER BY block_number, id LIMIT $6)
+          UNION ALL (SELECT block_number, 2, id, msg_id FROM gas_payment
+            WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint
+              AND (block_number,2,id)>($2::bigint,$3::integer,$4::bigint)
+            ORDER BY block_number, id LIMIT $6)
+        ) changes ORDER BY height, source, id LIMIT $6`,
         [
           storedDomain(domain),
           position[0].toString(),
@@ -330,80 +311,23 @@ export class EventStore {
           position[2].toString(),
           through.toString(),
           config.EVENT_STREAM_BATCH_SIZE,
-          ...(messageIds ? [[...messageIds]] : []),
         ],
       );
       if (!changes.length) return;
-      const rows = await this.provisionalMessages(
-        [...new Set(changes.map((row) => row.msg_id))],
-        frontiers,
-      );
-      const messages = new Map(rows.map((row) => [row.data.msg_id, row]));
-      for (const change of changes) {
+      const page = changes.map((change) => {
         position = [parseId(change.height), change.source, parseId(change.id)];
-        const row = messages.get(change.msg_id);
-        yield {
-          domains: row?.domains,
-          position,
-          message: row && {
-            type: 'message_upsert',
-            domain,
-            confirmations,
-            height: through.toString(),
-            data: row.data,
-          },
-        };
-      }
+        return { height: position[0], id: change.msg_id };
+      });
+      yield page;
       if (changes.length < config.EVENT_STREAM_BATCH_SIZE) return;
     }
   }
 
-  async provisionalMessages(
-    ids: string[],
-    frontiers: Map<number, bigint>,
-  ): Promise<ProvisionalMessage[]> {
-    const sortedIds = [...new Set(ids)].sort();
-    const sortedFrontiers = [...frontiers].sort(([a], [b]) => a - b);
-    const key = JSON.stringify([
-      sortedIds,
-      sortedFrontiers.map(([domain, height]) => [domain, String(height)]),
+  async messageFacts(ids: string[]) {
+    const rows = await this.db.queryLive<FactRow>(LIVE_MESSAGE_FACTS_QUERY, [
+      ids,
     ]);
-    const cached = this.cache.get(key);
-    if (cached) return cached;
-    // Entries survive only until the next head/message change, with a hard bound.
-    if (this.cache.size >= MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES)
-      this.cache.clear();
-    const result = this.db
-      .queryLive<Row>(PROVISIONAL_MESSAGE_QUERY, [
-        sortedIds,
-        sortedFrontiers.map(([domain]) => storedDomain(domain)),
-        sortedFrontiers.map(([, height]) => String(height)),
-      ])
-      .then((rows) =>
-        rows.map((row) => {
-          const { payment_domain_ids: _, ...data } = row;
-          const origin = rowDomain(row, 'origin_domain_id');
-          const destination = rowDomain(row, 'destination_domain_id');
-          return {
-            data: {
-              ...data,
-              origin_domain_id: origin,
-              destination_domain_id: destination,
-            },
-            domains: [
-              origin,
-              destination,
-              ...rowDomains(row, 'payment_domain_ids'),
-            ],
-          };
-        }),
-      )
-      .catch((error: unknown) => {
-        if (this.cache.get(key) === result) this.cache.delete(key);
-        throw error;
-      });
-    this.cache.set(key, result);
-    return result;
+    return collectMessageFacts(rows);
   }
 }
 
@@ -426,15 +350,6 @@ function gasPaymentMetadataJoins(): string {
 
 export function rowDomain(row: Row, column: string): number {
   return parseDatabaseDomain(row[column], `Invalid ${column} in event row`);
-}
-
-function rowDomains(row: Row, column: string): number[] {
-  const values = row[column];
-  if (values == null) return [];
-  if (!Array.isArray(values)) throw new Error(`Invalid ${column} in event row`);
-  return values.map((value) =>
-    parseDatabaseDomain(value, `Invalid ${column} in event row`),
-  );
 }
 
 function eventData(eventType: EventType, row: Row): Row {

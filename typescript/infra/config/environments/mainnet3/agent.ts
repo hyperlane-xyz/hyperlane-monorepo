@@ -146,7 +146,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -221,7 +221,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -296,7 +296,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -309,9 +309,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 };
 
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
-export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
-  edgenchain: true,
-};
+export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {};
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
@@ -533,11 +531,6 @@ const metaswapMatchingList = [
   ),
 );
 
-// Reveals have no owner; this also covers other ICA reveals between these chains.
-const aeroV3RevealMatchingList = icaMatchingList(
-  objMap(metaswapMetaRouters, () => ({ messageType: IcaMessageType.REVEAL })),
-);
-
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -565,12 +558,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       ...veloMessageModuleMatchingList,
       // Superswap ICA matches on ICA owner address in message body
       ...superswapIcaV2CommitmentMatchingList,
-      // ICA reveal messages (does not filter on ICA owner)
-      ...icaV2RevealMatchingList,
       // Temporary Aero v3 underpayment workaround; retain a 1-wei IGP payment.
       ...aeroV3AdapterMatchingList,
       ...metaswapMatchingList,
-      ...aeroV3RevealMatchingList,
     ],
   },
   {
