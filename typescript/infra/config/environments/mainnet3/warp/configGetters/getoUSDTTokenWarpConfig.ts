@@ -43,15 +43,12 @@ export const deploymentChains = [
   'soneium',
   'mode',
   'fraxtal',
-  'lisk',
   'metal',
-  'bob',
   'zerogravity',
   // Aug 6, 2026 - oUSDT expansion (new collateral/xERC20 legs, 6 decimals)
   'tron',
   'bsc',
   'arbitrum',
-  'tea',
 ] as const;
 const supportedCCIPChains = ['base', 'mode', 'optimism'];
 
@@ -117,7 +114,6 @@ const feeChains: oUSDTTokenChainName[] = [
   'tron',
   'bsc',
   'arbitrum',
-  'tea',
 ];
 // In-code quote signers (hyperlane-mainnet3-key-quotesigner GCP secret).
 const stagingQuoteSigners: Address[] = [
@@ -136,7 +132,6 @@ const productionFeeOwnerByChain: ChainMap<Address> = {
   tron: warpFeesIcas.tron,
   bsc: warpFeesIcas.bsc,
   arbitrum: warpFeesIcas.arbitrum,
-  tea: warpFeesIcas.tea,
 };
 
 // Environment-specific configuration
@@ -155,14 +150,11 @@ const productionBufferCapByChain: TypedoUSDTTokenChainMap<string> = {
   soneium: lowerBufferCap,
   mode: lowerBufferCap,
   fraxtal: lowerBufferCap,
-  lisk: lowerBufferCap,
   metal: lowerBufferCap,
-  bob: lowerBufferCap,
   zerogravity: middleBufferCap,
   tron: upperBufferCap,
   bsc: upperBufferCap,
   arbitrum: upperBufferCap,
-  tea: lowerBufferCap,
 };
 const productionDefaultRateLimitPerSecond = '5000000000'; // 5k/s = 5 * 10^3 ^ 10^6
 const middleRateLimitPerSecond = '2000000000'; // 2k/s = 2 * 10^3 ^ 10^6
@@ -177,14 +169,11 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   soneium: lowerRateLimitPerSecond,
   mode: lowerRateLimitPerSecond,
   fraxtal: lowerRateLimitPerSecond,
-  lisk: lowerRateLimitPerSecond,
   metal: lowerRateLimitPerSecond,
-  bob: lowerRateLimitPerSecond,
   zerogravity: middleRateLimitPerSecond,
   tron: productionDefaultRateLimitPerSecond,
   bsc: productionDefaultRateLimitPerSecond,
   arbitrum: productionDefaultRateLimitPerSecond,
-  tea: lowerRateLimitPerSecond,
 };
 
 const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
@@ -246,7 +235,6 @@ const productionCCIPTokenPoolAddresses: ChainMap<Address> = {
   celo: '0x47Db76c9c97F4bcFd54D8872FDb848Cab696092d',
   base: '0xa760D20a91C076A57b270D3F7a3150421ab40591',
   optimism: '0x6a21a19aD44542d83F7f7FF45Aa31A62a36200de',
-  bob: '0xAFEd606Bd2CAb6983fC6F10167c98aaC2173D77f',
   zerogravity: '0xd7502CaBdb70c79382deF58FB6df3CdA69cb2A1b',
 };
 
@@ -309,12 +297,6 @@ const productionExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
       limits: productionCCIPTokenPoolLimits,
     },
   ],
-  bob: [
-    {
-      lockbox: productionCCIPTokenPoolAddresses.bob,
-      limits: productionCCIPTokenPoolLimits,
-    },
-  ],
   zerogravity: [
     {
       lockbox: productionCCIPTokenPoolAddresses.zerogravity,
@@ -333,14 +315,11 @@ const productionTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   soneium: productionXERC20TokenAddress,
   mode: productionXERC20TokenAddress,
   fraxtal: productionXERC20TokenAddress,
-  lisk: productionXERC20TokenAddress,
   metal: productionXERC20TokenAddress,
-  bob: productionXERC20TokenAddress,
   zerogravity: productionXERC20TokenAddress,
   tron: usdtTokenAddresses.tron,
   bsc: usdtTokenAddresses.bsc,
   arbitrum: usdtTokenAddresses.arbitrum,
-  tea: productionXERC20TokenAddress,
 };
 
 // Staging
@@ -379,14 +358,11 @@ const stagingTokenAddressesByChain: TypedoUSDTTokenChainMap<Address> = {
   soneium: stagingXERC20TokenAddress,
   mode: stagingXERC20TokenAddress,
   fraxtal: stagingXERC20TokenAddress,
-  lisk: stagingXERC20TokenAddress,
   metal: stagingXERC20TokenAddress,
-  bob: stagingXERC20TokenAddress,
   zerogravity: stagingXERC20TokenAddress,
   tron: usdtTokenAddresses.tron,
   bsc: usdtTokenAddresses.bsc,
   arbitrum: usdtTokenAddresses.arbitrum,
-  tea: stagingXERC20TokenAddress,
 };
 
 const stagingExtraBridges: ChainMap<XERC20TokenExtraBridgesLimits[]> = {
