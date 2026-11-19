@@ -96,22 +96,21 @@ impl OpQueue {
     /// Pop multiple elements at once from the queue and update metrics
     #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
-        self.pop_many_with_state(limit).await.0
+        self.try_pop_many(limit).await.unwrap_or_default()
     }
 
     /// Wait only when no operations were popped. A batch exhausted by the
     /// denylist returns to the caller so it can retain its processing throttle.
     pub(super) async fn pop_many_wait(&mut self, limit: usize) -> Vec<QueueOperation> {
         loop {
-            let (batch, was_empty) = self.pop_many_with_state(limit).await;
-            if !was_empty {
+            if let Some(batch) = self.try_pop_many(limit).await {
                 return batch;
             }
             self.wait_for_ready(None).await;
         }
     }
 
-    async fn pop_many_with_state(&mut self, limit: usize) -> (Vec<QueueOperation>, bool) {
+    async fn try_pop_many(&mut self, limit: usize) -> Option<Vec<QueueOperation>> {
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
         let mut popped = vec![];
@@ -122,10 +121,10 @@ impl OpQueue {
             }
         }
         drop(queue);
-        let was_empty = popped.is_empty();
-        if !was_empty {
-            self.space_available.notify_one();
+        if popped.is_empty() {
+            return None;
         }
+        self.space_available.notify_one();
         let popped = self.evict_denied(popped).await;
 
         // This function is called very often by the message processor tasks, so only log when there are operations to pop
@@ -137,7 +136,7 @@ impl OpQueue {
                 "Popped OpQueue operations"
             );
         }
-        (popped, was_empty)
+        Some(popped)
     }
 
     pub async fn pop_many_ready(&mut self, limit: usize) -> (Vec<QueueOperation>, Option<Instant>) {
@@ -197,6 +196,8 @@ impl OpQueue {
         }
     }
 
+    /// Wait for a push, a retry request, or the current readiness deadline.
+    /// The consumer owns retry processing. Producer clones only push operations.
     pub async fn wait_for_ready(&mut self, deadline: Option<Instant>) {
         let notify = self.notify.clone();
         let retry_receiver = self.retry_receiver.clone();

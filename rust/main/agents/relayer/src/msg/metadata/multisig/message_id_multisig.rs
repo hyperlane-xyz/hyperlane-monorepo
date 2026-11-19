@@ -358,9 +358,7 @@ mod tests {
         // (polling, speculative signature present, validation result)
         for (polling, signature_present, validation) in [
             (false, true, Validation::Refused),
-            (false, false, Validation::Refused),
             (true, false, Validation::Refused),
-            (true, true, Validation::Refused),
             (true, true, Validation::Excluded),
             (true, true, Validation::Same),
             (true, false, Validation::Replaced),
@@ -416,8 +414,8 @@ mod tests {
                     }))
                 }
                 // The unchecked signer produced a quorum but flag validation excluded it.
-                Validation::Excluded => Ok(MultisigCheckpointSyncer::new(HashMap::new(), None)),
-                Validation::Same => Ok(unchecked.clone()),
+                Validation::Excluded => Ok(vec![(address, None)]),
+                Validation::Same => Ok(vec![]),
                 // A different checked location can supply the previously absent checkpoint.
                 Validation::Replaced => {
                     validators[0].fetch_checkpoint = Some(checkpoint);
@@ -426,17 +424,17 @@ mod tests {
                         .into_iter()
                         .map(|(address, client)| {
                             let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
-                            (address, client)
+                            (address, Some(client))
                         })
                         .collect();
-                    Ok(MultisigCheckpointSyncer::new(clients, None))
+                    Ok(clients)
                 }
             };
             base.responses
-                .build_checkpoint_syncer
+                .checkpoint_readers
                 .lock()
                 .unwrap()
-                .extend([Ok(unchecked), checked]);
+                .push_back((unchecked, checked));
 
             // A prioritized leaf with no quorum must still refuse delivery on
             // a reported reorg, even though the 1-of-2 aggregate has a valid fallback.
@@ -513,18 +511,17 @@ mod tests {
             let builder = MessageMetadataBuilder::new(base.clone(), root_ism, &message)
                 .await
                 .unwrap();
-            let build = tokio::spawn(async move {
-                builder
-                    .build_for_delivery(root_ism, &message, polling)
-                    .await
-            });
+            let build =
+                tokio::spawn(async move { builder.build_for_delivery(&message, polling).await });
             tokio::time::timeout(std::time::Duration::from_secs(2), async {
                 // The signature fetch is still blocked when the reorg check starts.
                 reorg_entered.notified().await;
                 while !fetch_started.load(Ordering::SeqCst) {
                     tokio::task::yield_now().await;
                 }
-                if !matches!(validation, Validation::Replaced) {
+                if !matches!(validation, Validation::Replaced)
+                    && (polling || !matches!(validation, Validation::Refused))
+                {
                     release_fetch.notify_one();
                 }
             })
@@ -571,6 +568,45 @@ mod tests {
                 vec![false, true]
             );
         }
+    }
+
+    #[tokio::test]
+    async fn merkle_root_veto_prevents_speculative_range_and_proof_reads() {
+        use crate::msg::metadata::multisig::{
+            build_from_known_validators, MerkleRootMultisigMetadataBuilder,
+        };
+        use hyperlane_base::settings::CheckpointSyncerBuildError;
+
+        let origin = HyperlaneDomain::new_test_domain("merkle-root-veto-test");
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let mut base = build_mock_base_builder(origin, destination);
+        let release = Arc::new(Notify::new());
+        base.responses.reorg_check_gate = Some((Arc::default(), release.clone()));
+        base.responses
+            .checkpoint_readers
+            .lock()
+            .unwrap()
+            .push_back((
+                MultisigCheckpointSyncer::new(HashMap::new(), None),
+                Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
+                    exists: true,
+                    event: None,
+                    content: None,
+                })),
+            ));
+        // Merkle tree requests have no mock response and would panic.
+        let message = HyperlaneMessage::default();
+        let builder = MerkleRootMultisigMetadataBuilder::new(
+            MessageMetadataBuilder::new(Arc::new(base), H256::zero(), &message)
+                .await
+                .unwrap(),
+        );
+        let build =
+            build_from_known_validators(&builder, &message, vec![H256::from_low_u64_be(1)], 1);
+        tokio::pin!(build);
+        assert!(futures::poll!(&mut build).is_pending());
+        release.notify_one();
+        assert!(matches!(build.await, Err(MetadataBuildError::Refused(_))));
     }
 
     #[tokio::test]
@@ -942,10 +978,10 @@ mod tests {
 
         base_builder
             .responses
-            .build_checkpoint_syncer
+            .checkpoint_readers
             .lock()
             .unwrap()
-            .extend([Ok(multisig_syncer.clone()), Ok(multisig_syncer)]);
+            .push_back((multisig_syncer, Ok(vec![])));
 
         let mut mock_multisig = MockMockMultisigIsm::new();
         mock_multisig
@@ -1054,10 +1090,10 @@ mod tests {
 
         base_builder
             .responses
-            .build_checkpoint_syncer
+            .checkpoint_readers
             .lock()
             .unwrap()
-            .extend([Ok(multisig_syncer.clone()), Ok(multisig_syncer)]);
+            .push_back((multisig_syncer, Ok(vec![])));
 
         let mut mock_multisig = MockMockMultisigIsm::new();
         mock_multisig

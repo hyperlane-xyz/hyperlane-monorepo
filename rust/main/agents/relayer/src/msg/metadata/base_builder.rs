@@ -2,7 +2,7 @@
 #![allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
 
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashSet},
     fmt::Debug,
     str::FromStr,
     sync::Arc,
@@ -11,10 +11,10 @@ use std::{
 
 use crate::message_activity::{Activity, Outcome, Stage, ValidatorStorageState};
 use derive_new::new;
-use futures::{stream, StreamExt};
+use futures::{future::BoxFuture, stream, StreamExt, TryStreamExt};
 use hyperlane_ethereum::Signers;
 use maplit::hashmap;
-use tokio::sync::{OnceCell, RwLock};
+use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use hyperlane_base::{
@@ -41,8 +41,20 @@ mod validator_announced_storages;
 
 pub(crate) use checkpoint_syncer_pool::CheckpointSyncerPool;
 
-/// One snapshot of validator announcements shared by the speculative and checked checkouts.
-pub(crate) type ValidatorStorageLocations = OnceCell<Vec<Vec<String>>>;
+type ReaderChange = (H160, Option<Arc<dyn CheckpointSyncer>>);
+pub(crate) type CheckpointValidation = Result<Vec<ReaderChange>, CheckpointSyncerBuildError>;
+
+pub struct CheckpointReaders<'a> {
+    pub(crate) syncer: MultisigCheckpointSyncer,
+    /// Check the selected readers and return only the readers that must change.
+    pub(crate) validate: BoxFuture<'a, CheckpointValidation>,
+}
+
+struct SelectedReader {
+    reader: Arc<dyn CheckpointSyncer>,
+    older_locations: Vec<String>,
+    states: BTreeSet<ValidatorStorageState>,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IsmBuildMetricsParams {
@@ -156,14 +168,12 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
         &self,
         address: H256,
     ) -> eyre::Result<Arc<SealevelCompositeIsm>>;
-    async fn build_checkpoint_syncer(
-        &self,
-        message: &HyperlaneMessage,
+    async fn discover_checkpoint_readers<'a>(
+        &'a self,
+        message: &'a HyperlaneMessage,
         validators: &[H256],
         app_context: Option<String>,
-        check_reorg: bool,
-        locations: &ValidatorStorageLocations,
-    ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>;
+    ) -> Result<CheckpointReaders<'a>, CheckpointSyncerBuildError>;
 }
 
 #[async_trait::async_trait]
@@ -302,152 +312,89 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             .map(Arc::new)
     }
 
-    async fn build_checkpoint_syncer(
-        &self,
-        message: &HyperlaneMessage,
+    async fn discover_checkpoint_readers<'a>(
+        &'a self,
+        message: &'a HyperlaneMessage,
         validators: &[H256],
         app_context: Option<String>,
-        check_reorg: bool,
-        locations: &ValidatorStorageLocations,
-    ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
-        let report = |outcome| {
-            self.report_activity(
-                message,
-                Activity::Progress {
-                    stage: Stage::ValidatorAnnouncements,
-                    outcome,
-                },
-            );
-        };
-        let storage_locations = locations
-            .get_or_try_init(|| async {
-                let storage_locations = self.fetch_storage_locations(validators).await?;
-                debug!(
-                    hyp_message=?message,
-                    ?validators,
-                    validators_len = ?validators.len(),
-                    ?storage_locations,
-                    storage_locations_len = ?storage_locations.len(),
-                    "List of validators and their storage locations for message");
-                Ok::<_, eyre::Report>(storage_locations)
-            })
-            .await
-            .inspect_err(|_| report(Outcome::Failed))?;
-
-        // Only use the most recently announced location for now.
-        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
-
-        let result = validators
+    ) -> Result<CheckpointReaders<'a>, CheckpointSyncerBuildError> {
+        // Match the identity rules used to collect signatures. A malformed
+        // bytes32 alias must not overwrite a canonical reader or its validation.
+        let mut seen = HashSet::new();
+        let validators: Vec<_> = validators
             .iter()
-            .zip(storage_locations)
-            .filter_map(|(validator, validator_storage_locations)| {
-                // Publish storage eligibility only after the checked checkout.
-                let report_storage = move |states: BTreeSet<ValidatorStorageState>, usable| {
-                    if check_reorg {
-                        self.report_activity(message, Activity::ValidatorStorage {
-                            validator: *validator,
-                            states: states.into_iter().collect(),
-                            usable,
-                        });
-                    }
-                };
-                if validator_storage_locations.is_empty() {
-                    if check_reorg {
-                        report_storage(BTreeSet::from([ValidatorStorageState::NotAnnounced]), false);
-                        warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
-                    }
-                    return None;
-                }
-
-                let future = async move {
-                    let mut states = BTreeSet::new();
-                    // Reverse the order of storage locations to prefer the most recently announced
-                    for storage_location in validator_storage_locations.iter().rev() {
-                        let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
-                            states.insert(ValidatorStorageState::InvalidLocation);
-                            debug!(
-                                ?validator,
-                                ?storage_location,
-                                "Could not parse checkpoint syncer config for validator"
-                            );
-                            continue;
-                        };
-                        // If this is a LocalStorage based checkpoint syncer and it's not
-                        // allowed, ignore it
-                        if !self.allow_local_checkpoint_syncers
-                            && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
-                        {
-                            states.insert(ValidatorStorageState::LocalStorageDisabled);
-                            debug!(
-                                ?config,
-                                "Ignoring disallowed LocalStorage based checkpoint syncer"
-                            );
-                            continue;
-                        }
-
-                        let syncer = match self
-                            .build_and_validate(&mut states, &config, validator, storage_location, check_reorg)
-                            .await
-                        {
-                            Ok(syncer) => syncer,
-                            Err(error) => {
-                                report_storage(states, false);
-                                return Err(error);
-                            }
-                        };
-                        if let Some(syncer) = syncer {
-                            // found the syncer for this validator
-                            report_storage(states, true);
-                            return Ok(Some((*validator, syncer)));
-                        }
-                        // An older location would not carry a reorg flag written to
-                        // the newest one, so an unreadable flag excludes the validator.
-                        if states.contains(&ValidatorStorageState::ReorgCheckFailed) {
-                            break;
-                        }
-                    }
-                    if check_reorg {
-                        warn!(
-                            ?validator,
-                            ?validator_storage_locations,
-                            "No valid checkpoint syncer configs for validator"
-                        );
-                        report_storage(states, false);
-                    }
-                    Ok(None)
-                };
-                Some(future)
+            .copied()
+            .filter(|validator| {
+                H256::from(H160::from(*validator)) == *validator && seen.insert(*validator)
             })
-            .collect::<Vec<_>>();
+            .collect();
+        let locations = self
+            .fetch_storage_locations(&validators)
+            .await
+            .inspect_err(|_| {
+                self.report_activity(
+                    message,
+                    Activity::Progress {
+                        stage: Stage::ValidatorAnnouncements,
+                        outcome: Outcome::Failed,
+                    },
+                );
+            })?;
+        debug!(
+            hyp_message = ?message,
+            ?validators,
+            validators_len = validators.len(),
+            storage_locations = ?locations,
+            storage_locations_len = locations.len(),
+            "List of validators and their storage locations for message"
+        );
 
-        let check_started = check_reorg.then(Instant::now);
-        let checkpoint_syncers_results = stream::iter(result)
-            .buffer_unordered(10) // Limit the number of concurrent tasks
-            .collect::<Vec<_>>()
-            .await;
-        if let Some(started) = check_started {
+        let selected = stream::iter(validators.iter().copied().zip(locations).map(|(validator, mut locations)| async move {
+            let mut states = BTreeSet::new();
+            if locations.is_empty() {
+                states.insert(ValidatorStorageState::NotAnnounced);
+                warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
+            }
+            match self.select_reader(validator, &mut locations, &mut states).await {
+                Some(reader) => Some((validator, SelectedReader { reader, older_locations: locations, states })),
+                None => {
+                    self.report_storage(message, validator, states, false);
+                    None
+                }
+            }
+        }))
+        .buffer_unordered(10)
+        .filter_map(std::future::ready)
+        .collect::<Vec<_>>()
+        .await;
+        let checkpoint_syncers = selected
+            .iter()
+            .map(|(validator, selection)| ((*validator).into(), selection.reader.clone()))
+            .collect();
+        let syncer = MultisigCheckpointSyncer::new(
+            checkpoint_syncers,
+            app_context.map(|ctx| (self.metrics.clone(), ctx)),
+        );
+        let validator_count = validators.len();
+        let validate = Box::pin(async move {
+            let started = Instant::now();
+            let results =
+                stream::iter(selected.into_iter().map(|(validator, selection)| {
+                    self.validate_reader(message, validator, selection)
+                }))
+                .buffer_unordered(10)
+                .try_filter_map(|change| async move { Ok(change) })
+                .try_collect()
+                .await;
             debug!(
                 message_id = ?message.id(),
-                validator_count = validators.len(),
+                validator_count,
                 elapsed_ms = started.elapsed().as_millis(),
                 "Checked validator reorg flags"
             );
-        }
-        let checkpoint_syncers_results = checkpoint_syncers_results
-            .into_iter()
-            .collect::<Result<Vec<_>, CheckpointSyncerBuildError>>()? // Collect results into a single vector and return if any of them returns an error
-            .into_iter()
-            .flatten() // Flatten Option<_>
-            .collect::<Vec<_>>();
-
-        for (validator, checkpoint_syncer) in checkpoint_syncers_results {
-            checkpoint_syncers.insert(validator.into(), checkpoint_syncer);
-        }
-
-        Ok(MultisigCheckpointSyncer::new(
-            checkpoint_syncers,
-            app_context.map(|ctx| (self.metrics.clone(), ctx)),
-        ))
+            results
+        });
+        Ok(CheckpointReaders { syncer, validate })
     }
 
     fn get_signer(&self) -> Option<&Signers> {
@@ -465,80 +412,119 @@ impl BaseMetadataBuilder {
             .await
     }
 
-    async fn build_and_validate(
+    async fn select_reader(
         &self,
+        validator: H256,
+        locations: &mut Vec<String>,
         states: &mut BTreeSet<ValidatorStorageState>,
-        config: &CheckpointSyncerConf,
-        validator: &H256,
-        storage_location: &str,
-        check_reorg: bool,
-    ) -> Result<Option<Arc<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
-        let mut report = |state| {
-            states.insert(state);
-        };
-        let checkpoint_syncer = match self
-            .checkpoint_syncer_pool
-            .get_or_build(
-                config,
-                self.cache.clone(),
-                self.origin_domain.name().to_string(),
-                *validator,
-                storage_location.to_string(),
-            )
-            .await
-        {
-            Ok(checkpoint_syncer) => checkpoint_syncer,
-            Err(err) => {
-                report(ValidatorStorageState::LoadFailed);
+    ) -> Option<Arc<dyn CheckpointSyncer>> {
+        while let Some(location) = locations.pop() {
+            let Ok(config) = CheckpointSyncerConf::from_str(&location) else {
+                states.insert(ValidatorStorageState::InvalidLocation);
                 debug!(
-                    error=%err,
-                    ?config,
                     ?validator,
-                    "Error when loading checkpoint syncer; will attempt to use the next config"
+                    ?location,
+                    "Could not parse checkpoint syncer config for validator"
                 );
-                return Ok(None);
+                continue;
+            };
+            if !self.allow_local_checkpoint_syncers
+                && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
+            {
+                states.insert(ValidatorStorageState::LocalStorageDisabled);
+                continue;
             }
-        };
-
-        if !check_reorg {
-            // Start downloads immediately; the multisig builder validates the
-            // collected quorum before returning delivery metadata.
-            return Ok(Some(checkpoint_syncer));
-        }
-
-        // The backend is pooled, but reorg status is safety-critical and must be
-        // checked on every checkout rather than only when the client is built.
-        match checkpoint_syncer.reorg_status().await {
-            Ok(reorg_event) if reorg_event.exists => {
-                report(ValidatorStorageState::ReorgReported);
-                if self.ignore_reorg_reports {
-                    report(ValidatorStorageState::ReorgIgnored);
-                    warn!(
-                        ?reorg_event,
-                        ?config,
-                        ?validator,
-                        "Ignoring reorg event for checkpoint syncer build"
-                    );
-                    Ok(None)
-                } else {
-                    Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event))
+            match self
+                .checkpoint_syncer_pool
+                .get_or_build(
+                    &config,
+                    self.cache.clone(),
+                    self.origin_domain.name().to_string(),
+                    validator,
+                    location,
+                )
+                .await
+            {
+                Ok(reader) => return Some(reader),
+                Err(err) => {
+                    states.insert(ValidatorStorageState::LoadFailed);
+                    debug!(error = %err, ?config, ?validator, "Error loading checkpoint syncer; trying the next location");
                 }
             }
-            Ok(_) => Ok(Some(checkpoint_syncer)),
-            Err(err) => {
-                // A read error is not evidence that the flag is absent, so this
-                // validator's signatures are excluded. It must not fail the whole
-                // build: the remaining validators can still reach quorum.
-                report(ValidatorStorageState::ReorgCheckFailed);
-                warn!(
-                    ?err,
-                    ?config,
-                    ?validator,
-                    "Failed to read reorg status; excluding validator from checkpoint metadata"
-                );
-                Ok(None)
-            }
         }
+        None
+    }
+
+    fn report_storage(
+        &self,
+        message: &HyperlaneMessage,
+        validator: H256,
+        states: BTreeSet<ValidatorStorageState>,
+        usable: bool,
+    ) {
+        self.report_activity(
+            message,
+            Activity::ValidatorStorage {
+                validator,
+                states: states.into_iter().collect(),
+                usable,
+            },
+        );
+    }
+
+    async fn validate_reader(
+        &self,
+        message: &HyperlaneMessage,
+        validator: H256,
+        SelectedReader {
+            mut reader,
+            mut older_locations,
+            mut states,
+        }: SelectedReader,
+    ) -> Result<Option<ReaderChange>, CheckpointSyncerBuildError> {
+        let key = validator.into();
+        let mut changed = false;
+        loop {
+            match reader.reorg_status().await {
+                Ok(event) if !event.exists => {
+                    self.report_storage(message, validator, states, true);
+                    return Ok(changed.then_some((key, Some(reader))));
+                }
+                Ok(event) => {
+                    states.insert(ValidatorStorageState::ReorgReported);
+                    if !self.ignore_reorg_reports {
+                        self.report_storage(message, validator, states, false);
+                        return Err(CheckpointSyncerBuildError::ReorgFlag(event));
+                    }
+                    states.insert(ValidatorStorageState::ReorgIgnored);
+                    warn!(
+                        ?event,
+                        ?validator,
+                        "Ignoring reorg report for checkpoint syncer"
+                    );
+                }
+                Err(err) => {
+                    // An older location cannot establish whether this unreadable flag is absent.
+                    states.insert(ValidatorStorageState::ReorgCheckFailed);
+                    warn!(
+                        ?err,
+                        ?validator,
+                        "Failed to read reorg status; excluding validator from checkpoint metadata"
+                    );
+                    break;
+                }
+            }
+            let Some(older_reader) = self
+                .select_reader(validator, &mut older_locations, &mut states)
+                .await
+            else {
+                break;
+            };
+            reader = older_reader;
+            changed = true;
+        }
+        self.report_storage(message, validator, states, false);
+        Ok(Some((key, None)))
     }
 }
 
@@ -594,20 +580,24 @@ mod tests {
         let builder = dummy_metadata_builder(&origin, &destination, &db, OptionalCache::new(None));
         let checkpoint_dir = tempfile::tempdir().unwrap();
         let storage_location = format!("file://{}", checkpoint_dir.path().display());
-        let config = CheckpointSyncerConf::from_str(&storage_location).unwrap();
         let validator = H256::from_low_u64_be(1);
-
+        let mut builder = builder;
+        builder.allow_local_checkpoint_syncers = true;
         let syncer = builder
-            .build_and_validate(
-                &mut BTreeSet::new(),
-                &config,
-                &validator,
-                &storage_location,
-                true,
-            )
+            .select_reader(validator, &mut vec![storage_location], &mut BTreeSet::new())
+            .await
+            .unwrap();
+        let message = HyperlaneMessage::default();
+        let selected = || SelectedReader {
+            reader: syncer.clone(),
+            older_locations: Vec::new(),
+            states: BTreeSet::new(),
+        };
+        assert!(builder
+            .validate_reader(&message, validator, selected())
             .await
             .unwrap()
-            .unwrap();
+            .is_none());
         let reorg_event = ReorgEvent {
             local_merkle_root: H256::from_low_u64_be(2),
             canonical_merkle_root: H256::from_low_u64_be(3),
@@ -617,28 +607,9 @@ mod tests {
         };
         syncer.write_reorg_status(&reorg_event).await.unwrap();
 
-        // An availability probe may reuse the client, but the subsequent normal
-        // checkout must still refuse delivery after a reorg report appears.
-        assert!(builder
-            .build_and_validate(
-                &mut BTreeSet::new(),
-                &config,
-                &validator,
-                &storage_location,
-                false
-            )
-            .await
-            .unwrap()
-            .is_some());
-
+        // A pooled reader must still refuse delivery once a reorg report appears.
         let result = builder
-            .build_and_validate(
-                &mut BTreeSet::new(),
-                &config,
-                &validator,
-                &storage_location,
-                true,
-            )
+            .validate_reader(&message, validator, selected())
             .await;
         assert!(matches!(
             result,
@@ -650,115 +621,117 @@ mod tests {
         let flag = checkpoint_dir.path().join("reorg_flag.json");
         tokio::fs::remove_file(&flag).await.unwrap();
         tokio::fs::create_dir(&flag).await.unwrap();
-        let mut states = BTreeSet::new();
-        assert!(builder
-            .build_and_validate(&mut states, &config, &validator, &storage_location, true,)
-            .await
-            .unwrap()
-            .is_none());
-        assert!(states.contains(&ValidatorStorageState::ReorgCheckFailed));
+        assert!(matches!(
+            builder
+                .validate_reader(&message, validator, selected())
+                .await
+                .unwrap(),
+            Some((_, None))
+        ));
 
         // A confirmed absence still permits metadata after the read recovers.
         tokio::fs::remove_dir(&flag).await.unwrap();
         assert!(builder
-            .build_and_validate(
-                &mut BTreeSet::new(),
-                &config,
-                &validator,
-                &storage_location,
-                true,
-            )
+            .validate_reader(&message, validator, selected())
             .await
             .unwrap()
-            .is_some());
+            .is_none());
     }
 
     #[tokio::test]
     async fn unreadable_reorg_flag_excludes_only_that_validator() {
-        for (warm, speculative) in [(false, false), (true, false), (false, true)] {
-            let origin = HyperlaneDomain::new_test_domain("origin");
-            let destination = HyperlaneDomain::new_test_domain("destination");
-            let db_dir = tempfile::tempdir().unwrap();
-            let db = HyperlaneRocksDB::new(&origin, DB::from_path(db_dir.path()).unwrap());
-            let mut builder =
-                dummy_metadata_builder(&origin, &destination, &db, OptionalCache::new(None));
-            builder.allow_local_checkpoint_syncers = true;
+        let origin = HyperlaneDomain::new_test_domain("origin");
+        let destination = HyperlaneDomain::new_test_domain("destination");
+        let db_dir = tempfile::tempdir().unwrap();
+        let db = HyperlaneRocksDB::new(&origin, DB::from_path(db_dir.path()).unwrap());
+        let mut builder =
+            dummy_metadata_builder(&origin, &destination, &db, OptionalCache::new(None));
+        builder.allow_local_checkpoint_syncers = true;
 
-            let healthy = H256::from_low_u64_be(1);
-            let failing = H256::from_low_u64_be(2);
-            let healthy_dir = tempfile::tempdir().unwrap();
-            let failing_dir = tempfile::tempdir().unwrap();
-            let healthy_location = format!("file://{}", healthy_dir.path().display());
-            let failing_location = format!("file://{}", failing_dir.path().display());
+        let healthy = H256::from_low_u64_be(1);
+        let failing = H256::from_low_u64_be(2);
+        let mut alias = healthy;
+        alias.0[0] = 1;
+        let validators = [healthy, alias, failing, healthy];
+        let healthy_dir = tempfile::tempdir().unwrap();
+        let failing_dir = tempfile::tempdir().unwrap();
+        let healthy_location = format!("file://{}", healthy_dir.path().display());
+        let failing_location = format!("file://{}", failing_dir.path().display());
 
-            // Both validators have published checkpoints.
-            for (validator, location) in
-                [(healthy, &healthy_location), (failing, &failing_location)]
-            {
-                let config = CheckpointSyncerConf::from_str(location).unwrap();
-                let syncer: Arc<dyn CheckpointSyncer> = if warm {
-                    builder
-                        .build_and_validate(
-                            &mut BTreeSet::new(),
-                            &config,
-                            &validator,
-                            location,
-                            false,
-                        )
-                        .await
-                        .unwrap()
-                        .unwrap()
-                } else {
-                    config.build_for_reading().await.unwrap().into()
-                };
-                syncer.write_latest_index(7).await.unwrap();
-            }
-
-            // A directory deterministically makes the failing validator's flag unreadable.
-            tokio::fs::create_dir(failing_dir.path().join("reorg_flag.json"))
+        // Both validators have published checkpoints.
+        for location in [&healthy_location, &failing_location] {
+            CheckpointSyncerConf::from_str(location)
+                .unwrap()
+                .build_for_reading()
+                .await
+                .unwrap()
+                .write_latest_index(7)
                 .await
                 .unwrap();
-
-            let mut validator_announce = MockAnnounce::new();
-            validator_announce
-                .expect_domain()
-                .return_const(origin.clone());
-            // The older readable location must not bypass the newest unreadable flag,
-            // whether the newest client was already pooled or is initialized now.
-            let locations = vec![
-                vec![healthy_location.clone()],
-                vec![healthy_location, failing_location],
-            ];
-            validator_announce
-                .expect_get_announced_storage_locations()
-                .once()
-                .returning(move |_| Ok(locations.clone()));
-            builder.origin_validator_announce = Arc::new(validator_announce);
-
-            let message = HyperlaneMessage::default();
-            let locations = ValidatorStorageLocations::new();
-            if speculative {
-                // Both checkouts use the same snapshot even with the cache disabled.
-                builder
-                    .build_checkpoint_syncer(&message, &[healthy, failing], None, false, &locations)
-                    .await
-                    .unwrap();
-            }
-
-            // One unreadable flag must not fail the build for the other validators.
-            let syncer = builder
-                .build_checkpoint_syncer(&message, &[healthy, failing], None, true, &locations)
-                .await
-                .unwrap();
-            let latest = syncer
-                .get_validator_latest_checkpoints_and_update_metrics(
-                    &[healthy, failing],
-                    &origin,
-                    &destination,
-                )
-                .await
-                .unwrap();
-            assert_eq!(latest, vec![(H160::from(healthy), 7)]);
         }
+
+        // A directory deterministically makes the failing validator's flag unreadable.
+        tokio::fs::create_dir(failing_dir.path().join("reorg_flag.json"))
+            .await
+            .unwrap();
+
+        let mut validator_announce = MockAnnounce::new();
+        validator_announce
+            .expect_domain()
+            .return_const(origin.clone());
+        // The older readable location must not bypass the newest unreadable flag,
+        // whether the newest client was already pooled or is initialized now.
+        let locations = vec![
+            vec![healthy_location.clone()],
+            vec![healthy_location, failing_location],
+        ];
+        validator_announce
+            .expect_get_announced_storage_locations()
+            .times(2)
+            .withf(move |addresses| addresses == [healthy, failing])
+            .returning(move |_| Ok(locations.clone()));
+        builder.origin_validator_announce = Arc::new(validator_announce);
+
+        let message = HyperlaneMessage::default();
+        let CheckpointReaders {
+            mut syncer,
+            validate,
+        } = builder
+            .discover_checkpoint_readers(&message, &validators, None)
+            .await
+            .unwrap();
+
+        // One unreadable flag must not fail the build for the other validators.
+        let changes = validate.await.unwrap();
+        assert!(
+            matches!(changes.as_slice(), [(validator, None)] if *validator == H160::from(failing))
+        );
+        syncer.apply_reader_changes(changes);
+        let latest = syncer
+            .get_validator_latest_checkpoints_and_update_metrics(
+                &[healthy, failing],
+                &origin,
+                &destination,
+            )
+            .await
+            .unwrap();
+        assert_eq!(latest, vec![(H160::from(healthy), 7)]);
+
+        // An explicitly ignored flag permits trying an older location.
+        let flag_path = failing_dir.path().join("reorg_flag.json");
+        tokio::fs::remove_dir(&flag_path).await.unwrap();
+        tokio::fs::write(&flag_path, b"{}").await.unwrap();
+        builder.ignore_reorg_reports = true;
+        let CheckpointReaders {
+            syncer: _,
+            validate,
+        } = builder
+            .discover_checkpoint_readers(&message, &validators, None)
+            .await
+            .unwrap();
+        let changes = validate.await.unwrap();
+        assert!(
+            matches!(changes.as_slice(), [(validator, Some(_))] if *validator == H160::from(failing))
+        );
     }
 }

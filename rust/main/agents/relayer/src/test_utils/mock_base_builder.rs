@@ -18,8 +18,9 @@ use hyperlane_test::mocks::MockMailboxContract;
 
 use crate::{
     msg::metadata::{
-        BuildsBaseMetadata, DefaultIsmCache, IsmAwareAppContextClassifier, IsmBuildMetricsParams,
-        IsmCachePolicyClassifier, MetadataBuildError, ValidatorStorageLocations,
+        BuildsBaseMetadata, CheckpointReaders, CheckpointValidation, DefaultIsmCache,
+        IsmAwareAppContextClassifier, IsmBuildMetricsParams, IsmCachePolicyClassifier,
+        MetadataBuildError,
     },
     settings::matching_list::{Filter, ListElement, MatchingList},
 };
@@ -53,8 +54,7 @@ pub struct MockBaseMetadataBuilderResponses {
     // TODO: migrate these to be keyed by address as well
     pub build_multisig_ism: ResponseList<eyre::Result<Box<dyn MultisigIsm>>>,
     pub build_ccip_read_ism: ResponseList<eyre::Result<Box<dyn CcipReadIsm>>>,
-    pub build_checkpoint_syncer:
-        ResponseList<Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError>>,
+    pub checkpoint_readers: ResponseList<(MultisigCheckpointSyncer, CheckpointValidation)>,
     pub reorg_check_gate: Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>,
 }
 
@@ -264,31 +264,37 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
     ) -> eyre::Result<Arc<SealevelCompositeIsm>> {
         unimplemented!("SealevelCompositeIsm not mocked")
     }
-    async fn build_checkpoint_syncer(
-        &self,
-        _message: &HyperlaneMessage,
+    async fn discover_checkpoint_readers<'a>(
+        &'a self,
+        _message: &'a HyperlaneMessage,
         _validators: &[H256],
         _app_context: Option<String>,
-        check_reorg: bool,
-        _locations: &ValidatorStorageLocations,
-    ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
+    ) -> Result<CheckpointReaders<'a>, CheckpointSyncerBuildError> {
         self.requests
             .checkpoint_reorg_checks
             .lock()
             .unwrap()
-            .push(check_reorg);
-        if check_reorg {
+            .push(false);
+        let (syncer, validation) = self
+            .responses
+            .checkpoint_readers
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("No mock checkpoint reader response set");
+        let validate = Box::pin(async move {
+            self.requests
+                .checkpoint_reorg_checks
+                .lock()
+                .unwrap()
+                .push(true);
             if let Some((entered, release)) = &self.responses.reorg_check_gate {
                 entered.notify_one();
                 release.notified().await;
             }
-        }
-        self.responses
-            .build_checkpoint_syncer
-            .lock()
-            .unwrap()
-            .pop_front()
-            .expect("No mock build_checkpoint_syncer response set")
+            validation
+        });
+        Ok(CheckpointReaders { syncer, validate })
     }
 }
 

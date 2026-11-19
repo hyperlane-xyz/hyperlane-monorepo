@@ -74,14 +74,12 @@ impl MetadataBuilder for MessageMetadataBuilder {
 impl MessageMetadataBuilder {
     /// Build the ISM tree once. Each multisig leaf validates its own quorum.
     pub(crate) async fn build_for_delivery(
-        &self,
-        ism: H256,
+        mut self,
         message: &HyperlaneMessage,
         polling: bool,
     ) -> Result<Metadata, MetadataBuildError> {
-        let mut builder = self.clone();
-        builder.signature_polling = polling;
-        builder.build(ism, message, Default::default()).await
+        self.signature_polling = polling;
+        self.build(self.root_ism, message, Default::default()).await
     }
 
     pub async fn new(

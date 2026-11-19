@@ -91,18 +91,27 @@ fn is_ica_invalid_reveal(err: &impl std::fmt::Display) -> bool {
     err.to_string().contains(ICA_INVALID_REVEAL)
 }
 
-/// The outcome of a gas payment requirement check.
-enum GasPaymentRequirementOutcome {
-    MeetsRequirement(U256),
-    RequirementNotMet(PendingOperationResult),
+enum DeliveryRejected {
+    AlreadyDelivered,
+    CheckFailed(ChainCommunicationError),
 }
 
-enum PreparePreflight {
-    AlreadyDelivered,
-    DeliveryCheckFailed(ChainCommunicationError),
-    RecipientNotContract,
-    RecipientCheckFailed(ChainCommunicationError),
-    GasPayment(Result<GasPolicyStatus>),
+async fn check_undelivered_recipient(
+    delivery: impl std::future::Future<Output = ChainResult<bool>>,
+    recipient: impl std::future::Future<Output = ChainResult<bool>>,
+) -> Result<ChainResult<bool>, DeliveryRejected> {
+    let require_undelivered = async {
+        match delivery.await {
+            Ok(false) => Ok(()),
+            Ok(true) => Err(DeliveryRejected::AlreadyDelivered),
+            Err(err) => Err(DeliveryRejected::CheckFailed(err)),
+        }
+    };
+    // Only delivery can end the joint read early. Defer any recipient error
+    // until delivery confirms that there is still work to do.
+    let (_, recipient) =
+        tokio::try_join!(biased; require_undelivered, async { Ok(recipient.await) })?;
+    Ok(recipient)
 }
 
 /// The message context contains the links needed to submit a message. Each
@@ -517,24 +526,26 @@ impl PendingOperation for PendingMessage {
 
         self.report_first_seen();
         self.report_progress(Stage::Prepare, Outcome::Started);
-        let preflight = self
-            .read_prepare_preflight(with_rpc_operation(
+        let recipient = check_undelivered_recipient(
+            with_rpc_operation(
                 RpcOperation::RelayerDelivery,
                 self.ctx.destination_mailbox.delivered(self.message.id()),
-            ))
-            .await;
-        match preflight {
-            PreparePreflight::AlreadyDelivered => {
+            ),
+            with_rpc_operation(RpcOperation::RelayerRecipient, self.is_recipient_contract()),
+        )
+        .await;
+        match recipient {
+            Err(DeliveryRejected::AlreadyDelivered) => {
                 debug!("Message has already been delivered, marking as submitted.");
                 self.ctx.destination_mailbox.on_delivered(&self.message);
                 self.submitted = true;
                 self.set_next_attempt_after(CONFIRM_DELAY);
                 return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
             }
-            PreparePreflight::DeliveryCheckFailed(err) => {
+            Err(DeliveryRejected::CheckFailed(err)) => {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus);
             }
-            PreparePreflight::RecipientNotContract => {
+            Ok(Ok(false)) => {
                 self.ctx
                     .metadata_builder
                     .report_activity(&self.message, Activity::RecipientNotContract);
@@ -544,20 +555,24 @@ impl PendingOperation for PendingMessage {
                 );
                 return self.terminal_drop();
             }
-            PreparePreflight::RecipientCheckFailed(err) => {
+            Ok(Err(err)) => {
                 return self.on_reprepare(
                     Some(err),
                     ReprepareReason::ErrorCheckingIfRecipientIsContract,
                 );
             }
-            PreparePreflight::GasPayment(gas_payment) => {
-                if let GasPaymentRequirementOutcome::RequirementNotMet(op_result) =
-                    self.gas_payment_requirement_outcome(gas_payment)
-                {
-                    info!("Message does not meet the gas payment requirement preflight check");
-                    return op_result;
-                }
-            }
+            Ok(Ok(true)) => {}
+        }
+
+        // A zero-cost estimate detects unpaid messages before building metadata.
+        let zero_cost = TxCostEstimate {
+            gas_limit: U256::zero(),
+            gas_price: FixedPointNumber::zero(),
+            l2_gas_limit: None,
+        };
+        if let Err(result) = self.enforce_gas_payment(&zero_cost).await {
+            info!("Message does not meet the gas payment requirement preflight check");
+            return result;
         }
 
         // After the gas preflight, so unpaid messages don't cost origin RPC
@@ -758,11 +773,11 @@ impl PendingOperation for PendingMessage {
 
         // Get the gas_limit if the gas payment requirement has been met,
         // otherwise return a PendingOperationResult and move on.
-        let gas_limit = match self.meets_gas_payment_requirement(&tx_cost_estimate).await {
-            GasPaymentRequirementOutcome::MeetsRequirement(gas_limit) => gas_limit,
-            GasPaymentRequirementOutcome::RequirementNotMet(op_result) => {
+        let gas_limit = match self.enforce_gas_payment(&tx_cost_estimate).await {
+            Ok(gas_limit) => gas_limit,
+            Err(result) => {
                 info!("Message does not meet the gas payment requirement after gas estimation");
-                return op_result;
+                return result;
             }
         };
 
@@ -1257,7 +1272,7 @@ impl PendingMessage {
     /// Implicit contract in this method: function name `is_contract` matches
     /// the name of the method `is_contract`.
     async fn is_recipient_contract(&self) -> ChainResult<bool> {
-        let mailbox = self.ctx.destination_mailbox.clone();
+        let mailbox = &self.ctx.destination_mailbox;
         let domain_name = mailbox.domain().name();
         let fn_key = "is_contract";
         let fn_params = self.message.recipient;
@@ -1356,92 +1371,30 @@ impl PendingMessage {
             warn!(error=?err, ?fn_key, "Error caching result");
         }
     }
-    async fn read_prepare_preflight(
-        &self,
-        delivery_status: impl std::future::Future<Output = ChainResult<bool>>,
-    ) -> PreparePreflight {
-        let delivery = async {
-            match delivery_status.await {
-                Ok(false) => Ok(()),
-                Ok(true) => Err(PreparePreflight::AlreadyDelivered),
-                Err(err) => Err(PreparePreflight::DeliveryCheckFailed(err)),
-            }
-        };
-        let admission = async {
-            let result =
-                with_rpc_operation(RpcOperation::RelayerRecipient, self.is_recipient_contract())
-                    .await;
-            Ok(match result {
-                Ok(true) => {
-                    // A zero-cost estimate detects unpaid messages before building metadata.
-                    let zero_cost = TxCostEstimate {
-                        gas_limit: U256::zero(),
-                        gas_price: FixedPointNumber::zero(),
-                        l2_gas_limit: None,
-                    };
-                    PreparePreflight::GasPayment(
-                        self.read_gas_payment_requirement(&zero_cost).await,
-                    )
-                }
-                Ok(false) => PreparePreflight::RecipientNotContract,
-                Err(err) => PreparePreflight::RecipientCheckFailed(err),
-            })
-        };
-        // Poll delivery first: if it rejects the message, drop the admission
-        // future immediately. Any completed admission result waits for delivery.
-        match tokio::try_join!(biased; delivery, admission) {
-            Err(result) | Ok(((), result)) => result,
-        }
-    }
 
-    async fn read_gas_payment_requirement(
-        &self,
+    async fn enforce_gas_payment(
+        &mut self,
         tx_cost_estimate: &TxCostEstimate,
-    ) -> Result<GasPolicyStatus> {
-        self.ctx
+    ) -> Result<U256, PendingOperationResult> {
+        let payment = self
+            .ctx
             .origin_gas_payment_enforcer
             .read()
             .await
             .message_meets_gas_payment_requirement(&self.message, tx_cost_estimate)
-            .await
-    }
-
-    async fn meets_gas_payment_requirement(
-        &mut self,
-        tx_cost_estimate: &TxCostEstimate,
-    ) -> GasPaymentRequirementOutcome {
-        let gas_limit = self.read_gas_payment_requirement(tx_cost_estimate).await;
-        self.gas_payment_requirement_outcome(gas_limit)
-    }
-
-    fn gas_payment_requirement_outcome(
-        &mut self,
-        gas_limit: Result<GasPolicyStatus>,
-    ) -> GasPaymentRequirementOutcome {
-        let gas_limit = match gas_limit {
-            Ok(gas_limit) => gas_limit,
-            Err(err) => {
-                return GasPaymentRequirementOutcome::RequirementNotMet(
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingGasRequirement),
-                );
-            }
-        };
-
-        let gas_limit = match gas_limit {
+            .await;
+        let status = payment.map_err(|error| {
+            self.on_reprepare(Some(error), ReprepareReason::ErrorCheckingGasRequirement)
+        })?;
+        match status {
+            GasPolicyStatus::PolicyMet(gas_limit) => Ok(gas_limit),
             GasPolicyStatus::NoPaymentFound => {
-                return GasPaymentRequirementOutcome::RequirementNotMet(
-                    self.on_reprepare::<String>(None, ReprepareReason::GasPaymentNotFound),
-                )
+                Err(self.on_reprepare::<String>(None, ReprepareReason::GasPaymentNotFound))
             }
             GasPolicyStatus::PolicyNotMet => {
-                return GasPaymentRequirementOutcome::RequirementNotMet(
-                    self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet),
-                )
+                Err(self.on_reprepare::<String>(None, ReprepareReason::GasPaymentRequirementNotMet))
             }
-            GasPolicyStatus::PolicyMet(gas_limit) => gas_limit,
-        };
-
-        GasPaymentRequirementOutcome::MeetsRequirement(gas_limit)
+        }
     }
 
     fn requeue_ica_reveal(&mut self) -> PendingOperationResult {
@@ -1818,7 +1771,7 @@ impl PendingMessage {
         );
         let build_metadata_start = Instant::now();
         let metadata_res = message_metadata_builder
-            .build_for_delivery(ism_address, &self.message, polling)
+            .build_for_delivery(&self.message, polling)
             .await;
 
         tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
@@ -1935,7 +1888,9 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, PreparePreflight, DEFAULT_MAX_MESSAGE_RETRIES};
+    use super::{
+        check_undelivered_recipient, DeliveryRejected, PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES,
+    };
 
     fn unix_millis(time: SystemTime) -> u64 {
         time.duration_since(UNIX_EPOCH)
@@ -2718,37 +2673,46 @@ mod test {
     }
 
     #[tokio::test]
-    async fn delivery_preflight_overlaps_recipient_reads_and_keeps_delivery_priority() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        use std::task::Poll;
+    async fn delivery_preflight_overlaps_and_cancels_a_pending_recipient_read() {
+        let (release_delivery, delivery) = tokio::sync::oneshot::channel();
+        let (recipient_started, mut recipient_started_rx) = tokio::sync::oneshot::channel();
+        let (release_recipient, recipient) = tokio::sync::oneshot::channel();
+        let preflight = check_undelivered_recipient(async { delivery.await.unwrap() }, async {
+            recipient_started.send(()).unwrap();
+            recipient.await.unwrap()
+        });
+        tokio::pin!(preflight);
 
-        for recipient_result in [Some(true), None] {
-            let calls = Arc::new(AtomicUsize::new(0));
-            let provider_calls = calls.clone();
-            let mut mailbox = contract_test_mailbox();
-            mailbox.expect__provider().once().returning(move || {
-                Box::new(ContractProvider {
-                    result: recipient_result,
-                    calls: provider_calls.clone(),
-                })
-            });
-            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
-            Arc::get_mut(&mut pending.ctx).unwrap().cache = OptionalCache::new(None);
-            // A contract recipient cannot finish gas admission while the write lock is held.
-            let _gas_admission_gate = pending.ctx.origin_gas_payment_enforcer.write().await;
-            let (release_delivery, delivery) = tokio::sync::oneshot::channel();
-            let mut preflight =
-                Box::pin(pending.read_prepare_preflight(async { delivery.await.unwrap() }));
+        assert!(futures::poll!(&mut preflight).is_pending());
+        recipient_started_rx.try_recv().unwrap();
+        release_delivery.send(Ok(true)).unwrap();
+        assert!(matches!(
+            futures::poll!(&mut preflight),
+            std::task::Poll::Ready(Err(DeliveryRejected::AlreadyDelivered))
+        ));
+        assert!(release_recipient.is_closed());
+    }
 
-            assert!(futures::poll!(&mut preflight).is_pending());
-            assert_eq!(calls.load(Ordering::SeqCst), 1);
-            release_delivery.send(Ok(true)).unwrap();
-            assert!(matches!(
-                futures::poll!(&mut preflight),
-                Poll::Ready(PreparePreflight::AlreadyDelivered)
-            ));
-            assert_eq!(pending.num_retries, 0);
-        }
+    #[tokio::test]
+    async fn delivery_preflight_keeps_delivery_priority_over_recipient_error() {
+        let (release_delivery, delivery) = tokio::sync::oneshot::channel();
+        let preflight = check_undelivered_recipient(async { delivery.await.unwrap() }, async {
+            Err(ChainCommunicationError::from_other_str(
+                "recipient lookup failed",
+            ))
+        });
+        tokio::pin!(preflight);
+
+        assert!(futures::poll!(&mut preflight).is_pending());
+        release_delivery
+            .send(Err(ChainCommunicationError::from_other_str(
+                "delivery lookup failed",
+            )))
+            .unwrap();
+        assert!(matches!(
+            preflight.await,
+            Err(DeliveryRejected::CheckFailed(_))
+        ));
     }
 
     #[tokio::test]

@@ -120,7 +120,9 @@ mod tests {
         KnownHyperlaneDomain, H160, H256,
     };
 
-    use crate::msg::metadata::multisig::{MultisigIsmMetadataBuilder, MultisigMetadata};
+    use crate::msg::metadata::multisig::{
+        build_from_known_validators, MultisigIsmMetadataBuilder, MultisigMetadata,
+    };
     use crate::msg::metadata::{
         multisig::MerkleRootMultisigMetadataBuilder, MessageMetadataBuilder,
     };
@@ -173,25 +175,46 @@ mod tests {
             .get_merkle_leaf_id_by_message_id
             .lock()
             .unwrap()
-            .push_back(Ok(Some(100)));
+            .extend([Ok(Some(100)), Ok(Some(100))]);
         base_builder
             .responses
             .highest_known_leaf_index
             .lock()
             .unwrap()
-            .push_back(Some(1000));
+            .extend([Some(1000), Some(1000)]);
 
         let proof = Proof {
             leaf: H256::zero(),
             index: 100,
             path: [H256::zero(); TREE_DEPTH],
         };
+        let mismatch = MetadataBuildError::MerkleRootMismatch {
+            root: H256::from_low_u64_be(1),
+            canonical_root: H256::from_low_u64_be(2),
+        };
+        let checked_clients = build_mock_checkpoint_syncs(&validators)
+            .await
+            .into_iter()
+            .map(|(key, client)| {
+                let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
+                (key, client)
+            })
+            .collect();
+        base_builder
+            .responses
+            .checkpoint_readers
+            .lock()
+            .unwrap()
+            .push_back((
+                MultisigCheckpointSyncer::new(checked_clients, None),
+                Ok(vec![]),
+            ));
         base_builder
             .responses
             .get_proof
             .lock()
             .unwrap()
-            .push_back(Ok(proof));
+            .extend([Ok(proof), Err(mismatch.clone())]);
 
         let ism_address = H256::zero();
         let message = HyperlaneMessage::default();
@@ -214,5 +237,12 @@ mod tests {
         let expected = MultisigMetadata::new(signed_checkpoint, 100, Some(proof));
         assert_eq!(resp.checkpoint, expected.checkpoint);
         assert_eq!(resp.signatures, expected.signatures);
+
+        assert_eq!(
+            build_from_known_validators(&builder, &message, validator_addresses, threshold)
+                .await
+                .unwrap_err(),
+            mismatch
+        );
     }
 }

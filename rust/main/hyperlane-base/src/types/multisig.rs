@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use derive_new::new;
 use eyre::Result;
-use futures::{stream, stream::FuturesUnordered, StreamExt};
+use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use tracing::{debug, instrument, warn};
 
@@ -99,16 +99,18 @@ pub struct MultisigCheckpointSyncer {
 }
 
 impl MultisigCheckpointSyncer {
-    /// Whether validation retained exactly the storage clients used to collect a quorum.
-    /// A changed set requires recollection, so excluded or replaced storage cannot contribute.
-    pub fn has_same_clients(&self, other: &Self) -> bool {
-        self.checkpoint_syncers.len() == other.checkpoint_syncers.len()
-            && self.checkpoint_syncers.iter().all(|(validator, client)| {
-                other
-                    .checkpoint_syncers
-                    .get(validator)
-                    .is_some_and(|other| Arc::ptr_eq(client, other))
-            })
+    /// Update the readers whose reorg checks excluded or replaced their storage.
+    pub fn apply_reader_changes(
+        &mut self,
+        changes: impl IntoIterator<Item = (H160, Option<Arc<dyn CheckpointSyncer>>)>,
+    ) {
+        for (validator, reader) in changes {
+            if let Some(reader) = reader {
+                self.checkpoint_syncers.insert(validator, reader);
+            } else {
+                self.checkpoint_syncers.remove(&validator);
+            }
+        }
     }
 
     /// Attach an observer scoped to this metadata build, not the pooled syncers.
@@ -226,33 +228,6 @@ impl MultisigCheckpointSyncer {
             .collect())
     }
 
-    /// Latest indices from validators that have a checkpoint syncer, for
-    /// narrowing repeated signature probes. Unlike
-    /// [`Self::get_validator_latest_checkpoints_and_update_metrics`], this does
-    /// not report validators without storage or failed reads, and does not
-    /// update metrics, so per-probe calls add no logs or diagnostics noise.
-    pub async fn latest_indices(&self, validators: &[H256]) -> HashMap<H160, u32> {
-        let futures = validators
-            .iter()
-            .map(|validator| H160::from(*validator))
-            .filter_map(|validator| {
-                self.checkpoint_syncers
-                    .get(&validator)
-                    .map(|syncer| (validator, syncer))
-            })
-            .map(|(validator, syncer)| async move {
-                (validator, syncer.latest_index().await.ok().flatten())
-            })
-            .collect::<Vec<_>>();
-        stream::iter(futures)
-            .buffer_unordered(10)
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .filter_map(|(validator, index)| index.map(|index| (validator, index)))
-            .collect()
-    }
-
     /// Attempts to get the latest checkpoint with a quorum of signatures among
     /// validators.
     ///
@@ -337,8 +312,9 @@ impl MultisigCheckpointSyncer {
             Vec<(usize, SignedCheckpointWithMessageId)>,
         > = HashMap::new();
 
-        // Start with threshold * 1.5 reads (at least two) and widen the window
-        // if the first reads stall. Keep storage-level retry deadlines intact.
+        // Keep healthy low-threshold quorums from issuing a full fanout.
+        // If the initial window stalls, widen it once so slow peers do not
+        // delay later validators until the storage retry deadlines.
         let mut concurrency = threshold
             .saturating_add(threshold / 2)
             .clamp(2, MAX_CHECKPOINT_FETCH_CONCURRENCY);
@@ -384,12 +360,8 @@ impl MultisigCheckpointSyncer {
         tokio::pin!(hedge);
 
         loop {
-            while futures.len() < concurrency {
-                let Some(request) = requests.next() else {
-                    break;
-                };
-                futures.push(request);
-            }
+            let vacant = concurrency.saturating_sub(futures.len());
+            futures.extend(requests.by_ref().take(vacant));
             let result = tokio::select! {
                 biased;
                 result = futures.next() => result,

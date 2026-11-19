@@ -13,7 +13,7 @@ use ethers::types::{Block, H256 as TxHash};
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use ethers_core::utils::WEI_IN_ETHER;
-use futures_util::future::join_all;
+use futures_util::{future::join_all, FutureExt};
 use hyperlane_core::Metadata;
 use tokio::join;
 use tokio::sync::Mutex;
@@ -831,15 +831,12 @@ where
                 None => latest_block(self.provider.clone()).await,
             }
         };
+        // Return process() reverts before ancillary RPC errors. A failed
+        // estimate or block lookup cancels the remaining gas reads.
         let gas_limit = async {
-            // Return process() failures before ancillary RPC errors, including
-            // contract reverts used to classify ICA simulation failures.
-            let (estimate, block) = tokio::try_join!(
-                biased;
-                estimate_tx_gas_limit(&call),
-                async { Ok(block.await) }
-            )?;
-            Ok::<_, ChainCommunicationError>(cap_tx_gas_limit(estimate, &block?))
+            let (estimate, block) =
+                tokio::try_join!(biased; estimate_tx_gas_limit(&call), block.map(Ok))?;
+            block.map(|block| cap_tx_gas_limit(estimate, &block))
         };
 
         let l2_gas_limit = async {
@@ -867,10 +864,11 @@ where
                 }
             }
         };
-        let (gas_limit, (l2_gas_limit, gas_price)) = tokio::try_join!(
+        let (gas_limit, l2_gas_limit, gas_price) = tokio::try_join!(
             biased;
             gas_limit,
-            async { Ok(join!(biased; l2_gas_limit, self.provider.get_gas_price())) }
+            l2_gas_limit.map(Ok),
+            self.provider.get_gas_price().map(Ok),
         )?;
         let gas_price: U256 = gas_price
             .map_err(ChainCommunicationError::from_other)?

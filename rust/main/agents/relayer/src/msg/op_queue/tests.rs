@@ -966,6 +966,29 @@ async fn submit_wait_wakes_on_push_with_closed_retry_channel() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn empty_submit_queue_responds_to_manual_retry_without_waiting_for_work() {
+    let broadcaster = sync::broadcast::Sender::new(10);
+    let mut queue = initialize_queue(&broadcaster);
+    let (transmitter, mut responses) = mpsc::channel(1);
+    let wait = queue.pop_many_wait(1);
+    tokio::pin!(wait);
+    assert!(futures::poll!(&mut wait).is_pending());
+
+    broadcaster
+        .send(MessageRetryRequest {
+            uuid: "empty-submit-queue".to_owned(),
+            pattern: MatchingList::default(),
+            transmitter,
+        })
+        .unwrap();
+    assert!(futures::poll!(&mut wait).is_pending());
+    assert_eq!(
+        responses.try_recv().unwrap(),
+        MessageRetryQueueResponse::default()
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn submit_wait_returns_after_a_fully_denied_batch() {
     let broadcaster = sync::broadcast::Sender::new(10);
     let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Base);

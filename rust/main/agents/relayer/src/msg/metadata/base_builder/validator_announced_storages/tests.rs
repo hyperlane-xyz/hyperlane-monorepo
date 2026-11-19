@@ -172,6 +172,61 @@ async fn test_fetch_storage_locations_helper_with_partial_cache_hit() {
 }
 
 #[tokio::test]
+async fn rejects_mismatched_storage_location_counts_before_caching() {
+    let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+    let cached_validator = H256::from_low_u64_be(1);
+    let missing = [H256::from_low_u64_be(2), H256::from_low_u64_be(3)];
+    let validators = [cached_validator, missing[0], missing[1]];
+    let cached_key = generate_cache_key(&cached_validator);
+    let cached_location = vec!["cached".to_owned()];
+
+    for count in [1, 3] {
+        let cache = LocalCache::new("test_cache");
+        cache
+            .cache_call_result(origin.name(), METHOD_NAME, &cached_key, &cached_location)
+            .await
+            .unwrap();
+        let mut validator_announce = MockValidatorAnnounceMock::new();
+        validator_announce
+            .expect_domain()
+            .return_const(origin.clone());
+        validator_announce
+            .expect_get_announced_storage_locations()
+            .withf(move |requested| requested == missing)
+            .once()
+            .returning(move |_| Ok(vec![vec!["fetched".to_owned()]; count]));
+
+        let error = fetch_storage_locations_helper(&validators, &cache, &validator_announce)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains(&format!(
+            "returned {count} storage location lists for 2 requested validators"
+        )));
+        for validator in missing {
+            assert_eq!(
+                cache
+                    .get_cached_call_result::<Vec<String>>(
+                        origin.name(),
+                        METHOD_NAME,
+                        &generate_cache_key(&validator),
+                    )
+                    .await
+                    .unwrap(),
+                None
+            );
+        }
+        assert_eq!(
+            cache
+                .get_cached_call_result::<Vec<String>>(origin.name(), METHOD_NAME, &cached_key)
+                .await
+                .unwrap()
+                .as_ref(),
+            Some(&cached_location)
+        );
+    }
+}
+
+#[tokio::test]
 async fn test_fetch_storage_locations_helper_with_different_domains() {
     let origin1 = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
     let origin2 = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);

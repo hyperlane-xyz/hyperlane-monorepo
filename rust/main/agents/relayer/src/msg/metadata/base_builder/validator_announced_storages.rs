@@ -1,4 +1,4 @@
-use eyre::Context;
+use eyre::{ensure, Context};
 
 use hyperlane_base::cache::FunctionCallCache;
 use hyperlane_core::{ValidatorAnnounce, H256};
@@ -49,17 +49,18 @@ pub async fn fetch_storage_locations_helper(
         .await
         .context(CTX)?;
 
-    for (fetched_index, (index, validator)) in missing_validators.iter().enumerate() {
-        let key = generate_cache_key(validator);
-        let locations = &fetched_locations[fetched_index];
-
-        // Store in cache
+    ensure!(
+        fetched_locations.len() == missing_validators.len(),
+        "ValidatorAnnounce on {origin} returned {} storage location lists for {} requested validators",
+        fetched_locations.len(),
+        missing_validators.len(),
+    );
+    for ((index, validator), locations) in missing_validators.into_iter().zip(fetched_locations) {
+        let key = generate_cache_key(&validator);
         cache
-            .cache_call_result(origin, METHOD_NAME, &key, locations)
+            .cache_call_result(origin, METHOD_NAME, &key, &locations)
             .await?;
-
-        // Update the placeholder in storage_locations
-        storage_locations[*index] = locations.clone();
+        storage_locations[index] = locations;
     }
 
     Ok(storage_locations)

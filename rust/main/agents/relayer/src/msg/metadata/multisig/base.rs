@@ -16,7 +16,7 @@ use strum::Display;
 use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::{MetadataBuildError, MetadataBuildRefused};
-use crate::msg::metadata::base_builder::{IsmBuildMetricsParams, ValidatorStorageLocations};
+use crate::msg::metadata::base_builder::{CheckpointReaders, IsmBuildMetricsParams};
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
 use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, MetadataBuilder};
 
@@ -267,27 +267,20 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
     info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
 
     let builder = ism_builder.as_ref();
-    let validator_slice = validators.as_slice();
-    let locations = &ValidatorStorageLocations::new();
-    let build_syncer = |check_reorg| async move {
-        builder
-            .base_builder()
-            .build_checkpoint_syncer(
-                message,
-                validator_slice,
-                builder.app_context.clone(),
-                check_reorg,
-                locations,
-            )
-            .await
-            .map_err(|error| match error {
-                CheckpointSyncerBuildError::ReorgFlag(event) => {
-                    MetadataBuildError::Refused(MetadataBuildRefused::Reorg(event))
-                }
-                error => MetadataBuildError::FailedToBuild(error.to_string()),
-            })
+    let map_syncer_error = |error| match error {
+        CheckpointSyncerBuildError::ReorgFlag(event) => {
+            MetadataBuildError::Refused(MetadataBuildRefused::Reorg(event))
+        }
+        error => MetadataBuildError::FailedToBuild(error.to_string()),
     };
-    let checkpoint_syncer = build_syncer(false).await?;
+    let CheckpointReaders {
+        syncer,
+        mut validate,
+    } = builder
+        .base_builder()
+        .discover_checkpoint_readers(message, &validators, builder.app_context.clone())
+        .await
+        .map_err(map_syncer_error)?;
 
     let checkpoint_observer = || {
         builder.base_builder().activity_reporter().map(|reporter| {
@@ -299,62 +292,52 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             )
         })
     };
-    let mut observer = checkpoint_observer();
-    let checkpoint_syncer = if let Some(observer) = &observer {
-        checkpoint_syncer.with_observer(observer.clone())
-    } else {
-        checkpoint_syncer
-    };
-    let result = async {
-        let checked = {
-            let fetch =
-                ism_builder.fetch_metadata(&validators, threshold, message, &checkpoint_syncer);
-            let validate = build_syncer(true);
-            tokio::pin!(fetch, validate);
-            // Validation is required even if the fetch ends without a quorum.
-            let (metadata, checked) = tokio::select! {
-                metadata = &mut fetch => (Some(metadata), validate.await?),
-                checked = &mut validate => (None, checked?),
-            };
+    let mut observer = None;
+    let mut syncer = syncer;
+    let (speculative, changes) = if ism_builder.module_type() == ModuleType::MessageIdMultisig {
+        observer = checkpoint_observer();
+        if let Some(observer) = &observer {
+            syncer = syncer.with_observer(observer.clone());
+        }
 
-            if checkpoint_syncer.has_same_clients(&checked) {
-                let metadata = match metadata {
-                    Some(metadata) => metadata,
-                    None => fetch.await,
-                };
-                if builder.signature_polling && matches!(&metadata, Ok(Some(_))) {
-                    ism_builder.report_successful_poll(&checkpoint_syncer, &validators);
-                }
-                return metadata.map_err(|_| MetadataBuildError::CouldNotFetch);
-            }
-            // Drop any pending speculative fetch before collecting from checked clients.
-            checked
+        let fetch = ism_builder.fetch_metadata(&validators, threshold, message, &syncer);
+        tokio::pin!(fetch);
+        // Validation is required even if fetching ends without a quorum.
+        let (metadata, changes) = tokio::select! {
+            metadata = &mut fetch => (Some(metadata), validate.await.map_err(map_syncer_error)?),
+            changes = &mut validate => (None, changes.map_err(map_syncer_error)?),
         };
-        // A changed location or unreadable flag can remove a signer. Re-fetch
-        // this leaf with the checked clients, reusing positive cached reads.
-        if let Some(observer) = observer.take() {
-            observer.report();
-        }
-        let observer = checkpoint_observer();
-        let checked = if let Some(observer) = &observer {
-            checked.with_observer(observer.clone())
+        let metadata = if changes.is_empty() {
+            Some(match metadata {
+                Some(metadata) => metadata,
+                None => fetch.await,
+            })
         } else {
-            checked
+            None
         };
-        let recollected = ism_builder
-            .fetch_metadata(&validators, threshold, message, &checked)
-            .await
-            .map_err(|_| MetadataBuildError::CouldNotFetch);
-        if builder.signature_polling && matches!(&recollected, Ok(Some(_))) {
-            ism_builder.report_successful_poll(&checked, &validators);
+        (metadata, changes)
+    } else {
+        // Merkle-root builds may report a mismatch while constructing a proof.
+        // Only begin this work with checked readers.
+        (None, validate.await.map_err(map_syncer_error)?)
+    };
+    let result = match speculative {
+        Some(metadata) => metadata,
+        None => {
+            // Any pending speculative fetch has been dropped.
+            observer = checkpoint_observer();
+            syncer.apply_reader_changes(changes);
+            if let Some(observer) = &observer {
+                syncer = syncer.with_observer(observer.clone());
+            }
+            ism_builder
+                .fetch_metadata(&validators, threshold, message, &syncer)
+                .await
         }
-        if let Some(observer) = observer {
-            observer.report();
-        }
-        recollected
+    };
+    if builder.signature_polling && matches!(&result, Ok(Some(_))) {
+        ism_builder.report_successful_poll(&syncer, &validators);
     }
-    .await;
-    // Report failures too, but not abandoned aggregation children.
     if let Some(observer) = observer {
         observer.report();
     }
