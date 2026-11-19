@@ -11,8 +11,8 @@ use tokio::sync::{mpsc, Semaphore};
 
 use hyperlane_core::{
     ChainResult, ConfirmReason, HyperlaneDomain, HyperlaneMessage, PendingOperation,
-    PendingOperationResult, PendingOperationStatus, QueueOperation, ReprepareReason, TryBatchAs,
-    TxOutcome, H256, U256,
+    PendingOperationResult, PendingOperationStatus, QueueOperation, QueuePrepareResult,
+    ReprepareReason, TryBatchAs, TxOutcome, H256, U256,
 };
 
 use super::super::{get_batch_or_wait, prepare_classic_task, process_batch};
@@ -34,6 +34,8 @@ struct TestOperation {
     prepare_result: Option<PendingOperationResult>,
     #[serde(skip_serializing)]
     gate: Option<Arc<Semaphore>>,
+    #[serde(skip_serializing)]
+    signature_gate: Option<Arc<Semaphore>>,
     #[serde(skip_serializing)]
     started: mpsc::UnboundedSender<H256>,
     #[serde(skip_serializing)]
@@ -64,6 +66,7 @@ impl TestOperation {
             status: PendingOperationStatus::FirstPrepareAttempt,
             prepare_result: Some(prepare_result),
             gate,
+            signature_gate: None,
             started,
             completed,
             disposed,
@@ -141,6 +144,20 @@ impl PendingOperation for TestOperation {
         self.completed.send(self.id).expect("completed receiver");
         self.concurrency.active.fetch_sub(1, Ordering::SeqCst);
         self.prepare_result.take().expect("single prepare call")
+    }
+
+    async fn prepare_for_queue(&mut self, can_park: bool) -> QueuePrepareResult {
+        if let Some(gate) = self.signature_gate.take() {
+            self.started.send(self.id).expect("started receiver");
+            return if can_park {
+                QueuePrepareResult::WaitingForSignatures(Box::pin(async move {
+                    gate.acquire().await.expect("signature gate open").forget();
+                }))
+            } else {
+                QueuePrepareResult::Complete(PendingOperationResult::Drop)
+            };
+        }
+        QueuePrepareResult::Complete(self.prepare().await)
     }
 
     async fn submit(&mut self) -> PendingOperationResult {
@@ -227,6 +244,22 @@ impl TestHarness {
         }
     }
 
+    fn waiting_operation(&self, id: u64, signature_gate: Arc<Semaphore>) -> QueueOperation {
+        let mut op = TestOperation::new(
+            id,
+            1000,
+            self.destination.clone(),
+            PendingOperationResult::Success,
+            None,
+            self.started_tx.clone(),
+            self.completed_tx.clone(),
+            self.disposed_tx.clone(),
+            self.concurrency.clone(),
+        );
+        op.signature_gate = Some(signature_gate);
+        Box::new(op)
+    }
+
     fn operation(
         &self,
         id: u64,
@@ -266,6 +299,7 @@ async fn run_process_batch(
         .await
         .expect("test capacity available");
 
+    let parking_capacity = Arc::new(Semaphore::new(batch.len()));
     process_batch(
         &destination,
         batch,
@@ -274,10 +308,135 @@ async fn run_process_batch(
         &confirm_queue,
         &metrics,
         permits,
+        &parking_capacity,
     )
     .await;
 
     (prepare_queue, submit_queue, confirm_queue, metrics)
+}
+
+#[tokio::test(start_paused = true)]
+async fn parked_operation_releases_the_only_prepare_slot() {
+    assert_parked_operation_allows_same_origin_submission(1).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn parked_operation_releases_its_turn_in_the_batch() {
+    assert_parked_operation_allows_same_origin_submission(2).await;
+}
+
+async fn assert_parked_operation_allows_same_origin_submission(batch_size: u32) {
+    let harness = TestHarness::new();
+    let prepare_queue = create_test_queue();
+    let mut submit_queue = create_test_queue();
+    let signatures = Arc::new(Semaphore::new(0));
+    prepare_queue
+        .push(harness.waiting_operation(1, signatures.clone()), None)
+        .await;
+    prepare_queue
+        .push(
+            harness.operation(2, 1000, PendingOperationResult::Success, None),
+            None,
+        )
+        .await;
+    let metrics = create_test_metrics();
+    let worker = tokio::spawn(prepare_classic_task(
+        harness.destination.clone(),
+        prepare_queue.clone(),
+        submit_queue.clone(),
+        create_test_queue(),
+        batch_size,
+        None,
+        metrics.clone(),
+    ));
+    let now = tokio::time::Instant::now();
+    let deadline = Duration::from_secs(1);
+    let submitted = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1))
+        .await
+        .expect("same-origin peer should reach submit while signatures are pending");
+    assert_eq!(submitted[0].id(), H256::from_low_u64_be(2));
+
+    signatures.add_permits(1);
+    let submitted = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1))
+        .await
+        .expect("signature readiness should wake prepare");
+    assert_eq!(submitted[0].id(), H256::from_low_u64_be(1));
+    assert_eq!(submitted[0].get_retries(), 0);
+    assert_eq!(tokio::time::Instant::now(), now);
+    assert_eq!(prepare_queue.len().await, 0);
+    assert_eq!(submit_queue.len().await, 0);
+    assert_eq!(
+        metrics
+            .ops_failed
+            .with_label_values(&["test", "failed", "Unknown"])
+            .get(),
+        0
+    );
+    worker.abort();
+}
+
+#[tokio::test(start_paused = true)]
+async fn parking_capacity_is_bounded_and_readiness_requeues_once_under_backpressure() {
+    let mut harness = TestHarness::new();
+    let prepare_queue = create_test_queue();
+    let mut submit_queue = create_test_queue();
+    let signatures = Arc::new(Semaphore::new(0));
+    prepare_queue
+        .push(harness.waiting_operation(1, signatures.clone()), None)
+        .await;
+    prepare_queue
+        .push(harness.waiting_operation(2, signatures.clone()), None)
+        .await;
+    prepare_queue
+        .push(
+            harness.operation(3, 1000, PendingOperationResult::Success, None),
+            None,
+        )
+        .await;
+    let metrics = create_test_metrics();
+    let worker = tokio::spawn(prepare_classic_task(
+        harness.destination.clone(),
+        prepare_queue.clone(),
+        submit_queue.clone(),
+        create_test_queue(),
+        1,
+        Some(1),
+        metrics.clone(),
+    ));
+    let now = tokio::time::Instant::now();
+    let deadline = Duration::from_secs(1);
+    for expected_id in 1..=3 {
+        let started = tokio::time::timeout(deadline, harness.started_rx.recv())
+            .await
+            .expect("every operation should get a prepare attempt");
+        assert_eq!(started, Some(H256::from_low_u64_be(expected_id)));
+    }
+    assert_eq!(
+        metrics
+            .ops_dropped
+            .with_label_values(&["test", "dropped", "Unknown"])
+            .get(),
+        1
+    );
+
+    // Subscribe before signaling readiness, then leave the submit queue full.
+    let mut ready_queue = prepare_queue.clone();
+    signatures.add_permits(2);
+    let ready = tokio::time::timeout(deadline, get_batch_or_wait(&mut ready_queue, 2))
+        .await
+        .expect("signature readiness should requeue despite submit backpressure");
+    assert_eq!(ready.len(), 1);
+    assert_eq!(ready[0].id(), H256::from_low_u64_be(1));
+    assert_eq!(
+        ready[0].status(),
+        PendingOperationStatus::FirstPrepareAttempt
+    );
+    assert_eq!(prepare_queue.len().await, 0);
+    let submitted = submit_queue.pop_many(2).await;
+    assert_eq!(submitted.len(), 1);
+    assert_eq!(submitted[0].id(), H256::from_low_u64_be(3));
+    assert_eq!(tokio::time::Instant::now(), now);
+    worker.abort();
 }
 
 #[tokio::test(start_paused = true)]
@@ -286,7 +445,7 @@ async fn spare_prepare_capacity_accepts_a_new_same_origin_operation() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn completed_operation_frees_prepare_capacity_before_its_batch_finishes() {
+async fn completed_operation_frees_prepare_capacity_while_disposition_is_buffered() {
     assert_new_same_origin_operation_reaches_submit(true).await;
 }
 
@@ -307,7 +466,7 @@ async fn assert_new_same_origin_operation_reaches_submit(start_full: bool) {
             .push(
                 harness.operation(
                     2,
-                    2000,
+                    1000,
                     PendingOperationResult::Success,
                     Some(peer_gate.clone()),
                 ),
@@ -358,11 +517,10 @@ async fn assert_new_same_origin_operation_reaches_submit(start_full: bool) {
             "queued operation must wait while both prepare slots are occupied"
         );
         peer_gate.add_permits(1);
-        let ready = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1)).await;
-        assert_eq!(
-            ready.expect("the different-origin peer should complete independently")[0].id(),
-            H256::from_low_u64_be(2)
-        );
+        let completed = tokio::time::timeout(deadline, harness.completed_rx.recv())
+            .await
+            .expect("the same-origin peer should finish preparing");
+        assert_eq!(completed, Some(H256::from_low_u64_be(2)));
     }
     let ready = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1)).await;
     assert_eq!(
@@ -374,11 +532,18 @@ async fn assert_new_same_origin_operation_reaches_submit(start_full: bool) {
 
     gate.add_permits(1);
     let ready = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1)).await;
-    worker.abort();
     assert_eq!(
         ready.expect("the original operation should still submit when ready")[0].id(),
         H256::from_low_u64_be(1)
     );
+    if start_full {
+        let ready = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1)).await;
+        assert_eq!(
+            ready.expect("the buffered operation should submit after its predecessor")[0].id(),
+            H256::from_low_u64_be(2)
+        );
+    }
+    worker.abort();
 }
 
 #[tokio::test]

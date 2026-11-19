@@ -357,7 +357,9 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             hyp_message=?message, ?validators, threshold, %ism_address,
             "Could not fetch metadata: Unable to reach quorum"
         );
-        if builder.one_shot_multisig || ism_builder.module_type() == ModuleType::MerkleRootMultisig
+        if builder.signature_poll_retry.is_none()
+            || builder.one_shot_multisig
+            || ism_builder.module_type() == ModuleType::MerkleRootMultisig
         {
             MetadataBuildError::AwaitingValidatorSignatures
         } else {

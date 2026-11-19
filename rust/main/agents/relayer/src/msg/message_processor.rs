@@ -24,7 +24,7 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::PendingOperationStatus::ReadyToSubmit;
 use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
-    PendingOperationStatus, QueueOperation, ReprepareReason, SubmissionStage,
+    PendingOperationStatus, QueueOperation, QueuePrepareResult, ReprepareReason, SubmissionStage,
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
@@ -470,6 +470,7 @@ async fn prepare_batches(
 ) {
     let capacity = Arc::new(Semaphore::new(max_batch_size as usize));
     let requeue = prepare_queue.clone();
+    let parking_capacity = Arc::new(Semaphore::new(max_batch_size as usize));
     let mut batches = FuturesUnordered::new();
 
     loop {
@@ -513,6 +514,7 @@ async fn prepare_batches(
                 &confirm_queue,
                 &metrics,
                 permits,
+                &parking_capacity,
             )
             .await;
         });
@@ -581,6 +583,7 @@ async fn get_batch_or_wait(queue: &mut OpQueue, batch_size: u32) -> Vec<QueueOpe
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn process_batch(
     domain: &HyperlaneDomain,
     batch: Vec<QueueOperation>,
@@ -589,6 +592,7 @@ async fn process_batch(
     confirm_queue: &OpQueue,
     metrics: &MessageProcessorMetrics,
     mut permits: OwnedSemaphorePermit,
+    parking_capacity: &Arc<Semaphore>,
 ) {
     let mut next_sequence_by_origin = HashMap::<u32, usize>::new();
     let mut prepare_futures = FuturesUnordered::new();
@@ -603,44 +607,68 @@ async fn process_batch(
         *next_sequence = (*next_sequence).saturating_add(1);
         let permit = permits.split(1).expect("one permit per operation");
         prepare_futures.push(async move {
-            let result = op.prepare().await;
-            (origin, sequence, op, result, permit)
+            let reservation = parking_capacity.clone().try_acquire_owned().ok();
+            let result = op.prepare_for_queue(reservation.is_some()).await;
+            drop(permit);
+            (origin, sequence, op, result, reservation)
         });
     }
     // The lander filter may already have disposed some operations.
     drop(permits);
     let mut next_disposition_by_origin = HashMap::<u32, usize>::new();
-    let mut completed_by_origin = HashMap::<u32, HashMap<usize, (_, _, _)>>::new();
+    let mut completed_by_origin = HashMap::<u32, HashMap<usize, _>>::new();
 
-    while let Some((origin, sequence, op, result, permit)) = prepare_futures.next().await {
+    let mut parked = FuturesUnordered::new();
+    while !prepare_futures.is_empty() || !parked.is_empty() {
+        let (origin, sequence, op, result, reservation) = tokio::select! {
+            Some(prepared) = prepare_futures.next(), if !prepare_futures.is_empty() => prepared,
+            Some(()) = parked.next(), if !parked.is_empty() => continue,
+        };
+        let completed = match result {
+            QueuePrepareResult::Complete(result) => {
+                drop(reservation);
+                Some((op, result))
+            }
+            QueuePrepareResult::WaitingForSignatures(ready) => {
+                let reservation = reservation.expect("waiting requires a parking reservation");
+                parked.push(async move {
+                    ready.await;
+                    prepare_queue.push(op, None).await;
+                    drop(reservation);
+                });
+                None
+            }
+        };
         // Route completed work immediately unless an earlier operation from the
         // same origin is still preparing. Operations from other origins remain
-        // independent and can make progress in the meantime.
+        // independent and can make progress in the meantime. A parked
+        // operation leaves a placeholder so later operations can pass it.
         completed_by_origin
             .entry(origin)
             .or_default()
-            .insert(sequence, (op, result, permit));
+            .insert(sequence, completed);
 
         loop {
             let next_sequence = *next_disposition_by_origin.entry(origin).or_default();
-            let Some((op, result, permit)) = completed_by_origin
+            let Some(completed) = completed_by_origin
                 .get_mut(&origin)
                 .and_then(|completed| completed.remove(&next_sequence))
             else {
                 break;
             };
 
-            dispose_prepared_operation(
-                op,
-                result,
-                prepare_queue,
-                submit_queue,
-                confirm_queue,
-                metrics,
-            )
-            .await;
+            if let Some((op, result)) = completed {
+                dispose_prepared_operation(
+                    op,
+                    result,
+                    prepare_queue,
+                    submit_queue,
+                    confirm_queue,
+                    metrics,
+                )
+                .await;
+            }
             next_disposition_by_origin.insert(origin, next_sequence.saturating_add(1));
-            drop(permit);
         }
     }
 

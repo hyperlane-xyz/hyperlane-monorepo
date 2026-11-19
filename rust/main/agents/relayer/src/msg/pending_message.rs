@@ -3,28 +3,32 @@
 use std::{
     collections::HashSet,
     fmt::{Debug, Formatter},
+    future::Future,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use async_trait::async_trait;
 use eyre::Result;
+use futures::future::BoxFuture;
 use parking_lot::Mutex;
 use prometheus::IntGauge;
 use serde::{de::DeserializeOwned, Serialize};
-use tokio::sync::RwLock;
+use tokio::sync::{oneshot, Notify, RwLock};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use hyperlane_base::{
     cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB, PendingMessageRetryState, SignatureRetryState},
+    message_retry_delay, signature_retry_delay, with_checkpoint_signature_miss, SignaturePollRetry,
+    SIGNATURE_POLL_INTERVAL, SIGNATURE_POLL_WINDOW,
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     FixedPointNumber, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox,
     MessageSubmissionData, Metadata, PendingOperation, PendingOperationResult,
-    PendingOperationStatus, ReprepareReason, SubmissionStage, TryBatchAs, TxCostEstimate,
-    TxOutcome, H256, U256,
+    PendingOperationStatus, QueuePrepareResult, ReprepareReason, SubmissionStage, TryBatchAs,
+    TxCostEstimate, TxOutcome, H256, U256,
 };
 use hyperlane_metric::rpc_operation::{with_rpc_operation, RpcOperation};
 use hyperlane_operation_verifier::ApplicationOperationVerifier;
@@ -71,9 +75,6 @@ pub const USE_CACHE_METADATA_LOG: &str = "Reusing cached metadata";
 pub const INVALIDATE_CACHE_METADATA_LOG: &str = "Invalidating cached metadata";
 pub const ISM_MAX_DEPTH: u32 = 13;
 pub const ISM_MAX_COUNT: u32 = 100;
-
-const SIGNATURE_POLL_INTERVAL: Duration = Duration::from_millis(500);
-pub(crate) const SIGNATURE_POLL_WINDOW: Duration = Duration::from_secs(10);
 
 /// Revert string emitted by the ICA router when the originating commit has not
 /// yet been confirmed on-chain. There is no typed error variant for this today —
@@ -181,6 +182,27 @@ impl Drop for LoadedMessageGuard {
     }
 }
 
+/// Prefer a result already available from the first pass over yielding the slot.
+pub(crate) async fn build_until_signature_miss<T>(
+    build: impl Future<Output = T> + Send + 'static,
+) -> Result<T, BoxFuture<'static, T>> {
+    let missing = Arc::new(Notify::new());
+    let mut build: BoxFuture<'static, T> =
+        Box::pin(with_checkpoint_signature_miss(Arc::clone(&missing), build));
+    tokio::select! {
+        biased;
+        result = &mut build => Ok(result),
+        () = missing.notified() => Err(build),
+    }
+}
+
+/// A signature wait retains its metadata result until preparation can resume.
+struct ParkedMetadataBuild {
+    ism: H256,
+    started_at: Instant,
+    result: oneshot::Receiver<Result<Metadata, MetadataBuildError>>,
+}
+
 /// A message that is pending processing and submission.
 #[derive(Serialize)]
 pub struct PendingMessage {
@@ -212,6 +234,8 @@ pub struct PendingMessage {
     submission_outcome: Option<TxOutcome>,
     #[serde(skip_serializing)]
     metadata: Option<Metadata>,
+    #[serde(skip_serializing)]
+    parked_metadata: Option<ParkedMetadataBuild>,
     #[serde(skip_serializing)]
     metric: Option<Arc<IntGauge>>,
     /// When true, drop the message immediately once `num_retries > max_retries`
@@ -312,6 +336,7 @@ impl PendingMessage {
             next_attempt_after: None,
             submission_outcome: None,
             metadata: None,
+            parked_metadata: None,
             metric: None,
             fail_fast: false,
             ica_reveal_attempts: 0,
@@ -500,11 +525,18 @@ impl PendingOperation for PendingMessage {
         self.app_context.clone()
     }
 
-    #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
+        match self.prepare_for_queue(false).await {
+            QueuePrepareResult::Complete(result) => result,
+            QueuePrepareResult::WaitingForSignatures(_) => unreachable!("parking is disabled"),
+        }
+    }
+
+    #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
+    async fn prepare_for_queue(&mut self, can_park: bool) -> QueuePrepareResult {
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
-            return PendingOperationResult::NotReady;
+            return PendingOperationResult::NotReady.into();
         }
 
         self.report_first_seen();
@@ -520,15 +552,18 @@ impl PendingOperation for PendingMessage {
         {
             Ok(is_delivered) => is_delivered,
             Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus);
+                return self
+                    .on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus)
+                    .into();
             }
         };
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
+            self.parked_metadata = None;
             self.ctx.destination_mailbox.on_delivered(&self.message);
             self.submitted = true;
             self.set_next_attempt_after(CONFIRM_DELAY);
-            return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
+            return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted).into();
         }
 
         // We cannot deliver to an address that is not a contract so check and drop if it isn't.
@@ -537,7 +572,7 @@ impl PendingOperation for PendingMessage {
                 .await
             {
                 Ok(is_contract) => is_contract,
-                Err(reprepare_reason) => return reprepare_reason,
+                Err(reprepare_reason) => return reprepare_reason.into(),
             };
         if !is_contract {
             self.ctx
@@ -547,7 +582,7 @@ impl PendingOperation for PendingMessage {
                 recipient=?self.message.recipient,
                 "Dropping message because recipient is not a contract"
             );
-            return self.terminal_drop();
+            return self.terminal_drop().into();
         }
 
         // Perform a preflight check to see if we can short circuit the gas
@@ -557,7 +592,7 @@ impl PendingOperation for PendingMessage {
             self.meets_gas_payment_requirement_preflight_check().await
         {
             info!("Message does not meet the gas payment requirement preflight check");
-            return op_result;
+            return op_result.into();
         }
         self.report_progress(Stage::GasPreflight, Outcome::Succeeded);
 
@@ -586,7 +621,7 @@ impl PendingOperation for PendingMessage {
                     check.record_drop(self.ctx.destination_mailbox.domain().name());
                     // Not terminal: the loader reloads it if the rule is removed.
                     self.on_runtime_denylist_drop();
-                    return PendingOperationResult::Drop;
+                    return PendingOperationResult::Drop.into();
                 }
                 Ok(None) if lookup_paused => {}
                 Ok(None) => {
@@ -596,16 +631,19 @@ impl PendingOperation for PendingMessage {
                 // Relay API ops keep their drop-after-budget behaviour.
                 Err(err) if self.fail_fast => {
                     return self
-                        .on_reprepare(Some(err), ReprepareReason::ErrorFetchingOriginTxSender);
+                        .on_reprepare(Some(err), ReprepareReason::ErrorFetchingOriginTxSender)
+                        .into();
                 }
                 Err(err) if is_hash_not_stored(&err) => {
                     if !self.origin_hash_waited {
                         self.origin_hash_waited = true;
                         debug!(?message_id, "Dispatch tx hash not stored yet; waiting before the origin sender check");
-                        return self.delay_reprepare(
-                            ORIGIN_HASH_WAIT,
-                            ReprepareReason::ErrorFetchingOriginTxSender,
-                        );
+                        return self
+                            .delay_reprepare(
+                                ORIGIN_HASH_WAIT,
+                                ReprepareReason::ErrorFetchingOriginTxSender,
+                            )
+                            .into();
                     }
                     // Nothing to check against. Not cached: a later prepare
                     // reads the DB again, so a late hash still gets checked.
@@ -628,7 +666,8 @@ impl PendingOperation for PendingMessage {
                         let delay = ORIGIN_LOOKUP_BACKOFF
                             .saturating_mul(1 << self.origin_lookup_failures.saturating_sub(1));
                         return self
-                            .delay_reprepare(delay, ReprepareReason::ErrorFetchingOriginTxSender);
+                            .delay_reprepare(delay, ReprepareReason::ErrorFetchingOriginTxSender)
+                            .into();
                     }
                     // Persistent failures are usually permanent (pruned or
                     // unparsable tx), so stop blocking the message. Nothing
@@ -672,7 +711,7 @@ impl PendingOperation for PendingMessage {
                             && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX =>
                     {
                         self.report_progress(Stage::Simulate, Outcome::Failed);
-                        return self.requeue_ica_reveal();
+                        return self.requeue_ica_reveal().into();
                     }
                     Err(e) => {
                         self.report_chain_failure(Stage::Simulate, &e);
@@ -687,11 +726,9 @@ impl PendingOperation for PendingMessage {
 
         match self.metadata.as_ref() {
             Some(_) => tracing::debug!(USE_CACHE_METADATA_LOG),
-            None => match with_rpc_operation(RpcOperation::RelayerMetadata, self.build_metadata())
-                .await
-            {
+            None => match self.build_metadata(can_park).await {
                 Ok(metadata) => self.metadata = Some(metadata),
-                Err(err) => return err,
+                Err(result) => return result,
             },
         }
         let metadata = self
@@ -734,7 +771,7 @@ impl PendingOperation for PendingMessage {
                         if is_ica_invalid_reveal(&e)
                             && self.ica_reveal_attempts < REVEAL_POLL_TOTAL_MAX
                         {
-                            return self.requeue_ica_reveal();
+                            return self.requeue_ica_reveal().into();
                         }
                         // Only reset on non-reveal errors; leave attempts pinned at cap so a
                         // permanently-failing reveal doesn't re-enter the fast-poll burst.
@@ -751,7 +788,7 @@ impl PendingOperation for PendingMessage {
                             .await
                             .unwrap_or(ReprepareReason::ErrorEstimatingGas);
                         self.clear_metadata();
-                        return self.on_reprepare(Some(e), reason);
+                        return self.on_reprepare(Some(e), reason).into();
                     }
                 }
             }
@@ -763,7 +800,7 @@ impl PendingOperation for PendingMessage {
             GasPaymentRequirementOutcome::MeetsRequirement(gas_limit) => gas_limit,
             GasPaymentRequirementOutcome::RequirementNotMet(op_result) => {
                 info!("Message does not meet the gas payment requirement after gas estimation");
-                return op_result;
+                return op_result.into();
             }
         };
 
@@ -778,7 +815,9 @@ impl PendingOperation for PendingMessage {
             if gas_limit > max_limit {
                 // TODO: consider dropping instead of repreparing in this case
                 self.clear_metadata();
-                return self.on_reprepare::<String>(None, ReprepareReason::ExceedsMaxGasLimit);
+                return self
+                    .on_reprepare::<String>(None, ReprepareReason::ExceedsMaxGasLimit)
+                    .into();
             }
         }
 
@@ -791,7 +830,7 @@ impl PendingOperation for PendingMessage {
                 .expect("Successful preparation retains its metadata"),
             gas_limit,
         }));
-        PendingOperationResult::Success
+        PendingOperationResult::Success.into()
     }
 
     #[instrument(skip(self), fields(id=?self.id(), domain=%self.destination_domain()))]
@@ -1293,17 +1332,22 @@ impl PendingMessage {
     ///
     /// Implicit contract in this method: function name `recipient_ism` matches
     /// the name of the method `recipient_ism`.
-    async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
+    async fn recipient_ism_address(
+        &mut self,
+        refresh: bool,
+    ) -> Result<H256, PendingOperationResult> {
         let domain = self.ctx.destination_mailbox.domain().name();
         let fn_key = "recipient_ism";
         let fn_params = self.message.recipient;
 
-        // Check cache for recipient ISM address
-        if let Some(ism_address) = self
-            .get_from_cache::<H256>(domain, fn_key, &fn_params)
-            .await
-        {
-            return Ok(ism_address);
+        // A parked result may have waited while the recipient changed ISMs.
+        if !refresh {
+            if let Some(ism_address) = self
+                .get_from_cache::<H256>(domain, fn_key, &fn_params)
+                .await
+            {
+                return Ok(ism_address);
+            }
         }
 
         // Fetch the recipient ISM address
@@ -1596,6 +1640,7 @@ impl PendingMessage {
         self.set_status(status);
         self.num_retries = 0;
         self.signature_retry = None;
+        self.parked_metadata = None;
         self.next_attempt_after = None;
         self.last_attempted_at = Instant::now();
         true
@@ -1611,16 +1656,7 @@ impl PendingMessage {
         let elapsed = now
             .duration_since(state.started_at)
             .unwrap_or(SIGNATURE_POLL_WINDOW);
-        if state.backoff_retries == 0 && elapsed < SIGNATURE_POLL_WINDOW {
-            return Some(
-                SIGNATURE_POLL_INTERVAL.min(SIGNATURE_POLL_WINDOW.saturating_sub(elapsed)),
-            );
-        }
-        state.backoff_retries = state.backoff_retries.saturating_add(1);
-        if state.backoff_retries <= 3 {
-            return Some(Duration::from_secs(u64::from(state.backoff_retries)));
-        }
-        None
+        signature_retry_delay(elapsed, &mut state.backoff_retries)
     }
 
     fn inc_attempts(&mut self, reason: Option<&ReprepareReason>) {
@@ -1716,49 +1752,7 @@ impl PendingMessage {
         {
             return Some(SIGNATURE_POLL_INTERVAL);
         }
-        Some(Duration::from_secs(match num_retries {
-            i if i < 1 => return None,
-            1 => 5,
-            2 => 10,
-            3 => 30,
-            4 => 60,
-            i if (5..25).contains(&i) => 60u64.saturating_mul(3),
-            // linearly increase from 5min to ~25min, adding 1.5min for each additional attempt
-            i if (25..40).contains(&i) => 60u64
-                .saturating_mul(5)
-                .saturating_add((i as u64).saturating_sub(25).saturating_mul(90)),
-            // wait 30min for the next 5 attempts
-            i if (40..45).contains(&i) => 60u64.saturating_mul(30),
-            // wait 60min for the next 5 attempts
-            i if (45..50).contains(&i) => 60u64.saturating_mul(60),
-            // linearly increase the backoff time, adding 1h for each additional attempt
-            i if (50..max_retries).contains(&i) => {
-                let hour: u64 = 60u64.saturating_mul(60);
-                let two_hours: u64 = hour.saturating_mul(2);
-                // To be extra safe, `max` to make sure it's at least 2 hours.
-                let target = two_hours
-                    .max((num_retries.saturating_sub(49) as u64).saturating_mul(two_hours));
-                // Schedule it at some random point in the next 6 hours to
-                // avoid scheduling messages with the same # of retries
-                // at the exact same time and starve new messages.
-
-                let six_hours = hour.saturating_mul(6);
-                let random_val = rand::random::<u64>();
-                target.saturating_add(random_val.overflowing_rem(six_hours).0)
-            }
-            // after `max_message_retries`, the message is considered undeliverable
-            // and the backoff is set as far into the future as possible
-            _ => {
-                if let Some(message_id) = message_id {
-                    warn!(
-                        message_id = ?message_id,
-                        ?max_retries,
-                        "Message has been retried too many times, skipping",
-                    );
-                }
-                chrono::Duration::weeks(10).num_seconds() as u64
-            }
-        }))
+        message_retry_delay(num_retries, max_retries, message_id)
     }
 
     async fn clarify_reason(&self, reason: ReprepareReason) -> Option<ReprepareReason> {
@@ -1778,34 +1772,99 @@ impl PendingMessage {
         }
     }
 
-    /// Builds metadata
-    async fn build_metadata(&mut self) -> Result<Metadata, PendingOperationResult> {
-        let ism_address = self.recipient_ism_address().await?;
-
-        let message_metadata_builder = match MessageMetadataBuilder::new(
-            self.ctx.metadata_builder.clone(),
-            ism_address,
-            &self.message,
+    async fn build_metadata(&mut self, can_park: bool) -> Result<Metadata, QueuePrepareResult> {
+        let refresh_ism = self.parked_metadata.is_some();
+        let ism_address = with_rpc_operation(
+            RpcOperation::RelayerMetadata,
+            self.recipient_ism_address(refresh_ism),
         )
         .await
-        {
-            Ok(message_metadata_builder) => message_metadata_builder,
-            Err(err) => {
-                return Err(
-                    self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder)
-                );
+        .map_err(QueuePrepareResult::Complete)?;
+        if let Some(parked) = self.parked_metadata.take() {
+            if parked.ism == ism_address {
+                // The queue wakes this operation after the driver sends its result.
+                // A manual wake can cancel the driver, so a closed receiver starts fresh.
+                let mut result = parked.result;
+                if let Ok(result) = result.try_recv() {
+                    return self
+                        .finish_metadata_build(result, parked.started_at)
+                        .map_err(QueuePrepareResult::Complete);
+                }
             }
-        };
+        }
 
+        let builder = with_rpc_operation(
+            RpcOperation::RelayerMetadata,
+            MessageMetadataBuilder::new(
+                Arc::clone(&self.ctx.metadata_builder),
+                ism_address,
+                &self.message,
+            ),
+        )
+        .await
+        .map_err(|err| {
+            QueuePrepareResult::Complete(
+                self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder),
+            )
+        })?;
         let polling = matches!(
             self.status,
             PendingOperationStatus::Retry(ReprepareReason::AwaitingValidatorSignatures)
         );
-        let build_metadata_start = Instant::now();
-        let metadata_res = message_metadata_builder
-            .build_for_delivery(ism_address, &self.message, polling)
-            .await;
+        let started_at = Instant::now();
+        let result = if can_park && !self.fail_fast && self.signature_retry.is_none() {
+            let retry = SignaturePollRetry {
+                retries: self.num_retries,
+                max_retries: self.max_retries,
+            };
+            let message = self.message.clone();
+            let build = async move {
+                with_rpc_operation(
+                    RpcOperation::RelayerMetadata,
+                    builder.build_for_delivery(ism_address, &message, polling, Some(retry)),
+                )
+                .await
+            };
+            match build_until_signature_miss(build).await {
+                Ok(result) => result,
+                Err(build) => {
+                    let (sender, result) = oneshot::channel();
+                    self.parked_metadata = Some(ParkedMetadataBuild {
+                        ism: ism_address,
+                        started_at,
+                        result,
+                    });
+                    let observation = self
+                        .ctx
+                        .metrics
+                        .record_metadata_wait(self.message.id(), self.app_context.as_deref());
+                    if observation.first_observation {
+                        warn!("Waiting for validator signatures");
+                    }
+                    return Err(QueuePrepareResult::WaitingForSignatures(Box::pin(
+                        async move {
+                            let _ = sender.send(build.await);
+                        },
+                    )));
+                }
+            }
+        } else {
+            with_rpc_operation(
+                RpcOperation::RelayerMetadata,
+                builder.build_for_delivery(ism_address, &self.message, polling, None),
+            )
+            .await
+        };
 
+        self.finish_metadata_build(result, started_at)
+            .map_err(QueuePrepareResult::Complete)
+    }
+
+    fn finish_metadata_build(
+        &mut self,
+        metadata_res: Result<Metadata, MetadataBuildError>,
+        build_metadata_start: Instant,
+    ) -> Result<Metadata, PendingOperationResult> {
         tracing::debug!(?self.message, ?metadata_res, "Metadata build result");
 
         let metadata_res = match metadata_res {

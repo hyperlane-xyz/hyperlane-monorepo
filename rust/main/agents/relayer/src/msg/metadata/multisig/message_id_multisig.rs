@@ -105,9 +105,11 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         if !self.signature_polling {
             self.spawn_latest_index_telemetry(checkpoint_syncer, validators);
         }
-        let syncer = checkpoint_syncer
-            .clone()
-            .with_signature_polling(Some(message_id), !self.one_shot_multisig);
+        let syncer = checkpoint_syncer.clone().with_signature_polling(
+            Some(message_id),
+            self.signature_poll_retry
+                .filter(|_| !self.one_shot_multisig),
+        );
         let quorum_checkpoint = syncer
             .fetch_checkpoint(
                 validators,
@@ -229,6 +231,7 @@ mod tests {
         IsmBuildMetricsParams, MessageMetadataBuildParams, MessageMetadataBuilder,
         MetadataBuildError, MetadataBuilder,
     };
+    use crate::msg::pending_message::build_until_signature_miss;
     use crate::test_utils::mock_base_builder::build_mock_base_builder;
 
     #[derive(Debug, Default)]
@@ -339,7 +342,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn delivery_waits_for_non_signer_flags_and_veto_cancels_pending_reads() {
+    async fn delivery_preserves_quorum_and_reorg_checks_across_signature_waits() {
         use crate::test_utils::mock_ism::MockInterchainSecurityModule;
 
         let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
@@ -356,8 +359,10 @@ mod tests {
         };
         let mut validators: Vec<_> = dummy_validators().into_iter().take(2).collect();
         validators[0].fetch_checkpoint = Some(checkpoint);
+        validators[1].fetch_checkpoint = Some(checkpoint);
         let signed = generate_multisig_signed_checkpoint(&validators, checkpoint).await;
         let expected_signature = signed.signatures[0].to_vec();
+        let expected_second_signature = signed.signatures[1].to_vec();
         let addresses: Vec<H256> = validators
             .iter()
             .map(|validator| {
@@ -368,15 +373,34 @@ mod tests {
                     .into()
             })
             .collect();
-        for (positive, signer_blocked, retry, unreadable_reader) in [
-            (false, false, false, None),
-            (true, false, false, None),
-            (true, true, false, None),
-            (false, false, true, None),
-            (false, false, false, Some(1)),
-            (false, false, false, Some(0)),
+        for (
+            positive,
+            signer_blocked,
+            retry,
+            unreadable_reader,
+            warm,
+            retain_signature,
+            one_shot_miss,
+        ) in [
+            (false, false, false, None, false, false, false),
+            (true, false, false, None, false, false, false),
+            (true, true, false, None, false, false, false),
+            (false, false, true, None, false, false, false),
+            (true, false, true, None, false, false, false),
+            (false, false, false, Some(1), false, false, false),
+            (false, false, false, Some(0), false, false, false),
+            (false, false, false, None, true, false, false),
+            (false, false, true, None, false, true, false),
+            (false, false, false, None, false, false, true),
         ] {
-            let mut clients = build_mock_checkpoint_syncs(&validators).await;
+            let mut readers = validators.clone();
+            if one_shot_miss {
+                readers[0].fetch_checkpoint = None;
+            }
+            if !retain_signature {
+                readers[1].fetch_checkpoint = None;
+            }
+            let mut clients = build_mock_checkpoint_syncs(&readers).await;
             let signing = clients.remove(&H160::from(addresses[0])).expect("signer");
             let non_signing = clients
                 .remove(&H160::from(addresses[1]))
@@ -384,6 +408,7 @@ mod tests {
             let signature_responses = signing.responses.fetch_checkpoint.clone();
             let signing_flags = signing.responses.reorg_status.clone();
             let flag_response = non_signing.responses.reorg_status.clone();
+            let other_signatures = non_signing.responses.fetch_checkpoint.clone();
             {
                 let mut flags = flag_response.lock().expect("reorg response lock");
                 flags.clear();
@@ -403,7 +428,9 @@ mod tests {
                     .lock()
                     .expect("signature response lock")
                     .push_front(Ok(None));
-                release.notify_one();
+                if !positive {
+                    release.notify_one();
+                }
             }
             if unreadable_reader == Some(0) {
                 let mut flags = signing_flags.lock().expect("signer flag lock");
@@ -428,11 +455,16 @@ mod tests {
             } else {
                 Arc::new(signing)
             };
-            let non_signing: Arc<dyn CheckpointSyncer> = Arc::new(gated(
-                non_signing,
-                Some(release.clone()),
-                Arc::new(AtomicBool::new(false)),
-            ));
+            let non_signing: Arc<dyn CheckpointSyncer> =
+                if warm || retain_signature || one_shot_miss {
+                    Arc::new(non_signing)
+                } else {
+                    Arc::new(gated(
+                        non_signing,
+                        Some(release.clone()),
+                        Arc::new(AtomicBool::new(false)),
+                    ))
+                };
             let syncer = MultisigCheckpointSyncer::new(
                 HashMap::from([
                     (H160::from(addresses[0]), signing),
@@ -455,10 +487,15 @@ mod tests {
                 ))),
             );
             let mut ism = MockMockMultisigIsm::new();
-            let validators = addresses.clone();
+            let mut validators = addresses.clone();
+            if warm {
+                // Visit the optional, missing reader before the first-pass signer.
+                validators.reverse();
+            }
+            let threshold = if retain_signature { 2 } else { 1 };
             ism.expect_validators_and_threshold()
                 .once()
-                .return_once(move |_| Ok((validators, 1)));
+                .return_once(move |_| Ok((validators, threshold)));
             ism.expect_domain().return_const(destination.clone());
             ism.expect_address().return_const(H256::zero());
             base.responses
@@ -474,7 +511,53 @@ mod tests {
             let builder = MessageMetadataBuilder::new(base, H256::zero(), &message)
                 .await
                 .expect("message metadata builder");
-            let build = builder.build_for_delivery(H256::zero(), &message, true);
+            let message = message.clone();
+            let build = async move {
+                let retry = if one_shot_miss {
+                    None
+                } else {
+                    builder.signature_poll_retry
+                };
+                builder
+                    .build_for_delivery(H256::zero(), &message, true, retry)
+                    .await
+            };
+            if one_shot_miss {
+                let result = build_until_signature_miss(build).await;
+                assert!(matches!(
+                    result,
+                    Ok(Err(MetadataBuildError::AwaitingValidatorSignatures))
+                ));
+                assert!(signature_responses
+                    .lock()
+                    .expect("first reader lock")
+                    .is_empty());
+                assert!(other_signatures
+                    .lock()
+                    .expect("second reader lock")
+                    .is_empty());
+                continue;
+            }
+            if warm {
+                let result = build_until_signature_miss(build).await;
+                let Ok(Ok(metadata)) = result else {
+                    panic!("first-pass quorum should finish without parking");
+                };
+                assert!(metadata.ends_with(&expected_signature));
+                assert!(other_signatures
+                    .lock()
+                    .expect("optional signer lock")
+                    .is_empty());
+                continue;
+            }
+            let build = if retry {
+                match build_until_signature_miss(build).await {
+                    Err(waiting) => waiting,
+                    Ok(_) => panic!("first confirmed miss should yield a suspended build"),
+                }
+            } else {
+                Box::pin(build)
+            };
             tokio::pin!(build);
             assert!(futures::poll!(&mut build).is_pending());
             assert_eq!(
@@ -487,7 +570,13 @@ mod tests {
             if signer_blocked {
                 assert!(fetch_started.load(Ordering::SeqCst));
             }
-            if !retry {
+            if retain_signature {
+                assert!(other_signatures
+                    .lock()
+                    .expect("second signer lock")
+                    .is_empty());
+            }
+            if !retry || positive {
                 release.notify_one();
             }
             let result = tokio::time::timeout(std::time::Duration::from_secs(1), build)
@@ -497,7 +586,17 @@ mod tests {
                 assert!(matches!(result, Err(MetadataBuildError::Refused(_))));
             } else {
                 let metadata = result.expect("quorum remains usable without a positive flag");
-                assert!(metadata.ends_with(&expected_signature));
+                if retain_signature {
+                    assert!(metadata.ends_with(
+                        &[
+                            expected_signature.as_slice(),
+                            expected_second_signature.as_slice()
+                        ]
+                        .concat(),
+                    ));
+                } else {
+                    assert!(metadata.ends_with(&expected_signature));
+                }
                 assert_eq!(signing_flags.lock().expect("signer flag lock").len(), 1);
                 assert!(flag_response
                     .lock()

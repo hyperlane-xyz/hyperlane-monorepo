@@ -74,7 +74,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
                 .clone()
-                .with_signature_polling(None, false)
+                .with_signature_polling(None, None)
                 .fetch_checkpoint_in_range(
                     validators,
                     threshold as usize,

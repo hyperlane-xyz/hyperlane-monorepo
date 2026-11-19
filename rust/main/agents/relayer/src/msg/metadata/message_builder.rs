@@ -8,13 +8,16 @@ use eyre::Result;
 use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType, H256};
 use tracing::instrument;
 use {
-    hyperlane_base::cache::{FunctionCallCache, NoParams},
+    hyperlane_base::{
+        cache::{FunctionCallCache, NoParams},
+        SignaturePollRetry,
+    },
     tracing::warn,
 };
 
 use crate::msg::{
     metadata::base_builder::BuildsBaseMetadata,
-    pending_message::{ISM_MAX_COUNT, ISM_MAX_DEPTH},
+    pending_message::{DEFAULT_MAX_MESSAGE_RETRIES, ISM_MAX_COUNT, ISM_MAX_DEPTH},
 };
 
 use super::{
@@ -40,6 +43,8 @@ pub struct MessageMetadataBuilder {
     pub max_ism_count: u32,
     /// Suppress optional telemetry when retrying a message already awaiting signatures.
     pub(crate) signature_polling: bool,
+    /// Ordinary retry progress for independent validator reads.
+    pub(crate) signature_poll_retry: Option<SignaturePollRetry>,
     /// A preferred aggregation child must yield on a miss so alternatives can run.
     pub(crate) one_shot_multisig: bool,
     /// Offchain reads from a signature probe, reused by the delivery build that
@@ -105,9 +110,11 @@ impl MessageMetadataBuilder {
         ism: H256,
         message: &HyperlaneMessage,
         polling: bool,
+        retry: Option<SignaturePollRetry>,
     ) -> Result<Metadata, MetadataBuildError> {
         let mut builder = self.clone();
         builder.signature_polling = polling;
+        builder.signature_poll_retry = retry;
         if polling {
             builder.offchain_reads = Some(Arc::default());
         }
@@ -131,6 +138,10 @@ impl MessageMetadataBuilder {
             max_ism_depth: ISM_MAX_DEPTH,
             max_ism_count: ISM_MAX_COUNT,
             signature_polling: false,
+            signature_poll_retry: Some(SignaturePollRetry {
+                retries: 0,
+                max_retries: DEFAULT_MAX_MESSAGE_RETRIES,
+            }),
             one_shot_multisig: false,
             offchain_reads: None,
         })

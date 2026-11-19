@@ -1,12 +1,15 @@
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
 
 use derive_new::new;
 use eyre::Result;
 use futures::{stream, StreamExt};
 use serde::Serialize;
-use tokio::time::{sleep, Instant};
+use tokio::{
+    sync::Notify,
+    time::{sleep, Instant},
+};
 use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
@@ -16,11 +19,19 @@ use hyperlane_core::{
 
 use crate::{settings::CheckpointSyncerBuildError, CheckpointSyncer, CoreMetrics};
 
-/// Interval between fast retries for missing validator checkpoints.
-const CHECKPOINT_RETRY_INTERVAL: Duration = Duration::from_millis(500);
-const CHECKPOINT_FAST_RETRY_WINDOW: Duration = Duration::from_secs(10);
-const CHECKPOINT_RETRY_BACKOFF_SECS: [u64; 4] = [1, 2, 3, 5];
-const CHECKPOINT_RETRY_BACKOFF_CAP_SECS: u64 = 8;
+use super::{message_retry_delay, signature_retry_delay};
+
+tokio::task_local! {
+    static SIGNATURE_MISS: Arc<Notify>;
+}
+
+/// Notify when an independently retried validator first reports a missing checkpoint.
+pub async fn with_checkpoint_signature_miss<F>(notify: Arc<Notify>, future: F) -> F::Output
+where
+    F: Future,
+{
+    SIGNATURE_MISS.scope(notify, future).await
+}
 
 /// Sanitized observations from existing checkpoint reads; no additional I/O.
 #[derive(Clone, Debug, Serialize)]
@@ -108,10 +119,19 @@ pub trait CheckpointObserver: std::fmt::Debug + Send + Sync {
     fn observe(&self, observation: CheckpointObservation);
 }
 
+/// Ordinary message retry progress when independent signature polling starts.
+#[derive(Clone, Copy, Debug)]
+pub struct SignaturePollRetry {
+    /// Ordinary retries already consumed by the message.
+    pub retries: u32,
+    /// Configured maximum ordinary message retries.
+    pub max_retries: u32,
+}
+
 #[derive(Clone, Copy, Debug)]
 struct SignaturePolling {
     message_id: Option<H256>,
-    retry_missing: bool,
+    retry: Option<SignaturePollRetry>,
 }
 
 /// For a particular validator set, fetches signed checkpoints from multiple
@@ -129,11 +149,12 @@ pub struct MultisigCheckpointSyncer {
 
 impl MultisigCheckpointSyncer {
     /// Fetch signatures concurrently, optionally restricting message ID and retrying misses.
-    pub fn with_signature_polling(mut self, message_id: Option<H256>, retry_missing: bool) -> Self {
-        self.polling = Some(SignaturePolling {
-            message_id,
-            retry_missing,
-        });
+    pub fn with_signature_polling(
+        mut self,
+        message_id: Option<H256>,
+        retry: Option<SignaturePollRetry>,
+    ) -> Self {
+        self.polling = Some(SignaturePolling { message_id, retry });
         self
     }
 
@@ -414,7 +435,7 @@ impl MultisigCheckpointSyncer {
 
             for index in (minimum_index..=start_index).rev() {
                 let checkpoint_res = self
-                    .collect_checkpoint(validators, threshold, index, destination, false)
+                    .collect_checkpoint(validators, threshold, index, destination, None)
                     .await;
                 if let Ok(Some(checkpoint)) = checkpoint_res {
                     return Ok(Some(checkpoint));
@@ -435,7 +456,7 @@ impl MultisigCheckpointSyncer {
         index: u32,
         destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
-        let retry = self.polling.is_some_and(|polling| polling.retry_missing);
+        let retry = self.polling.and_then(|polling| polling.retry);
         self.collect_checkpoint(validators, threshold, index, destination, retry)
             .await
     }
@@ -447,7 +468,7 @@ impl MultisigCheckpointSyncer {
         threshold: usize,
         index: u32,
         destination: &HyperlaneDomain,
-        retry: bool,
+        retry: Option<SignaturePollRetry>,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         self.observe(CheckpointObservation::Fetching { index });
         // Keeps track of signed validator checkpoints for a particular root.
@@ -489,13 +510,18 @@ impl MultisigCheckpointSyncer {
             })
             .map(|(validator_index, address, syncer)| async move {
                 let mut first_missing = None;
-                let mut backoff = CHECKPOINT_RETRY_BACKOFF_SECS.into_iter();
+                let mut fast_backoff_retries = 0;
+                let mut retry = retry;
                 loop {
                     let checkpoint = syncer.fetch_checkpoint(index).await;
-                    if !retry || !matches!(checkpoint, Ok(None)) {
+                    let Some(retry) = retry.as_mut() else {
+                        break (validator_index, address, checkpoint);
+                    };
+                    if !matches!(checkpoint, Ok(None)) {
                         break (validator_index, address, checkpoint);
                     }
                     let started_at = first_missing.get_or_insert_with(|| {
+                        let _ = SIGNATURE_MISS.try_with(|notify| notify.notify_one());
                         let now = Instant::now();
                         self.unavailable(
                             address,
@@ -504,14 +530,17 @@ impl MultisigCheckpointSyncer {
                         );
                         now
                     });
-                    let remaining_fast_window =
-                        CHECKPOINT_FAST_RETRY_WINDOW.saturating_sub(started_at.elapsed());
-                    let delay = if remaining_fast_window.is_zero() {
-                        Duration::from_secs(
-                            backoff.next().unwrap_or(CHECKPOINT_RETRY_BACKOFF_CAP_SECS),
-                        )
+                    let delay = if retry.retries < retry.max_retries {
+                        signature_retry_delay(started_at.elapsed(), &mut fast_backoff_retries)
                     } else {
-                        CHECKPOINT_RETRY_INTERVAL.min(remaining_fast_window)
+                        None
+                    };
+                    let delay = delay.or_else(|| {
+                        retry.retries = retry.retries.saturating_add(1);
+                        message_retry_delay(retry.retries, retry.max_retries, None)
+                    });
+                    let Some(delay) = delay else {
+                        break (validator_index, address, checkpoint);
                     };
                     sleep(delay).await;
                 }
@@ -522,7 +551,7 @@ impl MultisigCheckpointSyncer {
         let mut futures = stream::iter(requests).buffer_unordered(concurrency);
         let message_id = self.polling.and_then(|polling| polling.message_id);
 
-        while !retry || remaining.saturating_add(best) >= threshold {
+        while retry.is_none() || remaining.saturating_add(best) >= threshold {
             let Some((validator_index, validator, checkpoint)) = futures.next().await else {
                 break;
             };
@@ -1164,10 +1193,10 @@ mod test {
             .fetch_checkpoint
             .lock()
             .expect("checkpoint response lock is available")
-            .extend((0..26).map(|_| Ok(None)).chain([Ok(Some(signed))]));
+            .extend((0..27).map(|_| Ok(None)).chain([Ok(Some(signed))]));
         let activity = Arc::new(FetchActivity::default());
         let slow = DelayedCheckpointSyncer {
-            delay: Duration::from_secs(60),
+            delay: Duration::from_secs(180),
             latest_index: None,
             checkpoint: None,
             checkpoint_location: None,
@@ -1176,13 +1205,18 @@ mod test {
         let mut syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
         syncers.insert(slow_address, Arc::new(slow));
         syncers.insert(retry_address, Arc::new(retrying));
-        let syncer = MultisigCheckpointSyncer::new(syncers, None)
-            .with_signature_polling(Some(checkpoint.message_id), true);
+        let syncer = MultisigCheckpointSyncer::new(syncers, None).with_signature_polling(
+            Some(checkpoint.message_id),
+            Some(SignaturePollRetry {
+                retries: 0,
+                max_retries: 66,
+            }),
+        );
         let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
         let validators = [H256::from(slow_address), H256::from(retry_address)];
         let start = Instant::now();
         let fetch = syncer.fetch_checkpoint(&validators, 1, checkpoint.index, &destination);
-        let result = tokio::time::timeout(Duration::from_millis(37_010), fetch)
+        let result = tokio::time::timeout(Duration::from_millis(121_010), fetch)
             .await
             .expect("quorum while the other read is pending")
             .expect("checkpoint collection succeeds");
@@ -1192,7 +1226,7 @@ mod test {
                 .checkpoint,
             checkpoint
         );
-        assert!(start.elapsed() >= Duration::from_secs(37));
+        assert!(start.elapsed() >= Duration::from_secs(121));
         assert_eq!(activity.peak.load(Ordering::Relaxed), 1);
         assert_eq!(activity.active.load(Ordering::Relaxed), 0);
     }
