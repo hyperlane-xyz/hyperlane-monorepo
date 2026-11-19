@@ -15,6 +15,13 @@ import {
 const meta = {
   title: 'ChainSearchMenu',
   component: ChainSearchMenu,
+  // react-docgen doesn't resolve the ChainSortByOption enum.
+  argTypes: {
+    defaultSortField: {
+      control: 'radio',
+      options: [...Object.values(ChainSortByOption), 'custom'],
+    },
+  },
 } satisfies Meta<typeof ChainSearchMenu>;
 export default meta;
 type Story = StoryObj<typeof meta>;
