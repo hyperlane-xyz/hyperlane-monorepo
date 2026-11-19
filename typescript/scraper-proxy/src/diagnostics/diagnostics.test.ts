@@ -253,35 +253,20 @@ void it('paginates history and marks truncated snapshot state as partial', async
 
 void it('exposes history and status in GraphQL, with explicit disabled errors', async () => {
   const { createScraperProxyApp } = await import('../module.js');
-  const history = [
-    {
-      ...row(
-        {
-          type: 'snapshot_update',
-          state: {
-            phase: 'preparing',
-            checks: { prepare: 'started', gas_preflight: 'succeeded' },
-            modules: [
-              {
-                node_id: 'root',
-                ism,
-                validators: [`0x${'03'.repeat(32)}`],
-                threshold: 1,
-                checks: { validator_set: 'succeeded' },
-              },
-            ],
-          },
-        },
-        2,
-      ),
-      observed_at: '2026-11-05 00:00:00.123+00',
+  const history = row({
+    type: 'snapshot_update',
+    state: {
+      phase: 'preparing',
+      checks: { prepare: 'started', gas_preflight: 'succeeded' },
+      modules: [
+        { node_id: 'root', ism, checks: { validator_set: 'succeeded' } },
+      ],
     },
-    row({ type: 'progress', stage: 'prepare', outcome: 'started' }),
-  ];
+  });
   const diagnostics = new DiagnosticsService({
     query: async (sql) =>
       sql.includes('ORDER BY message_activity.id DESC')
-        ? history
+        ? [history]
         : [row(signature(2))],
   });
   const app = await createScraperProxyApp(
@@ -298,16 +283,10 @@ void it('exposes history and status in GraphQL, with explicit disabled errors', 
       payload: { query },
     });
     assert.equal(result.json().errors, undefined, result.body);
-    assert.deepEqual(
-      result.json().data.message_activity.activities,
-      history.map(({ id, activity, relayer, observed_at, received_at }) => ({
-        id,
-        activity,
-        relayer,
-        observed_at,
-        received_at,
-      })),
-    );
+    const { id, activity, relayer, observed_at, received_at } = history;
+    assert.deepEqual(result.json().data.message_activity.activities, [
+      { id, activity, relayer, observed_at, received_at },
+    ]);
     assert.equal(
       result.json().data.message_diagnostics.relayers[0].modules[0].signatures
         .collected,

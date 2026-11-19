@@ -323,16 +323,11 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             flags = &mut flags => (flags, None),
             result = &mut signatures => (flags.await, Some(result)),
         };
-        match flags {
-            Ok(exclusions) if !exclusions.is_empty() => (Ok(None), exclusions),
-            Ok(_) => {
-                let result = match fetched {
-                    Some(result) => result,
-                    None => signatures.await,
-                };
-                (result, Vec::new())
-            }
-            Err(error) => (Err(checkpoint_error(error)), Vec::new()),
+        match (flags, fetched) {
+            (Ok(exclusions), Some(result)) if exclusions.is_empty() => (result, exclusions),
+            (Ok(exclusions), None) if exclusions.is_empty() => (signatures.await, exclusions),
+            (Ok(exclusions), _) => (Ok(None), exclusions),
+            (Err(error), _) => (Err(checkpoint_error(error)), Vec::new()),
         }
     };
     if !exclusions.is_empty() {
@@ -358,7 +353,6 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             "Could not fetch metadata: Unable to reach quorum"
         );
         if builder.signature_poll_retry.is_none()
-            || builder.one_shot_multisig
             || ism_builder.module_type() == ModuleType::MerkleRootMultisig
         {
             MetadataBuildError::AwaitingValidatorSignatures

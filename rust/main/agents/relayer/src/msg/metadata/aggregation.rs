@@ -250,12 +250,14 @@ impl AggregationIsmMetadataBuilder {
         ism_count: usize,
     ) -> Result<Metadata, MetadataBuildError> {
         let mut child = self.base.child(ism_index, ism_address);
-        child.one_shot_multisig |= ism_count > 1;
+        if ism_count > 1 {
+            child.signature_poll_retry = None;
+        }
         let sub_module_and_meta = message_builder::build_message_metadata(
             child,
             ism_address,
             message,
-            params.clone(),
+            params,
             Some((ism, ModuleType::MessageIdMultisig)),
         )
         .await?;

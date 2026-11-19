@@ -468,9 +468,10 @@ async fn prepare_batches(
     metrics: MessageProcessorMetrics,
     lander: Option<(Arc<DispatcherEntrypoint>, Arc<dyn HyperlaneDb>)>,
 ) {
-    let capacity = Arc::new(Semaphore::new(max_batch_size as usize));
+    let max_batch_size = max_batch_size as usize;
+    let capacity = Arc::new(Semaphore::new(max_batch_size));
+    let parking_capacity = Arc::new(Semaphore::new(max_batch_size));
     let requeue = prepare_queue.clone();
-    let parking_capacity = Arc::new(Semaphore::new(max_batch_size as usize));
     let mut batches = FuturesUnordered::new();
 
     loop {
@@ -615,8 +616,7 @@ async fn process_batch(
     }
     // The lander filter may already have disposed some operations.
     drop(permits);
-    let mut next_disposition_by_origin = HashMap::<u32, usize>::new();
-    let mut completed_by_origin = HashMap::<u32, HashMap<usize, _>>::new();
+    let mut dispositions = HashMap::<u32, (usize, HashMap<usize, _>)>::new();
 
     let mut parked = FuturesUnordered::new();
     while !prepare_futures.is_empty() || !parked.is_empty() {
@@ -643,20 +643,9 @@ async fn process_batch(
         // same origin is still preparing. Operations from other origins remain
         // independent and can make progress in the meantime. A parked
         // operation leaves a placeholder so later operations can pass it.
-        completed_by_origin
-            .entry(origin)
-            .or_default()
-            .insert(sequence, completed);
-
-        loop {
-            let next_sequence = *next_disposition_by_origin.entry(origin).or_default();
-            let Some(completed) = completed_by_origin
-                .get_mut(&origin)
-                .and_then(|completed| completed.remove(&next_sequence))
-            else {
-                break;
-            };
-
+        let (next_sequence, buffered) = dispositions.entry(origin).or_default();
+        buffered.insert(sequence, completed);
+        while let Some(completed) = buffered.remove(next_sequence) {
             if let Some((op, result)) = completed {
                 dispose_prepared_operation(
                     op,
@@ -668,14 +657,15 @@ async fn process_batch(
                 )
                 .await;
             }
-            next_disposition_by_origin.insert(origin, next_sequence.saturating_add(1));
+            *next_sequence = next_sequence.saturating_add(1);
         }
     }
 
-    debug_assert!(completed_by_origin.values().all(HashMap::is_empty));
+    debug_assert!(dispositions
+        .values()
+        .all(|(_, buffered)| buffered.is_empty()));
 }
 
-/// Routes a prepared operation and returns whether it remains unready.
 async fn dispose_prepared_operation(
     op: QueueOperation,
     prepare_result: PendingOperationResult,
@@ -683,7 +673,7 @@ async fn dispose_prepared_operation(
     submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &MessageProcessorMetrics,
-) -> bool {
+) {
     let app_context = op.app_context();
     match prepare_result {
         PendingOperationResult::Success => {
@@ -694,30 +684,25 @@ async fn dispose_prepared_operation(
             submit_queue
                 .push(op, Some(PendingOperationStatus::ReadyToSubmit))
                 .await;
-            false
         }
         PendingOperationResult::NotReady => {
             prepare_queue.push(op, None).await;
-            true
         }
         PendingOperationResult::Reprepare(reason) => {
             metrics.inc_failed(app_context);
             prepare_queue
                 .push(op, Some(PendingOperationStatus::Retry(reason)))
                 .await;
-            true
         }
         PendingOperationResult::Drop => {
             metrics.inc_dropped(app_context);
             op.decrement_metric_if_exists();
-            false
         }
         PendingOperationResult::Confirm(reason) => {
             debug!(?op, "Pushing operation to confirm queue");
             confirm_queue
                 .push(op, Some(PendingOperationStatus::Confirm(reason)))
                 .await;
-            false
         }
     }
 }

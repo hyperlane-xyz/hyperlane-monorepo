@@ -46,35 +46,6 @@ struct TestOperation {
     concurrency: Arc<PrepareConcurrency>,
 }
 
-impl TestOperation {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        id: u64,
-        origin: u32,
-        destination: HyperlaneDomain,
-        prepare_result: PendingOperationResult,
-        gate: Option<Arc<Semaphore>>,
-        started: mpsc::UnboundedSender<H256>,
-        completed: mpsc::UnboundedSender<H256>,
-        disposed: mpsc::UnboundedSender<H256>,
-        concurrency: Arc<PrepareConcurrency>,
-    ) -> Self {
-        Self {
-            id: H256::from_low_u64_be(id),
-            origin,
-            destination,
-            status: PendingOperationStatus::FirstPrepareAttempt,
-            prepare_result: Some(prepare_result),
-            gate,
-            signature_gate: None,
-            started,
-            completed,
-            disposed,
-            concurrency,
-        }
-    }
-}
-
 #[async_trait]
 #[typetag::serialize]
 impl PendingOperation for TestOperation {
@@ -245,17 +216,7 @@ impl TestHarness {
     }
 
     fn waiting_operation(&self, id: u64, signature_gate: Arc<Semaphore>) -> QueueOperation {
-        let mut op = TestOperation::new(
-            id,
-            1000,
-            self.destination.clone(),
-            PendingOperationResult::Success,
-            None,
-            self.started_tx.clone(),
-            self.completed_tx.clone(),
-            self.disposed_tx.clone(),
-            self.concurrency.clone(),
-        );
+        let mut op = self.test_operation(id, 1000, PendingOperationResult::Success, None);
         op.signature_gate = Some(signature_gate);
         Box::new(op)
     }
@@ -267,17 +228,29 @@ impl TestHarness {
         result: PendingOperationResult,
         gate: Option<Arc<Semaphore>>,
     ) -> QueueOperation {
-        Box::new(TestOperation::new(
-            id,
+        Box::new(self.test_operation(id, origin, result, gate))
+    }
+
+    fn test_operation(
+        &self,
+        id: u64,
+        origin: u32,
+        result: PendingOperationResult,
+        gate: Option<Arc<Semaphore>>,
+    ) -> TestOperation {
+        TestOperation {
+            id: H256::from_low_u64_be(id),
             origin,
-            self.destination.clone(),
-            result,
+            destination: self.destination.clone(),
+            status: PendingOperationStatus::FirstPrepareAttempt,
+            prepare_result: Some(result),
             gate,
-            self.started_tx.clone(),
-            self.completed_tx.clone(),
-            self.disposed_tx.clone(),
-            self.concurrency.clone(),
-        ))
+            signature_gate: None,
+            started: self.started_tx.clone(),
+            completed: self.completed_tx.clone(),
+            disposed: self.disposed_tx.clone(),
+            concurrency: self.concurrency.clone(),
+        }
     }
 }
 
@@ -361,7 +334,6 @@ async fn assert_parked_operation_allows_same_origin_submission(batch_size: u32) 
         .await
         .expect("signature readiness should wake prepare");
     assert_eq!(submitted[0].id(), H256::from_low_u64_be(1));
-    assert_eq!(submitted[0].get_retries(), 0);
     assert_eq!(tokio::time::Instant::now(), now);
     assert_eq!(prepare_queue.len().await, 0);
     assert_eq!(submit_queue.len().await, 0);

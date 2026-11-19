@@ -402,7 +402,6 @@ async fn object_path_is_unprefixed_without_a_folder() {
         .unwrap();
 
     assert_eq!(client.object_path(LATEST_INDEX_KEY), LATEST_INDEX_KEY);
-    assert_eq!(client.object_path(REORG_FLAG_KEY), REORG_FLAG_KEY);
     assert_eq!(
         client.announcement_location(),
         "gs://test-bucket/gcsAnnouncementKey"

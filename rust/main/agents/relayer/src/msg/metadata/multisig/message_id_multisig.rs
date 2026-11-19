@@ -105,11 +105,9 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         if !self.signature_polling {
             self.spawn_latest_index_telemetry(checkpoint_syncer, validators);
         }
-        let syncer = checkpoint_syncer.clone().with_signature_polling(
-            Some(message_id),
-            self.signature_poll_retry
-                .filter(|_| !self.one_shot_multisig),
-        );
+        let syncer = checkpoint_syncer
+            .clone()
+            .with_signature_polling(Some(message_id), self.signature_poll_retry);
         let quorum_checkpoint = syncer
             .fetch_checkpoint(
                 validators,
@@ -385,7 +383,6 @@ mod tests {
             (false, false, false, None, false, false, false),
             (true, false, false, None, false, false, false),
             (true, true, false, None, false, false, false),
-            (false, false, true, None, false, false, false),
             (true, false, true, None, false, false, false),
             (false, false, false, Some(1), false, false, false),
             (false, false, false, Some(0), false, false, false),
@@ -1103,7 +1100,7 @@ mod tests {
                     .expect("Failed to build MessageMetadataBuilder");
             builder
         };
-        message_builder.one_shot_multisig = true;
+        message_builder.signature_poll_retry = None;
         let builder = MessageIdMultisigMetadataBuilder::new(message_builder);
 
         // build metadata

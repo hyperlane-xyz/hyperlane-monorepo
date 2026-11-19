@@ -1778,12 +1778,10 @@ impl PendingMessage {
             RpcOperation::RelayerMetadata,
             self.recipient_ism_address(refresh_ism),
         )
-        .await
-        .map_err(QueuePrepareResult::Complete)?;
+        .await?;
         if let Some(parked) = self.parked_metadata.take() {
             if parked.ism == ism_address {
                 // The queue wakes this operation after the driver sends its result.
-                // A manual wake can cancel the driver, so a closed receiver starts fresh.
                 let mut result = parked.result;
                 if let Ok(result) = result.try_recv() {
                     return self
@@ -1803,9 +1801,7 @@ impl PendingMessage {
         )
         .await
         .map_err(|err| {
-            QueuePrepareResult::Complete(
-                self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder),
-            )
+            self.on_reprepare(Some(err), ReprepareReason::ErrorGettingMetadataBuilder)
         })?;
         let polling = matches!(
             self.status,

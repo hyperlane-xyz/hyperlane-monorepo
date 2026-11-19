@@ -1,7 +1,7 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
 #![allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
 
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
@@ -43,36 +43,8 @@ pub struct MessageMetadataBuilder {
     pub max_ism_count: u32,
     /// Suppress optional telemetry when retrying a message already awaiting signatures.
     pub(crate) signature_polling: bool,
-    /// Ordinary retry progress for independent validator reads.
+    /// Retry progress for independent validator reads. None makes a single attempt.
     pub(crate) signature_poll_retry: Option<SignaturePollRetry>,
-    /// A preferred aggregation child must yield on a miss so alternatives can run.
-    pub(crate) one_shot_multisig: bool,
-    /// Offchain reads from a signature probe, reused by the delivery build that
-    /// follows it. Scoped to one `build_for_delivery` call.
-    pub(crate) offchain_reads: Option<Arc<OffchainReadMemo>>,
-}
-
-/// CCIP-read results keyed by tree position and ISM. Offchain responses are
-/// verified onchain at delivery, and this lives only for one probe plus the
-/// delivery build right after it, so reuse cannot serve stale data.
-#[derive(Debug, Default)]
-pub(crate) struct OffchainReadMemo(std::sync::Mutex<HashMap<(String, H256), Metadata>>);
-
-impl OffchainReadMemo {
-    pub(crate) fn get(&self, node_id: &str, ism: H256) -> Option<Metadata> {
-        self.0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&(node_id.to_owned(), ism))
-            .cloned()
-    }
-
-    pub(crate) fn insert(&self, node_id: &str, ism: H256, metadata: Metadata) {
-        self.0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert((node_id.to_owned(), ism), metadata);
-    }
 }
 
 /// This is the entry point for recursively building ISM metadata.
@@ -106,19 +78,15 @@ impl MetadataBuilder for MessageMetadataBuilder {
 
 impl MessageMetadataBuilder {
     pub(crate) async fn build_for_delivery(
-        &self,
+        mut self,
         ism: H256,
         message: &HyperlaneMessage,
         polling: bool,
         retry: Option<SignaturePollRetry>,
     ) -> Result<Metadata, MetadataBuildError> {
-        let mut builder = self.clone();
-        builder.signature_polling = polling;
-        builder.signature_poll_retry = retry;
-        if polling {
-            builder.offchain_reads = Some(Arc::default());
-        }
-        builder.build(ism, message, Default::default()).await
+        self.signature_polling = polling;
+        self.signature_poll_retry = retry;
+        self.build(ism, message, Default::default()).await
     }
 
     pub async fn new(
@@ -142,8 +110,6 @@ impl MessageMetadataBuilder {
                 retries: 0,
                 max_retries: DEFAULT_MAX_MESSAGE_RETRIES,
             }),
-            one_shot_multisig: false,
-            offchain_reads: None,
         })
     }
 

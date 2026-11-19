@@ -183,9 +183,6 @@ impl ActivityState {
                     Activity::Checkpoint { summary, .. } => {
                         summary.collected > 0 || state.published_snapshot.is_some()
                     }
-                    Activity::ValidatorStorage { states, .. } => {
-                        event.node_id.is_some() && states.iter().any(is_reorg_state)
-                    }
                     Activity::IsmVerification { .. } | Activity::OffchainRead { .. } => {
                         state.published_snapshot.is_some()
                     }
@@ -307,12 +304,6 @@ fn state_key(id: H256) -> Vec<u8> {
 }
 
 impl MessageState {
-    fn is_new_prepare_attempt(&self) -> bool {
-        self.current.get("message").is_none_or(|message| {
-            message["phase"] != "preparing" || message["checks"]["prepare"] != "started"
-        })
-    }
-
     /// Build the entire public tree here; the proxy only validates/returns this value.
     fn validation(&self) -> Value {
         let root = self.current.get("tree").and_then(Value::as_str);
@@ -434,13 +425,6 @@ impl MessageState {
     }
 
     fn observe(&mut self, event: &ObservationEvent) -> eyre::Result<bool> {
-        if self
-            .current
-            .get("message")
-            .is_some_and(|state| state["phase"] == "delivered")
-        {
-            return Ok(false);
-        }
         if let Activity::ValidatorStorage { states, .. } = &event.activity {
             if event.node_id.is_none() || !states.iter().any(is_reorg_state) {
                 return Ok(false);
@@ -448,26 +432,8 @@ impl MessageState {
         }
         // Activity contains only bounded, explicitly sanitized fields.
         let value = serde_json::to_value(&event.activity)?;
-        let starts_prepare = event.node_id.is_none()
-            && matches!(
-                event.activity,
-                Activity::Progress {
-                    stage: super::Stage::Prepare,
-                    outcome: super::Outcome::Started,
-                }
-            )
-            && self.is_new_prepare_attempt();
-        let mut milestone = starts_prepare;
-        if starts_prepare {
-            for (key, node) in &mut self.current {
-                if key.starts_with("node:") {
-                    if let Some(checks) = node.get_mut("checks").and_then(Value::as_object_mut) {
-                        checks.remove("validator_set");
-                    }
-                }
-            }
-        }
         if let Some(id) = &event.node_id {
+            let mut milestone = false;
             let root = id.split('/').next().unwrap_or(id);
             self.current.insert("tree".into(), json!(root));
             let key = format!("node:{id}");
@@ -532,6 +498,7 @@ impl MessageState {
                     }
                 }
                 Activity::ValidatorStorage { states, .. } => {
+                    milestone = true;
                     if !node["reorg_checks"].is_array() {
                         node["reorg_checks"] = json!([]);
                     }
@@ -647,6 +614,7 @@ impl MessageState {
             .current
             .entry("message".into())
             .or_insert_with(|| json!({"phase": "preparing"}));
+        let mut milestone = false;
         let phase = match &event.activity {
             Activity::Retry {
                 reason: Some(reason),
@@ -742,13 +710,25 @@ impl MessageState {
             Activity::Progress {
                 stage: super::Stage::Prepare,
                 outcome: super::Outcome::Started,
-            } if starts_prepare => {
+            } => {
+                if message["phase"] == "preparing" && message["checks"]["prepare"] == "started" {
+                    return Ok(false);
+                }
+                message["phase"] = json!("preparing");
                 message["checks"]["prepare"] = json!("started");
                 if let Some(checks) = message["checks"].as_object_mut() {
                     checks.remove("gas_preflight");
                 }
                 message["phase_started_at_millis"] = json!(event.observed_at);
-                Some("preparing")
+                for (key, node) in &mut self.current {
+                    if key.starts_with("node:") {
+                        if let Some(checks) = node.get_mut("checks").and_then(Value::as_object_mut)
+                        {
+                            checks.remove("validator_set");
+                        }
+                    }
+                }
+                return Ok(true);
             }
             Activity::Progress {
                 stage: super::Stage::Submit,
@@ -763,12 +743,10 @@ impl MessageState {
                 ..
             } => None,
             Activity::Progress { stage, outcome } => {
-                if matches!(
+                milestone = matches!(
                     (stage, outcome),
                     (super::Stage::GasPreflight, super::Outcome::Succeeded)
-                ) {
-                    milestone = message["checks"]["gas_preflight"] != "succeeded";
-                }
+                ) && message["checks"]["gas_preflight"] != "succeeded";
                 if message.get("checks").is_none() {
                     message["checks"] = json!({});
                 }
@@ -780,7 +758,6 @@ impl MessageState {
                 message["failure"] = json!({"stage": "prepare", "reason": value["type"]});
                 None
             }
-            Activity::ValidatorStorage { .. } => return Ok(false),
             // Preserve useful observations from non-tree paths, without repeated payloads.
             _ => {
                 self.current
