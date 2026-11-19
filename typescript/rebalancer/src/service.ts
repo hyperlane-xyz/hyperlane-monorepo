@@ -42,7 +42,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
-import { ExternalBridgeType, getStrategyChainNames } from './config/types.js';
+import {
+  ExternalBridgeType,
+  getInventoryRouteChainNames,
+  getStrategyChainNames,
+} from './config/types.js';
 import { RebalancerService } from './core/RebalancerService.js';
 import { configureRebalancerSigners } from './utils/rebalancerSigners.js';
 import { parseSolanaPrivateKey } from './utils/solanaKeyParser.js';
@@ -102,6 +106,7 @@ async function main(): Promise<void> {
   const monitorOnly = process.env.MONITOR_ONLY === 'true';
   const coingeckoApiKey = process.env.COINGECKO_API_KEY;
   const swapsXyzApiKey = process.env.SWAPSXYZ_API_KEY;
+  const relayApiKey = process.env.RELAY_API_KEY;
 
   // Create logger (uses LOG_LEVEL environment variable for level configuration)
   const logger = await createServiceLogger({
@@ -148,7 +153,12 @@ async function main(): Promise<void> {
     const multiProvider = new MultiProvider(chainMetadata);
     const rebalancerSignerSetup = configureRebalancerSigners(
       multiProvider,
-      getStrategyChainNames(rebalancerConfig.strategyConfig),
+      Array.from(
+        new Set([
+          ...getStrategyChainNames(rebalancerConfig.strategyConfig),
+          ...getInventoryRouteChainNames(rebalancerConfig.inventoryRoutes),
+        ]),
+      ),
       rebalancerPrivateKey,
     );
     logger.info(
@@ -258,6 +268,7 @@ async function main(): Promise<void> {
             mergedInventorySigners,
             rebalancerConfig.externalBridges,
             rebalancerConfig.pendingTransferMiddlewares,
+            rebalancerConfig.inventoryRoutes,
           )
         : rebalancerConfig;
 
@@ -276,9 +287,12 @@ async function main(): Promise<void> {
         monitorOnly,
         withMetrics,
         coingeckoApiKey,
-        externalBridgeApiKeys: swapsXyzApiKey
-          ? { [ExternalBridgeType.SwapsXyz]: swapsXyzApiKey }
-          : undefined,
+        externalBridgeApiKeys: {
+          ...(swapsXyzApiKey
+            ? { [ExternalBridgeType.SwapsXyz]: swapsXyzApiKey }
+            : {}),
+          ...(relayApiKey ? { [ExternalBridgeType.Relay]: relayApiKey } : {}),
+        },
         logger,
         version: VERSION,
       },

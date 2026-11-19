@@ -159,6 +159,19 @@ pub async fn build_mock_checkpoint_syncs(
             .expect("Failed to acquire mutex")
             .push_back(Ok(validator.latest_index));
 
+        syncer
+            .responses
+            .reorg_status
+            .lock()
+            .expect("Failed to acquire reorg status mutex")
+            .extend((0..2).map(|_| {
+                Ok(ReorgEventResponse {
+                    exists: false,
+                    event: None,
+                    content: None,
+                })
+            }));
+
         let sig = match validator.fetch_checkpoint {
             Some(checkpoint) => Ok(Some(
                 signer

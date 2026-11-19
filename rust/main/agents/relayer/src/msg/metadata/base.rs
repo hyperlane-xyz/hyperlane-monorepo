@@ -36,6 +36,8 @@ pub enum MetadataBuildError {
     /// Validator quorum not yet reached — signatures are still being collected
     #[error("Awaiting validator signatures")]
     AwaitingValidatorSignatures,
+    #[error("Validator signature retry limit reached ({0})")]
+    RetryLimitReached(u32),
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]

@@ -1,4 +1,4 @@
-# Table fields are the source for SQL allowlists and generated filter/order/cursor types.
+# Row fields define the result projection. History filters are explicitly allowlisted.
 directive @cached(ttl: Int, refresh: Boolean) on QUERY
 
 extend type query_root {
@@ -6,8 +6,6 @@ extend type query_root {
     where: message_view_bool_exp
     order_by: [message_view_order_by!]
     limit: Int
-    offset: Int
-    distinct_on: [message_view_select_column!]
   ): message_view_aggregate!
 }
 
@@ -17,7 +15,7 @@ type message_view_aggregate {
 }
 
 type message_view_aggregate_fields {
-  count(columns: [message_view_select_column!], distinct: Boolean): Int!
+  count: Int!
 }
 
 schema {
@@ -62,10 +60,6 @@ type query_root {
     limit: Int
     "cursor to continue an ordered query"
     cursor: [message_view_stream_cursor_input!]
-    "skip the first n rows. Use only with order_by"
-    offset: Int
-    "distinct select on columns"
-    distinct_on: [message_view_select_column!]
   ): [message_view!]
   "fetch data from the table: \"raw_message_dispatch\""
   raw_message_dispatch(
@@ -75,10 +69,6 @@ type query_root {
     order_by: [raw_message_dispatch_order_by!]
     "limit the number of rows returned"
     limit: Int
-    "skip the first n rows. Use only with order_by"
-    offset: Int
-    "distinct select on columns"
-    distinct_on: [raw_message_dispatch_select_column!]
   ): [raw_message_dispatch!]!
   "fetch data from the table: \"raw_message_dispatch\" using primary key columns"
   raw_message_dispatch_by_pk(id: bigint!): raw_message_dispatch
@@ -173,6 +163,47 @@ type raw_message_dispatch {
   sender: bytea!
   time_created: timestamp!
 }
+
+# These inputs are independent of the projection. Adding a response field
+# must never implicitly expose it as a history filter, sort or cursor.
+input history_id { _eq: bigint }
+input history_bytes { _eq: bytea, _in: [bytea!] }
+input history_domain { _eq: Int, _in: [Int!] }
+input history_timestamp { _gte: timestamp, _lte: timestamp, _is_null: Boolean }
+input history_flag { _eq: Boolean }
+
+input message_view_bool_exp {
+  _and: [message_view_bool_exp!]
+  _or: [message_view_bool_exp!]
+  id: history_id
+  msg_id: history_bytes
+  origin_tx_hash: history_bytes
+  destination_tx_hash: history_bytes
+  sender: history_bytes
+  recipient: history_bytes
+  origin_tx_sender: history_bytes
+  destination_tx_sender: history_bytes
+  origin_domain_id: history_domain
+  destination_domain_id: history_domain
+  send_occurred_at: history_timestamp
+  is_provisional: history_flag
+  is_delivered: history_flag
+}
+
+input message_view_order_by { id: order_by, nonce: order_by, send_occurred_at: order_by }
+input message_view_stream_cursor_value_input { id: bigint }
+input message_view_stream_cursor_input {
+  initial_value: message_view_stream_cursor_value_input!
+  ordering: cursor_ordering
+}
+
+input raw_message_dispatch_bool_exp {
+  _and: [raw_message_dispatch_bool_exp!]
+  _or: [raw_message_dispatch_bool_exp!]
+  id: history_id
+  msg_id: history_bytes
+}
+input raw_message_dispatch_order_by { id: order_by }
 
 "column ordering options"
 enum order_by {
@@ -296,7 +327,13 @@ type IsmProgress {
   verification: VerificationOutcome
   metadata_error: String
   signatures: SignatureProgress
+  reorg_checks: [ValidatorReorgCheck!]
   offchain_read: OffchainReadProgress
+}
+
+type ValidatorReorgCheck {
+  validator: String!
+  states: [String!]!
 }
 
 type IsmChild {

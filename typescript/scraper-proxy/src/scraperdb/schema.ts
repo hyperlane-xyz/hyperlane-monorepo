@@ -42,36 +42,21 @@ function fields(name: string): Record<string, string> {
   );
 }
 
-// Hasura's filter/order/cursor shapes repeat each table's fields. Derive them
-// from the public row types so adding a column requires one schema edit.
+// Only the small domain catalog exposes comparisons on every result column.
+const domainColumns = Object.entries(tableFields.domain);
 export const schema = [
   source,
-  ...Object.entries(tableFields).map(([table, fields]) => {
-    const entries = Object.entries(fields);
-    // Computed snapshot state is selectable/filterable, but not a history cursor,
-    // ordering key, distinct key, or aggregate column.
-    const stored = entries.filter(([name]) => name !== 'is_provisional');
-    return `
-      enum ${table}_select_column { ${stored.map(([name]) => name).join('\n')} }
-      input ${table}_bool_exp {
-        _and: [${table}_bool_exp!]
-        _not: ${table}_bool_exp
-        _or: [${table}_bool_exp!]
-        ${entries.map(([name, type]) => `${name}: ${type}_comparison_exp`).join('\n')}
-      }
-      input ${table}_order_by {
-        ${stored.map(([name]) => `${name}: order_by`).join('\n')}
-      }
-      input ${table}_stream_cursor_value_input {
-        ${stored.map(([name, type]) => `${name}: ${type}`).join('\n')}
-      }
-      input ${table}_stream_cursor_input {
-        initial_value: ${table}_stream_cursor_value_input!
-        ordering: cursor_ordering
-      }
-    `;
-  }),
-  ...[...new Set(Object.values(tableFields).flatMap(Object.values))].map(
+  `enum domain_select_column { ${Object.keys(tableFields.domain).join(' ')} }
+   input domain_bool_exp {
+     _and: [domain_bool_exp!]
+     _or: [domain_bool_exp!]
+     _not: domain_bool_exp
+     ${domainColumns.map(([name, type]) => `${name}: ${type}_comparison_exp`).join('\n')}
+   }
+   input domain_order_by {
+     ${domainColumns.map(([name]) => `${name}: order_by`).join('\n')}
+   }`,
+  ...[...new Set(Object.values(tableFields.domain))].map(
     (type) => `input ${type}_comparison_exp {
       ${['_eq', '_gt', '_gte', '_lt', '_lte', '_neq'].map((op) => `${op}: ${type}`).join('\n')}
       _in: [${type}!]

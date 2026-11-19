@@ -98,6 +98,8 @@ See [route controls](docs/route-controls.md) for disabled pairs and persistent m
 
 See [external bridge trust](docs/external-bridge-trust.md) for the accepted provider boundary and simulation follow-ups.
 
+See [Elysium canonical deposits](docs/elysium-native-bridge.md) for inbound USDC inventory replenishment from HyperEVM.
+
 Source actions are recorded in memory before broadcast. This prevents an
 uncertain send from being retried while the process remains running. A restart
 clears this state; no action or intent state is written to disk.

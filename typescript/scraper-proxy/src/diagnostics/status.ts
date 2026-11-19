@@ -58,6 +58,14 @@ const snapshotModule = z.looseObject({
       ),
     })
     .nullish(),
+  reorg_checks: z
+    .array(
+      z.object({
+        validator: z.string(),
+        states: z.array(z.string()),
+      }),
+    )
+    .optional(),
   offchain_read: z
     .object({
       state: z.string(),

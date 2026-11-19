@@ -18,6 +18,7 @@ const WHITESPACE_REGEX = /\s+/g;
 
 const MIN_POOL_CLIENTS = 5;
 const MAX_POOL_CLIENTS = 10;
+const MAX_VALIDATOR_POOL_CLIENTS = 5;
 const STATS_INTERVAL_MS = 60_000;
 const IDLE_TIMEOUT_MS = 300_000;
 const EVENT_STREAM_SCHEMA_CHECKS = [
@@ -48,8 +49,10 @@ export class DbService implements ScraperDbDatabase {
   private readonly mainRole = config.DATABASE_READ_REPLICA_URL
     ? DatabaseQueryRole.GraphqlReplica
     : DatabaseQueryRole.GraphqlPrimary;
+  private pendingMainQueries = 0;
   private nextQueryId = 0;
   private livePool?: pg.Pool;
+  private validatorPool?: pg.Pool;
   private stats = newStats();
   private statsTimer?: NodeJS.Timeout;
 
@@ -80,8 +83,8 @@ export class DbService implements ScraperDbDatabase {
 
   async close(): Promise<void> {
     if (this.statsTimer) clearInterval(this.statsTimer);
-    const { livePool, mainPool } = this;
-    const resources = [...this.listeners, livePool, mainPool];
+    const { livePool, mainPool, validatorPool } = this;
+    const resources = [...this.listeners, livePool, validatorPool, mainPool];
     this.listeners.clear();
     const results = await Promise.allSettled(
       resources.map(async (resource) => {
@@ -103,15 +106,25 @@ export class DbService implements ScraperDbDatabase {
       pools: {
         live: poolMetrics(this.livePool),
         main: poolMetrics(this.mainPool),
+        validator: poolMetrics(this.validatorPool, MAX_VALIDATOR_POOL_CLIENTS),
       },
     };
   }
 
-  query<T extends pg.QueryResultRow>(
+  async query<T extends pg.QueryResultRow>(
     text: string,
     values: unknown[] = [],
   ): Promise<T[]> {
-    return this.run(this.pool(), this.mainRole, text, values);
+    assert(
+      this.pendingMainQueries < config.DATABASE_MAX_PENDING_GRAPHQL_QUERIES,
+      'GraphQL database query capacity exceeded',
+    );
+    this.pendingMainQueries++;
+    try {
+      return await this.run(this.pool(), this.mainRole, text, values);
+    } finally {
+      this.pendingMainQueries--;
+    }
   }
 
   queryLive<T extends pg.QueryResultRow>(
@@ -119,6 +132,18 @@ export class DbService implements ScraperDbDatabase {
     values: unknown[] = [],
   ): Promise<T[]> {
     return this.run(this.live(), DatabaseQueryRole.LivePrimary, text, values);
+  }
+
+  queryValidator<T extends pg.QueryResultRow>(
+    text: string,
+    values: unknown[] = [],
+  ): Promise<T[]> {
+    return this.run(
+      this.validator(),
+      DatabaseQueryRole.ValidatorPrimary,
+      text,
+      values,
+    );
   }
 
   async listen(
@@ -193,17 +218,29 @@ export class DbService implements ScraperDbDatabase {
     return this.livePool;
   }
 
+  private validator(): pg.Pool {
+    this.validatorPool ??= this.createPool(
+      config.DATABASE_URL,
+      DatabaseQueryRole.ValidatorPrimary,
+      undefined,
+      config.DATABASE_QUERY_TIMEOUT_MS,
+      MAX_VALIDATOR_POOL_CLIENTS,
+    );
+    return this.validatorPool;
+  }
+
   private createPool(
     connectionString: string,
     role: DatabaseQueryRole,
     min?: number,
     connectionTimeoutMillis?: number,
+    max = MAX_POOL_CLIENTS,
   ): pg.Pool {
     const pool = new pg.Pool({
       ...databaseOptions(connectionString),
       connectionTimeoutMillis,
       idleTimeoutMillis: IDLE_TIMEOUT_MS,
-      max: MAX_POOL_CLIENTS,
+      max,
       min,
     });
     pool.on('error', (error) =>
@@ -271,10 +308,13 @@ export class DbService implements ScraperDbDatabase {
   }
 }
 
-function poolMetrics(pool?: pg.Pool): DatabaseMetricsSnapshot['pools']['main'] {
+function poolMetrics(
+  pool?: pg.Pool,
+  limit = MAX_POOL_CLIENTS,
+): DatabaseMetricsSnapshot['pools']['main'] {
   return {
     idle: pool?.idleCount ?? 0,
-    limit: MAX_POOL_CLIENTS,
+    limit,
     total: pool?.totalCount ?? 0,
     waiting: pool?.waitingCount ?? 0,
   };

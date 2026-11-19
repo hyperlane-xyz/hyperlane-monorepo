@@ -43,8 +43,19 @@ const DEFAULT_POPS_VALIDATOR: ValidatorConfig = {
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   aevo: {
-    threshold: 1,
-    validators: [DEFAULT_AW_VALIDATOR],
+    threshold: 3,
+    validators: [
+      DEFAULT_AW_VALIDATOR,
+      {
+        address: '0xa2adc5fb1ecdbb65a4ffdc92a6fb6210a5181eee',
+        alias: 'Enigma',
+      },
+      {
+        address: '0x71645a74b8a9dc8ee98ada9cef64c55423a663e0',
+        alias: 'Luganodes',
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
   },
   elysium: {
     threshold: 2,
@@ -54,6 +65,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x49ed767e8e971cf77413e3114f8de0b3c34205f9',
         alias: 'Luganodes',
       },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
   tempo: {

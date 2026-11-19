@@ -5,7 +5,6 @@ import {
   AgentSealevelTransactionSubmitter,
   AgentSealevelUrReveal,
   ChainName,
-  RelayerConfig,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -26,6 +25,7 @@ import {
   RootAgentConfig,
 } from '../config/agent/agent.js';
 import {
+  RelayerConfig,
   RelayerConfigHelper,
   RelayerConfigMapConfig,
   RelayerDbBootstrapConfig,

@@ -9,7 +9,12 @@ import {
   ExplorerLicenseType,
   getDomainId as resolveDomainId,
 } from '@hyperlane-xyz/sdk';
-import { assert, inCIMode, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  inCIMode,
+  redactErrorMessage,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { legacyCoreHookRecoveryChains } from '../../config/environments/mainnet3/core.js';
@@ -25,7 +30,6 @@ import {
 } from '../../src/aggregation-hook-upgrade/address-export.js';
 import { assertForkable } from '../../src/aggregation-hook-upgrade/protocol.js';
 import { createUpgradeMultiProvider } from '../../src/aggregation-hook-upgrade/provider.js';
-import { describeError } from '../../src/aggregation-hook-upgrade/redact.js';
 import { runUpgrade } from '../../src/aggregation-hook-upgrade/run.js';
 import {
   computeExitCode,
@@ -287,7 +291,7 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error: unknown) => {
-    rootLogger.error(describeError(error));
+    rootLogger.error(redactErrorMessage(error));
     process.exit(1);
   });
 }

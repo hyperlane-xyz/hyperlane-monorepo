@@ -58,10 +58,12 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// if the last indexed snapshot was sequence 100, this would be sequence 99.
     /// A None value indicates we're fully synced.
     current_indexing_snapshot: Option<TargetSnapshot>,
-    /// The configured floor was resolved and no earlier range is required.
-    at_lower_bound: bool,
+    /// Resolved floor of a completed scan; absent until its history is covered.
+    completed_floor: Option<u32>,
     /// Completed startup history is excluded while probing newly finalized blocks.
     startup_scan_from: Option<u32>,
+    /// Historical proof failures warn once while existing tail retries continue.
+    historical_count_warned: bool,
     /// The mode of indexing to use.
     index_mode: IndexMode,
     /// The domain of the cursor.
@@ -155,8 +157,9 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             coverage: None,
             coverage_last: current_sequence_count.checked_sub(1),
             current_indexing_snapshot: last_indexed_snapshot.previous_target(),
-            at_lower_bound: false,
+            completed_floor: None,
             startup_scan_from: None,
+            historical_count_warned: false,
             last_indexed_snapshot,
             index_mode,
             domain,
@@ -176,7 +179,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.
     pub async fn get_next_range(&mut self) -> Result<Option<RangeInclusive<u32>>> {
-        self.at_lower_bound = false;
+        self.completed_floor = None;
         // Skip any already indexed logs first, so a recovered gap clears its
         // retry state even while a gap backoff is still active.
         let skipped = tokio::select! {
@@ -301,7 +304,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     /// History is complete within the configured indexing window.
     /// Backoff and failed floor lookups do not establish readiness.
     pub(super) fn is_caught_up(&self) -> bool {
-        self.current_indexing_snapshot.is_none() || self.at_lower_bound
+        self.current_indexing_snapshot.is_none() || self.completed_floor.is_some()
     }
 
     async fn refresh_empty_startup_scan(&mut self) -> Result<()> {
@@ -315,6 +318,31 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // A real indexed log already bounds older insertions. The startup
         // snapshot instead uses a count sentinel that may not exist in the DB.
         let indexed_block = self.get_sequence_log_block_number(last_sequence).await?;
+        if let (None, Some(floor)) = (indexed_block, self.completed_floor) {
+            // Equal counts prove every startup event predates this empty window.
+            // Complete recovery without chasing the advancing head for an older log.
+            if let Some(before_window) = floor.checked_sub(1) {
+                let count = match self
+                    .latest_sequence_querier
+                    .sequence_count_at_block(before_window)
+                    .await
+                {
+                    Ok(count) => count,
+                    Err(error) => {
+                        if !self.historical_count_warned {
+                            self.historical_count_warned = true;
+                            warn!(?error, before_window, domain = %self.domain,
+                                "Historical count unavailable; retaining startup tail recovery");
+                        }
+                        None
+                    }
+                };
+                if count == Some(last_sequence) {
+                    self.current_indexing_snapshot = None;
+                    return Ok(());
+                }
+            }
+        }
         let tip = match indexed_block {
             Some(block) => block,
             None => {
@@ -330,7 +358,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // A count can briefly include an insertion beyond the reported tip (Tron).
         // Retry only the new tail; a quiet chain must not rescan completed history.
         // Revoke floor readiness before changing the target, including on DB errors.
-        self.at_lower_bound = false;
+        self.completed_floor = None;
         self.current_indexing_snapshot = Some(TargetSnapshot {
             sequence,
             at_block: tip,
@@ -354,16 +382,14 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         &mut self,
         current_indexing_snapshot: &TargetSnapshot,
     ) -> Option<RangeInclusive<u32>> {
-        let lowest_block_height_or_sequence = self
-            .get_lowest_block_height_or_sequence()
-            .await?
-            .max(self.startup_scan_from.unwrap_or(0));
+        let floor = self.get_lowest_block_height_or_sequence().await?;
+        let lowest_block_height_or_sequence = floor.max(self.startup_scan_from.unwrap_or(0));
 
         // Query the block height range ending at the current_indexing_snapshot's at_block.
         // When current block equals lowest block, we still need to index it
         // (e.g., when there's only one block to index at the boundary).
         if current_indexing_snapshot.at_block < lowest_block_height_or_sequence {
-            self.at_lower_bound = true;
+            self.completed_floor = Some(floor);
             // If the current indexing snapshot's block height is less than the
             // lowest block height, we don't want to index anything below the lowest block height.
             info!(
@@ -396,7 +422,7 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // When current sequence equals lowest sequence, we still need to index it
         // (e.g., when there's only one message at sequence 0).
         if current_indexing_snapshot.sequence < lowest_block_height_or_sequence {
-            self.at_lower_bound = true;
+            self.completed_floor = Some(lowest_block_height_or_sequence);
             // If the current indexing snapshot's sequence is less than the lowest sequence,
             // we don't want to index anything below the lowest sequence.
             info!(
@@ -951,6 +977,212 @@ mod test {
 
     mod block_range {
         use super::*;
+        use hyperlane_core::{ChainCommunicationError, ChainResult, Indexer};
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        mockall::mock! {
+            #[derive(Debug)]
+            HistoricalCountIndexer {}
+
+            #[async_trait]
+            impl Indexer<MockSequencedData> for HistoricalCountIndexer {
+                async fn fetch_logs_in_range(&self, range: RangeInclusive<u32>) -> ChainResult<Vec<(Indexed<MockSequencedData>, LogMeta)>>;
+                async fn get_finalized_block_number(&self) -> ChainResult<u32>;
+            }
+
+            #[async_trait]
+            impl SequenceAwareIndexer<MockSequencedData> for HistoricalCountIndexer {
+                async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
+                async fn sequence_count_at_block(&self, block: u32) -> ChainResult<Option<u32>>;
+            }
+        }
+
+        fn moving_head_indexer(
+            count_before_floor: Option<u32>,
+            fail: bool,
+        ) -> MockHistoricalCountIndexer {
+            let mut indexer = MockHistoricalCountIndexer::new();
+            let tip = Arc::new(AtomicU32::new(1001));
+            let next_tip = tip.clone();
+            indexer
+                .expect_latest_sequence_count_and_tip()
+                .returning(move || Ok((Some(100), next_tip.fetch_add(1, Ordering::Relaxed))));
+            indexer
+                .expect_get_finalized_block_number()
+                .returning(move || Ok(tip.fetch_add(1, Ordering::Relaxed)));
+            let historical = indexer.expect_sequence_count_at_block();
+            if fail {
+                historical.times(3);
+            }
+            historical
+                .with(mockall::predicate::eq(899))
+                .returning(move |_| {
+                    if fail {
+                        Err(ChainCommunicationError::from_other_str(
+                            "Historical count unavailable",
+                        ))
+                    } else {
+                        Ok(count_before_floor)
+                    }
+                });
+            indexer
+        }
+
+        #[tokio::test]
+        async fn empty_window_finishes_while_the_head_keeps_advancing() {
+            use crate::cursors::sequence_aware::ForwardBackwardSequenceAwareSyncCursor;
+
+            let mut cursor = ForwardBackwardSequenceAwareSyncCursor::new(
+                &HyperlaneDomain::new_test_domain("test"),
+                Arc::new(mock_cursor_metrics()),
+                Arc::new(moving_head_indexer(Some(100), false)),
+                Arc::new(MockHyperlaneSequenceAwareIndexerStore { logs: vec![] }),
+                1000,
+                900,
+                IndexMode::Block,
+                Duration::from_secs(2),
+            )
+            .await
+            .expect("cursor");
+            let (action, _) = cursor.next_action().await.expect("initial scan");
+            let range = match action {
+                CursorAction::Query(range) => Some(range),
+                CursorAction::Sleep(_) => None,
+            }
+            .expect("initial history scan");
+            cursor
+                .update(vec![], range)
+                .await
+                .expect("empty history completed");
+
+            for _ in 0..20 {
+                let (action, _) = cursor.next_action().await.expect("advancing head");
+                assert!(matches!(action, CursorAction::Sleep(_)));
+                assert!(cursor.is_caught_up(), "completed history must remain ready");
+                assert_eq!(cursor.next_sequence(), Some(100));
+            }
+        }
+
+        #[tokio::test]
+        async fn empty_relative_window_uses_the_resolved_floor() {
+            let mut indexer = MockHistoricalCountIndexer::new();
+            indexer
+                .expect_latest_sequence_count_and_tip()
+                .times(1)
+                .returning(|| Ok((Some(100), 1000)));
+            indexer
+                .expect_sequence_count_at_block()
+                .with(mockall::predicate::eq(899))
+                .times(1)
+                .returning(|_| Ok(Some(100)));
+            indexer.expect_get_finalized_block_number().never();
+
+            let mut cursor = get_cursor().await;
+            cursor.store = Arc::new(MockHyperlaneSequenceAwareIndexerStore { logs: vec![] });
+            cursor.lowest_block_height_or_sequence = -100;
+            cursor.latest_sequence_querier = Arc::new(indexer);
+            cursor
+                .update(vec![], 900..=1000)
+                .await
+                .expect("empty history completed");
+            assert!(cursor
+                .get_next_range()
+                .await
+                .expect("completed window")
+                .is_none());
+            assert!(cursor.is_caught_up());
+        }
+
+        #[tokio::test]
+        async fn empty_window_requires_a_matching_historical_count() {
+            for (count, fail) in [(Some(99), false), (None, false), (None, true)] {
+                let mut cursor = get_cursor().await;
+                cursor.store = Arc::new(MockHyperlaneSequenceAwareIndexerStore { logs: vec![] });
+                cursor.lowest_block_height_or_sequence = 900;
+                cursor.latest_sequence_querier = Arc::new(moving_head_indexer(count, fail));
+                cursor
+                    .update(vec![], 900..=1000)
+                    .await
+                    .expect("initial scan");
+                for _ in 0..3 {
+                    cursor
+                        .get_next_range()
+                        .await
+                        .expect("tail retry remains available");
+                    assert!(!cursor.is_caught_up(), "no proof of complete history");
+                    assert_eq!(cursor.historical_count_warned, fail);
+                    cursor.sequence_gap_retry_at = None;
+                    let range = cursor
+                        .get_next_range()
+                        .await
+                        .expect("tail query")
+                        .expect("tail range");
+                    cursor.update(vec![], range).await.expect("empty tail");
+                }
+            }
+        }
+
+        #[tokio::test]
+        async fn empty_window_recovers_after_a_transient_historical_count_failure() {
+            let mut indexer = MockHistoricalCountIndexer::new();
+            let mut calls = mockall::Sequence::new();
+            indexer
+                .expect_sequence_count_at_block()
+                .with(mockall::predicate::eq(899))
+                .times(1)
+                .in_sequence(&mut calls)
+                .returning(|_| {
+                    Err(ChainCommunicationError::from_other_str(
+                        "Temporary RPC failure",
+                    ))
+                });
+            indexer
+                .expect_sequence_count_at_block()
+                .with(mockall::predicate::eq(899))
+                .times(1)
+                .in_sequence(&mut calls)
+                .returning(|_| Ok(Some(100)));
+            indexer
+                .expect_get_finalized_block_number()
+                .times(1)
+                .returning(|| Ok(1001));
+
+            let mut cursor = get_cursor().await;
+            cursor.store = Arc::new(MockHyperlaneSequenceAwareIndexerStore { logs: vec![] });
+            cursor.lowest_block_height_or_sequence = 900;
+            cursor.latest_sequence_querier = Arc::new(indexer);
+            cursor
+                .update(vec![], 900..=1000)
+                .await
+                .expect("initial scan");
+            assert!(cursor
+                .get_next_range()
+                .await
+                .expect("tail recovery")
+                .is_none());
+            assert!(!cursor.is_caught_up());
+            assert!(
+                cursor.sequence_gap_retry_at.is_some(),
+                "retry must retain backoff"
+            );
+            cursor.sequence_gap_retry_at = None;
+            let tail = cursor
+                .get_next_range()
+                .await
+                .expect("tail query")
+                .expect("tail range");
+            assert_eq!(tail, 1001..=1001);
+            cursor.update(vec![], tail).await.expect("empty tail");
+            assert!(cursor
+                .get_next_range()
+                .await
+                .expect("recovered historical proof")
+                .is_none());
+            assert!(
+                cursor.is_caught_up(),
+                "temporary errors must not disable the proof"
+            );
+        }
 
         const INDEX_MODE: IndexMode = IndexMode::Block;
         const CHUNK_SIZE: u32 = 100;

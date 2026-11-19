@@ -69,6 +69,7 @@ void it('keeps replica health from gating primary live queries', async (context)
   assert.equal(connectAttempts, 0);
   const saturated = db.query('SELECT pg_sleep(1)');
   assert.deepEqual(await db.queryLive('SELECT 1'), [{ ready: 1 }]);
+  assert.deepEqual(await db.queryValidator('SELECT validator'), [{ ready: 1 }]);
   assert.equal(
     queryUrls.get('SELECT pg_sleep(1)'),
     process.env.DATABASE_READ_REPLICA_URL,
@@ -106,6 +107,10 @@ void it('keeps replica health from gating primary live queries', async (context)
     metrics,
     /database_query_duration_seconds_count\{(?=[^}]*role="graphql_replica")(?=[^}]*outcome="success")[^}]*\} 2/,
   );
+  assert.match(
+    metrics,
+    /database_queries_total\{(?=[^}]*role="validator_primary")(?=[^}]*outcome="success")[^}]*\} 1/,
+  );
   assert.match(metrics, /database_rows_total\{role="graphql_replica"\} 2/);
 });
 
@@ -122,6 +127,56 @@ void it('times out stalled replica connections', async (context) => {
   const duration = Date.now() - started;
   assert(duration >= 1_000);
   assert(duration < 3_000);
+});
+
+void it('bounds unfinished GraphQL database work independently of HTTP clients', async (context) => {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  context.mock.method(pg.Pool.prototype, 'query', async () => {
+    await held;
+    return { rowCount: 0, rows: [] };
+  });
+  const { config } = await import('../config.js');
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.close());
+
+  const pending = Array.from(
+    { length: config.DATABASE_MAX_PENDING_GRAPHQL_QUERIES },
+    () => db.query('SELECT 1'),
+  );
+  await assert.rejects(
+    db.query('SELECT rejected'),
+    /database query capacity exceeded/i,
+  );
+  release();
+  await Promise.all(pending);
+  assert.deepEqual(await db.query('SELECT recovered'), []);
+});
+
+void it('bounds the validator pool and times out queued acquisition independently of the live pool', async (context) => {
+  context.mock.method(Socket.prototype, 'connect', function () {
+    return this;
+  });
+  const { DbService } = await import('./db.service.js');
+  const db = new DbService();
+  context.after(() => db.close());
+  const queries = Array.from({ length: 6 }, () =>
+    db.queryValidator('SELECT 1'),
+  );
+  const snapshot = db.metricsSnapshot();
+  assert.equal(snapshot.pools.validator.limit, 5);
+  assert.equal(snapshot.pools.validator.total, 5);
+  assert.equal(snapshot.pools.validator.waiting, 1);
+  assert.equal(snapshot.pools.live.total, 0);
+  const results = await Promise.allSettled(queries);
+  for (const result of results) {
+    assert(result.status === 'rejected');
+    assert(result.reason instanceof Error);
+    assert.match(result.reason.message, /timeout/i);
+  }
 });
 
 void it('fails startup on false or missing stream schema checks', async (context) => {
@@ -162,9 +217,11 @@ void it('closes both pools even when listener shutdown throws', async (context) 
   await db.listen(['scraper_event'], () => {}, assert.fail);
   await db.query('SELECT 1');
   await db.queryLive('SELECT 1');
+  await db.queryValidator('SELECT 1');
   await assert.rejects(db.close(), /listener shutdown failed/);
   assert.deepEqual(closed, [
     'listener',
+    process.env.DATABASE_URL,
     process.env.DATABASE_URL,
     process.env.DATABASE_READ_REPLICA_URL,
   ]);

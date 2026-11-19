@@ -366,14 +366,14 @@ impl CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(skip(self, message, params))]
+    #[instrument(skip(self, message, _params))]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        params: MessageMetadataBuildParams,
+        _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        let res = metadata_build(self, ism_address, message, params).await;
+        let res = fetch_metadata(self, ism_address, message).await;
 
         // update metrics
         let ism_build_metrics_params = IsmBuildMetricsParams {
@@ -413,27 +413,6 @@ impl ReadActivity<'_> {
             },
         );
     }
-}
-
-async fn metadata_build(
-    ism_builder: &CcipReadIsmMetadataBuilder,
-    ism_address: H256,
-    message: &HyperlaneMessage,
-    _params: MessageMetadataBuildParams,
-) -> Result<Metadata, MetadataBuildError> {
-    let memo = ism_builder.base.offchain_reads.clone();
-    if let Some(metadata) = memo
-        .as_ref()
-        .and_then(|memo| memo.get(&ism_builder.base.node_id, ism_address))
-    {
-        tracing::debug!(?ism_address, message_id = ?message.id(), "Reusing offchain lookup data from signature probe");
-        return Ok(metadata);
-    }
-    let metadata = fetch_metadata(ism_builder, ism_address, message).await?;
-    if let Some(memo) = memo {
-        memo.insert(&ism_builder.base.node_id, ism_address, metadata.clone());
-    }
-    Ok(metadata)
 }
 
 async fn fetch_metadata(
@@ -984,6 +963,7 @@ mod test {
             name: String,
             lookup_data: String,
             expected_metadata: String,
+            origin_tx_hash: Option<String>,
         }
         let fixtures: Fixtures =
             serde_json::from_slice(&std::fs::read(std::env::var("CCS_E2E_FIXTURES")?)?)?;
@@ -999,6 +979,10 @@ mod test {
             .iter()
             .filter(|c| c.name.to_lowercase().contains("evm"))
         {
+            let origin_tx_hash = case
+                .origin_tx_hash
+                .clone()
+                .ok_or_else(|| eyre::eyre!("{} fixture has no originTxHash", case.name))?;
             for key_byte in [1u8, 2, 3] {
                 let signer = Signers::Local(ethers::signers::LocalWallet::from_str(&hex::encode(
                     [key_byte; 32],
@@ -1013,15 +997,40 @@ mod test {
                 let signature =
                     CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url)
                         .await?;
+                let allowed =
+                    key_byte != 3 && (!case.name.starts_with("restricted") || key_byte == 2);
+
+                // Signers are authorized before the origin transaction hash is
+                // required, so a missing hash only fails allowed signers.
+                let without_hash = OffchainLookupRequestBody {
+                    sender: fixtures.sender.clone(),
+                    data: case.lookup_data.clone(),
+                    signature: Some(signature.clone()),
+                    origin_tx_hash: None,
+                };
+                let response = client.post(&url).json(&without_hash).send().await?;
+                assert_eq!(
+                    response.status().as_u16(),
+                    if allowed { 400 } else { 403 },
+                    "{} signer {key_byte} without origin_tx_hash",
+                    case.name
+                );
+                if allowed {
+                    let error: serde_json::Value = response.json().await?;
+                    assert_eq!(
+                        error["error"], "Invalid origin_tx_hash",
+                        "{} signer {key_byte} without origin_tx_hash",
+                        case.name
+                    );
+                }
+
                 let body = OffchainLookupRequestBody {
                     sender: fixtures.sender.clone(),
                     data: case.lookup_data.clone(),
                     signature: Some(signature),
-                    origin_tx_hash: None,
+                    origin_tx_hash: Some(origin_tx_hash.clone()),
                 };
                 let response = client.post(&url).json(&body).send().await?;
-                let allowed =
-                    key_byte != 3 && (!case.name.starts_with("restricted") || key_byte == 2);
                 assert_eq!(
                     response.status().as_u16(),
                     if allowed { 200 } else { 403 },
@@ -1189,39 +1198,6 @@ mod test {
         assert_eq!(signer.calls(), 0);
     }
 
-    #[tokio::test]
-    async fn delivery_build_reuses_offchain_read_from_signature_probe() {
-        use crate::msg::metadata::message_builder::OffchainReadMemo;
-        use crate::test_utils::mock_base_builder::build_mock_base_builder;
-        use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
-
-        let ism = H256::repeat_byte(2);
-        let probed = Metadata::new(vec![1, 2, 3]);
-        let memo = Arc::new(OffchainReadMemo::default());
-        memo.insert("test-root", ism, probed.clone());
-        // No ISM or offchain responses are mocked, so any lookup would panic.
-        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
-            node_id: "test-root".to_owned(),
-            base: Arc::new(build_mock_base_builder(
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-            )),
-            app_context: None,
-            root_ism: ism,
-            signature_polling: false,
-            narrow_signature_probe: false,
-            offchain_reads: Some(memo),
-            max_ism_depth: 5,
-            max_ism_count: 10,
-        });
-
-        let metadata = builder
-            .build(ism, &HyperlaneMessage::default(), Default::default())
-            .await
-            .unwrap();
-        assert_eq!(metadata, probed);
-    }
-
     #[test]
     fn activity_distinguishes_pending_and_bad_responses_without_exposing_bodies() {
         use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
@@ -1232,8 +1208,7 @@ mod test {
             app_context: None,
             root_ism: H256::repeat_byte(1),
             signature_polling: false,
-            narrow_signature_probe: false,
-            offchain_reads: None,
+            signature_poll_retry: None,
             max_ism_depth: 5,
             max_ism_count: 10,
         });

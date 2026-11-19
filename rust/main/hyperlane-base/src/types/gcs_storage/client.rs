@@ -29,6 +29,8 @@ type Auth = Authenticator<HttpsConnector<HttpConnector>>;
 pub(super) struct StorageClient {
     http: HttpClient,
     auth: Option<Auth>,
+    #[cfg(test)]
+    download_endpoint: Option<String>,
 }
 
 impl StorageClient {
@@ -43,7 +45,12 @@ impl StorageClient {
         let auth = tokio::time::timeout(REQUEST_TIMEOUT, authentication(flow, http.clone()))
             .await
             .wrap_err("Timed out initializing GCS authentication")??;
-        Ok(Self { http, auth })
+        Ok(Self {
+            http,
+            auth,
+            #[cfg(test)]
+            download_endpoint: None,
+        })
     }
 
     async fn send(&self, request: Request<Body>) -> Result<Response<Bytes>> {
@@ -100,8 +107,17 @@ impl StorageClient {
         let oid = object_id(bucket, key)?;
         let request = objects::Object::download(&oid, None)?;
         let (parts, _) = request.into_parts();
-        self.download(Request::from_parts(parts, Body::empty()), max_bytes)
-            .await
+        let request = Request::from_parts(parts, Body::empty());
+        #[cfg(test)]
+        let request = if let Some(endpoint) = &self.download_endpoint {
+            let mut request = request;
+            let path = request.uri().path_and_query().expect("GCS download path");
+            *request.uri_mut() = format!("{endpoint}{path}").parse()?;
+            request
+        } else {
+            request
+        };
+        self.download(request, max_bytes).await
     }
 
     async fn download(&self, request: Request<Body>, max_bytes: usize) -> Result<Option<Bytes>> {

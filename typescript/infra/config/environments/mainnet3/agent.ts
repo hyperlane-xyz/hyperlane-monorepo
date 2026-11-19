@@ -146,7 +146,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -221,7 +221,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -296,7 +296,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -309,9 +309,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 };
 
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
-export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
-  edgenchain: true,
-};
+export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {};
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
@@ -407,6 +405,7 @@ const diagnosticsDatabaseSecret =
 
 const scraperWebsocketUrl =
   'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents';
+const validatorWebsocketUrl = 'wss://explorer-api.hyperlane.xyz/validators';
 
 const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
   '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
@@ -532,11 +531,6 @@ const metaswapMatchingList = [
   ),
 );
 
-// Reveals have no owner; this also covers other ICA reveals between these chains.
-const aeroV3RevealMatchingList = icaMatchingList(
-  objMap(metaswapMetaRouters, () => ({ messageType: IcaMessageType.REVEAL })),
-);
-
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
@@ -564,12 +558,9 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       ...veloMessageModuleMatchingList,
       // Superswap ICA matches on ICA owner address in message body
       ...superswapIcaV2CommitmentMatchingList,
-      // ICA reveal messages (does not filter on ICA owner)
-      ...icaV2RevealMatchingList,
       // Temporary Aero v3 underpayment workaround; retain a 1-wei IGP payment.
       ...aeroV3AdapterMatchingList,
       ...metaswapMatchingList,
-      ...aeroV3RevealMatchingList,
     ],
   },
   {
@@ -908,7 +899,7 @@ const hyperlane: RootAgentConfig = {
       tag: mainnetDockerTags.validator,
     },
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -985,7 +976,7 @@ const releaseCandidate: RootAgentConfig = {
       tag: mainnetDockerTags.validatorRC,
     },
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -1123,7 +1114,7 @@ const fastPath: RootAgentConfig = {
     messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
-    // Fast Path stays on RPC until the proxy supports per-chain confirmations on one connection.
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,
@@ -1150,7 +1141,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorFastPath,

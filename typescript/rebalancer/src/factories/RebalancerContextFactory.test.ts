@@ -1,4 +1,5 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 import { ethers, type providers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
@@ -30,11 +31,15 @@ import {
   TEST_ADDRESSES,
   createMockSettlementProvider,
 } from '../test/helpers.js';
-import { ActionTracker } from '../tracking/ActionTracker.js';
 import { BlacklistIsmMiddleware } from '../tracking/pendingTransferMiddlewares/BlacklistIsmMiddleware.js';
 import type { IExplorerClient } from '../utils/ExplorerClient.js';
 
+import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
+import { ActionTracker } from '../tracking/ActionTracker.js';
+
 import { RebalancerContextFactory } from './RebalancerContextFactory.js';
+
+chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -220,6 +225,93 @@ describe('RebalancerContextFactory', () => {
     ).to.deep.equal(['ethereum', 'arbitrum']);
   });
 
+  describe('physical inventory route endpoints', () => {
+    async function factoryForPolicy(
+      includeNeutralToken: boolean,
+      standard = TokenStandard.EvmHypCollateral,
+    ) {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+        { name: 'optimism', protocol: ProtocolType.Ethereum },
+      ]);
+      const config: RebalancerConfig = {
+        ...createMockConfig(),
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: 'test-key',
+          },
+        },
+        inventoryRoutes: { optimism: { arbitrum: { priority: 1 } } },
+      };
+      config.strategyConfig[0].chains.arbitrum.executionType =
+        ExecutionType.Inventory;
+      const mpp = createMockMpp();
+      mpp.getChainMetadata.callsFake((chain) => ({
+        name: String(chain),
+        chainId: 1,
+        domainId: 1,
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [],
+      }));
+      const factory = await RebalancerContextFactory.create(
+        config,
+        multiProvider,
+        mpp,
+        createMockRegistry(),
+        testLogger,
+        undefined,
+        {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            createToken(
+              'arbitrum',
+              TEST_ADDRESSES.arbitrum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            ...(includeNeutralToken
+              ? [createToken('optimism', TEST_ADDRESSES.polygon, standard)]
+              : []),
+          ],
+        },
+      );
+      return factory['createInventoryRebalancerAndConfig'](
+        Sinon.createStubInstance(ActionTracker),
+        {},
+      );
+    }
+
+    it('monitors a configured neutral inventory source outside the strategy', async () => {
+      const result = await factoryForPolicy(true);
+      assert(result, 'Expected inventory components');
+      expect(result.inventoryConfig.chains).to.include('optimism');
+      assert(
+        result.inventoryRebalancer instanceof InventoryRebalancer,
+        'Expected inventory rebalancer',
+      );
+      expect(
+        result.inventoryRebalancer['config'].inventoryRoutes,
+      ).to.deep.equal({ optimism: { arbitrum: { priority: 1 } } });
+    });
+
+    it('rejects a physical endpoint missing from the warp route', async () => {
+      await expect(factoryForPolicy(false)).to.be.rejectedWith(
+        'No token found for inventory-relevant chain optimism',
+      );
+    });
+
+    it('rejects synthetic tokens on inventory-only endpoints', async () => {
+      await expect(
+        factoryForPolicy(true, TokenStandard.EvmHypSynthetic),
+      ).to.be.rejectedWith('synthetic token on chain "optimism"');
+    });
+  });
+
   describe('external bridge initialization', () => {
     async function factoryWithBridges(
       externalBridges?: RebalancerConfig['externalBridges'],
@@ -274,6 +366,44 @@ describe('RebalancerContextFactory', () => {
       expect(registry.swapsxyz).to.have.property(
         'maxSolanaNativeSpendLamports',
         3_000_000,
+      );
+    }).timeout(10_000);
+
+    it('initializes Relay without requiring an API key', async () => {
+      const factory = await factoryWithBridges({
+        relay: { defaultSlippage: 0.001, maxQuoteLossBps: 100 },
+      });
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.relay?.externalBridgeId).to.equal(
+        ExternalBridgeType.Relay,
+      );
+      expect(registry.relay).to.have.property('maxQuoteLossBps', 100);
+      expect(registry.relay).to.have.property('defaultSlippage', 0.001);
+    });
+
+    it('initializes the Elysium native adapter with its configured HYPE budget', async () => {
+      const factory = await factoryWithBridges({
+        elysiumNative: { maxNativeValueWei: 123n },
+      });
+      for (const { name, chainId } of [
+        { name: 'hyperevm', chainId: 999 },
+        { name: 'elysium', chainId: 99901 },
+      ]) {
+        factory['multiProvider'].metadata[name] = {
+          name,
+          chainId,
+          domainId: chainId,
+          protocol: ProtocolType.Ethereum,
+          rpcUrls: [{ http: 'https://rpc.example.invalid' }],
+        };
+      }
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.elysiumNative?.externalBridgeId).to.equal(
+        ExternalBridgeType.ElysiumNative,
+      );
+      expect(registry.elysiumNative).to.have.property(
+        'maxNativeValueWei',
+        123n,
       );
     }).timeout(10_000);
 

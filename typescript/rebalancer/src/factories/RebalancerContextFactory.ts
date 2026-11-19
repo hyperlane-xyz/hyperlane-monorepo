@@ -30,6 +30,7 @@ import {
   ExternalBridgeType,
   getAllBridges,
   getInventoryChainNames,
+  getInventoryRouteChainNames,
   getInventoryOriginChainNames,
   getOverrideExecutionType,
   getStrategyChainConfig,
@@ -502,7 +503,12 @@ export class RebalancerContextFactory {
       'Creating inventory components',
     );
 
-    const inventoryChains = getInventoryChainNames(this.config.strategyConfig);
+    const inventoryChains = Array.from(
+      new Set([
+        ...getInventoryChainNames(this.config.strategyConfig),
+        ...getInventoryRouteChainNames(this.config.inventoryRoutes),
+      ]),
+    );
     const inventoryOriginChains = getInventoryOriginChainNames(
       this.config.strategyConfig,
     );
@@ -614,6 +620,7 @@ export class RebalancerContextFactory {
         {
           inventorySigners: mergedSigners,
           inventoryChains,
+          inventoryRoutes: this.config.inventoryRoutes,
         },
         actionTracker,
         externalBridgeRegistryOverride ?? {},
@@ -656,6 +663,7 @@ export class RebalancerContextFactory {
       {
         inventorySigners: mergedSigners,
         inventoryChains,
+        inventoryRoutes: this.config.inventoryRoutes,
       },
       actionTracker,
       externalBridgeRegistry,
@@ -748,6 +756,34 @@ export class RebalancerContextFactory {
               },
               this.logger,
             );
+          }
+          break;
+        }
+        case ExternalBridgeType.Relay: {
+          const relayConfig = externalBridges?.relay;
+          if (relayConfig) {
+            const { RelayBridge } = await import('../bridges/RelayBridge.js');
+            registry[ExternalBridgeType.Relay] = new RelayBridge(
+              {
+                ...relayConfig,
+                apiKey: this.externalBridgeApiKeys?.[ExternalBridgeType.Relay],
+                chainMetadata: bridgeChainMetadata,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        case ExternalBridgeType.ElysiumNative: {
+          const nativeConfig = externalBridges?.elysiumNative;
+          if (nativeConfig) {
+            const { ElysiumNativeBridge } =
+              await import('../bridges/ElysiumNativeBridge.js');
+            registry[ExternalBridgeType.ElysiumNative] =
+              new ElysiumNativeBridge(
+                { ...nativeConfig, chainMetadata: bridgeChainMetadata },
+                this.logger,
+              );
           }
           break;
         }

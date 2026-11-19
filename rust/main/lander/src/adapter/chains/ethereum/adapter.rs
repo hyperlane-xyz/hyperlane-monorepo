@@ -10,7 +10,7 @@ use ethers::{
 use ethers_core::abi::Function;
 use ethers_core::types::Eip1559TransactionRequest;
 use eyre::eyre;
-use futures_util::{future, stream, StreamExt, TryStreamExt};
+use futures_util::{future, stream, StreamExt, TryFutureExt, TryStreamExt};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
@@ -637,6 +637,7 @@ impl AdaptsChain for EthereumAdapter {
         let protected = self.is_protected_provider(provider);
         if tx.payload_details.len() == 1 {
             // No batching, estimate gas limit for the single payload
+            let unsent = tx.tx_hashes.is_empty();
             let precursor = tx.precursor_mut();
             return mev_submission::preflight(
                 protected,
@@ -646,7 +647,18 @@ impl AdaptsChain for EthereumAdapter {
                     &self.transaction_overrides,
                     &self.domain,
                     true,
-                ),
+                )
+                .map_err(|err| match &err {
+                    LanderError::ChainCommunicationError(
+                        ChainCommunicationError::SimulationFailed(reason),
+                    ) if protected
+                        && unsent
+                        && reason == hyperlane_ethereum::MAILBOX_ALREADY_DELIVERED =>
+                    {
+                        LanderError::NonRetryableError(reason.clone())
+                    }
+                    _ => err,
+                }),
             )
             .await;
         }
