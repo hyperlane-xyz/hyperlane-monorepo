@@ -429,12 +429,6 @@ export function getOverheadWithOverrides(
     overhead += TEMPO_ADDITIONAL_GAS_OVERHEAD;
   }
 
-  // Somnia gas usage is higher than the EVM and tends to give high
-  // estimates. We double the overhead to help account for this.
-  if (remote === 'somnia') {
-    overhead *= 2;
-  }
-
   // ZkSync gas usage is different from the EVM and tends to give high
   // estimates. We double the overhead to help account for this.
   if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {

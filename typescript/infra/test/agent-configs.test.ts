@@ -125,21 +125,9 @@ const unpinnedGasPaymentExemptions: Array<{
     reason: 'Paradex messages pay through a protocol fee hook, not the IGP.',
   },
   {
-    element: {
-      originDomain: getDomainId('forma'),
-      destinationDomain: getDomainId('celestia'),
-    },
-    reason:
-      'Forma is not a core chain; its Celestia messages do not pay the IGP.',
-  },
-  {
     element: { destinationDomain: getDomainId('citrea') },
     reason:
       'Some CROSS/MoonPay transfers to Citrea pay under half the gas estimate.',
-  },
-  {
-    element: { destinationDomain: getDomainId('forma') },
-    reason: 'Forma is not a core chain.',
   },
   {
     element: { destinationDomain: getDomainId('mantle') },
