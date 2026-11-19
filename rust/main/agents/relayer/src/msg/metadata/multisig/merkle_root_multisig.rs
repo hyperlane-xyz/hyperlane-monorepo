@@ -124,7 +124,7 @@ mod tests {
         build_from_known_validators, MultisigIsmMetadataBuilder, MultisigMetadata,
     };
     use crate::msg::metadata::{
-        multisig::MerkleRootMultisigMetadataBuilder, MessageMetadataBuilder,
+        multisig::MerkleRootMultisigMetadataBuilder, MessageMetadataBuilder, MetadataBuildError,
     };
     use crate::test_utils::mock_base_builder::build_mock_base_builder;
 
