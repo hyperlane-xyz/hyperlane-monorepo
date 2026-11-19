@@ -249,8 +249,10 @@ impl AggregationIsmMetadataBuilder {
         ism_address: H256,
         ism_count: usize,
     ) -> Result<Metadata, MetadataBuildError> {
+        let mut child = self.base.child(ism_index, ism_address);
+        child.one_shot_multisig |= ism_count > 1;
         let sub_module_and_meta = message_builder::build_message_metadata(
-            self.base.child(ism_index, ism_address),
+            child,
             ism_address,
             message,
             params.clone(),

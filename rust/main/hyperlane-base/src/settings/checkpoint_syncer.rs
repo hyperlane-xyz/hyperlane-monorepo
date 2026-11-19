@@ -138,7 +138,11 @@ impl CheckpointSyncerConf {
         Ok(syncer)
     }
 
-    // keep this private to force all initializations to perform the reorg check via `build_and_validate`
+    /// Creates a reader for callers that check reorg status before using checkpoints.
+    pub async fn build_for_reading(&self) -> Result<Box<dyn CheckpointSyncer>, Report> {
+        self.build(None).await
+    }
+
     async fn build(
         &self,
         latest_index_gauge: Option<IntGauge>,

@@ -12,11 +12,16 @@ use derive_new::new;
 
 use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
-use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H160, H256};
-use tokio::{sync::Semaphore, time::timeout};
+use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
+use tokio::{
+    sync::Semaphore,
+    time::{timeout, Instant},
+};
 use tracing::{debug, warn};
 
-use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
+use super::base::{
+    checkpoint_error, poll_checkpoint, MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata,
+};
 use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
 
 // Shared across messages; a slow storage backend cannot accumulate unbounded
@@ -28,9 +33,6 @@ static ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS: LazyLock<Mutex<HashMap<String, Arc
     LazyLock::new(Default::default);
 const LATEST_INDEX_TELEMETRY_PERMITS_PER_ORIGIN: usize = 4;
 const LATEST_INDEX_TELEMETRY_TIMEOUT: Duration = Duration::from_secs(30);
-// Bounds how long a probe waits for latest indices before querying every validator.
-const PROBE_LATEST_INDEX_TIMEOUT: Duration = Duration::from_secs(2);
-
 fn origin_latest_index_telemetry_permits(origin: &str) -> Arc<Semaphore> {
     ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS
         .lock()
@@ -64,6 +66,7 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         threshold: u8,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
+        deadline: &mut Option<Instant>,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
         let report = |outcome| {
             self.report_activity(
@@ -108,35 +111,23 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         if !self.signature_polling {
             self.spawn_latest_index_telemetry(checkpoint_syncer, validators);
         }
-        let probe_validators;
-        let validators = if self.narrow_signature_probe {
-            probe_validators = self
-                .validators_that_may_have_signed(checkpoint_syncer, validators, leaf_index)
-                .await;
-            if probe_validators.len() < usize::from(threshold) {
-                debug!(
-                    leaf_index,
-                    candidates = probe_validators.len(),
-                    threshold,
-                    "Too few validators have reached the leaf index to probe for a quorum"
-                );
-                return Ok(None);
-            }
-            probe_validators.as_slice()
-        } else {
-            validators
-        };
-        let quorum_checkpoint = checkpoint_syncer
-            .fetch_checkpoint(
+        let syncer = checkpoint_syncer
+            .clone()
+            .with_signature_polling(Some(message_id), !self.one_shot_multisig);
+        let quorum_checkpoint = poll_checkpoint(
+            syncer.fetch_checkpoint(
                 validators,
-                usize::from(threshold),
+                threshold.into(),
                 leaf_index,
                 self.base_builder().destination_domain(),
-            )
-            .await;
+            ),
+            self.one_shot_multisig,
+            deadline,
+        )
+        .await;
 
         let quorum_checkpoint = unwrap_or_none_result!(
-            quorum_checkpoint.map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
+            quorum_checkpoint.map_err(checkpoint_error)?,
             debug!("No quorum checkpoint found")
         );
 
@@ -163,37 +154,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 }
 
 impl MessageIdMultisigMetadataBuilder {
-    /// Signature probes repeat for every waiting message, so skip checkpoint GETs
-    /// for validators whose shared, coalesced latest index is below the leaf.
-    /// Validators without a readable latest index are still queried. This only
-    /// narrows probes: normal builds query every validator, so a validator with
-    /// a stale latest index still contributes its signature to delivery.
-    async fn validators_that_may_have_signed(
-        &self,
-        checkpoint_syncer: &MultisigCheckpointSyncer,
-        validators: &[H256],
-        leaf_index: u32,
-    ) -> Vec<H256> {
-        let Ok(latest) = timeout(
-            PROBE_LATEST_INDEX_TIMEOUT,
-            checkpoint_syncer.latest_indices(validators),
-        )
-        .await
-        else {
-            debug!("Timed out reading latest indices for signature probe");
-            return validators.to_vec();
-        };
-        validators
-            .iter()
-            .filter(|validator| {
-                latest
-                    .get(&H160::from(**validator))
-                    .is_none_or(|latest_index| *latest_index >= leaf_index)
-            })
-            .copied()
-            .collect()
-    }
-
     /// Refresh telemetry independently of checkpoint availability, with bounded
     /// concurrency and lifetime. Busy callers leave the active refreshes running.
     fn spawn_latest_index_telemetry(
@@ -301,6 +261,7 @@ mod tests {
         fetch_started: Arc<AtomicBool>,
         release: Arc<Notify>,
         release_latest: Arc<Notify>,
+        release_reorg: Option<Arc<Notify>>,
     }
 
     #[async_trait::async_trait]
@@ -355,6 +316,9 @@ mod tests {
         }
 
         async fn reorg_status(&self) -> eyre::Result<ReorgEventResponse> {
+            if let Some(release) = &self.release_reorg {
+                release.notified().await;
+            }
             self.inner.reorg_status().await
         }
     }
@@ -383,10 +347,9 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn ready_signatures_still_require_fresh_reorg_checks() {
+    #[tokio::test(start_paused = true)]
+    async fn delivery_waits_for_non_signer_flags_and_veto_cancels_pending_reads() {
         use crate::test_utils::mock_ism::MockInterchainSecurityModule;
-        use hyperlane_base::settings::CheckpointSyncerBuildError;
 
         let origin = HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism);
         let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
@@ -400,31 +363,98 @@ mod tests {
             },
             message_id: message.id(),
         };
-        let mut validators: Vec<_> = dummy_validators().into_iter().take(1).collect();
+        let mut validators: Vec<_> = dummy_validators().into_iter().take(2).collect();
         validators[0].fetch_checkpoint = Some(checkpoint);
-        let address: H160 = validators[0].public_key.parse().unwrap();
-        let clients = build_mock_checkpoint_syncs(&validators)
-            .await
-            .into_iter()
-            .map(|(address, client)| {
-                let client: Arc<dyn CheckpointSyncer> = Arc::new(client);
-                (address, client)
+        let signed = generate_multisig_signed_checkpoint(&validators, checkpoint).await;
+        let expected_signature = signed.signatures[0].to_vec();
+        let addresses: Vec<H256> = validators
+            .iter()
+            .map(|validator| {
+                validator
+                    .public_key
+                    .parse::<H160>()
+                    .expect("valid address")
+                    .into()
             })
             .collect();
-        let base = Arc::new(build_mock_base_builder(origin, destination.clone()));
-        base.responses
-            .build_checkpoint_syncer
-            .lock()
-            .unwrap()
-            .extend([
-                Ok(MultisigCheckpointSyncer::new(clients, None)),
-                Err(CheckpointSyncerBuildError::ReorgFlag(ReorgEventResponse {
-                    exists: true,
-                    event: None,
-                    content: None,
-                })),
-            ]);
-        for _ in 0..2 {
+        for (positive, signer_blocked, retry, unreadable_reader) in [
+            (false, false, false, None),
+            (true, false, false, None),
+            (true, true, false, None),
+            (false, false, true, None),
+            (false, false, false, Some(1)),
+            (false, false, false, Some(0)),
+        ] {
+            let mut clients = build_mock_checkpoint_syncs(&validators).await;
+            let signing = clients.remove(&H160::from(addresses[0])).expect("signer");
+            let non_signing = clients
+                .remove(&H160::from(addresses[1]))
+                .expect("non-signer");
+            let signature_responses = signing.responses.fetch_checkpoint.clone();
+            let signing_flags = signing.responses.reorg_status.clone();
+            let flag_response = non_signing.responses.reorg_status.clone();
+            {
+                let mut flags = flag_response.lock().expect("reorg response lock");
+                flags.clear();
+                flags.push_back(if unreadable_reader == Some(1) {
+                    Err(eyre::eyre!("non-signer flags unavailable"))
+                } else {
+                    Ok(ReorgEventResponse {
+                        exists: positive,
+                        event: None,
+                        content: None,
+                    })
+                });
+            }
+            let release = Arc::new(Notify::new());
+            if retry {
+                signature_responses
+                    .lock()
+                    .expect("signature response lock")
+                    .push_front(Ok(None));
+                release.notify_one();
+            }
+            if unreadable_reader == Some(0) {
+                let mut flags = signing_flags.lock().expect("signer flag lock");
+                let _ = flags.pop_front();
+                flags.push_front(Err(eyre::eyre!("signer flags unavailable")));
+            }
+            let fetch_started = Arc::new(AtomicBool::new(false));
+            let gated = |inner, release_reorg, fetch_started| GatedCheckpointSyncer {
+                inner,
+                latest_started: Arc::new(AtomicBool::new(false)),
+                fetch_started,
+                release: Arc::new(Notify::new()),
+                release_latest: Arc::new(Notify::new()),
+                release_reorg,
+            };
+            let signing: Arc<dyn CheckpointSyncer> = if signer_blocked {
+                Arc::new(gated(
+                    signing,
+                    Some(Arc::new(Notify::new())),
+                    fetch_started.clone(),
+                ))
+            } else {
+                Arc::new(signing)
+            };
+            let non_signing: Arc<dyn CheckpointSyncer> = Arc::new(gated(
+                non_signing,
+                Some(release.clone()),
+                Arc::new(AtomicBool::new(false)),
+            ));
+            let syncer = MultisigCheckpointSyncer::new(
+                HashMap::from([
+                    (H160::from(addresses[0]), signing),
+                    (H160::from(addresses[1]), non_signing),
+                ]),
+                None,
+            );
+            let base = Arc::new(build_mock_base_builder(origin.clone(), destination.clone()));
+            base.responses
+                .build_checkpoint_syncer
+                .lock()
+                .expect("mock response lock")
+                .push_back(Ok(syncer));
             base.responses.push_build_ism_response(
                 H256::zero(),
                 Ok(Box::new(MockInterchainSecurityModule::new(
@@ -434,39 +464,60 @@ mod tests {
                 ))),
             );
             let mut ism = MockMockMultisigIsm::new();
+            let validators = addresses.clone();
             ism.expect_validators_and_threshold()
                 .once()
-                .return_once(move |_| Ok((vec![address.into()], 1)));
+                .return_once(move |_| Ok((validators, 1)));
             ism.expect_domain().return_const(destination.clone());
             ism.expect_address().return_const(H256::zero());
             base.responses
                 .build_multisig_ism
                 .lock()
-                .unwrap()
+                .expect("mock response lock")
                 .push_back(Ok(Box::new(ism)));
             base.responses
                 .get_merkle_leaf_id_by_message_id
                 .lock()
-                .unwrap()
+                .expect("mock response lock")
                 .push_back(Ok(Some(1)));
+            let builder = MessageMetadataBuilder::new(base, H256::zero(), &message)
+                .await
+                .expect("message metadata builder");
+            let build = builder.build_for_delivery(H256::zero(), &message, true);
+            tokio::pin!(build);
+            assert!(futures::poll!(&mut build).is_pending());
+            assert_eq!(
+                signature_responses
+                    .lock()
+                    .expect("signature response lock")
+                    .len(),
+                usize::from(signer_blocked || retry)
+            );
+            if signer_blocked {
+                assert!(fetch_started.load(Ordering::SeqCst));
+            }
+            if !retry {
+                release.notify_one();
+            }
+            let result = tokio::time::timeout(std::time::Duration::from_secs(1), build)
+                .await
+                .expect("a positive flag must not wait for another reader");
+            if positive {
+                assert!(matches!(result, Err(MetadataBuildError::Refused(_))));
+            } else {
+                let metadata = result.expect("quorum remains usable without a positive flag");
+                assert!(metadata.ends_with(&expected_signature));
+                assert_eq!(signing_flags.lock().expect("signer flag lock").len(), 1);
+                assert!(flag_response
+                    .lock()
+                    .expect("non-signer flag lock")
+                    .is_empty());
+            }
         }
-        let builder = MessageMetadataBuilder::new(base.clone(), H256::zero(), &message)
-            .await
-            .unwrap();
-        assert!(matches!(
-            builder
-                .build_for_delivery(H256::zero(), &message, true, true)
-                .await,
-            Err(MetadataBuildError::Refused(_))
-        ));
-        assert_eq!(
-            *base.requests.checkpoint_reorg_checks.lock().unwrap(),
-            vec![false, true]
-        );
     }
 
     #[tokio::test]
-    async fn signature_probes_skip_validators_behind_the_leaf() {
+    async fn exact_fetch_accepts_signatures_ahead_of_latest_index() {
         let message = HyperlaneMessage::default();
         let checkpoint = CheckpointWithMessageId {
             checkpoint: Checkpoint {
@@ -513,32 +564,16 @@ mod tests {
                 .await
                 .unwrap();
 
-        // The fast-window probe only queries validators that have reached the
-        // leaf, so it cannot reach a threshold of two.
         message_builder.signature_polling = true;
-        message_builder.narrow_signature_probe = true;
-        let probe = MessageIdMultisigMetadataBuilder::new(message_builder.clone());
-        assert!(probe
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
-            .await
-            .unwrap()
-            .is_none());
-
-        // After the fast window, probes query every validator again, so a lagging
-        // latest index cannot hold delivery.
-        message_builder.narrow_signature_probe = false;
-        let late_probe = MessageIdMultisigMetadataBuilder::new(message_builder.clone());
-        assert!(late_probe
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
-            .await
-            .unwrap()
-            .is_some());
-
-        // A normal build still queries every validator.
-        message_builder.signature_polling = false;
-        let normal = MessageIdMultisigMetadataBuilder::new(message_builder);
-        assert!(normal
-            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
+        let builder = MessageIdMultisigMetadataBuilder::new(message_builder);
+        assert!(builder
+            .fetch_metadata(
+                &validator_addresses,
+                2,
+                &message,
+                &multisig_syncer().await,
+                &mut None
+            )
             .await
             .unwrap()
             .is_some());
@@ -621,7 +656,13 @@ mod tests {
 
         let threshold = 3;
         let resp = builder
-            .fetch_metadata(&validator_addresses, threshold, &message, &multisig_syncer)
+            .fetch_metadata(
+                &validator_addresses,
+                threshold,
+                &message,
+                &multisig_syncer,
+                &mut None,
+            )
             .await
             .expect("Failed to fetch metadata")
             .expect("Expected MultisigMetadata");
@@ -672,6 +713,7 @@ mod tests {
                     latest_started: latest_started.clone(),
                     fetch_started: fetch_started.clone(),
                     release: release.clone(),
+                    release_reorg: None,
                     release_latest: if validator == slow_validator {
                         release_latest.clone()
                     } else {
@@ -709,8 +751,14 @@ mod tests {
                 .expect("message metadata builder should be created");
         let builder = MessageIdMultisigMetadataBuilder::new(message_builder);
 
-        let mut fetch =
-            Box::pin(builder.fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer));
+        let mut deadline = None;
+        let mut fetch = Box::pin(builder.fetch_metadata(
+            &validator_addresses,
+            2,
+            &message,
+            &multisig_syncer,
+            &mut deadline,
+        ));
 
         assert!(
             futures::poll!(&mut fetch).is_pending(),
@@ -976,13 +1024,14 @@ mod tests {
         let ism_address = H256::zero();
 
         let base_builder_arc = Arc::new(base_builder);
-        let message_builder = {
+        let mut message_builder = {
             let builder =
                 MessageMetadataBuilder::new(base_builder_arc.clone(), ism_address, &message)
                     .await
                     .expect("Failed to build MessageMetadataBuilder");
             builder
         };
+        message_builder.one_shot_multisig = true;
         let builder = MessageIdMultisigMetadataBuilder::new(message_builder);
 
         // build metadata

@@ -190,6 +190,7 @@ pub enum ValidatorStorageState {
     ReorgReported,
     ReorgIgnored,
     ReorgCheckFailed,
+    ReorgNotFound,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -491,11 +492,54 @@ impl CheckpointObserver for ActivityCheckpointObserver {
                     None => summary.discovery_unavailable.insert(validator, reason),
                 };
             }
+            CheckpointObservation::ReorgNotFound { validator } => {
+                drop(summary);
+                self.report_validator_storage(
+                    validator,
+                    vec![ValidatorStorageState::ReorgNotFound],
+                    true,
+                );
+            }
+            CheckpointObservation::ReorgReported { validator, ignored } => {
+                drop(summary);
+                let mut states = vec![ValidatorStorageState::ReorgReported];
+                if ignored {
+                    states.push(ValidatorStorageState::ReorgIgnored);
+                }
+                self.report_validator_storage(validator, states, false);
+            }
+            CheckpointObservation::ReorgCheckFailed { validator } => {
+                drop(summary);
+                self.report_validator_storage(
+                    validator,
+                    vec![ValidatorStorageState::ReorgCheckFailed],
+                    true,
+                );
+            }
         }
     }
 }
 
 impl ActivityCheckpointObserver {
+    fn report_validator_storage(
+        &self,
+        validator: H160,
+        states: Vec<ValidatorStorageState>,
+        usable: bool,
+    ) {
+        self.reporter.report_scoped(
+            self.message_id,
+            self.origin,
+            self.destination,
+            Activity::ValidatorStorage {
+                validator: validator.into(),
+                states,
+                usable,
+            },
+            self.node_id.clone(),
+        );
+    }
+
     pub fn report(&self) {
         self.reported.store(true, Ordering::Relaxed);
         let summary = std::mem::take(&mut *self.summary.lock());

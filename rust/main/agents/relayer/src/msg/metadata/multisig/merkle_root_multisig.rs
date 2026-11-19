@@ -8,6 +8,7 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
+use tokio::time::Instant;
 use tracing::debug;
 
 use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
@@ -40,6 +41,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         threshold: u8,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
+        _deadline: &mut Option<Instant>,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
         let report =
             |stage, outcome| self.report_activity(message, Activity::Progress { stage, outcome });
@@ -73,6 +75,8 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         );
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
+                .clone()
+                .with_signature_polling(None, false)
                 .fetch_checkpoint_in_range(
                     validators,
                     threshold as usize,
@@ -206,7 +210,13 @@ mod tests {
 
         let threshold = 3;
         let resp = builder
-            .fetch_metadata(&validator_addresses, threshold, &message, &multisig_syncer)
+            .fetch_metadata(
+                &validator_addresses,
+                threshold,
+                &message,
+                &multisig_syncer,
+                &mut None,
+            )
             .await
             .expect("Failed to fetch metadata")
             .expect("Expected MultisigMetadata");

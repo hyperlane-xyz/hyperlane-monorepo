@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, future::Future};
 
 use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
@@ -13,12 +13,35 @@ use hyperlane_core::{
     HyperlaneMessage, Metadata, ModuleType, MultisigIsm, MultisigSignedCheckpoint, H256,
 };
 use strum::Display;
+use tokio::time::{timeout_at, Instant};
 use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::{MetadataBuildError, MetadataBuildRefused};
 use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
 use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, MetadataBuilder};
+use crate::msg::pending_message::SIGNATURE_POLL_WINDOW;
+
+pub(super) async fn poll_checkpoint(
+    work: impl Future<Output = Result<Option<MultisigSignedCheckpoint>>>,
+    one_shot: bool,
+    deadline: &mut Option<Instant>,
+) -> Result<Option<MultisigSignedCheckpoint>> {
+    if one_shot {
+        return work.await;
+    }
+    let deadline = *deadline.get_or_insert_with(|| Instant::now() + SIGNATURE_POLL_WINDOW);
+    timeout_at(deadline, work).await.unwrap_or(Ok(None))
+}
+
+pub(super) fn checkpoint_error(error: eyre::Report) -> MetadataBuildError {
+    match error.downcast::<CheckpointSyncerBuildError>() {
+        Ok(CheckpointSyncerBuildError::ReorgFlag(event)) => {
+            MetadataBuildError::Refused(MetadataBuildRefused::Reorg(event))
+        }
+        error => MetadataBuildError::FailedToBuild(format!("{error:?}")),
+    }
+}
 
 #[derive(new, AsRef, Deref, Debug, PartialEq)]
 pub struct MultisigMetadata {
@@ -102,6 +125,7 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         threshold: u8,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
+        deadline: &mut Option<Instant>,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError>;
 
     fn token_layout(&self) -> &'static [MetadataToken];
@@ -266,7 +290,6 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             message,
             &validators,
             ism_builder.as_ref().app_context.clone(),
-            !ism_builder.as_ref().signature_polling,
         )
         .await
     {
@@ -281,39 +304,94 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
         }
     };
 
-    let observer = ism_builder
-        .as_ref()
-        .base_builder()
-        .activity_reporter()
-        .map(|reporter| {
+    let builder = ism_builder.as_ref();
+    let observe_checkpoints = || {
+        builder.base_builder().activity_reporter().map(|reporter| {
             reporter.checkpoint_observer_for_node(
                 message,
                 (!ism_address.is_zero()).then_some(ism_address),
                 threshold,
-                Some(&ism_builder.as_ref().node_id),
+                Some(&builder.node_id),
             )
-        });
+        })
+    };
+    let mut observer = observe_checkpoints();
     let checkpoint_syncer = if let Some(observer) = &observer {
         checkpoint_syncer.with_observer(observer.clone())
     } else {
         checkpoint_syncer
     };
-    let result = ism_builder
-        .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
-        .await;
+    let mut deadline = None;
+    let (mut result, exclusions) = {
+        let flags = checkpoint_syncer
+            .read_reorg_flags(&validators, builder.base_builder().ignore_reorg_reports());
+        let signatures = async {
+            if !checkpoint_syncer.has_quorum_readers(&validators, threshold.into()) {
+                return Ok(None);
+            }
+            ism_builder
+                .fetch_metadata(
+                    &validators,
+                    threshold,
+                    message,
+                    &checkpoint_syncer,
+                    &mut deadline,
+                )
+                .await
+        };
+        tokio::pin!(flags, signatures);
+        let (flags, fetched) = tokio::select! {
+            biased;
+            flags = &mut flags => (flags, None),
+            result = &mut signatures => (flags.await, Some(result)),
+        };
+        match flags {
+            Ok(exclusions) if !exclusions.is_empty() => (Ok(None), exclusions),
+            Ok(_) => {
+                let result = match fetched {
+                    Some(result) => result,
+                    None => signatures.await,
+                };
+                (result, Vec::new())
+            }
+            Err(error) => (Err(checkpoint_error(error)), Vec::new()),
+        }
+    };
+    if !exclusions.is_empty() {
+        // The original speculative fetch may have counted an excluded signer.
+        let mut checked_syncer = checkpoint_syncer.without_readers(&exclusions);
+        observer = observe_checkpoints();
+        if let Some(observer) = &observer {
+            checked_syncer = checked_syncer.with_observer(observer.clone());
+        }
+        if checked_syncer.has_quorum_readers(&validators, threshold.into()) {
+            result = ism_builder
+                .fetch_metadata(
+                    &validators,
+                    threshold,
+                    message,
+                    &checked_syncer,
+                    &mut deadline,
+                )
+                .await;
+        }
+    }
     // Report failures too, but not abandoned aggregation children.
     if let Some(observer) = observer {
         observer.report();
     }
-    let metadata = result
-        .map_err(|_| MetadataBuildError::CouldNotFetch)?
-        .ok_or_else(|| {
-            info!(
-                hyp_message=?message, ?validators, threshold, %ism_address,
-                "Could not fetch metadata: Unable to reach quorum"
-            );
+    let metadata = result?.ok_or_else(|| {
+        info!(
+            hyp_message=?message, ?validators, threshold, %ism_address,
+            "Could not fetch metadata: Unable to reach quorum"
+        );
+        if builder.one_shot_multisig || ism_builder.module_type() == ModuleType::MerkleRootMultisig
+        {
             MetadataBuildError::AwaitingValidatorSignatures
-        })?;
+        } else {
+            MetadataBuildError::CouldNotFetch
+        }
+    })?;
 
     debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
     let formatted = ism_builder

@@ -185,6 +185,10 @@ query MessageDiagnostics {
             reason
           }
         }
+        reorg_checks {
+          validator
+          states
+        }
       }
     }
   }
@@ -202,6 +206,12 @@ update per relayer in `activities`. Apply those activities to render the current
 ISM tree and lifecycle. The `relayers` field remains a compatibility reduction
 for older diagnostic event rows. Raw paginated history remains available when a
 consumer needs the exact timeline.
+
+`modules.reorg_checks` shows per-validator reorg observations when available.
+States include `reorg_not_found`, `reorg_reported`, and `reorg_check_failed`.
+An ignored report includes both `reorg_reported` and `reorg_ignored`.
+Use `message_activity.activities.observed_at` to track when reorg observations
+change, as with signature progress.
 
 Diagnostics errors use the GraphQL code `DIAGNOSTICS_UNAVAILABLE` when the
 diagnostics database is disabled or unavailable. Other scraper queries continue

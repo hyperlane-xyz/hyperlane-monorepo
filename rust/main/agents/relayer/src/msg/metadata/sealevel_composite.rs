@@ -155,7 +155,8 @@ async fn build_metadata_from_spec_inner(
                     .iter()
                     .enumerate()
                     .map(|(index, sub_spec)| async move {
-                        let child = builder.child(index, builder.root_ism);
+                        let mut child = builder.child(index, builder.root_ism);
+                        child.one_shot_multisig |= threshold_usize < ism_count;
                         let is_null = matches!(sub_spec, CompositeIsmMetadataSpec::Null);
                         let result =
                             build_metadata_from_spec(sub_spec, message, &child, relayer_pubkey)

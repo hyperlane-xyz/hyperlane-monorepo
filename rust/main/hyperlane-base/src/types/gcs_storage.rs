@@ -306,6 +306,10 @@ impl CheckpointSyncer for GcsStorageClient {
                 return Ok(root_status);
             }
         }
+        self.reorg_status_at_announced_location().await
+    }
+
+    async fn reorg_status_at_announced_location(&self) -> Result<ReorgEventResponse> {
         self.fetch_reorg_status_at(&self.object_path(REORG_FLAG_KEY))
             .await
     }
@@ -398,6 +402,7 @@ async fn object_path_is_unprefixed_without_a_folder() {
         .unwrap();
 
     assert_eq!(client.object_path(LATEST_INDEX_KEY), LATEST_INDEX_KEY);
+    assert_eq!(client.object_path(REORG_FLAG_KEY), REORG_FLAG_KEY);
     assert_eq!(
         client.announcement_location(),
         "gs://test-bucket/gcsAnnouncementKey"

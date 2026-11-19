@@ -11,9 +11,20 @@ use moka::future::Cache;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::{Activity, ObservationEvent, StoredActivity, StoredEvent, H256};
+use super::{Activity, ObservationEvent, StoredActivity, StoredEvent, ValidatorStorageState, H256};
 
 const STATE_CACHE_ENTRIES: u64 = 10_000;
+const MAX_REORG_CHECKS: usize = 50;
+
+fn is_reorg_state(state: &ValidatorStorageState) -> bool {
+    matches!(
+        state,
+        ValidatorStorageState::ReorgNotFound
+            | ValidatorStorageState::ReorgReported
+            | ValidatorStorageState::ReorgIgnored
+            | ValidatorStorageState::ReorgCheckFailed
+    )
+}
 
 #[derive(Clone, Deserialize, Serialize)]
 struct MessageState {
@@ -172,6 +183,9 @@ impl ActivityState {
                 || match &event.activity {
                     Activity::Checkpoint { summary, .. } => {
                         summary.collected > 0 || state.published_snapshot.is_some()
+                    }
+                    Activity::ValidatorStorage { states, .. } => {
+                        event.node_id.is_some() && states.iter().any(is_reorg_state)
                     }
                     Activity::IsmVerification { .. } | Activity::OffchainRead { .. } => {
                         state.published_snapshot.is_some()
@@ -414,6 +428,11 @@ impl MessageState {
         {
             return Ok(());
         }
+        if let Activity::ValidatorStorage { states, .. } = &event.activity {
+            if event.node_id.is_none() || !states.iter().any(is_reorg_state) {
+                return Ok(());
+            }
+        }
         // Activity contains only bounded, explicitly sanitized fields.
         let value = serde_json::to_value(&event.activity)?;
         if let Some(id) = &event.node_id {
@@ -455,18 +474,43 @@ impl MessageState {
                         && (node["validators"] != value["validators"]
                             || node["threshold"] != value["threshold"])
                     {
-                        // A new validator set invalidates the old quorum and verification.
+                        // A new validator set invalidates its prior checks, quorum, and verification.
                         for field in [
                             "signatures",
                             "verification",
                             "metadata_status",
                             "metadata_error",
+                            "reorg_checks",
                         ] {
                             node.as_object_mut().map(|n| n.remove(field));
                         }
                     }
                     node["validators"] = value["validators"].clone();
                     node["threshold"] = value["threshold"].clone();
+                }
+                Activity::ValidatorStorage { states, .. } => {
+                    if !node["reorg_checks"].is_array() {
+                        node["reorg_checks"] = json!([]);
+                    }
+                    let checks = node["reorg_checks"]
+                        .as_array_mut()
+                        .expect("reorg check array");
+                    let validator = &value["validator"];
+                    let observation = json!({
+                        "validator": validator,
+                        "states": states.iter().copied().filter(is_reorg_state).collect::<Vec<_>>(),
+                    });
+                    if let Some(previous) = checks
+                        .iter_mut()
+                        .find(|check| check["validator"] == *validator)
+                    {
+                        *previous = observation;
+                    } else {
+                        if checks.len() >= MAX_REORG_CHECKS {
+                            checks.remove(0);
+                        }
+                        checks.push(observation);
+                    }
                 }
                 Activity::Metadata { error, .. } => {
                     node["metadata_status"] =
