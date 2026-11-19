@@ -425,19 +425,6 @@ impl RpcProvider {
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }
 
-    /// Injective uses custom proto type for account info.
-    /// Decode the BaseAccount with the injective proto - which is different to the default one
-    async fn get_injective_account(
-        &self,
-        response: QueryAccountResponse,
-    ) -> ChainResult<BaseAccount> {
-        // Injective uses custom proto type for account info. The account must exist in auth module
-        let account = response
-            .account
-            .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
-        decode_injective_base_account(account.value.as_slice())
-    }
-
     async fn get_account(&self, address: String) -> ChainResult<BaseAccount> {
         let response: QueryAccountResponse = self
             .abci_query(
@@ -445,24 +432,7 @@ impl RpcProvider {
                 QueryAccountRequest { address },
             )
             .await?;
-
-        // Try to decode as a standard base account, and if that fails, try Injective-specific format
-        let account = BaseAccount::decode(
-            response
-                .clone()
-                .account
-                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
-                .value
-                .as_slice(),
-        )
-        .map_err(HyperlaneCosmosError::from);
-
-        // If standard decoding fails, try Injective format
-        if account.is_err() {
-            return self.get_injective_account(response).await;
-        }
-
-        Ok(account?)
+        account_from_response(response)
     }
 
     /// Get the gas price
@@ -605,6 +575,16 @@ fn decode_injective_base_account(bytes: &[u8]) -> ChainResult<BaseAccount> {
     Ok(eth_account.base_account.unwrap_or_default())
 }
 
+/// Decodes the account in an auth `Query/Account` response, falling back to Injective's
+/// `EthAccount` when it is not a standard `BaseAccount`.
+fn account_from_response(response: QueryAccountResponse) -> ChainResult<BaseAccount> {
+    let account = response
+        .account
+        .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
+    BaseAccount::decode(account.value.as_slice())
+        .or_else(|_| decode_injective_base_account(account.value.as_slice()))
+}
+
 #[cfg(test)]
 mod injective_account_tests {
     use super::*;
@@ -663,6 +643,72 @@ mod injective_account_tests {
         let decoded = decode_injective_base_account(&bytes).expect("valid EthAccount");
 
         assert_eq!(decoded, BaseAccount::default());
+    }
+
+    #[test]
+    fn account_response_falls_back_to_injective_eth_account() {
+        // keccak256 of empty code, the code hash of accounts without contract code.
+        let empty_code_hash =
+            hex::decode("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+                .expect("valid hex");
+        let base_account = sample_base_account();
+        let eth_account = eth_account_bytes(Some(&base_account), &empty_code_hash);
+        // Not a valid standard `BaseAccount`, so this takes the Injective fallback.
+        assert!(BaseAccount::decode(eth_account.as_slice()).is_err());
+        let response = QueryAccountResponse {
+            account: Some(Any {
+                type_url: "/injective.types.v1beta1.EthAccount".to_owned(),
+                value: eth_account,
+            }),
+        }
+        .encode_to_vec();
+
+        // `abci_query` decodes the response before `get_account` reads the account from it.
+        let response = QueryAccountResponse::decode(response.as_slice()).expect("valid response");
+        let account = account_from_response(response).expect("Injective account");
+
+        assert_eq!(account.account_number, 42);
+        assert_eq!(account.sequence, 7);
+        assert_eq!(account, base_account);
+    }
+
+    #[test]
+    fn account_response_decodes_standard_base_account() {
+        let base_account = sample_base_account();
+        let response = QueryAccountResponse {
+            account: Some(Any {
+                type_url: "/cosmos.auth.v1beta1.BaseAccount".to_owned(),
+                value: base_account.encode_to_vec(),
+            }),
+        };
+
+        let account = account_from_response(response).expect("base account");
+
+        assert_eq!(account, base_account);
+    }
+
+    #[test]
+    fn missing_account_is_an_error() {
+        let error =
+            account_from_response(QueryAccountResponse { account: None }).expect_err("no account");
+
+        assert!(error.to_string().contains("account not present"));
+    }
+
+    #[test]
+    fn undecodable_account_is_an_error() {
+        // Field 1 declares 16 bytes that are missing, so both decoders reject it.
+        let value = vec![0x0a, 0x10];
+        assert!(BaseAccount::decode(value.as_slice()).is_err());
+        assert!(decode_injective_base_account(&value).is_err());
+        let response = QueryAccountResponse {
+            account: Some(Any {
+                type_url: "/injective.types.v1beta1.EthAccount".to_owned(),
+                value,
+            }),
+        };
+
+        assert!(account_from_response(response).is_err());
     }
 
     #[test]
