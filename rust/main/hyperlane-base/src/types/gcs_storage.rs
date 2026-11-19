@@ -306,6 +306,10 @@ impl CheckpointSyncer for GcsStorageClient {
                 return Ok(root_status);
             }
         }
+        self.reorg_status_at_announced_location().await
+    }
+
+    async fn reorg_status_at_announced_location(&self) -> Result<ReorgEventResponse> {
         self.fetch_reorg_status_at(&self.object_path(REORG_FLAG_KEY))
             .await
     }

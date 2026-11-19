@@ -574,7 +574,7 @@ describe('ValidatorAgentConfigSchema live indexing', () => {
       ]) {
         const result = ValidatorAgentConfigSchema.safeParse({
           ...config,
-          websocketUrl: 'wss://scraper.example/agents',
+          websocketUrl: 'wss://scraper.example/validators',
           chains: {
             test: { ...config.chains.test, protocol, rpcConsensusType },
           },
@@ -587,6 +587,37 @@ describe('ValidatorAgentConfigSchema live indexing', () => {
     }
   });
 
+  it('accepts optional, query-free validator WebSocket endpoints', () => {
+    const schema = ValidatorAgentConfigSchema.shape.websocketUrl;
+    for (const url of [
+      undefined,
+      'ws://localhost:8383/validators',
+      'wss://explorer-api.hyperlane.xyz/validators',
+      'wss://scraper.example/validators#fragment?not-a-query',
+    ]) {
+      expect(schema.safeParse(url).success, String(url)).to.be.true;
+    }
+  });
+
+  it('rejects invalid validator WebSocket schemes, paths, and queries', () => {
+    const schema = ValidatorAgentConfigSchema.shape.websocketUrl;
+    for (const url of [
+      'invalid',
+      'https://scraper.example/validators',
+      'http://scraper.example/validators',
+      'wss://scraper.example',
+      'wss://scraper.example/agents',
+      'wss://scraper.example/messages',
+      'wss://scraper.example/validators/',
+      'wss://scraper.example/validators?domain=1',
+      'wss://scraper.example/validators?confirmations=2',
+      'wss://scraper.example/validators?',
+      'wss://scraper.example/validators?#fragment',
+    ]) {
+      expect(schema.safeParse(url).success, url).to.be.false;
+    }
+  });
+
   it('rejects removed lightweight settings, including false', () => {
     for (const flag of ['lightweight', 'leightweigt']) {
       for (const value of [true, false]) {
@@ -594,7 +625,7 @@ describe('ValidatorAgentConfigSchema live indexing', () => {
           ValidatorAgentConfigSchema.safeParse({
             ...config,
             [flag]: value,
-            websocketUrl: 'wss://scraper.example/agents',
+            websocketUrl: 'wss://scraper.example/validators',
           }).success,
         ).to.be.false;
       }

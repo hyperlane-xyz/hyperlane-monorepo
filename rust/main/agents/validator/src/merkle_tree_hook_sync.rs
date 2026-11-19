@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use eyre::{bail, ensure, eyre, Context, ContextCompat, Result};
 use futures_util::{future::BoxFuture, stream, FutureExt, StreamExt};
 use prometheus::IntGauge;
+use rand::Rng;
 use tokio::{
     sync::Notify,
     task::JoinHandle,
@@ -17,8 +18,7 @@ use hyperlane_base::{
     scraper_websocket::{
         parse_address, reconnect_after, EventMessage, LiveStartBoundary,
         MerkleEventData as EventData, RejectedStream, ScraperSession, ServerMessage, SessionEvent,
-        StreamHealth, StreamTimeouts, SubscribeMessage, SubscribeStream, RETRY_DELAY,
-        RETRY_JITTER_MS, RPC_PROBE_TIMEOUT,
+        StreamHealth, StreamTimeouts, RETRY_DELAY, RETRY_JITTER_MS, RPC_PROBE_TIMEOUT,
     },
     settings::IndexSettings,
     ContractSyncer, SequencedDataContractSync,
@@ -393,7 +393,7 @@ impl MerkleTreeHookWebSocketSync {
         self.confirmations = reorg_period.as_blocks().ok();
         let retry_delay = RETRY_DELAY
             .checked_add(Duration::from_millis(
-                (self.domain % RETRY_JITTER_MS).into(),
+                rand::thread_rng().gen_range(0..RETRY_JITTER_MS).into(),
             ))
             .expect("bounded retry jitter cannot overflow Duration");
         self.run_loop(
@@ -453,9 +453,17 @@ impl MerkleTreeHookWebSocketSync {
         timeouts: StreamTimeouts,
         dependencies: &StreamDependencies,
     ) -> Result<()> {
-        let mut socket =
-            ScraperSession::<_, Result<Option<u32>>>::connect(self.url.expose_secret(), timeouts)
-                .await?;
+        let mut socket = ScraperSession::<_, Result<Option<u32>>>::connect_validator(
+            self.url.expose_secret(),
+            self.domain,
+            self.confirmations,
+            timeouts,
+        )
+        .await?;
+        info!(
+            domain = self.domain,
+            "Connected to live Merkle tree insertions"
+        );
         let mut pending = BTreeMap::new();
         let mut boundary = None;
         let mut target_count = None;
@@ -503,13 +511,6 @@ impl MerkleTreeHookWebSocketSync {
             };
             if let Some(message) = message {
                 match message {
-                    ServerMessage::Ready => socket.subscribe(self.subscription()).await?,
-                    ServerMessage::Subscribed { .. } => {
-                        info!(
-                            domain = self.domain,
-                            "Subscribed to live Merkle tree insertions"
-                        );
-                    }
                     ServerMessage::LiveStart(wire) => {
                         ensure!(boundary.is_none(), "Duplicate live-start boundary");
                         let accepted = self.accept_boundary(wire)?;
@@ -530,10 +531,10 @@ impl MerkleTreeHookWebSocketSync {
                         }
                     }
                     ServerMessage::Error { error } => return Err(RejectedStream(error).into()),
-                    ServerMessage::Rollback => {
+                    ServerMessage::Rollback { .. } => {
                         bail!("Scraper stream rolled back; resuming RPC indexing")
                     }
-                    ServerMessage::Other => {}
+                    _ => {}
                 }
             }
             self.try_handoff(next_sequence, target_count, fallback, &mut pending)
@@ -599,17 +600,6 @@ impl MerkleTreeHookWebSocketSync {
             height: wire.height.parse()?,
             hash: wire.hash.parse()?,
         })
-    }
-
-    fn subscription(&self) -> SubscribeMessage<'static> {
-        SubscribeMessage {
-            streams: vec![SubscribeStream {
-                confirmations: self.confirmations,
-                domains: Some(vec![self.domain]),
-                event_type: EVENT_TYPE,
-            }],
-            message_type: "subscribe",
-        }
     }
 
     fn decode_event(
@@ -858,7 +848,7 @@ mod tests {
                 db,
                 1,
                 H256::from_low_u64_be(2),
-                Url::parse("ws://localhost/agents").expect("test operation"),
+                Url::parse("ws://localhost/validators").expect("test operation"),
                 IntGauge::new("websocket_active", "test").expect("test operation"),
                 IntGauge::new("rpc_active", "test").expect("test operation"),
             ),
@@ -925,14 +915,6 @@ mod tests {
         let (mut sync, _directory) = test_sync();
         for confirmations in [None, Some(0), Some(3)] {
             sync.confirmations = confirmations;
-            let mut request = serde_json::json!({"type": "subscribe", "streams": [{"domains": [1], "eventType": EVENT_TYPE}]});
-            if let Some(count) = confirmations {
-                request["streams"][0]["confirmations"] = count.into();
-            }
-            assert_eq!(
-                serde_json::to_value(sync.subscription()).expect("subscription"),
-                request
-            );
             let mut frame = boundary_frame();
             frame["confirmations"] = serde_json::json!(confirmations);
             let decode =
@@ -1181,7 +1163,7 @@ mod tests {
             .expect("test operation");
         let (mut sync, _directory) = test_sync();
         sync.url = Url::parse(&format!(
-            "ws://{}/agents",
+            "ws://{}/validators",
             listener.local_addr().expect("test operation")
         ))
         .expect("test operation")
@@ -1205,21 +1187,7 @@ mod tests {
                 let (tcp, _) = listener.accept().await.expect("test operation");
                 let mut socket = accept_async(tcp).await.expect("test operation");
                 socket
-                    .send(Message::Text(r#"{"type":"ready"}"#.into()))
-                    .await
-                    .expect("test operation");
-                let request = socket
-                    .next()
-                    .await
-                    .expect("test operation")
-                    .expect("test operation");
-                let mut ack: serde_json::Value =
-                    serde_json::from_str(request.to_text().expect("test operation"))
-                        .expect("test operation");
-                assert!(ack["streams"][0].get("cursors").is_none());
-                ack["type"] = "subscribed".into();
-                socket
-                    .send(Message::Text(ack.to_string().into()))
+                    .send(Message::Text(r#"{"type":"ready","domain":1,"eventTypes":["merkle_tree_insertion"],"historicalStreaming":false,"liveStartVersion":1}"#.into()))
                     .await
                     .expect("test operation");
                 connected.fetch_add(1, Ordering::SeqCst);
@@ -1321,7 +1289,7 @@ mod tests {
         wait_until(|| active.get() == 1).await;
         frames
             .send(Message::Text(
-                serde_json::json!({"type":"rollback"}).to_string().into(),
+                serde_json::json!({"type":"rollback","domain":1,"fromHeight":"100","toHeight":"99"}).to_string().into(),
             ))
             .await
             .expect("rollback");

@@ -3,7 +3,6 @@ import { ChainProvider } from '@cosmos-kit/react';
 import '@interchain-ui/react/styles';
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import '@rainbow-me/rainbowkit/styles.css';
-import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import {
   ConnectionProvider,
   WalletProvider,
@@ -105,7 +104,7 @@ function CosmosWalletProvider({ children }: PropsWithChildren<unknown>) {
 
 function SolanaWalletProvider({ children }: PropsWithChildren<unknown>) {
   return (
-    <ConnectionProvider endpoint={clusterApiUrl(WalletAdapterNetwork.Mainnet)}>
+    <ConnectionProvider endpoint={clusterApiUrl('mainnet-beta')}>
       <WalletProvider wallets={[]}>
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>

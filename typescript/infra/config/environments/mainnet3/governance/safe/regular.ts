@@ -17,7 +17,6 @@ export const regularSafes: ChainMap<Address> = {
 
   // Not in use after ICA 2.0 migration
   // berachain: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',
-  // blast: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',
   // fraxtal: '0x890ac177Fe3052B8676A65f32C1589Bc329f3d50',
   // hyperevm: '0x290Eb7bbf939A36B2c350a668c04815E49757eDC',
   // linea: '0x7379D7bB2ccA68982E467632B6554fD4e72e9431',

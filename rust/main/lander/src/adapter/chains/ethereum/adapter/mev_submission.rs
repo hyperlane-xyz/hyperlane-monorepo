@@ -33,7 +33,7 @@ pub(super) async fn preflight<T, E: Into<LanderError>>(
 ) -> Result<T, LanderError> {
     with_rpc_timeout(protected, request).await?.map_err(|err| {
         let err = err.into();
-        if protected {
+        if protected && !matches!(err, LanderError::NonRetryableError(_)) {
             warn!(?err, "Protected preflight failed; retrying later");
             LanderError::TxSubmissionDeferred
         } else {
@@ -448,6 +448,154 @@ mod tests {
                 );
                 assert_eq!(request.nonce, Some(1_u64.into()));
                 assert_eq!(tx.tx_hashes.len(), 1);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn already_delivered_rpc_reverts_drop_through_protected_inclusion() {
+        use crate::{
+            dispatcher::{DispatcherState, InclusionStage, InclusionStagePool},
+            DispatcherMetrics, PayloadStatus, TransactionDropReason,
+        };
+        use ethers::{
+            middleware::SignerMiddleware,
+            providers::{HttpClientError, JsonRpcClient, Provider},
+        };
+        use hyperlane_ethereum::{EthereumProvider, Signers};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Debug)]
+        struct EstimateRpc {
+            error: serde_json::Value,
+            estimates: Arc<AtomicUsize>,
+        }
+
+        #[async_trait::async_trait]
+        impl JsonRpcClient for EstimateRpc {
+            type Error = HttpClientError;
+
+            async fn request<T, R>(&self, method: &str, _params: T) -> Result<R, Self::Error>
+            where
+                T: std::fmt::Debug + serde::Serialize + Send + Sync,
+                R: serde::de::DeserializeOwned,
+            {
+                match method {
+                    "eth_estimateGas" => {
+                        self.estimates.fetch_add(1, Ordering::SeqCst);
+                        Err(HttpClientError::JsonRpcError(
+                            serde_json::from_value(self.error.clone()).unwrap(),
+                        ))
+                    }
+                    "eth_getBlockByNumber" => Ok(serde_json::from_value(
+                        serde_json::to_value(ethers::types::Block::<ethers::types::H256> {
+                            gas_limit: 30_000_000_u64.into(),
+                            ..Default::default()
+                        })
+                        .unwrap(),
+                    )
+                    .unwrap()),
+                    _ => panic!("Unexpected RPC call before terminal preflight: {method}"),
+                }
+            }
+        }
+
+        for (code, message, reason, terminal) in [
+            (
+                3,
+                "execution reverted: Mailbox: already delivered",
+                None,
+                true,
+            ),
+            (
+                -32000,
+                "execution reverted",
+                Some("Mailbox: already delivered"),
+                true,
+            ),
+            (
+                -32000,
+                "SERVER_BUSY: execution reverted: Mailbox: already delivered",
+                None,
+                false,
+            ),
+            (
+                3,
+                "execution reverted: Mailbox: already delivered",
+                Some("another revert"),
+                false,
+            ),
+        ] {
+            let mut adapter = adapter(0, 0, false);
+            let estimates = Arc::new(AtomicUsize::new(0));
+            let data = reason.map(|reason| {
+                let mut encoded = ethers::utils::id("Error(string)").to_vec();
+                encoded.extend(ethers::abi::encode(&[Token::String(reason.into())]));
+                serde_json::to_value(ethers::types::Bytes::from(encoded)).unwrap()
+            });
+            let rpc = EstimateRpc {
+                error: serde_json::json!({ "code": code, "message": message, "data": data }),
+                estimates: estimates.clone(),
+            };
+            adapter.mev_submission.as_mut().unwrap().provider = Arc::new(EthereumProvider::new(
+                Arc::new(SignerMiddleware::new(
+                    Provider::new(rpc),
+                    Signers::Local(wallet()),
+                )),
+                adapter.domain.clone(),
+            ));
+            let reveal = payload(2, ROUTER, MAILBOX);
+            adapter
+                .payload_db
+                .store_payload_by_uuid(&reveal)
+                .await
+                .unwrap();
+            let built = adapter.build_transactions(&[reveal]).await;
+            let tx = built[0].maybe_tx.as_ref().unwrap();
+            let (_, tx_db, _) = tmp_dbs();
+            let state = DispatcherState::new(
+                adapter.payload_db.clone(),
+                tx_db,
+                Arc::new(adapter),
+                DispatcherMetrics::dummy_instance(),
+                "test".into(),
+            );
+            let pool = InclusionStagePool::default();
+            pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+            let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
+            tokio::time::timeout(
+                Duration::from_secs(1),
+                InclusionStage::process_txs_step(&pool, &sender, &state, "test"),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+
+            assert_eq!(estimates.load(Ordering::SeqCst), 1);
+            assert!(receiver.try_recv().is_err());
+            assert_eq!(pool.lock().await.is_empty(), terminal);
+            let stored = state
+                .tx_db
+                .retrieve_transaction_by_uuid(&tx.uuid)
+                .await
+                .unwrap()
+                .unwrap();
+            if terminal {
+                assert!(matches!(&stored.status,
+                    TransactionStatus::Dropped(TransactionDropReason::Other(reason))
+                        if reason.contains("Mailbox: already delivered")));
+            } else {
+                assert_eq!(stored.status, TransactionStatus::PendingInclusion);
+            }
+            for detail in &tx.payload_details {
+                assert_eq!(
+                    state
+                        .payload_db
+                        .retrieve_payload_status_by_uuid(&detail.uuid)
+                        .await
+                        .unwrap(),
+                    Some(PayloadStatus::InTransaction(stored.status.clone())),
+                );
             }
         }
     }

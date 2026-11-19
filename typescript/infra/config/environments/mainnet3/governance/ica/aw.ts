@@ -17,8 +17,6 @@ export const awIcas: ChainMap<Address> = {
   avalanche: '0xe9232de913DfB7AC5E3e8dC3c3f48e2b7480889D',
   base: '0x61756c4beBC1BaaC09d89729E2cbaD8BD30c62B7',
   berachain: '0x602C75F468df1AC861862D8fdBFdf5f08d8Bdb88',
-  blast: '0xc242beF1ffd95C1b3B7e8d6bB87947d3ADb335Ad',
-  bob: '0xcBbB0A004177f12672fF02837AEB25d04bE74621',
   bsc: '0x269Af9E53192AF49a22ff47e30b89dE1375AE1fd',
   celo: '0x0691c077d180ca7615911b65DE4fA0B313d75aDd',
   coti: '0xBC6Fae7e5e18624F5892399BA29705e039E4c9fD',
@@ -29,7 +27,6 @@ export const awIcas: ChainMap<Address> = {
   ink: '0x92EdF061E46Dcf15941CA4D5F2d168f643079343',
   katana: '0x956993Aee1CFFA32942b5ddC6Db2E8620b85cfbC',
   linea: '0x7b3d694BdeAE8F496Cc5eD0736c5f734cd231079',
-  lisk: '0x7cB0e36Ec34C7c97A270bcBF64d4c967A22f1371',
   lukso: '0x4FE49931D3577c64B94cD1f1040A9781D41ACf95',
   mantle: '0x352A39EeeFCaaf13b157F869AD8ed69e7cf0a340',
   metal: '0x0F6c9f5753f03748fB61A8C7b038f1D7C2240C10',
@@ -78,15 +75,9 @@ export const awIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   citrea: '0x682bc0Aca87491ECB3683911996F1d573F989141',
 
-  // May 25, 2026
-  // ----------------------------------------------------------
-  nesa: '0x1A41fdB5908A7bb48d923cc184402ef750c57C0b',
-
   // Jun 18, 2026
   // ----------------------------------------------------------
-  nexus: '0x488d1a010318941bF420FfcDc7aa8312b943C21E',
   robinhood: '0xaE3B79d7c9FBE5905fc5638Bb070dd356513d6fc',
-  tea: '0xD7CfFFE7B51B2113B959A8EbA6c40F338eD8A4d5',
 
   // Sep 10, 2026
   // ----------------------------------------------------------

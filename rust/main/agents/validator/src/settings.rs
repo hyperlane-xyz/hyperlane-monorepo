@@ -274,6 +274,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                     eyre::eyre!("`websocketUrl` must use ws:// or wss://"),
                 );
             }
+            if url.path() != "/validators" || url.query().is_some() {
+                err.push(
+                    cwp.clone(),
+                    eyre::eyre!("`websocketUrl` must use /validators without query parameters"),
+                );
+            }
         }
 
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
@@ -628,7 +634,7 @@ mod test {
     fn validator_settings_fixture() -> Value {
         serde_json::json!({
             "originchainname": "test",
-            "websocketurl": "wss://scraper.example/events",
+            "websocketurl": "wss://scraper.example/validators",
             "validator": {"type": "hexKey", "key": format!("0x{}", "11".repeat(32))},
             "checkpointsyncer": {"type": "localStorage", "path": "/tmp/validator-checkpoints"},
             "chains": {"test": {
@@ -644,6 +650,24 @@ mod test {
                 "merkletreehook": "0x0000000000000000000000000000000000000004"
             }}
         })
+    }
+
+    #[test]
+    fn rejects_invalid_validator_websocket_paths_at_startup() {
+        for url in [
+            "wss://scraper.example/agents",
+            "wss://scraper.example/validators?domain=1",
+        ] {
+            let mut raw = validator_settings_fixture();
+            raw["websocketurl"] = url.into();
+            let result = ValidatorSettings::from_config_filtered(
+                RawValidatorSettings(raw.into()),
+                &ConfigPath::default(),
+                (),
+                "validator",
+            );
+            assert!(result.is_err());
+        }
     }
 
     #[test]

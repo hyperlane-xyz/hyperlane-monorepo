@@ -2,8 +2,10 @@ use std::{
     cmp::Ordering,
     env,
     fmt::{Debug, Display},
+    future::Future,
     io::Write,
     ops::Mul,
+    pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -25,6 +27,20 @@ use crate::{
 
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
+
+/// A prepare attempt that finished or yielded its slot while collecting signatures.
+pub enum QueuePrepareResult {
+    /// Preparation finished with the usual operation result.
+    Complete(PendingOperationResult),
+    /// Drive the outstanding metadata work, then queue the operation for preparation again.
+    WaitingForSignatures(Pin<Box<dyn Future<Output = ()> + Send + 'static>>),
+}
+
+impl From<PendingOperationResult> for QueuePrepareResult {
+    fn from(result: PendingOperationResult) -> Self {
+        Self::Complete(result)
+    }
+}
 
 /// Protocol-neutral progress through transaction submission.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -143,6 +159,11 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// submission and will usually have a very short gap between it and the
     /// submit call.
     async fn prepare(&mut self) -> PendingOperationResult;
+
+    /// Prepare in a queue that may have room to park an operation awaiting signatures.
+    async fn prepare_for_queue(&mut self, _can_park: bool) -> QueuePrepareResult {
+        QueuePrepareResult::Complete(self.prepare().await)
+    }
 
     /// Submit this operation to the blockchain
     async fn submit(&mut self) -> PendingOperationResult;

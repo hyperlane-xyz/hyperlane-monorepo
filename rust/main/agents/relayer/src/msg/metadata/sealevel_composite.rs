@@ -155,7 +155,10 @@ async fn build_metadata_from_spec_inner(
                     .iter()
                     .enumerate()
                     .map(|(index, sub_spec)| async move {
-                        let child = builder.child(index, builder.root_ism);
+                        let mut child = builder.child(index, builder.root_ism);
+                        if threshold_usize < ism_count {
+                            child.signature_poll_retry = None;
+                        }
                         let is_null = matches!(sub_spec, CompositeIsmMetadataSpec::Null);
                         let result =
                             build_metadata_from_spec(sub_spec, message, &child, relayer_pubkey)
@@ -167,9 +170,14 @@ async fn build_metadata_from_spec_inner(
 
             // Refused (e.g. reorg) is a hard stop — never satisfy threshold with a
             // different branch when a validator has flagged a reorg.
-            for (_, result) in sub_results_raw.iter() {
-                if let Err(e @ MetadataBuildError::Refused(_)) = result {
-                    return Err(e.clone());
+            let mut exhausted_retries = None;
+            for (_, result) in &sub_results_raw {
+                match result {
+                    Err(e @ MetadataBuildError::Refused(_)) => return Err(e.clone()),
+                    Err(MetadataBuildError::RetryLimitReached(count)) => {
+                        exhausted_retries = exhausted_retries.max(Some(*count));
+                    }
+                    _ => {}
                 }
             }
 
@@ -189,7 +197,10 @@ async fn build_metadata_from_spec_inner(
                 .filter(|(is_null, r)| *is_null && r.is_some())
                 .count();
             if non_null_count.saturating_add(null_count) < threshold_usize {
-                return Err(MetadataBuildError::CouldNotFetch);
+                return Err(exhausted_retries.map_or(
+                    MetadataBuildError::CouldNotFetch,
+                    MetadataBuildError::RetryLimitReached,
+                ));
             }
 
             // Decide which entries to pack:

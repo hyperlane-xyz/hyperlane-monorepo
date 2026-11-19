@@ -21,8 +21,6 @@ export const regularIcas: ChainMap<Address> = {
   apechain: '0x0880453D948E4D2a06F40c6Cf4eF33E4e938411f',
   avalanche: '0x66C21CFa8b765318a458435519A31A5cf0F7Ae4b',
   berachain: '0xb6DD23C2Bef77e90DdDBeEdEa29a56880ED750f0',
-  blast: '0x59C89E3f2481C8c062E7DeEFFF70B75fbBd0b89a',
-  bob: '0x2282ef5C6654DF3796ccc3e6A1AE33c40801E89D',
   celo: '0x39feCE4cA4b41bd2dfA886A6cB08353A42DbB6E3',
   coti: '0x41A362f117D4EbE2680F6d4E37ddC5454dc5f07a',
   fraxtal: '0xc96634cdc475FfC7702f123EFD77cB43c861956b',
@@ -32,7 +30,6 @@ export const regularIcas: ChainMap<Address> = {
   ink: '0x20b3D70fA3d7B69Aba42b0bA9D8F25Ee0C656e78',
   katana: '0x53dE35b799fD29B129E683E43ef31cEEB3b88D22',
   linea: '0x999bD2da1f24aece8c558E54350FB06eF8ceFe5C',
-  lisk: '0xe1D145f3c539f287789D6f8C6Bc010a1fECdb259',
   lukso: '0x5045dE416efC1738046E26Bf30dfEf9CB60C8de7',
   mantle: '0x556C39820DBBB3Cd6f4c164CD91F755f89Ac8c62',
   metal: '0x1547282562E9b32561C7bdD41cAfB5ce89Ff08dA',
@@ -65,7 +62,6 @@ export const regularIcas: ChainMap<Address> = {
   // Sept 22, 2025
   // ----------------------------------------------------------
   zerogravity: '0x53FEEdcF42C1aACFeC3FA6Da573a3470FcD5C658',
-  mantra: '0x6b3353A453689a92aE3138c4d26e4eaD894b39D8',
 
   // Oct 2, 2025
   // ----------------------------------------------------------
@@ -75,7 +71,6 @@ export const regularIcas: ChainMap<Address> = {
   // Dec 4, 2025
   // ----------------------------------------------------------
   stable: '0x669385086e9Bb39aa29653eaACB0F169066c89C5',
-  somnia: '0xe26f1A5681088b7dCd53c00C9a19143e8bA543Ec',
   lazai: '0xDFEa2EB38AA77EE41D50794aFaA34463EEabD4BB',
   megaeth: '0x8D628b83A2F915fab39f7F09e0cF7A3ea8F9bF42',
 
@@ -99,15 +94,9 @@ export const regularIcas: ChainMap<Address> = {
   fluent: '0x50c0D2A50A9d4143c856D9323228F2C7fa63906f',
   kiichain: '0x50c0D2A50A9d4143c856D9323228F2C7fa63906f',
 
-  // May 25, 2026
-  // ----------------------------------------------------------
-  nesa: '0x661a4896f7f8B203E23e326500f754b9ED9571Eb',
-
   // Jun 18, 2026
   // ----------------------------------------------------------
-  nexus: '0xCc00d7F9aa7124ee0D9Ad366dd8C632266075A53',
   robinhood: '0x0e7E5D38695d7939303244AD56ace1eeA263DcE8',
-  tea: '0x561B8D19712dB57cd52bbD8dc3F3327Ce0A1aF49',
 
   // Aug 29, 2026
   // ----------------------------------------------------------

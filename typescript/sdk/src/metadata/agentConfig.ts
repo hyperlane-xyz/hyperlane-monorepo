@@ -921,9 +921,21 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
     .refine((url) => WEBSOCKET_URL_PREFIX_REGEX.test(url), {
       message: 'Must use ws:// or wss://',
     })
+    .refine((value) => {
+      try {
+        const url = new URL(value);
+        // URL.search is empty for a bare '?', which Rust also rejects.
+        return (
+          url.pathname === '/validators' &&
+          !url.href.split('#', 1)[0].includes('?')
+        );
+      } catch {
+        return false;
+      }
+    }, 'Must use /validators without query parameters')
     .optional()
     .describe(
-      'Live Merkle tree insertion source. RPC indexes history and recovers gaps, then pauses once an overlapping insertion matches.',
+      'Live Merkle tree insertions from /validators without query parameters. RPC indexes history and recovers gaps before an RPC-verified live-start handoff. Checkpoint roots are verified through configured RPCs before signing.',
     ),
 });
 

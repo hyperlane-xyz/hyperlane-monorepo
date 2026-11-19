@@ -16,6 +16,7 @@ const DeploymentMetadataSchema = z.strictObject({
     .regex(/^sha256:[a-f0-9]{64}$/)
     .optional(),
   swapsXyzApiKeySecret: z.string().min(1).optional(),
+  relayApiKeySecret: z.string().min(1).optional(),
   registryCommit: z
     .string()
     .regex(/^[a-f0-9]{40}$/)

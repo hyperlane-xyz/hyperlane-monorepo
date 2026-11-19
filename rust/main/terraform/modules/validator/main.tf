@@ -10,7 +10,7 @@ module "iam_kms" {
 }
 
 # Creates bucket for posting validator signatures
-# Replaces https://docs.hyperlane.xyz/docs/operate/validators/validator-aws
+# Replaces https://docs.hyperlane.xyz/docs/operate/validators/validator-signatures-aws
 module "s3" {
   source = "../s3"
 

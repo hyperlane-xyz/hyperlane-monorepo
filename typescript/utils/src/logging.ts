@@ -7,7 +7,7 @@ import { inKubernetes, safelyAccessEnvVar } from './env.js';
 export type { Logger };
 
 // Level and format here should correspond with the agent options as much as possible
-// https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
+// https://docs.hyperlane.xyz/docs/operate/config/config-reference#log-format
 
 // A custom enum definition because pino does not export an enum
 // and because we use 'off' instead of 'silent' to match the agent options
@@ -202,4 +202,49 @@ export async function createServiceLogger(options: {
 
   // For local development, create a child logger with module info
   return rootLogger.child({ module: module ?? service });
+}
+
+export const REDACTED_URL = '<redacted-url>';
+export const REDACTED_HOST = '<redacted-host>';
+
+// ethers embeds the RPC url and the resolved hostname in provider error
+// messages (e.g. `url="https://host/<api key>"`, `"hostname":"host"`), and RPC
+// urls can carry credentials. Bracketed (IPv6) host segments are matched whole;
+// otherwise `)`, `]` and `}` end the url so stack frames keep their closer.
+const URL_PATTERN =
+  /\b[a-z][a-z0-9+.-]*:\/\/(?:\[[^[\]\s"'`<>]*\]|[^\s"'`<>)\]}])+/gi;
+const JSON_HOSTNAME_PATTERN = /("hostname"\s*:\s*")[^"]*"/gi;
+const ASSIGNED_HOSTNAME_PATTERN = /(\bhostname=)[^\s,)}]+/gi;
+
+export function redactSecrets(text: string): string {
+  return text
+    .replace(URL_PATTERN, REDACTED_URL)
+    .replace(JSON_HOSTNAME_PATTERN, `$1${REDACTED_HOST}"`)
+    .replace(ASSIGNED_HOSTNAME_PATTERN, `$1${REDACTED_HOST}`);
+}
+
+export function redactErrorMessage(error: unknown): string {
+  if (error instanceof Error) return redactSecrets(error.message);
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof error.message === 'string'
+  ) {
+    return redactSecrets(error.message);
+  }
+  return redactSecrets(String(error));
+}
+
+/**
+ * Redacts the error message inside the stack. The frames, whose `file://`
+ * locations match the url pattern, are kept when the stack contains the
+ * message; otherwise the whole stack is redacted.
+ */
+export function redactErrorStack(error: unknown): string | undefined {
+  if (!(error instanceof Error) || error.stack === undefined) return undefined;
+  const { message, stack } = error;
+  if (message === '') return stack;
+  if (!stack.includes(message)) return redactSecrets(stack);
+  return stack.split(message).join(redactSecrets(message));
 }

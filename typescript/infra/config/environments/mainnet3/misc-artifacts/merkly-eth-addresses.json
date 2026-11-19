@@ -38,9 +38,6 @@
   "taiko": {
     "router": "0xb08ab8cBd0226D8335fB0Cb88ce47FAfC9C47096"
   },
-  "bob": {
-    "router": "0xEF62b433Ca3AC8b151c4a255de3eD3dA4e60AdD2"
-  },
   "worldchain": {
     "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
   }

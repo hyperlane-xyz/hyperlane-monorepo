@@ -11,6 +11,8 @@ use tracing::warn;
 
 use crate::store::{txn_id_for_meta, HyperlaneDbStore};
 
+use super::metrics::ReadPermit;
+
 const INITIAL_BACKOFF_SECONDS: i64 = 60;
 const MAX_BACKOFF_SECONDS: i64 = 15 * 60;
 // At roughly 100 bytes per HashMap entry, 1,000 tracked retries per chain bounds the 76-chain
@@ -25,7 +27,7 @@ pub(super) struct PageResult {
     pub skipped_backoff_count: usize,
     pub untracked_count: usize,
     pub stored_count: u32,
-    pub next_after_id: i64,
+    pub next_after_id: Option<i64>,
 }
 
 #[derive(Debug, Default)]
@@ -132,45 +134,54 @@ impl RetryBackoff {
 }
 
 impl HyperlaneDbStore {
-    pub(super) async fn latest_reconcilable_raw_dispatch_id(&self) -> Result<i64> {
-        self.db
-            .latest_reconcilable_raw_dispatch_id(self.domain.id(), &self.mailbox_address)
+    pub(super) async fn latest_reconcilable_raw_dispatch_id(
+        &self,
+        permit: ReadPermit,
+    ) -> Result<i64> {
+        permit
+            .read(
+                self.db
+                    .latest_reconcilable_raw_dispatch_id(self.domain.id(), &self.mailbox_address),
+            )
             .await
     }
 
     pub(super) async fn reconcile_page(
         &self,
+        permit: ReadPermit,
         after_id: i64,
         through_id: i64,
         limit: u64,
         retry_backoff: &mut RetryBackoff,
     ) -> Result<PageResult> {
-        let raw_dispatches = self
-            .db
-            .retrieve_unenriched_raw_dispatches(
+        let (raw_dispatches, next_after_id) = permit
+            .read(self.db.retrieve_unenriched_raw_dispatches(
                 self.domain.id(),
                 &self.mailbox_address,
                 after_id,
                 through_id,
                 limit,
-            )
+            ))
             .await?;
-        self.reconcile_candidates(raw_dispatches, retry_backoff)
-            .await
+        let mut result = self
+            .reconcile_candidates(raw_dispatches, retry_backoff)
+            .await?;
+        result.next_after_id = next_after_id;
+        Ok(result)
     }
 
     pub(super) async fn retry_dispatches(
         &self,
+        permit: ReadPermit,
         raw_ids: &[i64],
         retry_backoff: &mut RetryBackoff,
     ) -> Result<PageResult> {
-        let raw_dispatches = self
-            .db
-            .retrieve_unenriched_raw_dispatches_by_ids(
+        let raw_dispatches = permit
+            .read(self.db.retrieve_unenriched_raw_dispatches_by_ids(
                 self.domain.id(),
                 &self.mailbox_address,
                 raw_ids,
-            )
+            ))
             .await?;
         let returned_raw_ids = raw_dispatches
             .iter()
@@ -192,11 +203,6 @@ impl HyperlaneDbStore {
         if raw_dispatches.is_empty() {
             return Ok(PageResult::default());
         }
-        let next_after_id = raw_dispatches
-            .iter()
-            .map(|raw_dispatch| raw_dispatch.raw_id)
-            .max()
-            .ok_or_else(|| eyre::eyre!("non-empty reconciliation page has no maximum raw id"))?;
         let skipped_backoff_count = raw_dispatches
             .iter()
             .filter(|raw_dispatch| !retry_backoff.should_attempt(raw_dispatch.raw_id, now))
@@ -210,7 +216,6 @@ impl HyperlaneDbStore {
             return Ok(PageResult {
                 candidate_count: raw_dispatches.len(),
                 skipped_backoff_count,
-                next_after_id,
                 ..Default::default()
             });
         }
@@ -289,7 +294,7 @@ impl HyperlaneDbStore {
             skipped_backoff_count,
             untracked_count,
             stored_count: stored as u32,
-            next_after_id,
+            next_after_id: None,
         })
     }
 }

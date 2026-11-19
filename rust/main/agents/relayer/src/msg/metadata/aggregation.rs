@@ -42,6 +42,7 @@ enum ModuleBuildOutcome {
     Refused(MetadataBuildRefused),
     /// Build failed because validator signatures aren't collected yet.
     AwaitingSignatures,
+    RetryLimitReached(u32),
     /// Build failed for another reason, or dry_run_verify returned None/Err.
     Failed,
     /// Built successfully and passed dry_run_verify with the given gas estimate.
@@ -249,11 +250,15 @@ impl AggregationIsmMetadataBuilder {
         ism_address: H256,
         ism_count: usize,
     ) -> Result<Metadata, MetadataBuildError> {
+        let mut child = self.base.child(ism_index, ism_address);
+        if ism_count > 1 {
+            child.signature_poll_retry = None;
+        }
         let sub_module_and_meta = message_builder::build_message_metadata(
-            self.base.child(ism_index, ism_address),
+            child,
             ism_address,
             message,
-            params.clone(),
+            params,
             Some((ism, ModuleType::MessageIdMultisig)),
         )
         .await?;
@@ -328,6 +333,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             Err(MetadataBuildError::Refused(reason)) => {
                 return Err(MetadataBuildError::Refused(reason));
             }
+            Err(err @ MetadataBuildError::RetryLimitReached(_)) if ism_addresses.len() == 1 => {
+                return Err(err);
+            }
             Err(err @ MetadataBuildError::AwaitingValidatorSignatures) => {
                 debug!(
                     ?err,
@@ -367,6 +375,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                         Err(MetadataBuildError::AwaitingValidatorSignatures) => {
                             ModuleBuildOutcome::AwaitingSignatures
                         }
+                        Err(MetadataBuildError::RetryLimitReached(count)) => {
+                            ModuleBuildOutcome::RetryLimitReached(count)
+                        }
                         Err(_) => ModuleBuildOutcome::Failed,
                         Ok(sub) => {
                             match self.verify_submodule(message, addr, &sub, index).await {
@@ -388,6 +399,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let mut err_sub_modules: Vec<(H256, Option<ModuleType>)> = Vec::new();
         let mut has_any_error = false;
         let mut all_errors_awaiting = true;
+        let mut exhausted_retries = None;
 
         while let Some((ism_address, outcome)) = pending.next().await {
             match outcome {
@@ -401,6 +413,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                     has_any_error = true;
                     err_sub_modules.push((ism_address, None));
                     // all_errors_awaiting stays true
+                }
+                ModuleBuildOutcome::RetryLimitReached(count) => {
+                    exhausted_retries = exhausted_retries.max(Some(count));
                 }
                 ModuleBuildOutcome::Failed => {
                     has_any_error = true;
@@ -434,6 +449,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         // can't reach threshold without them, propagate AwaitingValidatorSignatures so
         // the relayer uses the 1 s fast-path backoff instead of the normal 5 s→… ramp.
         if metas_and_gas.len() < threshold {
+            if let Some(count) = exhausted_retries {
+                return Err(MetadataBuildError::RetryLimitReached(count));
+            }
             if has_any_error && all_errors_awaiting {
                 return Err(MetadataBuildError::AwaitingValidatorSignatures);
             }

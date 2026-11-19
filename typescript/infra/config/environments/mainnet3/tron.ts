@@ -34,7 +34,6 @@ export const TRON_CONNECTED_CHAINS = [
   'unichain',
   'polygon',
   'soneium',
-  'lisk',
   'plasma',
   'citrea',
   'eclipsemainnet',

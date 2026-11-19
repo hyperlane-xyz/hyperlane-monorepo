@@ -11,7 +11,6 @@ minimumReleaseAgeExclude:
   - '@oxlint/*'
   - oxfmt
   - oxlint
-  - zod@4.5.4
   - '@turbo/darwin-64@2.10.12'
   - '@turbo/darwin-arm64@2.10.12'
   - '@turbo/linux-64@2.10.12'
@@ -46,7 +45,7 @@ catalog:
   '@google-cloud/pino-logging-gcp-config': ^1.3.5
 
   # Validation
-  zod: ^4.5.4
+  zod: ^4.6.7
 
   # HTTP
   '@fastify/cors': ^11.3.0
@@ -58,7 +57,7 @@ catalog:
   # Utilities
   bignumber.js: ^9.1.1
   bs58: ^6.0.0
-  yaml: 2.4.5
+  yaml: 2.9.1
   lodash-es: ^4.17.21
   borsh: ^0.7.0
   compare-versions: ^6.1.1
@@ -196,18 +195,18 @@ catalog:
   # Other dev tools
   yargs: ^17.7.2
   chalk: ^5.3.0
-  # 7.9 pulls React 19 types into the React 18 widget build.
-  '@prisma/adapter-pg': 7.8.0
-  '@prisma/client': 7.8.0
-  prisma: 7.8.0
+  # Keep the Prisma packages on the same release.
+  '@prisma/adapter-pg': 7.10.1
+  '@prisma/client': 7.10.1
+  prisma: 7.10.1
 overrides:
   # Keep WASM aligned with the SDK's Aleo consensus fee model. The v1.1.0
   # wasm 0.12 requires 22 test consensus heights. The aleo-tools devnode still
   # uses 17; keep its TEST_ALEO_ENV schedule unchanged until the image is rebuilt.
   '@provablehq/wasm': 0.12.0
-  # miniflare pins undici 7.30.1. The undici override below forces it onto 5,
-  # and wrangler dev then stops answering requests.
-  miniflare>undici: 7.30.1
+  # miniflare pins undici 7.30.1; 7.30.2 fixes six advisories in it,
+  # including GHSA-mqg3-3v4r-cm32.
+  miniflare>undici: 7.30.2
   '@types/react': 18.3.27
   '@types/react-dom': 18.3.7
   async: ^2.6.4
@@ -219,10 +218,25 @@ overrides:
   react-dom: 18.3.1
   recursive-readdir: ^2.2.3
   underscore: ^1.13
-  undici: ^5.11
+  undici@5: ^6.29.1
   '@babel/parser': ^7.22.7
   '@typechain/ethers-v5': 11.1.2
   xmlhttprequest-ssl: 4.0.0
+  # Patched versions for transitive dependencies that pin vulnerable releases.
+  # `pkg@range` applies to any dependent whose requested range overlaps it;
+  # where that line has no fix, the override moves to the next major.
+  axios@1: ^1.20.0
+  bn.js@4: ^4.12.3
+  cookie@0.4: ^0.7.0
+  diff@7: ^8.0.3
+  form-data@2: ^2.5.6
+  qs@6: ^6.16.1
+  serialize-javascript@6: ^7.1.3
+  tinypool@2: ^2.1.2
+  tmp@0.0: ^0.2.6
+  tough-cookie@2: ^4.1.3
+  ws@8: ^8.21.3
+  yargs-parser@2: ^5.0.1
 packageExtensions:
   # Registry exports Pino types but currently lists Pino only as a dev dependency.
   '@hyperlane-xyz/registry@*':

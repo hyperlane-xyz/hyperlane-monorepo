@@ -94,6 +94,11 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
 pub trait SequenceAwareIndexer<T>: Indexer<T> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
+
+    /// Return the sequence count at a specific block, or None when unsupported.
+    async fn sequence_count_at_block(&self, _block: u32) -> ChainResult<Option<u32>> {
+        Ok(None)
+    }
 }
 
 /// Parse an EVM hex-encoded transaction hash string into an [`H512`].

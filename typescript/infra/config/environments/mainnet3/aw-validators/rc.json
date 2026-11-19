@@ -32,9 +32,6 @@
   "linea": {
     "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
   },
-  "lisk": {
-    "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
-  },
   "lukso": {
     "validators": ["0xf2028e9b93249c4a4310aeefae5c60d4915725af"]
   },

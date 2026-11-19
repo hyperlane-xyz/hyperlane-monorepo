@@ -6,6 +6,14 @@ import { MessageStage, MessageStatus } from '../messages/types.js';
 
 const meta = {
   title: 'MessageTimeline',
+  // react-docgen doesn't resolve imported enums, so list their values here.
+  argTypes: {
+    status: { control: 'radio', options: Object.values(MessageStatus) },
+    stage: {
+      control: 'radio',
+      options: Object.values(MessageStage).filter((v) => typeof v === 'number'),
+    },
+  },
   component: MessageTimeline,
 } satisfies Meta<typeof MessageTimeline>;
 export default meta;

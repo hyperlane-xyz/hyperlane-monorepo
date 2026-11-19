@@ -39,8 +39,14 @@ to `majority`.
 `websocketUrl` is optional. Omit it to retain ordinary RPC-only indexing. When
 provided, it subscribes only to live `merkle_tree_insertion` events. Numeric
 reorg periods request the same scraper confirmation depth; block tags use the
-scraper's canonical stream. No validator subscription sends replay cursors or
-waits for `caught_up` markers.
+scraper's canonical stream. Configure a query-free `ws://` or `wss://` URL ending
+in `/validators`; other paths fail startup validation. No validator subscription
+sends replay cursors or waits for `caught_up` markers.
+
+HTTP upgrade rejections, policy mismatches and WebSocket 1008 closes use a
+five-minute retry base while RPC indexing continues. Transient 1013 closes and
+transport failures retain the ordinary short retry interval.
+Retries include random per-process jitter.
 
 RPC indexing starts immediately and fills historical gaps, including after every
 WebSocket disconnect. The validator buffers up to 4,096 consecutive live insertions

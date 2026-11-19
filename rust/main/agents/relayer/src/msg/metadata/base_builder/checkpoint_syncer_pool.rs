@@ -2,7 +2,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
-    settings::{CheckpointSyncerBuildError, CheckpointSyncerConf},
+    settings::CheckpointSyncerConf,
 };
 use hyperlane_core::H256;
 use moka::future::Cache;
@@ -64,7 +64,7 @@ impl CheckpointSyncerPool {
         origin_domain_name: String,
         validator: H256,
         storage_location: String,
-    ) -> Result<PooledCheckpointSyncer, CheckpointSyncerBuildError> {
+    ) -> eyre::Result<PooledCheckpointSyncer> {
         let key = CheckpointSyncerPoolKey {
             origin_domain_name: origin_domain_name.clone(),
             validator,
@@ -77,7 +77,7 @@ impl CheckpointSyncerPool {
             .await;
 
         cell.get_or_try_init(|| async {
-            let inner = config.build_and_validate(None).await?;
+            let inner = config.build_for_reading().await?;
             Ok(Arc::new(CachedCheckpointSyncer::new(
                 inner,
                 cache,

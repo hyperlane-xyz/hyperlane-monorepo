@@ -421,5 +421,54 @@ describe('ExplorerClient', () => {
         ),
       ).to.be.rejectedWith('Explorer query failed: 500');
     });
+
+    it('throws on GraphQL errors returned with HTTP 200', async () => {
+      const getProtocol = Sinon.stub().returns(ProtocolType.Ethereum);
+      const client = new ExplorerClient('https://explorer.test', getProtocol);
+
+      fetchStub.resolves(
+        new Response(
+          JSON.stringify({
+            data: null,
+            errors: [{ message: 'Unsupported history filter' }],
+          }),
+          { status: 200 },
+        ),
+      );
+
+      await expect(
+        client.getInflightUserTransfers(
+          {
+            routersByDomain: {
+              1: '0x5a0e13290ec57f5e9031d01d03c6a40029cc24ea',
+            },
+            excludeTxSenders: [],
+          },
+          testLogger,
+        ),
+      ).to.be.rejectedWith('Unsupported history filter');
+    });
+
+    it('throws when the response has no message_view rows', async () => {
+      const getProtocol = Sinon.stub().returns(ProtocolType.Ethereum);
+      const client = new ExplorerClient('https://explorer.test', getProtocol);
+
+      fetchStub.resolves(
+        new Response(JSON.stringify({ data: {} }), { status: 200 }),
+      );
+
+      await expect(
+        client.getInflightRebalanceActions(
+          {
+            bridges: ['0x1234567890abcdef1234567890abcdef12345678'],
+            routersByDomain: {
+              1: '0x5a0e13290ec57f5e9031d01d03c6a40029cc24ea',
+            },
+            rebalancerAddress: '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+          },
+          testLogger,
+        ),
+      ).to.be.rejectedWith('no message_view rows');
+    });
   });
 });

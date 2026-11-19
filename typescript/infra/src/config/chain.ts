@@ -74,14 +74,10 @@ export const legacyIgpChains: ChainName[] = Array.from(
 // unsupported or have known issues.
 export const chainsToSkip: ChainName[] = [
   // not AW owned
-  'forma',
   'eden',
 
   // ZKSync stack chains
   'abstract',
-
-  // temp during downtime
-  'nesa',
 
   ...getDisabledChains(),
 ];
