@@ -256,6 +256,20 @@ struct OffchainResponse {
     data: String,
 }
 
+/// The failure reason of an offchain lookup response.
+///
+/// Servers report failures as `{"error": "<reason>"}` (ccip-server) or
+/// `{"message": "<reason>"}` (EIP-3668). Only that field is kept: the rest of
+/// the body, `data` in particular, can carry secrets (e.g. an ICA
+/// commit-reveal preimage), and a body that is not valid JSON cannot be
+/// stripped of them.
+fn server_error_reason(response_body: &str) -> Option<String> {
+    let body: serde_json::Value = serde_json::from_str(response_body).ok()?;
+    ["error", "message"]
+        .into_iter()
+        .find_map(|field| body.get(field)?.as_str().map(str::to_owned))
+}
+
 #[derive(Clone, Debug, new, Deref)]
 pub struct CcipReadIsmMetadataBuilder {
     base: MessageMetadataBuilder,
@@ -657,13 +671,15 @@ async fn read_response_body(mut res: reqwest::Response) -> Result<String, Metada
 fn decode_response_data(data: &str) -> Result<Metadata, Box<MetadataBuildError>> {
     let hex_data = data.strip_prefix("0x").ok_or_else(|| {
         Box::new(MetadataBuildError::FailedToBuild(format!(
-            "Offchain lookup server response data is missing the 0x prefix: ({data})"
+            "Offchain lookup server response data is missing the 0x prefix ({} bytes)",
+            data.len()
         )))
     })?;
 
     let metadata = hex_decode(hex_data).map_err(|err| {
         Box::new(MetadataBuildError::FailedToBuild(format!(
-            "Failed to decode hex from offchain lookup server response: err: ({err}), data: ({data})"
+            "Failed to decode hex from offchain lookup server response: err: ({err}), data: ({} bytes)",
+            data.len()
         )))
     })?;
     Ok(Metadata::new(metadata))
@@ -748,13 +764,6 @@ async fn fetch_offchain_data(
     let response_body = read_response_body(res).await.inspect_err(|_| {
         activity.report(OffchainReadState::BodyReadFailed, Some(status.as_u16()));
     })?;
-    tracing::debug!(
-        response = response_body,
-        status = status.as_u16(),
-        ?message_id,
-        "Received response from offchain lookup server"
-    );
-
     decode_offchain_response(activity, status, &response_body).map_err(|outcome| *outcome)
 }
 
@@ -763,6 +772,15 @@ fn decode_offchain_response(
     status: reqwest::StatusCode,
     response_body: &str,
 ) -> Result<Metadata, Box<FetchOutcome>> {
+    // The body can carry secrets (e.g. an ICA commit-reveal preimage): never
+    // log it or copy it into an error; see `server_error_reason`.
+    tracing::debug!(
+        response_len = response_body.len(),
+        status = status.as_u16(),
+        message_id = ?activity.message.id(),
+        "Received response from offchain lookup server"
+    );
+
     if body_signals_pending(response_body) {
         // Keep the transition to pending, not every one-second internal retry.
         if activity.attempt == 1 {
@@ -776,15 +794,23 @@ fn decode_offchain_response(
         activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
         return Err(Box::new(FetchOutcome::Failed(
             MetadataBuildError::FailedToBuild(format!(
-                "Offchain lookup server returned 404: {response_body}"
+                "Offchain lookup server returned 404 ({} bytes), reason: {:?}",
+                response_body.len(),
+                server_error_reason(response_body)
             )),
         )));
     }
 
     let json: OffchainResponse = serde_json::from_str(response_body).map_err(|err| {
         activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
+        // serde_json's message can quote the offending value; keep only its position.
         let error_msg = format!(
-            "Failed to parse offchain lookup server json response: ({err}) ({response_body})"
+            "Failed to parse offchain lookup server json response: ({:?} error at line {}, column {}), status: {}, reason: {:?}",
+            err.classify(),
+            err.line(),
+            err.column(),
+            status.as_u16(),
+            server_error_reason(response_body)
         );
         Box::new(FetchOutcome::Failed(MetadataBuildError::FailedToBuild(
             error_msg,
@@ -1373,6 +1399,128 @@ mod test {
             outcome["result"]["keccak256"],
             bytes_to_hex(&ethers::utils::keccak256([0x12, 0x34]))
         );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn decoding_responses_never_logs_or_returns_the_body() {
+        use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
+        const SECRET: &str = "5ec2e75ec2e75ec2e7";
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: Arc::new(MockBaseMetadataBuilder::default()),
+            app_context: None,
+            root_ism: H256::repeat_byte(1),
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+        let message = HyperlaneMessage::default();
+        let activity = ReadActivity {
+            builder: &builder,
+            message: &message,
+            ism: H256::repeat_byte(1),
+            endpoint: Some(0),
+            gateway: None,
+            attempt: 1,
+        };
+
+        let success = format!(r#"{{"data":"0x{SECRET}"}}"#);
+        let not_found = format!(r#"{{"error":"not found","data":"0x{SECRET}"}}"#);
+        let not_found_message = format!(r#"{{"message":"not found","data":"0x{SECRET}"}}"#);
+        let malformed_json = format!("{{{SECRET}");
+        let missing_prefix = format!(r#"{{"data":"{SECRET}"}}"#);
+        let invalid_hex = format!(r#"{{"data":"0x{SECRET}zz"}}"#);
+        let wrong_json_type = format!(r#""{SECRET}""#);
+        for (status, body) in [
+            (200, wrong_json_type.as_str()),
+            (200, success.as_str()),
+            (404, not_found.as_str()),
+            (404, not_found_message.as_str()),
+            (500, malformed_json.as_str()),
+            (200, missing_prefix.as_str()),
+            (200, invalid_hex.as_str()),
+        ] {
+            let status = reqwest::StatusCode::from_u16(status).expect("status");
+            let rendered = match decode_offchain_response(&activity, status, body)
+                .map_err(|outcome| *outcome)
+            {
+                Ok(metadata) => format!("{metadata:?}"),
+                Err(FetchOutcome::Failed(err)) => format!("{err} {err:?}"),
+                Err(FetchOutcome::Pending(_)) => "pending".to_owned(),
+                Err(FetchOutcome::UrlRejected(_, err)) => format!("{err} {err:?}"),
+            };
+            assert_ne!(rendered, "pending", "{status}: unexpected pending");
+            assert!(!rendered.contains(SECRET), "{status}: {rendered}");
+        }
+
+        assert!(logs_contain(
+            "Received response from offchain lookup server"
+        ));
+        assert!(!logs_contain(SECRET));
+    }
+
+    #[test]
+    fn decoding_failures_keep_the_server_error_reason() {
+        use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: Arc::new(MockBaseMetadataBuilder::default()),
+            app_context: None,
+            root_ism: H256::repeat_byte(1),
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+        let message = HyperlaneMessage::default();
+        let activity = ReadActivity {
+            builder: &builder,
+            message: &message,
+            ism: H256::repeat_byte(1),
+            endpoint: Some(0),
+            gateway: None,
+            attempt: 1,
+        };
+        let long_reason = "x".repeat(4096);
+        let long_body = format!(r#"{{"error":"{long_reason}"}}"#);
+        let long_expected = format!("{long_reason:?}");
+
+        for (status, body, expected) in [
+            (
+                404,
+                r#"{"error":"Message not found"}"#,
+                "\"Message not found\"",
+            ),
+            (
+                500,
+                r#"{"error":"Internal server error"}"#,
+                "\"Internal server error\"",
+            ),
+            (
+                403,
+                r#"{"error":"CCS signer not authorized"}"#,
+                "\"CCS signer not authorized\"",
+            ),
+            (
+                400,
+                r#"{"message":"Unsupported sender"}"#,
+                "\"Unsupported sender\"",
+            ),
+            (404, "not json", "reason: None"),
+            (404, long_body.as_str(), long_expected.as_str()),
+        ] {
+            let status = reqwest::StatusCode::from_u16(status).expect("status");
+            let err = match decode_offchain_response(&activity, status, body).map_err(|o| *o) {
+                Err(FetchOutcome::Failed(err)) => err.to_string(),
+                _ => String::new(),
+            };
+            assert!(
+                err.contains(expected),
+                "{status}: expected a hard failure with {expected}, got {err:?}"
+            );
+        }
     }
 
     #[test]
