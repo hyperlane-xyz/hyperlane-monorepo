@@ -2,5 +2,10 @@ import { cloudflareTest } from '@cloudflare/vitest-plugin';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [cloudflareTest({ wrangler: { configPath: './wrangler.toml' } })],
+  plugins: [
+    cloudflareTest({
+      wrangler: { configPath: './wrangler.toml' },
+      miniflare: { bindings: { GITHUB_API_KEY: 'test-key' } },
+    }),
+  ],
 });
