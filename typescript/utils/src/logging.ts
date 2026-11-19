@@ -7,7 +7,7 @@ import { inKubernetes, safelyAccessEnvVar } from './env.js';
 export type { Logger };
 
 // Level and format here should correspond with the agent options as much as possible
-// https://docs.hyperlane.xyz/docs/operate/config-reference#logfmt
+// https://docs.hyperlane.xyz/docs/operate/config/config-reference#log-format
 
 // A custom enum definition because pino does not export an enum
 // and because we use 'off' instead of 'silent' to match the agent options
