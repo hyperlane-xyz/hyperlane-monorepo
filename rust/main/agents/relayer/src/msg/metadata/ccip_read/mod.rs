@@ -366,14 +366,14 @@ impl CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(skip(self, message, params))]
+    #[instrument(skip(self, message, _params))]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        params: MessageMetadataBuildParams,
+        _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        let res = metadata_build(self, ism_address, message, params).await;
+        let res = fetch_metadata(self, ism_address, message).await;
 
         // update metrics
         let ism_build_metrics_params = IsmBuildMetricsParams {
@@ -413,27 +413,6 @@ impl ReadActivity<'_> {
             },
         );
     }
-}
-
-async fn metadata_build(
-    ism_builder: &CcipReadIsmMetadataBuilder,
-    ism_address: H256,
-    message: &HyperlaneMessage,
-    _params: MessageMetadataBuildParams,
-) -> Result<Metadata, MetadataBuildError> {
-    let memo = ism_builder.base.offchain_reads.clone();
-    if let Some(metadata) = memo
-        .as_ref()
-        .and_then(|memo| memo.get(&ism_builder.base.node_id, ism_address))
-    {
-        tracing::debug!(?ism_address, message_id = ?message.id(), "Reusing offchain lookup data from signature probe");
-        return Ok(metadata);
-    }
-    let metadata = fetch_metadata(ism_builder, ism_address, message).await?;
-    if let Some(memo) = memo {
-        memo.insert(&ism_builder.base.node_id, ism_address, metadata.clone());
-    }
-    Ok(metadata)
 }
 
 async fn fetch_metadata(
@@ -1219,39 +1198,6 @@ mod test {
         assert_eq!(signer.calls(), 0);
     }
 
-    #[tokio::test]
-    async fn delivery_build_reuses_offchain_read_from_signature_probe() {
-        use crate::msg::metadata::message_builder::OffchainReadMemo;
-        use crate::test_utils::mock_base_builder::build_mock_base_builder;
-        use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
-
-        let ism = H256::repeat_byte(2);
-        let probed = Metadata::new(vec![1, 2, 3]);
-        let memo = Arc::new(OffchainReadMemo::default());
-        memo.insert("test-root", ism, probed.clone());
-        // No ISM or offchain responses are mocked, so any lookup would panic.
-        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
-            node_id: "test-root".to_owned(),
-            base: Arc::new(build_mock_base_builder(
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-            )),
-            app_context: None,
-            root_ism: ism,
-            signature_polling: false,
-            narrow_signature_probe: false,
-            offchain_reads: Some(memo),
-            max_ism_depth: 5,
-            max_ism_count: 10,
-        });
-
-        let metadata = builder
-            .build(ism, &HyperlaneMessage::default(), Default::default())
-            .await
-            .unwrap();
-        assert_eq!(metadata, probed);
-    }
-
     #[test]
     fn activity_distinguishes_pending_and_bad_responses_without_exposing_bodies() {
         use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
@@ -1262,8 +1208,7 @@ mod test {
             app_context: None,
             root_ism: H256::repeat_byte(1),
             signature_polling: false,
-            narrow_signature_probe: false,
-            offchain_reads: None,
+            signature_poll_retry: None,
             max_ism_depth: 5,
             max_ism_count: 10,
         });

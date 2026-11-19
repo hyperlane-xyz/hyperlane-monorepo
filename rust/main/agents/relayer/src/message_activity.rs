@@ -171,6 +171,7 @@ pub enum Outcome {
 #[serde(rename_all = "snake_case")]
 pub enum Stage {
     Prepare,
+    GasPreflight,
     Simulate,
     Submit,
     BuildPayload,
@@ -190,6 +191,7 @@ pub enum ValidatorStorageState {
     ReorgReported,
     ReorgIgnored,
     ReorgCheckFailed,
+    ReorgNotFound,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -263,6 +265,7 @@ pub fn metadata_error(error: &MetadataBuildError) -> String {
         MetadataBuildError::Refused(_) => "Validator reported a reorg".to_owned(),
         MetadataBuildError::CouldNotFetch
         | MetadataBuildError::AwaitingValidatorSignatures
+        | MetadataBuildError::RetryLimitReached(_)
         | MetadataBuildError::UnsupportedModuleType(_)
         | MetadataBuildError::MaxIsmDepthExceeded(_)
         | MetadataBuildError::MaxIsmCountReached(_)
@@ -447,22 +450,27 @@ pub struct ActivityCheckpointObserver {
 
 impl CheckpointObserver for ActivityCheckpointObserver {
     fn observe(&self, observation: CheckpointObservation) {
+        use ValidatorStorageState::{ReorgCheckFailed, ReorgIgnored, ReorgNotFound, ReorgReported};
+
         // This observer is private to one collection. The short synchronous guard
         // never spans an await or I/O, including the final queue write.
-        let mut summary = self.summary.lock();
-        match observation {
+        let (validator, states, usable) = match observation {
             CheckpointObservation::LatestIndex { validator, index } => {
-                summary.latest_indices.insert(validator, index);
+                self.summary.lock().latest_indices.insert(validator, index);
+                return;
             }
             CheckpointObservation::Fetching { index } => {
+                let mut summary = self.summary.lock();
                 summary.index = Some(index);
                 summary.root = None;
                 summary.collected = 0;
                 summary.signers.clear();
                 summary.unavailable.clear();
                 summary.attempts = summary.attempts.saturating_add(1);
+                return;
             }
             CheckpointObservation::Signature { root, signers, .. } => {
+                let mut summary = self.summary.lock();
                 let collected = signers.len();
                 for signer in &signers {
                     summary.unavailable.remove(&signer.validator);
@@ -480,18 +488,49 @@ impl CheckpointObserver for ActivityCheckpointObserver {
                         self.report_summary(summary.clone());
                     }
                 }
+                return;
             }
             CheckpointObservation::Unavailable {
                 validator,
                 index,
                 reason,
             } => {
+                let mut summary = self.summary.lock();
                 match index {
                     Some(_) => summary.unavailable.insert(validator, reason),
                     None => summary.discovery_unavailable.insert(validator, reason),
                 };
+                return;
             }
-        }
+            CheckpointObservation::ReorgNotFound { validator } => {
+                (validator, vec![ReorgNotFound], true)
+            }
+            CheckpointObservation::ReorgReported { validator, ignored } => {
+                let mut states = vec![ReorgReported];
+                if ignored {
+                    states.push(ReorgIgnored);
+                }
+                (validator, states, false)
+            }
+            CheckpointObservation::ReorgCheckFailed { validator } => {
+                (validator, vec![ReorgCheckFailed], true)
+            }
+        };
+        self.reporter.report_scoped(
+            self.message_id,
+            self.origin,
+            self.destination,
+            Activity::ValidatorStorage {
+                validator: validator.into(),
+                states,
+                usable,
+            },
+            self.node_id.clone(),
+        );
+    }
+
+    fn report_signature_wait(&self) {
+        self.report_summary(self.summary.lock().clone());
     }
 }
 

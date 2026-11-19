@@ -53,6 +53,9 @@ pub enum CheckpointSyncerBuildError {
     /// A reorg event has been detected in the checkpoint syncer when building it
     #[error("Fatal: A reorg event has been detected. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until receive support. {0:?}")]
     ReorgFlag(ReorgEventResponse),
+    /// A checkpoint remained missing after consuming the message retry budget.
+    #[error("Checkpoint signature retry limit reached after {0} ordinary retries")]
+    RetryLimitReached(u32),
     /// Error communicating with the chain
     #[error(transparent)]
     ChainError(#[from] ChainCommunicationError),
@@ -138,7 +141,11 @@ impl CheckpointSyncerConf {
         Ok(syncer)
     }
 
-    // keep this private to force all initializations to perform the reorg check via `build_and_validate`
+    /// Creates a reader for callers that check reorg status before using checkpoints.
+    pub async fn build_for_reading(&self) -> Result<Box<dyn CheckpointSyncer>, Report> {
+        self.build(None).await
+    }
+
     async fn build(
         &self,
         latest_index_gauge: Option<IntGauge>,

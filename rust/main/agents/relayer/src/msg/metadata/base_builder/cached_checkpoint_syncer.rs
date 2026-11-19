@@ -325,6 +325,10 @@ where
     async fn reorg_status(&self) -> Result<ReorgEventResponse> {
         self.inner.reorg_status().await
     }
+
+    async fn reorg_status_at_announced_location(&self) -> Result<ReorgEventResponse> {
+        self.inner.reorg_status_at_announced_location().await
+    }
 }
 
 #[cfg(test)]
@@ -358,6 +362,7 @@ mod tests {
     struct CountingCheckpointSyncer {
         fetch_count: Arc<AtomicUsize>,
         latest_index_count: Arc<AtomicUsize>,
+        reorg_count: AtomicUsize,
         responses: Mutex<VecDeque<Result<Option<SignedCheckpointWithMessageId>>>>,
         latest_index_responses: Mutex<VecDeque<Result<Option<u32>>>>,
         fetch_gate: Option<CallGate>,
@@ -381,6 +386,7 @@ mod tests {
                 Self {
                     fetch_count: fetch_count.clone(),
                     latest_index_count,
+                    reorg_count: AtomicUsize::new(0),
                     responses: Mutex::new(responses.into()),
                     latest_index_responses: Mutex::new(VecDeque::new()),
                     fetch_gate: None,
@@ -400,6 +406,7 @@ mod tests {
                 Self {
                     fetch_count,
                     latest_index_count: latest_index_count.clone(),
+                    reorg_count: AtomicUsize::new(0),
                     responses: Mutex::new(VecDeque::new()),
                     latest_index_responses: Mutex::new(latest_index_responses.into()),
                     fetch_gate: None,
@@ -521,6 +528,15 @@ mod tests {
                 content: None,
             })
         }
+
+        async fn reorg_status_at_announced_location(&self) -> Result<ReorgEventResponse> {
+            let call = self.reorg_count.fetch_add(1, Ordering::Relaxed);
+            Ok(ReorgEventResponse {
+                exists: true,
+                event: None,
+                content: Some(call.to_string()),
+            })
+        }
     }
 
     fn checkpoint(index: u32) -> CheckpointWithMessageId {
@@ -566,6 +582,27 @@ mod tests {
             syncer.checkpoint_location(10).as_deref(),
             Some("https://example.com/checkpoint_10_with_id.json")
         );
+    }
+
+    #[tokio::test]
+    async fn forwards_each_reorg_read_to_the_announced_location() {
+        let (inner, _) = CountingCheckpointSyncer::new(Vec::new());
+        let syncer = CachedCheckpointSyncer::new(
+            Box::new(inner),
+            LocalCache::new("test-cache"),
+            "testorigin".to_owned(),
+            H256::zero(),
+            "test".to_owned(),
+        );
+
+        for expected in ["0", "1"] {
+            let response = syncer
+                .reorg_status_at_announced_location()
+                .await
+                .expect("fresh announced reorg flag");
+            assert!(response.exists);
+            assert_eq!(response.content.as_deref(), Some(expected));
+        }
     }
 
     #[tokio::test]
