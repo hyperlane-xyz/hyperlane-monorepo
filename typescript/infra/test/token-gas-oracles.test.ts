@@ -1,10 +1,15 @@
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
+import {
+  defaultMultisigConfigs,
+  multisigIsmVerificationCost,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getTokenGasOracleConfigs } from '../config/environments/mainnet3/tokenGasOracles.js';
 import { getIgp } from '../config/environments/mainnet3/igp.js';
+import { getIgp as getTestnet4Igp } from '../config/environments/testnet4/igp.js';
 import gasPrices from '../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import { supportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import tokenPrices from '../config/environments/mainnet3/tokenPrices.json' with { type: 'json' };
@@ -240,5 +245,23 @@ describe('mainnet3 stablecoin IGP gas oracles', () => {
     // Base's native IGP floor also applies when paying in USDC/USDT.
     expect(quote.gte(100_000)).to.equal(true);
     expect(quote.lte(100_100)).to.equal(true);
+  });
+});
+
+describe('testnet4 IGP overheads', () => {
+  it('adds the Glamsterdam storage overhead to every lane into Sepolia', () => {
+    const baseline = (origin: string) =>
+      multisigIsmVerificationCost(
+        defaultMultisigConfigs[origin].threshold,
+        defaultMultisigConfigs[origin].validators.length,
+      );
+    const igp = getTestnet4Igp();
+    for (const [origin, config] of Object.entries(igp)) {
+      if (origin === 'sepolia') continue;
+      expect(config.overhead.sepolia).to.equal(baseline(origin) + 200_000);
+    }
+    expect(igp.basesepolia.overhead.optimismsepolia).to.equal(
+      baseline('basesepolia'),
+    );
   });
 });
