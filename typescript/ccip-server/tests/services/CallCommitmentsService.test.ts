@@ -38,6 +38,8 @@ import {
 import {
   CommitmentAccessDeniedError,
   InvalidOriginTxHashError,
+  RevealPending,
+  RevealPendingError,
 } from '../../src/utils/errors.js';
 import { RpcUnavailableError } from '../../src/utils/rpcErrors.js';
 import { PrometheusMetrics } from '../../src/utils/prometheus.js';
@@ -909,12 +911,12 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       (error: unknown) => error,
     );
     expect(error)
-      .to.be.instanceOf(Error)
-      .with.property('message', `Transaction not found: ${originTxHash}`);
+      .to.be.instanceOf(RevealPendingError)
+      .with.property('message', 'Origin transaction receipt is pending');
     sinon.assert.notCalled(destinationCall);
   });
 
-  it('propagates origin RPC failures before querying the destination', async () => {
+  it('reports origin RPC failures as unavailable before querying the destination', async () => {
     const { service, getTransactionReceipt, destinationCall } = createService(
       [],
     );
@@ -923,7 +925,9 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
     const error = await deriveAll(service, revealMessage, mockLogger()).catch(
       (error: unknown) => error,
     );
-    expect(error).to.equal(unavailable);
+    expect(error)
+      .to.be.instanceOf(RpcUnavailableError)
+      .with.property('cause', unavailable);
     sinon.assert.notCalled(destinationCall);
   });
 
@@ -2234,11 +2238,8 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       );
 
     expect(error)
-      .to.be.instanceOf(Error)
-      .with.property(
-        'message',
-        'Could not derive every ICA candidate for the reveal',
-      );
+      .to.be.instanceOf(RevealPendingError)
+      .with.property('message', 'Chain read is pending');
     expect(error).not.to.be.instanceOf(CommitmentAccessDeniedError);
   });
 
@@ -2575,6 +2576,119 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     overrides: Record<string, unknown>;
     level: 'info' | 'warn' | 'error';
   }
+
+  interface PendingCase {
+    name: string;
+    overrides: Record<string, unknown>;
+    reason: RevealPending;
+    level: 'info' | 'warn';
+  }
+
+  const unavailableRead = () =>
+    new RpcUnavailableError(new Error('destination RPC timed out'));
+  const pendingCases: PendingCase[] = [
+    {
+      name: 'a commitment not uploaded yet',
+      overrides: {
+        fetchCommitmentRecord: sinon
+          .stub()
+          .rejects(new RevealPendingError(RevealPending.Commitment)),
+      },
+      reason: 'Commitment upload is pending',
+      level: 'info',
+    },
+    {
+      name: 'a missing origin receipt',
+      overrides: {
+        deriveIcaFromRevealMessage: sinon
+          .stub()
+          .rejects(new RevealPendingError(RevealPending.OriginReceipt)),
+      },
+      reason: 'Origin transaction receipt is pending',
+      level: 'info',
+    },
+    {
+      name: 'an unavailable chain read while deriving the ICA',
+      overrides: {
+        deriveIcaFromRevealMessage: sinon.stub().rejects(unavailableRead()),
+      },
+      reason: 'Chain read is pending',
+      level: 'warn',
+    },
+    {
+      name: 'an unavailable chain read while walking the reveal ISM tree',
+      overrides: {
+        assertLookupSenderVerifiesReveal: sinon
+          .stub()
+          .rejects(unavailableRead()),
+      },
+      reason: 'Chain read is pending',
+      level: 'warn',
+    },
+  ];
+
+  for (const c of pendingCases) {
+    it(`answers ${c.name} as pending, below error level`, async () => {
+      const service = createVerifyingService(c.overrides);
+      const logger = mockLogger();
+      service.addLoggerServiceContext = () => logger;
+
+      const error = await service
+        .handleFetchCommitment(
+          message,
+          baseRelayers[0],
+          logger,
+          originTxHash,
+          lookupSender,
+        )
+        .catch((error: unknown) => error);
+
+      expect(error)
+        .to.be.instanceOf(RevealPendingError)
+        .with.property('message', c.reason);
+      sinon.assert.notCalled(logger.error);
+      const pendingLogs = logger[c.level]
+        .getCalls()
+        .filter((call) => call.args[1] === 'Reveal lookup pending');
+      expect(pendingLogs).to.have.length(1);
+      expect(pendingLogs[0].args[0]).to.include({
+        revealMessage: message,
+        reason: c.reason,
+      });
+      expect(pendingLogs[0].args[0].error === undefined).to.equal(
+        c.level === 'info',
+      );
+    });
+  }
+
+  it('denies an unauthorized relayer even when a chain read would be unavailable', async () => {
+    const service = createVerifyingService({
+      deriveIcaFromRevealMessage: sinon.stub().rejects(unavailableRead()),
+    });
+    service.fetchCommitmentRecord = sinon.stub().resolves({
+      commitment,
+      calls: baseCalls,
+      salt,
+      ica: mockIca,
+      originDomain: 1,
+      relayers: [baseRelayers[0]],
+    });
+
+    const error = await service
+      .handleFetchCommitment(
+        message,
+        baseRelayers[1],
+        mockLogger(),
+        originTxHash,
+        lookupSender,
+      )
+      .catch((error: unknown) => error);
+
+    expect(error)
+      .to.be.instanceOf(CommitmentAccessDeniedError)
+      .with.property('message', 'Signer not authorized for this commitment');
+    sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
+  });
 
   const logFieldCases: LogFieldCase[] = [
     { name: 'served calls', overrides: {}, level: 'info' },

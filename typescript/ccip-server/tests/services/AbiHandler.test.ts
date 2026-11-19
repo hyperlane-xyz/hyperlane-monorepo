@@ -15,6 +15,8 @@ import {
 import {
   AttestationPendingError,
   CommitmentAccessDeniedError,
+  RevealPending,
+  RevealPendingError,
 } from '../../src/utils/errors.js';
 import { RpcUnavailableError } from '../../src/utils/rpcErrors.js';
 import {
@@ -29,6 +31,9 @@ const ETHERS_SERVER_ERROR =
   `serverError={"errno":-3008,"code":"ENOTFOUND","syscall":"getaddrinfo","hostname":"${SECRET_HOST}"}, ` +
   `url="https://${SECRET_HOST}/${SECRET_PATH}", code=SERVER_ERROR, version=web/5.8.0)`;
 const VAA_ID = `2/${'00'.repeat(32)}/7`;
+const ERROR_LOG = 'Error in ABI handler';
+const PENDING_LOG = 'Lookup pending';
+const DEBUG_LEVEL = 20;
 
 describe('ABI handler error responses', () => {
   interface Case {
@@ -36,6 +41,8 @@ describe('ABI handler error responses', () => {
     error: Error;
     statusCode: number;
     body: { error: string };
+    /** The handler's one log line for the error, if any. */
+    handlerLog?: typeof ERROR_LOG | typeof PENDING_LOG;
   }
   const cases: Case[] = [
     {
@@ -43,24 +50,49 @@ describe('ABI handler error responses', () => {
       error: new RpcUnavailableError(new Error(ETHERS_SERVER_ERROR)),
       statusCode: 500,
       body: { error: 'Internal server error' },
+      handlerLog: ERROR_LOG,
     },
     {
       name: 'returns a fixed body for an ordinary error',
       error: new Error(`call to https://${SECRET_HOST}/${SECRET_PATH} failed`),
       statusCode: 500,
       body: { error: 'Internal server error' },
+      handlerLog: ERROR_LOG,
     },
     {
       name: 'returns the message of a pending CCTP attestation',
       error: new AttestationPendingError(),
       statusCode: 500,
       body: { error: 'CCTP attestation is pending' },
+      handlerLog: PENDING_LOG,
     },
     {
       name: 'returns the message of a pending Wormhole VAA',
       error: new VaaPendingError(VAA_ID),
       statusCode: 500,
       body: { error: `VAA ${VAA_ID} is pending Guardian signatures` },
+      handlerLog: PENDING_LOG,
+    },
+    {
+      name: 'returns the message of a reveal awaiting its commitment upload',
+      error: new RevealPendingError(RevealPending.Commitment),
+      statusCode: 500,
+      body: { error: 'Commitment upload is pending' },
+      handlerLog: PENDING_LOG,
+    },
+    {
+      name: 'returns the message of a reveal awaiting its origin receipt',
+      error: new RevealPendingError(RevealPending.OriginReceipt),
+      statusCode: 500,
+      body: { error: 'Origin transaction receipt is pending' },
+      handlerLog: PENDING_LOG,
+    },
+    {
+      name: 'returns the message of a reveal awaiting a chain read',
+      error: new RevealPendingError(RevealPending.ChainRead),
+      statusCode: 500,
+      body: { error: 'Chain read is pending' },
+      handlerLog: PENDING_LOG,
     },
     {
       name: 'returns the message of a denied commitment read',
@@ -77,6 +109,16 @@ describe('ABI handler error responses', () => {
       for (const text of [response.body, ...lines]) {
         expect(text).to.not.include(SECRET_HOST);
         expect(text).to.not.include(SECRET_PATH);
+      }
+      const errorLines = lines.filter((line) => line.includes(ERROR_LOG));
+      const pendingLines = lines
+        .filter((line) => line.includes(PENDING_LOG))
+        .map((line): unknown => JSON.parse(line));
+      expect(errorLines).to.have.length(c.handlerLog === ERROR_LOG ? 1 : 0);
+      expect(pendingLines).to.have.length(c.handlerLog === PENDING_LOG ? 1 : 0);
+      for (const entry of pendingLines) {
+        expect(entry).to.have.property('level', DEBUG_LEVEL);
+        expect(entry).to.have.property('error', c.body.error);
       }
     });
   }

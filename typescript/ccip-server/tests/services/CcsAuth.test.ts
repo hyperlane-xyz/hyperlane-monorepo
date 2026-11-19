@@ -945,6 +945,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       destinationRouterV3,
       record,
       updateMany,
+      findUnique,
       dispatchedIca,
       v2Ica,
       salt,
@@ -1210,13 +1211,13 @@ describe('CCS authenticated reveal recovery integration', () => {
       readsChain: false,
     },
     {
-      name: 'returns HTTP 500, not a denial, when a candidate ICA read is unavailable and none matches',
+      name: 'answers pending, not a denial, when a candidate ICA read is unavailable and none matches',
       options: {},
       setup: (f) => {
         f.icaApp.getAccount.rejects(unavailableRpc());
       },
       statusCode: 500,
-      error: 'Internal server error',
+      error: 'Chain read is pending',
       readsReceipt: true,
       readsChain: true,
     },
@@ -1240,13 +1241,13 @@ describe('CCS authenticated reveal recovery integration', () => {
       readsChain: true,
     },
     {
-      name: 'returns HTTP 500 when the dispatched router pair cannot be read',
+      name: 'answers pending when the dispatched router pair cannot be read',
       options: {},
       setup: (f) => {
         f.destinationCall.rejects(unavailableRpc());
       },
       statusCode: 500,
-      error: 'Internal server error',
+      error: 'Chain read is pending',
       readsReceipt: true,
       readsChain: true,
     },
@@ -1306,11 +1307,44 @@ describe('CCS authenticated reveal recovery integration', () => {
     });
   }
 
-  for (const failure of ['missing receipt', 'origin RPC failure'] as const) {
-    it(`returns HTTP 500 for ${failure}, without a successful metadata response`, async () => {
+  interface PendingCase {
+    name: string;
+    setup: (f: Awaited<ReturnType<typeof fixture>>) => void;
+    error: string;
+    readsReceipt: boolean;
+  }
+
+  const pendingCases: PendingCase[] = [
+    {
+      name: 'a commitment not uploaded yet',
+      setup: (f) => {
+        f.findUnique.resolves(null);
+      },
+      error: 'Commitment upload is pending',
+      readsReceipt: false,
+    },
+    {
+      name: 'a missing receipt',
+      setup: (f) => {
+        f.receipt.resolves(null);
+      },
+      error: 'Origin transaction receipt is pending',
+      readsReceipt: true,
+    },
+    {
+      name: 'an origin RPC failure',
+      setup: (f) => {
+        f.receipt.rejects(new Error('origin RPC unavailable'));
+      },
+      error: 'Chain read is pending',
+      readsReceipt: true,
+    },
+  ];
+
+  for (const c of pendingCases) {
+    it(`answers pending for ${c.name}, without a successful metadata response`, async () => {
       const f = await fixture();
-      if (failure === 'missing receipt') f.receipt.resolves(null);
-      else f.receipt.rejects(new Error('origin RPC unavailable'));
+      c.setup(f);
       try {
         const response = await f.app.inject({
           method: 'POST',
@@ -1318,9 +1352,8 @@ describe('CCS authenticated reveal recovery integration', () => {
           payload: f.payload,
         });
         expect(response.statusCode).to.equal(500);
-        expect(response.json()).to.deep.equal({
-          error: 'Internal server error',
-        });
+        expect(response.json()).to.deep.equal({ error: c.error });
+        expect(f.receipt.called).to.equal(c.readsReceipt);
         sinon.assert.notCalled(f.destinationCall);
         sinon.assert.notCalled(f.updateMany);
       } finally {
@@ -1512,10 +1545,10 @@ describe('CCS authenticated reveal recovery integration', () => {
       error: notInTree,
     },
     {
-      name: 'returns HTTP 500, not a denial, when an ISM read is unavailable',
+      name: 'answers pending, not a denial, when an ISM read is unavailable',
       options: { isms: { [sender]: { kind: FakeIsmKind.Unavailable } } },
       statusCode: 500,
-      error: 'Internal server error',
+      error: 'Chain read is pending',
     },
     {
       name: 'serves a CCIP-read ISM at the deepest walked depth (12)',
@@ -1590,10 +1623,10 @@ describe('CCS authenticated reveal recovery integration', () => {
       error: 'Internal server error',
     },
     {
-      name: 'returns HTTP 500, not a denial, when the mailbox recipient ISM read is unavailable',
+      name: 'answers pending, not a denial, when the mailbox recipient ISM read is unavailable',
       options: { recipientIsmFailure: FakeIsmKind.Unavailable },
       statusCode: 500,
-      error: 'Internal server error',
+      error: 'Chain read is pending',
     },
     {
       name: 'denies a Sealevel-origin reveal to a CCIP-read ISM outside its tree',

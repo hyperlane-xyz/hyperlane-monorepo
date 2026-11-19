@@ -1722,6 +1722,60 @@ mod test {
         assert!(!body_signals_pending(r#"{"data":"0xdeadbeef"}"#));
     }
 
+    /// Pins the ccip-server reveal lookup's transient answers (HTTP 500 with a
+    /// fixed `error`) to the 1s pending retry rather than a counted failure.
+    #[test]
+    fn ccs_reveal_pending_answers_are_retried_as_pending() {
+        use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: Arc::new(MockBaseMetadataBuilder::default()),
+            app_context: None,
+            root_ism: H256::repeat_byte(1),
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+        let message = HyperlaneMessage::default();
+        let activity = ReadActivity {
+            builder: &builder,
+            message: &message,
+            ism: H256::repeat_byte(1),
+            endpoint: Some(0),
+            gateway: None,
+            attempt: 1,
+        };
+
+        for reason in [
+            "Commitment upload is pending",
+            "Origin transaction receipt is pending",
+            "Chain read is pending",
+        ] {
+            let body = serde_json::json!({ "error": reason }).to_string();
+            let pending = matches!(
+                decode_offchain_response(
+                    &activity,
+                    reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+                    &body,
+                )
+                .map_err(|outcome| *outcome),
+                Err(FetchOutcome::Pending(_))
+            );
+            assert!(pending, "{reason}");
+        }
+        // The generic ccip-server failure stays a hard failure.
+        assert!(matches!(
+            decode_offchain_response(
+                &activity,
+                reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+                r#"{"error":"Internal server error"}"#,
+            )
+            .map_err(|outcome| *outcome),
+            Err(FetchOutcome::Failed(_))
+        ));
+    }
+
     #[tokio::test]
     async fn test_read_response_body_rejects_oversized_chunked_body() {
         let listener = TcpListener::bind("127.0.0.1:0")

@@ -6,7 +6,6 @@ import { redactErrorMessage, redactErrorStack } from '@hyperlane-xyz/utils';
 
 import type { CcipRequest } from '../http.js';
 import {
-  AttestationPendingError,
   CommitmentAccessDeniedError,
   INTERNAL_SERVER_ERROR,
   InvalidOriginTxHashError,
@@ -135,10 +134,10 @@ export function createAbiHandler<
         return reply.code(400).send({ error: error.message });
       }
       const message = redactErrorMessage(error);
-      if (error instanceof AttestationPendingError) {
+      if (error instanceof LookupPendingError) {
         // Expected polling state: keep the response contract and request metrics,
         // but avoid repeatedly serializing calldata and stacks at error level.
-        handlerLogger.debug({ error: message }, 'CCTP attestation pending');
+        handlerLogger.debug({ error: message }, 'Lookup pending');
       } else {
         handlerLogger.error(
           {

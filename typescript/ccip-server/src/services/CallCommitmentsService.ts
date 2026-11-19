@@ -55,6 +55,8 @@ import {
   CommitmentAccessDeniedError,
   INTERNAL_SERVER_ERROR,
   InvalidOriginTxHashError,
+  RevealPending,
+  RevealPendingError,
 } from '../utils/errors.js';
 import { RpcUnavailableError, readOnchain } from '../utils/rpcErrors.js';
 import { CcsAuth, CcsSignerSchema } from '../utils/ccsAuth.js';
@@ -630,11 +632,10 @@ export class CallCommitmentsService extends BaseService {
             )
           ) {
             // A candidate whose chain read failed might have matched: that is
-            // not a denial, so fail with HTTP 500 and let the relayer retry.
-            assert(
-              unavailableCandidates === 0,
-              'Could not derive every ICA candidate for the reveal',
-            );
+            // not a denial, so answer pending and let the relayer retry.
+            if (unavailableCandidates > 0) {
+              throw new RevealPendingError(RevealPending.ChainRead);
+            }
             log.warn(
               {
                 commitment,
@@ -680,6 +681,35 @@ export class CallCommitmentsService extends BaseService {
           'Commitment access denied',
         );
         throw error;
+      }
+      const pending =
+        error instanceof RpcUnavailableError
+          ? new RevealPendingError(RevealPending.ChainRead)
+          : error;
+      if (pending instanceof RevealPendingError) {
+        if (pending.reason === RevealPending.ChainRead) {
+          log.warn(
+            {
+              revealMessage: message,
+              relayer,
+              originTxHash,
+              reason: pending.reason,
+              error: redactErrorMessage(error),
+            },
+            'Reveal lookup pending',
+          );
+        } else {
+          log.info(
+            {
+              revealMessage: message,
+              relayer,
+              originTxHash,
+              reason: pending.reason,
+            },
+            'Reveal lookup pending',
+          );
+        }
+        throw pending;
       }
       log.error(
         {
@@ -775,8 +805,10 @@ export class CallCommitmentsService extends BaseService {
     const commitment = commitmentFromRevealMessage(reveal.body);
     const originChain = this.multiProvider.getChainName(reveal.origin);
     const provider = this.multiProvider.getProvider(originChain);
-    const receipt = await provider.getTransactionReceipt(originTxHash);
-    assert(receipt, `Transaction not found: ${originTxHash}`);
+    const receipt = await readOnchain(() =>
+      provider.getTransactionReceipt(originTxHash),
+    );
+    if (!receipt) throw new RevealPendingError(RevealPending.OriginReceipt);
 
     const iface = Mailbox__factory.createInterface();
     const dispatchTopic = iface.getEventTopic('Dispatch');
@@ -1059,10 +1091,7 @@ export class CallCommitmentsService extends BaseService {
       select: { commitment: true, ...commitmentReconciliationSelect },
     });
 
-    if (!record) {
-      logger.warn({ commitment }, 'Commitment not found in DB');
-      throw new Error('Commitment not found: ' + commitment);
-    }
+    if (!record) throw new RevealPendingError(RevealPending.Commitment);
 
     const parsed = CommitmentRecordSchema.parse(record);
     logger.info(

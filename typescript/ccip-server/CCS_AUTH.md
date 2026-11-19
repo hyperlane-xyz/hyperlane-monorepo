@@ -70,9 +70,9 @@ mailbox's `recipientIsm` for that router and follows `route` of routing ISMs and
 module of aggregation ISMs for the reveal message. Its limits match the relayer's (the
 recipient ISM at depth 0; ISMs at depth 13 or after the first 100 read are not walked),
 so a CCIP-read ISM beyond them is not accepted. An ISM whose read the chain reverts is
-not a CCIP-read ISM, and a failed RPC read returns HTTP 500 so the relayer retries. The
-same check runs for Sealevel-origin reveals but does not bind them: their ISM field is
-chosen by the request.
+not a CCIP-read ISM, and a failed RPC read returns HTTP 500 with the pending error
+`Chain read is pending` so the relayer retries. The same check runs for Sealevel-origin
+reveals but does not bind them: their ISM field is chosen by the request.
 
 ## General calldata lookup
 
