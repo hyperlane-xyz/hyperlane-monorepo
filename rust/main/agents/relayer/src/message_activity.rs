@@ -171,6 +171,7 @@ pub enum Outcome {
 #[serde(rename_all = "snake_case")]
 pub enum Stage {
     Prepare,
+    GasPreflight,
     Simulate,
     Submit,
     BuildPayload,

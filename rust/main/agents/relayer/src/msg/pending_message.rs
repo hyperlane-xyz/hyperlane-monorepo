@@ -559,6 +559,7 @@ impl PendingOperation for PendingMessage {
             info!("Message does not meet the gas payment requirement preflight check");
             return op_result;
         }
+        self.report_progress(Stage::GasPreflight, Outcome::Succeeded);
 
         // After the gas preflight, so unpaid messages don't cost origin RPC
         // lookups that could push real deposits into giving up.

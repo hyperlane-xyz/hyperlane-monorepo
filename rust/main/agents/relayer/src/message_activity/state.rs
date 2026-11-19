@@ -134,9 +134,7 @@ impl ActivityState {
                 .is_some_and(|message| message["phase"] == "delivered");
             // Preserve the submitted path after delivery, but still allow a
             // frozen terminal anchor to be republished after a failed write.
-            if !delivered {
-                state.observe(event)?;
-            }
+            let milestone = !delivered && state.observe(event)?;
             // Retrying preparation invalidates the previous submission path.
             // Confirmation polling uses reason=None and retains the same path.
             let invalidated_submission = !delivered
@@ -179,6 +177,7 @@ impl ActivityState {
             let root_result = matches!(event.activity, Activity::Metadata { .. })
                 && event.node_id.as_ref().is_some_and(|id| !id.contains('/'));
             let meaningful = (delivered && state.published_snapshot.is_none())
+                || milestone
                 || root_result
                 || match &event.activity {
                     Activity::Checkpoint { summary, .. } => {
@@ -226,6 +225,13 @@ impl ActivityState {
                             state: snapshot.as_ref().clone(),
                         }
                     } else {
+                        let resolved_node = if milestone
+                            && matches!(event.activity, Activity::ValidatorSet { .. })
+                        {
+                            event.node_id.as_deref()
+                        } else {
+                            None
+                        };
                         StoredActivity::SnapshotUpdate {
                             state: snapshot_update(
                                 state
@@ -233,6 +239,7 @@ impl ActivityState {
                                     .as_ref()
                                     .expect("full snapshot anchor"),
                                 &snapshot,
+                                resolved_node,
                             ),
                         }
                     };
@@ -258,7 +265,7 @@ impl ActivityState {
 /// nodes changed since the latest full anchor. Consumers upsert nodes by `node_id`
 /// and remove tombstoned IDs. Every update can therefore be applied directly to
 /// its anchor without replaying intermediate updates.
-fn snapshot_update(anchor: &Value, current: &Value) -> Value {
+fn snapshot_update(anchor: &Value, current: &Value, resolved_node: Option<&str>) -> Value {
     let anchor_modules = anchor["modules"]
         .as_array()
         .into_iter()
@@ -276,9 +283,9 @@ fn snapshot_update(anchor: &Value, current: &Value) -> Value {
         .into_iter()
         .flatten()
         .filter(|module| {
-            module["node_id"]
-                .as_str()
-                .is_none_or(|id| anchor_modules.get(id).copied() != Some(*module))
+            module["node_id"].as_str().is_none_or(|id| {
+                Some(id) == resolved_node || anchor_modules.get(id).copied() != Some(*module)
+            })
         })
         .cloned()
         .collect::<Vec<_>>();
@@ -300,6 +307,12 @@ fn state_key(id: H256) -> Vec<u8> {
 }
 
 impl MessageState {
+    fn is_new_prepare_attempt(&self) -> bool {
+        self.current.get("message").is_none_or(|message| {
+            message["phase"] != "preparing" || message["checks"]["prepare"] != "started"
+        })
+    }
+
     /// Build the entire public tree here; the proxy only validates/returns this value.
     fn validation(&self) -> Value {
         let root = self.current.get("tree").and_then(Value::as_str);
@@ -420,21 +433,40 @@ impl MessageState {
             .retain(|key, _| !key.starts_with("node:") || reachable.contains(key));
     }
 
-    fn observe(&mut self, event: &ObservationEvent) -> eyre::Result<()> {
+    fn observe(&mut self, event: &ObservationEvent) -> eyre::Result<bool> {
         if self
             .current
             .get("message")
             .is_some_and(|state| state["phase"] == "delivered")
         {
-            return Ok(());
+            return Ok(false);
         }
         if let Activity::ValidatorStorage { states, .. } = &event.activity {
             if event.node_id.is_none() || !states.iter().any(is_reorg_state) {
-                return Ok(());
+                return Ok(false);
             }
         }
         // Activity contains only bounded, explicitly sanitized fields.
         let value = serde_json::to_value(&event.activity)?;
+        let starts_prepare = event.node_id.is_none()
+            && matches!(
+                event.activity,
+                Activity::Progress {
+                    stage: super::Stage::Prepare,
+                    outcome: super::Outcome::Started,
+                }
+            )
+            && self.is_new_prepare_attempt();
+        let mut milestone = starts_prepare;
+        if starts_prepare {
+            for (key, node) in &mut self.current {
+                if key.starts_with("node:") {
+                    if let Some(checks) = node.get_mut("checks").and_then(Value::as_object_mut) {
+                        checks.remove("validator_set");
+                    }
+                }
+            }
+        }
         if let Some(id) = &event.node_id {
             let root = id.split('/').next().unwrap_or(id);
             self.current.insert("tree".into(), json!(root));
@@ -469,11 +501,14 @@ impl MessageState {
                         json!([{"node_id": format!("{id}/0:{module:#x}"), "ism": module}]);
                     node["selected_children"] = json!([format!("{id}/0:{module:#x}")]);
                 }
-                Activity::ValidatorSet { .. } => {
-                    if node.get("validators").is_some()
-                        && (node["validators"] != value["validators"]
-                            || node["threshold"] != value["threshold"])
-                    {
+                Activity::ValidatorSet {
+                    validators,
+                    threshold,
+                    ..
+                } => {
+                    let changed = node["validators"] != value["validators"]
+                        || node["threshold"] != value["threshold"];
+                    if node.get("validators").is_some() && changed {
                         // A new validator set invalidates its prior checks, quorum, and verification.
                         for field in [
                             "signatures",
@@ -487,6 +522,14 @@ impl MessageState {
                     }
                     node["validators"] = value["validators"].clone();
                     node["threshold"] = value["threshold"].clone();
+                    if *threshold > 0 && usize::from(*threshold) <= validators.len() {
+                        milestone = changed || node["checks"]["validator_set"] != "succeeded";
+                        node["checks"]["validator_set"] = json!("succeeded");
+                    } else if let Some(checks) =
+                        node.get_mut("checks").and_then(Value::as_object_mut)
+                    {
+                        checks.remove("validator_set");
+                    }
                 }
                 Activity::ValidatorStorage { states, .. } => {
                     if !node["reorg_checks"].is_array() {
@@ -598,7 +641,7 @@ impl MessageState {
                 _ => {}
             }
             self.prune_tree();
-            return Ok(());
+            return Ok(milestone);
         }
         let message = self
             .current
@@ -647,7 +690,7 @@ impl MessageState {
                 if message.get("phase_started_at_millis").is_none() {
                     message["phase_started_at_millis"] = json!(at_millis);
                 }
-                return Ok(());
+                return Ok(false);
             }
             Activity::Submission { stage } => {
                 let phase = match stage {
@@ -660,7 +703,7 @@ impl MessageState {
                     }
                 };
                 if message["submission"]["stage"] == value["stage"] && message["phase"] == phase {
-                    return Ok(());
+                    return Ok(false);
                 }
                 message["submission"] = json!({
                     "stage": value["stage"],
@@ -697,6 +740,17 @@ impl MessageState {
                 Some("confirming")
             }
             Activity::Progress {
+                stage: super::Stage::Prepare,
+                outcome: super::Outcome::Started,
+            } if starts_prepare => {
+                message["checks"]["prepare"] = json!("started");
+                if let Some(checks) = message["checks"].as_object_mut() {
+                    checks.remove("gas_preflight");
+                }
+                message["phase_started_at_millis"] = json!(event.observed_at);
+                Some("preparing")
+            }
+            Activity::Progress {
                 stage: super::Stage::Submit,
                 outcome: super::Outcome::Started,
             } => Some("submitting"),
@@ -708,7 +762,13 @@ impl MessageState {
                 outcome: super::Outcome::Started,
                 ..
             } => None,
-            Activity::Progress { .. } => {
+            Activity::Progress { stage, outcome } => {
+                if matches!(
+                    (stage, outcome),
+                    (super::Stage::GasPreflight, super::Outcome::Succeeded)
+                ) {
+                    milestone = message["checks"]["gas_preflight"] != "succeeded";
+                }
                 if message.get("checks").is_none() {
                     message["checks"] = json!({});
                 }
@@ -720,12 +780,12 @@ impl MessageState {
                 message["failure"] = json!({"stage": "prepare", "reason": value["type"]});
                 None
             }
-            Activity::ValidatorStorage { .. } => return Ok(()),
+            Activity::ValidatorStorage { .. } => return Ok(false),
             // Preserve useful observations from non-tree paths, without repeated payloads.
             _ => {
                 self.current
                     .insert(value["type"].as_str().unwrap_or("unknown").into(), value);
-                return Ok(());
+                return Ok(false);
             }
         };
         if let Some(phase) = phase {
@@ -743,7 +803,7 @@ impl MessageState {
                 message["retry"] = Value::Null;
             }
         }
-        Ok(())
+        Ok(milestone)
     }
 }
 
@@ -856,7 +916,7 @@ mod tests {
                 {"node_id": "c", "verified": 0}
             ]
         });
-        let update = snapshot_update(&anchor, &current);
+        let update = snapshot_update(&anchor, &current, None);
         assert_eq!(update["phase"], "awaiting_signatures");
         assert_eq!(update["tree_root"], "b");
         assert_eq!(
@@ -870,8 +930,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn signatures_publish_before_metadata_finishes_and_unchanged_retries_only_add_retry_rows()
-    {
+    async fn signatures_publish_before_metadata_finishes_and_do_not_repeat_on_unchanged_retries() {
         let states = ActivityState::new(None);
         assert!(project(&states, &[module("root")]).await.is_empty());
         let first = project(&states, &[checkpoint("first", 10, 1)]).await;
@@ -908,7 +967,8 @@ mod tests {
                 ],
             )
             .await;
-            assert_eq!(updates.len(), 1);
+            assert_eq!(updates.len(), 2);
+            assert_eq!(snapshot(&updates[..1])["checks"]["prepare"], "started");
             assert!(!is_full_snapshot(&updates));
             assert_eq!(snapshot(&updates)["retry"]["count"], count);
             assert_eq!(snapshot(&updates)["modules"][0]["node_id"], "root");
@@ -925,6 +985,140 @@ mod tests {
             .await
             .len(),
             1
+        );
+    }
+
+    #[tokio::test]
+    async fn prepare_milestones_use_observation_rows_and_reset_on_retry() {
+        let states = ActivityState::new(None);
+        let epoch = 1_700_000_000_000;
+        let timestamps =
+            |rows: &[StoredEvent]| rows.iter().map(|row| row.observed_at).collect::<Vec<_>>();
+        let progress = |stage, outcome, offset| {
+            event_at(None, Activity::Progress { stage, outcome }, epoch + offset)
+        };
+        let retry = |retry_count, offset| {
+            event_at(
+                None,
+                Activity::Retry {
+                    reason: Some(ReprepareReason::GasPaymentRequirementNotMet),
+                    retry_count,
+                    next_attempt_at_millis: None,
+                },
+                epoch + offset,
+            )
+        };
+        let address = H256::zero();
+        let first = format!("root/0:{address:#x}");
+        let sibling = format!("root/1:{address:#x}");
+        let validators_at = |offset| {
+            event_at(
+                Some(&first),
+                Activity::ValidatorSet {
+                    ism: Some(address),
+                    validators: vec![H256::repeat_byte(1), H256::repeat_byte(2)],
+                    threshold: 2,
+                },
+                epoch + offset,
+            )
+        };
+        let mut signature = checkpoint("first signature", 12, 1);
+        signature.node_id = Some(first.clone());
+        signature.observed_at = epoch + 1_300;
+        let events = project(
+            &states,
+            &[
+                event_at(
+                    None,
+                    Activity::FirstSeen {
+                        at_millis: u64::try_from(epoch).expect("positive epoch"),
+                    },
+                    epoch + 10,
+                ),
+                progress(Stage::Prepare, Outcome::Started, 1_000),
+                progress(Stage::GasPreflight, Outcome::Succeeded, 1_100),
+                progress(Stage::GasPreflight, Outcome::Succeeded, 1_110),
+                module("root"),
+                event(
+                    Some("root"),
+                    Activity::Aggregation {
+                        ism: address,
+                        modules: vec![address, address],
+                        threshold: 1,
+                    },
+                ),
+                module(&first),
+                validators_at(1_200),
+                validators_at(1_210),
+                signature,
+            ],
+        )
+        .await;
+        assert_eq!(
+            timestamps(&events),
+            [1_000, 1_100, 1_200, 1_300].map(|offset| epoch + offset)
+        );
+        let start = snapshot(&events[..1]);
+        assert_eq!(start["relayer_first_seen_at_millis"], epoch);
+        assert_eq!(start["phase_started_at_millis"], epoch + 1_000);
+        assert_eq!(start["checks"], json!({"prepare": "started"}));
+        assert_eq!(
+            snapshot(&events[..2])["checks"],
+            json!({"prepare": "started", "gas_preflight": "succeeded"})
+        );
+        let resolved = &snapshot(&events[..3])["modules"];
+        assert_eq!(resolved[1]["node_id"], first);
+        assert_eq!(resolved[1]["checks"], json!({"validator_set": "succeeded"}));
+        assert_eq!(resolved[1]["threshold"], 2);
+        assert_eq!(
+            resolved[1]["validators"]
+                .as_array()
+                .expect("validators")
+                .len(),
+            2
+        );
+        assert!(resolved[1]["signatures"].is_null());
+        let signed = &snapshot(&events)["modules"];
+        assert_eq!(signed[1]["signatures"]["collected"], 1);
+        assert_eq!(signed[2]["node_id"], sibling);
+        assert!(signed[2]["signatures"].is_null());
+
+        let next = project(
+            &states,
+            &[
+                retry(1, 1_400),
+                progress(Stage::Prepare, Outcome::Started, 1_500),
+                progress(Stage::GasPreflight, Outcome::Failed, 1_600),
+                retry(2, 1_610),
+            ],
+        )
+        .await;
+        let next_start = next
+            .iter()
+            .position(|row| row.observed_at == epoch + 1_500)
+            .expect("retry has a separately timed prepare start");
+        let start_rows = &next[..=next_start];
+        let start = snapshot(start_rows);
+        assert_eq!(start["phase"], "preparing");
+        assert_eq!(start["phase_started_at_millis"], epoch + 1_500);
+        assert!(start["checks"]["gas_preflight"].is_null());
+        assert_eq!(start["modules"][1]["validators"], resolved[1]["validators"]);
+        assert!(start["modules"][1]["checks"]["validator_set"].is_null());
+        assert_ne!(snapshot(&next)["checks"]["gas_preflight"], "succeeded");
+
+        let recovered = project(
+            &states,
+            &[
+                progress(Stage::Prepare, Outcome::Started, 1_700),
+                progress(Stage::GasPreflight, Outcome::Succeeded, 1_800),
+                validators_at(1_900),
+                validators_at(1_910),
+            ],
+        )
+        .await;
+        assert_eq!(
+            timestamps(&recovered),
+            [1_700, 1_800, 1_900].map(|offset| epoch + offset)
         );
     }
 
