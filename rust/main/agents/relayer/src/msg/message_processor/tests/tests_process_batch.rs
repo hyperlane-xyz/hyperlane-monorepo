@@ -15,7 +15,7 @@ use hyperlane_core::{
     TxOutcome, H256, U256,
 };
 
-use super::super::process_batch;
+use super::super::{get_batch_or_wait, prepare_classic_task, process_batch};
 use super::tests_common::{create_test_metrics, create_test_queue};
 
 #[derive(Debug, Default)]
@@ -257,22 +257,128 @@ async fn run_process_batch(
     super::super::OpQueue,
     super::super::MessageProcessorMetrics,
 ) {
-    let mut prepare_queue = create_test_queue();
+    let prepare_queue = create_test_queue();
     let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
     let metrics = create_test_metrics();
+    let permits = Arc::new(Semaphore::new(batch.len()))
+        .acquire_many_owned(u32::try_from(batch.len()).expect("valid test batch size"))
+        .await
+        .expect("test capacity available");
 
     process_batch(
-        destination,
+        &destination,
         batch,
-        &mut prepare_queue,
+        &prepare_queue,
         &submit_queue,
         &confirm_queue,
         &metrics,
+        permits,
     )
     .await;
 
     (prepare_queue, submit_queue, confirm_queue, metrics)
+}
+
+#[tokio::test(start_paused = true)]
+async fn spare_prepare_capacity_accepts_a_new_same_origin_operation() {
+    assert_new_same_origin_operation_reaches_submit(false).await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn completed_operation_frees_prepare_capacity_before_its_batch_finishes() {
+    assert_new_same_origin_operation_reaches_submit(true).await;
+}
+
+async fn assert_new_same_origin_operation_reaches_submit(start_full: bool) {
+    let mut harness = TestHarness::new();
+    let prepare_queue = create_test_queue();
+    let mut submit_queue = create_test_queue();
+    let gate = Arc::new(Semaphore::new(0));
+    prepare_queue
+        .push(
+            harness.operation(1, 1000, PendingOperationResult::Success, Some(gate.clone())),
+            None,
+        )
+        .await;
+    let peer_gate = Arc::new(Semaphore::new(0));
+    if start_full {
+        prepare_queue
+            .push(
+                harness.operation(
+                    2,
+                    2000,
+                    PendingOperationResult::Success,
+                    Some(peer_gate.clone()),
+                ),
+                None,
+            )
+            .await;
+    }
+    let worker = tokio::spawn(prepare_classic_task(
+        harness.destination.clone(),
+        prepare_queue.clone(),
+        submit_queue.clone(),
+        create_test_queue(),
+        2,
+        None,
+        create_test_metrics(),
+    ));
+    let deadline = Duration::from_secs(1);
+    let first_started = tokio::time::timeout(deadline, harness.started_rx.recv())
+        .await
+        .expect("an initial operation should begin preparing")
+        .expect("prepare worker still running");
+    if start_full {
+        let peer_started = tokio::time::timeout(deadline, harness.started_rx.recv())
+            .await
+            .expect("the peer should occupy the other prepare slot")
+            .expect("prepare worker still running");
+        let mut started = [first_started, peer_started];
+        started.sort_unstable();
+        assert_eq!(
+            started,
+            [H256::from_low_u64_be(1), H256::from_low_u64_be(2)]
+        );
+        assert_eq!(harness.concurrency.active.load(Ordering::SeqCst), 2);
+    } else {
+        assert_eq!(first_started, H256::from_low_u64_be(1));
+    }
+    prepare_queue
+        .push(
+            harness.operation(3, 1000, PendingOperationResult::Success, None),
+            None,
+        )
+        .await;
+    if start_full {
+        assert!(
+            tokio::time::timeout(Duration::from_millis(1), harness.started_rx.recv())
+                .await
+                .is_err(),
+            "queued operation must wait while both prepare slots are occupied"
+        );
+        peer_gate.add_permits(1);
+        let ready = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1)).await;
+        assert_eq!(
+            ready.expect("the different-origin peer should complete independently")[0].id(),
+            H256::from_low_u64_be(2)
+        );
+    }
+    let ready = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1)).await;
+    assert_eq!(
+        ready.expect("the new same-origin operation should reach submit while the first waits")[0]
+            .id(),
+        H256::from_low_u64_be(3)
+    );
+    assert_eq!(harness.concurrency.max_active.load(Ordering::SeqCst), 2);
+
+    gate.add_permits(1);
+    let ready = tokio::time::timeout(deadline, get_batch_or_wait(&mut submit_queue, 1)).await;
+    worker.abort();
+    assert_eq!(
+        ready.expect("the original operation should still submit when ready")[0].id(),
+        H256::from_low_u64_be(1)
+    );
 }
 
 #[tokio::test]

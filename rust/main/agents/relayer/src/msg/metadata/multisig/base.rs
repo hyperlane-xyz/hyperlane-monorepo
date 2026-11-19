@@ -30,7 +30,14 @@ pub(super) async fn poll_checkpoint(
     if one_shot {
         return work.await;
     }
-    let deadline = *deadline.get_or_insert_with(|| Instant::now() + SIGNATURE_POLL_WINDOW);
+    let deadline = match *deadline {
+        Some(deadline) => deadline,
+        None => *deadline.insert(
+            Instant::now()
+                .checked_add(SIGNATURE_POLL_WINDOW)
+                .ok_or_else(|| eyre::eyre!("Signature polling deadline exceeds timer range"))?,
+        ),
+    };
     timeout_at(deadline, work).await.unwrap_or(Ok(None))
 }
 
