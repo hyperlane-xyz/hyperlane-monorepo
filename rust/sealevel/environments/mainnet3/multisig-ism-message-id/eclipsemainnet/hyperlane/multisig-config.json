@@ -94,17 +94,6 @@
       "0x34a14934d7c18a21440b59dfe9bf132ce601457d"
     ]
   },
-  "bob": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 3,
-    "validators": [
-      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
-      "0x53d2738453c222e49c556d937bcef3f80f1c2eec",
-      "0xb574b2b5822a8cb9ca071e7d43865694f23b0bde"
-    ]
-  },
   "bsc": {
     "type": "messageIdMultisigIsm",
     "threshold": 4,
@@ -303,18 +292,6 @@
       "0x6fbceb2680c8181acf3d1b5f0189e3beaa985338"
     ]
   },
-  "lisk": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 4,
-    "validators": [
-      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4",
-      "0x3DA4ee2801Ec6CC5faD73DBb94B10A203ADb3d9e",
-      "0xf0da628f3fb71652d48260bad4691054045832ce",
-      "0xead4141b6ea149901ce4f4b556953f66d04b1d0c",
-      "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
-    ]
-  },
   "lukso": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -334,14 +311,6 @@
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc",
       "0xcd3b3a2007aab3b00418fbac12bea19d04243497",
       "0x332b3710e56b843027d4c6da7bca219ece7099b0"
-    ]
-  },
-  "mantra": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
   "metal": {
@@ -405,23 +374,7 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
-  "nesa": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-    ]
-  },
   "nesachain": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-    ]
-  },
-  "nexus": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
     "validators": [
@@ -509,14 +462,6 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
-  "somnia": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
-    ]
-  },
   "soneium": {
     "type": "messageIdMultisigIsm",
     "threshold": 3,
@@ -575,14 +520,6 @@
       "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
       "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
-    ]
-  },
-  "tea": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03",
-      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
   "tron": {

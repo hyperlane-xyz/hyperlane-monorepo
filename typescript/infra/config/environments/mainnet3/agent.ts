@@ -89,8 +89,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: false,
-    bob: true,
     bsc: true,
     celestia: true,
     celo: true,
@@ -103,7 +101,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: false, // relayer + scraper only
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -116,19 +113,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
-    mantra: true,
     metal: true,
     metis: true,
     mitosis: true,
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
@@ -138,15 +131,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
-    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     stable: true,
     starknet: true,
     subtensor: true,
-
-    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -164,8 +154,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
-    bob: true,
     bsc: true,
     celestia: true,
     celo: true,
@@ -178,7 +166,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -191,19 +178,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
-    mantra: true,
     metal: true,
     metis: true,
     mitosis: true,
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
@@ -213,15 +196,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
-    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     stable: true,
     starknet: true,
     subtensor: true,
-
-    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -239,8 +219,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
-    bob: true,
     bsc: true,
     celestia: true,
     celo: true,
@@ -253,7 +231,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -266,19 +243,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
-    mantra: true,
     metal: true,
     metis: true,
     mitosis: true,
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
@@ -288,15 +261,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
-    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     stable: true,
     starknet: true,
     subtensor: true,
-
-    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -421,7 +391,6 @@ const velodromeUniversalRouters: ChainMap<Address> = {
   celo: velodromeUniversalRouterOwner,
   fraxtal: velodromeUniversalRouterOwner,
   ink: velodromeUniversalRouterOwner,
-  lisk: velodromeUniversalRouterOwner,
   metal: velodromeUniversalRouterOwner,
   mode: velodromeUniversalRouterOwner,
   optimism: velodromeUniversalRouterOwner,
@@ -537,11 +506,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     matchingList: [
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
-      // Not a core chain
-      {
-        originDomain: getDomainId('forma'),
-        destinationDomain: getDomainId('celestia'),
-      },
     ],
   },
   {
@@ -552,8 +516,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('citrea') },
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
-      // Not a core chain
-      { destinationDomain: getDomainId('forma') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
       // Superswap ICA matches on ICA owner address in message body

@@ -15,8 +15,6 @@ export const warpFeesIcas: ChainMap<Address> = {
   apechain: '0x46D9c004f83D4187CEED673b65d453613A01cB74',
   avalanche: '0xDE41E9C00B8aCb0e0013Bc197560e6bA5E7c3E67',
   berachain: '0x6CdC19aABeE4E1e992f9C3e81E317ea32054EF6b',
-  blast: '0xcF70C21d27763A59f698Efb06365c1a10aCCc543',
-  bob: '0x11A9DD949a7822f356bb26B83a2038853f82c13B',
   bsc: '0xA0e41Ab972294A8f7CD1599BB76AdDB6bAE24556',
   carrchain: '0xd9Bb820E07D69114A376D15e8919590555Bea12a',
   celo: '0x7E0F248B8329Feb5c6c7ab5a1613dFf337d908e8',
@@ -34,10 +32,8 @@ export const warpFeesIcas: ChainMap<Address> = {
   krown: '0x4EaA3148d02e8c49fdbf78A784309b10D1877D4D',
   lazai: '0x824094005b72A204d6009d4EF79706456cc4496D',
   linea: '0x0085f0Cd2B9c7faadee696496E110687841628BD',
-  lisk: '0x2F4C860a49724d05f495749aF180E477fF366ba7',
   lukso: '0x8f837652eFbbd1b70f4831b7E838B997196ea350',
   mantle: '0x58c320539EfA1c81d93DD01156481FC58eb4457F',
-  mantra: '0x4C2bbAa850f83fD9252A9b5C199861d3baF6b47c',
   megaeth: '0xd93759Bd2d7f6EBc53607fc290C63B63ECFF0ABc',
   metal: '0xfE9102C59CAf1b1e16DF42e0ceF50489Ac254D2e',
   metis: '0x879b6B5b2F1768214F6A476F76C21fB04D4e2Ebd',
@@ -47,7 +43,6 @@ export const warpFeesIcas: ChainMap<Address> = {
   plasma: '0x5BeF46e59b0D12C8C9806b05dA9cdcB7064a0Da9',
   pulsechain: '0x8b5197aa1aC48264dba65A487EF3a1B24b729F01',
   sei: '0x488Ad6e16C624c18D6451d9A6Ce4F0EBfE163291',
-  somnia: '0xddD12a915e9C479Ad24e97a6C77426f6D45c8A27',
   soneium: '0xbC983fa0270eD10a0FCFb3252fEefB41A56d840a',
   sonic: '0xa84eaFd11c6E3ce97a9481aDc8962658f40bF81D',
   stable: '0xfa53734dBf1d9826b41Ea6A816396f0750ecD1a5',
@@ -72,15 +67,9 @@ export const warpFeesIcas: ChainMap<Address> = {
   // fluent: '0x4a7Ed59F34F00b151C818778403D4C94A53620D4',
   // kiichain: '0x4a7Ed59F34F00b151C818778403D4C94A53620D4',
 
-  // May 25, 2026
-  // ----------------------------------------------------------
-  nesa: '0x13517844C1F812884Bff1d6011817A7096DCa484',
-
   // Jun 18, 2026
   // ----------------------------------------------------------
-  nexus: '0x02A71708821D6e0bC9D4ecBF62e539157971987B',
   robinhood: '0x41dEC5AB11f4481F78ba3a05f93369179dbc0d0f',
-  tea: '0x37a5630cF1C8DCf2F8E1F601a2Ea9700ADaAff60',
 
   // Sep 10, 2026
   // ----------------------------------------------------------

@@ -70,8 +70,6 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 export const tokenPriceOverrides: ChainMap<string> = {
   tempo: '1', // pathUSD peg
   krown: '0.0015',
-  tea: '10',
-  nexus: '10',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
@@ -94,11 +92,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 101 * 10 ** 9, // 101 gwei
     },
   },
-  // nexus: {
-  //   transactionOverrides: {
-  //     gasPrice: 2 * 10 ** 9, // 2 gwei
-  //   },
-  // },
   // Deploy-only overrides, set when deploying contracts
   // xlayer: {
   //   blocks: {

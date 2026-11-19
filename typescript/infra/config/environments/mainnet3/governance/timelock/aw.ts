@@ -14,8 +14,6 @@ export const awTimelocks: ChainMap<Address> = {
   avalanche: '0xFd3617B8c53c59F9642C8a5ec0ae5CD4E72bC72E',
   base: '0xe38714D00cAa906065D872D177C1374C847035fF',
   berachain: '0x549a5f60F7751191894437A24E0945924FF1965F',
-  blast: '0x979Ca5202784112f4738403dBec5D0F3B9daabB9',
-  bob: '0x790306c30eFeeAF3943ee3700C71D7B7812c85a1',
   bsc: '0x09F4D4e765A911B867263d4Ff5e73323281De80D',
   celo: '0xb527ea7ff1B14fEb9FFF98b5Cd750Bd311cD598F',
   coti: '0x4Fea96D613F51fF83459d101e256Cd165a1e73BB',
@@ -26,7 +24,6 @@ export const awTimelocks: ChainMap<Address> = {
   ink: '0xED56728fb977b0bBdacf65bCdD5e17Bb7e84504f',
   katana: '0x9C6e8d989ea7F212e679191BEb44139d83ac927a',
   linea: '0x3A2e96403d076e9f953166A9E4c61bcD9D164CFe',
-  lisk: '0xfA96BCb61C7CbD7839689E807CD6d7FC27754Af3',
   lukso: '0x23D26a5Fe6671B0c13E0970c15f595CF1e9a7785',
   mantle: '0xA3C59Caa046Ac6234272c74ADaE5f202E57F6e33',
   metal: '0xA312a8329bCDc2e5EA5dc2849326a45D40C58e8F',
@@ -49,8 +46,7 @@ export const awTimelocks: ChainMap<Address> = {
   // ----------------------------------------------------------
   zerogravity: '0x11EF91d17c5ad3330DbCa709a8841743d3Af6819',
 
-  // Aug 6, 2026 - Timelocks for oUSDT expansion to Tron and Tea
+  // Aug 6, 2026 - Timelock for oUSDT expansion to Tron
   // ----------------------------------------------------------
   tron: '0xf354dE0536da38537fe751B586eB5CCc81101741',
-  tea: '0x33AA12b4e8E79cA551Ca9D1F2eC7d2cE02129dd4',
 } as const;

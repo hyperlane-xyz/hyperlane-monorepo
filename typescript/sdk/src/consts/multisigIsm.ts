@@ -180,32 +180,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [DEFAULT_AW_TESTNET_VALIDATOR],
   },
 
-  blast: {
-    threshold: 2,
-    validators: [
-      DEFAULT_AW_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-      { address: '0x54bb0036f777202371429e062fe6aee0d59442f9', alias: 'Renzo' },
-    ],
-  },
-
-  bob: {
-    threshold: 3,
-    validators: [
-      DEFAULT_AW_VALIDATOR,
-      DEFAULT_MERKLY_VALIDATOR,
-      DEFAULT_MITOSIS_VALIDATOR,
-      {
-        address: '0x53d2738453c222e49c556d937bcef3f80f1c2eec',
-        alias: 'Substance Labs',
-      },
-      {
-        address: '0xb574b2b5822a8cb9ca071e7d43865694f23b0bde',
-        alias: 'Enigma',
-      },
-    ],
-  },
-
   bsc: {
     threshold: 4,
     validators: [
@@ -380,24 +354,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  forma: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0xE74c7632aF1De54D208f1b9e18B22988dDc8C4CE',
-        alias: 'Imperator',
-      },
-      {
-        address: '0x1734abc14f0e68cdaf64f072831f6a6c8f622c37',
-        alias: 'DSRV',
-      },
-      {
-        address: '0xb6536d1b52969d6c66bb85533b9ab04d886b3401',
-        alias: 'Enigma',
-      },
-    ],
-  },
-
   fraxtal: {
     threshold: 3,
     validators: [
@@ -507,27 +463,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  lisk: {
-    threshold: 4,
-    validators: [
-      DEFAULT_AW_VALIDATOR,
-      DEFAULT_TESSELLATED_VALIDATOR,
-      {
-        address: '0x3DA4ee2801Ec6CC5faD73DBb94B10A203ADb3d9e',
-        alias: 'Enigma',
-      },
-      {
-        address: '0xf0da628f3fb71652d48260bad4691054045832ce',
-        alias: 'Luganodes',
-      },
-      {
-        address: '0xead4141b6ea149901ce4f4b556953f66d04b1d0c',
-        alias: 'Lisk',
-      },
-      DEFAULT_ZEE_PRIME_VALIDATOR,
-    ],
-  },
-
   lukso: {
     threshold: 2,
     validators: [
@@ -556,11 +491,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Enigma',
       },
     ],
-  },
-
-  mantra: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
   metal: {
@@ -642,17 +572,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
-  nesa: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
-  },
-
   nesachain: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
-  },
-
-  nexus: {
     threshold: 2,
     validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
@@ -778,11 +698,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
-  somnia: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
-  },
-
   somniatestnet: {
     threshold: 1,
     validators: [DEFAULT_AW_TESTNET_VALIDATOR],
@@ -858,11 +773,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MITOSIS_VALIDATOR,
       DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
-  },
-
-  tea: {
-    threshold: 2,
-    validators: [DEFAULT_AW_VALIDATOR, DEFAULT_MITOSIS_VALIDATOR],
   },
 
   tron: {

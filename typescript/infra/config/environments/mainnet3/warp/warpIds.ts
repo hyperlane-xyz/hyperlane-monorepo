@@ -68,8 +68,6 @@ export enum WarpRouteIds {
 
   SolaxyUSDC = 'USDC/solaxy',
 
-  MantraUSDC = 'USDC/mantra',
-
   LitchainLITKEY = 'LITKEY/litchain',
 
   ApechainPOG = 'POG/apechain',
