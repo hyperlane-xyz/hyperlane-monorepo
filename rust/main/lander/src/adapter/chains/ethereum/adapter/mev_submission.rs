@@ -460,14 +460,14 @@ mod tests {
         };
         use ethers::{
             middleware::SignerMiddleware,
-            providers::{HttpClientError, JsonRpcClient, JsonRpcError, Provider},
+            providers::{HttpClientError, JsonRpcClient, Provider},
         };
         use hyperlane_ethereum::{EthereumProvider, Signers};
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         #[derive(Debug)]
         struct EstimateRpc {
-            error: JsonRpcError,
+            error: serde_json::Value,
             estimates: Arc<AtomicUsize>,
         }
 
@@ -483,7 +483,9 @@ mod tests {
                 match method {
                     "eth_estimateGas" => {
                         self.estimates.fetch_add(1, Ordering::SeqCst);
-                        Err(HttpClientError::JsonRpcError(self.error.clone()))
+                        Err(HttpClientError::JsonRpcError(
+                            serde_json::from_value(self.error.clone()).unwrap(),
+                        ))
                     }
                     "eth_getBlockByNumber" => Ok(serde_json::from_value(
                         serde_json::to_value(ethers::types::Block::<ethers::types::H256> {
@@ -532,11 +534,7 @@ mod tests {
                 serde_json::to_value(ethers::types::Bytes::from(encoded)).unwrap()
             });
             let rpc = EstimateRpc {
-                error: JsonRpcError {
-                    code,
-                    message: message.into(),
-                    data,
-                },
+                error: serde_json::json!({ "code": code, "message": message, "data": data }),
                 estimates: estimates.clone(),
             };
             adapter.mev_submission.as_mut().unwrap().provider = Arc::new(EthereumProvider::new(
