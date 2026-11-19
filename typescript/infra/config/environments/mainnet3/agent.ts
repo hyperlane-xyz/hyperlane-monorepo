@@ -146,7 +146,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -221,7 +221,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
@@ -296,7 +296,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     starknet: true,
     subtensor: true,
 
-    tea: true,
+    tea: false, // disabled 2026-11-19 — RPC dead/range-capped since Nov 16, chain near-dormant; scraper near-head cursor unrecoverable
     tempo: true,
     tron: true,
     unichain: true,
