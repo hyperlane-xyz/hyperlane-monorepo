@@ -490,6 +490,23 @@ async fn fetch_metadata(
         .call_get_offchain_verify_info(ism, &activity)
         .await?;
 
+    // EIP-3668: the lookup must name the contract that reverted with it. An ISM
+    // naming another contract (e.g. a commitment ISM it does not route to) would
+    // otherwise get this relayer to sign and send requests on that contract's
+    // behalf.
+    if H256::from(info.sender) != ism_address {
+        activity.report(OffchainReadState::SenderMismatch, None);
+        warn!(
+            ?ism_address,
+            sender = ?info.sender,
+            message_id = ?message.id(),
+            "Offchain lookup sender is not the queried ISM"
+        );
+        return Err(MetadataBuildError::FailedToBuild(
+            "Offchain lookup sender is not the queried ISM".to_owned(),
+        ));
+    }
+
     let origin_tx_hash = ism_builder
         .base
         .base_builder()
@@ -1278,6 +1295,166 @@ mod test {
 
         assert_eq!(signature, None);
         assert_eq!(signer.calls(), 0);
+    }
+
+    /// A CCIP-read ISM whose `getOffchainVerifyInfo` fails with `revert`.
+    #[derive(Debug)]
+    struct RevertingCcipReadIsm {
+        address: H256,
+        domain: hyperlane_core::HyperlaneDomain,
+        revert: String,
+    }
+
+    impl hyperlane_core::HyperlaneChain for RevertingCcipReadIsm {
+        fn domain(&self) -> &hyperlane_core::HyperlaneDomain {
+            &self.domain
+        }
+
+        fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+            unimplemented!()
+        }
+    }
+
+    impl hyperlane_core::HyperlaneContract for RevertingCcipReadIsm {
+        fn address(&self) -> H256 {
+            self.address
+        }
+    }
+
+    #[async_trait]
+    impl CcipReadIsm for RevertingCcipReadIsm {
+        async fn get_offchain_verify_info(
+            &self,
+            _message: Vec<u8>,
+        ) -> hyperlane_core::ChainResult<()> {
+            Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                &self.revert,
+            ))
+        }
+    }
+
+    /// Builds the error text an ISM implementation produces from a revert payload.
+    type FormatRevert = fn(&str) -> String;
+
+    /// The destinations whose ISMs surface an `OffchainLookup` revert, each with
+    /// the error text its ISM implementation produces from the revert payload.
+    fn ccip_read_destinations() -> Vec<(hyperlane_core::HyperlaneDomain, FormatRevert)> {
+        use hyperlane_core::{
+            HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
+            HyperlaneDomainType, KnownHyperlaneDomain,
+        };
+        vec![
+            (
+                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+                |payload| format!("execution reverted: {payload}"),
+            ),
+            (
+                // `TronCcipReadIsm` returns the revert payload as a bare "0x{hex}" error.
+                HyperlaneDomain::Unknown {
+                    domain_id: 728126428,
+                    domain_name: "tron".to_owned(),
+                    domain_type: HyperlaneDomainType::Mainnet,
+                    domain_protocol: HyperlaneDomainProtocol::Tron,
+                    domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+                },
+                str::to_owned,
+            ),
+        ]
+    }
+
+    /// Fetches metadata from the ISM at `ism` on `domain`, whose lookup names
+    /// `sender`, and returns the reported read states.
+    async fn read_states_for_lookup_sender(
+        domain: hyperlane_core::HyperlaneDomain,
+        format_revert: FormatRevert,
+        ism: H256,
+        sender: EthersH160,
+    ) -> Vec<String> {
+        use crate::test_utils::mock_base_builder::build_mock_base_builder;
+        use ethers::abi::AbiEncode;
+
+        let base = Arc::new(build_mock_base_builder(domain.clone(), domain.clone()));
+        let lookup = OffchainLookup {
+            sender,
+            // Rejected by URL validation, which only runs once the sender is accepted.
+            urls: vec!["https://127.0.0.1/lookup".to_owned()],
+            call_data: vec![1, 2, 3].into(),
+            callback_function: [0; 4],
+            extra_data: Default::default(),
+        };
+        base.responses
+            .build_ccip_read_ism
+            .lock()
+            .expect("lock")
+            .push_back(Ok(Box::new(RevertingCcipReadIsm {
+                address: ism,
+                domain,
+                revert: format_revert(&bytes_to_hex(&lookup.encode())),
+            })));
+        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
+            node_id: "test-root".to_owned(),
+            base: base.clone(),
+            app_context: None,
+            root_ism: ism,
+            signature_polling: false,
+            signature_poll_retry: None,
+            max_ism_depth: 5,
+            max_ism_count: 10,
+        });
+
+        let result = fetch_metadata(&builder, ism, &HyperlaneMessage::default()).await;
+        assert!(result.is_err());
+
+        let activities = base.requests.activities.lock().expect("lock");
+        activities
+            .iter()
+            .map(|(_, activity)| {
+                serde_json::to_value(activity).expect("serialize")["state"].to_string()
+            })
+            .collect()
+    }
+
+    // ISM addresses reach the builder as 20-byte addresses widened to 32 bytes:
+    // `route`, `recipientIsm` and `modulesAndThreshold` return ABI-decoded
+    // addresses, and Tron's 0x41 prefix is only added when calling its RPC.
+    fn queried_ism() -> (H256, EthersH160) {
+        let address: EthersH160 = "4ee6ecad1c2dae9f525404de8555724e3c35d07b"
+            .parse()
+            .expect("address");
+        (H256::from(address), address)
+    }
+
+    #[tokio::test]
+    async fn lookup_from_a_sender_other_than_the_queried_ism_is_not_signed_or_sent() {
+        let (ism, _) = queried_ism();
+        for (domain, format_revert) in ccip_read_destinations() {
+            let name = domain.name().to_owned();
+            let states = read_states_for_lookup_sender(
+                domain,
+                format_revert,
+                ism,
+                EthersH160::repeat_byte(0x22),
+            )
+            .await;
+
+            // Rejected before URL validation, signing and the request.
+            assert_eq!(states, vec!["\"sender_mismatch\""], "{name}");
+        }
+    }
+
+    #[tokio::test]
+    async fn lookup_from_the_queried_ism_proceeds_to_the_request() {
+        let (ism, sender) = queried_ism();
+        for (domain, format_revert) in ccip_read_destinations() {
+            let name = domain.name().to_owned();
+            let states = read_states_for_lookup_sender(domain, format_revert, ism, sender).await;
+
+            assert_eq!(
+                states,
+                vec!["\"origin_transaction_missing\"", "\"url_rejected\""],
+                "{name}"
+            );
+        }
     }
 
     #[test]

@@ -245,6 +245,7 @@ pub enum OffchainReadState {
     LookupReturnedNormally,
     LookupFailed,
     InvalidLookupRevert,
+    SenderMismatch,
     OriginTransactionMissing,
     OriginTransactionLookupFailed,
     UrlRejected,
