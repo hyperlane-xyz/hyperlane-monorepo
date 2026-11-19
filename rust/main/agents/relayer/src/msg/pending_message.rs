@@ -21,7 +21,7 @@ use hyperlane_base::{
     cache::{FunctionCallCache, LocalCache, MeteredCache, OptionalCache},
     db::{HyperlaneDb, HyperlaneRocksDB, PendingMessageRetryState, SignatureRetryState},
     message_retry_delay, signature_retry_delay, with_checkpoint_signature_miss, SignaturePollRetry,
-    SIGNATURE_POLL_INTERVAL, SIGNATURE_POLL_WINDOW,
+    MESSAGE_RETRY_TERMINAL_DELAY, SIGNATURE_POLL_INTERVAL, SIGNATURE_POLL_WINDOW,
 };
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
@@ -1897,11 +1897,10 @@ impl PendingMessage {
                 let reprepare = match &err {
                     MetadataBuildError::RetryLimitReached(retries) => {
                         let reason = ReprepareReason::AwaitingValidatorSignatures;
-                        *self.submission_stage.lock() = None;
-                        self.submitted = false;
+                        self.num_retries = self.num_retries.max(*retries);
                         self.signature_retry = None;
                         self.set_status(PendingOperationStatus::Retry(reason.clone()));
-                        self.set_retries(self.num_retries.max(*retries));
+                        self.delay_reprepare(MESSAGE_RETRY_TERMINAL_DELAY, reason.clone());
                         self.reprepare_or_drop(reason)
                     }
                     MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
@@ -3793,58 +3792,64 @@ mod test {
 
     #[tokio::test]
     async fn exhausted_parked_signature_retries_are_persisted_without_restarting_polling() {
-        let ism = H256::repeat_byte(1);
-        let mut mailbox = contract_test_mailbox();
-        mailbox
-            .expect__recipient_ism()
-            .once()
-            .returning(move |_| Ok(ism));
-        let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
-        let max_retries = pending.max_retries;
-        pending.num_retries = max_retries.saturating_sub(1);
-        let (sender, result) = oneshot::channel();
-        sender
-            .send(Err(MetadataBuildError::RetryLimitReached(max_retries)))
-            .expect("parked result receiver");
-        pending.parked_metadata = Some(ParkedMetadataBuild {
-            ism,
-            started_at: Instant::now(),
-            result,
-        });
+        for max_retries in [2, DEFAULT_MAX_MESSAGE_RETRIES] {
+            let ism = H256::repeat_byte(1);
+            let mut mailbox = contract_test_mailbox();
+            mailbox
+                .expect__recipient_ism()
+                .times(2)
+                .returning(move |_| Ok(ism));
+            let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+            pending.max_retries = max_retries;
+            pending.num_retries = max_retries.saturating_sub(1);
+            for _ in 0..2 {
+                let (sender, result) = oneshot::channel();
+                sender
+                    .send(Err(MetadataBuildError::RetryLimitReached(max_retries)))
+                    .expect("parked result receiver");
+                pending.parked_metadata = Some(ParkedMetadataBuild {
+                    ism,
+                    started_at: Instant::now(),
+                    result,
+                });
 
-        assert!(matches!(
-            pending.build_metadata(false).await,
-            Err(QueuePrepareResult::Complete(
-                PendingOperationResult::Reprepare(ReprepareReason::AwaitingValidatorSignatures)
-            ))
-        ));
-        assert!(pending.parked_metadata.is_none());
-        assert_eq!(pending.num_retries, max_retries);
-        assert!(pending.signature_retry.is_none());
-        let state = pending
-            .ctx
-            .origin_db
-            .retrieve_pending_message_retry_state_by_message_id(&pending.message.id())
-            .expect("read durable retry state")
-            .expect("exhausted retry state is persisted");
-        assert_eq!(state.retry_count, max_retries);
-        assert_eq!(
-            state.reason,
-            Some(ReprepareReason::AwaitingValidatorSignatures)
-        );
-        assert_eq!(
-            state.retry_delay_millis,
-            Some(Duration::from_secs(10 * 7 * 24 * 60 * 60).as_millis() as u64)
-        );
-        assert!(state.signature_retry.is_none());
-        assert!(!pending.is_ready());
-        assert!(PendingMessage::maybe_from_persisted_retries(
-            pending.message.clone(),
-            pending.ctx.clone(),
-            None,
-            max_retries,
-        )
-        .is_none());
+                assert!(matches!(
+                    pending.build_metadata(false).await,
+                    Err(QueuePrepareResult::Complete(
+                        PendingOperationResult::Reprepare(
+                            ReprepareReason::AwaitingValidatorSignatures
+                        )
+                    ))
+                ));
+                assert!(pending.parked_metadata.is_none());
+                assert_eq!(pending.num_retries, max_retries);
+                assert!(pending.signature_retry.is_none());
+                let state = pending
+                    .ctx
+                    .origin_db
+                    .retrieve_pending_message_retry_state_by_message_id(&pending.message.id())
+                    .expect("read durable retry state")
+                    .expect("exhausted retry state is persisted");
+                assert_eq!(state.retry_count, max_retries);
+                assert_eq!(
+                    state.reason,
+                    Some(ReprepareReason::AwaitingValidatorSignatures)
+                );
+                assert_eq!(
+                    state.retry_delay_millis,
+                    Some(10 * 7 * 24 * 60 * 60 * 1_000)
+                );
+                assert!(state.signature_retry.is_none());
+                assert!(!pending.is_ready());
+                assert!(PendingMessage::maybe_from_persisted_retries(
+                    pending.message.clone(),
+                    pending.ctx.clone(),
+                    None,
+                    max_retries,
+                )
+                .is_none());
+            }
+        }
     }
 
     #[test]

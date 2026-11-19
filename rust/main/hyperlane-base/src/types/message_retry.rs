@@ -7,6 +7,8 @@ use tracing::warn;
 pub const SIGNATURE_POLL_INTERVAL: Duration = Duration::from_millis(500);
 /// Time after the first miss spent fast-polling for signatures.
 pub const SIGNATURE_POLL_WINDOW: Duration = Duration::from_secs(10);
+/// Delay applied after the message's retry budget has been exhausted.
+pub const MESSAGE_RETRY_TERMINAL_DELAY: Duration = Duration::from_secs(10 * 7 * 24 * 60 * 60);
 
 /// Accelerated signature delay before the ordinary retry schedule takes over.
 pub fn signature_retry_delay(elapsed: Duration, backoff_retries: &mut u32) -> Option<Duration> {
@@ -66,7 +68,7 @@ pub fn message_retry_delay(
                     "Message has been retried too many times, skipping",
                 );
             }
-            chrono::Duration::weeks(10).num_seconds() as u64
+            MESSAGE_RETRY_TERMINAL_DELAY.as_secs()
         }
     }))
 }
