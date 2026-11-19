@@ -64,6 +64,7 @@ import {
   REGISTRY_URI_SCHEMA,
   ServiceConfigWithBaseUrl,
 } from './BaseService.js';
+import { collectCcipReadIsms } from './ccipReadIsmTree.js';
 
 export const CalldataLookupEnabledSchema = z
   .enum(['true', 'false'])
@@ -556,7 +557,8 @@ export class CallCommitmentsService extends BaseService {
     message: string,
     relayer: string,
     logger: Logger,
-    originTxHash?: string,
+    originTxHash: string | undefined,
+    lookupSender: string,
   ) {
     const log = this.addLoggerServiceContext(logger);
     log.info(
@@ -652,6 +654,7 @@ export class CallCommitmentsService extends BaseService {
           );
         }
       }
+      await this.assertLookupSenderVerifiesReveal(message, lookupSender, log);
       const encoded =
         ica +
         encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
@@ -688,6 +691,50 @@ export class CallCommitmentsService extends BaseService {
         'Error fetching commitment from message',
       );
       throw error;
+    }
+  }
+
+  /**
+   * Requires the lookup sender, which the relayer signs only as the ISM it
+   * queried, to be a CCIP-read ISM of the tree that verifies the reveal on
+   * its destination, so a reveal is served only to its own ISMs.
+   */
+  private async assertLookupSenderVerifiesReveal(
+    message: string,
+    lookupSender: string,
+    log: Logger,
+  ): Promise<void> {
+    const reveal = parseMessage(message);
+    if (!this.isTrustedIcaRouter(reveal.destination, reveal.recipient)) {
+      throw new CommitmentAccessDeniedError(
+        'Reveal was not dispatched to a known ICA router',
+      );
+    }
+    const protocol = this.multiProvider.getProtocol(reveal.destination);
+    assert(
+      protocol === ProtocolType.Ethereum,
+      `Unsupported reveal destination protocol: ${protocol}`,
+    );
+    const mailbox = this.originMailboxes.get(reveal.destination);
+    assert(mailbox, `Missing mailbox address for domain ${reveal.destination}`);
+    const ccipReadIsms = await collectCcipReadIsms({
+      provider: this.multiProvider.getProvider(reveal.destination),
+      mailbox,
+      message,
+      log,
+    });
+    if (!ccipReadIsms.some((ism) => eqAddress(ism, lookupSender))) {
+      log.warn(
+        {
+          lookupSender,
+          destination: reveal.destination,
+          ccipReadIsms,
+        },
+        'Lookup sender is not a CCIP-read ISM of the reveal',
+      );
+      throw new CommitmentAccessDeniedError(
+        'Lookup sender does not verify this reveal',
+      );
     }
   }
 
@@ -1462,7 +1509,13 @@ export class CallCommitmentsService extends BaseService {
           CommitmentReadIsmService__factory,
           'getCallsFromRevealMessage',
           (message: string, relayer: string, logger: Logger) =>
-            this.handleFetchCommitment(message, relayer, logger, originTxHash),
+            this.handleFetchCommitment(
+              message,
+              relayer,
+              logger,
+              originTxHash,
+              this.auth.sender(request),
+            ),
           {
             skipResultEncoding: true,
             authenticatedRelayer: (request) => this.auth.signer(request),

@@ -6,12 +6,16 @@ import sinon from 'sinon';
 
 import {
   CommitmentReadIsmService__factory,
+  IAggregationIsm__factory,
+  IInterchainSecurityModule__factory,
+  IRoutingIsm__factory,
   InterchainAccountRouter__factory,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
   type AccountConfig,
   InterchainAccount,
+  ModuleType,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { offchainLookupRequestMessageHash } from '@hyperlane-xyz/sdk/ism/utils';
@@ -28,6 +32,7 @@ import {
   formatMessage,
   isNullish,
   isZeroishAddress,
+  parseMessage,
 } from '@hyperlane-xyz/utils';
 
 import { prisma } from '../../src/db.js';
@@ -414,6 +419,37 @@ describe('CCS read authentication', () => {
     }
   });
 
+  it('forwards the signed lookup sender of a reveal request in lower case', async () => {
+    const fetch = sinon
+      .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
+      .resolves('0x1234');
+    const app = await server();
+    const lookupSender = '0x' + 'ab'.repeat(20);
+    const checksummedSender = utils.getAddress(lookupSender);
+    expect(checksummedSender).to.not.equal(lookupSender);
+    const signature = await wallet.signMessage(
+      utils.arrayify(
+        offchainLookupRequestMessageHash(
+          checksummedSender,
+          data,
+          origin + postPath,
+        ),
+      ),
+    );
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: { sender: checksummedSender, data, signature },
+      });
+      expect(response.statusCode).to.equal(200);
+      sinon.assert.calledOnce(fetch);
+      expect(fetch.firstCall.args[4]).to.equal(lookupSender);
+    } finally {
+      await app.close();
+    }
+  });
+
   it('forwards the origin transaction hash only after authenticating a reveal request', async () => {
     const fetch = sinon
       .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
@@ -545,6 +581,50 @@ describe('CCS authenticated reveal recovery integration', () => {
     };
   }
 
+  const missingSelector = () =>
+    ethers.logger.makeError(
+      'call revert exception',
+      ethers.errors.CALL_EXCEPTION,
+      { data: '0x' },
+    );
+  const unavailableRpc = () =>
+    new Error('missing response', {
+      cause: ethers.logger.makeError(
+        'missing response',
+        ethers.errors.SERVER_ERROR,
+        {},
+      ),
+    });
+
+  const FakeIsmKind = {
+    Routing: 'routing',
+    Aggregation: 'aggregation',
+    Module: 'module',
+    Reverts: 'reverts',
+    Unavailable: 'unavailable',
+  } as const;
+
+  type FakeIsmFailure =
+    | typeof FakeIsmKind.Reverts
+    | typeof FakeIsmKind.Unavailable;
+
+  /** How a destination ISM answers the reads of the reveal ISM walk. */
+  type FakeIsm =
+    | { kind: typeof FakeIsmKind.Routing; route: string }
+    | { kind: typeof FakeIsmKind.Aggregation; modules: string[] }
+    | { kind: typeof FakeIsmKind.Module; moduleType: ModuleType }
+    | { kind: typeof FakeIsmKind.Reverts }
+    | { kind: typeof FakeIsmKind.Unavailable };
+
+  const ccipReadIsm: FakeIsm = {
+    kind: FakeIsmKind.Module,
+    moduleType: ModuleType.CCIP_READ,
+  };
+  const multisigIsm: FakeIsm = {
+    kind: FakeIsmKind.Module,
+    moduleType: ModuleType.MESSAGE_ID_MULTISIG,
+  };
+
   async function fixture({
     trustRouters = true,
     registeredWithDispatchedRouters = false,
@@ -554,6 +634,10 @@ describe('CCS authenticated reveal recovery integration', () => {
     commitIsm = '0x' + '00'.repeat(20),
     protocol = ProtocolType.Ethereum,
     sealevelRevealsEnabled = false,
+    revealIsm = '0x' + '00'.repeat(20),
+    lookupSender = sender,
+    isms = {},
+    recipientIsmFailure,
   }: {
     trustRouters?: boolean;
     registeredWithDispatchedRouters?: boolean;
@@ -563,6 +647,13 @@ describe('CCS authenticated reveal recovery integration', () => {
     commitIsm?: string;
     protocol?: ProtocolType | null;
     sealevelRevealsEnabled?: boolean;
+    /** The ISM field of the reveal; zero routes to the router's default. */
+    revealIsm?: string;
+    lookupSender?: string;
+    /** Destination ISMs by address; `sender` is the router's default ISM. */
+    isms?: Record<string, FakeIsm>;
+    /** How the destination mailbox's `recipientIsm` read fails, if it does. */
+    recipientIsmFailure?: FakeIsmFailure;
   } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
@@ -599,7 +690,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       destinationRouterV3,
       utils.solidityPack(
         ['uint8', 'bytes32', 'bytes32'],
-        [2, salt, commitment],
+        [2, utils.hexZeroPad(revealIsm, 32), commitment],
       ),
     );
     const mailboxInterface = Mailbox__factory.createInterface();
@@ -633,36 +724,123 @@ describe('CCS authenticated reveal recovery integration', () => {
     // The dispatched router pair derives with the same model as the registry
     // candidates below, so every ICA depends on the commit's owner and salt.
     const routerInterface = InterchainAccountRouter__factory.createInterface();
+    const deriveIca = sinon.spy();
+    function answerRouter(to: string, data: string): string {
+      const parsed = routerInterface.parseTransaction({ data });
+      if (parsed.name === 'moduleType') {
+        return routerInterface.encodeFunctionResult('moduleType', [
+          ModuleType.ROUTING,
+        ]);
+      }
+      // Mirrors `InterchainAccountRouter.route` for a reveal: its ISM field,
+      // or the router's default ISM (`sender`) when zero.
+      if (parsed.name === 'route') {
+        const routed = bytes32ToAddress(
+          utils.hexDataSlice(parseMessage(parsed.args[0]).body, 1, 33),
+        );
+        return routerInterface.encodeFunctionResult('route', [
+          isZeroishAddress(routed) ? sender : routed,
+        ]);
+      }
+      deriveIca();
+      const [, owner, router, ism, userSalt] =
+        routerInterface.decodeFunctionData(
+          'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
+          data,
+        );
+      return utils.defaultAbiCoder.encode(
+        ['address'],
+        [
+          fakeAccount({
+            origin: 'base',
+            owner: bytes32ToAddress(owner),
+            userSalt,
+            localRouter: bytes32ToAddress(router),
+            routerOverride: to,
+            ismOverride: isZeroishAddress(ism) ? undefined : ism,
+          }),
+        ],
+      );
+    }
+    const fakeIsms = new Map<string, FakeIsm>(
+      Object.entries(isms).map(([address, ism]) => [
+        address.toLowerCase(),
+        ism,
+      ]),
+    );
+    if (!fakeIsms.has(sender)) fakeIsms.set(sender, ccipReadIsm);
+    const ismInterface = IInterchainSecurityModule__factory.createInterface();
+    const routingInterface = IRoutingIsm__factory.createInterface();
+    const aggregationInterface = IAggregationIsm__factory.createInterface();
+    const ismReads = new Map<string, number>();
+    function answerIsm(to: string, data: string): string {
+      ismReads.set(to, (ismReads.get(to) ?? 0) + 1);
+      const ism = fakeIsms.get(to);
+      if (!ism || ism.kind === FakeIsmKind.Reverts) throw missingSelector();
+      if (ism.kind === FakeIsmKind.Unavailable) throw unavailableRpc();
+      if (
+        utils.hexDataSlice(data, 0, 4) === ismInterface.getSighash('moduleType')
+      ) {
+        const moduleType =
+          ism.kind === FakeIsmKind.Routing
+            ? ModuleType.ROUTING
+            : ism.kind === FakeIsmKind.Aggregation
+              ? ModuleType.AGGREGATION
+              : ism.moduleType;
+        return ismInterface.encodeFunctionResult('moduleType', [moduleType]);
+      }
+      if (ism.kind === FakeIsmKind.Routing) {
+        routingInterface.decodeFunctionData('route', data);
+        return routingInterface.encodeFunctionResult('route', [ism.route]);
+      }
+      if (ism.kind === FakeIsmKind.Aggregation) {
+        aggregationInterface.decodeFunctionData('modulesAndThreshold', data);
+        return aggregationInterface.encodeFunctionResult(
+          'modulesAndThreshold',
+          [ism.modules, 1],
+        );
+      }
+      throw missingSelector();
+    }
+    const destinationMailbox = '0x' + '34'.repeat(20);
     const destinationCall = sinon
       .stub(destinationProvider, 'call')
       .callsFake(async (transaction) => {
-        const [to, data] = await Promise.all([
+        const [to, rawData] = await Promise.all([
           transaction.to,
           transaction.data,
         ]);
-        assert(to && data, 'Expected a router call');
-        const [, owner, router, ism, userSalt] =
-          routerInterface.decodeFunctionData(
-            'getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32)',
+        assert(to && rawData, 'Expected a destination call');
+        const target = to.toLowerCase();
+        const data = utils.hexlify(rawData);
+        // The ICA router names itself as its recipient ISM.
+        if (target === destinationMailbox) {
+          if (recipientIsmFailure === FakeIsmKind.Reverts) {
+            throw missingSelector();
+          }
+          if (recipientIsmFailure === FakeIsmKind.Unavailable) {
+            throw unavailableRpc();
+          }
+          const [recipient] = mailboxInterface.decodeFunctionData(
+            'recipientIsm',
             data,
           );
-        return utils.defaultAbiCoder.encode(
-          ['address'],
-          [
-            fakeAccount({
-              origin: 'base',
-              owner: bytes32ToAddress(owner),
-              userSalt,
-              localRouter: bytes32ToAddress(router),
-              routerOverride: to,
-              ismOverride: isZeroishAddress(ism) ? undefined : ism,
-            }),
-          ],
-        );
+          return mailboxInterface.encodeFunctionResult('recipientIsm', [
+            recipient,
+          ]);
+        }
+        if (target === destinationRouter || target === destinationRouterV3) {
+          return answerRouter(to, data);
+        }
+        return answerIsm(target, data);
       });
     const multiProvider = sinon.createStubInstance(MultiProvider);
-    if (protocol === null) multiProvider.getProtocol.throws('Unknown origin');
-    else multiProvider.getProtocol.returns(protocol);
+    if (protocol === null) {
+      multiProvider.getProtocol.withArgs(8453).throws('Unknown origin');
+    } else {
+      multiProvider.getProtocol.withArgs(8453).returns(protocol);
+    }
+    multiProvider.getProtocol.withArgs(42161).returns(ProtocolType.Ethereum);
     multiProvider.getChainName.withArgs(8453).returns('base');
     multiProvider.getChainName.withArgs(42161).returns('arbitrum');
     multiProvider.getProvider.withArgs('base').returns(originProvider);
@@ -732,7 +910,7 @@ describe('CCS authenticated reveal recovery integration', () => {
         trustedIcaRouters,
         originMailboxes: new Map([
           [8453, mailbox],
-          [42161, '0x' + '34'.repeat(20)],
+          [42161, destinationMailbox],
         ]),
       },
       { sealevelRevealsEnabled },
@@ -744,10 +922,15 @@ describe('CCS authenticated reveal recovery integration', () => {
       );
     const signature = await wallet.signMessage(
       utils.arrayify(
-        offchainLookupRequestMessageHash(sender, data, origin + postPath),
+        offchainLookupRequestMessageHash(lookupSender, data, origin + postPath),
       ),
     );
-    const payload = { sender, data, signature, origin_tx_hash: originTxHash };
+    const payload = {
+      sender: lookupSender,
+      data,
+      signature,
+      origin_tx_hash: originTxHash,
+    };
     return {
       app,
       payload,
@@ -756,6 +939,8 @@ describe('CCS authenticated reveal recovery integration', () => {
       icaApp,
       originCall,
       destinationCall,
+      deriveIca,
+      ismReads,
       destinationRouter,
       destinationRouterV3,
       record,
@@ -784,7 +969,7 @@ describe('CCS authenticated reveal recovery integration', () => {
       );
       sinon.assert.notCalled(f.updateMany);
       sinon.assert.calledOnce(f.receipt);
-      sinon.assert.calledOnce(f.destinationCall);
+      sinon.assert.calledOnce(f.deriveIca);
       sinon.assert.notCalled(f.originCall);
     } finally {
       await f.app.close();
@@ -805,7 +990,7 @@ describe('CCS authenticated reveal recovery integration', () => {
           encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
       );
       expect(f.icaApp.getAccount.called).to.equal(false);
-      sinon.assert.calledOnce(f.destinationCall);
+      sinon.assert.calledOnce(f.deriveIca);
     } finally {
       await f.app.close();
     }
@@ -932,20 +1117,6 @@ describe('CCS authenticated reveal recovery integration', () => {
     }
   }
 
-  const missingSelector = () =>
-    ethers.logger.makeError(
-      'call revert exception',
-      ethers.errors.CALL_EXCEPTION,
-      { data: '0x' },
-    );
-  const unavailableRpc = () =>
-    new Error('missing response', {
-      cause: ethers.logger.makeError(
-        'missing response',
-        ethers.errors.SERVER_ERROR,
-        {},
-      ),
-    });
   it('serves a reveal to a destination without a V2 router from the dispatched ICA alone', async () => {
     const f = await fixture({
       destinationV3Only: true,
@@ -963,7 +1134,7 @@ describe('CCS authenticated reveal recovery integration', () => {
           encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
       );
       expect(f.icaApp.getAccount.called).to.equal(false);
-      sinon.assert.calledOnce(f.destinationCall);
+      sinon.assert.calledOnce(f.deriveIca);
       sinon.assert.notCalled(f.updateMany);
     } finally {
       await f.app.close();
@@ -1157,4 +1328,344 @@ describe('CCS authenticated reveal recovery integration', () => {
       }
     });
   }
+
+  const customLeaf = '0x' + '61'.repeat(20);
+  const routingIsm = '0x' + '62'.repeat(20);
+  const aggregationIsm = '0x' + '63'.repeat(20);
+  const nestedMultisig = '0x' + '64'.repeat(20);
+  const nestedLeaf = '0x' + '65'.repeat(20);
+  const otherLeaf = '0x' + '66'.repeat(20);
+  const ismAt = (index: number) =>
+    utils.hexZeroPad(utils.hexlify(0x7000 + index), 20);
+
+  const nestedTree: Record<string, FakeIsm> = {
+    [routingIsm]: { kind: FakeIsmKind.Routing, route: aggregationIsm },
+    [aggregationIsm]: {
+      kind: FakeIsmKind.Aggregation,
+      modules: [nestedMultisig, nestedLeaf],
+    },
+    [nestedMultisig]: multisigIsm,
+    [nestedLeaf]: ccipReadIsm,
+  };
+
+  /** `length` routing ISMs, below the ICA router, ending in `customLeaf`. */
+  function routingChain(length: number): Record<string, FakeIsm> {
+    const isms: Record<string, FakeIsm> = { [customLeaf]: ccipReadIsm };
+    for (let index = 0; index < length; index++) {
+      isms[ismAt(index)] = {
+        kind: FakeIsmKind.Routing,
+        route: index + 1 < length ? ismAt(index + 1) : customLeaf,
+      };
+    }
+    return isms;
+  }
+
+  /**
+   * An aggregation of `multisigs` multisig ISMs and `customLeaf`, listing the
+   * first multisig again before the leaf when `repeatFirst` is set.
+   */
+  function wideAggregation(
+    multisigs: number,
+    repeatFirst = false,
+  ): Record<string, FakeIsm> {
+    const modules = Array.from({ length: multisigs }, (_, index) =>
+      ismAt(index),
+    );
+    const isms: Record<string, FakeIsm> = {
+      [aggregationIsm]: {
+        kind: FakeIsmKind.Aggregation,
+        modules: [...modules, ...(repeatFirst ? [ismAt(0)] : []), customLeaf],
+      },
+      [customLeaf]: ccipReadIsm,
+    };
+    for (const module of modules) isms[module] = multisigIsm;
+    return isms;
+  }
+
+  /**
+   * An aggregation of `nestedLeaf` and a routing chain whose CCIP-read ISM
+   * (`otherLeaf`) is beyond the walked depth.
+   */
+  function leafBesideDeepBranch(): Record<string, FakeIsm> {
+    const isms: Record<string, FakeIsm> = {
+      [aggregationIsm]: {
+        kind: FakeIsmKind.Aggregation,
+        modules: [ismAt(0), nestedLeaf],
+      },
+      [nestedLeaf]: ccipReadIsm,
+      [otherLeaf]: ccipReadIsm,
+    };
+    for (let index = 0; index < 12; index++) {
+      isms[ismAt(index)] = {
+        kind: FakeIsmKind.Routing,
+        route: index + 1 < 12 ? ismAt(index + 1) : otherLeaf,
+      };
+    }
+    return isms;
+  }
+
+  interface IsmTreeCase {
+    name: string;
+    options: Parameters<typeof fixture>[0];
+    statusCode: number;
+    error?: string;
+  }
+
+  const notInTree = 'Lookup sender does not verify this reveal';
+  const ismTreeCases: IsmTreeCase[] = [
+    {
+      name: "serves the router's default CCIP-read ISM for a reveal without an ISM",
+      options: {},
+      statusCode: 200,
+    },
+    {
+      name: 'denies another CCIP-read ISM for a reveal without an ISM',
+      options: { lookupSender: otherLeaf, isms: { [otherLeaf]: ccipReadIsm } },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'serves the CCIP-read ISM named in the reveal',
+      options: {
+        revealIsm: customLeaf,
+        lookupSender: customLeaf,
+        isms: { [customLeaf]: ccipReadIsm },
+      },
+      statusCode: 200,
+    },
+    {
+      name: "denies the router's default ISM when the reveal names another",
+      options: { revealIsm: customLeaf, isms: { [customLeaf]: ccipReadIsm } },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'serves a CCIP-read ISM nested in an aggregation behind routing',
+      options: {
+        revealIsm: routingIsm,
+        lookupSender: nestedLeaf,
+        isms: nestedTree,
+      },
+      statusCode: 200,
+    },
+    {
+      name: 'denies a module of the tree that is not a CCIP-read ISM',
+      options: {
+        revealIsm: routingIsm,
+        lookupSender: nestedMultisig,
+        isms: nestedTree,
+      },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'denies when the route read of a routing ISM reverts',
+      options: {
+        revealIsm: routingIsm,
+        isms: {
+          [routingIsm]: {
+            kind: FakeIsmKind.Module,
+            moduleType: ModuleType.ROUTING,
+          },
+        },
+      },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'denies when the modules read of an aggregation ISM reverts',
+      options: {
+        revealIsm: aggregationIsm,
+        isms: {
+          [aggregationIsm]: {
+            kind: FakeIsmKind.Module,
+            moduleType: ModuleType.AGGREGATION,
+          },
+        },
+      },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'serves a CCIP-read ISM beside a module whose reads revert',
+      options: {
+        revealIsm: aggregationIsm,
+        lookupSender: customLeaf,
+        isms: {
+          [aggregationIsm]: {
+            kind: FakeIsmKind.Aggregation,
+            modules: [routingIsm, customLeaf],
+          },
+          [routingIsm]: {
+            kind: FakeIsmKind.Module,
+            moduleType: ModuleType.ROUTING,
+          },
+          [customLeaf]: ccipReadIsm,
+        },
+      },
+      statusCode: 200,
+    },
+    {
+      name: 'denies a sender whose module type read reverts',
+      options: { isms: { [sender]: { kind: FakeIsmKind.Reverts } } },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'returns HTTP 500, not a denial, when an ISM read is unavailable',
+      options: { isms: { [sender]: { kind: FakeIsmKind.Unavailable } } },
+      statusCode: 500,
+      error: 'Internal server error',
+    },
+    {
+      name: 'serves a CCIP-read ISM at the deepest walked depth (12)',
+      options: {
+        revealIsm: ismAt(0),
+        lookupSender: customLeaf,
+        isms: routingChain(11),
+      },
+      statusCode: 200,
+    },
+    {
+      name: 'denies a CCIP-read ISM beyond the walked depth (13)',
+      options: {
+        revealIsm: ismAt(0),
+        lookupSender: customLeaf,
+        isms: routingChain(12),
+      },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'serves a CCIP-read ISM beside a branch that goes beyond the walked depth',
+      options: {
+        revealIsm: aggregationIsm,
+        lookupSender: nestedLeaf,
+        isms: leafBesideDeepBranch(),
+      },
+      statusCode: 200,
+    },
+    {
+      name: 'denies the CCIP-read ISM of a branch beyond the walked depth',
+      options: {
+        revealIsm: aggregationIsm,
+        lookupSender: otherLeaf,
+        isms: leafBesideDeepBranch(),
+      },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'serves a CCIP-read ISM in a tree of 100 ISMs',
+      options: {
+        revealIsm: aggregationIsm,
+        lookupSender: customLeaf,
+        isms: wideAggregation(97),
+      },
+      statusCode: 200,
+    },
+    {
+      name: 'denies a CCIP-read ISM that would be the 101st ISM read',
+      options: {
+        revealIsm: aggregationIsm,
+        lookupSender: customLeaf,
+        isms: wideAggregation(98),
+      },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'counts a module listed twice once toward the 100 ISMs read',
+      options: {
+        revealIsm: aggregationIsm,
+        lookupSender: customLeaf,
+        isms: wideAggregation(97, true),
+      },
+      statusCode: 200,
+    },
+    {
+      name: 'returns HTTP 500, not a denial, when the mailbox recipient ISM read reverts',
+      options: { recipientIsmFailure: FakeIsmKind.Reverts },
+      statusCode: 500,
+      error: 'Internal server error',
+    },
+    {
+      name: 'returns HTTP 500, not a denial, when the mailbox recipient ISM read is unavailable',
+      options: { recipientIsmFailure: FakeIsmKind.Unavailable },
+      statusCode: 500,
+      error: 'Internal server error',
+    },
+    {
+      name: 'denies a Sealevel-origin reveal to a CCIP-read ISM outside its tree',
+      options: {
+        protocol: ProtocolType.Sealevel,
+        sealevelRevealsEnabled: true,
+        lookupSender: otherLeaf,
+        isms: { [otherLeaf]: ccipReadIsm },
+      },
+      statusCode: 403,
+      error: notInTree,
+    },
+    {
+      name: 'denies a Sealevel-origin reveal to a destination router not in the registry',
+      options: {
+        protocol: ProtocolType.Sealevel,
+        sealevelRevealsEnabled: true,
+        trustRouters: false,
+      },
+      statusCode: 403,
+      error: 'Reveal was not dispatched to a known ICA router',
+    },
+  ];
+
+  for (const c of ismTreeCases) {
+    it(c.name, async () => {
+      const f = await fixture(c.options);
+      try {
+        const response = await f.app.inject({
+          method: 'POST',
+          url: postPath,
+          payload: f.payload,
+        });
+        expect(response.statusCode).to.equal(c.statusCode);
+        if (c.error === undefined) {
+          expect(response.json().data).to.equal(
+            f.dispatchedIca +
+              encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+          );
+        } else {
+          expect(response.json()).to.deep.equal({ error: c.error });
+        }
+        sinon.assert.notCalled(f.updateMany);
+      } finally {
+        await f.app.close();
+      }
+    });
+  }
+
+  it('reads a routing ISM that routes to itself once', async () => {
+    const f = await fixture({
+      revealIsm: aggregationIsm,
+      lookupSender: customLeaf,
+      isms: {
+        [aggregationIsm]: {
+          kind: FakeIsmKind.Aggregation,
+          modules: [routingIsm, customLeaf],
+        },
+        [routingIsm]: { kind: FakeIsmKind.Routing, route: routingIsm },
+        [customLeaf]: ccipReadIsm,
+      },
+    });
+    try {
+      const response = await f.app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: f.payload,
+      });
+      expect(response.statusCode).to.equal(200);
+      expect(f.ismReads.get(routingIsm)).to.equal(2);
+    } finally {
+      await f.app.close();
+    }
+  });
 });

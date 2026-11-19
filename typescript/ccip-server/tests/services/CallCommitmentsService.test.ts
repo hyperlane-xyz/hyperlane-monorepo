@@ -2003,6 +2003,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
   );
 
   const originTxHash = '0x' + '34'.repeat(32);
+  const lookupSender = '0x' + '03'.repeat(20);
   const routerIca = '0x' + '99'.repeat(20);
   const otherIca = '0x2254720417e8645d069821772790612149bf2c08';
 
@@ -2023,6 +2024,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     service.deriveRouterVersionIcas = sinon
       .stub()
       .resolves({ routerVersionIcas: [], unavailableCandidates: 0 });
+    service.assertLookupSenderVerifiesReveal = sinon.stub().resolves();
     return Object.assign(service, overrides);
   }
 
@@ -2072,6 +2074,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       baseRelayers[0],
       mockLogger(),
       originTxHash,
+      lookupSender,
     );
 
     expect(result).to.equal(servedCalls(mockIca));
@@ -2093,6 +2096,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       baseRelayers[0],
       mockLogger(),
       originTxHash,
+      lookupSender,
     );
 
     expect(result).to.equal(servedCalls(mockIca));
@@ -2115,6 +2119,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[1],
         mockLogger(),
         originTxHash,
+        lookupSender,
       )
       .then(
         () => undefined,
@@ -2135,6 +2140,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       baseRelayers[0],
       mockLogger(),
       originTxHash,
+      lookupSender,
     );
 
     sinon.assert.calledOnceWithExactly(
@@ -2164,6 +2170,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[0],
         mockLogger(),
         originTxHash,
+        lookupSender,
       );
 
       expect(result).to.equal(servedCalls(otherIca));
@@ -2192,6 +2199,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
           baseRelayers[0],
           mockLogger(),
           originTxHash,
+          lookupSender,
         )
         .then(
           () => undefined,
@@ -2203,6 +2211,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         .with.property('message', 'Reveal does not belong to this commitment');
       sinon.assert.calledOnce(service.deriveIcaFromRevealMessage);
       sinon.assert.calledOnce(service.deriveRouterVersionIcas);
+      sinon.assert.notCalled(service.assertLookupSenderVerifiesReveal);
     });
   }
 
@@ -2217,6 +2226,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[0],
         mockLogger(),
         originTxHash,
+        lookupSender,
       )
       .then(
         () => undefined,
@@ -2240,6 +2250,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       baseRelayers[0],
       mockLogger(),
       originTxHash,
+      lookupSender,
     );
 
     expect(result).to.equal(servedCalls(otherIca));
@@ -2256,7 +2267,13 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       '0x' + '34'.repeat(64),
     ]) {
       const error = await service
-        .handleFetchCommitment(message, baseRelayers[0], mockLogger(), hint)
+        .handleFetchCommitment(
+          message,
+          baseRelayers[0],
+          mockLogger(),
+          hint,
+          lookupSender,
+        )
         .then(
           () => undefined,
           (error: unknown) => error,
@@ -2278,6 +2295,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[0],
         mockLogger(),
         originTxHash,
+        lookupSender,
       )
       .then(
         () => undefined,
@@ -2308,6 +2326,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[0],
         mockLogger(),
         hint,
+        lookupSender,
       );
 
       expect(result).to.equal(servedCalls(otherIca));
@@ -2331,7 +2350,13 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       service.fetchCommitmentRecord = sinon.stub().resolves(record);
 
       const unauthorized = await service
-        .handleFetchCommitment(message, baseRelayers[1], mockLogger())
+        .handleFetchCommitment(
+          message,
+          baseRelayers[1],
+          mockLogger(),
+          undefined,
+          lookupSender,
+        )
         .catch((error: unknown) => error);
       expect(unauthorized)
         .to.be.instanceOf(CommitmentAccessDeniedError)
@@ -2346,7 +2371,13 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         relayers: record.relayers,
       });
       const otherOrigin = await service
-        .handleFetchCommitment(message, baseRelayers[0], mockLogger())
+        .handleFetchCommitment(
+          message,
+          baseRelayers[0],
+          mockLogger(),
+          undefined,
+          lookupSender,
+        )
         .catch((error: unknown) => error);
       expect(otherOrigin)
         .to.be.instanceOf(CommitmentAccessDeniedError)
@@ -2368,6 +2399,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[0],
         mockLogger(),
         originTxHash,
+        lookupSender,
       )
       .then(
         () => undefined,
@@ -2397,6 +2429,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[0],
         mockLogger(),
         originTxHash,
+        lookupSender,
       )
       .catch((error: unknown) => error);
 
@@ -2417,6 +2450,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[0],
         mockLogger(),
         originTxHash,
+        lookupSender,
       )
       .catch((error: unknown) => error);
 
@@ -2440,6 +2474,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[1],
         mockLogger(),
         originTxHash,
+        lookupSender,
       )
       .then(
         () => undefined,
@@ -2450,6 +2485,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       .to.be.instanceOf(Error)
       .with.property('message', 'Signer not authorized for this commitment');
     sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
+    sinon.assert.notCalled(service.assertLookupSenderVerifiesReveal);
   });
 
   it('denies an origin mismatch before reading any chain state', async () => {
@@ -2469,6 +2505,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         baseRelayers[0],
         mockLogger(),
         originTxHash,
+        lookupSender,
       )
       .catch((error: unknown) => error);
 
@@ -2479,7 +2516,59 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
         'Reveal origin does not match stored commitment',
       );
     sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
+    sinon.assert.notCalled(service.assertLookupSenderVerifiesReveal);
   });
+
+  for (const protocol of [ProtocolType.Ethereum, ProtocolType.Sealevel]) {
+    it(`checks the signed lookup sender against the reveal before serving a ${protocol}-origin reveal`, async () => {
+      const service = createVerifyingService({ sealevelRevealsEnabled: true });
+      service.multiProvider.getProtocol.returns(protocol);
+
+      const result = await service.handleFetchCommitment(
+        message,
+        baseRelayers[0],
+        mockLogger(),
+        originTxHash,
+        lookupSender,
+      );
+
+      expect(result).to.equal(servedCalls(mockIca));
+      sinon.assert.calledOnceWithExactly(
+        service.assertLookupSenderVerifiesReveal,
+        message,
+        lookupSender,
+        sinon.match.object,
+      );
+    });
+
+    it(`does not serve a ${protocol}-origin reveal to a lookup sender outside its ISM tree`, async () => {
+      const service = createVerifyingService({
+        sealevelRevealsEnabled: true,
+        assertLookupSenderVerifiesReveal: sinon
+          .stub()
+          .rejects(
+            new CommitmentAccessDeniedError(
+              'Lookup sender does not verify this reveal',
+            ),
+          ),
+      });
+      service.multiProvider.getProtocol.returns(protocol);
+
+      const error = await service
+        .handleFetchCommitment(
+          message,
+          baseRelayers[0],
+          mockLogger(),
+          originTxHash,
+          lookupSender,
+        )
+        .catch((error: unknown) => error);
+
+      expect(error)
+        .to.be.instanceOf(CommitmentAccessDeniedError)
+        .with.property('message', 'Lookup sender does not verify this reveal');
+    });
+  }
 
   interface LogFieldCase {
     name: string;
@@ -2516,7 +2605,13 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       service.addLoggerServiceContext = () => logger;
 
       await service
-        .handleFetchCommitment(message, baseRelayers[0], logger, originTxHash)
+        .handleFetchCommitment(
+          message,
+          baseRelayers[0],
+          logger,
+          originTxHash,
+          lookupSender,
+        )
         .catch(() => undefined);
 
       const fields = [logger.info, logger.warn, logger.error].flatMap((stub) =>

@@ -63,6 +63,17 @@ served from the stored commitment record with no origin binding: access rests on
 authorization and the stored origin domain matching the reveal. Other origin protocols
 are rejected.
 
+An EVM-origin reveal is served only when the request's `sender` is a CCIP-read ISM of
+the tree that verifies the reveal on its destination (HTTP 403 otherwise). The reveal's
+destination router must be a registry ICA router. The walk starts at the destination
+mailbox's `recipientIsm` for that router and follows `route` of routing ISMs and every
+module of aggregation ISMs for the reveal message. Its limits match the relayer's (the
+recipient ISM at depth 0; ISMs at depth 13 or after the first 100 read are not walked),
+so a CCIP-read ISM beyond them is not accepted. An ISM whose read the chain reverts is
+not a CCIP-read ISM, and a failed RPC read returns HTTP 500 so the relayer retries. The
+same check runs for Sealevel-origin reveals but does not bind them: their ISM field is
+chosen by the request.
+
 ## General calldata lookup
 
 This route is disabled by default while the Sealevel reveal flow is redesigned; set
@@ -139,9 +150,11 @@ The harness constructs the service from local registry addresses with the callda
 enabled. It also serves local JSON-RPC endpoints for two origin chains, one of which lists
 only a V3 ICA router (`evmV3Only`), and a destination chain: each EVM fixture gets an
 origin transaction whose registry mailbox dispatches the commitment and then its reveal,
-and the destination router derives the stored ICA. Origin chains answer only receipt
-requests. `fixtures.json` records each EVM fixture's `originTxHash`, and the harness
-checks a reveal lookup with it before printing `READY`.
+and the destination router derives the stored ICA. The destination mailbox names the
+router as its recipient ISM, and the router routes the reveals to the fixtures' `sender`
+as its CCIP-read ISM. Origin chains answer only receipt requests. `fixtures.json`
+records each EVM fixture's `originTxHash`, and the harness checks a reveal lookup with
+it before printing `READY`.
 It accepts only a localhost database named `ccs_e2e`. Prepare that disposable database
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing
 `ca.pem`, `tls-cert.pem`, and `tls-key.pem`; the server certificate must cover

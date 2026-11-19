@@ -18,7 +18,7 @@ assert(
 );
 const { default: Fastify } = await import(require.resolve('fastify'));
 const { Wallet, providers, utils } = require('ethers');
-const { MultiProvider, InterchainAccount } =
+const { MultiProvider, InterchainAccount, ModuleType } =
   await import('../../../sdk/dist/index.js');
 const { CallCommitmentsService, icaRoutersByDomain, mailboxesByDomain } =
   await import('../../src/services/CallCommitmentsService.ts');
@@ -40,6 +40,8 @@ const wallets = [1, 2, 3].map(
 const destinationDomain = 42161;
 const destinationRouter = '0x' + '0b'.repeat(20);
 const destinationMailbox = '0x' + '0e'.repeat(20);
+// The lookup sender: the destination router's CCIP-read ISM.
+const sender = '0x' + '03'.repeat(20);
 const v2Origin = {
   domain: 10,
   router: '0x' + '0a'.repeat(20),
@@ -55,6 +57,14 @@ const routerInterface = new utils.Interface([
   'function bytecodeHash() view returns (bytes32)',
   'function isms(uint32) view returns (address)',
   'function getLocalInterchainAccount(uint32,bytes32,bytes32,address,bytes32) view returns (address)',
+  'function moduleType() view returns (uint8)',
+  'function route(bytes) view returns (address)',
+]);
+const recipientIsmInterface = new utils.Interface([
+  'function recipientIsm(address) view returns (address)',
+]);
+const ismInterface = new utils.Interface([
+  'function moduleType() view returns (uint8)',
 ]);
 const mailboxInterface = new utils.Interface([
   'event Dispatch(address indexed sender, uint32 indexed destination, bytes32 indexed recipient, bytes message)',
@@ -71,7 +81,7 @@ function deriveIca(router, origin, owner, localRouter, ism, userSalt) {
 }
 const receipts = new Map();
 const rpcServers = createRpcServers();
-function rpcResponder(chainRouter, handlers) {
+function rpcResponder(contracts) {
   return (request, res) => {
     const reply = (result) =>
       replyJson(res, { jsonrpc: '2.0', id: request.id, result });
@@ -83,16 +93,13 @@ function rpcResponder(chainRouter, handlers) {
     }
     if (request.method === 'eth_call') {
       const [call] = request.params;
-      assert.equal(
-        call.to.toLowerCase(),
-        chainRouter,
-        'Unexpected eth_call target',
-      );
-      const parsed = routerInterface.parseTransaction({ data: call.data });
-      const handler = handlers[parsed.name];
-      assert(handler, `Unexpected router call ${parsed.name}`);
+      const contract = contracts[call.to.toLowerCase()];
+      assert(contract, 'Unexpected eth_call target');
+      const parsed = contract.iface.parseTransaction({ data: call.data });
+      const handler = contract.handlers[parsed.name];
+      assert(handler, `Unexpected contract call ${parsed.name}`);
       return reply(
-        routerInterface.encodeFunctionResult(parsed.name, [
+        contract.iface.encodeFunctionResult(parsed.name, [
           handler(parsed.args),
         ]),
       );
@@ -104,14 +111,44 @@ function rpcResponder(chainRouter, handlers) {
     });
   };
 }
-const v2OriginRpc = await rpcServers.start(rpcResponder(v2Origin.router, {}));
-const v3OriginRpc = await rpcServers.start(rpcResponder(v3Origin.router, {}));
+const v2OriginRpc = await rpcServers.start(rpcResponder({}));
+const v3OriginRpc = await rpcServers.start(rpcResponder({}));
+// The router is its own recipient ISM and routes the fixtures' reveals, which
+// name no ISM, to its CCIP-read ISM.
 const destinationRpc = await rpcServers.start(
-  rpcResponder(destinationRouter, {
-    bytecodeHash: () => accountBytecodeHash,
-    isms: () => utils.hexZeroPad('0x', 20),
-    getLocalInterchainAccount: ([origin, owner, localRouter, ism, userSalt]) =>
-      deriveIca(destinationRouter, origin, owner, localRouter, ism, userSalt),
+  rpcResponder({
+    [destinationMailbox]: {
+      iface: recipientIsmInterface,
+      handlers: { recipientIsm: ([recipient]) => recipient },
+    },
+    [destinationRouter]: {
+      iface: routerInterface,
+      handlers: {
+        bytecodeHash: () => accountBytecodeHash,
+        isms: () => utils.hexZeroPad('0x', 20),
+        getLocalInterchainAccount: ([
+          origin,
+          owner,
+          localRouter,
+          ism,
+          userSalt,
+        ]) =>
+          deriveIca(
+            destinationRouter,
+            origin,
+            owner,
+            localRouter,
+            ism,
+            userSalt,
+          ),
+        moduleType: () => ModuleType.ROUTING,
+        route: () => sender,
+      },
+    },
+    [sender]: {
+      iface: ismInterface,
+      handlers: { moduleType: () => ModuleType.CCIP_READ },
+    },
   }),
 );
 const chain = (name, domainId, rpc) => ({
@@ -215,8 +252,7 @@ function request(path, method = 'GET', body, headers = {}) {
     req.end();
   });
 }
-const sender = '0x' + '03'.repeat(20),
-  svmAccount = '0x' + '04'.repeat(20),
+const svmAccount = '0x' + '04'.repeat(20),
   owner = utils.hexZeroPad('0x' + '06'.repeat(20), 32),
   userSalt = '0x' + '07'.repeat(32),
   zeroIsm = utils.hexZeroPad('0x', 32);

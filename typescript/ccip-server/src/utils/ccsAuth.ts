@@ -24,7 +24,10 @@ const CommitmentParamsSchema = z.object({
 /** Both CCS readers use the existing EIP-191 offchain lookup signature. */
 export class CcsAuth {
   private readonly signers: Set<string>;
-  private readonly identities = new WeakMap<CcipRequest, string>();
+  private readonly identities = new WeakMap<
+    CcipRequest,
+    { signer: string; sender: string }
+  >();
 
   constructor(
     private readonly baseUrl: string,
@@ -39,14 +42,22 @@ export class CcsAuth {
   }
 
   signer(request: CcipRequest): string {
-    const signer = this.identities.get(request);
-    assert(signer, 'Missing authenticated CCS signer');
-    return signer;
+    const identity = this.identities.get(request);
+    assert(identity, 'Missing authenticated CCS signer');
+    return identity.signer;
+  }
+
+  /** The lowercased lookup sender covered by the request's signature. */
+  sender(request: CcipRequest): string {
+    const identity = this.identities.get(request);
+    assert(identity, 'Missing authenticated CCS sender');
+    return identity.sender;
   }
 
   authenticate = async (request: CcipRequest, reply: FastifyReply) => {
     reply.header('Cache-Control', 'no-store');
     let signer: string;
+    let sender: string;
     try {
       // Bind to the configured public URL, never a caller-controlled Host header.
       const isPost = request.method === 'POST';
@@ -73,10 +84,8 @@ export class CcsAuth {
           credentials.signature,
         )
         .toLowerCase();
-      assert(
-        isPost || credentials.sender.toLowerCase() === signer,
-        'GET sender must match signer',
-      );
+      sender = credentials.sender.toLowerCase();
+      assert(isPost || sender === signer, 'GET sender must match signer');
     } catch {
       request.log.warn('CCS authentication failed');
       return reply
@@ -87,7 +96,7 @@ export class CcsAuth {
       request.log.warn({ signer }, 'CCS signer not authorized');
       return reply.code(403).send({ error: 'CCS signer not authorized' });
     }
-    this.identities.set(request, signer);
+    this.identities.set(request, { signer, sender });
     request.log.setBindings({ ccsSigner: signer });
   };
 }
