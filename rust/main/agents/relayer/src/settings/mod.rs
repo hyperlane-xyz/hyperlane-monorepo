@@ -453,7 +453,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
 
         let allow_contract_call_caching = p
             .chain(&mut err)
-            .get_opt_key("allowLocalCheckpointSyncers")
+            .get_opt_key("allowContractCallCaching")
             .parse_bool()
             .unwrap_or(true);
 
@@ -834,6 +834,26 @@ mod test {
             let error = parse_settings(configured.clone()).expect_err("invalid URL");
             assert!(!format!("{error:?} {error}").contains("secret-password"));
         }
+    }
+
+    #[test]
+    fn parses_contract_call_caching() {
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "allowcontractcallcaching": false,
+            "chains": { "legacy": chain_config("legacy", 1000) },
+        }))
+        .expect("valid settings");
+        assert!(!settings.allow_contract_call_caching);
+
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "allowlocalcheckpointsyncers": false,
+            "chains": { "legacy": chain_config("legacy", 1000) },
+        }))
+        .expect("valid settings");
+        assert!(settings.allow_contract_call_caching);
+        assert!(!settings.allow_local_checkpoint_syncers);
     }
 
     #[test]
