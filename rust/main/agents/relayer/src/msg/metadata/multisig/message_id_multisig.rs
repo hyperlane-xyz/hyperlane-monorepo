@@ -13,15 +13,10 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
-use tokio::{
-    sync::Semaphore,
-    time::{timeout, Instant},
-};
+use tokio::{sync::Semaphore, time::timeout};
 use tracing::{debug, warn};
 
-use super::base::{
-    checkpoint_error, poll_checkpoint, MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata,
-};
+use super::base::{checkpoint_error, MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
 
 // Shared across messages; a slow storage backend cannot accumulate unbounded
@@ -66,7 +61,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         threshold: u8,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
-        deadline: &mut Option<Instant>,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError> {
         let report = |outcome| {
             self.report_activity(
@@ -114,17 +108,14 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         let syncer = checkpoint_syncer
             .clone()
             .with_signature_polling(Some(message_id), !self.one_shot_multisig);
-        let quorum_checkpoint = poll_checkpoint(
-            syncer.fetch_checkpoint(
+        let quorum_checkpoint = syncer
+            .fetch_checkpoint(
                 validators,
                 threshold.into(),
                 leaf_index,
                 self.base_builder().destination_domain(),
-            ),
-            self.one_shot_multisig,
-            deadline,
-        )
-        .await;
+            )
+            .await;
 
         let quorum_checkpoint = unwrap_or_none_result!(
             quorum_checkpoint.map_err(checkpoint_error)?,
@@ -567,13 +558,7 @@ mod tests {
         message_builder.signature_polling = true;
         let builder = MessageIdMultisigMetadataBuilder::new(message_builder);
         assert!(builder
-            .fetch_metadata(
-                &validator_addresses,
-                2,
-                &message,
-                &multisig_syncer().await,
-                &mut None
-            )
+            .fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer().await)
             .await
             .unwrap()
             .is_some());
@@ -656,13 +641,7 @@ mod tests {
 
         let threshold = 3;
         let resp = builder
-            .fetch_metadata(
-                &validator_addresses,
-                threshold,
-                &message,
-                &multisig_syncer,
-                &mut None,
-            )
+            .fetch_metadata(&validator_addresses, threshold, &message, &multisig_syncer)
             .await
             .expect("Failed to fetch metadata")
             .expect("Expected MultisigMetadata");
@@ -751,14 +730,8 @@ mod tests {
                 .expect("message metadata builder should be created");
         let builder = MessageIdMultisigMetadataBuilder::new(message_builder);
 
-        let mut deadline = None;
-        let mut fetch = Box::pin(builder.fetch_metadata(
-            &validator_addresses,
-            2,
-            &message,
-            &multisig_syncer,
-            &mut deadline,
-        ));
+        let mut fetch =
+            Box::pin(builder.fetch_metadata(&validator_addresses, 2, &message, &multisig_syncer));
 
         assert!(
             futures::poll!(&mut fetch).is_pending(),

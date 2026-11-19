@@ -6,7 +6,7 @@ use derive_new::new;
 use eyre::Result;
 use futures::{stream, StreamExt};
 use serde::Serialize;
-use tokio::time::sleep;
+use tokio::time::{sleep, Instant};
 use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
@@ -16,8 +16,11 @@ use hyperlane_core::{
 
 use crate::{settings::CheckpointSyncerBuildError, CheckpointSyncer, CoreMetrics};
 
-/// Interval between retries for missing validator checkpoints.
+/// Interval between fast retries for missing validator checkpoints.
 const CHECKPOINT_RETRY_INTERVAL: Duration = Duration::from_millis(500);
+const CHECKPOINT_FAST_RETRY_WINDOW: Duration = Duration::from_secs(10);
+const CHECKPOINT_RETRY_BACKOFF_SECS: [u64; 4] = [1, 2, 3, 5];
+const CHECKPOINT_RETRY_BACKOFF_CAP_SECS: u64 = 8;
 
 /// Sanitized observations from existing checkpoint reads; no additional I/O.
 #[derive(Clone, Debug, Serialize)]
@@ -485,21 +488,32 @@ impl MultisigCheckpointSyncer {
                 }
             })
             .map(|(validator_index, address, syncer)| async move {
-                let mut reported_missing = false;
+                let mut first_missing = None;
+                let mut backoff = CHECKPOINT_RETRY_BACKOFF_SECS.into_iter();
                 loop {
                     let checkpoint = syncer.fetch_checkpoint(index).await;
                     if !retry || !matches!(checkpoint, Ok(None)) {
                         break (validator_index, address, checkpoint);
                     }
-                    if !reported_missing {
+                    let started_at = first_missing.get_or_insert_with(|| {
+                        let now = Instant::now();
                         self.unavailable(
                             address,
                             Some(index),
                             CheckpointUnavailableReason::Missing,
                         );
-                        reported_missing = true;
-                    }
-                    sleep(CHECKPOINT_RETRY_INTERVAL).await;
+                        now
+                    });
+                    let remaining_fast_window =
+                        CHECKPOINT_FAST_RETRY_WINDOW.saturating_sub(started_at.elapsed());
+                    let delay = if remaining_fast_window.is_zero() {
+                        Duration::from_secs(
+                            backoff.next().unwrap_or(CHECKPOINT_RETRY_BACKOFF_CAP_SECS),
+                        )
+                    } else {
+                        CHECKPOINT_RETRY_INTERVAL.min(remaining_fast_window)
+                    };
+                    sleep(delay).await;
                 }
             })
             .collect::<Vec<_>>();
@@ -1145,12 +1159,12 @@ mod test {
             .await
             .expect("signing the test checkpoint succeeds");
         let retrying = MockCheckpointSyncer::new();
-        let responses = &retrying.responses;
-        responses
+        retrying
+            .responses
             .fetch_checkpoint
             .lock()
             .expect("checkpoint response lock is available")
-            .extend([Ok(None), Ok(Some(signed))]);
+            .extend((0..26).map(|_| Ok(None)).chain([Ok(Some(signed))]));
         let activity = Arc::new(FetchActivity::default());
         let slow = DelayedCheckpointSyncer {
             delay: Duration::from_secs(60),
@@ -1166,9 +1180,9 @@ mod test {
             .with_signature_polling(Some(checkpoint.message_id), true);
         let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
         let validators = [H256::from(slow_address), H256::from(retry_address)];
-        let start = tokio::time::Instant::now();
+        let start = Instant::now();
         let fetch = syncer.fetch_checkpoint(&validators, 1, checkpoint.index, &destination);
-        let result = tokio::time::timeout(Duration::from_millis(600), fetch)
+        let result = tokio::time::timeout(Duration::from_millis(37_010), fetch)
             .await
             .expect("quorum while the other read is pending")
             .expect("checkpoint collection succeeds");
@@ -1178,7 +1192,7 @@ mod test {
                 .checkpoint,
             checkpoint
         );
-        assert!(start.elapsed() >= Duration::from_millis(500));
+        assert!(start.elapsed() >= Duration::from_secs(37));
         assert_eq!(activity.peak.load(Ordering::Relaxed), 1);
         assert_eq!(activity.active.load(Ordering::Relaxed), 0);
     }

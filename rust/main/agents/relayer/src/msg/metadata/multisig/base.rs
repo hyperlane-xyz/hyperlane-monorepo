@@ -1,4 +1,4 @@
-use std::{fmt::Debug, future::Future};
+use std::fmt::Debug;
 
 use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
@@ -13,33 +13,12 @@ use hyperlane_core::{
     HyperlaneMessage, Metadata, ModuleType, MultisigIsm, MultisigSignedCheckpoint, H256,
 };
 use strum::Display;
-use tokio::time::{timeout_at, Instant};
 use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::{MetadataBuildError, MetadataBuildRefused};
 use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
 use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, MetadataBuilder};
-use crate::msg::pending_message::SIGNATURE_POLL_WINDOW;
-
-pub(super) async fn poll_checkpoint(
-    work: impl Future<Output = Result<Option<MultisigSignedCheckpoint>>>,
-    one_shot: bool,
-    deadline: &mut Option<Instant>,
-) -> Result<Option<MultisigSignedCheckpoint>> {
-    if one_shot {
-        return work.await;
-    }
-    let deadline = match *deadline {
-        Some(deadline) => deadline,
-        None => *deadline.insert(
-            Instant::now()
-                .checked_add(SIGNATURE_POLL_WINDOW)
-                .ok_or_else(|| eyre::eyre!("Signature polling deadline exceeds timer range"))?,
-        ),
-    };
-    timeout_at(deadline, work).await.unwrap_or(Ok(None))
-}
 
 pub(super) fn checkpoint_error(error: eyre::Report) -> MetadataBuildError {
     match error.downcast::<CheckpointSyncerBuildError>() {
@@ -132,7 +111,6 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         threshold: u8,
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
-        deadline: &mut Option<Instant>,
     ) -> Result<Option<MultisigMetadata>, MetadataBuildError>;
 
     fn token_layout(&self) -> &'static [MetadataToken];
@@ -328,7 +306,6 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
     } else {
         checkpoint_syncer
     };
-    let mut deadline = None;
     let (mut result, exclusions) = {
         let flags = checkpoint_syncer
             .read_reorg_flags(&validators, builder.base_builder().ignore_reorg_reports());
@@ -337,13 +314,7 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
                 return Ok(None);
             }
             ism_builder
-                .fetch_metadata(
-                    &validators,
-                    threshold,
-                    message,
-                    &checkpoint_syncer,
-                    &mut deadline,
-                )
+                .fetch_metadata(&validators, threshold, message, &checkpoint_syncer)
                 .await
         };
         tokio::pin!(flags, signatures);
@@ -373,13 +344,7 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
         }
         if checked_syncer.has_quorum_readers(&validators, threshold.into()) {
             result = ism_builder
-                .fetch_metadata(
-                    &validators,
-                    threshold,
-                    message,
-                    &checked_syncer,
-                    &mut deadline,
-                )
+                .fetch_metadata(&validators, threshold, message, &checked_syncer)
                 .await;
         }
     }
