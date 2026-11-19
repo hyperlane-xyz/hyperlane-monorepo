@@ -162,6 +162,21 @@ fn validate_ccip_url(url: &str) -> Result<Url, Box<MetadataBuildError>> {
     Ok(url)
 }
 
+fn allowed_ccip_url(url: &str, allowed_domains: &[String]) -> Result<Url, Box<MetadataBuildError>> {
+    let url = validate_ccip_url(url)?;
+    if let Some(host) = url.domain() {
+        if allowed_domains
+            .iter()
+            .any(|domain| domain.eq_ignore_ascii_case(host))
+        {
+            return Ok(url);
+        }
+    }
+    Err(Box::new(MetadataBuildError::FailedToBuild(
+        "CCIP-read domain is not allowed".to_owned(),
+    )))
+}
+
 fn is_public_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ip) => is_public_ipv4(ip),
@@ -640,7 +655,8 @@ async fn fetch_offchain_data(
     let interpolated_url = url
         .replace("{sender}", &sender_as_bytes)
         .replace("{data}", &data_as_bytes);
-    let interpolated_url = validate_ccip_url(&interpolated_url).map_err(|e| {
+    let allowed_domains = ism_builder.base_builder().ccip_read_allowed_domains();
+    let interpolated_url = allowed_ccip_url(&interpolated_url, allowed_domains).map_err(|e| {
         activity.report(OffchainReadState::UrlRejected, None);
         FetchOutcome::from(*e)
     })?;
@@ -1421,6 +1437,22 @@ mod test {
                 .err()
                 .expect("invalid prefixed hex must be rejected without panicking");
             assert!(err.to_string().contains("Failed to decode hex"));
+        }
+    }
+
+    #[test]
+    fn ccip_read_requires_an_exact_allowed_domain() {
+        let allowed = ["Lookup.Example".to_owned(), "8.8.8.8".to_owned()];
+        let url = "https://lookup.example/metadata";
+        assert!(allowed_ccip_url(url, &allowed).is_ok());
+        assert!(allowed_ccip_url(url, &[]).is_err());
+        for url in [
+            "https://sub.lookup.example/",
+            "https://lookup.example.other/",
+            "https://other.example/lookup.example",
+            "https://8.8.8.8/",
+        ] {
+            assert!(allowed_ccip_url(url, &allowed).is_err(), "accepted {url}");
         }
     }
 

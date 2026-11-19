@@ -479,6 +479,7 @@ impl BaseAgent for Relayer {
                         default_ism_getter.clone(),
                         settings.ism_cache_configs.clone(),
                     ),
+                    settings.ccip_read_allowed_domains.clone(),
                     ccip_signer.clone(),
                     origin_chain_setup.ignore_reorg_reports,
                 )

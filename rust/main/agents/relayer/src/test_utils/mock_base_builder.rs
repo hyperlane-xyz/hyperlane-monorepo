@@ -132,6 +132,10 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .expect("activity lock")
             .push((message.id(), activity));
     }
+    fn ccip_read_allowed_domains(&self) -> &[String] {
+        &[]
+    }
+
     fn get_signer(&self) -> Option<&Signers> {
         None // Mock implementation returning None
     }

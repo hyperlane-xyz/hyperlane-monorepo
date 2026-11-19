@@ -283,6 +283,7 @@ fn generate_test_relayer_settings(
         gas_payment_enforcement: Vec::new(),
         whitelist: MatchingList::default(),
         blacklist: MatchingList::default(),
+        ccip_read_allowed_domains: Default::default(),
         address_blacklist: Vec::new(),
         runtime_denylist: None,
         transaction_gas_limit: None,

@@ -63,6 +63,8 @@ pub struct RelayerSettings {
     pub whitelist: MatchingList,
     /// Filter for what messages to block.
     pub blacklist: MatchingList,
+    /// Exact DNS names permitted for CCIP-read requests. Empty disables lookups.
+    pub ccip_read_allowed_domains: Arc<[String]>,
     /// Filter for what addresses to block interactions with.
     /// This is intentionally not an H256 to allow for addresses of any length without
     /// adding any padding.
@@ -337,6 +339,19 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .and_then(parse_matching_list)
             .unwrap_or_default();
 
+        let ccip_read_allowed_domains = p
+            .chain(&mut err)
+            .get_opt_key("ccipReadAllowedDomains")
+            .parse_string()
+            .map(|v| {
+                v.split(',')
+                    .map(str::trim)
+                    .filter(|domain| !domain.is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
+
         let address_blacklist = p
             .chain(&mut err)
             .get_opt_key("addressBlacklist")
@@ -580,6 +595,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             gas_payment_enforcement,
             whitelist,
             blacklist,
+            ccip_read_allowed_domains,
             address_blacklist,
             runtime_denylist,
             transaction_gas_limit,

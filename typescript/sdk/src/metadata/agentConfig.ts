@@ -650,6 +650,12 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .describe(
       'If no blacklist is provided ALL will be considered to not be on the blacklist.',
     ),
+  ccipReadAllowedDomains: z
+    .string()
+    .optional()
+    .describe(
+      'Comma-separated exact DNS names allowed for CCIP reads. Empty or omitted disables CCIP reads.',
+    ),
   addressBlacklist: z
     .string()
     .optional()
