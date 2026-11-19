@@ -394,16 +394,25 @@ const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 // Tempo adds transaction and new-storage charges. Base->Tempo measured 614,493
 // overhead gas versus the standard 166,887; allow 500k extra with margin.
 const TEMPO_ADDITIONAL_GAS_OVERHEAD = 500_000;
+// Glamsterdam charges ~97,920 more gas per new storage slot. Every delivery
+// creates a Mailbox record, and a transfer to a zero balance creates at least
+// one more.
+const GLAMSTERDAM_ADDITIONAL_GAS_OVERHEAD = 200_000;
+// Chains running Glamsterdam. Add ethereum once mainnet activates it.
+const GLAMSTERDAM_CHAINS: ReadonlySet<ChainName> = new Set(['sepolia']);
 
 // Overhead for interchain messaging
 export function getOverhead(local: ChainName, remote: ChainName): number {
   const remoteProtocol = getChain(remote).protocol;
 
   if (isEVMLike(remoteProtocol)) {
-    return multisigIsmVerificationCost(
+    const overhead = multisigIsmVerificationCost(
       defaultMultisigConfigs[local].threshold,
       defaultMultisigConfigs[local].validators.length,
     );
+    return GLAMSTERDAM_CHAINS.has(remote)
+      ? overhead + GLAMSTERDAM_ADDITIONAL_GAS_OVERHEAD
+      : overhead;
   }
 
   if (remoteProtocol === ProtocolType.Starknet) {
