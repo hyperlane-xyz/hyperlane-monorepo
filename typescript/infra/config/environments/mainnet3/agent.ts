@@ -94,7 +94,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: false, // relayer + scraper only
+    forma: false, // disabled — chain halted upstream since 2026-11-06 (block 34,567,890)
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -174,7 +174,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: true,
+    forma: false, // disabled — chain halted upstream since 2026-11-06 (block 34,567,890)
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -254,7 +254,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: true,
+    forma: false, // disabled — chain halted upstream since 2026-11-06 (block 34,567,890)
     fraxtal: true,
     galactica: true,
     gnosis: true,
