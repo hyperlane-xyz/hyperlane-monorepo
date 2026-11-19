@@ -71,4 +71,10 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     }
     /// Read the reorg status of the chain being validated
     async fn reorg_status(&self) -> Result<ReorgEventResponse>;
+
+    /// Read the reorg flag at the validator's announced storage location.
+    /// Backends with additional legacy paths may override this for relayer checks.
+    async fn reorg_status_at_announced_location(&self) -> Result<ReorgEventResponse> {
+        self.reorg_status().await
+    }
 }

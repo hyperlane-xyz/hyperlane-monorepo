@@ -503,3 +503,53 @@ async fn snapshot_limit_is_separate_and_applies_to_chunked_bodies_and_deadlines(
     assert!(result.unwrap_err().to_string().contains("deadline"));
     task.abort();
 }
+
+#[tokio::test]
+async fn announced_reorg_status_downloads_only_the_selected_key() {
+    use crate::CheckpointSyncer;
+
+    for (folder, expected) in [
+        (None, "gcsReorgFlagKey"),
+        (Some("sepolia".to_owned()), "sepolia%2FgcsReorgFlagKey"),
+    ] {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let (endpoint, task) = server(move |request| {
+            let call = observed.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(request.method(), hyper::Method::GET);
+            let key = request.uri().path().rsplit('/').next();
+            if call == 0 {
+                assert_eq!(key, Some(expected));
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body(Body::empty())
+                    .expect("404 response")
+            } else {
+                assert_eq!(key, Some("gcsReorgFlagKey"));
+                Response::new(Body::from("{}"))
+            }
+        })
+        .await;
+        let mut inner = StorageClient::new(AuthFlow::NoAuth)
+            .await
+            .expect("anonymous GCS transport");
+        inner.download_endpoint = Some(endpoint);
+        let client = super::super::GcsStorageClient {
+            inner,
+            bucket: "test-bucket".to_owned(),
+            folder,
+        };
+        let status = client
+            .reorg_status_at_announced_location()
+            .await
+            .expect("read announced reorg flag");
+        assert!(!status.exists);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        if client.folder.is_some() {
+            let legacy = client.reorg_status().await.expect("read legacy root flag");
+            assert!(legacy.exists);
+            assert_eq!(calls.load(Ordering::SeqCst), 2);
+        }
+        task.abort();
+    }
+}

@@ -23,6 +23,12 @@ export type SignatureProgress = {
   threshold: number;
   unavailable: { validator: string; reason: string }[];
 };
+
+export type ValidatorReorgCheck = {
+  validator: string;
+  states: string[];
+};
+
 export type IsmProgress = {
   node_id?: string;
   children?: { node_id: string; ism: string }[];
@@ -39,6 +45,7 @@ export type IsmProgress = {
   verification?: VerificationOutcome | null;
   metadata_error?: string | null;
   signatures?: SignatureProgress | null;
+  reorg_checks?: ValidatorReorgCheck[];
   offchain_read?: OffchainReadProgress | null;
 };
 export type RelayerProgress = {

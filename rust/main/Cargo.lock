@@ -5662,6 +5662,7 @@ dependencies = [
  "parking_lot 0.12.3",
  "paste",
  "prometheus",
+ "rand 0.8.5",
  "redact",
  "reqwest 0.11.27",
  "rocksdb",

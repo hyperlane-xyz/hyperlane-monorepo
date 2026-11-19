@@ -327,7 +327,13 @@ type IsmProgress {
   verification: VerificationOutcome
   metadata_error: String
   signatures: SignatureProgress
+  reorg_checks: [ValidatorReorgCheck!]
   offchain_read: OffchainReadProgress
+}
+
+type ValidatorReorgCheck {
+  validator: String!
+  states: [String!]!
 }
 
 type IsmChild {
