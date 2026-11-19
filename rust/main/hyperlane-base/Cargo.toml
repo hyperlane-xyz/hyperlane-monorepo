@@ -82,6 +82,7 @@ rusoto_sts = "*"
 google-cloud-kms-v1.workspace = true
 
 [dev-dependencies]
+aws-runtime = "1"
 aws-smithy-http-client = { version = "1", default-features = false, features = ["hyper-014"] }
 color-eyre.workspace = true
 reqwest.workspace = true
