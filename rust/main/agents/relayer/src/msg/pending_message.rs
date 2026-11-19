@@ -1837,6 +1837,14 @@ impl PendingMessage {
                     if observation.first_observation {
                         warn!("Waiting for validator signatures");
                     }
+                    self.ctx.metadata_builder.report_activity(
+                        &self.message,
+                        Activity::Retry {
+                            reason: Some(ReprepareReason::AwaitingValidatorSignatures),
+                            retry_count: self.num_retries,
+                            next_attempt_at_millis: None,
+                        },
+                    );
                     return Err(QueuePrepareResult::WaitingForSignatures(Box::pin(
                         async move {
                             let _ = sender.send(build.await);
@@ -1887,6 +1895,15 @@ impl PendingMessage {
                     );
                 }
                 let reprepare = match &err {
+                    MetadataBuildError::RetryLimitReached(retries) => {
+                        let reason = ReprepareReason::AwaitingValidatorSignatures;
+                        *self.submission_stage.lock() = None;
+                        self.submitted = false;
+                        self.signature_retry = None;
+                        self.set_status(PendingOperationStatus::Retry(reason.clone()));
+                        self.set_retries(self.num_retries.max(*retries));
+                        self.reprepare_or_drop(reason)
+                    }
                     MetadataBuildError::FailedToBuild(_) | MetadataBuildError::FastPathError(_) => {
                         self.on_reprepare(Some(&err), ReprepareReason::ErrorBuildingMetadata)
                     }
@@ -1975,7 +1992,10 @@ mod test {
 
     use crate::test_utils::dummy_data::{dummy_message_context, dummy_metadata_builder};
 
-    use super::{PendingMessage, DEFAULT_MAX_MESSAGE_RETRIES};
+    use super::{
+        oneshot, MetadataBuildError, ParkedMetadataBuild, PendingMessage,
+        DEFAULT_MAX_MESSAGE_RETRIES,
+    };
 
     fn unix_millis(time: SystemTime) -> u64 {
         time.duration_since(UNIX_EPOCH)
@@ -3769,6 +3789,62 @@ mod test {
         let pending_message_debug = format!("{pending_message:?}");
         let expected = r#"PendingMessage { num_retries: 0, since_last_attempt_s: 0, next_attempt_after_s: 0, message_id: 0xaeafdd9f018e66a50d30bb141184d10e57bd956e839f70213c163eb41a3c0d87, status: FirstPrepareAttempt, app_context: Some("test-0") }"#;
         assert_eq!(pending_message_debug, expected);
+    }
+
+    #[tokio::test]
+    async fn exhausted_parked_signature_retries_are_persisted_without_restarting_polling() {
+        let ism = H256::repeat_byte(1);
+        let mut mailbox = contract_test_mailbox();
+        mailbox
+            .expect__recipient_ism()
+            .once()
+            .returning(move |_| Ok(ism));
+        let (_dir, mut pending) = pending_with_mailbox(mailbox, None);
+        let max_retries = pending.max_retries;
+        pending.num_retries = max_retries.saturating_sub(1);
+        let (sender, result) = oneshot::channel();
+        sender
+            .send(Err(MetadataBuildError::RetryLimitReached(max_retries)))
+            .expect("parked result receiver");
+        pending.parked_metadata = Some(ParkedMetadataBuild {
+            ism,
+            started_at: Instant::now(),
+            result,
+        });
+
+        assert!(matches!(
+            pending.build_metadata(false).await,
+            Err(QueuePrepareResult::Complete(
+                PendingOperationResult::Reprepare(ReprepareReason::AwaitingValidatorSignatures)
+            ))
+        ));
+        assert!(pending.parked_metadata.is_none());
+        assert_eq!(pending.num_retries, max_retries);
+        assert!(pending.signature_retry.is_none());
+        let state = pending
+            .ctx
+            .origin_db
+            .retrieve_pending_message_retry_state_by_message_id(&pending.message.id())
+            .expect("read durable retry state")
+            .expect("exhausted retry state is persisted");
+        assert_eq!(state.retry_count, max_retries);
+        assert_eq!(
+            state.reason,
+            Some(ReprepareReason::AwaitingValidatorSignatures)
+        );
+        assert_eq!(
+            state.retry_delay_millis,
+            Some(Duration::from_secs(10 * 7 * 24 * 60 * 60).as_millis() as u64)
+        );
+        assert!(state.signature_retry.is_none());
+        assert!(!pending.is_ready());
+        assert!(PendingMessage::maybe_from_persisted_retries(
+            pending.message.clone(),
+            pending.ctx.clone(),
+            None,
+            max_retries,
+        )
+        .is_none());
     }
 
     #[test]

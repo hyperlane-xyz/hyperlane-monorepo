@@ -181,7 +181,9 @@ impl ActivityState {
                 || root_result
                 || match &event.activity {
                     Activity::Checkpoint { summary, .. } => {
-                        summary.collected > 0 || state.published_snapshot.is_some()
+                        summary.collected > 0
+                            || !summary.unavailable.is_empty()
+                            || state.published_snapshot.is_some()
                     }
                     Activity::IsmVerification { .. } | Activity::OffchainRead { .. } => {
                         state.published_snapshot.is_some()

@@ -1,4 +1,9 @@
-use std::fmt::Debug;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, LazyLock, Mutex, PoisonError},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
@@ -13,6 +18,7 @@ use hyperlane_core::{
     HyperlaneMessage, Metadata, ModuleType, MultisigIsm, MultisigSignedCheckpoint, H256,
 };
 use strum::Display;
+use tokio::{sync::Semaphore, time::timeout};
 use tracing::{debug, info, warn};
 
 use crate::msg::metadata::base::{MetadataBuildError, MetadataBuildRefused};
@@ -20,10 +26,84 @@ use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 use crate::msg::metadata::message_builder::MessageMetadataBuilder;
 use crate::msg::metadata::{IsmCachePolicy, MessageMetadataBuildParams, MetadataBuilder};
 
+// Shared across messages; a slow storage backend cannot accumulate unbounded
+// detached telemetry tasks. Pooled checkpoint syncers coalesce their reads.
+// Each origin has its own permits so one origin's hanging validator storage
+// cannot stop telemetry for every other origin; the global cap bounds the total.
+static LATEST_INDEX_TELEMETRY_PERMITS: Semaphore = Semaphore::const_new(64);
+static ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS: LazyLock<Mutex<HashMap<String, Arc<Semaphore>>>> =
+    LazyLock::new(Default::default);
+const LATEST_INDEX_TELEMETRY_PERMITS_PER_ORIGIN: usize = 4;
+const LATEST_INDEX_TELEMETRY_TIMEOUT: Duration = Duration::from_secs(30);
+fn origin_latest_index_telemetry_permits(origin: &str) -> Arc<Semaphore> {
+    ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .entry(origin.to_owned())
+        .or_insert_with(|| Arc::new(Semaphore::new(LATEST_INDEX_TELEMETRY_PERMITS_PER_ORIGIN)))
+        .clone()
+}
+
+impl MessageMetadataBuilder {
+    /// Refresh telemetry independently of checkpoint availability, with bounded
+    /// concurrency and lifetime. Busy callers leave the active refreshes running.
+    pub(super) fn spawn_latest_index_telemetry(
+        &self,
+        checkpoint_syncer: &MultisigCheckpointSyncer,
+        validators: &[H256],
+    ) {
+        let origin = self.base_builder().origin_domain().clone();
+        let Ok(origin_permit) =
+            origin_latest_index_telemetry_permits(origin.name()).try_acquire_owned()
+        else {
+            debug!("Latest-index telemetry for this origin is already at capacity");
+            self.base_builder()
+                .report_latest_index_refresh_skipped("capacity");
+            return;
+        };
+        let Ok(permit) = LATEST_INDEX_TELEMETRY_PERMITS.try_acquire() else {
+            debug!("Latest-index telemetry is already at capacity");
+            self.base_builder()
+                .report_latest_index_refresh_skipped("capacity");
+            return;
+        };
+        let syncer = checkpoint_syncer.clone();
+        let validators = validators.to_vec();
+        let destination = self.base_builder().destination_domain().clone();
+        let base_builder = self.base_builder().clone();
+        tokio::spawn(async move {
+            let _permits = (origin_permit, permit);
+            match timeout(
+                LATEST_INDEX_TELEMETRY_TIMEOUT,
+                syncer.get_validator_latest_checkpoints_and_update_metrics(
+                    &validators,
+                    &origin,
+                    &destination,
+                ),
+            )
+            .await
+            {
+                Ok(Ok(_)) => {}
+                Ok(Err(error)) => {
+                    debug!(?error, "Latest-index telemetry failed");
+                    base_builder.report_latest_index_refresh_skipped("error");
+                }
+                Err(_) => {
+                    debug!("Latest-index telemetry timed out");
+                    base_builder.report_latest_index_refresh_skipped("timeout");
+                }
+            }
+        });
+    }
+}
+
 pub(super) fn checkpoint_error(error: eyre::Report) -> MetadataBuildError {
     match error.downcast::<CheckpointSyncerBuildError>() {
         Ok(CheckpointSyncerBuildError::ReorgFlag(event)) => {
             MetadataBuildError::Refused(MetadataBuildRefused::Reorg(event))
+        }
+        Ok(CheckpointSyncerBuildError::RetryLimitReached(count)) => {
+            MetadataBuildError::RetryLimitReached(count)
         }
         error => MetadataBuildError::FailedToBuild(format!("{error:?}")),
     }
@@ -311,6 +391,7 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             .read_reorg_flags(&validators, builder.base_builder().ignore_reorg_reports());
         let signatures = async {
             if !checkpoint_syncer.has_quorum_readers(&validators, threshold.into()) {
+                builder.spawn_latest_index_telemetry(&checkpoint_syncer, &validators);
                 return Ok(None);
             }
             ism_builder
@@ -341,6 +422,8 @@ async fn build_with_known_validators<T: MultisigIsmMetadataBuilder>(
             result = ism_builder
                 .fetch_metadata(&validators, threshold, message, &checked_syncer)
                 .await;
+        } else {
+            builder.spawn_latest_index_telemetry(&checked_syncer, &validators);
         }
     }
     // Report failures too, but not abandoned aggregation children.

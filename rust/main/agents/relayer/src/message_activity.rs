@@ -265,6 +265,7 @@ pub fn metadata_error(error: &MetadataBuildError) -> String {
         MetadataBuildError::Refused(_) => "Validator reported a reorg".to_owned(),
         MetadataBuildError::CouldNotFetch
         | MetadataBuildError::AwaitingValidatorSignatures
+        | MetadataBuildError::RetryLimitReached(_)
         | MetadataBuildError::UnsupportedModuleType(_)
         | MetadataBuildError::MaxIsmDepthExceeded(_)
         | MetadataBuildError::MaxIsmCountReached(_)
@@ -526,6 +527,10 @@ impl CheckpointObserver for ActivityCheckpointObserver {
             },
             self.node_id.clone(),
         );
+    }
+
+    fn report_signature_wait(&self) {
+        self.report_summary(self.summary.lock().clone());
     }
 }
 

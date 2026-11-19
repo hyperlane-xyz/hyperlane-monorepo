@@ -1,10 +1,5 @@
 use crate::message_activity::{Activity, Outcome, Stage};
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    sync::{Arc, LazyLock, Mutex, PoisonError},
-    time::Duration,
-};
+use std::fmt::Debug;
 
 use async_trait::async_trait;
 use derive_more::{AsRef, Deref};
@@ -13,29 +8,10 @@ use derive_new::new;
 use eyre::Result;
 use hyperlane_base::MultisigCheckpointSyncer;
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, ModuleType, H256};
-use tokio::{sync::Semaphore, time::timeout};
 use tracing::{debug, warn};
 
 use super::base::{checkpoint_error, MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 use crate::msg::metadata::{MessageMetadataBuilder, MetadataBuildError};
-
-// Shared across messages; a slow storage backend cannot accumulate unbounded
-// detached telemetry tasks. Pooled checkpoint syncers coalesce their reads.
-// Each origin has its own permits so one origin's hanging validator storage
-// cannot stop telemetry for every other origin; the global cap bounds the total.
-static LATEST_INDEX_TELEMETRY_PERMITS: Semaphore = Semaphore::const_new(64);
-static ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS: LazyLock<Mutex<HashMap<String, Arc<Semaphore>>>> =
-    LazyLock::new(Default::default);
-const LATEST_INDEX_TELEMETRY_PERMITS_PER_ORIGIN: usize = 4;
-const LATEST_INDEX_TELEMETRY_TIMEOUT: Duration = Duration::from_secs(30);
-fn origin_latest_index_telemetry_permits(origin: &str) -> Arc<Semaphore> {
-    ORIGIN_LATEST_INDEX_TELEMETRY_PERMITS
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .entry(origin.to_owned())
-        .or_insert_with(|| Arc::new(Semaphore::new(LATEST_INDEX_TELEMETRY_PERMITS_PER_ORIGIN)))
-        .clone()
-}
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MessageIdMultisigMetadataBuilder(MessageMetadataBuilder);
@@ -141,59 +117,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             leaf_index,
             None,
         )))
-    }
-}
-
-impl MessageIdMultisigMetadataBuilder {
-    /// Refresh telemetry independently of checkpoint availability, with bounded
-    /// concurrency and lifetime. Busy callers leave the active refreshes running.
-    fn spawn_latest_index_telemetry(
-        &self,
-        checkpoint_syncer: &MultisigCheckpointSyncer,
-        validators: &[H256],
-    ) {
-        let origin = self.base_builder().origin_domain().clone();
-        let Ok(origin_permit) =
-            origin_latest_index_telemetry_permits(origin.name()).try_acquire_owned()
-        else {
-            debug!("Latest-index telemetry for this origin is already at capacity");
-            self.base_builder()
-                .report_latest_index_refresh_skipped("capacity");
-            return;
-        };
-        let Ok(permit) = LATEST_INDEX_TELEMETRY_PERMITS.try_acquire() else {
-            debug!("Latest-index telemetry is already at capacity");
-            self.base_builder()
-                .report_latest_index_refresh_skipped("capacity");
-            return;
-        };
-        let syncer = checkpoint_syncer.clone();
-        let validators = validators.to_vec();
-        let destination = self.base_builder().destination_domain().clone();
-        let base_builder = self.base_builder().clone();
-        tokio::spawn(async move {
-            let _permits = (origin_permit, permit);
-            match timeout(
-                LATEST_INDEX_TELEMETRY_TIMEOUT,
-                syncer.get_validator_latest_checkpoints_and_update_metrics(
-                    &validators,
-                    &origin,
-                    &destination,
-                ),
-            )
-            .await
-            {
-                Ok(Ok(_)) => {}
-                Ok(Err(error)) => {
-                    debug!(?error, "Latest-index telemetry failed");
-                    base_builder.report_latest_index_refresh_skipped("error");
-                }
-                Err(_) => {
-                    debug!("Latest-index telemetry timed out");
-                    base_builder.report_latest_index_refresh_skipped("timeout");
-                }
-            }
-        });
     }
 }
 

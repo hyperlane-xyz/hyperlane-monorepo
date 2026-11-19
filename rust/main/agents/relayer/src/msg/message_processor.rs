@@ -529,14 +529,14 @@ async fn admit_prepare_batch(
     capacity: &Arc<Semaphore>,
 ) -> (Vec<QueueOperation>, OwnedSemaphorePermit) {
     loop {
-        drop(
-            capacity
-                .acquire()
-                .await
-                .expect("prepare capacity is never closed"),
-        );
+        let Some(permit) = prepare_queue.wait_or_retry(capacity.acquire()).await else {
+            continue;
+        };
+        drop(permit.expect("prepare capacity is never closed"));
         if apply_backpressure(submit_queue, max_submit_queue_len).await {
-            sleep(Duration::from_millis(150)).await;
+            prepare_queue
+                .wait_or_retry(sleep(Duration::from_millis(150)))
+                .await;
             continue;
         }
 
@@ -631,11 +631,7 @@ async fn process_batch(
             }
             QueuePrepareResult::WaitingForSignatures(ready) => {
                 let reservation = reservation.expect("waiting requires a parking reservation");
-                parked.push(async move {
-                    ready.await;
-                    prepare_queue.push(op, None).await;
-                    drop(reservation);
-                });
+                parked.push(prepare_queue.park(op, ready, reservation));
                 None
             }
         };

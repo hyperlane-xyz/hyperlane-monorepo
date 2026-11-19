@@ -354,6 +354,36 @@ async fn signature_progress_is_published_before_quorum_in_the_existing_format() 
 }
 
 #[tokio::test]
+async fn signature_wait_publishes_missing_readers_before_any_signature() {
+    let (reporter, mut receiver) = reporter(1);
+    let observer = reporter.checkpoint_observer_for_node(
+        &HyperlaneMessage::default(),
+        Some(H256::zero()),
+        2,
+        Some("root"),
+    );
+    observer.observe(CheckpointObservation::Fetching { index: 12 });
+    observer.observe(CheckpointObservation::Unavailable {
+        validator: H256::repeat_byte(1),
+        index: Some(12),
+        reason: CheckpointUnavailableReason::Missing,
+    });
+    assert!(receiver.try_recv().is_err());
+    observer.report_signature_wait();
+    let event = receiver.try_recv().expect("missing-reader progress");
+    let updates = state::ActivityState::new(None)
+        .project(&[event])
+        .await
+        .expect("project zero-signature progress");
+    let (StoredActivity::Snapshot { state } | StoredActivity::SnapshotUpdate { state }) =
+        &updates[0].activity;
+    let signatures = &state["modules"][0]["signatures"];
+    assert_eq!(signatures["collected"], 0);
+    assert_eq!(signatures["index"], 12);
+    assert_eq!(signatures["unavailable"][0]["reason"], "missing");
+}
+
+#[tokio::test]
 async fn reorg_checks_are_scoped_and_retained_through_signature_progress() {
     let (reporter, mut receiver) = reporter(1);
     let message = HyperlaneMessage::default();

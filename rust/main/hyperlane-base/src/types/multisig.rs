@@ -117,6 +117,9 @@ pub enum CheckpointUnavailableReason {
 pub trait CheckpointObserver: std::fmt::Debug + Send + Sync {
     /// Record an observation from the existing collection attempt.
     fn observe(&self, observation: CheckpointObservation);
+
+    /// Publish known progress when independent signature collection starts waiting.
+    fn report_signature_wait(&self) {}
 }
 
 /// Ordinary message retry progress when independent signature polling starts.
@@ -491,13 +494,18 @@ impl MultisigCheckpointSyncer {
                         break (validator_index, address, checkpoint);
                     };
                     let started_at = first_missing.get_or_insert_with(|| {
-                        let _ = SIGNATURE_MISS.try_with(|notify| notify.notify_one());
                         let now = Instant::now();
                         self.unavailable(
                             address,
                             Some(index),
                             CheckpointUnavailableReason::Missing,
                         );
+                        if retry.retries < retry.max_retries {
+                            if let Some(observer) = &self.observer {
+                                observer.report_signature_wait();
+                            }
+                            let _ = SIGNATURE_MISS.try_with(|notify| notify.notify_one());
+                        }
                         now
                     });
                     let delay = if retry.retries < retry.max_retries {
@@ -505,12 +513,22 @@ impl MultisigCheckpointSyncer {
                     } else {
                         None
                     };
-                    let delay = delay.or_else(|| {
-                        retry.retries = retry.retries.saturating_add(1);
+                    let delay = if let Some(delay) = delay {
+                        delay
+                    } else {
+                        if retry.retries < retry.max_retries {
+                            retry.retries = retry.retries.saturating_add(1);
+                        }
+                        if retry.retries >= retry.max_retries {
+                            break (
+                                validator_index,
+                                address,
+                                Err(CheckpointSyncerBuildError::RetryLimitReached(retry.retries)
+                                    .into()),
+                            );
+                        }
                         message_retry_delay(retry.retries, retry.max_retries, None)
-                    });
-                    let Some(delay) = delay else {
-                        break (validator_index, address, checkpoint);
+                            .expect("ordinary retry count is positive")
                     };
                     sleep(delay).await;
                 }
@@ -518,6 +536,7 @@ impl MultisigCheckpointSyncer {
             .collect::<Vec<_>>();
         let mut remaining = requests.len();
         let mut best = 0;
+        let mut exhausted = None;
         let mut futures = stream::iter(requests).buffer_unordered(concurrency);
         let message_id = self.polling.and_then(|polling| polling.message_id);
 
@@ -531,6 +550,15 @@ impl MultisigCheckpointSyncer {
             // signed the checkpoint at `index`.
             let signed_checkpoint = match checkpoint {
                 Ok(Some(c)) => c,
+                Err(error)
+                    if matches!(
+                        error.downcast_ref::<CheckpointSyncerBuildError>(),
+                        Some(CheckpointSyncerBuildError::RetryLimitReached(_))
+                    ) =>
+                {
+                    exhausted = Some(error);
+                    continue;
+                }
                 result => {
                     self.unavailable(
                         validator,
@@ -666,6 +694,9 @@ impl MultisigCheckpointSyncer {
             }
         }
 
+        if let Some(error) = exhausted {
+            return Err(error);
+        }
         debug!("No quorum checkpoint found for message");
         Ok(None)
     }
@@ -1199,6 +1230,105 @@ mod test {
         assert!(start.elapsed() >= Duration::from_secs(121));
         assert_eq!(activity.peak.load(Ordering::Relaxed), 1);
         assert_eq!(activity.active.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn missing_signature_stops_at_the_ordinary_retry_limit() {
+        let address = H160::repeat_byte(1);
+        let validators = [address.into()];
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        for (retries, max_retries, misses, seconds) in
+            [(0, 2, 25, 21), (1, 3, 25, 26), (3, 3, 1, 0)]
+        {
+            let reader = MockCheckpointSyncer::new();
+            reader
+                .responses
+                .fetch_checkpoint
+                .lock()
+                .expect("checkpoint response lock")
+                .extend((0..misses).map(|_| Ok(None)));
+            let reader: Arc<dyn CheckpointSyncer> = Arc::new(reader);
+            let syncer = MultisigCheckpointSyncer::new(HashMap::from([(address, reader)]), None)
+                .with_signature_polling(
+                    None,
+                    Some(SignaturePollRetry {
+                        retries,
+                        max_retries,
+                    }),
+                );
+            let start = Instant::now();
+            let expected = Duration::from_secs(seconds);
+            let error = tokio::time::timeout(
+                expected + Duration::from_millis(10),
+                syncer.fetch_checkpoint(&validators, 1, 1000, &destination),
+            )
+            .await
+            .expect("the retry ceiling returns promptly")
+            .expect_err("missing signature exhausts the budget");
+            assert!(start.elapsed() >= expected);
+            assert!(matches!(
+                error.downcast_ref::<CheckpointSyncerBuildError>(),
+                Some(CheckpointSyncerBuildError::RetryLimitReached(count)) if *count == max_retries
+            ));
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn exhausted_optional_reader_does_not_block_quorum() {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+        let validators = dummy_validators();
+        let missing = H160::from_str(&validators[0].public_key).expect("valid validator address");
+        let signing = H160::from_str(&validators[1].public_key).expect("valid validator address");
+        let signer: Signers = validators[1]
+            .private_key
+            .parse::<ethers::signers::LocalWallet>()
+            .expect("valid validator key")
+            .into();
+        let reader = MockCheckpointSyncer::new();
+        reader
+            .responses
+            .fetch_checkpoint
+            .lock()
+            .expect("checkpoint response lock")
+            .extend((0..24).map(|_| Ok(None)));
+        let missing_reader: Arc<dyn CheckpointSyncer> = Arc::new(reader);
+        let signing_reader: Arc<dyn CheckpointSyncer> = Arc::new(DelayedCheckpointSyncer {
+            delay: Duration::from_secs(18),
+            latest_index: None,
+            checkpoint: Some(signer.sign(checkpoint).await.expect("signed checkpoint")),
+            checkpoint_location: None,
+            activity: Arc::default(),
+        });
+        let syncer = MultisigCheckpointSyncer::new(
+            HashMap::from([(missing, missing_reader), (signing, signing_reader)]),
+            None,
+        )
+        .with_signature_polling(
+            Some(checkpoint.message_id),
+            Some(SignaturePollRetry {
+                retries: 0,
+                max_retries: 1,
+            }),
+        );
+        let destination = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let validators = [missing.into(), signing.into()];
+        let result = tokio::time::timeout(
+            Duration::from_secs(19),
+            syncer.fetch_checkpoint(&validators, 1, checkpoint.index, &destination),
+        )
+        .await
+        .expect("quorum follows the optional reader exhausting its budget")
+        .expect("optional reader exhaustion does not fail the collector")
+        .expect("valid signer supplied quorum");
+        assert_eq!(result.checkpoint, checkpoint);
     }
 
     #[tokio::test]
