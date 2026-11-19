@@ -370,6 +370,9 @@ pub const RouteCounts = struct { agent: f64 = 0, messages: f64 = 0, validators: 
 /// canonical/custom policy.
 pub const ValidatorSubscription = struct { domain: u32, canonical: f64 = 0, custom: f64 = 0 };
 
+pub const SourceStats = struct { ranges: f64 = 0, rows: f64 = 0, bytes: f64 = 0 };
+pub const QueueStats = struct { bytes: f64 = 0, messages: f64 = 0 };
+
 /// `WebSocketMetricsSnapshot`; `subscriptions` field order matches the TS
 /// object literal (delivery, dispatch, gas_payment, merkle_tree_insertion).
 pub const WebSocketMetricsSnapshot = struct {
@@ -378,6 +381,11 @@ pub const WebSocketMetricsSnapshot = struct {
     /// #10078 MessageSource: retained ranges (one per domain), changes, and
     /// the JSON.stringify size of retained facts.
     messageSource: struct { ranges: f64 = 0, changes: f64 = 0, factBytes: f64 = 0 } = .{},
+    /// #10089 shared readers: custom event ranges (one per domain and event
+    /// type), the public validator source, and outbound queues by route.
+    eventSource: SourceStats = .{},
+    validatorSource: SourceStats = .{},
+    queues: struct { agent: QueueStats = .{}, validators: QueueStats = .{}, messages: QueueStats = .{} } = .{},
     validatorPendingSetups: f64 = 0,
     validatorReservedConnections: f64 = 0,
     validatorSharedReaders: f64 = 0,
@@ -632,11 +640,29 @@ fn renderSnapshotGauges(a: std.mem.Allocator, w: *std.Io.Writer) !void {
     }
     try snapshotGauge(w, "websocket_validator_setup_limit", "Maximum unfinished validator setups.", &none, &.{.{ .value = s.limits.validatorSetups }}, has);
     try snapshotGauge(w, "websocket_validator_reserved_connections", "Validator connection reservations, including closing sockets and unfinished setups.", &none, &.{.{ .value = s.validatorReservedConnections }}, has);
-    try snapshotGauge(w, "websocket_validator_shared_readers", "Active shared domain/confirmation readers.", &none, &.{.{ .value = s.validatorSharedReaders }}, has);
+    try snapshotGauge(w, "websocket_validator_shared_readers", "Active public validator custom Merkle ranges, one per domain.", &none, &.{.{ .value = s.validatorSharedReaders }}, has);
     try snapshotGauge(w, "websocket_validator_client_ips", "Current number of distinct validator client IPs.", &none, &.{.{ .value = s.validatorClientIps }}, has);
     try snapshotGauge(w, "websocket_validator_max_connections_per_ip", "Largest current validator connection count for one client IP.", &none, &.{.{ .value = s.validatorMaxConnectionsPerIp }}, has);
     try snapshotGauge(w, "websocket_validator_client_message_limit_bytes", "Maximum inbound validator WebSocket message size.", &none, &.{.{ .value = s.limits.validatorMessageBytes }}, has);
     try snapshotGauge(w, "websocket_message_source_ranges", "Retained custom message source ranges, one per domain.", &none, &.{.{ .value = s.messageSource.ranges }}, has);
+    // #10089, registered here (between the message source's ranges and changes).
+    try snapshotGauge(w, "websocket_event_source_ranges", "Shared custom event ranges, one per domain and event type.", &none, &.{.{ .value = s.eventSource.ranges }}, has);
+    try snapshotGauge(w, "websocket_event_source_rows", "Custom event rows retained or being loaded by the shared source.", &none, &.{.{ .value = s.eventSource.rows }}, has);
+    try snapshotGauge(w, "websocket_event_source_bytes", "Serialized custom event bytes retained or being loaded by the shared source.", &none, &.{.{ .value = s.eventSource.bytes }}, has);
+    try snapshotGauge(w, "websocket_validator_source_ranges", "Public validator source ranges, isolated from agent retention.", &none, &.{.{ .value = s.validatorSource.ranges }}, has);
+    try snapshotGauge(w, "websocket_validator_source_rows", "Public validator source rows, isolated from agent retention.", &none, &.{.{ .value = s.validatorSource.rows }}, has);
+    try snapshotGauge(w, "websocket_validator_source_bytes", "Public validator source bytes, isolated from agent retention.", &none, &.{.{ .value = s.validatorSource.bytes }}, has);
+    // TS sets the routes in this order (agent, validators, messages).
+    try snapshotGauge(w, "websocket_queued_bytes", "Queued outbound bytes by WebSocket route.", &route, &.{
+        .{ .labels = &.{"agent"}, .value = s.queues.agent.bytes },
+        .{ .labels = &.{"validators"}, .value = s.queues.validators.bytes },
+        .{ .labels = &.{"messages"}, .value = s.queues.messages.bytes },
+    }, has);
+    try snapshotGauge(w, "websocket_queued_messages", "Queued outbound messages by WebSocket route.", &route, &.{
+        .{ .labels = &.{"agent"}, .value = s.queues.agent.messages },
+        .{ .labels = &.{"validators"}, .value = s.queues.validators.messages },
+        .{ .labels = &.{"messages"}, .value = s.queues.messages.messages },
+    }, has);
     try snapshotGauge(w, "websocket_message_source_changes", "Retained dispatch, delivery and payment positions.", &none, &.{.{ .value = s.messageSource.changes }}, has);
     try snapshotGauge(w, "websocket_message_source_fact_bytes", "Serialized size of retained message projection inputs.", &none, &.{.{ .value = s.messageSource.factBytes }}, has);
     try snapshotGauge(w, "websocket_message_pending_setups", "Message negotiations awaiting database reads, including disconnected clients.", &none, &.{.{ .value = s.explorerPendingSetups }}, has);
@@ -838,6 +864,9 @@ const TestProviders = struct {
             .connections = .{ .agent = 3, .messages = 4, .validators = 2 },
             .explorerPendingSetups = 4,
             .messageSource = .{ .ranges = 2, .changes = 30, .factBytes = 4096 },
+            .eventSource = .{ .ranges = 2, .rows = 4, .bytes = 1024 },
+            .validatorSource = .{ .ranges = 1, .rows = 2, .bytes = 512 },
+            .queues = .{ .agent = .{ .bytes = 1024, .messages = 2 }, .validators = .{ .bytes = 2048, .messages = 3 }, .messages = .{ .bytes = 1024, .messages = 9 } },
             .validatorPendingSetups = 1,
             .validatorReservedConnections = 2,
             .validatorSharedReaders = 1,
@@ -905,13 +934,14 @@ test "serves current usage and limits (metrics.test.ts)" {
     try expectContains(output, p ++ "websocket_validator_subscriptions{domain=\"1\",policy=\"custom\"} 1\n");
     try expectContains(output, p ++ "websocket_validator_setup_limit 32\n");
     try expectContains(output, "websocket_validator_reserved_connections 2\n");
+    try expectContains(output, "websocket_validator_shared_readers Active public validator custom Merkle ranges, one per domain.\n");
     try expectContains(output, "websocket_validator_shared_readers 1\n");
     try expectContains(output, p ++ "websocket_validator_client_ips 1\n");
     try expectContains(output, p ++ "websocket_validator_max_connections_per_ip 2\n");
     try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n");
     // #10078: message source gauges, then #10076's /messages setup gauges, after the
     // validator message limit (registration order).
-    try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n\n# HELP " ++ p ++ "websocket_message_source_ranges Retained custom message source ranges, one per domain.\n# TYPE " ++ p ++ "websocket_message_source_ranges gauge\n" ++ p ++ "websocket_message_source_ranges 2\n\n# HELP " ++ p ++ "websocket_message_source_changes Retained dispatch, delivery and payment positions.\n# TYPE " ++ p ++ "websocket_message_source_changes gauge\n" ++ p ++ "websocket_message_source_changes 30\n\n# HELP " ++ p ++ "websocket_message_source_fact_bytes Serialized size of retained message projection inputs.\n# TYPE " ++ p ++ "websocket_message_source_fact_bytes gauge\n" ++ p ++ "websocket_message_source_fact_bytes 4096\n\n# HELP " ++ p ++ "websocket_message_pending_setups Message negotiations awaiting database reads, including disconnected clients.\n# TYPE " ++ p ++ "websocket_message_pending_setups gauge\n" ++ p ++ "websocket_message_pending_setups 4\n");
+    try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n\n# HELP " ++ p ++ "websocket_message_source_ranges Retained custom message source ranges, one per domain.\n# TYPE " ++ p ++ "websocket_message_source_ranges gauge\n" ++ p ++ "websocket_message_source_ranges 2\n\n" ++ "# HELP " ++ p ++ "websocket_event_source_ranges Shared custom event ranges, one per domain and event type.\n# TYPE " ++ p ++ "websocket_event_source_ranges gauge\n" ++ p ++ "websocket_event_source_ranges 2\n" ++ "\n" ++ "# HELP " ++ p ++ "websocket_event_source_rows Custom event rows retained or being loaded by the shared source.\n# TYPE " ++ p ++ "websocket_event_source_rows gauge\n" ++ p ++ "websocket_event_source_rows 4\n" ++ "\n" ++ "# HELP " ++ p ++ "websocket_event_source_bytes Serialized custom event bytes retained or being loaded by the shared source.\n# TYPE " ++ p ++ "websocket_event_source_bytes gauge\n" ++ p ++ "websocket_event_source_bytes 1024\n" ++ "\n" ++ "# HELP " ++ p ++ "websocket_validator_source_ranges Public validator source ranges, isolated from agent retention.\n# TYPE " ++ p ++ "websocket_validator_source_ranges gauge\n" ++ p ++ "websocket_validator_source_ranges 1\n" ++ "\n" ++ "# HELP " ++ p ++ "websocket_validator_source_rows Public validator source rows, isolated from agent retention.\n# TYPE " ++ p ++ "websocket_validator_source_rows gauge\n" ++ p ++ "websocket_validator_source_rows 2\n" ++ "\n" ++ "# HELP " ++ p ++ "websocket_validator_source_bytes Public validator source bytes, isolated from agent retention.\n# TYPE " ++ p ++ "websocket_validator_source_bytes gauge\n" ++ p ++ "websocket_validator_source_bytes 512\n" ++ "\n" ++ "# HELP " ++ p ++ "websocket_queued_bytes Queued outbound bytes by WebSocket route.\n# TYPE " ++ p ++ "websocket_queued_bytes gauge\n" ++ p ++ "websocket_queued_bytes{route=\"agent\"} 1024\n" ++ p ++ "websocket_queued_bytes{route=\"validators\"} 2048\n" ++ p ++ "websocket_queued_bytes{route=\"messages\"} 1024\n" ++ "\n" ++ "# HELP " ++ p ++ "websocket_queued_messages Queued outbound messages by WebSocket route.\n# TYPE " ++ p ++ "websocket_queued_messages gauge\n" ++ p ++ "websocket_queued_messages{route=\"agent\"} 2\n" ++ p ++ "websocket_queued_messages{route=\"validators\"} 3\n" ++ p ++ "websocket_queued_messages{route=\"messages\"} 9\n" ++ "\n# HELP " ++ p ++ "websocket_message_source_changes Retained dispatch, delivery and payment positions.\n# TYPE " ++ p ++ "websocket_message_source_changes gauge\n" ++ p ++ "websocket_message_source_changes 30\n\n# HELP " ++ p ++ "websocket_message_source_fact_bytes Serialized size of retained message projection inputs.\n# TYPE " ++ p ++ "websocket_message_source_fact_bytes gauge\n" ++ p ++ "websocket_message_source_fact_bytes 4096\n\n# HELP " ++ p ++ "websocket_message_pending_setups Message negotiations awaiting database reads, including disconnected clients.\n# TYPE " ++ p ++ "websocket_message_pending_setups gauge\n" ++ p ++ "websocket_message_pending_setups 4\n");
     try expectContains(output, "# HELP " ++ p ++ "websocket_message_setup_limit Maximum unfinished /messages setups.\n# TYPE " ++ p ++ "websocket_message_setup_limit gauge\n" ++ p ++ "websocket_message_setup_limit 64\n");
     try expectContains(output, "# HELP " ++ p ++ "websocket_message_setup_limit_per_ip Maximum unfinished /messages setups per client IP.\n# TYPE " ++ p ++ "websocket_message_setup_limit_per_ip gauge\n" ++ p ++ "websocket_message_setup_limit_per_ip 8\n\n# HELP " ++ p ++ "websocket_message_client_ips ");
     try expectContains(output, "# HELP " ++ p ++ "websocket_client_message_rejections_total Inbound WebSocket application messages rejected by the server.\n");

@@ -4,7 +4,6 @@ const std = @import("std");
 pub const protocol = @import("protocol.zig");
 pub const runtime = @import("runtime.zig");
 pub const NotificationWorker = @import("notification_worker.zig").NotificationWorker;
-pub const confirmation_stream = @import("confirmation_stream.zig");
 pub const event_store = @import("event_store.zig");
 pub const frames = @import("frames.zig");
 pub const message_facts = @import("message_facts.zig");
@@ -18,7 +17,7 @@ test {
         _ = &@field(EventWebSocketServer, name);
     _ = @import("protocol_test.zig");
     _ = @import("notification_worker_test.zig");
-    _ = @import("confirmation_stream_test.zig");
+    _ = @import("event_source_test.zig");
     _ = @import("event_store_test.zig");
     _ = @import("server_test.zig");
     _ = @import("notification_queue.zig");

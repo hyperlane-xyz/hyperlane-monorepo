@@ -127,6 +127,8 @@ pub const Loop = struct {
     /// continuations), on HTTP loop threads and pollers vs any thread.
     wait_loop_thread: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
     wait_any: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
+    /// `hold_stats` builds: time `yieldTurn` waited for the work ahead of it.
+    yield_wait: if (hold_stats) HoldHistogram else void = if (hold_stats) .{} else {},
     locked_at: if (hold_stats) i128 else void = if (hold_stats) 0 else {},
     /// Safety builds: the thread holding the mutex (0: none), for `assertHeld`.
     holder: if (std.debug.runtime_safety) std.atomic.Value(std.Thread.Id) else void = if (std.debug.runtime_safety) .init(0) else {},
@@ -136,6 +138,11 @@ pub const Loop = struct {
     /// resumes (`lockHandoff`); `run`: a callback the releasing thread runs.
     handoffs: std.ArrayList(Handoff) = .empty,
     handoff_turn: std.Thread.Condition = .{},
+    /// Threads blocked in `lock` for the mutex (atomic: updated without it;
+    /// `yieldTurn` reads it holding the mutex).
+    lock_waiters: std.atomic.Value(usize) = .init(0),
+    /// Every take of the mutex (`holdStart`), mutex held.
+    acquisitions: u64 = 0,
 
     pub const Handoff = union(enum) {
         task: *anyopaque,
@@ -154,7 +161,9 @@ pub const Loop = struct {
         // (`core.blocking`); an uncontended lock costs nothing more.
         if (!self.mutex.tryLock()) {
             core.blocking.begin();
+            _ = self.lock_waiters.fetchAdd(1, .acq_rel);
             self.mutex.lock();
+            _ = self.lock_waiters.fetchSub(1, .acq_rel);
             core.blocking.end();
         }
         if (self.handoffs.items.len > 0) {
@@ -183,6 +192,39 @@ pub const Loop = struct {
         self.handoff_turn.broadcast();
         condition.wait(&self.mutex);
         self.awaitHandoffs();
+        self.holdStart();
+    }
+
+    /// `await new Promise(setImmediate)` (#10090's `nextTurn`, mutex held):
+    /// work already waiting or spawned before the yield runs first. The turn
+    /// ends (as `unlock`); every task spawned before the call starts (as TS's
+    /// `void task()` calls ran to their first await before the publisher
+    /// awaited setImmediate), and every thread blocked in `lock` when it was
+    /// called takes the mutex, before the caller resumes. With nothing
+    /// waiting it returns at once. Unlike `unlock` + `lock` on the non-FIFO
+    /// mutex, the caller cannot win the mutex straight back.
+    pub fn yieldTurn(self: *Loop) void {
+        assertNotFiber();
+        assertMayBlock();
+        const asked = if (hold_stats) std.time.nanoTimestamp() else {};
+        // Tickets below `spawned` were issued (`spawn`) before the yield.
+        const spawned = blk: {
+            self.pool.mutex.lock();
+            defer self.pool.mutex.unlock();
+            break :blk self.next_ticket;
+        };
+        // Those blocked in `lock` now, as later takes of the mutex (newcomers
+        // may take some of these turns; the caller then resumes no later than
+        // Node would run them).
+        const target = self.acquisitions + self.lock_waiters.load(.acquire);
+        self.endTurn();
+        self.runHandoffs();
+        self.holdEnd();
+        self.handoff_turn.broadcast();
+        while (self.next_start < spawned or (self.acquisitions < target and self.lock_waiters.load(.acquire) > 0))
+            self.handoff_turn.wait(&self.mutex);
+        self.awaitHandoffs();
+        if (hold_stats) self.yield_wait.record(std.time.nanoTimestamp() - asked);
         self.holdStart();
     }
 
@@ -229,6 +271,7 @@ pub const Loop = struct {
     }
 
     fn holdStart(self: *Loop) void {
+        self.acquisitions +%= 1;
         if (std.debug.runtime_safety) self.holder.store(std.Thread.getCurrentId(), .release);
         if (hold_stats) self.locked_at = std.time.nanoTimestamp();
     }
@@ -284,6 +327,8 @@ pub const Loop = struct {
             var turn: std.Thread.Condition = .{};
             self.start_waiters.put(self.allocator, ticket, &turn) catch @panic("live: out of memory ordering task");
             self.holdEnd();
+            // A yielding caller waits for this take of the mutex.
+            self.handoff_turn.broadcast();
             while (self.next_start != ticket) turn.wait(&self.mutex);
             self.awaitHandoffs();
             self.holdStart();

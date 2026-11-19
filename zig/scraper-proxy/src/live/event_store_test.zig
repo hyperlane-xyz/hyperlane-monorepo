@@ -5,7 +5,6 @@ const testing = std.testing;
 const core = @import("core");
 const json = core.json;
 const es = @import("event_store.zig");
-const cs = @import("confirmation_stream.zig");
 const protocol = @import("protocol.zig");
 const TestLoop = @import("notification_worker_test.zig").TestLoop;
 
@@ -30,7 +29,7 @@ const Recorder = struct {
     }
 };
 
-fn drain(reader: cs.Reader) !void {
+fn drain(reader: protocol.Reader) !void {
     defer reader.deinit();
     while (try reader.next()) |_| return error.UnexpectedRow;
 }
@@ -79,7 +78,7 @@ test "event store SQL and parameters match TS byte for byte" {
         defer head_events.deinit();
         try testing.expect((try head_events.next()) == null);
         try names.append(a, try std.fmt.allocPrint(a, "confirmationEventRows:{s}", .{event_type.name()}));
-        try drain(try store.confirmationEventRows(event_type, 1, .{ .height = 3, .source = 0, .id = 7 }, 10, 2));
+        try drain(try store.confirmationEventRows(event_type, 1, .{ .height = 3, .source = 0, .id = 7 }, 10));
     }
     try names.append(a, "messageChanges");
     try testing.expectEqual(@as(usize, 0), (try store.messageChanges(a, 2147483648, .{ .height = 3, .source = 1, .id = 7 }, 10)).len);

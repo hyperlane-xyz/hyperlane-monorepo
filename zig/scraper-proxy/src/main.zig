@@ -116,7 +116,49 @@ const plugin_timeout_ms: i64 = 10_000;
 /// glibc's mallopt (M_ARENA_MAX = -8).
 extern "c" fn mallopt(param: c_int, value: c_int) c_int;
 
+/// Node's `PlatformInit` (src/node.cc, v26.12.1): raise RLIMIT_NOFILE's
+/// soft limit before anything else runs. With a finite hard limit, one
+/// `setrlimit` to it; with RLIM_INFINITY, a binary search up to 1 << 20 for
+/// the largest soft limit the kernel accepts (macOS caps it below its
+/// infinite hard limit). Failures are ignored, as in Node:
+///   if (getrlimit(RLIMIT_NOFILE, &lim) == 0 && lim.rlim_cur != lim.rlim_max) {
+///     rlim_t min = lim.rlim_cur; rlim_t max = 1 << 20;
+///     if (lim.rlim_max != RLIM_INFINITY) { min = lim.rlim_max; max = lim.rlim_max; }
+///     do { lim.rlim_cur = min + (max - min) / 2;
+///          if (setrlimit(RLIMIT_NOFILE, &lim)) max = lim.rlim_cur; else min = lim.rlim_cur;
+///     } while (min + 1 < max); }
+fn raiseOpenFileLimit() void {
+    const Os = struct {
+        fn get(_: void) ?std.posix.rlimit {
+            return std.posix.getrlimit(.NOFILE) catch null;
+        }
+        fn set(_: void, lim: std.posix.rlimit) bool {
+            std.posix.setrlimit(.NOFILE, lim) catch return false;
+            return true;
+        }
+    };
+    raiseNoFile({}, Os.get, Os.set);
+}
+
+/// The search itself (unsigned `rlim_t` arithmetic wraps, as in C).
+fn raiseNoFile(ctx: anytype, comptime get: fn (@TypeOf(ctx)) ?std.posix.rlimit, comptime set: fn (@TypeOf(ctx), std.posix.rlimit) bool) void {
+    var lim = get(ctx) orelse return;
+    if (lim.cur == lim.max) return;
+    var min: std.posix.rlim_t = lim.cur;
+    var max: std.posix.rlim_t = 1 << 20;
+    if (lim.max != std.posix.RLIM.INFINITY) {
+        min = lim.max;
+        max = lim.max;
+    }
+    while (true) {
+        lim.cur = min +% (max -% min) / 2;
+        if (set(ctx, lim)) min = lim.cur else max = lim.cur;
+        if (!(min +% 1 < max)) break;
+    }
+}
+
 pub fn main() !void {
+    raiseOpenFileLimit();
     // At most 4 glibc malloc arenas: every thread that mallocs (e.g. a burst
     // of live task workers) otherwise gets its own, whose pages stay
     // resident after the thread exits. Not on musl or macOS.
@@ -202,4 +244,57 @@ fn startup(app: *App, config: core.config.Config) !void {
     // Live's subscribe, Explorer and validator setup reads run as fibers on these loops.
     if (has_events) app.events.?.setFiberHost(&server.loop);
     try server.start();
+}
+
+const FakeLimits = struct {
+    lim: std.posix.rlimit,
+    /// The largest soft limit the fake kernel accepts.
+    accepts: std.posix.rlim_t,
+    calls: std.ArrayList(std.posix.rlim_t) = .empty,
+
+    fn get(self: *FakeLimits) ?std.posix.rlimit {
+        return self.lim;
+    }
+    fn set(self: *FakeLimits, lim: std.posix.rlimit) bool {
+        self.calls.append(std.testing.allocator, lim.cur) catch unreachable;
+        if (lim.cur > self.accepts or lim.cur > lim.max) return false;
+        self.lim = lim;
+        return true;
+    }
+};
+
+test "raiseNoFile follows Node's PlatformInit: soft = finite hard, binary search under RLIM_INFINITY, nothing when equal" {
+    const testing = std.testing;
+    const inf = std.posix.RLIM.INFINITY;
+    // Finite hard limit: one setrlimit to it.
+    {
+        var f: FakeLimits = .{ .lim = .{ .cur = 256, .max = 65_536 }, .accepts = inf };
+        defer f.calls.deinit(testing.allocator);
+        raiseNoFile(&f, FakeLimits.get, FakeLimits.set);
+        try testing.expectEqual(@as(std.posix.rlim_t, 65_536), f.lim.cur);
+        try testing.expectEqualSlices(std.posix.rlim_t, &.{65_536}, f.calls.items);
+    }
+    // Refused (e.g. a sandbox): silently left as it was.
+    {
+        var f: FakeLimits = .{ .lim = .{ .cur = 256, .max = 65_536 }, .accepts = 256 };
+        defer f.calls.deinit(testing.allocator);
+        raiseNoFile(&f, FakeLimits.get, FakeLimits.set);
+        try testing.expectEqual(@as(std.posix.rlim_t, 256), f.lim.cur);
+    }
+    // RLIM_INFINITY (macOS): the largest value the kernel takes, here 10240
+    // (kern.maxfilesperproc), found by bisecting [256, 1 << 20].
+    {
+        var f: FakeLimits = .{ .lim = .{ .cur = 256, .max = inf }, .accepts = 10_240 };
+        defer f.calls.deinit(testing.allocator);
+        raiseNoFile(&f, FakeLimits.get, FakeLimits.set);
+        try testing.expectEqual(@as(std.posix.rlim_t, 10_240), f.lim.cur);
+        try testing.expectEqual(@as(std.posix.rlim_t, 524_416), f.calls.items[0]);
+    }
+    // Already equal: no call.
+    {
+        var f: FakeLimits = .{ .lim = .{ .cur = 4096, .max = 4096 }, .accepts = inf };
+        defer f.calls.deinit(testing.allocator);
+        raiseNoFile(&f, FakeLimits.get, FakeLimits.set);
+        try testing.expectEqual(@as(usize, 0), f.calls.items.len);
+    }
 }

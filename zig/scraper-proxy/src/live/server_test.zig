@@ -415,6 +415,8 @@ const FakeListen = struct {
 const Harness = struct {
     t: TestLoop = undefined,
     db: FakeDb = .{},
+    /// `validator_db` when started with `initRouted` (otherwise unused).
+    validator_db: FakeDb = .{},
     listen: FakeListen = .{},
     server: *live.Server = undefined,
     sockets: std.ArrayList(*FakeSocket) = .empty,
@@ -439,6 +441,15 @@ const Harness = struct {
         try self.server.start();
     }
 
+    /// Agents and validators on separate databases (TS `queryLive` and
+    /// `queryValidator`), so a test can tell which pool each read used.
+    fn initRouted(self: *Harness, limits: live.Limits) !void {
+        core.log.setSink(discard, null);
+        self.t.init();
+        self.server = try live.Server.create(a, &self.t.loop, self.db.db(), self.listen.api(), .{ .limits = limits, .batch_size = 500, .validator_db = self.validator_db.db() }, null);
+        try self.server.start();
+    }
+
     fn deinit(self: *Harness) void {
         for (self.sockets.items) |socket| socket.releaseHeld(false);
         self.server.stop();
@@ -455,6 +466,7 @@ const Harness = struct {
         self.sockets.deinit(a);
         self.peers.deinit(a);
         self.db.deinit();
+        self.validator_db.deinit();
         core.log.setSink(null, null);
     }
 
@@ -1505,7 +1517,7 @@ test "inline write failure counts one send error and terminates" {
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).connections.agent);
 }
 
-test "inline writes stay charged until the end of the turn: aggregate Explorer budget (66)" {
+test "Explorer fan-out yields a turn at the messages quota: inline writes are released between (TS #10090)" {
     var h: Harness = .{};
     var limits = defaultLimits();
     limits.max_total_buffered_bytes = 1024;
@@ -1521,24 +1533,22 @@ test "inline writes stay charged until the end of the turn: aggregate Explorer b
     for (sockets) |s| s.inline_mode = .written;
     const before = core.metrics.websocket_send_failures.get(.{"buffer_limit"});
     const id = "0a" ** 32;
-    // One ~600-byte upsert: two of them exceed the 1024-byte aggregate budget.
+    // One ~600-byte upsert: two of them exceed the 1024-byte aggregate budget
+    // and the messages quota (1 KiB), so the fan-out yields a turn before each
+    // later client; the inline write's callback releases its charge meanwhile.
     h.db.on("FROM \"message_view\"", "[{\"msg_id\":\"\\\\x" ++ id ++ "\",\"message_body\":\"" ++ "ff" ** 270 ++ "\"}]");
     notifyExplorer(&h, id);
     h.t.fake.tick(100);
-    for (0..10_000) |_| {
-        if (sockets[3].isTerminated()) break;
-        std.Thread.sleep(std.time.ns_per_ms);
-    }
+    try h.waitFrames(sockets[3], 2);
     h.settle();
-    try testing.expectEqual(@as(usize, 2), sockets[0].count());
-    for (sockets[1..]) |s| {
-        try testing.expect(s.isTerminated());
-        try testing.expectEqual(@as(usize, 1), s.count());
+    for (sockets) |s| {
+        try testing.expect(!s.isTerminated());
+        try testing.expectEqual(@as(usize, 2), s.count());
     }
-    try testing.expectEqual(before + 3, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
+    try testing.expectEqual(before, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
     const after = metricsOf(&h);
     try testing.expectEqual(@as(f64, 0), after.outboundPendingBytes);
-    try testing.expectEqual(@as(f64, 1), after.connections.messages);
+    try testing.expectEqual(@as(f64, 4), after.connections.messages);
 }
 
 test "a partially written inline frame stays charged until its remainder is written" {
@@ -1610,24 +1620,38 @@ fn notifyThreeDispatches(h: *Harness) void {
     h.t.fake.tick(100);
 }
 
-test "frames published to a peer in one turn are written with one syscall, in order" {
+/// TS #10089 queues published events (one awaited send at a time), so the
+/// frames one turn hands a socket directly are control replies: three pings
+/// in one socket read get three pongs.
+fn threePongs(h: *Harness, peer: *live.Peer) void {
+    oneRead(h, peer, &.{ "{\"type\":\"ping\"}", "{\"type\":\"ping\"}", "{\"type\":\"ping\"}" });
+}
+
+fn readyAgent(h: *Harness) struct { *FakeSocket, *live.Peer } {
+    const s, const peer = h.agent();
+    h.waitFrames(s, 1) catch unreachable;
+    h.settle();
+    return .{ s, peer };
+}
+
+test "frames sent to a peer in one turn are written with one syscall, in order" {
     var h: Harness = .{};
     try h.init(defaultLimits());
     defer h.deinit();
-    const first, _ = subscribeLiveDispatch(&h);
-    const second, _ = subscribeLiveDispatch(&h);
+    const first, const first_peer = readyAgent(&h);
+    const second, const second_peer = readyAgent(&h);
     for ([_]*FakeSocket{ first, second }) |s| {
         s.inline_mode = .written;
         s.flushes = 0;
     }
-    notifyThreeDispatches(&h);
-    try h.waitFrames(first, 6);
-    try h.waitFrames(second, 6);
+    threePongs(&h, first_peer);
+    threePongs(&h, second_peer);
+    try h.waitFrames(first, 4);
+    try h.waitFrames(second, 4);
     h.settle();
     for ([_]*FakeSocket{ first, second }) |s| {
         try testing.expectEqual(@as(usize, 1), s.flushes);
-        for ([_][]const u8{ "\"sequence\":\"4\"", "\"sequence\":\"5\"", "\"sequence\":\"6\"" }, 3..) |needle, index|
-            try testing.expect(std.mem.indexOf(u8, s.frame(index), needle) != null);
+        for (1..4) |index| try testing.expectEqualStrings("{\"type\":\"pong\"}", s.frame(index));
     }
     // Fully written frames are released at the end of the turn.
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
@@ -1635,23 +1659,25 @@ test "frames published to a peer in one turn are written with one syscall, in or
 
 test "corked frames are decided against the real bufferedAmount once their bound exceeds the limit" {
     var h: Harness = .{};
-    var limits = defaultLimits();
-    // ~390-byte frames: two corked fit the bound, a third would not if they
-    // were all still buffered.
-    limits.max_buffered_bytes = 1_000;
-    try h.init(limits);
+    try h.init(defaultLimits());
     defer h.deinit();
-    const s, _ = subscribeLiveDispatch(&h);
+    const s, const peer = readyAgent(&h);
+    // 17-byte framed pongs: two corked fit the bound (17 + 15), a third
+    // would not (34 + 15) if they were all still buffered. (Set after
+    // `ready`, which is larger.)
+    h.t.loop.lock();
+    h.server.limits.max_buffered_bytes = 40;
+    h.t.loop.unlock();
     s.inline_mode = .written;
     s.flushes = 0;
-    notifyThreeDispatches(&h);
-    try h.waitFrames(s, 6);
+    threePongs(&h, peer);
+    try h.waitFrames(s, 4);
     h.settle();
     // ws: each frame reached the kernel, bufferedAmount stayed 0, nothing
     // tripped: the third frame flushed the first two and was checked exactly.
     try testing.expect(!s.isTerminated());
     try testing.expectEqual(@as(usize, 1), s.flushes);
-    try testing.expectEqual(@as(usize, 6), s.count());
+    try testing.expectEqual(@as(usize, 4), s.count());
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
 }
 
@@ -1659,19 +1685,172 @@ test "a corked frame the socket cannot take whole stays charged until written" {
     var h: Harness = .{};
     try h.init(defaultLimits());
     defer h.deinit();
-    const s, _ = subscribeLiveDispatch(&h);
+    const s, const peer = readyAgent(&h);
     s.inline_mode = .partial;
     s.hold = true;
-    notifyThreeDispatches(&h);
-    try h.waitFrames(s, 6);
+    threePongs(&h, peer);
+    try h.waitFrames(s, 4);
     h.settle();
     var expected: f64 = 0;
-    for (3..6) |index| expected += @floatFromInt(s.frame(index).len);
+    for (1..4) |index| expected += @floatFromInt(s.frame(index).len);
     try testing.expectEqual(expected, metricsOf(&h).outboundPendingBytes);
     s.releaseHeld(true);
     h.settle();
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).outboundPendingBytes);
     try testing.expect(!s.isTerminated());
+}
+
+test "a write in flight keeps its reservation across Explorer pacing turns: aggregate Explorer budget (66)" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.max_total_buffered_bytes = 1024;
+    try h.init(limits);
+    defer h.deinit();
+    var sockets: [4]*FakeSocket = undefined;
+    for (&sockets, 0..) |*slot, index| {
+        var ip: [16]u8 = undefined;
+        slot.*, _ = h.explorer("/messages", try std.fmt.bufPrint(&ip, "10.0.0.{d}", .{index + 1}));
+        try h.waitFrames(slot.*, 1);
+    }
+    h.settle();
+    // TS #10090 paces the fan-out (a turn before a client whose frames would
+    // exceed min(256 KiB, quota('messages')) = 1 KiB); written frames' callbacks
+    // release their reservations in those turns. A write still in flight (held)
+    // keeps its reservation, so each later client's send is decided against it.
+    sockets[0].inline_mode = .partial;
+    sockets[0].hold = true;
+    for (sockets[1..]) |s| s.inline_mode = .written;
+    const before = core.metrics.websocket_send_failures.get(.{"buffer_limit"});
+    const id = "0a" ** 32;
+    h.db.on("FROM \"message_view\"", "[{\"msg_id\":\"\\\\x" ++ id ++ "\",\"message_body\":\"" ++ "ff" ** 270 ++ "\"}]");
+    notifyExplorer(&h, id);
+    h.t.fake.tick(100);
+    for (0..10_000) |_| {
+        if (sockets[3].isTerminated()) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    h.settle();
+    try testing.expectEqual(@as(usize, 2), sockets[0].count());
+    for (sockets[1..]) |s| {
+        try testing.expect(s.isTerminated());
+        try testing.expectEqual(@as(usize, 1), s.count());
+    }
+    try testing.expectEqual(before + 3, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
+    try testing.expectEqual(@as(f64, @floatFromInt(sockets[0].frame(1).len)), metricsOf(&h).outboundPendingBytes);
+    sockets[0].releaseHeld(true);
+    h.settle();
+    const after = metricsOf(&h);
+    try testing.expectEqual(@as(f64, 0), after.outboundPendingBytes);
+    try testing.expectEqual(@as(f64, 1), after.connections.messages);
+}
+
+/// A thread that pings an agent once the Explorer fan-out has sent its first
+/// frame, and records how many frames the other Explorer clients had when its
+/// pong went out.
+const YieldProbe = struct {
+    h: *Harness,
+    agent: *live.Peer,
+    explorers: []const *FakeSocket,
+    started: bool = false,
+    thread: ?std.Thread = null,
+    seen: [3]usize = .{ 0, 0, 0 },
+
+    fn observe(ctx: *anyopaque, _: usize, _: usize) void {
+        const self: *YieldProbe = @ptrCast(@alignCast(ctx));
+        // The first send of the fan-out (loop mutex held): start the reader and
+        // let it block in `Loop.lock` before the publisher goes on.
+        if (self.started) return;
+        self.started = true;
+        self.thread = std.Thread.spawn(.{}, ping, .{self}) catch unreachable;
+        while (self.h.t.loop.lock_waiters.load(.acquire) == 0) std.Thread.sleep(10 * std.time.ns_per_us);
+    }
+
+    fn ping(self: *YieldProbe) void {
+        self.h.server.onMessage(self.agent, "{\"type\":\"ping\"}");
+        for (self.explorers[1..], &self.seen) |s, *count| count.* = s.count();
+    }
+};
+
+test "a socket read waiting for the loop runs during the Explorer fan-out's pacing yield (TS #10090 setImmediate)" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.max_total_buffered_bytes = 1024;
+    try h.init(limits);
+    defer h.deinit();
+    const agent_socket, const agent_peer = h.agent();
+    try h.waitFrames(agent_socket, 1);
+    var sockets: [4]*FakeSocket = undefined;
+    for (&sockets, 0..) |*slot, index| {
+        var ip: [16]u8 = undefined;
+        slot.*, _ = h.explorer("/messages", try std.fmt.bufPrint(&ip, "10.0.0.{d}", .{index + 1}));
+        try h.waitFrames(slot.*, 1);
+    }
+    h.settle();
+    for (sockets) |s| s.inline_mode = .written;
+    var probe: YieldProbe = .{ .h = &h, .agent = agent_peer, .explorers = &sockets };
+    h.t.loop.lock();
+    h.server.send_observer = .{ .ctx = &probe, .func = YieldProbe.observe };
+    h.t.loop.unlock();
+    const id = "0a" ** 32;
+    // ~600-byte upserts: the 1 KiB messages budget yields before each later client.
+    h.db.on("FROM \"message_view\"", "[{\"msg_id\":\"\\\\x" ++ id ++ "\",\"message_body\":\"" ++ "ff" ** 270 ++ "\"}]");
+    notifyExplorer(&h, id);
+    h.t.fake.tick(100);
+    try h.waitFrames(sockets[3], 2);
+    try h.waitFrames(agent_socket, 2);
+    probe.thread.?.join();
+    h.t.loop.lock();
+    h.server.send_observer = null;
+    h.t.loop.unlock();
+    try testing.expectEqualStrings("{\"type\":\"pong\"}", agent_socket.frame(1));
+    // The pong went out in the first yield, before any later client's upsert.
+    try testing.expectEqual([3]usize{ 1, 1, 1 }, probe.seen);
+}
+
+test "a peer's published frames leave the route queue as they are sent and are released once written" {
+    var h: Harness = .{};
+    try h.init(defaultLimits());
+    defer h.deinit();
+    const s, _ = subscribeLiveDispatch(&h);
+    s.inline_mode = .written;
+    notifyThreeDispatches(&h);
+    try h.waitFrames(s, 6);
+    h.settle();
+    for ([_][]const u8{ "\"sequence\":\"4\"", "\"sequence\":\"5\"", "\"sequence\":\"6\"" }, 3..) |needle, index|
+        try testing.expect(std.mem.indexOf(u8, s.frame(index), needle) != null);
+    const m = metricsOf(&h);
+    try testing.expectEqual(@as(f64, 0), m.outboundPendingBytes);
+    try testing.expectEqual(@as(f64, 0), m.queues.agent.bytes);
+    try testing.expectEqual(@as(f64, 0), m.queues.agent.messages);
+}
+
+test "a published frame the socket cannot take whole stays charged; the rest wait in the route queue" {
+    var h: Harness = .{};
+    try h.init(defaultLimits());
+    defer h.deinit();
+    const s, _ = subscribeLiveDispatch(&h);
+    s.inline_mode = .partial;
+    s.hold = true;
+    notifyThreeDispatches(&h);
+    try h.waitFrames(s, 4);
+    h.settle();
+    // `BroadcastQueue.drain` awaits each send: only the first frame is out,
+    // reserved until its callback; the other two are still queued.
+    try testing.expectEqual(@as(usize, 4), s.count());
+    var m = metricsOf(&h);
+    try testing.expectEqual(@as(f64, @floatFromInt(s.frame(3).len)), m.outboundPendingBytes);
+    try testing.expectEqual(@as(f64, 2), m.queues.agent.messages);
+    try testing.expect(m.queues.agent.bytes > 0);
+    s.releaseHeld(true);
+    try h.waitFrames(s, 6);
+    h.settle();
+    m = metricsOf(&h);
+    try testing.expectEqual(@as(f64, 0), m.outboundPendingBytes);
+    try testing.expectEqual(@as(f64, 0), m.queues.agent.messages);
+    try testing.expectEqual(@as(f64, 0), m.queues.agent.bytes);
+    try testing.expect(!s.isTerminated());
+    for ([_][]const u8{ "\"sequence\":\"4\"", "\"sequence\":\"5\"", "\"sequence\":\"6\"" }, 3..) |needle, index|
+        try testing.expect(std.mem.indexOf(u8, s.frame(index), needle) != null);
 }
 
 /// `listenEarly`, then wait for the early connection (no `start` yet).
@@ -1903,7 +2082,7 @@ fn headsReads(h: *Harness) usize {
 fn revisionOf(h: *Harness) u64 {
     h.t.loop.lock();
     defer h.t.loop.unlock();
-    return h.server.confirmation_revision;
+    return h.server.event_source.revision;
 }
 
 fn liveStartOf(s: *FakeSocket, comptime event_type: []const u8) ?[]const u8 {
@@ -2452,7 +2631,7 @@ fn oneRead(h: *Harness, peer: *live.Peer, messages: []const []const u8) void {
     h.server.endRead(peer);
 }
 
-test "one read: a repeated canonical subscribe is rejected before the first is acknowledged" {
+test "one read: a repeated canonical subscribe is rejected after the first is acknowledged" {
     var h: Harness = .{};
     var limits = defaultLimits();
     limits.heartbeat_ms = 1_000_000;
@@ -2462,12 +2641,12 @@ test "one read: a repeated canonical subscribe is rejected before the first is a
     try h.waitFrames(s, 1);
     oneRead(&h, peer, &.{ canonical_subscribe, canonical_subscribe });
     try h.waitFrames(s, 3);
-    // TS: the first subscribe's ack waits for `await Promise.all([])`.
-    try testing.expectEqualStrings("{\"error\":\"Already subscribed\",\"type\":\"error\"}", s.frame(1));
-    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"type\":\"subscribed\"") != null);
+    // TS #10089: a canonical-only `subscribeClient` acknowledges synchronously.
+    try testing.expect(std.mem.indexOf(u8, s.frame(1), "\"type\":\"subscribed\"") != null);
+    try testing.expectEqualStrings("{\"error\":\"Already subscribed\",\"type\":\"error\"}", s.frame(2));
 }
 
-test "one read: a ping after a canonical subscribe is answered before the ack" {
+test "one read: a ping after a canonical subscribe is answered after the ack" {
     var h: Harness = .{};
     var limits = defaultLimits();
     limits.heartbeat_ms = 1_000_000;
@@ -2477,8 +2656,8 @@ test "one read: a ping after a canonical subscribe is answered before the ack" {
     try h.waitFrames(s, 1);
     oneRead(&h, peer, &.{ canonical_subscribe, "{\"type\":\"ping\"}" });
     try h.waitFrames(s, 3);
-    try testing.expectEqualStrings("{\"type\":\"pong\"}", s.frame(1));
-    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"type\":\"subscribed\"") != null);
+    try testing.expect(std.mem.indexOf(u8, s.frame(1), "\"type\":\"subscribed\"") != null);
+    try testing.expectEqualStrings("{\"type\":\"pong\"}", s.frame(2));
 }
 
 test "separate reads: a repeated canonical subscribe is acknowledged, then rejected" {
@@ -2525,10 +2704,12 @@ test "async reads after stop fail at once and still release their flow" {
     h.server.upgrade_removed.store(true, .release);
     h.t.loop.unlock();
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[1],\"confirmations\":2}]}");
-    // The read fails at once; its failure ends the socket on a pool thread.
-    try waitClosed(s);
+    // The read fails at once and its flow ends on a pool thread (deinit
+    // checks the release). TS's read would run and find the client gone
+    // (closeClients follows in the same turn): nothing is logged or closed.
+    h.settle();
     try testing.expectEqual(@as(usize, 0), asyncStarted(&h));
-    try testing.expect(s.isTerminated());
+    try testing.expect(!s.isTerminated());
     h.t.loop.lock();
     h.server.stopped = false;
     h.server.upgrade_removed.store(false, .release);
@@ -2921,14 +3102,15 @@ test "per-domain confirmations: echoed map, custom group first, canonical public
     h.server.onMessage(peer,
         \\{"type":"subscribe","confirmationsByDomain":{"2":0,"1":3},"streams":[{"eventType":"dispatch","domains":[1,2,7],"includeZeroConfirmations":true}]}
     );
-    // subscribed, custom (3,[1]), custom (0,[2]), advisory zero over [1,7], canonical [7].
+    // subscribed, then per split stream its custom request and its advisory
+    // zero one: (3,[1]), advisory (0,[1]), (0,[2]), advisory (0,[7]); then canonical [7].
     try h.waitFrames(s, 7);
     try testing.expectEqualStrings(
         \\{"confirmationsByDomain":{"1":3,"2":0},"streams":[{"includeZeroConfirmations":true,"domains":[1,2,7],"eventType":"dispatch"}],"type":"subscribed"}
     , s.frame(1));
     try testing.expect(std.mem.startsWith(u8, s.frame(2), "{\"type\":\"live_start_unavailable\",\"domain\":1,\"confirmations\":3,"));
-    try testing.expect(std.mem.startsWith(u8, s.frame(3), "{\"type\":\"live_start_unavailable\",\"domain\":2,\"confirmations\":0,"));
-    try testing.expect(std.mem.startsWith(u8, s.frame(4), "{\"type\":\"live_start_unavailable\",\"domain\":1,\"confirmations\":0,"));
+    try testing.expect(std.mem.startsWith(u8, s.frame(3), "{\"type\":\"live_start_unavailable\",\"domain\":1,\"confirmations\":0,"));
+    try testing.expect(std.mem.startsWith(u8, s.frame(4), "{\"type\":\"live_start_unavailable\",\"domain\":2,\"confirmations\":0,"));
     try testing.expect(std.mem.startsWith(u8, s.frame(5), "{\"type\":\"live_start_unavailable\",\"domain\":7,\"confirmations\":0,"));
     try testing.expect(std.mem.startsWith(u8, s.frame(6), "{\"type\":\"live_start_unavailable\",\"domain\":7,\"eventTypes\""));
     h.settle();
@@ -2986,7 +3168,7 @@ test "validators: a rollback during the group's first heads read retries on a fr
     try testing.expectEqual(@as(usize, 2), snapshotReads(&h));
 }
 
-test "validators: every member awaiting a group shares its failure; a later joiner starts a fresh group" {
+test "validators: every setup reads its own snapshot; an unavailable policy rejects each" {
     var h: Harness = .{};
     try validatorHarness(&h, defaultLimits());
     defer h.deinit();
@@ -3002,8 +3184,8 @@ test "validators: every member awaiting a group shares its failure; a later join
         h.db.mutex.lock();
         const queries = h.db.queries.items.len;
         h.db.mutex.unlock();
-        // s2 joined (its domain check done) and awaits the same `ready`.
-        if (pending == 2 and queries >= 3) break;
+        // s2's domain check is done and its own snapshot read issued.
+        if (pending == 2 and queries >= 4) break;
         std.Thread.sleep(std.time.ns_per_ms);
     }
     h.settle();
@@ -3013,13 +3195,13 @@ test "validators: every member awaiting a group shares its failure; a later join
         try testing.expectEqualStrings("{\"error\":\"Custom confirmations unavailable for domain 1\",\"type\":\"error\"}", s.frame(0));
         try waitClosed(s);
     }
-    // One initialization read served both.
-    try testing.expectEqual(@as(usize, 1), snapshotReads(&h));
+    // TS #10089: one `confirmationSnapshots` per subscribe.
+    try testing.expectEqual(@as(usize, 2), snapshotReads(&h));
     try waitSetups(&h);
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).validatorSharedReaders);
     const s3, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
     try h.waitFrames(s3, 1);
-    try testing.expectEqual(@as(usize, 2), snapshotReads(&h));
+    try testing.expectEqual(@as(usize, 3), snapshotReads(&h));
 }
 
 test "validators: a joiner re-reads its boundary when a rollback lands during its heads read" {
@@ -3125,21 +3307,29 @@ test "parity hooks: held event callbacks keep pending bytes until released; an e
     const s, _ = subscribeLiveDispatch(&h);
     h.server.hookMode(.all);
     notifyThreeDispatches(&h);
-    try h.waitFrames(s, 6);
+    try h.waitFrames(s, 4);
     h.settle();
-    // Written to the client, callbacks held in order.
-    try testing.expectEqual(@as(usize, 3), h.server.hookHeld());
+    // TS #10089: the route queue's drain awaits each send, so one frame is
+    // written with its callback held and the other two stay queued.
+    try testing.expectEqual(@as(usize, 4), s.count());
+    try testing.expectEqual(@as(usize, 1), h.server.hookHeld());
     try testing.expect(metricsOf(&h).outboundPendingBytes > 0);
     try testing.expectEqual(@as(f64, 0), metricsOf(&h).maxClientBufferedBytes);
-    var released = h.server.hookRelease(null);
+    try testing.expectEqual(@as(f64, 2), metricsOf(&h).queues.agent.messages);
+    const released = h.server.hookRelease(null);
     try testing.expect(released.released);
-    try testing.expectEqual(@as(usize, 2), released.held);
+    // Its callback sends the next one, held in turn.
+    try h.waitFrames(s, 5);
+    h.settle();
+    try testing.expectEqual(@as(usize, 1), h.server.hookHeld());
     const failures = core.metrics.websocket_send_failures.get(.{"send_error"});
-    released = h.server.hookRelease("write EPIPE");
-    try testing.expectEqual(@as(usize, 1), released.held);
+    _ = h.server.hookRelease("write EPIPE");
     try waitClosed(s);
     try testing.expect(s.isTerminated());
     try testing.expectEqual(failures + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
+    // The third frame never went out; the queue was dropped.
+    try testing.expectEqual(@as(usize, 5), s.count());
+    try testing.expectEqual(@as(f64, 0), metricsOf(&h).queues.agent.messages);
     // After the close, a failed release is not another send failure.
     _ = h.server.hookRelease("write ECANCELED");
     try testing.expectEqual(failures + 1, core.metrics.websocket_send_failures.get(.{"send_error"}));
@@ -3272,7 +3462,7 @@ test "a heartbeat turn gives back an idle peer's list capacity" {
     {
         h.t.loop.lock();
         defer h.t.loop.unlock();
-        try testing.expect(explorer.explorer.queue.capacity > 0);
+        try testing.expect(explorer.out.queue.capacity > 0);
     }
     // ready, subscribed, live start; then the first heartbeat.
     h.t.fake.tick(200);
@@ -3290,8 +3480,8 @@ test "a heartbeat turn gives back an idle peer's list capacity" {
         try testing.expectEqual(@as(usize, 0), p.requests.capacity);
         try testing.expectEqual(@as(usize, 0), p.completed.capacity);
     }
-    try testing.expectEqual(@as(usize, 0), explorer.explorer.queue.capacity);
-    try testing.expectEqual(@as(usize, 0), explorer.explorer.queue_head);
+    try testing.expectEqual(@as(usize, 0), explorer.out.queue.capacity);
+    try testing.expectEqual(@as(usize, 0), explorer.out.queue_head);
 }
 
 // -- TS #10078: the shared message source ------------------------------------------
@@ -3394,4 +3584,472 @@ test "messages (TS #10078): a rollback sends its frame, then refreshes only the 
     // The dispatch at 11 is above the rolled-back frontier: no projection, no frame.
     try testing.expectEqual(@as(usize, 3), s.count());
     try testing.expectEqual(@as(usize, 2), queriesContaining(&h, "live_message_facts"));
+}
+
+// ---------------------------------------------------------------------------
+// Probes (io, spec v2.1 §1.12): sendSerialized's victim rules over the global
+// budget. With max_total_buffered_bytes 410 every route quota is capped at
+// 410 (min(total, max(1024, share))), so the global budget fills before any
+// route's quota; setup frames (ready + live_start, 375 bytes) still fit. Held
+// writes keep each 15-byte pong reserved (at most 15 pings per client, under
+// the 30-per-minute message limit).
+
+fn quotaProbeHarness(h: *Harness) !struct { *FakeSocket, *live.Peer, *FakeSocket, *live.Peer } {
+    var limits = defaultLimits();
+    limits.max_total_buffered_bytes = 410;
+    limits.heartbeat_ms = 1_000_000;
+    try validatorHarness(h, limits);
+    h.db.on("JOIN scraper_checkpoint c", validator_boundary);
+    const v, const vpeer = try h.connectedValidator("/validators?domain=1", null);
+    try h.waitFrames(v, 2);
+    try waitSetups(h);
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.settle();
+    try testing.expectEqual(@as(f64, 0), metricsOf(h).outboundPendingBytes);
+    v.hold = true;
+    s.hold = true;
+    return .{ s, peer, v, vpeer };
+}
+
+const probe_ping = "{\"type\":\"ping\"}";
+
+fn probePings(h: *Harness, s: *FakeSocket, peer: *live.Peer, validator: bool, n: usize) !void {
+    const before = s.count();
+    for (0..n) |_| {
+        if (validator) h.server.onValidatorMessage(peer, probe_ping, false) else h.server.onMessage(peer, probe_ping);
+    }
+    try h.waitFrames(s, before + n);
+}
+
+test "probe §1.12: an agent sender over the global budget fails a public peer that ties its pending + frame" {
+    var h: Harness = .{};
+    defer h.deinit();
+    const s, const peer, const v, const vpeer = try quotaProbeHarness(&h);
+    try probePings(&h, v, vpeer, true, 14);
+    try probePings(&h, s, peer, false, 13);
+    try testing.expectEqual(@as(f64, 27 * 15), metricsOf(&h).outboundPendingBytes);
+    const before = core.metrics.websocket_send_failures.get(.{"buffer_limit"});
+    // The agent's 14th pong: its route has room (195 + 15 <= 410), the global
+    // budget not (210 + 195 + 15 > 410). The validator's 210 equals the
+    // sender's 195 + 15: an agent sender prefers the public victim on a tie.
+    try probePings(&h, s, peer, false, 1);
+    try testing.expect(v.isTerminated());
+    try testing.expect(!s.isTerminated());
+    try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
+    try testing.expectEqual(@as(f64, 14 * 15), metricsOf(&h).outboundPendingBytes);
+}
+
+test "probe §1.12: a public sender over the global budget never evicts an agent, even the largest" {
+    var h: Harness = .{};
+    defer h.deinit();
+    const s, const peer, const v, const vpeer = try quotaProbeHarness(&h);
+    try probePings(&h, s, peer, false, 15);
+    try probePings(&h, v, vpeer, true, 12);
+    try testing.expectEqual(@as(f64, 27 * 15), metricsOf(&h).outboundPendingBytes);
+    const before = core.metrics.websocket_send_failures.get(.{"buffer_limit"});
+    // The validator's 13th pong: route 180 + 15 <= 410, global 225 + 180 + 15
+    // > 410. The agent holds the most (225) but a public sender skips agents,
+    // so the sender itself fails.
+    h.server.onValidatorMessage(vpeer, probe_ping, false);
+    h.settle();
+    try testing.expect(v.isTerminated());
+    try testing.expect(!s.isTerminated());
+    try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
+    try testing.expectEqual(@as(usize, 2 + 12), v.count());
+    try testing.expectEqual(@as(f64, 15 * 15), metricsOf(&h).outboundPendingBytes);
+}
+
+test "probe §1.12: without a tie, an agent sender holding the most fails itself" {
+    var h: Harness = .{};
+    defer h.deinit();
+    const s, const peer, const v, const vpeer = try quotaProbeHarness(&h);
+    try probePings(&h, v, vpeer, true, 13);
+    try probePings(&h, s, peer, false, 14);
+    try testing.expectEqual(@as(f64, 27 * 15), metricsOf(&h).outboundPendingBytes);
+    const before = core.metrics.websocket_send_failures.get(.{"buffer_limit"});
+    // The agent's 15th pong: route 210 + 15 <= 410, global 195 + 210 + 15 >
+    // 410; no peer reaches the sender's 225, so the sender fails.
+    h.server.onMessage(peer, probe_ping);
+    h.settle();
+    try testing.expectEqual(before + 1, core.metrics.websocket_send_failures.get(.{"buffer_limit"}));
+    try testing.expect(s.isTerminated());
+    try testing.expect(!v.isTerminated());
+    try testing.expectEqual(@as(f64, 13 * 15), metricsOf(&h).outboundPendingBytes);
+}
+
+/// Queries `db` ran that contain `needle`.
+fn countQueries(db: *FakeDb, needle: []const u8) usize {
+    db.mutex.lock();
+    defer db.mutex.unlock();
+    var n: usize = 0;
+    for (db.queries.items) |query| n += @intFromBool(std.mem.indexOf(u8, query, needle) != null);
+    return n;
+}
+
+fn queryTotal(db: *FakeDb) usize {
+    db.mutex.lock();
+    defer db.mutex.unlock();
+    return db.queries.items.len;
+}
+
+fn waitQuery(db: *FakeDb, needle: []const u8) !void {
+    for (0..10_000) |_| {
+        if (countQueries(db, needle) > 0) return;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    std.debug.print("no query containing {s}\n", .{needle});
+    return error.Timeout;
+}
+
+test "routing: validator reads use the validator pool, agent reads the live pool" {
+    // TS: `validatorStore` (queryValidator) for domainExists, the validator
+    // source's snapshots and range reads, and validator canonical boundaries;
+    // `store` (queryLive) for the agent's.
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initRouted(limits);
+    defer h.deinit();
+    // Heads above the checkpoint, so a zero-confirmation cursor reads a range.
+    const heads = "[{\"domain\":1,\"head_height\":\"12\",\"indexed_height\":\"12\",\"confirmed_height\":\"5\",\"height\":\"10\",\"hash\":\"" ++ "ab" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
+    for ([_]*FakeDb{ &h.db, &h.validator_db }) |db| {
+        db.add(.{ .contains = domain_one, .persistent = true, .domain = 1, .rows = "[{\"id\":1}]" });
+        db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .rows = heads });
+        db.add(.{ .contains = "JOIN scraper_checkpoint c", .persistent = true, .rows = validator_boundary });
+    }
+    const snapshot = "SELECT h.domain, h.head_height";
+    const range = "/* confirmation_events */";
+    const boundary = "JOIN scraper_checkpoint c";
+    h.settle();
+    const live_before = queryTotal(&h.db);
+
+    // Validators: a zero-confirmation one (domainExists, snapshot, range read)
+    // and a canonical one (domainExists, boundary).
+    const custom, _ = try h.connectedValidator("/validators?domain=1&confirmations=0", null);
+    try h.waitFrames(custom, 2);
+    const canonical, _ = try h.connectedValidator("/validators?domain=1", null);
+    try h.waitFrames(canonical, 2);
+    try waitSetups(&h);
+    try waitQuery(&h.validator_db, range);
+    try testing.expectEqual(@as(usize, 2), countQueries(&h.validator_db, domain_one));
+    try testing.expect(countQueries(&h.validator_db, snapshot) >= 1);
+    try testing.expectEqual(@as(usize, 1), countQueries(&h.validator_db, boundary));
+    h.settle();
+    try testing.expectEqual(live_before, queryTotal(&h.db));
+
+    // An agent: a zero-confirmation stream (snapshot, range read) and a
+    // canonical one (boundary).
+    const validator_before = queryTotal(&h.validator_db);
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    h.server.onMessage(peer,
+        \\{"type":"subscribe","streams":[{"eventType":"dispatch","confirmations":0,"domains":[1]},{"eventType":"gas_payment","domains":[1]}]}
+    );
+    try h.waitFrames(s, 4);
+    try waitQuery(&h.db, range);
+    try testing.expect(countQueries(&h.db, snapshot) >= 1);
+    try testing.expectEqual(@as(usize, 1), countQueries(&h.db, boundary));
+    try testing.expectEqual(@as(usize, 0), countQueries(&h.db, domain_one));
+    h.settle();
+    try testing.expectEqual(validator_before, queryTotal(&h.validator_db));
+}
+
+// ---------------------------------------------------------------------------
+// event-source.postgres.test.ts (TS 5222f628fe; parity pins 106/107): the
+// isolated agent and validator sources through real PostgreSQL notifications.
+// Needs SCRAPER_TEST_DATABASE_URL. As the TS test's single pg.Client, one
+// connection serves both pools, so every fixture is a session-local TEMP table
+// (no persistent schema or data writes); LISTEN runs on db's Listener.
+
+const pg_db = @import("db");
+
+const PgDb = struct {
+    mutex: std.Thread.Mutex = .{},
+    arena: std.heap.ArenaAllocator = .init(a),
+    conn: pg_db.pq.Conn = undefined,
+    /// Reads of `confirmation_events` (the sources' range reads).
+    reads: std.atomic.Value(usize) = .init(0),
+
+    fn connect(self: *PgDb, url: []const u8) !void {
+        var failure: pg_db.Failure = .{};
+        self.conn = pg_db.pq.Conn.connect(.{ .conninfo = url }, self.arena.allocator(), &failure) catch |err| {
+            std.debug.print("connect: {s}\n", .{failure.message});
+            return err;
+        };
+    }
+
+    fn deinit(self: *PgDb) void {
+        self.conn.deinit();
+        self.arena.deinit();
+    }
+
+    fn db(self: *PgDb) es.Db {
+        return .{ .ctx = self, .query = query, .query_async = @import("test_db.zig").threadAsync(query) };
+    }
+
+    fn query(ctx: *anyopaque, arena: std.mem.Allocator, sql: []const u8, params: []const json.Value) anyerror![]json.Value {
+        const self: *PgDb = @ptrCast(@alignCast(ctx));
+        if (std.mem.indexOf(u8, sql, "confirmation_events") != null) _ = self.reads.fetchAdd(1, .monotonic);
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        var failure: pg_db.Failure = .{};
+        const result = self.conn.query(arena, sql, params, &failure) catch |err| {
+            std.debug.print("query failed: {s}\n  {s}\n", .{ failure.message, sql });
+            return err;
+        };
+        return result.rows;
+    }
+
+    /// The test's own statements, on the same session.
+    fn exec(self: *PgDb, sql: []const u8, params: []const json.Value) !void {
+        var arena = std.heap.ArenaAllocator.init(a);
+        defer arena.deinit();
+        _ = try query(self, arena.allocator(), sql, params);
+    }
+};
+
+const PgListen = struct {
+    url: []const u8,
+
+    fn api(self: *PgListen) live.Listen {
+        return .{ .ctx = self, .listen = listen, .unlisten = unlisten };
+    }
+
+    fn listen(ctx: *anyopaque, channels: []const []const u8, handler: live.ListenHandler) anyerror!*anyopaque {
+        const self: *PgListen = @ptrCast(@alignCast(ctx));
+        var arena = std.heap.ArenaAllocator.init(a);
+        defer arena.deinit();
+        var failure: pg_db.Failure = .{};
+        const listener = try pg_db.Listener.start(a, .{ .conninfo = self.url }, channels, .{
+            .ctx = handler.ctx,
+            .on_notification = handler.on_notification,
+            .on_disconnect = handler.on_disconnect,
+        }, .{}, arena.allocator(), &failure);
+        return listener;
+    }
+
+    fn unlisten(_: *anyopaque, handle: *anyopaque) void {
+        const listener: *pg_db.Listener = @ptrCast(@alignCast(handle));
+        listener.stop();
+    }
+};
+
+const PgClient = struct { socket: *FakeSocket, peer: *live.Peer, confirmations: ?u32, validator: bool };
+
+fn pgEvents(s: *FakeSocket) usize {
+    s.mutex.lock();
+    defer s.mutex.unlock();
+    var n: usize = 0;
+    for (s.frames.items) |f| n += @intFromBool(std.mem.indexOf(u8, f, "\"type\":\"event\"") != null);
+    return n;
+}
+
+/// The `index`-th event frame (arena copy).
+fn pgEvent(s: *FakeSocket, arena: std.mem.Allocator, index: usize) ![]const u8 {
+    s.mutex.lock();
+    defer s.mutex.unlock();
+    var n: usize = 0;
+    for (s.frames.items) |f| if (std.mem.indexOf(u8, f, "\"type\":\"event\"") != null) {
+        if (n == index) return arena.dupe(u8, f);
+        n += 1;
+    };
+    return error.TestUnexpectedResult;
+}
+
+/// The first frame containing `needle` (arena copy).
+fn pgFirst(s: *FakeSocket, arena: std.mem.Allocator, needle: []const u8) ![]const u8 {
+    s.mutex.lock();
+    defer s.mutex.unlock();
+    for (s.frames.items) |f| if (std.mem.indexOf(u8, f, needle) != null) return arena.dupe(u8, f);
+    return error.TestUnexpectedResult;
+}
+
+fn pgHas(s: *FakeSocket, needle: []const u8) bool {
+    s.mutex.lock();
+    defer s.mutex.unlock();
+    for (s.frames.items) |f| if (std.mem.indexOf(u8, f, needle) != null) return true;
+    return false;
+}
+
+/// `until`: up to 3 s, letting the fake clock run the notification batches.
+fn pgUntil(h: *Harness, context: anytype, comptime check: fn (@TypeOf(context)) bool) !void {
+    for (0..300) |_| {
+        if (check(context)) return;
+        h.t.fake.tick(20);
+        std.Thread.sleep(10 * std.time.ns_per_ms);
+    }
+    return error.Timeout;
+}
+
+fn pgEmit(pg: *PgDb, head: u32, indexed: u32, previous: u32, confirmed: u32, previous_confirmed: u32) !void {
+    var buf: [256]u8 = undefined;
+    const update = try std.fmt.bufPrint(&buf, "UPDATE scraper_head SET head_height={d}, indexed_height={d}, confirmed_height={d}", .{ head, indexed, confirmed });
+    try pg.exec(update, &.{});
+    var payload: [256]u8 = undefined;
+    const text = try std.fmt.bufPrint(&payload, "{{\"domain\":1,\"headHeight\":\"{d}\",\"indexedHeight\":\"{d}\",\"previousIndexedHeight\":\"{d}\",\"confirmedHeight\":\"{d}\",\"previousConfirmedHeight\":\"{d}\"}}", .{ head, indexed, previous, confirmed, previous_confirmed });
+    try pg.exec("SELECT pg_notify($1,$2)", &.{ .{ .string = "scraper_head" }, .{ .string = text } });
+}
+
+test "streams isolated agent/validator sources through PostgreSQL notifications (event-source.postgres.test.ts)" {
+    const url = std.posix.getenv("SCRAPER_TEST_DATABASE_URL") orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(a);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    var pg: PgDb = .{};
+    try pg.connect(url);
+    defer pg.deinit();
+    for ([_][]const u8{
+        "CREATE TEMP TABLE domain(id integer PRIMARY KEY)",
+        "INSERT INTO domain VALUES (1)",
+        "CREATE TEMP TABLE scraper_head(domain integer PRIMARY KEY, head_height bigint, indexed_height bigint, confirmed_height bigint, healthy boolean, halted boolean, mailbox bytea, merkle_tree_hook bytea, interchain_gas_paymaster bytea)",
+        "INSERT INTO scraper_head VALUES (1,100,100,80,true,false,decode(repeat('11',20),'hex'),decode(repeat('22',20),'hex'),decode(repeat('33',20),'hex'))",
+        "CREATE TEMP TABLE scraper_checkpoint(domain integer, height bigint, hash bytea, PRIMARY KEY(domain,height))",
+        "INSERT INTO scraper_checkpoint SELECT 1,n,decode(repeat('ab',32),'hex') FROM generate_series(70,105) n",
+        "CREATE TEMP TABLE merkle_tree_insertion(id bigint PRIMARY KEY, domain integer, merkle_tree_hook bytea, leaf_index bigint, message_id bytea, block_number bigint, block_hash bytea)",
+        "CREATE INDEX ON merkle_tree_insertion(domain, block_number, id)",
+        "INSERT INTO merkle_tree_insertion SELECT n,1,decode(repeat('22',20),'hex'),n,decode(repeat('aa',32),'hex'),n,decode(repeat('ab',32),'hex') FROM generate_series(98,100) n",
+        "CREATE TEMP VIEW confirmed_merkle_tree_insertion AS SELECT m.* FROM merkle_tree_insertion m JOIN scraper_head h USING(domain) WHERE m.block_number<=h.confirmed_height",
+    }) |sql| try pg.exec(sql, &.{});
+
+    var listen: PgListen = .{ .url = url };
+    var h: Harness = .{};
+    core.log.setSink(Harness.discard, null);
+    h.t.init();
+    var limits = defaultLimits();
+    limits.max_agent_clients = 10;
+    limits.heartbeat_ms = 1_000_000;
+    h.server = try live.Server.create(a, &h.t.loop, pg.db(), listen.api(), .{ .limits = limits, .batch_size = 500, .validator_db = pg.db() }, null);
+    defer h.deinit();
+    try h.server.start();
+
+    var clients: std.ArrayList(PgClient) = .empty;
+    defer clients.deinit(a);
+    for ([_]bool{ false, true }) |validator| {
+        for ([_]?u32{ null, 0, 2 }) |confirmations| {
+            var client: PgClient = .{ .socket = undefined, .peer = undefined, .confirmations = confirmations, .validator = validator };
+            if (validator) {
+                const query = if (confirmations) |c| try std.fmt.allocPrint(arena, "/validators?domain=1&confirmations={d}", .{c}) else "/validators?domain=1";
+                client.socket, client.peer = try h.connectedValidator(query, null);
+            } else {
+                client.socket, client.peer = h.agent();
+            }
+            const Ready = struct {
+                fn check(s: *FakeSocket) bool {
+                    return pgHas(s, "\"type\":\"ready\"");
+                }
+            };
+            try pgUntil(&h, client.socket, Ready.check);
+            if (!validator) {
+                const message = if (confirmations) |c|
+                    try std.fmt.allocPrint(arena, "{{\"type\":\"subscribe\",\"streams\":[{{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1],\"confirmations\":{d}}}]}}", .{c})
+                else
+                    "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"merkle_tree_insertion\",\"domains\":[1]}]}";
+                h.server.onMessage(client.peer, message);
+            }
+            const LiveStart = struct {
+                fn check(s: *FakeSocket) bool {
+                    return pgHas(s, "\"type\":\"live_start\"");
+                }
+            };
+            try pgUntil(&h, client.socket, LiveStart.check);
+            try clients.append(a, client);
+        }
+    }
+    const All = struct {
+        clients: []const PgClient,
+        /// Which clients: custom (any count), only this count, or canonical.
+        filter: enum { custom, canonical, count } = .custom,
+        count: u32 = 0,
+        events: usize = 0,
+        needle: ?[]const u8 = null,
+        fn selected(self: @This(), client: PgClient) bool {
+            return switch (self.filter) {
+                .custom => client.confirmations != null,
+                .canonical => client.confirmations == null,
+                .count => client.confirmations == self.count,
+            };
+        }
+        fn check(self: @This()) bool {
+            for (self.clients) |client| if (self.selected(client)) {
+                if (self.needle) |needle| {
+                    if (!pgHas(client.socket, needle)) return false;
+                } else if (pgEvents(client.socket) != self.events) return false;
+            };
+            return true;
+        }
+    };
+    try testing.expectEqual(@as(usize, 0), pg.reads.load(.monotonic));
+    {
+        const m = metricsOf(&h);
+        try testing.expectEqual(@as(f64, 1), m.eventSource.ranges);
+        try testing.expectEqual(@as(f64, 1), m.validatorSource.ranges);
+    }
+
+    try pg.exec("INSERT INTO merkle_tree_insertion VALUES (101,1,decode(repeat('22',20),'hex'),101,decode(repeat('aa',32),'hex'),101,decode(repeat('ab',32),'hex'))", &.{});
+    try pgEmit(&pg, 101, 101, 100, 80, 80);
+    try pgUntil(&h, All{ .clients = clients.items, .events = 1 }, All.check);
+    // One prefix and one live extension per isolated route.
+    try testing.expectEqual(@as(usize, 4), pg.reads.load(.monotonic));
+    for (clients.items) |client| {
+        const c = client.confirmations orelse {
+            try testing.expectEqual(@as(usize, 0), pgEvents(client.socket));
+            continue;
+        };
+        const want: []const u8 = if (c == 0) "\"height\":\"101\"" else "\"height\":\"99\"";
+        try testing.expect(std.mem.indexOf(u8, try pgEvent(client.socket, arena, 0), want) != null);
+    }
+
+    try pgEmit(&pg, 103, 101, 101, 80, 80);
+    try pgUntil(&h, All{ .clients = clients.items, .filter = .count, .count = 2, .events = 3 }, All.check);
+    // Maturing confirmations release cached events without another read.
+    try testing.expectEqual(@as(usize, 4), pg.reads.load(.monotonic));
+
+    try pgEmit(&pg, 103, 101, 101, 101, 80);
+    try pgUntil(&h, All{ .clients = clients.items, .filter = .canonical, .events = 4 }, All.check);
+    for (clients.items) |client| if (client.confirmations == null) {
+        for (0..4) |i| try testing.expect(std.mem.indexOf(u8, try pgEvent(client.socket, arena, i), "\"confirmations\"") == null);
+    };
+    // Both routes preserve the same event protocol.
+    for ([_]?u32{ null, 0, 2 }) |confirmations| {
+        var pair: [2]*FakeSocket = undefined;
+        for (clients.items) |client| if (client.confirmations == confirmations) {
+            pair[@intFromBool(client.validator)] = client.socket;
+        };
+        const n = pgEvents(pair[0]);
+        try testing.expectEqual(n, pgEvents(pair[1]));
+        for (0..n) |i| try testing.expectEqualStrings(try pgEvent(pair[0], arena, i), try pgEvent(pair[1], arena, i));
+    }
+
+    try pg.exec("DELETE FROM merkle_tree_insertion WHERE block_number>99", &.{});
+    try pgEmit(&pg, 101, 99, 101, 99, 101);
+    try pgUntil(&h, All{ .clients = clients.items, .needle = "\"type\":\"rollback\"" }, All.check);
+    for (clients.items) |client| if (client.confirmations != null) {
+        // As TS: both fields of the first rollback frame.
+        const rollback = try pgFirst(client.socket, arena, "\"type\":\"rollback\"");
+        try testing.expect(std.mem.indexOf(u8, rollback, "\"fromHeight\":\"101\"") != null);
+        try testing.expect(std.mem.indexOf(u8, rollback, "\"toHeight\":\"99\"") != null);
+    };
+
+    try pg.exec("INSERT INTO merkle_tree_insertion VALUES (200,1,decode(repeat('22',20),'hex'),100,decode(repeat('bb',32),'hex'),100,decode(repeat('cd',32),'hex'))", &.{});
+    try pgEmit(&pg, 102, 100, 99, 99, 99);
+    const replaced = "\"blockHash\":\"\\\\x" ++ "cd" ** 32 ++ "\"";
+    const Last = struct {
+        clients: []const PgClient,
+        fn check(self: @This()) bool {
+            for (self.clients) |client| if (client.confirmations != null) {
+                const n = pgEvents(client.socket);
+                if (n == 0) return false;
+                var buf: [4096]u8 = undefined;
+                var fba = std.heap.FixedBufferAllocator.init(&buf);
+                const last = pgEvent(client.socket, fba.allocator(), n - 1) catch return false;
+                if (std.mem.indexOf(u8, last, replaced) == null) return false;
+            };
+            return true;
+        }
+    };
+    try pgUntil(&h, Last{ .clients = clients.items }, Last.check);
+    // The replacement is read once per route across its confirmation policies.
+    try testing.expectEqual(@as(usize, 6), pg.reads.load(.monotonic));
+    for (clients.items) |client| try testing.expect(FakeSocket.isOpen(client.socket));
 }

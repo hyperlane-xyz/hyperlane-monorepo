@@ -136,6 +136,9 @@ pub const Error = Failure || std.mem.Allocator.Error;
 
 pub const Diag = struct {
     message: []const u8 = "",
+    /// TS #10089 `SubscriptionCapacityError`: the negotiation is rejected
+    /// (error frame + 1008), not just answered with an error frame.
+    capacity: bool = false,
 
     pub fn fail(self: *Diag, message: []const u8) Failure {
         self.message = message;
@@ -181,6 +184,31 @@ pub fn parseClientMessage(arena: std.mem.Allocator, raw: []const u8, diag: *Diag
             if (!used) return diag.fail(try std.fmt.allocPrint(arena, "Unused confirmationsByDomain domain {d}", .{entry.domain}));
         }
     };
+    // TS #10089: the domain-block budget over custom/advisory coverage.
+    var costs: std.AutoArrayHashMapUnmanaged(u32, u64) = .empty;
+    for (streams) |stream| {
+        if (stream.kind == .blocks) continue;
+        for (stream.domains orelse &.{}) |domain| {
+            const override: ?u64 = if (by_domain) |entries| for (entries) |entry| {
+                if (entry.domain == domain) break entry.confirmations;
+            } else null else null;
+            const count = override orelse stream.confirmations;
+            if (count == null and stream.include_zero_confirmations != true) continue;
+            const slot = try costs.getOrPut(arena, domain);
+            const cost = @max(count orelse 0, 1);
+            slot.value_ptr.* = if (slot.found_existing) @max(slot.value_ptr.*, cost) else cost;
+        }
+    }
+    if (costs.count() > MAX_EXPLORER_DOMAINS) {
+        diag.capacity = true;
+        return diag.fail(std.fmt.comptimePrint("custom domains must contain at most {d} IDs", .{MAX_EXPLORER_DOMAINS}));
+    }
+    var total: u64 = 0;
+    for (costs.values()) |cost| total += cost;
+    if (total > MAX_EXPLORER_DOMAIN_CONFIRMATION_BLOCKS) {
+        diag.capacity = true;
+        return diag.fail("Confirmation subscription exceeds the domain-block budget");
+    }
     return .{ .subscribe = .{ .streams = streams, .confirmations_by_domain = by_domain } };
 }
 
@@ -232,8 +260,14 @@ fn arrayIndex(key: []const u8) ?u32 {
 /// `parseConfirmationCount`.
 fn parseConfirmationCount(value: json.Value, diag: *Diag) Failure!u64 {
     const number = asNumber(value) orelse return diag.fail("confirmations must be a non-negative safe integer");
+    return countNumber(number, diag);
+}
+
+/// The count checks of `parseConfirmationCount` (TS #10089: capped at 1000).
+fn countNumber(number: f64, diag: *Diag) Failure!u64 {
     if (!isSafeInteger(number) or number < 0)
         return diag.fail("confirmations must be a non-negative safe integer");
+    if (number > MAX_CONFIRMATIONS) return diag.fail(std.fmt.comptimePrint("confirmations must not exceed {d}", .{MAX_CONFIRMATIONS}));
     return @intFromFloat(number);
 }
 
@@ -309,10 +343,9 @@ pub fn parseConfirmations(value: ?json.Value, domains: ?[]const u32, diag: *Diag
 }
 
 fn confirmationsNumber(number: f64, domains: ?[]const u32, diag: *Diag) Failure!u64 {
-    if (!isSafeInteger(number) or number < 0)
-        return diag.fail("confirmations must be a non-negative safe integer");
+    const count = try countNumber(number, diag);
     if (domains == null or domains.?.len == 0) return diag.fail("confirmations requires explicit domains");
-    return @intFromFloat(number);
+    return count;
 }
 
 fn parseDomains(arena: std.mem.Allocator, value: ?json.Value, diag: *Diag) Error!?[]const u32 {
@@ -450,7 +483,9 @@ pub fn blockHashText(arena: std.mem.Allocator, text: []const u8) std.mem.Allocat
 /// TS protocol.ts (#10076): a /messages confirmation subscription names at
 /// most this many distinct domains and asks for at most this depth.
 pub const MAX_EXPLORER_DOMAINS = 512;
-pub const MAX_EXPLORER_CONFIRMATIONS = 1_000;
+/// TS #10089 `MAX_CONFIRMATIONS`: every confirmation count (agents,
+/// validators, /messages).
+pub const MAX_CONFIRMATIONS = 1_000;
 /// TS #10078: `domains.size * Math.max(1, confirmations)` budget.
 pub const MAX_EXPLORER_DOMAIN_CONFIRMATION_BLOCKS = 10_000;
 
@@ -477,7 +512,6 @@ pub fn parseExplorerConfirmations(arena: std.mem.Allocator, params: *const Query
     if (domains.items.len > MAX_EXPLORER_DOMAINS) return diag.fail(std.fmt.comptimePrint("domains must contain at most {d} IDs", .{MAX_EXPLORER_DOMAINS}));
     const number = std.fmt.parseFloat(f64, count.?) catch unreachable;
     const confirmations = try confirmationsNumber(number, domains.items, diag);
-    if (confirmations > MAX_EXPLORER_CONFIRMATIONS) return diag.fail(std.fmt.comptimePrint("confirmations must not exceed {d}", .{MAX_EXPLORER_CONFIRMATIONS}));
     if (domains.items.len * @max(1, confirmations) > MAX_EXPLORER_DOMAIN_CONFIRMATION_BLOCKS)
         return diag.fail(std.fmt.comptimePrint("Subscription exceeds {d} domain confirmation blocks", .{MAX_EXPLORER_DOMAIN_CONFIRMATION_BLOCKS}));
     return .{ .confirmations = confirmations, .domains = domains.items };
@@ -544,7 +578,8 @@ pub fn parseValidatorSubscription(params: *const QueryParams) ?ValidatorSubscrip
     const raw_count = params.get("confirmations") orelse return .{ .domain = @intCast(domain) };
     // `Number(count)` then `parseConfirmationCount`: values past 2^53-1 are
     // unsafe (rounding never lands below 2^53).
-    const confirmations = digitsValue(raw_count, 9007199254740991) orelse return null;
+    // TS #10089: `parseConfirmationCount` also caps it at MAX_CONFIRMATIONS.
+    const confirmations = digitsValue(raw_count, MAX_CONFIRMATIONS) orelse return null;
     return .{ .domain = @intCast(domain), .confirmations = confirmations };
 }
 
@@ -818,3 +853,69 @@ pub fn containsString(items: []const []const u8, needle: []const u8) bool {
 fn has(object: json.Value, key: []const u8) bool {
     return object.get(key) != null;
 }
+
+// -- Shared confirmation-stream types (event source, event store, message source) --
+
+/// Height, source, row ID. Source distinguishes Explorer's three event tables.
+pub const Position = struct {
+    height: i128,
+    source: u8,
+    id: i128,
+
+    pub fn order(a: Position, b: Position) std.math.Order {
+        if (a.height != b.height) return std.math.order(a.height, b.height);
+        if (a.source != b.source) return std.math.order(a.source, b.source);
+        return std.math.order(a.id, b.id);
+    }
+};
+
+pub const END_OF_HEIGHT: i128 = 9_223_372_036_854_775_807;
+
+pub fn endOfHeight(height: i128) Position {
+    return .{ .height = height, .source = 3, .id = END_OF_HEIGHT };
+}
+
+pub const ConfirmationHead = struct {
+    head: i128,
+    indexed: i128,
+    confirmed: i128,
+    /// Custom agent streams: the checkpoint the stream starts after.
+    live_start: ?LiveStartBoundary = null,
+};
+pub const Heads = std.AutoArrayHashMapUnmanaged(u32, ConfirmationHead);
+
+pub fn confirmationHeight(head: i128, indexed: i128, confirmations: u64) i128 {
+    const height = head - @as(i128, confirmations);
+    return if (height < indexed) height else indexed;
+}
+
+/// A serialized frame.
+pub const Message = struct {
+    frame: []const u8,
+};
+
+pub const Row = struct {
+    position: Position,
+    message: Message,
+};
+
+/// Paginated row source (`AsyncIterable<ConfirmationRow>`). A row stays valid
+/// until the next `next()` or `deinit()`. Both run with the mutex held and may
+/// release it while blocking.
+pub const Reader = struct {
+    ptr: *anyopaque,
+    vtable: *const VTable,
+
+    pub const VTable = struct {
+        next: *const fn (ptr: *anyopaque) anyerror!?Row,
+        deinit: *const fn (ptr: *anyopaque) void,
+    };
+
+    pub fn next(self: Reader) anyerror!?Row {
+        return self.vtable.next(self.ptr);
+    }
+
+    pub fn deinit(self: Reader) void {
+        self.vtable.deinit(self.ptr);
+    }
+};

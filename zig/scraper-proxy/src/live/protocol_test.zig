@@ -578,7 +578,8 @@ test "requires one domain and preserves canonical or explicit confirmations" {
     for ([_]u32{ 0, 1, 4294967295 }) |domain| {
         const params = try f.params(try std.fmt.allocPrint(a, "domain={d}", .{domain}));
         try testing.expectEqual(p.ValidatorSubscription{ .domain = domain }, p.parseValidatorSubscription(&params).?);
-        for ([_]u64{ 0, 2, 9007199254740991 }) |confirmations| {
+        // TS #10089: at most MAX_CONFIRMATIONS (1000).
+        for ([_]u64{ 0, 2, 1000 }) |confirmations| {
             const with = try f.params(try std.fmt.allocPrint(a, "domain={d}&confirmations={d}", .{ domain, confirmations }));
             try testing.expectEqual(p.ValidatorSubscription{ .domain = domain, .confirmations = confirmations }, p.parseValidatorSubscription(&with).?);
         }
@@ -591,15 +592,20 @@ test "rejects ambiguous domains, unsafe counts and extra validator options" {
     var f = Fixture.init();
     defer f.deinit();
     for ([_][]const u8{
-        "",                                  "domain=",                                  "domain=-1",
-        "domain=4294967296",                 "domain=1,2",                               "domain=1&domain=2",
-        "domain=1&domain=1",                 "domain=1.5",                               "domain=1e2",
-        "domains=1",                         "domain=1&confirmations=",                  "domain=1&confirmations=-1",
-        "domain=1&confirmations=1.5",        "domain=1&confirmations=NaN",               "domain=1&confirmations=9007199254740992",
-        "domain=1&confirmations=safe",       "domain=1&confirmations=0&confirmations=0", "domain=1&blocks=true",
-        "domain=1&eventType=dispatch",       "domain=1&includeZeroConfirmations=true",   "domain=1&afterSequence=0",
-        "domain=1&confirmationsByDomain={}", "domain=1&%64omain=2",                      "domain",
-        "=1&domain=1",                       "domain=+1",
+        "domain=1&confirmations=1001",              "domain=1&confirmations=9007199254740991",
+        "",                                         "domain=",
+        "domain=-1",                                "domain=4294967296",
+        "domain=1,2",                               "domain=1&domain=2",
+        "domain=1&domain=1",                        "domain=1.5",
+        "domain=1e2",                               "domains=1",
+        "domain=1&confirmations=",                  "domain=1&confirmations=-1",
+        "domain=1&confirmations=1.5",               "domain=1&confirmations=NaN",
+        "domain=1&confirmations=9007199254740992",  "domain=1&confirmations=safe",
+        "domain=1&confirmations=0&confirmations=0", "domain=1&blocks=true",
+        "domain=1&eventType=dispatch",              "domain=1&includeZeroConfirmations=true",
+        "domain=1&afterSequence=0",                 "domain=1&confirmationsByDomain={}",
+        "domain=1&%64omain=2",                      "domain",
+        "=1&domain=1",                              "domain=+1",
     }) |query| {
         const params = try f.params(query);
         if (p.parseValidatorSubscription(&params)) |accepted| {
@@ -618,4 +624,39 @@ test "accepts only ping after URL negotiation" {
     for ([_][]const u8{ "null", "[]", "1", "{}", "{\"type\":\"subscribe\",\"streams\":[]}", "{\"type\":\"ping\",\"domain\":2}" }) |raw| {
         try testing.expect(!p.isValidatorPing(try core.json.parse(a, raw, .{})));
     }
+}
+
+fn subscribeDomains(a: std.mem.Allocator, prefix: []const u8, count: usize, suffix: []const u8) ![]const u8 {
+    var out: std.Io.Writer.Allocating = .init(a);
+    try out.writer.writeAll(prefix);
+    for (0..count) |i| try out.writer.print("{s}{d}", .{ if (i == 0) "" else ",", i + 1 });
+    try out.writer.writeAll(suffix);
+    return out.written();
+}
+
+test "agent subscribe budget: custom/advisory domains and domain-blocks (TS #10089)" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const a = f.arena.allocator();
+    // 512 custom domains pass; 513 fail as a capacity error.
+    _ = try f.subscribe(try subscribeDomains(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"confirmations\":1,\"domains\":[", 512, "]}]}"));
+    f.diag = .{};
+    try f.rejects(try subscribeDomains(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"confirmations\":1,\"domains\":[", 513, "]}]}"), "custom domains must contain at most 512 IDs");
+    try testing.expect(f.diag.capacity);
+    // Advisory coverage counts one block per domain; canonical domains are free.
+    f.diag = .{};
+    _ = try f.subscribe(try subscribeDomains(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"domains\":[", 600, "]}]}"));
+    f.diag = .{};
+    try f.rejects(try subscribeDomains(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"includeZeroConfirmations\":true,\"domains\":[", 513, "]}]}"), "custom domains must contain at most 512 IDs");
+    try testing.expect(f.diag.capacity);
+    // A domain costs its largest count over streams: 10 x 1000 fits, 11 do not.
+    f.diag = .{};
+    _ = try f.subscribe(try subscribeDomains(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"confirmations\":1000,\"domains\":[", 10, "]},{\"eventType\":\"delivery\",\"confirmations\":5,\"domains\":[1]}]}"));
+    f.diag = .{};
+    try f.rejects(try subscribeDomains(a, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"confirmations\":1000,\"domains\":[", 11, "]}]}"), "Confirmation subscription exceeds the domain-block budget");
+    try testing.expect(f.diag.capacity);
+    // Other validation errors are not capacity errors.
+    f.diag = .{};
+    try f.rejects("{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"dispatch\",\"confirmations\":1001,\"domains\":[1]}]}", "confirmations must not exceed 1000");
+    try testing.expect(!f.diag.capacity);
 }

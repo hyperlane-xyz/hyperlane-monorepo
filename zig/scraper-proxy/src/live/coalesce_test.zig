@@ -579,9 +579,9 @@ fn run(scenario: Scenario, coalesce: bool, trace: *Trace) !void {
             const s = &sockets[index];
             const peer = peers[index];
             try w.print("  client {d} delivered={d} buffered={d} open={} destroyed={} refused={d} close={?d}:{s} queue={d}/{d} sending={}\n", .{
-                index,                                                    s.delivered.items.len,      s.buffered,            s.open,
-                s.destroyed,                                              s.refused,                  s.close_code,          s.close_reason.items,
-                peer.explorer.queue.items.len - peer.explorer.queue_head, peer.explorer.queued_bytes, peer.explorer.sending,
+                index,                                          s.delivered.items.len, s.buffered,       s.open,
+                s.destroyed,                                    s.refused,             s.close_code,     s.close_reason.items,
+                peer.out.queue.items.len - peer.out.queue_head, peer.out.queued_bytes, peer.out.sending,
             });
         }
         loop.loop.unlock();
@@ -997,8 +997,13 @@ fn runStream(scenario: StreamScenario, coalesce: bool, trace: *Trace) !void {
         sockets[i].capacity = 0;
     }
     const all = socket_ptrs[0..n];
-    for (peers[0..n]) |peer| server.onMessage(peer, SUBSCRIBE_STREAM);
-    quiesceAll(&loop, server, all);
+    // One subscribe at a time: since TS #10089 the clients' cursors share one
+    // window, in the order their snapshot reads resolved (`query_async`
+    // completion order, which threads would otherwise race).
+    for (peers[0..n]) |peer| {
+        server.onMessage(peer, SUBSCRIBE_STREAM);
+        quiesceAll(&loop, server, all);
+    }
     const w = trace.text.writer(a);
     const failures = &core.metrics.websocket_send_failures;
     const base = .{ failures.get(.{"buffer_limit"}), failures.get(.{"send_error"}) };
@@ -1204,11 +1209,11 @@ fn runDrains(setup: DrainSetup) !DrainResult {
     return result;
 }
 
-test "a drain whose lookahead was refused still counts against another drain's lookahead" {
+test "a drain whose lookahead was refused is checked against the route quota as uncorked" {
     // The first drain's next frame does not fit beside its own cork, so it is
     // not written early, but its callback (first) sends it once the cork is
-    // written. Node charges it before the second drain's callback, whose next
-    // frame then exceeds the aggregate limit.
+    // written, where it exceeds the messages route's in-flight quota. Corked
+    // or not, the same peer is shed and the other's frames all arrive.
     core.log.setSink(discard, null);
     defer core.log.setSink(null, null);
     const sizes = [4]usize{ 100, 1_000, 100, 400 };
@@ -1221,7 +1226,10 @@ test "a drain whose lookahead was refused still counts against another drain's l
     try testing.expect(max_buffered >= l[1] and max_buffered >= framed(l[2]) + l[3]);
     try testing.expect(l[0] + l[2] + l[3] <= max_total and l[1] + l[2] <= max_total);
     const reference = try runDrains(.{ .sizes = sizes, .max_buffered = max_buffered, .max_total = max_total, .coalesce = false });
-    try testing.expect(reference.destroyed[1] and !reference.destroyed[0]); // the scenario bites
+    // The scenario bites. TS #10089: the messages route may hold 1 KiB in
+    // flight (max(1024, total / 4)), so the first drain's own next frame
+    // trips it; with no larger pending sender in the route, the sender goes.
+    try testing.expect(reference.destroyed[0] and !reference.destroyed[1]);
     const coalesced = try runDrains(.{ .sizes = sizes, .max_buffered = max_buffered, .max_total = max_total });
     try testing.expectEqual(reference.delivered, coalesced.delivered);
     try testing.expectEqual(reference.destroyed, coalesced.destroyed);
@@ -1339,16 +1347,27 @@ fn runNodeCase(case: NodeCase) !NodeCaseResult {
     try notifyHead(&listen, 3);
     flushWorkers(&loop, server);
     quiesce(&loop, server, &socket);
-    // f2, f3: live rows sent while f1 is in flight.
-    for (1..3) |id| try notifyDispatch(&listen, id);
-    flushWorkers(&loop, server);
+    // f2, f3: direct frames sent while f1 is in flight. Since TS #10089 the
+    // stream's rows and published events share the route queue, which holds
+    // them behind f1; direct sends (control replies) still form the batch.
+    {
+        loop.loop.lock();
+        defer loop.loop.unlock();
+        for ([_]usize{ case.f2, case.f3 }) |size| {
+            const payload = try a.alloc(u8, size);
+            defer a.free(payload);
+            @memset(payload, 'x');
+            _ = server.sendForTest(peer, payload);
+        }
+    }
     quiesce(&loop, server, &socket);
     var result: NodeCaseResult = .{};
     socket.mutex.lock();
     // f1, f2, f3
     const f1_index: usize = 0;
     try testing.expectEqual(@as(usize, 3), socket.queue.items.len);
-    try testing.expect(socket.queue.items[0].job.?.kind == .waiter);
+    // f1: the route queue's drain frame (an awaited send).
+    try testing.expect(socket.queue.items[0].job.?.kind == .explorer_drain);
     var before_f2: usize = 0;
     for (socket.queue.items[0 .. f1_index + 1]) |item| before_f2 += item.total - item.off;
     const f2 = socket.queue.items[f1_index + 1];

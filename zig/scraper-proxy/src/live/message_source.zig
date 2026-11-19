@@ -16,7 +16,6 @@ const core = @import("core");
 const scraperdb = @import("scraperdb");
 const runtime = @import("runtime.zig");
 const protocol = @import("protocol.zig");
-const cs = @import("confirmation_stream.zig");
 const es = @import("event_store.zig");
 const mf = @import("message_facts.zig");
 const frames = @import("frames.zig");
@@ -574,7 +573,7 @@ pub const MessageSource = struct {
             // Retain only what the lowest active frontier has not processed; a
             // deeper late joiner expands the window backward. The fixed depth still
             // stops a stalled domain from pinning old rows forever.
-            const hard = cs.confirmationHeight(next.head, next.indexed, 2 * protocol.MAX_EXPLORER_CONFIRMATIONS);
+            const hard = protocol.confirmationHeight(next.head, next.indexed, 2 * protocol.MAX_CONFIRMATIONS);
             const lowest = self.lowestFrontier(n.domain);
             const floor = if (lowest == null or lowest.? < hard) hard else lowest.?;
             if (floor > w.through and !self.readsDomain(n.domain)) {
@@ -1003,7 +1002,7 @@ pub const MessageSource = struct {
         var canonical: std.ArrayList(u32) = .empty;
         for (domains) |domain| {
             if (self.heads.get(domain)) |head| {
-                sub.frontiers.put(self.allocator, domain, cs.confirmationHeight(head.head, head.indexed, confirmations)) catch oom();
+                sub.frontiers.put(self.allocator, domain, protocol.confirmationHeight(head.head, head.indexed, confirmations)) catch oom();
                 custom.append(self.allocator, domain) catch oom();
             } else canonical.append(self.allocator, domain) catch oom();
         }
@@ -1079,7 +1078,7 @@ pub const MessageSource = struct {
         for (subs) |sub| {
             if (!sub.subscribed) continue;
             const from = sub.frontiers.get(domain) orelse continue;
-            const to = cs.confirmationHeight(tip, indexed, sub.confirmations);
+            const to = protocol.confirmationHeight(tip, indexed, sub.confirmations);
             if (rollback) {
                 if (to < from) {
                     sub.frontiers.put(self.allocator, domain, to) catch oom();
@@ -1205,7 +1204,7 @@ pub const MessageSource = struct {
             }
             for (self.subscribers.items) |sub| {
                 const from = sub.frontiers.get(domain) orelse continue;
-                const to = cs.confirmationHeight(head.head, head.indexed, sub.confirmations);
+                const to = protocol.confirmationHeight(head.head, head.indexed, sub.confirmations);
                 if (from < to and sub.readsMessages()) ranges.append(self.allocator, .{ .sub = sub.retain(), .from = from, .to = to }) catch oom();
             }
             if (ranges.items.len == 0) return;
@@ -1254,7 +1253,7 @@ pub const MessageSource = struct {
             if (self.advances.get(domain) != work) return;
             for (releases.items) |rel| {
                 const sub = rel.sub;
-                if (!sub.subscribed or rel.to > cs.confirmationHeight(work.head, work.indexed, sub.confirmations)) continue;
+                if (!sub.subscribed or rel.to > protocol.confirmationHeight(work.head, work.indexed, sub.confirmations)) continue;
                 sub.frontiers.put(self.allocator, domain, rel.to) catch oom();
                 var sent: std.StringHashMapUnmanaged(void) = .empty;
                 defer sent.deinit(self.allocator);
@@ -1280,7 +1279,7 @@ pub const MessageSource = struct {
         };
         const current = window.retain();
         defer current.release(self.allocator);
-        const through = cs.confirmationHeight(head.head, head.indexed, 0);
+        const through = protocol.confirmationHeight(head.head, head.indexed, 0);
         if (after < current.floor or current.through < through) {
             current.loading = true;
             defer current.loading = false;
@@ -1311,7 +1310,7 @@ pub const MessageSource = struct {
             if (self.entries.get(change.id)) |e| e.refs -= 1;
             self.changes -= 1;
         };
-        var position = cs.endOfHeight(start);
+        var position = protocol.endOfHeight(start);
         while (true) {
             var page_arena = std.heap.ArenaAllocator.init(self.allocator);
             defer page_arena.deinit();
@@ -1346,7 +1345,7 @@ pub const MessageSource = struct {
     }
 
     /// One `messageChanges` page: `{ height, id: msg_id }`, advancing `position`.
-    fn parseChanges(a: Allocator, rows: []const Value, position: *cs.Position) ![]Change {
+    fn parseChanges(a: Allocator, rows: []const Value, position: *protocol.Position) ![]Change {
         const page = a.alloc(Change, rows.len) catch oom();
         for (rows, page) |row, *change| {
             const source = row.get("source");

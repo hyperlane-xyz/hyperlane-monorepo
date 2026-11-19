@@ -8,7 +8,6 @@ const core = @import("core");
 const scraperdb = @import("scraperdb");
 const protocol = @import("protocol.zig");
 const runtime = @import("runtime.zig");
-const cs = @import("confirmation_stream.zig");
 const frames = @import("frames.zig");
 
 const json = core.json;
@@ -513,7 +512,7 @@ pub const EventStore = struct {
     }
 
     /// One `messageChanges(domain, after, through)` page (TS #10078: no msg_id filter).
-    pub fn messageChanges(self: *EventStore, arena: Allocator, domain: u32, after: cs.Position, through: i128) ![]Value {
+    pub fn messageChanges(self: *EventStore, arena: Allocator, domain: u32, after: protocol.Position, through: i128) ![]Value {
         return self.query(arena, sql.confirmation_messages, &.{
             storedDomainValue(domain),
             try bigText(arena, after.height),
@@ -602,7 +601,7 @@ pub const EventStore = struct {
     /// with `policies` (allocated with `allocator`).
     /// Blocking form, kept as the golden-SQL test's entry point (the server
     /// runs the `*Query` statement through `query_async` and its parser).
-    pub fn confirmationSnapshots(self: *EventStore, allocator: Allocator, policies: []const Policy) ![]cs.Heads {
+    pub fn confirmationSnapshots(self: *EventStore, allocator: Allocator, policies: []const Policy) ![]protocol.Heads {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const statement = try confirmationSnapshotsQuery(arena.allocator(), policies) orelse
@@ -624,8 +623,8 @@ pub const EventStore = struct {
     }
 
     /// `confirmationSnapshots`' rows → one heads map per policy.
-    pub fn parseConfirmationSnapshots(allocator: Allocator, policies: []const Policy, rows: []const Value) ![]cs.Heads {
-        const snapshots = try allocator.alloc(cs.Heads, policies.len);
+    pub fn parseConfirmationSnapshots(allocator: Allocator, policies: []const Policy, rows: []const Value) ![]protocol.Heads {
+        const snapshots = try allocator.alloc(protocol.Heads, policies.len);
         for (snapshots) |*heads| heads.* = .empty;
         errdefer {
             for (snapshots) |*heads| heads.deinit(allocator);
@@ -645,7 +644,7 @@ pub const EventStore = struct {
     }
 
     /// `confirmationHead(row)`.
-    fn confirmationHead(row: Value) !cs.ConfirmationHead {
+    fn confirmationHead(row: Value) !protocol.ConfirmationHead {
         return .{
             .head = try parseId(row.get("head_height")),
             .indexed = try parseId(row.get("indexed_height")),
@@ -735,15 +734,14 @@ pub const EventStore = struct {
         event_type: EventType,
         domain: u32,
         through: i128,
-        confirmations: u64,
-        position: cs.Position,
+        position: protocol.Position,
         page: std.heap.ArenaAllocator,
         frame: std.heap.ArenaAllocator,
         rows: []Value = &.{},
         index: usize = 0,
         fetched: bool = false,
 
-        fn next(ptr: *anyopaque) anyerror!?cs.Row {
+        fn next(ptr: *anyopaque) anyerror!?protocol.Row {
             const self: *EventRows = @ptrCast(@alignCast(ptr));
             while (true) {
                 if (self.index < self.rows.len) {
@@ -768,10 +766,10 @@ pub const EventStore = struct {
             }
         }
 
-        fn shape(self: *EventRows, row: Value) !cs.Row {
+        fn shape(self: *EventRows, row: Value) !protocol.Row {
             _ = self.frame.reset(.retain_capacity);
             const a = self.frame.allocator();
-            const position: cs.Position = .{
+            const position: protocol.Position = .{
                 .height = try parseId(row.get(FRONTIER_HEIGHT)),
                 .source = 0,
                 .id = try parseId(row.get(FRONTIER_ID)),
@@ -779,11 +777,11 @@ pub const EventStore = struct {
             self.position = position;
             const block_hash = row.get("block_hash");
             const rest = try without(a, row, &.{ FRONTIER_ID, FRONTIER_HEIGHT, "block_hash" });
-            // `{ ...eventMessage(eventType, row), confirmations, height, blockHash }`.
+            // `{ ...eventMessage(eventType, row), height, blockHash }` (TS #10089:
+            // the source appends each cursor's `confirmations`).
             var out: std.Io.Writer.Allocating = .init(a);
             var o = try frames.Object.begin(&out.writer);
             try eventMessageMembers(&o, a, self.event_type, rest);
-            try o.int("confirmations", self.confirmations);
             try o.bigString("height", position.height);
             if (block_hash) |hash| try o.val("blockHash", hash);
             try o.end();
@@ -804,10 +802,9 @@ pub const EventStore = struct {
         self: *EventStore,
         event_type: EventType,
         domain: u32,
-        after: cs.Position,
+        after: protocol.Position,
         through: i128,
-        confirmations: u64,
-    ) !cs.Reader {
+    ) !protocol.Reader {
         const reader = try self.allocator.create(EventRows);
         errdefer self.allocator.destroy(reader);
         reader.* = .{
@@ -815,7 +812,6 @@ pub const EventStore = struct {
             .event_type = event_type,
             .domain = domain,
             .through = through,
-            .confirmations = confirmations,
             .position = after,
             .page = .init(self.allocator),
             .frame = .init(self.allocator),
