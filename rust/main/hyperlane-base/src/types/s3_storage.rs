@@ -458,7 +458,6 @@ impl CheckpointSyncer for S3Storage {
 
 #[cfg(test)]
 mod tests {
-    use aws_runtime::env_config::file::{EnvConfigFileKind, EnvConfigFiles};
     use aws_sdk_s3::{
         config::{
             interceptors::BeforeTransmitInterceptorContextRef, ConfigBag, Intercept,
@@ -821,13 +820,13 @@ mod tests {
         println!("host={}", get_object_host(loader).await);
     }
 
-    /// Runs `print_get_object_host` in a child process that has only `env` as its environment
-    /// and `profile` as its AWS config file, and returns the host it prints.
-    fn get_object_host_in_child_process(env: &[(&str, &str)], profile: &[&str]) -> String {
+    /// Runs the ignored test `name` in a child process that has only `env` as its environment
+    /// and `profile` as its AWS config file, and returns what it printed.
+    fn run_in_child_process(name: &str, env: &[(&str, &str)], profile: &str) -> String {
         let config_file = tempfile::NamedTempFile::new().unwrap();
-        std::fs::write(config_file.path(), profile.join("\n")).unwrap();
+        std::fs::write(config_file.path(), profile).unwrap();
         let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .arg("print_get_object_host")
+            .arg(name)
             .arg("--ignored")
             .arg("--nocapture")
             .env_clear()
@@ -835,12 +834,18 @@ mod tests {
             .envs(env.iter().copied())
             .output()
             .unwrap();
+        let stdout = String::from_utf8(output.stdout).unwrap();
         assert!(
-            output.status.success(),
-            "{}",
+            output.status.success() && stdout.contains("1 passed"),
+            "{stdout}{}",
             String::from_utf8_lossy(&output.stderr)
         );
-        let stdout = String::from_utf8(output.stdout).unwrap();
+        stdout
+    }
+
+    /// Runs `print_get_object_host` in a child process and returns the host it prints.
+    fn get_object_host_in_child_process(env: &[(&str, &str)], profile: &[&str]) -> String {
+        let stdout = run_in_child_process("print_get_object_host", env, &profile.join("\n"));
         let host = stdout.lines().find_map(|line| line.strip_prefix("host="));
         host.unwrap_or_else(|| panic!("no host in {stdout}"))
             .to_owned()
@@ -946,83 +951,12 @@ mod tests {
         }
     }
 
-    /// Loads SDK config through the storage's loader, with `profile` as the AWS config file and
-    /// none of the host's environment variables or AWS config files.
-    fn loader_with_profile(storage: &S3Storage, profile: &str) -> ConfigLoader {
-        storage
-            .default_aws_sdk_config_loader()
-            .empty_test_environment()
-            .profile_files(
-                EnvConfigFiles::builder()
-                    .with_contents(EnvConfigFileKind::Config, profile)
-                    .build(),
-            )
-    }
-
-    /// Recent AWS SDKs add CRC checksum headers to uploads and request checksum
-    /// validation on downloads by default. Some S3-compatible stores reject
-    /// those headers, so requests must only carry checksums the operation requires.
-    /// The clients use the SDK's default HTTP client and credential chain, and take the
-    /// endpoint and keys from the AWS profile. The default client follows `HTTP_PROXY` and
-    /// `NO_PROXY` from the environment, so a proxy without a loopback bypass breaks this test.
+    /// Writes and reads an object through the storage's own clients. Run in a child process by
+    /// `requests_carry_only_required_checksum_headers`.
     #[tokio::test]
-    async fn requests_carry_only_required_checksum_headers() {
-        use hyper::{service::service_fn, Body, Response};
-
-        let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let server_requests = Arc::clone(&requests);
-        let server = tokio::spawn(async move {
-            loop {
-                let (socket, _) = listener.accept().await.unwrap();
-                let requests = Arc::clone(&server_requests);
-                tokio::spawn(hyper::server::conn::Http::new().serve_connection(
-                    socket,
-                    service_fn(move |request: hyper::Request<Body>| {
-                        let requests = Arc::clone(&requests);
-                        async move {
-                            let body = if request.method() == hyper::Method::GET {
-                                Body::from("{}")
-                            } else {
-                                Body::empty()
-                            };
-                            requests
-                                .lock()
-                                .unwrap()
-                                .push((request.method().clone(), request.headers().clone()));
-                            Ok::<_, std::convert::Infallible>(Response::new(body))
-                        }
-                    }),
-                ));
-            }
-        });
-
-        let storage = S3Storage::new(
-            "test-bucket".into(),
-            None,
-            Region::new("test-checksum-headers"),
-            None,
-        );
-        let profile = format!(
-            "[default]\n\
-             endpoint_url = http://{address}\n\
-             aws_access_key_id = test-access-key\n\
-             aws_secret_access_key = test-secret\n"
-        );
-        let authenticated = loader_with_profile(&storage, &profile).load().await;
-        let anonymous = loader_with_profile(&storage, &profile)
-            .no_credentials()
-            .load()
-            .await;
-        storage
-            .authenticated_client
-            .set(s3_client(&authenticated).await)
-            .unwrap();
-        anonymous_client_cell(storage.region.clone())
-            .set(s3_client(&anonymous).await)
-            .unwrap();
-
+    #[ignore = "Run by requests_carry_only_required_checksum_headers"]
+    async fn write_and_read_object() {
+        let storage = S3Storage::new("test-bucket".into(), None, Region::new("us-east-1"), None);
         storage
             .write_to_bucket("checkpoint_latest_index.json".into(), b"7".to_vec())
             .await
@@ -1031,7 +965,74 @@ mod tests {
             .anonymously_read_from_bucket("checkpoint_latest_index.json".into())
             .await
             .unwrap();
-        server.abort();
+    }
+
+    /// Recent AWS SDKs add CRC checksum headers to uploads and request checksum
+    /// validation on downloads by default. Some S3-compatible stores reject
+    /// those headers, so requests must only carry checksums the operation requires.
+    /// The storage runs in a child process with the SDK's default HTTP client and credential
+    /// chain, taking the endpoint and keys from its AWS config file. Its environment is cleared
+    /// apart from a loopback proxy bypass, so host settings can't send it elsewhere.
+    #[test]
+    fn requests_carry_only_required_checksum_headers() {
+        use hyper::{service::service_fn, Body, Response};
+
+        let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_requests = Arc::clone(&requests);
+        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+        let server = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            runtime.block_on(async move {
+                let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+                let serve = async {
+                    loop {
+                        let (socket, _) = listener.accept().await.unwrap();
+                        let requests = Arc::clone(&server_requests);
+                        tokio::spawn(hyper::server::conn::Http::new().serve_connection(
+                            socket,
+                            service_fn(move |request: hyper::Request<Body>| {
+                                let requests = Arc::clone(&requests);
+                                async move {
+                                    let body = if request.method() == hyper::Method::GET {
+                                        Body::from("{}")
+                                    } else {
+                                        Body::empty()
+                                    };
+                                    requests.lock().unwrap().push((
+                                        request.method().clone(),
+                                        request.headers().clone(),
+                                    ));
+                                    Ok::<_, std::convert::Infallible>(Response::new(body))
+                                }
+                            }),
+                        ));
+                    }
+                };
+                tokio::select! {
+                    _ = serve => {}
+                    _ = stopped => {}
+                }
+            });
+        });
+
+        run_in_child_process(
+            "write_and_read_object",
+            &[("NO_PROXY", "127.0.0.1,localhost")],
+            &format!(
+                "[default]\n\
+                 endpoint_url = http://{address}\n\
+                 aws_access_key_id = test-access-key\n\
+                 aws_secret_access_key = test-secret\n"
+            ),
+        );
+        stop.send(()).unwrap();
+        server.join().unwrap();
 
         let requests = requests.lock().unwrap();
         let headers = |method: hyper::Method| {
