@@ -36,6 +36,7 @@ import {
   type IcaRouters,
 } from '../../src/services/CallCommitmentsService.js';
 import { registerRateLimiting } from '../../src/utils/rateLimit.js';
+import { nonCanonicalCallData } from '../utils/abiHandler.js';
 
 const origin = 'https://ccs.example';
 const path = '/callCommitments/calldata/0x' + '11'.repeat(32);
@@ -339,6 +340,75 @@ describe('CCS read authentication', () => {
         ).to.equal(403);
       }
       expect(fetch.callCount).to.equal(1);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('builds reveal call data in its canonical ABI encoding', () => {
+    expect(data).to.equal(
+      '0x2b4b00ee' +
+        '00'.repeat(31) +
+        '20' +
+        '00'.repeat(31) +
+        '02' +
+        '1234' +
+        '00'.repeat(30),
+    );
+  });
+
+  for (const c of nonCanonicalCallData(data)) {
+    it(`rejects signed reveal call data with ${c.name}`, async () => {
+      const fetch = sinon
+        .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
+        .resolves('0x1234');
+      const app = await server();
+      const signature = await wallet.signMessage(
+        utils.arrayify(
+          offchainLookupRequestMessageHash(sender, c.data, origin + postPath),
+        ),
+      );
+      try {
+        const response = await app.inject({
+          method: 'POST',
+          url: postPath,
+          payload: { sender, data: c.data, signature },
+        });
+        expect(response.statusCode).to.equal(400);
+        expect(response.json()).to.deep.equal({
+          error: 'Non-canonical callData',
+        });
+        sinon.assert.notCalled(fetch);
+      } finally {
+        await app.close();
+      }
+    });
+  }
+
+  it('accepts signed canonical reveal call data in upper-case hex', async () => {
+    const fetch = sinon
+      .stub(CallCommitmentsService.prototype, 'handleFetchCommitment')
+      .resolves('0x1234');
+    const app = await server();
+    const upperCaseData = '0x' + data.slice(2).toUpperCase();
+    const signature = await wallet.signMessage(
+      utils.arrayify(
+        offchainLookupRequestMessageHash(
+          sender,
+          upperCaseData,
+          origin + postPath,
+        ),
+      ),
+    );
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: { sender, data: upperCaseData, signature },
+      });
+      expect(response.statusCode).to.equal(200);
+      sinon.assert.calledOnce(fetch);
+      expect(fetch.firstCall.args[0]).to.equal('0x1234');
     } finally {
       await app.close();
     }

@@ -34,6 +34,10 @@ HTTPS and avoid logging signatures. Protected responses use `Cache-Control: no-s
 }
 ```
 
+`data` must be the canonical ABI encoding of `getCallsFromRevealMessage(bytes)`, as
+produced by `abi.encodeCall`. As on every ABI lookup route, any other encoding of the
+same call, such as one with trailing bytes, is rejected with HTTP 400.
+
 The signed URL is the configured public endpoint URL, including
 `/callCommitments/getCallsFromRevealMessage`. Existing Rust and TypeScript EVM clients
 keep their signing format if their signer is whitelisted, but a reveal is only served

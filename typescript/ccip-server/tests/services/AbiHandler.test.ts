@@ -1,12 +1,26 @@
 import { expect } from 'chai';
+import Fastify from 'fastify';
+import { pino } from 'pino';
+import sinon from 'sinon';
 
+import { CctpService__factory } from '@hyperlane-xyz/core';
+
+import { type CcipApp, MAX_CCIP_PARAMETER_LENGTH } from '../../src/http.js';
 import { VaaPendingError } from '../../src/services/WormholeVaaFetcher.js';
+import {
+  ABI_ROUTE_OPTIONS,
+  type AbiRoute,
+  createAbiHandler,
+} from '../../src/utils/abiHandler.js';
 import {
   AttestationPendingError,
   CommitmentAccessDeniedError,
 } from '../../src/utils/errors.js';
 import { RpcUnavailableError } from '../../src/utils/rpcErrors.js';
-import { respondWithAbiError } from '../utils/abiHandler.js';
+import {
+  nonCanonicalCallData,
+  respondWithAbiError,
+} from '../utils/abiHandler.js';
 
 const SECRET_HOST = 'secret-host.invalid';
 const SECRET_PATH = 'apikey-SECRET123';
@@ -83,5 +97,90 @@ describe('ABI handler error responses', () => {
       .to.have.property('error')
       .that.includes('"hostname":"<redacted-host>"');
     expect(entry).to.have.property('stack').that.includes('AbiHandler.test.ts');
+  });
+});
+
+describe('ABI handler call data canonicality', () => {
+  const sender = '0x' + '03'.repeat(20);
+  const canonical = CctpService__factory.createInterface().encodeFunctionData(
+    'getCCTPAttestation',
+    ['0x1234'],
+  );
+
+  async function cctpApp() {
+    const service = sinon.stub().resolves(['0x12', '0x34']);
+    const app: CcipApp = Fastify({
+      loggerInstance: pino({ level: 'silent' }),
+      routerOptions: { maxParamLength: MAX_CCIP_PARAMETER_LENGTH },
+    });
+    const handler = createAbiHandler(
+      CctpService__factory,
+      'getCCTPAttestation',
+      service,
+    );
+    app.post<AbiRoute>('/', ABI_ROUTE_OPTIONS, handler);
+    app.get<AbiRoute>('/:sender/:callData.json', ABI_ROUTE_OPTIONS, handler);
+    await app.ready();
+    return { app, service };
+  }
+
+  it('serves canonical call data with the decoded message', async () => {
+    const { app, service } = await cctpApp();
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/',
+        payload: { data: canonical },
+      });
+      expect(response.statusCode).to.equal(200);
+      sinon.assert.calledOnce(service);
+      expect(service.firstCall.args[0]).to.equal('0x1234');
+    } finally {
+      await app.close();
+    }
+  });
+
+  for (const c of nonCanonicalCallData(canonical)) {
+    it(`rejects call data with ${c.name}`, async () => {
+      const { app, service } = await cctpApp();
+      try {
+        const response = await app.inject({
+          method: 'POST',
+          url: '/',
+          payload: { data: c.data },
+        });
+        expect(response.statusCode).to.equal(400);
+        expect(response.json()).to.deep.equal({
+          error: 'Non-canonical callData',
+        });
+        sinon.assert.notCalled(service);
+      } finally {
+        await app.close();
+      }
+    });
+  }
+
+  it('rejects non-canonical call data in the request path', async () => {
+    const { app, service } = await cctpApp();
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/${sender}/${canonical}00.json`,
+      });
+      expect(response.statusCode).to.equal(400);
+      expect(response.json()).to.deep.equal({
+        error: 'Non-canonical callData',
+      });
+      sinon.assert.notCalled(service);
+
+      const canonicalResponse = await app.inject({
+        method: 'GET',
+        url: `/${sender}/${canonical}.json`,
+      });
+      expect(canonicalResponse.statusCode).to.equal(200);
+      sinon.assert.calledOnce(service);
+    } finally {
+      await app.close();
+    }
   });
 });
