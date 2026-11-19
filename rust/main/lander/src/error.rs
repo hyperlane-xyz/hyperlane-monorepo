@@ -97,6 +97,21 @@ const EVM_EXCEEDS_BLOCK_GAS_LIMIT_ERROR: &str = "exceeds block gas limit";
 // to simulate delivery errors
 const SIMULATED_DELIVERY_FAILURE_ERROR: &str = "block hash ends in 0";
 
+// Terminal on-chain reverts: the transaction would revert on-chain no matter how
+// many times it is resubmitted, so retrying it is pointless. The canonical case is
+// a message that has already been delivered on the destination `Mailbox`: its
+// `process()` preflight/estimation reverts with "already delivered". Left as
+// retryable, such an op loops forever in the submit queue instead of being dropped.
+const EVM_TERMINAL_REVERT_ERRORS: [&str; 1] = ["already delivered"];
+
+/// Whether an error string corresponds to a terminal on-chain revert, i.e. a call
+/// that would also revert on-chain and must therefore never be retried.
+fn is_terminal_revert(err_str: &str) -> bool {
+    EVM_TERMINAL_REVERT_ERRORS
+        .iter()
+        .any(|&e| err_str.contains(e))
+}
+
 pub trait IsRetryable {
     fn is_retryable(&self) -> bool;
 }
@@ -106,7 +121,11 @@ impl IsRetryable for LanderError {
         use LanderError::*;
 
         match self {
-            TxSubmissionError(_) => true,
+            TxSubmissionError(err_str) => {
+                // A terminal on-chain revert (e.g. the message is already delivered) can
+                // surface here from the submission preflight. It must not be retried.
+                !is_terminal_revert(err_str)
+            }
             NetworkError(_) => {
                 // TODO: add logic to classify based on the error message
                 false

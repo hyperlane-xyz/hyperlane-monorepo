@@ -32,3 +32,17 @@ fn test_retryable_string_only() {
         "Should be retryable if only retryable string is present"
     );
 }
+
+#[test]
+fn test_already_delivered_submission_error_non_retryable() {
+    // A terminal on-chain revert (the message is already delivered) can surface as a
+    // `TxSubmissionError` from the protected-submission preflight. It must be treated
+    // as terminal, otherwise the op loops forever in the submit queue.
+    let err = LanderError::TxSubmissionError(
+        "execution reverted: Mailbox: already delivered".to_string(),
+    );
+    assert!(
+        !err.is_retryable(),
+        "An already-delivered revert must not be retryable"
+    );
+}
