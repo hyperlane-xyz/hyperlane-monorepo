@@ -50,19 +50,16 @@ test "event store SQL and parameters match TS byte for byte" {
     const types = [_]protocol.EventType{ .dispatch, .delivery, .gas_payment, .merkle_tree_insertion };
     var names: std.ArrayList([]const u8) = .empty;
 
-    try names.append(a, "blockHeads");
-    _ = try store.blockHeads(a, null);
-    try names.append(a, "blockHeads:domains");
-    _ = try store.blockHeads(a, &.{ 1, 4294967295 });
+    try names.append(a, "messageHeads");
+    _ = try store.messageHeads(a, null);
+    try names.append(a, "messageHeads:domains");
+    _ = try store.messageHeads(a, &.{ 1, 4294967295 });
     try names.append(a, "liveStartBoundaries");
     var boundaries = try store.liveStartBoundaries(null);
     boundaries.deinit(testing.allocator);
     try names.append(a, "liveStartBoundaries:domains");
     boundaries = try store.liveStartBoundaries(&.{ 1, 4294967295 });
     boundaries.deinit(testing.allocator);
-    try names.append(a, "confirmationHeads");
-    var heads = try store.confirmationHeads(testing.allocator, &.{ 1, 4294967295 });
-    heads.deinit(testing.allocator);
     try names.append(a, "confirmationSnapshots");
     const snapshots = try store.confirmationSnapshots(testing.allocator, &.{
         .{ .confirmations = 3, .domains = &.{ 1, 4294967295 } },
@@ -84,17 +81,10 @@ test "event store SQL and parameters match TS byte for byte" {
         try names.append(a, try std.fmt.allocPrint(a, "confirmationEventRows:{s}", .{event_type.name()}));
         try drain(try store.confirmationEventRows(event_type, 1, .{ .height = 3, .source = 0, .id = 7 }, 10, 2));
     }
-    var frontiers: cs.Frontiers = .empty;
-    defer frontiers.deinit(testing.allocator);
-    try names.append(a, "confirmationMessageRows");
-    try drain(try store.confirmationMessageRows(2147483648, .{ .height = 3, .source = 1, .id = 7 }, 10, &frontiers, 0, null));
-    try names.append(a, "confirmationMessageRows:ids");
-    try drain(try store.confirmationMessageRows(1, .{ .height = 3, .source = 1, .id = 7 }, 10, &frontiers, 0, &.{"\\x" ++ "ab" ** 32}));
-    try names.append(a, "provisionalMessages");
-    try frontiers.put(testing.allocator, 4294967295, 5);
-    try frontiers.put(testing.allocator, 1, 7);
-    const provisional = try store.provisionalMessages(&.{ "\\xbb", "\\xaa", "\\xbb" }, &frontiers);
-    store.releaseProvisional(provisional);
+    try names.append(a, "messageChanges");
+    try testing.expectEqual(@as(usize, 0), (try store.messageChanges(a, 2147483648, .{ .height = 3, .source = 1, .id = 7 }, 10)).len);
+    try names.append(a, "messageFacts");
+    _ = try store.messageFacts(a, &.{ "\\xbb", "\\xaa" });
     const corpus = try json.parse(a, @embedFile("testdata/sql.json"), .{});
     try testing.expectEqual(corpus.array.len, recorder.queries.items.len);
     for (corpus.array, recorder.queries.items, names.items) |expected, actual, name| {
@@ -117,21 +107,8 @@ test "includes block identity only in the provisional Merkle projection" {
     for (es.stream(.merkle_tree_insertion).columns) |column| try testing.expect(!std.mem.eql(u8, column, "block_hash"));
 }
 
-test "filters confirmation dispatch, delivery and gas rows in SQL before enrichment" {
-    try testing.expectEqual(@as(usize, 3), std.mem.count(u8, es.sql.confirmationMessages(true), "msg_id = ANY($7::bytea[])"));
-    var t: TestLoop = undefined;
-    t.init();
-    defer t.deinit();
-    var recorder: Recorder = .{ .arena = .init(testing.allocator) };
-    defer recorder.arena.deinit();
-    var store = es.EventStore.init(testing.allocator, &t.loop, recorder.db(), 500);
-    defer store.deinit();
-    var frontiers: cs.Frontiers = .empty;
-    t.loop.lock();
-    defer t.loop.unlock();
-    // An empty filter never queries.
-    try drain(try store.confirmationMessageRows(1, .{ .height = 0, .source = 0, .id = 0 }, 10, &frontiers, 0, &.{}));
-    try testing.expectEqual(@as(usize, 0), recorder.queries.items.len);
+test "message changes read every dispatch, delivery and gas row (TS #10078: no msg_id filter)" {
+    try testing.expectEqual(@as(usize, 0), std.mem.count(u8, es.sql.confirmation_messages, "$7"));
 }
 
 test "live-start and confirmation SQL match TS main byte for byte" {
@@ -143,10 +120,6 @@ test "live-start and confirmation SQL match TS main byte for byte" {
     try testing.expectEqualStrings(
         "SELECT h.domain, c.height::text AS height, encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster\n       FROM scraper_head h JOIN scraper_checkpoint c\n         ON c.domain=h.domain AND c.height=h.confirmed_height\n       WHERE h.healthy AND NOT h.halted\n         AND h.domain=ANY($1::integer[])",
         es.sql.live_start_boundaries_filtered,
-    );
-    try testing.expectEqualStrings(
-        "SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])",
-        es.sql.confirmation_heads,
     );
     // TS #10047 (9807309e85) `confirmationSnapshots`.
     try testing.expectEqualStrings(

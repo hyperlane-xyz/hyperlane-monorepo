@@ -271,6 +271,30 @@ test "validates live-only confirmations on both endpoints" {
     try testing.expect((try p.parseExplorerConfirmations(a, &try f.params(""), &f.diag)) == null);
 }
 
+/// "confirmations=N&domains=1,…,count" (domains 1..count).
+fn budgetQuery(a: std.mem.Allocator, confirmations: u64, count: usize) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    try out.print(a, "confirmations={d}&domains=", .{confirmations});
+    for (1..count + 1) |domain| try out.print(a, "{s}{d}", .{ if (domain > 1) "," else "", domain });
+    return out.items;
+}
+
+test "explorer domain confirmation budget (TS #10078)" {
+    var f = Fixture.init();
+    defer f.deinit();
+    const a = f.arena.allocator();
+    // `domains.size * Math.max(1, confirmations) > 10_000`; zero counts as one.
+    for ([_]struct { confirmations: u64, domains: usize }{ .{ .confirmations = 20, .domains = 500 }, .{ .confirmations = 0, .domains = 512 }, .{ .confirmations = 1000, .domains = 10 } }) |ok|
+        _ = (try p.parseExplorerConfirmations(a, &try f.params(try budgetQuery(a, ok.confirmations, ok.domains)), &f.diag)).?;
+    for ([_]struct { confirmations: u64, domains: usize }{ .{ .confirmations = 20, .domains = 501 }, .{ .confirmations = 20, .domains = 512 }, .{ .confirmations = 1000, .domains = 11 } }) |bad| {
+        try testing.expectError(error.Invalid, p.parseExplorerConfirmations(a, &try f.params(try budgetQuery(a, bad.confirmations, bad.domains)), &f.diag));
+        try testing.expectEqualStrings("Subscription exceeds 10000 domain confirmation blocks", f.diag.message);
+    }
+    // The 1000-confirmation cap is checked first.
+    try testing.expectError(error.Invalid, p.parseExplorerConfirmations(a, &try f.params(try budgetQuery(a, 1001, 20)), &f.diag));
+    try testing.expectEqualStrings("confirmations must not exceed 1000", f.diag.message);
+}
+
 test "client message envelope errors" {
     var f = Fixture.init();
     defer f.deinit();

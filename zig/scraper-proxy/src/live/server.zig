@@ -15,6 +15,7 @@ const runtime = @import("runtime.zig");
 const frames = @import("frames.zig");
 const es = @import("event_store.zig");
 const cs = @import("confirmation_stream.zig");
+const msrc = @import("message_source.zig");
 const NotificationWorker = @import("notification_worker.zig").NotificationWorker;
 const NotificationQueue = @import("notification_queue.zig").Queue;
 
@@ -57,7 +58,9 @@ const MAX_EXPLORER_CLIENTS_PER_IP = 5;
 const MAX_EXPLORER_PENDING_SETUPS = 32;
 const MAX_EXPLORER_PENDING_SETUPS_PER_IP = 2;
 const MAX_EXPLORER_SUBSCRIPTION_BYTES = 8_192;
-const MAX_EXPLORER_PENDING_BYTES = 16_777_216;
+const MAX_EXPLORER_PENDING_BYTES = 16 * 1024 * 1024;
+/// TS #10078: Explorer outbound queues share this budget across sockets.
+const MAX_EXPLORER_TOTAL_PENDING_BYTES = 32 * 1024 * 1024;
 const MAX_EXPLORER_PENDING_MESSAGES = 2_000;
 const MAX_CLIENT_MESSAGES = 30;
 const MAX_PENDING_NOTIFICATIONS = 10_000;
@@ -281,6 +284,9 @@ const Waiter = struct {
 /// One serialized frame shared by several recipients (loop mutex guards refs).
 const SharedFrame = struct {
     refs: usize = 1,
+    /// Explorer queue entries holding this buffer (TS #10080
+    /// `explorerQueuedRefs`): the global budget counts it once.
+    queued: usize = 0,
     bytes: []u8,
 
     fn create(allocator: Allocator, bytes: []u8) *SharedFrame {
@@ -333,7 +339,13 @@ const Subscription = struct {
 };
 
 const ExplorerClient = struct {
+    /// The custom subscription's domains (owned), else null.
+    domains: ?[]const u32 = null,
+    /// Set once the setup reads ended and `ready` is sent (TS #10078).
+    ready: bool = false,
     message_ids: ?[]const []const u8 = null,
+    /// The MessageSource subscription (one reference), until disconnect.
+    subscription: ?*msrc.Subscriber = null,
     alive: bool = true,
     custom: bool = false,
     ip: []const u8 = "",
@@ -350,13 +362,29 @@ const ExplorerClient = struct {
         const ids = self.message_ids orelse return true;
         return protocol.containsString(ids, id);
     }
+
+    /// `client.messageIds?.size !== 0`.
+    fn readsMessages(self: *const ExplorerClient) bool {
+        const ids = self.message_ids orelse return true;
+        return ids.len != 0;
+    }
+
+    /// `!client.domains || client.domains.has(domain)`.
+    fn coversDomain(self: *const ExplorerClient, domain: u32) bool {
+        const domains = self.domains orelse return true;
+        return std.mem.indexOfScalar(u32, domains, domain) != null;
+    }
 };
 
 const BlockSubscription = struct {
     domains: ?[]const u32,
     started: bool = false,
-    latest: std.AutoArrayHashMapUnmanaged(u32, *SharedFrame) = .empty,
+    latest: std.AutoArrayHashMapUnmanaged(u32, LatestBlock) = .empty,
 };
+
+/// A block frame plus the values `publishBlock` compares (join and live
+/// frames order their keys differently since TS #10078).
+const LatestBlock = struct { frame: *SharedFrame, height: i128, head_height: i128, hash: [66]u8 };
 
 pub const Route = enum { agent, explorer, validator };
 
@@ -369,6 +397,12 @@ pub const Peer = struct {
     /// Reader thread only: inside the frames of one socket read, which hold
     /// the loop mutex as one turn (Node's 'data' macrotask).
     read_batch: bool = false,
+    /// The upgrade's `head` holds a complete data frame: Node parses it on a
+    /// nextTick, before any promise continuation of the setup (TS #10078's
+    /// settled heads snapshot), so that continuation waits for this read.
+    head_message_pending: bool = false,
+    /// A setup continuation held for `head_message_pending` (see `endRead`).
+    deferred_heads: ?*msrc.HeadsWaiter = null,
     terminated: bool = false,
     in_clients: bool = false,
     agent: AgentClient = .{},
@@ -456,6 +490,7 @@ pub const Peer = struct {
         server.clearBlocks(self);
         server.clearExplorerQueue(self);
         if (self.explorer.message_ids) |ids| freeStrings(server.allocator, ids);
+        if (self.explorer.domains) |domains| server.allocator.free(domains);
         if (self.explorer.ip.len > 0) server.allocator.free(self.explorer.ip);
         std.debug.assert(!self.validator.reserved and self.validator.group == null);
         if (self.validator.ip.len > 0) server.allocator.free(self.validator.ip);
@@ -570,6 +605,12 @@ pub const Server = struct {
     loop: *runtime.Loop,
     logger: core.log.Logger,
     store: es.EventStore,
+    /// `messageSource` (TS #10078): replaced by `closeClients`.
+    message_source: *msrc.MessageSource = undefined,
+    /// `explorerQueuedBytes`: every Explorer queue's bytes (32 MiB budget).
+    explorer_queued_bytes: usize = 0,
+    /// TS #10085 `explorerRefreshes` (publishExplorer's pacing).
+    explorer_refreshes: msrc.Pacer = .{},
     listen_api: Listen,
     limits: Limits,
     production: bool,
@@ -690,13 +731,70 @@ pub const Server = struct {
         self.head_updates = .init(loop, NOTIFICATION_BATCH_MS, self, drainHeadThunk, failHeadThunk);
         self.validator_updates = .init(loop, NOTIFICATION_BATCH_MS, self, drainValidatorThunk, failValidatorThunk);
         loop.turn_end = .{ .ctx = self, .func = endTurnThunk };
+        self.message_source = msrc.MessageSource.create(allocator, loop, &self.store, self.messageHost(), &self.explorer_refreshes);
         return self;
+    }
+
+    fn messageHost(self: *Server) msrc.Host {
+        return .{
+            .ctx = self,
+            .send = hostSend,
+            .make_frame = hostMakeFrame,
+            .send_frame = hostSendFrame,
+            .release_frame = hostReleaseFrame,
+            .fail = hostFail,
+            .retain = hostRetain,
+            .release = hostRelease,
+        };
+    }
+
+    fn hostSend(ctx: *anyopaque, peer_ptr: *anyopaque, frame: []const u8) void {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        const peer: *Peer = @ptrCast(@alignCast(peer_ptr));
+        const shared = SharedFrame.create(self.allocator, self.allocator.dupe(u8, frame) catch oom());
+        defer shared.release(self.allocator);
+        self.enqueueExplorer(peer, &.{shared});
+    }
+
+    fn hostMakeFrame(ctx: *anyopaque, bytes: []const u8) *anyopaque {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        return SharedFrame.create(self.allocator, self.allocator.dupe(u8, bytes) catch oom());
+    }
+
+    fn hostSendFrame(ctx: *anyopaque, peer_ptr: *anyopaque, frame_ptr: *anyopaque) void {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        const frame: *SharedFrame = @ptrCast(@alignCast(frame_ptr));
+        self.enqueueExplorer(@ptrCast(@alignCast(peer_ptr)), &.{frame});
+    }
+
+    fn hostReleaseFrame(ctx: *anyopaque, frame_ptr: *anyopaque) void {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        const frame: *SharedFrame = @ptrCast(@alignCast(frame_ptr));
+        frame.release(self.allocator);
+    }
+
+    fn hostFail(ctx: *anyopaque, peer_ptr: *anyopaque, message: []const u8) void {
+        const self: *Server = @ptrCast(@alignCast(ctx));
+        self.failSocket(@ptrCast(@alignCast(peer_ptr)), message);
+    }
+
+    fn hostRetain(_: *anyopaque, peer_ptr: *anyopaque) void {
+        const peer: *Peer = @ptrCast(@alignCast(peer_ptr));
+        peer.retain();
+    }
+
+    fn hostRelease(_: *anyopaque, peer_ptr: *anyopaque) void {
+        const peer: *Peer = @ptrCast(@alignCast(peer_ptr));
+        peer.release();
     }
 
     /// After `stop()` and once every socket has closed.
     pub fn destroy(self: *Server) void {
         const a = self.allocator;
         if (comptime runtime.parity_hooks) self.hooks.deinit(a);
+        self.message_source.stop();
+        self.message_source.release();
+        self.explorer_refreshes.deinit(a);
         self.store.deinit();
         self.validator_store.deinit();
         // Reservations of sockets that never reported 'close' (a forced shutdown).
@@ -1057,7 +1155,6 @@ pub const Server = struct {
             }
         }
         var explorer_messages: usize = 0;
-        var explorer_bytes: usize = 0;
         var max_explorer_bytes: usize = 0;
         var max_explorer_messages: usize = 0;
         var max_buffered: usize = 0;
@@ -1065,7 +1162,6 @@ pub const Server = struct {
         for (self.explorer_clients.keys()) |peer| {
             const client = &peer.explorer;
             explorer_messages += client.queueLength();
-            explorer_bytes += client.queued_bytes;
             max_explorer_bytes = @max(max_explorer_bytes, client.queued_bytes);
             max_explorer_messages = @max(max_explorer_messages, client.queueLength());
             max_buffered = @max(max_buffered, peer.bufferedAmount());
@@ -1096,7 +1192,9 @@ pub const Server = struct {
         snapshot.validatorClientIps = f(ips.items.len);
         snapshot.validatorMaxConnectionsPerIp = f(max_validator_per_ip);
         snapshot.explorerPendingMessages = f(explorer_messages);
-        snapshot.explorerPendingBytes = f(explorer_bytes);
+        snapshot.explorerPendingBytes = f(self.explorer_queued_bytes);
+        const source = self.message_source.metrics();
+        snapshot.messageSource = .{ .ranges = f(source.ranges), .changes = f(source.changes), .factBytes = f(source.fact_bytes) };
         snapshot.maxExplorerPendingBytes = f(max_explorer_bytes);
         snapshot.maxExplorerPendingMessages = f(max_explorer_messages);
         snapshot.messageClientIps = f(self.explorer_clients_by_ip.count());
@@ -1158,6 +1256,11 @@ pub const Server = struct {
         cf_connecting_ip: ?[]const u8,
         /// `request.socket.remoteAddress`.
         remote_address: ?[]const u8,
+        /// Bytes received after the request head (ws `head`).
+        head: []const u8 = "",
+        /// The upgrade has a request body: `head` starts with body bytes,
+        /// which ws consumes without a read batch (Node hides them).
+        has_body: bool = false,
     };
 
     /// `connectExplorer`. The synchronous prefix (validation, limits,
@@ -1210,12 +1313,14 @@ pub const Server = struct {
             count.* += 1;
         } else self.explorer_pending_setups_by_ip.put(self.allocator, self.allocator.dupe(u8, ip) catch oom(), 1) catch oom();
         peer.explorer_setup = true;
+        peer.head_message_pending = !request.has_body and headHasMessage(request.head);
         const owned_ip = self.allocator.dupe(u8, ip) catch oom();
         if (self.explorer_clients_by_ip.getPtr(ip)) |count| {
             count.* += 1;
         } else self.explorer_clients_by_ip.put(self.allocator, self.allocator.dupe(u8, ip) catch oom(), 1) catch oom();
         peer.in_explorer = true;
         peer.explorer = .{
+            .domains = if (custom) |c| self.allocator.dupe(u32, c.domains) catch oom() else null,
             .custom = custom != null,
             .message_ids = if (message_ids) |ids| dupeStrings(self.allocator, ids) else null,
             .ip = owned_ip,
@@ -1240,114 +1345,111 @@ pub const Server = struct {
     // -- Explorer setup as continuations -----------------------------------------
 
     /// `connectExplorer` after its synchronous prefix, without a task: the
-    /// block heads and heads snapshot reads go through `query_async`.
+    /// shared heads snapshot (`messageSource.currentHeads()`) is awaited for
+    /// `blocks` and then for a custom subscription (TS #10078), each a
+    /// continuation (`msrc.HeadsWaiter`).
     const ExplorerFlow = struct {
         peer: *Peer,
         setup: *ExplorerSetup,
-        stream: ?*ConfirmationStream = null,
-        /// `stream.initialize`'s revision for the read in flight.
-        revision: u64 = 0,
-        work: AsyncWork = undefined,
+        /// The source whose snapshot this await is on (one reference).
+        source: ?*msrc.MessageSource = null,
+        stage: enum { blocks, custom } = .blocks,
+        waiter: msrc.HeadsWaiter = .{ .resume_fn = resumeExplorerHeads },
     };
 
     fn explorerAsync(self: *Server, peer: *Peer, setup: *ExplorerSetup) void {
         const flow = self.allocator.create(ExplorerFlow) catch oom();
         flow.* = .{ .peer = peer, .setup = setup };
-        if (setup.blocks) {
-            const domains = if (peer.blocks) |b| b.domains else null;
-            return self.issueExplorerRead(flow, es.EventStore.blockHeadsQuery, domains, runExplorerBlocks);
-        }
-        self.explorerStream(flow);
+        self.explorerHeads(flow, if (setup.blocks) .blocks else .custom);
     }
 
-    fn issueExplorerRead(
-        self: *Server,
-        flow: *ExplorerFlow,
-        comptime statementOf: anytype,
-        domains: anytype,
-        run: *const fn (self: *Server, work: *AsyncWork) void,
-    ) void {
-        flow.work = .{ .query = self.newQuery(), .run = run };
-        const statement = statementOf(flow.work.query.arena.allocator(), domains) catch oom();
-        flow.work.query.sql = statement.sql;
-        flow.work.query.params = statement.params;
-        self.issueRead(&flow.work);
+    /// `await this.messageSource.currentHeads()`.
+    fn explorerHeads(self: *Server, flow: *ExplorerFlow, stage: @TypeOf(@as(ExplorerFlow, undefined).stage)) void {
+        flow.stage = stage;
+        if (flow.source) |old| old.release();
+        const source = self.message_source.retain();
+        flow.source = source;
+        // A settled snapshot resumes as a microtask: after a frame already
+        // buffered with the upgrade (handled on Node's nextTick).
+        if (source.headsReady() and flow.peer.head_message_pending) {
+            flow.peer.deferred_heads = &flow.waiter;
+            return;
+        }
+        if (source.currentHeads(&flow.waiter)) self.readMessageHeads(source);
+    }
+
+    /// `head` starts with a complete, final text or binary frame (one ws
+    /// 'message' before the setup's next continuation).
+    fn headHasMessage(head: []const u8) bool {
+        if (head.len < 2) return false;
+        const opcode = head[0] & 0x0f;
+        if (head[0] & 0x80 == 0 or (opcode != 1 and opcode != 2)) return false;
+        var len: u64 = head[1] & 0x7f;
+        var offset: usize = 2;
+        if (len == 126) {
+            if (head.len < 4) return false;
+            len = std.mem.readInt(u16, head[2..4], .big);
+            offset = 4;
+        } else if (len == 127) {
+            if (head.len < 10) return false;
+            len = std.mem.readInt(u64, head[2..10], .big);
+            offset = 10;
+        }
+        if (head[1] & 0x80 != 0) offset += 4;
+        return head.len >= offset and head.len - offset >= len;
+    }
+
+    const HeadsRead = struct { source: *msrc.MessageSource, work: AsyncWork };
+
+    /// The snapshot's `messageHeads()` read (no WHERE), reported to `source`.
+    fn readMessageHeads(self: *Server, source: *msrc.MessageSource) void {
+        const read = self.allocator.create(HeadsRead) catch oom();
+        read.* = .{ .source = source.retain(), .work = .{ .query = self.newQuery(), .run = runHeadsRead } };
+        const statement = es.EventStore.messageHeadsQuery(read.work.query.arena.allocator(), null) catch oom();
+        read.work.query.sql = statement.sql;
+        read.work.query.params = statement.params;
+        self.issueRead(&read.work);
+    }
+
+    fn runHeadsRead(self: *Server, work: *AsyncWork) void {
+        const read: *HeadsRead = @alignCast(@fieldParentPtr("work", work));
+        defer {
+            read.work.query.deinit();
+            read.source.release();
+            self.allocator.destroy(read);
+        }
+        if (read.work.query.failure()) |err| return read.source.headsFailed(errorMessage(err));
+        read.source.headsLoaded(read.work.query.rows);
+    }
+
+    fn resumeExplorerHeads(waiter: *msrc.HeadsWaiter, failure: ?[]const u8) void {
+        const flow: *ExplorerFlow = @alignCast(@fieldParentPtr("waiter", waiter));
+        const peer = flow.peer;
+        const self = peer.server;
+        if (failure) |text| {
+            // `finally releaseExplorerSetup`, then the connection's `.catch → failSocket`.
+            self.releaseExplorerSetup(peer);
+            self.failSocket(peer, text);
+            return self.endExplorer(flow);
+        }
+        switch (flow.stage) {
+            .blocks => {
+                const custom = flow.setup.custom;
+                self.applyHeads(peer, &flow.source.?.heads, if (custom) |c| c.domains else null);
+                if (custom != null) return self.explorerHeads(flow, .custom);
+                self.explorerReady(flow);
+            },
+            .custom => self.explorerReady(flow),
+        }
     }
 
     fn endExplorer(self: *Server, flow: *ExplorerFlow) void {
         self.releaseExplorerSetup(flow.peer);
-        if (flow.stream) |stream| stream.release();
+        if (flow.source) |source| source.release();
         if (flow.setup.custom) |c| self.allocator.free(c.domains);
         self.allocator.destroy(flow.setup);
         flow.peer.release();
         self.allocator.destroy(flow);
-    }
-
-    /// `await this.subscribeBlocks(...)` resumed.
-    fn runExplorerBlocks(self: *Server, work: *AsyncWork) void {
-        const flow: *ExplorerFlow = @alignCast(@fieldParentPtr("work", work));
-        // Taken over: the flow may issue its next read (or end) below.
-        var query = flow.work.query;
-        defer query.deinit();
-        if (query.failure()) |err| {
-            self.failSocket(flow.peer, errorMessage(err));
-            return self.endExplorer(flow);
-        }
-        self.applyBlockRows(flow.peer, query.rows) catch |err| {
-            self.failSocket(flow.peer, errorMessage(err));
-            return self.endExplorer(flow);
-        };
-        self.explorerStream(flow);
-    }
-
-    /// `createConfirmationStream(socket, confirmations, domains)` up to its read.
-    fn explorerStream(self: *Server, flow: *ExplorerFlow) void {
-        const peer = flow.peer;
-        const c = flow.setup.custom orelse return self.explorerReady(flow);
-        // The confirmation drain is synchronous: this flush never waits.
-        std.debug.assert(!self.confirmation_updates.running);
-        self.confirmation_updates.flush();
-        if (!peer.in_clients and !peer.in_explorer) return self.explorerReady(flow);
-        const stream = self.newConfirmationStream(peer, c.confirmations, c.domains, null);
-        stream.retain(); // the flow's
-        flow.stream = stream;
-        self.explorerHeads(flow);
-    }
-
-    /// `initialize`'s loop head.
-    fn explorerHeads(self: *Server, flow: *ExplorerFlow) void {
-        const stream = flow.stream.?;
-        flow.revision = stream.initializeRead() orelse return self.explorerReady(flow);
-        self.issueExplorerRead(flow, explorerHeadsQuery, stream.domains, runExplorerHeads);
-    }
-
-    fn explorerHeadsQuery(arena: Allocator, domains: []const u32) Allocator.Error!es.EventStore.Statement {
-        return es.EventStore.confirmationHeadsQuery(arena, domains);
-    }
-
-    fn runExplorerHeads(self: *Server, work: *AsyncWork) void {
-        const flow: *ExplorerFlow = @alignCast(@fieldParentPtr("work", work));
-        const peer = flow.peer;
-        const stream = flow.stream.?;
-        // Taken over: the flow may issue its next read (or end) below.
-        var query = flow.work.query;
-        defer query.deinit();
-        const outcome: ?anyerror = blk: {
-            if (query.failure()) |err| break :blk err;
-            var heads = es.EventStore.parseConfirmationHeads(self.allocator, query.rows) catch |err| break :blk err;
-            defer heads.deinit(self.allocator);
-            const done = stream.initializeWith(flow.revision, &heads, true) catch |err| break :blk err;
-            if (!done) return self.explorerHeads(flow); // ancestry changed: read again
-            break :blk null;
-        };
-        if (outcome) |err| {
-            if (err == error.ConfirmationUnavailable) {
-                var buffer: [96]u8 = undefined;
-                self.rejectNegotiation(peer, unavailableMessage(&buffer, stream.unavailable_domain));
-            } else self.failSocket(peer, errorMessage(err));
-            return self.endExplorer(flow);
-        }
-        self.explorerReady(flow);
     }
 
     /// `finishExplorer` after its reads.
@@ -1355,7 +1457,7 @@ pub const Server = struct {
         defer self.endExplorer(flow);
         // TS releases in the setup's `finally`, before `ready`.
         self.releaseExplorerSetup(flow.peer);
-        self.completeExplorer(flow.peer, flow.setup, flow.stream);
+        self.completeExplorer(flow.peer, flow.setup);
     }
 
     const ExplorerSetup = struct {
@@ -1378,42 +1480,37 @@ pub const Server = struct {
         }
         std.debug.assert(!setup.blocks and setup.custom == null);
         self.releaseExplorerSetup(peer);
-        self.completeExplorer(peer, setup, null);
+        self.completeExplorer(peer, setup);
     }
 
-    /// `connectExplorer` after its reads: `ready`, start, diagnostics.
-    fn completeExplorer(self: *Server, peer: *Peer, setup: *ExplorerSetup, stream: ?*ConfirmationStream) void {
+    /// `connectExplorer` after its reads: subscribe, `ready`, blocks, diagnostics.
+    fn completeExplorer(self: *Server, peer: *Peer, setup: *ExplorerSetup) void {
         // Initialization awaits DB reads; the peer may already have disconnected.
-        // (Streams registered meanwhile hold peer references: drop them.)
-        if (!peer.in_explorer) return self.dropStreams(peer);
-        if (!peer.socket.isOpen()) return;
+        if (!peer.in_explorer or !peer.socket.isOpen()) return;
+        var subscription: ?msrc.MessageSource.Subscription = if (setup.custom) |c|
+            self.message_source.subscribe(c.confirmations, c.domains, peer.explorer.message_ids, peer)
+        else
+            null;
+        defer if (subscription) |*sub| sub.deinit(self.allocator);
+        if (subscription) |sub| peer.explorer.subscription = sub.sub;
+        peer.explorer.ready = true;
         var out: std.Io.Writer.Allocating = .init(self.allocator);
         defer out.deinit();
-        writeExplorerReady(&out.writer, peer, setup, stream) catch oom();
+        writeExplorerReady(&out.writer, peer, setup, if (subscription) |*sub| sub else null) catch oom();
         _ = self.send(peer, out.written());
-        if (stream) |s| s.start();
         self.startBlocks(peer);
         if (setup.diagnostics) if (peer.explorer.message_ids) |ids| self.subscribeDiagnostics(peer, ids);
     }
 
-    fn writeExplorerReady(w: *std.Io.Writer, peer: *Peer, setup: *const ExplorerSetup, stream: ?*ConfirmationStream) !void {
+    fn writeExplorerReady(w: *std.Io.Writer, peer: *Peer, setup: *const ExplorerSetup, subscription: ?*const msrc.MessageSource.Subscription) !void {
         var o = try frames.Object.begin(w);
         if (peer.explorer.message_ids) |ids| try o.strings("messageIds", ids);
         if (setup.custom) |custom| {
             try o.int("confirmations", custom.confirmations);
             try o.ints("domains", custom.domains);
-            if (stream) |s| {
-                try o.ints("customDomains", s.customDomains());
-                try o.key("canonicalDomains");
-                try w.writeByte('[');
-                var first = true;
-                for (custom.domains) |domain| {
-                    if (s.isCustom(domain)) continue;
-                    if (!first) try w.writeByte(',');
-                    first = false;
-                    try w.print("{d}", .{domain});
-                }
-                try w.writeByte(']');
+            if (subscription) |sub| {
+                try o.ints("customDomains", sub.custom_domains);
+                try o.ints("canonicalDomains", sub.canonical_domains);
             }
         }
         try o.key("eventTypes");
@@ -1571,7 +1668,17 @@ pub const Server = struct {
 
     pub fn endRead(self: *Server, peer: *Peer) void {
         peer.read_batch = false;
+        self.resumeDeferredHeads(peer);
         self.loop.unlock();
+    }
+
+    /// The upgrade's buffered frame was handled: the setup resumes (its
+    /// microtask), after this read's turn.
+    fn resumeDeferredHeads(self: *Server, peer: *Peer) void {
+        peer.head_message_pending = false;
+        const waiter = peer.deferred_heads orelse return;
+        peer.deferred_heads = null;
+        self.loop.handOff(.{ .run = .{ .ctx = waiter, .func = msrc.HeadsWaiter.run } });
     }
 
     /// A close frame or receiver error applied inside a read batch (mutex
@@ -2009,7 +2116,7 @@ pub const Server = struct {
             const group = of(ctx);
             return !group.server.stopped and group.members.count() > 0;
         }
-        fn read(ctx: *anyopaque, _: u32, after: cs.Position, through: i128, _: *const cs.Frontiers) anyerror!cs.Reader {
+        fn read(ctx: *anyopaque, _: u32, after: cs.Position, through: i128) anyerror!cs.Reader {
             const group = of(ctx);
             return group.server.validator_store.confirmationEventRows(.merkle_tree_insertion, group.key.domain, after, through, group.key.confirmations);
         }
@@ -2678,7 +2785,7 @@ pub const Server = struct {
             const read = self.allocator.create(BlocksRead) catch oom();
             read.* = .{ .job = job, .work = .{ .query = self.newQuery(), .run = runBlocksRead } };
             job.refs += 1;
-            const statement = es.EventStore.blockHeadsQuery(read.work.query.arena.allocator(), subscription.domains) catch oom();
+            const statement = es.EventStore.messageHeadsQuery(read.work.query.arena.allocator(), subscription.domains) catch oom();
             read.work.query.sql = statement.sql;
             read.work.query.params = statement.params;
             return self.issueRead(&read.work);
@@ -2702,10 +2809,13 @@ pub const Server = struct {
             self.failSocket(peer, errorMessage(err));
             return self.releaseJob(job); // the flow ends
         }
-        self.applyBlockRows(peer, read.work.query.rows) catch |err| {
+        var heads = msrc.MessageSource.parseHeads(self.allocator, read.work.query.rows) catch |err| {
             self.failSocket(peer, errorMessage(err));
             return self.releaseJob(job);
         };
+        defer heads.deinit(self.allocator);
+        // `subscribeBlocks(socket, blocks.domains)`: the read is already filtered.
+        self.applyHeads(peer, &heads, if (peer.blocks) |b| b.domains else null);
         self.subscribeStreamsAsync(job);
     }
 
@@ -2828,7 +2938,22 @@ pub const Server = struct {
                 .queued => return, // `resumeCustomLiveStarts`
             }
         }
+        if (job.custom.items.len > 0) {
+            // TS awaits each custom `live_start`'s write callback (a later turn)
+            // before `sendLiveStarts` issues the boundary read, and `stream.start()`
+            // issued the custom drains' first reads synchronously before that. The
+            // drains run as tasks here: continue as a task too, so it starts (and
+            // reads) after them, in TS's issue order.
+            self.loop.spawn(runCanonicalAfterCustom, .{ self, job });
+            return;
+        }
         self.startCanonicalRead(peer, job.event_streams);
+        self.releaseJob(job);
+    }
+
+    fn runCanonicalAfterCustom(self: *Server, job: *SubscribeJob) void {
+        const peer = job.peer.?;
+        if (peer.in_clients) self.startCanonicalRead(peer, job.event_streams);
         self.releaseJob(job);
     }
 
@@ -3208,49 +3333,46 @@ pub const Server = struct {
         self.block_subscriptions.put(self.allocator, peer, {}) catch oom();
     }
 
-    /// `subscribeBlocks` after its read: the latest head per domain.
-    fn applyBlockRows(self: *Server, peer: *Peer, rows: []const Value) !void {
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const a = arena.allocator();
-        for (rows) |row| {
-            var diag: protocol.Diag = .{};
-            const domain = protocol.parseDatabaseDomain(row.get("domain"), "", &diag) catch return runtime.fail("Invalid block domain", .{});
-            const hash_value = row.get("hash");
-            const hash = if (hash_value != null and hash_value.? == .string) try protocol.blockHashText(a, hash_value.?.string) else null;
-            // The subscription may be gone after the await (disconnect).
-            const subscription = peer.blocks orelse return;
-            if (hash == null or subscription.latest.contains(domain)) continue;
-            const frame = try blockFrame(self.allocator, domain, row.get("indexed_height") orelse .null, hash.?, row.get("head_height") orelse .null);
-            subscription.latest.put(self.allocator, domain, SharedFrame.create(self.allocator, frame)) catch oom();
+    /// `subscribeBlocks` after its snapshot: the latest head per domain
+    /// (TS #10078 key order: `headHeight` before `hash`). Notifications that
+    /// arrived meanwhile win.
+    fn applyHeads(self: *Server, peer: *Peer, heads: *const std.AutoArrayHashMapUnmanaged(u32, msrc.Head), domains: ?[]const u32) void {
+        // The subscription may be gone after the await (disconnect).
+        const subscription = peer.blocks orelse return;
+        for (heads.keys(), heads.values()) |domain, *head| {
+            const hash = head.hash orelse continue;
+            if (domains) |list| if (std.mem.indexOfScalar(u32, list, domain) == null) continue;
+            if (subscription.latest.contains(domain)) continue;
+            var out: std.Io.Writer.Allocating = .init(self.allocator);
+            var o = frames.Object.begin(&out.writer) catch oom();
+            o.string("type", "block") catch oom();
+            o.int("domain", domain) catch oom();
+            o.bigString("height", head.indexed) catch oom();
+            o.bigString("headHeight", head.head) catch oom();
+            o.string("hash", &hash) catch oom();
+            o.end() catch oom();
+            subscription.latest.put(self.allocator, domain, .{
+                .frame = SharedFrame.create(self.allocator, out.toOwnedSlice() catch oom()),
+                .height = head.indexed,
+                .head_height = head.head,
+                .hash = hash,
+            }) catch oom();
         }
-    }
-
-    fn blockFrame(allocator: Allocator, domain: u32, height: Value, hash: []const u8, head_height: Value) ![]u8 {
-        var out: std.Io.Writer.Allocating = .init(allocator);
-        errdefer out.deinit();
-        var o = try frames.Object.begin(&out.writer);
-        try o.string("type", "block");
-        try o.int("domain", domain);
-        try o.val("height", height);
-        try o.string("hash", hash);
-        try o.val("headHeight", head_height);
-        try o.end();
-        return out.toOwnedSlice();
     }
 
     fn startBlocks(self: *Server, peer: *Peer) void {
         const subscription = peer.blocks orelse return;
         subscription.started = true;
         // Sends may terminate the peer (buffer limit) and free the subscription.
-        const snapshot = self.allocator.dupe(*SharedFrame, subscription.latest.values()) catch oom();
+        const snapshot = self.allocator.alloc(*SharedFrame, subscription.latest.count()) catch oom();
         defer self.allocator.free(snapshot);
+        for (subscription.latest.values(), snapshot) |latest, *frame| frame.* = latest.frame;
         for (snapshot) |frame| frame.refs += 1;
         defer for (snapshot) |frame| frame.release(self.allocator);
         for (snapshot) |frame| _ = self.send(peer, frame.bytes);
     }
 
-    fn publishBlock(self: *Server, domain: u32, frame: *SharedFrame) void {
+    fn publishBlock(self: *Server, domain: u32, frame: *SharedFrame, height: i128, head_height: i128, hash: [66]u8) void {
         const peers = self.allocator.dupe(*Peer, self.block_subscriptions.keys()) catch oom();
         defer self.allocator.free(peers);
         for (peers) |peer| peer.retain();
@@ -3259,9 +3381,11 @@ pub const Server = struct {
             const subscription = peer.blocks orelse continue;
             if (!self.block_subscriptions.contains(peer)) continue;
             if (subscription.domains) |domains| if (std.mem.indexOfScalar(u32, domains, domain) == null) continue;
-            if (subscription.latest.get(domain)) |previous| if (std.mem.eql(u8, previous.bytes, frame.bytes)) continue;
+            if (subscription.latest.get(domain)) |previous|
+                if (previous.height == height and std.mem.eql(u8, &previous.hash, &hash) and previous.head_height == head_height) continue;
             frame.refs += 1;
-            if (subscription.latest.fetchPut(self.allocator, domain, frame) catch oom()) |old| old.value.release(self.allocator);
+            const latest: LatestBlock = .{ .frame = frame, .height = height, .head_height = head_height, .hash = hash };
+            if (subscription.latest.fetchPut(self.allocator, domain, latest) catch oom()) |old| old.value.frame.release(self.allocator);
             if (subscription.started) _ = self.send(peer, frame.bytes);
         }
     }
@@ -3270,7 +3394,7 @@ pub const Server = struct {
         _ = self.block_subscriptions.orderedRemove(peer);
         const subscription = peer.blocks orelse return;
         peer.blocks = null;
-        for (subscription.latest.values()) |frame| frame.release(self.allocator);
+        for (subscription.latest.values()) |latest| latest.frame.release(self.allocator);
         subscription.latest.deinit(self.allocator);
         if (subscription.domains) |domains| self.allocator.free(domains);
         self.allocator.destroy(subscription);
@@ -3278,9 +3402,10 @@ pub const Server = struct {
 
     // -- confirmation streams ----------------------------------------------------------
 
+    /// An agent stream (TS #10078: /messages reads through `message_source`).
     const StreamBinding = struct {
         peer: *Peer,
-        event_type: ?EventType,
+        event_type: EventType,
         confirmations: u64,
         domains: []const u32,
         arena: std.heap.ArenaAllocator,
@@ -3291,15 +3416,11 @@ pub const Server = struct {
         }
         fn active(ctx: *anyopaque) bool {
             const self: *StreamBinding = @ptrCast(@alignCast(ctx));
-            return self.peer.in_clients or self.peer.in_explorer;
+            return self.peer.in_clients;
         }
-        fn read(ctx: *anyopaque, domain: u32, after: cs.Position, through: i128, frontiers: *const cs.Frontiers) anyerror!cs.Reader {
+        fn read(ctx: *anyopaque, domain: u32, after: cs.Position, through: i128) anyerror!cs.Reader {
             const self: *StreamBinding = @ptrCast(@alignCast(ctx));
-            const store = &self.server().store;
-            if (self.event_type) |event_type|
-                return store.confirmationEventRows(event_type, domain, after, through, self.confirmations);
-            const ids = if (self.peer.in_explorer) self.peer.explorer.message_ids else null;
-            return store.confirmationMessageRows(domain, after, through, frontiers, self.confirmations, ids);
+            return self.server().store.confirmationEventRows(self.event_type, domain, after, through, self.confirmations);
         }
         fn send(ctx: *anyopaque, message: cs.Message) bool {
             const self: *StreamBinding = @ptrCast(@alignCast(ctx));
@@ -3312,7 +3433,7 @@ pub const Server = struct {
             var o = frames.Object.begin(&w) catch unreachable;
             o.string("type", "rollback") catch unreachable;
             o.int("domain", domain) catch unreachable;
-            if (self.event_type) |event_type| o.string("eventType", event_type.name()) catch unreachable;
+            o.string("eventType", self.event_type.name()) catch unreachable;
             o.int("confirmations", self.confirmations) catch unreachable;
             o.bigString("fromHeight", from) catch unreachable;
             o.bigString("toHeight", to) catch unreachable;
@@ -3321,41 +3442,7 @@ pub const Server = struct {
         }
         fn fail(ctx: *anyopaque, err: anyerror) void {
             const self: *StreamBinding = @ptrCast(@alignCast(ctx));
-            const message = switch (err) {
-                error.CustomMessageNotificationLimitExceeded => "Custom message notification limit exceeded",
-                error.CustomProvisionalMessageLimitExceeded => "Custom provisional message limit exceeded",
-                else => errorMessage(err),
-            };
-            self.server().failSocket(self.peer, message);
-        }
-        fn enrich(ctx: *anyopaque, ids: []const []const u8, frontiers: *const cs.Frontiers) anyerror!cs.EnrichResult {
-            const self: *StreamBinding = @ptrCast(@alignCast(ctx));
-            const server_ = self.server();
-            var arena = std.heap.ArenaAllocator.init(server_.allocator);
-            errdefer arena.deinit();
-            const a = arena.allocator();
-            var interested: std.ArrayList([]const u8) = .empty;
-            for (ids) |id| if (!self.peer.in_explorer or self.peer.explorer.hasId(id)) try interested.append(a, id);
-            if (interested.items.len == 0) return .{ .arena = arena, .messages = &.{} };
-            const provisional = try server_.store.provisionalMessages(interested.items, frontiers);
-            defer server_.store.releaseProvisional(provisional);
-            var messages: std.ArrayList(cs.Enriched) = .empty;
-            for (provisional.messages) |message| {
-                const origin = try es.rowDomain(message.data, "origin_domain_id");
-                const destination = try es.rowDomain(message.data, "destination_domain_id");
-                if (std.mem.indexOfScalar(u32, self.domains, origin) == null and std.mem.indexOfScalar(u32, self.domains, destination) == null) continue;
-                var out: std.Io.Writer.Allocating = .init(a);
-                var o = try frames.Object.begin(&out.writer);
-                try o.string("type", "message_upsert");
-                try o.int("confirmations", self.confirmations);
-                try o.val("data", try es.clone(a, message.data));
-                try o.end();
-                try messages.append(a, .{
-                    .domains = try a.dupe(u32, message.domains),
-                    .message = .{ .frame = out.written(), .message_id = if (message.msg_id) |id| try a.dupe(u8, id) else null },
-                });
-            }
-            return .{ .arena = arena, .messages = messages.items };
+            self.server().failSocket(self.peer, errorMessage(err));
         }
         fn free(ctx: *anyopaque) void {
             const self: *StreamBinding = @ptrCast(@alignCast(ctx));
@@ -3372,7 +3459,7 @@ pub const Server = struct {
         peer: *Peer,
         confirmations: u64,
         domains: []const u32,
-        event_type: ?EventType,
+        event_type: EventType,
     ) *ConfirmationStream {
         const binding = self.allocator.create(StreamBinding) catch oom();
         binding.* = .{
@@ -3391,7 +3478,6 @@ pub const Server = struct {
             .send = StreamBinding.send,
             .rollback = StreamBinding.rollback,
             .fail = StreamBinding.fail,
-            .enrich = if (event_type == null) StreamBinding.enrich else null,
             .deinit = StreamBinding.free,
         }) catch oom();
         binding.stream = stream;
@@ -3403,8 +3489,7 @@ pub const Server = struct {
         return stream;
     }
 
-    fn warnCanonicalDomains(self: *Server, stream: *ConfirmationStream, event_type: ?EventType) void {
-        const kind = event_type orelse return;
+    fn warnCanonicalDomains(self: *Server, stream: *ConfirmationStream, kind: EventType) void {
         var canonical: std.ArrayList(u8) = .empty;
         defer canonical.deinit(self.allocator);
         for (stream.domains) |domain| {
@@ -3451,6 +3536,7 @@ pub const Server = struct {
             if (self.validator_groups.get(group.key) != group) continue;
             group.stream.notify(head);
         }
+        self.message_source.notify(head);
     }
 
     // -- notifications -------------------------------------------------------------------
@@ -3597,8 +3683,9 @@ pub const Server = struct {
 
     fn handleNotification(self: *Server, a: Allocator, channel: []const u8, payload: []const u8, diag: *protocol.Diag) !void {
         if (std.mem.eql(u8, channel, HEAD_CHANNEL)) {
-            if (self.clients.count() == 0 and self.explorer_clients.count() == 0) return;
             const head = try protocol.parseHeadNotification(a, payload, diag);
+            self.message_source.observe(head);
+            if (self.clients.count() == 0 and self.explorer_clients.count() == 0) return;
             if (head.indexed_height != null and head.indexed_hash != null and head.head_height != null) {
                 var out: std.Io.Writer.Allocating = .init(self.allocator);
                 var o = frames.Object.begin(&out.writer) catch oom();
@@ -3610,7 +3697,7 @@ pub const Server = struct {
                 o.end() catch oom();
                 const frame = SharedFrame.create(self.allocator, out.toOwnedSlice() catch oom());
                 defer frame.release(self.allocator);
-                self.publishBlock(head.domain, frame);
+                self.publishBlock(head.domain, frame, head.indexed_height.?, head.head_height.?, head.indexed_hash.?[0..66].*);
             }
             const rollback = if (head.previous_indexed_height) |previous|
                 head.indexed_height != null and head.indexed_height.? < previous
@@ -3621,7 +3708,6 @@ pub const Server = struct {
                 // A rollback must invalidate in-flight readers immediately; never
                 // coalesce it away with a subsequent forward observation.
                 _ = self.pending_heads.orderedRemove(head.domain);
-                self.store.invalidateMessages();
                 self.notifyConfirmationStreams(head);
             } else {
                 var owned = head;
@@ -3641,6 +3727,7 @@ pub const Server = struct {
             self.head_updates.schedule();
         } else if (std.mem.eql(u8, channel, EXPLORER_CHANNEL)) {
             const message_id = try protocol.parseExplorerNotification(a, payload, diag);
+            self.message_source.invalidateIds(&.{message_id});
             self.queueExplorerNotification(message_id);
         } else {
             const notification = try protocol.parseEventNotification(a, payload, diag);
@@ -3703,7 +3790,6 @@ pub const Server = struct {
         const heads = self.allocator.dupe(protocol.HeadNotification, self.pending_heads.values()) catch oom();
         defer self.allocator.free(heads);
         self.pending_heads.clearRetainingCapacity();
-        self.store.invalidateMessages();
         for (heads) |head| self.notifyConfirmationStreams(head);
     }
     fn drainHeadThunk(ctx: *anyopaque) anyerror!void {
@@ -3833,34 +3919,45 @@ pub const Server = struct {
         }
     }
 
+    /// `publishExplorer(ids)`: the refresh runs on its own (at most
+    /// `MAX_EXPLORER_REFRESHES` in flight), then `await publishCanonicalMessages(ids)`.
     fn publishExplorer(self: *Server, message_ids: []const []const u8) !void {
         if (self.explorer_clients.count() == 0) return;
-        self.store.invalidateMessages();
+        const source = self.message_source.retain();
+        defer source.release();
+        source.invalidateIds(message_ids);
+        // Shared fact reads should not hold back head publication, but a backlog
+        // must pace the drain rather than overflow the shared read queue (#10085).
+        source.refreshIds(message_ids);
+        self.explorer_refreshes.pace(self.loop, self.allocator);
+        self.publishCanonicalMessages(message_ids);
+    }
+
+    fn publishCanonicalMessages(self: *Server, message_ids: []const []const u8) void {
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const a = arena.allocator();
         var canonical: std.StringArrayHashMapUnmanaged(void) = .empty;
-        const peers = self.allocator.dupe(*Peer, self.explorer_clients.keys()) catch oom();
-        defer self.allocator.free(peers);
-        for (peers) |peer| peer.retain();
-        defer for (peers) |peer| peer.release();
-        for (peers) |peer| {
-            if (!peer.in_explorer) continue;
-            var interested: std.ArrayList([]const u8) = .empty;
-            for (message_ids) |id| if (peer.explorer.hasId(id)) interested.append(a, id) catch oom();
-            if (interested.items.len == 0) continue;
-            if (peer.explorer.custom) {
-                if (peer.streams) |streams| {
-                    const snapshot = self.allocator.dupe(*ConfirmationStream, streams.items) catch oom();
-                    defer self.allocator.free(snapshot);
-                    for (snapshot) |stream| stream.retain();
-                    defer for (snapshot) |stream| stream.release();
-                    for (snapshot) |stream| stream.refresh(interested.items);
-                }
-            } else for (interested.items) |id| canonical.put(a, id, {}) catch oom();
+        for (self.explorer_clients.keys()) |peer| {
+            if (!peer.explorer.ready or peer.explorer.custom) continue;
+            for (message_ids) |id| if (peer.explorer.hasId(id)) canonical.put(a, id, {}) catch oom();
         }
         if (canonical.count() == 0) return;
-        const rows = try self.store.canonicalMessages(a, canonical.keys());
+        const rows = self.store.canonicalMessages(a, canonical.keys()) catch |err| {
+            const text = a.dupe(u8, errorMessage(err)) catch oom();
+            const peers = self.allocator.dupe(*Peer, self.explorer_clients.keys()) catch oom();
+            defer self.allocator.free(peers);
+            for (peers) |peer| peer.retain();
+            defer for (peers) |peer| peer.release();
+            for (peers) |peer| {
+                if (!peer.in_explorer or !peer.explorer.ready or peer.explorer.custom) continue;
+                const wanted = for (canonical.keys()) |id| {
+                    if (peer.explorer.hasId(id)) break true;
+                } else false;
+                if (wanted) self.failSocket(peer, text);
+            }
+            return;
+        };
         const Message = struct { id: ?[]const u8, frame: *SharedFrame };
         const messages = a.alloc(Message, rows.len) catch oom();
         for (rows, messages) |row, *message| {
@@ -3881,7 +3978,7 @@ pub const Server = struct {
         for (current) |peer| peer.retain();
         defer for (current) |peer| peer.release();
         for (current) |peer| {
-            if (!peer.in_explorer or peer.explorer.custom) continue;
+            if (!peer.in_explorer or !peer.explorer.ready or peer.explorer.custom) continue;
             var selected: std.ArrayList(*SharedFrame) = .empty;
             for (messages) |message| {
                 if (peer.explorer.message_ids != null and (message.id == null or !peer.explorer.hasId(message.id.?))) continue;
@@ -3900,12 +3997,71 @@ pub const Server = struct {
             self.failSocket(peer, "outbound message queue limit exceeded");
             return;
         }
+        // TS #10078: the shared budget sheds the largest other queue first;
+        // #10080: it counts each queued buffer once, however many clients hold it.
+        while (self.explorer_queued_bytes + newlyQueuedBytes(messages) > MAX_EXPLORER_TOTAL_PENDING_BYTES) {
+            // Evict whichever client alone holds the most queued bytes (#10085). A
+            // client's shared frames stay queued for others, so evicting it frees
+            // only the buffers no other client holds.
+            var victim = peer;
+            var largest = self.exclusiveExplorerBytes(peer) + newlyQueuedBytes(messages);
+            for (self.explorer_clients.keys()) |other| {
+                if (other == peer) continue;
+                const held = self.exclusiveExplorerBytes(other);
+                if (held > largest) {
+                    victim = other;
+                    largest = held;
+                }
+            }
+            metrics.websocket_send_failures.inc(.{"queue_limit"}, 1);
+            self.failSocket(victim, "outbound message queue limit exceeded");
+            if (victim == peer) return;
+        }
         for (messages) |message| {
             message.refs += 1;
+            self.retainQueued(message);
             client.queue.append(self.allocator, message) catch oom();
         }
         client.queued_bytes += bytes;
         if (!client.sending) self.drainExplorerClient(peer);
+    }
+
+    /// `added()`: bytes of distinct buffers not queued yet.
+    fn newlyQueuedBytes(messages: []const *SharedFrame) usize {
+        var total: usize = 0;
+        for (messages, 0..) |message, i| {
+            if (message.queued > 0) continue;
+            if (std.mem.indexOfScalar(*SharedFrame, messages[0..i], message) != null) continue;
+            total += message.bytes.len;
+        }
+        return total;
+    }
+
+    /// `exclusiveExplorerBytes(client)`: buffers whose every queued copy is in
+    /// this client's queue.
+    fn exclusiveExplorerBytes(self: *Server, peer: *Peer) usize {
+        var copies: std.AutoArrayHashMapUnmanaged(*SharedFrame, usize) = .empty;
+        defer copies.deinit(self.allocator);
+        for (peer.explorer.queue.items[peer.explorer.queue_head..]) |message| {
+            const slot = copies.getOrPut(self.allocator, message) catch oom();
+            slot.value_ptr.* = if (slot.found_existing) slot.value_ptr.* + 1 else 1;
+        }
+        var bytes: usize = 0;
+        for (copies.keys(), copies.values()) |message, count| if (message.queued == count) {
+            bytes += message.bytes.len;
+        };
+        return bytes;
+    }
+
+    fn retainQueued(self: *Server, message: *SharedFrame) void {
+        if (message.queued == 0) self.explorer_queued_bytes += message.bytes.len;
+        message.queued += 1;
+    }
+
+    fn releaseQueued(self: *Server, message: *SharedFrame) void {
+        std.debug.assert(message.queued > 0); // "Released an Explorer frame that was not queued"
+        message.queued -= 1;
+        if (message.queued == 0) self.explorer_queued_bytes -= message.bytes.len;
     }
 
     /// `drainExplorerClient`: frames written inline continue at once; queued
@@ -3924,6 +4080,7 @@ pub const Server = struct {
                 client.queue.clearRetainingCapacity();
                 client.queue_head = 0;
             }
+            self.releaseQueued(message);
             client.queued_bytes -|= message.bytes.len;
             defer message.release(self.allocator);
             switch (self.sendFrame(peer, message.bytes, .explorer_drain)) {
@@ -3939,6 +4096,7 @@ pub const Server = struct {
 
     fn clearExplorerQueue(self: *Server, peer: *Peer) void {
         const client = &peer.explorer;
+        for (client.queue.items[client.queue_head..]) |message| self.releaseQueued(message);
         for (client.queue.items[client.queue_head..]) |message| message.release(self.allocator);
         client.queue.clearRetainingCapacity();
         client.queue_head = 0;
@@ -3970,7 +4128,7 @@ pub const Server = struct {
                     const original = copy[0..@min(copy.len, message.len)];
                     @memcpy(original, message[0..original.len]);
                     self.failAgentDomain(domain, original);
-                    if (failure.explorer_affected and self.explorer_clients.count() > 0) self.failExplorerStream(original);
+                    if (failure.explorer_affected and self.explorer_clients.count() > 0) self.failExplorerDomain(domain, original);
                     self.releaseHeadRange(domain, entry.range);
                     _ = self.head_failures.orderedRemove(domain);
                 }
@@ -3997,7 +4155,12 @@ pub const Server = struct {
 
     fn publishHeadRange(self: *Server, domain: u32, range: HeadRange, failure: *HeadFailure) !void {
         var agent_published = false;
-        var explorer_pending = self.explorer_clients.count() > 0;
+        const has_message_clients = for (self.explorer_clients.keys()) |peer| {
+            const client = &peer.explorer;
+            // TS #10080: near-head receipts of another origin refresh through this range.
+            if (client.ready and client.readsMessages()) break true;
+        } else false;
+        var explorer_pending = has_message_clients;
         // Delivery and gas share message ids; queue each Explorer id once per range.
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
@@ -4005,7 +4168,7 @@ pub const Server = struct {
         var explorer_ids: std.StringArrayHashMapUnmanaged(void) = .empty;
         for (HEAD_PUBLICATION_ORDER) |event_type| {
             const agent_interested = self.hasSubscriber(domain, event_type);
-            const explorer_interested = self.explorer_clients.count() > 0 and (event_type == .delivery or event_type == .gas_payment);
+            const explorer_interested = has_message_clients and (event_type == .delivery or event_type == .gas_payment);
             if (!agent_interested and !explorer_interested) continue;
             if (agent_interested and !explorer_interested and !self.hasSubscriberOf(domain, event_type, true)) {
                 if (self.validator_head_ranges.getPtr(domain)) |current| {
@@ -4074,7 +4237,7 @@ pub const Server = struct {
     }
 
     fn hasExplorerSubscriber(self: *Server, message_id: []const u8) bool {
-        for (self.explorer_clients.keys()) |peer| if (peer.explorer.hasId(message_id)) return true;
+        for (self.explorer_clients.keys()) |peer| if (peer.explorer.ready and peer.explorer.hasId(message_id)) return true;
         return false;
     }
 
@@ -4153,6 +4316,21 @@ pub const Server = struct {
         }
     }
 
+    /// TS #10078: only the message subscriptions overlapping `domain` end.
+    fn failExplorerDomain(self: *Server, domain: u32, message: []const u8) void {
+        self.logger.err("Explorer domain {d} failed: {s}", .{ domain, message });
+        var buffer: [64]u8 = undefined;
+        const reason = std.fmt.bufPrint(&buffer, "Message domain {d} unavailable", .{domain}) catch unreachable;
+        const peers = self.allocator.dupe(*Peer, self.explorer_clients.keys()) catch oom();
+        defer self.allocator.free(peers);
+        for (peers) |peer| peer.retain();
+        defer for (peers) |peer| peer.release();
+        for (peers) |peer| {
+            if (!peer.in_explorer) continue;
+            if (peer.explorer.readsMessages() and peer.explorer.coversDomain(domain)) self.failSocket(peer, reason);
+        }
+    }
+
     fn failExplorerStream(self: *Server, message: []const u8) void {
         self.logger.err("Explorer event stream failed: {s}", .{message});
         self.closeExplorerClients("Event stream read failed", 1013);
@@ -4167,7 +4345,9 @@ pub const Server = struct {
         }
         self.confirmation_streams.clearRetainingCapacity();
         self.pending_heads.clearRetainingCapacity();
-        self.store.invalidateMessages();
+        self.message_source.stop();
+        self.message_source.release();
+        self.message_source = msrc.MessageSource.create(self.allocator, self.loop, &self.store, self.messageHost(), &self.explorer_refreshes);
         self.closeAgentClients(reason, code);
         self.closeExplorerClients(reason, code);
     }
@@ -4773,6 +4953,12 @@ pub const Server = struct {
         self.releaseValidator(peer);
         if (peer.in_explorer) {
             peer.in_explorer = false;
+            self.resumeDeferredHeads(peer);
+            if (peer.explorer.subscription) |sub| {
+                peer.explorer.subscription = null;
+                msrc.MessageSource.unsubscribe(sub);
+                sub.release();
+            }
             self.clearExplorerQueue(peer);
             self.releaseExplorerClient(peer.explorer.ip);
             _ = self.explorer_clients.orderedRemove(peer);

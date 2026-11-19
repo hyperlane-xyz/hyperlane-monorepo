@@ -272,14 +272,46 @@ const PlanMode = enum { custom, auto, unknown };
 /// true)` is SET LOCAL without its "only in transaction blocks" WARNING:
 /// a pipeline's implicit transaction (up to its Sync) is not a block, yet
 /// it is the transaction the setting lasts for.
-fn tuneSql(plan: Plan) ?[*:0]const u8 {
+///
+/// Each setting runs as a named statement of its own, prepared once per
+/// connection (in the pipeline of its first use) and then only bound and
+/// executed: a request no longer parses and plans the `SELECT set_config`
+/// again. Where named statements are off (`ReuseGuard`), or the server lost
+/// the statement, it runs unnamed as before.
+const Tune = enum {
+    fixed_join,
+    serial,
+    serial_generic,
+    generic,
+
+    fn sql(self: Tune) [*:0]const u8 {
+        return switch (self) {
+            .fixed_join => "SELECT set_config('join_collapse_limit', '1', true)",
+            .serial => "SELECT set_config('max_parallel_workers_per_gather', '0', true)",
+            // One statement, so both are in force before the Parse and Bind
+            // that build and choose the plan.
+            .serial_generic => "SELECT set_config('max_parallel_workers_per_gather', '0', true), set_config('plan_cache_mode', 'force_generic_plan', true)",
+            .generic => "SELECT set_config('plan_cache_mode', 'force_generic_plan', true)",
+        };
+    }
+
+    /// Distinct from `Statements` names (`sp_<n>`).
+    fn name(self: Tune) [*:0]const u8 {
+        return switch (self) {
+            .fixed_join => "sp_tune_fixed_join",
+            .serial => "sp_tune_serial",
+            .serial_generic => "sp_tune_serial_generic",
+            .generic => "sp_tune_generic",
+        };
+    }
+};
+
+fn tuneOf(plan: Plan) ?Tune {
     return switch (plan) {
-        .fixed_join => "SELECT set_config('join_collapse_limit', '1', true)",
-        .serial => "SELECT set_config('max_parallel_workers_per_gather', '0', true)",
-        // One statement, so both are in force before the Parse and Bind
-        // that build and choose the plan.
-        .serial_generic => "SELECT set_config('max_parallel_workers_per_gather', '0', true), set_config('plan_cache_mode', 'force_generic_plan', true)",
-        .generic => "SELECT set_config('plan_cache_mode', 'force_generic_plan', true)",
+        .fixed_join => .fixed_join,
+        .serial => .serial,
+        .serial_generic => .serial_generic,
+        .generic => .generic,
         .unnamed, .custom, .reusable => null,
     };
 }
@@ -669,8 +701,21 @@ pub const Conn = struct {
     /// before a named statement's Parse/Bind (`tune`), or before an unnamed
     /// execute (`tune_unnamed`; `serial_generic` runs unnamed as `serial`,
     /// planned for its values).
-    tune: ?[*:0]const u8 = null,
-    tune_unnamed: ?[*:0]const u8 = null,
+    tune: ?Tune = null,
+    tune_unnamed: ?Tune = null,
+    /// The `Tune` statements this session holds (prepared by name).
+    tunes_prepared: std.EnumSet(Tune) = .initEmpty(),
+    /// Whether the query in progress may prepare and run its `Tune` by name
+    /// (named statements allowed, and the server never lost or duplicated
+    /// one on this connection).
+    tune_by_name: bool = false,
+    /// Set when a named `Tune` met a pooler symptom (26000/42P05): this
+    /// connection runs its settings unnamed from then on.
+    tunes_unnamed_only: bool = false,
+    /// The pool's guard for the query in progress (`QueryOptions.guard`):
+    /// a lost or colliding `Tune` name is reported to it like a cached
+    /// statement's.
+    guard: ?*ReuseGuard = null,
     /// A parameter of the query in progress was cut at a NUL (`wireParam`).
     nul_param: bool = false,
 
@@ -913,14 +958,17 @@ pub const Conn = struct {
         } and params.len > 0 and (if (opts.guard) |g| g.active() else true);
         // The extended protocol (one implicit transaction per pipeline);
         // parameterless text may hold several statements, so it runs as is.
-        self.tune = if (params.len > 0) tuneSql(opts.plan) else null;
+        self.tune = if (params.len > 0) tuneOf(opts.plan) else null;
+        self.tune_by_name = !self.tunes_unnamed_only and (if (opts.guard) |g| g.active() else true);
+        self.guard = opts.guard;
+        defer self.guard = null;
         // Unnamed statements are planned for their values: no generic mode.
         const unnamed_plan: Plan = switch (opts.plan) {
             .serial_generic => .serial,
             .generic => .unnamed,
             else => opts.plan,
         };
-        self.tune_unnamed = if (params.len > 0) tuneSql(unnamed_plan) else null;
+        self.tune_unnamed = if (params.len > 0) tuneOf(unnamed_plan) else null;
         defer {
             self.tune = null;
             self.tune_unnamed = null;
@@ -966,7 +1014,7 @@ pub const Conn = struct {
             } else |e| {
                 // Housekeeping must not fail the caller's query: run it as
                 // it comes, untuned.
-                if (e != error.QueryFailed or failed != .set) return pass(failure, local, e);
+                if (e != error.QueryFailed or !failed.housekeeping()) return pass(failure, local, e);
             }
         }
         try self.sendUnnamed(arena, sql, params, deadline, failure);
@@ -1012,7 +1060,7 @@ pub const Conn = struct {
                     return result;
                 } else |e| {
                     const code = serverCode(e, local);
-                    if (e == error.QueryFailed and failed == .set) {
+                    if (e == error.QueryFailed and failed.housekeeping()) {
                         // Housekeeping must not fail the caller's query.
                         return self.runUnnamed(arena, sql, params, deadline, failure);
                     } else if (std.mem.eql(u8, code, RESULT_TYPE_CHANGED)) {
@@ -1044,7 +1092,7 @@ pub const Conn = struct {
             const code = serverCode(e, local);
             // Before `execute` ran, the statement was not created.
             if (failed != .execute) statements.remove(entry);
-            if (failed == .set) return self.runUnnamed(arena, sql, params, deadline, failure);
+            if (failed.housekeeping()) return self.runUnnamed(arena, sql, params, deadline, failure);
             if (isPoolerCode(code)) {
                 if (failed == .execute) statements.remove(entry);
                 return self.retryUnnamed(arena, sql, params, guard, code, deadline, failure);
@@ -1062,7 +1110,21 @@ pub const Conn = struct {
         return self.runUnnamed(arena, sql, params, deadline, failure);
     }
 
-    const Step = enum { set, prepare, execute };
+    /// `set`: the session's plan_cache_mode switch; `tune_prepare`/`tune`: the
+    /// statement's `Tune` (Parse, then execute); `prepare`/`execute`: the
+    /// caller's statement. A failed set or tune step is housekeeping: the
+    /// caller's query then runs untuned.
+    const Step = enum {
+        set,
+        tune_prepare,
+        tune,
+        prepare,
+        execute,
+
+        fn housekeeping(self: Step) bool {
+            return self == .set or self == .tune_prepare or self == .tune;
+        }
+    };
 
     /// What `pipeline` executes: a named statement (prepared first when
     /// `prepare_sql` is set) or an unnamed one (`sql`).
@@ -1088,7 +1150,7 @@ pub const Conn = struct {
             return self.collect(arena, deadline, failure);
         }
         if (PQenterPipelineMode(self.pg) != 1) return self.transportFailure(arena, failure);
-        var steps: [4]Step = undefined;
+        var steps: [5]Step = undefined;
         var n: usize = 0;
         var sent = true;
         if (switch_mode) {
@@ -1097,9 +1159,21 @@ pub const Conn = struct {
             steps[n] = .set;
             n += 1;
         }
-        if (self.tune) |set| {
-            sent = sent and PQsendQueryParams(self.pg, set, 0, null, null, null, null, 0) == 1;
-            steps[n] = .set;
+        // The statement's setting: by name once this session holds it (Parse
+        // in this pipeline on first use), else unnamed.
+        const by_name = self.tune != null and self.tune_by_name;
+        const tune_parse = by_name and !self.tunes_prepared.contains(self.tune.?);
+        if (self.tune) |tune| {
+            if (tune_parse) {
+                sent = sent and PQsendPrepare(self.pg, tune.name(), tune.sql(), 0, null) == 1;
+                steps[n] = .tune_prepare;
+                n += 1;
+            }
+            sent = sent and (if (by_name)
+                PQsendQueryPrepared(self.pg, tune.name(), 0, null, null, null, 0)
+            else
+                PQsendQueryParams(self.pg, tune.sql(), 0, null, null, null, null, 0)) == 1;
+            steps[n] = .tune;
             n += 1;
         }
         if (prepare_sql) |sql| {
@@ -1115,10 +1189,31 @@ pub const Conn = struct {
         try self.flushSent(@intFromBool(sent), arena, deadline, failure);
         const result = self.collectPipeline(arena, steps[0..n], deadline, failure, failed);
         if (result) |_| {} else |e| if (e != error.QueryFailed) return e;
+        if (by_name) self.noteTune(self.tune.?, tune_parse, result, failure, failed.*);
         if (PQexitPipelineMode(self.pg) != 1) return self.transportFailure(arena, failure);
         // A failed pipeline rolls back its implicit transaction, SET included.
         if (switch_mode) self.plan_mode = if (result) |_| need else |_| .unknown;
         return result;
+    }
+
+    /// Whether the session holds `tune` after a pipeline that ran it by name
+    /// (`parsed`: its Parse was in that pipeline). Prepared statements are
+    /// not transactional: a Parse that succeeded stays even when a later
+    /// step failed. A missing (26000) or duplicate (42P05) name is a pooler
+    /// symptom: this connection then runs its settings unnamed, and the pool's
+    /// `ReuseGuard` hears of it (42P05 turns named statements off at once).
+    fn noteTune(self: *Conn, tune: Tune, parsed: bool, result: Error!root.Result, failure: ?*Failure, failed: Step) void {
+        const code = if (result) |_| "" else |_| (if (failure) |f| f.code orelse "" else "");
+        if (isPoolerCode(code) and (failed == .tune_prepare or failed == .tune)) {
+            self.tunes_prepared.remove(tune);
+            self.tunes_unnamed_only = true;
+            // The same evidence the guard acts on for cached statements.
+            if (self.guard) |g| g.report(code);
+            return;
+        }
+        // Not reached when an earlier step (the mode switch) failed.
+        const parse_ran = parsed and (if (result) |_| true else |_| failed != .set and failed != .tune_prepare);
+        if (parse_ran) self.tunes_prepared.insert(tune);
     }
 
     fn sendExecute(self: *Conn, arena: std.mem.Allocator, exec: Exec, values: []const ?[*:0]const u8) Error!c_int {

@@ -7,6 +7,7 @@ pub const NotificationWorker = @import("notification_worker.zig").NotificationWo
 pub const confirmation_stream = @import("confirmation_stream.zig");
 pub const event_store = @import("event_store.zig");
 pub const frames = @import("frames.zig");
+pub const message_facts = @import("message_facts.zig");
 pub const server = @import("server.zig");
 pub const EventWebSocketServer = @import("event_websocket.zig").EventWebSocketServer;
 
@@ -23,4 +24,5 @@ test {
     _ = @import("notification_queue.zig");
     _ = @import("runtime_test.zig");
     _ = @import("coalesce_test.zig");
+    _ = @import("message_facts_test.zig");
 }

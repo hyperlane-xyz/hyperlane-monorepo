@@ -1,15 +1,12 @@
 //! Port of `live/provisional-message.ts`: the shared provisional-message SQL used
-//! by `selectMessages` (confirmations snapshots) and the live event store.
+//! by `selectMessages` (confirmations snapshots) and, for its facts query, the
+//! live message source.
 //! Byte-identical to the TS template literals (asserted against the corpus).
 const std = @import("std");
 
 // Keep ID eligibility identical to the wide projection without delivery/payment work.
-const dispatch_ctes =
-    \\
-    \\  /* provisional_message_view */
-    \\  WITH frontier(domain, height) AS (
-    \\    SELECT * FROM unnest($2::integer[], $3::bigint[])
-    \\  ), dispatches AS (
+const dispatches =
+    \\dispatches AS (
     \\    SELECT id, msg_id, nonce, origin_domain, destination_domain, time_created,
     \\      sender, recipient, origin_mailbox, origin_tx_hash, origin_block_hash,
     \\      origin_block_height, msg_body
@@ -27,7 +24,11 @@ const dispatch_ctes =
     \\    WHERE message.msg_id=ANY($1::bytea[])
     \\      AND NOT EXISTS (SELECT 1 FROM raw_message_dispatch raw
     \\        WHERE raw.msg_id=message.msg_id)
-    \\  ), eligible_dispatch AS (
+    \\  )
+;
+
+const dispatch_ctes = "\n  /* provisional_message_view */\n  WITH frontier(domain, height) AS (\n" ++
+    "    SELECT * FROM unnest($2::integer[], $3::bigint[])\n  ), " ++ dispatches ++ ", eligible_dispatch AS (\n" ++
     \\    SELECT dispatch.*
     \\    FROM dispatches dispatch
     \\    LEFT JOIN frontier ON frontier.domain=dispatch.origin_domain
@@ -52,18 +53,12 @@ const projected_message_from =
 /// Params: $1 bytea[] message ids, $2 integer[] frontier domains, $3 bigint[] frontier heights.
 pub const PROJECTED_MESSAGE_QUERY = dispatch_ctes ++ "\n  SELECT dispatch.msg_id " ++ projected_message_from;
 
-/// Params: $1 bytea[] message ids, $2 integer[] frontier domains, $3 bigint[] frontier heights.
-pub const PROVISIONAL_MESSAGE_QUERY = dispatch_ctes ++
+const message_columns =
     \\
-    \\  SELECT
     \\    coalesce(canonical.id, dispatch.id) AS id,
     \\    dispatch.msg_id,
     \\    dispatch.nonce,
     \\    delivery.id IS NOT NULL AS is_delivered,
-    \\    coalesce(payment.num_payments, 0) AS num_payments,
-    \\    coalesce(payment.total_payment, 0) AS total_payment,
-    \\    coalesce(payment.total_gas_amount, 0) AS total_gas_amount,
-    \\    payment.domains AS payment_domain_ids,
     \\    dispatch.origin_domain AS origin_domain_id,
     \\    origin_domain.chain_id AS origin_chain_id,
     \\    origin_domain.name AS origin_domain,
@@ -110,16 +105,19 @@ pub const PROVISIONAL_MESSAGE_QUERY = dispatch_ctes ++
     \\    destination_tx.cumulative_gas_used AS destination_tx_cumulative_gas_used,
     \\    destination_block.id AS destination_block_id,
     \\    coalesce(delivery.block_number, destination_block.height) AS destination_block_height,
-    \\    coalesce(delivery.block_hash, destination_block.hash) AS destination_block_hash,
-    \\    CASE WHEN canonical.id IS NOT NULL THEN canonical.msg_body
-    \\      ELSE dispatch.msg_body END AS message_body
-++ "\n  " ++ projected_message_from ++
+    \\    coalesce(delivery.block_hash, destination_block.hash) AS destination_block_hash
+;
+const message_body = "CASE WHEN canonical.id IS NOT NULL THEN canonical.msg_body ELSE dispatch.msg_body END";
+const message_from = projected_message_from ++
     \\
     \\  LEFT JOIN domain origin_domain ON origin_domain.id=dispatch.origin_domain
     \\  LEFT JOIN domain destination_domain ON destination_domain.id=dispatch.destination_domain
     \\  LEFT JOIN "transaction" origin_tx ON origin_tx.block_id=origin_block.id
     \\    AND origin_tx.hash=dispatch.origin_tx_hash
-    \\  LEFT JOIN LATERAL (
+    \\
+;
+const eligible_delivery =
+    \\LEFT JOIN LATERAL (
     \\    SELECT delivery.*
     \\    FROM delivered_message delivery
     \\    LEFT JOIN frontier ON frontier.domain=delivery.domain
@@ -130,7 +128,9 @@ pub const PROVISIONAL_MESSAGE_QUERY = dispatch_ctes ++
     \\    ORDER BY delivery.block_number DESC NULLS LAST, delivery.id DESC
     \\    LIMIT 1
     \\  ) delivery ON TRUE
-    \\  LEFT JOIN "transaction" identified_destination_tx
+;
+const delivery_metadata =
+    \\LEFT JOIN "transaction" identified_destination_tx
     \\    ON identified_destination_tx.id=delivery.destination_tx_id
     \\  LEFT JOIN LATERAL (
     \\    SELECT b.* FROM block b WHERE b.domain=delivery.domain AND b.hash=delivery.block_hash
@@ -144,6 +144,17 @@ pub const PROVISIONAL_MESSAGE_QUERY = dispatch_ctes ++
     \\    SELECT tx.* FROM "transaction" tx WHERE delivery.destination_tx_id IS NULL
     \\      AND tx.block_id=destination_block.id AND tx.hash=delivery.transaction_hash
     \\  ) destination_tx ON TRUE
+;
+
+/// Params: $1 bytea[] message ids, $2 integer[] frontier domains, $3 bigint[] frontier heights.
+pub const PROVISIONAL_MESSAGE_QUERY = dispatch_ctes ++
+    \\
+    \\  SELECT coalesce(payment.num_payments, 0) AS num_payments,
+    \\    coalesce(payment.total_payment, 0) AS total_payment,
+    \\    coalesce(payment.total_gas_amount, 0) AS total_gas_amount,
+    \\    payment.domains AS payment_domain_ids,
+++ "\n    " ++ message_columns ++ ", " ++ message_body ++ " AS message_body\n  " ++ message_from ++ "\n  " ++ eligible_delivery ++ "\n  " ++ delivery_metadata ++
+    \\
     \\  LEFT JOIN LATERAL (
     \\    SELECT count(*)::bigint AS num_payments,
     \\      array_agg(DISTINCT payment.domain) AS domains,
@@ -158,6 +169,52 @@ pub const PROVISIONAL_MESSAGE_QUERY = dispatch_ctes ++
     \\  ) payment ON TRUE
     \\
 ;
+
+/// TS #10078 `EventStore.messageHeads(domains?)` (`live/event-store.ts`):
+/// every head, or (`_FILTERED`) those in $1 integer[] domains.
+pub const MESSAGE_HEADS_QUERY = "SELECT domain, head_height, indexed_height, confirmed_height, encode(indexed_hash, 'hex') AS hash FROM scraper_head";
+pub const MESSAGE_HEADS_FILTERED_QUERY = MESSAGE_HEADS_QUERY ++ " WHERE domain=ANY($1::integer[])";
+
+/// TS #10082 `MAX_PAYMENT_HEIGHTS`: per domain, the oldest and newest
+/// payment heights kept exact in the facts query; the middle folds into one
+/// bucket.
+pub const MAX_PAYMENT_HEIGHTS = 8;
+
+/// TS #10078/#10082 `LIVE_MESSAGE_FACTS_QUERY`: one row per message (at most
+/// one delivery each), with its payment buckets as json. Params: $1 bytea[]
+/// message ids.
+pub const LIVE_MESSAGE_FACTS_QUERY = blk: {
+    @setEvalBranchQuota(1_000_000);
+    break :blk std.fmt.comptimePrint(
+        \\
+        \\  /* live_message_facts */
+        \\  WITH {s}, eligible_dispatch AS (SELECT * FROM dispatches)
+        \\  SELECT delivery.domain AS delivery_domain, delivery.block_number AS delivery_height,
+        \\    payment.buckets AS payment_buckets,
+        \\    {s} AS message_body,
+        \\    {s}
+        \\  {s}
+        \\  -- delivered_message.msg_id is unique, so each message has at most one delivery.
+        \\  LEFT JOIN delivered_message delivery ON delivery.msg_id=dispatch.msg_id
+        \\  {s}
+        \\  LEFT JOIN LATERAL (
+        \\    SELECT json_agg(b) AS buckets FROM (
+        \\      SELECT domain, max(block_number)::text AS height, count(*)::text AS count,
+        \\        sum(payment)::text AS payment, sum(gas_amount)::text AS gas
+        \\      FROM (SELECT domain, block_number, payment, gas_amount, least(
+        \\          dense_rank() OVER (PARTITION BY domain ORDER BY block_number),
+        \\          dense_rank() OVER (PARTITION BY domain ORDER BY block_number DESC NULLS LAST)
+        \\        ) AS rank FROM gas_payment WHERE msg_id=dispatch.msg_id) p
+        \\      -- payForGas is permissionless. Keep the oldest and newest heights per
+        \\      -- domain exact and fold the middle into one bucket, visible once its
+        \\      -- newest payment is. NULL-height legacy payments are always visible.
+        \\      GROUP BY domain, block_number IS NULL,
+        \\        CASE WHEN rank<={d} THEN block_number END
+        \\    ) b
+        \\  ) payment ON TRUE
+        \\
+    , .{ dispatches, message_body, message_columns, message_from, delivery_metadata, MAX_PAYMENT_HEIGHTS });
+};
 
 /// `buildProvisionalMessageAffectedQuery(filterByMessageIds,
 /// zeroConfirmations)`, all four variants built at comptime. With the

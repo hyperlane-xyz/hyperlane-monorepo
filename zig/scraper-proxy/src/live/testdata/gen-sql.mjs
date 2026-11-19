@@ -28,16 +28,13 @@ async function run(name, fn) {
   } else await result;
 }
 const types = ['dispatch', 'delivery', 'gas_payment', 'merkle_tree_insertion'];
-await run('blockHeads', () => store.blockHeads());
-await run('blockHeads:domains', () =>
-  store.blockHeads(new Set([1, 4294967295])),
+await run('messageHeads', () => store.messageHeads());
+await run('messageHeads:domains', () =>
+  store.messageHeads(new Set([1, 4294967295])),
 );
 await run('liveStartBoundaries', () => store.liveStartBoundaries());
 await run('liveStartBoundaries:domains', () =>
   store.liveStartBoundaries(new Set([1, 4294967295])),
-);
-await run('confirmationHeads', () =>
-  store.confirmationHeads(new Set([1, 4294967295])),
 );
 await run('confirmationSnapshots', () =>
   store.confirmationSnapshots(
@@ -58,26 +55,11 @@ for (const t of types) {
     store.confirmationEventRows(t, 1, [3n, 0, 7n], 10n, 2),
   );
 }
-await run('confirmationMessageRows', () =>
-  store.confirmationMessageRows(2147483648, [3n, 1, 7n], 10n, new Map(), 0),
+// TS #10078/#10080: one unfiltered page per call (the empty page ends it).
+await run('messageChanges', () =>
+  store.messageChanges(2147483648, [3n, 1, 7n], 10n),
 );
-await run('confirmationMessageRows:ids', () =>
-  store.confirmationMessageRows(
-    1,
-    [3n, 1, 7n],
-    10n,
-    new Map(),
-    0,
-    new Set(['\\x' + 'ab'.repeat(32)]),
-  ),
-);
-await run('provisionalMessages', () =>
-  store.provisionalMessages(
-    ['\\xbb', '\\xaa', '\\xbb'],
-    new Map([
-      [4294967295, 5n],
-      [1, 7n],
-    ]),
-  ),
+await run('messageFacts', () =>
+  store.messageFacts(['\\xbb', '\\xaa']),
 );
 process.stdout.write(JSON.stringify(cases, null, 1) + '\n');

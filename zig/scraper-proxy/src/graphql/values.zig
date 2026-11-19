@@ -44,25 +44,37 @@ const max_variable_errors = 50;
 /// exceeded", no location). Same nesting-budget emulation as
 /// `parser.stack_budget`, calibrated against a cold TS process (Node 26.12.1,
 /// TS 0654ab7b8c; bench/experiments/stack-depth/ts-thresholds.mjs, first depth
-/// TS rejects, deterministic over 3 repeats): `{"_and": [ ... ]}` 626 levels (n
-/// + 2 objects, n lists), the same `_and` on an @cached query (response-cache
-/// prepare coerces first) 626. `{"_not": ... {"id": {"_eq": 1}}}` (n + 2
-/// objects) is not deterministic in a cold TS since #10076 (before it: 2397 on
-/// macOS, between 2441 and 2450 on Linux, exact). Fresh processes per depth
-/// that overflow, macOS (8 each): 0 to 2400, about 2 from 2425 to 2850, 6-8
-/// from 2860, all from 2925. Linux, the bench image (16 or 24 each): 0 to 2400,
-/// 2/16 at 2850, 7/16 at 2950, 12/24 at 3000, 14/24 at 3050, 15/16 at 3200,
-/// 6-8/8 from 3300, all from 3800. The port takes 3000, where the chance
-/// crosses one half on Linux (production; DEVIATIONS.md).
+/// TS rejects, deterministic over 3 repeats).
+///
+/// Paths with a list open share one stack: each open input object costs
+/// `object`, each list `list`. Deterministic in TS before and after #10076:
+/// `{"_and": [ ... ]}` 626 levels (n + 2 objects, n lists; also on an @cached
+/// query, whose response-cache prepare coerces first), `{"_and": [{"_not":`
+/// 496 (2n + 2 objects, n lists), `{"_and": [{"_not": {"_not":` 411 (3n + 2
+/// objects, n lists). The object share comes from the object-only chain as
+/// it was before #10076 (`{"_not": ... {"id": {"_eq": 1}}}`, n + 2 objects:
+/// 2397 levels, exact), the list share from `_and`; the model then gives
+/// 626, 496 and 411.
+///
+/// The object-only chain itself is not deterministic in a cold TS since
+/// #10076. Fresh processes per depth that overflow, macOS (8 each): 0 to
+/// 2400, about 2 from 2425 to 2850, 6-8 from 2860, all from 2925. Linux, the
+/// bench image (16 or 24 each): 0 to 2400, 2/16 at 2850, 7/16 at 2950, 12/24
+/// at 3000, 14/24 at 3050, 15/16 at 3200, 6-8/8 from 3300, all from 3800.
+/// Paths without a list take `not_depth`, where the chance crosses one half
+/// on Linux (production; DEVIATIONS.md).
 pub const coerce_budget = struct {
     pub const not_depth = 3000;
     pub const and_depth = 626;
+    /// The object-only chain's depth before #10076: the object share.
+    pub const object_depth = 2397;
 
-    const object: f64 = 1.0 / @as(f64, not_depth + 2);
+    const object: f64 = 1.0 / @as(f64, object_depth + 2);
     const list: f64 = (1.0 - @as(f64, and_depth + 2) * object) / @as(f64, and_depth);
-    /// Half an object below 1: `not_depth` objects overflow, one fewer does
-    /// not (a fixed margin would exceed one object's share past ~2857).
-    const limit: f64 = 1.0 - object / 2.0;
+    /// Like `parser.stack_budget.limit`, just below 1: TS rejects mixed
+    /// shapes a level earlier than the pure ones predict. Any value in
+    /// (0.99841, 0.99925] gives all three measured depths exactly.
+    const limit: f64 = 1.0 - 0.001;
 };
 
 pub const stack_overflow_message = "Maximum call stack size exceeded";
@@ -158,6 +170,11 @@ const CoerceCtx = struct {
 
     fn checkBudget(self: *CoerceCtx) Err!void {
         const b = coerce_budget;
+        // Object-only paths: their own cap (see `coerce_budget`).
+        if (self.lists == 0) {
+            if (self.objects >= b.not_depth + 2) return error.StackOverflow;
+            return;
+        }
         const cost = @as(f64, @floatFromInt(self.objects)) * b.object + @as(f64, @floatFromInt(self.lists)) * b.list;
         if (cost >= b.limit) return error.StackOverflow;
     }

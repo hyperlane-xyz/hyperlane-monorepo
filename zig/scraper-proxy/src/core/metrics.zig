@@ -375,6 +375,9 @@ pub const ValidatorSubscription = struct { domain: u32, canonical: f64 = 0, cust
 pub const WebSocketMetricsSnapshot = struct {
     connections: RouteCounts = .{},
     explorerPendingSetups: f64 = 0,
+    /// #10078 MessageSource: retained ranges (one per domain), changes, and
+    /// the JSON.stringify size of retained facts.
+    messageSource: struct { ranges: f64 = 0, changes: f64 = 0, factBytes: f64 = 0 } = .{},
     validatorPendingSetups: f64 = 0,
     validatorReservedConnections: f64 = 0,
     validatorSharedReaders: f64 = 0,
@@ -633,6 +636,9 @@ fn renderSnapshotGauges(a: std.mem.Allocator, w: *std.Io.Writer) !void {
     try snapshotGauge(w, "websocket_validator_client_ips", "Current number of distinct validator client IPs.", &none, &.{.{ .value = s.validatorClientIps }}, has);
     try snapshotGauge(w, "websocket_validator_max_connections_per_ip", "Largest current validator connection count for one client IP.", &none, &.{.{ .value = s.validatorMaxConnectionsPerIp }}, has);
     try snapshotGauge(w, "websocket_validator_client_message_limit_bytes", "Maximum inbound validator WebSocket message size.", &none, &.{.{ .value = s.limits.validatorMessageBytes }}, has);
+    try snapshotGauge(w, "websocket_message_source_ranges", "Retained custom message source ranges, one per domain.", &none, &.{.{ .value = s.messageSource.ranges }}, has);
+    try snapshotGauge(w, "websocket_message_source_changes", "Retained dispatch, delivery and payment positions.", &none, &.{.{ .value = s.messageSource.changes }}, has);
+    try snapshotGauge(w, "websocket_message_source_fact_bytes", "Serialized size of retained message projection inputs.", &none, &.{.{ .value = s.messageSource.factBytes }}, has);
     try snapshotGauge(w, "websocket_message_pending_setups", "Message negotiations awaiting database reads, including disconnected clients.", &none, &.{.{ .value = s.explorerPendingSetups }}, has);
     try snapshotGauge(w, "websocket_message_setup_limit", "Maximum unfinished /messages setups.", &none, &.{.{ .value = s.limits.messageSetups }}, has);
     try snapshotGauge(w, "websocket_message_setup_limit_per_ip", "Maximum unfinished /messages setups per client IP.", &none, &.{.{ .value = s.limits.messageSetupsPerIp }}, has);
@@ -831,6 +837,7 @@ const TestProviders = struct {
         return .{
             .connections = .{ .agent = 3, .messages = 4, .validators = 2 },
             .explorerPendingSetups = 4,
+            .messageSource = .{ .ranges = 2, .changes = 30, .factBytes = 4096 },
             .validatorPendingSetups = 1,
             .validatorReservedConnections = 2,
             .validatorSharedReaders = 1,
@@ -902,8 +909,9 @@ test "serves current usage and limits (metrics.test.ts)" {
     try expectContains(output, p ++ "websocket_validator_client_ips 1\n");
     try expectContains(output, p ++ "websocket_validator_max_connections_per_ip 2\n");
     try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n");
-    // #10076: /messages setup gauges, after the validator message limit (registration order).
-    try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n\n# HELP " ++ p ++ "websocket_message_pending_setups Message negotiations awaiting database reads, including disconnected clients.\n# TYPE " ++ p ++ "websocket_message_pending_setups gauge\n" ++ p ++ "websocket_message_pending_setups 4\n");
+    // #10078: message source gauges, then #10076's /messages setup gauges, after the
+    // validator message limit (registration order).
+    try expectContains(output, p ++ "websocket_validator_client_message_limit_bytes 1024\n\n# HELP " ++ p ++ "websocket_message_source_ranges Retained custom message source ranges, one per domain.\n# TYPE " ++ p ++ "websocket_message_source_ranges gauge\n" ++ p ++ "websocket_message_source_ranges 2\n\n# HELP " ++ p ++ "websocket_message_source_changes Retained dispatch, delivery and payment positions.\n# TYPE " ++ p ++ "websocket_message_source_changes gauge\n" ++ p ++ "websocket_message_source_changes 30\n\n# HELP " ++ p ++ "websocket_message_source_fact_bytes Serialized size of retained message projection inputs.\n# TYPE " ++ p ++ "websocket_message_source_fact_bytes gauge\n" ++ p ++ "websocket_message_source_fact_bytes 4096\n\n# HELP " ++ p ++ "websocket_message_pending_setups Message negotiations awaiting database reads, including disconnected clients.\n# TYPE " ++ p ++ "websocket_message_pending_setups gauge\n" ++ p ++ "websocket_message_pending_setups 4\n");
     try expectContains(output, "# HELP " ++ p ++ "websocket_message_setup_limit Maximum unfinished /messages setups.\n# TYPE " ++ p ++ "websocket_message_setup_limit gauge\n" ++ p ++ "websocket_message_setup_limit 64\n");
     try expectContains(output, "# HELP " ++ p ++ "websocket_message_setup_limit_per_ip Maximum unfinished /messages setups per client IP.\n# TYPE " ++ p ++ "websocket_message_setup_limit_per_ip gauge\n" ++ p ++ "websocket_message_setup_limit_per_ip 8\n\n# HELP " ++ p ++ "websocket_message_client_ips ");
     try expectContains(output, "# HELP " ++ p ++ "websocket_client_message_rejections_total Inbound WebSocket application messages rejected by the server.\n");

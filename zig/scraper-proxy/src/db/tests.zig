@@ -641,7 +641,9 @@ test "libpq: reusable statements match unnamed ones, evict, and survive result t
         const named = try p.queryWith(a, sql, &params, reuse, &failure);
         try testing.expectEqualStrings(unnamed, try core.json.stringifyAlloc(a, .{ .array = named.rows }));
     }
-    const prepared = "SELECT count(*)::int AS n FROM pg_prepared_statements";
+    // The statement cache's own entries (the per-connection settings,
+    // `sp_tune_*`, are not cached statements).
+    const prepared = "SELECT count(*)::int AS n FROM pg_prepared_statements WHERE name NOT LIKE 'sp\\_tune\\_%'";
     try testing.expectEqual(@as(f64, 1), (try p.query(a, prepared, &.{}, &failure)).rows[0].get("n").?.number);
     // Errors carry the unnamed messages and are not cached.
     try testing.expectError(error.QueryFailed, p.queryWith(a, "SELECT FROM WHERE $1", &.{.{ .number = 1 }}, reuse, &failure));
@@ -807,6 +809,65 @@ test "libpq: a history EXPLAIN after tuned statements costs what a fresh session
     try testing.expectEqual(@as(u32, 1), p.stats().total);
 }
 
+test "libpq: a statement's setting is prepared once per connection, again after a reconnect, and unnamed once lost" {
+    const url = testUrl() orelse return error.SkipZigTest;
+    var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+    var failure: root.Failure = .{};
+    const sql = "SELECT current_setting('join_collapse_limit') || '/' || current_setting('max_parallel_workers_per_gather') || '/' || current_setting('plan_cache_mode') AS v WHERE $1::int = 1";
+    const one = [_]Value{.{ .number = 1 }};
+    const tunes = "SELECT coalesce(string_agg(name || '@' || prepare_time::text, ',' ORDER BY name), '') AS v FROM pg_prepared_statements WHERE name LIKE 'sp_tune_%'";
+    const Read = struct {
+        fn v(r: root.Result) []const u8 {
+            return r.rows[0].get("v").?.string;
+        }
+    };
+    for (0..2) |connection| {
+        // A fresh session (the second pass is a reconnect) holds no setting.
+        const p = try pool_mod.Pool.init(testing.allocator, .{ .conn = .{ .conninfo = url }, .max = 1 });
+        defer p.deinit();
+        try testing.expectEqualStrings("", Read.v(try p.query(a, tunes, &.{}, &failure)));
+        // First use: the setting is prepared in the statement's pipeline and in force.
+        try testing.expect(std.mem.startsWith(u8, Read.v(try p.queryWith(a, sql, &one, .{ .plan = .fixed_join }, &failure)), "1/"));
+        const prepared = try a.dupe(u8, Read.v(try p.query(a, tunes, &.{}, &failure)));
+        try testing.expect(std.mem.startsWith(u8, prepared, "sp_tune_fixed_join@"));
+        // Later uses only execute it: the same statement, never prepared again.
+        for (0..3) |_| try testing.expect(std.mem.startsWith(u8, Read.v(try p.queryWith(a, sql, &one, .{ .plan = .fixed_join }, &failure)), "1/"));
+        try testing.expectEqualStrings(prepared, Read.v(try p.query(a, tunes, &.{}, &failure)));
+        // The generic route's setting is a statement of its own (from the
+        // second use: a text's first use runs unnamed), and still
+        // transaction-scoped: the next plain statement sees the defaults.
+        _ = try p.queryWith(a, sql, &one, .{ .plan = .generic }, &failure);
+        try testing.expect(std.mem.endsWith(u8, Read.v(try p.queryWith(a, sql, &one, .{ .plan = .generic }, &failure)), "/force_generic_plan"));
+        try testing.expect(std.mem.indexOf(u8, Read.v(try p.query(a, tunes, &.{}, &failure)), "sp_tune_generic@") != null);
+        const plain = Read.v(try p.query(a, sql, &one, &failure));
+        try testing.expect(!std.mem.startsWith(u8, plain, "1/") and !std.mem.endsWith(u8, plain, "/force_generic_plan"));
+        try testing.expectEqual(@as(u32, 1), p.stats().total);
+        if (connection == 0) {
+            // A name another client already holds on this backend (a pooler
+            // sharing backends): the query runs untuned once, the guard turns
+            // named statements off for the pool (42P05), and the setting runs
+            // unnamed, still in force.
+            _ = try p.query(a, "PREPARE sp_tune_serial AS SELECT 1", &.{}, &failure);
+            _ = try p.queryWith(a, sql, &one, .{ .plan = .serial }, &failure);
+            try testing.expect(!p.reuse_guard.active());
+            try testing.expect(std.mem.indexOf(u8, Read.v(try p.queryWith(a, sql, &one, .{ .plan = .serial }, &failure)), "/0/") != null);
+        } else {
+            // Lost server-side (as behind a pooler): the query still runs, the
+            // guard hears of it (a first 26000 is not yet enough to turn named
+            // statements off), and this connection's settings run unnamed from
+            // then on, still in force.
+            _ = try p.query(a, "DEALLOCATE sp_tune_fixed_join", &.{}, &failure);
+            _ = try p.queryWith(a, sql, &one, .{ .plan = .fixed_join }, &failure);
+            try testing.expect(p.reuse_guard.last_missing_ms.load(.monotonic) != 0);
+            try testing.expect(p.reuse_guard.active());
+            for (0..2) |_| try testing.expect(std.mem.startsWith(u8, Read.v(try p.queryWith(a, sql, &one, .{ .plan = .fixed_join }, &failure)), "1/"));
+            try testing.expect(std.mem.indexOf(u8, Read.v(try p.query(a, tunes, &.{}, &failure)), "sp_tune_fixed_join") == null);
+        }
+    }
+}
+
 test "libpq: serial_generic reuses a generic plan built and chosen without parallel workers; serial never runs it" {
     const url = testUrl() orelse return error.SkipZigTest;
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
@@ -887,7 +948,9 @@ test "libpq: generic statements always reuse their generic plan; projections kee
     try testing.expectEqualStrings(session, (try p.queryWith(a, settings, &one, generic, &failure)).rows[0].get("v").?.string);
     for (0..3) |_| try testing.expectEqualStrings(try std.fmt.allocPrint(a, "force_generic_plan{s}", .{session[slash..]}), (try p.queryWith(a, settings, &one, generic, &failure)).rows[0].get("v").?.string);
     try testing.expectEqualStrings(session, (try p.query(a, settings, &one, &failure)).rows[0].get("v").?.string);
-    const prepared = "SELECT count(*)::int AS n FROM pg_prepared_statements";
+    // The statement cache's own entries (the per-connection settings,
+    // `sp_tune_*`, are not cached statements).
+    const prepared = "SELECT count(*)::int AS n FROM pg_prepared_statements WHERE name NOT LIKE 'sp\\_tune\\_%'";
     const count = struct {
         fn n(pool: *pool_mod.Pool, al: std.mem.Allocator, q: []const u8, f: *root.Failure) !f64 {
             return (try pool.query(al, q, &.{}, f)).rows[0].get("n").?.number;

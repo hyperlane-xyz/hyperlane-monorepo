@@ -132,6 +132,8 @@ const buf_len = 64 * 1024;
 const dump_budget = 16 * buf_len;
 /// Tests only: widens the `.closing` turn (normally the next loop pass) to time
 /// input into or after it. Other builds never read it (`closeTurnMs` is 0).
+/// Test-only: head bytes the scanner stepped, over all connections.
+pub var test_head_stepped: std.atomic.Value(usize) = .init(0);
 pub var test_close_turn_ms: std.atomic.Value(i64) = .init(0);
 
 /// Tests only: keep-alive parks waiting for the next request (not a fresh
@@ -807,6 +809,8 @@ const Connection = struct {
     phase: Phase = .idle,
     idle_since: i64,
     head_deadline: i64 = loop_mod.no_deadline,
+    /// The head being received: scanning resumes where the last read ended.
+    head_scan: parse.HeadScanner = .{},
     /// `.closing`: when the socket closes, and the body bytes it may still discard.
     close_at: i64 = loop_mod.no_deadline,
     dump_left: usize = 0,
@@ -1027,14 +1031,22 @@ const Connection = struct {
         }
         self.first = false;
         self.head_deadline = monoMs() + @as(i64, self.server.options.request_timeout_ms);
+        self.head_scan = .{};
         self.phase = .head;
         return null;
     }
 
     fn stepHead(self: *Connection) ?Step {
-        // llhttp skips CRLFs between requests.
-        while (self.start < self.end and (self.buf[self.start] == '\r' or self.buf[self.start] == '\n')) self.start += 1;
-        const scan = parse.scanHead(self.buf[self.start..self.end]) catch |e| return self.headError(e);
+        // llhttp skips CRLFs between requests (only before the head's first
+        // byte; after it, `start` stays put while the scan resumes).
+        if (self.head_scan.scanned == 0) {
+            while (self.start < self.end and (self.buf[self.start] == '\r' or self.buf[self.start] == '\n')) self.start += 1;
+        }
+        const before = self.head_scan.scanned;
+        defer if (builtin.is_test) {
+            _ = test_head_stepped.fetchAdd(self.head_scan.scanned - before, .monotonic);
+        };
+        const scan = self.head_scan.scan(self.buf[self.start..self.end]) catch |e| return self.headError(e);
         switch (scan) {
             .complete => |len| {
                 const a = self.arena() catch return self.destroy();
@@ -1773,11 +1785,8 @@ const Connection = struct {
 
     fn upgrade(self: *Connection, handler: UpgradeHandler) ?Step {
         const ex = self.ex.?;
-        // llhttp: an upgrade has a body only when it is chunked or has a
-        // Content-Length above 0; its upgrade exit comes before the invalid
-        // Transfer-Encoding check, so any other Transfer-Encoding means no body.
-        const has_body = !self.body.done() and self.body.framing != .invalid_te;
-        var socket: UpgradeSocket = .{ .fd = self.fd, .head = self.buf[self.start..self.end], .remote_address = self.remote, .arena = ex.req.arena, .body = if (has_body) self.body else null };
+        const body: BodyReader = .{ .framing = requestFraming(self.body.framing, false, true) };
+        var socket: UpgradeSocket = .{ .fd = self.fd, .head = self.buf[self.start..self.end], .remote_address = self.remote, .arena = ex.req.arena, .body = if (body.done()) null else body };
         handler.on_upgrade(handler.ctx, &ex.req, &socket);
         const conn = socket.takeover orelse {
             if (socket.end_bytes) |bytes| return self.write(bytes, "", .end_destroy);
@@ -1983,7 +1992,7 @@ pub const BodyReader = struct {
             },
             .chunked => chunks: while (true) switch (self.chunk) {
                 .size_line => {
-                    const line = (try takeLine(c)) orelse return .need_more;
+                    const line = (try takeLine(c)) orelse return needMore(c, parse.chunkSizePrefixValid);
                     const size64 = parse.parseChunkSize(line) orelse return error.BadRequest;
                     const size = std.math.cast(usize, size64) orelse return error.BadRequest;
                     if (size == 0) {
@@ -2007,12 +2016,12 @@ pub const BodyReader = struct {
                     self.chunk = .data_end;
                 },
                 .data_end => {
-                    const line = (try takeLine(c)) orelse return .need_more;
+                    const line = (try takeLine(c)) orelse return needMore(c, dataEndPrefixValid);
                     if (line.len != 0) return error.BadRequest;
                     self.chunk = .size_line;
                 },
                 .trailer => {
-                    const line = (try takeLine(c)) orelse return .need_more;
+                    const line = (try takeLine(c)) orelse return needMore(c, parse.trailerPrefixValid);
                     if (line.len == 0) break :chunks;
                     if (!parse.validTrailer(line)) return error.BadRequest;
                 },
@@ -2020,6 +2029,18 @@ pub const BodyReader = struct {
         }
         self.finished = true;
         return .done;
+    }
+
+    /// No complete framing line yet: wait, unless its bytes so far already
+    /// fail (llhttp rejects the first byte no line could accept).
+    fn needMore(c: anytype, comptime prefixValid: fn ([]const u8) bool) Error!Progress {
+        if (!prefixValid(c.buf[c.start..c.end])) return error.BadRequest;
+        return .need_more;
+    }
+
+    /// After a chunk's data only CRLF may follow.
+    fn dataEndPrefixValid(p: []const u8) bool {
+        return p.len == 0 or (p.len == 1 and p[0] == '\r');
     }
 
     /// A CRLF-terminated line from the buffer, or null until one arrives.
@@ -2035,8 +2056,20 @@ pub const BodyReader = struct {
     }
 };
 
+/// The body framing the server reads for a request with the head's
+/// `framing` (shared with parse_diff_test.zig, so the differential runs this
+/// rule): CONNECT has none (the server destroys it); llhttp gives an upgrade a
+/// body only when chunked or with a Content-Length above 0, its upgrade exit
+/// coming before the invalid Transfer-Encoding check, so any other
+/// Transfer-Encoding means no body.
+pub fn requestFraming(framing: parse.Framing, connect: bool, upgrade: bool) parse.Framing {
+    if (connect) return .none;
+    if (upgrade and framing == .invalid_te) return .none;
+    return framing;
+}
+
 /// llhttp `should_keep_alive` for the request.
-fn keepAliveRequested(req: *const Request, head: parse.Head) bool {
+pub fn keepAliveRequested(req: *const Request, head: parse.Head) bool {
     const http11 = head.major > 0 and head.minor > 0;
     const c = req.header("connection") orelse return http11;
     var keep = false;
@@ -2067,7 +2100,7 @@ fn isWordChar(c: u8) bool {
     return std.ascii.isAlphanumeric(c) or c == '_';
 }
 
-fn isUpgrade(req: *const Request) bool {
+pub fn isUpgrade(req: *const Request) bool {
     if (req.header("upgrade") == null) return false;
     const c = req.header("connection") orelse return false;
     var it = std.mem.splitScalar(u8, c, ',');

@@ -817,7 +817,7 @@ test "messages (TS #10076): a client frame right after the upgrade is rejected; 
     // A setup awaiting its read: the handler is registered before the first
     // await, so the frame is rejected and `ready` never comes.
     {
-        var gate: QueryGate = .{ .contains = "AS hash, head_height" };
+        var gate: QueryGate = .{ .contains = "AS hash FROM scraper_head" };
         h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
         defer h.db.before_query = null;
         defer gate.released.set();
@@ -851,8 +851,8 @@ test "messages (TS #10076): unfinished setups are bounded per IP and held until 
     var h: Harness = .{};
     try h.initAsync(defaultLimits());
     defer h.deinit();
-    // The blocks snapshot read (`blockHeadsQuery`) is held.
-    var gate: QueryGate = .{ .contains = "AS hash, head_height" };
+    // The shared heads snapshot read (`messageHeads()`, TS #10078) is held.
+    var gate: QueryGate = .{ .contains = "AS hash FROM scraper_head" };
     h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
     defer gate.released.set();
     const ip = "203.0.113.90";
@@ -882,11 +882,12 @@ test "blocks: snapshot after ready, then deduplicated live heads" {
     var h: Harness = .{};
     try h.init(defaultLimits());
     defer h.deinit();
-    h.db.on("FROM scraper_head", "[{\"domain\":1,\"indexed_height\":\"10\",\"hash\":\"" ++ "AA" ** 32 ++ "\",\"head_height\":\"12\"},{\"domain\":2,\"indexed_height\":\"5\",\"hash\":null,\"head_height\":\"5\"}]");
+    h.db.on("FROM scraper_head", "[{\"domain\":1,\"head_height\":\"12\",\"indexed_height\":\"10\",\"confirmed_height\":\"9\",\"hash\":\"" ++ "AA" ** 32 ++ "\"},{\"domain\":2,\"head_height\":\"5\",\"indexed_height\":\"5\",\"confirmed_height\":\"5\",\"hash\":null}]");
     const s, _ = h.explorer("/messages?blocks=true", "1.2.3.4");
     try h.waitFrames(s, 2);
     try testing.expectEqualStrings("{\"eventTypes\":[\"message_upsert\",\"block\"],\"type\":\"ready\"}", s.frame(0));
-    try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\",\"headHeight\":\"12\"}", s.frame(1));
+    // TS #10078: join frames come from the shared heads (`headHeight` before `hash`).
+    try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"headHeight\":\"12\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\"}", s.frame(1));
     const head = "{\"domain\":1,\"confirmedHeight\":\"9\",\"headHeight\":\"12\",\"indexedHeight\":\"10\",\"indexedHash\":\"" ++ "aa" ** 32 ++ "\"}";
     h.listen.notify(live.HEAD_CHANNEL, head);
     h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"9\",\"headHeight\":\"13\",\"indexedHeight\":\"11\",\"indexedHash\":\"" ++ "bb" ** 32 ++ "\"}");
@@ -1856,10 +1857,16 @@ fn cancelsSetupDuringBlockSnapshot(comptime route: live.Route) !void {
     h.settle();
     const snapshot = metricsOf(&h);
     try testing.expectEqual(@as(f64, 0), snapshot.connections.agent + snapshot.connections.messages);
-    // No stream was initialized: no heads read, nothing acknowledged.
+    // No stream was initialized: no confirmation heads or range read, nothing
+    // acknowledged (TS #10078: the block heads read is `messageHeads`, and
+    // /messages shares it with its custom subscription).
     h.db.mutex.lock();
     defer h.db.mutex.unlock();
-    for (h.db.queries.items) |query| try testing.expect(std.mem.indexOf(u8, query, "confirmed_height") == null);
+    for (h.db.queries.items) |query| {
+        try testing.expect(std.mem.indexOf(u8, query, "SELECT h.domain") == null);
+        try testing.expect(std.mem.indexOf(u8, query, "confirmation_messages") == null);
+    }
+    try testing.expectEqual(@as(usize, 1), h.db.queries.items.len);
     // Agents saw only `ready`; Explorer never got its `ready`.
     try testing.expectEqual(@as(usize, if (route == .agent) 1 else 0), s.count());
 }
@@ -2113,13 +2120,14 @@ test "async subscribe with blocks: block heads, then subscribed, blocks and live
     limits.heartbeat_ms = 1_000_000;
     try h.initAsync(limits);
     defer h.deinit();
-    h.db.on("FROM scraper_head", "[{\"domain\":1,\"indexed_height\":\"10\",\"hash\":\"" ++ "AA" ** 32 ++ "\",\"head_height\":\"12\"}]");
+    h.db.on("FROM scraper_head", "[{\"domain\":1,\"head_height\":\"12\",\"indexed_height\":\"10\",\"confirmed_height\":\"9\",\"hash\":\"" ++ "AA" ** 32 ++ "\"}]");
     const s, const peer = h.agent();
     try h.waitFrames(s, 1);
     h.server.onMessage(peer, "{\"type\":\"subscribe\",\"streams\":[{\"eventType\":\"blocks\",\"domains\":[1]},{\"eventType\":\"dispatch\",\"domains\":[1]}]}");
     try h.waitFrames(s, 4);
     try testing.expectEqualStrings("{\"streams\":[{\"domains\":[1],\"eventType\":\"blocks\"},{\"domains\":[1],\"eventType\":\"dispatch\"}],\"type\":\"subscribed\"}", s.frame(1));
-    try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\",\"headHeight\":\"12\"}", s.frame(2));
+    // TS #10078: `messageHeads(domains)`, `headHeight` before `hash`.
+    try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"headHeight\":\"12\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\"}", s.frame(2));
     try testing.expect(std.mem.startsWith(u8, s.frame(3), "{\"type\":\"live_start_unavailable\",\"domain\":1"));
     try testing.expectEqual(@as(usize, 2), asyncStarted(&h)); // block heads, boundaries
 }
@@ -2307,21 +2315,28 @@ test "async live starts: stop with an awaited live start still queued frees ever
     try h.waitFrames(s, 3);
 }
 
-test "async Explorer setup: block heads and the custom heads read as continuations, then ready" {
+test "async Explorer setup: one shared heads snapshot for blocks and the custom subscription, then ready" {
     var h: Harness = .{};
     var limits = defaultLimits();
     limits.heartbeat_ms = 1_000_000;
     try h.initAsync(limits);
     defer h.deinit();
-    h.db.on("encode(indexed_hash, 'hex')", "[{\"domain\":1,\"indexed_height\":\"10\",\"hash\":\"" ++ "AA" ** 32 ++ "\",\"head_height\":\"12\"}]");
-    h.db.on("SELECT domain, head_height, indexed_height, confirmed_height", "[{\"domain\":1,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"8\"}]");
+    // TS #10078 `messageHeads()`: every domain, no WHERE, read once per source.
+    h.db.on("encode(indexed_hash, 'hex') AS hash FROM scraper_head", "[{\"domain\":1,\"head_height\":\"12\",\"indexed_height\":\"10\",\"confirmed_height\":\"8\",\"hash\":\"" ++ "AA" ** 32 ++ "\"}]");
     const s, _ = h.explorer("/messages?confirmations=1&domains=1,2&blocks=true", "1.2.3.4");
     try h.waitFrames(s, 2);
     try testing.expectEqualStrings(
         \\{"confirmations":1,"domains":[1,2],"customDomains":[1],"canonicalDomains":[2],"eventTypes":["message_upsert","rollback","block"],"type":"ready"}
     , s.frame(0));
-    try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\",\"headHeight\":\"12\"}", s.frame(1));
-    try testing.expectEqual(@as(usize, 2), asyncStarted(&h));
+    try testing.expectEqualStrings("{\"type\":\"block\",\"domain\":1,\"height\":\"10\",\"headHeight\":\"12\",\"hash\":\"0x" ++ "aa" ** 32 ++ "\"}", s.frame(1));
+    try testing.expectEqual(@as(usize, 1), asyncStarted(&h));
+    // A later connect reuses the snapshot: no read.
+    const again, _ = h.explorer("/messages?confirmations=0&domains=1", "1.2.3.5");
+    try h.waitFrames(again, 1);
+    try testing.expectEqualStrings(
+        \\{"confirmations":0,"domains":[1],"customDomains":[1],"canonicalDomains":[],"eventTypes":["message_upsert","rollback"],"type":"ready"}
+    , again.frame(0));
+    try testing.expectEqual(@as(usize, 1), asyncStarted(&h));
 }
 
 // -- async subscribes: failure paths (phase 2)
@@ -2399,7 +2414,7 @@ test "async subscribe: a client gone during the block heads read gets nothing mo
     try testing.expectEqual(@as(usize, 1), s.count());
     h.db.mutex.lock();
     defer h.db.mutex.unlock();
-    for (h.db.queries.items) |query| try testing.expect(std.mem.indexOf(u8, query, "confirmed_height") == null);
+    for (h.db.queries.items) |query| try testing.expect(std.mem.indexOf(u8, query, "SELECT h.domain") == null);
 }
 
 fn customTwoDomainsHeld(h: *Harness) !struct { *FakeSocket, *live.Peer } {
@@ -3277,4 +3292,106 @@ test "a heartbeat turn gives back an idle peer's list capacity" {
     }
     try testing.expectEqual(@as(usize, 0), explorer.explorer.queue.capacity);
     try testing.expectEqual(@as(usize, 0), explorer.explorer.queue_head);
+}
+
+// -- TS #10078: the shared message source ------------------------------------------
+
+const source_heads = "[{\"domain\":1,\"head_height\":\"10\",\"indexed_height\":\"10\",\"confirmed_height\":\"5\",\"hash\":\"" ++ "AA" ** 32 ++ "\"}]";
+const source_advance = "{\"domain\":1,\"confirmedHeight\":\"5\",\"previousConfirmedHeight\":\"5\",\"headHeight\":\"11\",\"indexedHeight\":\"11\",\"previousIndexedHeight\":\"10\",\"indexedHash\":\"" ++ "bb" ** 32 ++ "\"}";
+const source_id = "\\\\x" ++ "aa" ** 32;
+/// A dispatch and a delivery of one message in one advance.
+const source_changes = "[{\"height\":\"11\",\"source\":0,\"id\":\"3\",\"msg_id\":\"" ++ source_id ++ "\"},{\"height\":\"11\",\"source\":1,\"id\":\"4\",\"msg_id\":\"" ++ source_id ++ "\"}]";
+const source_pending = "{\"message_body\":\"\\\\x00\",\"id\":\"3\",\"msg_id\":\"" ++ source_id ++ "\",\"nonce\":1,\"is_delivered\":false,\"origin_domain_id\":1,\"destination_domain_id\":2,\"origin_block_height\":\"11\"}";
+const source_facts = "[{\"delivery_domain\":null,\"delivery_height\":null,\"payment_buckets\":null,\"message_body\":\"\\\\x00\",\"id\":\"3\",\"msg_id\":\"" ++ source_id ++ "\",\"nonce\":1,\"is_delivered\":true,\"origin_domain_id\":1,\"destination_domain_id\":2,\"origin_block_height\":\"11\"}]";
+
+fn queriesContaining(h: *Harness, needle: []const u8) usize {
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    var count: usize = 0;
+    for (h.db.queries.items) |query| count += @intFromBool(std.mem.indexOf(u8, query, needle) != null);
+    return count;
+}
+
+test "messages (TS #10078): subscribers share one heads read, one range and one facts read; one upsert per id and advance" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    h.db.on("AS hash FROM scraper_head", source_heads);
+    const first, _ = h.explorer("/messages?confirmations=0&domains=1", "1.2.3.4");
+    const second, _ = h.explorer("/messages?confirmations=0&domains=1", "1.2.3.5");
+    try h.waitFrames(first, 1);
+    try h.waitFrames(second, 1);
+    h.db.on("confirmation_messages", source_changes);
+    h.db.on("live_message_facts", source_facts);
+    h.listen.notify(live.HEAD_CHANNEL, source_advance);
+    // Forward heads are coalesced (`confirmationUpdates`).
+    h.t.fake.tick(100);
+    try h.waitFrames(first, 2);
+    try h.waitFrames(second, 2);
+    h.settle();
+    const upsert = "{\"type\":\"message_upsert\",\"confirmations\":0,\"domain\":1,\"height\":\"11\",\"data\":" ++
+        source_pending[0 .. source_pending.len - 1] ++ ",\"num_payments\":\"0\",\"total_payment\":\"0\",\"total_gas_amount\":\"0\"}}";
+    for ([_]*FakeSocket{ first, second }) |s| {
+        try testing.expectEqual(@as(usize, 2), s.count());
+        try testing.expectEqualStrings(upsert, s.frame(1));
+    }
+    try testing.expectEqual(@as(usize, 1), queriesContaining(&h, "AS hash FROM scraper_head"));
+    try testing.expectEqual(@as(usize, 1), queriesContaining(&h, "confirmation_messages"));
+    try testing.expectEqual(@as(usize, 1), queriesContaining(&h, "live_message_facts"));
+    const snapshot = metricsOf(&h);
+    try testing.expectEqual(@as(f64, 1), snapshot.messageSource.ranges);
+    try testing.expectEqual(@as(f64, 2), snapshot.messageSource.changes);
+    // JSON.stringify(pending) + JSON.stringify(null).
+    try testing.expectEqual(@as(f64, source_pending.len + 4), snapshot.messageSource.factBytes);
+}
+
+test "messages (TS #10078): an invalid message is an error frame for global feeds and ends an explicit-ID subscription" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    h.db.on("AS hash FROM scraper_head", source_heads);
+    const global, _ = h.explorer("/messages?confirmations=0&domains=1", "1.2.3.4");
+    const explicit, _ = h.explorer("/messages?confirmations=0&domains=1&messageIds=0x" ++ "aa" ** 32, "1.2.3.5");
+    try h.waitFrames(global, 1);
+    try h.waitFrames(explicit, 1);
+    h.db.on("confirmation_messages", source_changes);
+    h.db.on("live_message_facts", "[{\"delivery_domain\":null,\"delivery_height\":null,\"payment_buckets\":null,\"msg_id\":\"" ++ source_id ++ "\",\"origin_domain_id\":\"x\",\"destination_domain_id\":2,\"origin_block_height\":\"11\"}]");
+    h.listen.notify(live.HEAD_CHANNEL, source_advance);
+    // Forward heads are coalesced (`confirmationUpdates`).
+    h.t.fake.tick(100);
+    try h.waitFrames(global, 2);
+    try testing.expectEqualStrings("{\"type\":\"error\",\"messageId\":\"" ++ source_id ++ "\",\"error\":\"Invalid origin domain\"}", global.frame(1));
+    try waitClosed(explicit);
+    try testing.expect(explicit.isTerminated());
+    try testing.expect(!global.isTerminated());
+}
+
+test "messages (TS #10078): a rollback sends its frame, then refreshes only the exposed messages" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.init(limits);
+    defer h.deinit();
+    h.db.on("AS hash FROM scraper_head", source_heads);
+    const s, _ = h.explorer("/messages?confirmations=0&domains=1", "1.2.3.4");
+    try h.waitFrames(s, 1);
+    h.db.on("confirmation_messages", source_changes);
+    h.db.on("live_message_facts", source_facts);
+    h.listen.notify(live.HEAD_CHANNEL, source_advance);
+    // Forward heads are coalesced (`confirmationUpdates`).
+    h.t.fake.tick(100);
+    try h.waitFrames(s, 2);
+    // Back to 10: the frontier rolls back, the exposed id is re-projected.
+    h.db.on("live_message_facts", source_facts);
+    h.listen.notify(live.HEAD_CHANNEL, "{\"domain\":1,\"confirmedHeight\":\"5\",\"previousConfirmedHeight\":\"5\",\"headHeight\":\"10\",\"indexedHeight\":\"10\",\"previousIndexedHeight\":\"11\",\"indexedHash\":\"" ++ "cc" ** 32 ++ "\"}");
+    try h.waitFrames(s, 3);
+    h.settle();
+    try testing.expectEqualStrings("{\"type\":\"rollback\",\"domain\":1,\"confirmations\":0,\"fromHeight\":\"11\",\"toHeight\":\"10\"}", s.frame(2));
+    // The dispatch at 11 is above the rolled-back frontier: no projection, no frame.
+    try testing.expectEqual(@as(usize, 3), s.count());
+    try testing.expectEqual(@as(usize, 2), queriesContaining(&h, "live_message_facts"));
 }

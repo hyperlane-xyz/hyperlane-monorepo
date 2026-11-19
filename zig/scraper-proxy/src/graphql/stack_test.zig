@@ -228,6 +228,15 @@ const builders = struct {
     fn andVar(a: Allocator, n: usize) anyerror![]const u8 {
         return jsonBody(a, "query ($w: domain_bool_exp) { domain(where: $w) { id } }", try std.fmt.allocPrint(a, "{{\"w\":{s}}}", .{try nested(a, "{\"_and\":[", "]}", "{\"id\":{\"_eq\":1}}", n)}));
     }
+    fn andNotVar(a: Allocator, n: usize) anyerror![]const u8 {
+        return jsonBody(a, "query ($w: domain_bool_exp) { domain(where: $w) { id } }", try std.fmt.allocPrint(a, "{{\"w\":{s}}}", .{try nested(a, "{\"_and\":[{\"_not\":", "}]}", "{\"id\":{\"_eq\":1}}", n)}));
+    }
+    fn notAndVar(a: Allocator, n: usize) anyerror![]const u8 {
+        return jsonBody(a, "query ($w: domain_bool_exp) { domain(where: $w) { id } }", try std.fmt.allocPrint(a, "{{\"w\":{s}}}", .{try nested(a, "{\"_not\":{\"_and\":[", "]}}", "{\"id\":{\"_eq\":1}}", n)}));
+    }
+    fn andNot2Var(a: Allocator, n: usize) anyerror![]const u8 {
+        return jsonBody(a, "query ($w: domain_bool_exp) { domain(where: $w) { id } }", try std.fmt.allocPrint(a, "{{\"w\":{s}}}", .{try nested(a, "{\"_and\":[{\"_not\":{\"_not\":", "}}]}", "{\"id\":{\"_eq\":1}}", n)}));
+    }
 };
 
 fn cachedDeepScalar(a: Allocator, n: usize, object: bool) ![]const u8 {
@@ -279,4 +288,8 @@ test "deep nesting answers like a cold TS process at its stack limit" {
     try expectThreshold(r, a, "list under 600 selections", 1098, builders.listUnderSelections(600));
     try expectThreshold(r, a, "list under 1200 selections", 481, builders.listUnderSelections(1200));
     try expectThreshold(r, a, "_and variables", c.and_depth, builders.andVar);
+    // Mixed paths in variables (not used for the fit; TS 0654ab7b8c, deterministic).
+    try expectThreshold(r, a, "{\"_and\":[{\"_not\": variables", 496, builders.andNotVar);
+    try expectThreshold(r, a, "{\"_and\":[{\"_not\":{\"_not\": variables", 411, builders.andNot2Var);
+    try expectThreshold(r, a, "{\"_not\":{\"_and\":[ variables", 496, builders.notAndVar);
 }

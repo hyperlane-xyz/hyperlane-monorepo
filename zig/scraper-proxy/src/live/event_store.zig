@@ -133,7 +133,6 @@ const GAS_PAYMENT_TRANSACTION = "event_transaction";
 const GAS_PAYMENT_BLOCK = "event_block";
 pub const FRONTIER_ID = "frontier_id";
 pub const FRONTIER_HEIGHT = "frontier_height";
-const MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES = 128;
 
 // ---------------------------------------------------------------------------
 // SQL (comptime, mirrors the TS template literals)
@@ -222,11 +221,8 @@ const canonical_message_columns = blk: {
 };
 
 pub const sql = struct {
-    pub const block_heads = "SELECT domain, indexed_height, encode(indexed_hash, 'hex') AS hash, head_height\n       FROM scraper_head";
-    pub const block_heads_filtered = block_heads ++ " WHERE domain=ANY($1::integer[])";
     pub const canonical_messages = "SELECT " ++ canonical_message_columns ++
         " FROM \"message_view\" WHERE \"msg_id\" = ANY($1::bytea[]) AND \"send_occurred_at\" IS NOT NULL";
-    pub const confirmation_heads = "SELECT domain, head_height, indexed_height, confirmed_height FROM scraper_head WHERE domain=ANY($1::integer[])";
     const live_start_columns = "encode(c.hash, 'hex') AS hash,\n  encode(h.mailbox, 'hex') AS mailbox,\n  encode(h.merkle_tree_hook, 'hex') AS merkle_tree_hook,\n  encode(h.interchain_gas_paymaster, 'hex') AS interchain_gas_paymaster";
     /// `confirmationSnapshots(policies)`: every requested domain/policy pair
     /// in one statement, each with the last retained checkpoint at or below
@@ -241,14 +237,21 @@ pub const sql = struct {
         "\n       FROM scraper_head h JOIN scraper_checkpoint c\n         ON c.domain=h.domain AND c.height=h.confirmed_height\n       WHERE h.healthy AND NOT h.halted\n         ";
     pub const live_start_boundaries = live_start_boundaries_prefix;
     pub const live_start_boundaries_filtered = live_start_boundaries_prefix ++ "AND h.domain=ANY($1::integer[])";
-    pub fn confirmationMessages(comptime filter: bool) []const u8 {
-        const f = if (filter) " AND msg_id = ANY($7::bytea[])" else "";
-        return "/* confirmation_messages */ SELECT * FROM (\n" ++
-            "          SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint" ++ f ++ "\n" ++
-            "          UNION ALL SELECT block_number, 1, id, msg_id FROM delivered_message WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint" ++ f ++ "\n" ++
-            "          UNION ALL SELECT block_number, 2, id, msg_id FROM gas_payment WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint" ++ f ++ "\n" ++
-            "        ) changes WHERE (height, source, id)>($2::bigint,$3::integer,$4::bigint) ORDER BY height, source, id LIMIT $6";
-    }
+    /// `messageChanges` (TS #10080: each arm applies the cursor and limit).
+    pub const confirmation_messages = "/* confirmation_messages */ SELECT * FROM (\n" ++
+        "          (SELECT origin_block_height AS height, 0 AS source, id, msg_id FROM raw_message_dispatch\n" ++
+        "            WHERE origin_domain=$1 AND origin_block_height>=$2::bigint AND origin_block_height<=$5::bigint\n" ++
+        "              AND (origin_block_height,0,id)>($2::bigint,$3::integer,$4::bigint)\n" ++
+        "            ORDER BY origin_block_height, id LIMIT $6)\n" ++
+        "          UNION ALL (SELECT block_number, 1, id, msg_id FROM delivered_message\n" ++
+        "            WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint\n" ++
+        "              AND (block_number,1,id)>($2::bigint,$3::integer,$4::bigint)\n" ++
+        "            ORDER BY block_number, id LIMIT $6)\n" ++
+        "          UNION ALL (SELECT block_number, 2, id, msg_id FROM gas_payment\n" ++
+        "            WHERE domain=$1 AND block_number>=$2::bigint AND block_number<=$5::bigint\n" ++
+        "              AND (block_number,2,id)>($2::bigint,$3::integer,$4::bigint)\n" ++
+        "            ORDER BY block_number, id LIMIT $6)\n" ++
+        "        ) changes ORDER BY height, source, id LIMIT $6";
     pub fn notifiedEvents(event_type: EventType) []const u8 {
         return switch (event_type) {
             inline else => |tag| Sql(tag).notified,
@@ -273,7 +276,7 @@ pub fn storedDomainValue(domain: u32) Value {
     return json.int(protocol.storedDomain(domain));
 }
 
-fn bigText(arena: Allocator, value: i128) Allocator.Error!Value {
+pub fn bigText(arena: Allocator, value: i128) Allocator.Error!Value {
     return .{ .string = try std.fmt.allocPrint(arena, "{d}", .{value}) };
 }
 
@@ -301,17 +304,6 @@ pub fn rowDomain(row: Value, column: []const u8) error{Failed}!u32 {
     var diag: protocol.Diag = .{};
     return protocol.parseDatabaseDomain(row.get(column), "", &diag) catch
         fail("Invalid {s} in event row", .{column});
-}
-
-fn rowDomains(arena: Allocator, row: Value, column: []const u8, out: *std.ArrayList(u32)) !void {
-    const values = row.get(column) orelse return;
-    if (values == .null) return;
-    if (values != .array) return fail("Invalid {s} in event row", .{column});
-    for (values.array) |item| {
-        var diag: protocol.Diag = .{};
-        const domain = protocol.parseDatabaseDomain(item, "", &diag) catch return fail("Invalid {s} in event row", .{column});
-        try out.append(arena, domain);
-    }
 }
 
 /// Copy of `row` without `keys` (object rest destructuring).
@@ -474,35 +466,6 @@ pub fn liveStartBoundary(row: Value) ?protocol.LiveStartBoundary {
 // ---------------------------------------------------------------------------
 // Store
 
-pub const ProvisionalMessage = struct {
-    data: Value,
-    domains: []const u32,
-    msg_id: ?[]const u8,
-};
-
-/// Shared result of one provisional query (the TS cached Promise).
-pub const Provisional = struct {
-    refs: usize,
-    state: enum { pending, ok, failed } = .pending,
-    arena: std.heap.ArenaAllocator,
-    messages: []ProvisionalMessage = &.{},
-    key: []u8,
-    message: [256]u8 = undefined,
-    message_len: usize = 0,
-    ready: std.Thread.Condition = .{},
-
-    pub fn find(self: *const Provisional, msg_id: []const u8) ?*const ProvisionalMessage {
-        // `new Map(rows.map(...))`: the last row for an id wins.
-        var index = self.messages.len;
-        while (index > 0) {
-            index -= 1;
-            const message = &self.messages[index];
-            if (message.msg_id) |id| if (std.mem.eql(u8, id, msg_id)) return message;
-        }
-        return null;
-    }
-};
-
 pub const HeadRow = struct { domain: u32, head: Value, indexed: Value, hash: Value };
 
 pub const EventStore = struct {
@@ -510,15 +473,13 @@ pub const EventStore = struct {
     loop: *runtime.Loop,
     db: Db,
     batch_size: u64,
-    cache: std.StringArrayHashMapUnmanaged(*Provisional) = .empty,
 
     pub fn init(allocator: Allocator, loop: *runtime.Loop, db: Db, batch_size: u64) EventStore {
         return .{ .allocator = allocator, .loop = loop, .db = db, .batch_size = batch_size };
     }
 
     pub fn deinit(self: *EventStore) void {
-        self.invalidateMessages();
-        self.cache.deinit(self.allocator);
+        _ = self;
     }
 
     /// `await db.queryLive(...)`.
@@ -545,12 +506,36 @@ pub const EventStore = struct {
         return .{ .array = values };
     }
 
-    /// `blockHeads(domains?)`.
-    /// Blocking form, kept as the golden-SQL test's entry point (the server
-    /// runs the `*Query` statement through `query_async` and its parser).
-    pub fn blockHeads(self: *EventStore, arena: Allocator, domains: ?[]const u32) ![]Value {
-        if (domains) |list| return self.query(arena, sql.block_heads_filtered, &.{try domainArray(arena, list)});
-        return self.query(arena, sql.block_heads, &.{});
+    /// `messageFacts(ids)`' rows (`/* live_message_facts */`); the caller
+    /// collects them (`message_facts.collect`).
+    pub fn messageFacts(self: *EventStore, arena: Allocator, ids: []const []const u8) ![]Value {
+        return self.query(arena, scraperdb.provisional.LIVE_MESSAGE_FACTS_QUERY, &.{try stringArray(arena, ids)});
+    }
+
+    /// One `messageChanges(domain, after, through)` page (TS #10078: no msg_id filter).
+    pub fn messageChanges(self: *EventStore, arena: Allocator, domain: u32, after: cs.Position, through: i128) ![]Value {
+        return self.query(arena, sql.confirmation_messages, &.{
+            storedDomainValue(domain),
+            try bigText(arena, after.height),
+            json.int(after.source),
+            try bigText(arena, after.id),
+            try bigText(arena, through),
+            self.batch(),
+        });
+    }
+
+    /// `messageHeads(domains?)`' rows. Blocking form, kept as the golden-SQL
+    /// test's entry point (the server runs `messageHeadsQuery` through
+    /// `query_async`).
+    pub fn messageHeads(self: *EventStore, arena: Allocator, domains: ?[]const u32) ![]Value {
+        const statement = try messageHeadsQuery(arena, domains);
+        return self.query(arena, statement.sql, statement.params);
+    }
+
+    /// `messageHeads(domains?)`' statement (parameters in `arena`).
+    pub fn messageHeadsQuery(arena: Allocator, domains: ?[]const u32) Allocator.Error!Statement {
+        if (domains) |list| return .{ .sql = scraperdb.provisional.MESSAGE_HEADS_FILTERED_QUERY, .params = try arena.dupe(Value, &.{try domainArray(arena, list)}) };
+        return .{ .sql = scraperdb.provisional.MESSAGE_HEADS_QUERY, .params = &.{} };
     }
 
     pub fn canonicalMessages(self: *EventStore, arena: Allocator, ids: []const []const u8) ![]Value {
@@ -591,22 +576,6 @@ pub const EventStore = struct {
             try boundaries.put(self.allocator, domain, boundary);
         }
         return boundaries;
-    }
-
-    /// `confirmationHeads(domains)`: the plain head read (custom streams
-    /// read `confirmationSnapshots`).
-    /// Blocking form, kept as the golden-SQL test's entry point (the server
-    /// runs the `*Query` statement through `query_async` and its parser).
-    pub fn confirmationHeads(self: *EventStore, allocator: Allocator, domains: []const u32) !cs.Heads {
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const statement = try confirmationHeadsQuery(arena.allocator(), domains);
-        return parseConfirmationHeads(allocator, try self.query(arena.allocator(), statement.sql, statement.params));
-    }
-
-    /// `confirmationHeads`' statement (parameters in `arena`).
-    pub fn confirmationHeadsQuery(arena: Allocator, domains: []const u32) Allocator.Error!Statement {
-        return .{ .sql = sql.confirmation_heads, .params = try arena.dupe(Value, &.{try domainArray(arena, domains)}) };
     }
 
     pub const Statement = struct { sql: []const u8, params: []const Value };
@@ -696,135 +665,6 @@ pub const EventStore = struct {
             .null => 0,
             else => null,
         };
-    }
-
-    /// `blockHeads`' statement (parameters in `arena`).
-    pub fn blockHeadsQuery(arena: Allocator, domains: ?[]const u32) Allocator.Error!Statement {
-        if (domains) |list| return .{ .sql = sql.block_heads_filtered, .params = try arena.dupe(Value, &.{try domainArray(arena, list)}) };
-        return .{ .sql = sql.block_heads, .params = &.{} };
-    }
-
-    /// `confirmationHeads`' rows → heads (allocated with `allocator`).
-    pub fn parseConfirmationHeads(allocator: Allocator, rows: []const Value) !cs.Heads {
-        var heads: cs.Heads = .empty;
-        errdefer heads.deinit(allocator);
-        for (rows) |row| {
-            var diag: protocol.Diag = .{};
-            const domain = protocol.parseDatabaseDomain(row.get("domain"), "", &diag) catch return fail("Invalid head domain", .{});
-            // `new Map(rows.map(...))`: a later duplicate replaces the value in place.
-            try heads.put(allocator, domain, try confirmationHead(row));
-        }
-        return heads;
-    }
-
-    pub fn invalidateMessages(self: *EventStore) void {
-        for (self.cache.values()) |entry| self.releaseProvisional(entry);
-        self.cache.clearRetainingCapacity();
-    }
-
-    pub fn releaseProvisional(self: *EventStore, entry: *Provisional) void {
-        entry.refs -= 1;
-        if (entry.refs > 0) return;
-        self.allocator.free(entry.key);
-        entry.arena.deinit();
-        self.allocator.destroy(entry);
-    }
-
-    /// Shared, cached provisional-message read; release the result with
-    /// `releaseProvisional`.
-    pub fn provisionalMessages(self: *EventStore, ids: []const []const u8, frontiers: *const cs.Frontiers) !*Provisional {
-        var scratch = std.heap.ArenaAllocator.init(self.allocator);
-        defer scratch.deinit();
-        const a = scratch.allocator();
-        var unique: std.ArrayList([]const u8) = .empty;
-        for (ids) |id| if (!protocol.containsString(unique.items, id)) try unique.append(a, id);
-        std.mem.sort([]const u8, unique.items, {}, struct {
-            fn lessThan(_: void, x: []const u8, y: []const u8) bool {
-                return std.mem.lessThan(u8, x, y);
-            }
-        }.lessThan);
-        const Pair = struct { domain: u32, height: i128 };
-        const pairs = try a.alloc(Pair, frontiers.count());
-        for (frontiers.keys(), frontiers.values(), pairs) |domain, height, *pair| pair.* = .{ .domain = domain, .height = height };
-        std.mem.sort(Pair, pairs, {}, struct {
-            fn lessThan(_: void, x: Pair, y: Pair) bool {
-                return x.domain < y.domain;
-            }
-        }.lessThan);
-        var key: std.Io.Writer.Allocating = .init(self.allocator);
-        defer key.deinit();
-        try key.writer.writeAll("[");
-        frames.writeStrings(&key.writer, unique.items) catch return error.OutOfMemory;
-        try key.writer.writeAll(",[");
-        for (pairs, 0..) |pair, index| try key.writer.print("{s}[{d},\"{d}\"]", .{ if (index > 0) "," else "", pair.domain, pair.height });
-        try key.writer.writeAll("]]");
-
-        if (self.cache.get(key.written())) |cached| {
-            cached.refs += 1;
-            return self.awaitProvisional(cached);
-        }
-        // Entries survive only until the next head/message change, with a hard bound.
-        if (self.cache.count() >= MAX_PROVISIONAL_MESSAGE_CACHE_ENTRIES) self.invalidateMessages();
-        const entry = try self.allocator.create(Provisional);
-        entry.* = .{ .refs = 2, .arena = .init(self.allocator), .key = try key.toOwnedSlice() };
-        try self.cache.put(self.allocator, entry.key, entry);
-
-        const domains = try a.alloc(Value, pairs.len);
-        const heights = try a.alloc(Value, pairs.len);
-        for (pairs, domains, heights) |pair, *domain, *height| {
-            domain.* = storedDomainValue(pair.domain);
-            height.* = try bigText(a, pair.height);
-        }
-        const params = [_]Value{ try stringArray(a, unique.items), .{ .array = domains }, .{ .array = heights } };
-        const result = self.query(entry.arena.allocator(), scraperdb.provisional.PROVISIONAL_MESSAGE_QUERY, &params);
-        if (result) |rows| {
-            if (shapeProvisional(entry.arena.allocator(), rows)) |messages| {
-                entry.messages = messages;
-                entry.state = .ok;
-            } else |err| self.failProvisional(entry, err);
-        } else |err| self.failProvisional(entry, err);
-        entry.ready.broadcast();
-        return self.awaitProvisional(entry);
-    }
-
-    fn failProvisional(self: *EventStore, entry: *Provisional, err: anyerror) void {
-        const message = runtime.errorMessage(err);
-        entry.message_len = @min(message.len, entry.message.len);
-        @memcpy(entry.message[0..entry.message_len], message[0..entry.message_len]);
-        entry.state = .failed;
-        if (self.cache.get(entry.key) == entry) {
-            _ = self.cache.orderedRemove(entry.key);
-            self.releaseProvisional(entry);
-        }
-    }
-
-    fn awaitProvisional(self: *EventStore, entry: *Provisional) !*Provisional {
-        while (entry.state == .pending) self.loop.wait(&entry.ready);
-        if (entry.state == .ok) return entry;
-        const message = entry.message[0..entry.message_len];
-        defer self.releaseProvisional(entry);
-        return fail("{s}", .{message});
-    }
-
-    fn shapeProvisional(arena: Allocator, rows: []Value) ![]ProvisionalMessage {
-        const messages = try arena.alloc(ProvisionalMessage, rows.len);
-        for (rows, messages) |row, *message| {
-            var data = try without(arena, row, &.{"payment_domain_ids"});
-            const origin = try rowDomain(row, "origin_domain_id");
-            const destination = try rowDomain(row, "destination_domain_id");
-            try setMember(arena, &data, "origin_domain_id", json.int(origin));
-            try setMember(arena, &data, "destination_domain_id", json.int(destination));
-            var domains: std.ArrayList(u32) = .empty;
-            try domains.appendSlice(arena, &.{ origin, destination });
-            try rowDomains(arena, row, "payment_domain_ids", &domains);
-            const msg_id = data.get("msg_id");
-            message.* = .{
-                .data = data,
-                .domains = domains.items,
-                .msg_id = if (msg_id != null and msg_id.? == .string) msg_id.?.string else null,
-            };
-        }
-        return messages;
     }
 
     // -- headEvents ----------------------------------------------------------
@@ -982,145 +822,4 @@ pub const EventStore = struct {
         };
         return .{ .ptr = reader, .vtable = &.{ .next = EventRows.next, .deinit = EventRows.deinit } };
     }
-
-    const MessageRows = struct {
-        store: *EventStore,
-        domain: u32,
-        through: i128,
-        frontiers: *const cs.Frontiers,
-        confirmations: u64,
-        message_ids: ?[]const []const u8,
-        position: cs.Position,
-        page: std.heap.ArenaAllocator,
-        frame: std.heap.ArenaAllocator,
-        changes: []Value = &.{},
-        provisional: ?*Provisional = null,
-        index: usize = 0,
-        fetched: bool = false,
-
-        fn next(ptr: *anyopaque) anyerror!?cs.Row {
-            const self: *MessageRows = @ptrCast(@alignCast(ptr));
-            if (self.message_ids) |ids| if (ids.len == 0) return null;
-            while (true) {
-                if (self.index < self.changes.len) {
-                    const change = self.changes[self.index];
-                    self.index += 1;
-                    return try self.shape(change);
-                }
-                if (self.fetched and self.changes.len < self.store.batch_size) return null;
-                self.releasePage();
-                const a = self.page.allocator();
-                var params: std.ArrayList(Value) = .empty;
-                try params.appendSlice(a, &.{
-                    storedDomainValue(self.domain),
-                    try bigText(a, self.position.height),
-                    json.int(self.position.source),
-                    try bigText(a, self.position.id),
-                    try bigText(a, self.through),
-                    self.store.batch(),
-                });
-                if (self.message_ids) |ids| try params.append(a, try stringArray(a, ids));
-                const text = if (self.message_ids != null) comptime sql.confirmationMessages(true) else comptime sql.confirmationMessages(false);
-                self.changes = try self.store.query(a, text, params.items);
-                self.fetched = true;
-                self.index = 0;
-                if (self.changes.len == 0) return null;
-                var ids: std.ArrayList([]const u8) = .empty;
-                for (self.changes) |change| {
-                    const id = change.get("msg_id") orelse continue;
-                    if (id == .string and !protocol.containsString(ids.items, id.string)) try ids.append(a, id.string);
-                }
-                self.provisional = try self.store.provisionalMessages(ids.items, self.frontiers);
-            }
-        }
-
-        fn shape(self: *MessageRows, change: Value) !cs.Row {
-            const position: cs.Position = .{
-                .height = try parseId(change.get("height")),
-                .source = blk: {
-                    const source = change.get("source") orelse break :blk 0;
-                    break :blk if (source == .number) @intFromFloat(source.number) else 0;
-                },
-                .id = try parseId(change.get("id")),
-            };
-            self.position = position;
-            const msg_id = change.get("msg_id");
-            const found = if (msg_id != null and msg_id.? == .string) self.provisional.?.find(msg_id.?.string) else null;
-            const message = found orelse return .{ .position = position };
-            _ = self.frame.reset(.retain_capacity);
-            var out: std.Io.Writer.Allocating = .init(self.frame.allocator());
-            var o = try frames.Object.begin(&out.writer);
-            try o.string("type", "message_upsert");
-            try o.int("domain", self.domain);
-            try o.int("confirmations", self.confirmations);
-            try o.bigString("height", self.through);
-            try o.val("data", message.data);
-            try o.end();
-            return .{
-                .domains = message.domains,
-                .position = position,
-                .message = .{ .frame = out.written(), .message_id = message.msg_id },
-            };
-        }
-
-        fn releasePage(self: *MessageRows) void {
-            if (self.provisional) |entry| self.store.releaseProvisional(entry);
-            self.provisional = null;
-            _ = self.page.reset(.retain_capacity);
-        }
-
-        fn deinit(ptr: *anyopaque) void {
-            const self: *MessageRows = @ptrCast(@alignCast(ptr));
-            const allocator = self.store.allocator;
-            self.releasePage();
-            if (self.message_ids) |ids| {
-                for (ids) |id| allocator.free(id);
-                allocator.free(ids);
-            }
-            self.page.deinit();
-            self.frame.deinit();
-            allocator.destroy(self);
-        }
-    };
-
-    /// `confirmationMessageRows` (Explorer custom confirmations). `frontiers`
-    /// must outlive the reader.
-    pub fn confirmationMessageRows(
-        self: *EventStore,
-        domain: u32,
-        after: cs.Position,
-        through: i128,
-        frontiers: *const cs.Frontiers,
-        confirmations: u64,
-        message_ids: ?[]const []const u8,
-    ) !cs.Reader {
-        const reader = try self.allocator.create(MessageRows);
-        errdefer self.allocator.destroy(reader);
-        reader.* = .{
-            .store = self,
-            .domain = domain,
-            .through = through,
-            .frontiers = frontiers,
-            .confirmations = confirmations,
-            .message_ids = if (message_ids) |ids| try dupeStrings(self.allocator, ids) else null,
-            .position = after,
-            .page = .init(self.allocator),
-            .frame = .init(self.allocator),
-        };
-        return .{ .ptr = reader, .vtable = &.{ .next = MessageRows.next, .deinit = MessageRows.deinit } };
-    }
 };
-
-fn dupeStrings(allocator: Allocator, items: []const []const u8) Allocator.Error![]const []const u8 {
-    const out = try allocator.alloc([]const u8, items.len);
-    var done: usize = 0;
-    errdefer {
-        for (out[0..done]) |item| allocator.free(item);
-        allocator.free(out);
-    }
-    for (items, out) |item, *copy| {
-        copy.* = try allocator.dupe(u8, item);
-        done += 1;
-    }
-    return out;
-}

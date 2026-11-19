@@ -965,6 +965,32 @@ test "the body dump before a close is bounded: a client streaming without end ca
     try testing.expect(reset);
 }
 
+test "a head arriving in many reads is scanned once per byte (the scanner resumes, as llhttp)" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const filler = try a.alloc(u8, 8000);
+    @memset(filler, 'b');
+    const head = try std.mem.concat(a, u8, &.{ "GET /nope HTTP/1.1\r\nHost: a\r\nX: ", filler, "\r\n\r\n" });
+    var c = try h.connect();
+    defer c.close();
+    const before = server_mod.test_head_stepped.load(.monotonic);
+    // 64 writes 2 ms apart: the server reads the head in many parts.
+    const part = head.len / 64 + 1;
+    var at: usize = 0;
+    while (at < head.len) : (at += part) {
+        try c.send(head[at..@min(head.len, at + part)]);
+        std.Thread.sleep(2 * std.time.ns_per_ms);
+    }
+    const r = try c.read(a, false);
+    try testing.expectEqual(@as(u16, 404), r.status);
+    // Rescanning the buffered head on every read would step far more.
+    try testing.expectEqual(head.len, server_mod.test_head_stepped.load(.monotonic) - before);
+}
+
 test "a close response with body bytes in flight: input during the turn is discarded (FIN), after it gets RST" {
     var h: Harness = .{};
     try h.start(10_000);
@@ -976,13 +1002,15 @@ test "a close response with body bytes in flight: input during the turn is disca
     defer server_mod.test_close_turn_ms.store(0, .monotonic);
     var rest: [10_000]u8 = undefined;
     @memset(&rest, 'x');
+    // Both blocks send the head and the first part in one write, so the server
+    // reads them together. Woken by the head alone, it would answer and start
+    // closing before the first part arrives: in block 1 that late part ends the
+    // turn, so the second part meets a closed socket (RST, EPIPE); in block 2
+    // the first part meets it, so the reset comes before the second write.
     {
         // Second part during the turn: discarded, then a clean FIN.
         var c = try h.connect();
         defer c.close();
-        // The head and the first part in one write, so the server reads them
-        // together: woken by the head alone, it answers and closes before the
-        // part arrives, and the part (not the second) meets the closed socket.
         try c.send(try std.mem.concat(arena.allocator(), u8, &.{ "POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n", rest[0..] }));
         const r = try c.read(arena.allocator(), false);
         try testing.expectEqual(@as(u16, 404), r.status);
@@ -997,9 +1025,6 @@ test "a close response with body bytes in flight: input during the turn is disca
         // Second part after the turn: it meets the closed socket (RST), as with Node.
         var c = try h.connect();
         defer c.close();
-        // The head and the first part in one write, so the server reads them
-        // together: woken by the head alone, it answers and closes before the
-        // part arrives, and the part (not the second) meets the closed socket.
         try c.send(try std.mem.concat(arena.allocator(), u8, &.{ "POST /nope HTTP/1.1\r\nHost: a\r\nConnection: close\r\nContent-Length: 20000\r\n\r\n", rest[0..] }));
         const r = try c.read(arena.allocator(), false);
         try testing.expectEqual(@as(u16, 404), r.status);
@@ -1305,6 +1330,23 @@ fn statusLines(a: std.mem.Allocator, all: []const u8) ![]const u8 {
         try out.appendSlice(a, part[0..3]);
     }
     return out.items;
+}
+
+test "a chunked body fails at its first impossible byte (llhttp), not when the line ends" {
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    // Keep-alive, so only the body error ends the connection: the route's 404,
+    // then clientError's 400 and FIN at once (TS, Node 26.12.1).
+    for ([_][]const u8{ "x", "\r\n", "5\r\nhelloXX", "0\r\n\r," }) |bad| {
+        const t0 = std.time.milliTimestamp();
+        const all = try closedExchange(&h, a, try std.mem.concat(a, u8, &.{ "GET /nope HTTP/1.1\r\nHost: a\r\nTransfer-Encoding: chunked\r\n\r\n", bad }));
+        try testing.expectEqualStrings("404+400", try statusLines(a, all));
+        try testing.expect(std.time.milliTimestamp() - t0 < 2_000);
+    }
 }
 
 test "data after a non-keep-alive request gets Node's clientError 400, per request as TS (sync route: after its response; async or parsed body: instead)" {
@@ -3112,12 +3154,13 @@ fn waitFailedSend(h: *Harness, a: std.mem.Allocator) !void {
 }
 
 test "a peer FIN with frames queued: they are all written, then FIN; no send fails (ws socketOnEnd)" {
-    var h: Harness = .{};
-    try h.start(10_000);
-    defer h.stop();
+    // The arena outlives the harness: teardown runs the queued frames' callbacks (`tags`).
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const a = arena_state.allocator();
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
     var c = try h.connect();
     defer c.close();
     const conn = try keptConn(&h, &c, a);
@@ -3153,12 +3196,13 @@ test "a peer FIN with frames queued: they are all written, then FIN; no send fai
 }
 
 test "frames a turn corked while OPEN still go out when the peer's FIN is read before the turn flushes them" {
-    var h: Harness = .{};
-    try h.start(10_000);
-    defer h.stop();
+    // The arena outlives the harness: teardown runs the queued frames' callbacks (`tags`).
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const a = arena_state.allocator();
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
     var c = try h.connect();
     defer c.close();
     const conn = try keptConn(&h, &c, a);
@@ -3252,13 +3296,17 @@ test "send failure text: a reset after the peer stopped reading fails the queue 
 
 test "send failure text: a reset while the writer only just hit EAGAIN fails the write 'write ECONNRESET' (Node writes first)" {
     if (@import("builtin").os.tag != .linux) return error.SkipZigTest; // epoll HUP|ERR edge
-    var h: Harness = .{};
-    try h.start(10_000);
-    defer h.stop();
+    // The arena outlives the harness: teardown runs the queued frames' callbacks (`tags`).
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const a = arena_state.allocator();
+    var h: Harness = .{};
+    try h.start(10_000);
+    defer h.stop();
     var c = try h.connect();
+    // Closed with a reset below; any earlier failure closes it before the harness stops.
+    var c_open = true;
+    defer if (c_open) c.close();
     const conn = try keptConn(&h, &c, a);
     defer conn.release();
     // The client reads nothing: frames queue and the writer waits for room.
@@ -3277,6 +3325,7 @@ test "send failure text: a reset while the writer only just hit EAGAIN fails the
     // Right away: the writer is behind, not stalled.
     try testing.expect(!conn.writeStalled());
     closeWithReset(c.fd);
+    c_open = false;
     try waitFailedSend(&h, a);
     try testing.expectEqualStrings("write ECONNRESET", conn.sendFailureText());
     // Teardown has run every callback (`tags` lives in the arena) once 'close' is out.

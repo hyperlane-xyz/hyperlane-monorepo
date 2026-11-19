@@ -168,6 +168,8 @@ pub const EventWebSocketServer = struct {
                     .url = req.url,
                     .cf_connecting_ip = req.header("cf-connecting-ip"),
                     .remote_address = if (remote.len > 0) remote else null,
+                    .head = socket.head,
+                    .has_body = socket.body != null,
                 });
             },
         };

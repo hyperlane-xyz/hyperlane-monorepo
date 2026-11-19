@@ -67,6 +67,17 @@ reproduces the observable rule, not the scheduling.
   `/validators` setups are continuations rather than tasks: each database
   read's continuation runs in completion order, one per turn, so the windows
   are the same ones.
+- **Message source tasks (TS #10078).** TS starts a domain's shared
+  advance inside `notify`: its window setup, scan slot and first range query
+  happen in that turn. Here the advance runs as a task, as do a rollback's
+  refresh and each facts batch, so they start when the task first takes the
+  loop mutex. Tasks still start in spawn order, and the frames, their
+  per-socket order and the queries are the same. A head notification that
+  arrives inside that window is observed before the advance marks its window
+  as loading, so the window's 2,000-block trim can run once more than in TS.
+  Database query ids of reads that TS issues in the same turn (a refresh's
+  facts read and the canonical read of one Explorer batch) are assigned when
+  each read starts, so their relative order can differ.
 - **Diagnostics stream bursts.** Node never fires a timer between two
   synchronous calls (e.g. several `notify()`s); here the 25 ms drain timer
   can fire between them, so a burst may split into two reads. Each read
@@ -178,10 +189,12 @@ exceeded"}]}` (logged and counted as a GraphQL error, `no-store`); the
   at 3000. 15 of 16 overflow at 3200. All overflow from 3800. The port
   overflows from 3000 levels on every platform, where the chance crosses one
   half on Linux. `_and` nesting in variables is unchanged at 626 levels, exact on
-  both. Nesting that mixes `_and` and `_not` in variables can differ near
-  the limit (for `_and` over `_not`, the port overflows from about 518
-  levels where TS overflows from 496). JSON bodies, variables and WebSocket
-  messages have no depth limit on either side.
+  both. Nesting that mixes `_and` and `_not` in variables stays exact in TS
+  (496 levels for `_and` over `_not`), and the port matches it. Shapes with
+  a few lists over a long `_not` chain (such as `{"_and":[{"_not": …}]}`)
+  are not measured and may differ near the limit: the port overflows them
+  from about 2391 levels. JSON bodies, variables and WebSocket messages have
+  no depth limit on either side.
 - **V8 `JSON.parse` messages** (GET `variables`/`extensions`, and
   unparsable `/validators` client frames) are emulated for the message
   classes a 912-case differential fuzz covers (escapes, surrogates, context

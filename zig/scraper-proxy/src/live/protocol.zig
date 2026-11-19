@@ -451,6 +451,8 @@ pub fn blockHashText(arena: std.mem.Allocator, text: []const u8) std.mem.Allocat
 /// most this many distinct domains and asks for at most this depth.
 pub const MAX_EXPLORER_DOMAINS = 512;
 pub const MAX_EXPLORER_CONFIRMATIONS = 1_000;
+/// TS #10078: `domains.size * Math.max(1, confirmations)` budget.
+pub const MAX_EXPLORER_DOMAIN_CONFIRMATION_BLOCKS = 10_000;
 
 pub fn parseExplorerConfirmations(arena: std.mem.Allocator, params: *const QueryParams, diag: *Diag) Error!?ExplorerConfirmations {
     if (!params.has("confirmations") and !params.has("domains")) return null;
@@ -476,6 +478,8 @@ pub fn parseExplorerConfirmations(arena: std.mem.Allocator, params: *const Query
     const number = std.fmt.parseFloat(f64, count.?) catch unreachable;
     const confirmations = try confirmationsNumber(number, domains.items, diag);
     if (confirmations > MAX_EXPLORER_CONFIRMATIONS) return diag.fail(std.fmt.comptimePrint("confirmations must not exceed {d}", .{MAX_EXPLORER_CONFIRMATIONS}));
+    if (domains.items.len * @max(1, confirmations) > MAX_EXPLORER_DOMAIN_CONFIRMATION_BLOCKS)
+        return diag.fail(std.fmt.comptimePrint("Subscription exceeds {d} domain confirmation blocks", .{MAX_EXPLORER_DOMAIN_CONFIRMATION_BLOCKS}));
     return .{ .confirmations = confirmations, .domains = domains.items };
 }
 

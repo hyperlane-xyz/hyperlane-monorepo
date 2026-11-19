@@ -5,9 +5,11 @@
 //   cp gen-corpus.ts gen-corpus.tmp.mts && ../../../../../node_modules/.bin/tsx gen-corpus.tmp.mts > corpus.json; rm gen-corpus.tmp.mts
 import {
   buildProvisionalMessageAffectedQuery,
+  LIVE_MESSAGE_FACTS_QUERY,
   PROJECTED_MESSAGE_QUERY,
   PROVISIONAL_MESSAGE_QUERY,
 } from '../../../../../typescript/scraper-proxy/src/live/provisional-message.js';
+import { EventStore } from '../../../../../typescript/scraper-proxy/src/live/event-store.js';
 import {
   type MessageSelectArgs,
   ScraperDbService,
@@ -744,6 +746,18 @@ function errorMessage(error: unknown): string {
 }
 
 const results: unknown[] = [];
+// EventStore SQL that scraperdb owns (#10078 messageHeads), captured via a fake queryLive.
+async function messageHeadsSql(domains?: Set<number>): Promise<string> {
+  let captured = '';
+  await new EventStore({
+    async queryLive(sql: string) {
+      captured = sql;
+      return [];
+    },
+  }).messageHeads(domains);
+  return captured;
+}
+
 const out = {
   provisional: {
     provisional: PROVISIONAL_MESSAGE_QUERY,
@@ -752,6 +766,9 @@ const out = {
     affectedFiltered: buildProvisionalMessageAffectedQuery(true),
     affectedZero: buildProvisionalMessageAffectedQuery(false, true),
     affectedZeroFiltered: buildProvisionalMessageAffectedQuery(true, true),
+    liveMessageFacts: LIVE_MESSAGE_FACTS_QUERY,
+    messageHeads: await messageHeadsSql(),
+    messageHeadsFiltered: await messageHeadsSql(new Set([1])),
   },
   tables: Object.fromEntries(
     Object.entries(tables).map(([name, t]) => [

@@ -33,4 +33,5 @@ test {
     _ = @import("tests.zig");
     _ = @import("corpus_test.zig");
     _ = @import("bench_test.zig");
+    _ = @import("parse_diff_test.zig");
 }

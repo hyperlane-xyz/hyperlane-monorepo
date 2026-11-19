@@ -164,6 +164,9 @@ test "SQL builder matches the TS corpus" {
     try std.testing.expectEqualStrings(value.string(value.get(shared, "affectedFiltered").?).?, provisional.affectedQuery(true, false));
     try std.testing.expectEqualStrings(value.string(value.get(shared, "affectedZero").?).?, provisional.affectedQuery(false, true));
     try std.testing.expectEqualStrings(value.string(value.get(shared, "affectedZeroFiltered").?).?, provisional.affectedQuery(true, true));
+    try std.testing.expectEqualStrings(value.string(value.get(shared, "liveMessageFacts").?).?, provisional.LIVE_MESSAGE_FACTS_QUERY);
+    try std.testing.expectEqualStrings(value.string(value.get(shared, "messageHeads").?).?, provisional.MESSAGE_HEADS_QUERY);
+    try std.testing.expectEqualStrings(value.string(value.get(shared, "messageHeadsFiltered").?).?, provisional.MESSAGE_HEADS_FILTERED_QUERY);
 
     const table_specs = value.object(value.get(root, "tables")).?;
     for (0..value.len(table_specs)) |table_index| {

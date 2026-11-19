@@ -1,5 +1,6 @@
 //! Port of `confirmation-stream.ts`: one paginated reader per stream, with
-//! rollback detection and Explorer provisional-message refreshes.
+//! rollback detection (agent and validator streams; TS #10078 moved /messages
+//! to `message_source.zig`).
 //!
 //! Every method requires the loop mutex. `schedule()` runs the drain's
 //! synchronous prefix inline (range reservation / refresh-id selection), like
@@ -23,7 +24,6 @@ pub const Position = struct {
 };
 
 pub const END_OF_HEIGHT: i128 = 9_223_372_036_854_775_807;
-pub const MAX_CUSTOM_MESSAGE_IDS = 10_000;
 
 pub fn endOfHeight(height: i128) Position {
     return .{ .height = height, .source = 3, .id = END_OF_HEIGHT };
@@ -37,28 +37,19 @@ pub const ConfirmationHead = struct {
     live_start: ?protocol.LiveStartBoundary = null,
 };
 pub const Heads = std.AutoArrayHashMapUnmanaged(u32, ConfirmationHead);
-/// Domain → exposed height, in JS Map insertion order.
-pub const Frontiers = std.AutoArrayHashMapUnmanaged(u32, i128);
 
 pub fn confirmationHeight(head: i128, indexed: i128, confirmations: u64) i128 {
     const height = head - @as(i128, confirmations);
     return if (height < indexed) height else indexed;
 }
 
-/// A serialized frame plus the Explorer message id it carries, if any.
+/// A serialized frame.
 pub const Message = struct {
     frame: []const u8,
-    message_id: ?[]const u8 = null,
 };
 
 pub const Row = struct {
-    domains: ?[]const u32 = null,
     position: Position,
-    message: ?Message = null,
-};
-
-pub const Enriched = struct {
-    domains: ?[]const u32 = null,
     message: Message,
 };
 
@@ -83,25 +74,14 @@ pub const Reader = struct {
     }
 };
 
-pub const EnrichResult = struct {
-    arena: std.heap.ArenaAllocator,
-    messages: []const Enriched,
-
-    pub fn deinit(self: *EnrichResult) void {
-        self.arena.deinit();
-    }
-};
-
 pub const Io = struct {
     ctx: *anyopaque,
     active: *const fn (ctx: *anyopaque) bool,
-    read: *const fn (ctx: *anyopaque, domain: u32, after: Position, through: i128, frontiers: *const Frontiers) anyerror!Reader,
+    read: *const fn (ctx: *anyopaque, domain: u32, after: Position, through: i128) anyerror!Reader,
     /// `await send(message)`: blocks (releasing the mutex) until written.
     send: *const fn (ctx: *anyopaque, message: Message) bool,
     rollback: *const fn (ctx: *anyopaque, domain: u32, from: i128, to: i128) void,
     fail: *const fn (ctx: *anyopaque, err: anyerror) void,
-    /// Explorer streams only.
-    enrich: ?*const fn (ctx: *anyopaque, ids: []const []const u8, frontiers: *const Frontiers) anyerror!EnrichResult = null,
     /// Called once when the stream is freed.
     deinit: ?*const fn (ctx: *anyopaque) void = null,
 };
@@ -118,10 +98,7 @@ const DomainState = struct {
     }
 };
 
-const Step = union(enum) {
-    read: struct { domain: u32, after: Position, through: i128, revision: u64, frontiers: Frontiers },
-    enrich: struct { ids: [][]const u8, revision: u64, frontiers: Frontiers },
-};
+const Step = struct { domain: u32, after: Position, through: i128, revision: u64 };
 
 pub const ConfirmationStream = struct {
     allocator: std.mem.Allocator,
@@ -133,9 +110,6 @@ pub const ConfirmationStream = struct {
     revision: u64 = 0,
     running: bool = false,
     started: bool = false,
-    refresh_ids: std.StringArrayHashMapUnmanaged(void) = .empty,
-    exposed_ids: std.StringArrayHashMapUnmanaged(Frontiers) = .empty,
-    confirmed: std.AutoArrayHashMapUnmanaged(u32, i128) = .empty,
     /// Owner reference plus one per running task; freed at zero.
     refs: usize = 1,
     /// Set when `initialize` fails with `error.ConfirmationUnavailable`.
@@ -164,14 +138,6 @@ pub const ConfirmationStream = struct {
         const allocator = self.allocator;
         if (self.io.deinit) |deinit| deinit(self.io.ctx);
         self.states.deinit(allocator);
-        for (self.refresh_ids.keys()) |id| allocator.free(id);
-        self.refresh_ids.deinit(allocator);
-        for (self.exposed_ids.keys(), self.exposed_ids.values()) |id, *frontiers| {
-            allocator.free(id);
-            frontiers.deinit(allocator);
-        }
-        self.exposed_ids.deinit(allocator);
-        self.confirmed.deinit(allocator);
         allocator.free(self.domains);
         allocator.destroy(self);
     }
@@ -212,7 +178,6 @@ pub const ConfirmationStream = struct {
             const target = confirmationHeight(head.head, head.indexed, self.confirmations);
             // `BigInt(liveStart.height)`: at most 20 digits, within i128.
             const height = if (head.live_start) |boundary| std.fmt.parseInt(i128, boundary.height(), 10) catch unreachable else target;
-            try self.confirmed.put(self.allocator, domain, head.confirmed);
             try self.states.put(self.allocator, domain, .{
                 .live_start = head.live_start,
                 .position = endOfHeight(height),
@@ -229,11 +194,6 @@ pub const ConfirmationStream = struct {
         return state.live_start;
     }
 
-    /// Domains with a provisional reader, in snapshot order.
-    pub fn customDomains(self: *const ConfirmationStream) []const u32 {
-        return self.states.keys();
-    }
-
     pub fn isCustom(self: *const ConfirmationStream, domain: u32) bool {
         return self.states.contains(domain);
     }
@@ -241,22 +201,6 @@ pub const ConfirmationStream = struct {
     pub fn start(self: *ConfirmationStream) void {
         self.started = true;
         self.schedule();
-    }
-
-    pub fn refresh(self: *ConfirmationStream, ids: []const []const u8) void {
-        if (self.io.enrich == null) return;
-        for (ids) |id| self.addRefreshId(id);
-        if (self.refresh_ids.count() > MAX_CUSTOM_MESSAGE_IDS) {
-            self.io.fail(self.io.ctx, error.CustomMessageNotificationLimitExceeded);
-            return;
-        }
-        self.schedule();
-    }
-
-    fn addRefreshId(self: *ConfirmationStream, id: []const u8) void {
-        if (self.refresh_ids.contains(id)) return;
-        const owned = self.allocator.dupe(u8, id) catch @panic("live: out of memory");
-        self.refresh_ids.put(self.allocator, owned, {}) catch @panic("live: out of memory");
     }
 
     pub fn notify(self: *ConfirmationStream, head: protocol.HeadNotification) void {
@@ -272,17 +216,6 @@ pub const ConfirmationStream = struct {
         };
         const to = confirmationHeight(head_height, indexed_height, self.confirmations);
         state.target = to;
-        self.confirmed.put(self.allocator, head.domain, head.confirmed_height) catch @panic("live: out of memory");
-        var index: usize = 0;
-        while (index < self.exposed_ids.count()) {
-            if (self.isCanonical(&self.exposed_ids.values()[index])) {
-                const id = self.exposed_ids.keys()[index];
-                var frontiers = self.exposed_ids.values()[index];
-                self.exposed_ids.orderedRemoveAt(index);
-                self.allocator.free(id);
-                frontiers.deinit(self.allocator);
-            } else index += 1;
-        }
         if (rollback) {
             self.revision += 1;
             // Never authorize handoff using a snapshot from before a rollback.
@@ -293,8 +226,6 @@ pub const ConfirmationStream = struct {
             if (exposed_rollback) self.io.rollback(self.io.ctx, head.domain, state.through, to);
             state.through = to;
             if (state.position.height > to) state.position = endOfHeight(to);
-            // Explorer clears its entire provisional overlay on any rollback.
-            if (exposed_rollback) self.refresh(self.exposed_ids.keys());
         }
         self.schedule();
     }
@@ -324,19 +255,12 @@ pub const ConfirmationStream = struct {
 
     fn finish(self: *ConfirmationStream) void {
         self.running = false;
-        if (self.refresh_ids.count() > 0 or self.anyNeedsRead()) self.schedule();
+        if (self.anyNeedsRead()) self.schedule();
     }
 
     fn anyNeedsRead(self: *const ConfirmationStream) bool {
         for (self.states.values()) |state| if (state.needsRead()) return true;
         return false;
-    }
-
-    fn snapshotFrontiers(self: *const ConfirmationStream) Frontiers {
-        var frontiers: Frontiers = .empty;
-        for (self.states.keys(), self.states.values()) |domain, state|
-            frontiers.put(self.allocator, domain, state.position.height) catch @panic("live: out of memory");
-        return frontiers;
     }
 
     /// The synchronous part of one drain iteration, up to its first await.
@@ -345,101 +269,27 @@ pub const ConfirmationStream = struct {
         for (self.states.keys(), self.states.values()) |domain, *state| {
             if (!state.needsRead()) continue;
             const through = state.target;
-            var frontiers = self.snapshotFrontiers();
-            frontiers.put(self.allocator, domain, through) catch @panic("live: out of memory");
             if (through > state.through) state.through = through;
-            return .{ .read = .{ .domain = domain, .after = state.position, .through = through, .revision = self.revision, .frontiers = frontiers } };
+            return .{ .domain = domain, .after = state.position, .through = through, .revision = self.revision };
         }
-        if (self.refresh_ids.count() == 0 or self.io.enrich == null) return null;
-        const count = @min(self.refresh_ids.count(), 100);
-        const ids = self.allocator.alloc([]const u8, count) catch @panic("live: out of memory");
-        @memcpy(ids, self.refresh_ids.keys()[0..count]);
-        for (0..count) |_| self.refresh_ids.orderedRemoveAt(0);
-        return .{ .enrich = .{ .ids = ids, .revision = self.revision, .frontiers = self.snapshotFrontiers() } };
+        return null;
     }
 
     /// Returns false when the drain must stop (inactive or send failed).
-    fn execute(self: *ConfirmationStream, step: Step) !bool {
-        switch (step) {
-            .read => |read| {
-                var frontiers = read.frontiers;
-                defer frontiers.deinit(self.allocator);
-                const domain = read.domain;
-                const reader = try self.io.read(self.io.ctx, domain, read.after, read.through, &frontiers);
-                defer reader.deinit();
-                while (try reader.next()) |row| {
-                    if (!self.io.active(self.io.ctx)) return false;
-                    if (read.revision != self.revision) break;
-                    self.states.getPtr(domain).?.position = row.position;
-                    if (row.message) |message| {
-                        self.remember(message, &frontiers, row.domains);
-                        if (!self.io.send(self.io.ctx, message)) {
-                            self.started = false;
-                            return false;
-                        }
-                    }
-                }
-                if (read.revision == self.revision) self.states.getPtr(domain).?.position = endOfHeight(read.through);
-                return true;
-            },
-            .enrich => |enrich| {
-                var frontiers = enrich.frontiers;
-                defer frontiers.deinit(self.allocator);
-                defer {
-                    for (enrich.ids) |id| self.allocator.free(id);
-                    self.allocator.free(enrich.ids);
-                }
-                var result = try self.io.enrich.?(self.io.ctx, enrich.ids, &frontiers);
-                defer result.deinit();
-                for (result.messages) |message| {
-                    if (!self.io.active(self.io.ctx)) return false;
-                    if (enrich.revision != self.revision) break;
-                    self.remember(message.message, &frontiers, message.domains);
-                    if (!self.io.send(self.io.ctx, message.message)) {
-                        self.started = false;
-                        return false;
-                    }
-                }
-                if (enrich.revision != self.revision) for (enrich.ids) |id| self.addRefreshId(id);
-                return true;
-            },
+    fn execute(self: *ConfirmationStream, read: Step) !bool {
+        const domain = read.domain;
+        const reader = try self.io.read(self.io.ctx, domain, read.after, read.through);
+        defer reader.deinit();
+        while (try reader.next()) |row| {
+            if (!self.io.active(self.io.ctx)) return false;
+            if (read.revision != self.revision) break;
+            self.states.getPtr(domain).?.position = row.position;
+            if (!self.io.send(self.io.ctx, row.message)) {
+                self.started = false;
+                return false;
+            }
         }
-    }
-
-    fn isCanonical(self: *const ConfirmationStream, frontiers: *const Frontiers) bool {
-        for (frontiers.keys(), frontiers.values()) |domain, height| {
-            if (height > (self.confirmed.get(domain) orelse 0)) return false;
-        }
+        if (read.revision == self.revision) self.states.getPtr(domain).?.position = endOfHeight(read.through);
         return true;
-    }
-
-    fn remember(self: *ConfirmationStream, message: Message, frontiers: *const Frontiers, domains: ?[]const u32) void {
-        const id = message.message_id orelse return;
-        var dependencies: Frontiers = .empty;
-        if (domains) |list| {
-            for (list) |domain| if (frontiers.get(domain)) |height|
-                dependencies.put(self.allocator, domain, height) catch @panic("live: out of memory");
-        } else {
-            for (frontiers.keys(), frontiers.values()) |domain, height|
-                dependencies.put(self.allocator, domain, height) catch @panic("live: out of memory");
-        }
-        if (self.isCanonical(&dependencies)) {
-            dependencies.deinit(self.allocator);
-            if (self.exposed_ids.fetchOrderedRemove(id)) |entry| {
-                self.allocator.free(entry.key);
-                var previous = entry.value;
-                previous.deinit(self.allocator);
-            }
-        } else {
-            const entry = self.exposed_ids.getOrPut(self.allocator, id) catch @panic("live: out of memory");
-            if (entry.found_existing) {
-                entry.value_ptr.deinit(self.allocator);
-            } else {
-                entry.key_ptr.* = self.allocator.dupe(u8, id) catch @panic("live: out of memory");
-            }
-            entry.value_ptr.* = dependencies;
-        }
-        if (self.exposed_ids.count() > MAX_CUSTOM_MESSAGE_IDS)
-            self.io.fail(self.io.ctx, error.CustomProvisionalMessageLimitExceeded);
     }
 };
