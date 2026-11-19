@@ -23,13 +23,11 @@ commit used by the runtime:
 the strategy manages only Ethereum, Arbitrum, Celo, and Tron. All pinned route
 chains remain monitored and require their RPC secrets.
 
-Deployment blocker observed on 2026-11-17: the sole endpoint in
-`mainnet3-rpc-endpoints-tea` failed DNS resolution, preventing complete monitor
-cycles. The same config completed two cycles with a local-only
-`RPC_URL_TEA=https://tea.drpc.org` override after chain-ID and fresh-block checks.
-The production secret was deliberately left unchanged. Do not redeploy until
-Tea's configured RPC is healthy and the unmodified environment completes the
-monitor checks; changing the registry pin alone does not override this secret.
+The manifest test checks the generated RPC secret references. To verify Tea's
+endpoint, require two complete monitor-only polls across all 17 chains using
+the configured production secrets. The previous Tea endpoint failed DNS on
+November 17, 2026. On November 18 the replacement pod passed this check and
+proposed a 2,904.430156 USDT refill for Arbitrum.
 
 Before replacement, archive Helm values/manifests, the live ExternalSecret,
 resolved image digest, ConfigMap and `/state/tracking` files. Revision 5's saved
@@ -68,6 +66,15 @@ pairs retain their existing policy. All provider quote-loss
 caps are 50 bps. Validate provider access and executable quotes separately:
 monitor-only startup skips executor construction and cannot validate execution
 credentials or quotes.
+
+Verify the swaps.xyz credential at rollout and after the first hourly refresh.
+Check that the ExternalSecret synced the intended remote key to its Kubernetes
+Secret. Compare the synced value with the running container's `SWAPSXYZ_API_KEY`
+without printing either value. From inside that container, request a read-only
+quote and check its protocol fee against the expected rate for the key.
+Environment variables are loaded at container startup. If the values differ,
+reconcile in-flight submissions, replace the singleton after synchronization,
+then repeat the comparison and quote.
 
 Stop the old singleton after a completed cycle and audit shutdown submissions.
 Never overlap execution-enabled instances. After all gates pass, deploy the
