@@ -1237,15 +1237,9 @@ const Connection = struct {
         const ct_header = req.header("content-type");
         const empty = req.header("transfer-encoding") == null and
             (req.header("content-length") == null or std.mem.eql(u8, req.header("content-length").?, "0"));
-        if (std.mem.eql(u8, method, "QUERY")) {
-            if (ct_header == null) {
-                reply.sendError(.{ .status = 400, .code = "FST_ERR_ROUTE_MISSING_CONTENT_TYPE", .message = "Method 'QUERY' must provide a 'Content-Type' header." });
-                return self.handle();
-            }
-            if (empty) {
-                reply.sendError(.{ .status = 400, .code = "FST_ERR_ROUTE_MISSING_CONTENT", .message = "Method 'QUERY' must provide a request body." });
-                return self.handle();
-            }
+        if (ct_header == null and std.mem.eql(u8, method, "QUERY")) {
+            reply.sendError(.{ .status = 400, .code = "FST_ERR_ROUTE_MISSING_CONTENT_TYPE", .message = "Method 'QUERY' must provide a 'Content-Type' header." });
+            return self.handle();
         }
         if (ct_header) |ct| {
             const media = parse.mediaType(req.arena, ct) orelse {
@@ -1477,16 +1471,10 @@ const Connection = struct {
         const raw = ex.raw.items;
         req.raw_body = raw;
         req.complete = true;
-        // `setEncoding('utf8')`: invalid sequences become U+FFFD, and Fastify
-        // then compares the decoded byte length with Content-Length.
+        // Fastify counts the raw bytes against Content-Length (which the
+        // framing already read exactly), then decodes once: invalid
+        // sequences become U+FFFD.
         const text = try core.json.toWellFormedUtf8(req.arena, raw);
-        switch (self.body.framing) {
-            .length => |n| if (text.len != n) {
-                parserError(reply, FastifyError.invalid_content_length);
-                return self.handle();
-            },
-            else => {},
-        }
         switch (ex.kind) {
             .text => req.body = .{ .text = text },
             .json => {

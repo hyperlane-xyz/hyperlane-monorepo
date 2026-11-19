@@ -101,6 +101,11 @@ pub const Fiber = struct {
     user: ?*anyopaque = null,
     saved: [max_locals]LocalBytes = undefined,
     next_free: ?*Fiber = null,
+    /// Fibers this one started with `spawnEager`, in spawn order, until the
+    /// scheduler takes them (`takeEager`); `next_eager` links them.
+    eager_head: ?*Fiber = null,
+    eager_tail: ?*Fiber = null,
+    next_eager: ?*Fiber = null,
 };
 
 threadlocal var running: ?*Fiber = null;
@@ -264,6 +269,9 @@ pub fn create(sched: Scheduler, entry: *const fn (arg: *anyopaque) void, arg: *a
     f.sched = sched;
     f.user = null;
     f.parked_on = .nothing;
+    f.eager_head = null;
+    f.eager_tail = null;
+    f.next_eager = null;
     // The request inherits the thread's values (normally the defaults).
     for (locals[0..locals_len], 0..) |l, i| l.save(&f.saved[i]);
     f.sp = initialStack(f);
@@ -277,6 +285,30 @@ pub fn spawn(entry: *const fn (arg: *anyopaque) void, arg: *anyopaque) !void {
     const parent = running orelse return error.NotOnFiber;
     const f = try create(parent.sched, entry, arg);
     parent.sched.wake(parent.sched.ctx, f);
+}
+
+/// `spawn`, but the new fiber runs as soon as the calling fiber next
+/// switches out (parks or finishes), before the loop resumes any other of
+/// its fibers, each until its own first park, in spawn order; the caller's
+/// park is handled after them. Only this loop is held back: fibers on other
+/// event loops run meanwhile. graphql-js calls every root resolver in one
+/// turn: a request's root fields reach their first I/O back to back (on
+/// one loop).
+pub fn spawnEager(entry: *const fn (arg: *anyopaque) void, arg: *anyopaque) !void {
+    const parent = running orelse return error.NotOnFiber;
+    const f = try create(parent.sched, entry, arg);
+    if (parent.eager_tail) |t| t.next_eager = f else parent.eager_head = f;
+    parent.eager_tail = f;
+}
+
+/// Scheduler side, right after `resumeFiber(f)` returned (and before it
+/// handles `f`'s park or reaps it): the fibers `f` started with
+/// `spawnEager`, to resume now in list order (`next_eager`).
+pub fn takeEager(f: *Fiber) ?*Fiber {
+    const head = f.eager_head;
+    f.eager_head = null;
+    f.eager_tail = null;
+    return head;
 }
 
 /// Frees a fiber that was created but never resumed.
@@ -578,6 +610,12 @@ pub const testing = struct {
             }
             try self.live.put(gpa, f, {});
             resumeFiber(f);
+            var eager = takeEager(f);
+            while (eager) |e| {
+                eager = e.next_eager;
+                e.next_eager = null;
+                try self.step(e);
+            }
             if (reap(f)) {
                 _ = self.live.remove(f);
                 return;
@@ -944,4 +982,108 @@ test "an idle thread's fiber stack cache is trimmed to idle_keep, its pages rele
     const again = try allocFiber();
     freeFiber(again);
     releaseThreadCache();
+}
+
+/// spawnEager tests: an order log on the test loop's thread.
+const EagerLog = struct {
+    buf: [64]u8 = undefined,
+    len: usize = 0,
+    w: Waiter = .{},
+
+    fn add(self: *EagerLog, c: u8) void {
+        self.buf[self.len] = c;
+        self.len += 1;
+    }
+
+    fn text(self: *const EagerLog) []const u8 {
+        return self.buf[0..self.len];
+    }
+
+    /// Back of the ready queue (another ready fiber's turn first).
+    fn yield() void {
+        const f = current().?;
+        f.sched.wake(f.sched.ctx, f);
+        park();
+    }
+};
+
+test "spawnEager: started fibers run at the parent's park, in order, before other ready fibers; nested ones at their parent's" {
+    const T = struct {
+        fn parent(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            log.add('p');
+            spawn(other, arg) catch unreachable;
+            spawnEager(first, arg) catch unreachable;
+            spawnEager(second, arg) catch unreachable;
+            log.add('P'); // nothing ran yet
+            log.w.wait(); // `second` already woke it: resumes at once
+            log.add('r');
+        }
+        fn first(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            log.add('1');
+            spawnEager(nested, arg) catch unreachable;
+            EagerLog.yield(); // its own park: `nested` runs now
+            log.add('3');
+        }
+        fn nested(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            log.add('n');
+        }
+        fn second(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            log.add('2');
+            log.w.wake(); // before the parent's wait is published
+        }
+        fn other(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            log.add('o');
+        }
+    };
+    var log: EagerLog = .{};
+    try testing.run(T.parent, &log);
+    try std.testing.expectEqualStrings("pP1n2ro3", log.text());
+}
+
+test "spawnEager: a parent that finishes first still starts its fibers before other ready ones" {
+    const T = struct {
+        fn parent(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            spawn(other, arg) catch unreachable;
+            spawnEager(child, arg) catch unreachable;
+            log.add('p');
+        }
+        fn child(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            log.add('c');
+        }
+        fn other(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            log.add('o');
+        }
+    };
+    var log: EagerLog = .{};
+    try testing.run(T.parent, &log);
+    try std.testing.expectEqualStrings("pco", log.text());
+}
+
+test "spawnEager: no fiber (create fails) is an error and queues nothing" {
+    const T = struct {
+        fn parent(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            test_fail_create.store(true, .release);
+            if (spawnEager(child, arg)) |_| log.add('!') else |e| {
+                if (e == error.TestInjectedFailure) log.add('e');
+            }
+            spawnEager(child, arg) catch unreachable;
+            log.add('p');
+        }
+        fn child(arg: *anyopaque) void {
+            const log: *EagerLog = @ptrCast(@alignCast(arg));
+            log.add('c');
+        }
+    };
+    var log: EagerLog = .{};
+    try testing.run(T.parent, &log);
+    try std.testing.expectEqualStrings("epc", log.text());
 }

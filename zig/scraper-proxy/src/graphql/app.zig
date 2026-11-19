@@ -29,8 +29,8 @@ pub const App = struct {
         self.* = .{ .gpa = gpa, .schema = schema, .db = dbs, .diagnostics = diag };
         const config = core.config.get();
         self.route_state = route_mod.GraphqlRoute.init(gpa, schema, .{
-            .db = scraperdb.Service.init(.{ .ctx = dbs, .queryFn = query, .plannedQueryFn = queryPlanned, .lazyQueryFn = queryLazy }),
-            .diagnostics = if (diag != null) .{ .ctx = self, .history = history, .snapshot = snapshot } else null,
+            .db = scraperdb.Service.init(database(dbs)),
+            .diagnostics = if (diag != null) self.diagnosticsSource() else null,
         }, .{
             .max_active_requests = @intCast(config.graphql_max_active_requests),
             .max_active_uploads = @intCast(config.graphql_max_active_uploads),
@@ -50,6 +50,16 @@ pub const App = struct {
         self.gpa.destroy(self);
     }
 
+    /// `self.diagnostics` as the resolvers' `Diagnostics`.
+    pub fn diagnosticsSource(self: *App) resolvers.Diagnostics {
+        return .{ .ctx = self, .history = history, .snapshot = snapshot };
+    }
+
+    /// `dbs` as the resolvers' `scraperdb.Database`.
+    pub fn database(dbs: *db.DbService) scraperdb.Database {
+        return .{ .ctx = dbs, .queryFn = query, .plannedQueryFn = queryPlanned, .lazyQueryFn = queryLazy };
+    }
+
     fn query(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {
         return run(ctx, arena, text, values, diag, .custom);
     }
@@ -61,39 +71,44 @@ pub const App = struct {
 
     fn run(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag, plan: scraperdb.Plan) anyerror![]Value {
         const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
-        // First I/O of the request: takes its execution slot (route.zig).
-        if (!execute.beforeIo()) {
-            diag.message = route_mod.capacity_message;
-            return error.CapacityExceeded;
-        }
-        execute.afterIo();
+        var own: db.PendingChain = .{};
+        defer own.release();
+        const chain = diag.chain orelse &own;
         var failure: db.Failure = .{};
-        const rows = switch (plan) {
-            .custom => dbs.query(arena, text, values, &failure),
-            .reusable => dbs.queryReusable(arena, text, values, &failure),
-            .fixed_join => dbs.queryFixedJoin(arena, text, values, &failure),
-            .serial => dbs.querySerial(arena, text, values, &failure),
-            .serial_generic => dbs.querySerialGeneric(arena, text, values, &failure),
-            .generic => dbs.queryGeneric(arena, text, values, &failure),
-        };
-        return rows catch |err| {
+        try admit(dbs, chain, diag, &failure);
+        return dbs.queryChained(arena, text, values, pqPlan(plan), chain, &failure) catch |err| {
             diag.message = if (failure.message.len > 0) failure.message else @errorName(err);
             return err;
         };
     }
 
-    /// `run`'s query with the rows left unconverted (`db.LazyRows`, owned by
-    /// the caller): the same admission, plan (custom = `query`'s unnamed
-    /// statement, the others `queryPlanned`'s), errors and diagnostics.
-    fn queryLazy(ctx: *anyopaque, arena: Allocator, plan: scraperdb.Plan, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror!?*db.LazyRows {
-        const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
+    /// Before a main-pool statement: TS's pending-query cap, then the
+    /// request's execution slot. TS refuses a statement over the cap
+    /// synchronously, so the request does not yield there: only a statement
+    /// that will run takes the slot (the request's first I/O, route.zig),
+    /// and a refused one is an I/O-free failure (graphql-js settle order).
+    fn admit(dbs: *db.DbService, chain: *db.PendingChain, diag: *scraperdb.Diag, failure: *db.Failure) anyerror!void {
+        // A request already answered by the preHandler 503 never counts as
+        // pending in TS: no reservation. One that loses its slot below gives
+        // the reservation back as soon as this read fails (`chain`'s owner).
+        if (execute.admissionRejected()) {
+            diag.message = route_mod.capacity_message;
+            return error.CapacityExceeded;
+        }
+        dbs.reserveMain(chain, failure) catch |err| {
+            diag.message = failure.message;
+            return err;
+        };
         if (!execute.beforeIo()) {
             diag.message = route_mod.capacity_message;
             return error.CapacityExceeded;
         }
         execute.afterIo();
-        var failure: db.Failure = .{};
-        const pq_plan: db.Plan = switch (plan) {
+    }
+
+    /// custom = `query`'s unnamed statement (node-pg's).
+    fn pqPlan(plan: scraperdb.Plan) db.Plan {
+        return switch (plan) {
             .custom => .unnamed,
             .reusable => .reusable,
             .fixed_join => .fixed_join,
@@ -101,7 +116,19 @@ pub const App = struct {
             .serial_generic => .serial_generic,
             .generic => .generic,
         };
-        return dbs.queryLazy(arena, text, values, pq_plan, &failure) catch |err| {
+    }
+
+    /// `run`'s query with the rows left unconverted (`db.LazyRows`, owned by
+    /// the caller): the same admission, plan, pending chain, errors and
+    /// diagnostics.
+    fn queryLazy(ctx: *anyopaque, arena: Allocator, plan: scraperdb.Plan, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror!?*db.LazyRows {
+        const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
+        var own: db.PendingChain = .{};
+        defer own.release();
+        const chain = diag.chain orelse &own;
+        var failure: db.Failure = .{};
+        try admit(dbs, chain, diag, &failure);
+        return dbs.queryLazy(arena, text, values, pqPlan(plan), chain, &failure) catch |err| {
             diag.message = if (failure.message.len > 0) failure.message else @errorName(err);
             return err;
         };

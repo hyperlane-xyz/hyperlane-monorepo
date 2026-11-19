@@ -404,6 +404,182 @@ const handWritten: [string, RawRow[]][] = [
       ),
     ],
   ],
+  // #10102 reorg_checks: declared between signatures and offchain_read; entries
+  // strip unknown keys; a wrong shape (or null) rejects the whole event.
+  [
+    'reorg checks: valid, empty, missing, extra keys',
+    [
+      rowOf({
+        type: 'snapshot',
+        state: {
+          phase: 'preparing',
+          tree_root: 'root',
+          modules: [
+            {
+              x: 1,
+              reorg_checks: [
+                {
+                  states: ['reorg_reported', 'reorg_ignored'],
+                  extra: { k: 1 },
+                  validator: '0xv1',
+                },
+                { validator: '0xv2', states: [] },
+              ],
+              offchain_read: {
+                state: 'pending',
+                endpoint: 0,
+                http_status: 202,
+              },
+              signatures: { threshold: 2, unavailable: [] },
+              ism: ISM,
+              node_id: 'root',
+            },
+            { node_id: 'root/0', ism: 'ism-b', reorg_checks: [] },
+            { node_id: 'root/1', ism: 'ism-c', signatures: null },
+          ],
+        },
+      }),
+      rowOf(
+        {
+          type: 'snapshot_update',
+          state: {
+            phase: 'awaiting_signatures',
+            tree_root: 'root',
+            modules: [
+              {
+                node_id: 'root/0',
+                ism: 'ism-b',
+                offchain_read: null,
+                reorg_checks: [
+                  { validator: '0xv3', states: ['reorg_check_failed'] },
+                  { validator: '0xv3', states: ['reorg_not_found', ''] },
+                ],
+                z: 'after',
+              },
+            ],
+            removed_modules: [],
+          },
+        },
+        2,
+      ),
+    ],
+  ],
+  [
+    'reorg checks: null rejects the snapshot and orphans its update',
+    [
+      rowOf({
+        type: 'snapshot',
+        state: {
+          phase: 'preparing',
+          tree_root: null,
+          modules: [{ node_id: 'root', ism: ISM, reorg_checks: null }],
+        },
+      }),
+      rowOf(
+        {
+          type: 'snapshot_update',
+          state: {
+            phase: 'delivered',
+            tree_root: null,
+            modules: [],
+            removed_modules: [],
+          },
+        },
+        2,
+      ),
+      rowOf({ type: 'metadata_started', ism: ISM }, 3),
+    ],
+  ],
+  [
+    'reorg checks: malformed update keeps the previous state',
+    [
+      rowOf({
+        type: 'snapshot',
+        state: {
+          phase: 'preparing',
+          tree_root: 'root',
+          modules: [
+            {
+              node_id: 'root',
+              ism: ISM,
+              reorg_checks: [{ validator: 'v', states: ['reorg_not_found'] }],
+            },
+          ],
+        },
+      }),
+      ...[
+        {},
+        'reorg_reported',
+        [null],
+        ['v'],
+        [{ validator: 'v' }],
+        [{ states: [] }],
+        [{ validator: null, states: [] }],
+        [{ validator: 1, states: [] }],
+        [{ validator: 'v', states: [1] }],
+        [{ validator: 'v', states: [null] }],
+        [{ validator: 'v', states: 'reorg_reported' }],
+        [{ validator: 'v', states: null }],
+        [
+          { validator: 'v', states: [] },
+          { validator: 'w', states: [{}] },
+        ],
+      ].map((reorg_checks, index) =>
+        rowOf(
+          {
+            type: 'snapshot_update',
+            state: {
+              phase: 'retrying',
+              tree_root: 'root',
+              modules: [{ node_id: 'root', ism: ISM, reorg_checks }],
+              removed_modules: [],
+            },
+          },
+          index + 2,
+        ),
+      ),
+    ],
+  ],
+  [
+    'reorg checks: removed by an update without the key',
+    [
+      rowOf({
+        type: 'snapshot',
+        state: {
+          phase: 'preparing',
+          tree_root: 'root',
+          modules: [
+            {
+              node_id: 'root',
+              ism: ISM,
+              reorg_checks: [{ validator: 'v', states: ['reorg_reported'] }],
+            },
+          ],
+        },
+      }),
+      rowOf(
+        {
+          type: 'snapshot_update',
+          state: {
+            phase: 'preparing',
+            tree_root: 'root',
+            modules: [{ node_id: 'root', ism: ISM }],
+            removed_modules: [],
+          },
+        },
+        2,
+      ),
+    ],
+  ],
+  [
+    'reorg checks: __proto__ keys are dropped',
+    [
+      {
+        ...rowOf(null),
+        activity_text: `{"type": "snapshot", "state": {"phase": "preparing", "tree_root": "root", "modules": [{"node_id": "root", "ism": "${ISM}", "reorg_checks": [{"__proto__": {"x": 1}, "validator": "v", "states": ["reorg_reported", "reorg_ignored"]}], "__proto__": {"y": 2}}]}}`,
+      },
+    ],
+  ],
   [
     'snapshot then legacy mutation',
     [
@@ -469,6 +645,15 @@ function generate(seed: number): RawRow[] {
     return value;
   };
   const chance = (p: number) => r() < p;
+  // A separate stream for fields added after the corpus was first committed,
+  // so the existing seeds keep their histories.
+  const r2 = rng(seed + 0x10102);
+  const chance2 = (p: number) => r2() < p;
+  const pick2 = <T>(xs: readonly T[]): T => {
+    const value = xs[Math.floor(r2() * xs.length)];
+    if (value === undefined) throw new Error('empty choice list');
+    return value;
+  };
   const isms = [ISM, 'ism-b', 'unknown', 'a'];
   const nodes = ['root', 'root/0', 'root/1', 'root/0/0'];
   const relayers = ['0xaa', '0xbb', '0xcc'].slice(0, 1 + Math.floor(r() * 3));
@@ -590,6 +775,25 @@ function generate(seed: number): RawRow[] {
             endpoint: pick([0, null]),
             http_status: pick([202, null]),
           };
+    if (chance2(0.3))
+      m.reorg_checks = chance2(0.05)
+        ? pick2([
+            null,
+            {},
+            [null],
+            [{ validator: 'v' }],
+            [{ validator: 'v', states: [1] }],
+          ])
+        : Array.from({ length: Math.floor(r2() * 3) }, () => ({
+            ...(chance2(0.1) ? { extra: 1 } : {}),
+            validator: pick2(['0xv1', '0xv2']),
+            states: pick2([
+              [],
+              ['reorg_not_found'],
+              ['reorg_reported', 'reorg_ignored'],
+              ['reorg_check_failed'],
+            ]),
+          }));
     Object.assign(m, extras());
     return chance(0.04) ? mutate(m) : m;
   };

@@ -47,11 +47,53 @@ reproduces the observable rule, not the scheduling.
 - **GraphQL root fields run concurrently** (as sibling fibers), and errors are merged
   the way graphql-js collects them on a query's first execution (checked
   case by case in `parity/corpus/graphql-errors.mjs`): failures without I/O
-  (assertions, argument errors) first in document order, then I/O-backed
-  fields in completion order; the first non-null failure in that order nulls
-  `data` and ends collection. When two roots both fail in PostgreSQL, TS's
-  order is timing-dependent (about 75/25 and 50/50 in two samples) and so is
-  the port's.
+  first, then I/O-backed fields in completion order; the first non-null
+  failure in that order nulls `data` and ends collection. Failures without
+  I/O settle at the microtask tick where TS's resolver promise rejects
+  (measured on Node 26.12.1: service asserts after 1 to 3 ticks,
+  statements refused at the pending-query cap after 2 to 4 by resolver,
+  diagnostics argument errors after 1 (`message_activity`) or 2
+  (`message_diagnostics`), an aggregate's `count` later still), a non-null
+  root's 3 ticks after that, document order on ties; errors from fields
+  that settle after the first non-null one are dropped, as in TS.
+  Synchronous throws and argument errors are recorded first, in document
+  order, and a non-null one stops graphql-js's loop (later root fields
+  never run); collection then ends one tick after the first non-null
+  failure among the fields before it. When two roots both fail in PostgreSQL, TS's order is
+  timing-dependent (about 75/25 and 50/50 in two samples) and so is the
+  port's.
+- **Root fields start back to back per event loop.** graphql-js calls every
+  root resolver of a request in one synchronous turn, so their
+  pending-query checks are consecutive. The port starts the extra root
+  fields as fibers that run, in document order, to their first wait as soon
+  as the first root field waits, before that loop resumes anything else.
+  With several event loops (`-Dhttp-loops` > 1) requests on other loops run
+  meanwhile, so their checks can come between a request's. An aggregate
+  whose only read is its `count` is the exception: graphql-js calls
+  `count` a tick after every root resolver ran, so its check comes after
+  the other root fields' (with one slot left, a later root field takes it
+  and the `count` is refused); the port resolves `count` within the
+  aggregate's root field, before the root fields after it start.
+- **A request answers after all its root fields.** When a non-null root
+  field fails without I/O, graphql-js rejects at once and the response is
+  sent (freeing the request's `GRAPHQL_MAX_ACTIVE_REQUESTS` slot) while its
+  other root fields' queries still run. The port waits for every root field
+  before replying: the bytes are identical, but the execution slot is held
+  until the last of them finishes.
+- **Pending GraphQL query cap across statements (TS #10076).** In TS one
+  query's `finally pendingMainQueries--` and the next query's cap check run
+  in one microtask chain when the next query is issued from the first one's
+  continuation, so no other request can take the freed slot in between. The
+  port hands the slot over the same way within a history read (its EXPLAIN
+  and statement, and with confirmations the snapshot's pair and the
+  projection's). An aggregate's `count` checks the cap afresh after `nodes`:
+  TS hands the `nodes` slot to the first `count` within graphql-js's
+  completion of the aggregate, so under a full cap the port can refuse a
+  first `count` that TS runs (and run a later aliased `count` that TS
+  refuses, since the port runs the counts one after another). A statement
+  refused at the cap takes no execution slot (TS refuses it within the
+  turn, without yielding); a request that already lost its slot reserves no
+  pending one.
 - **Live event timing windows.** A loop mutex reproduces "nothing runs
   between awaits" and synchronous prefixes run inline
   (`src/live/IMPLEMENTATION.md`). Tasks take the loop mutex for the first

@@ -8,6 +8,8 @@ const scraperdb = @import("scraperdb");
 const schema_mod = @import("schema.zig");
 const route_mod = @import("route.zig");
 const resolvers = @import("resolvers.zig");
+const db = @import("db");
+const app_mod = @import("app.zig");
 
 const testing = std.testing;
 const posix = std.posix;
@@ -281,6 +283,11 @@ const App = struct {
     request_timeout_ms: u32 = 10_000,
     /// Event loops (null: the build default).
     loops: ?u32 = null,
+    /// The resolvers' database (null: `db`, the scripted fake).
+    database: ?scraperdb.Database = null,
+    max_active_requests: u32 = 25,
+    /// The `{ diagnostics }` option (null: not configured).
+    diagnostics: ?resolvers.Diagnostics = null,
     route: route_mod.GraphqlRoute = undefined,
     routes: [2]http.Route = undefined,
     server: *http.Server = undefined,
@@ -288,8 +295,8 @@ const App = struct {
     fn start(self: *App) !void {
         core.metrics.init();
         core.log.setLevel(.@"error");
-        const svc = scraperdb.Service.init(.{ .ctx = &self.db, .queryFn = FakeDb.query });
-        self.route = route_mod.GraphqlRoute.init(self.gpa orelse testing.allocator, schema_mod.testing.scraper(), .{ .db = svc }, .{});
+        const svc = scraperdb.Service.init(self.database orelse .{ .ctx = &self.db, .queryFn = FakeDb.query });
+        self.route = route_mod.GraphqlRoute.init(self.gpa orelse testing.allocator, schema_mod.testing.scraper(), .{ .db = svc, .diagnostics = self.diagnostics }, .{ .max_active_requests = self.max_active_requests });
         self.routes = .{ http.metricsRoute(), self.route.route() };
         var options: http.Options = .{ .host = "127.0.0.1", .port = 0, .routes = &self.routes, .request_timeout_ms = self.request_timeout_ms };
         if (self.loops) |n| options.loops = n;
@@ -961,6 +968,134 @@ test "diagnostics resolvers report DIAGNOSTICS_UNAVAILABLE when not configured" 
     defer arena.deinit();
     const a = arena.allocator();
     try expectJson(try app.postQuery(a, "{ domain { id } message_activity(message_id: \"x\") { has_more } }"), 200, "{\"data\":null,\"errors\":[{\"message\":\"Diagnostics are not configured\",\"locations\":[{\"line\":1,\"column\":17}],\"path\":[\"message_activity\"],\"extensions\":{\"code\":\"DIAGNOSTICS_UNAVAILABLE\"}}]}");
+}
+
+/// `DiagnosticsService` over a scripted query, adapted exactly like app.zig: history
+/// reads (`ORDER BY message_activity.id DESC`) get `history_rows`, snapshot
+/// reads `snapshot_rows` (JSON arrays of rows as node-pg returns them).
+const FakeDiagnostics = struct {
+    history_rows: []const u8 = "[]",
+    snapshot_rows: []const u8 = "[]",
+
+    const diagnostics = @import("diagnostics");
+    const execute = @import("execute.zig");
+
+    fn query(ctx: *anyopaque, arena: Allocator, sql: []const u8, _: []const ?[]const u8) anyerror![]const diagnostics.js.Value {
+        const self: *FakeDiagnostics = @ptrCast(@alignCast(ctx));
+        const is_history = std.mem.indexOf(u8, sql, "ORDER BY message_activity.id DESC") != null;
+        return (try diagnostics.js.parse(arena, if (is_history) self.history_rows else self.snapshot_rows)).array.items;
+    }
+
+    fn service(self: *FakeDiagnostics) diagnostics.Service {
+        return .{ .db = .{ .ctx = self, .query = query } };
+    }
+
+    fn resolver(self: *FakeDiagnostics) resolvers.Diagnostics {
+        return .{ .ctx = self, .history = history, .snapshot = snapshot };
+    }
+
+    fn history(ctx: *anyopaque, a: Allocator, message_id: []const u8, before_id: ?[]const u8, limit: i64, failure: *execute.ResolveFailure) resolvers.Diagnostics.Error!Value {
+        const self: *FakeDiagnostics = @ptrCast(@alignCast(ctx));
+        if (!execute.beforeIo()) return capacityFailure(failure);
+        const v = self.service().history(a, message_id, before_id, limit) catch |err| return fail(err, failure);
+        execute.afterIo();
+        return diagnostics.js.toCore(a, v);
+    }
+
+    fn snapshot(ctx: *anyopaque, a: Allocator, message_id: []const u8, failure: *execute.ResolveFailure) resolvers.Diagnostics.Error!Value {
+        const self: *FakeDiagnostics = @ptrCast(@alignCast(ctx));
+        if (!execute.beforeIo()) return capacityFailure(failure);
+        const list = self.service().snapshots(a, &.{message_id}) catch |err| return fail(err, failure);
+        execute.afterIo();
+        if (list.len == 0) return .null;
+        return diagnostics.js.toCore(a, list[0]);
+    }
+
+    fn capacityFailure(failure: *execute.ResolveFailure) resolvers.Diagnostics.Error {
+        failure.* = .{ .message = route_mod.capacity_message };
+        return error.ResolverFailed;
+    }
+
+    fn fail(err: diagnostics.service.Error, failure: *execute.ResolveFailure) resolvers.Diagnostics.Error {
+        if (err == error.OutOfMemory) return error.OutOfMemory;
+        if (err == error.Unavailable) execute.afterIo();
+        failure.* = .{ .message = diagnostics.service.errorMessage(err), .code = diagnostics.service.errorCode(err) };
+        return error.ResolverFailed;
+    }
+};
+
+const diag_id = "0x" ++ "01" ** 32;
+const diag_ism = "0x" ++ "02" ** 32;
+
+fn diagnosticsRow(comptime number: []const u8, comptime activity: []const u8) []const u8 {
+    return "{\"id\":\"" ++ number ++ "\",\"message_id\":\"" ++ diag_id ++ "\",\"relayer\":\"relayer-a\",\"origin\":1,\"destination\":2," ++
+        "\"observed_at\":\"2026-11-05 00:00:00+00\",\"received_at\":\"2026-11-05 00:00:01+00\",\"version\":1,\"activity\":" ++ activity ++ "}";
+}
+
+// Expected bodies: the TS app (`createScraperProxyApp` with a scripted
+// DiagnosticsService, as in diagnostics.test.ts) on Node 26.12.1.
+test "exposes history and status in GraphQL (diagnostics.test.ts)" {
+    const history_activity = "{\"type\":\"snapshot_update\",\"state\":{\"phase\":\"preparing\",\"checks\":{\"prepare\":\"started\",\"gas_preflight\":\"succeeded\"}," ++
+        "\"modules\":[{\"node_id\":\"root\",\"ism\":\"" ++ diag_ism ++ "\",\"checks\":{\"validator_set\":\"succeeded\"}}]}}";
+    const signature = "{\"type\":\"checkpoint\",\"ism\":\"" ++ diag_ism ++ "\",\"collection_id\":\"a\",\"threshold\":3," ++
+        "\"summary\":{\"collected\":2,\"index\":1,\"root\":\"root\",\"attempts\":1,\"latest_indices\":{},\"unavailable\":{}}}";
+    var fake: FakeDiagnostics = .{
+        .history_rows = "[" ++ comptime diagnosticsRow("1", history_activity) ++ "]",
+        .snapshot_rows = "[" ++ comptime diagnosticsRow("1", signature) ++ "]",
+    };
+    var app: App = .{ .diagnostics = fake.resolver() };
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const query = "{ message_activity(message_id: \"" ++ diag_id ++ "\", limit: 10) { has_more activities { id activity relayer observed_at received_at } }\n" ++
+        "    message_diagnostics(message_id: \"" ++ diag_id ++ "\") { version partial relayers { phase modules { signatures { collected threshold } } } } }";
+    try expectJson(try app.postQuery(a, query), 200, "{\"data\":{\"message_activity\":{\"has_more\":false,\"activities\":[{\"id\":\"1\",\"activity\":" ++ history_activity ++
+        ",\"relayer\":\"relayer-a\",\"observed_at\":\"2026-11-05 00:00:00+00\",\"received_at\":\"2026-11-05 00:00:01+00\"}]}," ++
+        "\"message_diagnostics\":{\"version\":1,\"partial\":false,\"relayers\":[{\"phase\":\"unknown\",\"modules\":[{\"signatures\":{\"collected\":2,\"threshold\":3}}]}]}}}");
+
+    var disabled: App = .{};
+    try disabled.start();
+    defer disabled.stop();
+    const unavailable = try disabled.postQuery(a, query);
+    try testing.expect(unavailable.contains("\"code\":\"DIAGNOSTICS_UNAVAILABLE\""));
+}
+
+test "IsmProgress.reorg_checks: entries, empty list and legacy null (#10102)" {
+    // Entry keys out of order plus an undeclared key; an empty list; a module
+    // without the key (null in GraphQL).
+    const snapshot = "{\"type\":\"snapshot\",\"state\":{\"phase\":\"preparing\",\"tree_root\":null,\"modules\":[" ++
+        "{\"node_id\":\"root\",\"ism\":\"" ++ diag_ism ++ "\",\"reorg_checks\":[{\"states\":[\"reorg_reported\",\"reorg_ignored\"],\"validator\":\"0xv1\",\"extra\":1}]}," ++
+        "{\"node_id\":\"root/0\",\"ism\":\"b\",\"reorg_checks\":[]},{\"node_id\":\"root/1\",\"ism\":\"c\"}]}}";
+    var fake: FakeDiagnostics = .{ .snapshot_rows = "[" ++ comptime diagnosticsRow("1", snapshot) ++ "]" };
+    var app: App = .{ .diagnostics = fake.resolver() };
+    try app.start();
+    defer app.stop();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try expectJson(
+        try app.postQuery(a, "{ message_diagnostics(message_id: \"" ++ diag_id ++ "\") { relayers { modules { node_id reorg_checks { validator states } } } } }"),
+        200,
+        "{\"data\":{\"message_diagnostics\":{\"relayers\":[{\"modules\":[{\"node_id\":\"root\",\"reorg_checks\":[{\"validator\":\"0xv1\",\"states\":[\"reorg_reported\",\"reorg_ignored\"]}]}," ++
+            "{\"node_id\":\"root/0\",\"reorg_checks\":[]},{\"node_id\":\"root/1\",\"reorg_checks\":null}]}]}}}",
+    );
+    try expectJson(
+        try app.postQuery(a, "{ message_diagnostics(message_id: \"" ++ diag_id ++ "\") { relayers { modules { reorg_checks { states validator __typename } } } } }"),
+        200,
+        "{\"data\":{\"message_diagnostics\":{\"relayers\":[{\"modules\":[{\"reorg_checks\":[{\"states\":[\"reorg_reported\",\"reorg_ignored\"],\"validator\":\"0xv1\",\"__typename\":\"ValidatorReorgCheck\"}]}," ++
+            "{\"reorg_checks\":[]},{\"reorg_checks\":null}]}]}}}",
+    );
+    // `.optional()`, not `.nullish()`: null rejects the whole snapshot event.
+    const null_checks = "{\"type\":\"snapshot\",\"state\":{\"phase\":\"preparing\",\"tree_root\":null,\"modules\":[" ++
+        "{\"node_id\":\"root\",\"ism\":\"" ++ diag_ism ++ "\",\"reorg_checks\":null}]}}";
+    fake.snapshot_rows = "[" ++ comptime diagnosticsRow("1", null_checks) ++ "]";
+    try expectJson(
+        try app.postQuery(a, "{ message_diagnostics(message_id: \"" ++ diag_id ++ "\") { relayers { phase modules { node_id reorg_checks { validator } } } } }"),
+        200,
+        "{\"data\":{\"message_diagnostics\":{\"relayers\":[{\"phase\":\"unknown\",\"modules\":[]}]}}}",
+    );
 }
 
 test "a type-system extension in a request is reported at its `extend` keyword (ExecutableDefinitions)" {
@@ -2000,4 +2135,87 @@ test "client abort: a closed waiter whose leader cached nothing runs its query w
     fillers.join();
     last_filler.join();
     d.finish();
+}
+
+/// A `db.DbService` test backend: statements whose first parameter is 7
+/// park their fiber until `release`; others return no rows at once.
+const ParkingBackend = struct {
+    mutex: std.Thread.Mutex = .{},
+    cond: std.Thread.Condition = .{},
+    parked: std.ArrayList(*core.fiber.Waiter) = .empty,
+    released: bool = false,
+
+    fn query(ctx: *anyopaque, _: db.service.Backend.Which, _: []const u8, _: Allocator, _: []const u8, params: []const Value, _: ?*db.Failure) db.Error!db.Result {
+        const self: *ParkingBackend = @ptrCast(@alignCast(ctx));
+        if (params.len > 0 and params[0] == .number and params[0].number == 7) {
+            var w: core.fiber.Waiter = .{};
+            self.mutex.lock();
+            const go = self.released;
+            if (!go) self.parked.append(testing.allocator, &w) catch @panic("oom");
+            self.cond.broadcast();
+            self.mutex.unlock();
+            if (!go) w.wait();
+        }
+        return .{ .rows = &.{}, .row_count = 0 };
+    }
+
+    fn waitParked(self: *ParkingBackend, n: usize) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        while (self.parked.items.len < n) self.cond.timedWait(&self.mutex, 30 * std.time.ns_per_s) catch @panic("not parked");
+    }
+
+    fn release(self: *ParkingBackend) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.released = true;
+        for (self.parked.items) |w| w.wake();
+        self.parked.clearRetainingCapacity();
+    }
+};
+
+test "a request refused at the pending-query cap takes no execution slot (no 503 for others)" {
+    const saved = core.config.get().*;
+    defer core.config.set(saved);
+    var config = saved;
+    config.database_url = "postgresql://scraper-proxy-test";
+    config.database_max_pending_graphql_queries = 1;
+    core.config.set(config);
+    var backend: ParkingBackend = .{};
+    defer backend.parked.deinit(testing.allocator);
+    const dbs = try db.DbService.init(testing.allocator, null);
+    defer dbs.deinit();
+    dbs.backend = .{ .ctx = &backend, .query = ParkingBackend.query };
+    // Two execution slots: one for the request holding the pending query.
+    var app: App = .{ .database = app_mod.App.database(dbs), .max_active_requests = 2 };
+    try app.start();
+    defer app.stop();
+    const Seen = struct {
+        var max: std.atomic.Value(u32) = .init(0);
+        /// Right after execution, before the response frees the slot.
+        fn hook(route: *route_mod.GraphqlRoute) void {
+            _ = max.fetchMax(route.active_requests.load(.acquire), .acq_rel);
+        }
+    };
+    Seen.max.store(0, .release);
+    app.route.after_execute_hook = Seen.hook;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var held_result: ParkedResult = .{};
+    const held = try std.Thread.spawn(.{}, ParkedResult.run, .{ &held_result, &app, "{ domain_by_pk(id: 7) { id } }" });
+    backend.waitParked(1);
+    // Every root refused at the cap, without I/O: TS answers it within the
+    // turn, so it never counts against GRAPHQL_MAX_ACTIVE_REQUESTS.
+    const refused = try app.postQuery(a, "{ a: domain_by_pk(id: 1) { id } b: domain(limit: 1) { id } }");
+    try expectJson(refused, 200, "{\"data\":null,\"errors\":[{\"message\":\"GraphQL database query capacity exceeded\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"a\"]},{\"message\":\"GraphQL database query capacity exceeded\",\"locations\":[{\"line\":1,\"column\":33}],\"path\":[\"b\"]}]}");
+    try testing.expectEqual(@as(u32, 1), Seen.max.load(.acquire));
+    // The last execution slot is still free: another request is executed
+    // (and refused at the cap in turn), not answered with the 503.
+    const other = try app.postQuery(a, "{ domain_by_pk(id: 3) { id } }");
+    try expectJson(other, 200, "{\"data\":{\"domain_by_pk\":null},\"errors\":[{\"message\":\"GraphQL database query capacity exceeded\",\"locations\":[{\"line\":1,\"column\":3}],\"path\":[\"domain_by_pk\"]}]}");
+    try testing.expectEqual(@as(u32, 1), Seen.max.load(.acquire));
+    backend.release();
+    held.join();
+    try held_result.expectOk(0);
 }

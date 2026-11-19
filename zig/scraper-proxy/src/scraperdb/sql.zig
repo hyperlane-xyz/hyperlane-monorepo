@@ -5,6 +5,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Writer = std.Io.Writer;
 
+const db = @import("db");
 const tables = @import("tables.zig");
 const Table = tables.Table;
 const value = @import("value.zig");
@@ -15,6 +16,11 @@ pub const Error = error{ AssertionFailed, OutOfMemory };
 /// Carries the TS `assert` message for `error.AssertionFailed`.
 pub const Diag = struct {
     message: []const u8 = "",
+    /// Set by `Service` while it runs statements that TS issues in one
+    /// microtask chain (a history statement's EXPLAIN and the statement):
+    /// `Database` implementations with TS's pending GraphQL query cap run
+    /// them in it (`db.PendingChain`); others ignore it.
+    chain: ?*db.PendingChain = null,
 };
 
 pub const Sql = struct {

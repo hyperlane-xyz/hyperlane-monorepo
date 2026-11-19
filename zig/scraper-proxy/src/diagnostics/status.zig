@@ -166,6 +166,10 @@ const snapshot_signatures: S = .{ .object = .{ .fields = &.{
     .{ .key = "threshold", .schema = count },
     .{ .key = "unavailable", .schema = .{ .array = &unavailable_entry } },
 } } };
+const reorg_check: S = .{ .object = .{ .fields = &.{
+    .{ .key = "validator", .schema = string },
+    .{ .key = "states", .schema = string_array },
+} } };
 const snapshot_offchain_read: S = .{ .object = .{ .fields = &.{
     .{ .key = "state", .schema = string },
     .{ .key = "attempt", .schema = count_nullish },
@@ -184,6 +188,7 @@ const snapshot_module: S = .{ .object = .{ .loose = true, .fields = &.{
     .{ .key = "verification", .schema = .verification },
     .{ .key = "metadata_error", .schema = string_nullish },
     .{ .key = "signatures", .schema = .{ .nullish = &snapshot_signatures } },
+    .{ .key = "reorg_checks", .schema = .{ .optional = &S{ .array = &reorg_check } } },
     .{ .key = "offchain_read", .schema = .{ .nullish = &snapshot_offchain_read } },
 } } };
 const snapshot_failure: S = .{ .object = .{ .fields = &.{

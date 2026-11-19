@@ -2950,7 +2950,7 @@ test "libpq: literal parameters bind the decoded values and log byte-identically
         \\  NULL::bytea[] AS none, '{}'::bytea[] AS empty
     ;
     const decoded = (try svc.query(a, row_sql, &.{}, &failure))[0];
-    const lazy = (try svc.queryLazy(a, row_sql, &.{}, .unnamed, &failure)).?;
+    const lazy = (try svc.queryLazy(a, row_sql, &.{}, .unnamed, null, &failure)).?;
     defer lazy.deinit();
     var literal: [5]Value = undefined;
     var plain: [5]Value = undefined;

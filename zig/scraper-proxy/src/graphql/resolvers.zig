@@ -74,14 +74,15 @@ pub const ResolverMap = struct {
                 // `selectMessages` without confirmations is `select` (service.zig).
                 if (field == .message_view and scraperdb.value.present(args.get("confirmations")) != null) return .none;
                 const columns = try selectedColumns(a, info, info.field_nodes);
-                const lazy = scraperdb.resolvers.selectLazy(self.db, a, &self.budget, table, &args, columns, &message) catch |err| return rawFailed(err, message);
+                const depth: Depth = if (field == .message_view) depth_messages else depth_select;
+                const lazy = scraperdb.resolvers.selectLazy(self.db, a, &self.budget, table, &args, columns, &message) catch |err| return rawFailed(err, message, depth);
                 return .{ .rows = try rawRows(a, lazy orelse return .none) };
             },
             .domain_by_pk, .raw_message_dispatch_by_pk => {
                 const table: scraperdb.Table = if (field == .domain_by_pk) .domain else .raw_message_dispatch;
                 const id = args.get("id") orelse Value.null;
                 const columns = try selectedColumns(a, info, info.field_nodes);
-                const lazy = scraperdb.resolvers.byPkLazy(self.db, a, table, &id, columns, &message) catch |err| return rawFailed(err, message);
+                const lazy = scraperdb.resolvers.byPkLazy(self.db, a, table, &id, columns, &message) catch |err| return rawFailed(err, message, depth_by_pk);
                 return .{ .row = try rawRows(a, lazy orelse return .none) };
             },
             else => return .none,
@@ -96,7 +97,7 @@ pub const ResolverMap = struct {
             // Parent is `{ args, table }` from the aggregate resolver.
             const select_args = parent.get("args") orelse Value.null;
             var message: []const u8 = "";
-            const n = scraperdb.resolvers.count(self.db, a, &self.budget, .message_view, &select_args, &args, &message) catch |err| return failed(err, message);
+            const n = scraperdb.resolvers.count(self.db, a, &self.budget, .message_view, &select_args, &args, &message) catch |err| return failed(err, message, depth_count);
             return .{ .value = .{ .number = n } };
         }
         if (!std.mem.eql(u8, parent_name, "query_root")) return .default;
@@ -105,19 +106,20 @@ pub const ResolverMap = struct {
         switch (field) {
             .domain, .raw_message_dispatch => {
                 const table: scraperdb.Table = if (field == .domain) .domain else .raw_message_dispatch;
-                const rows = scraperdb.resolvers.select(self.db, a, &self.budget, table, &args, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message);
+                const rows = scraperdb.resolvers.select(self.db, a, &self.budget, table, &args, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message, depth_select);
                 return .{ .value = .{ .array = rows } };
             },
             .message_view => {
                 // Thrown by the resolver itself, before the async service call.
                 if (history_policy.check(args, false)) |m| return .{ .failure = .{ .message = m, .sync = true } };
-                const rows = scraperdb.resolvers.selectMessages(self.db, a, &self.budget, &args, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message);
+                const depth = if (scraperdb.value.present(args.get("confirmations")) != null) depth_confirmations else depth_messages;
+                const rows = scraperdb.resolvers.selectMessages(self.db, a, &self.budget, &args, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message, depth);
                 return .{ .value = .{ .array = rows } };
             },
             .domain_by_pk, .raw_message_dispatch_by_pk => {
                 const table: scraperdb.Table = if (field == .domain_by_pk) .domain else .raw_message_dispatch;
                 const id = args.get("id") orelse Value.null;
-                const row = scraperdb.resolvers.byPk(self.db, a, table, &id, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message);
+                const row = scraperdb.resolvers.byPk(self.db, a, table, &id, try selectedColumns(a, info, info.field_nodes), &message) catch |err| return failed(err, message, depth_by_pk);
                 return .{ .value = row orelse .null };
             },
             .message_view_aggregate => {
@@ -125,15 +127,15 @@ pub const ResolverMap = struct {
                 // `db.aggregate`: nodes are queried only when selected.
                 var rows: []Value = &.{};
                 if (try nestedColumns(a, info, "nodes")) |columns| {
-                    rows = scraperdb.resolvers.select(self.db, a, &self.budget, .message_view, &args, columns, &message) catch |err| return failed(err, message);
+                    rows = scraperdb.resolvers.select(self.db, a, &self.budget, .message_view, &args, columns, &message) catch |err| return failed(err, message, depth_aggregate);
                 }
                 const aggregate = try a.dupe(Member, &.{ .{ .key = "args", .value = args }, .{ .key = "table", .value = .{ .string = "message_view" } } });
                 const result = try a.dupe(Member, &.{ .{ .key = "aggregate", .value = .{ .object = aggregate } }, .{ .key = "nodes", .value = .{ .array = rows } } });
                 return .{ .value = .{ .object = result } };
             },
             .message_activity, .message_diagnostics => {
-                // message_activity's resolver calls getDiagnostics() synchronously; message_diagnostics is async.
-                const diagnostics = self.diagnostics orelse return .{ .failure = .{ .message = "Diagnostics are not configured", .code = "DIAGNOSTICS_UNAVAILABLE", .sync = field == .message_activity } };
+                // message_activity's resolver calls getDiagnostics() synchronously; message_diagnostics is async (its rejection settles 1 tick later).
+                const diagnostics = self.diagnostics orelse return .{ .failure = .{ .message = "Diagnostics are not configured", .code = "DIAGNOSTICS_UNAVAILABLE", .sync = field == .message_activity, .depth = if (field == .message_diagnostics) 1 else 0 } };
                 const message_id = stringArg(args, "message_id") orelse "";
                 var failure: execute.ResolveFailure = .{ .message = "" };
                 const result = if (field == .message_activity)
@@ -142,7 +144,13 @@ pub const ResolverMap = struct {
                     diagnostics.snapshot(diagnostics.ctx, a, message_id, &failure);
                 const v = result catch |err| switch (err) {
                     error.OutOfMemory => return error.OutOfMemory,
-                    error.ResolverFailed => return .{ .failure = failure },
+                    error.ResolverFailed => {
+                        // Without I/O (argument errors): message_activity
+                        // returns `history()`'s promise (1 tick);
+                        // message_diagnostics awaits `snapshots()` (2).
+                        failure.depth = if (field == .message_activity) 1 else 2;
+                        return .{ .failure = failure };
+                    },
                 };
                 return .{ .value = v };
             },
@@ -161,14 +169,40 @@ const RootField = enum {
     message_diagnostics,
 };
 
-fn failed(err: anyerror, message: []const u8) Allocator.Error!ResolveResult {
+/// Where a TS resolver's promise rejects when the failure needs no I/O
+/// (`ResolveFailure.depth`, graphql-js settle order), in microtask ticks from
+/// the resolver's call (Node 26.12.1, measured): `refused` when its first
+/// statement hits the pending-query cap (`DbService.query`'s assert, in an
+/// async function), `assert` when the service asserts before any statement.
+/// Failures after I/O settle by completion instead.
+const Depth = struct {
+    refused: u8,
+    assert: u8,
+
+    fn of(self: Depth, message: []const u8) u8 {
+        return if (std.mem.eql(u8, message, db.service.pending_capacity_message)) self.refused else self.assert;
+    }
+};
+/// `byPk`: `await this.db.query(...)` (`buildByPk` cannot fail here).
+const depth_by_pk: Depth = .{ .refused = 2, .assert = 2 };
+/// `select` (`domain`: returns `db.query`'s promise; history:
+/// `historyQuery`'s), `aggregate`'s nodes, and `count`.
+const depth_select: Depth = .{ .refused = 3, .assert = 1 };
+const depth_aggregate: Depth = .{ .refused = 3, .assert = 1 };
+const depth_count: Depth = .{ .refused = 3, .assert = 1 };
+/// `selectMessages` without confirmations returns `select`'s promise.
+const depth_messages: Depth = .{ .refused = 4, .assert = 3 };
+/// With confirmations: its own asserts, then the snapshot's `historyQuery`.
+const depth_confirmations: Depth = .{ .refused = 3, .assert = 1 };
+
+fn failed(err: anyerror, message: []const u8, depth: Depth) Allocator.Error!ResolveResult {
     if (err == error.OutOfMemory) return error.OutOfMemory;
-    return .{ .failure = .{ .message = message } };
+    return .{ .failure = .{ .message = message, .depth = depth.of(message) } };
 }
 
-fn rawFailed(err: anyerror, message: []const u8) Allocator.Error!RawResult {
+fn rawFailed(err: anyerror, message: []const u8, depth: Depth) Allocator.Error!RawResult {
     if (err == error.OutOfMemory) return error.OutOfMemory;
-    return .{ .failure = .{ .message = message } };
+    return .{ .failure = .{ .message = message, .depth = depth.of(message) } };
 }
 
 /// `lazy` as the executor's `RawRows` (which then owns it: on error here it

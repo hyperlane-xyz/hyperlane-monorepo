@@ -67,6 +67,7 @@ pub const ConnOptions = pq.ConnOptions;
 pub const QueryOptions = pq.QueryOptions;
 pub const Plan = pq.Plan;
 pub const DbService = service.DbService;
+pub const PendingChain = service.PendingChain;
 pub const Listener = listener.Listener;
 pub const NotificationHandler = listener.Handler;
 

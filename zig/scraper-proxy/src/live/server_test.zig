@@ -285,6 +285,9 @@ const FakeDb = struct {
 
     /// `query_async` reads started (each on a thread of its own, after `before_query`).
     async_started: usize = 0,
+    /// Boundary reads (`liveStartBoundaries`) issued, counted at the issue
+    /// (live's mutex held), unlike `queries` (recorded on the read's thread).
+    boundaries_issued: usize = 0,
 
     fn db(self: *FakeDb) es.Db {
         return .{ .ctx = self, .query = query, .query_async = queryAsync };
@@ -294,6 +297,7 @@ const FakeDb = struct {
         const self: *FakeDb = @ptrCast(@alignCast(ctx));
         self.mutex.lock();
         self.async_started += 1;
+        if (std.mem.indexOf(u8, request.sql, "JOIN scraper_checkpoint c") != null) self.boundaries_issued += 1;
         self.mutex.unlock();
         request.backend = self;
         const thread = std.Thread.spawn(.{}, runAsync, .{request}) catch unreachable;
@@ -2478,6 +2482,238 @@ test "async reads: a burst of subscribes all get their live start once" {
     for (agents) |agent| try h.waitFrames(agent[0], 3);
     h.settle();
     for (agents) |agent| try testing.expectEqual(@as(usize, 1), countFrames(agent[0], "live_start"));
+}
+
+// -- mixed subscribes: the canonical boundary read waits for earlier tasks
+
+/// Domain 1 at two confirmations (a custom cursor, live start awaited), domain
+/// 2 canonical (a boundary read once the cursor's live start is written).
+const mixed_subscribe =
+    \\{"type":"subscribe","confirmationsByDomain":{"1":2},"streams":[{"eventType":"dispatch","domains":[1,2]}]}
+;
+const mixed_heads = "[{\"domain\":1,\"head_height\":\"20\",\"indexed_height\":\"20\",\"confirmed_height\":\"15\",\"height\":\"17\",\"hash\":\"" ++ "AB" ** 32 ++ "\",\"mailbox\":\"" ++ "11" ** 20 ++ "\",\"merkle_tree_hook\":\"" ++ "22" ** 32 ++ "\",\"interchain_gas_paymaster\":\"" ++ "33" ** 32 ++ "\"}]";
+
+/// A mixed subscribe parked on its held cursor live start (the flow's next
+/// step is the canonical boundary read).
+fn parkMixed(h: *Harness) !struct { *FakeSocket, *live.Peer } {
+    const s, const peer = h.agent();
+    try h.waitFrames(s, 1);
+    s.mutex.lock();
+    s.hold = true;
+    s.mutex.unlock();
+    h.server.onMessage(peer, mixed_subscribe);
+    // ready, subscribed, then the cursor's live start (held, awaited).
+    try h.waitFrames(s, 3);
+    try testing.expect(std.mem.indexOf(u8, s.frame(2), "\"domain\":1,\"confirmations\":2") != null);
+    return .{ s, peer };
+}
+
+/// Loop mutex held: complete `s`'s held sends as ws would (still holding
+/// later ones); the flow resumes when the turn ends (a `.run` handoff).
+fn completeHeldLocked(h: *Harness, s: *FakeSocket, peer: *live.Peer) void {
+    s.mutex.lock();
+    const held = s.held.toOwnedSlice(a) catch unreachable;
+    s.mutex.unlock();
+    defer a.free(held);
+    for (held) |completion| {
+        completion.send_job.complete(completion.ok);
+        a.destroy(completion);
+    }
+    h.server.passEndLocked(peer);
+}
+
+fn boundariesIssued(h: *Harness) usize {
+    h.db.mutex.lock();
+    defer h.db.mutex.unlock();
+    return h.db.boundaries_issued;
+}
+
+fn poolThreads(h: *Harness) usize {
+    h.t.pool.mutex.lock();
+    defer h.t.pool.mutex.unlock();
+    return h.t.pool.threads;
+}
+
+test "mixed subscribes: a burst resuming in one turn takes one canonical task, not a thread per flow" {
+    const n = 64;
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    limits.max_agent_clients = n;
+    try h.initAsync(limits);
+    defer h.deinit();
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .rows = mixed_heads });
+    var agents: [n]struct { *FakeSocket, *live.Peer } = undefined;
+    for (&agents) |*agent| agent.* = try parkMixed(&h);
+    h.settle();
+    try testing.expectEqual(@as(usize, 0), boundariesIssued(&h));
+    // Idle workers outlive the check (none retires meanwhile).
+    h.t.pool.mutex.lock();
+    h.t.pool.idle_ms = 600_000;
+    h.t.pool.mutex.unlock();
+    const before = poolThreads(&h);
+    // Every live start completes in one turn: each flow resumes in the
+    // turn's handoffs and queues its boundary read behind the tasks spawned
+    // before it, while no task can start.
+    h.t.loop.lock();
+    for (agents) |agent| completeHeldLocked(&h, agent[0], agent[1]);
+    h.t.loop.unlock();
+    // One drainer (no task is spawned between the flows): a thread at
+    // most, plus a worker or two for unrelated tasks (`drainReads` when a
+    // read completes) whose idle thread was busy at the time. A task per
+    // flow would have started one each: they all queue behind this turn.
+    try testing.expect(poolThreads(&h) <= before + 4);
+    for (0..10_000) |_| {
+        if (boundariesIssued(&h) == n) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expectEqual(@as(usize, n), boundariesIssued(&h));
+    // Each flow's canonical live start, once.
+    for (agents) |agent| {
+        for (0..10_000) |_| {
+            if (countFrames(agent[0], "\"domain\":2") > 0) break;
+            std.Thread.sleep(std.time.ns_per_ms);
+        }
+        try testing.expectEqual(@as(usize, 1), countFrames(agent[0], "\"domain\":2"));
+    }
+    h.settle();
+    try testing.expectEqual(@as(usize, n), boundariesIssued(&h));
+}
+
+/// A `.run` handoff: `stop`'s removal of the upgrade listener (the rest of
+/// `stop` runs in `deinit`).
+fn removeUpgradeListener(ctx: *anyopaque) void {
+    const server: *live.Server = @ptrCast(@alignCast(ctx));
+    server.upgrade_removed.store(true, .release);
+}
+
+fn canonicalWaiting(server: *live.Server) bool {
+    return server.canonical_waiting.items.len > 0 or server.canonical_last != null;
+}
+
+test "mixed subscribes: flows still waiting for their boundary read when stop removes the upgrade listener are finished without one" {
+    const n = 16;
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    limits.max_agent_clients = n;
+    try h.initAsync(limits);
+    // `destroy` asserts no flow is left waiting; leaks are test failures.
+    defer h.deinit();
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .rows = mixed_heads });
+    var agents: [n]struct { *FakeSocket, *live.Peer } = undefined;
+    for (&agents) |*agent| agent.* = try parkMixed(&h);
+    h.settle();
+    // One turn's handoffs: every flow resumes and queues its boundary read,
+    // then the upgrade listener goes, before any task can start.
+    h.t.loop.lock();
+    for (agents) |agent| completeHeldLocked(&h, agent[0], agent[1]);
+    h.t.loop.handOff(.{ .run = .{ .ctx = h.server, .func = removeUpgradeListener } });
+    h.t.loop.unlock();
+    try runtime.until(&h.t.loop, h.server, struct {
+        fn check(server: *live.Server) bool {
+            return !canonicalWaiting(server);
+        }
+    }.check);
+    h.settle();
+    try testing.expectEqual(@as(usize, 0), boundariesIssued(&h));
+    for (agents) |agent| try testing.expectEqual(@as(usize, 0), countFrames(agent[0], "\"domain\":2"));
+}
+
+test "mixed subscribes: a flow queued after its would-be drainer ran gets a drainer of its own" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .rows = mixed_heads });
+    const first, const first_peer = try parkMixed(&h);
+    const second, const second_peer = try parkMixed(&h);
+    h.settle();
+    // Boundary reads are issued but never complete (until the end), so no
+    // `drainReads` task is spawned after the first flow's drainer.
+    var gate: QueryGate = .{ .contains = "JOIN scraper_checkpoint c" };
+    h.db.before_query = .{ .ctx = &gate, .func = QueryGate.before };
+    defer gate.released.set();
+    h.t.loop.lock();
+    completeHeldLocked(&h, first, first_peer);
+    h.t.loop.unlock();
+    try runtime.until(&h.t.loop, h.server, struct {
+        fn check(server: *live.Server) bool {
+            return server.canonical_waiting.items.len == 0;
+        }
+    }.check);
+    try testing.expectEqual(@as(usize, 1), boundariesIssued(&h));
+    // The drainer was the last task spawned, and it has run: the second
+    // flow must not join it.
+    h.t.loop.lock();
+    h.t.pool.mutex.lock();
+    const idle = h.t.loop.next_ticket == h.t.loop.next_start;
+    h.t.pool.mutex.unlock();
+    if (idle) completeHeldLocked(&h, second, second_peer);
+    h.t.loop.unlock();
+    try testing.expect(idle);
+    for (0..5_000) |_| {
+        if (boundariesIssued(&h) == 2) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expectEqual(@as(usize, 2), boundariesIssued(&h));
+}
+
+/// A task spawned between two resumed flows: what it sees is how many
+/// boundary reads were issued before it started.
+const BoundaryProbe = struct {
+    h: *Harness,
+    seen: ?usize = null,
+
+    /// A `.run` handoff (mutex held, never blocks): spawn the probe task.
+    fn spawn(ctx: *anyopaque) void {
+        const self: *BoundaryProbe = @ptrCast(@alignCast(ctx));
+        self.h.t.loop.spawn(run, .{self});
+    }
+
+    fn run(self: *BoundaryProbe) void {
+        self.seen = boundariesIssued(self.h);
+    }
+};
+
+test "mixed subscribes: each boundary read is issued after the tasks spawned before it and before later ones" {
+    var h: Harness = .{};
+    var limits = defaultLimits();
+    limits.heartbeat_ms = 1_000_000;
+    try h.initAsync(limits);
+    defer h.deinit();
+    h.db.add(.{ .contains = "SELECT h.domain, h.head_height", .persistent = true, .rows = mixed_heads });
+    const first, const first_peer = try parkMixed(&h);
+    const second, const second_peer = try parkMixed(&h);
+    h.settle();
+    try testing.expectEqual(@as(usize, 0), boundariesIssued(&h));
+    var probe: BoundaryProbe = .{ .h = &h };
+    var later: BoundaryProbe = .{ .h = &h };
+    // One turn's handoffs, in order: the first flow resumes, a probe task
+    // is spawned, the second flow resumes, another probe is spawned. Each
+    // read is issued in the flow's place in task order (as the per-flow
+    // task did, and as TS's write callbacks run): the second flow's after
+    // the first probe started (TS's later write callback runs after it),
+    // and before the second probe starts.
+    h.t.loop.lock();
+    completeHeldLocked(&h, first, first_peer);
+    h.t.loop.handOff(.{ .run = .{ .ctx = &probe, .func = BoundaryProbe.spawn } });
+    completeHeldLocked(&h, second, second_peer);
+    h.t.loop.handOff(.{ .run = .{ .ctx = &later, .func = BoundaryProbe.spawn } });
+    h.t.loop.unlock();
+    for ([_]*BoundaryProbe{ &probe, &later }) |p| try runtime.until(&h.t.loop, p, struct {
+        fn check(item: *BoundaryProbe) bool {
+            return item.seen != null;
+        }
+    }.check);
+    try testing.expectEqual(@as(?usize, 1), probe.seen);
+    try testing.expectEqual(@as(?usize, 2), later.seen);
+    for (0..10_000) |_| {
+        if (boundariesIssued(&h) == 2) break;
+        std.Thread.sleep(std.time.ns_per_ms);
+    }
+    try testing.expectEqual(@as(usize, 2), boundariesIssued(&h));
 }
 
 test "async live starts: stop with an awaited live start still queued frees everything" {

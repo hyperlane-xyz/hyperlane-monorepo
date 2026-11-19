@@ -753,6 +753,14 @@ pub const Server = struct {
     /// costs one worker, and no continuation ever waits.
     finished_reads: std.ArrayList(*AsyncWork) = .empty,
     reads_draining: bool = false,
+    /// Subscribe flows past their cursor live starts, awaiting their
+    /// canonical boundary read (`continueCursorStarts`), in order, each with
+    /// the `drainCanonical` task that issues it. A flow joins the last
+    /// drainer only if no task was spawned since it (and it has not run);
+    /// otherwise it gets a drainer of its own, as the per-flow task did.
+    canonical_waiting: std.ArrayList(CanonicalWait) = .empty,
+    /// The ticket of the last `drainCanonical` task spawned, until it runs.
+    canonical_last: ?u64 = null,
     /// Charges of lookahead frames written but not yet sent by their drain.
     lookahead_unconsumed: usize = 0,
     /// TS #10089 `routePending` (atomic, like `pending_bytes`) and
@@ -954,6 +962,9 @@ pub const Server = struct {
         self.deferred.deinit(a);
         self.pending_order.deinit(a);
         self.finished_reads.deinit(a);
+        // `Pool.deinit` ran every drainer (each finishes its flows once stopping).
+        std.debug.assert(self.canonical_waiting.items.len == 0 and self.canonical_last == null);
+        self.canonical_waiting.deinit(a);
         self.flush_payloads.deinit(a);
         self.corked.deinit(a);
         self.flush_jobs.deinit(a);
@@ -2600,19 +2611,53 @@ pub const Server = struct {
             // TS awaits each cursor's `live_start` write callback (a later
             // turn) before `sendLiveStarts` issues the boundary read, and
             // `events.start()` issued the source's first range reads
-            // synchronously before that. Those reads run as tasks here:
-            // continue as a task too, so the boundary read is issued after
-            // them, in TS's order (only the issue is ordered, as in TS).
-            self.loop.spawn(runFlowCanonical, .{@as(*anyopaque, flow)});
+            // synchronously before that. Those reads run as tasks here: the
+            // boundary read is issued by a task in this flow's place in task
+            // order, after every task spawned before now and before every
+            // later one (only the issue is ordered, as in TS). The last
+            // drainer serves when nothing was spawned since it; flows queued
+            // after it are then issued in its turn, in order.
+            const drainer = blk: {
+                if (self.canonical_last) |last| if (self.loop.lastSpawned(last)) break :blk last;
+                const ticket = self.loop.spawnTicket(drainCanonical, .{self});
+                self.canonical_last = ticket;
+                break :blk ticket;
+            };
+            self.canonical_waiting.append(self.allocator, .{ .flow = flow, .drainer = drainer }) catch oom();
             return;
         }
         self.readBoundaries(flow);
     }
 
-    /// A loop task (mutex held).
-    fn runFlowCanonical(ctx: *anyopaque) void {
-        const flow: *SubscribeFlow = @ptrCast(@alignCast(ctx));
-        flow.server.readBoundaries(flow);
+    /// A flow waiting in `canonical_waiting`.
+    const CanonicalWait = struct {
+        flow: *SubscribeFlow,
+        /// The ticket of the `drainCanonical` task that issues its read.
+        drainer: u64,
+    };
+
+    /// A loop task (mutex held), in one turn: issue the boundary reads of
+    /// the flows assigned to this task, in order. Tasks start in ticket
+    /// order and flows queue in drainer order, so this task's flows are the
+    /// queue's head. Once `stop` removed the upgrade listener
+    /// `readBoundaries` finishes each flow instead.
+    fn drainCanonical(self: *Server) void {
+        const waiting = &self.canonical_waiting;
+        std.debug.assert(waiting.items.len > 0);
+        const ticket = waiting.items[0].drainer;
+        // This task's own ticket (`awaitStart` just counted it).
+        std.debug.assert(ticket + 1 == self.loop.next_start);
+        if (self.canonical_last == ticket) self.canonical_last = null;
+        var done: usize = 0;
+        while (done < waiting.items.len and waiting.items[done].drainer == ticket) {
+            // By value: `readBoundaries` may free the flow.
+            const entry = waiting.items[done];
+            done += 1;
+            self.readBoundaries(entry.flow);
+        }
+        const left = waiting.items.len - done;
+        std.mem.copyForwards(CanonicalWait, waiting.items[0..left], waiting.items[done..]);
+        waiting.shrinkRetainingCapacity(left);
     }
 
     /// `sendLiveStarts(socket, client, canonical streams)` up to its

@@ -228,6 +228,14 @@ pub const Loop = struct {
         self.holdStart();
     }
 
+    /// No task was spawned after the one holding `ticket` (any thread's
+    /// `spawn`: timer callbacks spawn without the loop mutex).
+    pub fn lastSpawned(self: *Loop, ticket: u64) bool {
+        self.pool.mutex.lock();
+        defer self.pool.mutex.unlock();
+        return self.next_ticket == ticket + 1;
+    }
+
     /// Queue a continuation (mutex held): see `handoffs`.
     pub fn handOff(self: *Loop, handoff: Handoff) void {
         self.handoffs.append(self.allocator, handoff) catch @panic("live: out of memory queueing a continuation");
@@ -294,6 +302,11 @@ pub const Loop = struct {
 
     /// Run `func(args...)` on a pool thread with the loop mutex held.
     pub fn spawn(self: *Loop, comptime func: anytype, args: std.meta.ArgsTuple(@TypeOf(func))) void {
+        _ = self.spawnTicket(func, args);
+    }
+
+    /// `spawn`, returning the task's ticket (its place in start order).
+    pub fn spawnTicket(self: *Loop, comptime func: anytype, args: std.meta.ArgsTuple(@TypeOf(func))) u64 {
         const Args = @TypeOf(args);
         const Closure = struct {
             job: Pool.Job,
@@ -317,7 +330,7 @@ pub const Loop = struct {
             @panic("live: out of memory spawning task");
         };
         closure.* = .{ .job = .{ .run = Closure.run }, .loop = self, .args = args };
-        self.pool.submitOrdered(&closure.job, &self.next_ticket);
+        return self.pool.submitOrdered(&closure.job, &self.next_ticket);
     }
 
     /// Mutex held (just acquired, so no turn work is pending): wait until
@@ -439,13 +452,15 @@ pub const Pool = struct {
 
     /// `submit`, numbering the job from `counter` under the pool mutex, so
     /// ticket order is queue order (a worker never waits on a ticket that is
-    /// still queued behind it).
-    pub fn submitOrdered(self: *Pool, job: *Job, counter: *u64) void {
+    /// still queued behind it). Returns the ticket.
+    pub fn submitOrdered(self: *Pool, job: *Job, counter: *u64) u64 {
         self.mutex.lock();
         defer self.mutex.unlock();
-        job.ticket = counter.*;
+        const ticket = counter.*;
+        job.ticket = ticket;
         counter.* += 1;
         self.enqueue(job);
+        return ticket;
     }
 
     fn enqueue(self: *Pool, job: *Job) void {

@@ -779,7 +779,7 @@
     "QUERY /nope HTTP/1.1\r\nHost: a\r\nContent-Type: application/json\r\n\r\n"
    ],
    "mode": "full",
-   "response": "HTTP/1.1 400 Bad Request\r\nvary: Origin\r\ncontent-type: application/json; charset=utf-8\r\ncontent-length: 135\r\nDate: <DATE>\r\nConnection: keep-alive\r\nKeep-Alive: timeout=72\r\n\r\n{\"statusCode\":400,\"code\":\"FST_ERR_ROUTE_MISSING_CONTENT\",\"error\":\"Bad Request\",\"message\":\"Method 'QUERY' must provide a request body.\"}<OPEN>"
+   "response": "HTTP/1.1 400 Bad Request\r\nvary: Origin\r\nconnection: close\r\ncontent-type: application/json; charset=utf-8\r\ncontent-length: 157\r\nDate: <DATE>\r\n\r\n{\"statusCode\":400,\"code\":\"FST_ERR_CTP_EMPTY_JSON_BODY\",\"error\":\"Bad Request\",\"message\":\"Body cannot be empty when content-type is set to 'application/json'\"}<EOF>"
   },
   {
    "name": "connect",
@@ -1435,7 +1435,7 @@
     "POST /nope HTTP/1.1\r\nHost: a\r\nContent-Type: application/json\r\nContent-Length: 3\r\n\r\n\"ÿ\""
    ],
    "mode": "full",
-   "response": "HTTP/1.1 400 Bad Request\r\nvary: Origin\r\nconnection: close\r\ncontent-type: application/json; charset=utf-8\r\ncontent-length: 143\r\nDate: <DATE>\r\n\r\n{\"statusCode\":400,\"code\":\"FST_ERR_CTP_INVALID_CONTENT_LENGTH\",\"error\":\"Bad Request\",\"message\":\"Request body size did not match Content-Length\"}<EOF>"
+   "response": "HTTP/1.1 404 Not Found\r\nvary: Origin\r\ncontent-type: application/json; charset=utf-8\r\ncontent-length: 77\r\nDate: <DATE>\r\nConnection: keep-alive\r\nKeep-Alive: timeout=72\r\n\r\n{\"message\":\"Route POST:/nope not found\",\"error\":\"Not Found\",\"statusCode\":404}<OPEN>"
   },
   {
    "name": "404 json proto",

@@ -2939,6 +2939,167 @@
     ]
   },
   {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { signatures { collected } reorg_checks { validator states } offchain_read { state } } } } }",
+    "errors": []
+  },
+  {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { reorg_checks } } } }",
+    "errors": [
+      {
+        "message": "Field \"reorg_checks\" of type \"[ValidatorReorgCheck!]\" must have a selection of subfields. Did you mean \"reorg_checks { ... }\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 63
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { reorg_check { validator } } } } }",
+    "errors": [
+      {
+        "message": "Cannot query field \"reorg_check\" on type \"IsmProgress\". Did you mean \"reorg_checks\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 63
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { reorg { validator } } } } }",
+    "errors": [
+      {
+        "message": "Cannot query field \"reorg\" on type \"IsmProgress\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 63
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { reorg_checks { validatr state stats } } } } }",
+    "errors": [
+      {
+        "message": "Cannot query field \"validatr\" on type \"ValidatorReorgCheck\". Did you mean \"validator\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 78
+          }
+        ]
+      },
+      {
+        "message": "Cannot query field \"state\" on type \"ValidatorReorgCheck\". Did you mean \"states\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 87
+          }
+        ]
+      },
+      {
+        "message": "Cannot query field \"stats\" on type \"ValidatorReorgCheck\". Did you mean \"states\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 93
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { reorg_checks { validator { x } states { x } } } } } }",
+    "errors": [
+      {
+        "message": "Field \"validator\" must not have a selection since type \"String!\" has no subfields.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 88
+          }
+        ]
+      },
+      {
+        "message": "Field \"states\" must not have a selection since type \"[String!]!\" has no subfields.",
+        "locations": [
+          {
+            "line": 1,
+            "column": 101
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { reorg_checks(x: 1) { validator states(y: 2) } } } } }",
+    "errors": [
+      {
+        "message": "Unknown argument \"x\" on field \"IsmProgress.reorg_checks\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 76
+          }
+        ]
+      },
+      {
+        "message": "Unknown argument \"y\" on field \"ValidatorReorgCheck.states\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 101
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { reorg_checks { ... on ValidatorReorgCheck { validator } ... on IsmProgress { ism } } } } } }",
+    "errors": [
+      {
+        "message": "Fragment cannot be spread here as objects of type \"ValidatorReorgCheck\" can never be of type \"IsmProgress\".",
+        "locations": [
+          {
+            "line": 1,
+            "column": 119
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "{ message_diagnostics(message_id: \"m\") { relayers { modules { reorg_checks { ...F } } } } } fragment F on ValidatorReorgChek { validator }",
+    "errors": [
+      {
+        "message": "Unknown type \"ValidatorReorgChek\". Did you mean \"ValidatorReorgCheck\"?",
+        "locations": [
+          {
+            "line": 1,
+            "column": 107
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "query": "{ __type(name: \"ValidatorReorgCheck\") { name fields { name type { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } } }",
+    "errors": [
+      {
+        "message": "Introspection is not allowed",
+        "locations": []
+      }
+    ]
+  },
+  {
     "query": "{ __typename domain { __typename } }",
     "errors": []
   },

@@ -275,6 +275,11 @@ pub const GraphqlRoute = struct {
         }
     }
 
+    fn slotRejected(ctx: *anyopaque) bool {
+        const st: *RequestState = @ptrCast(@alignCast(ctx));
+        return st.slot.load(.acquire) == .rejected;
+    }
+
     fn releaseSlot(self: *GraphqlRoute, st: *RequestState) void {
         // The close and onDone may both try: one releases.
         if (st.slot.cmpxchgStrong(.held, .none, .seq_cst, .seq_cst) != null) return;
@@ -594,7 +599,7 @@ pub const GraphqlRoute = struct {
         // aliases): keep the reference until the response is serialized.
         var doc_ref: ?*CachedDocument = null;
         defer if (doc_ref) |d| self.documents.release(d);
-        const admission: execute.Admission = .{ .ctx = st, .enter = enterSlot };
+        const admission: execute.Admission = .{ .ctx = st, .enter = enterSlot, .rejected = slotRejected };
         execute.admission = admission;
         // GET `variables` reach graphql-js as the query string (or what it
         // parses to): anything but null, an object or an array fails its

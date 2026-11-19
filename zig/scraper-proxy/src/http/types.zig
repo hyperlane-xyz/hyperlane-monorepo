@@ -144,7 +144,6 @@ pub const FastifyError = struct {
 
     pub const invalid_media_type: FastifyError = .{ .status = 415, .code = "FST_ERR_CTP_INVALID_MEDIA_TYPE", .message = "Unsupported Media Type" };
     pub const body_too_large: FastifyError = .{ .status = 413, .code = "FST_ERR_CTP_BODY_TOO_LARGE", .message = "Request body is too large" };
-    pub const invalid_content_length: FastifyError = .{ .status = 400, .code = "FST_ERR_CTP_INVALID_CONTENT_LENGTH", .message = "Request body size did not match Content-Length" };
     pub const empty_json_body: FastifyError = .{ .status = 400, .code = "FST_ERR_CTP_EMPTY_JSON_BODY", .message = "Body cannot be empty when content-type is set to 'application/json'" };
     pub const invalid_json_body: FastifyError = .{ .status = 400, .code = "FST_ERR_CTP_INVALID_JSON_BODY", .message = "Body is not valid JSON but content-type is set to 'application/json'" };
 };

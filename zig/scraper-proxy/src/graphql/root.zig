@@ -39,4 +39,5 @@ test {
     _ = @import("execute_golden_test.zig");
     _ = @import("raw_rows_test.zig");
     _ = @import("stack_test.zig");
+    _ = @import("pending_chain_test.zig");
 }

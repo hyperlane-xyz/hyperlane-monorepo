@@ -60,7 +60,9 @@ fn planTotalCost(rows: []const Value) ?f64 {
 /// node-pg value conversion. Parameters are raw JSON Values (node-pg
 /// `prepareValue` semantics are the implementation's job). On failure the
 /// implementation sets `diag.message` to the node-pg `error.message` (it
-/// becomes the GraphQL error message, as in TS) and returns an error.
+/// becomes the GraphQL error message, as in TS) and returns an error. An
+/// implementation that caps pending statements runs each in `diag.chain`
+/// when set (`db.PendingChain`).
 pub const Database = struct {
     ctx: *anyopaque,
     /// Runs a statement planned as node-pg would (`Plan.custom`); test
@@ -229,10 +231,31 @@ pub const Service = struct {
     }
 
     /// TS `historyQuery`: the cost check, then the statement (planned as
-    /// `plan`; the EXPLAIN is always node-pg's unnamed custom plan).
+    /// `plan`; the EXPLAIN is always node-pg's unnamed custom plan), in one
+    /// pending chain.
     fn historyQuery(self: Service, arena: Allocator, budget: *HistoryBudget, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value {
+        var chain: db_mod.PendingChain = .{};
+        const own = beginChain(diag, &chain);
+        defer if (own) endChain(diag, &chain);
         try self.checkHistoryCost(arena, budget, text, values, diag);
         return self.db.queryPlanned(arena, plan, text, values, diag);
+    }
+
+    /// Runs `diag`'s next statements in `chain` unless they already run in
+    /// one (the caller's); true when `chain` is now theirs: the caller must
+    /// then `endChain` on every path. TS issues a history statement's
+    /// EXPLAIN, the statement, and with confirmations the projection's two
+    /// after the snapshot's, each from the previous one's continuation (no
+    /// other request's code in between), so they share one pending slot.
+    fn beginChain(diag: *Diag, chain: *db_mod.PendingChain) bool {
+        if (diag.chain != null) return false;
+        diag.chain = chain;
+        return true;
+    }
+
+    fn endChain(diag: *Diag, chain: *db_mod.PendingChain) void {
+        diag.chain = null;
+        chain.release();
     }
 
     /// Every table but `domain` is history (TS `select`): its statement is
@@ -253,6 +276,9 @@ pub const Service = struct {
         // check (only `DbService` with a test backend) makes it check twice.
         const f = self.db.lazyQueryFn orelse return null;
         const query = try sql.buildSelect(arena, table, args, null, diag);
+        var chain: db_mod.PendingChain = .{};
+        const own = table != .domain and beginChain(diag, &chain);
+        defer if (own) endChain(diag, &chain);
         if (table != .domain) try self.checkHistoryCost(arena, budget, query.sql, query.values, diag);
         return f(self.db.ctx, arena, planForSelect(table, args.where, query), query.sql, query.values, diag);
     }
@@ -270,6 +296,9 @@ pub const Service = struct {
         const confirmations = value.present(args.confirmations) orelse
             return self.select(arena, budget, .message_view, select_args, diag);
         const queries = try buildMessageQueries(arena, select_args, confirmations, diag);
+        var chain: db_mod.PendingChain = .{};
+        const own = beginChain(diag, &chain);
+        defer if (own) endChain(diag, &chain);
         try self.checkHistoryCost(arena, budget, queries.snapshot.sql, queries.snapshot.values, diag);
         const snapshot = try self.snapshotRow(arena, queries.snapshot, diag);
         const projection = try buildProjection(arena, select_args, snapshot, diag);

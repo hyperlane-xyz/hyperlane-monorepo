@@ -65,7 +65,16 @@ pub fn locationsFromOffsets(a: Allocator, source: []const u8, offsets: []const u
 /// Resolver failure: message + optional `extensions.code`. `sync`: the
 /// resolver throws before returning a promise; on a root field graphql-js
 /// records that error during executeFields, before any promise settles.
-pub const ResolveFailure = struct { message: []const u8, code: ?[]const u8 = null, sync: bool = false };
+pub const ResolveFailure = struct {
+    message: []const u8,
+    code: ?[]const u8 = null,
+    sync: bool = false,
+    /// For a failure without I/O: the microtask tick, counted from the TS
+    /// resolver's call, at which its promise rejects (graphql-js settles
+    /// I/O-free root fields in that order; see `RootTask.settle`). 0: at
+    /// once, as graphql-js's own errors (argument coercion) are.
+    depth: u8 = 0,
+};
 
 pub const ResolveResult = union(enum) {
     /// Use the default resolver (`source[fieldName]`).
@@ -186,6 +195,9 @@ pub threadlocal var io_events: u32 = 0;
 pub const Admission = struct {
     ctx: *anyopaque,
     enter: *const fn (ctx: *anyopaque) bool,
+    /// Optional: true once the request lost its execution slot (every later
+    /// `enter` is false), without taking one.
+    rejected: ?*const fn (ctx: *anyopaque) bool = null,
 };
 
 /// Set by the route on the request's fiber (thread off fibers) and by
@@ -199,6 +211,14 @@ pub threadlocal var admission: ?Admission = null;
 pub fn beforeIo() bool {
     const adm = admission orelse return true;
     return adm.enter(adm.ctx);
+}
+
+/// True when the request already lost its execution slot (`beforeIo` would
+/// refuse): adapters skip work TS's preHandler 503 never reached.
+pub fn admissionRejected() bool {
+    const adm = admission orelse return false;
+    const f = adm.rejected orelse return false;
+    return f(adm.ctx);
 }
 
 /// Counterpart of `beforeIo` once the I/O happened (settle-order bookkeeping).
@@ -241,6 +261,11 @@ pub const Executor = struct {
     deep_scalar: bool = false,
     /// A root field's resolver failed synchronously (`ResolveFailure.sync`).
     sync_failure: bool = false,
+    /// `ResolveFailure.depth` of the root field's own failure, and the
+    /// latest tick at which a nested field's failure reached a nullable
+    /// parent (see `RootTask.settle`).
+    root_depth: u8 = 0,
+    nested_settle: u8 = 0,
 
     const Err = error{ OutOfMemory, Raw, Located };
 
@@ -350,6 +375,14 @@ pub const Executor = struct {
         sync: bool = false,
         /// Global completion order (settle order among I/O fields).
         stamp: u64 = 0,
+        /// I/O-free fields: the tick at which graphql-js records the
+        /// field's errors (TS, measured on Node 26.12.1). A nullable root
+        /// field's error is recorded when its resolver's promise rejects
+        /// (`ResolveFailure.depth`); a non-null one's 3 ticks later, when
+        /// the operation's `Promise.all` rejection reaches executeOperation,
+        /// which ends collection: errors recorded later are dropped. Ties
+        /// settle in document order.
+        settle: u8 = 0,
         job: root_pool.Job = .{ .run = runJob },
 
         fn runJob(job: *root_pool.Job) void {
@@ -400,12 +433,14 @@ pub const Executor = struct {
                     t.pending = sub.pending;
                     t.errors = sub.errors.items;
                     t.sync = sub.sync_failure;
+                    t.settle = @max(sub.root_depth, sub.nested_settle) +| 3;
                     return;
                 },
             };
             t.value = sub.out.written();
             t.errors = sub.errors.items;
             t.sync = sub.sync_failure;
+            t.settle = @max(sub.root_depth, sub.nested_settle);
             t.deep_scalar = sub.deep_scalar;
         }
     };
@@ -444,33 +479,45 @@ pub const Executor = struct {
         // synchronously ends the loop, so later root fields never start (the
         // ones before it keep running) and the response has that error alone.
         var sync_stop: ?usize = null;
-        if (self.resolvers.fails_synchronously) |fails| for (tasks, 0..) |*t, i| {
+        for (tasks, 0..) |*t, i| {
             const first = t.nodes[0];
             const def = self.schema.fieldDef(root, first.name.value) orelse continue;
             if (!def.type.isNonNull()) continue;
-            // Argument errors are left to the field's own run (as before).
+            // executeField throws an argument error inside executeFields, as
+            // a resolver's synchronous throw (the field's own run reports it).
             const args = switch (try values.getArgumentValues(self.a, def.args, first.arguments, first.loc, self.vars)) {
                 .ok => |v| v,
-                .err => continue,
+                .err => {
+                    sync_stop = i;
+                    break;
+                },
             };
+            const fails = self.resolvers.fails_synchronously orelse continue;
             if (fails(self.resolvers.ctx, first.name.value, args)) {
                 sync_stop = i;
                 break;
             }
-        };
+        }
         const started = tasks[0..if (sync_stop) |i| i + 1 else n];
         const pooled = try self.a.alloc(bool, n);
         @memset(pooled, false);
         // On a fiber the extra fields are sibling fibers on the same loop
-        // (they interleave at I/O like graphql-js's promises; no threads);
-        // otherwise they go to the RootPool.
+        // (they interleave at I/O like graphql-js's promises; no threads),
+        // started eagerly: once the first field parks (or finishes), each
+        // runs to its first park in document order before this loop resumes
+        // any other fiber, as graphql-js calls every root resolver in one
+        // turn (so the request's pending-query checks run back to back;
+        // requests on other loops can still check in between). Otherwise
+        // they go to the RootPool.
         const on_fiber = parallel != null and core.fiber.inFiber();
         if (parallel) |p| for (started[1..], pooled[1..started.len]) |*t, *in_pool| {
             if (on_fiber) {
                 // No fiber for it (out of memory): run it right away on this
                 // fiber rather than after the joins of the fields before it
-                // (`runFiber` wakes its `job.done`, so the join returns at once).
-                core.fiber.spawn(RootTask.runFiber, t) catch RootTask.runFiber(t);
+                // (`runFiber` wakes its `job.done`, so the join returns at
+                // once). It then starts before the fields ahead of it, root 0
+                // included: document order holds only while fibers can be made.
+                core.fiber.spawnEager(RootTask.runFiber, t) catch RootTask.runFiber(t);
                 in_pool.* = true;
             } else in_pool.* = p.pool.submit(&t.job); // false (pool full): runs here below
         };
@@ -495,7 +542,7 @@ pub const Executor = struct {
             // up to a non-null failure, whose own error is replaced).
             const order = try self.settleOrder(tasks[0..i]);
             const failed = firstFailure(order);
-            try self.appendSettled(order, failed);
+            try self.appendSettled(order, failed, true);
             try self.errors.append(self.a, tasks[i].pending);
             result.errors = self.errors.items;
             return result;
@@ -503,12 +550,12 @@ pub const Executor = struct {
 
         const order = try self.settleOrder(started);
         if (firstFailure(order)) |f| {
-            try self.appendSettled(order, f);
+            try self.appendSettled(order, f, false);
             try self.errors.append(self.a, f.pending);
             result.errors = self.errors.items;
             return result;
         }
-        try self.appendSettled(order, null);
+        try self.appendSettled(order, null, false);
         var size: usize = 2;
         for (started) |*t| if (t.value) |v| {
             size += t.name.len + v.len + 8;
@@ -529,8 +576,9 @@ pub const Executor = struct {
     }
 
     /// graphql-js settle order of root fields: synchronous throws (recorded
-    /// during executeFields) and then the other I/O-free fields, each in
-    /// document order, then I/O fields by completion.
+    /// during executeFields, document order), then the other I/O-free
+    /// fields by settle tick (`RootTask.settle`; document order on ties),
+    /// then I/O fields by completion.
     fn settleOrder(self: *Executor, tasks: []RootTask) Allocator.Error![]*RootTask {
         const order = try self.a.alloc(*RootTask, tasks.len);
         var k: usize = 0;
@@ -538,6 +586,19 @@ pub const Executor = struct {
             order[k] = t;
             k += 1;
         };
+        // The other I/O-free fields by settle tick (stable: document order).
+        const sync_end = blk: {
+            var n: usize = 0;
+            for (tasks) |*t| if (!t.io and t.sync) {
+                n += 1;
+            };
+            break :blk n;
+        };
+        std.mem.sort(*RootTask, order[sync_end..k], {}, struct {
+            fn lessThan(_: void, x: *RootTask, y: *RootTask) bool {
+                return x.settle < y.settle;
+            }
+        }.lessThan);
         const io_start = k;
         for (tasks) |*t| if (t.io) {
             order[k] = t;
@@ -560,9 +621,22 @@ pub const Executor = struct {
     /// The fields' errors in settle order; with a non-null failure, only
     /// those settled before it (every I/O-free field settles before any I/O
     /// field; I/O fields by completion), excluding its own pending error.
-    fn appendSettled(self: *Executor, order: []const *RootTask, failed: ?*RootTask) Allocator.Error!void {
-        for (order) |t| {
-            if (failed) |f| if (t.io and (!f.io or t.stamp > f.stamp)) continue;
+    /// `late`: collection ends a tick after the failure (graphql-js's
+    /// `.finally` after `promiseForObject`'s `.then`, on a synchronous
+    /// non-null failure), so I/O-free fields recorded at the failure's own
+    /// tick still count.
+    fn appendSettled(self: *Executor, order: []const *RootTask, failed: ?*RootTask, late: bool) Allocator.Error!void {
+        const failed_at = if (failed) |f| std.mem.indexOfScalar(*RootTask, order, f) else null;
+        for (order, 0..) |t, i| {
+            if (failed) |f| {
+                if (t.io and (!f.io or t.stamp > f.stamp)) continue;
+                // I/O-free fields recorded after collection ended (sync
+                // throws are recorded first).
+                if (!t.io and !t.sync and !f.io) {
+                    const after = if (late) t.settle > f.settle else i > failed_at.?;
+                    if (after) continue;
+                }
+            }
             try self.errors.appendSlice(self.a, t.errors);
         }
     }
@@ -577,6 +651,11 @@ pub const Executor = struct {
 
     fn raiseFailure(self: *Executor, f: ResolveFailure, path: *const Path) Err {
         if (f.sync and path.prev == null) self.sync_failure = true;
+        // A nested resolver (an aggregate's `count`) is called once its
+        // parent's promise resolved (1 tick for an I/O-free parent); its
+        // rejection then takes 3 more to reach a nullable parent, as a root
+        // field's does to reach the response.
+        if (path.prev == null) self.root_depth = f.depth else self.nested_settle = @max(self.nested_settle, f.depth + 4);
         return self.raise(f.message, f.code, &.{});
     }
 
@@ -688,7 +767,11 @@ pub const Executor = struct {
         }
         const args = switch (try values.getArgumentValues(self.a, def.args, first.arguments, first.loc, self.vars)) {
             .ok => |v| v,
-            .err => |e| return self.raise(e.message, null, e.locations),
+            .err => |e| {
+                // Recorded during executeFields, as a synchronous throw.
+                if (path.prev == null) self.sync_failure = true;
+                return self.raise(e.message, null, e.locations);
+            },
         };
         if (self.resolvers.resolve_raw) |resolve_raw| if (try self.rawPlan(def, nodes)) |plan| {
             switch (try resolve_raw(self.resolvers.ctx, self.a, &info, source, args)) {

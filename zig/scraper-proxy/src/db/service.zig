@@ -45,6 +45,38 @@ pub const Backend = struct {
     pub const Which = enum { main, live };
 };
 
+/// TS #10076 `query`'s assert message at DATABASE_MAX_PENDING_GRAPHQL_QUERIES.
+pub const pending_capacity_message = "GraphQL database query capacity exceeded";
+
+/// TS #10076's pending GraphQL query slot carried across statements that TS
+/// issues in one microtask chain (scraperdb `historyQuery`: the EXPLAIN,
+/// then its statement). There, one statement's `finally
+/// pendingMainQueries--` and the next one's capacity assert and `++` run
+/// with no other request's code in between (each pg result is its own
+/// macrotask), so the next statement's check always passes and no other
+/// query can take the slot in between. A main-pool statement run with a
+/// chain takes the slot the previous one kept instead of checking the cap,
+/// and keeps its own when it succeeds; a failed statement gives its slot
+/// back, as its `finally` did. The owner calls `release` once the chain
+/// ends (on every path): it gives back a slot no statement took. Used by
+/// one thread or fiber at a time.
+pub const PendingChain = struct {
+    kept: ?*DbService = null,
+
+    pub fn release(self: *PendingChain) void {
+        const service = self.kept orelse return;
+        self.kept = null;
+        service.leavePendingMain();
+    }
+
+    fn take(self: *PendingChain, service: *DbService) bool {
+        const kept = self.kept orelse return false;
+        std.debug.assert(kept == service);
+        self.kept = null;
+        return true;
+    }
+};
+
 pub const DbService = struct {
     gpa: std.mem.Allocator,
     logger: core.log.Logger,
@@ -326,6 +358,22 @@ pub const DbService = struct {
         return self.run(.validator, .validator_primary, arena, sql, params, .{}, failure);
     }
 
+    /// TS `query`'s capacity check (and `++`) alone, for a statement then
+    /// run in `chain`, which takes the slot: lets the caller do work that
+    /// TS does after the check before the statement starts (the GraphQL
+    /// route's execution admission). A no-op when `chain` already holds a
+    /// slot. The caller releases `chain` on every path.
+    pub fn reserveMain(self: *DbService, chain: *PendingChain, failure: *Failure) Error!void {
+        if (chain.kept != null) return;
+        try self.enterPendingMain(failure);
+        chain.kept = self;
+    }
+
+    /// `query` planned as `plan`, in `chain` when not null (`PendingChain`).
+    pub fn queryChained(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, plan: pq.Plan, chain: ?*PendingChain, failure: ?*Failure) Error![]Value {
+        return (try self.runResult(.main, self.main_role, arena, sql, params, .{ .plan = plan }, chain, failure)).rows;
+    }
+
     /// Live workload on the primary (`live_primary`).
     pub fn queryLive(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, failure: ?*Failure) Error![]Value {
         return self.run(.live, .live_primary, arena, sql, params, .{}, failure);
@@ -532,7 +580,7 @@ pub const DbService = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         if (self.pending_main >= self.config.database_max_pending_graphql_queries) {
-            failure.* = .{ .message = "GraphQL database query capacity exceeded" };
+            failure.* = .{ .message = pending_capacity_message };
             return error.QueryFailed;
         }
         self.pending_main += 1;
@@ -545,25 +593,31 @@ pub const DbService = struct {
     }
 
     fn run(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure_opt: ?*Failure) Error![]Value {
-        return (try self.runResult(kind, role, arena, sql, params, opts, failure_opt)).rows;
+        return (try self.runResult(kind, role, arena, sql, params, opts, null, failure_opt)).rows;
     }
 
     /// `query`/`queryReusable` (`plan`) returning libpq's result unconverted
     /// (`pq.LazyRows`; same pool, timeouts, errors, logs and metrics). The
-    /// caller owns it and must `deinit` it. Null with a test `backend`.
-    pub fn queryLazy(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, plan: pq.Plan, failure: ?*Failure) Error!?*pq.LazyRows {
+    /// caller owns it and must `deinit` it; its pending slot is given back
+    /// (or kept in `chain`) when this returns. Null with a test `backend`
+    /// (before any check: `chain` is left as it was).
+    pub fn queryLazy(self: *DbService, arena: std.mem.Allocator, sql: []const u8, params: []const Value, plan: pq.Plan, chain: ?*PendingChain, failure: ?*Failure) Error!?*pq.LazyRows {
         if (self.backend != null) return null;
-        const result = try self.runResult(.main, self.main_role, arena, sql, params, .{ .plan = plan, .lazy = true }, failure);
+        const result = try self.runResult(.main, self.main_role, arena, sql, params, .{ .plan = plan, .lazy = true }, chain, failure);
         return result.lazy;
     }
 
-    fn runResult(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure_opt: ?*Failure) Error!root.Result {
+    fn runResult(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, chain: ?*PendingChain, failure_opt: ?*Failure) Error!root.Result {
+        std.debug.assert(chain == null or kind == .main);
         var local_failure: Failure = .{};
         const failure = failure_opt orelse &local_failure;
         // TS `query`: the cap is asserted before the query gets an id, a
-        // metric or a log line.
-        if (kind == .main) try self.enterPendingMain(failure);
-        defer if (kind == .main) self.leavePendingMain();
+        // metric or a log line; in a chain, the slot its previous statement
+        // kept is this one's (`PendingChain`).
+        const inherited = if (chain) |c| c.take(self) else false;
+        if (kind == .main and !inherited) try self.enterPendingMain(failure);
+        var keep = false;
+        defer if (kind == .main and !keep) self.leavePendingMain();
         const id = self.next_query_id.fetchAdd(1, .monotonic) + 1;
         const started = self.clock();
         try self.admit(failure);
@@ -582,7 +636,12 @@ pub const DbService = struct {
             const p = self.pool(kind) catch |e| break :blk e;
             break :blk p.queryWith(arena, sql, params, opts, failure);
         };
-        return self.report(id, role, arena, sql, params, result, self.clock() - started, failure);
+        const reported = self.report(id, role, arena, sql, params, result, self.clock() - started, failure);
+        if (chain) |c| if (reported) |_| {
+            c.kept = self;
+            keep = true;
+        } else |_| {};
+        return reported;
     }
 
     /// Admission: `close` rejects new work and waits for admitted queries.

@@ -1154,6 +1154,13 @@ pub const Loop = struct {
             }
             Stats.bump(&self.stats.fiber_resumes, 1);
             fiber_mod.resumeFiber(f);
+            // Fibers it started with `spawnEager` run first, to their first park.
+            var eager = fiber_mod.takeEager(f);
+            while (eager) |e| {
+                eager = e.next_eager;
+                e.next_eager = null;
+                _ = self.runFiber(e);
+            }
             if (f.done) {
                 // No user: a detached fiber (`fiber.spawn`), nothing to report.
                 const user = f.user;
@@ -1831,4 +1838,54 @@ test "claim/release tokens and generations" {
     try std.testing.expectEqual(R_AGAIN, release(&s, R, R_AGAIN | KICK));
     try std.testing.expectEqual(@as(u32, 0), release(&s, R, R_AGAIN | KICK));
     try std.testing.expectEqual(W, Slot.bitsOf(s.state.load(.acquire)));
+}
+
+test "runFiber: spawnEager fibers run at the parent's park, before the loop's other ready fibers" {
+    const Probe = struct {
+        fn onEvent(_: *anyopaque, _: u32, _: u32, _: Event) void {}
+        fn onPosted(_: *anyopaque, _: u32, _: u32, _: u32) void {}
+        fn onExpired(_: *anyopaque, _: u32, _: u32) void {}
+        fn onExit(_: *anyopaque) void {}
+        var trace: [16]u8 = undefined;
+        var len: usize = 0;
+        var w: fiber_mod.Waiter = .{};
+        var finished: std.Thread.ResetEvent = .{};
+        fn add(c: u8) void {
+            trace[len] = c;
+            len += 1;
+        }
+        fn parent(_: *anyopaque) void {
+            var dummy: u8 = 0;
+            add('p');
+            fiber_mod.spawn(other, &dummy) catch unreachable;
+            fiber_mod.spawnEager(first, &dummy) catch unreachable;
+            fiber_mod.spawnEager(second, &dummy) catch unreachable;
+            // Bounded: without the eager drain nothing would wake it.
+            if (!w.waitTimeout(fiber_mod.monoMs() + 2_000)) add('t');
+            add('r');
+        }
+        fn first(_: *anyopaque) void {
+            add('1');
+        }
+        fn second(_: *anyopaque) void {
+            add('2');
+            w.wake();
+        }
+        fn other(_: *anyopaque) void {
+            add('o');
+            finished.set();
+        }
+    };
+    var dummy: u8 = 0;
+    var group: Group = undefined;
+    try group.init(std.testing.allocator, 1, .{}, .{ .ctx = &dummy, .on_event = Probe.onEvent, .on_posted = Probe.onPosted, .on_expired = Probe.onExpired, .on_thread_exit = Probe.onExit });
+    try group.start();
+    try group.startFiber(Probe.parent, &dummy, null);
+    try Probe.finished.timedWait(10 * std.time.ns_per_s);
+    for (group.loops) |*l| l.deinit();
+    std.testing.allocator.free(group.loops);
+    group.fd_waits.deinit(std.testing.allocator);
+    group.fd_free.deinit(std.testing.allocator);
+    group.slots.deinit(std.testing.allocator);
+    try std.testing.expectEqualStrings("p12ro", Probe.trace[0..Probe.len]);
 }
