@@ -204,6 +204,9 @@ overrides:
   # wasm 0.12 requires 22 test consensus heights. The aleo-tools devnode still
   # uses 17; keep its TEST_ALEO_ENV schedule unchanged until the image is rebuilt.
   '@provablehq/wasm': 0.12.0
+  # miniflare pins undici 7.30.1; 7.30.2 fixes six advisories in it,
+  # including GHSA-mqg3-3v4r-cm32.
+  miniflare>undici: 7.30.2
   '@types/react': 18.3.27
   '@types/react-dom': 18.3.7
   async: ^2.6.4
