@@ -338,7 +338,7 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                     self.report_activity(message, Activity::ValidatorStorage { validator: *validator, states: vec![ValidatorStorageState::NotAnnounced], usable: false });
                     // If the validator has not announced any storage locations, we skip it
                     // and log a warning.
-                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
+                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operate/validators/run-validators#announcing-your-validator");
                     return None;
                 }
 
