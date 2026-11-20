@@ -30,6 +30,10 @@ contract MockITokenBridgeEth is ITokenBridge {
         quoteAmount = _amount;
     }
 
+    function token() external pure override returns (address) {
+        return address(0);
+    }
+
     function transferRemote(
         uint32 destinationDomain,
         bytes32 recipient,
