@@ -1,4 +1,6 @@
+import { fromBech32 } from '@cosmjs/encoding';
 import { expect } from 'chai';
+import sinon from 'sinon';
 
 import {
   multiProtocolTestChainMetadata,
@@ -17,7 +19,7 @@ const TX_RECEIPT = JSON.parse(
 describe('CosmWasmCoreAdapter', () => {
   let adapter: CosmWasmCoreAdapter;
 
-  it('constructs', () => {
+  beforeEach(() => {
     adapter = new CosmWasmCoreAdapter(
       testCosmosChain.name,
       MultiProtocolProvider.createTestMultiProtocolProvider({
@@ -31,7 +33,55 @@ describe('CosmWasmCoreAdapter', () => {
       }),
       { mailbox: '' },
     );
+  });
+
+  it('constructs', () => {
     expect(adapter).to.be.instanceOf(CosmWasmCoreAdapter);
+  });
+
+  it('preserves 20- and 32-byte registry mailbox addresses when encoding for RPC', () => {
+    for (const length of [20, 32]) {
+      const hex = 'ab'.repeat(length);
+      const mailboxAdapter = new CosmWasmCoreAdapter(
+        adapter.chainName,
+        adapter.multiProvider,
+        { mailbox: `0x${hex}` },
+      );
+      const { prefix, data } = fromBech32(mailboxAdapter.addresses.mailbox);
+      expect(prefix).to.equal(testCosmosChain.bech32Prefix);
+      expect(Buffer.from(data).toString('hex')).to.equal(hex);
+    }
+  });
+
+  it('waits for the mailbox to report delivery using the unprefixed message ID', async () => {
+    const hex = 'cd'.repeat(32);
+    const query = sinon.stub(adapter, 'queryMailbox');
+    query.onFirstCall().resolves({ delivered: false });
+    query.onSecondCall().resolves({ delivered: true });
+    expect(
+      await adapter.waitForMessageProcessed(
+        `0x${hex}`,
+        adapter.chainName,
+        1,
+        2,
+      ),
+    ).to.equal(true);
+    expect(query.callCount).to.equal(2);
+    expect(
+      query.alwaysCalledWithExactly({
+        mailbox: { message_delivered: { id: hex } },
+      }),
+    ).to.equal(true);
+  });
+
+  it('fails when the message is still pending after the last attempt', async () => {
+    sinon.stub(adapter, 'queryMailbox').resolves({ delivered: false });
+    const error = await adapter
+      .waitForMessageProcessed('0x01', adapter.chainName, 1, 1)
+      .catch((cause: unknown) => cause);
+    expect(error)
+      .to.be.instanceOf(Error)
+      .with.property('message', 'Message 0x01 not yet processed');
   });
 
   it('extracts message IDs', async () => {

@@ -26,6 +26,10 @@ centralized:
   # Routes whose shared balance metrics are emitted by a rebalancer and must not
   # be double-emitted by this monitor.
   skipSharedBalanceWarpRouteIds: []
+  # Opt into pending-transfer metrics using the official Explorer GraphQL API.
+  # The monitor logs an error if the API rejects canonical delivery filtering.
+  explorerEnabled: false
+  # Optional endpoint override. Setting a URL also enables the lookup.
   explorerApiUrl: ''
   explorerQueryLimit: 200
   inventoryAddress: ''

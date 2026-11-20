@@ -25,7 +25,7 @@ env:
   - name: ENABLED_MODULES
     value: 'cctp,callCommitments'
   - name: HYPERLANE_EXPLORER_URL
-    value: 'https://api.hyperlane.xyz/v1/graphql'
+    value: 'https://explorer-api.hyperlane.xyz/graphql'
   - name: CCTP_ATTESTATION_URL
     value: 'https://iris-api-sandbox.circle.com'
   - name: SERVER_PORT

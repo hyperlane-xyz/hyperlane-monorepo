@@ -270,11 +270,9 @@ export async function updatePendingAndInventoryMetrics(
   const now = Date.now();
 
   const pendingByNodeId = new Map<string, PendingDestinationAggregate>();
-  // With no explorer configured, pending data is trivially available and empty
-  // (we legitimately report zero pending). Only an actual query FAILURE leaves
-  // the flag false, so we skip the replacement below and let the route's prior
-  // pending/deficit series go stale instead of publishing confident zeroes
-  // that would silence deficit alerting during an explorer outage.
+  // An unconfigured explorer retains the existing zero-valued metrics.
+  // Transient failures preserve the last observation. An unsupported endpoint
+  // stops collection, so remove any previous observations for that route.
   let pendingDataAvailable = !pendingTransfersClient;
   if (pendingTransfersClient) {
     try {
@@ -282,8 +280,11 @@ export async function updatePendingAndInventoryMetrics(
         await pendingTransfersClient.getPendingDestinationTransfers(
           explorerQueryLimit,
         );
+      if (pendingTransfers === null) {
+        replacePendingDestinationMetricsForRoute(warpRouteId, [], []);
+      }
 
-      for (const transfer of pendingTransfers) {
+      for (const transfer of pendingTransfers ?? []) {
         const aggregate = pendingByNodeId.get(transfer.destinationNodeId) ?? {
           amountBaseUnits: 0n,
           count: 0,
@@ -306,7 +307,7 @@ export async function updatePendingAndInventoryMetrics(
 
         pendingByNodeId.set(transfer.destinationNodeId, aggregate);
       }
-      pendingDataAvailable = true;
+      pendingDataAvailable = pendingTransfers !== null;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(

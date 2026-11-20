@@ -56,6 +56,9 @@ View SDK contract addresses: `hyperlane chains addresses`
 
 Send test message: `hyperlane send message`
 
+`hyperlane warp send` checks message delivery on the destination chain through
+its configured RPC. Use `--quick` to return after dispatch.
+
 ### Address conversion utilities
 
 Convert address to bytes32: `hyperlane address to-bytes32 --address <address> [--protocol <protocol>]`

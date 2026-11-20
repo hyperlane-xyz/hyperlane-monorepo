@@ -1,6 +1,15 @@
 import { ExecuteInstruction } from '@cosmjs/cosmwasm-stargate';
+import { fromHex } from '@cosmjs/encoding';
 
-import { Address, HexString, assert, ensure0x } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  assert,
+  bytesToAddressCosmos,
+  ensure0x,
+  pollAsync,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
@@ -48,6 +57,17 @@ export class CosmWasmCoreAdapter
     public readonly addresses: { mailbox: Address },
   ) {
     super(chainName, multiProvider, addresses);
+    if (addresses.mailbox.startsWith('0x')) {
+      const { bech32Prefix } = multiProvider.getChainMetadata(chainName);
+      assert(bech32Prefix, `Missing bech32 prefix for ${chainName}`);
+      this.addresses = {
+        ...addresses,
+        mailbox: bytesToAddressCosmos(
+          fromHex(strip0x(addresses.mailbox)),
+          bech32Prefix,
+        ),
+      };
+    }
   }
 
   prepareMailbox(msg: ExecuteMsg, funds?: Coin[]): ExecuteInstruction {
@@ -159,7 +179,7 @@ export class CosmWasmCoreAdapter
     const response = await this.queryMailbox<MessageDeliveredResponse>({
       mailbox: {
         message_delivered: {
-          id,
+          id: strip0x(id),
         },
       },
     });
@@ -203,12 +223,20 @@ export class CosmWasmCoreAdapter
   }
 
   async waitForMessageProcessed(
-    _messageId: HexString,
+    messageId: HexString,
     _destination: ChainName,
-    _delayMs?: number,
-    _maxAttempts?: number,
+    delayMs?: number,
+    maxAttempts?: number,
   ): Promise<boolean> {
-    throw new Error('Method not implemented.');
+    return pollAsync(
+      async () => {
+        const delivered = await this.isDelivered(messageId);
+        assert(delivered, `Message ${messageId} not yet processed`);
+        return delivered;
+      },
+      delayMs,
+      maxAttempts,
+    );
   }
 
   async isDelivered(

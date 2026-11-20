@@ -137,9 +137,9 @@ BestEffort per-route pods.
   - name: SKIP_SHARED_BALANCE_WARP_ROUTE_IDS
     value: {{ join "," .Values.centralized.skipSharedBalanceWarpRouteIds | quote }}
   {{- end }}
-  {{- if .Values.centralized.explorerApiUrl }}
+  {{- if or .Values.centralized.explorerEnabled .Values.centralized.explorerApiUrl }}
   - name: EXPLORER_API_URL
-    value: {{ .Values.centralized.explorerApiUrl | quote }}
+    value: {{ default "https://explorer-api.hyperlane.xyz/graphql" .Values.centralized.explorerApiUrl | quote }}
   {{- end }}
   {{- if .Values.centralized.explorerQueryLimit }}
   - name: EXPLORER_QUERY_LIMIT
