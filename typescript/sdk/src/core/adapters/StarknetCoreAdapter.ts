@@ -15,7 +15,9 @@ import {
   ProviderType,
   StarknetJsTransactionReceipt,
 } from '../../providers/ProviderType.js';
+import { defaultStarknetJsProviderBuilder } from '../../providers/builders/starknet.js';
 import { ChainName } from '../../types.js';
+import { parseCustomRpcHeaders } from '../../utils/provider.js';
 import {
   getStarknetMailboxContract,
   parseStarknetDispatchEvents,
@@ -97,16 +99,9 @@ export class StarknetCoreAdapter
       { mailbox: this.addresses.mailbox },
     );
 
-    const mailboxContract = getStarknetMailboxContract(
-      destAdapter.addresses.mailbox,
-      destAdapter.getProvider(),
-    );
-
     await pollAsync(
       async () => {
-        const isDelivered = await mailboxContract.call('delivered', [
-          messageId,
-        ]);
+        const isDelivered = await destAdapter.isDelivered(messageId);
 
         if (!isDelivered) {
           throw new Error(
@@ -131,11 +126,34 @@ export class StarknetCoreAdapter
     messageId: HexString,
     _blockTag?: string | number,
   ): Promise<boolean> {
-    const mailboxContract = getStarknetMailboxContract(
-      this.addresses.mailbox,
-      this.getProvider(),
-    );
-    const result = await mailboxContract.call('delivered', [messageId]);
-    return Boolean(result);
+    const primary = this.getProvider();
+    const metadata = this.multiProvider.getChainMetadata(this.chainName);
+    const [first, ...alternates] = metadata.rpcUrls;
+    // Keep a caller-supplied RPC (for example, a local fork) isolated.
+    const fallbacks =
+      first && primary.channel.nodeUrl === parseCustomRpcHeaders(first.http).url
+        ? alternates
+        : [];
+    let provider = primary;
+    for (let index = 0; ; index++) {
+      const mailbox = getStarknetMailboxContract(
+        this.addresses.mailbox,
+        provider,
+      );
+      try {
+        return Boolean(await mailbox.call('delivered', [messageId]));
+      } catch (error) {
+        const rpc = fallbacks[index];
+        if (!rpc) throw error;
+        this.logger.debug(
+          { chain: this.chainName },
+          'Retrying delivery read on the next Starknet RPC',
+        );
+        provider = defaultStarknetJsProviderBuilder({
+          ...metadata,
+          rpcUrls: [rpc],
+        }).provider;
+      }
+    }
   }
 }

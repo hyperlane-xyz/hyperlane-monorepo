@@ -797,7 +797,9 @@ async function executeDelivery({
 
   const timeoutMs = timeoutSec * 1000;
   const delayMs = 10_000;
-  const maxAttempts = Math.max(1, Math.ceil(timeoutMs / delayMs));
+  // pollAsync uses zero for an unlimited wait, matching the outer timeout.
+  const maxAttempts =
+    timeoutMs === 0 ? 0 : Math.max(1, Math.ceil(timeoutMs / delayMs));
   await Promise.all(
     extracted.map(({ messageId, destination }) =>
       core
