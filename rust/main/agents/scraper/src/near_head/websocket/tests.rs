@@ -231,6 +231,8 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
         if wait_for_baseline {
             tokio::time::pause();
             sleep(HEAD_STALL_TIMEOUT * 2 + Duration::from_millis(1)).await;
+            // Let real socket I/O complete before the test deadline can advance.
+            tokio::time::resume();
         }
         for (slot, subscription) in
             (41..=44).zip(subscriptions.into_iter().chain([subscriptions[2]]))
@@ -242,6 +244,7 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
                     ..startup
                 }));
                 sleep(HEAD_STALL_TIMEOUT * 2 + Duration::from_millis(1)).await;
+                tokio::time::resume();
             }
             send(&mut socket, json!({
                 "jsonrpc": "2.0", "method": "programNotification",
@@ -256,6 +259,7 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
         }
         // A new delivery was indexed without a notification. Keep the
         // connection open and the other subscriptions healthy.
+        tokio::time::pause();
         polled_events.send_replace(Some(PolledEventSlots {
             indexed: [41, 44, 44],
             ..startup
