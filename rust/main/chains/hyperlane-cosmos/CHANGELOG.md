@@ -1,3 +1,7 @@
+## [4.1.0] - 2026-11-20
+
+* fix(cosmos): decode Injective EthAccount with prost and drop protobuf 2 (#10094)
+
 ## [3.0.0] - 2026-10-23
 
 * fix(agents): redact signer private keys from Debug output and errors (#9866)

@@ -1,3 +1,8 @@
+## [4.1.0] - 2026-11-20
+
+* fix(agents): recover and back off backward block gaps (#10117)
+* fix: point dead docs links at current pages (#10105)
+
 ## [4.0.0] - 2026-11-17
 
 * feat(validator)!: remove lightweight mode and WebSocket replay (#10038)
