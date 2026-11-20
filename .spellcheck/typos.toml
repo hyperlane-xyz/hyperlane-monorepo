@@ -29,6 +29,11 @@ extend-exclude = [
   "rust/sealevel/environments/",
   "compose.yaml",
 
+  # Zig scraper-proxy test fixtures generated from the TS oracle, including
+  # deliberately misspelled GraphQL inputs for "Did you mean" suggestions
+  "zig/scraper-proxy/**/testdata/",
+  "zig/scraper-proxy/src/graphql/tools/gen-validation-fixtures.mjs",
+
   # Changelogs (contain commit hashes that look like typos)
   "**/CHANGELOG.md",
 ]
@@ -46,6 +51,11 @@ extend-ignore-identifiers-re = [
 ]
 
 [default.extend-words]
+# llhttp parser error code prefix (HPE_INVALID_TRANSFER_ENCODING etc.)
+HPE = "HPE"
+# POSIX msghdr field
+controllen = "controllen"
+
 # PostgreSQL Block Range Index
 BRIN = "BRIN"
 brin = "brin"

@@ -1,0 +1,102 @@
+name: zig-scraper-proxy
+
+# Zig scraper proxy (zig/scraper-proxy): formatting, the unit tests that need no database, and
+# ReleaseFast cross-builds for both Linux targets. DB-backed tests skip themselves without
+# SCRAPER_PROXY_TEST_DATABASE_URL; benchmarks and parity runs live outside CI.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'zig/**'
+      - '.github/workflows/zig-scraper-proxy.yml'
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'zig/**'
+      - '.github/workflows/zig-scraper-proxy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zig-scraper-proxy-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+env:
+  ZIG_VERSION: 0.15.2
+  # Same base image the benchmark image links against (libpq.so.5, glibc 2.36).
+  PG_IMAGE: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+
+jobs:
+  # test-http is wall-clock bound (~6 min, the same in Debug and ReleaseSafe), so it runs beside
+  # everything else.
+  test-http:
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: zig/scraper-proxy
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      # Installs Zig and caches the toolchain plus the global and local Zig caches.
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: ${{ env.ZIG_VERSION }}
+          cache-key: zig-scraper-proxy-test-http
+
+      - name: Install libpq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libpq-dev
+
+      - name: test-http
+        run: ./build.sh test-http --summary all
+
+  check:
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: zig/scraper-proxy
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: ${{ env.ZIG_VERSION }}
+          cache-key: zig-scraper-proxy-check
+
+      - name: zig fmt
+        run: zig fmt --check build.zig src
+
+      - name: Install libpq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libpq-dev
+
+      # Debug (safety checks), native target; DB-backed tests skip without a database URL.
+      - name: Unit tests (all modules but http)
+        run: ./build.sh test-core test-db test-scraperdb test-diagnostics test-graphql test-live test-main --summary all
+
+      - name: ReleaseFast cross-builds (x86_64, aarch64)
+        run: |
+          for arch in x86_64 aarch64; do
+            platform=$([[ $arch == x86_64 ]] && echo linux/amd64 || echo linux/arm64)
+            mkdir -p "/tmp/sysroot-$arch/lib"
+            container=$(docker create --platform "$platform" "$PG_IMAGE")
+            docker cp -L "$container:/usr/lib/$arch-linux-gnu/libpq.so.5" "/tmp/sysroot-$arch/lib/libpq.so.5"
+            docker rm -v "$container" >/dev/null
+            # The digest names a multi-platform index: drop this platform's image before the next
+            # pull, or Docker refuses it ("cannot overwrite digest").
+            docker image rm "$PG_IMAGE" >/dev/null
+            ln -sf libpq.so.5 "/tmp/sysroot-$arch/lib/libpq.so"
+            zig build -Dtarget=$arch-linux-gnu.2.36 -Drelease=true \
+              "-Dpg-lib-dir=/tmp/sysroot-$arch/lib" -Dpg-include-dir=/usr/include/postgresql \
+              --prefix "/tmp/out-$arch" --summary none
+            file "/tmp/out-$arch/bin/scraper-proxy"
+          done
