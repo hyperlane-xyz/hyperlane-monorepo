@@ -250,9 +250,8 @@ export function updateInventoryBalanceMetrics(
 /**
  * Replace all pending-destination and projected-deficit series for a single
  * route in one shot: remove the route's previous series, then write the new
- * set. Sibling routes are untouched. Call this only when the pending data was
- * successfully collected — skipping the call on an explorer failure leaves the
- * route's prior series stale instead of publishing confident zeroes.
+ * set. Sibling routes are untouched. Pass empty lists to withdraw metrics if
+ * collection stops. Skip replacement on transient errors to retain prior data.
  */
 export function replacePendingDestinationMetricsForRoute(
   warpRouteId: string,

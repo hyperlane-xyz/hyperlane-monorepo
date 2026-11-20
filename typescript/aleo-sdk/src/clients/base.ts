@@ -133,7 +133,8 @@ export class AleoBase {
           const r = await this.aleoClient.getProgramMappingValue(
             programId,
             mappingName,
-            key,
+            // The Provable client interpolates this key into a URL path segment.
+            encodeURIComponent(key),
           );
           // Freshly-finalized state can briefly lag behind the
           // confirmed-transaction endpoint, so give callers that just

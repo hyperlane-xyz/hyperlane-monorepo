@@ -75,7 +75,7 @@ describe('Warp Monitor Types', () => {
         checkFrequency: 30000,
         coingeckoApiKey: 'test-api-key',
         registryUri: 'https://github.com/hyperlane-xyz/hyperlane-registry',
-        explorerApiUrl: 'https://explorer4.hasura.app/v1/graphql',
+        explorerApiUrl: 'https://explorer.example/graphql',
         explorerQueryLimit: 500,
         inventoryAddress: '0x1234567890123456789012345678901234567890',
       };
@@ -87,7 +87,7 @@ describe('Warp Monitor Types', () => {
         'https://github.com/hyperlane-xyz/hyperlane-registry',
       );
       expect(config.explorerApiUrl).to.equal(
-        'https://explorer4.hasura.app/v1/graphql',
+        'https://explorer.example/graphql',
       );
       expect(config.explorerQueryLimit).to.equal(500);
       expect(config.inventoryAddress).to.equal(

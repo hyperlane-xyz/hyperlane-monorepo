@@ -335,6 +335,7 @@ export class CentralizedWarpRouteMonitorHelmManager extends HelmManager {
   }
 
   async helmValues() {
+    const deployed = await this.getDeployedHelmValues({ throwOnError: true });
     return {
       image: {
         repository: DockerImageRepos.NODE_SERVICES,
@@ -348,6 +349,7 @@ export class CentralizedWarpRouteMonitorHelmManager extends HelmManager {
       },
       centralized: {
         enabled: true,
+        explorerApiUrl: deployed?.centralized?.explorerApiUrl ?? '',
         // Monitor every route in the registry unless an explicit subset is given.
         warpRouteAll: this.warpRouteIds.length === 0,
         warpRouteIds: this.warpRouteIds,

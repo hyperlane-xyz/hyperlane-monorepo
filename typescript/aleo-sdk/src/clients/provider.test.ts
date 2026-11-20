@@ -20,6 +20,29 @@ const cases = [
   { route: 'hyp_warp_token_usdt_v3.aleo', token: 'shield_arc22_usdt.aleo' },
 ];
 
+describe('Aleo delivery reads', () => {
+  it('encodes the structured message key as one RPC path segment', async () => {
+    const provider = new TestAleoProvider(['http://localhost:3030'], 0, {
+      name: 'aleo',
+      chainId: 0,
+      domainId: 1,
+      protocol: ProtocolType.Aleo,
+      rpcUrls: [{ http: 'http://localhost:3030' }],
+    });
+    let requestedKey: string | undefined;
+    provider.networkClient.getProgramMappingValue = async (_, __, key) => {
+      requestedKey = key.toString();
+      return `{ processor: ${ALEO_NULL_ADDRESS}, block_number: 1u32 }`;
+    };
+    const delivered = await provider.isMessageDelivered({
+      mailboxAddress: toAleoAddress('hyp_mailbox.aleo'),
+      messageId: '0x' + '00'.repeat(32),
+    });
+    expect(delivered).to.equal(true);
+    expect(requestedKey).to.equal(encodeURIComponent('{id:[0u128,0u128]}'));
+  });
+});
+
 describe('Aleo ARC warp route reads', () => {
   const originalFetch = globalThis.fetch;
 

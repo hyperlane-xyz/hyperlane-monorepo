@@ -135,7 +135,7 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
 Enable the module with `ENABLED_MODULES=wormhole` and configure:
 
 ```env
-HYPERLANE_EXPLORER_URL=https://explorer.hyperlane.xyz/graphql
+HYPERLANE_EXPLORER_URL=https://explorer-api.hyperlane.xyz/graphql
 # Wormholescan-compatible base URLs, queried in parallel.
 WORMHOLE_VAA_URLS=https://api.wormholescan.io
 # Optional: WORMHOLE_VAA_TIMEOUT_MS, WORMHOLE_VAA_MAX_BYTES,
@@ -166,7 +166,7 @@ checks; the server is untrusted availability infrastructure.
 Enable the module with `ENABLED_MODULES=layerzero` and configure:
 
 ```env
-HYPERLANE_EXPLORER_URL=https://explorer.hyperlane.xyz/graphql
+HYPERLANE_EXPLORER_URL=https://explorer-api.hyperlane.xyz/graphql
 ```
 
 The CCIP `sender` identifies the destination combined hook/ISM. The server
