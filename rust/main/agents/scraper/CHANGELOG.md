@@ -1,3 +1,10 @@
+## [4.1.0] - 2026-11-20
+
+* feat(scraper): wake indexing on finalized Solana events (#10120)
+* fix(scraper): bound reconciliation scans and database concurrency (#10084)
+* fix(scraper): hold reconciliation permits through statement completion (#10091)
+* fix(scraper): retain checkpoints for custom confirmation windows (#10070)
+
 ## [4.0.0] - 2026-11-17
 
 * feat(scraper): add WebSocket event and confirmation wake-ups (#9975)
