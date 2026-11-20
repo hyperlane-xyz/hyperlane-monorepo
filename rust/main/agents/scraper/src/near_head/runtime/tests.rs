@@ -257,11 +257,9 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         period: ReorgPeriod::Tag("finalized".into()),
         chunk_size: 20_000,
         poll_interval: Duration::from_millis(20),
-        wakeup: Notify::new(),
+        wakeup: watch::channel(IndexWakeup::default()).0,
         dispatch_wakeup: Arc::new(Notify::new()),
         receipt_wakeup: watch::channel(()).0,
-        wanted: AtomicU64::new(0),
-        heads: tokio::sync::Mutex::new(mpsc::channel(256).1),
         polled_head: watch::channel(0).0,
         polled_event_slots: watch::channel(None).0,
         critical_failure_grace: Duration::from_millis(60),
@@ -380,7 +378,7 @@ async fn backlog_drains_without_polls_while_ingestion_fails_then_recovers() -> R
     chain.fail_events.store(true, Ordering::SeqCst);
     let task = tokio::spawn({
         let worker = worker.clone();
-        async move { worker.run_cycles().await }
+        async move { worker.run_cycles(mpsc::channel(1).1).await }
     });
     wait_for(&worker, |state| {
         state.confirmed == 2 && critical(&worker) == 1
@@ -400,7 +398,7 @@ async fn backlog_drains_without_polls_while_ingestion_fails_then_recovers() -> R
     chain.fail_events.store(false, Ordering::SeqCst);
     let task = tokio::spawn({
         let worker = worker.clone();
-        async move { worker.run_cycles().await }
+        async move { worker.run_cycles(mpsc::channel(1).1).await }
     });
     wait_for(&worker, |state| {
         state.indexed == 3 && critical(&worker) == 0
@@ -474,7 +472,7 @@ async fn confirmation_errors_survive_healthy_observations_and_recover() -> Resul
     let worker = worker(db, chain.clone()).await?;
     let task = tokio::spawn({
         let worker = worker.clone();
-        async move { worker.run().await }
+        async move { worker.run(mpsc::channel(1).1).await }
     });
 
     wait_for(&worker, |state| {
@@ -520,7 +518,7 @@ async fn stationary_finality_tag_bounds_ingestion_then_resumes() -> Result<()> {
     let worker = worker(db, chain.clone()).await?;
     let task = tokio::spawn({
         let worker = worker.clone();
-        async move { worker.run().await }
+        async move { worker.run(mpsc::channel(1).1).await }
     });
 
     wait_for(&worker, |state| {
@@ -1210,9 +1208,9 @@ async fn coalesced_headers_drain_sparse_confirmation_pages_without_rpcs() -> Res
     for height in [101, 102] {
         remember_header(&mut recent, streamed_header(height));
     }
-    assert!(worker.header_cycle(&recent, &cache).await?.more);
+    assert!(worker.header_cycle(&recent, &cache).await?);
     assert_eq!(worker.store.state().await?.expect("state").confirmed, 1);
-    assert!(!worker.header_cycle(&recent, &cache).await?.more);
+    assert!(!worker.header_cycle(&recent, &cache).await?);
     assert_eq!(worker.store.state().await?.expect("state").confirmed, 2);
     assert!(worker.dispatch_wakeup.notified().now_or_never().is_none());
     assert!(!wakeup.has_changed()?);
@@ -1233,7 +1231,7 @@ async fn sealevel_wake_publishes_a_finalized_dispatch_in_the_next_cycle() -> Res
     });
     let task = tokio::spawn({
         let worker = worker.clone();
-        async move { worker.run_cycles().await }
+        async move { worker.run_cycles(mpsc::channel(1).1).await }
     });
     wait_for(&worker, |state| state.confirmed == 1).await?;
     chain
@@ -1244,8 +1242,11 @@ async fn sealevel_wake_publishes_a_finalized_dispatch_in_the_next_cycle() -> Res
     *chain.tip_counts.lock().expect("tip counts") =
         Some([(Some(1), 2), (Some(0), 2), (Some(0), 2), (Some(0), 2)]);
     chain.head.store(2, Ordering::SeqCst);
-    worker.wanted.store(2, Ordering::Relaxed);
-    worker.wakeup.notify_one();
+    IndexWakeup {
+        height: 2,
+        reconcile: false,
+    }
+    .send(&worker.wakeup);
     tokio::time::timeout(Duration::from_secs(1), worker.dispatch_wakeup.notified()).await?;
     let state = worker.store.state().await?.expect("state");
     assert_eq!((state.indexed, state.confirmed), (2, 2));
@@ -1271,12 +1272,11 @@ async fn continuous_log_wakeups_still_drain_headers() -> Result<()> {
     let (headers, receiver) = mpsc::channel(4);
     let worker = Arc::new(Worker {
         poll_interval: Duration::from_secs(60),
-        heads: tokio::sync::Mutex::new(receiver),
         ..worker
     });
     let task = tokio::spawn({
         let worker = worker.clone();
-        async move { worker.run_cycles().await }
+        async move { worker.run_cycles(receiver).await }
     });
     for (observation, height) in (1..=8).zip(2..=9) {
         wait_for(&worker, |_| {
@@ -1284,7 +1284,11 @@ async fn continuous_log_wakeups_still_drain_headers() -> Result<()> {
         })
         .await?;
         headers.try_send(streamed_header(height))?;
-        worker.wakeup.notify_one();
+        IndexWakeup {
+            height: 0,
+            reconcile: true,
+        }
+        .send(&worker.wakeup);
     }
     wait_for(&worker, |state| state.head == 9).await?;
     task.abort();
@@ -1303,30 +1307,32 @@ async fn run_cycles_retries_a_log_ahead_of_http_then_stops_at_indexed_height() -
     let started = Instant::now();
     let task = tokio::spawn({
         let worker = worker.clone();
-        async move { worker.run_cycles().await }
+        async move { worker.run_cycles(mpsc::channel(1).1).await }
     });
     wait_for(&worker, |state| state.indexed == 1).await?;
     let initial = chain.observations.load(Ordering::SeqCst);
-    worker.wanted.store(2, Ordering::Relaxed);
     for _ in 0..10 {
-        worker.wakeup.notify_one();
+        IndexWakeup {
+            height: 2,
+            reconcile: false,
+        }
+        .send(&worker.wakeup);
     }
-    sleep(MIN_WAKE_INTERVAL / 2).await;
-    assert_eq!(chain.observations.load(Ordering::SeqCst), initial);
     // First wake still observes the lagging HTTP head. A second retry must run
     // without a new log or the five-second scheduled poll.
     wait_for(&worker, |_| {
         chain.observations.load(Ordering::SeqCst) > initial
     })
     .await?;
-    assert_eq!(worker.wanted.load(Ordering::Relaxed), 2);
     chain.head.store(2, Ordering::SeqCst);
-    wait_for(&worker, |state| {
-        state.indexed == 2 && worker.wanted.load(Ordering::Relaxed) == 0
-    })
-    .await?;
+    wait_for(&worker, |state| state.indexed == 2).await?;
+    IndexWakeup {
+        height: 2,
+        reconcile: false,
+    }
+    .send(&worker.wakeup);
     let caught_up = chain.observations.load(Ordering::SeqCst);
-    sleep(MIN_WAKE_INTERVAL + Duration::from_millis(100)).await;
+    sleep(Duration::from_millis(1100)).await;
     assert_eq!(chain.observations.load(Ordering::SeqCst), caught_up);
     wait_for(&worker, |_| {
         chain.observations.load(Ordering::SeqCst) > caught_up
@@ -1339,6 +1345,31 @@ async fn run_cycles_retries_a_log_ahead_of_http_then_stops_at_indexed_height() -
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
     Ok(())
+}
+
+#[test]
+fn wakeups_keep_the_highest_block_and_reconciliation() {
+    let (tx, _rx) = watch::channel(IndexWakeup::default());
+    IndexWakeup {
+        height: 12,
+        reconcile: false,
+    }
+    .send(&tx);
+    IndexWakeup {
+        height: 10,
+        reconcile: true,
+    }
+    .send(&tx);
+    IndexWakeup {
+        height: 12,
+        reconcile: false,
+    }
+    .send(&tx);
+    let wake = IndexWakeup::take(&tx);
+    assert_eq!(wake.height, 12);
+    assert!(wake.reconcile);
+    assert_eq!(IndexWakeup::take(&tx).height, 0);
+    assert!(!tx.borrow().reconcile);
 }
 
 #[tokio::test]
