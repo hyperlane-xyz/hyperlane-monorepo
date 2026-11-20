@@ -46,6 +46,8 @@ use super::{
 mod cache_types;
 
 pub const DEFAULT_TIMEOUT: u64 = 30;
+/// URLs tried per offchain lookup.
+const MAX_LOOKUP_URLS: usize = 10;
 
 // Cache compilation without changing the metadata builder's error propagation.
 static OFFCHAIN_LOOKUP_REGEX: LazyLock<Result<Regex, regex::Error>> =
@@ -534,9 +536,20 @@ async fn fetch_metadata(
     if info.urls.is_empty() {
         activity.report(OffchainReadState::NoEndpoints, None);
     }
+    // The ISM chooses its URLs; only the first ones are tried.
+    if info.urls.len() > MAX_LOOKUP_URLS {
+        warn!(
+            ?ism_address,
+            message_id = ?message.id(),
+            urls = info.urls.len(),
+            max = MAX_LOOKUP_URLS,
+            "Offchain lookup lists more URLs than are tried"
+        );
+    }
+    let tried_urls = info.urls.len().min(MAX_LOOKUP_URLS);
     let mut rejected_urls = 0usize;
     let mut denied_by_allowlist = false;
-    for (endpoint, url) in info.urls.iter().enumerate() {
+    for (endpoint, url) in info.urls.iter().take(MAX_LOOKUP_URLS).enumerate() {
         // Retry this URL while attestation is pending (transient), up to 10 attempts at 1s intervals.
         // Move to the next URL only on hard failures.
         const MAX_PENDING_RETRIES: u32 = 10;
@@ -602,7 +615,7 @@ async fn fetch_metadata(
         }
     }
 
-    if denied_by_allowlist && rejected_urls == info.urls.len() {
+    if denied_by_allowlist && rejected_urls == tried_urls {
         Err(MetadataBuildError::CcipReadNotAllowed)
     } else {
         Err(MetadataBuildError::CouldNotFetch)
@@ -1370,14 +1383,46 @@ mod test {
         ism: H256,
         sender: EthersH160,
     ) -> Vec<String> {
+        // Rejected by URL validation, which only runs once the sender is accepted.
+        read_states_for_lookup(
+            domain,
+            format_revert,
+            ism,
+            sender,
+            vec!["https://127.0.0.1/lookup".to_owned()],
+        )
+        .await
+    }
+
+    /// Fetches metadata from the ISM at `ism` on `domain`, whose lookup names
+    /// `sender` and `urls`, and returns the reported read states.
+    async fn read_states_for_lookup(
+        domain: hyperlane_core::HyperlaneDomain,
+        format_revert: FormatRevert,
+        ism: H256,
+        sender: EthersH160,
+        urls: Vec<String>,
+    ) -> Vec<String> {
+        lookup_with_urls(domain, format_revert, ism, sender, urls)
+            .await
+            .1
+    }
+
+    /// As `read_states_for_lookup`, also returning the lookup's error.
+    async fn lookup_with_urls(
+        domain: hyperlane_core::HyperlaneDomain,
+        format_revert: FormatRevert,
+        ism: H256,
+        sender: EthersH160,
+        urls: Vec<String>,
+    ) -> (MetadataBuildError, Vec<String>) {
         use crate::test_utils::mock_base_builder::build_mock_base_builder;
         use ethers::abi::AbiEncode;
 
         let base = Arc::new(build_mock_base_builder(domain.clone(), domain.clone()));
         let lookup = OffchainLookup {
             sender,
-            // Rejected by URL validation, which only runs once the sender is accepted.
-            urls: vec!["https://127.0.0.1/lookup".to_owned()],
+            urls,
             call_data: vec![1, 2, 3].into(),
             callback_function: [0; 4],
             extra_data: Default::default(),
@@ -1402,16 +1447,18 @@ mod test {
             max_ism_count: 10,
         });
 
-        let result = fetch_metadata(&builder, ism, &HyperlaneMessage::default()).await;
-        assert!(result.is_err());
+        let error = fetch_metadata(&builder, ism, &HyperlaneMessage::default())
+            .await
+            .expect_err("the lookup is not served");
 
         let activities = base.requests.activities.lock().expect("lock");
-        activities
+        let states = activities
             .iter()
             .map(|(_, activity)| {
                 serde_json::to_value(activity).expect("serialize")["state"].to_string()
             })
-            .collect()
+            .collect();
+        (error, states)
     }
 
     // ISM addresses reach the builder as 20-byte addresses widened to 32 bytes:
@@ -1455,6 +1502,49 @@ mod test {
                 "{name}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn lookup_tries_at_most_the_url_cap() {
+        let (ism, sender) = queried_ism();
+        let (domain, format_revert) = ccip_read_destinations()
+            .into_iter()
+            .next()
+            .expect("an EVM destination");
+        // Each URL is rejected by validation, so every endpoint tried reports once.
+        let urls = (0..100)
+            .map(|i| format!("https://127.0.0.1/lookup/{i}"))
+            .collect();
+
+        let states = read_states_for_lookup(domain, format_revert, ism, sender, urls).await;
+
+        let tried = states
+            .iter()
+            .filter(|state| *state == "\"url_rejected\"")
+            .count();
+        assert_eq!(tried, MAX_LOOKUP_URLS);
+    }
+
+    #[tokio::test]
+    async fn lookup_beyond_the_url_cap_still_reports_a_disallowed_host() {
+        let (ism, sender) = queried_ism();
+        let (domain, format_revert) = ccip_read_destinations()
+            .into_iter()
+            .next()
+            .expect("an EVM destination");
+        // No host is allowed, and more URLs are listed than are tried.
+        let urls = (0..=MAX_LOOKUP_URLS)
+            .map(|i| format!("https://lookup.example/{i}"))
+            .collect();
+
+        let (error, states) = lookup_with_urls(domain, format_revert, ism, sender, urls).await;
+
+        assert_eq!(error, MetadataBuildError::CcipReadNotAllowed);
+        let denied = states
+            .iter()
+            .filter(|state| *state == "\"domain_not_allowed\"")
+            .count();
+        assert_eq!(denied, MAX_LOOKUP_URLS);
     }
 
     #[test]
