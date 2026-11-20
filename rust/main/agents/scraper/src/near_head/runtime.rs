@@ -36,6 +36,7 @@ pub(super) struct Worker {
     pub wanted: AtomicU64,
     pub heads: Mutex<mpsc::Receiver<Header>>,
     pub polled_head: watch::Sender<u64>,
+    pub polled_event_slots: watch::Sender<Option<[u64; 3]>>,
     pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
@@ -83,7 +84,8 @@ pub(super) struct CycleOutcome {
     pub ingestion_failed: bool,
 }
 
-const MIN_WAKE_INTERVAL: Duration = Duration::from_secs(1);
+const MIN_WAKE_INTERVAL: Duration = Duration::from_millis(200);
+const MIN_INDEX_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const MIN_HEAD_INTERVAL: Duration = Duration::from_millis(200);
 const RECENT_HEADERS: usize = 256;
 // At 250ms/block this allows 16s of HTTP/WS skew without trusting an unbounded lead.
@@ -137,15 +139,19 @@ impl Worker {
         let mut heads = self.heads.lock().await;
         let mut recent = VecDeque::with_capacity(RECENT_HEADERS);
         let mut wakeup = Wakeup::Index;
-        let finalized_hints = self.domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel;
         let mut next_index = Instant::now();
+        let mut next_retry = next_index;
         let mut next_head = Instant::now();
         loop {
             let result = match wakeup {
                 Wakeup::Index => {
-                    next_index = Instant::now()
+                    let started = Instant::now();
+                    next_index = started
                         .checked_add(MIN_WAKE_INTERVAL)
                         .expect("Wake deadline");
+                    next_retry = started
+                        .checked_add(MIN_INDEX_RETRY_INTERVAL)
+                        .expect("Index retry deadline");
                     self.cycle(&mut count_cache).await
                 }
                 Wakeup::Head => {
@@ -181,13 +187,11 @@ impl Worker {
                 biased;
                 _ = polling.tick() => Wakeup::Index,
                 _ = async {
-                    if !finalized_hints {
-                        sleep_until(next_index).await;
-                    }
+                    sleep_until(next_index).await;
                     self.wakeup.notified().await;
                 } => Wakeup::Index,
-                // Retry if the finalized HTTP tip still trails a notification.
-                _ = sleep_until(next_index), if self.wanted.load(Ordering::Relaxed) != 0 => Wakeup::Index,
+                // Pace retries when HTTP is still behind the last notification.
+                _ = sleep_until(next_retry), if self.wanted.load(Ordering::Relaxed) != 0 => Wakeup::Index,
                 Some(header) = async { sleep_until(next_head).await; heads.recv().await } => {
                     remember_header(&mut recent, header);
                     while let Ok(header) = heads.try_recv() { remember_header(&mut recent, header); }
@@ -211,6 +215,13 @@ impl Worker {
         };
         // Reuse this observation to detect stalled WebSocket delivery; no probe RPC.
         self.polled_head.send_replace(observed.head);
+        if self.domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel
+            && self.polled_event_slots.borrow().is_none()
+        {
+            // Historical catch-up below the first live finalized head is expected.
+            self.polled_event_slots
+                .send_replace(Some([observed.head; 3]));
+        }
         // Ingest before publication so newly indexed events do not wait for the
         // next poll. Keep the result so existing work can still publish when
         // the log query fails.
@@ -294,6 +305,13 @@ impl Worker {
             .is_ok_and(|(_, wrote_events)| *wrote_events)
         {
             self.receipt_wakeup.send_replace(());
+            self.polled_event_slots.send_if_modified(|slots| {
+                let Some(slots) = slots else { return false };
+                let updated = std::array::from_fn(|i| slots[i].max(count_cache.event_slots[i]));
+                let changed = updated != *slots;
+                *slots = updated;
+                changed
+            });
         }
 
         // Count-protected sources publish only history proven by this cycle's

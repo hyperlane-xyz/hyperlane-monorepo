@@ -68,6 +68,8 @@ pub(super) struct CountCache {
     /// cumulative, so a match proves every earlier range complete, including
     /// ranges appended while counts were unavailable.
     pub(super) proven_through: Option<u64>,
+    /// Latest indexed slots for dispatch, delivery, and gas payment.
+    pub(super) event_slots: [u64; 3],
 }
 
 /// Returns (more indexing work, appended events).
@@ -195,11 +197,21 @@ pub(super) async fn ingest_cached(
             eyre::bail!("Incomplete event range");
         }
     }
+    let mut event_slots = count_cache.event_slots;
     for event in events {
         ensure!(
             event.block_number > state.indexed && event.block_number <= end,
             "Event outside requested range"
         );
+        let slot = match &event.data {
+            source::EventData::Dispatch(_) => Some(&mut event_slots[0]),
+            source::EventData::Delivery(_) => Some(&mut event_slots[1]),
+            source::EventData::Gas { .. } => Some(&mut event_slots[2]),
+            source::EventData::Insertion { .. } => None,
+        };
+        if let Some(slot) = slot {
+            *slot = (*slot).max(event.block_number);
+        }
         by_block.entry(event.block_number).or_default().push(event);
     }
     // Empty ranges still advance, using only their end header as a checkpoint.
@@ -238,6 +250,7 @@ pub(super) async fn ingest_cached(
     );
     verify(source, &boundary).await?;
     store.append(state, &blocks).await?;
+    count_cache.event_slots = event_slots;
     count_cache.boundary = Some((boundary.hash, validated_counts));
     if end_counts.is_some() {
         count_cache.proven_through = Some(end);

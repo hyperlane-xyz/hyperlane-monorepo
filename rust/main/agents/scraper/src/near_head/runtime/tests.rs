@@ -258,6 +258,7 @@ async fn worker(db: DatabaseConnection, source: Arc<Chain>) -> Result<Arc<Worker
         wanted: AtomicU64::new(0),
         heads: tokio::sync::Mutex::new(mpsc::channel(256).1),
         polled_head: watch::channel(0).0,
+        polled_event_slots: watch::channel(None).0,
         critical_failure_grace: Duration::from_millis(60),
         chain_metrics: ChainMetrics::new(&metrics)?,
         sync_metrics: Arc::new(ContractSyncMetrics::new(&metrics)),
@@ -1240,9 +1241,10 @@ async fn sealevel_wake_publishes_a_finalized_dispatch_in_the_next_cycle() -> Res
     chain.head.store(2, Ordering::SeqCst);
     worker.wanted.store(2, Ordering::Relaxed);
     worker.wakeup.notify_one();
-    tokio::time::timeout(MIN_WAKE_INTERVAL, worker.dispatch_wakeup.notified()).await?;
+    tokio::time::timeout(Duration::from_secs(1), worker.dispatch_wakeup.notified()).await?;
     let state = worker.store.state().await?.expect("state");
     assert_eq!((state.indexed, state.confirmed), (2, 2));
+    assert_eq!(*worker.polled_event_slots.borrow(), Some([2, 1, 1]));
     task.abort();
     assert!(task.await.expect_err("aborted worker").is_cancelled());
     Ok(())
@@ -1267,7 +1269,7 @@ async fn run_cycles_retries_a_log_ahead_of_http_then_stops_at_indexed_height() -
     for _ in 0..10 {
         worker.wakeup.notify_one();
     }
-    sleep(Duration::from_millis(200)).await;
+    sleep(MIN_WAKE_INTERVAL / 2).await;
     assert_eq!(chain.observations.load(Ordering::SeqCst), initial);
     // First wake still observes the lagging HTTP head. A second retry must run
     // without a new log or the five-second scheduled poll.

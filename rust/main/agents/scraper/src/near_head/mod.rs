@@ -156,6 +156,7 @@ pub async fn spawn(
         wanted: AtomicU64::new(0),
         heads: Mutex::new(head_rx),
         polled_head: polled_head_tx,
+        polled_event_slots: watch::channel(None).0,
         critical_failure_grace: CRITICAL_FAILURE_GRACE,
         chain_metrics,
         sync_metrics,

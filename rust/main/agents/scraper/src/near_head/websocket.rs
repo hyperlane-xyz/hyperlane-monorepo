@@ -62,14 +62,7 @@ pub(super) async fn run(
                 .await
             }
             Subscriptions::Sealevel(conf, metrics) => {
-                sealevel::subscribe(
-                    url.expose_secret(),
-                    conf,
-                    metrics,
-                    &worker.wakeup,
-                    &worker.wanted,
-                )
-                .await
+                sealevel::subscribe(url.expose_secret(), conf, metrics, worker).await
             }
         };
         // Do not log provider errors: they can contain the endpoint's API key.

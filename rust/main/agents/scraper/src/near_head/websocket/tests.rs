@@ -159,20 +159,23 @@ async fn unanswered_subscriptions_close_the_socket() -> Result<()> {
 }
 
 #[tokio::test]
-async fn finalized_sealevel_account_filters_wake_for_each_event_stream() -> Result<()> {
+async fn finalized_sealevel_account_filters_wake_and_recover_from_one_stalled_stream() -> Result<()>
+{
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let url = Url::parse(&format!("ws://{}", listener.local_addr()?))?;
     let wakeup = Notify::new();
     let wanted = AtomicU64::new(0);
+    let (polled_events, polled_rx) = watch::channel(Some([40; 3]));
     let server = async {
         let mut socket = accept_async(listener.accept().await?.0).await?;
         let mailbox = "11111111111111111111111111111111";
         let igp = "11111111111111111111111111111112";
         let mut expected = std::collections::HashMap::from([
-            ("RElTUEFUQ0g=", mailbox), // DISPATCH (also Merkle insertion)
-            ("UFJPQ0VTU0Q=", mailbox), // PROCESSD
-            ("R0FTUEFZTVQ=", igp),     // GASPAYMT
+            ("RElTUEFUQ0g=", (mailbox, 0)), // DISPATCH (also Merkle insertion)
+            ("UFJPQ0VTU0Q=", (mailbox, 1)), // PROCESSD
+            ("R0FTUEFZTVQ=", (igp, 2)),     // GASPAYMT
         ]);
+        let mut subscriptions = [0; 3];
         for subscription in 1..=3 {
             let req = request(&mut socket).await?;
             assert_eq!(req["method"], "programSubscribe");
@@ -185,11 +188,11 @@ async fn finalized_sealevel_account_filters_wake_for_each_event_stream() -> Resu
             let memcmp = &filters[0]["memcmp"];
             assert_eq!(memcmp["offset"], 1);
             assert_eq!(memcmp["encoding"], "base64");
-            let owner = expected.remove(memcmp["bytes"].as_str().expect("discriminator"));
-            assert_eq!(
-                req["params"][0].as_str(),
-                Some(owner.expect("unique discriminator"))
-            );
+            let (owner, stream) = expected
+                .remove(memcmp["bytes"].as_str().expect("discriminator"))
+                .expect("unique discriminator");
+            assert_eq!(req["params"][0].as_str(), Some(owner));
+            subscriptions[stream] = subscription;
             send(
                 &mut socket,
                 json!({"jsonrpc":"2.0", "id":req["id"], "result":subscription}),
@@ -197,8 +200,14 @@ async fn finalized_sealevel_account_filters_wake_for_each_event_stream() -> Resu
             .await?;
         }
         wakeup.notified().await; // Initial catch-up after all filters are installed.
-        for subscription in 1..=3 {
-            let slot = 40 + subscription;
+        for (slot, subscription) in
+            (41..=44).zip(subscriptions.into_iter().chain([subscriptions[2]]))
+        {
+            if slot == 44 {
+                tokio::time::pause();
+                polled_events.send_replace(Some([41, 42, 43]));
+                sleep(HEAD_STALL_TIMEOUT * 2 + Duration::from_millis(1)).await;
+            }
             send(&mut socket, json!({
                 "jsonrpc": "2.0", "method": "programNotification",
                 "params": {"subscription":subscription, "result":{
@@ -210,7 +219,10 @@ async fn finalized_sealevel_account_filters_wake_for_each_event_stream() -> Resu
             wakeup.notified().await;
             assert_eq!(wanted.load(Ordering::Relaxed), slot);
         }
-        socket.close(None).await?;
+        // A new delivery was indexed without a notification. Keep the
+        // connection open and the other subscriptions healthy.
+        polled_events.send_replace(Some([41, 44, 44]));
+        sleep(HEAD_STALL_TIMEOUT * 2).await;
         Ok::<_, eyre::Report>(())
     };
     let client = sealevel::subscribe_events(
@@ -219,13 +231,17 @@ async fn finalized_sealevel_account_filters_wake_for_each_event_stream() -> Resu
         hyperlane_core::H256::from_low_u64_be(1),
         &wakeup,
         &wanted,
+        polled_rx,
         1399811149,
     );
-    let (server, client) = timeout(Duration::from_secs(5), async {
+    let (server, client) = timeout(HEAD_STALL_TIMEOUT * 5, async {
         tokio::join!(server, client)
     })
     .await?;
     server?;
-    assert!(client.is_err(), "a disconnect must trigger resubscription");
+    assert_eq!(
+        client.expect_err("stalled delivery stream").to_string(),
+        "Sealevel event subscription stalled behind polling"
+    );
     Ok(())
 }
