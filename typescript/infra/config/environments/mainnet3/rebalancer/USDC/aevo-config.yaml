@@ -1,0 +1,34 @@
+warpRouteId: USDC/aevo
+
+# DRAFT, observation only until the open items below are resolved.
+deployment:
+  monitorOnly: true
+
+# On-chain rebalancing: movable collateral over the CCTP v2 standard bridges, which the
+# origin legs allow in the aevo USDC warp config (REBALANCER 0xa3948a15...).
+# The aevo leg (HypXERC20) is not rebalanced.
+# TODO(aevo-weights): placeholder even split, not a sizing decision. Add a fast-bridge
+# collateralDeficit strategy (see USDCSTAGE/eclipsemainnet) once sizing is decided.
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    arbitrum:
+      weighted:
+        weight: 33
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
+
+    base:
+      weighted:
+        weight: 34
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+
+    optimism:
+      weighted:
+        weight: 33
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
