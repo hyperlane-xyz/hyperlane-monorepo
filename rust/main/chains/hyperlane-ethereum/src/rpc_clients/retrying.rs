@@ -181,7 +181,9 @@ where
 {
     type Error = RetryingProviderError<PrometheusJsonRpcClient<P>>;
 
-    #[instrument(skip(self), fields(provider_host = %self.inner.node_host(), chain_name = %self.inner.chain_name()))]
+    // `params` is not recorded: it can carry secrets (e.g. an ICA reveal's
+    // preimage in an estimate's calldata), and every event in the span repeats it.
+    #[instrument(skip(self, params), fields(provider_host = %self.inner.node_host(), chain_name = %self.inner.chain_name()))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
@@ -245,5 +247,67 @@ mod tests {
         tokio::time::advance(Duration::from_secs(25)).await;
         assert!(call().await.is_err());
         mock.assert_request("eth_chainId", ()).unwrap();
+    }
+
+    /// An HTTP client whose every request reverts.
+    #[derive(Debug, Clone)]
+    struct RevertingClient;
+
+    #[async_trait]
+    impl JsonRpcClient for RevertingClient {
+        type Error = HttpClientError;
+
+        async fn request<T, R>(&self, _method: &str, _params: T) -> Result<R, Self::Error>
+        where
+            T: Debug + Serialize + Send + Sync,
+            R: DeserializeOwned,
+        {
+            Err(HttpClientError::JsonRpcError(
+                serde_json::from_value(serde_json::json!({
+                    "code": 3,
+                    "message": "execution reverted"
+                }))
+                .expect("valid static JSON-RPC error"),
+            ))
+        }
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test(start_paused = true)]
+    async fn failed_requests_do_not_log_their_params() {
+        use hyperlane_metric::prometheus_metric::{
+            PrometheusClientMetricsBuilder, PrometheusConfig,
+        };
+        // Request params can carry secrets, e.g. an ICA reveal's preimage in
+        // the calldata of an `eth_estimateGas`.
+        const SECRET: &str = "5ec2e75ec2e75ec2e7";
+        let client = PrometheusJsonRpcClient::new(
+            RevertingClient,
+            PrometheusClientMetricsBuilder::default()
+                .build()
+                .expect("metrics"),
+            PrometheusConfig::default(),
+        );
+        let provider = RetryingProvider::new(client, Some(2), Some(1));
+        let params = serde_json::json!([{ "data": format!("0x{SECRET}") }]);
+
+        // A failed estimate is not retried (error); other reads are (warn).
+        for method in ["eth_estimateGas", "eth_getBalance"] {
+            let result: Result<Value, _> = provider.request(method, params.clone()).await;
+            assert!(result.is_err(), "{method}");
+        }
+
+        assert!(logs_contain("Retryable JsonRpcError in http provider"));
+        assert!(logs_contain("Non-retryable JsonRpcError in http provider"));
+        // Only the trace-level dispatch log, kept for debugging, prints params.
+        logs_assert(|lines: &[&str]| {
+            match lines.iter().find(|line| {
+                line.contains(SECRET)
+                    && !(line.contains("TRACE") && line.contains("Dispatching request"))
+            }) {
+                Some(line) => Err(format!("params logged: {line}")),
+                None => Ok(()),
+            }
+        });
     }
 }
