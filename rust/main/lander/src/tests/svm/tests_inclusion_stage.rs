@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain};
 use hyperlane_sealevel::{
-    SealevelKeypair, SealevelTransactionFormat, SealevelTxCostEstimate, SealevelTxType,
+    SealevelSigner, SealevelTransactionFormat, SealevelTxCostEstimate, SealevelTxType,
     TransactionSubmitter,
 };
 use solana_client::rpc_response::RpcSimulateTransactionResult;
@@ -562,11 +562,11 @@ fn mock_create_transaction_for_instruction(mock_provider: &mut MockSvmProvider) 
             |compute_unit_limit: u32,
              compute_unit_price_micro_lamports: u64,
              instruction: SealevelInstruction,
-             payer: &SealevelKeypair,
+             payer: &SealevelSigner,
              tx_submitter: Arc<dyn TransactionSubmitter>,
              _sign: bool,
              _alt_addresses: &SealevelTransactionFormat,
-             _additional_signers: &[&SealevelKeypair]| {
+             _additional_signers: &[&SealevelSigner]| {
                 let instructions = vec![
                     // Set the compute unit limit.
                     ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),

@@ -10,10 +10,9 @@ use serializable_account_meta::SimulationReturnData;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signer::Signer,
 };
 
-use crate::{SealevelKeypair, SealevelProvider};
+use crate::{SealevelProvider, SealevelSigner};
 
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
@@ -22,7 +21,7 @@ use multisig_ism::interface::{
 /// A reference to a MultisigIsm contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelMultisigIsm {
-    payer: Option<SealevelKeypair>,
+    payer: Option<SealevelSigner>,
     program_id: Pubkey,
     domain: HyperlaneDomain,
     provider: Arc<SealevelProvider>,
@@ -33,7 +32,7 @@ impl SealevelMultisigIsm {
     pub fn new(
         provider: Arc<SealevelProvider>,
         locator: ContractLocator,
-        payer: Option<SealevelKeypair>,
+        payer: Option<SealevelSigner>,
     ) -> Self {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 
