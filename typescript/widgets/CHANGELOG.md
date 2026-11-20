@@ -1,5 +1,40 @@
 # @hyperlane-xyz/widgets
 
+## 46.0.0
+
+### Patch Changes
+
+- 09e9af3: The Storybook dev tooling was upgraded from 7.6 to 8.6 and vite from 5 to 6.4, which removes dev dependencies affected by the tar, vite and esbuild advisories.
+- 88f7b32: Fixed the Storybook build, and listed the MessageTimeline, Tooltip and ChainSearchMenu control choices in their stories since react-docgen doesn't infer them.
+- e927ec6: The yaml dependency was updated from 2.4.5 to 2.9.1, which fixes a stack overflow when parsing deeply nested YAML collections (GHSA-48c2-rrv3-qjmp).
+- Updated dependencies [5ad5b80]
+- Updated dependencies [bb87f05]
+- Updated dependencies [cdeacee]
+- Updated dependencies [e40bf51]
+- Updated dependencies [d61a29e]
+- Updated dependencies [ce47020]
+- Updated dependencies [ce47020]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [f32ac07]
+- Updated dependencies [9808703]
+- Updated dependencies [8509874]
+- Updated dependencies [c640d1f]
+- Updated dependencies [b88e58c]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [d5e4e91]
+- Updated dependencies [78deaf4]
+- Updated dependencies [b60bcbb]
+- Updated dependencies [e927ec6]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/sdk@46.0.0
+  - @hyperlane-xyz/tron-sdk@26.1.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/aleo-sdk@46.0.0
+  - @hyperlane-xyz/provider-sdk@11.0.4
+  - @hyperlane-xyz/cosmos-sdk@46.0.0
+  - @hyperlane-xyz/radix-sdk@46.0.0
+
 ## 45.2.0
 
 ### Patch Changes

@@ -1,5 +1,44 @@
 # @hyperlane-xyz/ccip-server
 
+## 46.0.0
+
+### Patch Changes
+
+- 357f9dd: Reveal lookups were made dependent on the origin protocol. Sealevel-origin ICA reveals were served from the stored commitment, regardless of transaction hash format, only when `CCS_SEALEVEL_REVEALS_ENABLED` was set to `true`, and were rejected with HTTP 403 otherwise. EVM reveals required a valid 32-byte origin transaction hash and received HTTP 400 without one; unknown and unsupported origin protocols were rejected.
+- 4ce76cb: Reveal lookups in the call commitments service were changed:
+
+  - The origin transaction hash of EVM-origin reveals is required; lookups without a valid 32-byte hash receive HTTP 400.
+  - Calls are only returned for EVM-origin reveals sent between registry ICA routers, when the commitment sent with the reveal matches the stored ICA. Other EVM-origin reveals receive HTTP 403. Sealevel-origin reveals receive HTTP 403 unless `CCS_SEALEVEL_REVEALS_ENABLED=true`, which serves the stored commitment ICA; keep it unset in production until the Sealevel reveal flow is redesigned.
+  - The service fails to start if the registry lists no ICA routers, or lists a chain with ICA routers but no mailbox.
+  - Origin mailboxes are read from the registry addresses at startup, so reveals from chains that list only `interchainAccountRouterV3` are resolved.
+  - Candidate ICAs that the chain answers as underivable do not match; only candidates whose chain read fails return HTTP 500.
+  - Reveals whose dispatched routers the chain answers as unable to derive the ICA receive HTTP 403; a failed read of those routers returns HTTP 500.
+  - `GET /calldata/:commitment` is disabled by default while the Sealevel reveal flow is redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to enable it.
+
+  HTTP 500 responses from the lookup handlers return `Internal server error`, except pending CCTP attestations and Wormhole VAAs, which keep their message. URLs and hostnames are removed from logged RPC errors and from the HTTP 400 returned when the ICA of a new commitment cannot be derived.
+
+- Updated dependencies [5ad5b80]
+- Updated dependencies [bb87f05]
+- Updated dependencies [cdeacee]
+- Updated dependencies [d61a29e]
+- Updated dependencies [ce47020]
+- Updated dependencies [ce47020]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [f32ac07]
+- Updated dependencies [9808703]
+- Updated dependencies [8509874]
+- Updated dependencies [c640d1f]
+- Updated dependencies [b88e58c]
+- Updated dependencies [d5e4e91]
+- Updated dependencies [78deaf4]
+- Updated dependencies [b60bcbb]
+- Updated dependencies [e927ec6]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/sdk@46.0.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/metrics@1.0.7
+  - @hyperlane-xyz/core@12.3.0
+
 ## 45.2.0
 
 ### Patch Changes

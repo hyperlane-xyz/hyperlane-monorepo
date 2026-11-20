@@ -1,5 +1,54 @@
 # @hyperlane-xyz/sdk
 
+## 46.0.0
+
+### Major Changes
+
+- 8509874: Removed `websocketAuthorityEnabled` from relayer configuration and made `websocketUrl` enable canonical live websocket indexing, with RPC responsible for history recovery and fallback. For RPC-only indexing, omit `websocketUrl`.
+- d5e4e91: Removed lightweight validator mode and its `lightweight` and `leightweigt` configuration fields. Validators now require RPC indexing for historical recovery before handing off to optional live WebSocket insertions. Existing configurations must remove either field, including when set to `false`.
+
+  Deferred RPC-free indexing until a supported bootstrap and recovery solution is available, potentially through a future snapshot service.
+
+### Minor Changes
+
+- 5ad5b80: Added the initial Abacus Works validator configuration for Aevo mainnet.
+- cdeacee: Added the initial Abacus Works validator configuration for Collect mainnet.
+- d61a29e: The xERC20 extra-bridge type was made explicit, and legacy entries were identified on-chain, so CCIP token pools were excluded from managed-lockbox metrics without hiding RPC failures.
+- f32ac07: Added transaction submission observers and typed failures that retained known identities across delegated sends, ambiguous broadcast responses, and later failures.
+
+  Solana sends were limited to one signed identity per invocation. Automatic blockhash resubmission was disabled by default, and the deprecated `enableBlockhashResubmit: true` setting was rejected before signing; callers using that setting must remove it or set it to `false`. Unresolved sends retained their original signature rather than risking duplicate execution with a fresh blockhash.
+
+  Tron receipt waits gained per-call deadlines covering requests, retries, confirmation checks, and receipt construction. Timed-out HTTP requests were cancelled without changing other waits or shared transport settings.
+
+### Patch Changes
+
+- bb87f05: Expanded Aevo's default validator set to 3-of-4 Abacus Works, Enigma, Luganodes, and Mitosis, and Elysium's to 2-of-3 Abacus Works, Luganodes, and Mitosis.
+- ce47020: Fixed the docs link in the SmartProvider RPC error message, which pointed at a page that no longer exists.
+- 9808703: Added `ccipReadAllowedDomains` to relayer configuration. CCIP reads now require an explicitly allowed HTTPS hostname. The relayer drops a message when the allowlist blocks every way to satisfy its ISM.
+- c640d1f: Removed default multisig configurations for nine retired mainnet chains so new core deployments exclude these origins. Kept the active Nesachain deployment supported.
+- b88e58c: Updated the scraper configuration schema description to document WebSocket endpoints for finalized Solana events.
+- 78deaf4: Aligned validator WebSocket configuration validation with the Rust agent: URLs must use `/validators` without query parameters. Updated the schema description to reflect RPC-verified live-start handoff and checkpoint verification, so invalid configurations are rejected before startup.
+- b60bcbb: Updated warp send to confirm delivery directly on each destination chain through the SDK. Added CosmWasm delivery polling and Starknet RPC failover for delivery reads, and fixed Aleo RPC encoding for structured delivery keys.
+- e927ec6: The minimum zod version was raised to 4.6.7, which bounds memory use when validating oversized constrained collections (GHSA-mrhx-c7xc-m3w5).
+- Updated dependencies [e40bf51]
+- Updated dependencies [ce47020]
+- Updated dependencies [4ce76cb]
+- Updated dependencies [f32ac07]
+- Updated dependencies [e40bf51]
+- Updated dependencies [e40bf51]
+- Updated dependencies [b60bcbb]
+- Updated dependencies [e927ec6]
+- Updated dependencies [e927ec6]
+  - @hyperlane-xyz/tron-sdk@26.1.0
+  - @hyperlane-xyz/utils@46.0.0
+  - @hyperlane-xyz/aleo-sdk@46.0.0
+  - @hyperlane-xyz/deploy-sdk@11.0.4
+  - @hyperlane-xyz/provider-sdk@11.0.4
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/cosmos-sdk@46.0.0
+  - @hyperlane-xyz/radix-sdk@46.0.0
+  - @hyperlane-xyz/starknet-core@46.0.0
+
 ## 45.2.0
 
 ### Minor Changes
