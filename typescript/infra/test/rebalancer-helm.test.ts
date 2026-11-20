@@ -4,12 +4,20 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { pino } from 'pino';
 import { pathToFileURL } from 'url';
 import Sinon from 'sinon';
 import { parse, parseAllDocuments, stringify } from 'yaml';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
-import { TokenStandard } from '@hyperlane-xyz/sdk';
+import { StrategyFactory } from '@hyperlane-xyz/rebalancer';
+import {
+  MultiProtocolProvider,
+  TokenStandard,
+  WarpCore,
+  WarpCoreConfigSchema,
+  messageAmountFromLocal,
+} from '@hyperlane-xyz/sdk';
 
 import { DockerImageRepos, mainnetDockerTags } from '../config/docker.js';
 import { readRebalancerConfig } from '../src/rebalancer/config.js';
@@ -437,5 +445,269 @@ describe('Rebalancer Helm deployment', () => {
         `Warp Route ID not found in registry at ${options.registryCommit}: ${options.warpRouteId}`,
       ),
     );
+  });
+});
+
+describe('oUSDT production manifest', () => {
+  afterEach(() => Sinon.restore());
+  function loadRouteFixture() {
+    return WarpCoreConfigSchema.parse(
+      parse(
+        fs.readFileSync(
+          path.join(
+            getInfraPath(),
+            'test/fixtures/rebalancer/oUSDT-production-warp-core.yaml',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+  }
+
+  function loadStrategyConfig() {
+    return readRebalancerConfig(
+      path.join(
+        getInfraPath(),
+        'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
+      ),
+    ).config.strategy;
+  }
+
+  function loadTokens() {
+    return Object.fromEntries(
+      WarpCore.FromConfig(
+        new MultiProtocolProvider({}),
+        loadRouteFixture(),
+      ).tokens.map((token) => [token.chainName, token]),
+    );
+  }
+
+  it('starts with observed collateral and replenishes Ethereum below its minimum', () => {
+    const tokens = loadTokens();
+    const strategyConfig = loadStrategyConfig();
+    const construct = (collateral: bigint) =>
+      StrategyFactory.createStrategy(
+        strategyConfig,
+        tokens,
+        collateral,
+        pino({ level: 'silent' }),
+      );
+    // The old 374k aggregate target rejected this observed collateral snapshot.
+    const strategy = construct(366_200_995_414n);
+    expect(() => construct(28_999_999_999n)).to.throw(
+      'Consider reducing the targets',
+    );
+    const balances = {
+      ethereum: 10_000_000_000n,
+      arbitrum: 3_000_000_000n,
+      celo: 40_000_000_000n,
+      tron: 3_000_000_000n,
+    };
+    expect(strategy.getRebalancingRoutes(balances)).to.be.empty;
+    const routes = strategy.getRebalancingRoutes({
+      ...balances,
+      ethereum: 9_999_000_000n,
+    });
+    expect(routes).to.have.length(1);
+    expect(routes[0]).to.include({
+      origin: 'celo',
+      destination: 'ethereum',
+      amount: 10_001_000_000n,
+    });
+  });
+
+  it('reserves Tron collateral for a pending 5,000 USDT transfer from BSC', () => {
+    const tokens = loadTokens();
+    expect(tokens.bsc).to.include({
+      addressOrDenom: '0xc283600F0A84162C0a062f7273ABB1F8F111b40C',
+      standard: TokenStandard.EvmHypCollateral,
+      decimals: 18,
+    });
+
+    const amount = messageAmountFromLocal(
+      5_000n * 10n ** BigInt(tokens.bsc.decimals),
+      tokens.bsc.scale,
+    );
+    expect(amount).to.equal(5_000_000_000n);
+    const balances = {
+      ethereum: 20_000_000_000n,
+      arbitrum: 10_000_000_000n,
+      celo: 3_000_000_000n,
+      tron: 3_000_000_000n,
+    };
+    const strategy = StrategyFactory.createStrategy(
+      loadStrategyConfig(),
+      tokens,
+      36_000_000_000n,
+      pino({ level: 'silent' }),
+    );
+    expect(strategy.getRebalancingRoutes(balances)).to.be.empty;
+    const routes = strategy.getRebalancingRoutes(balances, {
+      pendingTransfers: [{ origin: 'bsc', destination: 'tron', amount }],
+      pendingRebalances: [],
+    });
+    expect(routes).to.have.length(1);
+    expect(routes[0]).to.include({
+      destination: 'tron',
+      amount: 5_000_000_000n,
+    });
+  });
+
+  it('renders the actual route YAML with its credentials and limits', async () => {
+    const loaded = readRebalancerConfig(
+      path.join(
+        getInfraPath(),
+        'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
+      ),
+    );
+    const registryCommit = 'aa7cc3d836cbb020a3cedab7c470d5c59824a269';
+    expect(loaded.deployment.registryCommit).to.equal(registryCommit);
+    expect(loaded.deployment.monitorOnly).to.equal(true);
+    const warpCore = loadRouteFixture();
+    const getWarpRoute = Sinon.stub(
+      GithubRegistry.prototype,
+      'getWarpRoute',
+    ).resolves(warpCore);
+    const manager = new RebalancerHelmManager(
+      'oUSDT/production',
+      'mainnet3',
+      registryCommit,
+      '',
+      '',
+      true,
+      false,
+    );
+    await manager.runPreflightChecks(
+      'config/environments/mainnet3/rebalancer/oUSDT/production-config.yaml',
+    );
+    const values = await manager.helmValues();
+    expect(getWarpRoute.calledOnceWithExactly('oUSDT/production')).to.equal(
+      true,
+    );
+    expect(getWarpRoute.firstCall.thisValue.branch).to.equal(registryCommit);
+    expect(values.hyperlane.chains).to.deep.equal(
+      warpCore.tokens.map((token) => token.chainName),
+    );
+    const documents = renderRebalancerValues(values);
+    const secret = documents.find((d) => d.kind === 'ExternalSecret');
+    expect(secret.spec.target.template.data).to.have.keys(
+      'COINGECKO_API_KEY',
+      'HYP_REBALANCER_KEY',
+      'HYP_INVENTORY_KEY',
+      'HYP_INVENTORY_KEY_ETHEREUM',
+      'HYP_INVENTORY_KEY_TRON',
+      'SWAPSXYZ_API_KEY',
+      ...warpCore.tokens.map(
+        (token) => `RPC_URL_${token.chainName.toUpperCase()}`,
+      ),
+    );
+    expect(
+      secret.spec.data.find(
+        (d: { secretKey: string }) => d.secretKey === 'swapsxyz_api_key',
+      ).remoteRef.key,
+    ).to.equal('mainnet3-swapsxyz-api-key-ousdt');
+    expect(secret.spec.target.template.data.HYP_INVENTORY_KEY_TRON).to.equal(
+      secret.spec.target.template.data.HYP_INVENTORY_KEY_ETHEREUM,
+    );
+    const sts = documents.find((d) => d.kind === 'StatefulSet');
+    const container = sts.spec.template.spec.containers[0];
+    expect(container.envFrom).to.deep.equal([
+      { secretRef: { name: secret.spec.target.name } },
+    ]);
+    expect(loaded.deployment.imageDigest).to.match(/^sha256:[0-9a-f]{64}$/);
+    expect(container.image).to.equal(
+      `${DockerImageRepos.NODE_SERVICES}@${loaded.deployment.imageDigest}`,
+    );
+    expect(container.env).to.deep.include({
+      name: 'MONITOR_ONLY',
+      value: 'true',
+    });
+    expect(container.env).to.deep.include({
+      name: 'REGISTRY_URI',
+      value: `https://github.com/hyperlane-xyz/hyperlane-registry/tree/${registryCommit}`,
+    });
+    const runtime = parse(
+      documents.find((d) => d.kind === 'ConfigMap').data[
+        'rebalancer-config.yaml'
+      ],
+    );
+    expect(runtime).not.to.have.property('deployment');
+    expect(runtime).not.to.have.property('stateStore');
+    expect(sts.spec).not.to.have.property('volumeClaimTemplates');
+    expect(runtime.pendingTransferMiddlewares).to.deep.equal([
+      {
+        type: 'relayerDenylist',
+        url: 'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/mainnet-denylist.json',
+        refreshIntervalSecs: 60,
+      },
+    ]);
+    expect(runtime.intentTTL).to.equal(1209600);
+    expect(loaded.config.intentTTL).to.equal(1209600000);
+    expect(runtime.inventorySigners).to.deep.equal({
+      ethereum: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9',
+      tron: '0x6056e8E8e5Db30ffa9d721e3D73b3D558011FdA9',
+    });
+    expect(runtime.externalBridges).to.deep.equal({
+      layerzero: {
+        warpRouteIds: ['USDT/oft', 'USDT/oft-legacy'],
+        maxFeeBps: 50,
+        maxEvmNativeValueWei: '10000000000000000',
+        maxTronNativeValueSun: 20000000,
+      },
+      swapsxyz: {
+        defaultSlippage: 0.005,
+        maxQuoteLossBps: 50,
+        maxEvmNativeFeeWei: '10000000000000000',
+      },
+    });
+    expect(runtime.inventoryRoutes).to.deep.equal({
+      celo: { tron: { enabled: false } },
+      tron: { celo: { enabled: false } },
+    });
+    const chains = runtime.strategy.chains;
+    expect(chains.ethereum.minAmount).to.deep.equal({
+      min: 10000,
+      target: 20000,
+      type: 'absolute',
+    });
+    for (const chain of ['arbitrum', 'celo', 'tron']) {
+      expect(chains[chain].minAmount).to.deep.equal({
+        min: 1000,
+        target: 3000,
+        type: 'absolute',
+      });
+    }
+    expect(chains.arbitrum.override.tron.statusAdapter).to.deep.equal({
+      kind: 'lz_scan',
+      sourceEid: 30110,
+      destinationEid: 30420,
+      sourceOft: '0x77652D5aba086137b595875263FC200182919B92',
+      destinationOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
+    });
+    expect(chains.tron.override.arbitrum.statusAdapter).to.deep.equal({
+      kind: 'lz_scan',
+      sourceEid: 30420,
+      destinationEid: 30110,
+      sourceOft: '0x3a08f76772e200653bb55c2a92998daca62e0e97',
+      destinationOft: '0x77652D5aba086137b595875263FC200182919B92',
+    });
+    for (const adapter of [
+      chains.arbitrum.statusAdapter,
+      chains.arbitrum.override.tron.statusAdapter,
+      chains.tron.statusAdapter,
+      chains.tron.override.arbitrum.statusAdapter,
+    ]) {
+      expect(adapter).not.to.have.property('destinationRecipient');
+    }
+    expect(chains.ethereum.externalBridge).to.equal('layerzero');
+    for (const origin of ['arbitrum', 'tron']) {
+      expect(chains[origin].override.ethereum).to.deep.equal({
+        executionType: 'inventory',
+        externalBridge: 'layerzero',
+      });
+    }
+    expect(chains.ethereum.override.celo.externalBridge).to.equal('swapsxyz');
+    expect(chains.celo.override.tron.enabled).to.equal(false);
+    expect(chains.tron.override.celo.enabled).to.equal(false);
   });
 });
