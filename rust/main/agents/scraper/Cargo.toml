@@ -21,6 +21,7 @@ prometheus.workspace = true
 sea-orm = { workspace = true, features = ["mock"] }
 serde.workspace = true
 serde_json.workspace = true
+solana-pubsub-client.workspace = true
 time.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tokio-tungstenite.workspace = true
@@ -30,6 +31,7 @@ url = { workspace = true, features = ["serde"] }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+hyperlane-sealevel = { path = "../../chains/hyperlane-sealevel" }
 migration = { path = "migration" }
 
 [dev-dependencies]

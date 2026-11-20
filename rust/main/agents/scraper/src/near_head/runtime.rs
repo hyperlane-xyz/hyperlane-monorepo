@@ -9,9 +9,8 @@ use std::{
     time::Duration,
 };
 
-use futures::FutureExt;
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
-use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
+use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod};
 use tokio::{
     sync::{mpsc, watch, Mutex, Notify},
     time::{interval, sleep, sleep_until, Instant, MissedTickBehavior},
@@ -138,6 +137,7 @@ impl Worker {
         let mut heads = self.heads.lock().await;
         let mut recent = VecDeque::with_capacity(RECENT_HEADERS);
         let mut wakeup = Wakeup::Index;
+        let finalized_hints = self.domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel;
         let mut next_index = Instant::now();
         let mut next_head = Instant::now();
         loop {
@@ -181,13 +181,13 @@ impl Worker {
                 biased;
                 _ = polling.tick() => Wakeup::Index,
                 _ = async {
-                    sleep_until(next_index).await;
-                    if self.wanted.load(Ordering::Relaxed) == 0 {
-                        self.wakeup.notified().await;
-                    } else {
-                        let _ = self.wakeup.notified().now_or_never();
+                    if !finalized_hints {
+                        sleep_until(next_index).await;
                     }
+                    self.wakeup.notified().await;
                 } => Wakeup::Index,
+                // Retry if the finalized HTTP tip still trails a notification.
+                _ = sleep_until(next_index), if self.wanted.load(Ordering::Relaxed) != 0 => Wakeup::Index,
                 Some(header) = async { sleep_until(next_head).await; heads.recv().await } => {
                     remember_header(&mut recent, header);
                     while let Ok(header) = heads.try_recv() { remember_header(&mut recent, header); }

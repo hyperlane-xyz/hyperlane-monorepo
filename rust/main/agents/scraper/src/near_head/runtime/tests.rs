@@ -6,6 +6,7 @@ use std::sync::{
 use async_trait::async_trait;
 use ethers::types::{H160, H256};
 use eyre::{ensure, Result};
+use futures::FutureExt;
 use hyperlane_base::CoreMetrics;
 use hyperlane_core::KnownHyperlaneDomain;
 use migration::MigratorTrait;
@@ -1209,6 +1210,41 @@ async fn coalesced_headers_drain_sparse_confirmation_pages_without_rpcs() -> Res
     assert_eq!(worker.store.state().await?.expect("state").confirmed, 2);
     assert!(worker.dispatch_wakeup.notified().now_or_never().is_none());
     assert!(!wakeup.has_changed()?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn sealevel_wake_publishes_a_finalized_dispatch_in_the_next_cycle() -> Result<()> {
+    let chain = Arc::new(Chain::new(1, false));
+    chain.sequence.store(true, Ordering::SeqCst);
+    chain.counts.store(false, Ordering::SeqCst);
+    *chain.tip_counts.lock().expect("tip counts") = Some([(Some(0), 1); 4]);
+    let (_postgres, worker) = header_worker(chain.clone(), 0).await?;
+    let worker = Arc::new(Worker {
+        domain: KnownHyperlaneDomain::SolanaMainnet.into(),
+        poll_interval: Duration::from_secs(60),
+        ..worker
+    });
+    let task = tokio::spawn({
+        let worker = worker.clone();
+        async move { worker.run_cycles().await }
+    });
+    wait_for(&worker, |state| state.confirmed == 1).await?;
+    chain
+        .events
+        .lock()
+        .expect("events")
+        .push(dispatch_event(2, 0));
+    *chain.tip_counts.lock().expect("tip counts") =
+        Some([(Some(1), 2), (Some(0), 2), (Some(0), 2), (Some(0), 2)]);
+    chain.head.store(2, Ordering::SeqCst);
+    worker.wanted.store(2, Ordering::Relaxed);
+    worker.wakeup.notify_one();
+    tokio::time::timeout(MIN_WAKE_INTERVAL, worker.dispatch_wakeup.notified()).await?;
+    let state = worker.store.state().await?.expect("state");
+    assert_eq!((state.indexed, state.confirmed), (2, 2));
+    task.abort();
+    assert!(task.await.expect_err("aborted worker").is_cancelled());
     Ok(())
 }
 

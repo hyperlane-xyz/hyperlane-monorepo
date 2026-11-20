@@ -73,7 +73,14 @@ pub async fn spawn(
         hook: conf.addresses.merkle_tree_hook.into(),
         paymaster: conf.addresses.interchain_gas_paymaster.into(),
     };
-    let filter = evm_contracts.event_filter();
+    let websocket = websocket_url.map(|url| {
+        let subscriptions = if conf.connection.protocol() == HyperlaneDomainProtocol::Sealevel {
+            websocket::Subscriptions::Sealevel(Box::new(conf.clone()), metrics.clone())
+        } else {
+            websocket::Subscriptions::Ethereum(evm_contracts.clone())
+        };
+        (url, subscriptions)
+    });
     let source: Box<dyn Source> =
         if let ChainConnectionConf::Ethereum(connection) = &conf.connection {
             conf.build_ethereum(
@@ -156,15 +163,7 @@ pub async fn spawn(
     let task = tokio::spawn(async move {
         tokio::join!(
             worker.run(),
-            websocket::run(
-                websocket_url,
-                filter,
-                &worker.wakeup,
-                &worker.wanted,
-                &head_tx,
-                polled_head_rx,
-                worker.domain.id(),
-            ),
+            websocket::run(websocket, &worker, &head_tx, polled_head_rx),
             enrichment::run(
                 &enrichment_store,
                 poll_interval,

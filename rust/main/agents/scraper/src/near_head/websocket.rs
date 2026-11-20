@@ -1,12 +1,16 @@
 //! Optional wake-up hints. HTTP range reads and persisted progress remain authoritative.
 use std::{
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 
 use ethers::types::{Block, Filter, Log, H256};
 use eyre::{eyre, Result};
 use futures::{SinkExt, StreamExt};
+use hyperlane_base::{settings::ChainConf, CoreMetrics};
 use redact::Secret;
 use serde_json::{json, Value};
 use tokio::{
@@ -17,36 +21,59 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{info, warn};
 use url::Url;
 
-use super::source::Header;
+use super::{
+    runtime::Worker,
+    source::{EvmContracts, Header},
+};
+
+mod sealevel;
+
+pub(super) enum Subscriptions {
+    Ethereum(EvmContracts),
+    Sealevel(Box<ChainConf>, Arc<CoreMetrics>),
+}
 
 const RETRY_DELAY: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const HEAD_STALL_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) async fn run(
-    url: Option<Secret<Url>>,
-    filter: Filter,
-    wakeup: &Notify,
-    wanted: &AtomicU64,
+    config: Option<(Secret<Url>, Subscriptions)>,
+    worker: &Worker,
     heads_tx: &mpsc::Sender<Header>,
     mut polled_head: watch::Receiver<u64>,
-    domain: u32,
 ) {
-    let Some(url) = url else { return };
+    let Some((url, subscriptions)) = config else {
+        return;
+    };
+    let domain = worker.domain.id();
     loop {
+        let result = match &subscriptions {
+            Subscriptions::Ethereum(contracts) => {
+                subscribe(
+                    url.expose_secret(),
+                    &contracts.event_filter(),
+                    &worker.wakeup,
+                    &worker.wanted,
+                    heads_tx,
+                    &mut polled_head,
+                    domain,
+                )
+                .await
+            }
+            Subscriptions::Sealevel(conf, metrics) => {
+                sealevel::subscribe(
+                    url.expose_secret(),
+                    conf,
+                    metrics,
+                    &worker.wakeup,
+                    &worker.wanted,
+                )
+                .await
+            }
+        };
         // Do not log provider errors: they can contain the endpoint's API key.
-        if subscribe(
-            url.expose_secret(),
-            &filter,
-            wakeup,
-            wanted,
-            heads_tx,
-            &mut polled_head,
-            domain,
-        )
-        .await
-        .is_err()
-        {
+        if result.is_err() {
             warn!(
                 domain,
                 "Event/head WebSocket unavailable; polling continues, reconnecting"

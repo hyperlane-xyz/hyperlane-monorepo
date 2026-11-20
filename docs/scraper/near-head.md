@@ -29,10 +29,15 @@ RPCs must support event ranges, block lookup, latest height, and the configured
 finality selector. EVM also needs hash-pinned `eth_call` and predeployment
 `eth_getCode`. Incomplete ranges remain provisional and retry.
 
-## Optional EVM WebSocket wake-ups
+## Optional WebSocket wake-ups
 
-`websocketUrls` maps configured EVM chain names to WebSocket URLs. Logs wake HTTP
-indexing; headers advance eligible confirmations. Polling remains the fallback.
+`websocketUrls` maps configured EVM and Sealevel chain names to WebSocket URLs. EVM
+logs wake HTTP indexing and headers advance eligible confirmations. On Sealevel,
+the endpoint must support finalized `programSubscribe` with account-data filters.
+Dispatch, processed-message, and gas-payment account writes wake HTTP indexing.
+Each dispatch also supplies its Merkle insertion. With `reorgPeriod: 0`, the
+scraper proxy streams events as soon as the scraper publishes the verified range.
+HTTP polling catches up after missed notifications or a disconnect.
 For deployments, `websocketConfigSecret` loads the map through `CONFIG_FILES`.
 
 ## Operations

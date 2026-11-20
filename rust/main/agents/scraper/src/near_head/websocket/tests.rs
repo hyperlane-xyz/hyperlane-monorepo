@@ -157,3 +157,75 @@ async fn unanswered_subscriptions_close_the_socket() -> Result<()> {
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn finalized_sealevel_account_filters_wake_for_each_event_stream() -> Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let url = Url::parse(&format!("ws://{}", listener.local_addr()?))?;
+    let wakeup = Notify::new();
+    let wanted = AtomicU64::new(0);
+    let server = async {
+        let mut socket = accept_async(listener.accept().await?.0).await?;
+        let mailbox = "11111111111111111111111111111111";
+        let igp = "11111111111111111111111111111112";
+        let mut expected = std::collections::HashMap::from([
+            ("RElTUEFUQ0g=", mailbox), // DISPATCH (also Merkle insertion)
+            ("UFJPQ0VTU0Q=", mailbox), // PROCESSD
+            ("R0FTUEFZTVQ=", igp),     // GASPAYMT
+        ]);
+        for subscription in 1..=3 {
+            let req = request(&mut socket).await?;
+            assert_eq!(req["method"], "programSubscribe");
+            let config = &req["params"][1];
+            assert_eq!(config["commitment"], "finalized");
+            assert_eq!(config["withContext"], true);
+            assert_eq!(config["dataSlice"], json!({"offset": 0, "length": 0}));
+            let filters = config["filters"].as_array().expect("filters");
+            assert_eq!(filters.len(), 1);
+            let memcmp = &filters[0]["memcmp"];
+            assert_eq!(memcmp["offset"], 1);
+            assert_eq!(memcmp["encoding"], "base64");
+            let owner = expected.remove(memcmp["bytes"].as_str().expect("discriminator"));
+            assert_eq!(
+                req["params"][0].as_str(),
+                Some(owner.expect("unique discriminator"))
+            );
+            send(
+                &mut socket,
+                json!({"jsonrpc":"2.0", "id":req["id"], "result":subscription}),
+            )
+            .await?;
+        }
+        wakeup.notified().await; // Initial catch-up after all filters are installed.
+        for subscription in 1..=3 {
+            let slot = 40 + subscription;
+            send(&mut socket, json!({
+                "jsonrpc": "2.0", "method": "programNotification",
+                "params": {"subscription":subscription, "result":{
+                    "context":{"slot":slot}, "value":{"pubkey":mailbox, "account":{
+                        "data":["","base64"], "owner":mailbox, "lamports":1, "executable":false, "rentEpoch":0
+                    }}
+                }}
+            })).await?;
+            wakeup.notified().await;
+            assert_eq!(wanted.load(Ordering::Relaxed), slot);
+        }
+        socket.close(None).await?;
+        Ok::<_, eyre::Report>(())
+    };
+    let client = sealevel::subscribe_events(
+        &url,
+        hyperlane_core::H256::zero(),
+        hyperlane_core::H256::from_low_u64_be(1),
+        &wakeup,
+        &wanted,
+        1399811149,
+    );
+    let (server, client) = timeout(Duration::from_secs(5), async {
+        tokio::join!(server, client)
+    })
+    .await?;
+    server?;
+    assert!(client.is_err(), "a disconnect must trigger resubscription");
+    Ok(())
+}

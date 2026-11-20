@@ -836,7 +836,7 @@ export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
     .record(z.string(), z.url({ protocol: /^wss?$/ }))
     .optional()
     .describe(
-      'Optional EVM log subscription URLs by chain name. Wake indexing while HTTP polling remains the fallback.',
+      'Optional WebSocket URLs for EVM logs and finalized Sealevel account updates, keyed by chain name.',
     ),
   db: z.string().min(1).describe('Database connection string'),
   chainsToScrape: CommaSeparatedChainList.describe(
