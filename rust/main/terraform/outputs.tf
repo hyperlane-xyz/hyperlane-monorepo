@@ -1,4 +1,4 @@
-output "your_validator_name" {
-  value = module.your_validator_name.validator_info
+output "validator" {
+  value     = module.validator.validator_info
   sensitive = true
 }
