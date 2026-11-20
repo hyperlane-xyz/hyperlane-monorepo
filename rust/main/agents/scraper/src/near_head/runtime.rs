@@ -23,6 +23,12 @@ use super::{
     store::{State, Store},
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PolledEventSlots {
+    pub startup_head: u64,
+    pub indexed: [u64; 3],
+}
+
 pub(super) struct Worker {
     pub source: Box<dyn Source>,
     pub store: Store,
@@ -36,7 +42,7 @@ pub(super) struct Worker {
     pub wanted: AtomicU64,
     pub heads: Mutex<mpsc::Receiver<Header>>,
     pub polled_head: watch::Sender<u64>,
-    pub polled_event_slots: watch::Sender<Option<[u64; 3]>>,
+    pub polled_event_slots: watch::Sender<Option<PolledEventSlots>>,
     pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
@@ -219,8 +225,10 @@ impl Worker {
             && self.polled_event_slots.borrow().is_none()
         {
             // Historical catch-up below the first live finalized head is expected.
-            self.polled_event_slots
-                .send_replace(Some([observed.head; 3]));
+            self.polled_event_slots.send_replace(Some(PolledEventSlots {
+                startup_head: observed.head,
+                indexed: [0; 3],
+            }));
         }
         // Ingest before publication so newly indexed events do not wait for the
         // next poll. Keep the result so existing work can still publish when
@@ -306,10 +314,9 @@ impl Worker {
         {
             self.receipt_wakeup.send_replace(());
             self.polled_event_slots.send_if_modified(|slots| {
-                let Some(slots) = slots else { return false };
-                let updated = std::array::from_fn(|i| slots[i].max(count_cache.event_slots[i]));
-                let changed = updated != *slots;
-                *slots = updated;
+                let Some(sample) = slots else { return false };
+                let changed = sample.indexed != count_cache.event_slots;
+                sample.indexed = count_cache.event_slots;
                 changed
             });
         }

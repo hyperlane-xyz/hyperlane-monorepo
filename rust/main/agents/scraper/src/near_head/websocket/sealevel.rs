@@ -16,6 +16,7 @@ use tracing::info;
 use url::Url;
 
 use super::{Worker, CONNECT_TIMEOUT, HEAD_STALL_TIMEOUT};
+use crate::near_head::runtime::PolledEventSlots;
 
 pub(super) async fn subscribe(
     url: &Url,
@@ -44,7 +45,7 @@ pub(super) async fn subscribe_events(
     igp_program: H256,
     wakeup: &Notify,
     wanted: &AtomicU64,
-    polled_events: watch::Receiver<Option<[u64; 3]>>,
+    polled_events: watch::Receiver<Option<PolledEventSlots>>,
     domain: u32,
 ) -> Result<()> {
     let client = timeout(CONNECT_TIMEOUT, PubsubClient::new(url.as_str())).await??;
@@ -58,7 +59,7 @@ pub(super) async fn subscribe_events(
         })
         .await??;
     info!(domain, "Finalized Sealevel event WebSocket subscribed");
-    let mut checkpoint = *polled_events.borrow();
+    let mut checkpoint = polled_events.borrow().map(|sample| sample.indexed);
     let mut received = checkpoint.unwrap_or_default();
     let mut stall_check = interval(HEAD_STALL_TIMEOUT);
     stall_check.reset();
@@ -71,13 +72,13 @@ pub(super) async fn subscribe_events(
             update = payment.next() => (2, update),
             _ = stall_check.tick() => {
                 if let Some(latest) = *polled_events.borrow() {
-                    if let Some(previous) = checkpoint.replace(latest) {
+                    if let Some(previous) = checkpoint.replace(latest.indexed) {
                         // Check the previous sample so newer events cannot extend the grace period.
-                        if previous.into_iter().zip(received).any(|(polled, received)| polled > received) {
+                        if previous.into_iter().zip(received).any(|(polled, received)| {
+                            polled > received.max(latest.startup_head)
+                        }) {
                             return Err(eyre!("Sealevel event subscription stalled behind polling"));
                         }
-                    } else {
-                        received = std::array::from_fn(|i| received[i].max(latest[i]));
                     }
                 }
                 continue;

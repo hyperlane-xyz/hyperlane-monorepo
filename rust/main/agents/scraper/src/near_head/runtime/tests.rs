@@ -1244,7 +1244,13 @@ async fn sealevel_wake_publishes_a_finalized_dispatch_in_the_next_cycle() -> Res
     tokio::time::timeout(Duration::from_secs(1), worker.dispatch_wakeup.notified()).await?;
     let state = worker.store.state().await?.expect("state");
     assert_eq!((state.indexed, state.confirmed), (2, 2));
-    assert_eq!(*worker.polled_event_slots.borrow(), Some([2, 1, 1]));
+    assert_eq!(
+        *worker.polled_event_slots.borrow(),
+        Some(PolledEventSlots {
+            startup_head: 1,
+            indexed: [2, 0, 0],
+        })
+    );
     task.abort();
     assert!(task.await.expect_err("aborted worker").is_cancelled());
     Ok(())
