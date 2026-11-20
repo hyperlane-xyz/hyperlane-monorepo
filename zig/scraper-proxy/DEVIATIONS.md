@@ -104,10 +104,10 @@ reproduces the observable rule, not the scheduling.
   refused as in TS; each root is then checked as in TS. If slots free during
   the wait, roots that TS would refuse can run. Under a full cap this stops
   slots being spread across requests that then all answer with capacity
-  errors. Depot bench, error-free responses per second against TS: 652 vs 255
-  on the pending-cap open-loop row, 71 vs 4 on the 5-root Explorer sender
-  search. The cost is Postgres CPU per request (more requests run every root)
-  and the sender search's p99 (77 vs 55 ms).
+  errors. Depot C27b cohort, error-free responses per second against TS: 642
+  vs 210 on the pending-cap open-loop row, 64 vs 5 on the 5-root Explorer
+  sender search. The cost is Postgres CPU per request (more requests run every
+  root) and the sender search's p99 (80 vs 57 ms).
 - **Live event timing windows.** A loop mutex reproduces "nothing runs
   between awaits" and synchronous prefixes run inline
   (`src/live/IMPLEMENTATION.md`). Tasks take the loop mutex for the first
