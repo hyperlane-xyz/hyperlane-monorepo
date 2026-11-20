@@ -31,6 +31,11 @@ pub fn build(b: *std.Build) void {
     // at info. Off by default: the shipped build does no extra work.
     const pool_hold_stats = b.option(bool, "pool-hold-stats", "Record and log DB pool checkout hold times") orelse false;
     const db_options = b.addOptions();
+    // Bench experiment (C27): a request about to run several root fields
+    // waits up to this long while some, but fewer than it needs, pending
+    // GraphQL query slots are free (0: off, the shipped build).
+    const admission_shape_ms = b.option(u32, "admission-shape-ms", "Wait up to N ms for a multi-root request's pending GraphQL query slots (default 2; 0: off, as TS)") orelse 2;
+    db_options.addOption(u32, "admission_shape_ms", admission_shape_ms);
     db_options.addOption(bool, "pool_hold_stats", pool_hold_stats);
     // Diagnostics only (bench): per-listener callback durations on the shared
     // LISTEN thread, logged at info when a listener is released. Off by default.

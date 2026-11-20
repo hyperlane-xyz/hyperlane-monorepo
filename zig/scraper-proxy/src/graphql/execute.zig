@@ -104,6 +104,9 @@ pub const Resolvers = struct {
     /// arguments, throws before returning a promise (graphql-js then starts no
     /// later root field when the field is non-null; see `executeRoots`).
     fails_synchronously: ?*const fn (ctx: *anyopaque, field_name: []const u8, args: Value) bool = null,
+    /// Optional: called once before a request's root fields start, with how
+    /// many will start.
+    before_roots: ?*const fn (ctx: *anyopaque, roots: usize) void = null,
 };
 
 /// What a fast column's JSON is (the database adapter decides per column
@@ -499,6 +502,7 @@ pub const Executor = struct {
             }
         }
         const started = tasks[0..if (sync_stop) |i| i + 1 else n];
+        if (self.resolvers.before_roots) |f| f(self.resolvers.ctx, started.len);
         const pooled = try self.a.alloc(bool, n);
         @memset(pooled, false);
         // On a fiber the extra fields are sibling fibers on the same loop

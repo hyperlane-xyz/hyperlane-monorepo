@@ -223,6 +223,50 @@ const HeldFake = struct {
     }
 };
 
+test "a multi-root request waits a bounded time for its pending slots" {
+    const shape_ms = @import("db_options").admission_shape_ms;
+    if (comptime shape_ms == 0) return error.SkipZigTest;
+    core.config.set(.{ .database_url = primary_url, .database_max_pending_graphql_queries = 2 });
+    var fake: HeldFake = .{};
+    defer fake.seen.deinit(testing.allocator);
+    const svc = try DbService.init(testing.allocator, null);
+    defer svc.deinit();
+    svc.backend = .{ .ctx = &fake, .query = HeldFake.query };
+    const Hold = struct {
+        fn run(s: *DbService) void {
+            var a = std.heap.ArenaAllocator.init(testing.allocator);
+            defer a.deinit();
+            _ = s.query(a.allocator(), "SELECT held", &.{}, null) catch {};
+        }
+    };
+
+    // Free cap: no wait, also with more roots than the cap.
+    var start = core.fiber.monoMs();
+    svc.admitShape(2);
+    svc.admitShape(5);
+    try testing.expect(core.fiber.monoMs() - start < shape_ms);
+
+    // One of two slots held: a 2-root request waits out the bound, then
+    // leaves the queue; a 1-root request never waits.
+    const held = try std.Thread.spawn(.{}, Hold.run, .{svc});
+    fake.mutex.lock();
+    while (fake.entered < 1) fake.cond.wait(&fake.mutex);
+    fake.mutex.unlock();
+    start = core.fiber.monoMs();
+    svc.admitShape(2);
+    try testing.expect(core.fiber.monoMs() - start >= shape_ms);
+    try testing.expectEqual(@as(usize, 0), svc.shape_waiters.items.len);
+    start = core.fiber.monoMs();
+    svc.admitShape(1);
+    try testing.expect(core.fiber.monoMs() - start < shape_ms);
+
+    fake.mutex.lock();
+    fake.released = true;
+    fake.cond.broadcast();
+    fake.mutex.unlock();
+    held.join();
+}
+
 test "bounds unfinished GraphQL database work independently of HTTP clients" {
     core.config.set(.{ .database_url = primary_url, .database_max_pending_graphql_queries = 3 });
     core.metrics.init();

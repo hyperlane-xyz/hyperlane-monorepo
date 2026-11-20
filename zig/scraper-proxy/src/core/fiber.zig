@@ -666,7 +666,13 @@ pub const testing = struct {
                 p.f.timed_out = !ready;
                 try self.ready.append(gpa, p.f);
             }
-            i = self.timers.items.len;
+            try self.expireTimers(now);
+        }
+
+        /// Readies the timed waits whose deadline passed (also between
+        /// rounds: a fiber that keeps waking itself must not starve them).
+        fn expireTimers(self: *Loop, now: i64) !void {
+            var i: usize = self.timers.items.len;
             while (i > 0) {
                 i -= 1;
                 const t = self.timers.items[i];
@@ -700,6 +706,7 @@ pub const testing = struct {
             try loop.ready.appendSlice(gpa, loop.posted.items);
             loop.posted.clearRetainingCapacity();
             loop.mutex.unlock();
+            if (loop.timers.items.len > 0) try loop.expireTimers(monoMs());
             if (loop.ready.items.len > 0) continue;
             if (loop.live.count() == 0) return;
             try loop.pollOnce();

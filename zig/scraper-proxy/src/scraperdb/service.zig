@@ -75,6 +75,8 @@ pub const Database = struct {
     /// returned unconverted (`db.LazyRows`, owned by the caller; null when
     /// the implementation cannot, e.g. a test backend).
     lazyQueryFn: ?LazyQueryFn = null,
+    /// Optional: before a request's root fields start (`db.DbService.admitShape`).
+    shapeFn: ?*const fn (ctx: *anyopaque, roots: usize) void = null,
 
     pub const QueryFn = *const fn (ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value;
     pub const PlannedQueryFn = *const fn (ctx: *anyopaque, arena: Allocator, plan: Plan, text: []const u8, values: []const Value, diag: *Diag) anyerror![]Value;

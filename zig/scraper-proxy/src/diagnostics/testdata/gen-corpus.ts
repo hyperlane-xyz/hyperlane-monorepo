@@ -464,6 +464,121 @@ const handWritten: [string, RawRow[]][] = [
       ),
     ],
   ],
+  // #10108 offchain_read: observed_at_millis, hostname, url_template and
+  // result are kept in schema order; unknown keys (also in result) are
+  // stripped; an invalid result or observed_at_millis rejects the event.
+  [
+    'offchain read: #10108 fields, extra keys, invalid values',
+    [
+      rowOf({
+        type: 'snapshot',
+        state: {
+          phase: 'awaiting_signatures',
+          tree_root: 'root',
+          modules: [
+            {
+              node_id: 'root',
+              ism: ISM,
+              offchain_read: {
+                extra: 1,
+                url_template: 'https://lookup.example/proof/{data}',
+                result: { keccak256: '0xabc', bytes: 32, k: 2 },
+                hostname: 'lookup.example',
+                http_status: 200,
+                endpoint: 1,
+                attempt: 2,
+                observed_at_millis: 1_700_000_000_000,
+                state: 'succeeded',
+              },
+            },
+            {
+              node_id: 'root/0',
+              ism: 'ism-b',
+              offchain_read: {
+                state: 'pending',
+                observed_at_millis: null,
+                endpoint: null,
+                http_status: null,
+                hostname: null,
+                url_template: null,
+                result: null,
+              },
+            },
+          ],
+        },
+      }),
+      rowOf(
+        {
+          type: 'snapshot_update',
+          state: {
+            phase: 'awaiting_signatures',
+            tree_root: 'root',
+            modules: [
+              {
+                node_id: 'root/0',
+                ism: 'ism-b',
+                offchain_read: {
+                  state: 'failed',
+                  endpoint: 0,
+                  http_status: 500,
+                  result: { bytes: -1, keccak256: '0x' },
+                },
+              },
+            ],
+            removed_modules: [],
+          },
+        },
+        2,
+      ),
+      rowOf(
+        {
+          type: 'snapshot_update',
+          state: {
+            phase: 'awaiting_signatures',
+            tree_root: 'root',
+            modules: [
+              {
+                node_id: 'root/0',
+                ism: 'ism-b',
+                offchain_read: {
+                  state: 'failed',
+                  observed_at_millis: 1.5,
+                  endpoint: 0,
+                  http_status: 500,
+                },
+              },
+            ],
+            removed_modules: [],
+          },
+        },
+        3,
+      ),
+      rowOf(
+        {
+          type: 'snapshot_update',
+          state: {
+            phase: 'awaiting_signatures',
+            tree_root: 'root',
+            modules: [
+              {
+                node_id: 'root/0',
+                ism: 'ism-b',
+                offchain_read: {
+                  state: 'failed',
+                  endpoint: 0,
+                  http_status: 500,
+                  hostname: 'lookup.example',
+                  result: { bytes: 0, keccak256: '0x' },
+                },
+              },
+            ],
+            removed_modules: [],
+          },
+        },
+        4,
+      ),
+    ],
+  ],
   [
     'reorg checks: null rejects the snapshot and orphans its update',
     [

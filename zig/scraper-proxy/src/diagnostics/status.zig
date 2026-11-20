@@ -170,11 +170,19 @@ const reorg_check: S = .{ .object = .{ .fields = &.{
     .{ .key = "validator", .schema = string },
     .{ .key = "states", .schema = string_array },
 } } };
+const offchain_read_result: S = .{ .object = .{ .fields = &.{
+    .{ .key = "bytes", .schema = count },
+    .{ .key = "keccak256", .schema = string },
+} } };
 const snapshot_offchain_read: S = .{ .object = .{ .fields = &.{
     .{ .key = "state", .schema = string },
+    .{ .key = "observed_at_millis", .schema = count_nullish },
     .{ .key = "attempt", .schema = count_nullish },
     .{ .key = "endpoint", .schema = count_nullable },
     .{ .key = "http_status", .schema = count_nullable },
+    .{ .key = "hostname", .schema = string_nullish },
+    .{ .key = "url_template", .schema = string_nullish },
+    .{ .key = "result", .schema = .{ .nullish = &offchain_read_result } },
 } } };
 const snapshot_module: S = .{ .object = .{ .loose = true, .fields = &.{
     .{ .key = "node_id", .schema = string },

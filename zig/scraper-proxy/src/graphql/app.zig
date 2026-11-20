@@ -57,7 +57,12 @@ pub const App = struct {
 
     /// `dbs` as the resolvers' `scraperdb.Database`.
     pub fn database(dbs: *db.DbService) scraperdb.Database {
-        return .{ .ctx = dbs, .queryFn = query, .plannedQueryFn = queryPlanned, .lazyQueryFn = queryLazy };
+        return .{ .ctx = dbs, .queryFn = query, .plannedQueryFn = queryPlanned, .lazyQueryFn = queryLazy, .shapeFn = shape };
+    }
+
+    fn shape(ctx: *anyopaque, roots: usize) void {
+        const dbs: *db.DbService = @ptrCast(@alignCast(ctx));
+        dbs.admitShape(roots);
     }
 
     fn query(ctx: *anyopaque, arena: Allocator, text: []const u8, values: []const Value, diag: *scraperdb.Diag) anyerror![]Value {

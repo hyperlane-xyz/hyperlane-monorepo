@@ -38,7 +38,7 @@ pub const ResolverMap = struct {
     budget: scraperdb.HistoryBudget = .{},
 
     pub fn resolvers(self: *ResolverMap) execute.Resolvers {
-        return .{ .ctx = self, .resolve = resolve, .resolve_raw = resolveRaw, .fails_synchronously = failsSynchronously, .parent_types = &.{ "query_root", "message_view_aggregate_fields" } };
+        return .{ .ctx = self, .resolve = resolve, .resolve_raw = resolveRaw, .fails_synchronously = failsSynchronously, .before_roots = beforeRoots, .parent_types = &.{ "query_root", "message_view_aggregate_fields" } };
     }
 
     /// resolver-map.ts: `message_activity` is a plain function whose
@@ -48,6 +48,11 @@ pub const ResolverMap = struct {
     /// `message_view_aggregate`'s resolver (also a plain function) runs
     /// `validateHistoryRequest` first, so a rejected aggregate throws
     /// synchronously too.
+    fn beforeRoots(ctx: *anyopaque, roots: usize) void {
+        const self: *ResolverMap = @ptrCast(@alignCast(ctx));
+        if (self.db.db.shapeFn) |f| f(self.db.db.ctx, roots);
+    }
+
     fn failsSynchronously(ctx: *anyopaque, field_name: []const u8, args: Value) bool {
         const self: *ResolverMap = @ptrCast(@alignCast(ctx));
         if (std.mem.eql(u8, field_name, "message_view_aggregate")) return history_policy.check(args, true) != null;

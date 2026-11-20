@@ -481,6 +481,59 @@
     "expected": "[{\"version\":1,\"message_id\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"partial\":false,\"activities\":[{\"id\":\"1\",\"message_id\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"relayer\":\"relayer-a\",\"origin\":1,\"destination\":2,\"observed_at\":\"2026-11-05 00:00:01+00\",\"received_at\":\"2026-11-05 00:00:01+00\",\"version\":1,\"activity\":{\"type\":\"snapshot\",\"state\":{\"phase\":\"preparing\",\"tree_root\":\"root\",\"modules\":[{\"x\":1,\"reorg_checks\":[{\"states\":[\"reorg_reported\",\"reorg_ignored\"],\"extra\":{\"k\":1},\"validator\":\"0xv1\"},{\"validator\":\"0xv2\",\"states\":[]}],\"offchain_read\":{\"state\":\"pending\",\"endpoint\":0,\"http_status\":202},\"signatures\":{\"threshold\":2,\"unavailable\":[]},\"ism\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"node_id\":\"root\"},{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"reorg_checks\":[]},{\"node_id\":\"root/1\",\"ism\":\"ism-c\",\"signatures\":null}]}}},{\"id\":\"2\",\"message_id\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"relayer\":\"relayer-a\",\"origin\":1,\"destination\":2,\"observed_at\":\"2026-11-05 00:00:02+00\",\"received_at\":\"2026-11-05 00:00:01+00\",\"version\":1,\"activity\":{\"type\":\"snapshot_update\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":null,\"reorg_checks\":[{\"validator\":\"0xv3\",\"states\":[\"reorg_check_failed\"]},{\"validator\":\"0xv3\",\"states\":[\"reorg_not_found\",\"\"]}],\"z\":\"after\"}],\"removed_modules\":[]}}}],\"relayers\":[{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root\",\"ism\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"signatures\":{\"threshold\":2,\"unavailable\":[],\"collection_id\":null},\"reorg_checks\":[{\"validator\":\"0xv1\",\"states\":[\"reorg_reported\",\"reorg_ignored\"]},{\"validator\":\"0xv2\",\"states\":[]}],\"offchain_read\":{\"state\":\"pending\",\"endpoint\":0,\"http_status\":202,\"attempt\":null},\"x\":1,\"observed_at\":\"2026-11-05 00:00:02+00\"},{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"reorg_checks\":[{\"validator\":\"0xv3\",\"states\":[\"reorg_check_failed\"]},{\"validator\":\"0xv3\",\"states\":[\"reorg_not_found\",\"\"]}],\"offchain_read\":null,\"z\":\"after\",\"observed_at\":\"2026-11-05 00:00:02+00\"},{\"node_id\":\"root/1\",\"ism\":\"ism-c\",\"signatures\":null,\"observed_at\":\"2026-11-05 00:00:02+00\"}],\"removed_modules\":[],\"relayer\":\"relayer-a\",\"observed_at\":\"2026-11-05 00:00:02+00\"}]}]"
   },
   {
+    "name": "offchain read: #10108 fields, extra keys, invalid values",
+    "ids": [
+      "0x0101010101010101010101010101010101010101010101010101010101010101"
+    ],
+    "rows": [
+      {
+        "id": "4",
+        "message_id": "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "relayer": "relayer-a",
+        "origin": 1,
+        "destination": 2,
+        "observed_at": "2026-11-05 00:00:04+00",
+        "received_at": "2026-11-05 00:00:01+00",
+        "version": 1,
+        "activity_text": "{\"type\":\"snapshot_update\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"failed\",\"endpoint\":0,\"http_status\":500,\"hostname\":\"lookup.example\",\"result\":{\"bytes\":0,\"keccak256\":\"0x\"}}}],\"removed_modules\":[]}}"
+      },
+      {
+        "id": "3",
+        "message_id": "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "relayer": "relayer-a",
+        "origin": 1,
+        "destination": 2,
+        "observed_at": "2026-11-05 00:00:03+00",
+        "received_at": "2026-11-05 00:00:01+00",
+        "version": 1,
+        "activity_text": "{\"type\":\"snapshot_update\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"failed\",\"observed_at_millis\":1.5,\"endpoint\":0,\"http_status\":500}}],\"removed_modules\":[]}}"
+      },
+      {
+        "id": "2",
+        "message_id": "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "relayer": "relayer-a",
+        "origin": 1,
+        "destination": 2,
+        "observed_at": "2026-11-05 00:00:02+00",
+        "received_at": "2026-11-05 00:00:01+00",
+        "version": 1,
+        "activity_text": "{\"type\":\"snapshot_update\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"failed\",\"endpoint\":0,\"http_status\":500,\"result\":{\"bytes\":-1,\"keccak256\":\"0x\"}}}],\"removed_modules\":[]}}"
+      },
+      {
+        "id": "1",
+        "message_id": "0x0101010101010101010101010101010101010101010101010101010101010101",
+        "relayer": "relayer-a",
+        "origin": 1,
+        "destination": 2,
+        "observed_at": "2026-11-05 00:00:01+00",
+        "received_at": "2026-11-05 00:00:01+00",
+        "version": 1,
+        "activity_text": "{\"type\":\"snapshot\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root\",\"ism\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"offchain_read\":{\"extra\":1,\"url_template\":\"https://lookup.example/proof/{data}\",\"result\":{\"keccak256\":\"0xabc\",\"bytes\":32,\"k\":2},\"hostname\":\"lookup.example\",\"http_status\":200,\"endpoint\":1,\"attempt\":2,\"observed_at_millis\":1700000000000,\"state\":\"succeeded\"}},{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"pending\",\"observed_at_millis\":null,\"endpoint\":null,\"http_status\":null,\"hostname\":null,\"url_template\":null,\"result\":null}}]}}"
+      }
+    ],
+    "expected": "[{\"version\":1,\"message_id\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"partial\":false,\"activities\":[{\"id\":\"1\",\"message_id\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"relayer\":\"relayer-a\",\"origin\":1,\"destination\":2,\"observed_at\":\"2026-11-05 00:00:01+00\",\"received_at\":\"2026-11-05 00:00:01+00\",\"version\":1,\"activity\":{\"type\":\"snapshot\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root\",\"ism\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"offchain_read\":{\"extra\":1,\"url_template\":\"https://lookup.example/proof/{data}\",\"result\":{\"keccak256\":\"0xabc\",\"bytes\":32,\"k\":2},\"hostname\":\"lookup.example\",\"http_status\":200,\"endpoint\":1,\"attempt\":2,\"observed_at_millis\":1700000000000,\"state\":\"succeeded\"}},{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"pending\",\"observed_at_millis\":null,\"endpoint\":null,\"http_status\":null,\"hostname\":null,\"url_template\":null,\"result\":null}}]}}},{\"id\":\"2\",\"message_id\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"relayer\":\"relayer-a\",\"origin\":1,\"destination\":2,\"observed_at\":\"2026-11-05 00:00:02+00\",\"received_at\":\"2026-11-05 00:00:01+00\",\"version\":1,\"activity\":{\"type\":\"snapshot_update\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"failed\",\"endpoint\":0,\"http_status\":500,\"result\":{\"bytes\":-1,\"keccak256\":\"0x\"}}}],\"removed_modules\":[]}}},{\"id\":\"3\",\"message_id\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"relayer\":\"relayer-a\",\"origin\":1,\"destination\":2,\"observed_at\":\"2026-11-05 00:00:03+00\",\"received_at\":\"2026-11-05 00:00:01+00\",\"version\":1,\"activity\":{\"type\":\"snapshot_update\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"failed\",\"observed_at_millis\":1.5,\"endpoint\":0,\"http_status\":500}}],\"removed_modules\":[]}}},{\"id\":\"4\",\"message_id\":\"0x0101010101010101010101010101010101010101010101010101010101010101\",\"relayer\":\"relayer-a\",\"origin\":1,\"destination\":2,\"observed_at\":\"2026-11-05 00:00:04+00\",\"received_at\":\"2026-11-05 00:00:01+00\",\"version\":1,\"activity\":{\"type\":\"snapshot_update\",\"state\":{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"failed\",\"endpoint\":0,\"http_status\":500,\"hostname\":\"lookup.example\",\"result\":{\"bytes\":0,\"keccak256\":\"0x\"}}}],\"removed_modules\":[]}}}],\"relayers\":[{\"phase\":\"awaiting_signatures\",\"tree_root\":\"root\",\"modules\":[{\"node_id\":\"root\",\"ism\":\"0x0202020202020202020202020202020202020202020202020202020202020202\",\"offchain_read\":{\"state\":\"succeeded\",\"observed_at_millis\":1700000000000,\"attempt\":2,\"endpoint\":1,\"http_status\":200,\"hostname\":\"lookup.example\",\"url_template\":\"https://lookup.example/proof/{data}\",\"result\":{\"bytes\":32,\"keccak256\":\"0xabc\"}},\"observed_at\":\"2026-11-05 00:00:04+00\"},{\"node_id\":\"root/0\",\"ism\":\"ism-b\",\"offchain_read\":{\"state\":\"failed\",\"endpoint\":0,\"http_status\":500,\"hostname\":\"lookup.example\",\"result\":{\"bytes\":0,\"keccak256\":\"0x\"},\"attempt\":null},\"observed_at\":\"2026-11-05 00:00:04+00\"}],\"removed_modules\":[],\"relayer\":\"relayer-a\",\"observed_at\":\"2026-11-05 00:00:04+00\"}]}]"
+  },
+  {
     "name": "reorg checks: null rejects the snapshot and orphans its update",
     "ids": [
       "0x0101010101010101010101010101010101010101010101010101010101010101"

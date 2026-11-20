@@ -6,6 +6,7 @@ const pq = @import("pq.zig");
 const pool_mod = @import("pool.zig");
 const listener_mod = @import("listener.zig");
 const convert = @import("convert.zig");
+const admission_shape_ms = @import("db_options").admission_shape_ms;
 
 const Value = core.json.Value;
 const Failure = root.Failure;
@@ -114,6 +115,8 @@ pub const DbService = struct {
     /// including those whose client disconnected (TS #10076
     /// `pendingMainQueries`; capped by DATABASE_MAX_PENDING_GRAPHQL_QUERIES).
     pending_main: usize = 0,
+    /// `admitShape` waiters, oldest first.
+    shape_waiters: std.ArrayList(*ShapeWaiter) = .empty,
     in_flight_done: std.Thread.Condition = .{},
     /// True when `close` gave up waiting: memory must not be freed.
     leaked: bool = false,
@@ -135,6 +138,7 @@ pub const DbService = struct {
 
     pub fn deinit(self: *DbService) void {
         self.close() catch {};
+        self.shape_waiters.deinit(self.gpa);
         // In-flight queries outlived the drain, or a listener thread outlived
         // close: they still reference us.
         if (self.leaked or self.outlived) return;
@@ -590,6 +594,50 @@ pub const DbService = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         self.pending_main -= 1;
+        if (comptime admission_shape_ms != 0) self.wakeShaped();
+    }
+
+    pub const ShapeWaiter = struct { need: usize, w: core.fiber.Waiter = .{} };
+
+    /// A request about to run `roots` root fields waits, at most
+    /// `-Dadmission-shape-ms` (default 2), while some but fewer than `roots`
+    /// pending slots are free (or older requests wait), oldest first. Under a
+    /// full cap this keeps slots from being split across requests, each then
+    /// answering with capacity errors. Each root is still checked on its own
+    /// once the wait ends, as TS checks them when its loop reaches the
+    /// request (DEVIATIONS.md).
+    pub fn admitShape(self: *DbService, roots: usize) void {
+        if (comptime admission_shape_ms == 0) return;
+        // More roots than the cap can never all be admitted: wait for a full cap.
+        const need = @min(roots, self.config.database_max_pending_graphql_queries);
+        if (need < 2) return;
+        var waiter: ShapeWaiter = .{ .need = need };
+        {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            const free = self.config.database_max_pending_graphql_queries -| self.pending_main;
+            if (free == 0) return;
+            if (free >= need and self.shape_waiters.items.len == 0) return;
+            self.shape_waiters.append(self.gpa, &waiter) catch return;
+        }
+        if (waiter.w.waitTimeout(core.fiber.monoMs() + admission_shape_ms)) return;
+        // Timed out: the waker wakes under `mutex`, so once we hold it no
+        // wake can still touch `waiter`.
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        for (self.shape_waiters.items, 0..) |x, i| if (x == &waiter) {
+            _ = self.shape_waiters.orderedRemove(i);
+            break;
+        };
+    }
+
+    /// Under `mutex`: wakes the oldest shaped request once its slots are free.
+    fn wakeShaped(self: *DbService) void {
+        if (self.shape_waiters.items.len == 0) return;
+        const head = self.shape_waiters.items[0];
+        if (self.config.database_max_pending_graphql_queries -| self.pending_main < head.need) return;
+        _ = self.shape_waiters.orderedRemove(0);
+        head.w.wake();
     }
 
     fn run(self: *DbService, kind: PoolKind, role: Role, arena: std.mem.Allocator, sql: []const u8, params: []const Value, opts: pq.QueryOptions, failure_opt: ?*Failure) Error![]Value {
