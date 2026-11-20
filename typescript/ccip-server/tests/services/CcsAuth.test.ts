@@ -32,6 +32,7 @@ import {
   formatMessage,
   isNullish,
   isZeroishAddress,
+  messageId,
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
@@ -638,6 +639,8 @@ describe('CCS authenticated reveal recovery integration', () => {
     lookupSender = sender,
     isms = {},
     recipientIsmFailure,
+    commitmentDelivered = true,
+    deliveredFailure,
   }: {
     trustRouters?: boolean;
     registeredWithDispatchedRouters?: boolean;
@@ -654,6 +657,10 @@ describe('CCS authenticated reveal recovery integration', () => {
     isms?: Record<string, FakeIsm>;
     /** How the destination mailbox's `recipientIsm` read fails, if it does. */
     recipientIsmFailure?: FakeIsmFailure;
+    /** Whether the destination mailbox reports the commitment as delivered. */
+    commitmentDelivered?: boolean;
+    /** How the destination mailbox's `delivered` read fails, if it does. */
+    deliveredFailure?: FakeIsmFailure;
   } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
@@ -803,6 +810,24 @@ describe('CCS authenticated reveal recovery integration', () => {
       throw missingSelector();
     }
     const destinationMailbox = '0x' + '34'.repeat(20);
+    const deliveredIds: string[] = [];
+    function answerMailbox(data: string): string {
+      const parsed = mailboxInterface.parseTransaction({ data });
+      if (parsed.name === 'delivered') deliveredIds.push(parsed.args[0]);
+      const failure =
+        parsed.name === 'delivered' ? deliveredFailure : recipientIsmFailure;
+      if (failure === FakeIsmKind.Reverts) throw missingSelector();
+      if (failure === FakeIsmKind.Unavailable) throw unavailableRpc();
+      if (parsed.name === 'delivered') {
+        return mailboxInterface.encodeFunctionResult('delivered', [
+          commitmentDelivered,
+        ]);
+      }
+      // The ICA router names itself as its recipient ISM.
+      return mailboxInterface.encodeFunctionResult('recipientIsm', [
+        parsed.args[0],
+      ]);
+    }
     const destinationCall = sinon
       .stub(destinationProvider, 'call')
       .callsFake(async (transaction) => {
@@ -813,22 +838,7 @@ describe('CCS authenticated reveal recovery integration', () => {
         assert(to && rawData, 'Expected a destination call');
         const target = to.toLowerCase();
         const data = utils.hexlify(rawData);
-        // The ICA router names itself as its recipient ISM.
-        if (target === destinationMailbox) {
-          if (recipientIsmFailure === FakeIsmKind.Reverts) {
-            throw missingSelector();
-          }
-          if (recipientIsmFailure === FakeIsmKind.Unavailable) {
-            throw unavailableRpc();
-          }
-          const [recipient] = mailboxInterface.decodeFunctionData(
-            'recipientIsm',
-            data,
-          );
-          return mailboxInterface.encodeFunctionResult('recipientIsm', [
-            recipient,
-          ]);
-        }
+        if (target === destinationMailbox) return answerMailbox(data);
         if (target === destinationRouter || target === destinationRouterV3) {
           return answerRouter(to, data);
         }
@@ -941,6 +951,9 @@ describe('CCS authenticated reveal recovery integration', () => {
       destinationCall,
       deriveIca,
       ismReads,
+      deliveredIds,
+      commitmentMessageId: messageId(committedMessage),
+      revealMessageId: messageId(message),
       destinationRouter,
       destinationRouterV3,
       record,
@@ -1697,6 +1710,120 @@ describe('CCS authenticated reveal recovery integration', () => {
       });
       expect(response.statusCode).to.equal(200);
       expect(f.ismReads.get(routingIsm)).to.equal(2);
+    } finally {
+      await f.app.close();
+    }
+  });
+
+  interface DeliveryCase {
+    name: string;
+    options: Parameters<typeof fixture>[0];
+    setup?: (f: Awaited<ReturnType<typeof fixture>>) => void;
+    statusCode: number;
+    /** The response's `error`; the dispatched ICA is served when absent. */
+    error?: string;
+    /** Whether the paired commitment's delivery is queried. */
+    readsDelivery: boolean;
+  }
+
+  const deliveryCases: DeliveryCase[] = [
+    {
+      name: 'answers pending while the paired commitment is not delivered',
+      options: { commitmentDelivered: false },
+      statusCode: 500,
+      error: 'Commitment delivery is pending',
+      readsDelivery: true,
+    },
+    {
+      name: 'serves the reveal once the paired commitment is delivered',
+      options: {},
+      statusCode: 200,
+      readsDelivery: true,
+    },
+    {
+      name: 'answers pending when the delivery read is unavailable',
+      options: { deliveredFailure: FakeIsmKind.Unavailable },
+      statusCode: 500,
+      error: 'Chain read is pending',
+      readsDelivery: true,
+    },
+    {
+      name: 'returns HTTP 500 when the delivery read reverts',
+      options: { deliveredFailure: FakeIsmKind.Reverts },
+      statusCode: 500,
+      error: 'Internal server error',
+      readsDelivery: true,
+    },
+    {
+      name: 'denies a sender outside the ISM tree before reading delivery',
+      options: {
+        commitmentDelivered: false,
+        lookupSender: otherLeaf,
+        isms: { [otherLeaf]: ccipReadIsm },
+      },
+      statusCode: 403,
+      error: notInTree,
+      readsDelivery: false,
+    },
+    {
+      name: 'denies an unauthorized relayer before reading delivery',
+      options: { commitmentDelivered: false },
+      setup: (f) => {
+        f.record.relayers = [other.address];
+      },
+      statusCode: 403,
+      error: 'Signer not authorized for this commitment',
+      readsDelivery: false,
+    },
+  ];
+
+  for (const c of deliveryCases) {
+    it(c.name, async () => {
+      const f = await fixture(c.options);
+      c.setup?.(f);
+      try {
+        const response = await f.app.inject({
+          method: 'POST',
+          url: postPath,
+          payload: f.payload,
+        });
+        expect(response.statusCode).to.equal(c.statusCode);
+        if (c.error === undefined) {
+          expect(response.json().data).to.equal(
+            f.dispatchedIca +
+              encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+          );
+        } else {
+          expect(response.json()).to.deep.equal({ error: c.error });
+        }
+        expect(f.deliveredIds).to.deep.equal(
+          c.readsDelivery ? [f.commitmentMessageId] : [],
+        );
+        expect(f.deliveredIds).to.not.include(f.revealMessageId);
+        sinon.assert.notCalled(f.updateMany);
+      } finally {
+        await f.app.close();
+      }
+    });
+  }
+
+  it('serves a Sealevel-origin reveal without reading commitment delivery', async () => {
+    const f = await fixture({
+      protocol: ProtocolType.Sealevel,
+      sealevelRevealsEnabled: true,
+      commitmentDelivered: false,
+    });
+    try {
+      const response = await f.app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: f.payload,
+      });
+      expect(response.statusCode).to.equal(200);
+      expect(response.json().data).to.equal(
+        f.record.ica + encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+      );
+      expect(f.deliveredIds).to.deep.equal([]);
     } finally {
       await f.app.close();
     }

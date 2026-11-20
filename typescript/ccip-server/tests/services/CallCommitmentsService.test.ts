@@ -23,6 +23,7 @@ import {
   ProtocolType,
   addressToBytes32,
   formatMessage,
+  messageId,
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
@@ -809,6 +810,7 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       owner: addressToBytes32(icaPayload.owner),
       ism: addressToBytes32(ism),
       userSalt,
+      commitmentMessageId: messageId(committedMessage),
     });
     sinon.assert.calledOnce(destinationCall);
     sinon.assert.notCalled(getRouterAccount);
@@ -841,6 +843,12 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       );
     expect(decoded[1]).to.equal(addressToBytes32(laterOwner));
     sinon.assert.notCalled(originCall);
+    const dispatch = await service.deriveIcaFromRevealMessage(
+      revealMessage,
+      originTxHash,
+      mockLogger(),
+    );
+    expect(dispatch.commitmentMessageId).to.equal(messageId(laterCommit));
   });
   for (const layout of ['sequential', 'nested'] as const) {
     it(`pairs both ${layout} commit/reveal calls when their commitment hashes match`, async () => {
@@ -899,6 +907,21 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
       );
       expect(first[1]).to.equal(addressToBytes32(icaPayload.owner));
       expect(second[1]).to.equal(addressToBytes32(otherOwner));
+      const [outerDispatch, otherDispatch] = await Promise.all(
+        [outerReveal, otherReveal].map((reveal) =>
+          service.deriveIcaFromRevealMessage(
+            reveal,
+            originTxHash,
+            mockLogger(),
+          ),
+        ),
+      );
+      expect(outerDispatch.commitmentMessageId).to.equal(
+        messageId(committedMessage),
+      );
+      expect(otherDispatch.commitmentMessageId).to.equal(
+        messageId(otherCommit),
+      );
     });
   }
 
@@ -1588,6 +1611,12 @@ describe('CallCommitmentsService.deriveIcaFromRevealMessage', () => {
 
     const decoded = await dispatchedPairArgs(destinationCall);
     expect(decoded[1]).to.equal(addressToBytes32(icaPayload.owner));
+    const dispatch = await service.deriveIcaFromRevealMessage(
+      outerReveal,
+      originTxHash,
+      mockLogger(),
+    );
+    expect(dispatch.commitmentMessageId).to.equal(messageId(committedMessage));
   });
 
   for (const c of candidateFailureCases) {
@@ -2029,6 +2058,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       .stub()
       .resolves({ routerVersionIcas: [], unavailableCandidates: 0 });
     service.assertLookupSenderVerifiesReveal = sinon.stub().resolves();
+    service.assertCommitmentDelivered = sinon.stub().resolves();
     return Object.assign(service, overrides);
   }
 
@@ -2043,6 +2073,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       owner: addressToBytes32(icaPayload.owner),
       ism: '0x' + '00'.repeat(32),
       userSalt: '0x' + '00'.repeat(32),
+      commitmentMessageId: '0x' + '77'.repeat(32),
     };
   }
 
@@ -2216,6 +2247,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       sinon.assert.calledOnce(service.deriveIcaFromRevealMessage);
       sinon.assert.calledOnce(service.deriveRouterVersionIcas);
       sinon.assert.notCalled(service.assertLookupSenderVerifiesReveal);
+      sinon.assert.notCalled(service.assertCommitmentDelivered);
     });
   }
 
@@ -2487,6 +2519,7 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
       .with.property('message', 'Signer not authorized for this commitment');
     sinon.assert.notCalled(service.deriveIcaFromRevealMessage);
     sinon.assert.notCalled(service.assertLookupSenderVerifiesReveal);
+    sinon.assert.notCalled(service.assertCommitmentDelivered);
   });
 
   it('denies an origin mismatch before reading any chain state', async () => {
@@ -2577,6 +2610,44 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
     level: 'info' | 'warn' | 'error';
   }
 
+  it('requires the paired commitment of an EVM-origin reveal to be delivered, after the sender check', async () => {
+    const service = createVerifyingService();
+
+    const result = await service.handleFetchCommitment(
+      message,
+      baseRelayers[0],
+      mockLogger(),
+      originTxHash,
+      lookupSender,
+    );
+
+    expect(result).to.equal(servedCalls(mockIca));
+    sinon.assert.calledOnceWithExactly(
+      service.assertCommitmentDelivered,
+      dispatchWith(mockIca),
+    );
+    sinon.assert.callOrder(
+      service.assertLookupSenderVerifiesReveal,
+      service.assertCommitmentDelivered,
+    );
+  });
+
+  it('does not read commitment delivery for a Sealevel-origin reveal', async () => {
+    const service = createVerifyingService({ sealevelRevealsEnabled: true });
+    service.multiProvider.getProtocol.returns(ProtocolType.Sealevel);
+
+    const result = await service.handleFetchCommitment(
+      message,
+      baseRelayers[0],
+      mockLogger(),
+      originTxHash,
+      lookupSender,
+    );
+
+    expect(result).to.equal(servedCalls(mockIca));
+    sinon.assert.notCalled(service.assertCommitmentDelivered);
+  });
+
   interface PendingCase {
     name: string;
     overrides: Record<string, unknown>;
@@ -2605,6 +2676,16 @@ describe('CallCommitmentsService.handleFetchCommitment', () => {
           .rejects(new RevealPendingError(RevealPending.OriginReceipt)),
       },
       reason: 'Origin transaction receipt is pending',
+      level: 'info',
+    },
+    {
+      name: 'a commitment not delivered yet',
+      overrides: {
+        assertCommitmentDelivered: sinon
+          .stub()
+          .rejects(new RevealPendingError(RevealPending.CommitmentDelivery)),
+      },
+      reason: 'Commitment delivery is pending',
       level: 'info',
     },
     {

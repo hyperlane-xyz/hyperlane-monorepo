@@ -1841,6 +1841,7 @@ mod test {
             "Commitment upload is pending",
             "Origin transaction receipt is pending",
             "Chain read is pending",
+            "Commitment delivery is pending",
         ] {
             let body = serde_json::json!({ "error": reason }).to_string();
             let pending = matches!(

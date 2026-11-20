@@ -123,12 +123,20 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
   walked. The same check runs for Sealevel-origin reveals but does not bind
   them: their ISM field is chosen by the request.
 
+  An EVM-origin reveal is served only once its paired commitment message is
+  delivered on the destination mailbox.
+
   Reads do not modify stored commitments. States that resolve shortly get HTTP
-  500 with a pending `error` that the relayer retries quickly: `Commitment
-upload is pending` (no stored record yet), `Origin transaction receipt is
-pending` (no receipt for the hinted transaction yet), and `Chain read is
-pending` (a failing RPC, including a candidate ICA whose chain read failed
-  when none of the others match). A candidate the chain answers as underivable
+  500 with a pending `error` that the relayer retries quickly:
+  - `Commitment upload is pending`: no stored record yet.
+  - `Origin transaction receipt is pending`: no receipt for the hinted
+    transaction yet.
+  - `Commitment delivery is pending`: the paired commitment message of an
+    EVM-origin reveal is not delivered on the destination yet.
+  - `Chain read is pending`: a failing RPC, including a candidate ICA whose
+    chain read failed when none of the others match.
+
+  A candidate the chain answers as underivable
   (e.g. a router without salted accounts) does not match, and a reveal whose
   dispatched routers the chain answers as unable to derive the ICA gets HTTP 403. For a destination without `interchainAccountRouter`, only the dispatched
   routers' ICA is checked. Existing records with incorrect addresses still need

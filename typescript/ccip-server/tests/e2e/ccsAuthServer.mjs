@@ -60,8 +60,9 @@ const routerInterface = new utils.Interface([
   'function moduleType() view returns (uint8)',
   'function route(bytes) view returns (address)',
 ]);
-const recipientIsmInterface = new utils.Interface([
+const destinationMailboxInterface = new utils.Interface([
   'function recipientIsm(address) view returns (address)',
+  'function delivered(bytes32) view returns (bool)',
 ]);
 const ismInterface = new utils.Interface([
   'function moduleType() view returns (uint8)',
@@ -118,8 +119,11 @@ const v3OriginRpc = await rpcServers.start(rpcResponder({}));
 const destinationRpc = await rpcServers.start(
   rpcResponder({
     [destinationMailbox]: {
-      iface: recipientIsmInterface,
-      handlers: { recipientIsm: ([recipient]) => recipient },
+      iface: destinationMailboxInterface,
+      handlers: {
+        recipientIsm: ([recipient]) => recipient,
+        delivered: () => true,
+      },
     },
     [destinationRouter]: {
       iface: routerInterface,

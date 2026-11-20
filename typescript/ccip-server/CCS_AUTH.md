@@ -55,13 +55,15 @@ ever enrolled on a registry ICA router (`enrollRemoteRouterAndIsm`), this skip i
 registrations made without an ISM on that pair stop resolving.
 
 Origin binding differs by protocol. EVM-origin reveals must carry a 32-byte dispatch
-`origin_tx_hash` (HTTP 400 otherwise), and are served only when the ICA derived from
-that receipt matches the stored ICA or a registry router version candidate (HTTP 403
-otherwise). Sealevel-origin reveals are not served (HTTP 403) unless
+`origin_tx_hash` (HTTP 400 otherwise), and are served only when the ICA derived from that
+receipt matches the stored ICA or a registry router version candidate (HTTP 403
+otherwise). They are served only once the reveal's paired commitment message is delivered
+on the destination mailbox; until then they get HTTP 500 with the pending error
+`Commitment delivery is pending`. Sealevel-origin reveals are not served (HTTP 403) unless
 `CCS_SEALEVEL_REVEALS_ENABLED=true`, which is off by default; when enabled, they are
 served from the stored commitment record with no origin binding: access rests on relayer
-authorization and the stored origin domain matching the reveal. Other origin protocols
-are rejected.
+authorization and the stored origin domain matching the reveal. Other origin protocols are
+rejected.
 
 An EVM-origin reveal is served only when the request's `sender` is a CCIP-read ISM of
 the tree that verifies the reveal on its destination (HTTP 403 otherwise). The reveal's
@@ -151,10 +153,10 @@ enabled. It also serves local JSON-RPC endpoints for two origin chains, one of w
 only a V3 ICA router (`evmV3Only`), and a destination chain: each EVM fixture gets an
 origin transaction whose registry mailbox dispatches the commitment and then its reveal,
 and the destination router derives the stored ICA. The destination mailbox names the
-router as its recipient ISM, and the router routes the reveals to the fixtures' `sender`
-as its CCIP-read ISM. Origin chains answer only receipt requests. `fixtures.json`
-records each EVM fixture's `originTxHash`, and the harness checks a reveal lookup with
-it before printing `READY`.
+router as its recipient ISM and reports every commitment as delivered, and the router
+routes the reveals to the fixtures' `sender` as its CCIP-read ISM. Origin chains answer
+only receipt requests. `fixtures.json` records each EVM fixture's `originTxHash`, and the
+harness checks a reveal lookup with it before printing `READY`.
 It accepts only a localhost database named `ccs_e2e`. Prepare that disposable database
 with the normal Prisma migrations. Set `CCS_E2E_DIR` to a temporary directory containing
 `ca.pem`, `tls-cert.pem`, and `tls-key.pem`; the server certificate must cover

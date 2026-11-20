@@ -19,6 +19,7 @@ export const RevealPending = {
   Commitment: 'Commitment upload is pending',
   OriginReceipt: 'Origin transaction receipt is pending',
   ChainRead: 'Chain read is pending',
+  CommitmentDelivery: 'Commitment delivery is pending',
 } as const;
 export type RevealPending = (typeof RevealPending)[keyof typeof RevealPending];
 

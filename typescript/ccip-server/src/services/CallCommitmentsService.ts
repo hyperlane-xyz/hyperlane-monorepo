@@ -32,6 +32,7 @@ import {
   isEmptyAddress,
   isNullish,
   isZeroishAddress,
+  messageId,
   parseMessage,
   redactErrorMessage,
   redactErrorStack,
@@ -376,6 +377,8 @@ interface RevealDispatch {
   owner: string;
   ism: string;
   userSalt: string;
+  /** Mailbox id of the paired COMMITMENT message. */
+  commitmentMessageId: string;
 }
 
 export class CallCommitmentsService extends BaseService {
@@ -597,6 +600,7 @@ export class CallCommitmentsService extends BaseService {
       }
       const protocol = this.multiProvider.getProtocol(origin);
       let ica: string;
+      let evmDispatch: RevealDispatch | undefined;
       if (protocol === ProtocolType.Sealevel) {
         if (!this.sealevelRevealsEnabled) {
           throw new CommitmentAccessDeniedError(
@@ -619,6 +623,7 @@ export class CallCommitmentsService extends BaseService {
           originTxHash,
           log,
         );
+        evmDispatch = dispatch;
         ica = dispatch.ica;
         if (!eqAddress(ica, record.ica)) {
           // Records registered without router overrides store the V2-derived
@@ -656,6 +661,10 @@ export class CallCommitmentsService extends BaseService {
         }
       }
       await this.assertLookupSenderVerifiesReveal(message, lookupSender, log);
+      if (protocol === ProtocolType.Ethereum) {
+        assert(evmDispatch, 'Missing the dispatch of an EVM-origin reveal');
+        await this.assertCommitmentDelivered(evmDispatch);
+      }
       const encoded =
         ica +
         encodeIcaCalls(normalizeCalls(record.calls), record.salt).slice(2);
@@ -768,6 +777,29 @@ export class CallCommitmentsService extends BaseService {
     }
   }
 
+  /**
+   * Requires the reveal's paired COMMITMENT message to be delivered on the
+   * destination, so the calls are not served before the commitment is set.
+   */
+  private async assertCommitmentDelivered(
+    dispatch: RevealDispatch,
+  ): Promise<void> {
+    const mailbox = this.originMailboxes.get(dispatch.destination);
+    assert(
+      mailbox,
+      `Missing mailbox address for domain ${dispatch.destination}`,
+    );
+    const delivered = await readOnchain(() =>
+      Mailbox__factory.connect(
+        mailbox,
+        this.multiProvider.getProvider(dispatch.destination),
+      ).delivered(dispatch.commitmentMessageId),
+    );
+    if (!delivered) {
+      throw new RevealPendingError(RevealPending.CommitmentDelivery);
+    }
+  }
+
   private isTrustedIcaRouter(domain: number, router: string): boolean {
     return Object.values(this.trustedIcaRouters.get(domain) ?? {}).includes(
       bytes32ToAddress(router).toLowerCase(),
@@ -835,8 +867,13 @@ export class CallCommitmentsService extends BaseService {
 
     // A dispatch hook can nest another commit/reveal using the same hash.
     // Consume earlier reveals so the outer reveal retains its own commitment.
-    const pendingCommitments: ReturnType<typeof parseMessage>[] = [];
-    let committed: ReturnType<typeof parseMessage> | undefined;
+    const pendingCommitments: {
+      message: string;
+      parsed: ReturnType<typeof parseMessage>;
+    }[] = [];
+    let committed:
+      | { message: string; parsed: ReturnType<typeof parseMessage> }
+      | undefined;
     for (const dispatch of dispatches.sort(
       (left, right) => left.log.logIndex - right.log.logIndex,
     )) {
@@ -856,7 +893,10 @@ export class CallCommitmentsService extends BaseService {
         utils.hexDataSlice(candidate.body, 97, 129).toLowerCase() ===
           commitment.toLowerCase()
       ) {
-        pendingCommitments.push(candidate);
+        pendingCommitments.push({
+          message: dispatch.message,
+          parsed: candidate,
+        });
       } else if (
         utils.hexDataLength(candidate.body) === 65 &&
         utils.hexDataSlice(candidate.body, 0, 1) === '0x02' &&
@@ -875,9 +915,9 @@ export class CallCommitmentsService extends BaseService {
         'Matching commitment dispatch not found',
       );
     }
-    const owner = utils.hexDataSlice(committed.body, 1, 33);
-    const ism = utils.hexDataSlice(committed.body, 33, 65);
-    const userSalt = utils.hexDataSlice(committed.body, 65, 97);
+    const owner = utils.hexDataSlice(committed.parsed.body, 1, 33);
+    const ism = utils.hexDataSlice(committed.parsed.body, 33, 65);
+    const userSalt = utils.hexDataSlice(committed.parsed.body, 65, 97);
 
     const destinationRouter = InterchainAccountRouter__factory.connect(
       bytes32ToAddress(reveal.recipient),
@@ -912,6 +952,7 @@ export class CallCommitmentsService extends BaseService {
       owner,
       ism,
       userSalt,
+      commitmentMessageId: messageId(committed.message),
     };
   }
 
