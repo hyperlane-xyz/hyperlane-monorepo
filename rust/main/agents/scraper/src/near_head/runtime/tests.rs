@@ -28,6 +28,7 @@ struct Chain {
     fail_events: AtomicBool,
     wrong_tag: AtomicBool,
     observations: AtomicUsize,
+    observation_delay: Duration,
     event_reads: AtomicUsize,
     count_reads: AtomicUsize,
     fork_from: AtomicU64,
@@ -52,6 +53,7 @@ impl Chain {
             fail_events: AtomicBool::new(false),
             wrong_tag: AtomicBool::new(false),
             observations: AtomicUsize::new(0),
+            observation_delay: Duration::ZERO,
             event_reads: AtomicUsize::new(0),
             count_reads: AtomicUsize::new(0),
             fork_from: AtomicU64::new(u64::MAX),
@@ -84,6 +86,9 @@ impl Source for Arc<Chain> {
             }
             BlockSelector::Latest => {
                 self.observations.fetch_add(1, Ordering::SeqCst);
+                if !self.observation_delay.is_zero() {
+                    sleep(self.observation_delay).await;
+                }
                 self.head.load(Ordering::SeqCst)
             }
         };
@@ -1251,6 +1256,37 @@ async fn sealevel_wake_publishes_a_finalized_dispatch_in_the_next_cycle() -> Res
             indexed: [2, 0, 0],
         })
     );
+    task.abort();
+    assert!(task.await.expect_err("aborted worker").is_cancelled());
+    Ok(())
+}
+
+#[tokio::test]
+async fn continuous_log_wakeups_still_drain_headers() -> Result<()> {
+    let chain = Arc::new(Chain {
+        observation_delay: Duration::from_millis(350),
+        ..Chain::new(1, false)
+    });
+    let (_postgres, worker) = header_worker(chain.clone(), 2).await?;
+    let (headers, receiver) = mpsc::channel(4);
+    let worker = Arc::new(Worker {
+        poll_interval: Duration::from_secs(60),
+        heads: tokio::sync::Mutex::new(receiver),
+        ..worker
+    });
+    let task = tokio::spawn({
+        let worker = worker.clone();
+        async move { worker.run_cycles().await }
+    });
+    for (observation, height) in (1..=8).zip(2..=9) {
+        wait_for(&worker, |_| {
+            chain.observations.load(Ordering::SeqCst) >= observation
+        })
+        .await?;
+        headers.try_send(streamed_header(height))?;
+        worker.wakeup.notify_one();
+    }
+    wait_for(&worker, |state| state.head == 9).await?;
     task.abort();
     assert!(task.await.expect_err("aborted worker").is_cancelled());
     Ok(())

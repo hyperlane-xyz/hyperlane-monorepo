@@ -165,12 +165,11 @@ async fn finalized_sealevel_account_filters_wake_and_recover_from_one_stalled_st
 }
 
 #[tokio::test]
-async fn sealevel_detects_a_missed_event_when_websocket_connects_before_the_first_http_poll(
-) -> Result<()> {
+async fn sealevel_waits_for_the_first_http_poll_before_connecting() -> Result<()> {
     check_sealevel_stalled_stream(true).await
 }
 
-async fn check_sealevel_stalled_stream(websocket_connects_first: bool) -> Result<()> {
+async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
     use crate::near_head::runtime::PolledEventSlots;
 
     let listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -181,8 +180,14 @@ async fn check_sealevel_stalled_stream(websocket_connects_first: bool) -> Result
         startup_head: 40,
         indexed: [0; 3],
     };
-    let (polled_events, polled_rx) = watch::channel((!websocket_connects_first).then_some(startup));
+    let (polled_events, polled_rx) = watch::channel((!wait_for_baseline).then_some(startup));
     let server = async {
+        if wait_for_baseline {
+            assert!(timeout(Duration::from_millis(100), listener.accept())
+                .await
+                .is_err());
+            polled_events.send_replace(Some(startup));
+        }
         let mut socket = accept_async(listener.accept().await?.0).await?;
         let mailbox = "11111111111111111111111111111111";
         let igp = "11111111111111111111111111111112";
@@ -219,7 +224,7 @@ async fn check_sealevel_stalled_stream(websocket_connects_first: bool) -> Result
         for (slot, subscription) in
             (41..=44).zip(subscriptions.into_iter().chain([subscriptions[2]]))
         {
-            if slot == 44 && !websocket_connects_first {
+            if slot == 44 {
                 tokio::time::pause();
                 polled_events.send_replace(Some(PolledEventSlots {
                     indexed: [41, 42, 43],
@@ -237,10 +242,6 @@ async fn check_sealevel_stalled_stream(websocket_connects_first: bool) -> Result
             })).await?;
             wakeup.notified().await;
             assert_eq!(wanted.load(Ordering::Relaxed), slot);
-        }
-        if websocket_connects_first {
-            tokio::time::pause();
-            polled_events.send_replace(Some(startup));
         }
         // A new delivery was indexed without a notification. Keep the
         // connection open and the other subscriptions healthy.

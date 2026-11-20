@@ -45,9 +45,16 @@ pub(super) async fn subscribe_events(
     igp_program: H256,
     wakeup: &Notify,
     wanted: &AtomicU64,
-    polled_events: watch::Receiver<Option<PolledEventSlots>>,
+    mut polled_events: watch::Receiver<Option<PolledEventSlots>>,
     domain: u32,
 ) -> Result<()> {
+    // Fix the HTTP baseline before any subscription can deliver live events.
+    let initial = polled_events
+        .wait_for(Option::is_some)
+        .await?
+        .ok_or_else(|| eyre!("Missing Sealevel polling baseline"))?;
+    let mut checkpoint = initial.indexed;
+    let mut received = initial.indexed;
     let client = timeout(CONNECT_TIMEOUT, PubsubClient::new(url.as_str())).await??;
     let filters = finalized_event_filters(mailbox, igp_program);
     let [dispatch, delivery, payment] = filters
@@ -59,8 +66,6 @@ pub(super) async fn subscribe_events(
         })
         .await??;
     info!(domain, "Finalized Sealevel event WebSocket subscribed");
-    let mut checkpoint = polled_events.borrow().map(|sample| sample.indexed);
-    let mut received = checkpoint.unwrap_or_default();
     let mut stall_check = interval(HEAD_STALL_TIMEOUT);
     stall_check.reset();
     stall_check.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -72,13 +77,12 @@ pub(super) async fn subscribe_events(
             update = payment.next() => (2, update),
             _ = stall_check.tick() => {
                 if let Some(latest) = *polled_events.borrow() {
-                    if let Some(previous) = checkpoint.replace(latest.indexed) {
-                        // Check the previous sample so newer events cannot extend the grace period.
-                        if previous.into_iter().zip(received).any(|(polled, received)| {
-                            polled > received.max(latest.startup_head)
-                        }) {
-                            return Err(eyre!("Sealevel event subscription stalled behind polling"));
-                        }
+                    // Check the previous sample so newer events cannot extend the grace period.
+                    let previous = std::mem::replace(&mut checkpoint, latest.indexed);
+                    if previous.into_iter().zip(received).any(|(polled, received)| {
+                        polled > received.max(initial.startup_head)
+                    }) {
+                        return Err(eyre!("Sealevel event subscription stalled behind polling"));
                     }
                 }
                 continue;

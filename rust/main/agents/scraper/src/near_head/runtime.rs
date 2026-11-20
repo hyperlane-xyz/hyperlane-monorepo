@@ -9,6 +9,7 @@ use std::{
     time::Duration,
 };
 
+use futures::FutureExt;
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod};
 use tokio::{
@@ -77,11 +78,6 @@ impl FailureStreak {
     }
 }
 
-enum Wakeup {
-    Index,
-    Head,
-}
-
 /// A completed cycle: whether to run again at once, and whether ingestion failed
 /// while existing work still published.
 #[derive(Debug)]
@@ -92,7 +88,6 @@ pub(super) struct CycleOutcome {
 
 const MIN_WAKE_INTERVAL: Duration = Duration::from_millis(200);
 const MIN_INDEX_RETRY_INTERVAL: Duration = Duration::from_secs(1);
-const MIN_HEAD_INTERVAL: Duration = Duration::from_millis(200);
 const RECENT_HEADERS: usize = 256;
 // At 250ms/block this allows 16s of HTTP/WS skew without trusting an unbounded lead.
 const MAX_HEADER_LEAD: u64 = 64;
@@ -144,38 +139,48 @@ impl Worker {
         polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let mut heads = self.heads.lock().await;
         let mut recent = VecDeque::with_capacity(RECENT_HEADERS);
-        let mut wakeup = Wakeup::Index;
-        let mut next_index = Instant::now();
-        let mut next_retry = next_index;
-        let mut next_head = Instant::now();
+        let mut index = true;
+        let mut confirm = false;
+        let mut next_retry = Instant::now();
         loop {
-            let result = match wakeup {
-                Wakeup::Index => {
-                    let started = Instant::now();
-                    next_index = started
-                        .checked_add(MIN_WAKE_INTERVAL)
-                        .expect("Wake deadline");
+            let started = Instant::now();
+            let next_wake = started
+                .checked_add(MIN_WAKE_INTERVAL)
+                .expect("Wake deadline");
+            // Collect both sources before running RPCs, including when a poll won the wake.
+            index |= self.wakeup.notified().now_or_never().is_some();
+            for _ in 0..heads.max_capacity() {
+                let Ok(header) = heads.try_recv() else { break };
+                remember_header(&mut recent, header);
+                confirm = true;
+            }
+            let result = async {
+                if std::mem::take(&mut index) {
                     next_retry = started
                         .checked_add(MIN_INDEX_RETRY_INTERVAL)
                         .expect("Index retry deadline");
-                    self.cycle(&mut count_cache).await
+                    let outcome = self.cycle(&mut count_cache).await?;
+                    index = outcome.more;
+                    if outcome.ingestion_failed {
+                        return Ok(true);
+                    }
+                    // HTTP already checked confirmations through its observed head.
+                    confirm &= recent
+                        .back()
+                        .is_some_and(|header| header.height > *self.polled_head.borrow());
                 }
-                Wakeup::Head => {
-                    let result = self.header_cycle(&recent, &count_cache).await;
-                    next_head = Instant::now()
-                        .checked_add(MIN_HEAD_INTERVAL)
-                        .expect("Head deadline");
-                    result
+                if std::mem::take(&mut confirm) {
+                    confirm = self.header_cycle(&recent, &count_cache).await?.more;
                 }
-            };
-            let failed = result
-                .as_ref()
-                .map_or(true, |outcome| outcome.ingestion_failed);
+                Ok::<_, eyre::Report>(false)
+            }
+            .await;
+            let failed = result.as_ref().copied().unwrap_or(true);
             let critical = failures.record(failed, self.critical_failure_grace);
             self.chain_metrics
                 .set_critical_error(self.domain.name(), critical);
             match result {
-                Ok(CycleOutcome { more: true, .. }) => continue,
+                Ok(_) if index || (!failed && confirm) => continue,
                 Ok(_) => {}
                 Err(error) => warn!(
                     domain = self.store.domain,
@@ -186,24 +191,29 @@ impl Worker {
             if failed {
                 // Neither subscription may bypass RPC-error backoff.
                 sleep(failures.retry_delay(self.poll_interval, self.critical_failure_grace)).await;
-                wakeup = Wakeup::Index;
+                index = true;
                 continue;
             }
-            wakeup = tokio::select! {
+            tokio::select! {
                 biased;
-                _ = polling.tick() => Wakeup::Index,
-                _ = async {
-                    sleep_until(next_index).await;
-                    self.wakeup.notified().await;
-                } => Wakeup::Index,
+                _ = polling.tick() => index = true,
                 // Pace retries when HTTP is still behind the last notification.
-                _ = sleep_until(next_retry), if self.wanted.load(Ordering::Relaxed) != 0 => Wakeup::Index,
-                Some(header) = async { sleep_until(next_head).await; heads.recv().await } => {
-                    remember_header(&mut recent, header);
-                    while let Ok(header) = heads.try_recv() { remember_header(&mut recent, header); }
-                    Wakeup::Head
+                _ = sleep_until(next_retry), if self.wanted.load(Ordering::Relaxed) != 0 => index = true,
+                header = async {
+                    sleep_until(next_wake).await;
+                    tokio::select! {
+                        _ = self.wakeup.notified() => None,
+                        Some(header) = heads.recv() => Some(header),
+                    }
+                } => {
+                    if let Some(header) = header {
+                        remember_header(&mut recent, header);
+                        confirm = true;
+                    } else {
+                        index = true;
+                    }
                 }
-            };
+            }
         }
     }
 
