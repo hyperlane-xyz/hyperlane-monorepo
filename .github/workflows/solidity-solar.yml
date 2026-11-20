@@ -1,0 +1,60 @@
+name: Solidity Solar
+
+on:
+  pull_request:
+    paths:
+      - 'solidity/**'
+      - '.github/workflows/solidity-solar.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: solidity-solar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  differential:
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Read experimental Foundry version
+        id: foundry
+        run: echo "version=$(cat solidity/.foundryrc-solar)" >> "$GITHUB_OUTPUT"
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ steps.foundry.outputs.version }}
+
+      - uses: dtolnay/rust-toolchain@1.98.0
+
+      # The v0.3 release binaries were not published when this was benchmarked.
+      # Match the source build used for the local results.
+      - name: Build Solar v0.3.0
+        run: |
+          cargo install --locked --git https://github.com/paradigmxyz/solar --rev e7a91fc70f29dc8d0c236d56a2aa7706dc2555cf --root "$RUNNER_TEMP/solar" solar-compiler
+          echo "$RUNNER_TEMP/solar/bin" >> "$GITHUB_PATH"
+
+      - name: Install contract dependencies
+        working-directory: solidity
+        run: forge soldeer install
+
+      - name: Benchmark and compare both compilers
+        working-directory: solidity
+        run: node scripts/benchmark-solar.mjs --runs 5 --output "$RUNNER_TEMP/solar-results"
+
+      - name: Upload benchmark and test results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: solidity-solar-results
+          path: ${{ runner.temp }}/solar-results
+          if-no-files-found: warn
+          retention-days: 14

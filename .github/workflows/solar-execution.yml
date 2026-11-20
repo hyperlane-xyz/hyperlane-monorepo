@@ -1,0 +1,93 @@
+name: Solar Execution
+
+on:
+  pull_request:
+    paths:
+      - 'solidity/benchmarks/evm-execution/**'
+      - 'solidity/scripts/benchmark-solar-warp.mjs'
+      - 'solidity/scripts/benchmark-solar-incremental.mjs'
+      - 'solidity/scripts/benchmark-solar.mjs'
+      - '.github/workflows/solar-execution.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: solar-execution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  execution:
+    runs-on: depot-ubuntu-24.04-8
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Record execution host
+        run: |
+          uname -a > "$RUNNER_TEMP/execution-host.txt"
+          lscpu >> "$RUNNER_TEMP/execution-host.txt"
+
+      - name: Probe hardware counters
+        run: |
+          sudo -n python3 solidity/benchmarks/evm-execution/probe-perf.py | tee "$RUNNER_TEMP/perf-counters.json"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - uses: ./.github/actions/pnpm-cache
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Read Foundry version
+        id: foundry
+        run: echo "version=$(cat solidity/.foundryrc-solar)" >> "$GITHUB_OUTPUT"
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ steps.foundry.outputs.version }}
+
+      - uses: dtolnay/rust-toolchain@1.98.0
+
+      - name: Build pinned compiler and interpreter benchmark
+        run: |
+          cargo install --locked --git https://github.com/paradigmxyz/solar --rev e7a91fc70f29dc8d0c236d56a2aa7706dc2555cf --root "$RUNNER_TEMP/solar" solar-compiler
+          echo "$RUNNER_TEMP/solar/bin" >> "$GITHUB_PATH"
+          cargo generate-lockfile --manifest-path solidity/benchmarks/evm-execution/Cargo.toml
+          CARGO_TARGET_DIR="$RUNNER_TEMP/execution-target" cargo build --locked --release --manifest-path solidity/benchmarks/evm-execution/Cargo.toml
+
+      - name: Build artifacts and export matched transaction states
+        working-directory: solidity
+        run: |
+          forge soldeer install
+          node scripts/benchmark-solar.mjs --runs 1 --output "$RUNNER_TEMP/solar-results"
+          node scripts/benchmark-solar-warp.mjs --build-results "$RUNNER_TEMP/solar-results/results.json" --output "$RUNNER_TEMP/solar-results/warp" --execution-fixtures --block-transfers 512
+          cp benchmarks/evm-execution/Cargo.lock "$RUNNER_TEMP/solar-results/evm-execution.Cargo.lock"
+
+      - name: Measure interpreter CPU and local execution throughput
+        run: |
+          sudo -n "$RUNNER_TEMP/execution-target/release/hyperlane-solar-execution-bench" "$RUNNER_TEMP/solar-results/warp/execution-manifest.json" "$RUNNER_TEMP/execution-results.json" 15 5000
+          python3 - <<'PY'
+          import json, os
+          data = json.load(open(os.path.join(os.environ['RUNNER_TEMP'], 'execution-results.json')))
+          assert data['counter_error'] is None, data['counter_error']
+          assert data['affinity'].startswith('cpu '), data['affinity']
+          PY
+
+      - name: Record incremental source invalidations
+        working-directory: solidity
+        run: node scripts/benchmark-solar-incremental.mjs --runs 5 --output "$RUNNER_TEMP/incremental-results"
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: solar-execution
+          path: |
+            ${{ runner.temp }}/perf-counters.json
+            ${{ runner.temp }}/execution-host.txt
+            ${{ runner.temp }}/execution-results.json
+            ${{ runner.temp }}/solar-results
+            ${{ runner.temp }}/incremental-results
+          if-no-files-found: error

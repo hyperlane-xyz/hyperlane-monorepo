@@ -1,0 +1,19 @@
+[package]
+name = "hyperlane-solar-execution-bench"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+alloy-consensus = "=2.5.0"
+alloy-primitives = { version = "=1.7.3", features = ["serde"] }
+evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "9b037449c846515624ff6afde739f2b764851446", default-features = false, features = ["std", "map-foldhash", "asm-keccak", "secp256k1"] }
+libc = "=0.2.191"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.154"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

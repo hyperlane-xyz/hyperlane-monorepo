@@ -12,6 +12,8 @@ storage/
 # Foundry
 out
 forge-cache
+out-solar/
+forge-cache-solar/
 docs
 flattened/
 buildArtifact.json

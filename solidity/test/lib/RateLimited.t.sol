@@ -458,7 +458,8 @@ contract RateLimitDebtSettlementTest is Test {
         assertEq(bucket.debt(), 20 ether);
 
         // Half a window refills 50 ether; level = 50 refill − 20 debt = 30.
-        vm.warp(block.timestamp + 12 hours);
+        // Optimizers may reuse block.timestamp across vm.warp calls.
+        vm.warp(vm.getBlockTimestamp() + 12 hours);
 
         // Reject-path consume of the full available level heals the debt.
         bucket.consume(30 ether);
@@ -466,7 +467,7 @@ contract RateLimitDebtSettlementTest is Test {
         assertEq(bucket.debt(), 0);
 
         // Debt healed → the bucket refills unobstructed on the next window.
-        vm.warp(block.timestamp + 12 hours);
+        vm.warp(vm.getBlockTimestamp() + 12 hours);
 
         assertEq(bucket.calculateCurrentLevel(), 50 ether);
     }
