@@ -1,0 +1,38 @@
+warpRouteId: WETH/aevo-staging
+
+# Staging route used to exercise LiFi inventory rebalancing for WETH (origin legs
+# are plain collateral routers, so no on-chain allowlist is involved).
+# Shared mainnet3 staging inventory signer (same as ETHSTAGE/USDTSTAGE). It must
+# hold WETH on optimism/arbitrum/base and native gas on each of them.
+inventorySigners:
+  ethereum: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5'
+
+externalBridges:
+  lifi:
+    integrator: 'rebalancer'
+
+# Only the collateral-backed legs take part; the aevo leg (HypXERC20) is not rebalanced.
+# Weights are placeholders (even split), not a sizing decision.
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    arbitrum:
+      weighted:
+        weight: 33
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi
+
+    base:
+      weighted:
+        weight: 34
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi
+
+    optimism:
+      weighted:
+        weight: 33
+        tolerance: 5
+      executionType: inventory
+      externalBridge: lifi

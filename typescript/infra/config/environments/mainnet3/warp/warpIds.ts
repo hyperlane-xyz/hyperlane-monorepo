@@ -155,4 +155,8 @@ export enum WarpRouteIds {
 
   // Kiichain routes
   KiichainKII = 'KII/kiichain',
+
+  // Aevo routes
+  USDCAevoSTAGING = 'USDC/aevo-staging',
+  WETHAevoSTAGING = 'WETH/aevo-staging',
 }
