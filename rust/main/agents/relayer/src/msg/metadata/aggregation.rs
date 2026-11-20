@@ -42,6 +42,7 @@ enum ModuleBuildOutcome {
     Refused(MetadataBuildRefused),
     /// Build failed because validator signatures aren't collected yet.
     AwaitingSignatures,
+    CcipReadNotAllowed,
     RetryLimitReached(u32),
     /// Build failed for another reason, or dry_run_verify returned None/Err.
     Failed,
@@ -375,6 +376,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                         Err(MetadataBuildError::AwaitingValidatorSignatures) => {
                             ModuleBuildOutcome::AwaitingSignatures
                         }
+                        Err(MetadataBuildError::CcipReadNotAllowed) => {
+                            ModuleBuildOutcome::CcipReadNotAllowed
+                        }
                         Err(MetadataBuildError::RetryLimitReached(count)) => {
                             ModuleBuildOutcome::RetryLimitReached(count)
                         }
@@ -400,6 +404,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let mut has_any_error = false;
         let mut all_errors_awaiting = true;
         let mut exhausted_retries = None;
+        let mut eligible_modules = ism_addresses.len();
 
         while let Some((ism_address, outcome)) = pending.next().await {
             match outcome {
@@ -413,6 +418,10 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                     has_any_error = true;
                     err_sub_modules.push((ism_address, None));
                     // all_errors_awaiting stays true
+                }
+                ModuleBuildOutcome::CcipReadNotAllowed => {
+                    eligible_modules = eligible_modules.saturating_sub(1);
+                    err_sub_modules.push((ism_address, None));
                 }
                 ModuleBuildOutcome::RetryLimitReached(count) => {
                     exhausted_retries = exhausted_retries.max(Some(count));
@@ -449,6 +458,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         // can't reach threshold without them, propagate AwaitingValidatorSignatures so
         // the relayer uses the 1 s fast-path backoff instead of the normal 5 s→… ramp.
         if metas_and_gas.len() < threshold {
+            if eligible_modules < threshold && threshold <= ism_addresses.len() {
+                return Err(MetadataBuildError::CcipReadNotAllowed);
+            }
             if let Some(count) = exhausted_retries {
                 return Err(MetadataBuildError::RetryLimitReached(count));
             }
@@ -804,6 +816,85 @@ mod test {
     }
 
     // ── build tests ──────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn ccip_allowlist_drops_only_when_it_prevents_reaching_threshold() {
+        use ethers::abi::AbiEncode;
+        use hyperlane_core::ChainCommunicationError;
+        use hyperlane_ethereum::OffchainLookup;
+
+        let denied = "https://denied.example/proof";
+        let invalid = "http://denied.example/proof";
+        let allowed = "https://localhost/proof"; // Allowed by name, but the request fails.
+        let retry = MetadataBuildError::AggregationThresholdNotMet(2);
+        for (urls, extra_branch, expected) in [
+            (
+                vec![denied],
+                None,
+                Err(MetadataBuildError::CcipReadNotAllowed),
+            ),
+            (
+                vec![denied, invalid],
+                None,
+                Err(MetadataBuildError::CcipReadNotAllowed),
+            ),
+            (vec![denied, allowed], None, Err(retry.clone())),
+            (vec![allowed, denied], None, Err(retry.clone())),
+            (vec![invalid], None, Err(retry.clone())),
+            (vec![], None, Err(retry.clone())),
+            (vec![denied], Some(false), Err(retry)),
+            (vec![denied], Some(true), Ok(())),
+        ] {
+            let mut base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+            base.responses
+                .ccip_read_allowed_domains
+                .push("localhost".into());
+            let root = H256::from_low_u64_be(1);
+            let ccip = H256::from_low_u64_be(2);
+            let other = H256::from_low_u64_be(3);
+            let mut children = vec![ccip, other];
+            let mock = Arc::new(MockInterchainSecurityModule::new(
+                ccip,
+                TEST_DOMAIN.clone(),
+                ModuleType::CcipRead,
+            ));
+            let lookup = OffchainLookup {
+                urls: urls.iter().map(|url| (*url).to_owned()).collect(),
+                ..Default::default()
+            };
+            mock.responses
+                .offchain_verify_info
+                .lock()
+                .expect("lookup response lock")
+                .push_back(Err(ChainCommunicationError::from_other_str(&format!(
+                    "execution reverted: 0x{}",
+                    hex::encode(lookup.encode())
+                ))));
+            base.responses
+                .build_ccip_read_ism
+                .lock()
+                .expect("CCIP ISM lock")
+                .push_back(Ok(Box::new(mock.clone())));
+            base.responses
+                .push_build_ism_response(ccip, Ok(Box::new(mock)));
+            insert_null_submodule(&base, other, Ok(Some(U256::one())));
+            if let Some(verified) = extra_branch {
+                let extra = H256::from_low_u64_be(4);
+                children.push(extra);
+                insert_null_submodule(&base, extra, Ok(verified.then(U256::one)));
+            }
+            insert_aggregation_ism(&base, root, children, 2);
+            let result = make_builder(base)
+                .await
+                .build(root, &HyperlaneMessage::default(), Default::default())
+                .await;
+            assert_eq!(
+                result.map(|_| ()),
+                expected,
+                "{urls:?}, extra branch {extra_branch:?}"
+            );
+        }
+    }
 
     /// 2-of-2: both submodules build and pass dry_run → Ok.
     #[tokio::test]

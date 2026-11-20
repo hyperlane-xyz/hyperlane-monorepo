@@ -54,7 +54,7 @@ import {
   getDomainId,
   getWarpAddresses,
 } from '../../registry.js';
-import { fallbackHedgeConfig } from '../utils.js';
+import { ccipReadAllowedDomains, fallbackHedgeConfig } from '../utils.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
@@ -831,6 +831,7 @@ const hyperlane: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayer,
     },
+    ccipReadAllowedDomains,
     runtimeDenylist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -909,6 +910,7 @@ const releaseCandidate: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerRC,
     },
+    ccipReadAllowedDomains,
     runtimeDenylist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -1089,6 +1091,7 @@ const fastPath: RootAgentConfig = {
       ...fastPathCrossMoonpayMatchingList,
       ...fastPathTestRecipientMatchingList,
     ],
+    ccipReadAllowedDomains,
     runtimeDenylist,
     gasPaymentEnforcement: fastPathGasPaymentEnforcement,
     reorgPeriodOverrides: fastPathReorgPeriodOverrides,

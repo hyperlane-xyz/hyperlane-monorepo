@@ -14,7 +14,7 @@ observation/receipt timestamps and structured activity data. Storage is best eff
 | Validators | Validator sets and thresholds |
 | Signatures | One summary per completed collection: indices attempted, latest advertised indices and discovery failures, best matching signer addresses with exact HTTPS checkpoint object URL/count/root at the last attempted index, and exact-checkpoint unavailable validators |
 | Merkle data | Missing tree/leaf, leaf/highest-known index, proof failures and root mismatches |
-| CCIP / CCTP | First pending response, final outcome/attempt count per endpoint, HTTP status, timeouts and response failures |
+| CCIP / CCTP | ISM lookup failures, allowlist denials, endpoint outcomes, attempt counts and HTTP status. Successful reads include the decoded byte count and Keccak-256 digest. |
 | Delivery | ISM verification outcomes, simulation/payload failures, typed chain errors, transaction outcomes/hashes, confirmation failures and delivery completion |
 
 RPC URLs, credentials, local storage paths, raw errors, message bodies, metadata and
@@ -32,6 +32,14 @@ starts/successes are omitted. Configuration
 interpretable. Real retries retain their reason/count/deadline; restart does not
 replay stored status or backoff. CCIP pending retries emit the first pending state
 and the endpoint's final outcome, not each intermediate request.
+
+The ISM node stores its latest CCIP observation in `offchain_read`. Earlier
+outcomes are available in the message’s activity history. Each observation carries
+its own timestamp so repeated failures on later delivery attempts remain visible.
+Endpoint observations include
+the HTTP(S) gateway hostname and URL template supplied by the ISM, including for
+allowlist denials. Templates omit userinfo, queries and fragments and preserve
+unexpanded path placeholders. Templates longer than 2,048 bytes are omitted.
 
 Admission scans do not write diagnostics for messages already excluded by a
 blacklist/denylist or already at their persisted retry limit. Startup, migration

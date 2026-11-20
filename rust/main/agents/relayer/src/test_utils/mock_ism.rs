@@ -4,7 +4,7 @@ use std::{
 };
 
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    CcipReadIsm, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
     InterchainSecurityModule, Metadata, ModuleType, H256, U256,
 };
 
@@ -13,6 +13,7 @@ type ResponseList<T> = Arc<Mutex<VecDeque<T>>>;
 #[derive(Debug, Default)]
 pub struct MockInterchainSecurityModuleResponses {
     pub dry_run_verify: ResponseList<ChainResult<Option<U256>>>,
+    pub offchain_verify_info: ResponseList<ChainResult<()>>,
 }
 
 pub struct MockInterchainSecurityModule {
@@ -68,6 +69,18 @@ impl InterchainSecurityModule for MockInterchainSecurityModule {
 impl HyperlaneContract for MockInterchainSecurityModule {
     fn address(&self) -> H256 {
         self.address
+    }
+}
+
+#[async_trait::async_trait]
+impl CcipReadIsm for MockInterchainSecurityModule {
+    async fn get_offchain_verify_info(&self, _: Vec<u8>) -> ChainResult<()> {
+        self.responses
+            .offchain_verify_info
+            .lock()
+            .expect("lookup response lock")
+            .pop_front()
+            .expect("missing CCIP lookup")
     }
 }
 

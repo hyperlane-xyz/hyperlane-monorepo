@@ -128,6 +128,7 @@ export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
+  ccipReadAllowedDomains?: string[];
   addressBlacklist?: string;
   runtimeDenylist?: RuntimeDenylistConfig;
   transactionGasLimit?: BigNumberish;
@@ -260,6 +261,10 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 
+    if (baseConfig.ccipReadAllowedDomains) {
+      relayerConfig.ccipReadAllowedDomains =
+        baseConfig.ccipReadAllowedDomains.join(',');
+    }
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
     }

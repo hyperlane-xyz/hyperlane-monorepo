@@ -185,13 +185,12 @@ impl ActivityState {
                             || !summary.unavailable.is_empty()
                             || state.published_snapshot.is_some()
                     }
-                    Activity::IsmVerification { .. } | Activity::OffchainRead { .. } => {
-                        state.published_snapshot.is_some()
-                    }
+                    Activity::IsmVerification { .. } => state.published_snapshot.is_some(),
                     Activity::Retry {
                         reason: Some(_), ..
                     }
                     | Activity::Status { .. }
+                    | Activity::OffchainRead { .. }
                     | Activity::Delivered
                     | Activity::Dropped
                     | Activity::RetryLimitReached { .. }
@@ -588,8 +587,8 @@ impl MessageState {
                     if let Some(o) = observation.as_object_mut() {
                         o.remove("type");
                         o.remove("ism");
-                        o.remove("attempt");
                     }
+                    observation["observed_at_millis"] = json!(event.observed_at);
                     node["offchain_read"] = observation;
                 }
                 Activity::MerkleLeaf { .. } => {
@@ -789,7 +788,9 @@ impl MessageState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::message_activity::{CheckpointSummary, Outcome, Stage};
+    use crate::message_activity::{
+        CheckpointSummary, OffchainReadGateway, OffchainReadState, Outcome, Stage,
+    };
     use hyperlane_base::CheckpointSigner;
     use hyperlane_core::{
         ConfirmReason, ModuleType, PendingOperationStatus, ReprepareReason, SubmissionStage, H160,
@@ -875,6 +876,59 @@ mod tests {
     }
     async fn project(states: &ActivityState, events: &[ObservationEvent]) -> Vec<StoredEvent> {
         states.project(events).await.expect("project observations")
+    }
+
+    #[tokio::test]
+    async fn ccip_snapshots_preserve_failure_and_retry_outcomes() {
+        let states = ActivityState::new(None);
+        let read = |attempt, state, http_status| {
+            event(
+                Some("root"),
+                Activity::OffchainRead {
+                    ism: H256::zero(),
+                    endpoint: Some(0),
+                    gateway: OffchainReadGateway::from_template("https://lookup.example/metadata"),
+                    attempt,
+                    state,
+                    http_status,
+                },
+            )
+        };
+        let failure = project(
+            &states,
+            &[read(1, OffchainReadState::DomainNotAllowed, None)],
+        )
+        .await;
+        assert!(is_full_snapshot(&failure));
+        assert_eq!(
+            snapshot(&failure)["modules"][0]["offchain_read"]["state"],
+            "domain_not_allowed"
+        );
+
+        let mut repeated = read(1, OffchainReadState::DomainNotAllowed, None);
+        repeated.observed_at = repeated.observed_at.saturating_add(60_000);
+        let repeated_at = repeated.observed_at;
+        let failure = project(&states, &[repeated]).await;
+        assert_eq!(
+            snapshot(&failure)["modules"][0]["offchain_read"]["observed_at_millis"],
+            repeated_at
+        );
+
+        let retries = project(
+            &states,
+            &[read(
+                11,
+                OffchainReadState::PendingRetriesExhausted,
+                Some(202),
+            )],
+        )
+        .await;
+        let latest = &snapshot(&retries)["modules"][0]["offchain_read"];
+        assert_eq!(latest["state"], "pending_retries_exhausted");
+        assert_eq!(latest["attempt"], 11);
+        assert_eq!(latest["http_status"], 202);
+        assert_eq!(latest["hostname"], "lookup.example");
+        assert_eq!(latest["url_template"], "https://lookup.example/metadata");
     }
 
     #[test]

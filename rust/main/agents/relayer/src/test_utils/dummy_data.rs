@@ -95,6 +95,7 @@ pub fn dummy_metadata_builder(
         db.clone(),
         IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
         IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+        Default::default(),
         None,
         false,
     )

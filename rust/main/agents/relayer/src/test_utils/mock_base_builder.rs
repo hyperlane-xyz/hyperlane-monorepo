@@ -29,6 +29,7 @@ type RequestList<T> = Arc<Mutex<Vec<T>>>;
 
 #[derive(Debug, Default)]
 pub struct MockBaseMetadataBuilderResponses {
+    pub ccip_read_allowed_domains: Vec<String>,
     pub origin_domain: Option<HyperlaneDomain>,
     pub destination_domain: Option<HyperlaneDomain>,
     pub app_context_classifier: Option<IsmAwareAppContextClassifier>,
@@ -132,6 +133,10 @@ impl BuildsBaseMetadata for MockBaseMetadataBuilder {
             .expect("activity lock")
             .push((message.id(), activity));
     }
+    fn ccip_read_allowed_domains(&self) -> &[String] {
+        &self.responses.ccip_read_allowed_domains
+    }
+
     fn get_signer(&self) -> Option<&Signers> {
         None // Mock implementation returning None
     }

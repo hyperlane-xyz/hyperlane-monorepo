@@ -59,6 +59,7 @@ pub struct BaseMetadataBuilder {
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
+    ccip_read_allowed_domains: Arc<[String]>,
     signer: Option<Signers>,
     ignore_reorg_reports: bool,
     #[new(default)]
@@ -118,6 +119,7 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
     fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier;
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
+    fn ccip_read_allowed_domains(&self) -> &[String];
     fn get_signer(&self) -> Option<&Signers>;
     fn ignore_reorg_reports(&self) -> bool {
         false
@@ -410,6 +412,10 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             checkpoint_syncers,
             app_context.map(|ctx| (self.metrics.clone(), ctx)),
         ))
+    }
+
+    fn ccip_read_allowed_domains(&self) -> &[String] {
+        &self.ccip_read_allowed_domains
     }
 
     fn get_signer(&self) -> Option<&Signers> {

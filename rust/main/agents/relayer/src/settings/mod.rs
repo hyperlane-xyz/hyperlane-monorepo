@@ -63,6 +63,8 @@ pub struct RelayerSettings {
     pub whitelist: MatchingList,
     /// Filter for what messages to block.
     pub blacklist: MatchingList,
+    /// Exact DNS names permitted for CCIP-read requests. Empty disables lookups.
+    pub ccip_read_allowed_domains: Arc<[String]>,
     /// Filter for what addresses to block interactions with.
     /// This is intentionally not an H256 to allow for addresses of any length without
     /// adding any padding.
@@ -337,6 +339,28 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .and_then(parse_matching_list)
             .unwrap_or_default();
 
+        let mut ccip_read_allowed_domains = Vec::new();
+        if let Some(domains) = p
+            .chain(&mut err)
+            .get_opt_key("ccipReadAllowedDomains")
+            .parse_string()
+            .end()
+        {
+            for (position, domain) in (1usize..).zip(domains.split(',').map(str::trim)) {
+                if domain.is_empty() {
+                    continue;
+                }
+                if is_ccip_hostname(domain) {
+                    ccip_read_allowed_domains.push(domain.to_owned());
+                } else {
+                    err.push(
+                        (&p.cwp).add("ccip_read_allowed_domains"),
+                        eyre!("Entry {position} must be a bare DNS hostname"),
+                    );
+                }
+            }
+        }
+
         let address_blacklist = p
             .chain(&mut err)
             .get_opt_key("addressBlacklist")
@@ -580,6 +604,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             gas_payment_enforcement,
             whitelist,
             blacklist,
+            ccip_read_allowed_domains: ccip_read_allowed_domains.into(),
             address_blacklist,
             runtime_denylist,
             transaction_gas_limit,
@@ -616,6 +641,20 @@ fn parse_ism_cache_configs(p: ValueParser) -> ConfigResult<Vec<IsmCacheConfig>> 
         .unwrap_or_default();
 
     err.into_result(ml)
+}
+
+fn is_ccip_hostname(domain: &str) -> bool {
+    let name = domain.strip_suffix('.').unwrap_or(domain);
+    name.len() <= 253
+        && name.split('.').all(|label| {
+            (1..=63).contains(&label.len())
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        })
+        && matches!(url::Host::parse(domain), Ok(url::Host::Domain(_)))
 }
 
 fn parse_address_list(
@@ -674,6 +713,26 @@ mod test {
             error.contains("`feeToken` gas payment enforcement is not supported"),
             "unexpected error: {error}",
         );
+    }
+
+    #[test]
+    fn ccip_allowlist_requires_bare_hostnames() {
+        let mut raw = json!({
+            "relaychains": "legacy",
+            "chains": { "legacy": chain_config("legacy", 1000) },
+            "ccipreadalloweddomains": " Lookup.Example, ,host-2,",
+        });
+        let settings = parse_settings(raw.clone()).expect("valid CCIP allowlist");
+        assert_eq!(
+            &*settings.ccip_read_allowed_domains,
+            &["Lookup.Example", "host-2"]
+        );
+        raw["ccipreadalloweddomains"] =
+            json!("lookup.example,,https://host,host:443,host/,*.host,8.8.8.8,bad..host");
+        let error = parse_settings(raw).unwrap_err().to_string();
+        for position in 3..=8 {
+            assert!(error.contains(&format!("Entry {position} must be a bare DNS hostname")));
+        }
     }
 
     #[test]

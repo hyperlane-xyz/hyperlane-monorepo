@@ -729,7 +729,14 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
               threshold: 2,
               unavailable: [],
             },
-            offchain_read: { state: 'pending', endpoint: 0, http_status: 202 },
+            offchain_read: {
+              state: 'pending',
+              observed_at_millis: 1_700_000_000_000,
+              endpoint: 0,
+              http_status: 202,
+              hostname: 'lookup.example',
+              url_template: 'https://lookup.example/proof/{data}',
+            },
           },
         ],
       },
@@ -751,7 +758,7 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
       message_diagnostics(message_id: "${id}") { relayers {
         phase tree_root modules { node_id ism children { node_id ism } selected_children
           signatures { collection_id collected signers { validator location } threshold }
-          offchain_read { state attempt }
+          offchain_read { state attempt observed_at_millis hostname url_template }
         }
       }}
     }`,
@@ -770,6 +777,15 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
       },
     ]);
     assert.equal(progress.modules[0].offchain_read.attempt, null);
+    assert.equal(
+      progress.modules[0].offchain_read.observed_at_millis,
+      1_700_000_000_000,
+    );
+    assert.equal(progress.modules[0].offchain_read.hostname, 'lookup.example');
+    assert.equal(
+      progress.modules[0].offchain_read.url_template,
+      'https://lookup.example/proof/{data}',
+    );
     stream.subscribe('127.0.0.1', [id], (frame, complete) => {
       frames.push(frame);
       complete(true);

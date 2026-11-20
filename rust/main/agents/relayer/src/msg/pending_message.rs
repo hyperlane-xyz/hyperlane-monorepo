@@ -1895,6 +1895,10 @@ impl PendingMessage {
                     );
                 }
                 let reprepare = match &err {
+                    MetadataBuildError::CcipReadNotAllowed => {
+                        warn!(message_id = ?self.message.id(), %err, "Dropping message blocked by CCIP-read allowlist");
+                        self.terminal_drop()
+                    }
                     MetadataBuildError::RetryLimitReached(retries) => {
                         let reason = ReprepareReason::AwaitingValidatorSignatures;
                         self.num_retries = self.num_retries.max(*retries);
@@ -3788,6 +3792,15 @@ mod test {
         let pending_message_debug = format!("{pending_message:?}");
         let expected = r#"PendingMessage { num_retries: 0, since_last_attempt_s: 0, next_attempt_after_s: 0, message_id: 0xaeafdd9f018e66a50d30bb141184d10e57bd956e839f70213c163eb41a3c0d87, status: FirstPrepareAttempt, app_context: Some("test-0") }"#;
         assert_eq!(pending_message_debug, expected);
+    }
+
+    #[tokio::test]
+    async fn ccip_allowlist_drops_message_without_scheduling_a_retry() {
+        let (_dir, mut pending) = pending_with_mailbox(contract_test_mailbox(), None);
+        let result = pending
+            .finish_metadata_build(Err(MetadataBuildError::CcipReadNotAllowed), Instant::now());
+        assert!(matches!(result, Err(PendingOperationResult::Drop)));
+        assert_eq!(pending.num_retries, 0);
     }
 
     #[tokio::test]

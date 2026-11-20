@@ -364,7 +364,16 @@ type UnavailableSignature {
 
 type OffchainReadProgress {
   state: String!
+  observed_at_millis: Float
   attempt: bigint
   endpoint: Int
   http_status: Int
+  hostname: String
+  url_template: String
+  result: OffchainReadResult
+}
+
+type OffchainReadResult {
+  bytes: Int!
+  keccak256: String!
 }

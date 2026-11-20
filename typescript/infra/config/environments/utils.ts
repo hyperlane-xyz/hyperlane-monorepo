@@ -14,6 +14,11 @@ export const DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS = [
   'https://offchain-lookup.services.hyperlane.xyz/callCommitments/getCallsFromRevealMessage',
 ];
 
+export const ccipReadAllowedDomains = [
+  'offchain-lookup.services.hyperlane.xyz',
+  'testnet-offchain-lookup.services.hyperlane.xyz',
+];
+
 export const fallbackHedgeConfig = {
   fallbackHedgeDelayMillis: 250,
   fallbackHedgeTimeoutMillis: 30_000,
