@@ -5,7 +5,7 @@ use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use hyperlane_sealevel_validator_announce::{
+use hyperlane_sealevel_interface::validator_announce::{
     accounts::ValidatorStorageLocationsAccount,
     instruction::{AnnounceInstruction, Instruction as ValidatorAnnounceInstruction},
     replay_protection_pda_seeds, validator_announce_pda_seeds,

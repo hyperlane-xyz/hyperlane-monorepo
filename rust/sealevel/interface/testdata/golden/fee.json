@@ -1,0 +1,886 @@
+{
+  "program": "fee",
+  "values": [
+    {
+      "type": "fee.Instruction",
+      "variant": "InitFee",
+      "name": "leaf",
+      "encoding": "borsh",
+      "fields": {
+        "salt": "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+        "beneficiary": "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw",
+        "fee_data": {
+          "Leaf": {
+            "strategy": {
+              "Linear": {
+                "max_fee": "1000001",
+                "half_amount": "50000001"
+              }
+            },
+            "signers": [
+              "0x1112131415161718191a1b1c1d1e1f2021222324",
+              "0x22232425262728292a2b2c2d2e2f303132333435"
+            ]
+          }
+        },
+        "domain_id": 1399811149
+      },
+      "hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20000041420f000000000081f0fa020000000001020000001112131415161718191a1b1c1d1e1f202122232422232425262728292a2b2c2d2e2f3031323334354d6c6f53"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "InitFee",
+      "name": "routing",
+      "encoding": "borsh",
+      "fields": {
+        "salt": "0x02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021",
+        "beneficiary": "8rUz82MkFsfqjpVjjgWEM66Brr1sm1R7VKZ991fF41e",
+        "fee_data": {
+          "Routing": {
+            "wildcard_signers": [
+              "0x1112131415161718191a1b1c1d1e1f2021222324",
+              "0x22232425262728292a2b2c2d2e2f303132333435"
+            ]
+          }
+        },
+        "domain_id": 1
+      },
+      "hex": "0002030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202101020000001112131415161718191a1b1c1d1e1f202122232422232425262728292a2b2c2d2e2f30313233343501000000"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "InitFee",
+      "name": "cross_collateral_routing",
+      "encoding": "borsh",
+      "fields": {
+        "salt": "0x030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122",
+        "beneficiary": "Cmn8RVNLZAtyq51B31RXDrrS24DYphEftzDCX4FzPLM",
+        "fee_data": {
+          "CrossCollateralRouting": {
+            "wildcard_signers": []
+          }
+        },
+        "domain_id": 2
+      },
+      "hex": "00030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122020000000002000000"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "QuoteFee",
+      "encoding": "borsh",
+      "fields": {
+        "destination_domain": 42161,
+        "recipient": "0x0405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223",
+        "amount": "123456789",
+        "target_router": "0x05060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324"
+      },
+      "hex": "01b1a400000405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222315cd5b070000000005060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "SetRemoteFeeRoute",
+      "encoding": "borsh",
+      "fields": {
+        "domain": 10,
+        "target_router": "0x060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425",
+        "fee_data": {
+          "Regressive": {
+            "max_fee": "1000002",
+            "half_amount": "50000002"
+          }
+        },
+        "signers": null
+      },
+      "hex": "020a00000001060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324250142420f000000000082f0fa020000000000"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "RemoveRemoteFeeRoute",
+      "encoding": "borsh",
+      "fields": {
+        "domain": 10,
+        "target_router": null
+      },
+      "hex": "030a00000000"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "UpdateFeeParams",
+      "encoding": "borsh",
+      "fields": {
+        "max_fee": "1000003",
+        "half_amount": "50000003"
+      },
+      "hex": "0443420f000000000083f0fa0200000000"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "SetBeneficiary",
+      "encoding": "borsh",
+      "fields": "Gh5GixNvrU87vKWcLLLp6dcgBGRDtP4EJesFu6rjif4",
+      "hex": "050405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "TransferOwnership",
+      "encoding": "borsh",
+      "fields": "LcNR2RPX9mMG1a23dfG6yQNvLUctx4sniKXKH9TV3ym",
+      "hex": "060105060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "SetQuoteSigner",
+      "name": "add_domain",
+      "encoding": "borsh",
+      "fields": {
+        "operation": {
+          "Add": "0x333435363738393a3b3c3d3e3f40414243444546"
+        },
+        "route": {
+          "Domain": 8453
+        }
+      },
+      "hex": "0700333435363738393a3b3c3d3e3f40414243444546010005210000"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "SetQuoteSigner",
+      "name": "remove_cross_collateral",
+      "encoding": "borsh",
+      "fields": {
+        "operation": {
+          "Remove": "0x3435363738393a3b3c3d3e3f4041424344454647"
+        },
+        "route": {
+          "CrossCollateral": {
+            "destination": 10,
+            "target_router": "0x0708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526"
+          }
+        }
+      },
+      "hex": "07013435363738393a3b3c3d3e3f404142434445464701010a0000000708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "SetQuoteSigner",
+      "name": "wildcard",
+      "encoding": "borsh",
+      "fields": {
+        "operation": {
+          "Add": "0x35363738393a3b3c3d3e3f404142434445464748"
+        },
+        "route": null
+      },
+      "hex": "070035363738393a3b3c3d3e3f40414243444546474800"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "SetMinIssuedAt",
+      "encoding": "borsh",
+      "fields": {
+        "min_issued_at": "1700000000"
+      },
+      "hex": "0800f1536500000000"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "SetWildcardQuoteSigners",
+      "encoding": "borsh",
+      "fields": {
+        "signers": [
+          "0x1112131415161718191a1b1c1d1e1f2021222324",
+          "0x22232425262728292a2b2c2d2e2f303132333435"
+        ]
+      },
+      "hex": "09020000001112131415161718191a1b1c1d1e1f202122232422232425262728292a2b2c2d2e2f303132333435"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "SubmitQuote",
+      "encoding": "borsh",
+      "fields": {
+        "context": "0x303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b",
+        "data": "0x707172737475767778797a7b7c7d7e7f",
+        "issued_at": "0x00006553f100",
+        "expiry": "0x00006553f100",
+        "client_salt": "0x45464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364",
+        "signature": "0xc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00"
+      },
+      "hex": "0a2c000000303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b10000000707172737475767778797a7b7c7d7e7f00006553f10000006553f10045464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "CloseTransientQuote",
+      "encoding": "borsh",
+      "fields": null,
+      "hex": "0b"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "PruneExpiredQuotes",
+      "encoding": "borsh",
+      "fields": {
+        "domain": 10,
+        "target_router": "0x08090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627"
+      },
+      "hex": "0c0a0000000108090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "GetQuoteAccountMetas",
+      "encoding": "borsh",
+      "fields": {
+        "destination_domain": 10,
+        "target_router": "0x090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728",
+        "scoped_salt": "0x0a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526272829"
+      },
+      "hex": "0d0a000000090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728010a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526272829"
+    },
+    {
+      "type": "fee.Instruction",
+      "variant": "GetSubmitQuoteAccountMetas",
+      "encoding": "borsh",
+      "fields": {
+        "destination_domain": 11,
+        "target_router": "0x0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a",
+        "scoped_salt": null
+      },
+      "hex": "0e0b0000000b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a00"
+    },
+    {
+      "type": "fee.FeeDataStrategy",
+      "variant": "Progressive",
+      "name": "progressive",
+      "encoding": "borsh",
+      "fields": {
+        "max_fee": "1000004",
+        "half_amount": "50000004"
+      },
+      "hex": "0244420f000000000084f0fa0200000000"
+    },
+    {
+      "type": "fee.FeeAccount",
+      "variant": null,
+      "encoding": "account+discriminator",
+      "discriminator": "0x4645455f41434354",
+      "fields": {
+        "bump_seed": 255,
+        "owner": "QXfZKtQ7T4aQ6pXUvzBPrB9AVgpa1khM7zBNfC4EPJU",
+        "beneficiary": "USxhdMQhkMoYC52vEK6giwuQeu2F5SWuXeqS3EeyidB",
+        "domain_id": 1399811149,
+        "min_issued_at": "1700000000",
+        "fee_data": {
+          "Leaf": {
+            "strategy": {
+              "Progressive": {
+                "max_fee": "1000005",
+                "half_amount": "50000005"
+              }
+            },
+            "signers": null
+          }
+        }
+      },
+      "hex": "014645455f41434354ff01060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324250708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425264d6c6f5300f1536500000000000245420f000000000085f0fa020000000000"
+    },
+    {
+      "type": "fee.RouteDomain",
+      "variant": null,
+      "encoding": "account+discriminator",
+      "discriminator": "0x524f555445444f4d",
+      "fields": {
+        "bump_seed": 254,
+        "fee_data": {
+          "Linear": {
+            "max_fee": "1000006",
+            "half_amount": "50000006"
+          }
+        },
+        "signers": [
+          "0x1112131415161718191a1b1c1d1e1f2021222324",
+          "0x22232425262728292a2b2c2d2e2f303132333435"
+        ]
+      },
+      "hex": "01524f555445444f4dfe0046420f000000000086f0fa020000000001020000001112131415161718191a1b1c1d1e1f202122232422232425262728292a2b2c2d2e2f303132333435"
+    },
+    {
+      "type": "fee.CrossCollateralRoute",
+      "variant": null,
+      "encoding": "account+discriminator",
+      "discriminator": "0x43435f524f555445",
+      "fields": {
+        "bump_seed": 253,
+        "fee_data": {
+          "Regressive": {
+            "max_fee": "1000007",
+            "half_amount": "50000007"
+          }
+        },
+        "signers": null
+      },
+      "hex": "0143435f524f555445fd0147420f000000000087f0fa020000000000"
+    },
+    {
+      "type": "fee.TransientQuote",
+      "variant": null,
+      "encoding": "account+discriminator",
+      "discriminator": "0x54524e51554f5445",
+      "fields": {
+        "bump_seed": 252,
+        "payer": "YNFqvpRJ3f2gHKYMXe1ybifep7Dv98LTwKVVRHFj3wt",
+        "scoped_salt": "0x0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b",
+        "context": "0x404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b",
+        "data": "0x505152535455565758595a5b5c5d5e5f",
+        "expiry": "1700000300"
+      },
+      "hex": "0154524e51554f5445fc08090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526270c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c000000404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b10000000505152535455565758595a5b5c5d5e5f2cf2536500000000"
+    },
+    {
+      "type": "fee.FeeStandingQuotePda",
+      "variant": null,
+      "encoding": "account+discriminator",
+      "discriminator": "0x53544451554f5445",
+      "fields": {
+        "bump_seed": 251,
+        "quotes": [
+          [
+            "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+            {
+              "issued_at": "1700000000",
+              "expiry": "1700086400",
+              "fee_data": {
+                "Linear": {
+                  "max_fee": "1000008",
+                  "half_amount": "50000008"
+                }
+              }
+            }
+          ],
+          [
+            "0x808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+            {
+              "issued_at": "1700000001",
+              "expiry": "1700086401",
+              "fee_data": {
+                "Progressive": {
+                  "max_fee": "1000009",
+                  "half_amount": "50000009"
+                }
+              }
+            }
+          ]
+        ]
+      },
+      "hex": "0153544451554f5445fb020000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2000f153650000000080425565000000000048420f000000000088f0fa0200000000808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f01f153650000000081425565000000000249420f000000000089f0fa0200000000"
+    }
+  ],
+  "instructions": [
+    {
+      "name": "init_fee_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2MPoZYQYPdDkMNKdb7Z3U6ypaiddzuNBAqKNBypSh3pN",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2YCMbvuPF5BWnGtF3hHSzrhrMqrRBru2Ea8fm4mzPh9A",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2001020000001112131415161718191a1b1c1d1e1f202122232422232425262728292a2b2c2d2e2f3031323334354d6c6f53"
+    },
+    {
+      "name": "set_remote_fee_route_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "EcLNWEhxPz8RTDNHAJocSzGhc9Wju7EowiLnJ14WrMvV",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "3xRgX5J1Az1VqDKRh7T8WeUqRmHJmoJKbG1rk1Co3STX",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "020a00000001060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425004a420f00000000008af0fa020000000001020000001112131415161718191a1b1c1d1e1f202122232422232425262728292a2b2c2d2e2f303132333435"
+    },
+    {
+      "name": "remove_remote_fee_route_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "FA7JxFYDfEJK1m6X19qtg2AbrqbayhLRwixzokqqedsS",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "CVj7AySZEPJa3hTqYpxQwQrL2836HgfKSMi4BCY3reHF",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "030a00000000"
+    },
+    {
+      "name": "update_fee_params_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": false
+        }
+      ],
+      "hex": "044b420f00000000008bf0fa0200000000"
+    },
+    {
+      "name": "set_beneficiary_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": false
+        }
+      ],
+      "hex": "051718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f30313233343536"
+    },
+    {
+      "name": "transfer_ownership_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": false
+        }
+      ],
+      "hex": "0600"
+    },
+    {
+      "name": "set_quote_signer_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "Da3jVi7ThJ95vANUA37PddL6Tu2jo9PhNQzpmKe9v3NJ",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "0700363738393a3b3c3d3e3f4041424344454647484901010a0000000708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526"
+    },
+    {
+      "name": "set_wildcard_quote_signers_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": true
+        }
+      ],
+      "hex": "09020000001112131415161718191a1b1c1d1e1f202122232422232425262728292a2b2c2d2e2f303132333435"
+    },
+    {
+      "name": "set_min_issued_at_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": false
+        }
+      ],
+      "hex": "0800f1536500000000"
+    },
+    {
+      "name": "submit_transient_quote_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2MPoZYQYPdDkMNKdb7Z3U6ypaiddzuNBAqKNBypSh3pN",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2d4z8kGakpQeujKfLJridc4sZMUShA7TQTyzRVzqgP7C",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "u8QnSNkUuhhXGc13NUc8qsLPwK3srt3y8Y13Bht9NFQ",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "0a2c000000303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b10000000707172737475767778797a7b7c7d7e7f00006553f10000006553f10045464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00"
+    },
+    {
+      "name": "submit_standing_quote_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2MPoZYQYPdDkMNKdb7Z3U6ypaiddzuNBAqKNBypSh3pN",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2d4z8kGakpQeujKfLJridc4sZMUShA7TQTyzRVzqgP7C",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2gzHH3jbM7ht3paAmcBdvUqdoWgeNDoGxseeUt3SRiRu",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "FD76j4h5CtcWoKGtMGsH9LuwP9fHXUbSk4BxfFr8FGXU",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "0a2c000000303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b10000000707172737475767778797a7b7c7d7e7f00006553f10000006553f10045464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f6061626364c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00"
+    },
+    {
+      "name": "close_transient_quote_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2kuaRMCbwR17BupgCuWZDMcQ3ftr3HV6XHKJYG63B3kc",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2MPoZYQYPdDkMNKdb7Z3U6ypaiddzuNBAqKNBypSh3pN",
+          "is_signer": true,
+          "is_writable": true
+        }
+      ],
+      "hex": "0b"
+    },
+    {
+      "name": "prune_expired_quotes_instruction",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "accounts": [
+        {
+          "pubkey": "11111111111111111111111111111111",
+          "is_signer": false,
+          "is_writable": false
+        },
+        {
+          "pubkey": "2RK6hqsYyvWyVTa92Qsxkykapsqqfy3zjEz2FMs3SP95",
+          "is_signer": false,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2VEPr9LZaDpCdYpeTiCt3rXM5343M2jpHeegJjueBiTn",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "FD76j4h5CtcWoKGtMGsH9LuwP9fHXUbSk4BxfFr8FGXU",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "hex": "0c0a000000010d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c"
+    }
+  ],
+  "pdas": [
+    {
+      "name": "fee_account",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "seeds": [
+        "68797065726c616e655f666565",
+        "2d",
+        "666565",
+        "2d",
+        "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+      ],
+      "address": "2YCMbvuPF5BWnGtF3hHSzrhrMqrRBru2Ea8fm4mzPh9A",
+      "bump": 255
+    },
+    {
+      "name": "route_domain",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "seeds": [
+        "68797065726c616e655f666565",
+        "2d",
+        "726f757465",
+        "2d",
+        "15161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334",
+        "2d",
+        "0a000000"
+      ],
+      "address": "FA7JxFYDfEJK1m6X19qtg2AbrqbayhLRwixzokqqedsS",
+      "bump": 255
+    },
+    {
+      "name": "cc_route",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "seeds": [
+        "68797065726c616e655f666565",
+        "2d",
+        "63635f726f757465",
+        "2d",
+        "15161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334",
+        "2d",
+        "0a000000",
+        "2d",
+        "0708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20212223242526"
+      ],
+      "address": "Da3jVi7ThJ95vANUA37PddL6Tu2jo9PhNQzpmKe9v3NJ",
+      "bump": 255
+    },
+    {
+      "name": "transient_quote",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "seeds": [
+        "68797065726c616e655f666565",
+        "2d",
+        "7472616e7369656e74",
+        "2d",
+        "15161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334",
+        "2d",
+        "0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b"
+      ],
+      "address": "u8QnSNkUuhhXGc13NUc8qsLPwK3srt3y8Y13Bht9NFQ",
+      "bump": 255
+    },
+    {
+      "name": "standing_quote",
+      "program_id": "CMPYk7L3umBGzmLk9Kq2XfCiiDmRgJyXsDxUpET7GMYz",
+      "seeds": [
+        "68797065726c616e655f666565",
+        "2d",
+        "7374616e64696e67",
+        "2d",
+        "15161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f3031323334",
+        "2d",
+        "0a000000",
+        "2d",
+        "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "address": "CVj7AySZEPJa3hTqYpxQwQrL2836HgfKSMi4BCY3reHF",
+      "bump": 255
+    }
+  ],
+  "errors": [
+    {
+      "name": "Error.FeeComputationOverflow",
+      "code": 1
+    },
+    {
+      "name": "Error.NotLeafFeeData",
+      "code": 2
+    },
+    {
+      "name": "Error.NotRoutingFeeData",
+      "code": 3
+    },
+    {
+      "name": "Error.NotCrossCollateralRoutingFeeData",
+      "code": 4
+    },
+    {
+      "name": "Error.RouteNotFound",
+      "code": 5
+    },
+    {
+      "name": "Error.TransientPdaMismatch",
+      "code": 6
+    },
+    {
+      "name": "Error.InvalidTransientData",
+      "code": 7
+    },
+    {
+      "name": "Error.StandingQuoteAmountNotWildcard",
+      "code": 8
+    },
+    {
+      "name": "Error.InvalidStandingQuoteContext",
+      "code": 9
+    },
+    {
+      "name": "Error.InvalidStandingQuoteData",
+      "code": 10
+    },
+    {
+      "name": "Error.ZeroTargetRouterNotAllowed",
+      "code": 11
+    },
+    {
+      "name": "Error.InvalidRouteDomain",
+      "code": 12
+    },
+    {
+      "name": "Error.OffchainQuotingNotConfigured",
+      "code": 13
+    },
+    {
+      "name": "Error.WildcardSignersNotApplicable",
+      "code": 14
+    },
+    {
+      "name": "Error.MinIssuedAtMustBeMonotonic",
+      "code": 15
+    },
+    {
+      "name": "Error.CurveVariantMismatch",
+      "code": 16
+    },
+    {
+      "name": "Error.ZeroFeeParams",
+      "code": 17
+    },
+    {
+      "name": "Error.InvalidTransientSlot",
+      "code": 18
+    }
+  ],
+  "constants": [
+    {
+      "name": "FEE_ACCOUNT_DISCRIMINATOR",
+      "value": "0x4645455f41434354"
+    },
+    {
+      "name": "ROUTE_DOMAIN_DISCRIMINATOR",
+      "value": "0x524f555445444f4d"
+    },
+    {
+      "name": "CC_ROUTE_DISCRIMINATOR",
+      "value": "0x43435f524f555445"
+    },
+    {
+      "name": "TRANSIENT_QUOTE_DISCRIMINATOR",
+      "value": "0x54524e51554f5445"
+    },
+    {
+      "name": "STANDING_QUOTE_DISCRIMINATOR",
+      "value": "0x53544451554f5445"
+    },
+    {
+      "name": "WILDCARD_RECIPIENT",
+      "value": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "WILDCARD_DOMAIN",
+      "value": 4294967295
+    },
+    {
+      "name": "WILDCARD_AMOUNT",
+      "value": "18446744073709551615"
+    },
+    {
+      "name": "DEFAULT_ROUTER",
+      "value": "0x6e086cd647d6eb8b516856666e2c1465fb8a6a58d3a75938362acc674eacaf47"
+    }
+  ]
+}

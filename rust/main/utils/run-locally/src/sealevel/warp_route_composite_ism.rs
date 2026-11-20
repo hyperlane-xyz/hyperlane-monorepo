@@ -10,8 +10,10 @@ use std::{
 };
 
 use hyperlane_core::SubmitterType;
-use hyperlane_sealevel_composite_ism::accounts::{derive_domain_pda, derive_process_authority};
 use hyperlane_sealevel_interchain_security_module_interface::VERIFY_ACCOUNT_METAS_PDA_SEEDS;
+use hyperlane_sealevel_interface::composite_ism::accounts::{
+    derive_domain_pda, derive_process_authority,
+};
 use multisig_ism::domain_data_pda;
 use solana_sdk::pubkey::Pubkey;
 use tempfile::{tempdir, NamedTempFile};

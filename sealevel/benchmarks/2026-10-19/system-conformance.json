@@ -1,0 +1,1359 @@
+{
+  "title": "Sealevel system conformance: all-Go vs Rust",
+  "rust_run": "/tmp/hm1-all-conf/rust1.json",
+  "go_run": "/tmp/hm1-all-conf/go6.json",
+  "rust_elfs": {
+    "hyperlane_sealevel_composite_ism.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_composite_ism.so",
+      "sha256": "4535d3ee103a82b6ca2dcadbfa83c954ffcfc12b7a3f85fbe816c0f5c0f0c016"
+    },
+    "hyperlane_sealevel_fee.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_fee.so",
+      "sha256": "5d9928b44ea44d9d34b300316c561aff081e8549153c5e0cbb3bc2f0d0716fb5"
+    },
+    "hyperlane_sealevel_igp.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_igp.so",
+      "sha256": "c10b0831d3b9322f9301cfb3ae6d039382c7f08df2eaa849c4e64f111a05d38f"
+    },
+    "hyperlane_sealevel_ism_multisig_ism.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_multisig_ism_message_id.so",
+      "sha256": "7a97a5cc73794d2b043f8061370f7c2a552fd5068e70fa08e89202d60fec5cf6"
+    },
+    "hyperlane_sealevel_mailbox.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_mailbox.so",
+      "sha256": "3c859aced1eb093398afb1d95a718c95957f8969a0d4b86b413b0a4ebd9c736b"
+    },
+    "hyperlane_sealevel_multisig_ism_message_id.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_multisig_ism_message_id.so",
+      "sha256": "7a97a5cc73794d2b043f8061370f7c2a552fd5068e70fa08e89202d60fec5cf6"
+    },
+    "hyperlane_sealevel_test_ism.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_test_ism.so",
+      "sha256": "e7ae22ba6ffbdb5fb290937a9537d51a26707b265f9a1d46f5308722bf750631"
+    },
+    "hyperlane_sealevel_test_send_receiver.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_test_send_receiver.so",
+      "sha256": "0db0b73d16bbc11595ac478173d47717ccf9b31ee0b9223b99dad574ba37a231"
+    },
+    "hyperlane_sealevel_token.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_token.so",
+      "sha256": "d6d6514872b04d8ac7b820b42667d482a1503210757918cfd6cc7e373a8749eb"
+    },
+    "hyperlane_sealevel_token_collateral.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_token_collateral.so",
+      "sha256": "f229f40583fc5353dec0f7bcb4c1e49c19d7e2b139cbc90ea14839518bbb18ef"
+    },
+    "hyperlane_sealevel_token_cross_collateral.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_token_cross_collateral.so",
+      "sha256": "498fcd6724869a3824a12e3f3fd51d951cfe47870d9fd4078b1d33ebb0d04266"
+    },
+    "hyperlane_sealevel_token_native.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_token_native.so",
+      "sha256": "2469fe821209202d39da346b3508973e648af55165262a4326700844cbe89a23"
+    },
+    "hyperlane_sealevel_validator_announce.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/hyperlane_sealevel_validator_announce.so",
+      "sha256": "3d378a96d3ea97cca82718b3ac810926736d128aac2a60481bff08392148623b"
+    },
+    "spl_noop.so": {
+      "path": "/private/tmp/svm-bench/rust-elf-ci/spl_noop.so",
+      "sha256": "1d42da5223112c262c1783d3f7cf10cb1eb4d734d452af1fa2188a5bb1b66802"
+    }
+  },
+  "go_elfs": {
+    "hyperlane_sealevel_composite_ism.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_composite_ism.so",
+      "sha256": "523505ce5e7b61996439ae036fdcb5f244e5c55a3348f1dcee91f60e2c8b5610"
+    },
+    "hyperlane_sealevel_fee.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_fee.so",
+      "sha256": "4a6758fff2b286285f533785064b76b0b5fa8c87aba473761597f83bcf93401a"
+    },
+    "hyperlane_sealevel_igp.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_igp.so",
+      "sha256": "79c4c9d97c6d232af4de389e5c6c5ae2cd01962e64646e670acc2a027903119f"
+    },
+    "hyperlane_sealevel_ism_multisig_ism.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_multisig_ism_message_id.so",
+      "sha256": "38867e805d8f677e30855b5d8433ddada4492e6da0b5b95356af4b85c5006318"
+    },
+    "hyperlane_sealevel_mailbox.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_mailbox.so",
+      "sha256": "1af770892b354818a114a688a447d265d208c0cd995aff499232a1c59bb60f43"
+    },
+    "hyperlane_sealevel_multisig_ism_message_id.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_multisig_ism_message_id.so",
+      "sha256": "38867e805d8f677e30855b5d8433ddada4492e6da0b5b95356af4b85c5006318"
+    },
+    "hyperlane_sealevel_test_ism.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_test_ism.so",
+      "sha256": "6d68410c58e7aab858557d43981935f96e5273a8f9172a1e7cce520a211493bb"
+    },
+    "hyperlane_sealevel_test_send_receiver.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_test_send_receiver.so",
+      "sha256": "0db0b73d16bbc11595ac478173d47717ccf9b31ee0b9223b99dad574ba37a231"
+    },
+    "hyperlane_sealevel_token.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_token.so",
+      "sha256": "a5e92f327bd9312035635ab6ffad7a2902481ef682446192702c433a6fd837a2"
+    },
+    "hyperlane_sealevel_token_collateral.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_token_collateral.so",
+      "sha256": "6f1916cf3be6962b53f75874a6bccec21cfcded0591aaee5229e268ab5e9a0a6"
+    },
+    "hyperlane_sealevel_token_cross_collateral.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_token_cross_collateral.so",
+      "sha256": "0e8881855152cf2cdbe623eba0ed612fc0f4d059ba503105eef55b7b8e8434ad"
+    },
+    "hyperlane_sealevel_token_native.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_token_native.so",
+      "sha256": "db7813b4be9c5bf862e8ca1a7eda82db1c77988a10b23162e274e02a54ab40fc"
+    },
+    "hyperlane_sealevel_validator_announce.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/hyperlane_sealevel_validator_announce.so",
+      "sha256": "b9296e4e4e21a8b05d406bd637d1814d1ad8e1bab373eeae5ab5b134990c2895"
+    },
+    "spl_noop.so": {
+      "path": "/private/tmp/hm1-all-elf/go6/spl_noop.so",
+      "sha256": "abb1d555ae255a81faf565180a1ea0ff2b26f380c1bd54045234b48c43835e40"
+    }
+  },
+  "suites": [
+    {
+      "suite": "mailbox",
+      "rust": {
+        "passed": 25,
+        "total": 26
+      },
+      "go": {
+        "passed": 26,
+        "total": 26
+      },
+      "rust_failed": ["functional::test_outbox_get_latest_checkpoint"],
+      "go_failed": []
+    },
+    {
+      "suite": "igp",
+      "rust": {
+        "passed": 81,
+        "total": 81
+      },
+      "go": {
+        "passed": 81,
+        "total": 81
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "validator-announce",
+      "rust": {
+        "passed": 4,
+        "total": 4
+      },
+      "go": {
+        "passed": 4,
+        "total": 4
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "multisig-ism-message-id",
+      "rust": {
+        "passed": 6,
+        "total": 6
+      },
+      "go": {
+        "passed": 6,
+        "total": 6
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "token",
+      "rust": {
+        "passed": 36,
+        "total": 36
+      },
+      "go": {
+        "passed": 36,
+        "total": 36
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "token-collateral",
+      "rust": {
+        "passed": 34,
+        "total": 34
+      },
+      "go": {
+        "passed": 34,
+        "total": 34
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "token-native",
+      "rust": {
+        "passed": 36,
+        "total": 36
+      },
+      "go": {
+        "passed": 36,
+        "total": 36
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "token-cross-collateral",
+      "rust": {
+        "passed": 61,
+        "total": 62
+      },
+      "go": {
+        "passed": 62,
+        "total": 62
+      },
+      "rust_failed": ["test_cc_remote_transfer_igp_new_flow_with_fee"],
+      "go_failed": []
+    },
+    {
+      "suite": "fee",
+      "rust": {
+        "passed": 175,
+        "total": 175
+      },
+      "go": {
+        "passed": 175,
+        "total": 175
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/aggregation",
+      "rust": {
+        "passed": 7,
+        "total": 7
+      },
+      "go": {
+        "passed": 7,
+        "total": 7
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/amount_routing",
+      "rust": {
+        "passed": 7,
+        "total": 7
+      },
+      "go": {
+        "passed": 7,
+        "total": 7
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/big_isms",
+      "rust": {
+        "passed": 7,
+        "total": 7
+      },
+      "go": {
+        "passed": 7,
+        "total": 7
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/composite",
+      "rust": {
+        "passed": 12,
+        "total": 12
+      },
+      "go": {
+        "passed": 12,
+        "total": 12
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/fallback_routing_compat",
+      "rust": {
+        "passed": 13,
+        "total": 13
+      },
+      "go": {
+        "passed": 13,
+        "total": 13
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/fallback_routing",
+      "rust": {
+        "passed": 16,
+        "total": 16
+      },
+      "go": {
+        "passed": 16,
+        "total": 16
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/multisig",
+      "rust": {
+        "passed": 5,
+        "total": 5
+      },
+      "go": {
+        "passed": 5,
+        "total": 5
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/nested",
+      "rust": {
+        "passed": 16,
+        "total": 16
+      },
+      "go": {
+        "passed": 16,
+        "total": 16
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/pausable",
+      "rust": {
+        "passed": 6,
+        "total": 6
+      },
+      "go": {
+        "passed": 6,
+        "total": 6
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/rate_limited",
+      "rust": {
+        "passed": 16,
+        "total": 16
+      },
+      "go": {
+        "passed": 16,
+        "total": 16
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/routing",
+      "rust": {
+        "passed": 9,
+        "total": 9
+      },
+      "go": {
+        "passed": 9,
+        "total": 9
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/test_ism",
+      "rust": {
+        "passed": 4,
+        "total": 4
+      },
+      "go": {
+        "passed": 4,
+        "total": 4
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/trusted_relayer",
+      "rust": {
+        "passed": 5,
+        "total": 5
+      },
+      "go": {
+        "passed": 5,
+        "total": 5
+      },
+      "rust_failed": [],
+      "go_failed": []
+    },
+    {
+      "suite": "composite-ism/versioning",
+      "rust": {
+        "passed": 1,
+        "total": 1
+      },
+      "go": {
+        "passed": 1,
+        "total": 1
+      },
+      "rust_failed": [],
+      "go_failed": []
+    }
+  ],
+  "totals": {
+    "rust": {
+      "passed": 582,
+      "total": 584
+    },
+    "go": {
+      "passed": 584,
+      "total": 584
+    }
+  },
+  "status_changes": [
+    {
+      "suite": "mailbox",
+      "test": "functional::test_outbox_get_latest_checkpoint",
+      "a": "failed",
+      "b": "passed"
+    },
+    {
+      "suite": "token-cross-collateral",
+      "test": "test_cc_remote_transfer_igp_new_flow_with_fee",
+      "a": "failed",
+      "b": "passed"
+    }
+  ],
+  "programs": [
+    {
+      "program": "composite_ism [8qbH..VfeR]",
+      "program_id": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      "hyperlane": true,
+      "pairs": 49,
+      "cu_ratio": {
+        "median": 1.3194778426657505,
+        "p90": 1.4109307056861784,
+        "max": 1.5537422622397299,
+        "min": 0.546394981258013,
+        "total": 1.0948942434337956
+      },
+      "self_cu_ratio": {
+        "median": 1.3194778426657505,
+        "p90": 1.4109307056861784,
+        "total": 1.0948942434337956
+      },
+      "rust_total_cu": 387210,
+      "go_total_cu": 423954,
+      "rust_cu_median": 6823,
+      "go_cu_median": 9166,
+      "rust_cu_p90": 8680.0,
+      "go_cu_p90": 10738.800000000001,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "composite_ism [Bprm..Qgau]",
+      "program_id": "Bprmwvw4fCr1fXF4y3qq7JyNiVwb5JNpkVRqxqMhQgau",
+      "hyperlane": true,
+      "pairs": 641,
+      "cu_ratio": {
+        "median": 1.2017764047113342,
+        "p90": 1.3681327800829874,
+        "max": 1.5477992277992279,
+        "min": 0.5460330221978195,
+        "total": 1.0520368330242607
+      },
+      "self_cu_ratio": {
+        "median": 1.2017764047113342,
+        "p90": 1.3681327800829874,
+        "total": 1.0574517901169456
+      },
+      "rust_total_cu": 10042944,
+      "go_total_cu": 10565547,
+      "rust_cu_median": 12259,
+      "go_cu_median": 13898,
+      "rust_cu_p90": 18247.0,
+      "go_cu_p90": 21895.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "fee [Fee1..1111]",
+      "program_id": "Fee1111111111111111111111111111111111111111",
+      "hyperlane": true,
+      "pairs": 675,
+      "cu_ratio": {
+        "median": 1.27103945279101,
+        "p90": 1.3712179705200853,
+        "max": 2.3896373854800217,
+        "min": 0.4133099824868651,
+        "total": 1.1869403129450247
+      },
+      "self_cu_ratio": {
+        "median": 1.27103945279101,
+        "p90": 1.3712179705200853,
+        "total": 1.1869403129450247
+      },
+      "rust_total_cu": 9536691,
+      "go_total_cu": 11319483,
+      "rust_cu_median": 8113,
+      "go_cu_median": 10598,
+      "rust_cu_p90": 36307.200000000026,
+      "go_cu_p90": 39433.4,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "igp [BSff..M2BN]",
+      "program_id": "BSffRJEwRcyEkjnbjAMMfv9kv3Y3SauxsBjCdNJyM2BN",
+      "hyperlane": true,
+      "pairs": 895,
+      "cu_ratio": {
+        "median": 1.205236623841275,
+        "p90": 1.3612721724448102,
+        "max": 2.7892247043363994,
+        "min": 0.28230713068873203,
+        "total": 1.1521549430275093
+      },
+      "self_cu_ratio": {
+        "median": 1.205236623841275,
+        "p90": 1.3612721724448102,
+        "total": 1.1521549430275093
+      },
+      "rust_total_cu": 9716707,
+      "go_total_cu": 11195152,
+      "rust_cu_median": 7804,
+      "go_cu_median": 7151,
+      "rust_cu_p90": 29722.600000000006,
+      "go_cu_p90": 32658.80000000001,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "mailbox [692K..9iu1]",
+      "program_id": "692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1",
+      "hyperlane": true,
+      "pairs": 311,
+      "cu_ratio": {
+        "median": 1.0612331679659817,
+        "p90": 1.0889675777359744,
+        "max": 1.306870937790158,
+        "min": 0.046255,
+        "total": 0.6695155303669622
+      },
+      "self_cu_ratio": {
+        "median": 1.0612331679659817,
+        "p90": 1.1452060221870048,
+        "total": 0.6854600124733091
+      },
+      "rust_total_cu": 9704922,
+      "go_total_cu": 6497596,
+      "rust_cu_median": 14110,
+      "go_cu_median": 14974,
+      "rust_cu_p90": 62636.0,
+      "go_cu_p90": 38712.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "multisig_ism_message_id [2Yjt..Z2fw]",
+      "program_id": "2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw",
+      "hyperlane": true,
+      "pairs": 14,
+      "cu_ratio": {
+        "median": 1.1441912885564833,
+        "p90": 1.364310212123375,
+        "max": 1.6380753138075315,
+        "min": 0.5485144032516804,
+        "total": 0.7834251077008471
+      },
+      "self_cu_ratio": {
+        "median": 1.1441912885564833,
+        "p90": 1.364310212123375,
+        "total": 0.7834251077008471
+      },
+      "rust_total_cu": 158541,
+      "go_total_cu": 124205,
+      "rust_cu_median": 5402.0,
+      "go_cu_median": 5906.0,
+      "rust_cu_p90": 8944.6,
+      "go_cu_p90": 10696.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "multisig_ism_message_id [CktR..Ezy8]",
+      "program_id": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      "hyperlane": true,
+      "pairs": 19,
+      "cu_ratio": {
+        "median": 1.1084844559585492,
+        "p90": 1.20485719904221,
+        "max": 1.6802575107296138,
+        "min": 0.386411889596603,
+        "total": 0.816230181902317
+      },
+      "self_cu_ratio": {
+        "median": 1.1084844559585492,
+        "p90": 1.20485719904221,
+        "total": 0.816230181902317
+      },
+      "rust_total_cu": 181526,
+      "go_total_cu": 148167,
+      "rust_cu_median": 3088,
+      "go_cu_median": 4698,
+      "rust_cu_p90": 8932.0,
+      "go_cu_p90": 10696.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "test_ism [CWVY..4tnb]",
+      "program_id": "CWVYdRomCv3bksSsRTuds9SRR5y17Ft5nPqhaXjp4tnb",
+      "hyperlane": true,
+      "pairs": 239,
+      "cu_ratio": {
+        "median": 1.0656370656370657,
+        "p90": 1.2408630559225011,
+        "max": 1.2408630559225011,
+        "min": 0.34175334323922735,
+        "total": 1.0633804171502215
+      },
+      "self_cu_ratio": {
+        "median": 1.0656370656370657,
+        "p90": 1.2408630559225011,
+        "total": 1.0633804171502215
+      },
+      "rust_total_cu": 935778,
+      "go_total_cu": 995088,
+      "rust_cu_median": 5180,
+      "go_cu_median": 5520,
+      "rust_cu_p90": 5180.0,
+      "go_cu_p90": 5520.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "token [3MzU..pVQH]",
+      "program_id": "3MzUPjP5LEkiHH82nEAe28Xtz9ztuMqWc8UmuKxrpVQH",
+      "hyperlane": true,
+      "pairs": 242,
+      "cu_ratio": {
+        "median": 1.0432933416753714,
+        "p90": 1.162846585268204,
+        "max": 1.5728925216542637,
+        "min": 0.43137275463229974,
+        "total": 0.7948433293004857
+      },
+      "self_cu_ratio": {
+        "median": 1.0432933416753714,
+        "p90": 1.162846585268204,
+        "total": 0.7763682430456837
+      },
+      "rust_total_cu": 6078418,
+      "go_total_cu": 4831390,
+      "rust_cu_median": 8197.0,
+      "go_cu_median": 8822.0,
+      "rust_cu_p90": 77379.0,
+      "go_cu_p90": 41137.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "token_collateral [G8t1..F18z]",
+      "program_id": "G8t1qe3YnYvhi1zS9ioUXuVFkwhBgvfHaLJt5X6PF18z",
+      "hyperlane": true,
+      "pairs": 148,
+      "cu_ratio": {
+        "median": 1.0945828684765093,
+        "p90": 1.181338028169014,
+        "max": 1.955052139518159,
+        "min": 0.5436825815848163,
+        "total": 0.8420832868609429
+      },
+      "self_cu_ratio": {
+        "median": 1.0945828684765093,
+        "p90": 1.181338028169014,
+        "total": 0.857195048024653
+      },
+      "rust_total_cu": 3918097,
+      "go_total_cu": 3299364,
+      "rust_cu_median": 16040.0,
+      "go_cu_median": 10611.0,
+      "rust_cu_p90": 32712.0,
+      "go_cu_p90": 36488.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "token_cross_collateral [CCo1..1111]",
+      "program_id": "CCo11atera1TokenProgram111111111111111111111",
+      "hyperlane": true,
+      "pairs": 217,
+      "cu_ratio": {
+        "median": 1.0939205932219178,
+        "p90": 1.2490773214281752,
+        "max": 1.4777574061565184,
+        "min": 0.37946088178569826,
+        "total": 0.8810543250813161
+      },
+      "self_cu_ratio": {
+        "median": 1.0979443537732183,
+        "p90": 1.2490773214281752,
+        "total": 0.8908638829105705
+      },
+      "rust_total_cu": 8145685,
+      "go_total_cu": 7176791,
+      "rust_cu_median": 17489,
+      "go_cu_median": 14980,
+      "rust_cu_p90": 53839.0,
+      "go_cu_p90": 58955.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "token_cross_collateral [CCo1..2222]",
+      "program_id": "CCo11atera1TokenProgram222222222222222222222",
+      "hyperlane": true,
+      "pairs": 11,
+      "cu_ratio": {
+        "median": 1.0948383263373775,
+        "p90": 1.1027559427976135,
+        "max": 1.1458,
+        "min": 0.6277358723877828,
+        "total": 0.9062137519740575
+      },
+      "self_cu_ratio": {
+        "median": 1.0990233749599745,
+        "p90": 1.1027559427976135,
+        "total": 0.8767482096762345
+      },
+      "rust_total_cu": 438817,
+      "go_total_cu": 397662,
+      "rust_cu_median": 52173,
+      "go_cu_median": 53843,
+      "rust_cu_p90": 79606.0,
+      "go_cu_p90": 57121.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "token_native [CGn8..3aga]",
+      "program_id": "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga",
+      "hyperlane": true,
+      "pairs": 153,
+      "cu_ratio": {
+        "median": 1.0942322286870731,
+        "p90": 1.1390648456665813,
+        "max": 1.272210743801653,
+        "min": 0.30271650326797384,
+        "total": 0.8249480444064549
+      },
+      "self_cu_ratio": {
+        "median": 1.0942322286870731,
+        "p90": 1.1390648456665813,
+        "total": 0.8394553168727453
+      },
+      "rust_total_cu": 3867726,
+      "go_total_cu": 3190673,
+      "rust_cu_median": 16145,
+      "go_cu_median": 10250,
+      "rust_cu_p90": 27311.0,
+      "go_cu_p90": 31109.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "validator_announce [DH43..fEnn]",
+      "program_id": "DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn",
+      "hyperlane": true,
+      "pairs": 8,
+      "cu_ratio": {
+        "median": 0.9951282051282051,
+        "p90": 1.1498730248821303,
+        "max": 1.228369020138502,
+        "min": 0.5981538791313318,
+        "total": 0.7084129820478723
+      },
+      "self_cu_ratio": {
+        "median": 0.9951282051282051,
+        "p90": 1.1498730248821303,
+        "total": 0.7084129820478723
+      },
+      "rust_total_cu": 192512,
+      "go_total_cu": 136378,
+      "rust_cu_median": 6900.0,
+      "go_cu_median": 7702.0,
+      "rust_cu_p90": 77276.1,
+      "go_cu_p90": 46916.299999999996,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "spl_associated_token_account [ATok..8knL]",
+      "program_id": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      "hyperlane": false,
+      "pairs": 88,
+      "cu_ratio": {
+        "median": 1.0,
+        "p90": 1.2822024332120907,
+        "max": 1.8466072996362723,
+        "min": 0.639220716748176,
+        "total": 1.0222300689712054
+      },
+      "self_cu_ratio": {
+        "median": 1.0,
+        "p90": 1.3456752189276386,
+        "total": 1.0271930612766078
+      },
+      "rust_total_cu": 1551952,
+      "go_total_cu": 1586452,
+      "rust_cu_median": 16914.0,
+      "go_cu_median": 17446.0,
+      "rust_cu_p90": 20446.0,
+      "go_cu_p90": 20446.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "spl_token [Toke..Q5DA]",
+      "program_id": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "hyperlane": false,
+      "pairs": 8,
+      "cu_ratio": {
+        "median": 1.0,
+        "p90": 1.0,
+        "max": 1.0,
+        "min": 1.0,
+        "total": 1.0
+      },
+      "self_cu_ratio": {
+        "median": 1.0,
+        "p90": 1.0,
+        "total": 1.0
+      },
+      "rust_total_cu": 26565,
+      "go_total_cu": 26565,
+      "rust_cu_median": 3496.5,
+      "go_cu_median": 3496.5,
+      "rust_cu_p90": 4968.599999999999,
+      "go_cu_p90": 4968.599999999999,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "spl_token_2022 [Toke..xuEb]",
+      "program_id": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "hyperlane": false,
+      "pairs": 754,
+      "cu_ratio": {
+        "median": 1.0,
+        "p90": 1.0,
+        "max": 1.0,
+        "min": 1.0,
+        "total": 1.0
+      },
+      "self_cu_ratio": {
+        "median": 1.0,
+        "p90": 1.0,
+        "total": 1.0
+      },
+      "rust_total_cu": 901184,
+      "go_total_cu": 901184,
+      "rust_cu_median": 1279.0,
+      "go_cu_median": 1279.0,
+      "rust_cu_p90": 1746.0,
+      "go_cu_p90": 1746.0,
+      "count_mismatch_tests": 0
+    },
+    {
+      "program": "test_send_receiver [FZ8h..vsEm]",
+      "program_id": "FZ8hyduJy4GQAfBu9zEiuQtk429Gjc6inwHgEW5MvsEm",
+      "hyperlane": false,
+      "pairs": 109,
+      "cu_ratio": {
+        "median": 1.0,
+        "p90": 1.0,
+        "max": 1.0096606834039001,
+        "min": 0.7121915149274425,
+        "total": 0.9646608177074374
+      },
+      "self_cu_ratio": {
+        "median": 1.0,
+        "p90": 1.0,
+        "total": 1.000415133262871
+      },
+      "rust_total_cu": 435975,
+      "go_total_cu": 420568,
+      "rust_cu_median": 3578,
+      "go_cu_median": 3578,
+      "rust_cu_p90": 6911.0,
+      "go_cu_p90": 6911.0,
+      "count_mismatch_tests": 0
+    }
+  ],
+  "highlights": [
+    {
+      "operation": "dispatch",
+      "program": "mailbox",
+      "pairs": 52,
+      "cu_ratio": {
+        "median": 0.4857511399088073,
+        "p90": 0.5336526716909693,
+        "total": 0.48920713513289615
+      },
+      "self_cu_ratio": {
+        "median": 0.4857511399088073,
+        "p90": 0.5336526716909693,
+        "total": 0.48920713513289615
+      },
+      "rust_cu_median": 51612.0,
+      "go_cu_median": 25083.5,
+      "rust_self_median": 51612.0,
+      "go_self_median": 25083.5
+    },
+    {
+      "operation": "handle",
+      "program": "token",
+      "pairs": 16,
+      "cu_ratio": {
+        "median": 0.5316300288191886,
+        "p90": 0.5716021142687292,
+        "total": 0.5261283667078064
+      },
+      "self_cu_ratio": {
+        "median": 0.38615538354702666,
+        "p90": 0.4131366338646026,
+        "total": 0.383338371133915
+      },
+      "rust_cu_median": 77379.0,
+      "go_cu_median": 41137.0,
+      "rust_self_median": 59041.0,
+      "go_self_median": 22799.0
+    },
+    {
+      "operation": "handle",
+      "program": "token_collateral",
+      "pairs": 2,
+      "cu_ratio": {
+        "median": 0.5518651122398317,
+        "p90": 0.5584111367638441,
+        "total": 0.5511569108656277
+      },
+      "self_cu_ratio": {
+        "median": 0.3750625493007114,
+        "p90": 0.39151477592252565,
+        "total": 0.37443567563841884
+      },
+      "rust_cu_median": 80883.5,
+      "go_cu_median": 44579.5,
+      "rust_self_median": 58034.0,
+      "go_self_median": 21730.0
+    },
+    {
+      "operation": "handle",
+      "program": "token_cross_collateral",
+      "pairs": 2,
+      "cu_ratio": {
+        "median": 0.5186364232276551,
+        "p90": 0.5388344832074048,
+        "total": 0.5166090238817401
+      },
+      "self_cu_ratio": {
+        "median": 0.3879396853516304,
+        "p90": 0.40192455572081887,
+        "total": 0.3867193447825425
+      },
+      "rust_cu_median": 82259.5,
+      "go_cu_median": 42496.0,
+      "rust_self_median": 62391.5,
+      "go_self_median": 24128.0
+    },
+    {
+      "operation": "handle",
+      "program": "token_native",
+      "pairs": 1,
+      "cu_ratio": {
+        "median": 0.30271650326797384,
+        "p90": 0.30271650326797384,
+        "total": 0.30271650326797384
+      },
+      "self_cu_ratio": {
+        "median": 0.30271650326797384,
+        "p90": 0.30271650326797384,
+        "total": 0.30271650326797384
+      },
+      "rust_cu_median": 48960,
+      "go_cu_median": 14821,
+      "rust_self_median": 48960,
+      "go_self_median": 14821
+    },
+    {
+      "operation": "process",
+      "program": "mailbox",
+      "pairs": 36,
+      "cu_ratio": {
+        "median": 0.5696679311752018,
+        "p90": 0.7633924573072914,
+        "total": 0.5742468248778333
+      },
+      "self_cu_ratio": {
+        "median": 0.54706055069816,
+        "p90": 0.6559476693938125,
+        "total": 0.5651036810110327
+      },
+      "rust_cu_median": 142638.5,
+      "go_cu_median": 77339.0,
+      "rust_self_median": 60010.5,
+      "go_self_median": 31910.0
+    },
+    {
+      "operation": "transfer_remote",
+      "program": "token",
+      "pairs": 12,
+      "cu_ratio": {
+        "median": 0.648565930243997,
+        "p90": 0.7062083794283552,
+        "total": 0.6533447936101968
+      },
+      "self_cu_ratio": {
+        "median": 0.41517095349252,
+        "p90": 0.49045628392019974,
+        "total": 0.43769243099793986
+      },
+      "rust_cu_median": 157368.0,
+      "go_cu_median": 102063.5,
+      "rust_self_median": 69825.0,
+      "go_self_median": 28228.0
+    },
+    {
+      "operation": "transfer_remote",
+      "program": "token_collateral",
+      "pairs": 11,
+      "cu_ratio": {
+        "median": 0.6203093297854648,
+        "p90": 0.6821355286003958,
+        "total": 0.6368836234928695
+      },
+      "self_cu_ratio": {
+        "median": 0.4182465867763668,
+        "p90": 0.535763582155477,
+        "total": 0.4596967610023287
+      },
+      "rust_cu_median": 150951,
+      "go_cu_median": 94307,
+      "rust_self_median": 67146,
+      "go_self_median": 28061
+    },
+    {
+      "operation": "transfer_remote",
+      "program": "token_cross_collateral",
+      "pairs": 15,
+      "cu_ratio": {
+        "median": 0.6574222367171985,
+        "p90": 0.7341198093090179,
+        "total": 0.6570504318239957
+      },
+      "self_cu_ratio": {
+        "median": 0.45249043097877417,
+        "p90": 0.5460373193191786,
+        "total": 0.45742823383401765
+      },
+      "rust_cu_median": 173699,
+      "go_cu_median": 115511,
+      "rust_self_median": 79803,
+      "go_self_median": 37766
+    },
+    {
+      "operation": "transfer_remote",
+      "program": "token_native",
+      "pairs": 13,
+      "cu_ratio": {
+        "median": 0.6176941630487217,
+        "p90": 0.7094012394316316,
+        "total": 0.6187989868094055
+      },
+      "self_cu_ratio": {
+        "median": 0.39335416507888116,
+        "p90": 0.44237981527004655,
+        "total": 0.40186215178373946
+      },
+      "rust_cu_median": 155040,
+      "go_cu_median": 96036,
+      "rust_self_median": 65647,
+      "go_self_median": 26239
+    }
+  ],
+  "overall_cu_ratio": {
+    "pairs": 4581,
+    "median": 1.0941336971350615,
+    "p90": 1.3062985332182917,
+    "max": 2.7892247043363994,
+    "min": 0.046255
+  },
+  "overall_self_cu_ratio": {
+    "pairs": 4581,
+    "median": 1.09622968922543,
+    "p90": 1.3062985332182917,
+    "max": 2.7892247043363994,
+    "min": 0.046255
+  },
+  "notes": [
+    "Go: every Hyperlane program built from gosvm/all 5a9323e5af with gosvm-int2 (goSVM hyperlane-integration-2 fe6d6b406c, fogo-v0; cross-collateral with -max-accounts 64), ELF dir /tmp/hm1-all-elf/go6: mailbox, IGP, fee, validator-announce, multisig-ism-message-id, composite-ism, test-ism, token, token-collateral, token-native, token-cross-collateral, spl-noop. Only test_send_receiver (test-only, no Go port) is the Rust CI ELF.",
+    "Rust: canonical CI ELFs /tmp/svm-bench/rust-elf-ci (agave 3.0.14 cargo-build-sbf, platform-tools v1.51); spl_noop = noop_aligned.so; multisig alias hyperlane_sealevel_ism_multisig_ism.so -> multisig_ism_message_id.",
+    "Harness: rust/sealevel/programs/conformance.sh, all 23 suites, -j 4; runs /tmp/hm1-all-conf/rust1.json and go6.json (logs alongside).",
+    "Rust failures are the known 200k-CU baseline failures (mailbox test_outbox_get_latest_checkpoint, cc test_cc_remote_transfer_igp_new_flow_with_fee); test_cc_local_transfer_with_fee (flaky) passed in this run. Go passes both.",
+    "Log parity: per-test Program log lines (keys/hashes masked) match Rust in 583/584 tests; the one difference is the extra success line in test_cc_remote_transfer_igp_new_flow_with_fee, which Rust fails at 200k CU (/tmp/hm1-all-tools/logdiff.py).",
+    "Before integration-2 (gosvm-int, no logs, claims unsupported; go1.json): Go 580/584, CU median 1.317 / p90 1.899 vs Rust. int1 -> int2 per program: see the last table.",
+    "Logging cost on the same compiler (no-log -> log build): fee +6.1% total CU, IGP +7.7%, composite +1.1%. Mailbox/token logging cost not isolated (mixed with the compiler change in go1 -> go6). -max-accounts 64 on cross-collateral: +4 CU per invocation.",
+    "ELF bytes Go/Rust (fogo-v0 vs CI): hyperlane_sealevel_composite_ism 132272/263904; hyperlane_sealevel_fee 174720/349344; hyperlane_sealevel_igp 163336/359120; hyperlane_sealevel_mailbox 63984/176640; hyperlane_sealevel_multisig_ism_message_id 54136/165976; hyperlane_sealevel_test_ism 22480/94600; hyperlane_sealevel_token_collateral 134000/405000; hyperlane_sealevel_token_cross_collateral 168024/525384; hyperlane_sealevel_token_native 121928/378040; hyperlane_sealevel_token 132672/402856; hyperlane_sealevel_validator_announce 32928/130008; spl_noop 2408/2024; ",
+    "CPI caps raised to goSVM 64 metas (5a9323e5af): QuoteFee (17 metas) and quoted overhead-IGP PayForGas (22) no longer fail with 2006; covered by native tests only (no Rust functional test reaches them). CU delta vs the 16-cap build (go5 -> go6): 0 CU on 89% of invocations, per-program median 1.000; other deltas are whole PDA bump searches from random keys or under 20 CU."
+  ],
+  "int1_vs_int2": {
+    "a": "/tmp/hm1-all-conf/go1.json",
+    "b": "/tmp/hm1-all-conf/go6.json",
+    "programs": [
+      {
+        "program": "composite_ism [8qbH..VfeR]",
+        "pairs": 49,
+        "cu_median": 0.7605251244907197,
+        "cu_p90": 0.8097168976703037,
+        "cu_total": 0.7727446713109286,
+        "self_median": 0.7605251244907197,
+        "self_total": 0.7727446713109286,
+        "int1_total": 548634,
+        "int2_total": 423954
+      },
+      {
+        "program": "composite_ism [Bprm..Qgau]",
+        "pairs": 641,
+        "cu_median": 0.8024684955660426,
+        "cu_p90": 0.8385503211029774,
+        "cu_total": 0.81909770263711,
+        "self_median": 0.8024684955660426,
+        "self_total": 0.820315867232231,
+        "int1_total": 12899007,
+        "int2_total": 10565547
+      },
+      {
+        "program": "fee [Fee1..1111]",
+        "pairs": 675,
+        "cu_median": 0.8733193128382051,
+        "cu_p90": 0.9918577445016378,
+        "cu_total": 0.8596267864650289,
+        "self_median": 0.8733193128382051,
+        "self_total": 0.8596267864650289,
+        "int1_total": 13167904,
+        "int2_total": 11319483
+      },
+      {
+        "program": "igp [BSff..M2BN]",
+        "pairs": 886,
+        "cu_median": 0.8469457206057512,
+        "cu_p90": 0.9871459532172483,
+        "cu_total": 0.8476172889168219,
+        "self_median": 0.8469457206057512,
+        "self_total": 0.8476172889168219,
+        "int1_total": 13207791,
+        "int2_total": 11195152
+      },
+      {
+        "program": "mailbox [692K..9iu1]",
+        "pairs": 303,
+        "cu_median": 0.5585854441004215,
+        "cu_p90": 1.0297093551316985,
+        "cu_total": 0.7407037214069504,
+        "self_median": 0.5585854441004215,
+        "self_total": 0.7125822532836711,
+        "int1_total": 8772193,
+        "int2_total": 6497596
+      },
+      {
+        "program": "multisig_ism_message_id [2Yjt..Z2fw]",
+        "pairs": 14,
+        "cu_median": 0.7845639253328596,
+        "cu_p90": 0.9767284255864748,
+        "cu_total": 0.7578974987948572,
+        "self_median": 0.7845639253328596,
+        "self_total": 0.7578974987948572,
+        "int1_total": 163881,
+        "int2_total": 124205
+      },
+      {
+        "program": "multisig_ism_message_id [CktR..Ezy8]",
+        "pairs": 19,
+        "cu_median": 0.6379053298546403,
+        "cu_p90": 0.943556846461022,
+        "cu_total": 0.7303004164921014,
+        "self_median": 0.6379053298546403,
+        "self_total": 0.7303004164921014,
+        "int1_total": 202885,
+        "int2_total": 148167
+      },
+      {
+        "program": "spl_associated_token_account [ATok..8knL]",
+        "pairs": 88,
+        "cu_median": 1.0,
+        "cu_p90": 1.1881349554747271,
+        "cu_total": 1.0281927111147982,
+        "self_median": 1.0,
+        "self_total": 1.0345318669594334,
+        "int1_total": 1542952,
+        "int2_total": 1586452
+      },
+      {
+        "program": "spl_token [Toke..Q5DA]",
+        "pairs": 8,
+        "cu_median": 1.0,
+        "cu_p90": 1.0,
+        "cu_total": 1.0,
+        "self_median": 1.0,
+        "self_total": 1.0,
+        "int1_total": 26565,
+        "int2_total": 26565
+      },
+      {
+        "program": "spl_token_2022 [Toke..xuEb]",
+        "pairs": 754,
+        "cu_median": 1.0,
+        "cu_p90": 1.0,
+        "cu_total": 1.0,
+        "self_median": 1.0,
+        "self_total": 1.0,
+        "int1_total": 901184,
+        "int2_total": 901184
+      },
+      {
+        "program": "test_ism [CWVY..4tnb]",
+        "pairs": 239,
+        "cu_median": 0.8594114899579636,
+        "cu_p90": 0.9547325102880658,
+        "cu_total": 0.8531458578930446,
+        "self_median": 0.8594114899579636,
+        "self_total": 0.8531458578930446,
+        "int1_total": 1166375,
+        "int2_total": 995088
+      },
+      {
+        "program": "test_send_receiver [FZ8h..vsEm]",
+        "pairs": 109,
+        "cu_median": 1.0,
+        "cu_p90": 1.0,
+        "cu_total": 1.0050903598621541,
+        "self_median": 1.0,
+        "self_total": 1.0006878314965686,
+        "int1_total": 418438,
+        "int2_total": 420568
+      },
+      {
+        "program": "token [3MzU..pVQH]",
+        "pairs": 242,
+        "cu_median": 0.7719706461428316,
+        "cu_p90": 0.9688178913738019,
+        "cu_total": 0.8486747619475892,
+        "self_median": 0.7719706461428316,
+        "self_total": 0.8209466653325224,
+        "int1_total": 5692864,
+        "int2_total": 4831390
+      },
+      {
+        "program": "token_collateral [G8t1..F18z]",
+        "pairs": 148,
+        "cu_median": 0.7397168467789227,
+        "cu_p90": 0.8927698324045968,
+        "cu_total": 0.818224225246488,
+        "self_median": 0.7397168467789227,
+        "self_total": 0.7872019162864652,
+        "int1_total": 4032347,
+        "int2_total": 3299364
+      },
+      {
+        "program": "token_cross_collateral [CCo1..1111]",
+        "pairs": 217,
+        "cu_median": 0.869605142332415,
+        "cu_p90": 0.9662968388177835,
+        "cu_total": 0.8822889925434144,
+        "self_median": 0.8652029458147689,
+        "self_total": 0.8620451518190283,
+        "int1_total": 8134286,
+        "int2_total": 7176791
+      },
+      {
+        "program": "token_cross_collateral [CCo1..2222]",
+        "pairs": 11,
+        "cu_median": 0.866454304133485,
+        "cu_p90": 1.2194365176427957,
+        "cu_total": 0.9475497648174536,
+        "self_median": 0.8618330194601381,
+        "self_total": 0.9214308153496371,
+        "int1_total": 419674,
+        "int2_total": 397662
+      },
+      {
+        "program": "token_native [CGn8..3aga]",
+        "pairs": 153,
+        "cu_median": 0.8081684144129938,
+        "cu_p90": 0.9325649477348188,
+        "cu_total": 0.8341591684429115,
+        "self_median": 0.8081684144129938,
+        "self_total": 0.8164788852583565,
+        "int1_total": 3825017,
+        "int2_total": 3190673
+      },
+      {
+        "program": "validator_announce [DH43..fEnn]",
+        "pairs": 8,
+        "cu_median": 0.8266775509520783,
+        "cu_p90": 0.9252056757458125,
+        "cu_total": 0.8576046081674233,
+        "self_median": 0.8266775509520783,
+        "self_total": 0.8576046081674233,
+        "int1_total": 159022,
+        "int2_total": 136378
+      }
+    ],
+    "overall_cu": {
+      "pairs": 4564,
+      "median": 0.8585553419390277,
+      "p90": 1.0,
+      "max": 2.1460280020563065,
+      "min": 0.394126431060229
+    },
+    "overall_self_cu": {
+      "pairs": 4564,
+      "median": 0.8580904098014365,
+      "p90": 1.0,
+      "max": 2.1460280020563065,
+      "min": 0.394126431060229
+    },
+    "status_changes": [
+      {
+        "suite": "igp",
+        "test": "functional::test_claim",
+        "a": "failed",
+        "b": "passed"
+      },
+      {
+        "suite": "igp",
+        "test": "functional::test_claim_after_rent_reduction",
+        "a": "failed",
+        "b": "passed"
+      },
+      {
+        "suite": "mailbox",
+        "test": "functional::test_claim_protocol_fees_after_rent_reduction",
+        "a": "failed",
+        "b": "passed"
+      },
+      {
+        "suite": "mailbox",
+        "test": "functional::test_protocol_fee",
+        "a": "failed",
+        "b": "passed"
+      }
+    ]
+  }
+}

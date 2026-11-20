@@ -18,7 +18,7 @@ use solana_sdk::{
 
 use hyperlane_core::{KnownHyperlaneDomain, H256};
 
-use hyperlane_sealevel_igp::{
+use hyperlane_sealevel_interface::igp::{
     accounts::{
         GasOracle, GasPaymentAccount, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount,
         ProgramDataAccount as IgpProgramDataAccount, RemoteGasData,
@@ -212,16 +212,16 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 .unwrap_or_else(H256::zero);
 
             let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
-                hyperlane_sealevel_igp::igp_pda_seeds!(salt),
+                hyperlane_sealevel_interface::igp::igp_pda_seeds!(salt),
                 &payment_details.program_id,
             );
 
             let (overhead_igp_account, _) = Pubkey::find_program_address(
-                hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
+                hyperlane_sealevel_interface::igp::overhead_igp_pda_seeds!(salt),
                 &payment_details.program_id,
             );
             let (ixn, gas_payment_data_account) =
-                hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
+                hyperlane_sealevel_interface::igp::instruction::pay_for_gas_instruction(
                     payment_details.program_id,
                     ctx.payer_pubkey,
                     igp_account,
@@ -258,7 +258,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 .unwrap()
                 .into_inner();
 
-            let ixn = hyperlane_sealevel_igp::instruction::claim_instruction(
+            let ixn = hyperlane_sealevel_interface::igp::instruction::claim_instruction(
                 claim.program_id,
                 claim.igp_account,
                 igp_account.beneficiary,
@@ -286,7 +286,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 .unwrap()
                 .into_inner();
 
-            let ixn = hyperlane_sealevel_igp::instruction::set_beneficiary_instruction(
+            let ixn = hyperlane_sealevel_interface::igp::instruction::set_beneficiary_instruction(
                 set_beneficiary.program_id,
                 set_beneficiary.igp_account,
                 igp_account.owner.unwrap(),
@@ -322,7 +322,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                         gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
                     };
                     let instruction =
-                        hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+                        hyperlane_sealevel_interface::igp::instruction::set_gas_oracle_configs_instruction(
                             core_program_ids.igp_program_id,
                             core_program_ids.igp_account,
                             ctx.payer_pubkey,
@@ -387,7 +387,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                     };
                     // Set the gas overhead config
                     let instruction =
-                        hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
+                        hyperlane_sealevel_interface::igp::instruction::set_destination_gas_overheads(
                             core_program_ids.igp_program_id,
                             core_program_ids.overhead_igp_account,
                             ctx.payer_pubkey,
@@ -414,7 +414,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 _ => unreachable!(),
             };
             let instruction =
-                hyperlane_sealevel_igp::instruction::transfer_igp_account_ownership_instruction(
+                hyperlane_sealevel_interface::igp::instruction::transfer_igp_account_ownership_instruction(
                     transfer_ownership.program_id,
                     igp_account_type.clone(),
                     ctx.payer_pubkey,
@@ -467,14 +467,16 @@ fn deploy_igp_program(
     println!("Deployed IGP at program ID {}", program_id);
 
     let (program_data_account, _program_data_bump) = Pubkey::find_program_address(
-        hyperlane_sealevel_igp::igp_program_data_pda_seeds!(),
+        hyperlane_sealevel_interface::igp::igp_program_data_pda_seeds!(),
         &program_id,
     );
 
     // Initialize the program data
-    let instruction =
-        hyperlane_sealevel_igp::instruction::init_instruction(program_id, ctx.payer_pubkey)
-            .unwrap();
+    let instruction = hyperlane_sealevel_interface::igp::instruction::init_instruction(
+        program_id,
+        ctx.payer_pubkey,
+    )
+    .unwrap();
 
     ctx.new_txn()
         .add_with_description(
@@ -488,8 +490,10 @@ fn deploy_igp_program(
 
 fn init_igp_account(ctx: &mut Context, program_id: Pubkey, salt: H256) -> Pubkey {
     // Initialize IGP with the given salt
-    let (igp_account_pda, _igp_account_bump) =
-        Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
+    let (igp_account_pda, _igp_account_bump) = Pubkey::find_program_address(
+        hyperlane_sealevel_interface::igp::igp_pda_seeds!(salt),
+        &program_id,
+    );
 
     if ctx
         .client
@@ -498,7 +502,7 @@ fn init_igp_account(ctx: &mut Context, program_id: Pubkey, salt: H256) -> Pubkey
         .value
         .is_none()
     {
-        let instruction = hyperlane_sealevel_igp::instruction::init_igp_instruction(
+        let instruction = hyperlane_sealevel_interface::igp::instruction::init_igp_instruction(
             program_id,
             ctx.payer_pubkey,
             salt,
@@ -530,7 +534,7 @@ fn init_overhead_igp_account(
     salt: H256,
 ) -> Pubkey {
     let (overhead_igp_account, _) = Pubkey::find_program_address(
-        hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
+        hyperlane_sealevel_interface::igp::overhead_igp_pda_seeds!(salt),
         &program_id,
     );
 
@@ -541,14 +545,15 @@ fn init_overhead_igp_account(
         .value
         .is_none()
     {
-        let instruction = hyperlane_sealevel_igp::instruction::init_overhead_igp_instruction(
-            program_id,
-            ctx.payer_pubkey,
-            salt,
-            Some(ctx.payer_pubkey),
-            inner_igp_account,
-        )
-        .unwrap();
+        let instruction =
+            hyperlane_sealevel_interface::igp::instruction::init_overhead_igp_instruction(
+                program_id,
+                ctx.payer_pubkey,
+                salt,
+                Some(ctx.payer_pubkey),
+                inner_igp_account,
+            )
+            .unwrap();
 
         ctx.new_txn()
             .add_with_description(
@@ -586,8 +591,10 @@ fn configure_igp_and_overhead_igp(
 
     let salt = account_salt.unwrap_or_else(H256::zero);
 
-    let (igp_account_pubkey, _bump) =
-        Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
+    let (igp_account_pubkey, _bump) = Pubkey::find_program_address(
+        hyperlane_sealevel_interface::igp::igp_pda_seeds!(salt),
+        &program_id,
+    );
     let igp_account = ctx
         .client
         .get_account_with_commitment(&igp_account_pubkey, ctx.commitment)
@@ -599,7 +606,7 @@ fn configure_igp_and_overhead_igp(
         .into_inner();
 
     let (overhead_igp_account_pubkey, _bump) = Pubkey::find_program_address(
-        hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
+        hyperlane_sealevel_interface::igp::overhead_igp_pda_seeds!(salt),
         &program_id,
     );
     let overhead_igp_account = ctx
@@ -636,7 +643,7 @@ fn configure_igp_and_overhead_igp(
             );
             // For simplicity and to always be well within max tx sizes, just send one config at a time
             let instruction =
-                hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+                hyperlane_sealevel_interface::igp::instruction::set_gas_oracle_configs_instruction(
                     program_id,
                     igp_account_pubkey,
                     ctx.payer_pubkey,
@@ -662,13 +669,14 @@ fn configure_igp_and_overhead_igp(
                 remote_domain
             );
             // For simplicity and to always be well within max tx sizes, just send one config at a time
-            let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
-                program_id,
-                overhead_igp_account_pubkey,
-                ctx.payer_pubkey,
-                vec![overhead_config],
-            )
-            .unwrap();
+            let instruction =
+                hyperlane_sealevel_interface::igp::instruction::set_destination_gas_overheads(
+                    program_id,
+                    overhead_igp_account_pubkey,
+                    ctx.payer_pubkey,
+                    vec![overhead_config],
+                )
+                .unwrap();
 
             ctx.new_txn().add(instruction).send_with_payer();
 
@@ -697,7 +705,7 @@ fn configure_igp_and_overhead_igp(
             );
             // For simplicity and to always be well within max tx sizes, just send one config at a time
             let instruction =
-                hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+                hyperlane_sealevel_interface::igp::instruction::set_gas_oracle_configs_instruction(
                     program_id,
                     igp_account_pubkey,
                     ctx.payer_pubkey,
@@ -729,13 +737,14 @@ fn configure_igp_and_overhead_igp(
                 remote, remote_domain, overhead_config
             );
             // For simplicity and to always be well within max tx sizes, just send one config at a time
-            let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
-                program_id,
-                overhead_igp_account_pubkey,
-                ctx.payer_pubkey,
-                vec![overhead_config],
-            )
-            .unwrap();
+            let instruction =
+                hyperlane_sealevel_interface::igp::instruction::set_destination_gas_overheads(
+                    program_id,
+                    overhead_igp_account_pubkey,
+                    ctx.payer_pubkey,
+                    vec![overhead_config],
+                )
+                .unwrap();
 
             ctx.new_txn().add(instruction).send_with_payer();
 

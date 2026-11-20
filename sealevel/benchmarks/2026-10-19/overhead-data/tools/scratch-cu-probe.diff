@@ -1,0 +1,79 @@
+diff --git a/internal/compiler/builtins.go b/internal/compiler/builtins.go
+index 4088c05..5604eb2 100644
+--- a/internal/compiler/builtins.go
++++ b/internal/compiler/builtins.go
+@@ -26,7 +26,8 @@ var legacySyscalls = map[string]bool{
+ 	"sol_secp256k1_recover":      true,
+ 	"sol_log_":                   true, // panic's log line (docs/ERROR_CONTRACT.md#panic) and solana.Log
+ 	"sol_log_64_":                true, // solana.Log64
+-	"sol_log_pubkey":             true, // solana.LogPubkey
++	"sol_log_pubkey":             true,
++	"sol_log_compute_units_":     true, // solana.LogPubkey
+ 	"sol_memcpy_":                true, // the initialization image (docs/GO_GLOBALS.md#compile-time-evaluation)
+ 	"sol_memmove_":               true, // bulk copies (docs/GO_ALLOCATION.md#bulk-memory-on-sbf)
+ 	"sol_memset_":                true, // bulk zeroing (docs/GO_ALLOCATION.md#bulk-memory-on-sbf)
+diff --git a/internal/compiler/evalorder.go b/internal/compiler/evalorder.go
+index 8e140bc..63dcc82 100644
+--- a/internal/compiler/evalorder.go
++++ b/internal/compiler/evalorder.go
+@@ -49,9 +49,9 @@ var gcSizes = types.SizesFor("gc", "amd64")
+ var (
+ 	sdkPure = map[string]bool{"Count": true, "Data": true, "Executable": true, "Instruction": true, "IsPDA": true,
+ 		"IsTokenProgram": true, "Key": true, "Lamports": true, "Owner": true, "ProgramID": true, "Signer": true, "Writable": true,
+-		"Log": true, "Log64": true, "LogPubkey": true}
++		"Log": true, "Log64": true, "LogPubkey": true, "ProbeCU": true}
+ 	sdkLogs = map[string]bool{"Invoke": true, "Transfer": true, "TransferSigned": true, "SetReturnData": true,
+-		"Log": true, "Log64": true, "LogPubkey": true}
++		"Log": true, "Log64": true, "LogPubkey": true, "ProbeCU": true}
+ )
+ 
+ type evalEvent struct {
+diff --git a/internal/compiler/log.c.txt b/internal/compiler/log.c.txt
+index 1b25e82..2649226 100644
+--- a/internal/compiler/log.c.txt
++++ b/internal/compiler/log.c.txt
+@@ -8,6 +8,7 @@
+ extern void sol_log_(const u8 *,u64);
+ extern void sol_log_64_(u64,u64,u64,u64,u64);
+ extern void sol_log_pubkey(const u8 *);
++extern void sol_log_compute_units_(void);
+ #define gosvm_sol_log sol_log_
+ #define gosvm_sol_log_64 sol_log_64_
+ #define gosvm_sol_log_pubkey sol_log_pubkey
+@@ -15,7 +16,8 @@ extern void sol_log_pubkey(const u8 *);
+ #ifdef GOSVM_LOG_STRING
+ static u64 sol_Log(Context *c,gosvm_string message) {gosvm_sol_log(message.ptr,(u64)message.len);return 0;}
+ #endif
+-static u64 sol_Log64(Context *c,u64 v0,u64 v1,u64 v2,u64 v3,u64 v4) {gosvm_sol_log_64(v0,v1,v2,v3,v4);return 0;}
++static u64 sol_Log64(Context *c,u64 v0,u64 v1,u64 v2,u64 v3,u64 v4) {sol_log_compute_units_();gosvm_sol_log_64(v0,v1,v2,v3,v4);return 0;}
++static u64 sol_ProbeCU(u64 id) {sol_log_compute_units_();gosvm_sol_log_64(0xE2,id,0,0,0);return 0;}
+ static u64 sol_LogPubkey(Context *c,slice key) {
+     if(key.len!=32) return 2019;
+     gosvm_sol_log_pubkey(key.ptr);return 0;
+diff --git a/internal/compiler/solana.go b/internal/compiler/solana.go
+index 79a7548..25b22d7 100644
+--- a/internal/compiler/solana.go
++++ b/internal/compiler/solana.go
+@@ -37,7 +37,7 @@ var lamportsRuntime string
+ var logRuntime string
+ 
+ // sdkLogCalls are the gosvm/solana functions logRuntime implements.
+-var sdkLogCalls = map[string]bool{"Log": true, "Log64": true, "LogPubkey": true}
++var sdkLogCalls = map[string]bool{"Log": true, "Log64": true, "LogPubkey": true, "ProbeCU": true}
+ 
+ // WideAccounts is the opt-in incoming account limit (Program.MaxAccounts):
+ // a 64-entry account table, the most a 4 KiB SBF frame holds.
+diff --git a/solana/api.go b/solana/api.go
+index 03fb602..34b4c69 100644
+--- a/solana/api.go
++++ b/solana/api.go
+@@ -93,6 +93,9 @@ func Log64(c Context, v0, v1, v2, v3, v4 uint64) uint64 {
+ 	return 0
+ }
+ 
++// ProbeCU is a SCRATCH CU probe (never publish).
++func ProbeCU(id uint64) uint64 { return 0 }
++
+ // LogPubkey logs a 32-byte key in base58, like Rust's Pubkey::log, and
+ // returns 0, or 2019 without logging when key is not 32 bytes.
+ func LogPubkey(c Context, key []byte) uint64 {

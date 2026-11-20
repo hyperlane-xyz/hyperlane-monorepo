@@ -92,10 +92,15 @@ pub fn program_test() -> ProgramTest {
         composite_ism_id(),
         solana_program_test::processor!(process_instruction),
     );
+    // Test-only mock with no SBF build: keep it native even when SBF_OUT_DIR is set.
+    pt.prefer_bpf(false);
     pt.add_program(
         "mock_mailbox",
         mock_mailbox_id(),
         solana_program_test::processor!(mock_mailbox_process_instruction),
+    );
+    pt.prefer_bpf(
+        std::env::var_os("SBF_OUT_DIR").is_some() || std::env::var_os("BPF_OUT_DIR").is_some(),
     );
     pt
 }

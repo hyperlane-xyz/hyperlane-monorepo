@@ -4634,10 +4634,15 @@ async fn setup_client_with_malicious_igp() -> (BanksClient, Keypair) {
         processor!(fee_process_instruction),
     );
 
+    // Test-only mock with no SBF build: keep it native even when SBF_OUT_DIR is set.
+    program_test.prefer_bpf(false);
     program_test.add_program(
         "malicious_igp",
         MALICIOUS_IGP_ID,
         processor!(malicious_igp_process),
+    );
+    program_test.prefer_bpf(
+        std::env::var_os("SBF_OUT_DIR").is_some() || std::env::var_os("BPF_OUT_DIR").is_some(),
     );
 
     let (banks_client, payer, _recent_blockhash) = program_test.start().await;
