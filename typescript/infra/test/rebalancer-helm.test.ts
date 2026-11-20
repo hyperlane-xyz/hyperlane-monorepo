@@ -562,7 +562,7 @@ describe('oUSDT production manifest', () => {
     );
     const registryCommit = 'aa7cc3d836cbb020a3cedab7c470d5c59824a269';
     expect(loaded.deployment.registryCommit).to.equal(registryCommit);
-    expect(loaded.deployment.monitorOnly).to.equal(true);
+    expect(loaded.deployment.monitorOnly).to.equal(false);
     const warpCore = loadRouteFixture();
     const getWarpRoute = Sinon.stub(
       GithubRegistry.prototype,
@@ -605,7 +605,7 @@ describe('oUSDT production manifest', () => {
       secret.spec.data.find(
         (d: { secretKey: string }) => d.secretKey === 'swapsxyz_api_key',
       ).remoteRef.key,
-    ).to.equal('mainnet3-swapsxyz-api-key-ousdt');
+    ).to.equal('mainnet3-swapsxyz-api-key');
     expect(secret.spec.target.template.data.HYP_INVENTORY_KEY_TRON).to.equal(
       secret.spec.target.template.data.HYP_INVENTORY_KEY_ETHEREUM,
     );
@@ -620,7 +620,7 @@ describe('oUSDT production manifest', () => {
     );
     expect(container.env).to.deep.include({
       name: 'MONITOR_ONLY',
-      value: 'true',
+      value: 'false',
     });
     expect(container.env).to.deep.include({
       name: 'REGISTRY_URI',
