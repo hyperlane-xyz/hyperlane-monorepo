@@ -310,6 +310,12 @@ impl BaseAgent for Relayer {
     where
         Self: Sized,
     {
+        if settings.ccip_read_allowed_domains.is_empty() {
+            warn!("ccipReadAllowedDomains is empty. All CCIP-read lookups will be refused.");
+        } else {
+            info!(domains = ?settings.ccip_read_allowed_domains, "CCIP-read allowed domains");
+        }
+
         Self::reset_critical_errors(&settings, &chain_metrics);
         let critical_errors = CriticalErrorTracker::new(chain_metrics.clone());
 

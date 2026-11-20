@@ -73,10 +73,14 @@ export enum VerificationOutcome {
 
 export type OffchainReadProgress = {
   state: string;
-  /** Producer snapshots omit per-request attempt counters. */
+  observed_at_millis?: number | null;
+  /** Older snapshots omit the attempt. */
   attempt?: number | null;
   endpoint: number | null;
   http_status: number | null;
+  hostname?: string | null;
+  url_template?: string | null;
+  result?: { bytes: number; keccak256: string } | null;
 };
 
 export enum DiagnosticsEventType {

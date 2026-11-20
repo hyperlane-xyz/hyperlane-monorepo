@@ -652,6 +652,20 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     ),
   ccipReadAllowedDomains: z
     .string()
+    .refine(
+      (value) =>
+        value.split(',').every((entry) => {
+          const domain = entry.trim();
+          if (!domain) return true;
+          if (!z.regexes.hostname.test(domain)) return false;
+          try {
+            return !z.regexes.ipv4.test(new URL(`https://${domain}`).hostname);
+          } catch {
+            return false;
+          }
+        }),
+      'Each CCIP-read allowlist entry must be a bare DNS hostname',
+    )
     .optional()
     .describe(
       'Comma-separated exact DNS names allowed for CCIP reads. Empty or omitted disables CCIP reads.',

@@ -19,6 +19,7 @@ use sea_orm::{
 use serde::Serialize;
 use tokio::sync::mpsc;
 use tracing::warn;
+use url::{Position, Url};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -130,7 +131,10 @@ pub enum Activity {
     OffchainRead {
         ism: H256,
         endpoint: Option<usize>,
+        #[serde(flatten)]
+        gateway: Option<OffchainReadGateway>,
         attempt: u32,
+        #[serde(flatten)]
         state: OffchainReadState,
         http_status: Option<u16>,
     },
@@ -194,13 +198,57 @@ pub enum ValidatorStorageState {
     ReorgNotFound,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
+/// Public parts of the ISM's URL template, before message data is substituted.
+#[derive(Clone, Debug, Serialize)]
+pub struct OffchainReadGateway {
+    hostname: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url_template: Option<String>,
+}
+
+impl OffchainReadGateway {
+    pub fn from_template(template: &str) -> Option<Self> {
+        // Url encodes raw braces in paths using uppercase hex. Keep pre-escaped braces distinct.
+        let escaped;
+        let template = if template.contains("%7B") || template.contains("%7D") {
+            escaped = template.replace("%7B", "%7b").replace("%7D", "%7d");
+            &escaped
+        } else {
+            template
+        };
+        let url = Url::parse(template).ok()?;
+        let host = url.host_str()?;
+        if !matches!(url.scheme(), "https" | "http")
+            || host.strip_suffix('.').unwrap_or(host).len() > 253
+        {
+            return None;
+        }
+        // This slice contains the host, optional port and path only.
+        let host_and_path = &url[Position::BeforeHost..Position::AfterPath];
+        let prefix = &url[..Position::BeforeUsername];
+        let url_template = (prefix.len().saturating_add(host_and_path.len()) <= 2048).then(|| {
+            format!("{prefix}{host_and_path}")
+                .replace("%7Bsender%7D", "{sender}")
+                .replace("%7Bdata%7D", "{data}")
+        });
+        Some(Self {
+            hostname: host.to_owned(),
+            url_template,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "state", content = "result", rename_all = "snake_case")]
 pub enum OffchainReadState {
+    IsmBuildFailed,
+    LookupReturnedNormally,
     LookupFailed,
+    InvalidLookupRevert,
     OriginTransactionMissing,
     OriginTransactionLookupFailed,
     UrlRejected,
+    DomainNotAllowed,
     ClientFailed,
     SigningFailed,
     RequestTimeout,
@@ -208,7 +256,7 @@ pub enum OffchainReadState {
     BodyReadFailed,
     Pending,
     InvalidResponse,
-    Succeeded,
+    Succeeded { bytes: usize, keccak256: H256 },
     PendingRetriesExhausted,
     NoEndpoints,
 }
@@ -263,7 +311,8 @@ pub fn metadata_error(error: &MetadataBuildError) -> String {
         MetadataBuildError::FailedToBuild(_) => "Metadata build failed".to_owned(),
         MetadataBuildError::FastPathError(_) => "Fast path metadata failed".to_owned(),
         MetadataBuildError::Refused(_) => "Validator reported a reorg".to_owned(),
-        MetadataBuildError::CouldNotFetch
+        MetadataBuildError::CcipReadNotAllowed
+        | MetadataBuildError::CouldNotFetch
         | MetadataBuildError::AwaitingValidatorSignatures
         | MetadataBuildError::RetryLimitReached(_)
         | MetadataBuildError::UnsupportedModuleType(_)

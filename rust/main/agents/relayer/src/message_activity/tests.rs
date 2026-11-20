@@ -529,11 +529,25 @@ async fn postgres() -> eyre::Result<()> {
         // Exercise the background writer and its success counter, not only INSERT.
         let (writer_reporter, writer_receiver) = self::reporter(1);
         let metrics = writer_reporter.metrics.clone();
-        writer_reporter.report(&message, Activity::Delivered);
+        writer_reporter.report_node(&message, "root", Activity::OffchainRead {
+            ism: H256::zero(),
+            endpoint: Some(0),
+            attempt: 1,
+            gateway: OffchainReadGateway::from_template("https://lookup.example/proof/{data}?token=private"),
+            state: OffchainReadState::DomainNotAllowed,
+            http_status: None,
+        });
         drop(writer_reporter);
         tokio::time::timeout(Duration::from_secs(5), write_events(url.clone(), writer_receiver, metrics.clone(), None)).await?;
         assert_eq!(metrics.written.get(), 1);
         assert_eq!(metrics.failed.get(), 0);
+        let latest = db.query_one(Statement::from_string(DbBackend::Postgres,
+            "SELECT activity #> '{state,modules,0,offchain_read}' AS lookup FROM public.message_activity ORDER BY id DESC LIMIT 1"))
+            .await?.ok_or_else(|| eyre::eyre!("missing CCIP observation"))?;
+        let lookup: serde_json::Value = latest.try_get("", "lookup")?;
+        assert_eq!(lookup["state"], "domain_not_allowed");
+        assert_eq!(lookup["url_template"], "https://lookup.example/proof/{data}");
+        assert!(lookup["observed_at_millis"].is_number());
         let index = db.query_one(Statement::from_string(DbBackend::Postgres,
             "SELECT indexdef FROM pg_indexes WHERE indexname = 'message_activity_received_at_idx'"))
             .await?.ok_or_else(|| eyre::eyre!("missing received-at index"))?;

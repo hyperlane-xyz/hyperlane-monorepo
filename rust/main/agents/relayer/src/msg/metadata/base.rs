@@ -33,6 +33,8 @@ pub enum MetadataBuildError {
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]
     CouldNotFetch,
+    #[error("No CCIP-read endpoint permitted by ccipReadAllowedDomains can satisfy this ISM")]
+    CcipReadNotAllowed,
     /// Validator quorum not yet reached — signatures are still being collected
     #[error("Awaiting validator signatures")]
     AwaitingValidatorSignatures,
