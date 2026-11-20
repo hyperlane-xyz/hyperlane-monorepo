@@ -165,7 +165,7 @@ async fn finalized_sealevel_account_filters_wake_and_recover_from_one_stalled_st
 }
 
 #[tokio::test]
-async fn sealevel_waits_for_the_first_http_poll_before_connecting() -> Result<()> {
+async fn sealevel_waits_for_http_and_ignores_events_indexed_during_setup() -> Result<()> {
     check_sealevel_stalled_stream(true).await
 }
 
@@ -199,6 +199,13 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
         let mut subscriptions = [0; 3];
         for subscription in 1..=3 {
             let req = request(&mut socket).await?;
+            if wait_for_baseline && subscription == 1 {
+                // HTTP indexes a delivery before the provider registers any stream.
+                polled_events.send_replace(Some(PolledEventSlots {
+                    indexed: [0, 41, 0],
+                    ..startup
+                }));
+            }
             assert_eq!(req["method"], "programSubscribe");
             let config = &req["params"][1];
             assert_eq!(config["commitment"], "finalized");
@@ -221,10 +228,14 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
             .await?;
         }
         wakeup.notified().await; // Initial catch-up after all filters are installed.
+        if wait_for_baseline {
+            tokio::time::pause();
+            sleep(HEAD_STALL_TIMEOUT * 2 + Duration::from_millis(1)).await;
+        }
         for (slot, subscription) in
             (41..=44).zip(subscriptions.into_iter().chain([subscriptions[2]]))
         {
-            if slot == 44 {
+            if slot == 44 && !wait_for_baseline {
                 tokio::time::pause();
                 polled_events.send_replace(Some(PolledEventSlots {
                     indexed: [41, 42, 43],

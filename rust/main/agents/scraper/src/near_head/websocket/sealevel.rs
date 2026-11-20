@@ -48,13 +48,8 @@ pub(super) async fn subscribe_events(
     mut polled_events: watch::Receiver<Option<PolledEventSlots>>,
     domain: u32,
 ) -> Result<()> {
-    // Fix the HTTP baseline before any subscription can deliver live events.
-    let initial = polled_events
-        .wait_for(Option::is_some)
-        .await?
-        .ok_or_else(|| eyre!("Missing Sealevel polling baseline"))?;
-    let mut checkpoint = initial.indexed;
-    let mut received = initial.indexed;
+    // Establish the startup head before any subscription can deliver live events.
+    polled_events.wait_for(Option::is_some).await?;
     let client = timeout(CONNECT_TIMEOUT, PubsubClient::new(url.as_str())).await??;
     let filters = finalized_event_filters(mailbox, igp_program);
     let [dispatch, delivery, payment] = filters
@@ -65,6 +60,12 @@ pub(super) async fn subscribe_events(
             tokio::try_join!(dispatch, delivery, payment)
         })
         .await??;
+    // HTTP covers events indexed while the subscriptions were being installed.
+    let initial = polled_events
+        .borrow()
+        .ok_or_else(|| eyre!("Missing Sealevel polling baseline"))?;
+    let mut checkpoint = initial.indexed;
+    let mut received = initial.indexed;
     info!(domain, "Finalized Sealevel event WebSocket subscribed");
     let mut stall_check = interval(HEAD_STALL_TIMEOUT);
     stall_check.reset();
