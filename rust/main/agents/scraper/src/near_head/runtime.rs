@@ -11,7 +11,7 @@ use std::{
 
 use futures::FutureExt;
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
-use hyperlane_core::{HyperlaneDomain, ReorgPeriod};
+use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod};
 use tokio::{
     sync::{mpsc, watch, Mutex, Notify},
     time::{interval, sleep, sleep_until, Instant, MissedTickBehavior},
@@ -23,6 +23,12 @@ use super::{
     source::{Header, Source},
     store::{State, Store},
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct PolledEventSlots {
+    pub startup_head: u64,
+    pub indexed: [u64; 3],
+}
 
 pub(super) struct Worker {
     pub source: Box<dyn Source>,
@@ -37,6 +43,7 @@ pub(super) struct Worker {
     pub wanted: AtomicU64,
     pub heads: Mutex<mpsc::Receiver<Header>>,
     pub polled_head: watch::Sender<u64>,
+    pub polled_event_slots: watch::Sender<Option<PolledEventSlots>>,
     pub critical_failure_grace: Duration,
     pub chain_metrics: ChainMetrics,
     pub sync_metrics: Arc<ContractSyncMetrics>,
@@ -71,11 +78,6 @@ impl FailureStreak {
     }
 }
 
-enum Wakeup {
-    Index,
-    Head,
-}
-
 /// A completed cycle: whether to run again at once, and whether ingestion failed
 /// while existing work still published.
 #[derive(Debug)]
@@ -84,8 +86,8 @@ pub(super) struct CycleOutcome {
     pub ingestion_failed: bool,
 }
 
-const MIN_WAKE_INTERVAL: Duration = Duration::from_secs(1);
-const MIN_HEAD_INTERVAL: Duration = Duration::from_millis(200);
+const MIN_WAKE_INTERVAL: Duration = Duration::from_millis(200);
+const MIN_INDEX_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const RECENT_HEADERS: usize = 256;
 // At 250ms/block this allows 16s of HTTP/WS skew without trusting an unbounded lead.
 const MAX_HEADER_LEAD: u64 = 64;
@@ -137,33 +139,48 @@ impl Worker {
         polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let mut heads = self.heads.lock().await;
         let mut recent = VecDeque::with_capacity(RECENT_HEADERS);
-        let mut wakeup = Wakeup::Index;
-        let mut next_index = Instant::now();
-        let mut next_head = Instant::now();
+        let mut index = true;
+        let mut confirm = false;
+        let mut next_retry = Instant::now();
         loop {
-            let result = match wakeup {
-                Wakeup::Index => {
-                    next_index = Instant::now()
-                        .checked_add(MIN_WAKE_INTERVAL)
-                        .expect("Wake deadline");
-                    self.cycle(&mut count_cache).await
+            let started = Instant::now();
+            let next_wake = started
+                .checked_add(MIN_WAKE_INTERVAL)
+                .expect("Wake deadline");
+            // Collect both sources before running RPCs, including when a poll won the wake.
+            index |= self.wakeup.notified().now_or_never().is_some();
+            for _ in 0..heads.max_capacity() {
+                let Ok(header) = heads.try_recv() else { break };
+                remember_header(&mut recent, header);
+                confirm = true;
+            }
+            let result = async {
+                if std::mem::take(&mut index) {
+                    next_retry = started
+                        .checked_add(MIN_INDEX_RETRY_INTERVAL)
+                        .expect("Index retry deadline");
+                    let outcome = self.cycle(&mut count_cache).await?;
+                    index = outcome.more;
+                    if outcome.ingestion_failed {
+                        return Ok(true);
+                    }
+                    // HTTP already checked confirmations through its observed head.
+                    confirm &= recent
+                        .back()
+                        .is_some_and(|header| header.height > *self.polled_head.borrow());
                 }
-                Wakeup::Head => {
-                    let result = self.header_cycle(&recent, &count_cache).await;
-                    next_head = Instant::now()
-                        .checked_add(MIN_HEAD_INTERVAL)
-                        .expect("Head deadline");
-                    result
+                if std::mem::take(&mut confirm) {
+                    confirm = self.header_cycle(&recent, &count_cache).await?.more;
                 }
-            };
-            let failed = result
-                .as_ref()
-                .map_or(true, |outcome| outcome.ingestion_failed);
+                Ok::<_, eyre::Report>(false)
+            }
+            .await;
+            let failed = result.as_ref().copied().unwrap_or(true);
             let critical = failures.record(failed, self.critical_failure_grace);
             self.chain_metrics
                 .set_critical_error(self.domain.name(), critical);
             match result {
-                Ok(CycleOutcome { more: true, .. }) => continue,
+                Ok(_) if index || (!failed && confirm) => continue,
                 Ok(_) => {}
                 Err(error) => warn!(
                     domain = self.store.domain,
@@ -174,26 +191,29 @@ impl Worker {
             if failed {
                 // Neither subscription may bypass RPC-error backoff.
                 sleep(failures.retry_delay(self.poll_interval, self.critical_failure_grace)).await;
-                wakeup = Wakeup::Index;
+                index = true;
                 continue;
             }
-            wakeup = tokio::select! {
+            tokio::select! {
                 biased;
-                _ = polling.tick() => Wakeup::Index,
-                _ = async {
-                    sleep_until(next_index).await;
-                    if self.wanted.load(Ordering::Relaxed) == 0 {
-                        self.wakeup.notified().await;
-                    } else {
-                        let _ = self.wakeup.notified().now_or_never();
+                _ = polling.tick() => index = true,
+                // Pace retries when HTTP is still behind the last notification.
+                _ = sleep_until(next_retry), if self.wanted.load(Ordering::Relaxed) != 0 => index = true,
+                header = async {
+                    sleep_until(next_wake).await;
+                    tokio::select! {
+                        _ = self.wakeup.notified() => None,
+                        Some(header) = heads.recv() => Some(header),
                     }
-                } => Wakeup::Index,
-                Some(header) = async { sleep_until(next_head).await; heads.recv().await } => {
-                    remember_header(&mut recent, header);
-                    while let Ok(header) = heads.try_recv() { remember_header(&mut recent, header); }
-                    Wakeup::Head
+                } => {
+                    if let Some(header) = header {
+                        remember_header(&mut recent, header);
+                        confirm = true;
+                    } else {
+                        index = true;
+                    }
                 }
-            };
+            }
         }
     }
 
@@ -211,6 +231,15 @@ impl Worker {
         };
         // Reuse this observation to detect stalled WebSocket delivery; no probe RPC.
         self.polled_head.send_replace(observed.head);
+        if self.domain.domain_protocol() == HyperlaneDomainProtocol::Sealevel
+            && self.polled_event_slots.borrow().is_none()
+        {
+            // Historical catch-up below the first live finalized head is expected.
+            self.polled_event_slots.send_replace(Some(PolledEventSlots {
+                startup_head: observed.head,
+                indexed: [0; 3],
+            }));
+        }
         // Ingest before publication so newly indexed events do not wait for the
         // next poll. Keep the result so existing work can still publish when
         // the log query fails.
@@ -294,6 +323,12 @@ impl Worker {
             .is_ok_and(|(_, wrote_events)| *wrote_events)
         {
             self.receipt_wakeup.send_replace(());
+            self.polled_event_slots.send_if_modified(|slots| {
+                let Some(sample) = slots else { return false };
+                let changed = sample.indexed != count_cache.event_slots;
+                sample.indexed = count_cache.event_slots;
+                changed
+            });
         }
 
         // Count-protected sources publish only history proven by this cycle's

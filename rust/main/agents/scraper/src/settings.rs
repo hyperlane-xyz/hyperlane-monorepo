@@ -21,7 +21,7 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, H160};
 use redact::Secret;
 use serde::Deserialize;
 use serde_json::Value;
@@ -36,7 +36,7 @@ pub struct ScraperSettings {
     #[deref_mut]
     pub base: Settings,
 
-    /// Optional EVM log subscription endpoints, keyed by chain name.
+    /// Optional EVM and Sealevel event subscription endpoints, keyed by chain name.
     pub websocket_urls: Secret<HashMap<String, Url>>,
     pub db: Secret<String>,
     pub db_max_connections: u32,
@@ -130,11 +130,14 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             }
             if !chains_to_scrape.iter().any(|domain| {
                 domain.name() == chain
-                    && domain.domain_protocol() == hyperlane_core::HyperlaneDomainProtocol::Ethereum
+                    && matches!(
+                        domain.domain_protocol(),
+                        HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Sealevel
+                    )
             }) {
                 err.push(
                     cwp.add("websocket_urls"),
-                    eyre::eyre!("WebSocket chain {chain} must be an EVM chain in chainsToScrape"),
+                    eyre::eyre!("WebSocket chain {chain} must be an EVM or Sealevel chain in chainsToScrape"),
                 );
             }
         }

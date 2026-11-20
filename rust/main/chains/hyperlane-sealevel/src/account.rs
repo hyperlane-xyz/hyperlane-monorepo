@@ -7,7 +7,11 @@ use solana_client::{
 use solana_commitment_config::CommitmentConfig;
 use solana_sdk::{account::Account, pubkey::Pubkey};
 
-use hyperlane_core::{ChainCommunicationError, ChainResult};
+use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
+use hyperlane_sealevel_igp::accounts::GAS_PAYMENT_DISCRIMINATOR;
+use hyperlane_sealevel_mailbox::accounts::{
+    DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
+};
 
 use crate::SealevelProvider;
 
@@ -19,19 +23,39 @@ pub async fn search_accounts_by_discriminator(
     offset: usize,
     length: usize,
 ) -> ChainResult<Vec<(Pubkey, Account)>> {
-    let target_message_account_bytes = &[discriminator, nonce_bytes].concat();
-    let target_message_account_bytes = Base64.encode(target_message_account_bytes);
+    let config = account_filter(&[discriminator, nonce_bytes].concat(), offset, length);
+    let accounts = provider
+        .rpc_client()
+        .get_program_accounts_with_config(*program_id, config)
+        .await?;
+    Ok(accounts)
+}
 
-    // First, find all accounts with the matching account data.
-    // To keep responses small in case there is ever more than 1
-    // match, we don't request the full account data, and just request
-    // the field which was used to generate account id
+/// Finalized program-account filters for scraper wake-ups. Each dispatch also
+/// produces the Sealevel Merkle insertion. Only the notification slot is needed.
+pub fn finalized_event_filters(
+    mailbox: H256,
+    igp_program: H256,
+) -> [(Pubkey, RpcProgramAccountsConfig); 3] {
+    [
+        (mailbox, DISPATCHED_MESSAGE_DISCRIMINATOR),
+        (mailbox, PROCESSED_MESSAGE_DISCRIMINATOR),
+        (igp_program, GAS_PAYMENT_DISCRIMINATOR),
+    ]
+    .map(|(program, discriminator)| {
+        let mut config = account_filter(discriminator, 0, 0);
+        config.with_context = Some(true);
+        (Pubkey::from(program.0), config)
+    })
+}
+
+fn account_filter(prefix: &[u8], offset: usize, length: usize) -> RpcProgramAccountsConfig {
+    // The initialized flag precedes the discriminator in AccountData.
     let memcmp = RpcFilterType::Memcmp(Memcmp::new(
-        // Ignore the first byte, which is the `initialized` bool flag.
         1,
-        MemcmpEncodedBytes::Base64(target_message_account_bytes),
+        MemcmpEncodedBytes::Base64(Base64.encode(prefix)),
     ));
-    let config = RpcProgramAccountsConfig {
+    RpcProgramAccountsConfig {
         filters: Some(vec![memcmp]),
         account_config: RpcAccountInfoConfig {
             encoding: Some(UiAccountEncoding::Base64),
@@ -41,12 +65,7 @@ pub async fn search_accounts_by_discriminator(
         },
         with_context: Some(false),
         sort_results: None,
-    };
-    let accounts = provider
-        .rpc_client()
-        .get_program_accounts_with_config(*program_id, config)
-        .await?;
-    Ok(accounts)
+    }
 }
 
 pub fn search_and_validate_account<F>(

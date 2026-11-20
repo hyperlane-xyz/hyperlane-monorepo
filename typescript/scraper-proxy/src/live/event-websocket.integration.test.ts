@@ -3398,7 +3398,10 @@ void it('rejects application messages on the server-only Explorer stream', async
   }
 });
 
-void it('publishes every frontier projection without exposing pagination columns', async () => {
+void it('streams all four Solana event projections when the finalized frontier advances', async () => {
+  const domain = 1399811149;
+  const mailbox = `\\x${'aa'.repeat(32)}`;
+  const signature = `\\x${'03'.repeat(64)}`;
   const fixtures = [
     {
       event: {
@@ -3409,9 +3412,9 @@ void it('publishes every frontier projection without exposing pagination columns
         nonce: 0,
         origin_block_hash: `\\x${'02'.repeat(32)}`,
         origin_block_height: '10',
-        origin_domain: 1,
-        origin_mailbox: hookA,
-        origin_tx_hash: `\\x${'03'.repeat(32)}`,
+        origin_domain: domain,
+        origin_mailbox: mailbox,
+        origin_tx_hash: signature,
         recipient: hookB,
         sender: hookA,
         time_created: new Date(0).toISOString(),
@@ -3423,9 +3426,9 @@ void it('publishes every frontier projection without exposing pagination columns
     {
       event: {
         block_number: '10',
-        destination_mailbox: hookB,
+        destination_mailbox: mailbox,
         destination_tx_id: null,
-        domain: 1,
+        domain,
         msg_id: msgId,
         sequence: '0',
         time_created: new Date(0).toISOString(),
@@ -3437,6 +3440,8 @@ void it('publishes every frontier projection without exposing pagination columns
     {
       event: {
         ...gasPaymentRow('52', null),
+        domain,
+        origin: domain,
         block_number: '10',
       },
       eventType: 'gas_payment',
@@ -3444,43 +3449,54 @@ void it('publishes every frontier projection without exposing pagination columns
       source: gasPaymentRows,
     },
     {
-      event: { ...row(hookA, 0), block_number: '10' },
+      event: { ...row(mailbox, 0), domain, block_number: '10' },
       eventType: 'merkle_tree_insertion',
       id: '53',
       source: rows,
     },
   ] as const;
-  for (const fixture of fixtures) {
-    const socket = new WebSocket(url);
-    const messages = captureMessages(socket);
-    try {
-      await waitFor(messages, 'ready');
-      socket.send(
-        JSON.stringify({
-          streams: [{ domains: [1], eventType: fixture.eventType }],
-          type: 'subscribe',
-        }),
-      );
-      await waitFor(messages, 'subscribed');
+  const socket = new WebSocket(url);
+  const messages = captureMessages(socket);
+  try {
+    await waitFor(messages, 'ready');
+    socket.send(
+      JSON.stringify({
+        streams: fixtures.map(({ eventType }) => ({
+          domains: [domain],
+          eventType,
+        })),
+        type: 'subscribe',
+      }),
+    );
+    await waitFor(messages, 'subscribed');
+    for (const fixture of fixtures)
       fixture.source.set(fixture.id, fixture.event);
-      notify(
-        'scraper_head',
-        JSON.stringify({
-          confirmedHeight: '10',
-          domain: 1,
-          previousConfirmedHeight: '9',
-        }),
-      );
-      const message = await waitFor(messages, 'event');
-      assert.equal(message.eventType, fixture.eventType);
+    notify(
+      'scraper_head',
+      JSON.stringify({
+        domain,
+        previousConfirmedHeight: '9',
+        confirmedHeight: '10',
+      }),
+    );
+    const events = () => messages.filter((message) => message.type === 'event');
+    await waitUntil(() => events().length >= fixtures.length);
+    assert.deepEqual(
+      events()
+        .map((message) => message.eventType)
+        .sort(),
+      fixtures.map(({ eventType }) => eventType).sort(),
+    );
+    for (const message of events()) {
+      assert.equal(message.domain, domain);
       assert(!('frontier_id' in record(message.data)));
       assert(!('frontier_height' in record(message.data)));
-      assert.equal(socket.readyState, WebSocket.OPEN);
-    } finally {
-      fixture.source.delete(fixture.id);
-      socket.close();
-      await new Promise<void>((resolve) => socket.once('close', resolve));
     }
+    assert.equal(socket.readyState, WebSocket.OPEN);
+  } finally {
+    for (const fixture of fixtures) fixture.source.delete(fixture.id);
+    socket.close();
+    await new Promise<void>((resolve) => socket.once('close', resolve));
   }
 });
 
