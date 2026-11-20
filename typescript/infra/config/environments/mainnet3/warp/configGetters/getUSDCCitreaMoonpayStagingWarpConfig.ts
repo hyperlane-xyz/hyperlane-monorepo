@@ -9,11 +9,15 @@ import { getDomainId, getRegistry } from '../../../../registry.js';
 import { DEPLOYER } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
+import { usdcTokenAddresses } from '../cctp.js';
+import {
+  getMoonpayStagingRebalancers,
+  getMoonpayStagingUsdGPeers,
+} from './moonpayStaging.js';
 import {
   getRebalancingBridgesConfigFor,
   getUSDCRebalancingBridgesConfigFor,
   mergeAllowedBridges,
-  REBALANCER,
 } from './utils.js';
 
 // Staging mimic of the production CROSS/moonpay USDC route (getUSDCCitreaMoonpayWarpConfig).
@@ -38,7 +42,7 @@ const SOLANA_XO_NAME = 'XO Cash';
 const SOLANA_XO_SYMBOL = 'XO';
 
 const EXTRA_REBALANCER = '0x2cB236403574301029c7bDDfda133c6e0338a857';
-const ALLOWED_REBALANCERS = [REBALANCER, EXTRA_REBALANCER];
+
 const EVM_CHAINS = ['arbitrum', 'base', 'ethereum', 'polygon'] as const;
 type EvmChain = (typeof EVM_CHAINS)[number];
 
@@ -87,6 +91,11 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const crossCollateralRouters = getSiblingCrossCollateralRouters();
+  const usdcUsdGPeers = {
+    ...crossCollateralRouters,
+    ...getMoonpayStagingUsdGPeers(),
+  };
+  const ALLOWED_REBALANCERS = getMoonpayStagingRebalancers();
 
   const cctpRebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     ['arbitrum', 'base', 'ethereum', 'polygon'],
@@ -94,7 +103,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
   );
 
   const additionalRebalancingConfigByChain = getRebalancingBridgesConfigFor(
-    ['arbitrum', 'base', 'bsc', 'ethereum', 'polygon'],
+    ['arbitrum', 'arc', 'base', 'bsc', 'ethereum', 'polygon'],
     [
       WarpRouteIds.EclipseUSDC,
       WarpRouteIds.ParadexUSDC,
@@ -104,6 +113,10 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
   );
 
   const tbda = getTBDAAddresses();
+  assert(
+    additionalRebalancingConfigByChain.arc,
+    'Missing Arc Eclipse rebalancing config',
+  );
 
   assert(
     additionalRebalancingConfigByChain.bsc,
@@ -111,6 +124,15 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
   );
 
   return {
+    arc: {
+      type: TokenType.crossCollateral,
+      token: usdcTokenAddresses.arc,
+      mailbox: routerConfig.arc.mailbox,
+      owner: DEPLOYER_EVM,
+      ...additionalRebalancingConfigByChain.arc,
+      allowedRebalancers: ALLOWED_REBALANCERS,
+      crossCollateralRouters: usdcUsdGPeers,
+    },
     solanamainnet: {
       type: TokenType.crossCollateral,
       token: SOLANA_XO_TOKEN_MINT,
@@ -135,7 +157,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         additionalRebalancingConfigByChain.arbitrum?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.arbitrum }] },
       ),
-      crossCollateralRouters,
+      crossCollateralRouters: usdcUsdGPeers,
     },
     base: {
       type: TokenType.crossCollateral,
@@ -149,7 +171,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         additionalRebalancingConfigByChain.base?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.base }] },
       ),
-      crossCollateralRouters,
+      crossCollateralRouters: usdcUsdGPeers,
     },
     bsc: {
       type: TokenType.crossCollateral,
@@ -184,7 +206,7 @@ export async function getUSDCCitreaMoonpayStagingWarpConfig(
         additionalRebalancingConfigByChain.ethereum?.allowedRebalancingBridges,
         { citrea: [{ bridge: tbda.ethereum }] },
       ),
-      crossCollateralRouters,
+      crossCollateralRouters: usdcUsdGPeers,
     },
     katana: {
       type: TokenType.crossCollateral,
