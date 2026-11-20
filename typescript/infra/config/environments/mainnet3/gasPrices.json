@@ -47,6 +47,10 @@
     "amount": "0.0010001",
     "decimals": 9
   },
+  "collect": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "coti": {
     "amount": "4.813238472",
     "decimals": 9

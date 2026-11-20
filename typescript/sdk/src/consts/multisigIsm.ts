@@ -57,6 +57,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
+  collect: {
+    threshold: 1,
+    validators: [DEFAULT_AW_VALIDATOR],
+  },
   elysium: {
     threshold: 2,
     validators: [

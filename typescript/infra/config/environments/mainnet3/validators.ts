@@ -69,6 +69,14 @@ export const validatorChainConfig = (
         'aevo',
       ),
     },
+    collect: {
+      interval: DEFAULT_VALIDATOR_INTERVAL,
+      reorgPeriod: getReorgPeriod('collect'),
+      validators: validatorsConfig(
+        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
+        'collect',
+      ),
+    },
     elysium: {
       interval: DEFAULT_VALIDATOR_INTERVAL,
       reorgPeriod: getReorgPeriod('elysium'),
