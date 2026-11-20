@@ -25,6 +25,7 @@ struct MockProvider {
 
 #[derive(Debug, Clone)]
 struct MockCall {
+    broadcast_at: chrono::DateTime<chrono::Utc>,
     program_id: String,
     function_name: String,
     inputs: Vec<String>,
@@ -124,6 +125,7 @@ impl AleoProviderForLander for MockProvider {
 
         // Record the call
         self.calls.lock().unwrap().push(MockCall {
+            broadcast_at: chrono::Utc::now(),
             program_id: program_id.to_string(),
             function_name: function_name.to_string(),
             inputs: inputs.clone(),
@@ -200,6 +202,7 @@ async fn test_submit_transaction_success() {
     let calls = provider.get_calls();
     assert_eq!(calls.len(), 1);
     let call = &calls[0];
+    assert!(tx.last_submission_attempt.unwrap() >= call.broadcast_at);
     assert_eq!(call.program_id, "test_program.aleo");
     assert_eq!(call.function_name, "test_function");
     assert_eq!(call.inputs, vec!["input1", "input2"]);
@@ -257,6 +260,7 @@ async fn test_submit_transaction_provider_failure() {
 
     // Verify no transaction hash was added on failure
     assert!(tx.tx_hashes.is_empty());
+    assert!(tx.last_submission_attempt.is_none());
 }
 
 #[tokio::test]
@@ -414,6 +418,8 @@ async fn test_aleo_error_transaction_already_exists() {
         "Transaction 'at1xyz...' already exists in the ledger".to_string(),
     );
     let mut tx = create_test_transaction();
+    let before_submit = chrono::Utc::now();
+    tx.last_submission_attempt = Some(before_submit - chrono::Duration::minutes(4));
 
     let result = submit_transaction(&provider, &mut tx).await;
     assert!(result.is_err());
@@ -424,6 +430,7 @@ async fn test_aleo_error_transaction_already_exists() {
         "Expected TxAlreadyExists for duplicate transaction, got: {:?}",
         err
     );
+    assert!(tx.last_submission_attempt.unwrap() >= before_submit);
 }
 
 #[tokio::test]

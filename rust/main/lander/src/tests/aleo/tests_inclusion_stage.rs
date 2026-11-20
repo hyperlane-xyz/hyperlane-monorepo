@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -39,6 +40,7 @@ struct ConfigurableMockProvider {
     confirmed_counter: std::sync::Mutex<u32>,
     /// Counter for unconfirmed transaction checks
     unconfirmed_counter: std::sync::Mutex<u32>,
+    delivered: Arc<AtomicBool>,
     /// Should submit fail?
     should_submit_fail: bool,
     /// Transaction hash to return
@@ -55,6 +57,7 @@ impl ConfigurableMockProvider {
             submit_counter: std::sync::Mutex::new(0),
             confirmed_counter: std::sync::Mutex::new(0),
             unconfirmed_counter: std::sync::Mutex::new(0),
+            delivered: Arc::default(),
             should_submit_fail: false,
             tx_hash: H512::random(),
             confirmed_fixture: None,
@@ -155,7 +158,7 @@ impl AleoProviderForLander for ConfigurableMockProvider {
         _mapping_name: &str,
         _mapping_key: &hyperlane_aleo::Plaintext<hyperlane_aleo::CurrentNetwork>,
     ) -> ChainResult<bool> {
-        Ok(false) // Default: messages not delivered
+        Ok(self.delivered.load(Ordering::Relaxed))
     }
 }
 
@@ -386,6 +389,53 @@ async fn test_aleo_tx_ready_for_resubmission_block_time() {
             .tx_ready_for_resubmission(&tx)
             .await
     );
+}
+
+#[tokio::test]
+#[traced_test]
+async fn test_slow_aleo_submission_waits_for_delivery_after_broadcast() {
+    let provider = ConfigurableMockProvider::new();
+    let delivered = provider.delivered.clone();
+    let state = mock_dispatcher_state_with_provider(provider, Duration::from_secs(3));
+    let mut tx = mock_aleo_tx(
+        &state.payload_db,
+        &state.tx_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await;
+
+    // Model the dispatcher's timestamp from before a four-minute proof.
+    tx.submission_attempts = 1;
+    tx.last_submission_attempt = Some(Utc::now() - chrono::Duration::minutes(4));
+    state.adapter.submit(&mut tx).await.unwrap();
+    tx.status = TransactionStatus::Mempool;
+
+    let uuid = tx.uuid.clone();
+    let pool = Arc::new(tokio::sync::Mutex::new(HashMap::from([(uuid.clone(), tx)])));
+    let (sender, mut receiver) = mpsc::channel(1);
+    let poll = || InclusionStage::process_txs_step(&pool, &sender, &state, TEST_DOMAIN.into());
+
+    // The node doesn't see the delivery or the hash yet.
+    poll().await.unwrap();
+    let mut pending = state
+        .tx_db
+        .retrieve_transaction_by_uuid(&uuid)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pending.status, TransactionStatus::PendingInclusion);
+    assert_eq!(pending.submission_attempts, 1);
+
+    // A still-missing transaction is eligible once the post-broadcast wait expires.
+    pending.last_submission_attempt = Some(Utc::now() - chrono::Duration::seconds(61));
+    assert!(state.adapter.tx_ready_for_resubmission(&pending).await);
+
+    delivered.store(true, Ordering::Relaxed);
+    pool.lock().await.get_mut(&uuid).unwrap().last_status_check = None;
+    poll().await.unwrap();
+    let finalized = receiver.try_recv().unwrap();
+    assert_eq!(finalized.status, TransactionStatus::Finalized);
+    assert_eq!(finalized.submission_attempts, 1);
 }
 
 // Tests for Aleo-specific error handling

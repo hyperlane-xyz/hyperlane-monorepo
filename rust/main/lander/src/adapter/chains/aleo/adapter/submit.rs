@@ -75,15 +75,21 @@ pub async fn submit_transaction<P: AleoProviderForLander>(
 
     info!(?tx, "submitting Aleo transaction");
 
-    // Submit transaction
-    let tx_hash = provider
+    let result = provider
         .submit_tx(
             &tx_precursor.program_id,
             &tx_precursor.function_name,
             tx_precursor.inputs.clone(),
         )
         .await
-        .map_err(classify_aleo_error)?;
+        .map_err(classify_aleo_error);
+
+    // Proving can outlast the retry interval. Start the propagation wait when
+    // the node acknowledges the broadcast, including an already-known tx.
+    if matches!(result, Ok(_) | Err(LanderError::TxAlreadyExists)) {
+        tx.last_submission_attempt = Some(chrono::Utc::now());
+    }
+    let tx_hash = result?;
 
     // Aleo delivery is verified through payload success criteria, so only the
     // latest submission hash is needed for mempool/confirmation status.
