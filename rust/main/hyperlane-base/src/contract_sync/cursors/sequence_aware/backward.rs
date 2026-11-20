@@ -565,13 +565,13 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
     }
 
     /// Updates the cursor with the logs that were found in the range.
-    /// Only used in sequence mode.
+    /// Only used in block mode.
     /// Logs are expected to be sorted by sequence in ascending order and deduplicated.
     ///
     /// Behavior:
     /// - Empty logs are allowed, but no gaps are allowed. The logs must build upon the last indexed snapshot.
     /// - If there are any gaps, the cursor rewinds to the last indexed snapshot, and ranges will be retried.
-    fn update_block_range(
+    async fn update_block_range(
         &mut self,
         logs: Vec<(SequenceIndexed<T>, LogMeta)>,
         all_log_sequences: &HashSet<u32>,
@@ -587,9 +587,22 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             ..(current_indexing_snapshot.sequence.saturating_add(1)))
             .collect::<HashSet<_>>();
         if all_log_sequences != &expected_sequences {
-            // If there are any missing sequences, rewind to just before the last indexed snapshot.
-            // Rewind to the last snapshot.
+            // At startup the snapshot pairs a count with an RPC tip. The forward
+            // cursor may since have stored that sequence at its actual, later block.
+            if let Some(block) = self
+                .get_sequence_log_block_number(self.last_sequence())
+                .await?
+            {
+                if block > self.last_indexed_snapshot.at_block {
+                    self.last_indexed_snapshot.at_block = block;
+                    self.startup_scan_from = None;
+                }
+            }
             self.rewind_due_to_sequence_gaps(&logs, all_log_sequences, &expected_sequences, &range);
+            // A block range can return different subsets on each retry. Keep backing
+            // off for this target until stored or contiguous logs advance the cursor.
+            let target = current_indexing_snapshot.sequence;
+            self.schedule_sequence_gap_retry(target, HashSet::from([target]));
             return Ok(false);
         }
 
@@ -881,7 +894,8 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ContractSyncCursor<T>
                 false
             }
             IndexMode::Block => {
-                self.update_block_range(logs, &all_log_sequences, range, current_indexing_snapshot)?
+                self.update_block_range(logs, &all_log_sequences, range, current_indexing_snapshot)
+                    .await?
             }
         };
 
@@ -1262,6 +1276,44 @@ mod test {
                     .get(&INITIAL_CURRENT_INDEXING_SNAPSHOT.sequence),
                 Some(&749)
             );
+        }
+
+        #[tokio::test]
+        async fn running_cursor_recovers_gap_when_forward_indexes_the_next_leaf() {
+            // The RPC startup count implied leaf 99 was at or before block 980.
+            let mut cursor = get_cursor().await;
+            cursor.store = Arc::new(MockHyperlaneSequenceAwareIndexerStore { logs: vec![] });
+            cursor.last_indexed_snapshot.at_block = 980;
+            cursor.rewind();
+            let stale_range = cursor.get_next_range().await.unwrap().unwrap();
+            assert_eq!(stale_range, 880..=980);
+            let earlier = (MockSequencedData::new(98).into(), log_meta_with_block(970));
+            cursor
+                .update(vec![earlier.clone()], stale_range.clone())
+                .await
+                .unwrap();
+            assert_eq!(cursor.persisted_progress.get(&99), Some(&980));
+            assert_eq!(cursor.get_next_range().await.unwrap(), None);
+
+            // Forward sync has now stored leaf 100 at its real block. On retry
+            // the same running backward cursor can correct the stale upper bound.
+            cursor.store = Arc::new(MockHyperlaneSequenceAwareIndexerStore {
+                logs: vec![(MockSequencedData::new(100), log_meta_with_block(1000))],
+            });
+            cursor.sequence_gap_retry_at = Some(Instant::now());
+            let retry = cursor.get_next_range().await.unwrap().unwrap();
+            assert_eq!(retry, stale_range);
+            cursor.update(vec![earlier.clone()], retry).await.unwrap();
+            assert_eq!(cursor.persisted_progress.get(&99), Some(&1000));
+            assert_eq!(cursor.get_next_range().await.unwrap(), None);
+
+            cursor.sequence_gap_retry_at = Some(Instant::now());
+            let retry = cursor.get_next_range().await.unwrap().unwrap();
+            assert_eq!(retry, 900..=1000);
+            let missing = (MockSequencedData::new(99).into(), log_meta_with_block(990));
+            cursor.update(vec![earlier, missing], retry).await.unwrap();
+            assert_eq!(cursor.last_sequence(), 98);
+            assert_eq!(cursor.sequence_gap_retry_at, None);
         }
 
         #[tokio::test]
@@ -1685,6 +1737,15 @@ mod test {
             )
             .await;
 
+            let backoff = cursor
+                .metrics
+                .cursor_sequence_gap_backoff_seconds
+                .with_label_values(&["mock_indexable", "test"]);
+            assert_eq!(backoff.get(), 5);
+            assert_eq!(cursor.get_next_range().await.unwrap(), None);
+            assert!(!cursor.is_caught_up());
+            cursor.sequence_gap_retry_at = Some(Instant::now());
+
             // Now with a gap, missing 98
             update_and_expect_rewind(
                 &mut cursor,
@@ -1695,6 +1756,22 @@ mod test {
                 ],
             )
             .await;
+
+            assert_eq!(backoff.get(), 10);
+            assert_eq!(cursor.get_next_range().await.unwrap(), None);
+
+            cursor.sequence_gap_retry_at = Some(Instant::now());
+            let range = cursor.get_next_range().await.unwrap().unwrap();
+            assert_eq!(range, 900..=1000);
+            cursor
+                .update(
+                    vec![(MockSequencedData::new(99).into(), log_meta_with_block(990))],
+                    range,
+                )
+                .await
+                .unwrap();
+            assert_eq!(backoff.get(), 0);
+            assert_eq!(cursor.get_next_range().await.unwrap(), Some(799..=899));
         }
 
         #[tracing_test::traced_test]
