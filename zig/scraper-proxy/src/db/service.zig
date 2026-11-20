@@ -7,6 +7,8 @@ const pool_mod = @import("pool.zig");
 const listener_mod = @import("listener.zig");
 const convert = @import("convert.zig");
 const admission_shape_ms = @import("db_options").admission_shape_ms;
+const shape_stats_on = @import("db_options").admission_shape_stats;
+const admission_shape_max_ms = @max(admission_shape_ms, @import("db_options").admission_shape_max_ms);
 
 const Value = core.json.Value;
 const Failure = root.Failure;
@@ -117,6 +119,8 @@ pub const DbService = struct {
     pending_main: usize = 0,
     /// `admitShape` waiters, oldest first.
     shape_waiters: std.ArrayList(*ShapeWaiter) = .empty,
+    /// `-Dadmission-shape-stats=true` builds: `admitShape` outcomes (under `mutex`).
+    shape_stats: ShapeStats = .{},
     in_flight_done: std.Thread.Condition = .{},
     /// True when `close` gave up waiting: memory must not be freed.
     leaked: bool = false,
@@ -599,13 +603,42 @@ pub const DbService = struct {
 
     pub const ShapeWaiter = struct { need: usize, w: core.fiber.Waiter = .{} };
 
-    /// A request about to run `roots` root fields waits, at most
-    /// `-Dadmission-shape-ms` (default 2), while some but fewer than `roots`
-    /// pending slots are free (or older requests wait), oldest first. Under a
-    /// full cap this keeps slots from being split across requests, each then
-    /// answering with capacity errors. Each root is still checked on its own
-    /// once the wait ends, as TS checks them when its loop reaches the
-    /// request (DEVIATIONS.md).
+    /// Bench diagnostics: how `admitShape` calls ended. `*_free` buckets
+    /// count free slots (capped at 7) when the request went on to its roots,
+    /// as a fraction of `need`: [0] none, [1] some, [2] all.
+    pub const ShapeStats = struct {
+        calls: u64 = 0,
+        no_wait_full: u64 = 0,
+        no_wait_zero: u64 = 0,
+        queued: u64 = 0,
+        woken: u64 = 0,
+        timed_out: u64 = 0,
+        rewaits: u64 = 0,
+        max_queue: u64 = 0,
+        woken_free: [3]u64 = @splat(0),
+        timeout_free: [3]u64 = @splat(0),
+
+        pub fn format(self: *const ShapeStats, w: *std.Io.Writer) std.Io.Writer.Error!void {
+            try w.print("calls={d} no_wait_full={d} no_wait_zero={d} queued={d} woken={d} timed_out={d} rewaits={d} max_queue={d} woken_free(none/some/all)={d}/{d}/{d} timeout_free(none/some/all)={d}/{d}/{d}", .{
+                self.calls,         self.no_wait_full,  self.no_wait_zero,  self.queued,          self.woken,           self.timed_out,       self.rewaits, self.max_queue,
+                self.woken_free[0], self.woken_free[1], self.woken_free[2], self.timeout_free[0], self.timeout_free[1], self.timeout_free[2],
+            });
+        }
+
+        fn bucket(free: usize, need: usize) usize {
+            return if (free == 0) 0 else if (free < need) 1 else 2;
+        }
+    };
+
+    /// A request about to run `roots` root fields waits while some but fewer
+    /// than `roots` pending slots are free (or older requests wait), oldest
+    /// first: `-Dadmission-shape-ms` (default 2) at a time, again while some
+    /// but too few stay free, up to `-Dadmission-shape-max-ms` (default 8) in
+    /// all; with none free it goes on (refused, as in TS). Under a full cap
+    /// this keeps slots from being split across requests, each then answering
+    /// with capacity errors. Each root is still checked on its own once the
+    /// wait ends, as TS checks them when its loop reaches the request
+    /// (DEVIATIONS.md).
     pub fn admitShape(self: *DbService, roots: usize) void {
         if (comptime admission_shape_ms == 0) return;
         // More roots than the cap can never all be admitted: wait for a full cap.
@@ -615,20 +648,54 @@ pub const DbService = struct {
         {
             self.mutex.lock();
             defer self.mutex.unlock();
+            if (shape_stats_on) self.shape_stats.calls += 1;
             const free = self.config.database_max_pending_graphql_queries -| self.pending_main;
-            if (free == 0) return;
-            if (free >= need and self.shape_waiters.items.len == 0) return;
+            if (free == 0) {
+                if (shape_stats_on) self.shape_stats.no_wait_zero += 1;
+                return;
+            }
+            if (free >= need and self.shape_waiters.items.len == 0) {
+                if (shape_stats_on) self.shape_stats.no_wait_full += 1;
+                return;
+            }
             self.shape_waiters.append(self.gpa, &waiter) catch return;
+            if (shape_stats_on) {
+                self.shape_stats.queued += 1;
+                self.shape_stats.max_queue = @max(self.shape_stats.max_queue, self.shape_waiters.items.len);
+            }
         }
-        if (waiter.w.waitTimeout(core.fiber.monoMs() + admission_shape_ms)) return;
-        // Timed out: the waker wakes under `mutex`, so once we hold it no
-        // wake can still touch `waiter`.
-        self.mutex.lock();
-        defer self.mutex.unlock();
-        for (self.shape_waiters.items, 0..) |x, i| if (x == &waiter) {
-            _ = self.shape_waiters.orderedRemove(i);
-            break;
-        };
+        const waited_from = core.fiber.monoMs();
+        const hard = waited_from + admission_shape_max_ms;
+        var deadline = waited_from + admission_shape_ms;
+        while (true) {
+            if (waiter.w.waitTimeout(deadline)) {
+                if (shape_stats_on) {
+                    self.mutex.lock();
+                    defer self.mutex.unlock();
+                    self.shape_stats.woken += 1;
+                    self.shape_stats.woken_free[ShapeStats.bucket(self.config.database_max_pending_graphql_queries -| self.pending_main, need)] += 1;
+                }
+                return;
+            }
+            // Timed out: the waker removes and wakes under `mutex`, so once
+            // we hold it no wake can still touch `waiter`; still listed means
+            // no wake came (and `waiter` can wait again).
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            const index = std.mem.indexOfScalar(*ShapeWaiter, self.shape_waiters.items, &waiter) orelse return;
+            const free = self.config.database_max_pending_graphql_queries -| self.pending_main;
+            const now = core.fiber.monoMs();
+            if (free == 0 or free >= need or now >= hard) {
+                if (shape_stats_on) {
+                    self.shape_stats.timed_out += 1;
+                    self.shape_stats.timeout_free[ShapeStats.bucket(free, need)] += 1;
+                }
+                _ = self.shape_waiters.orderedRemove(index);
+                return;
+            }
+            if (shape_stats_on) self.shape_stats.rewaits += 1;
+            deadline = @min(hard, now + admission_shape_ms);
+        }
     }
 
     /// Under `mutex`: wakes the oldest shaped request once its slots are free.
@@ -781,6 +848,11 @@ pub const DbService = struct {
     /// `-Dpool-hold-stats=true` builds: cumulative checkout hold times per
     /// pool, at info (every stats interval and at close).
     fn logHoldTimes(self: *DbService) void {
+        if (shape_stats_on) {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            self.logger.info("db admission shape {f}", .{&self.shape_stats});
+        }
         if (!pool_mod.hold_stats) return;
         self.mutex.lock();
         defer self.mutex.unlock();

@@ -246,15 +246,16 @@ test "a multi-root request waits a bounded time for its pending slots" {
     svc.admitShape(5);
     try testing.expect(core.fiber.monoMs() - start < shape_ms);
 
-    // One of two slots held: a 2-root request waits out the bound, then
-    // leaves the queue; a 1-root request never waits.
+    // One of two slots held: a 2-root request keeps waiting while one slot
+    // stays free, up to the overall bound, then leaves the queue; a 1-root
+    // request never waits.
     const held = try std.Thread.spawn(.{}, Hold.run, .{svc});
     fake.mutex.lock();
     while (fake.entered < 1) fake.cond.wait(&fake.mutex);
     fake.mutex.unlock();
     start = core.fiber.monoMs();
     svc.admitShape(2);
-    try testing.expect(core.fiber.monoMs() - start >= shape_ms);
+    try testing.expect(core.fiber.monoMs() - start >= @max(shape_ms, @import("db_options").admission_shape_max_ms));
     try testing.expectEqual(@as(usize, 0), svc.shape_waiters.items.len);
     start = core.fiber.monoMs();
     svc.admitShape(1);

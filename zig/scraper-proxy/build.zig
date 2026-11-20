@@ -31,12 +31,20 @@ pub fn build(b: *std.Build) void {
     // at info. Off by default: the shipped build does no extra work.
     const pool_hold_stats = b.option(bool, "pool-hold-stats", "Record and log DB pool checkout hold times") orelse false;
     const db_options = b.addOptions();
-    // Bench experiment (C27): a request about to run several root fields
-    // waits up to this long while some, but fewer than it needs, pending
-    // GraphQL query slots are free (0: off, the shipped build).
+    // C27: a request about to run several root fields waits up to this long
+    // while some, but fewer than it needs, pending GraphQL query slots are
+    // free (0: off, TS's timing).
     const admission_shape_ms = b.option(u32, "admission-shape-ms", "Wait up to N ms for a multi-root request's pending GraphQL query slots (default 2; 0: off, as TS)") orelse 2;
     db_options.addOption(u32, "admission_shape_ms", admission_shape_ms);
+    // A wait that ends with some, but too few, slots free starts again (the
+    // request keeps its place) until this long in all; with none free the
+    // request goes on (TS's refusals), with enough it takes them.
+    const admission_shape_max_ms = b.option(u32, "admission-shape-max-ms", "Keep waiting up to N ms in all while some but too few pending slots are free (default 8)") orelse 8;
+    db_options.addOption(u32, "admission_shape_max_ms", admission_shape_max_ms);
     db_options.addOption(bool, "pool_hold_stats", pool_hold_stats);
+    // Diagnostics only (bench): `admitShape` outcomes, logged at info at close.
+    const admission_shape_stats = b.option(bool, "admission-shape-stats", "Record and log pending-slot shaping outcomes") orelse false;
+    db_options.addOption(bool, "admission_shape_stats", admission_shape_stats);
     // Diagnostics only (bench): per-listener callback durations on the shared
     // LISTEN thread, logged at info when a listener is released. Off by default.
     const listener_hub_stats = b.option(bool, "listener-hub-stats", "Record and log LISTEN callback durations on the shared listener thread") orelse false;

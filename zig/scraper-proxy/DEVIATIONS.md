@@ -97,13 +97,17 @@ reproduces the observable rule, not the scheduling.
 - **Multi-root requests wait briefly for pending slots.** TS checks each
   root field against `DATABASE_MAX_PENDING_GRAPHQL_QUERIES` as soon as its
   event loop reaches the request. With some but too few slots free, the port
-  first waits up to 2 ms (`-Dadmission-shape-ms`; 0 restores TS's timing),
-  oldest request first, for enough slots to run all its root fields; each
-  root is then checked as in TS. If nothing frees, the response is TS's
-  byte for byte. If slots free during the wait, roots that TS would refuse
-  can run. Under a full cap this stops slots being spread across requests
-  that then all answer with capacity errors (Depot bench: about 8x the error-free
-  responses per second without it, and above TS's).
+  first waits for enough slots to run all its root fields, oldest request
+  first: 2 ms at a time (`-Dadmission-shape-ms`; 0 restores TS's timing),
+  for as long as some but too few stay free, up to 8 ms in all
+  (`-Dadmission-shape-max-ms`). With none free it goes on at once and is
+  refused as in TS; each root is then checked as in TS. If slots free during
+  the wait, roots that TS would refuse can run. Under a full cap this stops
+  slots being spread across requests that then all answer with capacity
+  errors. Depot bench, error-free responses per second against TS: 652 vs 255
+  on the pending-cap open-loop row, 71 vs 4 on the 5-root Explorer sender
+  search. The cost is Postgres CPU per request (more requests run every root)
+  and the sender search's p99 (77 vs 55 ms).
 - **Live event timing windows.** A loop mutex reproduces "nothing runs
   between awaits" and synchronous prefixes run inline
   (`src/live/IMPLEMENTATION.md`). Tasks take the loop mutex for the first
