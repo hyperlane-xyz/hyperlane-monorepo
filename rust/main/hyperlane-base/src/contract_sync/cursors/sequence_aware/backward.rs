@@ -513,7 +513,11 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
                         .await?;
                     self.persisted_progress.remove(&current_indexing_sequence);
                 }
-                made_progress = true;
+                if !made_progress {
+                    self.clear_sequence_gap_retry();
+                    self.startup_scan_from = None;
+                    made_progress = true;
+                }
                 self.last_indexed_snapshot = LastIndexedSnapshot {
                     sequence: Some(current_indexing_sequence),
                     at_block: block_number,
@@ -535,8 +539,6 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
             tokio::task::yield_now().await;
         }
         if made_progress {
-            self.startup_scan_from = None;
-            self.clear_sequence_gap_retry();
             debug!(
                 last_indexed_snapshot=?prev_indexed_snapshot,
                 current_indexing_snapshot=?self.current_indexing_snapshot,
@@ -2136,6 +2138,7 @@ mod test {
     mod sequence_range {
         use std::sync::Mutex;
 
+        use futures::FutureExt;
         use hyperlane_core::{ChainResult, Indexer};
 
         use super::*;
@@ -2526,6 +2529,10 @@ mod test {
                 5
             );
 
+            // Cancel at the first cooperative yield, as the five-second timeout can.
+            assert!(cursor.skip_indexed().now_or_never().is_none());
+            assert_eq!(cursor.last_sequence(), 102);
+            assert!(cursor.sequence_gap_retry_at.is_none());
             cursor.skip_indexed().await.unwrap();
 
             assert_eq!(cursor.sequence_gap_retries, 0);
