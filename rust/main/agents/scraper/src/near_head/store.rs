@@ -40,6 +40,12 @@ fn signed(value: u32) -> i32 {
     i32::from_ne_bytes(value.to_ne_bytes())
 }
 
+// Match the 1,000-confirmation budget in scraper-proxy's
+// src/scraperdb/scraperdb.service.ts (MAX_CONFIRMATIONS); review both when raising it.
+// Websocket requests are uncapped and may lack a live-start checkpoint beyond
+// this window. Keep its preceding checkpoint for sparse native heights too.
+pub(super) const CHECKPOINT_HISTORY_BLOCKS: u64 = 1_000;
+
 const EVENTS: [(&str, &str, &str); 4] = [
     (
         "raw_message_dispatch",
@@ -270,6 +276,12 @@ impl Store {
     }
 
     async fn delete_suffix<C: ConnectionTrait>(&self, db: &C, after: u64) -> Result<()> {
+        // Serialize against receipt inserts' FK locks before deleting transactions.
+        db.query_all(sql(
+            "SELECT 1 FROM block WHERE domain=$1 AND height>$2 FOR UPDATE",
+            vec![self.domain(), number(after)?],
+        ))
+        .await?;
         for (table, domain, height) in EVENTS {
             db.execute(sql(
                 format!("DELETE FROM {table} WHERE {domain}=$1 AND {height}>$2"),
@@ -277,8 +289,14 @@ impl Store {
             ))
             .await?;
         }
-        // Provisional blocks have no enriched transactions. FK failures stop
-        // rollback rather than deleting data owned by another writer.
+        // Early transaction enrichment belongs to the same provisional fork.
+        // References from canonical rows still stop rollback through FK checks.
+        db.execute(sql(
+            r#"DELETE FROM "transaction" t USING block b
+               WHERE t.block_id=b.id AND b.domain=$1 AND b.height>$2"#,
+            vec![self.domain(), number(after)?],
+        ))
+        .await?;
         db.execute(sql(
             "DELETE FROM block WHERE domain=$1 AND height>$2",
             vec![self.domain(), number(after)?],
@@ -479,8 +497,13 @@ impl Store {
         ))
         .await?;
         tx.execute(sql(
-            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<$2",
-            vec![self.domain(), number(through)?],
+            "DELETE FROM scraper_checkpoint WHERE domain=$1 AND height<(
+                SELECT max(height) FROM scraper_checkpoint WHERE domain=$1 AND height<=$2
+            )",
+            vec![
+                self.domain(),
+                number(through.saturating_sub(CHECKPOINT_HISTORY_BLOCKS))?,
+            ],
         ))
         .await?;
         let row = tx.query_one(sql(

@@ -13,7 +13,6 @@ export const awIcasLegacy: ChainMap<Address> = {
 
   // Aug 5, 2024 batch
   // ----------------------------------------------------------
-  lisk: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   lukso: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
   metis: '0xb51e63CD0842D670a13c88B159fCFc268DA652A3',
   // taiko: '0x483D218D2FEe7FC7204ba15F00C7901acbF9697D', // renzo chain
@@ -31,7 +30,6 @@ export const awIcasLegacy: ChainMap<Address> = {
   polygon: '0xBDD25dd5203fedE33FD631e30fEF9b9eF2598ECE',
   gnosis: '0xD42125a4889A7A36F32d7D12bFa0ae52B0AD106b',
   mantle: '0x08C880b88335CA3e85Ebb4E461245a7e899863c9',
-  bob: '0xc99e58b9A4E330e2E4d09e2c94CD3c553904F588',
   // sei: '0xabad187003EdeDd6C720Fc633f929EA632996567', // renzo chain
 
   // Oct 30, 2024 batch

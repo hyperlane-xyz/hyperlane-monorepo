@@ -26,6 +26,8 @@ centralized:
   # Routes whose shared balance metrics are emitted by a rebalancer and must not
   # be double-emitted by this monitor.
   skipSharedBalanceWarpRouteIds: []
+  # Set to https://explorer-api.hyperlane.xyz/graphql to enable pending-transfer
+  # lookups. An empty URL disables them.
   explorerApiUrl: ''
   explorerQueryLimit: 200
   inventoryAddress: ''

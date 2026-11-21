@@ -30,7 +30,11 @@ async function server(
   const { EventWebSocketServer } = await import('../live/event-websocket.js');
   const http = createServer();
   const events = new EventWebSocketServer(
-    { listen: async () => async () => undefined, queryLive },
+    {
+      listen: async () => async () => undefined,
+      queryLive,
+      queryValidator: queryLive,
+    },
     {},
     diagnostics,
   );

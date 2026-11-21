@@ -128,6 +128,7 @@ export interface BaseRelayerConfig {
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
+  ccipReadAllowedDomains?: string[];
   addressBlacklist?: string;
   runtimeDenylist?: RuntimeDenylistConfig;
   transactionGasLimit?: BigNumberish;
@@ -143,8 +144,8 @@ export interface BaseRelayerConfig {
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
   websocketUrl?: string;
-  websocketAuthorityEnabled?: boolean;
-  reorgPeriodOverrides?: ChainMap<number>;
+  // A number of blocks, or a block tag (e.g. 'safe' / 'finalized') for EVM chains.
+  reorgPeriodOverrides?: ChainMap<number | string>;
   interval?: number;
   relayApi?: RelayApiConfig;
 }
@@ -175,7 +176,8 @@ export interface RelayApiConfig {
 }
 
 // Full relayer-specific agent config for a single chain
-export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
+export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig> &
+  Pick<BaseRelayerConfig, 'reorgPeriodOverrides'>;
 // Config intended to be set as configMap values, these are usually really long
 // and are intended to derisk hitting max env var length limits. The message
 // blacklist alone is ~43 KB and grows with every denylist PR.
@@ -249,9 +251,20 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.relayChains.join(','),
+      reorgPeriodOverrides:
+        baseConfig.reorgPeriodOverrides &&
+        Object.fromEntries(
+          Object.entries(baseConfig.reorgPeriodOverrides).filter(
+            ([chain, period]) => period !== getChain(chain).blocks?.reorgPeriod,
+          ),
+        ),
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 
+    if (baseConfig.ccipReadAllowedDomains) {
+      relayerConfig.ccipReadAllowedDomains =
+        baseConfig.ccipReadAllowedDomains.join(',');
+    }
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
     }
@@ -302,10 +315,6 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
     if (baseConfig.websocketUrl !== undefined) {
       relayerConfig.websocketUrl = baseConfig.websocketUrl;
-    }
-    if (baseConfig.websocketAuthorityEnabled !== undefined) {
-      relayerConfig.websocketAuthorityEnabled =
-        baseConfig.websocketAuthorityEnabled;
     }
     if (baseConfig.relayApi !== undefined) {
       relayerConfig.relayApiEnabled = baseConfig.relayApi.enabled;

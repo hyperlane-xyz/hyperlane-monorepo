@@ -30,7 +30,9 @@ pub(super) async fn ingest(
     state: &State,
     chunk_size: u64,
 ) -> Result<bool> {
-    ingest_cached(source, store, state, chunk_size, &mut CountCache::default()).await
+    ingest_cached(source, store, state, chunk_size, &mut CountCache::default())
+        .await
+        .map(|(more, _)| more)
 }
 
 pub(super) fn validate_sequences(
@@ -540,7 +542,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     // Seed a legacy row before the migration. Existing IDs, visibility and
     // notifications must survive the additive schema change.
     migration::Migrator::up(&db, Some(14)).await?;
-    db.execute_unprepared("CREATE ROLE scraper_notification_reader; CREATE ROLE scraper_writer; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; GRANT SELECT,INSERT,UPDATE ON block,raw_message_dispatch,delivered_message,gas_payment,merkle_tree_insertion TO scraper_writer; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
+    db.execute_unprepared("CREATE ROLE scraper_notification_reader; CREATE ROLE scraper_writer; GRANT SELECT ON raw_message_dispatch TO scraper_notification_reader; GRANT SELECT,INSERT,UPDATE ON block,raw_message_dispatch,delivered_message,gas_payment,merkle_tree_insertion TO scraper_writer; GRANT SELECT,INSERT ON \"transaction\" TO scraper_writer; INSERT INTO merkle_tree_insertion(domain,merkle_tree_hook,leaf_index,message_id,block_number) VALUES(1,decode(repeat('09',20),'hex'),0,decode(repeat('09',32),'hex'),0)").await?;
     migration::Migrator::up(&db, None).await?;
     let permission = db
         .query_one(Statement::from_string(
@@ -554,7 +556,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
     let writer_permission = db
         .query_one(Statement::from_string(
             DbBackend::Postgres,
-            "SELECT has_table_privilege('scraper_writer','scraper_head','INSERT') AS head_insert,has_table_privilege('scraper_writer','scraper_head','UPDATE') AS head_update,has_table_privilege('scraper_writer','block','DELETE') AS block_delete,has_table_privilege('scraper_writer','raw_message_dispatch','DELETE') AS event_delete,has_table_privilege('scraper_writer','scraper_checkpoint','SELECT') AS checkpoint_select,has_table_privilege('scraper_writer','scraper_checkpoint','INSERT') AS checkpoint_insert,has_table_privilege('scraper_writer','scraper_checkpoint','DELETE') AS checkpoint_delete,has_table_privilege('scraper_notification_reader','scraper_checkpoint','SELECT') AS reader_checkpoint_select",
+            "SELECT has_table_privilege('scraper_writer','scraper_head','INSERT') AS head_insert,has_table_privilege('scraper_writer','scraper_head','UPDATE') AS head_update,has_table_privilege('scraper_writer','block','DELETE') AS block_delete,has_table_privilege('scraper_writer','transaction','DELETE') AS transaction_delete,has_table_privilege('scraper_writer','transaction','UPDATE') AS transaction_update,has_table_privilege('scraper_writer','raw_message_dispatch','DELETE') AS event_delete,has_table_privilege('scraper_writer','scraper_checkpoint','SELECT') AS checkpoint_select,has_table_privilege('scraper_writer','scraper_checkpoint','INSERT') AS checkpoint_insert,has_table_privilege('scraper_writer','scraper_checkpoint','DELETE') AS checkpoint_delete,has_table_privilege('scraper_notification_reader','scraper_checkpoint','SELECT') AS reader_checkpoint_select",
         ))
         .await?
         .unwrap();
@@ -562,6 +564,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         "head_insert",
         "head_update",
         "block_delete",
+        "transaction_delete",
         "event_delete",
         "checkpoint_select",
         "checkpoint_insert",
@@ -570,6 +573,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         assert!(writer_permission.try_get::<bool>("", privilege)?);
     }
     assert!(!writer_permission.try_get::<bool>("", "reader_checkpoint_select")?);
+    assert!(!writer_permission.try_get::<bool>("", "transaction_update")?);
     let mut listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
     listener.listen("scraper_event").await?;
     let mut head_listener = sea_orm::sqlx::postgres::PgListener::connect(&url).await?;
@@ -732,9 +736,8 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         )
         .await?;
     for stream in [ReceiptStream::GasPayment, ReceiptStream::Delivery] {
-        receipts
-            .link_receipts(store.domain, stream, 0, i64::MAX)
-            .await?;
+        let id = receipts.pending_receipts(store.domain, stream, 0).await?[0].0;
+        receipts.link_receipts(store.domain, stream, &[id]).await?;
         assert_eq!(
             receipts
                 .pending_receipts(store.domain, stream, 0)
@@ -753,7 +756,8 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .await?;
     for stream in [ReceiptStream::GasPayment, ReceiptStream::Delivery] {
         let id = receipts.pending_receipts(store.domain, stream, 0).await?[0].0;
-        receipts.link_receipts(store.domain, stream, id, id).await?;
+        // A real pending ID in another domain must not be linked.
+        receipts.link_receipts(2, stream, &[id]).await?;
         assert_eq!(
             receipts
                 .pending_receipts(store.domain, stream, 0)
@@ -761,7 +765,7 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
                 .len(),
             1
         );
-        receipts.link_receipts(store.domain, stream, 0, id).await?;
+        receipts.link_receipts(store.domain, stream, &[id]).await?;
         assert!(receipts
             .pending_receipts(store.domain, stream, 0)
             .await?
@@ -786,8 +790,12 @@ async fn postgres_near_head_confirmation_reorg_and_legacy_compatibility() -> Res
         .unwrap();
     assert_eq!(row.try_get::<i64>("", "n")?, 1);
 
-    assert!(store.hash(1).await?.is_none());
-    assert!(store.hash(0).await?.is_none()); // Superseded cutover anchor.
+    // Recent canonical checkpoints remain available for custom stream starts.
+    assert_eq!(
+        store.hash(1).await?,
+        Some(chain.header(1u64.into()).await?.hash)
+    );
+    assert_eq!(store.hash(0).await?, Some(anchor.hash));
     assert!(store.hash(2).await?.is_some()); // Confirmed boundary.
     assert!(store.hash(3).await?.is_some()); // Unconfirmed suffix.
 
@@ -873,26 +881,84 @@ async fn confirmation_bounds_temporary_checkpoints_without_scanning_blocks() -> 
     let db = Database::connect(&url).await?;
     migration::Migrator::up(&db, None).await?;
     let store = Store { db, domain: 1 };
-    let chain = Chain::new(10);
+    let head = store::CHECKPOINT_HISTORY_BLOCKS + 10;
+    let chain = Chain::new(head);
     store
         .initialize(&chain.header(0u64.into()).await?, &contracts())
         .await?;
-    ingest_head(&chain, &store).await?;
+    let state = observe(&chain, &store).await?;
+    let headers = chain
+        .headers
+        .lock()
+        .unwrap()
+        .values()
+        .skip(1)
+        .map(|header| (header.clone(), vec![]))
+        .collect::<Vec<_>>();
+    store.append(&state, &headers).await?;
+    confirm(&chain, &store, &ReorgPeriod::from_blocks(5)).await?;
+    assert_eq!(store.checkpoint(head - 3).await?, head - 3);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(2)).await?;
     let state = store.state().await?.unwrap();
-    assert_eq!(state.confirmed, 8);
+    assert_eq!(state.confirmed, head - 2);
     let row = store.db.query_one(Statement::from_string(DbBackend::Postgres,
         "SELECT count(*) AS n,min(height) AS first,max(height) AS last FROM scraper_checkpoint WHERE domain=1".to_owned())).await?.unwrap();
     assert_eq!(row.try_get::<i64>("", "first")?, 8);
-    assert_eq!(row.try_get::<i64>("", "last")?, 10);
-    assert!(row.try_get::<i64>("", "n")? <= 3);
+    assert_eq!(row.try_get::<i64>("", "last")?, i64::try_from(head)?);
+    assert_eq!(
+        row.try_get::<i64>("", "n")?,
+        i64::try_from(store::CHECKPOINT_HISTORY_BLOCKS)? + 3
+    );
+    // Finality two blocks behind the head must not remove a three-block policy's anchor.
+    assert_eq!(store.checkpoint(head - 3).await?, head - 3);
+    assert_eq!(
+        store.hash(head - 3).await?,
+        Some(chain.header((head - 3).into()).await?.hash)
+    );
     let blocks = count(&store, "block").await?;
     chain.header_calls.store(0, Ordering::Relaxed);
     confirm(&chain, &store, &ReorgPeriod::from_blocks(0)).await?;
     assert_eq!(chain.header_calls.load(Ordering::Relaxed), 2);
-    assert_eq!(count(&store, "scraper_checkpoint").await?, 1);
-    assert_eq!(store.checkpoint(10).await?, 10);
+    assert_eq!(
+        count(&store, "scraper_checkpoint").await?,
+        i64::try_from(store::CHECKPOINT_HISTORY_BLOCKS)? + 1
+    );
+    assert_eq!(store.checkpoint(head).await?, head);
+    assert_eq!(store.checkpoint(head - 3).await?, head - 3);
+    assert!(store.hash(9).await?.is_none());
+    assert!(store.hash(10).await?.is_some());
     assert_eq!(count(&store, "block").await?, blocks);
+
+    // Sparse slots/state versions still need the checkpoint preceding the window.
+    let sparse = Store {
+        db: Database::connect(&url).await?,
+        domain: 137,
+    };
+    let chain = Chain::new(head * 3);
+    let anchor = chain.header(0u64.into()).await?;
+    let tip = chain.header((head * 3).into()).await?;
+    sparse.initialize(&anchor, &contracts()).await?;
+    let initial = sparse.state().await?.unwrap();
+    sparse.observe(&initial, &anchor, &tip).await?;
+    sparse
+        .append(&sparse.state().await?.unwrap(), &[(tip.clone(), vec![])])
+        .await?;
+    sparse
+        .confirm(
+            &sparse.state().await?.unwrap(),
+            &tip,
+            MIN_CONFIRMATION_LEASE,
+        )
+        .await?;
+    assert_eq!(sparse.checkpoint(tip.height - 3).await?, 0);
+    assert_eq!(
+        count(&sparse, "scraper_checkpoint").await?,
+        i64::try_from(store::CHECKPOINT_HISTORY_BLOCKS)? + 3
+    );
+    assert!(
+        store.hash(10).await?.is_some(),
+        "another domain's pruning must be isolated"
+    );
     Ok(())
 }
 
@@ -915,7 +981,10 @@ async fn idle_sequence_ingestion_advances_with_only_an_end_checkpoint() -> Resul
     chain.header_calls.store(0, Ordering::Relaxed);
     let mut cache = CountCache::default();
 
-    assert!(!ingest_cached(&chain, &store, &state, 100, &mut cache).await?);
+    assert_eq!(
+        ingest_cached(&chain, &store, &state, 100, &mut cache).await?,
+        (false, false)
+    );
     assert!(chain.ranges.lock().unwrap().is_empty());
     assert_eq!(store.state().await?.unwrap().indexed, 10);
     assert_eq!(count(&store, "scraper_checkpoint").await?, 2);
@@ -1352,7 +1421,7 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
         }),
     );
     let receipts = ScraperDb::with_connection(Database::connect(&url).await?);
-    let mut cursors = [0; 2];
+    let mut cursors = [0; 3];
     for sweep in 1..=2 {
         // Reintroduce an unlinked healthy neighbor on each wrap.
         store
@@ -1374,7 +1443,7 @@ async fn receipt_timeouts_do_not_starve_cached_neighbors_across_sweeps() -> Resu
             .is_empty());
         // Exhausted page resets the cursor, making the poison page eligible again.
         enrich_with_timeout(&enrichment_store, &mut cursors, Duration::from_millis(200)).await;
-        assert_eq!(cursors, [0; 2]);
+        assert_eq!(cursors, [0; 3]);
     }
     Ok(())
 }

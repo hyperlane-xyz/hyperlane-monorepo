@@ -18,7 +18,9 @@ const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 // bsc (PoSA) and polygon (PoS) have a history of multi-block reorgs, so they
 // use a small non-zero reorg period instead of 1 even on the fast path.
 const FASTPATH_REORG_PRONE_REORG_PERIOD = 3;
-export const fastPathReorgPeriodOverrides: Record<string, number> = {
+// A number of blocks, or a block tag (e.g. 'safe' / 'finalized') for EVM chains
+// whose RPC fork-choice head tracks the tip closely enough to stay on the fast path.
+export const fastPathReorgPeriodOverrides: Record<string, number | string> = {
   arbitrum: FASTPATH_VALIDATOR_REORG_PERIOD,
   base: FASTPATH_VALIDATOR_REORG_PERIOD,
   bsc: FASTPATH_REORG_PRONE_REORG_PERIOD,
@@ -142,17 +144,6 @@ export const validatorChainConfig = (
         'base',
       ),
     },
-    bob: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('bob'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [],
-        },
-        'bob',
-      ),
-    },
     bsc: {
       interval: validatorInterval(context),
       reorgPeriod: validatorReorgPeriod(context, 'bsc'),
@@ -195,6 +186,14 @@ export const validatorChainConfig = (
           [Contexts.FastPath]: [AW_FASTPATH_VALIDATOR],
         },
         'citrea',
+      ),
+    },
+    collect: {
+      interval: DEFAULT_VALIDATOR_INTERVAL,
+      reorgPeriod: getReorgPeriod('collect'),
+      validators: validatorsConfig(
+        { [Contexts.Hyperlane]: [AW_VALIDATOR] },
+        'collect',
       ),
     },
     coti: {
@@ -403,17 +402,6 @@ export const validatorChainConfig = (
         'linea',
       ),
     },
-    lisk: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('lisk'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-          [Contexts.ReleaseCandidate]: [''],
-        },
-        'lisk',
-      ),
-    },
     lukso: {
       interval: 5,
       reorgPeriod: getReorgPeriod('lukso'),
@@ -434,16 +422,6 @@ export const validatorChainConfig = (
           [Contexts.ReleaseCandidate]: [],
         },
         'mantle',
-      ),
-    },
-    mantra: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('mantra'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'mantra',
       ),
     },
     metal: {
@@ -508,16 +486,6 @@ export const validatorChainConfig = (
         'monad',
       ),
     },
-    nesa: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('nesa'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'nesa',
-      ),
-    },
     nesachain: {
       interval: 5,
       reorgPeriod: getReorgPeriod('nesachain'),
@@ -526,16 +494,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'nesachain',
-      ),
-    },
-    nexus: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('nexus'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'nexus',
       ),
     },
     optimism: {
@@ -632,16 +590,6 @@ export const validatorChainConfig = (
         'solaxy',
       ),
     },
-    somnia: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('somnia'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'somnia',
-      ),
-    },
     soneium: {
       interval: 5,
       reorgPeriod: getReorgPeriod('soneium'),
@@ -700,16 +648,6 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: [AW_VALIDATOR],
         },
         'subtensor',
-      ),
-    },
-    tea: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('tea'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [AW_VALIDATOR],
-        },
-        'tea',
       ),
     },
     tempo: {

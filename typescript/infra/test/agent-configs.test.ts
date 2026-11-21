@@ -1,9 +1,14 @@
 import { rejects } from 'node:assert/strict';
+import { isDeepStrictEqual } from 'node:util';
 
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { AgentConfig } from '@hyperlane-xyz/sdk';
+import {
+  AgentConfig,
+  GasPaymentEnforcementPolicyType,
+  type MatchingList,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType, addressToBytes32, assert } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
@@ -19,7 +24,11 @@ import {
   hyperlaneContextAgentChainConfig as testnet4AgentChainConfig,
 } from '../config/environments/testnet4/agent.js';
 import { testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
-import { getChain, getIcaRouterAddresses } from '../config/registry.js';
+import {
+  getChain,
+  getDomainId,
+  getIcaRouterAddresses,
+} from '../config/registry.js';
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
 import {
   AgentConfigHelper,
@@ -99,6 +108,33 @@ function agentConfigHelper(
   }
 }
 
+// Gas payment exemptions that match any sender. Every entry needs a reason;
+// pin a sender or recipient instead whenever possible.
+type MatchingListElement = MatchingList[number];
+
+const unpinnedGasPaymentExemptions: Array<{
+  element: MatchingListElement;
+  reason: string;
+}> = [
+  {
+    element: { originDomain: getDomainId('starknet') },
+    reason: 'Starknet messages pay through a protocol fee hook, not the IGP.',
+  },
+  {
+    element: { originDomain: getDomainId('paradex') },
+    reason: 'Paradex messages pay through a protocol fee hook, not the IGP.',
+  },
+  {
+    element: { destinationDomain: getDomainId('citrea') },
+    reason:
+      'Some CROSS/MoonPay transfers to Citrea pay under half the gas estimate.',
+  },
+  {
+    element: { destinationDomain: getDomainId('mantle') },
+    reason: 'Mantle gas amounts are unreliable; Mantle is being deprecated.',
+  },
+];
+
 describe('Agent configs', () => {
   for (const [environment, configs] of [
     ['mainnet', mainnet3Agents],
@@ -130,6 +166,9 @@ describe('Agent configs', () => {
           assert(relayer, 'Missing relayer Helm values');
           assert(relayer.envConfig, 'Missing relayer environment config');
           assert(relayer.configMapConfig, 'Missing relayer configmap');
+          expect(relayer.envConfig.ccipReadAllowedDomains).to.equal(
+            'offchain-lookup.services.hyperlane.xyz,testnet-offchain-lookup.services.hyperlane.xyz',
+          );
           expect(relayer.envConfig.runtimeDenylistUrl).to.equal(
             `https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/${environment}-denylist.json`,
           );
@@ -147,6 +186,20 @@ describe('Agent configs', () => {
           );
           expect(relayer.configMapConfig).not.to.have.property(
             'messageActivityDatabaseUrl',
+          );
+          expect(relayer.envConfig.reorgPeriodOverrides).to.deep.equal(
+            context === Contexts.FastPath
+              ? environment === 'mainnet'
+                ? {
+                    arbitrum: 1,
+                    base: 1,
+                    bsc: 3,
+                    citrea: 1,
+                    ethereum: 1,
+                    polygon: 3,
+                  }
+                : { arbitrumsepolia: 1, sepolia: 1 }
+              : undefined,
           );
           expect(relayer.configMapConfig).not.to.have.property('blacklist');
           expect(relayer.envConfig).not.to.have.property('blacklist');
@@ -236,6 +289,73 @@ describe('Agent configs', () => {
       ).to.be.true;
     });
   }
+
+  it('pins every mainnet3 gas payment exemption to a sender or recipient', () => {
+    const icaRouters = new Set(
+      mainnet3SupportedChainNames.flatMap((chain) =>
+        getIcaRouterAddresses(chain).map((router) =>
+          addressToBytes32(router).toLowerCase(),
+        ),
+      ),
+    );
+    const pinnedAddresses = (
+      address: MatchingListElement['senderAddress'],
+    ): string[] =>
+      address === undefined || address === '*' ? [] : [address].flat();
+    // ICA routers are shared, so an ICA exemption must also pin the owner:
+    // a CALLS or COMMITMENT type byte followed by a concrete 32-byte owner.
+    const icaOwnerPinnedBodyRegex = /^\^0[01][0-9a-f]{64}/;
+
+    for (const context of [Contexts.Hyperlane, Contexts.ReleaseCandidate]) {
+      const policies = mainnet3Agents[context].relayer?.gasPaymentEnforcement;
+      assert(policies, `Missing gas payment enforcement for ${context}`);
+      const exemptions = policies
+        .filter(
+          (policy) =>
+            policy.type !== GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
+        )
+        .flatMap((policy) => {
+          // An omitted matching list matches every message.
+          assert(
+            policy.matchingList,
+            `${context} ${policy.type} policy must set a matching list`,
+          );
+          return policy.matchingList;
+        });
+
+      for (const { element } of unpinnedGasPaymentExemptions) {
+        expect(
+          exemptions.some((exemption) => isDeepStrictEqual(exemption, element)),
+          `${context}: stale unpinned exemption ${JSON.stringify(element)}`,
+        ).to.equal(true);
+      }
+
+      for (const exemption of exemptions) {
+        if (
+          unpinnedGasPaymentExemptions.some(({ element }) =>
+            isDeepStrictEqual(exemption, element),
+          )
+        ) {
+          continue;
+        }
+        const description = `${context}: ${JSON.stringify(exemption)}`;
+        const pinned = [
+          ...pinnedAddresses(exemption.senderAddress),
+          ...pinnedAddresses(exemption.recipientAddress),
+        ];
+        expect(
+          pinned.length > 0,
+          `${description} must pin a sender or recipient`,
+        ).to.equal(true);
+        if (pinned.some((address) => icaRouters.has(address.toLowerCase()))) {
+          expect(
+            exemption.bodyRegex ?? '',
+            `${description} must pin an ICA owner`,
+          ).to.match(icaOwnerPinnedBodyRegex);
+        }
+      }
+    }
+  });
 
   it('renders v1 reads for Solana clusters and preserves other SVM defaults', async () => {
     const solanaChains = new Set([
@@ -393,30 +513,21 @@ describe('Agent configs', () => {
     Object.entries(agents).forEach(([context, config]) => {
       const { relayer, validators } = config;
       if (validators) {
-        it(`configures ${environment}/${context} validators for the shared scraper`, () => {
+        it(`configures ${environment}/${context} validators for the public Merkle stream`, () => {
           expect(validators.websocketUrl).to.equal(
-            `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+            'wss://explorer-api.hyperlane.xyz/validators',
           );
         });
       }
 
       if (relayer) {
-        if (context === Contexts.FastPath) {
-          it(`configures ${environment}/${context} relayers for RPC-only indexing`, () => {
-            expect(relayer.websocketUrl).to.be.undefined;
-            expect(relayer.websocketAuthorityEnabled).to.be.undefined;
-          });
-        } else {
-          it(`configures ${environment}/${context} relayers for the shared scraper`, () => {
-            expect(relayer.websocketUrl).to.equal(
-              `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
-            );
-            expect(
-              relayer.websocketAuthorityEnabled,
-              `${environment}/${context} shared scraper authority`,
-            ).to.equal(environment !== 'testnet4');
-          });
-        }
+        it(`configures ${environment}/${context} relayer indexing`, () => {
+          expect(relayer.websocketUrl).to.equal(
+            context === Contexts.FastPath && environment === 'testnet4'
+              ? undefined
+              : `ws://scraper-proxy.${environment}.svc.cluster.local:8383/agents`,
+          );
+        });
       }
     });
   });

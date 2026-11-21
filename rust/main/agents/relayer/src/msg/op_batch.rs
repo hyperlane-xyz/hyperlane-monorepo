@@ -406,6 +406,7 @@ mod tests {
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            Default::default(),
             None,
             false,
         );

@@ -9,14 +9,10 @@ use serde::Serialize;
 use tracing::{info, warn};
 use url::Url;
 
-use crate::rpc::{chain_conf_for_read_url, dedupe_rpc_urls, state_read_urls};
-use hyperlane_base::{CheckpointSyncer, CoreMetrics};
+use hyperlane_base::CheckpointSyncer;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{CheckpointAtBlock, MerkleTreeHook, ReorgPeriod, H256};
-use hyperlane_metric::prometheus_metric::RpcRole;
 use redact::Secret;
-
-use crate::settings::ValidatorSettings;
 
 #[async_trait]
 pub trait ReorgReporter: Send + Sync + Debug {
@@ -27,6 +23,7 @@ pub trait ReorgReporter: Send + Sync + Debug {
 #[derive(Debug)]
 pub struct LatestCheckpointReorgReporter {
     merkle_tree_hooks: HashMap<Secret<Url>, Arc<dyn MerkleTreeHook>>,
+    storage_writer: Arc<dyn CheckpointSyncer>,
 }
 
 #[derive(Serialize)]
@@ -59,143 +56,67 @@ impl ReorgReportRpcResponse {
     }
 }
 
+#[derive(Clone)]
+enum ReportTarget {
+    Block(u64),
+    Finality(ReorgPeriod),
+}
+
 #[async_trait]
 impl ReorgReporter for LatestCheckpointReorgReporter {
     async fn report_at_block(&self, height: u64) {
-        self.report_at_block(height).await;
+        self.report(ReportTarget::Block(height)).await;
     }
 
-    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
-        self.report_with_reorg_period(reorg_period).await;
-    }
-}
-
-impl LatestCheckpointReorgReporter {
-    async fn report_at_block(&self, height: u64) -> Vec<ReorgReportRpcResponse> {
-        info!(?height, "Reporting latest checkpoint on reorg");
-        let mut futures = vec![];
-        for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
-            let url = url.expose_secret();
-            let future = async {
-                let latest_checkpoint = call_and_retry_indefinitely(|| {
-                    let merkle_tree_hook = merkle_tree_hook.clone();
-                    Box::pin(
-                        async move { merkle_tree_hook.latest_checkpoint_at_block(height).await },
-                    )
-                })
-                .await;
-
-                info!(rpc_url_hash = ?H256::from_slice(&keccak256(url.as_str().as_bytes())), ?height, ?latest_checkpoint, "Report latest checkpoint on reorg");
-                ReorgReportRpcResponse::new(url.clone(), latest_checkpoint, Some(height), None)
-            };
-
-            futures.push(future);
-        }
-
-        join_all(futures).await
-    }
-
-    async fn report_with_reorg_period(
-        &self,
-        reorg_period: &ReorgPeriod,
-    ) -> Vec<ReorgReportRpcResponse> {
-        info!(?reorg_period, "Reporting latest checkpoint on reorg");
-        let mut futures = vec![];
-        for (url, merkle_tree_hook) in &self.merkle_tree_hooks {
-            let url = url.expose_secret();
-            let future = async {
-                let latest_checkpoint = call_and_retry_indefinitely(|| {
-                    let merkle_tree_hook = merkle_tree_hook.clone();
-                    let period = reorg_period.clone();
-                    Box::pin(async move { merkle_tree_hook.latest_checkpoint(&period).await })
-                })
-                .await;
-
-                info!(rpc_url_hash = ?H256::from_slice(&keccak256(url.as_str().as_bytes())), ?reorg_period, ?latest_checkpoint, "Report latest checkpoint on reorg");
-                ReorgReportRpcResponse::new(
-                    url.clone(),
-                    latest_checkpoint,
-                    None,
-                    Some(reorg_period.clone()),
-                )
-            };
-
-            futures.push(future);
-        }
-
-        join_all(futures).await
+    async fn report_with_reorg_period(&self, period: &ReorgPeriod) {
+        self.report(ReportTarget::Finality(period.clone())).await;
     }
 }
 
 impl LatestCheckpointReorgReporter {
-    pub(crate) async fn from_settings(
-        settings: &ValidatorSettings,
-        metrics: &CoreMetrics,
-    ) -> eyre::Result<Self> {
-        let chain = settings.chain_setup(&settings.origin_chain)?;
-        let rpc_urls = settings
-            .rpcs
-            .iter()
-            .enumerate()
-            .map(|(i, rpc)| {
-                Url::parse(rpc.url.expose_secret())
-                    .map_err(|_| eyre::eyre!("Invalid rpcUrls[{i}] URL"))
-            })
-            .collect::<eyre::Result<Vec<_>>>()?;
-        let (source, urls) = state_read_urls(chain, rpc_urls);
-        let mut merkle_tree_hooks = HashMap::new();
-        for url in dedupe_rpc_urls(urls, source) {
-            let hook = chain_conf_for_read_url(chain, url.clone(), RpcRole::Primary)
-                .build_merkle_tree_hook(metrics)
-                .await?;
-            merkle_tree_hooks.insert(Secret::new(url), Arc::from(hook));
-        }
-        Ok(Self { merkle_tree_hooks })
-    }
-}
-
-#[derive(Debug)]
-pub struct LatestCheckpointReorgReporterWithStorageWriter {
-    /// `LatestCheckpointReorgReporterWithStorageWriter` is an extension to
-    /// `LatestCheckpointReorgReporter`
-    latest_checkpoint_reorg_reporter: LatestCheckpointReorgReporter,
-
-    /// Currently, the storage abstraction is tied to the checkpoint syncer, which is why
-    /// it is used here.
-    storage_writer: Arc<dyn CheckpointSyncer>,
-}
-
-#[async_trait]
-impl ReorgReporter for LatestCheckpointReorgReporterWithStorageWriter {
-    async fn report_at_block(&self, height: u64) {
-        let logs = self
-            .latest_checkpoint_reorg_reporter
-            .report_at_block(height)
-            .await;
-        self.submit_to_storage_writer(&logs).await;
-    }
-
-    async fn report_with_reorg_period(&self, reorg_period: &ReorgPeriod) {
-        let logs = self
-            .latest_checkpoint_reorg_reporter
-            .report_with_reorg_period(reorg_period)
-            .await;
-        self.submit_to_storage_writer(&logs).await;
-    }
-}
-
-impl LatestCheckpointReorgReporterWithStorageWriter {
     pub(crate) fn new(
-        latest_checkpoint_reorg_reporter: LatestCheckpointReorgReporter,
+        hooks: impl IntoIterator<Item = (Url, Arc<dyn MerkleTreeHook>)>,
         storage_writer: Arc<dyn CheckpointSyncer>,
     ) -> Self {
         Self {
-            latest_checkpoint_reorg_reporter,
+            merkle_tree_hooks: hooks
+                .into_iter()
+                .map(|(url, hook)| (Secret::new(url), hook))
+                .collect(),
             storage_writer,
         }
     }
 
-    async fn submit_to_storage_writer(&self, storage_logs_entries: &Vec<ReorgReportRpcResponse>) {
+    async fn report(&self, target: ReportTarget) {
+        let (height, period) = match &target {
+            ReportTarget::Block(height) => (Some(*height), None),
+            ReportTarget::Finality(period) => (None, Some(period.clone())),
+        };
+        info!(?height, ?period, "Reporting latest checkpoint on reorg");
+        let reports = join_all(self.merkle_tree_hooks.iter().map(|(url, hook)| async {
+            let checkpoint = call_and_retry_indefinitely(|| {
+                let hook = hook.clone();
+                let target = target.clone();
+                Box::pin(async move {
+                    match target {
+                        ReportTarget::Block(height) => {
+                            hook.latest_checkpoint_at_block(height).await
+                        }
+                        ReportTarget::Finality(period) => hook.latest_checkpoint(&period).await,
+                    }
+                })
+            })
+            .await;
+            let url = url.expose_secret();
+            info!(rpc_url_hash = ?H256::from_slice(&keccak256(url.as_str().as_bytes())),
+                ?height, ?period, ?checkpoint, "Report latest checkpoint on reorg");
+            ReorgReportRpcResponse::new(url.clone(), checkpoint, height, period.clone())
+        }))
+        .await;
+        self.submit_to_storage_writer(&reports).await;
+    }
+
+    async fn submit_to_storage_writer(&self, storage_logs_entries: &[ReorgReportRpcResponse]) {
         let json_string = serde_json::to_string_pretty(storage_logs_entries).unwrap_or_else(|e| {
             warn!("Error serializing json: {}", e);
             String::from("{\"error\": \"Error formatting the string\"}")
@@ -223,13 +144,79 @@ mod tests {
         hook.expect_fmt()
             .returning(|formatter| formatter.write_str("MockMerkleTreeHook"));
         let hook: Arc<dyn MerkleTreeHook> = Arc::new(hook);
-        let reporter = LatestCheckpointReorgReporter {
-            merkle_tree_hooks: HashMap::from([(Secret::new(url), hook)]),
-        };
+        let storage = hyperlane_base::tests::mock_checkpoint_syncer::MockCheckpointSyncer::new();
+        let reporter = LatestCheckpointReorgReporter::new([(url, hook)], Arc::new(storage));
         let output = format!("{reporter:?}");
         assert!(!output.contains("private-"));
         assert!(output.contains("merkle_tree_hooks"));
         assert!(output.contains("MockMerkleTreeHook"));
         assert!(output.contains("[REDACTED"));
+    }
+    #[tokio::test]
+    async fn shared_hook_reports_are_persisted_without_endpoint_credentials() {
+        use hyperlane_base::LocalStorage;
+        use hyperlane_core::Checkpoint;
+        use mockall::predicate::eq;
+
+        for at_block in [true, false] {
+            let directory = tempfile::tempdir().expect("report directory");
+            let storage =
+                LocalStorage::new(directory.path().to_owned(), None).expect("report storage");
+            let checkpoint = CheckpointAtBlock {
+                checkpoint: Checkpoint {
+                    mailbox_domain: 1,
+                    merkle_tree_hook_address: H256::from_low_u64_be(2),
+                    root: H256::repeat_byte(3),
+                    index: 7,
+                },
+                block_height: Some(12),
+            };
+            let mut hook = MockMerkleTreeHook::new();
+            if at_block {
+                hook.expect_latest_checkpoint_at_block()
+                    .with(eq(12))
+                    .once()
+                    .return_once(move |_| Ok(checkpoint));
+            } else {
+                hook.expect_latest_checkpoint()
+                    .with(eq(ReorgPeriod::None))
+                    .once()
+                    .return_once(move |_| Ok(checkpoint));
+            }
+            let hook: Arc<dyn MerkleTreeHook> = Arc::new(hook);
+            let url = Url::parse(
+                "https://user:private-password@localhost/private-path?key=private-query",
+            )
+            .expect("endpoint");
+            let reporter =
+                LatestCheckpointReorgReporter::new([(url, hook.clone())], Arc::new(storage));
+            assert!(Arc::ptr_eq(
+                reporter
+                    .merkle_tree_hooks
+                    .values()
+                    .next()
+                    .expect("shared hook"),
+                &hook
+            ));
+            if at_block {
+                ReorgReporter::report_at_block(&reporter, 12).await;
+            } else {
+                ReorgReporter::report_with_reorg_period(&reporter, &ReorgPeriod::None).await;
+            }
+            let json = tokio::fs::read_to_string(directory.path().join("reorg_rpc_responses.json"))
+                .await
+                .expect("persisted report");
+            assert!(!json.contains("private-"));
+            let rows: serde_json::Value = serde_json::from_str(&json).expect("report JSON");
+            assert_eq!(rows[0]["merkle_root_index"], 7);
+            assert_eq!(
+                rows[0]["height"],
+                if at_block {
+                    serde_json::json!(12)
+                } else {
+                    serde_json::Value::Null
+                }
+            );
+        }
     }
 }

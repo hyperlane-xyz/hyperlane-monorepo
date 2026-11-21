@@ -88,6 +88,8 @@ writeable = "writeable"
 # External API field names that cannot be changed
 # Etherscan API uses "constructorArguements" (their typo)
 Arguements = "Arguements"
+# Tron protobuf Transaction.Result.code wire value (the protocol spelling)
+SUCESS = "SUCESS"
 # Tron API error code
 BANDWITH = "BANDWITH"
 # tron_rs library type "BlockExtention"

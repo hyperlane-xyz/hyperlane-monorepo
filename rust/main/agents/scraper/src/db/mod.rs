@@ -18,6 +18,8 @@ mod generated;
 mod block;
 mod block_cursor;
 mod event_receipts;
+#[cfg(test)]
+pub(crate) use event_receipts::DISPATCH_PENDING;
 pub(crate) use event_receipts::{ReceiptStream, RECEIPT_PAGE_SIZE};
 mod message;
 mod raw_message_dispatch;

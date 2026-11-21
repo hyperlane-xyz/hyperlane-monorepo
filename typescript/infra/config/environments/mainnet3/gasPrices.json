@@ -31,14 +31,6 @@
     "amount": "0.006",
     "decimals": 9
   },
-  "blast": {
-    "amount": "0.001001723",
-    "decimals": 9
-  },
-  "bob": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
   "bsc": {
     "amount": "0.1",
     "decimals": 9
@@ -53,6 +45,10 @@
   },
   "citrea": {
     "amount": "0.0010001",
+    "decimals": 9
+  },
+  "collect": {
+    "amount": "0.001000252",
     "decimals": 9
   },
   "coti": {
@@ -85,10 +81,6 @@
   },
   "fluent": {
     "amount": "0.001000007",
-    "decimals": 9
-  },
-  "forma": {
-    "amount": "19.0",
     "decimals": 9
   },
   "fraxtal": {
@@ -139,20 +131,12 @@
     "amount": "0.098465617",
     "decimals": 9
   },
-  "lisk": {
-    "amount": "0.001001015",
-    "decimals": 9
-  },
   "lukso": {
     "amount": "1.0",
     "decimals": 9
   },
   "mantle": {
     "amount": "0.02",
-    "decimals": 9
-  },
-  "mantra": {
-    "amount": "11.25",
     "decimals": 9
   },
   "metal": {
@@ -179,16 +163,8 @@
     "amount": "102.0",
     "decimals": 9
   },
-  "nesa": {
-    "amount": "1.125",
-    "decimals": 9
-  },
   "nesachain": {
     "amount": "1.125",
-    "decimals": 9
-  },
-  "nexus": {
-    "amount": "1.000000007",
     "decimals": 9
   },
   "optimism": {
@@ -227,10 +203,6 @@
     "amount": "0.5",
     "decimals": 1
   },
-  "somnia": {
-    "amount": "6.0",
-    "decimals": 9
-  },
   "soneium": {
     "amount": "0.001999792",
     "decimals": 9
@@ -253,10 +225,6 @@
   },
   "subtensor": {
     "amount": "10.0",
-    "decimals": 9
-  },
-  "tea": {
-    "amount": "0.0011",
     "decimals": 9
   },
   "tempo": {

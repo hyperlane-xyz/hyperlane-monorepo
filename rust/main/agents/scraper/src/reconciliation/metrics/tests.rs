@@ -39,16 +39,21 @@ async fn reconciliation_idle_sleep_updates_liveness() {
 async fn operations_preserve_results_and_recover_from_errors_and_panics() {
     let core = CoreMetrics::new("reconciliation_test", 0, prometheus::Registry::new()).unwrap();
     let metrics = ReconciliationMetrics::new(&core);
-    assert_eq!(metrics.run("chain", "test", async { Ok(7) }).await, Some(7));
+    assert_eq!(
+        metrics.run("chain", "test", |_| async { Ok(7) }).await,
+        Some(7)
+    );
     assert_eq!(
         metrics
-            .run::<i32>("chain", "test", async { Err(eyre::eyre!("rpc failed")) })
+            .run::<i32, _>("chain", "test", |_| async {
+                Err(eyre::eyre!("rpc failed"))
+            })
             .await,
         None
     );
     assert_eq!(
         metrics
-            .run::<i32>("chain", "test", async { panic!("provider panicked") })
+            .run::<i32, _>("chain", "test", |_| async { panic!("provider panicked") })
             .await,
         None
     );

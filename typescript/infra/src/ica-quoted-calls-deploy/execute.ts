@@ -15,10 +15,10 @@ import {
   Address,
   addBufferToGasLimit,
   addressToBytes32,
+  redactErrorMessage,
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../../config/environments/utils.js';
-import { describeError } from '../aggregation-hook-upgrade/redact.js';
 
 import { COMMIT_TX_GAS_USAGE, PeerDomain } from './types.js';
 
@@ -79,7 +79,7 @@ async function deployTracked(args: {
         await args.hooks.onNotSent();
       } catch (clearError: unknown) {
         throw new Error(
-          `${describeError(error)}; the pending deploy record could not be cleared: ${describeError(clearError)}`,
+          `${redactErrorMessage(error)}; the pending deploy record could not be cleared: ${redactErrorMessage(clearError)}`,
         );
       }
     }
@@ -100,7 +100,7 @@ export async function afterDeploy<T>(
     return await step();
   } catch (error: unknown) {
     throw new Error(
-      `${label} ${address} was deployed on ${chain} but a later step failed: ${redact(describeError(error))}`,
+      `${label} ${address} was deployed on ${chain} but a later step failed: ${redact(redactErrorMessage(error))}`,
     );
   }
 }

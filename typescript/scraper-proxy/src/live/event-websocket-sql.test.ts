@@ -1,33 +1,62 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { it } from 'node:test';
 
 process.env.DATABASE_URL ??= 'postgres://localhost/scraper_sql_test';
-const { EventStore, STREAMS, gasPaymentColumns, gasPaymentMetadataJoins } =
-  await import('./event-store.js');
+const { EventStore, STREAMS } = await import('./event-store.js');
 
-void describe('gas payment SQL helpers', () => {
-  void it('uses recorded log metadata before receipt enrichment and preserves legacy aliases', () => {
-    assert.equal(
-      gasPaymentColumns({
-        columns: ['id', 'tx_id', 'payment'],
-        domain: 'domain',
-        projection: 'unused unqualified projection',
-        table: 'gas_payment',
-      }),
-      '"event_row"."id", "event_row"."tx_id", "event_row"."payment", ' +
-        'COALESCE("event_row"."transaction_hash", "event_transaction"."hash") AS "origin_tx_hash", ' +
-        'COALESCE("event_row"."block_hash", "event_block"."hash") AS "origin_block_hash", ' +
-        'COALESCE("event_row"."block_number", "event_block"."height") AS "origin_block_height"',
-    );
+void it('binds every domain/policy pair in one confirmation snapshot', async () => {
+  let query = '';
+  let parameters: unknown[] = [];
+  const store = new EventStore({
+    async queryLive(sql, values = []) {
+      query = sql;
+      parameters = values;
+      return [];
+    },
   });
+  const snapshots = await store.confirmationSnapshots(
+    new Map([
+      [0, new Set([1, 4294967294])],
+      [12, new Set([1])],
+    ]),
+  );
+  assert.deepEqual(parameters, [
+    [1, -2, 1],
+    [0, 0, 12],
+  ]);
+  assert.match(query, /unnest\(\$1::integer\[\], \$2::bigint\[\]\)/);
+  assert.match(query, /h\.head_height-requested\.confirmations/);
+  assert.deepEqual(
+    snapshots,
+    new Map([
+      [0, new Map()],
+      [12, new Map()],
+    ]),
+  );
+});
 
-  void it('uses left joins for both optional metadata relations', () => {
-    assert.equal(
-      gasPaymentMetadataJoins(),
-      ' LEFT JOIN "transaction" AS "event_transaction" ON "event_transaction"."id" = "event_row"."tx_id"' +
-        ' LEFT JOIN "block" AS "event_block" ON "event_block"."id" = "event_transaction"."block_id"',
-    );
+void it('keeps gas payments without receipts and prefers recorded log metadata', async () => {
+  let query = '';
+  const store = new EventStore({
+    async queryLive(sql) {
+      query = sql;
+      return [];
+    },
   });
+  await store.notifiedEvents('gas_payment', ['1']);
+  assert.match(query, /LEFT JOIN "transaction"/);
+  assert.match(query, /LEFT JOIN "block"/);
+  for (const [field, relation, fallback, alias] of [
+    ['transaction_hash', 'event_transaction', 'hash', 'origin_tx_hash'],
+    ['block_hash', 'event_block', 'hash', 'origin_block_hash'],
+    ['block_number', 'event_block', 'height', 'origin_block_height'],
+  ]) {
+    assert(
+      query.includes(
+        `COALESCE("event_row"."${field}", "${relation}"."${fallback}") AS "${alias}"`,
+      ),
+    );
+  }
 });
 
 void it('includes block identity only in the provisional Merkle projection', async () => {
@@ -43,7 +72,6 @@ void it('includes block identity only in the provisional Merkle projection', asy
     1,
     [0n, 0, 0n],
     100n,
-    1,
   )) {
     assert.fail(`Unexpected row: ${JSON.stringify(row)}`);
   }
@@ -52,8 +80,7 @@ void it('includes block identity only in the provisional Merkle projection', asy
   assert.ok(!STREAMS.merkle_tree_insertion.columns.includes('block_hash'));
 });
 
-void it('filters confirmation dispatch, delivery and gas rows in SQL before enrichment', async () => {
-  const { EventStore } = await import('./event-store.js');
+void it('reads one domain range across dispatch, delivery and gas with a stable page cursor', async () => {
   const queries: { sql: string; values: unknown[] }[] = [];
   const store = new EventStore({
     queryLive: async (sql, values = []) => {
@@ -61,60 +88,21 @@ void it('filters confirmation dispatch, delivery and gas rows in SQL before enri
       return [];
     },
   });
-  const ids = new Set([`\\x${'ab'.repeat(32)}`]);
-  for await (const row of store.confirmationMessageRows(
-    1,
-    [0n, 0, 0n],
-    10n,
-    new Map(),
-    0,
-    ids,
-  )) {
-    assert.fail(`Unexpected row ${JSON.stringify(row)}`);
-  }
+  for await (const page of store.messageChanges(1, [5n, 1, 10n], 20n))
+    assert.fail('Unexpected page of length ' + page.length);
   assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0].values.slice(0, 5), [1, '5', 1, '10', '20']);
+  for (const table of [
+    'raw_message_dispatch',
+    'delivered_message',
+    'gas_payment',
+  ])
+    assert.ok(queries[0].sql.includes(table));
+  // Each arm must bound its own scan; an outer-only LIMIT re-reads the range per page.
   assert.equal(
-    queries[0]?.sql.match(/msg_id = ANY\(\$7::bytea\[\]\)/g)?.length,
+    queries[0].sql.match(
+      /\)>\(\$2::bigint,\$3::integer,\$4::bigint\)\s+ORDER BY \w+, id LIMIT \$6\)/g,
+    )?.length,
     3,
   );
-  assert.deepEqual(queries[0]?.values[6], [...ids]);
-  for await (const row of store.confirmationMessageRows(
-    1,
-    [0n, 0, 0n],
-    10n,
-    new Map(),
-    0,
-    new Set(),
-  )) {
-    assert.fail(`Unexpected row ${JSON.stringify(row)}`);
-  }
-  assert.equal(queries.length, 1);
-});
-
-void it('filters zero-confirmation reads by mailbox, hook or paymaster', async () => {
-  const queries: { sql: string; values: unknown[] }[] = [];
-  const store = new EventStore({
-    queryLive: async (sql, values = []) => {
-      queries.push({ sql, values });
-      return [];
-    },
-  });
-  for (const [eventType, column] of [
-    ['dispatch', 'origin_mailbox'],
-    ['merkle_tree_insertion', 'merkle_tree_hook'],
-    ['gas_payment', 'interchain_gas_paymaster'],
-  ] as const)
-    for (const addresses of [[`\\x${'aa'.repeat(20)}`], []]) {
-      for await (const row of store.confirmationEventRows(
-        eventType,
-        1,
-        [0n, 0, 0n],
-        10n,
-        0,
-        addresses,
-      ))
-        assert.fail(JSON.stringify(row));
-      assert.ok(queries.at(-1)?.sql.includes(`"${column}"=ANY($6::bytea[])`));
-      assert.deepEqual(queries.at(-1)?.values[5], addresses);
-    }
 });

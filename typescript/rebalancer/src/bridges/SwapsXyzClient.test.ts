@@ -1,0 +1,577 @@
+import { expect } from 'chai';
+import { pino } from 'pino';
+import sinon from 'sinon';
+
+import {
+  SwapsXyzClient,
+  SwapsXyzRequestError,
+  SwapsXyzCooldownError,
+  isTronTx,
+  isSwapsXyzTerminalError,
+  type SwapsXyzActionRequest,
+} from './SwapsXyzClient.js';
+
+const logger = pino({ level: 'silent' });
+
+type FetchStub = sinon.SinonStub<
+  Parameters<typeof globalThis.fetch>,
+  ReturnType<typeof globalThis.fetch>
+>;
+
+function makeResponse(options: {
+  status?: number;
+  statusText?: string;
+  body?: unknown;
+}): Response {
+  const status = options.status ?? 200;
+  return new Response(JSON.stringify(options.body ?? {}), {
+    status,
+    statusText: options.statusText ?? 'OK',
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function getRequest(
+  fetchStub: FetchStub,
+  callIndex = 0,
+): { url: string; init: RequestInit } {
+  const call = fetchStub.getCall(callIndex);
+  if (!call) throw new Error(`Missing fetch call ${callIndex}`);
+  const [input, init] = call.args;
+  if (typeof input !== 'string') throw new Error('Expected string fetch URL');
+  if (!init) throw new Error('Expected fetch request init');
+  return { url: input, init };
+}
+
+function actionRequest(): SwapsXyzActionRequest {
+  return {
+    actionType: 'swap-action',
+    sender: '0xabc',
+    srcChainId: 1,
+    srcToken: '0x1111',
+    dstChainId: 8453,
+    dstToken: '0x2222',
+    slippage: 50,
+    amount: '1000000',
+    swapDirection: 'exact-amount-in',
+  };
+}
+
+function actionResponseBody(): Record<string, unknown> {
+  return {
+    tx: { to: '0x1111', data: '0xdeadbeef', value: '0', chainId: 1 },
+    txId: 'tx-1',
+    vmId: 'evm',
+    amountIn: { amount: '1000000' },
+    amountOut: { amount: '995000' },
+    amountOutMin: { amount: '990000' },
+    requiresTokenApproval: false,
+  };
+}
+
+function statusResponseBody(): Record<string, unknown> {
+  return {
+    status: 'pending',
+    txId: 'tx-1',
+    srcChainId: 1,
+    dstChainId: 8453,
+  };
+}
+
+function tronActionResponseBody(toExtra: string | null = null): unknown {
+  return {
+    tx: {
+      to: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+      toExtra,
+      value: '1000000',
+      chainId: 728126428,
+      chainKey: 'trx',
+    },
+    txId: 'tron-tx-1',
+    vmId: 'alt-vm',
+    amountIn: { amount: '1000000' },
+    amountOut: { amount: '995000' },
+    amountOutMin: { amount: '990000' },
+    requiresTokenApproval: false,
+    requiresRegisterTransaction: true,
+  };
+}
+
+async function captureError(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+  throw new Error('Expected promise to reject');
+}
+
+describe('SwapsXyzClient', () => {
+  let client: SwapsXyzClient;
+  let fetchStub: FetchStub;
+
+  beforeEach(() => {
+    client = new SwapsXyzClient({ apiKey: 'test-key' }, logger);
+    fetchStub = sinon.stub(globalThis, 'fetch');
+  });
+
+  afterEach(() => {
+    sinon.restore();
+  });
+
+  it('sends x-api-key on every endpoint request', async () => {
+    fetchStub.onCall(0).resolves(makeResponse({ body: actionResponseBody() }));
+    fetchStub.onCall(1).resolves(makeResponse({ body: statusResponseBody() }));
+    fetchStub
+      .onCall(2)
+      .resolves(makeResponse({ body: [{ success: true, error: null }] }));
+
+    await client.getAction(actionRequest());
+    await client.getStatus({ txId: 'tx-1' });
+    await client.registerTxs([{ txId: 'tx-1', txHash: '0xabc' }]);
+
+    expect(fetchStub.callCount).to.equal(3);
+    for (let index = 0; index < fetchStub.callCount; index++) {
+      const { init } = getRequest(fetchStub, index);
+      expect(new Headers(init.headers).get('x-api-key')).to.equal('test-key');
+    }
+  });
+
+  it('bounds each request with an AbortSignal timeout', async () => {
+    fetchStub.resolves(makeResponse({ body: actionResponseBody() }));
+    await client.getAction(actionRequest());
+
+    const { init } = getRequest(fetchStub);
+    expect(init.signal).to.be.instanceOf(AbortSignal);
+  });
+
+  it('bounds success bodies that ignore abort within the request retry budget', async () => {
+    const clock = sinon.useFakeTimers();
+    client = new SwapsXyzClient(
+      { apiKey: 'test-key', requestTimeoutMs: 100 },
+      logger,
+    );
+    fetchStub.callsFake(async () => new Response(new ReadableStream()));
+    const result = captureError(client.getAction(actionRequest()));
+
+    await clock.runAllAsync();
+
+    const error = await result;
+    expect(error).to.be.instanceOf(Error);
+    if (!(error instanceof Error)) throw new Error('Expected timeout error');
+    expect(error.message).to.include('HTTP request timed out after 100ms');
+    expect(fetchStub.callCount).to.equal(3);
+    expect(clock.now).to.equal(3_300);
+  });
+
+  it('preserves a terminal HTTP status when its error body stalls', async () => {
+    const clock = sinon.useFakeTimers();
+    client = new SwapsXyzClient(
+      { apiKey: 'test-key', requestTimeoutMs: 100 },
+      logger,
+    );
+    fetchStub.callsFake(
+      async () => new Response(new ReadableStream(), { status: 401 }),
+    );
+    const result = captureError(client.getAction(actionRequest()));
+
+    await clock.runAllAsync();
+
+    const error = await result;
+    expect(error).to.be.instanceOf(SwapsXyzRequestError);
+    if (!(error instanceof SwapsXyzRequestError)) {
+      throw new Error('Expected HTTP error');
+    }
+    expect(error.status).to.equal(401);
+    expect(fetchStub.callCount).to.equal(1);
+    expect(clock.now).to.equal(100);
+  });
+
+  for (const retryAfter of ['5', new Date(5_000).toUTCString()]) {
+    it(`honors Retry-After within the inline budget: ${retryAfter}`, async () => {
+      const clock = sinon.useFakeTimers();
+      fetchStub.onFirstCall().resolves(
+        new Response('{}', {
+          status: 429,
+          headers: { 'retry-after': retryAfter },
+        }),
+      );
+      fetchStub
+        .onSecondCall()
+        .resolves(makeResponse({ body: actionResponseBody() }));
+      const attemptStarts: number[] = [];
+      const result = client.getAction(actionRequest(), (startedAt) =>
+        attemptStarts.push(startedAt),
+      );
+      await clock.tickAsync(4_999);
+      expect(fetchStub.callCount).to.equal(1);
+      await clock.tickAsync(1);
+      await result;
+      expect(fetchStub.callCount).to.equal(2);
+      expect(attemptStarts).to.deep.equal([0, 5_000]);
+    });
+  }
+
+  it('defers a long Retry-After and preserves cooldown across future endpoint calls', async () => {
+    const clock = sinon.useFakeTimers();
+    fetchStub.onFirstCall().resolves(
+      new Response('{}', {
+        status: 429,
+        headers: { 'retry-after': '120' },
+      }),
+    );
+    fetchStub
+      .onSecondCall()
+      .resolves(makeResponse({ body: statusResponseBody() }));
+    const first = await captureError(client.getAction(actionRequest()));
+    expect(first).to.be.instanceOf(SwapsXyzRequestError);
+    expect(clock.now).to.equal(0);
+    expect(
+      await captureError(client.getStatus({ txId: 'tx-1' })),
+    ).to.be.instanceOf(SwapsXyzCooldownError);
+    expect(fetchStub.callCount).to.equal(1);
+    await clock.tickAsync(90_000);
+    const next = client.getStatus({ txId: 'tx-1' });
+    await clock.tickAsync(29_999);
+    expect(fetchStub.callCount).to.equal(1);
+    await clock.tickAsync(1);
+    expect((await next).status).to.equal('pending');
+    expect(fetchStub.callCount).to.equal(2);
+    expect(clock.now).to.equal(120_000);
+  });
+
+  it('retains long rate-limit cooldown when the error body ignores cancellation', async () => {
+    const clock = sinon.useFakeTimers();
+    client = new SwapsXyzClient(
+      { apiKey: 'test-key', requestTimeoutMs: 100 },
+      logger,
+    );
+    fetchStub.resolves(
+      new Response(new ReadableStream(), {
+        status: 429,
+        headers: { 'retry-after': '120' },
+      }),
+    );
+    const result = captureError(client.getAction(actionRequest()));
+    await clock.tickAsync(100);
+    expect(await result).to.be.instanceOf(SwapsXyzRequestError);
+    expect(
+      await captureError(client.getStatus({ txId: 'tx-1' })),
+    ).to.be.instanceOf(SwapsXyzCooldownError);
+    expect(fetchStub.callCount).to.equal(1);
+  });
+
+  it('bounds repeated 429 responses with malformed Retry-After to three attempts', async () => {
+    const clock = sinon.useFakeTimers();
+    fetchStub.callsFake(
+      async () =>
+        new Response('{}', {
+          status: 429,
+          headers: { 'retry-after': '-1' },
+        }),
+    );
+    const result = captureError(client.getAction(actionRequest()));
+    await clock.runAllAsync();
+    expect(await result).to.be.instanceOf(SwapsXyzRequestError);
+    expect(fetchStub.callCount).to.equal(3);
+    expect(clock.now).to.equal(3_000);
+  });
+
+  it('builds /getAction query params and skips undefined values', async () => {
+    fetchStub.resolves(makeResponse({ body: actionResponseBody() }));
+    await client.getAction({
+      ...actionRequest(),
+      srcChainId: 8453,
+      dstChainId: 42161,
+      slippage: 100,
+      recipient: undefined,
+    });
+
+    const { url } = getRequest(fetchStub);
+    const parsedUrl = new URL(url);
+    expect(parsedUrl.origin + parsedUrl.pathname).to.equal(
+      'https://api-v2.swaps.xyz/api/getAction',
+    );
+    expect(parsedUrl.searchParams.get('srcChainId')).to.equal('8453');
+    expect(parsedUrl.searchParams.get('dstChainId')).to.equal('42161');
+    expect(parsedUrl.searchParams.get('swapDirection')).to.equal(
+      'exact-amount-in',
+    );
+    expect(parsedUrl.searchParams.get('slippage')).to.equal('100');
+    expect(parsedUrl.searchParams.has('recipient')).to.equal(false);
+  });
+
+  it('honors apiUrl override and strips its trailing slash', async () => {
+    const customClient = new SwapsXyzClient(
+      { apiKey: 'test-key', apiUrl: 'https://example.test/api/' },
+      logger,
+    );
+    fetchStub.resolves(makeResponse({ body: statusResponseBody() }));
+
+    await customClient.getStatus({ txId: 'tx-1' });
+
+    const { url } = getRequest(fetchStub);
+    expect(url.startsWith('https://example.test/api/getStatus?')).to.equal(
+      true,
+    );
+  });
+
+  it('getStatus throws synchronously without txHash or txId', () => {
+    expect(() => client.getStatus({})).to.throw('txHash or txId');
+    expect(fetchStub.callCount).to.equal(0);
+  });
+
+  it('accepts numeric bridge timestamps and null next bridges', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        body: {
+          ...statusResponseBody(),
+          status: 'success',
+          bridgeDetails: {
+            isBridge: true,
+            bridgeTime: 2,
+            txPath: [
+              {
+                chainId: 1,
+                txHash: '0xsource',
+                timestamp: 1792491359,
+                nextBridge: 'relay',
+              },
+              {
+                chainId: 4663,
+                txHash: '0xdestination',
+                timestamp: 1792491361,
+                nextBridge: null,
+              },
+            ],
+          },
+        },
+      }),
+    );
+
+    const response = await client.getStatus({ txId: 'tx-1' });
+
+    expect(response.bridgeDetails?.txPath?.[1]?.nextBridge).to.be.null;
+  });
+
+  it('accepts null fields while a transfer is pending', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        body: {
+          ...statusResponseBody(),
+          dstChainId: null,
+          srcTxHash: '0xsource',
+          dstTxHash: null,
+          sender: null,
+          bridgeDetails: null,
+          actionResponse: null,
+        },
+      }),
+    );
+
+    const response = await client.getStatus({ txId: 'tx-1' });
+
+    expect(response.status).to.equal('pending');
+    expect(response.dstChainId).to.be.null;
+    expect(response.dstTxHash).to.be.null;
+    expect(response.bridgeDetails).to.be.null;
+    expect(response.actionResponse).to.be.null;
+  });
+
+  it('rejects non-HTTPS API URLs', () => {
+    expect(
+      () =>
+        new SwapsXyzClient(
+          { apiKey: 'test-key', apiUrl: 'http://example.test/api' },
+          logger,
+        ),
+    ).to.throw('must use HTTPS');
+  });
+
+  it('rejects malformed API responses without retrying', async () => {
+    fetchStub.resolves(makeResponse({ body: { txId: 'missing-fields' } }));
+
+    const error = await captureError(client.getAction(actionRequest()));
+
+    expect(error).to.be.instanceOf(Error);
+    if (!(error instanceof Error)) throw new TypeError('Expected Error');
+    expect(error.message).to.include('Invalid swaps.xyz response');
+    expect(fetchStub.callCount).to.equal(1);
+  });
+
+  it('accepts a null estimated price impact', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        body: { ...actionResponseBody(), estimatedPriceImpact: null },
+      }),
+    );
+
+    const response = await client.getAction(actionRequest());
+
+    expect(response.estimatedPriceImpact).to.be.null;
+  });
+
+  it('accepts a Solana source transaction response', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        body: {
+          ...actionResponseBody(),
+          tx: {
+            base64Tx: 'AQID',
+            payer: 'solana-payer',
+            chainId: 1399811149,
+          },
+          vmId: 'solana',
+          requiresRegisterTransaction: true,
+        },
+      }),
+    );
+
+    const response = await client.getAction(actionRequest());
+
+    expect(response.vmId).to.equal('solana');
+    expect(response.tx).to.deep.include({ base64Tx: 'AQID' });
+  });
+
+  it('validates Tron alt-vm transaction responses', async () => {
+    fetchStub.resolves(makeResponse({ body: tronActionResponseBody() }));
+
+    const response = await client.getAction(actionRequest());
+
+    expect(isTronTx(response.tx)).to.equal(true);
+    if (!isTronTx(response.tx)) {
+      throw new Error('Expected a Tron transaction');
+    }
+    expect(response.tx.toExtra).to.equal(null);
+    expect(response.tx.chainKey).to.equal('trx');
+  });
+
+  it('rejects malformed Tron transaction objects in the type guard', () => {
+    expect(
+      isTronTx({
+        to: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+        toExtra: '0xabc',
+        value: '-1',
+        chainId: 728126428.5,
+        chainKey: 'trx',
+      }),
+    ).to.equal(false);
+  });
+
+  it('rejects malformed Tron calldata without retrying', async () => {
+    fetchStub.resolves(makeResponse({ body: tronActionResponseBody('0xabc') }));
+
+    const error = await captureError(client.getAction(actionRequest()));
+
+    expect(error).to.be.instanceOf(Error);
+    if (!(error instanceof Error)) throw new Error('Expected Error');
+    expect(error.message).to.include('Invalid swaps.xyz response');
+    expect(fetchStub.callCount).to.equal(1);
+  });
+
+  it('parses the error envelope and exposes its code', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        status: 400,
+        statusText: 'Bad Request',
+        body: {
+          success: false,
+          error: { code: 'NO_AVAILABLE_ROUTE', message: 'no route' },
+        },
+      }),
+    );
+
+    const error = await captureError(client.getAction(actionRequest()));
+    expect(error).to.be.instanceOf(SwapsXyzRequestError);
+    if (!(error instanceof SwapsXyzRequestError)) {
+      throw new Error('Expected SwapsXyzRequestError');
+    }
+    expect(error.code).to.equal('NO_AVAILABLE_ROUTE');
+    expect(error.message).to.include('no route');
+  });
+
+  it('does not retry terminal NO_AVAILABLE_ROUTE errors', async () => {
+    fetchStub.resolves(
+      makeResponse({
+        status: 400,
+        body: { error: { code: 'NO_AVAILABLE_ROUTE' } },
+      }),
+    );
+
+    const error = await captureError(client.getAction(actionRequest()));
+    expect(error).to.be.instanceOf(SwapsXyzRequestError);
+    expect(fetchStub.callCount).to.equal(1);
+  });
+
+  it('retries transient errors and succeeds on the third attempt', async function () {
+    this.timeout(10_000);
+    fetchStub
+      .onCall(0)
+      .resolves(makeResponse({ status: 500, statusText: 'Internal' }));
+    fetchStub
+      .onCall(1)
+      .resolves(makeResponse({ status: 502, statusText: 'Bad Gateway' }));
+    fetchStub.onCall(2).resolves(makeResponse({ body: actionResponseBody() }));
+
+    const response = await client.getAction(actionRequest());
+    expect(response.txId).to.equal('tx-1');
+    expect(fetchStub.callCount).to.equal(3);
+  });
+
+  it('classifies 408 as retriable and request errors as terminal', () => {
+    expect(
+      isSwapsXyzTerminalError(
+        new SwapsXyzRequestError('timeout', 408, 'Request Timeout'),
+      ),
+    ).to.equal(false);
+    expect(
+      isSwapsXyzTerminalError(
+        new SwapsXyzRequestError(
+          'unauthorized',
+          401,
+          'Unauthorized',
+          'INVALID_API_KEY',
+        ),
+      ),
+    ).to.equal(true);
+    expect(
+      isSwapsXyzTerminalError(
+        new SwapsXyzRequestError(
+          'unsupported',
+          400,
+          'Bad Request',
+          'UNSUPPORTED_SWAP_DIRECTION',
+        ),
+      ),
+    ).to.equal(true);
+  });
+
+  it('registerTxs posts a JSON body with content-type', async () => {
+    fetchStub.resolves(makeResponse({ body: [{ success: true }] }));
+    const entries = [{ txId: 'tx-1', txHash: '0xabc' }];
+
+    const results = await client.registerTxs(entries);
+
+    const { url, init } = getRequest(fetchStub);
+    expect(url).to.equal('https://api-v2.swaps.xyz/api/registerTxs');
+    expect(init.method).to.equal('POST');
+    expect(init.body).to.equal(JSON.stringify(entries));
+    expect(new Headers(init.headers).get('content-type')).to.equal(
+      'application/json',
+    );
+    const [result] = results;
+    if (!result) throw new Error('Expected registration result');
+    expect(result.success).to.equal(true);
+  });
+
+  it('leaves registration retries to the bridge', async () => {
+    fetchStub.resolves(makeResponse({ status: 503 }));
+
+    const error = await captureError(
+      client.registerTxs([{ txId: 'tx-1', txHash: '0xabc' }]),
+    );
+
+    expect(error).to.be.instanceOf(SwapsXyzRequestError);
+    expect(fetchStub.callCount).to.equal(1);
+  });
+});

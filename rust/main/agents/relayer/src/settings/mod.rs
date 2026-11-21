@@ -4,7 +4,13 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, ops::Add, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Add,
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use ethers::utils::hex;
@@ -13,10 +19,10 @@ use hyperlane_base::{
     impl_loadable_from_settings,
     settings::{
         parser::{parse_json_array, parse_matching_list, RawAgentConf, ValueParser},
-        Settings,
+        ChainConf, Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160, U256};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, ReorgPeriod, H160, U256};
 use itertools::Itertools;
 use redact::Secret;
 use serde::{Deserialize, Serialize};
@@ -57,6 +63,8 @@ pub struct RelayerSettings {
     pub whitelist: MatchingList,
     /// Filter for what messages to block.
     pub blacklist: MatchingList,
+    /// Exact DNS names permitted for CCIP-read requests. Empty disables lookups.
+    pub ccip_read_allowed_domains: Arc<[String]>,
     /// Filter for what addresses to block interactions with.
     /// This is intentionally not an H256 to allow for addresses of any length without
     /// adding any padding.
@@ -85,10 +93,10 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
-    /// Optional scraper-proxy WebSocket used for shared indexing.
+    /// Preferred live indexing source; RPC fills history and handles fallback.
     pub websocket_url: Option<Secret<url::Url>>,
-    /// Whether a healthy scraper-proxy stream may replace direct RPC indexing.
-    pub websocket_authority_enabled: bool,
+    /// Existing chain overrides; also select custom websocket confirmation policies.
+    pub reorg_period_overrides: HashMap<String, ReorgPeriod>,
     /// Whether to enable the relay API endpoint (default: false)
     ///
     /// # Deployment requirement
@@ -111,6 +119,25 @@ pub struct RelayerSettings {
     pub relay_api_rate_limit_window_secs: Option<u64>,
     /// Relay API allowed CORS origins (comma-separated). Defaults to https://nexus.hyperlane.xyz.
     pub relay_api_cors_origins: Vec<String>,
+}
+
+impl RelayerSettings {
+    /// Use the effective RPC depth for explicitly selected websocket domains.
+    pub(crate) fn scraper_confirmations(&self, chain: &ChainConf) -> eyre::Result<Option<u32>> {
+        if self.websocket_url.is_none()
+            || !self
+                .reorg_period_overrides
+                .contains_key(chain.domain.name())
+        {
+            return Ok(None);
+        }
+        chain.reorg_period.as_blocks().map(Some).with_context(|| {
+            format!(
+                "Custom websocket confirmations require a numeric reorg period for {}",
+                chain.domain.name()
+            )
+        })
+    }
 }
 
 /// Config for gas payment enforcement
@@ -312,6 +339,28 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .and_then(parse_matching_list)
             .unwrap_or_default();
 
+        let mut ccip_read_allowed_domains = Vec::new();
+        if let Some(domains) = p
+            .chain(&mut err)
+            .get_opt_key("ccipReadAllowedDomains")
+            .parse_string()
+            .end()
+        {
+            for (position, domain) in (1usize..).zip(domains.split(',').map(str::trim)) {
+                if domain.is_empty() {
+                    continue;
+                }
+                if is_ccip_hostname(domain) {
+                    ccip_read_allowed_domains.push(domain.to_owned());
+                } else {
+                    err.push(
+                        (&p.cwp).add("ccip_read_allowed_domains"),
+                        eyre!("Entry {position} must be a bare DNS hostname"),
+                    );
+                }
+            }
+        }
+
         let address_blacklist = p
             .chain(&mut err)
             .get_opt_key("addressBlacklist")
@@ -428,7 +477,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
 
         let allow_contract_call_caching = p
             .chain(&mut err)
-            .get_opt_key("allowLocalCheckpointSyncers")
+            .get_opt_key("allowContractCallCaching")
             .parse_bool()
             .unwrap_or(true);
 
@@ -483,18 +532,11 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 );
             }
         }
-        let websocket_authority_enabled = p
+        let reorg_period_overrides = p
             .chain(&mut err)
-            .get_opt_key("websocketAuthorityEnabled")
-            .parse_bool()
-            .unwrap_or(false);
-        if websocket_authority_enabled && websocket_url.is_none() {
-            err.push(
-                cwp.clone(),
-                eyre::eyre!("`websocketAuthorityEnabled` requires `websocketUrl`"),
-            );
-        }
-
+            .get_opt_key("reorgPeriodOverrides")
+            .parse_value("Expected chain reorg period overrides")
+            .unwrap_or_default();
         let relay_api_enabled = p
             .chain(&mut err)
             .get_opt_key("relayApiEnabled")
@@ -562,6 +604,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             gas_payment_enforcement,
             whitelist,
             blacklist,
+            ccip_read_allowed_domains: ccip_read_allowed_domains.into(),
             address_blacklist,
             runtime_denylist,
             transaction_gas_limit,
@@ -574,7 +617,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             tx_id_indexing_enabled,
             igp_indexing_enabled,
             websocket_url: websocket_url.map(Secret::new),
-            websocket_authority_enabled,
+            reorg_period_overrides,
             relay_api_enabled,
             relay_api_port,
             relay_api_rate_limit_max_requests,
@@ -598,6 +641,20 @@ fn parse_ism_cache_configs(p: ValueParser) -> ConfigResult<Vec<IsmCacheConfig>> 
         .unwrap_or_default();
 
     err.into_result(ml)
+}
+
+fn is_ccip_hostname(domain: &str) -> bool {
+    let name = domain.strip_suffix('.').unwrap_or(domain);
+    name.len() <= 253
+        && name.split('.').all(|label| {
+            (1..=63).contains(&label.len())
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        })
+        && matches!(url::Host::parse(domain), Ok(url::Host::Domain(_)))
 }
 
 fn parse_address_list(
@@ -656,6 +713,26 @@ mod test {
             error.contains("`feeToken` gas payment enforcement is not supported"),
             "unexpected error: {error}",
         );
+    }
+
+    #[test]
+    fn ccip_allowlist_requires_bare_hostnames() {
+        let mut raw = json!({
+            "relaychains": "legacy",
+            "chains": { "legacy": chain_config("legacy", 1000) },
+            "ccipreadalloweddomains": " Lookup.Example, ,host-2,",
+        });
+        let settings = parse_settings(raw.clone()).expect("valid CCIP allowlist");
+        assert_eq!(
+            &*settings.ccip_read_allowed_domains,
+            &["Lookup.Example", "host-2"]
+        );
+        raw["ccipreadalloweddomains"] =
+            json!("lookup.example,,https://host,host:443,host/,*.host,8.8.8.8,bad..host");
+        let error = parse_settings(raw).unwrap_err().to_string();
+        for position in 3..=8 {
+            assert!(error.contains(&format!("Entry {position} must be a bare DNS hostname")));
+        }
     }
 
     #[test]
@@ -819,15 +896,52 @@ mod test {
     }
 
     #[test]
+    fn parses_contract_call_caching() {
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "allowcontractcallcaching": false,
+            "chains": { "legacy": chain_config("legacy", 1000) },
+        }))
+        .expect("valid settings");
+        assert!(!settings.allow_contract_call_caching);
+
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "allowlocalcheckpointsyncers": false,
+            "chains": { "legacy": chain_config("legacy", 1000) },
+        }))
+        .expect("valid settings");
+        assert!(settings.allow_contract_call_caching);
+        assert!(!settings.allow_local_checkpoint_syncers);
+    }
+
+    #[test]
     fn parses_scraper_websocket_url() {
         let settings = parse_settings(json!({
             "relaychains": "legacy",
             "websocketurl": "wss://scraper.example/ws/events",
+            "reorgperiodoverrides": {"legacy": "0", "ethereum": 3, "polygon": "finalized"},
             "chains": {
                 "legacy": chain_config("legacy", 1000),
             },
         }))
         .expect("valid WebSocket URL should parse");
+
+        assert_eq!(
+            settings.reorg_period_overrides["legacy"]
+                .as_blocks()
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            settings.reorg_period_overrides["ethereum"]
+                .as_blocks()
+                .unwrap(),
+            3
+        );
+        assert!(settings.reorg_period_overrides["polygon"]
+            .as_blocks()
+            .is_err());
 
         assert_eq!(
             settings
@@ -852,21 +966,6 @@ mod test {
         .to_string();
 
         assert!(error.contains("must use ws:// or wss://"));
-    }
-
-    #[test]
-    fn scraper_authority_requires_websocket_url() {
-        let error = parse_settings(json!({
-            "relaychains": "legacy",
-            "websocketauthorityenabled": true,
-            "chains": {
-                "legacy": chain_config("legacy", 1000),
-            },
-        }))
-        .expect_err("authority without a WebSocket URL must reject")
-        .to_string();
-
-        assert!(error.contains("requires `websocketUrl`"));
     }
 
     #[test]

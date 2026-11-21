@@ -1,6 +1,6 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
-import { providers } from 'ethers';
+import { BigNumber, providers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
@@ -10,10 +10,28 @@ import {
   MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 
 import { getConfirmedBlockTag } from './blockTag.js';
 
 chai.use(chaiAsPromised);
+
+function block(number: number): providers.Block {
+  return {
+    number,
+    hash: '',
+    parentHash: '',
+    timestamp: 1,
+    nonce: '',
+    difficulty: 1,
+    gasLimit: BigNumber.from(1),
+    gasUsed: BigNumber.from(1),
+    miner: '',
+    extraData: '',
+    transactions: [],
+    _difficulty: BigNumber.from(1),
+  };
+}
 
 const tronMetadata: ChainMetadata = {
   protocol: ProtocolType.Tron,
@@ -28,12 +46,16 @@ const logger = pino({ level: 'silent' });
 
 describe('getConfirmedBlockTag', () => {
   let mpp: Sinon.SinonStubbedInstance<MultiProtocolProvider>;
-  let provider: Sinon.SinonStubbedInstance<providers.JsonRpcProvider>;
+  let provider: Sinon.SinonStubbedInstance<TronJsonRpcProvider>;
 
   beforeEach(() => {
     mpp = Sinon.createStubInstance(MultiProtocolProvider);
-    provider = Sinon.createStubInstance(providers.JsonRpcProvider);
-    mpp.getChainMetadata.returns(tronMetadata);
+    provider = Sinon.createStubInstance(TronJsonRpcProvider);
+    provider.getFinalizedBlockNumber.resolves(100);
+    mpp.getChainMetadata.returns({
+      ...tronMetadata,
+      protocol: ProtocolType.Ethereum,
+    });
     mpp.getEthersV5Provider.returns(provider);
     provider.send.resolves('0x64');
   });
@@ -42,8 +64,32 @@ describe('getConfirmedBlockTag', () => {
     Sinon.restore();
   });
 
-  it('returns a confirmed block number for a numeric Tron reorg period', async () => {
-    expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(80);
+  for (const reorgPeriod of [
+    20,
+    EthJsonRpcBlockParameterTag.Finalized,
+    undefined,
+  ]) {
+    it(`uses explicit native finalized state for Tron with reorg period ${reorgPeriod}`, async () => {
+      mpp.getChainMetadata.returns({
+        ...tronMetadata,
+        blocks: { reorgPeriod, confirmations: 1 },
+      });
+      expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(
+        EthJsonRpcBlockParameterTag.Finalized,
+      );
+      expect(provider.send.called).to.equal(false);
+      expect(provider.getFinalizedBlockNumber.called).to.equal(false);
+    });
+  }
+
+  it('rejects a Tron configuration without its native finalized-state provider', async () => {
+    mpp.getChainMetadata.returns(tronMetadata);
+    mpp.getEthersV5Provider.returns(
+      Sinon.createStubInstance(providers.JsonRpcProvider),
+    );
+    await expect(getConfirmedBlockTag(mpp, 'tron')).to.be.rejectedWith(
+      'Missing Tron provider',
+    );
   });
 
   it('clamps a confirmed block number to zero', async () => {
@@ -51,8 +97,12 @@ describe('getConfirmedBlockTag', () => {
     expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(0);
   });
 
-  it('uses the default numeric reorg period for Tron', async () => {
-    mpp.getChainMetadata.returns({ ...tronMetadata, blocks: undefined });
+  it('uses the default numeric EVM reorg period', async () => {
+    mpp.getChainMetadata.returns({
+      ...tronMetadata,
+      protocol: ProtocolType.Ethereum,
+      blocks: undefined,
+    });
     expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(68);
   });
 
@@ -67,25 +117,40 @@ describe('getConfirmedBlockTag', () => {
     expect(mpp.getEthersV5Provider.notCalled).to.equal(true);
   });
 
-  it('preserves the optional Tron tag for unsupported named reorg periods', async () => {
-    const warn = Sinon.stub(logger, 'warn');
-    mpp.getChainMetadata.returns({
-      ...tronMetadata,
-      blocks: {
-        reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
-        confirmations: 1,
-      },
+  for (const protocol of [ProtocolType.Ethereum, ProtocolType.Tron]) {
+    it(`resolves named finality once for ${protocol}`, async () => {
+      mpp.getChainMetadata.returns({
+        ...tronMetadata,
+        protocol,
+        blocks: {
+          confirmations: 1,
+          reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
+        },
+      });
+      if (protocol === ProtocolType.Tron) {
+        provider.getFinalizedBlockNumber.resolves(36);
+        expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(
+          EthJsonRpcBlockParameterTag.Finalized,
+        );
+        expect(provider.getFinalizedBlockNumber.called).to.equal(false);
+        expect(provider.getBlock.called).to.equal(false);
+      } else {
+        const ethereumProvider = Sinon.createStubInstance(
+          providers.JsonRpcProvider,
+        );
+        mpp.getEthersV5Provider.returns(ethereumProvider);
+        ethereumProvider.getBlock.resolves(block(36));
+        expect(await getConfirmedBlockTag(mpp, 'tron')).to.equal(36);
+        expect(
+          ethereumProvider.getBlock.calledOnceWith(
+            EthJsonRpcBlockParameterTag.Finalized,
+          ),
+        ).to.equal(true);
+      }
     });
+  }
 
-    expect(await getConfirmedBlockTag(mpp, 'tron', logger)).to.equal(undefined);
-    expect(mpp.getEthersV5Provider.notCalled).to.equal(true);
-    expect(warn.calledOnce).to.equal(true);
-    expect(warn.firstCall.args[1]).to.include(
-      'Tron does not support named block tags',
-    );
-  });
-
-  it('propagates failed numeric Tron block reads', async () => {
+  it('propagates failed numeric EVM block reads', async () => {
     const failure = new Error('block unavailable');
     const warn = Sinon.stub(logger, 'warn');
     provider.send.rejects(failure);
@@ -94,10 +159,12 @@ describe('getConfirmedBlockTag', () => {
       failure,
     );
     expect(warn.calledOnce).to.equal(true);
-    expect(warn.firstCall.args[1]).to.equal('Failed to get confirmed block');
+    expect(warn.firstCall.args[1]).to.equal(
+      'Failed to resolve confirmed balance snapshot',
+    );
   });
 
-  it('propagates provider lookup failures in numeric Tron mode', async () => {
+  it('propagates provider lookup failures', async () => {
     const failure = new Error('provider unavailable');
     mpp.getEthersV5Provider.throws(failure);
 
@@ -114,7 +181,7 @@ describe('getConfirmedBlockTag', () => {
     '0x10000000000000000',
     `0x${'f'.repeat(300)}`,
   ]) {
-    it(`rejects an invalid Tron block response (${typeof invalidResponse}): ${String(invalidResponse).slice(0, 32)}`, async () => {
+    it(`rejects an invalid EVM block response (${typeof invalidResponse}): ${String(invalidResponse).slice(0, 32)}`, async () => {
       provider.send.resolves(invalidResponse);
       await expect(getConfirmedBlockTag(mpp, 'tron')).to.be.rejectedWith(
         'Invalid',
@@ -123,6 +190,10 @@ describe('getConfirmedBlockTag', () => {
   }
 
   it('rejects an invalid numeric block from a non-JSON-RPC provider', async () => {
+    mpp.getChainMetadata.returns({
+      ...tronMetadata,
+      protocol: ProtocolType.Ethereum,
+    });
     const fallbackProvider = Sinon.createStubInstance(providers.BaseProvider);
     fallbackProvider.getBlockNumber.resolves(Number.NaN);
     mpp.getEthersV5Provider.returns(fallbackProvider);
@@ -132,7 +203,7 @@ describe('getConfirmedBlockTag', () => {
     );
   });
 
-  it('preserves undefined on an Ethereum lookup failure', async () => {
+  it('propagates an Ethereum snapshot lookup failure', async () => {
     mpp.getChainMetadata.returns({
       ...tronMetadata,
       protocol: ProtocolType.Ethereum,
@@ -140,34 +211,23 @@ describe('getConfirmedBlockTag', () => {
     });
     provider.send.rejects(new Error('block unavailable'));
 
-    expect(await getConfirmedBlockTag(mpp, 'ethereum')).to.equal(undefined);
-  });
-
-  it('preserves Ethereum named block tags', async () => {
-    mpp.getChainMetadata.returns({
-      ...tronMetadata,
-      protocol: ProtocolType.Ethereum,
-      name: 'ethereum',
-      blocks: {
-        reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
-        confirmations: 1,
-      },
-    });
-
-    expect(await getConfirmedBlockTag(mpp, 'ethereum')).to.equal(
-      EthJsonRpcBlockParameterTag.Finalized,
+    await expect(getConfirmedBlockTag(mpp, 'ethereum')).to.be.rejectedWith(
+      'block unavailable',
     );
-    expect(mpp.getEthersV5Provider.notCalled).to.equal(true);
   });
 
-  it('preserves undefined on metadata lookup failures', async () => {
+  it('propagates metadata lookup failures', async () => {
     const failure = new Error('metadata unavailable');
     mpp.getChainMetadata.throws(failure);
 
     const warn = Sinon.stub(logger, 'warn');
-    expect(await getConfirmedBlockTag(mpp, 'tron', logger)).to.equal(undefined);
+    await expect(getConfirmedBlockTag(mpp, 'tron', logger)).to.be.rejectedWith(
+      failure,
+    );
     expect(warn.calledOnce).to.equal(true);
-    expect(warn.firstCall.args[1]).to.equal('Failed to get confirmed block');
+    expect(warn.firstCall.args[1]).to.equal(
+      'Failed to resolve confirmed balance snapshot',
+    );
     expect(mpp.getEthersV5Provider.notCalled).to.equal(true);
   });
 });

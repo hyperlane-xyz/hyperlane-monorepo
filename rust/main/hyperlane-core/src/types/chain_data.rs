@@ -56,6 +56,8 @@ pub struct TxnInfo {
 /// Information about the execution of a transaction.
 #[derive(Debug, Clone)]
 pub struct TxnReceiptInfo {
+    /// Block containing this receipt, when supplied by the chain's provider.
+    pub block_hash: Option<H256>,
     /// Amount of gas which was used by this transaction
     pub gas_used: U256,
     /// Cumulative gas used within the block after this was executed.

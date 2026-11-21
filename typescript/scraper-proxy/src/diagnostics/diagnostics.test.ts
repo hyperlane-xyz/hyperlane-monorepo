@@ -253,15 +253,28 @@ void it('paginates history and marks truncated snapshot state as partial', async
 
 void it('exposes history and status in GraphQL, with explicit disabled errors', async () => {
   const { createScraperProxyApp } = await import('../module.js');
+  const history = row({
+    type: 'snapshot_update',
+    state: {
+      phase: 'preparing',
+      checks: { prepare: 'started', gas_preflight: 'succeeded' },
+      modules: [
+        { node_id: 'root', ism, checks: { validator_set: 'succeeded' } },
+      ],
+    },
+  });
   const diagnostics = new DiagnosticsService({
-    query: async () => [row(signature(2))],
+    query: async (sql) =>
+      sql.includes('ORDER BY message_activity.id DESC')
+        ? [history]
+        : [row(signature(2))],
   });
   const app = await createScraperProxyApp(
     { query: async () => [] },
     { diagnostics },
   );
   const disabled = await createScraperProxyApp({ query: async () => [] });
-  const query = `{ message_activity(message_id: "${id}", limit: 10) { has_more activities { id activity relayer } }
+  const query = `{ message_activity(message_id: "${id}", limit: 10) { has_more activities { id activity relayer observed_at received_at } }
     message_diagnostics(message_id: "${id}") { version partial relayers { phase modules { signatures { collected threshold } } } } }`;
   try {
     const result = await app.inject({
@@ -270,6 +283,10 @@ void it('exposes history and status in GraphQL, with explicit disabled errors', 
       payload: { query },
     });
     assert.equal(result.json().errors, undefined, result.body);
+    const { id, activity, relayer, observed_at, received_at } = history;
+    assert.deepEqual(result.json().data.message_activity.activities, [
+      { id, activity, relayer, observed_at, received_at },
+    ]);
     assert.equal(
       result.json().data.message_diagnostics.relayers[0].modules[0].signatures
         .collected,
@@ -712,7 +729,14 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
               threshold: 2,
               unavailable: [],
             },
-            offchain_read: { state: 'pending', endpoint: 0, http_status: 202 },
+            offchain_read: {
+              state: 'pending',
+              observed_at_millis: 1_700_000_000_000,
+              endpoint: 0,
+              http_status: 202,
+              hostname: 'lookup.example',
+              url_template: 'https://lookup.example/proof/{data}',
+            },
           },
         ],
       },
@@ -734,7 +758,7 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
       message_diagnostics(message_id: "${id}") { relayers {
         phase tree_root modules { node_id ism children { node_id ism } selected_children
           signatures { collection_id collected signers { validator location } threshold }
-          offchain_read { state attempt }
+          offchain_read { state attempt observed_at_millis hostname url_template }
         }
       }}
     }`,
@@ -753,6 +777,15 @@ void it('serves producer snapshots through GraphQL and WebSocket without inventi
       },
     ]);
     assert.equal(progress.modules[0].offchain_read.attempt, null);
+    assert.equal(
+      progress.modules[0].offchain_read.observed_at_millis,
+      1_700_000_000_000,
+    );
+    assert.equal(progress.modules[0].offchain_read.hostname, 'lookup.example');
+    assert.equal(
+      progress.modules[0].offchain_read.url_template,
+      'https://lookup.example/proof/{data}',
+    );
     stream.subscribe('127.0.0.1', [id], (frame, complete) => {
       frames.push(frame);
       complete(true);

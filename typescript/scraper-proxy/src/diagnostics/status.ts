@@ -58,12 +58,24 @@ const snapshotModule = z.looseObject({
       ),
     })
     .nullish(),
+  reorg_checks: z
+    .array(
+      z.object({
+        validator: z.string(),
+        states: z.array(z.string()),
+      }),
+    )
+    .optional(),
   offchain_read: z
     .object({
       state: z.string(),
+      observed_at_millis: count.nullish(),
       attempt: count.nullish(),
       endpoint: count.nullable(),
       http_status: count.nullable(),
+      hostname: z.string().nullish(),
+      url_template: z.string().nullish(),
+      result: z.object({ bytes: count, keccak256: z.string() }).nullish(),
     })
     .nullish(),
 });

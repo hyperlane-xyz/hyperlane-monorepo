@@ -1,12 +1,11 @@
-import { setEquality } from '@hyperlane-xyz/utils/sets';
-
 const MESSAGE_ID_REGEX = /^[\da-fA-F]{64}$/;
 const SIGNED_INTEGER_REGEX = /^-?\d+$/;
 const ADDRESS_PREFIX_REGEX = /^(?:0x|\\x)/;
 const UNSIGNED_INTEGER_REGEX = /^\d+$/;
 const DOMAIN_LIST_REGEX = /^\d+(,\d+)*$/;
 const HASH_HEX_REGEX = /^[0-9a-fA-F]{64}$/;
-const CURSOR_HEIGHT_REGEX = /^(?:-1|\d+)$/;
+export const MAX_CONFIRMATIONS = 1_000;
+const MAX_EXPLORER_DOMAINS = 512;
 
 export const EVENT_TYPES = [
   'dispatch',
@@ -14,49 +13,26 @@ export const EVENT_TYPES = [
   'gas_payment',
   'merkle_tree_insertion',
 ] as const;
-export const SEQUENCED_EVENT_TYPES = [
-  'dispatch',
-  'merkle_tree_insertion',
-] as const;
-export const STREAM_CURSOR_VERSIONS = { gas_payment: 3 } as const;
-
-const CURSOR_ADDRESS = /^(?:0x|\\x)?(?:[\da-fA-F]{40}|[\da-fA-F]{64})$/;
-
 export type EventType = (typeof EVENT_TYPES)[number];
-export type SequencedEventType = (typeof SEQUENCED_EVENT_TYPES)[number];
-export type SequenceCursor = {
-  address: string;
-  allowReplay?: boolean;
-  afterSequence?: bigint;
-  domain: number;
-  kind: 'sequence';
-};
-export type GasPaymentCursor = {
-  address: string;
-  afterStreamCursor?: bigint;
-  domain: number;
-  kind: 'gas_payment';
-};
-export type StreamCursor = GasPaymentCursor | SequenceCursor;
 export type StreamRequest = {
-  /** Also stream live events at zero confirmations, without advancing replay cursors. */
+  /** Also stream live events at zero confirmations. */
   includeZeroConfirmations?: boolean;
   confirmations?: number;
-  cursors?: StreamCursor[];
   domains?: Set<number>;
   eventType: EventType;
-  streamCursorVersion?: number;
 };
 export type ClientMessage =
   | { type: 'ping' }
-  | { streams: (StreamRequest | BlockStreamRequest)[]; type: 'subscribe' };
+  | {
+      confirmationsByDomain?: Map<number, number>;
+      streams: (StreamRequest | BlockStreamRequest)[];
+      type: 'subscribe';
+    };
 export type BlockStreamRequest = {
   eventType: 'blocks';
   includeZeroConfirmations?: never;
   domains?: Set<number>;
   confirmations?: never;
-  cursors?: never;
-  streamCursorVersion?: never;
 };
 export const SUBSCRIPTION_TYPES = [...EVENT_TYPES, 'blocks'];
 export type EventNotification = {
@@ -74,6 +50,38 @@ export type HeadNotification = {
   previousIndexedHeight?: bigint;
   previousConfirmedHeight?: bigint;
 };
+
+// Shared frontier math and row positions; neither owns a connection or reader.
+export type Position = readonly [bigint, number, bigint];
+export type ConfirmationRow = {
+  position: Position;
+  message: Record<string, unknown>;
+};
+export type ConfirmationHead = {
+  head: bigint;
+  indexed: bigint;
+  confirmed: bigint;
+  liveStart?: LiveStartBoundary;
+};
+export class SubscriptionCapacityError extends Error {}
+
+export class ConfirmationUnavailableError extends Error {
+  constructor(domain: number) {
+    super(`Custom confirmations unavailable for domain ${domain}`);
+  }
+}
+
+export function confirmationHeight(
+  head: Pick<ConfirmationHead, 'head' | 'indexed'>,
+  confirmations: number,
+): bigint {
+  const height = head.head - BigInt(confirmations);
+  return height < head.indexed ? height : head.indexed;
+}
+
+export function endOfHeight(height: bigint): Position {
+  return [height, 3, 9_223_372_036_854_775_807n];
+}
 
 export function parseClientMessage(raw: string): ClientMessage {
   let value: unknown;
@@ -102,7 +110,104 @@ export function parseClientMessage(raw: string): ClientMessage {
   ) {
     throw new Error('Duplicate eventType subscription');
   }
-  return { streams, type: 'subscribe' };
+  const confirmationsByDomain = parseDomainConfirmations(
+    value.confirmationsByDomain,
+  );
+  if (confirmationsByDomain?.size) {
+    const domains = new Set<number>();
+    for (const request of streams) {
+      if (request.eventType === 'blocks') continue;
+      if (!request.domains) {
+        throw new Error(
+          'confirmationsByDomain requires explicit event stream domains',
+        );
+      }
+      for (const domain of request.domains) domains.add(domain);
+    }
+    for (const domain of confirmationsByDomain.keys()) {
+      if (!domains.has(domain)) {
+        throw new Error(`Unused confirmationsByDomain domain ${domain}`);
+      }
+    }
+  }
+  const costs = new Map<number, number>();
+  for (const stream of streams) {
+    if (stream.eventType === 'blocks') continue;
+    for (const domain of stream.domains ?? []) {
+      const count = confirmationsByDomain?.get(domain) ?? stream.confirmations;
+      if (count !== undefined || stream.includeZeroConfirmations)
+        costs.set(domain, Math.max(costs.get(domain) ?? 0, count ?? 0, 1));
+    }
+  }
+  if (costs.size > MAX_EXPLORER_DOMAINS)
+    throw new SubscriptionCapacityError(
+      `custom domains must contain at most ${MAX_EXPLORER_DOMAINS} IDs`,
+    );
+  if ([...costs.values()].reduce((sum, cost) => sum + cost, 0) > 10_000)
+    throw new SubscriptionCapacityError(
+      'Confirmation subscription exceeds the domain-block budget',
+    );
+  return {
+    ...(confirmationsByDomain ? { confirmationsByDomain } : {}),
+    streams,
+    type: 'subscribe',
+  };
+}
+
+/** Partition each event type once, retaining one canonical domain filter. */
+export function splitConfirmationStreams(
+  request: StreamRequest,
+  confirmationsByDomain?: ReadonlyMap<number, number>,
+): StreamRequest[] {
+  if (!confirmationsByDomain?.size) return [request];
+  if (!request.domains) {
+    throw new Error(
+      'confirmationsByDomain requires explicit event stream domains',
+    );
+  }
+  const groups = new Map<number | undefined, Set<number>>();
+  for (const domain of request.domains) {
+    const confirmations =
+      confirmationsByDomain.get(domain) ?? request.confirmations;
+    let domains = groups.get(confirmations);
+    if (!domains) {
+      domains = new Set();
+      groups.set(confirmations, domains);
+    }
+    domains.add(domain);
+  }
+  return [...groups].map(([confirmations, domains]) => ({
+    ...request,
+    confirmations,
+    domains,
+  }));
+}
+
+function parseDomainConfirmations(
+  value: unknown,
+): Map<number, number> | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value))
+    throw new Error(
+      'confirmationsByDomain must be a domain-to-confirmations object',
+    );
+  const confirmations = new Map<number, number>();
+  for (const [key, count] of Object.entries(value)) {
+    const domain = Number(key);
+    if (!isDomain(domain) || String(domain) !== key) {
+      throw new Error('confirmationsByDomain keys must be uint32 domain IDs');
+    }
+    confirmations.set(domain, parseConfirmationCount(count));
+  }
+  return confirmations;
+}
+
+function parseConfirmationCount(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+    throw new Error('confirmations must be a non-negative safe integer');
+  if (value > MAX_CONFIRMATIONS)
+    throw new Error(`confirmations must not exceed ${MAX_CONFIRMATIONS}`);
+  return value;
 }
 
 export function parseEventNotification(
@@ -163,7 +268,12 @@ export function parseHeadNotification(
 }
 
 export function parseId(value: unknown): bigint {
-  return parseInteger(value, 0, 'id must be a non-negative integer string');
+  if (
+    (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) ||
+    (typeof value === 'string' && UNSIGNED_INTEGER_REGEX.test(value))
+  )
+    return BigInt(value);
+  throw new Error('id must be a non-negative integer string');
 }
 
 export function isDomain(value: unknown): value is number {
@@ -195,14 +305,6 @@ export function normalizeAddress(value: string): string {
   return `\\x${value.replace(ADDRESS_PREFIX_REGEX, '').toLowerCase()}`;
 }
 
-export function normalizeSequenceAddress(value: string): string {
-  const normalized = normalizeAddress(value);
-  const twentyBytePadding = `\\x${'00'.repeat(12)}`;
-  return normalized.length === 66 && normalized.startsWith(twentyBytePadding)
-    ? `\\x${normalized.slice(twentyBytePadding.length)}`
-    : normalized;
-}
-
 export function displayAddress(value: string): string {
   return `0x${normalizeAddress(value).slice(2)}`;
 }
@@ -214,67 +316,29 @@ function parseStream(value: unknown): StreamRequest | BlockStreamRequest {
   ) {
     throw new Error('Invalid eventType');
   }
-  if (value.afterId !== undefined || value.afterStreamCursor !== undefined) {
-    throw new Error('cursor positions must be specified within a cursor');
+  if (
+    [
+      'cursors',
+      'streamCursorVersion',
+      'afterId',
+      'afterSequence',
+      'afterStreamCursor',
+      'allowReplay',
+    ].some((key) => key in value)
+  ) {
+    throw new Error(
+      'Agent streams are live-only; replay cursors are unsupported. Recover history through RPC.',
+    );
   }
+  const domains = parseDomains(value.domains);
   if (value.eventType === 'blocks') {
     if (
       value.includeZeroConfirmations !== undefined ||
-      value.confirmations !== undefined ||
-      value.cursors !== undefined ||
-      value.streamCursorVersion !== undefined
+      value.confirmations !== undefined
     ) {
-      throw new Error(
-        'blocks supports live heads only, without confirmations or cursors',
-      );
+      throw new Error('blocks supports live heads only, without confirmations');
     }
-    return { eventType: 'blocks', domains: parseDomains(value.domains) };
-  }
-  let streamCursorVersion: number | undefined;
-  if (value.eventType === 'gas_payment') {
-    if (
-      value.streamCursorVersion !== undefined &&
-      value.streamCursorVersion !== STREAM_CURSOR_VERSIONS.gas_payment
-    ) {
-      throw new Error(
-        `gas_payment requires streamCursorVersion ${STREAM_CURSOR_VERSIONS.gas_payment}`,
-      );
-    }
-    if (
-      value.cursors !== undefined &&
-      value.streamCursorVersion !== STREAM_CURSOR_VERSIONS.gas_payment
-    ) {
-      throw new Error(
-        `gas_payment cursors require streamCursorVersion ${STREAM_CURSOR_VERSIONS.gas_payment}`,
-      );
-    }
-    streamCursorVersion = value.streamCursorVersion;
-  } else if (value.streamCursorVersion !== undefined) {
-    throw new Error('streamCursorVersion is unsupported for this stream');
-  }
-
-  let domains = parseDomains(value.domains);
-
-  let cursors: StreamCursor[] | undefined;
-  if (value.cursors !== undefined) {
-    if (!Array.isArray(value.cursors) || !value.cursors.length) {
-      throw new Error('cursors must be a non-empty array');
-    }
-    if (isSequencedEventType(value.eventType)) {
-      cursors = value.cursors.map(parseSequenceCursor);
-    } else if (value.eventType === 'gas_payment') {
-      cursors = value.cursors.map(parseGasPaymentCursor);
-    } else {
-      throw new Error('cursors are unsupported for this stream');
-    }
-    const keys = cursors.map(({ address, domain }) => `${domain}:${address}`);
-    if (new Set(keys).size < keys.length)
-      throw new Error('Duplicate stream cursor');
-    const cursorDomains = new Set(cursors.map(({ domain }) => domain));
-    if (domains && !setEquality(domains, cursorDomains)) {
-      throw new Error('domains must exactly match cursor domains');
-    }
-    domains ??= cursorDomains;
+    return { eventType: 'blocks', domains };
   }
   if (
     value.includeZeroConfirmations !== undefined &&
@@ -283,35 +347,27 @@ function parseStream(value: unknown): StreamRequest | BlockStreamRequest {
     throw new Error('includeZeroConfirmations must be a boolean');
   }
   if (value.includeZeroConfirmations && !domains) {
-    throw new Error(
-      'includeZeroConfirmations requires explicit domains or cursors',
-    );
+    throw new Error('includeZeroConfirmations requires explicit domains');
   }
   return {
     ...(value.includeZeroConfirmations !== undefined
       ? { includeZeroConfirmations: value.includeZeroConfirmations }
       : {}),
-    confirmations: parseConfirmations(value.confirmations, domains, cursors),
-    cursors,
+    confirmations: parseConfirmations(value.confirmations, domains),
     domains,
     eventType: value.eventType,
-    streamCursorVersion,
   };
 }
 
 export function parseConfirmations(
   value: unknown,
   domains?: Set<number>,
-  cursors?: StreamCursor[],
 ): number | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
-    throw new Error('confirmations must be a non-negative safe integer');
+  const confirmations = parseConfirmationCount(value);
   if (!domains?.size)
     throw new Error('confirmations requires explicit domains');
-  if (cursors)
-    throw new Error('Custom confirmations supports live streams only');
-  return value;
+  return confirmations;
 }
 
 export function parseExplorerConfirmations(
@@ -329,9 +385,55 @@ export function parseExplorerConfirmations(
     throw new Error('Expected confirmations=N&domains=domain,...');
   const domains = new Set(domainList.split(',').map(Number));
   if (![...domains].every(isDomain)) throw new Error('Invalid domains');
+  if (domains.size > MAX_EXPLORER_DOMAINS)
+    throw new Error(`domains must contain at most ${MAX_EXPLORER_DOMAINS} IDs`);
   const confirmations = parseConfirmations(Number(count), domains);
   if (confirmations === undefined) throw new Error('Missing confirmations');
+  if (domains.size * Math.max(1, confirmations) > 10_000)
+    throw new Error('Subscription exceeds 10000 domain confirmation blocks');
   return { confirmations, domains };
+}
+
+/** Public validators negotiate one immutable Merkle stream in the URL. */
+export function parseValidatorSubscription(params: URLSearchParams): {
+  domain: number;
+  confirmations?: number;
+} {
+  for (const key of params.keys()) {
+    if (
+      (key !== 'domain' && key !== 'confirmations') ||
+      params.getAll(key).length !== 1
+    )
+      throw new Error('Expected one domain and optional confirmations only');
+  }
+  const rawDomain = params.get('domain');
+  const domain = Number(rawDomain);
+  if (
+    !rawDomain ||
+    !UNSIGNED_INTEGER_REGEX.test(rawDomain) ||
+    !isDomain(domain)
+  )
+    throw new Error('Expected one uint32 domain');
+  const count = params.get('confirmations');
+  if (count === null) return { domain };
+  if (!UNSIGNED_INTEGER_REGEX.test(count))
+    throw new Error('Expected nonnegative integer confirmations');
+  return {
+    domain,
+    confirmations: parseConfirmationCount(Number(count)),
+  };
+}
+
+export function parseValidatorPing(raw: string): void {
+  const value: unknown = JSON.parse(raw);
+  if (
+    !isRecord(value) ||
+    value.type !== 'ping' ||
+    Object.keys(value).length !== 1
+  )
+    throw new Error(
+      'Only ping is allowed; reconnect to change the subscription',
+    );
 }
 
 export function parseMessageId(value: string): string {
@@ -386,99 +488,8 @@ export function parseOptionalBlockHash(value: unknown): string | undefined {
   return `0x${value.toLowerCase()}`;
 }
 
-function parseSequenceCursor(value: unknown): SequenceCursor {
-  if (!isRecord(value) || !isDomain(value.domain)) {
-    throw new Error('Invalid sequence cursor domain');
-  }
-  if (!isCursorAddress(value.address)) {
-    throw new Error('Invalid sequence cursor address');
-  }
-  if (
-    value.allowReplay !== undefined &&
-    typeof value.allowReplay !== 'boolean'
-  ) {
-    throw new Error('allowReplay must be a boolean');
-  }
-  if (value.afterId !== undefined || value.afterStreamCursor !== undefined) {
-    throw new Error(
-      'stream cursor fields are unsupported for sequence cursors',
-    );
-  }
-  return {
-    address: normalizeSequenceAddress(value.address),
-    allowReplay: value.allowReplay,
-    afterSequence:
-      value.afterSequence === undefined
-        ? undefined
-        : parseInteger(
-            value.afterSequence,
-            -1,
-            'afterSequence must be an integer string greater than or equal to -1',
-          ),
-    domain: value.domain,
-    kind: 'sequence',
-  };
-}
-
-function parseGasPaymentCursor(value: unknown): GasPaymentCursor {
-  if (!isRecord(value) || !isDomain(value.domain)) {
-    throw new Error('Invalid gas payment cursor domain');
-  }
-  if (!isCursorAddress(value.address)) {
-    throw new Error('Invalid gas payment cursor address');
-  }
-  if (value.afterSequence !== undefined || value.allowReplay !== undefined) {
-    throw new Error('native sequence fields are unsupported for gas cursors');
-  }
-  if (value.afterId !== undefined) {
-    throw new Error(
-      'afterId is unsupported; use negotiated afterStreamCursor semantics',
-    );
-  }
-  return {
-    address: normalizeSequenceAddress(value.address),
-    afterStreamCursor:
-      value.afterStreamCursor === undefined
-        ? undefined
-        : parseInteger(
-            value.afterStreamCursor,
-            0,
-            'afterStreamCursor must be a non-negative integer string',
-          ),
-    domain: value.domain,
-    kind: 'gas_payment',
-  };
-}
-
-export function parseInteger(
-  value: unknown,
-  min: number,
-  error: string,
-): bigint {
-  if (
-    (typeof value === 'number' &&
-      Number.isSafeInteger(value) &&
-      value >= min) ||
-    (typeof value === 'string' &&
-      (min < 0 ? CURSOR_HEIGHT_REGEX : UNSIGNED_INTEGER_REGEX).test(value))
-  ) {
-    return BigInt(value);
-  }
-  throw new Error(error);
-}
-
 export function isEventType(value: unknown): value is EventType {
   return EVENT_TYPES.some((eventType) => eventType === value);
-}
-
-export function isSequencedEventType(
-  value: unknown,
-): value is SequencedEventType {
-  return SEQUENCED_EVENT_TYPES.some((eventType) => eventType === value);
-}
-
-export function isCursorAddress(value: unknown): value is string {
-  return typeof value === 'string' && CURSOR_ADDRESS.test(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -499,3 +510,9 @@ function parseNotification(
   if (!isRecord(value)) throw new Error(`Invalid scraper ${kind} notification`);
   return value;
 }
+
+export type LiveStartBoundary = {
+  height: string;
+  hash: string;
+  contracts: Record<EventType, string>;
+};

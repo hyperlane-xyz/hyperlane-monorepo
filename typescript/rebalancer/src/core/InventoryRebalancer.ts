@@ -8,6 +8,7 @@ import {
   ProviderType,
   SealevelCoreAdapter,
   TOKEN_COLLATERALIZED_STANDARDS,
+  XERC20_STANDARDS,
   type Token,
   type WarpTypedTransaction,
   type WarpCore,
@@ -17,13 +18,20 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  TransactionSubmission,
+  TransactionSubmissionError,
+  type TransactionSubmissionOptions,
   assert,
   ensure0x,
   fromWei,
   isEVMLike,
 } from '@hyperlane-xyz/utils';
 
-import type { ExternalBridgeType } from '../config/types.js';
+import type {
+  ExternalBridgeType,
+  InventoryRoutesConfig,
+} from '../config/types.js';
+import { Erc20ApprovalError } from '../bridges/erc20Approve.js';
 import type {
   ExternalBridgeRegistry,
   IExternalBridge,
@@ -35,6 +43,7 @@ import type {
 } from '../interfaces/IRebalancer.js';
 import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
+import { trackActionSubmission } from '../tracking/submission.js';
 import type {
   PartialInventoryIntent,
   RebalanceIntent,
@@ -48,6 +57,7 @@ import {
   isNativeTokenStandard,
 } from '../utils/tokenUtils.js';
 import { parseSolanaPrivateKey } from '../utils/solanaKeyParser.js';
+import { getXerc20TransferCapacity } from '../utils/xerc20Capacity.js';
 import { toProtocolTransaction } from '../utils/transactionUtils.js';
 import {
   alignLocalToCanonical,
@@ -84,6 +94,7 @@ type BridgeQuoteMode = 'forward' | 'reverse';
 
 type InventoryMovementExecutionResult =
   | {
+      /** The adapter returned a source transaction identity for status polling. */
       success: true;
       txHash: string;
       inputRequired: bigint;
@@ -170,6 +181,8 @@ export interface InventoryRebalancerConfig {
   inventorySigners: Partial<Record<ProtocolType, InventorySignerConfig>>;
   /** Chains configured for inventory-based rebalancing (for validation) */
   inventoryChains: ChainName[];
+  /** Optional rules for actual inventory source-to-destination movements. */
+  inventoryRoutes?: InventoryRoutesConfig;
 }
 
 /**
@@ -211,6 +224,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * Used to prevent over-execution when multiple routes withdraw from the same chain.
    */
   private consumedInventory: Map<ChainName, bigint> = new Map();
+
+  private readonly bridgeTokenAddresses = new Map<string, Promise<string>>();
 
   constructor(
     config: InventoryRebalancerConfig,
@@ -416,18 +431,21 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     routes: InventoryRoute[],
   ): Promise<InventoryExecutionResult[]> {
     this.consumedInventory.clear();
+    this.bridgeTokenAddresses.clear();
 
     // 1. Check for existing in_progress intent
     const activeIntent = await this.getActiveInventoryIntent();
 
     if (activeIntent) {
-      if (activeIntent.hasInflightDeposit) {
+      if (activeIntent.hasInflightMovement || activeIntent.hasInflightDeposit) {
         this.logger.info(
           {
             intentId: activeIntent.intent.id,
             remaining: activeIntent.remaining.toString(),
+            hasInflightMovement: activeIntent.hasInflightMovement,
+            hasInflightDeposit: activeIntent.hasInflightDeposit,
           },
-          'Active intent has in-flight deposit, waiting for delivery before continuing',
+          'Active intent has in-flight action, waiting for delivery before continuing',
         );
         return [];
       }
@@ -668,6 +686,28 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       this.logger,
     );
     const { minViableTransfer } = costs;
+
+    // Early exit: If remaining amount is below minViableTransfer, complete the intent
+    // This prevents infinite loops when the remaining amount is too small to economically bridge
+    if (requestedLocalAmount < minViableTransfer) {
+      this.logger.info(
+        {
+          intentId: intent.id,
+          amount: requestedLocalAmount.toString(),
+          minViableTransfer: minViableTransfer.toString(),
+        },
+        'Remaining amount below minViableTransfer, completing intent with acceptable loss',
+      );
+
+      await this.actionTracker.completeRebalanceIntent(intent.id);
+
+      return {
+        route,
+        success: true,
+        reason: 'completed_with_acceptable_loss',
+      };
+    }
+
     let maxTransferable = costs.maxTransferable;
 
     if (!isNativeTokenStandard(sourceToken.standard)) {
@@ -726,6 +766,28 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       }
     }
 
+    const releaseToken = this.getTokenForChain(origin);
+    assert(releaseToken, `No token found for release chain: ${origin}`);
+    const transferCapacity = await this.getTransferCapacity(
+      sourceToken,
+      releaseToken,
+      requestedLocalAmount,
+    );
+    if (
+      transferCapacity === 0n ||
+      (transferCapacity < requestedLocalAmount &&
+        transferCapacity < minViableTransfer)
+    ) {
+      return {
+        route,
+        success: false,
+        error:
+          'Insufficient xERC20 transfer capacity; waiting for limits to refill',
+      };
+    }
+    maxTransferable =
+      maxTransferable < transferCapacity ? maxTransferable : transferCapacity;
+
     // Calculate total inventory across all chains
     // Note: consumedInventory tracking is handled separately within this cycle
     const totalInventory = this.getTotalInventory([]);
@@ -756,27 +818,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       },
       'Calculated max transferable amount with cost-based threshold',
     );
-
-    // Early exit: If remaining amount is below minViableTransfer, complete the intent
-    // This prevents infinite loops when the remaining amount is too small to economically bridge
-    if (requestedLocalAmount < minViableTransfer) {
-      this.logger.info(
-        {
-          intentId: intent.id,
-          amount: requestedLocalAmount.toString(),
-          minViableTransfer: minViableTransfer.toString(),
-        },
-        'Remaining amount below minViableTransfer, completing intent with acceptable loss',
-      );
-
-      await this.actionTracker.completeRebalanceIntent(intent.id);
-
-      return {
-        route,
-        success: true,
-        reason: 'completed_with_acceptable_loss',
-      };
-    }
 
     // Swap the route for executeTransferRemote: destination → origin
     // This ensures transferRemote is called FROM destination, ADDING collateral there
@@ -883,24 +924,36 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       chain: ChainName;
       maxSourceInput: bigint;
       maxTargetOutput: bigint;
+      externalBridge: ExternalBridgeType;
+      priority: number;
     }> = [];
 
     for (const source of allSources) {
+      const policy = this.resolveInventoryRoute(
+        source.chain,
+        destination,
+        route.externalBridge,
+      );
+      if (!policy.enabled) continue;
       const capacity = await this.calculateBridgeCapacity(
         source.chain,
         destination,
         source.availableAmount,
-        route.externalBridge,
+        policy.externalBridge,
       );
 
       if (capacity.maxTargetOutput > 0n) {
-        viableSources.push({ chain: source.chain, ...capacity });
+        viableSources.push({ chain: source.chain, ...capacity, ...policy });
       }
     }
 
-    // Sort by destination output descending.
+    // Prefer configured inventory sources, then preserve output-capacity ordering.
     viableSources.sort((a, b) =>
-      a.maxTargetOutput > b.maxTargetOutput ? -1 : 1,
+      a.priority !== b.priority
+        ? b.priority - a.priority
+        : a.maxTargetOutput > b.maxTargetOutput
+          ? -1
+          : 1,
     );
 
     if (viableSources.length === 0) {
@@ -920,6 +973,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       };
     }
 
+    // Prefund the remaining intent, including costs, even when current capacity
+    // only permits a partial deposit. Future capacity refill can use this inventory
+    // without paying the fixed cost of another external bridge movement.
     // Create bridge plans using destination-local output amounts.
     const shortfall =
       requestedLocalAmount > availableInventory
@@ -932,6 +988,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       maxSourceInput: bigint;
       targetOutput: bigint;
       quoteMode: BridgeQuoteMode;
+      externalBridge: ExternalBridgeType;
     }> = [];
     let totalPlanned = 0n;
 
@@ -951,6 +1008,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         maxSourceInput: source.maxSourceInput,
         targetOutput,
         quoteMode,
+        externalBridge: source.externalBridge,
       });
       totalPlanned += targetOutput;
     }
@@ -960,11 +1018,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         targetChain: destination,
         viableSources: viableSources.map((s) => ({
           chain: s.chain,
+          externalBridge: s.externalBridge,
+          priority: s.priority,
           maxSourceInput: s.maxSourceInput.toString(),
           maxTargetOutput: s.maxTargetOutput.toString(),
         })),
         bridgePlans: bridgePlans.map((p) => ({
           chain: p.chain,
+          externalBridge: p.externalBridge,
           maxSourceInput: p.maxSourceInput.toString(),
           targetOutput: p.targetOutput.toString(),
           quoteMode: p.quoteMode,
@@ -987,7 +1048,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           plan.maxSourceInput,
           plan.quoteMode,
           intent,
-          route.externalBridge,
+          plan.externalBridge,
         ),
       ),
     );
@@ -1071,6 +1132,83 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     return { route, success: true };
   }
 
+  private async getTransferCapacity(
+    source: Token,
+    destination: Token,
+    requested: bigint,
+  ): Promise<bigint> {
+    if (
+      !XERC20_STANDARDS.includes(source.standard) &&
+      !XERC20_STANDARDS.includes(destination.standard)
+    )
+      return requested;
+    const pending = (
+      await this.actionTracker.getActionsByType('inventory_deposit')
+    ).filter((action) => action.status === 'in_progress');
+    const sourceDomain = this.multiProvider.getDomainId(source.chainName);
+    const destinationDomain = this.multiProvider.getDomainId(
+      destination.chainName,
+    );
+    // Pending actions may already have consumed a limit; reserving them remains conservative.
+    const reservedBurn = pending
+      .filter((action) => action.origin === sourceDomain)
+      .reduce(
+        (sum, action) => sum + denormalizeToLocal(action.amount, source),
+        0n,
+      );
+    const reservedMint = pending
+      .filter((action) => action.destination === destinationDomain)
+      .reduce(
+        (sum, action) => sum + denormalizeToLocal(action.amount, destination),
+        0n,
+      );
+    const capacity = await getXerc20TransferCapacity({
+      source,
+      destination,
+      multiProvider: this.warpCore.multiProvider,
+      requested,
+      reservedBurn,
+      reservedMint,
+    });
+    if (capacity === 0n) return 0n;
+    let burnFees = 0n;
+    let sourceMintFees = 0n;
+    if (XERC20_STANDARDS.includes(source.standard)) {
+      const quote = await this.warpCore.getInterchainTransferFee({
+        originTokenAmount: source.amount(capacity),
+        destination: destination.chainName,
+        destinationToken: destination,
+        sender: this.getInventorySignerAddress(source.chainName),
+        recipient: this.getInventorySignerAddress(destination.chainName),
+      });
+      if (
+        quote.tokenFeeQuote &&
+        source.isFungibleWith(quote.tokenFeeQuote.token)
+      )
+        sourceMintFees = quote.tokenFeeQuote.amount;
+      for (const fee of [quote.igpQuote, quote.tokenFeeQuote]) {
+        if (fee && source.isFungibleWith(fee.token)) burnFees += fee.amount;
+      }
+    }
+    if (burnFees === 0n) return capacity;
+    return getXerc20TransferCapacity({
+      source,
+      destination,
+      multiProvider: this.warpCore.multiProvider,
+      requested: capacity,
+      burnFees,
+      sourceMintFees,
+      reservedSourceMint: pending
+        .filter((action) => action.destination === sourceDomain)
+        .reduce(
+          (sum, action) => sum + denormalizeToLocal(action.amount, source),
+          0n,
+        ),
+      reservedBurn,
+      reservedMint,
+    });
+  }
+
   /**
    * Execute a transferRemote to deposit collateral.
    *
@@ -1104,6 +1242,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Building transferRemote transactions for exact execution amount',
     );
 
+    const destinationToken = this.getTokenForChain(destination);
+    assert(
+      destinationToken,
+      `No token found for destination chain: ${destination}`,
+    );
+    assert(
+      (await this.getTransferCapacity(originToken, destinationToken, amount)) >=
+        amount,
+      'xERC20 transfer capacity changed before submission',
+    );
+
     const originTokenAmount = originToken.amount(amount);
     const transferTxs = await this.warpCore.getTransferRemoteTxs({
       originTokenAmount,
@@ -1115,6 +1264,20 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       transferTxs.length > 0,
       'Expected at least one transaction from WarpCore',
     );
+
+    assert(
+      transferTxs.filter((tx) => tx.category === WarpTxCategory.Transfer)
+        .length === 1 &&
+        transferTxs.at(-1)?.category === WarpTxCategory.Transfer,
+      'Expected exactly one transfer transaction after all approvals',
+    );
+    const action = await this.actionTracker.createRebalanceAction({
+      intentId: intent.id,
+      origin: this.multiProvider.getDomainId(origin),
+      destination: destinationDomain,
+      amount: fulfilledCanonicalAmount,
+      type: 'inventory_deposit',
+    });
 
     this.logger.info(
       {
@@ -1128,12 +1291,54 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     );
 
     let transferTxHash: string | undefined;
-    for (const tx of transferTxs) {
-      const { txHash } = await this.sendAndConfirmInventoryTx(origin, tx);
-      if (tx.category === WarpTxCategory.Transfer) {
-        transferTxHash = txHash;
-      }
-    }
+    await trackActionSubmission(
+      this.actionTracker,
+      action.id,
+      async (options) => {
+        for (const tx of transferTxs) {
+          if (tx.category === WarpTxCategory.Transfer) {
+            const { txHash } = await this.sendAndConfirmInventoryTx(
+              origin,
+              tx,
+              options,
+            );
+            transferTxHash = txHash;
+            await options.onSubmitted?.(txHash);
+          } else {
+            let approvalHash: string | undefined;
+            try {
+              const { txHash } = await this.sendAndConfirmInventoryTx(
+                origin,
+                tx,
+                {
+                  onSubmissionAttempt: (hash) =>
+                    options.onApproval?.({ txHash: hash }),
+                  onSubmitted: (hash) => options.onApproval?.({ txHash: hash }),
+                },
+              );
+              approvalHash = txHash;
+              await options.onApproval?.(undefined);
+            } catch (error) {
+              const state =
+                error instanceof TransactionSubmissionError
+                  ? error.submissionState
+                  : approvalHash
+                    ? 'submitted'
+                    : 'unknown';
+              throw new Erc20ApprovalError(
+                error,
+                state,
+                approvalHash ??
+                  (error instanceof TransactionSubmissionError
+                    ? error.txHash
+                    : undefined),
+              );
+            }
+          }
+        }
+      },
+      this.logger,
+    );
 
     const messageId = transferTxHash
       ? await this.extractDispatchedMessageId(origin, transferTxHash)
@@ -1164,13 +1369,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'TransferRemote transaction confirmed',
     );
 
-    // Create the inventory_deposit action with messageId for tracking
-    await this.actionTracker.createRebalanceAction({
-      intentId: intent.id,
-      origin: this.multiProvider.getDomainId(origin),
-      destination: destinationDomain,
-      amount: fulfilledCanonicalAmount,
-      type: 'inventory_deposit',
+    await this.actionTracker.updateRebalanceActionExecution(action.id, {
       txHash: transferTxHash,
       messageId,
     });
@@ -1182,9 +1381,20 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     };
   }
 
-  private async sendAndConfirmInventoryTx(
+  private sendAndConfirmInventoryTx(
     chain: ChainName,
     typedTx: WarpTypedTransaction,
+    options?: TransactionSubmissionOptions,
+  ): Promise<{ txHash: string }> {
+    return new TransactionSubmission(options).run((observers) =>
+      this.sendInventoryTx(chain, typedTx, { ...options, ...observers }),
+    );
+  }
+
+  private async sendInventoryTx(
+    chain: ChainName,
+    typedTx: WarpTypedTransaction,
+    options?: TransactionSubmissionOptions,
   ): Promise<{ txHash: string }> {
     const protocol = this.getProtocolForChain(chain);
     const signerConfig = this.config.inventorySigners[protocol];
@@ -1214,7 +1424,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     const txHash = await signer.sendAndConfirmTransaction(
       toProtocolTransaction(typedTx, protocol),
-      { waitConfirmations },
+      { ...options, waitConfirmations, enableBlockhashResubmit: false },
     );
     return { txHash };
   }
@@ -1296,6 +1506,40 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     return undefined;
   }
 
+  private resolveInventoryRoute(
+    source: ChainName,
+    destination: ChainName,
+    defaultBridge: ExternalBridgeType,
+  ) {
+    const policy = this.config.inventoryRoutes?.[source]?.[destination];
+    return {
+      enabled: policy?.enabled ?? true,
+      externalBridge: policy?.externalBridge ?? defaultBridge,
+      priority: policy?.priority ?? 0,
+    };
+  }
+
+  private assertInventoryRouteEnabled(
+    source: ChainName,
+    destination: ChainName,
+    defaultBridge: ExternalBridgeType,
+    selectedBridge: ExternalBridgeType,
+  ): void {
+    const policy = this.resolveInventoryRoute(
+      source,
+      destination,
+      defaultBridge,
+    );
+    assert(
+      policy.enabled,
+      `Inventory movement '${source}' to '${destination}' is disabled`,
+    );
+    assert(
+      policy.externalBridge === selectedBridge,
+      `Inventory movement provider changed for '${source}' to '${destination}'`,
+    );
+  }
+
   /**
    * Select all source chains with available inventory for bridging.
    * Returns sources sorted by available amount (highest first).
@@ -1326,6 +1570,33 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     );
   }
 
+  /** Share lockbox RPC reads across capacity quotes and execution in one cycle. */
+  private resolveBridgeTokenAddress(
+    token: Token,
+    externalBridgeType: ExternalBridgeType,
+  ): Promise<string> {
+    const key = JSON.stringify([
+      token.chainName,
+      token.addressOrDenom,
+      token.standard,
+      externalBridgeType,
+    ]);
+    let address = this.bridgeTokenAddresses.get(key);
+    if (!address) {
+      address = getExternalBridgeTokenAddress(
+        token,
+        this.warpCore.multiProvider,
+        externalBridgeType,
+        this.getNativeTokenAddress.bind(this),
+      ).catch((error: unknown) => {
+        this.bridgeTokenAddresses.delete(key);
+        throw error;
+      });
+      this.bridgeTokenAddresses.set(key, address);
+    }
+    return address;
+  }
+
   /**
    * Calculate the bridge capacity from a source chain in destination-local units.
    * Uses LiFi quotes to conservatively estimate the destination output available
@@ -1345,22 +1616,20 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     assert(sourceToken, `No token found for source chain: ${sourceChain}`);
     assert(targetToken, `No token found for target chain: ${targetChain}`);
 
-    // Convert HypNative token addresses to the external bridge's native token representation
-    const fromTokenAddress = getExternalBridgeTokenAddress(
-      sourceToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
-    const toTokenAddress = getExternalBridgeTokenAddress(
-      targetToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
-
-    const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
-    const targetChainId = Number(this.multiProvider.getChainId(targetChain));
-
     try {
+      // Resolve the actual asset used by the external bridge.
+      const fromTokenAddress = await this.resolveBridgeTokenAddress(
+        sourceToken,
+        externalBridgeType,
+      );
+      const toTokenAddress = await this.resolveBridgeTokenAddress(
+        targetToken,
+        externalBridgeType,
+      );
+
+      const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
+      const targetChainId = Number(this.multiProvider.getChainId(targetChain));
+
       const externalBridge = this.getExternalBridge(externalBridgeType);
       const initialQuote = await externalBridge.quote({
         fromChain: sourceChainId,
@@ -1478,36 +1747,42 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       };
     }
 
-    // Get chain IDs for the external bridge (not domain IDs)
-    // Convert to number since getChainId can return string | number
-    const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
-    const targetChainId = Number(this.multiProvider.getChainId(targetChain));
-
-    // Convert HypNative token addresses to the external bridge's native token representation
-    // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
-    const fromTokenAddress = getExternalBridgeTokenAddress(
-      sourceToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
-
-    const toTokenAddress = getExternalBridgeTokenAddress(
-      targetToken,
-      externalBridgeType,
-      this.getNativeTokenAddress.bind(this),
-    );
-
-    this.logger.debug(
-      {
-        sourceTokenStandard: sourceToken.standard,
-        targetTokenStandard: targetToken.standard,
-        fromTokenAddress,
-        toTokenAddress,
-      },
-      'Resolved token addresses for LiFi bridge',
-    );
-
     try {
+      assert(
+        intent.externalBridge,
+        'Inventory intent has no default external bridge',
+      );
+      this.assertInventoryRouteEnabled(
+        sourceChain,
+        targetChain,
+        intent.externalBridge,
+        externalBridgeType,
+      );
+      // Get chain IDs for the external bridge (not domain IDs).
+      const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
+      const targetChainId = Number(this.multiProvider.getChainId(targetChain));
+
+      // Resolve the actual asset used by the external bridge.
+      const fromTokenAddress = await this.resolveBridgeTokenAddress(
+        sourceToken,
+        externalBridgeType,
+      );
+
+      const toTokenAddress = await this.resolveBridgeTokenAddress(
+        targetToken,
+        externalBridgeType,
+      );
+
+      this.logger.debug(
+        {
+          sourceTokenStandard: sourceToken.standard,
+          targetTokenStandard: targetToken.standard,
+          fromTokenAddress,
+          toTokenAddress,
+        },
+        'Resolved token addresses for LiFi bridge',
+      );
+
       const externalBridge = this.getExternalBridge(externalBridgeType);
       const fromAddress = this.getInventorySignerAddress(sourceChain);
       const toAddress = this.getInventorySignerAddress(targetChain);
@@ -1547,11 +1822,26 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         quote = await quoteWithMode(quoteModeUsed);
       }
 
-      const inputRequired = quote.fromAmount;
-      if (inputRequired > maxSourceInput) {
+      if (quote.fromAmount > maxSourceInput) {
         return {
           success: false,
-          error: `Bridge input ${inputRequired} exceeded planned source capacity ${maxSourceInput}`,
+          error: `Bridge input ${quote.fromAmount} exceeded planned source capacity ${maxSourceInput}`,
+        };
+      }
+      // Refreshes may spend more than the indicative quote, but never more than
+      // the source capacity reserved for this movement.
+      const budget = quote.executionBudget;
+      const quotedInputCap = budget?.maxInputAmount ?? quote.fromAmount;
+      const inputRequired =
+        quotedInputCap < maxSourceInput ? quotedInputCap : maxSourceInput;
+      assert(
+        inputRequired >= quote.fromAmount,
+        'Bridge budget below quoted input',
+      );
+      if (budget) {
+        quote = {
+          ...quote,
+          executionBudget: { ...budget, maxInputAmount: inputRequired },
         };
       }
 
@@ -1620,7 +1910,38 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         privateKeys[sourceProtocol],
         `Missing inventory signer key for protocol ${sourceProtocol} (chain ${sourceChain})`,
       );
-      const result = await externalBridge.execute(quote, privateKeys);
+      this.assertInventoryRouteEnabled(
+        sourceChain,
+        targetChain,
+        intent.externalBridge,
+        externalBridgeType,
+      );
+      // Reserve source-local input before execution; fulfillment only advances
+      // from canonical inventory_deposit amounts after transferRemote.
+      const action = await this.actionTracker.createRebalanceAction({
+        intentId: intent.id,
+        origin: this.multiProvider.getDomainId(sourceChain),
+        destination: this.multiProvider.getDomainId(targetChain),
+        amount: inputRequired,
+        type: 'inventory_movement',
+        externalBridgeId: externalBridgeType,
+      });
+      const result = await trackActionSubmission(
+        this.actionTracker,
+        action.id,
+        async (options) => {
+          const result = await externalBridge.execute(
+            quote,
+            privateKeys,
+            options,
+          );
+          await options.onSubmitted?.(result.txHash);
+          if (result.transferId)
+            await options.onTransferId?.(result.transferId);
+          return result;
+        },
+        this.logger,
+      );
 
       this.logger.info(
         {
@@ -1629,20 +1950,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           txHash: result.txHash,
           intentId: intent.id,
         },
-        'Inventory movement transaction executed',
+        'Inventory movement execution returned',
       );
-
-      // Keep bridge consumption in source-local units; intent fulfillment only
-      // advances from canonical inventory_deposit amounts after transferRemote.
-      await this.actionTracker.createRebalanceAction({
-        intentId: intent.id,
-        origin: this.multiProvider.getDomainId(sourceChain),
-        destination: this.multiProvider.getDomainId(targetChain),
-        amount: inputRequired,
-        type: 'inventory_movement',
-        txHash: result.txHash,
-        externalBridgeId: externalBridgeType,
-      });
 
       // Track consumed inventory on source chain for this cycle
       const currentConsumed = this.consumedInventory.get(sourceChain) ?? 0n;

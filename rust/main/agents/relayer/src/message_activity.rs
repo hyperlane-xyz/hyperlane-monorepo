@@ -1,6 +1,6 @@
 //! Best-effort sanitized message activity. No network I/O on the delivery path.
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -19,6 +19,7 @@ use sea_orm::{
 use serde::Serialize;
 use tokio::sync::mpsc;
 use tracing::warn;
+use url::{Position, Url};
 use uuid::Uuid;
 
 use hyperlane_base::{
@@ -130,7 +131,10 @@ pub enum Activity {
     OffchainRead {
         ism: H256,
         endpoint: Option<usize>,
+        #[serde(flatten)]
+        gateway: Option<OffchainReadGateway>,
         attempt: u32,
+        #[serde(flatten)]
         state: OffchainReadState,
         http_status: Option<u16>,
     },
@@ -171,6 +175,7 @@ pub enum Outcome {
 #[serde(rename_all = "snake_case")]
 pub enum Stage {
     Prepare,
+    GasPreflight,
     Simulate,
     Submit,
     BuildPayload,
@@ -190,15 +195,60 @@ pub enum ValidatorStorageState {
     ReorgReported,
     ReorgIgnored,
     ReorgCheckFailed,
+    ReorgNotFound,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
+/// Public parts of the ISM's URL template, before message data is substituted.
+#[derive(Clone, Debug, Serialize)]
+pub struct OffchainReadGateway {
+    hostname: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url_template: Option<String>,
+}
+
+impl OffchainReadGateway {
+    pub fn from_template(template: &str) -> Option<Self> {
+        // Url encodes raw braces in paths using uppercase hex. Keep pre-escaped braces distinct.
+        let escaped;
+        let template = if template.contains("%7B") || template.contains("%7D") {
+            escaped = template.replace("%7B", "%7b").replace("%7D", "%7d");
+            &escaped
+        } else {
+            template
+        };
+        let url = Url::parse(template).ok()?;
+        let host = url.host_str()?;
+        if !matches!(url.scheme(), "https" | "http")
+            || host.strip_suffix('.').unwrap_or(host).len() > 253
+        {
+            return None;
+        }
+        // This slice contains the host, optional port and path only.
+        let host_and_path = &url[Position::BeforeHost..Position::AfterPath];
+        let prefix = &url[..Position::BeforeUsername];
+        let url_template = (prefix.len().saturating_add(host_and_path.len()) <= 2048).then(|| {
+            format!("{prefix}{host_and_path}")
+                .replace("%7Bsender%7D", "{sender}")
+                .replace("%7Bdata%7D", "{data}")
+        });
+        Some(Self {
+            hostname: host.to_owned(),
+            url_template,
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "state", content = "result", rename_all = "snake_case")]
 pub enum OffchainReadState {
+    IsmBuildFailed,
+    LookupReturnedNormally,
     LookupFailed,
+    InvalidLookupRevert,
     OriginTransactionMissing,
     OriginTransactionLookupFailed,
     UrlRejected,
+    DomainNotAllowed,
     ClientFailed,
     SigningFailed,
     RequestTimeout,
@@ -206,7 +256,7 @@ pub enum OffchainReadState {
     BodyReadFailed,
     Pending,
     InvalidResponse,
-    Succeeded,
+    Succeeded { bytes: usize, keccak256: H256 },
     PendingRetriesExhausted,
     NoEndpoints,
 }
@@ -261,8 +311,10 @@ pub fn metadata_error(error: &MetadataBuildError) -> String {
         MetadataBuildError::FailedToBuild(_) => "Metadata build failed".to_owned(),
         MetadataBuildError::FastPathError(_) => "Fast path metadata failed".to_owned(),
         MetadataBuildError::Refused(_) => "Validator reported a reorg".to_owned(),
-        MetadataBuildError::CouldNotFetch
+        MetadataBuildError::CcipReadNotAllowed
+        | MetadataBuildError::CouldNotFetch
         | MetadataBuildError::AwaitingValidatorSignatures
+        | MetadataBuildError::RetryLimitReached(_)
         | MetadataBuildError::UnsupportedModuleType(_)
         | MetadataBuildError::MaxIsmDepthExceeded(_)
         | MetadataBuildError::MaxIsmCountReached(_)
@@ -417,7 +469,7 @@ impl MessageActivityReporter {
 
 // Summaries are scoped to one metadata build. Collections are limited to 50 validators;
 // only the latest attempted index is retained, so range walks cannot grow this state.
-#[derive(Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct CheckpointSummary {
     index: Option<u32>,
     root: Option<H256>,
@@ -427,6 +479,8 @@ pub struct CheckpointSummary {
     latest_indices: BTreeMap<H160, Option<u32>>,
     discovery_unavailable: BTreeMap<H256, CheckpointUnavailableReason>,
     unavailable: BTreeMap<H256, CheckpointUnavailableReason>,
+    #[serde(skip)]
+    reported_signers: BTreeSet<H256>,
 }
 
 #[derive(Debug)]
@@ -445,44 +499,87 @@ pub struct ActivityCheckpointObserver {
 
 impl CheckpointObserver for ActivityCheckpointObserver {
     fn observe(&self, observation: CheckpointObservation) {
+        use ValidatorStorageState::{ReorgCheckFailed, ReorgIgnored, ReorgNotFound, ReorgReported};
+
         // This observer is private to one collection. The short synchronous guard
         // never spans an await or I/O, including the final queue write.
-        let mut summary = self.summary.lock();
-        match observation {
+        let (validator, states, usable) = match observation {
             CheckpointObservation::LatestIndex { validator, index } => {
-                summary.latest_indices.insert(validator, index);
+                self.summary.lock().latest_indices.insert(validator, index);
+                return;
             }
             CheckpointObservation::Fetching { index } => {
+                let mut summary = self.summary.lock();
                 summary.index = Some(index);
                 summary.root = None;
                 summary.collected = 0;
                 summary.signers.clear();
                 summary.unavailable.clear();
                 summary.attempts = summary.attempts.saturating_add(1);
+                return;
             }
             CheckpointObservation::Signature { root, signers, .. } => {
+                let mut summary = self.summary.lock();
                 let collected = signers.len();
                 for signer in &signers {
                     summary.unavailable.remove(&signer.validator);
                 }
                 // Counts belong to a single root; never combine conflicting signatures.
                 if collected > summary.collected {
+                    let mut new_signer = false;
+                    for signer in &signers {
+                        new_signer |= summary.reported_signers.insert(signer.validator);
+                    }
                     summary.root = Some(root);
                     summary.collected = collected;
                     summary.signers = signers;
+                    if new_signer {
+                        self.report_summary(summary.clone());
+                    }
                 }
+                return;
             }
             CheckpointObservation::Unavailable {
                 validator,
                 index,
                 reason,
             } => {
+                let mut summary = self.summary.lock();
                 match index {
                     Some(_) => summary.unavailable.insert(validator, reason),
                     None => summary.discovery_unavailable.insert(validator, reason),
                 };
+                return;
             }
-        }
+            CheckpointObservation::ReorgNotFound { validator } => {
+                (validator, vec![ReorgNotFound], true)
+            }
+            CheckpointObservation::ReorgReported { validator, ignored } => {
+                let mut states = vec![ReorgReported];
+                if ignored {
+                    states.push(ReorgIgnored);
+                }
+                (validator, states, false)
+            }
+            CheckpointObservation::ReorgCheckFailed { validator } => {
+                (validator, vec![ReorgCheckFailed], true)
+            }
+        };
+        self.reporter.report_scoped(
+            self.message_id,
+            self.origin,
+            self.destination,
+            Activity::ValidatorStorage {
+                validator: validator.into(),
+                states,
+                usable,
+            },
+            self.node_id.clone(),
+        );
+    }
+
+    fn report_signature_wait(&self) {
+        self.report_summary(self.summary.lock().clone());
     }
 }
 
@@ -497,6 +594,10 @@ impl ActivityCheckpointObserver {
         {
             return;
         }
+        self.report_summary(summary);
+    }
+
+    fn report_summary(&self, summary: CheckpointSummary) {
         self.reporter.report_scoped(
             self.message_id,
             self.origin,
@@ -515,7 +616,7 @@ impl ActivityCheckpointObserver {
 impl Drop for ActivityCheckpointObserver {
     fn drop(&mut self) {
         // Background telemetry may outlive the metadata build's first report.
-        // Flush its remaining observations, but keep abandoned collections silent.
+        // Flush remaining observations only for completed collections.
         if *self.reported.get_mut() {
             self.report();
         }

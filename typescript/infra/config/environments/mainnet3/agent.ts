@@ -54,7 +54,7 @@ import {
   getDomainId,
   getWarpAddresses,
 } from '../../registry.js';
-import { fallbackHedgeConfig } from '../utils.js';
+import { ccipReadAllowedDomains, fallbackHedgeConfig } from '../utils.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
@@ -89,12 +89,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: false,
-    bob: true,
     bsc: true,
     celestia: true,
     celo: true,
     citrea: true,
+    collect: true,
     coti: true,
     eclipsemainnet: true,
     eden: true,
@@ -103,7 +102,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: false, // relayer + scraper only
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -116,19 +114,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
-    mantra: true,
     metal: true,
     metis: true,
     mitosis: true,
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
@@ -138,15 +132,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
-    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     stable: true,
     starknet: true,
     subtensor: true,
-
-    tea: true,
     tempo: true,
     tron: true,
     unichain: true,
@@ -164,12 +155,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
-    bob: true,
     bsc: true,
     celestia: true,
     celo: true,
     citrea: true,
+    collect: true,
     coti: true,
     eclipsemainnet: true,
     eden: true,
@@ -178,7 +168,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -191,19 +180,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
-    mantra: true,
     metal: true,
     metis: true,
     mitosis: true,
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
@@ -213,15 +198,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
-    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     stable: true,
     starknet: true,
     subtensor: true,
-
-    tea: true,
     tempo: true,
     tron: true,
     unichain: true,
@@ -239,12 +221,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     arc: true,
     avalanche: true,
     base: true,
-    blast: false, // temporarily disabled 2026-10-29 — Blast chain halted
-    bob: true,
     bsc: true,
     celestia: true,
     celo: true,
     citrea: true,
+    collect: true,
     coti: true,
     eclipsemainnet: true,
     eden: true,
@@ -253,7 +234,6 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eni: true,
     ethereum: true,
     fluent: true,
-    forma: true,
     fraxtal: true,
     galactica: true,
     gnosis: true,
@@ -266,19 +246,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     kyve: true,
     lazai: true,
     linea: true,
-    lisk: false, // disabled — Lisk chain halted
     lukso: true,
     mantle: true,
-    mantra: true,
     metal: true,
     metis: true,
     mitosis: true,
     mocachain: true,
     mode: true,
     monad: true,
-    nesa: false, // disabled — superseded by nesachain after the Nesa incident
     nesachain: true,
-    nexus: false, // disabled — Nexus chain shut down by the Nexus team
     optimism: true,
     paradex: true,
     plasma: true,
@@ -288,15 +264,12 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     robinhood: true,
     solanamainnet: true,
     solaxy: true,
-    somnia: true,
     soneium: true,
     sonic: true,
     sonicsvm: true,
     stable: true,
     starknet: true,
     subtensor: true,
-
-    tea: true,
     tempo: true,
     tron: true,
     unichain: true,
@@ -309,9 +282,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 };
 
 // Chains not in our core set of supported chains, and supported ONLY by the scraper
-export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {
-  edgenchain: true,
-};
+export const scraperOnlyChains: BaseScraperConfig['scraperOnlyChains'] = {};
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
@@ -407,6 +378,7 @@ const diagnosticsDatabaseSecret =
 
 const scraperWebsocketUrl =
   'ws://scraper-proxy.mainnet3.svc.cluster.local:8383/agents';
+const validatorWebsocketUrl = 'wss://explorer-api.hyperlane.xyz/validators';
 
 const veloMessageModuleMatchingList = consistentSenderRecipientMatchingList(
   '0x2BbA7515F7cF114B45186274981888D8C2fBA15E',
@@ -422,7 +394,6 @@ const velodromeUniversalRouters: ChainMap<Address> = {
   celo: velodromeUniversalRouterOwner,
   fraxtal: velodromeUniversalRouterOwner,
   ink: velodromeUniversalRouterOwner,
-  lisk: velodromeUniversalRouterOwner,
   metal: velodromeUniversalRouterOwner,
   mode: velodromeUniversalRouterOwner,
   optimism: velodromeUniversalRouterOwner,
@@ -532,22 +503,12 @@ const metaswapMatchingList = [
   ),
 );
 
-// Reveals have no owner; this also covers other ICA reveals between these chains.
-const aeroV3RevealMatchingList = icaMatchingList(
-  objMap(metaswapMetaRouters, () => ({ messageType: IcaMessageType.REVEAL })),
-);
-
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
     matchingList: [
       { originDomain: getDomainId('starknet') },
       { originDomain: getDomainId('paradex') },
-      // Not a core chain
-      {
-        originDomain: getDomainId('forma'),
-        destinationDomain: getDomainId('celestia'),
-      },
     ],
   },
   {
@@ -558,18 +519,13 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       { destinationDomain: getDomainId('citrea') },
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
-      // Not a core chain
-      { destinationDomain: getDomainId('forma') },
       // Being more generous with some Velo message module messages, which occasionally underpay
       ...veloMessageModuleMatchingList,
       // Superswap ICA matches on ICA owner address in message body
       ...superswapIcaV2CommitmentMatchingList,
-      // ICA reveal messages (does not filter on ICA owner)
-      ...icaV2RevealMatchingList,
       // Temporary Aero v3 underpayment workaround; retain a 1-wei IGP payment.
       ...aeroV3AdapterMatchingList,
       ...metaswapMatchingList,
-      ...aeroV3RevealMatchingList,
     ],
   },
   {
@@ -874,11 +830,11 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,
-    websocketAuthorityEnabled: true,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayer,
     },
+    ccipReadAllowedDomains,
     runtimeDenylist,
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -909,7 +865,7 @@ const hyperlane: RootAgentConfig = {
       tag: mainnetDockerTags.validator,
     },
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -953,11 +909,11 @@ const releaseCandidate: RootAgentConfig = {
     ...fallbackHedgeConfig,
     index: { from: RELEASE_CANDIDATE_INDEX_FROM },
     websocketUrl: scraperWebsocketUrl,
-    websocketAuthorityEnabled: true,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerRC,
     },
+    ccipReadAllowedDomains,
     runtimeDenylist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -987,7 +943,7 @@ const releaseCandidate: RootAgentConfig = {
       tag: mainnetDockerTags.validatorRC,
     },
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,
     chainResourceOverrides: validatorChainResourceOverrides,
@@ -1125,7 +1081,7 @@ const fastPath: RootAgentConfig = {
     messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
-    // Use RPC indexing until the scraper proxy supports fastpath streaming.
+    websocketUrl: scraperWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.relayerFastPath,
@@ -1138,6 +1094,7 @@ const fastPath: RootAgentConfig = {
       ...fastPathCrossMoonpayMatchingList,
       ...fastPathTestRecipientMatchingList,
     ],
+    ccipReadAllowedDomains,
     runtimeDenylist,
     gasPaymentEnforcement: fastPathGasPaymentEnforcement,
     reorgPeriodOverrides: fastPathReorgPeriodOverrides,
@@ -1152,7 +1109,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: mainnetDockerTags.validatorFastPath,

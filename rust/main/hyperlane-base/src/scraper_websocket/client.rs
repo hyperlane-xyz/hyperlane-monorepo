@@ -13,6 +13,22 @@ use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, Web
 
 use super::ServerMessage;
 
+#[derive(serde::Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ValidatorHandshake {
+    #[serde(rename_all = "camelCase")]
+    Ready {
+        domain: u32,
+        confirmations: Option<u32>,
+        event_types: Vec<String>,
+        historical_streaming: bool,
+        live_start_version: u32,
+    },
+    Error {
+        error: String,
+    },
+}
+
 /// Delay between ordinary connection retries.
 pub const RETRY_DELAY: Duration = Duration::from_secs(5);
 // Rejected subscriptions usually require scraper history/configuration to change.
@@ -153,18 +169,21 @@ impl StreamHealth {
         }
     }
 
-    /// Whether this stream may use WebSocket indexing after a canonical probe.
-    /// Startup requires equality; an active stream gets bounded lag tolerance.
-    /// A rollback ahead of canonical state or expired lag requires RPC fallback.
-    pub fn observe(&mut self, count: u32, next: u32, authoritative: bool) -> Result<bool> {
-        check_stream_lag(
-            &mut self.lag_started_at,
-            count,
-            next,
-            self.grace,
-            authoritative,
-        )?;
-        Ok(authoritative || count == next)
+    /// Reject sustained lag without letting incoming live events reset the timer.
+    pub fn observe(&mut self, count: u32, next: u32) -> Result<()> {
+        if count <= next {
+            self.reset();
+            return Ok(());
+        }
+        if self
+            .lag_started_at
+            .get_or_insert_with(Instant::now)
+            .elapsed()
+            >= self.grace
+        {
+            bail!("Scraper WebSocket is stale: next sequence {next}, on-chain count {count}");
+        }
+        Ok(())
     }
 
     /// A failed canonical probe proves neither lag nor progress: tolerate it like
@@ -176,56 +195,13 @@ impl StreamHealth {
             < self.grace
     }
 
-    /// Reset on reconnect, loss of readiness, or the first completed replay.
+    /// Clear lag after a verified boundary or successful catch-up.
     pub fn reset(&mut self) {
         self.lag_started_at = None;
     }
-
-    /// Replay progress extends catch-up time. Live progress never hides lag.
-    pub fn record_progress(&mut self, caught_up: bool) {
-        if !caught_up {
-            self.reset();
-        }
-    }
 }
 
-/// Reject rollback or sustained lag, preserving the timer across live events.
-fn check_stream_lag(
-    lag_started_at: &mut Option<Instant>,
-    onchain_count: u32,
-    next_sequence: u32,
-    progress_grace: Duration,
-    require_canonical_cursor: bool,
-) -> Result<()> {
-    if require_canonical_cursor && next_sequence > onchain_count {
-        bail!(
-            "Scraper WebSocket cursor rolled ahead of canonical count: next sequence {next_sequence}, on-chain count {onchain_count}"
-        );
-    }
-    if onchain_count <= next_sequence {
-        *lag_started_at = None;
-        return Ok(());
-    }
-    let lag_started_at = lag_started_at.get_or_insert_with(Instant::now);
-    if lag_started_at.elapsed() >= progress_grace {
-        bail!(
-            "Scraper WebSocket is stale: next sequence {next_sequence}, on-chain count {onchain_count}"
-        );
-    }
-    Ok(())
-}
-
-/// Require an exact canonical count before replacing RPC indexing.
-pub fn validate_cutover_freshness(onchain_count: u32, next_sequence: u32) -> Result<bool> {
-    if next_sequence > onchain_count {
-        bail!(
-            "WebSocket cursor is ahead of canonical count: next sequence {next_sequence}, on-chain count {onchain_count}"
-        );
-    }
-    Ok(next_sequence == onchain_count)
-}
-
-/// A single scraper connection. Callers own durable cursors and RPC indexers.
+/// A single scraper connection. Callers own live cursors and RPC indexers.
 /// The read deadline survives cancellation of `recv` in an agent's select loop.
 pub struct ScraperWebSocket {
     socket: WebSocketStream<MaybeTlsStream<TcpStream>>,
@@ -249,11 +225,64 @@ impl ScraperWebSocket {
         })
     }
 
+    /// Negotiate one public validator stream in the URL, without a subscribe frame.
+    pub async fn connect_validator(
+        url: &url::Url,
+        domain: u32,
+        confirmations: Option<u32>,
+        read_timeout: Duration,
+    ) -> Result<Self> {
+        let mut url = url.clone();
+        url.query_pairs_mut()
+            .append_pair("domain", &domain.to_string());
+        if let Some(confirmations) = confirmations {
+            url.query_pairs_mut()
+                .append_pair("confirmations", &confirmations.to_string());
+        }
+        let mut socket = Self::connect(&url, read_timeout).await.map_err(|error| {
+            match error.downcast_ref::<tokio_tungstenite::tungstenite::Error>() {
+                Some(tokio_tungstenite::tungstenite::Error::Http(response))
+                    if response.status().is_client_error() =>
+                {
+                    RejectedStream(format!(
+                        "WebSocket admission rejected: {}",
+                        response.status()
+                    ))
+                    .into()
+                }
+                _ => error,
+            }
+        })?;
+        match socket.receive::<ValidatorHandshake>().await? {
+            Some(ValidatorHandshake::Ready {
+                domain: actual_domain,
+                confirmations: actual_confirmations,
+                event_types,
+                historical_streaming,
+                live_start_version,
+            }) if actual_domain == domain
+                && actual_confirmations == confirmations
+                && event_types == ["merkle_tree_insertion"]
+                && !historical_streaming
+                && live_start_version == 1 => {}
+            Some(ValidatorHandshake::Error { error }) => return Err(RejectedStream(error).into()),
+            Some(_) => {
+                return Err(RejectedStream(
+                    "Validator WebSocket ready does not match requested stream".into(),
+                )
+                .into())
+            }
+            None => bail!("Validator WebSocket closed before ready"),
+        }
+        socket.state = SubscriptionState::Subscribed;
+        Ok(socket)
+    }
+
     pub(super) fn read_deadline(&self) -> Instant {
         self.deadline.deadline()
     }
 
-    /// Send the agent's cursor subscription after receiving `Ready`.
+    /// Send the agent's live subscription after receiving `Ready`.
     pub async fn subscribe(&mut self, subscription: String) -> Result<()> {
         self.socket
             .send(Message::Text(subscription.into()))
@@ -264,6 +293,23 @@ impl ScraperWebSocket {
     /// Receive a typed protocol message, servicing heartbeats and enforcing order.
     /// EOF and transport errors are returned to the agent so it restores RPC first.
     pub async fn recv<T: DeserializeOwned>(&mut self) -> Result<Option<ServerMessage<T>>> {
+        let message = self.receive().await?;
+        match &message {
+            Some(ServerMessage::Ready) => self.state = self.state.receive_ready()?,
+            Some(ServerMessage::Subscribed { .. }) => {
+                self.state = self.state.receive_subscribed()?
+            }
+            Some(ServerMessage::Event(_)) => self.state.require_subscribed("event")?,
+            Some(ServerMessage::LiveStart(_) | ServerMessage::LiveStartUnavailable { .. }) => {
+                self.state.require_subscribed("live-start boundary")?
+            }
+            Some(ServerMessage::Rollback { .. }) => self.state.require_subscribed("rollback")?,
+            _ => {}
+        }
+        Ok(message)
+    }
+
+    async fn receive<T: DeserializeOwned>(&mut self) -> Result<Option<T>> {
         loop {
             let frame = tokio::select! {
                 biased;
@@ -282,18 +328,6 @@ impl ScraperWebSocket {
                 Message::Text(text) => {
                     let message =
                         serde_json::from_str(&text).context("Parsing scraper WebSocket message")?;
-                    match &message {
-                        ServerMessage::Ready { .. } => self.state = self.state.receive_ready()?,
-                        ServerMessage::Subscribed { .. } => {
-                            self.state = self.state.receive_subscribed()?
-                        }
-                        ServerMessage::Event(_) => self.state.require_subscribed("event")?,
-                        ServerMessage::CaughtUp { .. } => {
-                            self.state.require_subscribed("caught-up marker")?
-                        }
-                        ServerMessage::Rollback => self.state.require_subscribed("rollback")?,
-                        ServerMessage::Error { .. } | ServerMessage::Other => {}
-                    }
                     return Ok(Some(message));
                 }
                 // Tungstenite queues the matching pong while reading a ping.
@@ -303,6 +337,11 @@ impl ScraperWebSocket {
                     .flush()
                     .await
                     .context("Responding to scraper heartbeat")?,
+                Message::Close(Some(frame)) if u16::from(frame.code) == 1008 => {
+                    return Err(
+                        RejectedStream(format!("Scraper WebSocket closed: {frame:?}")).into(),
+                    );
+                }
                 Message::Close(frame) => bail!("Scraper WebSocket closed: {frame:?}"),
                 Message::Binary(_) | Message::Pong(_) | Message::Frame(_) => {}
             }
@@ -325,7 +364,7 @@ pub(super) mod tests {
         assert_eq!(awaiting_subscribed, SubscriptionState::AwaitingSubscribed);
         assert!(awaiting_subscribed.receive_ready().is_err());
         assert!(awaiting_subscribed
-            .require_subscribed("caught-up marker")
+            .require_subscribed("live-start boundary")
             .is_err());
 
         let subscribed = awaiting_subscribed
@@ -337,23 +376,6 @@ pub(super) mod tests {
             .expect("data allowed");
         assert!(subscribed.receive_ready().is_err());
         assert!(subscribed.receive_subscribed().is_err());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn backfill_progress_resets_lag_timer() {
-        let grace = Duration::from_secs(10);
-        let mut lag_started_at = None;
-
-        check_stream_lag(&mut lag_started_at, 100, 1, grace, false).expect("initial lag");
-        tokio::time::advance(Duration::from_secs(6)).await;
-        lag_started_at = None;
-        check_stream_lag(&mut lag_started_at, 102, 2, grace, false)
-            .expect("first backfill progress");
-        tokio::time::advance(Duration::from_secs(6)).await;
-        lag_started_at = None;
-
-        check_stream_lag(&mut lag_started_at, 104, 3, grace, false)
-            .expect("continuous backfill remains healthy beyond one grace period");
     }
 
     #[test]
@@ -387,6 +409,181 @@ pub(super) mod tests {
     }
 
     #[tokio::test]
+    async fn admission_and_policy_rejections_use_slow_retries() {
+        use tokio::io::AsyncWriteExt;
+        for status in [400, 403, 404, 429, 500, 502, 503, 504, 530] {
+            for validator in [false, true] {
+                let listener = TcpListener::bind("127.0.0.1:0").await.expect("listen");
+                let url = url::Url::parse(&format!(
+                    "ws://{}/validators",
+                    listener.local_addr().expect("address")
+                ))
+                .expect("URL");
+                let (result, _) = tokio::join!(
+                    async {
+                        if validator {
+                            ScraperWebSocket::connect_validator(&url, 1, None, READ_TIMEOUT).await
+                        } else {
+                            ScraperWebSocket::connect(&url, READ_TIMEOUT).await
+                        }
+                    },
+                    async {
+                        let (mut socket, _) = listener.accept().await.expect("accept");
+                        let mut request = [0; 4096];
+                        tokio::io::AsyncReadExt::read(&mut socket, &mut request)
+                            .await
+                            .expect("read upgrade");
+                        socket.write_all(format!("HTTP/1.1 {status} Rejected\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes()).await.expect("reject");
+                    }
+                );
+                let error = result.err().expect("admission rejected");
+                let slow_retry = validator && (400..500).contains(&status);
+                assert_eq!(error.downcast_ref::<RejectedStream>().is_some(), slow_retry);
+                assert_eq!(
+                    stream_retry_delay(&Err(error), RETRY_DELAY),
+                    if slow_retry {
+                        REJECTED_STREAM_RETRY_DELAY + RETRY_DELAY
+                    } else {
+                        RETRY_DELAY
+                    },
+                );
+            }
+        }
+        for code in [1008, 1013] {
+            let (mut client, mut server) = connection(READ_TIMEOUT).await;
+            server
+                .send(Message::Close(Some(
+                    tokio_tungstenite::tungstenite::protocol::CloseFrame {
+                        code: code.into(),
+                        reason: "rejected".into(),
+                    },
+                )))
+                .await
+                .expect("close");
+            let error = client
+                .recv::<serde_json::Value>()
+                .await
+                .expect_err("rejected");
+            assert_eq!(
+                error.downcast_ref::<RejectedStream>().is_some(),
+                code == 1008
+            );
+            assert_eq!(
+                stream_retry_delay(&Err(error), RETRY_DELAY),
+                if code == 1008 {
+                    REJECTED_STREAM_RETRY_DELAY + RETRY_DELAY
+                } else {
+                    RETRY_DELAY
+                },
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn validator_url_negotiation_validates_ready_without_sending_subscribe() {
+        for (confirmations, invalid) in [
+            (None, None),
+            (Some(0), None),
+            (Some(12), None),
+            (Some(12), Some("domain")),
+            (Some(12), Some("confirmations")),
+            (Some(12), Some("eventTypes")),
+            (Some(12), Some("historicalStreaming")),
+            (Some(12), Some("liveStartVersion")),
+            (Some(12), Some("type")),
+        ] {
+            let mut ready = serde_json::json!({"type":"ready", "domain":1,
+                "eventTypes":["merkle_tree_insertion"], "historicalStreaming":false, "liveStartVersion":1});
+            if let Some(count) = confirmations {
+                ready["confirmations"] = serde_json::json!(count);
+            }
+            if let Some(field) = invalid {
+                ready[field] = match field {
+                    "domain" => serde_json::json!(2),
+                    "confirmations" => serde_json::json!(99),
+                    "eventTypes" => serde_json::json!(["dispatch"]),
+                    "historicalStreaming" => serde_json::json!(true),
+                    "liveStartVersion" => serde_json::json!(2),
+                    _ => serde_json::json!("subscribed"),
+                };
+            }
+            let listener = TcpListener::bind("127.0.0.1:0").await.expect("listen");
+            let url = url::Url::parse(&format!(
+                "ws://{}/validators",
+                listener.local_addr().unwrap()
+            ))
+            .unwrap();
+            let (client, server) = tokio::join!(
+                ScraperWebSocket::connect_validator(&url, 1, confirmations, READ_TIMEOUT),
+                async {
+                    let (tcp, _) = listener.accept().await.unwrap();
+                    let mut socket = tokio_tungstenite::accept_hdr_async(
+                        tcp,
+                        |request: &tokio_tungstenite::tungstenite::handshake::server::Request,
+                         response| {
+                            let expected = match confirmations {
+                                Some(count) => {
+                                    format!("/validators?domain=1&confirmations={count}")
+                                }
+                                None => "/validators?domain=1".into(),
+                            };
+                            assert_eq!(request.uri().to_string(), expected);
+                            Ok(response)
+                        },
+                    )
+                    .await
+                    .unwrap();
+                    socket
+                        .send(Message::Text(ready.to_string().into()))
+                        .await
+                        .unwrap();
+                    socket
+                }
+            );
+            if invalid.is_some() {
+                assert!(client.is_err());
+                continue;
+            }
+            let mut client = client.unwrap();
+            let mut server = server;
+            assert!(
+                timeout(Duration::from_millis(10), server.next())
+                    .await
+                    .is_err(),
+                "URL clients must not send a subscribe frame"
+            );
+            server
+                .send(Message::Text(
+                    r#"{"type":"rollback","domain":1,"fromHeight":"15","toHeight":"12"}"#.into(),
+                ))
+                .await
+                .unwrap();
+            assert!(matches!(
+                client.recv::<serde_json::Value>().await.unwrap(),
+                Some(ServerMessage::Rollback { domain: 1, .. })
+            ));
+            server
+                .send(Message::Text(ready.to_string().into()))
+                .await
+                .unwrap();
+            assert!(
+                client.recv::<serde_json::Value>().await.is_err(),
+                "duplicate ready"
+            );
+            server
+                .send(Message::Text(
+                    r#"{"type":"subscribed","streams":[]}"#.into(),
+                ))
+                .await
+                .unwrap();
+            assert!(
+                client.recv::<serde_json::Value>().await.is_err(),
+                "unexpected subscribed"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn heartbeat_is_serviced_without_hiding_protocol_messages() {
         let (mut client, mut server) = connection(READ_TIMEOUT).await;
         server
@@ -399,7 +596,7 @@ pub(super) mod tests {
             .expect("ready");
         assert!(matches!(
             client.recv::<serde_json::Value>().await.expect("receive"),
-            Some(ServerMessage::Ready { .. })
+            Some(ServerMessage::Ready)
         ));
         let pong = timeout(Duration::from_secs(30), server.next())
             .await
@@ -468,7 +665,7 @@ pub(super) mod tests {
                 .await
                 .expect("resume deadline")
                 .expect("fragmented ready"),
-            Some(ServerMessage::Ready { .. })
+            Some(ServerMessage::Ready)
         ));
         assert_eq!(
             timeout(Duration::from_secs(30), server.next())
@@ -517,30 +714,13 @@ pub(super) mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn live_lag_expires_despite_progress_and_catchup_resets_it() {
-        let mut lag = None;
-        check_stream_lag(&mut lag, 10, 9, PROGRESS_GRACE_PERIOD, true).expect("grace");
+    async fn live_lag_expires_and_catchup_resets_it() {
+        let mut health = StreamHealth::default();
+        health.observe(10, 9).expect("grace");
         tokio::time::advance(PROGRESS_GRACE_PERIOD).await;
-        // Live progress does not reset lag.
-        assert!(check_stream_lag(&mut lag, 12, 11, PROGRESS_GRACE_PERIOD, true).is_err());
-        check_stream_lag(&mut lag, 12, 12, PROGRESS_GRACE_PERIOD, true).expect("recovered");
-        assert!(lag.is_none());
-        assert!(check_stream_lag(&mut lag, 11, 12, PROGRESS_GRACE_PERIOD, true).is_err());
-    }
-    #[tokio::test(start_paused = true)]
-    async fn live_stream_still_fails_when_lag_grows() {
-        let grace = Duration::from_secs(10);
-        let mut health = StreamHealth::new(grace);
-
-        health.observe(100, 1, false).expect("initial lag");
-        tokio::time::advance(Duration::from_secs(5)).await;
-        health.record_progress(true);
-        health
-            .observe(102, 2, false)
-            .expect("progress within grace");
-        tokio::time::advance(Duration::from_secs(5)).await;
-
-        assert!(health.observe(104, 3, false).is_err());
+        assert!(health.observe(12, 11).is_err());
+        health.observe(12, 12).expect("caught up");
+        assert!(health.lag_started_at.is_none());
     }
 
     #[tokio::test(start_paused = true)]
@@ -548,13 +728,13 @@ pub(super) mod tests {
         let grace = Duration::from_secs(10);
         let mut health = StreamHealth::new(grace);
 
-        health.observe(100, 99, true).expect("lag starts the timer");
+        health.observe(100, 99).expect("lag starts the timer");
         tokio::time::advance(Duration::from_secs(5)).await;
         assert!(health.observe_probe_failure());
         tokio::time::advance(Duration::from_secs(5)).await;
         assert!(!health.observe_probe_failure());
 
-        health.observe(100, 100, true).expect("caught up resets");
+        health.observe(100, 100).expect("caught up resets");
         assert!(health.observe_probe_failure());
     }
 }

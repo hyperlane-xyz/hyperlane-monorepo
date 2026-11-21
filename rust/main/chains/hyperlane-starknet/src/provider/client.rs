@@ -157,6 +157,7 @@ impl HyperlaneProvider for StarknetProvider {
             recipient,
             raw_input_data: Some(calldata.into_iter().flat_map(|f| f.to_bytes_be()).collect()),
             receipt: Some(TxnReceiptInfo {
+                block_hash: None,
                 gas_used: U256::one(),
                 cumulative_gas_used: U256::one(),
                 effective_gas_price: Some(gas_paid),

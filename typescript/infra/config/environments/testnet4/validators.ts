@@ -12,7 +12,9 @@ const AW_RC_VALIDATOR = '0x3588e77a3a9bcaa92b2d9c6cd525697c6fdb2c76';
 const AW_FASTPAH_VALIDATOR = '0x4b54641256233487c17ba76fba57a78b013dc5db';
 const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 
-export const fastPathReorgPeriodOverrides: Record<string, number> = {
+// A number of blocks, or a block tag (e.g. 'safe' / 'finalized') for EVM chains
+// whose RPC fork-choice head tracks the tip closely enough to stay on the fast path.
+export const fastPathReorgPeriodOverrides: Record<string, number | string> = {
   arbitrumsepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
   basesepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
   sepolia: FASTPATH_VALIDATOR_REORG_PERIOD,

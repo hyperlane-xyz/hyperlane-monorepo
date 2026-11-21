@@ -20,7 +20,7 @@ import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts, RELEASE_CANDIDATE_INDEX_FROM } from '../../contexts.js';
 import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
-import { fallbackHedgeConfig } from '../utils.js';
+import { ccipReadAllowedDomains, fallbackHedgeConfig } from '../utils.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import {
@@ -118,6 +118,7 @@ const diagnosticsDatabaseSecret =
 
 const scraperWebsocketUrl =
   'ws://scraper-proxy.testnet4.svc.cluster.local:8383/agents';
+const validatorWebsocketUrl = 'wss://explorer-api.hyperlane.xyz/validators';
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
@@ -208,11 +209,11 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
     websocketUrl: scraperWebsocketUrl,
-    websocketAuthorityEnabled: false,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayer,
     },
+    ccipReadAllowedDomains,
     runtimeDenylist,
     gasPaymentEnforcement,
     ismCacheConfigs,
@@ -231,7 +232,7 @@ const hyperlane: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validator,
@@ -277,11 +278,11 @@ const releaseCandidate: RootAgentConfig = {
     ...fallbackHedgeConfig,
     index: { from: RELEASE_CANDIDATE_INDEX_FROM },
     websocketUrl: scraperWebsocketUrl,
-    websocketAuthorityEnabled: false,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayerRC,
     },
+    ccipReadAllowedDomains,
     runtimeDenylist,
     gasPaymentEnforcement,
     ismCacheConfigs,
@@ -300,7 +301,7 @@ const releaseCandidate: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorRC,
@@ -323,13 +324,14 @@ const fastPath: RootAgentConfig = {
     messageActivityDatabaseUrlSecret,
     rpcConsensusType: RpcConsensusType.Fallback,
     ...fallbackHedgeConfig,
-    // Use RPC indexing until the scraper proxy supports fastpath streaming.
+    // Fast Path stays on RPC until the proxy supports per-chain confirmations on one connection.
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayerFastPath,
     },
     gasPaymentEnforcement,
     reorgPeriodOverrides: fastPathReorgPeriodOverrides,
+    ccipReadAllowedDomains,
     runtimeDenylist,
     ismCacheConfigs,
     cache: {
@@ -342,7 +344,7 @@ const fastPath: RootAgentConfig = {
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Majority,
-    websocketUrl: scraperWebsocketUrl,
+    websocketUrl: validatorWebsocketUrl,
     docker: {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.validatorFastPath,

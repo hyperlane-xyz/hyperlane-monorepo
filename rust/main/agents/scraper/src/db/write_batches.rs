@@ -142,6 +142,7 @@ pub(super) async fn seed_transaction(db: &ScraperDb, index: u64) -> eyre::Result
                 sender: H256::zero(),
                 recipient: None,
                 receipt: Some(TxnReceiptInfo {
+                    block_hash: None,
                     gas_used: U256::one(),
                     cumulative_gas_used: U256::one(),
                     effective_gas_price: None,
@@ -452,6 +453,7 @@ async fn transaction_inputs_survive_storage() -> eyre::Result<()> {
                     sender: H256::zero(),
                     recipient: None,
                     receipt: Some(TxnReceiptInfo {
+                        block_hash: None,
                         gas_used: U256::one(),
                         cumulative_gas_used: U256::one(),
                         effective_gas_price: None,

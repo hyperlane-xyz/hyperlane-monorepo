@@ -34,7 +34,7 @@ use hyperlane_core::{
 };
 use hyperlane_ethereum::OffchainLookup;
 
-use crate::message_activity::{Activity, OffchainReadState};
+use crate::message_activity::{Activity, OffchainReadGateway, OffchainReadState};
 use crate::msg::metadata::base_builder::IsmBuildMetricsParams;
 
 use super::{
@@ -160,6 +160,33 @@ fn validate_ccip_url(url: &str) -> Result<Url, Box<MetadataBuildError>> {
     }
 
     Ok(url)
+}
+
+fn allowed_ccip_url(
+    url: &str,
+    allowed_domains: &[String],
+) -> Result<Url, (OffchainReadState, Box<MetadataBuildError>)> {
+    let url = validate_ccip_url(url).map_err(|err| (OffchainReadState::UrlRejected, err))?;
+    let ("https", Some(host)) = (url.scheme(), url.domain()) else {
+        return Err((
+            OffchainReadState::UrlRejected,
+            Box::new(MetadataBuildError::FailedToBuild(
+                "CCIP-read URL must use HTTPS and a DNS hostname".to_owned(),
+            )),
+        ));
+    };
+    if allowed_domains
+        .iter()
+        .any(|domain| domain.eq_ignore_ascii_case(host))
+    {
+        return Ok(url);
+    }
+    Err((
+        OffchainReadState::DomainNotAllowed,
+        Box::new(MetadataBuildError::FailedToBuild(format!(
+            "CCIP-read host {host} is not in ccipReadAllowedDomains"
+        ))),
+    ))
 }
 
 fn is_public_ip(ip: IpAddr) -> bool {
@@ -291,8 +318,9 @@ impl CcipReadIsmMetadataBuilder {
     async fn call_get_offchain_verify_info(
         &self,
         ism: Box<dyn CcipReadIsm>,
-        message: &HyperlaneMessage,
+        activity: &ReadActivity<'_>,
     ) -> Result<OffchainLookup, MetadataBuildError> {
+        let message = activity.message;
         let ism_domain = ism.domain().name();
         let fn_key = "get_offchain_verify_info";
         // To have the cache key be more succinct, we use the message id
@@ -319,24 +347,29 @@ impl CcipReadIsmMetadataBuilder {
 
                 match response {
                     Ok(_) => {
+                        activity.report(OffchainReadState::LookupReturnedNormally, None);
                         info!(message_id = ?message.id(), "incorrectly configured getOffchainVerifyInfo, expected revert");
                         return Err(MetadataBuildError::CouldNotFetch);
                     }
                     Err(raw_error) => {
                         let matching_regex = OFFCHAIN_LOOKUP_REGEX.as_ref().map_err(|err| {
+                            activity.report(OffchainReadState::LookupFailed, None);
                             let msg = format!("Failed to parse regex: {err}");
                             MetadataBuildError::FailedToBuild(msg)
                         })?;
                         if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
                             let hex_val = hex_decode(&matching[0][2..]).map_err(|err| {
+                                activity.report(OffchainReadState::InvalidLookupRevert, None);
                                 let msg = format!("Failed to decode hex from ISM response: {err}");
                                 MetadataBuildError::FailedToBuild(msg)
                             })?;
                             OffchainLookup::decode(hex_val).map_err(|err| {
+                                activity.report(OffchainReadState::InvalidLookupRevert, None);
                                 let msg = format!("Failed to decode offchain lookup struct: {err}");
                                 MetadataBuildError::FailedToBuild(msg)
                             })?
                         } else {
+                            activity.report(OffchainReadState::LookupFailed, None);
                             info!(?raw_error, message_id = ?message.id(), "unable to parse custom error out of revert");
                             return Err(MetadataBuildError::CouldNotFetch);
                         }
@@ -366,14 +399,14 @@ impl CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(skip(self, message, params))]
+    #[instrument(skip(self, message, _params))]
     async fn build(
         &self,
         ism_address: H256,
         message: &HyperlaneMessage,
-        params: MessageMetadataBuildParams,
+        _params: MessageMetadataBuildParams,
     ) -> Result<Metadata, MetadataBuildError> {
-        let res = metadata_build(self, ism_address, message, params).await;
+        let res = fetch_metadata(self, ism_address, message).await;
 
         // update metrics
         let ism_build_metrics_params = IsmBuildMetricsParams {
@@ -389,14 +422,13 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
     }
 }
 
-// Context contains only public identifiers. Never include endpoint URLs, request
-// bodies, authentication signatures, response text or provider errors in events.
 #[derive(Clone, Copy)]
 struct ReadActivity<'a> {
     builder: &'a CcipReadIsmMetadataBuilder,
     message: &'a HyperlaneMessage,
     ism: H256,
     endpoint: Option<usize>,
+    gateway: Option<&'a OffchainReadGateway>,
     attempt: u32,
 }
 
@@ -407,33 +439,13 @@ impl ReadActivity<'_> {
             Activity::OffchainRead {
                 ism: self.ism,
                 endpoint: self.endpoint,
+                gateway: self.gateway.cloned(),
                 attempt: self.attempt,
                 state,
                 http_status,
             },
         );
     }
-}
-
-async fn metadata_build(
-    ism_builder: &CcipReadIsmMetadataBuilder,
-    ism_address: H256,
-    message: &HyperlaneMessage,
-    _params: MessageMetadataBuildParams,
-) -> Result<Metadata, MetadataBuildError> {
-    let memo = ism_builder.base.offchain_reads.clone();
-    if let Some(metadata) = memo
-        .as_ref()
-        .and_then(|memo| memo.get(&ism_builder.base.node_id, ism_address))
-    {
-        tracing::debug!(?ism_address, message_id = ?message.id(), "Reusing offchain lookup data from signature probe");
-        return Ok(metadata);
-    }
-    let metadata = fetch_metadata(ism_builder, ism_address, message).await?;
-    if let Some(memo) = memo {
-        memo.insert(&ism_builder.base.node_id, ism_address, metadata.clone());
-    }
-    Ok(metadata)
 }
 
 async fn fetch_metadata(
@@ -446,6 +458,7 @@ async fn fetch_metadata(
         message,
         ism: ism_address,
         endpoint: None,
+        gateway: None,
         attempt: 0,
     };
     let ism = ism_builder
@@ -454,17 +467,14 @@ async fn fetch_metadata(
         .build_ccip_read_ism(ism_address)
         .await
         .map_err(|err| {
-            activity.report(OffchainReadState::LookupFailed, None);
+            activity.report(OffchainReadState::IsmBuildFailed, None);
             let msg = format!("Failed to build CCIP read ISM: {err}");
             MetadataBuildError::FailedToBuild(msg)
         })?;
 
     let info = ism_builder
-        .call_get_offchain_verify_info(ism, message)
-        .await
-        .inspect_err(|_| {
-            activity.report(OffchainReadState::LookupFailed, None);
-        })?;
+        .call_get_offchain_verify_info(ism, &activity)
+        .await?;
 
     let origin_tx_hash = ism_builder
         .base
@@ -493,15 +503,19 @@ async fn fetch_metadata(
     if info.urls.is_empty() {
         activity.report(OffchainReadState::NoEndpoints, None);
     }
+    let mut rejected_urls = 0usize;
+    let mut denied_by_allowlist = false;
     for (endpoint, url) in info.urls.iter().enumerate() {
         // Retry this URL while attestation is pending (transient), up to 10 attempts at 1s intervals.
         // Move to the next URL only on hard failures.
         const MAX_PENDING_RETRIES: u32 = 10;
         let mut pending_attempts = 0u32;
+        let gateway = OffchainReadGateway::from_template(url);
         tracing::info!(?ism_address, url, message_id = ?message.id(), "Fetching CCIP read offchain data");
         loop {
             let request_activity = ReadActivity {
                 endpoint: Some(endpoint),
+                gateway: gateway.as_ref(),
                 attempt: pending_attempts.saturating_add(1),
                 ..activity
             };
@@ -517,7 +531,7 @@ async fn fetch_metadata(
                     );
                     return Ok(data);
                 }
-                Err(FetchOutcome::Pending) if pending_attempts < MAX_PENDING_RETRIES => {
+                Err(FetchOutcome::Pending(_)) if pending_attempts < MAX_PENDING_RETRIES => {
                     pending_attempts = pending_attempts.saturating_add(1);
                     tracing::debug!(
                         ?ism_address,
@@ -530,8 +544,9 @@ async fn fetch_metadata(
                     );
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
-                Err(FetchOutcome::Pending) => {
-                    request_activity.report(OffchainReadState::PendingRetriesExhausted, None);
+                Err(FetchOutcome::Pending(status)) => {
+                    request_activity
+                        .report(OffchainReadState::PendingRetriesExhausted, Some(status));
                     tracing::warn!(
                         ?ism_address,
                         url,
@@ -546,12 +561,21 @@ async fn fetch_metadata(
                     tracing::warn!(?ism_address, url, message_id = ?message.id(), origin_tx_hash = ?origin_tx_hash, error = ?err, "Failed to fetch offchain data");
                     break;
                 }
+                Err(FetchOutcome::UrlRejected(state, err)) => {
+                    rejected_urls = rejected_urls.saturating_add(1);
+                    denied_by_allowlist |= state == OffchainReadState::DomainNotAllowed;
+                    tracing::warn!(?ism_address, message_id = ?message.id(), error = %err, "Rejected CCIP-read endpoint");
+                    break;
+                }
             }
         }
     }
 
-    // No metadata endpoints or endpoints down
-    Err(MetadataBuildError::CouldNotFetch)
+    if denied_by_allowlist && rejected_urls == info.urls.len() {
+        Err(MetadataBuildError::CcipReadNotAllowed)
+    } else {
+        Err(MetadataBuildError::CouldNotFetch)
+    }
 }
 
 /// Private result type for [`fetch_offchain_data`].
@@ -559,7 +583,8 @@ async fn fetch_metadata(
 /// is only ever produced and consumed inside this module — it never escapes to
 /// [`MetadataBuildError`].
 enum FetchOutcome {
-    Pending,
+    Pending(u16),
+    UrlRejected(OffchainReadState, Box<MetadataBuildError>),
     Failed(MetadataBuildError),
 }
 
@@ -661,10 +686,12 @@ async fn fetch_offchain_data(
     let interpolated_url = url
         .replace("{sender}", &sender_as_bytes)
         .replace("{data}", &data_as_bytes);
-    let interpolated_url = validate_ccip_url(&interpolated_url).map_err(|e| {
-        activity.report(OffchainReadState::UrlRejected, None);
-        FetchOutcome::from(*e)
-    })?;
+    let allowed_domains = ism_builder.base_builder().ccip_read_allowed_domains();
+    let interpolated_url =
+        allowed_ccip_url(&interpolated_url, allowed_domains).map_err(|(state, reason)| {
+            activity.report(state, None);
+            FetchOutcome::UrlRejected(state, reason)
+        })?;
     let client = ccip_http_client().map_err(|e| {
         activity.report(OffchainReadState::ClientFailed, None);
         FetchOutcome::from(*e)
@@ -741,7 +768,7 @@ fn decode_offchain_response(
         if activity.attempt == 1 {
             activity.report(OffchainReadState::Pending, Some(status.as_u16()));
         }
-        return Err(Box::new(FetchOutcome::Pending));
+        return Err(Box::new(FetchOutcome::Pending(status.as_u16())));
     }
 
     // A 404 without an explicit pending response is a hard failure.
@@ -765,7 +792,15 @@ fn decode_offchain_response(
     })?;
 
     decode_response_data(&json.data)
-        .inspect(|_| activity.report(OffchainReadState::Succeeded, Some(status.as_u16())))
+        .inspect(|metadata| {
+            activity.report(
+                OffchainReadState::Succeeded {
+                    bytes: metadata.len(),
+                    keccak256: ethers::utils::keccak256(metadata.as_ref()).into(),
+                },
+                Some(status.as_u16()),
+            )
+        })
         .map_err(|e| {
             activity.report(OffchainReadState::InvalidResponse, Some(status.as_u16()));
             Box::new(FetchOutcome::from(*e))
@@ -984,6 +1019,7 @@ mod test {
             name: String,
             lookup_data: String,
             expected_metadata: String,
+            origin_tx_hash: Option<String>,
         }
         let fixtures: Fixtures =
             serde_json::from_slice(&std::fs::read(std::env::var("CCS_E2E_FIXTURES")?)?)?;
@@ -999,6 +1035,10 @@ mod test {
             .iter()
             .filter(|c| c.name.to_lowercase().contains("evm"))
         {
+            let origin_tx_hash = case
+                .origin_tx_hash
+                .clone()
+                .ok_or_else(|| eyre::eyre!("{} fixture has no originTxHash", case.name))?;
             for key_byte in [1u8, 2, 3] {
                 let signer = Signers::Local(ethers::signers::LocalWallet::from_str(&hex::encode(
                     [key_byte; 32],
@@ -1013,15 +1053,40 @@ mod test {
                 let signature =
                     CcipReadIsmMetadataBuilder::generate_signature_hex(&signer, &info, &url)
                         .await?;
+                let allowed =
+                    key_byte != 3 && (!case.name.starts_with("restricted") || key_byte == 2);
+
+                // Signers are authorized before the origin transaction hash is
+                // required, so a missing hash only fails allowed signers.
+                let without_hash = OffchainLookupRequestBody {
+                    sender: fixtures.sender.clone(),
+                    data: case.lookup_data.clone(),
+                    signature: Some(signature.clone()),
+                    origin_tx_hash: None,
+                };
+                let response = client.post(&url).json(&without_hash).send().await?;
+                assert_eq!(
+                    response.status().as_u16(),
+                    if allowed { 400 } else { 403 },
+                    "{} signer {key_byte} without origin_tx_hash",
+                    case.name
+                );
+                if allowed {
+                    let error: serde_json::Value = response.json().await?;
+                    assert_eq!(
+                        error["error"], "Invalid origin_tx_hash",
+                        "{} signer {key_byte} without origin_tx_hash",
+                        case.name
+                    );
+                }
+
                 let body = OffchainLookupRequestBody {
                     sender: fixtures.sender.clone(),
                     data: case.lookup_data.clone(),
                     signature: Some(signature),
-                    origin_tx_hash: None,
+                    origin_tx_hash: Some(origin_tx_hash.clone()),
                 };
                 let response = client.post(&url).json(&body).send().await?;
-                let allowed =
-                    key_byte != 3 && (!case.name.starts_with("restricted") || key_byte == 2);
                 assert_eq!(
                     response.status().as_u16(),
                     if allowed { 200 } else { 403 },
@@ -1189,39 +1254,6 @@ mod test {
         assert_eq!(signer.calls(), 0);
     }
 
-    #[tokio::test]
-    async fn delivery_build_reuses_offchain_read_from_signature_probe() {
-        use crate::msg::metadata::message_builder::OffchainReadMemo;
-        use crate::test_utils::mock_base_builder::build_mock_base_builder;
-        use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
-
-        let ism = H256::repeat_byte(2);
-        let probed = Metadata::new(vec![1, 2, 3]);
-        let memo = Arc::new(OffchainReadMemo::default());
-        memo.insert("test-root", ism, probed.clone());
-        // No ISM or offchain responses are mocked, so any lookup would panic.
-        let builder = CcipReadIsmMetadataBuilder::new(MessageMetadataBuilder {
-            node_id: "test-root".to_owned(),
-            base: Arc::new(build_mock_base_builder(
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism),
-                HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
-            )),
-            app_context: None,
-            root_ism: ism,
-            signature_polling: false,
-            narrow_signature_probe: false,
-            offchain_reads: Some(memo),
-            max_ism_depth: 5,
-            max_ism_count: 10,
-        });
-
-        let metadata = builder
-            .build(ism, &HyperlaneMessage::default(), Default::default())
-            .await
-            .unwrap();
-        assert_eq!(metadata, probed);
-    }
-
     #[test]
     fn activity_distinguishes_pending_and_bad_responses_without_exposing_bodies() {
         use crate::test_utils::mock_base_builder::MockBaseMetadataBuilder;
@@ -1232,17 +1264,18 @@ mod test {
             app_context: None,
             root_ism: H256::repeat_byte(1),
             signature_polling: false,
-            narrow_signature_probe: false,
-            offchain_reads: None,
+            signature_poll_retry: None,
             max_ism_depth: 5,
             max_ism_count: 10,
         });
         let message = HyperlaneMessage::default();
+        let gateway = OffchainReadGateway::from_template("https://user:private-password@lookup.example:8443/%7Bsender%7D/{data}?token=private-password#private-password").expect("HTTP gateway template");
         let activity = ReadActivity {
             builder: &builder,
             message: &message,
             ism: H256::repeat_byte(1),
             endpoint: Some(0),
+            gateway: Some(&gateway),
             attempt: 1,
         };
         for (status, body, expected) in [
@@ -1272,7 +1305,7 @@ mod test {
             );
             if expected == "pending" {
                 assert!(
-                    matches!(result, Err(outcome) if matches!(*outcome, FetchOutcome::Pending))
+                    matches!(result, Err(outcome) if matches!(*outcome, FetchOutcome::Pending(code) if code == status))
                 );
             } else {
                 assert!(
@@ -1287,6 +1320,11 @@ mod test {
             assert_eq!(event["state"], expected);
             assert_eq!(event["http_status"], status);
             assert_eq!(event["attempt"], 1);
+            assert_eq!(event["hostname"], "lookup.example");
+            assert_eq!(
+                event["url_template"],
+                "https://lookup.example:8443/%7bsender%7d/{data}"
+            );
             assert!(!event.to_string().contains("private-password"));
         }
         base.requests
@@ -1330,6 +1368,11 @@ mod test {
         assert_eq!(outcome["state"], "succeeded");
         assert_eq!(outcome["attempt"], 11);
         assert_eq!(outcome["http_status"], 200);
+        assert_eq!(outcome["result"]["bytes"], 2);
+        assert_eq!(
+            outcome["result"]["keccak256"],
+            bytes_to_hex(&ethers::utils::keccak256([0x12, 0x34]))
+        );
     }
 
     #[test]
@@ -1446,6 +1489,33 @@ mod test {
                 .err()
                 .expect("invalid prefixed hex must be rejected without panicking");
             assert!(err.to_string().contains("Failed to decode hex"));
+        }
+    }
+
+    #[test]
+    fn ccip_read_requires_an_exact_allowed_domain() {
+        let allowed = ["Lookup.Example".to_owned(), "8.8.8.8".to_owned()];
+        let url = "https://lookup.example/metadata";
+        assert!(allowed_ccip_url(url, &allowed).is_ok());
+        let (state, error) = allowed_ccip_url(url, &[]).unwrap_err();
+        assert_eq!(state, OffchainReadState::DomainNotAllowed);
+        assert!(matches!(*error, MetadataBuildError::FailedToBuild(reason)
+            if reason == "CCIP-read host lookup.example is not in ccipReadAllowedDomains"));
+        for url in [
+            "https://sub.lookup.example/",
+            "https://lookup.example.other/",
+            "https://other.example/lookup.example",
+        ] {
+            let (state, _) = allowed_ccip_url(url, &allowed).unwrap_err();
+            assert_eq!(state, OffchainReadState::DomainNotAllowed, "{url}");
+        }
+        for url in [
+            "http://lookup.example/metadata",
+            "https://8.8.8.8/",
+            "https://127.0.0.1/",
+        ] {
+            let (state, _) = allowed_ccip_url(url, &allowed).unwrap_err();
+            assert_eq!(state, OffchainReadState::UrlRejected, "{url}");
         }
     }
 

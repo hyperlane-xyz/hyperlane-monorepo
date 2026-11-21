@@ -11,6 +11,7 @@ import {
 import { buildSelect, type SelectArgs } from './sql.js';
 import { scraperProxyValidationRule } from './validation.js';
 
+const cheapPlan = [{ 'QUERY PLAN': [{ Plan: { 'Total Cost': 1 } }] }];
 const schema = buildSchema(source);
 
 void it('only exposes GraphQL queries', () => {
@@ -177,6 +178,7 @@ void it('bounds affected scans using necessary message ID predicates', async () 
     const queries: { sql: string; values: unknown[] }[] = [];
     const service = new ScraperDbService({
       async query(sql, values = []) {
+        if (sql.startsWith('EXPLAIN')) return cheapPlan;
         queries.push({ sql, values });
         return queries.length === 1
           ? [{ message_ids: [], domains: [], heights: [] }]
@@ -200,7 +202,8 @@ void it('bounds affected scans using necessary message ID predicates', async () 
 void it('rejects excessive affected events before running a projection', async () => {
   let calls = 0;
   const service = new ScraperDbService({
-    async query() {
+    async query(sql) {
+      if (sql.startsWith('EXPLAIN')) return cheapPlan;
       calls++;
       return [{ message_ids: null }];
     },
@@ -215,6 +218,7 @@ void it('rejects excessive affected events before running a projection', async (
 void it('keeps canonical aliases when a provisional snapshot exceeds the cap', async () => {
   const service = new ScraperDbService({
     async query(sql) {
+      if (sql.startsWith('EXPLAIN')) return cheapPlan;
       return sql.includes('custom_frontier')
         ? [{ message_ids: null }]
         : [{ id: '1' }];

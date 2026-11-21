@@ -3,21 +3,32 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
-import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  parseWarpRouteMessage,
+} from '@hyperlane-xyz/utils';
 
-import { DEFAULT_MOVEMENT_STALENESS_MS } from '../config/types.js';
+import { createStatusAdapters } from '../bridges/status/index.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
+import type { StatusAdaptersByKind } from '../interfaces/ITokenBridgeStatusAdapter.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
   ExplorerMessage,
   IExplorerClient,
 } from '../utils/ExplorerClient.js';
+import { isReceiptFinalized } from '../utils/receiptFinality.js';
+import {
+  BLOCKED_ACTION_WARNING_AGE_MS,
+  getActionHoldReason,
+} from './actionDiagnostics.js';
 import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
 import type {
   CreateRebalanceActionParams,
   CreateRebalanceIntentParams,
   IActionTracker,
+  UpdateRebalanceActionExecutionParams,
 } from './IActionTracker.js';
 import { ExplorerRowLimitError } from './pendingTransferMiddlewares/PendingTransferMiddleware.js';
 import type {
@@ -41,13 +52,21 @@ export interface ActionTrackerConfig {
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
   inventorySignerAddresses?: Address[]; // Optional - for excluding inventory signers from user transfers query
-  intentTTL: number; // Max age in ms before in-progress intent is expired
+  intentTTL: number; // Expiry for uncommitted intents; never a release deadline for reserved work.
+}
+
+enum SourceTransactionOutcome {
+  Pending = 'pending',
+  Succeeded = 'succeeded',
+  Failed = 'failed',
 }
 
 /**
  * ActionTracker implementation managing the lifecycle of tracked entities.
  */
 export class ActionTracker implements IActionTracker {
+  private readonly statusAdaptersByKind: StatusAdaptersByKind;
+
   constructor(
     private readonly transferStore: ITransferStore,
     private readonly rebalanceIntentStore: IRebalanceIntentStore,
@@ -56,7 +75,11 @@ export class ActionTracker implements IActionTracker {
     private readonly core: MultiProtocolCore,
     private readonly config: ActionTrackerConfig,
     private readonly logger: Logger,
-  ) {}
+    statusAdaptersByKind?: StatusAdaptersByKind,
+  ) {
+    this.statusAdaptersByKind =
+      statusAdaptersByKind ?? createStatusAdapters(this.logger);
+  }
 
   // === Lifecycle ===
 
@@ -91,15 +114,12 @@ export class ActionTracker implements IActionTracker {
     );
 
     // 2. For each message, create synthetic intent + action
-    for (const msg of inflightMessages) {
-      if (this.isIgnoredRebalanceMessage(msg)) continue;
-      await this.recoverAction(msg);
-    }
+    await this.recoverActions(inflightMessages);
 
     // 3. Sync all stores
+    await this.syncRebalanceActions();
     await this.syncTransfers();
     await this.syncRebalanceIntents();
-    await this.syncRebalanceActions();
 
     // Log store contents for debugging
     await this.logStoreContents();
@@ -109,7 +129,9 @@ export class ActionTracker implements IActionTracker {
 
   // === Sync Operations ===
 
-  async syncTransfers(confirmedBlockTags?: ConfirmedBlockTags): Promise<void> {
+  async syncTransfers(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<boolean> {
     this.logger.debug('Syncing transfers');
 
     // Build list of addresses to exclude (rebalancer + optional inventory signer)
@@ -145,6 +167,7 @@ export class ActionTracker implements IActionTracker {
     let newTransfers = 0;
     let completedTransfers = 0;
     let ignoredTransfers = 0;
+    let requiresFreshBalances = false;
 
     for (const msg of inflightMessages) {
       const transfer = await this.transferStore.get(msg.msg_id);
@@ -220,6 +243,7 @@ export class ActionTracker implements IActionTracker {
       if (delivered) {
         await this.transferStore.update(transfer.id, { status: 'complete' });
         completedTransfers++;
+        requiresFreshBalances ||= typeof blockTag !== 'number';
         this.logger.debug({ id: transfer.id }, 'Transfer completed');
       }
     }
@@ -234,6 +258,7 @@ export class ActionTracker implements IActionTracker {
       },
       'Transfers synced',
     );
+    return requiresFreshBalances;
   }
 
   async syncRebalanceIntents(): Promise<void> {
@@ -242,8 +267,7 @@ export class ActionTracker implements IActionTracker {
     // Check in_progress intents for completion or TTL expiry
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
-    const allInProgressActions =
-      await this.rebalanceActionStore.getByStatus('in_progress');
+    const allActions = await this.rebalanceActionStore.getAll();
     const now = Date.now();
     for (const intent of inProgressIntents) {
       const completedAmount = await this.getCompletedAmountForIntent(intent.id);
@@ -253,22 +277,27 @@ export class ActionTracker implements IActionTracker {
         });
         this.logger.debug({ id: intent.id }, 'RebalanceIntent completed');
       } else if (now - intent.createdAt > this.config.intentTTL) {
+        const sourceStartedActions = allActions.filter(
+          (action) =>
+            action.intentId === intent.id &&
+            (action.status === 'in_progress' ||
+              (action.type === 'inventory_movement' &&
+                action.status === 'complete')),
+        );
+        if (sourceStartedActions.length > 0) {
+          this.logger.warn(
+            {
+              intentId: intent.id,
+              actionIds: sourceStartedActions.map((action) => action.id),
+            },
+            'RebalanceIntent exceeded TTL but has source-started actions; retry remains suppressed for this process lifetime',
+          );
+          continue;
+        }
+
         await this.rebalanceIntentStore.update(intent.id, {
           status: 'failed',
         });
-
-        // Fail any in-progress actions associated with the expired intent
-        for (const action of allInProgressActions) {
-          if (action.intentId === intent.id) {
-            await this.rebalanceActionStore.update(action.id, {
-              status: 'failed',
-            });
-            this.logger.warn(
-              { actionId: action.id, intentId: intent.id },
-              'RebalanceAction failed due to parent intent TTL expiry',
-            );
-          }
-        }
 
         this.logger.debug(
           {
@@ -293,13 +322,13 @@ export class ActionTracker implements IActionTracker {
 
   async syncRebalanceActions(
     confirmedBlockTags?: ConfirmedBlockTags,
-  ): Promise<void> {
+  ): Promise<boolean> {
     this.logger.debug('Syncing rebalance actions');
 
     let discoveredActions = 0;
     let completedActions = 0;
     let ignoredActions = 0;
-    let ignoredInProgressActions = 0;
+    let requiresFreshBalances = false;
 
     const inflightMessages =
       await this.explorerClient.getInflightRebalanceActions(
@@ -317,35 +346,123 @@ export class ActionTracker implements IActionTracker {
       'Found inflight rebalance actions from Explorer',
     );
 
-    const allActions = await this.rebalanceActionStore.getAll();
+    ({ discovered: discoveredActions, ignored: ignoredActions } =
+      await this.recoverActions(inflightMessages));
 
-    for (const msg of inflightMessages) {
-      const existingAction = allActions.find((a) => a.messageId === msg.msg_id);
-      if (existingAction) continue;
-
-      if (this.isIgnoredRebalanceMessage(msg)) {
-        ignoredActions++;
-      } else {
-        this.logger.info(
-          {
-            msgId: msg.msg_id,
-            origin: msg.origin_domain_id,
-            destination: msg.destination_domain_id,
-          },
-          'Discovered new rebalance action, recovering...',
-        );
-        await this.recoverAction(msg);
-        discoveredActions++;
-      }
-    }
-
-    // Check delivery status for all in-progress actions in our store
-    // Only check delivery for actions that have a messageId (rebalance_message, inventory_deposit)
-    // inventory_movement actions are synced separately via LiFi status API
+    // Check delivery status for all in-progress actions in our store.
+    // Movable-collateral actions may use an adapter-owned settlement ref;
+    // inventory_movement actions are synced separately via bridge APIs.
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
-      // Skip actions without messageId (e.g., inventory_movement)
+      if (
+        action.pendingApproval &&
+        action.submissionState === 'not_submitted'
+      ) {
+        await this.reconcilePendingApproval(action);
+        continue;
+      }
+      if (
+        !action.messageId &&
+        !action.externalExecutionRef &&
+        (await this.reconcileFailedSource(action))
+      )
+        continue;
+      if (action.externalExecutionRef) {
+        const statusAdapter = this.statusAdaptersByKind.get(
+          action.externalExecutionRef.kind,
+        );
+        if (!statusAdapter) {
+          this.logger.warn(
+            {
+              actionId: action.id,
+              statusAdapterKind: action.externalExecutionRef.kind,
+            },
+            'No status adapter registered for movable collateral action',
+          );
+          requiresFreshBalances = true;
+          continue;
+        }
+
+        const blockTag = await this.getConfirmedBlockTag(
+          action.destination,
+          confirmedBlockTags,
+        );
+
+        try {
+          const status = await statusAdapter.pollStatus(
+            action.externalExecutionRef,
+            {
+              core: this.core,
+              destination: action.destination,
+              blockTag,
+            },
+          );
+          const settlementRef = status.ref ?? action.externalExecutionRef;
+          // Keep positive balance-inclusion evidence through later lookup failures
+          // or pending responses that omit it. Only verified completion removes the credit.
+          const balanceMayIncludePendingSettlement =
+            action.externalExecutionRef.data
+              .balanceMayIncludePendingSettlement === true ||
+            (status.status === 'pending' &&
+              status.balanceMayIncludePendingSettlement === true);
+          if (
+            balanceMayIncludePendingSettlement &&
+            status.status !== 'complete'
+          ) {
+            requiresFreshBalances = true;
+          }
+          await this.rebalanceActionStore.update(action.id, {
+            externalExecutionRef:
+              balanceMayIncludePendingSettlement && status.status !== 'complete'
+                ? {
+                    ...settlementRef,
+                    data: {
+                      ...settlementRef.data,
+                      balanceMayIncludePendingSettlement: true,
+                    },
+                  }
+                : settlementRef,
+            lastBridgeStatus: status.status,
+            ...(status.status === 'complete' && status.receivingTxHash
+              ? { destinationTxHash: status.receivingTxHash }
+              : {}),
+          });
+
+          if (status.status === 'complete') {
+            await this.completeRebalanceAction(action.id);
+            completedActions++;
+            if (typeof blockTag !== 'number') requiresFreshBalances = true;
+            this.logger.debug(
+              { id: action.id, statusAdapterKind: statusAdapter.kind },
+              'RebalanceAction completed',
+            );
+          } else if (status.status === 'failed') {
+            this.logger.warn(
+              {
+                id: action.id,
+                intentId: action.intentId,
+                statusAdapterKind: statusAdapter.kind,
+                error: status.error,
+              },
+              'Source-committed rebalance remains suppressed for this process lifetime',
+            );
+          }
+        } catch (error) {
+          this.logger.warn(
+            {
+              actionId: action.id,
+              statusAdapterKind: statusAdapter.kind,
+              error,
+            },
+            'Failed to poll movable collateral settlement status',
+          );
+          requiresFreshBalances = true;
+        }
+        continue;
+      }
+
+      // Backward compatibility for recovered/pre-adapter Hyperlane actions.
       if (!action.messageId) {
         continue;
       }
@@ -363,18 +480,17 @@ export class ActionTracker implements IActionTracker {
       if (delivered) {
         await this.completeRebalanceAction(action.id);
         completedActions++;
+        requiresFreshBalances ||= typeof blockTag !== 'number';
         this.logger.debug({ id: action.id }, 'RebalanceAction completed');
-      } else if (
-        action.type === 'rebalance_message' &&
-        this.config.isIgnoredRebalanceAction?.(action.messageId)
-      ) {
-        ignoredInProgressActions++;
       }
     }
 
-    const inProgressCount = (
-      await this.rebalanceActionStore.getByStatus('in_progress')
+    const remainingActions =
+      await this.rebalanceActionStore.getByStatus('in_progress');
+    const ignoredInProgressActions = remainingActions.filter((action) =>
+      this.isIgnoredTrackedRebalanceAction(action),
     ).length;
+    const inProgressCount = remainingActions.length;
     this.logger.info(
       {
         discovered: discoveredActions,
@@ -385,6 +501,7 @@ export class ActionTracker implements IActionTracker {
       },
       'Actions synced',
     );
+    return requiresFreshBalances;
   }
 
   // === Transfer Queries ===
@@ -501,8 +618,15 @@ export class ActionTracker implements IActionTracker {
     return this.rebalanceActionStore.get(id);
   }
 
-  async getInProgressActions(): Promise<RebalanceAction[]> {
-    return this.rebalanceActionStore.getByStatus('in_progress');
+  async getInProgressActions(
+    includeIgnored = true,
+  ): Promise<RebalanceAction[]> {
+    const actions = await this.rebalanceActionStore.getByStatus('in_progress');
+    return includeIgnored
+      ? actions
+      : actions.filter(
+          (action) => !this.isIgnoredTrackedRebalanceAction(action),
+        );
   }
 
   // === RebalanceAction Management ===
@@ -517,8 +641,13 @@ export class ActionTracker implements IActionTracker {
       intentId: params.intentId,
       messageId: params.messageId,
       txHash: params.txHash,
+      submissionState:
+        params.txHash || params.messageId || params.externalExecutionRef
+          ? 'submitted'
+          : 'not_submitted',
       externalBridgeTransferId: params.externalBridgeTransferId,
       externalBridgeId: params.externalBridgeId,
+      externalExecutionRef: params.externalExecutionRef,
       origin: params.origin,
       destination: params.destination,
       amount: params.amount,
@@ -526,11 +655,18 @@ export class ActionTracker implements IActionTracker {
       updatedAt: Date.now(),
     };
 
-    await this.rebalanceActionStore.save(action);
-
-    // Transition parent intent from not_started to in_progress
     const intent = await this.rebalanceIntentStore.get(params.intentId);
-    if (intent && intent.status === 'not_started') {
+    if (!intent) {
+      throw new Error(`RebalanceIntent ${params.intentId} not found`);
+    }
+    assert(
+      intent.status === 'not_started' || intent.status === 'in_progress',
+      `RebalanceIntent ${params.intentId} is not active`,
+    );
+
+    // Record suppression before the action. A crash in between cannot result in
+    // a broadcast because callers wait for this method before sending.
+    if (intent.status === 'not_started') {
       await this.rebalanceIntentStore.update(intent.id, {
         status: 'in_progress',
       });
@@ -540,12 +676,31 @@ export class ActionTracker implements IActionTracker {
       );
     }
 
+    await this.rebalanceActionStore.save(action);
+
     this.logger.debug(
       { id: action.id, intentId: action.intentId, type: action.type },
       'Created RebalanceAction',
     );
 
     return action;
+  }
+
+  async updateRebalanceActionExecution(
+    id: string,
+    params: UpdateRebalanceActionExecutionParams,
+  ): Promise<void> {
+    await this.rebalanceActionStore.update(id, params);
+    this.logger.debug(
+      {
+        id,
+        messageId: params.messageId,
+        txHash: params.txHash,
+        externalBridgeTransferId: params.externalBridgeTransferId,
+        statusAdapterKind: params.externalExecutionRef?.kind,
+      },
+      'Updated RebalanceAction execution identity',
+    );
   }
 
   async completeRebalanceAction(id: string): Promise<void> {
@@ -628,7 +783,7 @@ export class ActionTracker implements IActionTracker {
 
   /**
    * Get inventory intents that are in_progress or not_started but not fully settled.
-   * Intents with in-flight deposits are included but flagged via hasInflightDeposit.
+   * Intents with in-flight actions are included with movement and deposit flags.
    * Returns enriched data with computed values derived from action states.
    *
    * NOTE: We include 'not_started' intents because they may have been created
@@ -654,55 +809,16 @@ export class ActionTracker implements IActionTracker {
 
       const actions = await this.getActionsForIntent(intent.id);
 
-      // Check for in-flight inventory_movement actions
-      // Skip intents with active bridge movement(s). Movements still `pending` on
-      // the bridge are kept alive regardless of age. Non-pending movements are only
-      // failed after they've been in a non-pending state for the staleness window
-      // (nonPendingSince), preventing premature failure from transient not_found polls.
-      // `undefined` status (pre-deploy data) falls back to createdAt for staleness.
+      // Any source-started bridge movement blocks automatic retries. Keep the
+      // intent active so the rebalancer waits instead of creating another intent.
+      // A timeout or not_found status is not proof that the source transaction
+      // did not commit.
       const inflightMovements = actions.filter(
         (a) => a.status === 'in_progress' && a.type === 'inventory_movement',
       );
-      const now = Date.now();
-      const staleMovements = inflightMovements.filter((a) => {
-        if (a.lastBridgeStatus === 'pending') return false;
-        // Use nonPendingSince when available; fall back to createdAt for
-        // pre-deploy data that lacks the field.
-        const nonPendingStart = a.nonPendingSince ?? a.createdAt;
-        return now - nonPendingStart >= DEFAULT_MOVEMENT_STALENESS_MS;
-      });
-      const staleMovementIds = new Set(staleMovements.map((a) => a.id));
-
-      const hasBlockingInflightMovement = inflightMovements.some(
-        (a) => !staleMovementIds.has(a.id),
-      );
-
-      if (hasBlockingInflightMovement) {
-        this.logger.debug(
-          { intentId: intent.id },
-          'Skipping partial intent - has in-flight inventory movement',
-        );
-        continue;
-      }
-
-      // Fail stale movements so the intent can proceed
-      for (const movement of staleMovements) {
-        await this.failRebalanceAction(movement.id);
-        this.logger.warn(
-          {
-            actionId: movement.id,
-            age: now - movement.createdAt,
-            nonPendingDuration:
-              now - (movement.nonPendingSince ?? movement.createdAt),
-            intentId: intent.id,
-            lastBridgeStatus: movement.lastBridgeStatus,
-          },
-          'Failing stale inventory movement to unblock intent',
-        );
-      }
 
       // Only inventory_deposit amounts advance fulfillment. inventory_movement
-      // amounts stay in source-local units and only gate retries/stale cleanup.
+      // amounts stay in source-local units and only gate retries.
       const completedAmount = actions
         .filter(
           (a) => a.status === 'complete' && a.type === 'inventory_deposit',
@@ -722,6 +838,7 @@ export class ActionTracker implements IActionTracker {
           intent,
           completedAmount,
           remaining,
+          hasInflightMovement: inflightMovements.length > 0,
           hasInflightDeposit: inflightAmount > 0n,
         });
       }
@@ -744,7 +861,6 @@ export class ActionTracker implements IActionTracker {
     this.logger.debug('Syncing inventory movement actions');
 
     let completed = 0;
-    let failed = 0;
 
     // Get all in-progress inventory_movement actions
     const inProgressActions =
@@ -791,6 +907,7 @@ export class ActionTracker implements IActionTracker {
           action.txHash,
           action.origin,
           action.destination,
+          action.externalBridgeTransferId,
         );
 
         if (status.status === 'complete') {
@@ -805,20 +922,20 @@ export class ActionTracker implements IActionTracker {
             'Inventory movement completed',
           );
         } else if (status.status === 'failed') {
-          await this.failRebalanceAction(action.id);
-          failed++;
-          this.logger.warn(
+          await this.rebalanceActionStore.update(action.id, {
+            lastBridgeStatus: 'failed',
+          });
+          this.logger.error(
             {
               actionId: action.id,
               txHash: action.txHash,
               error: status.error,
             },
-            'Inventory movement failed',
+            'Source-committed inventory movement remains reserved pending reconciliation',
           );
         } else if (status.status === 'pending') {
           await this.rebalanceActionStore.update(action.id, {
             lastBridgeStatus: 'pending',
-            nonPendingSince: undefined,
           });
           this.logger.debug(
             {
@@ -831,7 +948,6 @@ export class ActionTracker implements IActionTracker {
         } else if (status.status === 'not_found') {
           await this.rebalanceActionStore.update(action.id, {
             lastBridgeStatus: 'not_found',
-            nonPendingSince: action.nonPendingSince ?? Date.now(),
           });
           this.logger.debug(
             {
@@ -842,13 +958,13 @@ export class ActionTracker implements IActionTracker {
           );
         }
       } catch (error) {
-        this.logger.debug(
+        this.logger.error(
           {
             actionId: action.id,
             txHash: action.txHash,
-            error: (error as Error).message,
+            error,
           },
-          'Failed to get inventory movement status',
+          'Failed to get inventory movement status; action remains reserved',
         );
       }
     }
@@ -857,14 +973,122 @@ export class ActionTracker implements IActionTracker {
       this.logger.info(
         {
           completed,
-          failed,
-          pending: inventoryMovements.length - completed - failed,
+          reserved: inventoryMovements.length - completed,
         },
         'Inventory movements synced',
       );
     }
 
-    return { completed, failed };
+    // A provider failure is not proof that its source funds are available again.
+    return { completed, failed: 0 };
+  }
+
+  private async reconcilePendingApproval(
+    action: RebalanceAction,
+  ): Promise<void> {
+    const txHash = action.pendingApproval?.txHash;
+    if (!txHash) return; // A lost broadcast response without an identity requires operator reconciliation.
+    try {
+      if (
+        (await this.getSourceTransactionOutcome(action.origin, txHash)) ===
+        SourceTransactionOutcome.Pending
+      )
+        return;
+      // The approval is settled, and the primary transaction was never submitted.
+      // A retry reads current allowance and sets its exact cap before sending.
+      await this.rebalanceActionStore.update(action.id, {
+        pendingApproval: undefined,
+      });
+      await this.failReconciledAction(action);
+    } catch (error) {
+      this.logger.warn(
+        { actionId: action.id, approvalTxHash: txHash, error },
+        'Approval reconciliation failed; source work remains reserved',
+      );
+    }
+  }
+
+  private async getSourceTransactionOutcome(
+    origin: Domain,
+    txHash: string,
+  ): Promise<SourceTransactionOutcome> {
+    const mp = this.core.multiProvider;
+    const protocol = mp.getProtocol(origin);
+    if (protocol === ProtocolType.Sealevel) {
+      const {
+        value: [status],
+      } = await mp
+        .getSolanaWeb3Provider(origin)
+        .getSignatureStatuses([txHash], { searchTransactionHistory: true });
+      if (status?.confirmationStatus !== 'finalized')
+        return SourceTransactionOutcome.Pending;
+      return status.err != null
+        ? SourceTransactionOutcome.Failed
+        : SourceTransactionOutcome.Succeeded;
+    }
+    assert(
+      protocol === ProtocolType.Ethereum || protocol === ProtocolType.Tron,
+      'Unsupported source reconciliation protocol',
+    );
+    const provider = mp.getEthersV5Provider(origin);
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt || (receipt.status !== 0 && receipt.status !== 1))
+      return SourceTransactionOutcome.Pending;
+    if (
+      !(await isReceiptFinalized(
+        provider,
+        receipt,
+        mp.getChainMetadata(origin).blocks,
+        protocol,
+      ))
+    )
+      return SourceTransactionOutcome.Pending;
+    return receipt.status === 0
+      ? SourceTransactionOutcome.Failed
+      : SourceTransactionOutcome.Succeeded;
+  }
+
+  private async reconcileFailedSource(
+    action: RebalanceAction,
+  ): Promise<boolean> {
+    if (!action.txHash || action.finalizedSourceTxHash === action.txHash)
+      return false;
+    try {
+      const outcome = await this.getSourceTransactionOutcome(
+        action.origin,
+        action.txHash,
+      );
+      if (outcome === SourceTransactionOutcome.Succeeded) {
+        await this.rebalanceActionStore.update(action.id, {
+          finalizedSourceTxHash: action.txHash,
+        });
+        return false;
+      }
+      if (outcome !== SourceTransactionOutcome.Failed) return false;
+      await this.failReconciledAction(action);
+      this.logger.info(
+        { actionId: action.id, txHash: action.txHash },
+        'Finalized source failure released the action',
+      );
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        { actionId: action.id, txHash: action.txHash, error },
+        'Source reconciliation failed; action remains reserved',
+      );
+      return false;
+    }
+  }
+
+  private async failReconciledAction(action: RebalanceAction): Promise<void> {
+    await this.failRebalanceAction(action.id);
+    // Inventory keeps its partial intent so already delivered amounts are not repeated.
+    if (action.type === 'rebalance_message') {
+      const actions = await this.getActionsForIntent(action.intentId);
+      if (actions.every((candidate) => candidate.status === 'failed')) {
+        await this.failRebalanceIntent(action.intentId);
+      }
+    }
   }
 
   // === Debug Helpers ===
@@ -928,6 +1152,29 @@ export class ActionTracker implements IActionTracker {
 
     // Log each action separately
     for (const a of inProgressActions) {
+      const ageMs = Date.now() - a.createdAt;
+      if (
+        ageMs > BLOCKED_ACTION_WARNING_AGE_MS &&
+        !this.isIgnoredTrackedRebalanceAction(a)
+      ) {
+        this.logger.warn(
+          {
+            actionId: a.id,
+            intentId: a.intentId,
+            origin: a.origin,
+            destination: a.destination,
+            ageMs,
+            holdReason: getActionHoldReason(a),
+            txHash: a.txHash,
+            pendingApproval: a.pendingApproval,
+            submissionState: a.submissionState,
+            externalBridgeId: a.externalBridgeId,
+            externalBridgeTransferId: a.externalBridgeTransferId,
+            lastBridgeStatus: a.lastBridgeStatus,
+          },
+          'Action blocked beyond warning age; reconcile before retry or restart',
+        );
+      }
       this.logger.info(
         {
           type: 'action',
@@ -944,6 +1191,14 @@ export class ActionTracker implements IActionTracker {
   }
 
   // === Private Helpers ===
+
+  private isIgnoredTrackedRebalanceAction(action: RebalanceAction): boolean {
+    return (
+      action.type === 'rebalance_message' &&
+      action.messageId !== undefined &&
+      this.config.isIgnoredRebalanceAction?.(action.messageId) === true
+    );
+  }
 
   /**
    * Get the confirmed block tag for delivery checks.
@@ -990,7 +1245,7 @@ export class ActionTracker implements IActionTracker {
         { messageId, destination, error },
         'Failed to check message delivery status',
       );
-      return false;
+      throw error;
     }
   }
 
@@ -1008,12 +1263,80 @@ export class ActionTracker implements IActionTracker {
     return true;
   }
 
-  private async recoverAction(msg: ExplorerMessage): Promise<void> {
-    // Check if action already exists
-    const existing = await this.rebalanceActionStore.get(msg.msg_id);
+  /** Index once per Explorer batch, including identities discovered in that batch. */
+  private async recoverActions(
+    messages: ExplorerMessage[],
+  ): Promise<{ discovered: number; ignored: number }> {
+    if (messages.length === 0) return { discovered: 0, ignored: 0 };
+    const byMessage = new Map<string, RebalanceAction>();
+    const byTransaction = new Map<string, RebalanceAction>();
+    const key = (origin: number, destination: number, identity: string) =>
+      `${origin}:${destination}:${identity.startsWith('0x') ? identity.toLowerCase() : identity}`;
+    const index = (action: RebalanceAction) => {
+      byMessage.set(
+        key(action.origin, action.destination, action.messageId ?? action.id),
+        action,
+      );
+      if (action.txHash) {
+        byTransaction.set(
+          key(action.origin, action.destination, action.txHash),
+          action,
+        );
+      }
+    };
+    for (const action of await this.rebalanceActionStore.getAll())
+      index(action);
+
+    let discovered = 0;
+    let ignored = 0;
+    for (const msg of messages) {
+      const messageKey = key(
+        msg.origin_domain_id,
+        msg.destination_domain_id,
+        msg.msg_id,
+      );
+      let existing = byMessage.get(messageKey);
+      if (!existing) {
+        const byHash = byTransaction.get(
+          key(
+            msg.origin_domain_id,
+            msg.destination_domain_id,
+            msg.origin_tx_hash,
+          ),
+        );
+        // A transaction can dispatch multiple messages. Link only an unclassified source submission.
+        if (byHash && !byHash.messageId) existing = byHash;
+      }
+      // Match source submissions before excluding newly discovered denied messages.
+      if (!existing && this.isIgnoredRebalanceMessage(msg)) {
+        ignored++;
+        continue;
+      }
+      const action = await this.recoverAction(msg, existing);
+      if (action) {
+        index(action);
+        if (!existing) discovered++;
+      }
+    }
+    return { discovered, ignored };
+  }
+
+  private async recoverAction(
+    msg: ExplorerMessage,
+    existing?: RebalanceAction,
+  ): Promise<RebalanceAction | undefined> {
     if (existing) {
-      this.logger.debug({ id: msg.msg_id }, 'Action already exists, skipping');
-      return;
+      if (!existing.messageId || !existing.txHash) {
+        await this.updateRebalanceActionExecution(existing.id, {
+          messageId: msg.msg_id,
+          txHash: msg.origin_tx_hash,
+        });
+      }
+      this.logger.debug(
+        { id: existing.id, messageId: msg.msg_id },
+        'Action already exists, linked recovered execution identity',
+      );
+      return { ...existing, messageId: msg.msg_id, txHash: msg.origin_tx_hash };
     }
 
     this.logger.debug(
@@ -1081,6 +1404,7 @@ export class ActionTracker implements IActionTracker {
         { id: action.id, intentId: action.intentId, amount: amount.toString() },
         'Recovered RebalanceAction',
       );
+      return action;
     } catch (error) {
       this.logger.warn(
         {
@@ -1094,6 +1418,7 @@ export class ActionTracker implements IActionTracker {
         },
         'Failed to parse message body during recovery, skipping action',
       );
+      return undefined;
     }
   }
 }
