@@ -643,6 +643,7 @@ export {
   randomIsmConfig,
   randomDeployableIsmConfig,
 } from './test/testUtils.js';
+export { deployTestAccessManager } from './test/accessManager.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
 export { TxSubmitterType } from './providers/transactions/submitter/TxSubmitterTypes.js';
@@ -656,8 +657,11 @@ export {
   EV5GnosisSafeTxSubmitterPropsSchema,
   EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
+  EvmAccessManagerSubmitterProps,
+  EvmAccessManagerSubmitterPropsSchema,
   EvmIcaTxSubmitterProps,
   EvmTimelockControllerSubmitterProps,
+  buildEvmAccessManagerSubmitterPropsSchema,
   buildEvmIcaTxSubmitterPropsSchema,
   buildEvmTimelockControllerSubmitterPropsSchema,
   isJsonRpcSubmitterConfig,
@@ -683,6 +687,7 @@ export {
 } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
+export { EV5AccessManagerSubmitter } from './providers/transactions/submitter/ethersV5/EV5AccessManagerSubmitter.js';
 export {
   SubmitterBuilderSettings,
   SubmitterFactory,

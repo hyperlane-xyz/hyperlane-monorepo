@@ -5,7 +5,9 @@ import {
   ProtocolType,
   assert,
   bytes32ToAddress,
+  eqAddressEvm,
   formatStandardHookMetadata,
+  isNullish,
   normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
@@ -27,7 +29,8 @@ import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
 import type { SubmitterGetter } from './types.js';
 
 // Multiplier on the IGP quote so callRemote survives gas price increases before
-// execution. Overpayment is refunded to the owner via hookMetadata refundAddress.
+// execution. Overpayment is refunded via hookMetadata refundAddress (the owner
+// unless `refundAddress` is configured).
 export const ICA_QUOTE_BUFFER_MULTIPLIER = 2;
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<
@@ -54,6 +57,22 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
     getSubmitterFn: SubmitterGetter,
   ): Promise<EvmIcaTxSubmitter> {
+    const { internalSubmitter: internalSubmitterConfig } = config;
+    if (internalSubmitterConfig.type === TxSubmitterType.ACCESS_MANAGER) {
+      const { accessManagerAddress } = internalSubmitterConfig;
+      assert(
+        eqAddressEvm(config.owner, accessManagerAddress),
+        `Interchain account owner ${config.owner} on ${config.chain} must be AccessManager ${accessManagerAddress}`,
+      );
+      // The AccessManager cannot receive native tokens, so gas payment refunds
+      // to it would revert the scheduled callRemote on execution.
+      assert(
+        !isNullish(config.refundAddress) &&
+          !eqAddressEvm(config.refundAddress, accessManagerAddress),
+        `Interchain account on ${config.chain} owned by AccessManager ${accessManagerAddress} requires a refundAddress other than the AccessManager`,
+      );
+    }
+
     const interchainAccountRouterAddress: Address | undefined =
       config.originInterchainAccountRouter ??
       coreAddressesByChain[config.chain].interchainAccountRouter;
@@ -69,6 +88,9 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     // destination router and ISM live on the remote chain, whose protocol we do
     // not assume is EVM, so they are passed through untouched.
     const owner = normalizeAddressEvm(config.owner);
+    const refundAddress = isNullish(config.refundAddress)
+      ? undefined
+      : normalizeAddressEvm(config.refundAddress);
     const originInterchainAccountRouter = normalizeAddressEvm(
       interchainAccountRouterAddress,
     );
@@ -98,6 +120,7 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     return new EvmIcaTxSubmitter(
       {
         owner,
+        refundAddress,
         chain: config.chain,
         destinationChain: config.destinationChain,
         originInterchainAccountRouter,
@@ -156,7 +179,8 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
       },
     );
 
-    const refundAddress = bytes32ToAddress(this.config.owner);
+    const refundAddress =
+      this.config.refundAddress ?? bytes32ToAddress(this.config.owner);
     const icaConfig = {
       origin: this.config.chain,
       owner: this.config.owner,

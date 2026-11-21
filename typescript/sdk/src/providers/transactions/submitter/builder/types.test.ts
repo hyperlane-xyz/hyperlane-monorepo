@@ -333,6 +333,372 @@ describe('ChainSubmissionStrategySchema', () => {
     });
   });
 
+  describe(TxSubmitterType.ACCESS_MANAGER, () => {
+    const ACCESS_MANAGER_MOCK: Address =
+      '0x3D079E977d644c914a344Dcb5Ba54dB243Cc4863';
+    const REFUND_ADDRESS_MOCK: Address =
+      '0x00000000000000000000000000000000000000AA';
+
+    function parseSubmitter(input: unknown) {
+      const result = ChainSubmissionStrategySchema.safeParse(input);
+      assert(result.success, 'Expected parsing to succeed');
+      return result.data;
+    }
+
+    it(`should default the chain from the key and the proposerSubmitter to ${TxSubmitterType.JSON_RPC}`, () => {
+      const data = parseSubmitter({
+        [CHAIN_MOCK]: {
+          submitter: {
+            type: TxSubmitterType.ACCESS_MANAGER,
+            accessManagerAddress: ACCESS_MANAGER_MOCK,
+          },
+        },
+      });
+
+      const { submitter } = data[CHAIN_MOCK];
+      assert(
+        submitter.type === TxSubmitterType.ACCESS_MANAGER,
+        `Expected ${TxSubmitterType.ACCESS_MANAGER}`,
+      );
+      expect(submitter.chain).to.equal(CHAIN_MOCK);
+      expect(submitter.caller).to.be.undefined;
+      expect(submitter.proposerSubmitter).to.deep.equal({
+        type: TxSubmitterType.JSON_RPC,
+        chain: CHAIN_MOCK,
+      });
+    });
+
+    it('should default the proposerSubmitter chain to the AccessManager chain', () => {
+      const data = parseSubmitter({
+        [DESTINATION_CHAIN_MOCK]: {
+          submitter: {
+            type: TxSubmitterType.ACCESS_MANAGER,
+            chain: CHAIN_MOCK,
+            accessManagerAddress: ACCESS_MANAGER_MOCK,
+            caller: ADDRESS_MOCK,
+            proposerSubmitter: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              safeAddress: ADDRESS_MOCK,
+              version: VERSION_MOCK,
+            },
+          },
+        },
+      });
+
+      const { submitter } = data[DESTINATION_CHAIN_MOCK];
+      assert(
+        submitter.type === TxSubmitterType.ACCESS_MANAGER,
+        `Expected ${TxSubmitterType.ACCESS_MANAGER}`,
+      );
+      expect(submitter.chain).to.equal(CHAIN_MOCK);
+      expect(submitter.caller).to.equal(ADDRESS_MOCK);
+      expect(submitter.proposerSubmitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(submitter.proposerSubmitter.chain).to.equal(CHAIN_MOCK);
+    });
+
+    it('should default the destinationChain of an interchain account proposer without overwriting its origin chain', () => {
+      const data = parseSubmitter({
+        [CHAIN_MOCK]: {
+          submitter: {
+            type: TxSubmitterType.ACCESS_MANAGER,
+            accessManagerAddress: ACCESS_MANAGER_MOCK,
+            proposerSubmitter: {
+              type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+              chain: DESTINATION_CHAIN_MOCK,
+              owner: OWNER_ADDRESS_MOCK,
+            },
+          },
+        },
+      });
+
+      const { submitter } = data[CHAIN_MOCK];
+      assert(
+        submitter.type === TxSubmitterType.ACCESS_MANAGER,
+        `Expected ${TxSubmitterType.ACCESS_MANAGER}`,
+      );
+      const { proposerSubmitter } = submitter;
+      assert(
+        proposerSubmitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT,
+        `Expected ${TxSubmitterType.INTERCHAIN_ACCOUNT}`,
+      );
+      expect(proposerSubmitter.chain).to.equal(DESTINATION_CHAIN_MOCK);
+      expect(proposerSubmitter.destinationChain).to.equal(CHAIN_MOCK);
+      expect(proposerSubmitter.internalSubmitter).to.deep.equal({
+        type: TxSubmitterType.JSON_RPC,
+        chain: DESTINATION_CHAIN_MOCK,
+      });
+    });
+
+    describe(`as the internal submitter of an ${TxSubmitterType.INTERCHAIN_ACCOUNT}`, () => {
+      function buildIcaStrategy(icaFields: {
+        owner?: Address;
+        refundAddress?: Address;
+      }) {
+        return {
+          [DESTINATION_CHAIN_MOCK]: {
+            submitter: {
+              type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+              chain: CHAIN_MOCK,
+              owner: icaFields.owner,
+              refundAddress: icaFields.refundAddress,
+              internalSubmitter: {
+                type: TxSubmitterType.ACCESS_MANAGER,
+                accessManagerAddress: ACCESS_MANAGER_MOCK,
+              },
+            },
+          },
+        };
+      }
+
+      it('should default the owner to the AccessManager address and the AccessManager chain to the origin chain', () => {
+        const data = parseSubmitter(
+          buildIcaStrategy({ refundAddress: REFUND_ADDRESS_MOCK }),
+        );
+
+        const { submitter } = data[DESTINATION_CHAIN_MOCK];
+        assert(
+          submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT,
+          `Expected ${TxSubmitterType.INTERCHAIN_ACCOUNT}`,
+        );
+        expect(submitter.owner).to.equal(ACCESS_MANAGER_MOCK);
+        expect(submitter.refundAddress).to.equal(REFUND_ADDRESS_MOCK);
+        expect(submitter.destinationChain).to.equal(DESTINATION_CHAIN_MOCK);
+        const { internalSubmitter } = submitter;
+        assert(
+          internalSubmitter.type === TxSubmitterType.ACCESS_MANAGER,
+          `Expected ${TxSubmitterType.ACCESS_MANAGER}`,
+        );
+        expect(internalSubmitter.chain).to.equal(CHAIN_MOCK);
+        expect(internalSubmitter.proposerSubmitter).to.deep.equal({
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN_MOCK,
+        });
+      });
+
+      const invalidCases: Array<{
+        name: string;
+        icaFields: { owner?: Address; refundAddress?: Address };
+        expectedMessage: string;
+      }> = [
+        {
+          name: 'the owner does not match the AccessManager address',
+          icaFields: {
+            owner: OWNER_ADDRESS_MOCK,
+            refundAddress: REFUND_ADDRESS_MOCK,
+          },
+          expectedMessage: `Interchain account owner address and AccessManager address must match for ${DESTINATION_CHAIN_MOCK}`,
+        },
+        {
+          name: 'the refundAddress is missing',
+          icaFields: {},
+          expectedMessage: `Interchain account refundAddress must be set to an address other than the AccessManager for ${DESTINATION_CHAIN_MOCK}`,
+        },
+        {
+          name: 'the refundAddress is the AccessManager address',
+          icaFields: { refundAddress: ACCESS_MANAGER_MOCK.toLowerCase() },
+          expectedMessage: `Interchain account refundAddress must be set to an address other than the AccessManager for ${DESTINATION_CHAIN_MOCK}`,
+        },
+      ];
+
+      for (const { name, icaFields, expectedMessage } of invalidCases) {
+        it(`should fail validation when ${name}`, () => {
+          const result = ChainSubmissionStrategySchema.safeParse(
+            buildIcaStrategy(icaFields),
+          );
+          expect(result.success).to.be.false;
+          assert(!result.success, 'Expected parsing to fail');
+          expect(
+            result.error.issues.map(({ message }) => message),
+          ).to.deep.equal([expectedMessage]);
+        });
+      }
+
+      it('should pass validation when the owner is the AccessManager and the refundAddress differs from it', () => {
+        const result = ChainSubmissionStrategySchema.safeParse(
+          buildIcaStrategy({
+            owner: ACCESS_MANAGER_MOCK.toLowerCase(),
+            refundAddress: REFUND_ADDRESS_MOCK,
+          }),
+        );
+        expect(result.success).to.be.true;
+      });
+    });
+
+    describe('caller validation', () => {
+      const CALLER_MOCK: Address = '0x00000000000000000000000000000000000000Cc';
+      const TIMELOCK_MOCK: Address =
+        '0x00000000000000000000000000000000000000DD';
+
+      interface CallerCase {
+        name: string;
+        submitter: unknown;
+        expectedIssues: string[];
+      }
+
+      function buildAccessManager(
+        caller: Address | undefined,
+        proposerSubmitter: unknown,
+      ) {
+        return {
+          type: TxSubmitterType.ACCESS_MANAGER,
+          chain: CHAIN_MOCK,
+          accessManagerAddress: ACCESS_MANAGER_MOCK,
+          caller,
+          proposerSubmitter,
+        };
+      }
+
+      const safeProposer = {
+        type: TxSubmitterType.GNOSIS_SAFE,
+        safeAddress: ADDRESS_MOCK,
+      };
+
+      const cases: CallerCase[] = [
+        {
+          name: `${TxSubmitterType.GNOSIS_SAFE} proposer with a matching caller`,
+          submitter: buildAccessManager(
+            ADDRESS_MOCK.toLowerCase(),
+            safeProposer,
+          ),
+          expectedIssues: [],
+        },
+        {
+          name: `${TxSubmitterType.GNOSIS_SAFE} proposer with a mismatching caller`,
+          submitter: buildAccessManager(CALLER_MOCK, safeProposer),
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the multisig address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `${TxSubmitterType.GNOSIS_TX_BUILDER} proposer with a matching caller`,
+          submitter: buildAccessManager(ADDRESS_MOCK, {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            safeAddress: ADDRESS_MOCK,
+            version: VERSION_MOCK,
+          }),
+          expectedIssues: [],
+        },
+        {
+          name: `${TxSubmitterType.GNOSIS_TX_BUILDER} proposer with a mismatching caller`,
+          submitter: buildAccessManager(CALLER_MOCK, {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            safeAddress: ADDRESS_MOCK,
+            version: VERSION_MOCK,
+          }),
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the multisig address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `${TxSubmitterType.TIMELOCK_CONTROLLER} proposer with a matching caller`,
+          submitter: buildAccessManager(TIMELOCK_MOCK, {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            timelockAddress: TIMELOCK_MOCK,
+          }),
+          expectedIssues: [],
+        },
+        {
+          name: `${TxSubmitterType.TIMELOCK_CONTROLLER} proposer with a mismatching caller`,
+          submitter: buildAccessManager(CALLER_MOCK, {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            timelockAddress: TIMELOCK_MOCK,
+          }),
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the timelock address ${TIMELOCK_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `${TxSubmitterType.JSON_RPC} proposer with a matching userAddress`,
+          submitter: buildAccessManager(ADDRESS_MOCK, {
+            type: TxSubmitterType.JSON_RPC,
+            userAddress: ADDRESS_MOCK,
+          }),
+          expectedIssues: [],
+        },
+        {
+          name: `${TxSubmitterType.JSON_RPC} proposer with a mismatching userAddress`,
+          submitter: buildAccessManager(CALLER_MOCK, {
+            type: TxSubmitterType.JSON_RPC,
+            userAddress: ADDRESS_MOCK,
+          }),
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the jsonRpc user address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `${TxSubmitterType.JSON_RPC} proposer without a userAddress`,
+          submitter: buildAccessManager(CALLER_MOCK, {
+            type: TxSubmitterType.JSON_RPC,
+          }),
+          expectedIssues: [],
+        },
+        {
+          name: `${TxSubmitterType.INTERCHAIN_ACCOUNT} proposer`,
+          submitter: buildAccessManager(CALLER_MOCK, {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: DESTINATION_CHAIN_MOCK,
+            owner: ADDRESS_MOCK,
+          }),
+          expectedIssues: [],
+        },
+        {
+          name: 'an AccessManager without a caller',
+          submitter: buildAccessManager(undefined, safeProposer),
+          expectedIssues: [],
+        },
+        {
+          name: `${TxSubmitterType.INTERCHAIN_ACCOUNT} internal submitter with a mismatching caller`,
+          submitter: {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: CHAIN_MOCK,
+            owner: ACCESS_MANAGER_MOCK,
+            refundAddress: REFUND_ADDRESS_MOCK,
+            internalSubmitter: buildAccessManager(CALLER_MOCK, safeProposer),
+          },
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the multisig address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `${TxSubmitterType.TIMELOCK_CONTROLLER} proposer submitter with a mismatching caller`,
+          submitter: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN_MOCK,
+            timelockAddress: TIMELOCK_MOCK,
+            proposerSubmitter: buildAccessManager(CALLER_MOCK, safeProposer),
+          },
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the multisig address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+        {
+          name: `${TxSubmitterType.ACCESS_MANAGER} proposer submitter with a mismatching caller`,
+          submitter: buildAccessManager(
+            undefined,
+            buildAccessManager(CALLER_MOCK, safeProposer),
+          ),
+          expectedIssues: [
+            `AccessManager caller ${CALLER_MOCK} must match the multisig address ${ADDRESS_MOCK} for ${CHAIN_MOCK}`,
+          ],
+        },
+      ];
+
+      for (const { name, submitter, expectedIssues } of cases) {
+        it(`should ${expectedIssues.length > 0 ? 'reject' : 'accept'} ${name}`, () => {
+          const result = ChainSubmissionStrategySchema.safeParse({
+            [CHAIN_MOCK]: { submitter },
+          });
+          const issues = result.success
+            ? []
+            : result.error.issues.map(({ message }) => message);
+          expect(issues).to.deep.equal(expectedIssues);
+        });
+      }
+    });
+  });
+
   describe('ChainSubmissionStrategySchema general behavior', () => {
     it('should handle multiple chains in strategy', () => {
       const multiChainStrategy: ChainSubmissionStrategy = {

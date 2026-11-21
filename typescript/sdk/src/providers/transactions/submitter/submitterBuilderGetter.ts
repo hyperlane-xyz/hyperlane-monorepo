@@ -8,6 +8,7 @@ import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { TxSubmitterBuilder } from './builder/TxSubmitterBuilder.js';
 import { SubmissionStrategy } from './builder/types.js';
+import { EV5AccessManagerSubmitter } from './ethersV5/EV5AccessManagerSubmitter.js';
 import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
@@ -104,6 +105,24 @@ const EVM_SUBMITTERS_FACTORIES: Record<string, SubmitterFactory> = {
     );
 
     return EV5TimelockSubmitter.fromConfig(
+      metadata,
+      multiProvider,
+      coreAddressesByChain,
+      getSubmitterFn,
+    );
+  },
+  [TxSubmitterType.ACCESS_MANAGER]: (
+    multiProvider,
+    metadata,
+    coreAddressesByChain,
+    getSubmitterFn,
+  ) => {
+    assert(
+      metadata.type === TxSubmitterType.ACCESS_MANAGER,
+      `Invalid metadata type: ${metadata.type}, expected ${TxSubmitterType.ACCESS_MANAGER}`,
+    );
+
+    return EV5AccessManagerSubmitter.fromConfig(
       metadata,
       multiProvider,
       coreAddressesByChain,
