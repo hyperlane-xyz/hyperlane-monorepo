@@ -29,6 +29,7 @@ import {
   assert,
   bytes32ToAddress,
   eqAddress,
+  isEVMLike,
   isEmptyAddress,
   isNullish,
   isZeroishAddress,
@@ -751,7 +752,7 @@ export class CallCommitmentsService extends BaseService {
     }
     const protocol = this.multiProvider.getProtocol(reveal.destination);
     assert(
-      protocol === ProtocolType.Ethereum,
+      isEVMLike(protocol),
       `Unsupported reveal destination protocol: ${protocol}`,
     );
     const mailbox = this.originMailboxes.get(reveal.destination);

@@ -641,6 +641,7 @@ describe('CCS authenticated reveal recovery integration', () => {
     recipientIsmFailure,
     commitmentDelivered = true,
     deliveredFailure,
+    destinationProtocol = ProtocolType.Ethereum,
   }: {
     trustRouters?: boolean;
     registeredWithDispatchedRouters?: boolean;
@@ -661,6 +662,8 @@ describe('CCS authenticated reveal recovery integration', () => {
     commitmentDelivered?: boolean;
     /** How the destination mailbox's `delivered` read fails, if it does. */
     deliveredFailure?: FakeIsmFailure;
+    /** The protocol of the reveal's destination (domain 42161). */
+    destinationProtocol?: ProtocolType;
   } = {}) {
     const originRouter = '0x' + '31'.repeat(20);
     const destinationRouter = '0x' + '32'.repeat(20);
@@ -850,7 +853,7 @@ describe('CCS authenticated reveal recovery integration', () => {
     } else {
       multiProvider.getProtocol.withArgs(8453).returns(protocol);
     }
-    multiProvider.getProtocol.withArgs(42161).returns(ProtocolType.Ethereum);
+    multiProvider.getProtocol.withArgs(42161).returns(destinationProtocol);
     multiProvider.getChainName.withArgs(8453).returns('base');
     multiProvider.getChainName.withArgs(42161).returns('arbitrum');
     multiProvider.getProvider.withArgs('base').returns(originProvider);
@@ -1828,4 +1831,71 @@ describe('CCS authenticated reveal recovery integration', () => {
       await f.app.close();
     }
   });
+
+  interface DestinationProtocolCase {
+    name: string;
+    options: Parameters<typeof fixture>[0];
+    statusCode: number;
+    /** The response's `error`; the dispatched ICA is served when absent. */
+    error?: string;
+    /** Whether the walk and the delivery read reach the destination. */
+    readsDestination: boolean;
+  }
+
+  const destinationProtocolCases: DestinationProtocolCase[] = [
+    {
+      name: 'serves an EVM-origin reveal to a Tron destination',
+      options: { destinationProtocol: ProtocolType.Tron },
+      statusCode: 200,
+      readsDestination: true,
+    },
+    {
+      name: 'answers pending for a Tron destination until the commitment is delivered',
+      options: {
+        destinationProtocol: ProtocolType.Tron,
+        commitmentDelivered: false,
+      },
+      statusCode: 500,
+      error: 'Commitment delivery is pending',
+      readsDestination: true,
+    },
+    {
+      name: 'rejects a reveal to a destination that is not EVM-like',
+      options: { destinationProtocol: ProtocolType.Cosmos },
+      statusCode: 500,
+      error: 'Internal server error',
+      readsDestination: false,
+    },
+  ];
+
+  for (const c of destinationProtocolCases) {
+    it(c.name, async () => {
+      const f = await fixture(c.options);
+      try {
+        const response = await f.app.inject({
+          method: 'POST',
+          url: postPath,
+          payload: f.payload,
+        });
+        expect(response.statusCode).to.equal(c.statusCode);
+        if (c.error === undefined) {
+          expect(response.json().data).to.equal(
+            f.dispatchedIca +
+              encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+          );
+        } else {
+          expect(response.json()).to.deep.equal({ error: c.error });
+        }
+        expect(f.ismReads.get(sender) ?? 0).to.equal(
+          c.readsDestination ? 1 : 0,
+        );
+        expect(f.deliveredIds).to.deep.equal(
+          c.readsDestination ? [f.commitmentMessageId] : [],
+        );
+        sinon.assert.notCalled(f.updateMany);
+      } finally {
+        await f.app.close();
+      }
+    });
+  }
 });
