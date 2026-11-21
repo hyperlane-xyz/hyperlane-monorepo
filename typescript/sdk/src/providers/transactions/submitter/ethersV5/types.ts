@@ -64,6 +64,7 @@ export type EvmIcaTxSubmitterProps = {
   originInterchainAccountRouter?: Address;
   destinationInterchainAccountRouter?: Address;
   interchainSecurityModule?: Address;
+  refundAddress?: Address;
   internalSubmitter: EvmSubmitterMetadata;
 };
 
@@ -85,6 +86,7 @@ export const buildEvmIcaTxSubmitterPropsSchema = <TInternalSubmitter>(
       originInterchainAccountRouter: ZHash.optional(),
       destinationInterchainAccountRouter: ZHash.optional(),
       interchainSecurityModule: ZHash.optional(),
+      refundAddress: ZHash.optional(),
       internalSubmitter: getInternalSubmitterSchema(),
     }),
   );
@@ -126,6 +128,32 @@ export const EvmTimelockControllerSubmitterPropsSchema: z.ZodType<EvmTimelockCon
     EvmTimelockControllerSubmitterProps['proposerSubmitter']
   >(() => EvmSubmitterMetadataSchema);
 
+export type EvmAccessManagerSubmitterProps = {
+  type: TxSubmitterType.ACCESS_MANAGER;
+  chain: ChainName;
+  accessManagerAddress: Address;
+  caller?: Address;
+  proposerSubmitter: EvmSubmitterMetadata;
+};
+
+export const buildEvmAccessManagerSubmitterPropsSchema = <TProposerSubmitter>(
+  getProposerSubmitterSchema: () => z.ZodType<TProposerSubmitter, unknown>,
+) =>
+  z.lazy(() =>
+    z.object({
+      type: z.literal(TxSubmitterType.ACCESS_MANAGER),
+      chain: ZChainName,
+      accessManagerAddress: ZHash,
+      caller: ZHash.optional(),
+      proposerSubmitter: getProposerSubmitterSchema(),
+    }),
+  );
+
+export const EvmAccessManagerSubmitterPropsSchema: z.ZodType<EvmAccessManagerSubmitterProps> =
+  buildEvmAccessManagerSubmitterPropsSchema<
+    EvmAccessManagerSubmitterProps['proposerSubmitter']
+  >(() => EvmSubmitterMetadataSchema);
+
 export const EvmSubmitterMetadataSchema = z.union([
   z.object({
     type: z.literal(TxSubmitterType.JSON_RPC),
@@ -145,6 +173,7 @@ export const EvmSubmitterMetadataSchema = z.union([
   }),
   EvmIcaTxSubmitterPropsSchema,
   EvmTimelockControllerSubmitterPropsSchema,
+  EvmAccessManagerSubmitterPropsSchema,
 ]);
 
 export type EvmSubmitterMetadata = z.infer<typeof EvmSubmitterMetadataSchema>;

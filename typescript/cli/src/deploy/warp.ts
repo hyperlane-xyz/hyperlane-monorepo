@@ -1860,6 +1860,7 @@ function submitterProducesPayload(
     case TxSubmitterType.INTERCHAIN_ACCOUNT:
       return submitterProducesPayload(submitter.internalSubmitter);
     case TxSubmitterType.TIMELOCK_CONTROLLER:
+    case TxSubmitterType.ACCESS_MANAGER:
       return submitterProducesPayload(submitter.proposerSubmitter);
     default:
       return false;

@@ -1,12 +1,14 @@
 import { z } from 'zod';
 
 import {
+  type EvmAccessManagerSubmitterProps,
   type EvmIcaTxSubmitterProps,
   type EvmTimelockControllerSubmitterProps,
   type SubmitterMetadata,
   SubmitterMetadataSchema,
   TxSubmitterType,
   ZChainName,
+  buildEvmAccessManagerSubmitterPropsSchema,
   buildEvmIcaTxSubmitterPropsSchema,
   buildEvmTimelockControllerSubmitterPropsSchema,
   preprocessChainSubmissionStrategy,
@@ -30,10 +32,11 @@ const FileSubmitterMetadataSchema = z.object({
 
 type FileSubmitterMetadata = z.infer<typeof FileSubmitterMetadataSchema>;
 
-// ICA / timelock submitters whose nested submitter may itself be any extended
-// submitter, including the CLI-only `file` submitter. The SDK schemas restrict
-// the nested submitter to SDK submitter types; the CLI registers a `file` factory
-// at runtime (see deploy/warp.ts), so the strategy schema must permit it here.
+// ICA / timelock / AccessManager submitters whose nested submitter may itself
+// be any extended submitter, including the CLI-only `file` submitter. The SDK
+// schemas restrict the nested submitter to SDK submitter types; the CLI
+// registers a `file` factory at runtime (see deploy/warp.ts), so the strategy
+// schema must permit it here.
 // The wrapper field lists and zod suppressions live once in the SDK builders — the
 // CLI only substitutes the nested submitter union (the Omit/intersection here is
 // because TS recursion rules reject a generic alias in this recursive position).
@@ -47,11 +50,17 @@ type ExtendedTimelockSubmitterMetadata = Omit<
   'proposerSubmitter'
 > & { proposerSubmitter: ExtendedSubmitterMetadata };
 
+type ExtendedAccessManagerSubmitterMetadata = Omit<
+  EvmAccessManagerSubmitterProps,
+  'proposerSubmitter'
+> & { proposerSubmitter: ExtendedSubmitterMetadata };
+
 type ExtendedSubmitterMetadata =
   | SubmitterMetadata
   | FileSubmitterMetadata
   | ExtendedIcaSubmitterMetadata
-  | ExtendedTimelockSubmitterMetadata;
+  | ExtendedTimelockSubmitterMetadata
+  | ExtendedAccessManagerSubmitterMetadata;
 
 const ExtendedSubmitterMetadataSchema: z.ZodType<ExtendedSubmitterMetadata> =
   z.lazy(() =>
@@ -59,6 +68,7 @@ const ExtendedSubmitterMetadataSchema: z.ZodType<ExtendedSubmitterMetadata> =
       FileSubmitterMetadataSchema,
       ExtendedEvmIcaTxSubmitterPropsSchema,
       ExtendedEvmTimelockControllerSubmitterPropsSchema,
+      ExtendedEvmAccessManagerSubmitterPropsSchema,
       SubmitterMetadataSchema,
     ]),
   );
@@ -70,6 +80,11 @@ const ExtendedEvmIcaTxSubmitterPropsSchema = buildEvmIcaTxSubmitterPropsSchema<
 const ExtendedEvmTimelockControllerSubmitterPropsSchema =
   buildEvmTimelockControllerSubmitterPropsSchema<
     ExtendedTimelockSubmitterMetadata['proposerSubmitter']
+  >(() => ExtendedSubmitterMetadataSchema);
+
+const ExtendedEvmAccessManagerSubmitterPropsSchema =
+  buildEvmAccessManagerSubmitterPropsSchema<
+    ExtendedAccessManagerSubmitterMetadata['proposerSubmitter']
   >(() => ExtendedSubmitterMetadataSchema);
 
 export const ExtendedSubmissionStrategySchema = z.object({

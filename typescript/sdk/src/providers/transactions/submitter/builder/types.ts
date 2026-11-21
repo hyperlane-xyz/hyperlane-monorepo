@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { assert, eqAddress, objMap } from '@hyperlane-xyz/utils';
+import { assert, eqAddress, isNullish, objMap } from '@hyperlane-xyz/utils';
 
 import { ZChainName } from '../../../../metadata/customZodTypes.js';
 import { ChainMap, ChainName } from '../../../../types.js';
@@ -35,6 +35,8 @@ export function refineChainSubmissionStrategy<
   T extends { submitter: { type: string } },
 >(value: Record<string, T>, ctx: z.RefinementCtx) {
   Object.entries(value).forEach(([chain, config]) => {
+    refineAccessManagerCallers(config.submitter, chain, ctx);
+
     if (config.submitter.type !== TxSubmitterType.INTERCHAIN_ACCOUNT) {
       return;
     }
@@ -51,7 +53,99 @@ export function refineChainSubmissionStrategy<
         message: `Interchain account owner address and multisig address must match for ${chain}`,
       });
     }
+
+    if (internalSubmitter.type !== TxSubmitterType.ACCESS_MANAGER) {
+      return;
+    }
+
+    const { accessManagerAddress } = internalSubmitter;
+    if (!eqAddress(owner, accessManagerAddress)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Interchain account owner address and AccessManager address must match for ${chain}`,
+      });
+    }
+
+    // The AccessManager cannot receive native tokens, so gas payment refunds
+    // to it would revert the scheduled callRemote on execution.
+    if (
+      isNullish(submitter.refundAddress) ||
+      eqAddress(submitter.refundAddress, accessManagerAddress)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Interchain account refundAddress must be set to an address other than the AccessManager for ${chain}`,
+      });
+    }
   });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' && !isNullish(value) && !Array.isArray(value)
+  );
+}
+
+function getStaticProposerAddress(
+  proposer: Record<string, unknown>,
+): { kind: string; address: string } | undefined {
+  const { type, safeAddress, timelockAddress, userAddress } = proposer;
+  if (
+    (type === TxSubmitterType.GNOSIS_SAFE ||
+      type === TxSubmitterType.GNOSIS_TX_BUILDER) &&
+    typeof safeAddress === 'string'
+  ) {
+    return { kind: 'multisig', address: safeAddress };
+  }
+  if (
+    type === TxSubmitterType.TIMELOCK_CONTROLLER &&
+    typeof timelockAddress === 'string'
+  ) {
+    return { kind: 'timelock', address: timelockAddress };
+  }
+  if (type === TxSubmitterType.JSON_RPC && typeof userAddress === 'string') {
+    return { kind: 'jsonRpc user', address: userAddress };
+  }
+  return undefined;
+}
+
+// Reads nested submitters defensively as the CLI extends the strategy schema
+// with its own submitter types (e.g. `file`).
+function refineAccessManagerCallers(
+  submitter: unknown,
+  chain: ChainName,
+  ctx: z.RefinementCtx,
+): void {
+  if (!isRecord(submitter)) {
+    return;
+  }
+
+  if (submitter.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
+    refineAccessManagerCallers(submitter.internalSubmitter, chain, ctx);
+    return;
+  }
+
+  if (submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
+    refineAccessManagerCallers(submitter.proposerSubmitter, chain, ctx);
+    return;
+  }
+
+  if (submitter.type !== TxSubmitterType.ACCESS_MANAGER) {
+    return;
+  }
+
+  const { caller, proposerSubmitter } = submitter;
+  if (typeof caller === 'string' && isRecord(proposerSubmitter)) {
+    const proposer = getStaticProposerAddress(proposerSubmitter);
+    if (proposer && !eqAddress(caller, proposer.address)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `AccessManager caller ${caller} must match the ${proposer.kind} address ${proposer.address} for ${chain}`,
+      });
+    }
+  }
+
+  refineAccessManagerCallers(proposerSubmitter, chain, ctx);
 }
 
 export const ChainSubmissionStrategySchema = z.preprocess(
@@ -69,6 +163,8 @@ function preprocessSubmissionStrategy(
     return preprocessIcaSubmitter(chainName, strategy);
   } else if (strategy.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
     return preprocessTimelockSubmitter(chainName, strategy);
+  } else if (strategy.type === TxSubmitterType.ACCESS_MANAGER) {
+    return preprocessAccessManagerSubmitter(chainName, strategy);
   }
 
   return {
@@ -112,6 +208,11 @@ const preprocessIcaSubmitter = (
     formattedInternalSubmitter.type === TxSubmitterType.GNOSIS_TX_BUILDER
   ) {
     strategy.owner = strategy.owner ?? formattedInternalSubmitter.safeAddress;
+  } else if (
+    formattedInternalSubmitter.type === TxSubmitterType.ACCESS_MANAGER
+  ) {
+    strategy.owner =
+      strategy.owner ?? formattedInternalSubmitter.accessManagerAddress;
   }
 
   return {
@@ -154,6 +255,29 @@ const preprocessTimelockSubmitter = (
       chainName,
       formattedProposerSubmitter,
     ),
+  };
+};
+
+const preprocessAccessManagerSubmitter = (
+  chainName: ChainName,
+  strategy: Extract<
+    SubmitterMetadata,
+    { type: TxSubmitterType.ACCESS_MANAGER }
+  >,
+): SubmitterMetadata => {
+  const chain = strategy.chain ?? chainName;
+  const { proposerSubmitter = { type: TxSubmitterType.JSON_RPC, chain } } =
+    strategy;
+
+  return {
+    type: strategy.type,
+    chain,
+    accessManagerAddress: strategy.accessManagerAddress,
+    caller: strategy.caller,
+    // Recursing with the AccessManager chain defaults the proposer's `chain`,
+    // or the `destinationChain` of an interchain account proposer whose `chain`
+    // is its origin.
+    proposerSubmitter: preprocessSubmissionStrategy(chain, proposerSubmitter),
   };
 };
 

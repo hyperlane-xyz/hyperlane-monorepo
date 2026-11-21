@@ -1,0 +1,17 @@
+anvil3:
+  submitter:
+    type: accessManager
+    chain: anvil3
+    # Address of the OpenZeppelin AccessManager that owns the target contracts
+    accessManagerAddress: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+    # Optional, the account that sends the proposer transactions. When set, calls
+    # it can make immediately are wrapped in `execute`, delayed calls in `schedule`
+    # and calls it is not permitted to make are rejected. When omitted, every call
+    # is wrapped in `schedule`.
+    caller: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+    # Optional, if not defined defaults to jsonRpc.
+    # Strategy used to send the schedule/execute transactions to the AccessManager.
+    # The `execute` transactions of scheduled calls are appended to the output and
+    # must be sent by the same caller once the execution delay has passed.
+    proposerSubmitter:
+      type: jsonRpc

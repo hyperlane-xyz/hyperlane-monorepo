@@ -632,6 +632,9 @@ export function getSubmitterChains(
   } else if (submitter.type === TxSubmitterType.TIMELOCK_CONTROLLER) {
     if (submitter.proposerSubmitter)
       chains.push(...getSubmitterChains(submitter.proposerSubmitter));
+  } else if (submitter.type === TxSubmitterType.ACCESS_MANAGER) {
+    if (submitter.proposerSubmitter)
+      chains.push(...getSubmitterChains(submitter.proposerSubmitter));
   }
   return chains;
 }

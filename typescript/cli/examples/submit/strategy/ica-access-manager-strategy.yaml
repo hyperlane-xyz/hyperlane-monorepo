@@ -1,0 +1,26 @@
+# The transactions to be sent on arbitrumsepolia are wrapped in an ICA callRemote
+# on sepolia. The ICA on arbitrumsepolia is owned by an AccessManager on sepolia,
+# so the callRemote is scheduled on the AccessManager by a Safe holding the role
+# mapped to callRemoteWithOverrides on the ICA router. Once the role's execution
+# delay has passed, the Safe executes the scheduled call, which dispatches the
+# ICA message.
+arbitrumsepolia:
+  submitter:
+    type: interchainAccount
+    # The origin chain for the ICA transactions
+    chain: sepolia
+    # The destination chain for the transactions
+    destinationChain: arbitrumsepolia
+    # Optional, defaults to the accessManagerAddress of the internal submitter
+    owner: '0x7fd32493Ca3A38cDf78A4cb74F32f6292f822aBe'
+    # Required when the ICA is owned by an AccessManager, as the AccessManager
+    # cannot receive the interchain gas payment refund
+    refundAddress: '0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b'
+    internalSubmitter:
+      # The AccessManager is on sepolia because that is the origin chain for the ICA
+      type: accessManager
+      accessManagerAddress: '0x7fd32493Ca3A38cDf78A4cb74F32f6292f822aBe'
+      caller: '0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b'
+      proposerSubmitter:
+        type: gnosisSafeTxBuilder
+        safeAddress: '0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b'
