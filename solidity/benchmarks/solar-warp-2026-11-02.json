@@ -1,0 +1,663 @@
+{
+  "method": "Cancun Anvil receipt gas, includes intrinsic gas. Two local domains on one node; direct Mailboxes, proxied routers and IGP. Existing collateral token, ProxyAdmin and transparent proxy bytecode held at solc in all scenarios. New 3-of-5 static message-ID ISM clone; required MerkleTreeHook plus default IGP. No live RPC or funds. Two sequential one-token transfers, verifying delivery/balances and identical runtime inputs across compiler scenarios.",
+  "sourceCommit": "e2f1575d692f1d4f3fa7aaab375923aec46cd50a",
+  "sourceDirty": false,
+  "anvilVersion": "anvil Version: 1.8.8-nightly\nCommit SHA: a577a1142515f5a96935a525935936a2281b4c75\nBuild Timestamp: 2026-11-02T06:10:31.014375000Z (1793599831)\nBuild Profile: dist",
+  "compilerBuild": {
+    "sourceCommit": "2cc950aa96387ec5eaf528eafb637bfa31c90edd",
+    "solar": "solar 0.3.0+commit.unknown\nSolidity Version: 0.8.38\nSolc-Compatible Version: 0.8.38+commit.unknown.solar.0.3.0\nCommit SHA: unknown\nBuild Timestamp: 2026-11-02T19:24:08.327809000Z\nBuild Features: mimalloc,tracing\nBuild Profile: release",
+    "forge": "forge Version: 1.8.8-nightly\nCommit SHA: a577a1142515f5a96935a525935936a2281b4c75\nBuild Timestamp: 2026-11-02T06:10:31.014375000Z (1793599831)\nBuild Profile: dist"
+  },
+  "checks": {
+    "fourCompilerScenariosPassed": true,
+    "identicalRuntimeCalldataValueAndAddresses": true,
+    "identicalMessageIdsAndOutcomes": true,
+    "deliveredAndBalanceReadbackPassed": true,
+    "twoExistingProxyUpgradePointersAndBalancesChecked": true
+  },
+  "cases": [
+    {
+      "scenario": "solc",
+      "coreCompiler": "solc",
+      "routerCompiler": "solc",
+      "ismCompiler": "solc",
+      "gasRows": [
+        {
+          "label": "shared.proxyAdmin",
+          "gas": 532551
+        },
+        {
+          "label": "existing.collateral",
+          "gas": 956874
+        },
+        {
+          "label": "core.ismFactory",
+          "gas": 1261539
+        },
+        {
+          "label": "route.ismClone",
+          "gas": 129057
+        },
+        {
+          "label": "core.originMailbox",
+          "gas": 1852514
+        },
+        {
+          "label": "core.destinationMailbox",
+          "gas": 1852514
+        },
+        {
+          "label": "core.merkleHook",
+          "gas": 1470186
+        },
+        {
+          "label": "core.igp.implementation",
+          "gas": 3677745
+        },
+        {
+          "label": "core.igp.initializeImplementation",
+          "gas": 95347
+        },
+        {
+          "label": "core.igp.proxy",
+          "gas": 808482
+        },
+        {
+          "label": "core.gasOracle",
+          "gas": 709281
+        },
+        {
+          "label": "setup.oracle",
+          "gas": 116008
+        },
+        {
+          "label": "setup.igpOracle",
+          "gas": 123435
+        },
+        {
+          "label": "setup.igpOverhead",
+          "gas": 54640
+        },
+        {
+          "label": "setup.originMailbox",
+          "gas": 151359
+        },
+        {
+          "label": "setup.destinationMailbox",
+          "gas": 151359
+        },
+        {
+          "label": "route.collateral.implementation",
+          "gas": 4663790
+        },
+        {
+          "label": "route.collateral.initializeImplementation",
+          "gas": 108550
+        },
+        {
+          "label": "route.collateral.proxy",
+          "gas": 841596
+        },
+        {
+          "label": "route.synthetic.implementation",
+          "gas": 3532568
+        },
+        {
+          "label": "route.synthetic.initializeImplementation",
+          "gas": 136035
+        },
+        {
+          "label": "route.synthetic.proxy",
+          "gas": 869170
+        },
+        {
+          "label": "setup.collateralRemote",
+          "gas": 120345
+        },
+        {
+          "label": "setup.syntheticRemote",
+          "gas": 120344
+        },
+        {
+          "label": "setup.gas",
+          "gas": 57972
+        },
+        {
+          "label": "setup.approval",
+          "gas": 46543
+        },
+        {
+          "label": "runtime.dispatch.0",
+          "gas": 242671,
+          "opcodes": {
+            "total": 6773,
+            "jump": 355,
+            "jumpi": 244,
+            "jumpdest": 583
+          }
+        },
+        {
+          "label": "runtime.process.0",
+          "gas": 146721,
+          "opcodes": {
+            "total": 5286,
+            "jump": 287,
+            "jumpi": 201,
+            "jumpdest": 470
+          }
+        },
+        {
+          "label": "runtime.dispatch.1",
+          "gas": 176703,
+          "opcodes": {
+            "total": 6859,
+            "jump": 358,
+            "jumpi": 248,
+            "jumpdest": 589
+          }
+        },
+        {
+          "label": "runtime.process.1",
+          "gas": 112581,
+          "opcodes": {
+            "total": 5286,
+            "jump": 287,
+            "jumpi": 201,
+            "jumpdest": 470
+          }
+        },
+        {
+          "label": "upgrade.collateralImplementation",
+          "gas": 2847388
+        },
+        {
+          "label": "upgrade.syntheticImplementation",
+          "gas": 2202733
+        },
+        {
+          "label": "upgrade.collateralProxy",
+          "gas": 38903
+        },
+        {
+          "label": "upgrade.syntheticProxy",
+          "gas": 38903
+        }
+      ],
+      "transferPairGas": [389392, 289284],
+      "igpQuoteNativeWei": "350000"
+    },
+    {
+      "scenario": "solar-routers",
+      "coreCompiler": "solc",
+      "routerCompiler": "solar",
+      "ismCompiler": "solc",
+      "gasRows": [
+        {
+          "label": "shared.proxyAdmin",
+          "gas": 532551
+        },
+        {
+          "label": "existing.collateral",
+          "gas": 956874
+        },
+        {
+          "label": "core.ismFactory",
+          "gas": 1261539
+        },
+        {
+          "label": "route.ismClone",
+          "gas": 129057
+        },
+        {
+          "label": "core.originMailbox",
+          "gas": 1852514
+        },
+        {
+          "label": "core.destinationMailbox",
+          "gas": 1852514
+        },
+        {
+          "label": "core.merkleHook",
+          "gas": 1470186
+        },
+        {
+          "label": "core.igp.implementation",
+          "gas": 3677745
+        },
+        {
+          "label": "core.igp.initializeImplementation",
+          "gas": 95347
+        },
+        {
+          "label": "core.igp.proxy",
+          "gas": 808482
+        },
+        {
+          "label": "core.gasOracle",
+          "gas": 709281
+        },
+        {
+          "label": "setup.oracle",
+          "gas": 116008
+        },
+        {
+          "label": "setup.igpOracle",
+          "gas": 123435
+        },
+        {
+          "label": "setup.igpOverhead",
+          "gas": 54640
+        },
+        {
+          "label": "setup.originMailbox",
+          "gas": 151359
+        },
+        {
+          "label": "setup.destinationMailbox",
+          "gas": 151359
+        },
+        {
+          "label": "route.collateral.implementation",
+          "gas": 2847388
+        },
+        {
+          "label": "route.collateral.initializeImplementation",
+          "gas": 105941
+        },
+        {
+          "label": "route.collateral.proxy",
+          "gas": 838987
+        },
+        {
+          "label": "route.synthetic.implementation",
+          "gas": 2202733
+        },
+        {
+          "label": "route.synthetic.initializeImplementation",
+          "gas": 133711
+        },
+        {
+          "label": "route.synthetic.proxy",
+          "gas": 866846
+        },
+        {
+          "label": "setup.collateralRemote",
+          "gas": 119785
+        },
+        {
+          "label": "setup.syntheticRemote",
+          "gas": 119688
+        },
+        {
+          "label": "setup.gas",
+          "gas": 57338
+        },
+        {
+          "label": "setup.approval",
+          "gas": 46543
+        },
+        {
+          "label": "runtime.dispatch.0",
+          "gas": 240203,
+          "opcodes": {
+            "total": 5977,
+            "jump": 295,
+            "jumpi": 230,
+            "jumpdest": 514
+          }
+        },
+        {
+          "label": "runtime.process.0",
+          "gas": 144885,
+          "opcodes": {
+            "total": 4727,
+            "jump": 249,
+            "jumpi": 176,
+            "jumpdest": 406
+          }
+        },
+        {
+          "label": "runtime.dispatch.1",
+          "gas": 174235,
+          "opcodes": {
+            "total": 6063,
+            "jump": 298,
+            "jumpi": 234,
+            "jumpdest": 520
+          }
+        },
+        {
+          "label": "runtime.process.1",
+          "gas": 110745,
+          "opcodes": {
+            "total": 4727,
+            "jump": 249,
+            "jumpi": 176,
+            "jumpdest": 406
+          }
+        }
+      ],
+      "transferPairGas": [385088, 284980],
+      "igpQuoteNativeWei": "350000"
+    },
+    {
+      "scenario": "solar-routers-and-ism",
+      "coreCompiler": "solc",
+      "routerCompiler": "solar",
+      "ismCompiler": "solar",
+      "gasRows": [
+        {
+          "label": "shared.proxyAdmin",
+          "gas": 532551
+        },
+        {
+          "label": "existing.collateral",
+          "gas": 956874
+        },
+        {
+          "label": "core.ismFactory",
+          "gas": 732442
+        },
+        {
+          "label": "route.ismClone",
+          "gas": 128143
+        },
+        {
+          "label": "core.originMailbox",
+          "gas": 1852514
+        },
+        {
+          "label": "core.destinationMailbox",
+          "gas": 1852514
+        },
+        {
+          "label": "core.merkleHook",
+          "gas": 1470186
+        },
+        {
+          "label": "core.igp.implementation",
+          "gas": 3677745
+        },
+        {
+          "label": "core.igp.initializeImplementation",
+          "gas": 95347
+        },
+        {
+          "label": "core.igp.proxy",
+          "gas": 808482
+        },
+        {
+          "label": "core.gasOracle",
+          "gas": 709281
+        },
+        {
+          "label": "setup.oracle",
+          "gas": 116008
+        },
+        {
+          "label": "setup.igpOracle",
+          "gas": 123435
+        },
+        {
+          "label": "setup.igpOverhead",
+          "gas": 54640
+        },
+        {
+          "label": "setup.originMailbox",
+          "gas": 151359
+        },
+        {
+          "label": "setup.destinationMailbox",
+          "gas": 151359
+        },
+        {
+          "label": "route.collateral.implementation",
+          "gas": 2847388
+        },
+        {
+          "label": "route.collateral.initializeImplementation",
+          "gas": 105941
+        },
+        {
+          "label": "route.collateral.proxy",
+          "gas": 838987
+        },
+        {
+          "label": "route.synthetic.implementation",
+          "gas": 2202733
+        },
+        {
+          "label": "route.synthetic.initializeImplementation",
+          "gas": 133711
+        },
+        {
+          "label": "route.synthetic.proxy",
+          "gas": 866846
+        },
+        {
+          "label": "setup.collateralRemote",
+          "gas": 119785
+        },
+        {
+          "label": "setup.syntheticRemote",
+          "gas": 119688
+        },
+        {
+          "label": "setup.gas",
+          "gas": 57338
+        },
+        {
+          "label": "setup.approval",
+          "gas": 46543
+        },
+        {
+          "label": "runtime.dispatch.0",
+          "gas": 240203,
+          "opcodes": {
+            "total": 5977,
+            "jump": 295,
+            "jumpi": 230,
+            "jumpdest": 514
+          }
+        },
+        {
+          "label": "runtime.process.0",
+          "gas": 140305,
+          "opcodes": {
+            "total": 3275,
+            "jump": 121,
+            "jumpi": 150,
+            "jumpdest": 204
+          }
+        },
+        {
+          "label": "runtime.dispatch.1",
+          "gas": 174235,
+          "opcodes": {
+            "total": 6063,
+            "jump": 298,
+            "jumpi": 234,
+            "jumpdest": 520
+          }
+        },
+        {
+          "label": "runtime.process.1",
+          "gas": 106165,
+          "opcodes": {
+            "total": 3275,
+            "jump": 121,
+            "jumpi": 150,
+            "jumpdest": 204
+          }
+        }
+      ],
+      "transferPairGas": [380508, 280400],
+      "igpQuoteNativeWei": "350000"
+    },
+    {
+      "scenario": "solar-core-and-routers",
+      "coreCompiler": "solar",
+      "routerCompiler": "solar",
+      "ismCompiler": "solar",
+      "gasRows": [
+        {
+          "label": "shared.proxyAdmin",
+          "gas": 532551
+        },
+        {
+          "label": "existing.collateral",
+          "gas": 956874
+        },
+        {
+          "label": "core.ismFactory",
+          "gas": 732442
+        },
+        {
+          "label": "route.ismClone",
+          "gas": 128143
+        },
+        {
+          "label": "core.originMailbox",
+          "gas": 1003690
+        },
+        {
+          "label": "core.destinationMailbox",
+          "gas": 1003690
+        },
+        {
+          "label": "core.merkleHook",
+          "gas": 816594
+        },
+        {
+          "label": "core.igp.implementation",
+          "gas": 2026816
+        },
+        {
+          "label": "core.igp.initializeImplementation",
+          "gas": 94198
+        },
+        {
+          "label": "core.igp.proxy",
+          "gas": 807333
+        },
+        {
+          "label": "core.gasOracle",
+          "gas": 464210
+        },
+        {
+          "label": "setup.oracle",
+          "gas": 114300
+        },
+        {
+          "label": "setup.igpOracle",
+          "gas": 122187
+        },
+        {
+          "label": "setup.igpOverhead",
+          "gas": 54315
+        },
+        {
+          "label": "setup.originMailbox",
+          "gas": 150111
+        },
+        {
+          "label": "setup.destinationMailbox",
+          "gas": 150111
+        },
+        {
+          "label": "route.collateral.implementation",
+          "gas": 2847185
+        },
+        {
+          "label": "route.collateral.initializeImplementation",
+          "gas": 105941
+        },
+        {
+          "label": "route.collateral.proxy",
+          "gas": 838987
+        },
+        {
+          "label": "route.synthetic.implementation",
+          "gas": 2202530
+        },
+        {
+          "label": "route.synthetic.initializeImplementation",
+          "gas": 133711
+        },
+        {
+          "label": "route.synthetic.proxy",
+          "gas": 866846
+        },
+        {
+          "label": "setup.collateralRemote",
+          "gas": 119785
+        },
+        {
+          "label": "setup.syntheticRemote",
+          "gas": 119688
+        },
+        {
+          "label": "setup.gas",
+          "gas": 57338
+        },
+        {
+          "label": "setup.approval",
+          "gas": 46543
+        },
+        {
+          "label": "runtime.dispatch.0",
+          "gas": 230707,
+          "opcodes": {
+            "total": 3134,
+            "jump": 109,
+            "jumpi": 125,
+            "jumpdest": 183
+          }
+        },
+        {
+          "label": "runtime.process.0",
+          "gas": 137186,
+          "opcodes": {
+            "total": 2276,
+            "jump": 49,
+            "jumpi": 120,
+            "jumpdest": 87
+          }
+        },
+        {
+          "label": "runtime.dispatch.1",
+          "gas": 164520,
+          "opcodes": {
+            "total": 3158,
+            "jump": 109,
+            "jumpi": 126,
+            "jumpdest": 183
+          }
+        },
+        {
+          "label": "runtime.process.1",
+          "gas": 103046,
+          "opcodes": {
+            "total": 2276,
+            "jump": 49,
+            "jumpi": 120,
+            "jumpdest": 87
+          }
+        }
+      ],
+      "transferPairGas": [367893, 267566],
+      "igpQuoteNativeWei": "350000"
+    }
+  ],
+  "baselineSecondTransferAttribution": {
+    "Routers and their proxies": 64296,
+    "Existing external ERC20": 15016,
+    "Mailboxes": 71586,
+    "Merkle hook + IGP + oracle": 68080,
+    "Intrinsic transaction + calldata gas": 49064,
+    "ISM including 3 ecrecover precompiles": 21242
+  },
+  "existingRouteUpgradeCostGas": 5127927,
+  "factoryOnlyBreakEvenAt4580GasPerDelivery": 160,
+  "routerUpgradeBreakEvenAt4304GasPerPair": 1192
+}
