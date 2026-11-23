@@ -14,6 +14,7 @@ import {
   preprocessChainSubmissionStrategy,
   refineChainSubmissionStrategy,
 } from '@hyperlane-xyz/sdk';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 export const CustomTxSubmitterType = {
   ...TxSubmitterType,
@@ -96,8 +97,10 @@ export type ExtendedSubmissionStrategy = z.infer<
   typeof ExtendedSubmissionStrategySchema
 >;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === 'object' && !Array.isArray(value);
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    !isNullish(value) && typeof value === 'object' && !Array.isArray(value)
+  );
 }
 
 // preprocessChainSubmissionStrategy rebuilds each entry as { submitter: ... } only,

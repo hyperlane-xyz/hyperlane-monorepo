@@ -138,6 +138,7 @@ import {
   type ExtendedChainSubmissionStrategy,
   ExtendedChainSubmissionStrategySchema,
   type ExtendedSubmissionStrategy,
+  isRecord,
 } from '../submitters/types.js';
 import {
   indentYamlOrJson,
@@ -1179,6 +1180,53 @@ function isSafeTxBuilderPayload(value: unknown): value is SafeTxBuilderPayload {
   );
 }
 
+function withSafeAddress(
+  payload: SafeTxBuilderPayload,
+  safeAddress: string,
+): SafeTxBuilderPayload {
+  return {
+    version: payload.version,
+    chainId: payload.chainId,
+    meta: { ...payload.meta, _safeAddress: safeAddress },
+    transactions: payload.transactions,
+  };
+}
+
+/**
+ * Splits a submit result into its Safe TX Builder payloads, tagged with the Safe
+ * address that keys the combined bundle, and the remaining receipts. Composite
+ * submitters (timelock, AccessManager) return the proposer's payload followed by
+ * the deferred execute txs, which end up in `rest`.
+ */
+export function splitSafeTxBuilderPayloads<T>(
+  result: void | T | T[],
+  safeAddress: string,
+): { safePayloads: SafeTxBuilderPayload[]; rest: void | T | T[] } {
+  if (!Array.isArray(result)) {
+    return isSafeTxBuilderPayload(result)
+      ? {
+          safePayloads: [withSafeAddress(result, safeAddress)],
+          rest: undefined,
+        }
+      : { safePayloads: [], rest: result };
+  }
+
+  const safePayloads: SafeTxBuilderPayload[] = [];
+  const rest: T[] = [];
+  for (const item of result) {
+    if (isSafeTxBuilderPayload(item)) {
+      safePayloads.push(withSafeAddress(item, safeAddress));
+    } else {
+      rest.push(item);
+    }
+  }
+
+  if (safePayloads.length === 0) {
+    return { safePayloads, rest: result };
+  }
+  return { safePayloads, rest: rest.length > 0 ? rest : undefined };
+}
+
 /** EVM update planning may deploy contracts, so it must never auto-retry. */
 export async function runWarpUpdatePlanning<T>(
   protocolType: ProtocolType,
@@ -1827,18 +1875,15 @@ type ChainTxPayloads = {
 };
 
 // Extracts the Gnosis Safe address from a submitter metadata object via duck-typing.
-// Handles both direct Safe submitters (safeAddress) and ICA submitters with a
-// nested internalSubmitter that holds the Safe address.
-function extractSafeAddressFromSubmitter(meta: unknown): string {
-  if (meta == null || typeof meta !== 'object') return '';
-  const obj = meta as Record<string, unknown>;
-  if (typeof obj.safeAddress === 'string') return obj.safeAddress;
-  const inner = obj.internalSubmitter;
-  if (inner != null && typeof inner === 'object') {
-    const innerObj = inner as Record<string, unknown>;
-    if (typeof innerObj.safeAddress === 'string') return innerObj.safeAddress;
-  }
-  return '';
+// Handles direct Safe submitters (safeAddress) and wrapping submitters (ICA,
+// timelock, AccessManager) by recursing into internalSubmitter/proposerSubmitter.
+export function extractSafeAddressFromSubmitter(meta: unknown): string {
+  if (!isRecord(meta)) return '';
+  if (typeof meta.safeAddress === 'string') return meta.safeAddress;
+  return (
+    extractSafeAddressFromSubmitter(meta.internalSubmitter) ||
+    extractSafeAddressFromSubmitter(meta.proposerSubmitter)
+  );
 }
 
 /**
@@ -1946,23 +1991,20 @@ async function submitChainTransactions(
           ? await submitChainBatch(submitter, mainTransactions)
           : undefined;
 
-      if (isSafeTxBuilderPayload(transactionReceipts)) {
-        safePayloads.push({
-          ...transactionReceipts,
-          meta: { ...transactionReceipts.meta, _safeAddress: mainSafeAddress },
-        });
-      }
+      const { safePayloads: mainSafePayloads, rest: mainReceipts } =
+        splitSafeTxBuilderPayloads(transactionReceipts, mainSafeAddress);
+      safePayloads.push(...mainSafePayloads);
 
       if (!isSafeTxBuilderPayload(transactionReceipts)) {
         if (!isEVMLike(protocol)) {
           return;
         }
 
-        if (transactionReceipts) {
+        if (mainReceipts) {
           const receiptPath = `${params.receiptsDir}/${chain}-${
             submitter.txSubmitterType
           }-${Date.now()}-receipts.json`;
-          writeYamlOrJson(receiptPath, transactionReceipts);
+          writeYamlOrJson(receiptPath, mainReceipts);
           logGreen(
             `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
           );
@@ -1971,7 +2013,7 @@ async function submitChainTransactions(
         const canRelay = canSelfRelay(
           params.selfRelay ?? false,
           config,
-          transactionReceipts,
+          mainReceipts,
         );
 
         if (canRelay.relay) {
@@ -2010,21 +2052,13 @@ async function submitChainTransactions(
           const feeSafeAddressForBundle = dedicatedFeeSubmitter
             ? feeSafeAddress
             : mainSafeAddress;
-          const feeReceipts = await submitChainBatch(feeSubmitter, feeTxs);
-          if (isSafeTxBuilderPayload(feeReceipts)) {
-            safePayloads.push({
-              ...feeReceipts,
-              meta: {
-                ...feeReceipts.meta,
-                _safeAddress: feeSafeAddressForBundle,
-              },
-            });
-          }
-          if (
-            feeReceipts &&
-            !isSafeTxBuilderPayload(feeReceipts) &&
-            isEVMLike(protocol)
-          ) {
+          const { safePayloads: feeSafePayloads, rest: feeReceipts } =
+            splitSafeTxBuilderPayloads(
+              await submitChainBatch(feeSubmitter, feeTxs),
+              feeSafeAddressForBundle,
+            );
+          safePayloads.push(...feeSafePayloads);
+          if (feeReceipts && isEVMLike(protocol)) {
             const feeReceiptPath = `${params.receiptsDir}/${chain}-fee-${Date.now()}-receipts.json`;
             writeYamlOrJson(feeReceiptPath, feeReceipts);
             logGreen(
@@ -2044,19 +2078,13 @@ async function submitChainTransactions(
       // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
       // setFeeRecipient) execute before ownership is transferred to a new address.
       if (ownershipTxs.length > 0) {
-        const ownershipReceipts = await submitChainBatch(
-          submitter,
-          ownershipTxs,
-        );
-        if (isSafeTxBuilderPayload(ownershipReceipts)) {
-          safePayloads.push({
-            ...ownershipReceipts,
-            meta: {
-              ...ownershipReceipts.meta,
-              _safeAddress: mainSafeAddress,
-            },
-          });
-        } else if (ownershipReceipts && isEVMLike(protocol)) {
+        const { safePayloads: ownershipSafePayloads, rest: ownershipReceipts } =
+          splitSafeTxBuilderPayloads(
+            await submitChainBatch(submitter, ownershipTxs),
+            mainSafeAddress,
+          );
+        safePayloads.push(...ownershipSafePayloads);
+        if (ownershipReceipts && isEVMLike(protocol)) {
           const ownershipReceiptPath = `${params.receiptsDir}/${chain}-ownership-${Date.now()}-receipts.json`;
           writeYamlOrJson(ownershipReceiptPath, ownershipReceipts);
           logGreen(

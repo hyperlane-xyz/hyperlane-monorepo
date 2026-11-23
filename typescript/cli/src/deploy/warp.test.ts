@@ -31,18 +31,23 @@ import {
   TokenStandard,
   TokenMetadataMap,
   TokenType,
+  TxSubmitterType,
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
   WormholeConsistencyType,
   testChainMetadata,
 } from '@hyperlane-xyz/sdk';
 
+import { ExtendedSubmissionStrategySchema } from '../submitters/types.js';
+
 import {
+  extractSafeAddressFromSubmitter,
   fullyConnectTokens,
   generateTokenConfigs,
   runWarpRouteApply,
   runWarpRouteCombine,
   runWarpUpdatePlanning,
+  splitSafeTxBuilderPayloads,
   transformDeployConfigForDisplay,
   withIntermediateWarpOwner,
 } from './warp.js';
@@ -1180,5 +1185,253 @@ describe('transformDeployConfigForDisplay', () => {
       Validators: [VALIDATOR],
       Threshold: 1,
     });
+  });
+});
+
+describe('splitSafeTxBuilderPayloads', () => {
+  const SAFE_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  const ACCESS_MANAGER = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+
+  interface SafePayloadFixture {
+    version: string;
+    chainId: string;
+    meta: Record<string, unknown>;
+    transactions: Array<{ to: string; value: string; data: string }>;
+  }
+
+  interface DeferredTxFixture {
+    to: string;
+    data: string;
+    chainId: number;
+  }
+
+  interface ReceiptFixture {
+    transactionHash: string;
+    blockNumber: number;
+    cumulativeGasUsed: string;
+  }
+
+  type SubmitResultItem =
+    | SafePayloadFixture
+    | DeferredTxFixture
+    | ReceiptFixture;
+
+  const scheduleCall = {
+    to: ACCESS_MANAGER,
+    value: '0',
+    data: '0xf801a698',
+  };
+  const payload: SafePayloadFixture = {
+    version: '1.0',
+    chainId: '31347',
+    meta: {},
+    transactions: [scheduleCall],
+  };
+  const payloadWithMeta: SafePayloadFixture = {
+    version: '1.0',
+    chainId: '31347',
+    meta: { name: 'Warp apply' },
+    transactions: [scheduleCall, scheduleCall],
+  };
+  const firstExecuteTx: DeferredTxFixture = {
+    to: ACCESS_MANAGER,
+    data: '0x1cff79cd01',
+    chainId: 31347,
+  };
+  const secondExecuteTx: DeferredTxFixture = {
+    to: ACCESS_MANAGER,
+    data: '0x1cff79cd02',
+    chainId: 31347,
+  };
+  const receipt: ReceiptFixture = {
+    transactionHash: `0x${'ab'.repeat(32)}`,
+    blockNumber: 12,
+    cumulativeGasUsed: '21000',
+  };
+  const taggedPayload: SafePayloadFixture = {
+    version: '1.0',
+    chainId: '31347',
+    meta: { _safeAddress: SAFE_ADDRESS },
+    transactions: [scheduleCall],
+  };
+  const taggedPayloadWithMeta: SafePayloadFixture = {
+    version: '1.0',
+    chainId: '31347',
+    meta: { name: 'Warp apply', _safeAddress: SAFE_ADDRESS },
+    transactions: [scheduleCall, scheduleCall],
+  };
+
+  interface Case {
+    name: string;
+    result: void | SubmitResultItem | SubmitResultItem[];
+    expectedSafePayloads: SafePayloadFixture[];
+    expectedRest: void | SubmitResultItem | SubmitResultItem[];
+  }
+
+  const cases: Case[] = [
+    {
+      name: 'no result',
+      result: undefined,
+      expectedSafePayloads: [],
+      expectedRest: undefined,
+    },
+    {
+      name: 'a bare payload',
+      result: payload,
+      expectedSafePayloads: [taggedPayload],
+      expectedRest: undefined,
+    },
+    {
+      name: 'a single receipt',
+      result: receipt,
+      expectedSafePayloads: [],
+      expectedRest: receipt,
+    },
+    {
+      name: 'an empty array',
+      result: [],
+      expectedSafePayloads: [],
+      expectedRest: [],
+    },
+    {
+      name: 'receipts followed by deferred execute txs',
+      result: [receipt, firstExecuteTx],
+      expectedSafePayloads: [],
+      expectedRest: [receipt, firstExecuteTx],
+    },
+    {
+      name: 'a payload followed by deferred execute txs',
+      result: [payload, firstExecuteTx, secondExecuteTx],
+      expectedSafePayloads: [taggedPayload],
+      expectedRest: [firstExecuteTx, secondExecuteTx],
+    },
+    {
+      name: 'an array holding only a payload',
+      result: [payloadWithMeta],
+      expectedSafePayloads: [taggedPayloadWithMeta],
+      expectedRest: undefined,
+    },
+    {
+      name: 'multiple payloads mixed with deferred execute txs',
+      result: [payload, firstExecuteTx, payloadWithMeta],
+      expectedSafePayloads: [taggedPayload, taggedPayloadWithMeta],
+      expectedRest: [firstExecuteTx],
+    },
+  ];
+
+  for (const testCase of cases) {
+    it(`splits ${testCase.name}`, () => {
+      const { safePayloads, rest } = splitSafeTxBuilderPayloads(
+        testCase.result,
+        SAFE_ADDRESS,
+      );
+
+      expect(safePayloads).to.deep.equal(testCase.expectedSafePayloads);
+      expect(rest).to.deep.equal(testCase.expectedRest);
+    });
+  }
+
+  it('does not mutate the input payload meta', () => {
+    splitSafeTxBuilderPayloads([payload, firstExecuteTx], SAFE_ADDRESS);
+
+    expect(payload.meta).to.deep.equal({});
+  });
+});
+
+describe('extractSafeAddressFromSubmitter', () => {
+  const ORIGIN = TestChainName.test1;
+  const DESTINATION = TestChainName.test2;
+  const SAFE_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  const ACCESS_MANAGER = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+  const TIMELOCK = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+  const ICA_OWNER = '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9';
+
+  const safe = {
+    type: TxSubmitterType.GNOSIS_SAFE,
+    chain: ORIGIN,
+    safeAddress: SAFE_ADDRESS,
+  };
+  const safeTxBuilder = {
+    type: TxSubmitterType.GNOSIS_TX_BUILDER,
+    chain: ORIGIN,
+    safeAddress: SAFE_ADDRESS,
+    version: '1.0',
+  };
+  const jsonRpc = { type: TxSubmitterType.JSON_RPC, chain: ORIGIN };
+  const accessManagerWith = (proposerSubmitter: unknown) => ({
+    type: TxSubmitterType.ACCESS_MANAGER,
+    chain: ORIGIN,
+    accessManagerAddress: ACCESS_MANAGER,
+    proposerSubmitter,
+  });
+  const icaWith = (internalSubmitter: unknown) => ({
+    type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+    chain: ORIGIN,
+    destinationChain: DESTINATION,
+    owner: ICA_OWNER,
+    internalSubmitter,
+  });
+
+  interface Case {
+    name: string;
+    submitter: unknown;
+    expected: string;
+  }
+
+  const cases: Case[] = [
+    { name: 'a Safe submitter', submitter: safe, expected: SAFE_ADDRESS },
+    {
+      name: 'a Safe Tx Builder submitter',
+      submitter: safeTxBuilder,
+      expected: SAFE_ADDRESS,
+    },
+    { name: 'ICA -> Safe', submitter: icaWith(safe), expected: SAFE_ADDRESS },
+    {
+      name: 'AccessManager -> Safe Tx Builder',
+      submitter: accessManagerWith(safeTxBuilder),
+      expected: SAFE_ADDRESS,
+    },
+    {
+      name: 'timelock -> Safe',
+      submitter: {
+        type: TxSubmitterType.TIMELOCK_CONTROLLER,
+        chain: ORIGIN,
+        timelockAddress: TIMELOCK,
+        proposerSubmitter: safe,
+      },
+      expected: SAFE_ADDRESS,
+    },
+    {
+      name: 'ICA -> AccessManager -> Safe Tx Builder',
+      submitter: icaWith(accessManagerWith(safeTxBuilder)),
+      expected: SAFE_ADDRESS,
+    },
+    {
+      name: 'AccessManager -> ICA -> Safe',
+      submitter: accessManagerWith(icaWith(safe)),
+      expected: SAFE_ADDRESS,
+    },
+    { name: 'a jsonRpc submitter', submitter: jsonRpc, expected: '' },
+    {
+      name: 'ICA -> AccessManager -> jsonRpc',
+      submitter: icaWith(accessManagerWith(jsonRpc)),
+      expected: '',
+    },
+  ];
+
+  for (const testCase of cases) {
+    it(`resolves ${testCase.name}`, () => {
+      const { submitter } = ExtendedSubmissionStrategySchema.parse({
+        submitter: testCase.submitter,
+      });
+
+      expect(extractSafeAddressFromSubmitter(submitter)).to.equal(
+        testCase.expected,
+      );
+    });
+  }
+
+  it('returns an empty string for a missing submitter', () => {
+    expect(extractSafeAddressFromSubmitter(undefined)).to.equal('');
   });
 });

@@ -846,10 +846,15 @@ describe('hyperlane warp apply with submitters', async function () {
     const CHAIN_2 = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
     const CHAIN_3 = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
     const ACCESS_MANAGER_ROLE = 1;
+    const IMMEDIATE_ACCESS_MANAGER_ROLE = 2;
     const EXECUTION_DELAY = 3600;
     const setDestinationGasSelector =
       GasRouter__factory.createInterface().getSighash(
         'setDestinationGas((uint32,uint256)[])',
+      );
+    const transferOwnershipSelector =
+      GasRouter__factory.createInterface().getSighash(
+        'transferOwnership(address)',
       );
     const callRemoteWithOverridesSelector =
       InterchainAccountRouter__factory.createInterface().getSighash(
@@ -862,26 +867,20 @@ describe('hyperlane warp apply with submitters', async function () {
       selector,
       account,
       executionDelay,
+      role = ACCESS_MANAGER_ROLE,
     }: {
       accessManager: IAccessManager;
       target: Address;
       selector: string;
       account: Address;
       executionDelay: number;
+      role?: number;
     }): Promise<void> {
       await (
-        await accessManager.setTargetFunctionRole(
-          target,
-          [selector],
-          ACCESS_MANAGER_ROLE,
-        )
+        await accessManager.setTargetFunctionRole(target, [selector], role)
       ).wait();
       await (
-        await accessManager.grantRole(
-          ACCESS_MANAGER_ROLE,
-          account,
-          executionDelay,
-        )
+        await accessManager.grantRole(role, account, executionDelay)
       ).wait();
     }
 
@@ -989,6 +988,110 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(await readChain3DestinationGas()).to.equal(expectedGas);
     });
 
+    it('should defer an immediate ownership transfer behind a scheduled main-batch call', async () => {
+      const { accessManager, warpDeployConfig } =
+        await deployAccessManagerOwnedWarpRoute();
+      const warpToken = getChain3WarpTokenAddress();
+      await grantAccess({
+        accessManager,
+        target: warpToken,
+        selector: setDestinationGasSelector,
+        account: initialOwnerAddress,
+        executionDelay: EXECUTION_DELAY,
+      });
+      await grantAccess({
+        accessManager,
+        target: warpToken,
+        selector: transferOwnershipSelector,
+        account: initialOwnerAddress,
+        executionDelay: 0,
+        role: IMMEDIATE_ACCESS_MANAGER_ROLE,
+      });
+      writeAccessManagerStrategy({
+        type: TxSubmitterType.ACCESS_MANAGER,
+        chain: CHAIN_3,
+        accessManagerAddress: accessManager.address,
+        caller: initialOwnerAddress,
+        proposerSubmitter: { type: TxSubmitterType.JSON_RPC, chain: CHAIN_3 },
+      });
+      const newOwner = Wallet.createRandom().address;
+      warpDeployConfig[CHAIN_3].owner = newOwner;
+      // Keep the ProxyAdmin owner so the token transfer is the only ownership tx
+      warpDeployConfig[CHAIN_3].proxyAdmin = { owner: accessManager.address };
+      const expectedGas = '905';
+      stageDestinationGasUpdate(warpDeployConfig, expectedGas);
+
+      const res = await applyWithAccessManagerStrategy();
+
+      expect(res.exitCode).to.equal(0);
+      const mainOutput: unknown = readYamlOrJson(
+        getReceiptsFilePath(res.text(), TxSubmitterType.ACCESS_MANAGER),
+      );
+      assert(Array.isArray(mainOutput), 'expected an array of receipts');
+      expect(mainOutput).to.have.lengthOf(2);
+      const [mainExecuteTx] = mainOutput.filter(isSerializedExecuteTx);
+      assert(mainExecuteTx, 'expected a deferred main-batch execute tx');
+      const decodedMainExecute = accessManagerInterface.parseTransaction({
+        data: mainExecuteTx.data,
+      });
+      expect(decodedMainExecute.name).to.equal('execute');
+      expect(decodedMainExecute.args[1].startsWith(setDestinationGasSelector))
+        .to.be.true;
+
+      const ownershipPathMatch = res
+        .text()
+        .match(
+          new RegExp(
+            `\\./generated/transactions/${CHAIN_3}-ownership-\\d+-receipts\\.json`,
+          ),
+        );
+      assert(ownershipPathMatch, 'expected the ownership receipts file output');
+      const ownershipOutput: unknown = readYamlOrJson(ownershipPathMatch[0]);
+      assert(Array.isArray(ownershipOutput), 'expected an array of receipts');
+      expect(ownershipOutput).to.have.lengthOf(1);
+      const [ownershipExecuteTx] = ownershipOutput.filter(
+        isSerializedExecuteTx,
+      );
+      assert(ownershipExecuteTx, 'expected a deferred ownership execute tx');
+      const decodedOwnershipExecute = accessManagerInterface.parseTransaction({
+        data: ownershipExecuteTx.data,
+      });
+      expect(decodedOwnershipExecute.name).to.equal('execute');
+      expect(eqAddress(decodedOwnershipExecute.args[0], warpToken)).to.be.true;
+      expect(
+        decodedOwnershipExecute.args[1].startsWith(transferOwnershipSelector),
+      ).to.be.true;
+
+      const configBefore = await evmWarpCommands.readConfig(
+        CHAIN_3,
+        WARP_CORE_CONFIG_PATH,
+      );
+      expect(eqAddress(configBefore[CHAIN_3].owner, accessManager.address)).to
+        .be.true;
+      expect(
+        configBefore[CHAIN_3].destinationGas?.[chain2DomainId],
+      ).to.not.equal(expectedGas);
+
+      await increaseEvmTime(
+        TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3.rpcUrl,
+        EXECUTION_DELAY,
+      );
+      for (const executeTx of [mainExecuteTx, ownershipExecuteTx]) {
+        await (
+          await chain3Signer.sendTransaction(toTxRequest(executeTx))
+        ).wait();
+      }
+
+      const configAfter = await evmWarpCommands.readConfig(
+        CHAIN_3,
+        WARP_CORE_CONFIG_PATH,
+      );
+      expect(configAfter[CHAIN_3].destinationGas?.[chain2DomainId]).to.equal(
+        expectedGas,
+      );
+      expect(eqAddress(configAfter[CHAIN_3].owner, newOwner)).to.be.true;
+    });
+
     it('should execute immediately permitted calls right away', async () => {
       const { accessManager, warpDeployConfig } =
         await deployAccessManagerOwnedWarpRoute();
@@ -1089,15 +1192,41 @@ describe('hyperlane warp apply with submitters', async function () {
         const res = await applyWithAccessManagerStrategy();
 
         expect(res.exitCode).to.equal(0);
-        const [payload]: Array<{
-          transactions: Array<{ to: string; data: string }>;
-        }> = readYamlOrJson(
-          getReceiptsFilePath(res.text(), TxSubmitterType.ACCESS_MANAGER),
+        const bundlePathMatch = res
+          .text()
+          .match(/Combined 1 bundle\(s\) \(1 txs\).*written to (.*\.json)/);
+        assert(bundlePathMatch, 'Expected combined bundle file path in output');
+        expect(bundlePathMatch[1]).to.include(
+          `-safe${safeAddress.slice(0, 8)}-`,
         );
-        expect(payload.transactions).to.have.lengthOf(1);
-        const [scheduleTx] = payload.transactions;
+        const bundle: {
+          version: string;
+          transactions: Array<{ to: string; data: string }>;
+        } = readYamlOrJson(bundlePathMatch[1]);
+        expect(bundle.version).to.equal('1.0');
+        expect(bundle.transactions).to.have.lengthOf(1);
+        const [scheduleTx] = bundle.transactions;
         expect(eqAddress(scheduleTx.to, accessManager.address)).to.be.true;
         expectScheduledDestinationGasUpdate(scheduleTx.data);
+
+        const receipts: unknown = readYamlOrJson(
+          getReceiptsFilePath(res.text(), TxSubmitterType.ACCESS_MANAGER),
+        );
+        assert(Array.isArray(receipts), 'expected an array of receipts');
+        expect(receipts).to.have.lengthOf(1);
+        const executeTxs = receipts.filter(isSerializedExecuteTx);
+        expect(executeTxs).to.have.lengthOf(1);
+        const [executeTx] = executeTxs;
+        expect(eqAddress(executeTx.to, accessManager.address)).to.be.true;
+        const decodedExecute = accessManagerInterface.parseTransaction({
+          data: executeTx.data,
+        });
+        expect(decodedExecute.name).to.equal('execute');
+        expect(decodedExecute.args[1]).to.equal(
+          accessManagerInterface.parseTransaction({ data: scheduleTx.data })
+            .args[1],
+        );
+        expect(await readChain3DestinationGas()).to.not.equal('904');
       });
     });
 
