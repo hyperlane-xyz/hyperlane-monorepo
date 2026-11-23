@@ -23,10 +23,12 @@ import {
 } from '@hyperlane-xyz/core';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
+  type DeployedAevoXERC20Token,
   type MultiProvider,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfig,
+  deployAevoXERC20Token,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -330,6 +332,25 @@ export async function deployXERC20LockboxToken(
     tokenTotalSupply,
     tokenDecimals,
   ]);
+}
+
+export async function deployAevoXERC20TokenOnChain(
+  privateKey: string,
+  chain: string,
+): Promise<DeployedAevoXERC20Token> {
+  const { multiProvider } = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: privateKey,
+  });
+
+  const provider = new ethers.providers.JsonRpcProvider(
+    multiProvider.getChainMetadata(chain).rpcUrls[0].http,
+  );
+
+  return deployAevoXERC20Token({
+    provider,
+    deployer: new ethers.Wallet(privateKey, provider),
+  });
 }
 
 export async function deployTestOffchainLookupISM(
