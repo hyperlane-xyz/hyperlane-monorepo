@@ -802,7 +802,7 @@ where
         simulation.try_submit(self.cache.clone()).await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, message, metadata))]
     async fn process_estimate_costs(
         &self,
         message: &HyperlaneMessage,
