@@ -40,20 +40,29 @@ type AccessManagerCall = {
 const AccessManagerCallMode = {
   Execute: 'execute',
   Schedule: 'schedule',
+  AlreadyScheduled: 'alreadyScheduled',
 } as const;
 
-type ScheduledCall = {
-  call: AccessManagerCall;
+type ScheduleResolution = {
+  mode: typeof AccessManagerCallMode.Schedule;
   // Known only when the caller is configured
   delay?: number;
 };
 
+type AlreadyScheduledResolution = {
+  mode: typeof AccessManagerCallMode.AlreadyScheduled;
+  readyAt: number;
+};
+
 type AccessManagerCallResolution =
   | { mode: typeof AccessManagerCallMode.Execute }
-  | ({ mode: typeof AccessManagerCallMode.Schedule } & Pick<
-      ScheduledCall,
-      'delay'
-    >);
+  | ScheduleResolution
+  | AlreadyScheduledResolution;
+
+type ScheduledCall = {
+  call: AccessManagerCall;
+  resolution: ScheduleResolution | AlreadyScheduledResolution;
+};
 
 type EvmReceipt = ProtocolTypedReceipt<ProtocolType.Ethereum>['receipt'];
 
@@ -143,10 +152,13 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
         deferredExecuteTxs.push(this.buildExecuteTx(call));
       } else if (resolution.mode === AccessManagerCallMode.Execute) {
         proposerTxs.push(this.buildExecuteTx(call));
-      } else {
+      } else if (resolution.mode === AccessManagerCallMode.Schedule) {
         proposerTxs.push(this.buildScheduleTx(call));
         deferredExecuteTxs.push(this.buildExecuteTx(call));
-        scheduledCalls.push({ call, delay: resolution.delay });
+        scheduledCalls.push({ call, resolution });
+      } else {
+        deferredExecuteTxs.push(this.buildExecuteTx(call));
+        scheduledCalls.push({ call, resolution });
       }
     }
 
@@ -245,12 +257,11 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
         call.to,
         call.data,
       );
-      const scheduledAt = await this.accessManager.getSchedule(operationId);
-      assert(
-        scheduledAt === 0,
-        `AccessManager operation ${operationId} (${call.label}) is already scheduled for caller ${caller}; it is ready at ${toIsoTime(scheduledAt)}`,
-      );
-      return { mode: AccessManagerCallMode.Schedule, delay };
+      // Returns 0 once the operation expired, so expired calls get rescheduled
+      const readyAt = await this.accessManager.getSchedule(operationId);
+      return readyAt === 0
+        ? { mode: AccessManagerCallMode.Schedule, delay }
+        : { mode: AccessManagerCallMode.AlreadyScheduled, readyAt };
     }
 
     const role = await this.accessManager.getTargetFunctionRole(
@@ -273,12 +284,20 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
     const { timestamp } = await this.multiProvider
       .getProvider(this.config.chain)
       .getBlock('latest');
-    for (const { call, delay } of scheduledCalls) {
-      const readyAt = isNullish(delay)
+    const { accessManagerAddress } = this.config;
+    for (const { call, resolution } of scheduledCalls) {
+      if (resolution.mode === AccessManagerCallMode.AlreadyScheduled) {
+        this.logger.info(
+          `${call.label} is already scheduled via AccessManager ${accessManagerAddress}; execute from ${toIsoTime(resolution.readyAt)} and within ${expiration}s of it becoming ready`,
+        );
+        continue;
+      }
+
+      const readyAt = isNullish(resolution.delay)
         ? `after the caller's execution delay`
-        : `from ${toIsoTime(timestamp + delay)}`;
+        : `from ${toIsoTime(timestamp + resolution.delay)}`;
       this.logger.info(
-        `Scheduling ${call.label} via AccessManager ${this.config.accessManagerAddress}; execute ${readyAt} and within ${expiration}s of it becoming ready`,
+        `Scheduling ${call.label} via AccessManager ${accessManagerAddress}; execute ${readyAt} and within ${expiration}s of it becoming ready`,
       );
     }
   }

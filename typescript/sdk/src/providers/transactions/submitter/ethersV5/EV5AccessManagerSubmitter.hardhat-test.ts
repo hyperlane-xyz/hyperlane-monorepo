@@ -330,13 +330,123 @@ describe(TxSubmitterType.ACCESS_MANAGER, () => {
       expect(proposer.submitted).to.have.lengthOf(0);
     });
 
-    it('should throw when the operation is already scheduled', async () => {
-      const submitter = await getJsonRpcAccessManagerSubmitter(admin.address);
+    it('should only return the execute tx when the delayed call is already scheduled', async () => {
       const tx = handleTx(delayedRecipient, '0x03');
-      await submitter.submit(tx);
+      await (await getJsonRpcAccessManagerSubmitter(admin.address)).submit(tx);
 
-      await expect(submitter.submit(tx)).to.be.rejectedWith(
-        'is already scheduled for caller',
+      const proposer = new CapturingSubmitter();
+      const submitter = await getCapturingAccessManagerSubmitter(
+        proposer,
+        admin.address,
+      );
+      const { receipts, deferred } = splitOutput(await submitter.submit(tx));
+
+      expect(proposer.submitCalls).to.equal(0);
+      expect(receipts).to.have.lengthOf(0);
+      expect(
+        deferred.map((executeTx) => {
+          const { name, args } = decode(executeTx);
+          return [name, args[1]];
+        }),
+      ).to.deep.equal([['execute', tx.data]]);
+
+      await increaseTime(EXECUTION_DELAY);
+      await (await admin.sendTransaction(toTxRequest(deferred[0]))).wait();
+      expect(await delayedRecipient.lastData()).to.equal('0x03');
+    });
+
+    it('should only schedule the calls that are not already scheduled and defer all executes in order', async () => {
+      const scheduledTx = fooBarTx(delayedRecipient, 'scheduled');
+      const unscheduledTx = fooBarTx(delayedRecipient, 'unscheduled');
+      await (
+        await getJsonRpcAccessManagerSubmitter(admin.address)
+      ).submit(scheduledTx);
+
+      const proposer = new CapturingSubmitter();
+      const submitter = await getCapturingAccessManagerSubmitter(
+        proposer,
+        admin.address,
+      );
+      const { deferred } = splitOutput(
+        await submitter.submit(scheduledTx, unscheduledTx),
+      );
+
+      expect(proposer.submitCalls).to.equal(1);
+      expect(
+        proposer.submitted.map((tx) => {
+          const { name, args } = decode(tx);
+          return [name, args[1]];
+        }),
+      ).to.deep.equal([['schedule', unscheduledTx.data]]);
+      expect(
+        deferred.map((tx) => {
+          const { name, args } = decode(tx);
+          return [name, args[1]];
+        }),
+      ).to.deep.equal([
+        ['execute', scheduledTx.data],
+        ['execute', unscheduledTx.data],
+      ]);
+    });
+
+    it('should defer immediate calls that follow an already scheduled call', async () => {
+      const delayedTx = fooBarTx(delayedRecipient, 'delayed');
+      const immediateTx = handleTx(immediateRecipient, '0x14');
+      const laterImmediateTx = handleTx(immediateRecipient, '0x15');
+      await (
+        await getJsonRpcAccessManagerSubmitter(admin.address)
+      ).submit(delayedTx);
+
+      const proposer = new CapturingSubmitter();
+      const submitter = await getCapturingAccessManagerSubmitter(
+        proposer,
+        admin.address,
+      );
+      const { deferred } = splitOutput(
+        await submitter.submit(delayedTx, immediateTx),
+      );
+      const { deferred: laterDeferred } = splitOutput(
+        await submitter.submit(laterImmediateTx),
+      );
+
+      expect(proposer.submitCalls).to.equal(0);
+      expect(
+        [...deferred, ...laterDeferred].map((tx) => {
+          const { name, args } = decode(tx);
+          return [name, args[1]];
+        }),
+      ).to.deep.equal([
+        ['execute', delayedTx.data],
+        ['execute', immediateTx.data],
+        ['execute', laterImmediateTx.data],
+      ]);
+    });
+
+    it('should schedule an expired operation again', async () => {
+      const tx = fooBarTx(delayedRecipient, 'expired');
+      await (await getJsonRpcAccessManagerSubmitter(admin.address)).submit(tx);
+      assert(tx.to && tx.data, 'Expected tx target and data');
+      const operationId = await accessManager.hashOperation(
+        admin.address,
+        tx.to,
+        tx.data,
+      );
+      await increaseTime(EXECUTION_DELAY + (await accessManager.expiration()));
+      expect(await accessManager.getSchedule(operationId)).to.equal(0);
+
+      const submitter = await getJsonRpcAccessManagerSubmitter(admin.address);
+      const { receipts, deferred } = splitOutput(await submitter.submit(tx));
+
+      expect(receipts).to.have.lengthOf(1);
+      const scheduleTx = await provider.getTransaction(
+        receipts[0].transactionHash,
+      );
+      const decodedSchedule = decode(scheduleTx);
+      expect(decodedSchedule.name).to.equal('schedule');
+      expect(decodedSchedule.args[1]).to.equal(tx.data);
+      expect(await accessManager.getSchedule(operationId)).to.be.greaterThan(0);
+      expect(deferred.map((executeTx) => decode(executeTx).name)).to.deep.equal(
+        ['execute'],
       );
     });
 
