@@ -69,6 +69,10 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
     module: 'access-manager-submitter',
   });
 
+  // Callers split one logical batch across submit() calls (e.g. ownership
+  // transfers last), so immediate calls must stay behind any earlier schedule
+  private hasScheduledCalls = false;
+
   protected constructor(
     protected readonly config: EvmAccessManagerSubmitterConstructorConfig,
     protected readonly multiProvider: MultiProvider,
@@ -129,7 +133,15 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
       );
 
       const resolution = await this.resolveCall(call);
-      if (resolution.mode === AccessManagerCallMode.Execute) {
+      if (
+        resolution.mode === AccessManagerCallMode.Execute &&
+        (this.hasScheduledCalls || scheduledCalls.length > 0)
+      ) {
+        this.logger.info(
+          `Deferring ${call.label} via AccessManager ${this.config.accessManagerAddress} until after the earlier scheduled calls are executed`,
+        );
+        deferredExecuteTxs.push(this.buildExecuteTx(call));
+      } else if (resolution.mode === AccessManagerCallMode.Execute) {
         proposerTxs.push(this.buildExecuteTx(call));
       } else {
         proposerTxs.push(this.buildScheduleTx(call));
@@ -139,10 +151,14 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
     }
 
     if (scheduledCalls.length > 0) {
+      this.hasScheduledCalls = true;
       await this.logExecutionWindows(scheduledCalls);
     }
 
-    const proposerResult = await this.proposerSubmitter.submit(...proposerTxs);
+    const proposerResult =
+      proposerTxs.length > 0
+        ? await this.proposerSubmitter.submit(...proposerTxs)
+        : undefined;
     const proposerOutput: EvmReceipt[] = !proposerResult
       ? []
       : Array.isArray(proposerResult)

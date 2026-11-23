@@ -47,8 +47,10 @@ type EvmReceipt = TransactionReceipt;
 class CapturingSubmitter implements TxSubmitterInterface<ProtocolType.Ethereum> {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
   public readonly submitted: AnnotatedEV5Transaction[] = [];
+  public submitCalls = 0;
 
   async submit(...txs: AnnotatedEV5Transaction[]): Promise<EvmReceipt[]> {
+    this.submitCalls += 1;
     this.submitted.push(...txs);
     return [];
   }
@@ -354,15 +356,181 @@ describe(TxSubmitterType.ACCESS_MANAGER, () => {
         }),
       ).to.deep.equal([
         ['schedule', txs[0].data],
-        ['execute', txs[1].data],
         ['schedule', txs[2].data],
       ]);
-      expect(BigNumber.from(proposer.submitted[1].value).eq(VALUE)).to.be.true;
-      expect(proposer.submitted[2].value).to.be.undefined;
+      expect(proposer.submitted.every((tx) => tx.value === undefined)).to.be
+        .true;
+      expect(
+        deferred.map((tx) => {
+          const { name, args } = decode(tx);
+          return [name, args[1]];
+        }),
+      ).to.deep.equal([
+        ['execute', txs[0].data],
+        ['execute', txs[1].data],
+        ['execute', txs[2].data],
+      ]);
+      expect(deferred[0].value).to.be.undefined;
+      expect(BigNumber.from(deferred[1].value).eq(VALUE)).to.be.true;
+      expect(BigNumber.from(deferred[2].value).eq(VALUE)).to.be.true;
+    });
+
+    interface CallOrderCase {
+      name: string;
+      buildTxs: () => AnnotatedEV5Transaction[];
+      expectedProposerCalls: Array<[string, number]>;
+      expectedDeferredCalls: number[];
+    }
+
+    const callOrderCases: CallOrderCase[] = [
+      {
+        name: 'execute all calls right away when all are immediate',
+        buildTxs: () => [
+          handleTx(immediateRecipient, '0x0d'),
+          handleTx(immediateRecipient, '0x0e'),
+        ],
+        expectedProposerCalls: [
+          ['execute', 0],
+          ['execute', 1],
+        ],
+        expectedDeferredCalls: [],
+      },
+      {
+        name: 'execute an immediate call that precedes a delayed one',
+        buildTxs: () => [
+          handleTx(immediateRecipient, '0x0f'),
+          fooBarTx(delayedRecipient, 'delayed'),
+        ],
+        expectedProposerCalls: [
+          ['execute', 0],
+          ['schedule', 1],
+        ],
+        expectedDeferredCalls: [1],
+      },
+      {
+        name: 'defer an immediate call that follows a delayed one',
+        buildTxs: () => [
+          fooBarTx(delayedRecipient, 'delayed'),
+          handleTx(immediateRecipient, '0x10'),
+        ],
+        expectedProposerCalls: [['schedule', 0]],
+        expectedDeferredCalls: [0, 1],
+      },
+    ];
+
+    for (const testCase of callOrderCases) {
+      it(`should ${testCase.name}`, async () => {
+        const proposer = new CapturingSubmitter();
+        const submitter = await getCapturingAccessManagerSubmitter(
+          proposer,
+          admin.address,
+        );
+        const txs = testCase.buildTxs();
+
+        const { deferred } = splitOutput(await submitter.submit(...txs));
+
+        expect(
+          proposer.submitted.map((tx) => {
+            const { name, args } = decode(tx);
+            return [name, args[1]];
+          }),
+        ).to.deep.equal(
+          testCase.expectedProposerCalls.map(([name, index]) => [
+            name,
+            txs[index].data,
+          ]),
+        );
+        expect(
+          deferred.map((tx) => {
+            const { name, args } = decode(tx);
+            return [name, args[1]];
+          }),
+        ).to.deep.equal(
+          testCase.expectedDeferredCalls.map((index) => [
+            'execute',
+            txs[index].data,
+          ]),
+        );
+      });
+    }
+
+    it('should only schedule a delayed call followed by an immediate one and execute both in order after the delay', async () => {
+      const submitter = await getJsonRpcAccessManagerSubmitter(admin.address);
+      const txs = [
+        fooBarTx(delayedRecipient, 'delayed'),
+        handleTx(immediateRecipient, '0x11'),
+      ];
+
+      const { receipts, deferred } = splitOutput(
+        await submitter.submit(...txs),
+      );
+
+      expect(receipts).to.have.lengthOf(1);
+      const scheduleTx = await provider.getTransaction(
+        receipts[0].transactionHash,
+      );
+      const decodedSchedule = decode(scheduleTx);
+      expect(decodedSchedule.name).to.equal('schedule');
+      expect(decodedSchedule.args[1]).to.equal(txs[0].data);
+      expect(await delayedRecipient.lastCallMessage()).to.equal('');
+      expect(await immediateRecipient.lastData()).to.equal('0x');
       expect(deferred.map((tx) => decode(tx).args[1])).to.deep.equal([
         txs[0].data,
-        txs[2].data,
+        txs[1].data,
       ]);
+
+      await increaseTime(EXECUTION_DELAY);
+      for (const executeTx of deferred) {
+        await (await admin.sendTransaction(toTxRequest(executeTx))).wait();
+      }
+
+      expect(await delayedRecipient.lastCallMessage()).to.equal('delayed');
+      expect(await immediateRecipient.lastData()).to.equal('0x11');
+      expect((await provider.getBalance(immediateRecipient.address)).eq(VALUE))
+        .to.be.true;
+    });
+
+    it('should defer immediate calls in later submit calls on an instance that has scheduled a call', async () => {
+      const proposer = new CapturingSubmitter();
+      const submitter = await getCapturingAccessManagerSubmitter(
+        proposer,
+        admin.address,
+      );
+      const delayedTx = fooBarTx(delayedRecipient, 'delayed');
+      const immediateTx = handleTx(immediateRecipient, '0x12');
+
+      await submitter.submit(delayedTx);
+      expect(proposer.submitted).to.have.lengthOf(1);
+      const { deferred } = splitOutput(await submitter.submit(immediateTx));
+
+      expect(proposer.submitCalls).to.equal(1);
+      expect(proposer.submitted.map((tx) => decode(tx).name)).to.deep.equal([
+        'schedule',
+      ]);
+      expect(
+        deferred.map((tx) => {
+          const { name, args } = decode(tx);
+          return [name, args[1]];
+        }),
+      ).to.deep.equal([['execute', immediateTx.data]]);
+      expect(BigNumber.from(deferred[0].value).eq(VALUE)).to.be.true;
+
+      const freshProposer = new CapturingSubmitter();
+      const freshSubmitter = await getCapturingAccessManagerSubmitter(
+        freshProposer,
+        admin.address,
+      );
+      const { deferred: freshDeferred } = splitOutput(
+        await freshSubmitter.submit(immediateTx),
+      );
+
+      expect(
+        freshProposer.submitted.map((tx) => {
+          const { name, args } = decode(tx);
+          return [name, args[1]];
+        }),
+      ).to.deep.equal([['execute', immediateTx.data]]);
+      expect(freshDeferred).to.have.lengthOf(0);
     });
   });
 
