@@ -117,7 +117,7 @@
     "@emotion/react": "^11.13.3",
     "@emotion/styled": "^11.13.0",
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "26.3.0",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@storybook/addon-essentials": "^8.6.19",
     "@storybook/addon-interactions": "^8.6.19",
