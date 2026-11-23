@@ -41,8 +41,7 @@ async fn filtered_logs_headers_and_stall_recovery_use_one_owned_connection() -> 
         paymaster: Default::default(),
     }
     .event_filter();
-    let wakeup = Notify::new();
-    let wanted = AtomicU64::new(0);
+    let (wakeup, mut wakes) = watch::channel(IndexWakeup::default());
     let (polled_tx, mut polled_rx) = watch::channel(0);
     let (head_tx, mut head_rx) = mpsc::channel(1);
     let server = async {
@@ -63,6 +62,7 @@ async fn filtered_logs_headers_and_stall_recovery_use_one_owned_connection() -> 
                 "0x1",
                 Log {
                     block_number: Some(43.into()),
+                    block_hash: Some(H256::repeat_byte(43)),
                     removed: Some(removed),
                     ..Default::default()
                 },
@@ -88,7 +88,7 @@ async fn filtered_logs_headers_and_stall_recovery_use_one_owned_connection() -> 
         Ok::<_, eyre::Report>(())
     };
     let client = async {
-        let error = subscribe(&url, &filter, &wakeup, &wanted, &head_tx, &mut polled_rx, 1)
+        let error = subscribe(&url, &filter, &wakeup, &head_tx, &mut polled_rx, 1)
             .await
             .expect_err("stalled stream");
         tokio::time::resume();
@@ -98,10 +98,10 @@ async fn filtered_logs_headers_and_stall_recovery_use_one_owned_connection() -> 
         );
     };
     let observer = async {
-        wakeup.notified().await;
+        wakes.changed().await.expect("wake");
         let header = head_rx.recv().await.expect("header");
         assert_eq!((header.height, header.parent), (42, H256::repeat_byte(41)));
-        assert_eq!(wanted.load(Ordering::Relaxed), 43);
+        assert_eq!(wakes.borrow().height, 43);
         tokio::time::pause();
         sleep(HEAD_STALL_TIMEOUT * 2).await; // A stationary chain must not time out.
         polled_tx.send_replace(44);
@@ -115,8 +115,7 @@ async fn unanswered_subscriptions_close_the_socket() -> Result<()> {
     for pending in [1, 2] {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let url = Url::parse(&format!("ws://{}", listener.local_addr()?))?;
-        let wakeup = Notify::new();
-        let wanted = AtomicU64::new(0);
+        let (wakeup, _wakes) = watch::channel(IndexWakeup::default());
         let (_polled_tx, mut polled_rx) = watch::channel(0);
         let (head_tx, _head_rx) = mpsc::channel(1);
         let server = async {
@@ -139,16 +138,8 @@ async fn unanswered_subscriptions_close_the_socket() -> Result<()> {
             Ok::<_, eyre::Report>(())
         };
         let client = async {
-            let result = subscribe(
-                &url,
-                &Filter::new(),
-                &wakeup,
-                &wanted,
-                &head_tx,
-                &mut polled_rx,
-                1,
-            )
-            .await;
+            let result =
+                subscribe(&url, &Filter::new(), &wakeup, &head_tx, &mut polled_rx, 1).await;
             tokio::time::resume();
             assert!(result.is_err());
         };
@@ -174,8 +165,7 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
 
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let url = Url::parse(&format!("ws://{}", listener.local_addr()?))?;
-    let wakeup = Notify::new();
-    let wanted = AtomicU64::new(0);
+    let (wakeup, mut wakes) = watch::channel(IndexWakeup::default());
     let startup = PolledEventSlots {
         startup_head: 40,
         indexed: [0; 3],
@@ -227,7 +217,7 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
             )
             .await?;
         }
-        wakeup.notified().await; // Initial catch-up after all filters are installed.
+        wakes.changed().await?; // Initial catch-up after all filters are installed.
         if wait_for_baseline {
             tokio::time::pause();
             sleep(HEAD_STALL_TIMEOUT * 2 + Duration::from_millis(1)).await;
@@ -254,8 +244,8 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
                     }}
                 }}
             })).await?;
-            wakeup.notified().await;
-            assert_eq!(wanted.load(Ordering::Relaxed), slot);
+            wakes.changed().await?;
+            assert_eq!(wakes.borrow().height, slot);
         }
         // A new delivery was indexed without a notification. Keep the
         // connection open and the other subscriptions healthy.
@@ -272,7 +262,6 @@ async fn check_sealevel_stalled_stream(wait_for_baseline: bool) -> Result<()> {
         hyperlane_core::H256::zero(),
         hyperlane_core::H256::from_low_u64_be(1),
         &wakeup,
-        &wanted,
         polled_rx,
         1399811149,
     );

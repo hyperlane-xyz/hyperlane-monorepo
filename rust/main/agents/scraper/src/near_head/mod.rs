@@ -6,10 +6,7 @@ mod source;
 mod store;
 mod websocket;
 
-use std::{
-    sync::{atomic::AtomicU64, Arc},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use eyre::{ensure, Result};
 use hyperlane_base::{
@@ -19,7 +16,7 @@ use hyperlane_base::{
 use hyperlane_core::{ContractLocator, HyperlaneDomainProtocol, ReorgPeriod};
 use redact::Secret;
 use tokio::{
-    sync::{mpsc, watch, Mutex, Notify},
+    sync::{mpsc, watch, Notify},
     task::JoinHandle,
 };
 use url::Url;
@@ -150,11 +147,9 @@ pub async fn spawn(
         period,
         chunk_size,
         poll_interval,
-        wakeup: Notify::new(),
+        wakeup: watch::channel(runtime::IndexWakeup::default()).0,
         dispatch_wakeup: dispatch_wakeup.clone(),
         receipt_wakeup: watch::channel(()).0,
-        wanted: AtomicU64::new(0),
-        heads: Mutex::new(head_rx),
         polled_head: polled_head_tx,
         polled_event_slots: watch::channel(None).0,
         critical_failure_grace: CRITICAL_FAILURE_GRACE,
@@ -163,7 +158,7 @@ pub async fn spawn(
     };
     let task = tokio::spawn(async move {
         tokio::join!(
-            worker.run(),
+            worker.run(head_rx),
             websocket::run(websocket, &worker, &head_tx, polled_head_rx),
             enrichment::run(
                 &enrichment_store,

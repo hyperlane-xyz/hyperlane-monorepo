@@ -1,7 +1,5 @@
 //! Filter finalized program-account writes at the provider. Only HTTP indexing
 //! can advance the scraper's durable frontier.
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use eyre::{eyre, Result};
 use futures::StreamExt;
 use hyperlane_base::{settings::ChainConf, CoreMetrics};
@@ -9,13 +7,13 @@ use hyperlane_core::H256;
 use hyperlane_sealevel::finalized_event_filters;
 use solana_pubsub_client::nonblocking::pubsub_client::PubsubClient;
 use tokio::{
-    sync::{watch, Notify},
+    sync::watch,
     time::{interval, timeout, MissedTickBehavior},
 };
 use tracing::info;
 use url::Url;
 
-use super::{Worker, CONNECT_TIMEOUT, HEAD_STALL_TIMEOUT};
+use super::{IndexWakeup, Worker, CONNECT_TIMEOUT, HEAD_STALL_TIMEOUT};
 use crate::near_head::runtime::PolledEventSlots;
 
 pub(super) async fn subscribe(
@@ -32,7 +30,6 @@ pub(super) async fn subscribe(
         conf.addresses.mailbox,
         igp.address(),
         &worker.wakeup,
-        &worker.wanted,
         worker.polled_event_slots.subscribe(),
         conf.domain.id(),
     )
@@ -43,8 +40,7 @@ pub(super) async fn subscribe_events(
     url: &Url,
     mailbox: H256,
     igp_program: H256,
-    wakeup: &Notify,
-    wanted: &AtomicU64,
+    wakeup: &watch::Sender<IndexWakeup>,
     mut polled_events: watch::Receiver<Option<PolledEventSlots>>,
     domain: u32,
 ) -> Result<()> {
@@ -70,7 +66,11 @@ pub(super) async fn subscribe_events(
     let mut stall_check = interval(HEAD_STALL_TIMEOUT);
     stall_check.reset();
     stall_check.set_missed_tick_behavior(MissedTickBehavior::Delay);
-    wakeup.notify_one(); // Catch up across reconnects.
+    IndexWakeup {
+        height: 0,
+        reconcile: true,
+    }
+    .send(wakeup);
     loop {
         let (stream, update) = tokio::select! {
             update = dispatch.next() => (0, update),
@@ -94,8 +94,10 @@ pub(super) async fn subscribe_events(
             .context
             .slot;
         received[stream] = received[stream].max(slot);
-        if slot > wanted.fetch_max(slot, Ordering::Relaxed) {
-            wakeup.notify_one();
+        IndexWakeup {
+            height: slot,
+            reconcile: false,
         }
+        .send(wakeup);
     }
 }

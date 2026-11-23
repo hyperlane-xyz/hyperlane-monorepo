@@ -1,11 +1,5 @@
 //! Optional wake-up hints. HTTP range reads and persisted progress remain authoritative.
-use std::{
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use ethers::types::{Block, Filter, Log, H256};
 use eyre::{eyre, Result};
@@ -14,7 +8,7 @@ use hyperlane_base::{settings::ChainConf, CoreMetrics};
 use redact::Secret;
 use serde_json::{json, Value};
 use tokio::{
-    sync::{mpsc, watch, Notify},
+    sync::{mpsc, watch},
     time::{sleep, timeout},
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
@@ -22,7 +16,7 @@ use tracing::{info, warn};
 use url::Url;
 
 use super::{
-    runtime::Worker,
+    runtime::{IndexWakeup, Worker},
     source::{EvmContracts, Header},
 };
 
@@ -54,7 +48,6 @@ pub(super) async fn run(
                     url.expose_secret(),
                     &contracts.event_filter(),
                     &worker.wakeup,
-                    &worker.wanted,
                     heads_tx,
                     &mut polled_head,
                     domain,
@@ -81,8 +74,7 @@ pub(super) async fn run(
 async fn subscribe(
     url: &Url,
     filter: &Filter,
-    wakeup: &Notify,
-    wanted: &AtomicU64,
+    wakeup: &watch::Sender<IndexWakeup>,
     heads_tx: &mpsc::Sender<Header>,
     polled_head: &mut watch::Receiver<u64>,
     domain: u32,
@@ -108,6 +100,7 @@ async fn subscribe(
     tokio::pin!(subscribing);
     let mut polled_height = *polled_head.borrow_and_update();
     let mut received_height = polled_height;
+    let mut last_log = (0, None);
     let mut lagging = false;
     let stalled = sleep(HEAD_STALL_TIMEOUT);
     tokio::pin!(stalled);
@@ -144,7 +137,7 @@ async fn subscribe(
                     }
                     if logs.is_some() && heads.is_some() {
                         info!(domain, "Event/head WebSocket subscribed");
-                        wakeup.notify_one(); // Reconcile missed events after reconnect.
+                        IndexWakeup { height: 0, reconcile: true }.send(wakeup);
                     }
                     continue;
                 }
@@ -152,11 +145,15 @@ async fn subscribe(
                 let Some(subscription) = params["subscription"].as_str() else { continue };
                 if Some(subscription) == logs.as_deref() {
                     let log: Log = serde_json::from_value(params["result"].clone())?;
-                    if let Some(height) = log.block_number {
-                        wanted.fetch_max(height.as_u64(), Ordering::Relaxed);
+                    let height = log.block_number.map(|height| height.as_u64()).unwrap_or_default();
+                    let block = (height, log.block_hash);
+                    let removed = log.removed.unwrap_or_default();
+                    let replacement = height == last_log.0 && block.1 != last_log.1;
+                    if removed || height >= last_log.0 {
+                        last_log = block;
                     }
-                    // Includes removed logs; the worker reconciles canonical ancestry.
-                    wakeup.notify_one();
+                    let reconcile = removed || replacement || log.block_number.is_none() || block.1.is_none();
+                    IndexWakeup { height, reconcile }.send(wakeup);
                 } else if Some(subscription) == heads.as_deref() {
                     let head: Block<H256> = serde_json::from_value(params["result"].clone())?;
                     let header = Header {
