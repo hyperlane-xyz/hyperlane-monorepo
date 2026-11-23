@@ -45,6 +45,9 @@ extend-ignore-identifiers-re = [
   "val[A-Z]{2,}",
 ]
 
+[default.extend-identifiers]
+VeruLink = "VeruLink"
+
 [default.extend-words]
 # PostgreSQL Block Range Index
 BRIN = "BRIN"
