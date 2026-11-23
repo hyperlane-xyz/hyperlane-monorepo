@@ -1,7 +1,12 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import { stringify as yamlStringify } from 'yaml';
 
-import { assert } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  stringifyObject,
+  tryParseJsonOrYaml,
+} from '@hyperlane-xyz/utils';
 
 import { TokenFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { IsmType } from '../ism/types.js';
@@ -13,6 +18,9 @@ import {
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
   HypTokenRouterConfigMailboxOptionalSchema,
+  XERC20AevoCapType,
+  XERC20TokenConfigSchema,
+  XERC20Type,
   assertFeeHookSupported,
   assertTokenFeeDeploySupported,
   assertTokenFeeUpdateSupported,
@@ -880,5 +888,659 @@ describe('WarpRouteDeployConfigSchema refine', () => {
       const result = WarpRouteDeployConfigSchema.safeParse(config);
       expect(result.success).to.be.true;
     });
+  });
+});
+
+describe('XERC20TokenConfigSchema Aevo limits', () => {
+  const xERC20Config = (warpRouteLimits: unknown, extraBridges?: unknown) => ({
+    type: TokenType.XERC20,
+    token: SOME_ADDRESS,
+    xERC20: { warpRouteLimits, extraBridges },
+  });
+
+  const POSITIVE_MESSAGE = 'Must be positive';
+  const UINT256_MESSAGE = 'A raw Aevo cap must fit a uint256';
+  const EXTRA_BRIDGE_MESSAGE =
+    'Aevo limits apply to the router only: extra minters of an Aevo token are not modelled';
+  const ROUTER_ONLY_MESSAGE =
+    "An Aevo token's limits apply to the router only: extraBridges are not supported for it";
+  const STANDARD_LIMITS = { type: XERC20Type.Standard, mint: '1', burn: '1' };
+  const VELO_LIMITS = {
+    type: XERC20Type.Velo,
+    bufferCap: '1',
+    rateLimitPerSecond: '1',
+  };
+
+  describe('accepted', () => {
+    interface Case {
+      name: string;
+      // As it is written.
+      limits: object;
+      // As it is parsed, when that is not as it is written.
+      parsed?: object;
+    }
+
+    const rawCap = (value: unknown): object => ({
+      type: XERC20Type.Aevo,
+      authorized: true,
+      cap: { type: XERC20AevoCapType.Raw, value },
+    });
+    const parsedRawCap = (value: string): object => rawCap(value);
+
+    const cases: Case[] = [
+      {
+        name: 'a minter that is not authorized',
+        limits: { type: XERC20Type.Aevo, authorized: false },
+      },
+      {
+        name: 'an authorized minter without a bound',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Unlimited },
+        },
+      },
+      // A raw cap is parsed to a canonical decimal string, whatever form it is
+      // written in.
+      {
+        name: 'a raw cap written as a decimal string',
+        limits: rawCap('1000'),
+        parsed: parsedRawCap('1000'),
+      },
+      {
+        name: 'a raw cap written as a safe integer',
+        limits: rawCap(1000),
+        parsed: parsedRawCap('1000'),
+      },
+      {
+        name: 'a raw cap written as a bigint',
+        limits: rawCap(1000n),
+        parsed: parsedRawCap('1000'),
+      },
+      {
+        name: 'a raw cap of one',
+        limits: rawCap('1'),
+        parsed: parsedRawCap('1'),
+      },
+      {
+        name: 'a raw cap written as a decimal string with a leading zero',
+        limits: rawCap('01000'),
+        parsed: parsedRawCap('1000'),
+      },
+      {
+        name: 'the largest raw cap a uint256 holds, as a string',
+        limits: rawCap(ethers.constants.MaxUint256.toString()),
+        parsed: parsedRawCap(ethers.constants.MaxUint256.toString()),
+      },
+      {
+        name: 'the largest raw cap a uint256 holds, as a bigint',
+        limits: rawCap(ethers.constants.MaxUint256.toBigInt()),
+        parsed: parsedRawCap(ethers.constants.MaxUint256.toString()),
+      },
+      // The strings a registry file holds, which the rows above, written
+      // through the enum, do not pin: renaming an enum value fails only these.
+      {
+        name: 'an unlimited cap in its wire form',
+        limits: {
+          type: 'aevo',
+          authorized: true,
+          cap: { type: 'unlimited' },
+        },
+      },
+      {
+        name: 'a raw cap in its wire form',
+        limits: {
+          type: 'aevo',
+          authorized: true,
+          cap: { type: 'raw', value: '1000000' },
+        },
+        parsed: parsedRawCap('1000000'),
+      },
+    ];
+
+    for (const c of cases) {
+      it(`accepts ${c.name}`, () => {
+        const result = XERC20TokenConfigSchema.safeParse(
+          xERC20Config(c.limits),
+        );
+
+        expect(result.success).to.equal(true);
+        assert(result.success, 'Expected the Aevo limits to parse');
+        expect(result.data.xERC20?.warpRouteLimits).to.deep.equal(
+          c.parsed ?? c.limits,
+        );
+      });
+    }
+
+    // A cap above 2^53 is the case a number would silently round. It is held
+    // as a decimal string, so a file carries it quoted and reads it back
+    // exactly.
+    const largeCaps = [10n ** 18n, ethers.constants.MaxUint256.toBigInt()];
+    const configWithCap = (value: unknown) => ({
+      type: TokenType.XERC20,
+      token: SOME_ADDRESS,
+      xERC20: { warpRouteLimits: rawCap(value) },
+    });
+
+    for (const cap of largeCaps) {
+      it(`reads back a derived raw cap of ${cap} as stringifyObject writes it`, () => {
+        const derived = configWithCap(cap.toString());
+
+        const written = stringifyObject(derived, 'yaml');
+        const file = tryParseJsonOrYaml(written);
+        assert(file.success, 'Expected the file to parse');
+        const result = XERC20TokenConfigSchema.safeParse(file.data);
+
+        // A string in the file, as a number would have been rounded.
+        expect(file.data.xERC20.warpRouteLimits.cap.value).to.equal(
+          cap.toString(),
+        );
+        assert(result.success, 'Expected the file to parse');
+        expect(result.data).to.deep.equal(derived);
+      });
+
+      // What a deploy does: the config a user wrote is parsed, and the parsed
+      // config is written to the registry, whose writer is a plain stringify of
+      // the yaml package (toYamlString of @hyperlane-xyz/registry, which the
+      // SDK does not depend on, with the same options). A bigint would be
+      // written as an integer that reads back as a rounded number.
+      it(`reads back a raw cap of ${cap} as the registry writes a parsed config`, () => {
+        const parsed = XERC20TokenConfigSchema.parse(configWithCap(cap));
+
+        const written = yamlStringify(parsed, {
+          indent: 2,
+          sortMapEntries: true,
+          aliasDuplicateObjects: false,
+        });
+        const file = tryParseJsonOrYaml(written);
+        assert(file.success, 'Expected the registry file to parse');
+        const result = XERC20TokenConfigSchema.safeParse(file.data);
+
+        // A string in the file, as a number would have been rounded.
+        expect(file.data.xERC20.warpRouteLimits.cap.value).to.equal(
+          cap.toString(),
+        );
+        assert(result.success, 'Expected the registry file to parse');
+        expect(result.data).to.deep.equal(parsed);
+        expect(result.data.xERC20?.warpRouteLimits).to.deep.equal(
+          parsedRawCap(cap.toString()),
+        );
+      });
+    }
+
+    // The control of the rejections below: the refinement turns away Aevo
+    // limits alone, not every entry of extraBridges.
+    interface ExtraBridgesCase {
+      name: string;
+      warpRouteLimits: object;
+      extraBridgeLimits: object;
+    }
+
+    const extraBridgesCases: ExtraBridgesCase[] = [
+      {
+        name: 'Standard limits as an extra bridge of a Standard route',
+        warpRouteLimits: { type: XERC20Type.Standard, mint: '1', burn: '1' },
+        extraBridgeLimits: { type: XERC20Type.Standard, mint: '2', burn: '2' },
+      },
+      {
+        name: 'Velodrome limits as an extra bridge of a Velodrome route',
+        warpRouteLimits: {
+          type: XERC20Type.Velo,
+          bufferCap: '1',
+          rateLimitPerSecond: '1',
+        },
+        extraBridgeLimits: {
+          type: XERC20Type.Velo,
+          bufferCap: '2',
+          rateLimitPerSecond: '2',
+        },
+      },
+    ];
+
+    for (const c of extraBridgesCases) {
+      it(`accepts ${c.name}`, () => {
+        const result = XERC20TokenConfigSchema.safeParse(
+          xERC20Config(c.warpRouteLimits, [
+            { lockbox: SOME_ADDRESS, limits: c.extraBridgeLimits },
+          ]),
+        );
+
+        expect(result.success).to.equal(true);
+      });
+    }
+
+    // A route over an Aevo token lists no extra bridge: absent and empty are
+    // the same.
+    const noExtraBridges: [string, unknown][] = [
+      ['absent', undefined],
+      ['empty', []],
+    ];
+
+    for (const [name, extraBridges] of noExtraBridges) {
+      it(`accepts Aevo limits with extraBridges ${name}`, () => {
+        const result = XERC20TokenConfigSchema.safeParse(
+          xERC20Config(
+            { type: XERC20Type.Aevo, authorized: false },
+            extraBridges,
+          ),
+        );
+
+        expect(result.success).to.equal(true);
+      });
+    }
+
+    it('accepts a config that declares no xERC20 limits at all', () => {
+      const result = XERC20TokenConfigSchema.safeParse({
+        type: TokenType.XERC20,
+        token: SOME_ADDRESS,
+      });
+
+      expect(result.success).to.equal(true);
+    });
+  });
+
+  describe('rejected', () => {
+    interface Case {
+      name: string;
+      limits: unknown;
+      // The code of the one issue, and where it points.
+      code: string;
+      path: string;
+    }
+
+    const CAP_PATH = 'xERC20.warpRouteLimits.cap';
+    const rawCap = (value: unknown) => ({
+      type: XERC20Type.Aevo,
+      authorized: true,
+      cap: { type: XERC20AevoCapType.Raw, value },
+    });
+
+    // What the refinements turn away, which is a number the schema of a big
+    // number accepts: each says why in its own message. Zero is how the token
+    // leaves a minter without a bound, which a config declares as unlimited.
+    interface RefinedCase {
+      name: string;
+      value: unknown;
+      message: string;
+    }
+
+    const refinedCases: RefinedCase[] = [
+      {
+        name: "a raw value of '0', which is not how a minter is left unbound",
+        value: '0',
+        message: POSITIVE_MESSAGE,
+      },
+      { name: 'a raw value of 0', value: 0, message: POSITIVE_MESSAGE },
+      { name: 'a raw value of 0n', value: 0n, message: POSITIVE_MESSAGE },
+      {
+        name: "a raw value of '00', which is zero",
+        value: '00',
+        message: POSITIVE_MESSAGE,
+      },
+      { name: 'a negative bigint', value: -1n, message: POSITIVE_MESSAGE },
+      {
+        name: 'a decimal string beyond a uint256',
+        value: ethers.constants.MaxUint256.add(1).toString(),
+        message: UINT256_MESSAGE,
+      },
+      {
+        name: 'a bigint beyond a uint256',
+        value: ethers.constants.MaxUint256.add(1).toBigInt(),
+        message: UINT256_MESSAGE,
+      },
+    ];
+
+    for (const c of refinedCases) {
+      it(`rejects ${c.name}`, () => {
+        const result = XERC20TokenConfigSchema.safeParse(
+          xERC20Config(rawCap(c.value)),
+        );
+
+        expect(result.success).to.equal(false);
+        assert(!result.success, 'Expected the Aevo limits to be rejected');
+        expect(result.error.issues).to.have.lengthOf(1);
+        const [issue] = result.error.issues;
+        expect(issue.code).to.equal('custom');
+        expect(issue.message).to.equal(c.message);
+        expect(issue.path.join('.')).to.equal(`${CAP_PATH}.value`);
+      });
+    }
+
+    const cases: Case[] = [
+      // What the schema of a big number turns away, with the code it does so
+      // with.
+      {
+        name: "a raw value of '-1'",
+        limits: rawCap('-1'),
+        code: 'invalid_format',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a negative safe integer',
+        limits: rawCap(-1),
+        code: 'too_small',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a fractional string',
+        limits: rawCap('1.5'),
+        code: 'invalid_format',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a fractional number',
+        limits: rawCap(1.5),
+        code: 'invalid_union',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a string in exponent form',
+        limits: rawCap('1e3'),
+        code: 'invalid_format',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a string in hex',
+        limits: rawCap('0x10'),
+        code: 'invalid_format',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a string with a space',
+        limits: rawCap(' 1'),
+        code: 'invalid_format',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'an empty string',
+        limits: rawCap(''),
+        code: 'invalid_format',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: "the string 'unlimited'",
+        limits: rawCap('unlimited'),
+        code: 'invalid_format',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a string that is a word',
+        limits: rawCap('infinite'),
+        code: 'invalid_format',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'an unsafe integer',
+        limits: rawCap(2 ** 60),
+        code: 'too_big',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a null',
+        limits: rawCap(null),
+        code: 'invalid_union',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a raw cap without a value',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw },
+        },
+        code: 'invalid_union',
+        path: `${CAP_PATH}.value`,
+      },
+      {
+        name: 'a value on an unlimited cap',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Unlimited, value: '1000' },
+        },
+        code: 'unrecognized_keys',
+        path: CAP_PATH,
+      },
+      {
+        name: 'an unknown key on a raw cap',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw, value: '1000', extra: true },
+        },
+        code: 'unrecognized_keys',
+        path: CAP_PATH,
+      },
+      {
+        name: "a cap given as the string 'unlimited'",
+        limits: { type: XERC20Type.Aevo, authorized: true, cap: 'unlimited' },
+        code: 'invalid_type',
+        path: CAP_PATH,
+      },
+      {
+        name: 'a cap given as a numeric string',
+        limits: { type: XERC20Type.Aevo, authorized: true, cap: '1000' },
+        code: 'invalid_type',
+        path: CAP_PATH,
+      },
+      {
+        name: 'a cap of an unknown type',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: 'infinite' },
+        },
+        code: 'invalid_union',
+        path: `${CAP_PATH}.type`,
+      },
+      {
+        name: 'a cap type that is differently cased',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: 'Unlimited' },
+        },
+        code: 'invalid_union',
+        path: `${CAP_PATH}.type`,
+      },
+      {
+        name: 'a cap without a type',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { value: '1000' },
+        },
+        code: 'invalid_union',
+        path: `${CAP_PATH}.type`,
+      },
+      {
+        name: 'an authorized minter without a cap',
+        limits: { type: XERC20Type.Aevo, authorized: true },
+        code: 'invalid_type',
+        path: CAP_PATH,
+      },
+      {
+        name: 'a raw cap on a minter that is not authorized',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: false,
+          cap: { type: XERC20AevoCapType.Raw, value: '1000' },
+        },
+        code: 'unrecognized_keys',
+        path: 'xERC20.warpRouteLimits',
+      },
+      {
+        name: 'an unlimited cap on a minter that is not authorized',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: false,
+          cap: { type: XERC20AevoCapType.Unlimited },
+        },
+        code: 'unrecognized_keys',
+        path: 'xERC20.warpRouteLimits',
+      },
+      {
+        name: 'limits that leave out whether the minter is authorized',
+        limits: {
+          type: XERC20Type.Aevo,
+          cap: { type: XERC20AevoCapType.Unlimited },
+        },
+        code: 'invalid_union',
+        path: 'xERC20.warpRouteLimits.authorized',
+      },
+      {
+        name: 'an authorized that is not a boolean',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: 'true',
+          cap: { type: XERC20AevoCapType.Unlimited },
+        },
+        code: 'invalid_union',
+        path: 'xERC20.warpRouteLimits.authorized',
+      },
+    ];
+
+    for (const c of cases) {
+      it(`rejects ${c.name}`, () => {
+        const result = XERC20TokenConfigSchema.safeParse(
+          xERC20Config(c.limits),
+        );
+
+        expect(result.success).to.equal(false);
+        assert(!result.success, 'Expected the Aevo limits to be rejected');
+        expect(result.error.issues).to.have.lengthOf(1);
+        const [issue] = result.error.issues;
+        expect(issue.code).to.equal(c.code);
+        expect(issue.path.join('.')).to.equal(c.path);
+      });
+    }
+
+    // Which other contracts may mint an Aevo token is not modelled, so Aevo
+    // limits belong to the router and an entry of extraBridges cannot hold
+    // them, whatever it declares.
+    interface ExtraBridgeCase {
+      name: string;
+      limits: object;
+    }
+
+    const extraBridgeCases: ExtraBridgeCase[] = [
+      {
+        name: 'a minter that is not authorized',
+        limits: { type: XERC20Type.Aevo, authorized: false },
+      },
+      {
+        name: 'an authorized minter with a raw cap',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw, value: '1000' },
+        },
+      },
+      {
+        name: 'an authorized minter without a bound',
+        limits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Unlimited },
+        },
+      },
+    ];
+
+    // Over a Standard route, which rejects nothing else about them.
+    for (const c of extraBridgeCases) {
+      it(`rejects ${c.name} as an extra bridge`, () => {
+        const result = XERC20TokenConfigSchema.safeParse(
+          xERC20Config(STANDARD_LIMITS, [
+            { lockbox: SOME_ADDRESS, limits: c.limits },
+          ]),
+        );
+
+        expect(result.success).to.equal(false);
+        assert(!result.success, 'Expected the Aevo limits to be rejected');
+        expect(result.error.issues.map((issue) => issue.message)).to.deep.equal(
+          [EXTRA_BRIDGE_MESSAGE],
+        );
+        expect(result.error.issues[0].path.join('.')).to.equal(
+          'xERC20.extraBridges.0.limits',
+        );
+      });
+    }
+
+    it('names the index of the Aevo extra bridge among valid ones', () => {
+      const result = XERC20TokenConfigSchema.safeParse(
+        xERC20Config(STANDARD_LIMITS, [
+          { lockbox: SOME_ADDRESS, limits: STANDARD_LIMITS },
+          {
+            lockbox: SOME_ADDRESS,
+            limits: { type: XERC20Type.Aevo, authorized: false },
+          },
+        ]),
+      );
+
+      expect(result.success).to.equal(false);
+      assert(!result.success, 'Expected the Aevo limits to be rejected');
+      expect(
+        result.error.issues.map((issue) => issue.path.join('.')),
+      ).to.deep.equal(['xERC20.extraBridges.1.limits']);
+    });
+
+    interface RouterOnlyCase {
+      name: string;
+      warpRouteLimits: object;
+      extraBridgeLimits: object;
+      messages: string[];
+    }
+
+    const routerOnlyCases: RouterOnlyCase[] = [
+      {
+        name: 'a Standard extra bridge',
+        warpRouteLimits: { type: XERC20Type.Aevo, authorized: false },
+        extraBridgeLimits: STANDARD_LIMITS,
+        messages: [ROUTER_ONLY_MESSAGE],
+      },
+      {
+        name: 'a Velodrome extra bridge',
+        warpRouteLimits: { type: XERC20Type.Aevo, authorized: false },
+        extraBridgeLimits: VELO_LIMITS,
+        messages: [ROUTER_ONLY_MESSAGE],
+      },
+      {
+        name: 'a Standard extra bridge, for an authorized router',
+        warpRouteLimits: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw, value: '1000' },
+        },
+        extraBridgeLimits: STANDARD_LIMITS,
+        messages: [ROUTER_ONLY_MESSAGE],
+      },
+      {
+        name: 'an Aevo extra bridge, which is turned away as well',
+        warpRouteLimits: { type: XERC20Type.Aevo, authorized: false },
+        extraBridgeLimits: { type: XERC20Type.Aevo, authorized: false },
+        messages: [EXTRA_BRIDGE_MESSAGE, ROUTER_ONLY_MESSAGE],
+      },
+    ];
+
+    for (const c of routerOnlyCases) {
+      it(`rejects Aevo limits with ${c.name}`, () => {
+        const result = XERC20TokenConfigSchema.safeParse(
+          xERC20Config(c.warpRouteLimits, [
+            { lockbox: SOME_ADDRESS, limits: c.extraBridgeLimits },
+          ]),
+        );
+
+        expect(result.success).to.equal(false);
+        assert(!result.success, 'Expected the extra bridge to be rejected');
+        expect(
+          result.error.issues.map((issue) => issue.message),
+        ).to.have.members(c.messages);
+        expect(
+          result.error.issues
+            .filter((issue) => issue.message === ROUTER_ONLY_MESSAGE)
+            .map((issue) => issue.path.join('.')),
+        ).to.deep.equal(['xERC20.extraBridges']);
+      });
+    }
   });
 });

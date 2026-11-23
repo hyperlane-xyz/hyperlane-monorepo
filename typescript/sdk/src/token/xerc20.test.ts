@@ -3,7 +3,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { ethers } from 'ethers';
 import sinon from 'sinon';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { EIP1967_IMPLEMENTATION_SLOT } from '../deploy/proxy.js';
@@ -11,11 +11,23 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
+import {
+  AEVO_ABSENT_SELECTORS,
+  AEVO_OWNER_SELECTORS,
+  AEVO_SELECTORS,
+  AEVO_USDC_IMPLEMENTATION,
+  AEVO_USDC_PROXY,
+  AEVO_WETH_IMPLEMENTATION,
+  aevoTokenCode,
+  aevoUsdcImplementationSlotValue,
+} from '../test/aevoTokenFixture.js';
 
 import { XERC20TokenExtraBridgesLimits, XERC20Type } from './types.js';
 import {
+  AEVO_XERC20_SELECTORS,
   BRIDGE_LIMITS_SET_EVENT_SELECTOR,
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
+  XERC20_AEVO_ABI,
 } from './xerc20-abi.js';
 import {
   UnknownXERC20TypeError,
@@ -44,6 +56,8 @@ function storageAddress(address: string): string {
 
 interface Case {
   name: string;
+  // The token the type is derived for, the proxy at PROXY_ADDRESS unless set.
+  address?: string;
   // Bytecode returned by provider.getCode() keyed by address.
   code: Record<string, string>;
   // Storage values returned by provider.getStorageAt() keyed by slot. When a
@@ -121,6 +135,66 @@ const cases: Case[] = [
     expected: { type: XERC20Type.Standard },
   },
   {
+    // The recorded Aevo USDC proxy holds none of the selectors itself, so the
+    // type can only come from the implementation its slot points to.
+    name: 'returns Aevo for the real USDC proxy through its implementation',
+    address: AEVO_USDC_PROXY,
+    code: {
+      [AEVO_USDC_PROXY]: aevoTokenCode(AEVO_USDC_PROXY),
+      [AEVO_USDC_IMPLEMENTATION]: aevoTokenCode(AEVO_USDC_IMPLEMENTATION),
+    },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: aevoUsdcImplementationSlotValue(),
+    },
+    expected: { type: XERC20Type.Aevo },
+  },
+  {
+    // The implementation carries every Aevo selector, so the proxy path must
+    // never be consulted.
+    name: 'returns Aevo for the real WETH implementation without inspecting a proxy',
+    address: AEVO_WETH_IMPLEMENTATION,
+    code: {
+      [AEVO_WETH_IMPLEMENTATION]: aevoTokenCode(AEVO_WETH_IMPLEMENTATION),
+    },
+    storage: {},
+    expected: { type: XERC20Type.Aevo },
+  },
+  {
+    name: 'prefers Standard over Aevo when both selector sets are present',
+    code: {
+      [PROXY_ADDRESS]: `${aevoTokenCode(AEVO_USDC_IMPLEMENTATION)}${setLimitsSelector}`,
+    },
+    storage: {},
+    expected: { type: XERC20Type.Standard },
+  },
+  {
+    name: 'prefers Velo over Aevo when both selector sets are present',
+    code: {
+      [PROXY_ADDRESS]: `${aevoTokenCode(AEVO_USDC_IMPLEMENTATION)}${setBufferCapSelector}`,
+    },
+    storage: {},
+    expected: { type: XERC20Type.Velo },
+  },
+  {
+    // Missing one selector means the token cannot be read and written through
+    // the Aevo interface, so it is not taken for one.
+    name: 'throws when only some of the Aevo selectors are present',
+    code: {
+      [PROXY_ADDRESS]: ensure0x(
+        AEVO_XERC20_SELECTORS.slice(1).map(strip0x).join(''),
+      ),
+    },
+    storage: {
+      [EIP1967_IMPLEMENTATION_SLOT]: storageAddress(
+        ethers.constants.AddressZero,
+      ),
+    },
+    expected: {
+      errorIncludes:
+        'does not implement Standard, Velodrome or Aevo XERC20 interface',
+    },
+  },
+  {
     // Nothing behind the address to inspect, so the zero implementation must
     // not be fetched as though it were one.
     name: 'throws when the implementation slot is empty',
@@ -132,7 +206,7 @@ const cases: Case[] = [
     },
     expected: {
       errorIncludes:
-        'does not implement Standard or Velodrome XERC20 interface',
+        'does not implement Standard, Velodrome or Aevo XERC20 interface',
     },
   },
   {
@@ -147,7 +221,7 @@ const cases: Case[] = [
     },
     expected: {
       errorIncludes:
-        'does not implement Standard or Velodrome XERC20 interface',
+        'does not implement Standard, Velodrome or Aevo XERC20 interface',
     },
   },
   {
@@ -199,7 +273,7 @@ describe('deriveXERC20TokenType', () => {
         const type = await deriveXERC20TokenType(
           multiProvider,
           TestChainName.test1,
-          PROXY_ADDRESS,
+          c.address ?? PROXY_ADDRESS,
         );
         expect(type).to.equal(c.expected.type);
       } else {
@@ -208,7 +282,7 @@ describe('deriveXERC20TokenType', () => {
           await deriveXERC20TokenType(
             multiProvider,
             TestChainName.test1,
-            PROXY_ADDRESS,
+            c.address ?? PROXY_ADDRESS,
           );
         } catch (e) {
           if (e instanceof Error) {
@@ -220,6 +294,57 @@ describe('deriveXERC20TokenType', () => {
       }
     });
   }
+});
+
+describe('Aevo token fixture', () => {
+  const aevoSelectors = Object.values(AEVO_SELECTORS);
+  const absentSelectors = AEVO_ABSENT_SELECTORS;
+
+  it('detects on the selectors the Aevo adapter encodes', () => {
+    expect(AEVO_XERC20_SELECTORS).to.have.members(aevoSelectors);
+  });
+
+  // The owner of the token is read and handed over through two more functions,
+  // which do not identify it.
+  it('encodes the owner functions with the selectors the token carries', () => {
+    const abi = new ethers.utils.Interface(XERC20_AEVO_ABI);
+
+    expect(abi.getSighash('owner')).to.equal(AEVO_OWNER_SELECTORS.owner);
+    expect(abi.getSighash('setOwner')).to.equal(AEVO_OWNER_SELECTORS.setOwner);
+    for (const selector of Object.values(AEVO_OWNER_SELECTORS)) {
+      expect(AEVO_XERC20_SELECTORS).to.not.include(selector);
+    }
+  });
+
+  for (const implementation of [
+    AEVO_USDC_IMPLEMENTATION,
+    AEVO_WETH_IMPLEMENTATION,
+  ]) {
+    it(`carries every Aevo selector and no Standard or Velodrome one in ${implementation}`, () => {
+      const code = aevoTokenCode(implementation);
+      for (const selector of aevoSelectors) {
+        expect(code).to.include(strip0x(selector));
+      }
+      for (const selector of absentSelectors) {
+        expect(code).to.not.include(strip0x(selector));
+      }
+    });
+
+    it(`carries owner() and setOwner(address) in ${implementation}`, () => {
+      const code = aevoTokenCode(implementation);
+      for (const selector of Object.values(AEVO_OWNER_SELECTORS)) {
+        expect(code).to.include(strip0x(selector));
+      }
+    });
+  }
+
+  it('records a proxy that holds none of the selectors itself', () => {
+    const code = aevoTokenCode(AEVO_USDC_PROXY);
+    expect((code.length - 2) / 2).to.equal(657);
+    for (const selector of [...aevoSelectors, ...absentSelectors]) {
+      expect(code).to.not.include(strip0x(selector));
+    }
+  });
 });
 
 describe('UnknownXERC20TypeError', () => {
@@ -611,6 +736,47 @@ describe('getExtraLockBoxConfigs', () => {
       expect(result).to.deep.equal(c.expected);
     });
   }
+
+  describe('of an Aevo token', () => {
+    interface Case {
+      name: string;
+      type: XERC20Type | undefined;
+    }
+
+    // Which other contracts may mint an Aevo token is not modelled, so nothing
+    // is scanned and no limit is read, whether the caller knew the type or not.
+    const cases: Case[] = [
+      {
+        name: 'answers none when the caller passes the type',
+        type: XERC20Type.Aevo,
+      },
+      { name: 'answers none when it derives the type', type: undefined },
+    ];
+
+    for (const c of cases) {
+      it(c.name, async () => {
+        const provider = multiProvider.getProvider(TestChainName.test1);
+        sandbox
+          .stub(provider, 'getCode')
+          .resolves(aevoTokenCode(AEVO_USDC_IMPLEMENTATION));
+        sandbox.stub(provider, 'call').rejects(new Error('Unexpected call'));
+        sandbox
+          .stub(EvmEventLogsReader.prototype, 'getLogsByTopic')
+          .rejects(new Error('Unexpected log read'));
+
+        const result = await getExtraLockBoxConfigs({
+          chain: TestChainName.test1,
+          xERC20Address: XERC20_ADDRESS,
+          multiProvider,
+          warpRouteAddress: WARP_ROUTER,
+          type: c.type,
+        });
+
+        expect(result).to.deep.equal([]);
+        sinon.assert.notCalled(deploymentBlock);
+      });
+    }
+  });
 
   interface TopicCase {
     name: string;

@@ -7,11 +7,12 @@ import {
   XERC20ExtraBridgeType,
   XERC20Type,
   type XERC20TokenExtraBridgesLimits,
+  type XERC20VSLimitConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { isManagedLockboxExtraBridge } from './Metrics.js';
 
-const limits = {
+const limits: XERC20VSLimitConfig = {
   type: XERC20Type.Velo,
   bufferCap: '1',
   rateLimitPerSecond: '1',

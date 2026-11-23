@@ -1,12 +1,17 @@
-import { PopulatedTransaction } from 'ethers';
+import { PopulatedTransaction, utils } from 'ethers';
 
 import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
+  EvmChainId,
   ProtocolType,
   assert,
+  eqAddress,
+  isNullish,
+  isZeroishAddressEvm,
   normalizeAddress,
   rootLogger,
+  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
@@ -21,17 +26,103 @@ import { ChainName, DeployedOwnableConfig, OwnableConfig } from '../types.js';
 
 import {
   EvmXERC20Reader,
+  VeloXERC20Limits,
   XERC20Limits,
   XERC20LimitsMap,
   limitsAreZero,
   limitsMatch,
 } from './EvmXERC20Reader.js';
 import {
+  EvmXERC20AevoAdapter,
   EvmXERC20Adapter,
   EvmXERC20VSAdapter,
 } from './adapters/EvmTokenAdapter.js';
 import { TokenType } from './config.js';
-import { XERC20LimitsTokenConfig, XERC20Type } from './types.js';
+import {
+  XERC20LimitsTokenConfig,
+  XERC20TokenMetadata,
+  XERC20Type,
+} from './types.js';
+import { XERC20_AEVO_ABI } from './xerc20-abi.js';
+import { aevoCapToUint256 } from './xerc20-limits.js';
+
+type XERC20LimitsConfig = NonNullable<
+  XERC20TokenMetadata['xERC20']
+>['warpRouteLimits'];
+
+/**
+ * The limits a config declares for a bridge. A Standard or Velodrome entry that
+ * leaves out either of its limits is not managed, so it yields none. An Aevo
+ * entry is always complete.
+ */
+function limitsFromConfig(
+  config: XERC20LimitsConfig,
+): XERC20Limits | undefined {
+  switch (config.type) {
+    case XERC20Type.Standard:
+      return !isNullish(config.mint) && !isNullish(config.burn)
+        ? { type: XERC20Type.Standard, mint: config.mint, burn: config.burn }
+        : undefined;
+    case XERC20Type.Velo:
+      return !isNullish(config.bufferCap) &&
+        !isNullish(config.rateLimitPerSecond)
+        ? {
+            type: XERC20Type.Velo,
+            bufferCap: config.bufferCap,
+            rateLimitPerSecond: config.rateLimitPerSecond,
+          }
+        : undefined;
+    case XERC20Type.Aevo:
+      return config;
+    default: {
+      const exhaustiveCheck: never = config;
+      throw new Error(
+        `Unknown xERC20 limits config: ${stringifyObject(exhaustiveCheck, 'json')}`,
+      );
+    }
+  }
+}
+
+const AEVO_INTERFACE = new utils.Interface(XERC20_AEVO_ABI);
+
+/**
+ * The counterpart of transferOwnershipTransactions for an Aevo token, which is
+ * handed over through its own `setOwner`. That takes effect at once and the new
+ * owner accepts nothing, so a transfer to an address that cannot act as owner
+ * cannot be undone. The token reverts `setOwner` for the zero address, so its
+ * ownership cannot be renounced either, and an expected owner of the zero
+ * address is refused instead of emitting a transaction that fails.
+ */
+export function transferAevoOwnershipTransactions(
+  chainId: EvmChainId,
+  token: Address,
+  actual: OwnableConfig,
+  expected: OwnableConfig,
+  label?: string,
+): AnnotatedEV5Transaction[] {
+  if (
+    eqAddress(actual.owner, expected.owner) ||
+    (isZeroishAddressEvm(actual.owner) && isZeroishAddressEvm(expected.owner))
+  ) {
+    return [];
+  }
+
+  assert(
+    !isZeroishAddressEvm(expected.owner),
+    `${label ?? token} is an ${XERC20Type.Aevo} token, whose ownership cannot be renounced: its setOwner reverts on the zero address`,
+  );
+
+  return [
+    {
+      chainId,
+      annotation: `Transferring ownership of ${label ?? token} from ${
+        actual.owner
+      } to ${expected.owner} through setOwner, which takes effect at once`,
+      to: token,
+      data: AEVO_INTERFACE.encodeFunctionData('setOwner', [expected.owner]),
+    },
+  ];
+}
 
 /**
  * Configuration for XERC20 limits management
@@ -64,7 +155,8 @@ export interface XERC20ModuleAddresses {
 /**
  * Module for managing XERC20 mint/burn limits and bridges.
  * Follows HyperlaneModule pattern with read() and update() methods.
- * Supports both Standard XERC20 (setLimits) and Velodrome XERC20 (setBufferCap/addBridge/removeBridge).
+ * Supports Standard XERC20 (setLimits), Velodrome XERC20 (setBufferCap/addBridge/removeBridge)
+ * and Aevo tokens (setCap/updateAuthority).
  */
 export class EvmXERC20Module extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -150,8 +242,8 @@ export class EvmXERC20Module extends HyperlaneModule<
       }
     }
 
-    for (const { bridge, expected } of limitMismatches) {
-      const txs = await this.generateSetLimitsTxs(bridge, expected);
+    for (const { bridge, expected, actual } of limitMismatches) {
+      const txs = await this.generateSetLimitsTxs(bridge, expected, actual);
       transactions.push(...txs);
     }
 
@@ -194,8 +286,12 @@ export class EvmXERC20Module extends HyperlaneModule<
     const transactions: AnnotatedEV5Transaction[] = [];
 
     if (expectedConfig.owner && actualConfig.owner) {
+      const transferTokenOwnership =
+        expectedConfig.type === XERC20Type.Aevo
+          ? transferAevoOwnershipTransactions
+          : transferOwnershipTransactions;
       transactions.push(
-        ...transferOwnershipTransactions(
+        ...transferTokenOwnership(
           chainId,
           xERC20Address,
           { owner: actualConfig.owner },
@@ -252,18 +348,20 @@ export class EvmXERC20Module extends HyperlaneModule<
       const actualLimits =
         actual.limits[normalizedBridge] ?? actual.limits[bridge];
 
+      if (actualLimits && limitsMatch(expectedLimits, actualLimits)) {
+        continue;
+      }
+
       if (!actualLimits || limitsAreZero(actualLimits)) {
         missingBridges.push(bridge);
         continue;
       }
 
-      if (!limitsMatch(expectedLimits, actualLimits)) {
-        limitMismatches.push({
-          bridge,
-          expected: expectedLimits,
-          actual: actualLimits,
-        });
-      }
+      limitMismatches.push({
+        bridge,
+        expected: expectedLimits,
+        actual: actualLimits,
+      });
     }
 
     let extraBridges: Address[] = [];
@@ -291,50 +389,114 @@ export class EvmXERC20Module extends HyperlaneModule<
 
   /**
    * Generate transactions to set limits for a bridge.
+   *
+   * `actual` is what the token holds for the bridge, when it is known, which
+   * lets an Aevo minter that is already authorized be changed by its cap alone.
+   * Without it, an authorized minter gets the cap and then the authority, and
+   * one that is revoked gets the authority alone.
    */
   async generateSetLimitsTxs(
     bridge: Address,
     limits: XERC20Limits,
+    actual?: XERC20Limits,
   ): Promise<AnnotatedEV5Transaction[]> {
     const xERC20Address = this.args.addresses.xERC20;
     const chainId = this.multiProvider.getEvmChainId(this.chainName);
     const transactions: AnnotatedEV5Transaction[] = [];
 
-    if (limits.type === XERC20Type.Standard) {
-      const adapter = new EvmXERC20Adapter(
-        this.chainName,
-        this.multiProtocolProvider,
-        { token: xERC20Address },
-      );
+    switch (limits.type) {
+      case XERC20Type.Standard: {
+        const adapter = new EvmXERC20Adapter(
+          this.chainName,
+          this.multiProtocolProvider,
+          { token: xERC20Address },
+        );
 
-      const tx = await adapter.populateSetLimitsTx(
-        bridge,
-        BigInt(limits.mint),
-        BigInt(limits.burn),
-      );
-      transactions.push(this.annotateTransaction(tx, chainId, xERC20Address));
-    } else {
-      const adapter = new EvmXERC20VSAdapter(
-        this.chainName,
-        this.multiProtocolProvider,
-        { token: xERC20Address },
-      );
+        const tx = await adapter.populateSetLimitsTx(
+          bridge,
+          BigInt(limits.mint),
+          BigInt(limits.burn),
+        );
+        transactions.push(this.annotateTransaction(tx, chainId, xERC20Address));
+        break;
+      }
+      case XERC20Type.Velo: {
+        const adapter = new EvmXERC20VSAdapter(
+          this.chainName,
+          this.multiProtocolProvider,
+          { token: xERC20Address },
+        );
 
-      const bufferCapTx = await adapter.populateSetBufferCapTx(
-        bridge,
-        BigInt(limits.bufferCap),
-      );
-      transactions.push(
-        this.annotateTransaction(bufferCapTx, chainId, xERC20Address),
-      );
+        const bufferCapTx = await adapter.populateSetBufferCapTx(
+          bridge,
+          BigInt(limits.bufferCap),
+        );
+        transactions.push(
+          this.annotateTransaction(bufferCapTx, chainId, xERC20Address),
+        );
 
-      const rateLimitTx = await adapter.populateSetRateLimitPerSecondTx(
-        bridge,
-        BigInt(limits.rateLimitPerSecond),
-      );
-      transactions.push(
-        this.annotateTransaction(rateLimitTx, chainId, xERC20Address),
-      );
+        const rateLimitTx = await adapter.populateSetRateLimitPerSecondTx(
+          bridge,
+          BigInt(limits.rateLimitPerSecond),
+        );
+        transactions.push(
+          this.annotateTransaction(rateLimitTx, chainId, xERC20Address),
+        );
+        break;
+      }
+      case XERC20Type.Aevo: {
+        const adapter = new EvmXERC20AevoAdapter(
+          this.chainName,
+          this.multiProtocolProvider,
+          { token: xERC20Address },
+        );
+
+        // A minter that is not authorized is revoked and its cap left alone:
+        // the token keeps it and reinstates it when the minter is authorized
+        // again, so a cap is always set along with an authority.
+        if (!limits.authorized) {
+          transactions.push(
+            this.annotateTransaction(
+              await adapter.populateUpdateAuthorityTx(bridge, false),
+              chainId,
+              xERC20Address,
+            ),
+          );
+          break;
+        }
+
+        // The cap the token keeps for an unauthorized minter is not part of
+        // what is read, so it is set whenever a minter is authorized. Set
+        // before the authority, so the minter is never authorized with a stale
+        // cap. A minter whose authority and cap already match is skipped by
+        // the drift check and never gets here.
+        transactions.push(
+          this.annotateTransaction(
+            await adapter.populateSetCapTx(
+              bridge,
+              aevoCapToUint256(limits.cap),
+            ),
+            chainId,
+            xERC20Address,
+          ),
+        );
+        if (!(actual?.type === XERC20Type.Aevo && actual.authorized)) {
+          transactions.push(
+            this.annotateTransaction(
+              await adapter.populateUpdateAuthorityTx(bridge, true),
+              chainId,
+              xERC20Address,
+            ),
+          );
+        }
+        break;
+      }
+      default: {
+        const exhaustiveCheck: never = limits;
+        throw new Error(
+          `Unknown xERC20 limits: ${stringifyObject(exhaustiveCheck, 'json')}`,
+        );
+      }
     }
 
     return transactions;
@@ -342,17 +504,32 @@ export class EvmXERC20Module extends HyperlaneModule<
 
   /**
    * Generate transactions to add a bridge.
-   * For Standard XERC20, equivalent to setLimits.
+   * For Standard and Aevo XERC20, equivalent to setting the limits.
    * For Velodrome, uses addBridge function.
    */
   async generateAddBridgeTxs(
     bridge: Address,
     limits: XERC20Limits,
   ): Promise<AnnotatedEV5Transaction[]> {
-    if (limits.type === XERC20Type.Standard) {
-      return this.generateSetLimitsTxs(bridge, limits);
+    switch (limits.type) {
+      case XERC20Type.Standard:
+      case XERC20Type.Aevo:
+        return this.generateSetLimitsTxs(bridge, limits);
+      case XERC20Type.Velo:
+        return this.generateAddVeloBridgeTxs(bridge, limits);
+      default: {
+        const exhaustiveCheck: never = limits;
+        throw new Error(
+          `Unknown xERC20 limits: ${stringifyObject(exhaustiveCheck, 'json')}`,
+        );
+      }
     }
+  }
 
+  protected async generateAddVeloBridgeTxs(
+    bridge: Address,
+    limits: VeloXERC20Limits,
+  ): Promise<AnnotatedEV5Transaction[]> {
     const xERC20Address = this.args.addresses.xERC20;
     const chainId = this.multiProvider.getEvmChainId(this.chainName);
 
@@ -429,52 +606,19 @@ export class EvmXERC20Module extends HyperlaneModule<
     const xERC20Config = warpRouteConfig.xERC20;
     const warpRouteLimits = xERC20Config?.warpRouteLimits;
 
-    if (warpRouteLimits) {
-      if (warpRouteLimits.type === XERC20Type.Standard) {
-        if (warpRouteLimits.mint != null && warpRouteLimits.burn != null) {
-          limits[warpRouteAddress] = {
-            type: XERC20Type.Standard,
-            mint: warpRouteLimits.mint,
-            burn: warpRouteLimits.burn,
-          };
-        }
-      } else if (warpRouteLimits.type === XERC20Type.Velo) {
-        if (
-          warpRouteLimits.bufferCap != null &&
-          warpRouteLimits.rateLimitPerSecond != null
-        ) {
-          limits[warpRouteAddress] = {
-            type: XERC20Type.Velo,
-            bufferCap: warpRouteLimits.bufferCap,
-            rateLimitPerSecond: warpRouteLimits.rateLimitPerSecond,
-          };
-        }
-      }
+    const declaredWarpRouteLimits =
+      warpRouteLimits && limitsFromConfig(warpRouteLimits);
+    if (declaredWarpRouteLimits) {
+      limits[warpRouteAddress] = declaredWarpRouteLimits;
     }
 
-    if (xERC20Config?.extraBridges) {
-      for (const extraBridge of xERC20Config.extraBridges) {
-        const { lockbox, limits: bridgeLimits } = extraBridge;
-        if (bridgeLimits.type === XERC20Type.Standard) {
-          if (bridgeLimits.mint != null && bridgeLimits.burn != null) {
-            limits[lockbox] = {
-              type: XERC20Type.Standard,
-              mint: bridgeLimits.mint,
-              burn: bridgeLimits.burn,
-            };
-          }
-        } else if (bridgeLimits.type === XERC20Type.Velo) {
-          if (
-            bridgeLimits.bufferCap != null &&
-            bridgeLimits.rateLimitPerSecond != null
-          ) {
-            limits[lockbox] = {
-              type: XERC20Type.Velo,
-              bufferCap: bridgeLimits.bufferCap,
-              rateLimitPerSecond: bridgeLimits.rateLimitPerSecond,
-            };
-          }
-        }
+    for (const {
+      lockbox,
+      limits: bridgeLimits,
+    } of xERC20Config?.extraBridges ?? []) {
+      const declaredBridgeLimits = limitsFromConfig(bridgeLimits);
+      if (declaredBridgeLimits) {
+        limits[lockbox] = declaredBridgeLimits;
       }
     }
 

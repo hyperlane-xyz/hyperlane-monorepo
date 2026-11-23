@@ -159,6 +159,16 @@ const LEGACY_SCALE_INTERFACE = new utils.Interface([
   'function scale() external view returns (uint256)',
 ]);
 
+// A HypXERC20 router burns its token through burn(address,uint256), and so
+// does HypXERC20Lockbox, which this check never reaches because its lockbox()
+// selector matches earlier. The selector in the router's own code therefore
+// identifies a HypXERC20 whether or not its token exposes the xERC20 limit
+// getters. HypFiatToken burns through burn(uint256) and HypERC20Collateral
+// burns nothing.
+const HYP_XERC20_BURN_SELECTOR = IXERC20__factory.createInterface().getSighash(
+  'burn(address,uint256)',
+);
+
 // Version that introduced CrossCollateralRouter.rebalanceTargets().
 const REBALANCE_TARGETS_CONTRACT_VERSION = '12.0.0';
 
@@ -978,6 +988,16 @@ export class EvmWarpRouteReader extends EvmRouterReader {
               }
             }
 
+            if (
+              hasKnownBytecode &&
+              bytecode.includes(strip0x(HYP_XERC20_BURN_SELECTOR))
+            ) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" burns through burn(address,uint256) and is a ${TokenType.XERC20}, though its token exposes no mintingCurrentLimitOf(address) getter`,
+              );
+              return TokenType.XERC20;
+            }
+
             try {
               const fiatToken = IFiatToken__factory.connect(
                 wrappedToken,
@@ -1161,9 +1181,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     xERC20Address: Address,
     warpRouteAddress: Address,
   ): Promise<XERC20TokenMetadata> {
-    // Which getter holds the limits differs between the Standard and the
-    // Velodrome implementation, so the route's own limits are read through the
-    // type rather than through a fixed ABI.
+    // Which getters hold the limits differ between the Standard, Velodrome and
+    // Aevo implementations, so the route's own limits are read through the type
+    // rather than through a fixed ABI.
     let type: XERC20Type;
     try {
       type = await deriveXERC20TokenType(

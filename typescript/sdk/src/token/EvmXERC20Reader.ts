@@ -16,14 +16,20 @@ import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
-import { RateLimitMidPoint, xERC20Limits } from './adapters/ITokenAdapter.js';
+import {
+  AevoMintAuthority,
+  RateLimitMidPoint,
+  xERC20Limits,
+} from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
 import {
+  AevoXERC20Limits,
   StandardXERC20Limits,
   VeloXERC20Limits,
   XERC20LimitsMap,
   readXERC20Limits,
+  toAevoLimits,
   toStandardLimits,
   toVeloLimits,
 } from './xerc20-limits.js';
@@ -34,6 +40,7 @@ import {
 } from './xerc20.js';
 
 export type {
+  AevoXERC20Limits,
   StandardXERC20Limits,
   VeloXERC20Limits,
   XERC20Limits,
@@ -81,6 +88,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
       converters: {
         toStandardLimits: (limits) => this.toStandardLimits(limits),
         toVeloLimits: (rateLimits) => this.toVeloLimits(rateLimits),
+        toAevoLimits: (authority) => this.toAevoLimits(authority),
       },
     });
   }
@@ -96,16 +104,29 @@ export class EvmXERC20Reader extends HyperlaneReader {
    * BridgeLimitsSet, which getExtraLockBoxConfigs reads. Callers relying on
    * this therefore fall back to the bridges their config names for a Standard
    * token, which is why bringing the two paths together is worth doing.
+   *
+   * Also empty for an Aevo token, whose minters other than the warp route's own
+   * router are not modelled.
    */
   async readOnChainBridges(
     xERC20Address: Address,
     type: XERC20Type,
   ): Promise<Address[]> {
-    if (type === XERC20Type.Standard) {
-      this.logger.debug(
-        'Standard XERC20 bridge enumeration is not implemented here',
-      );
-      return [];
+    switch (type) {
+      case XERC20Type.Velo:
+        break;
+      case XERC20Type.Standard:
+        this.logger.debug(
+          'Standard XERC20 bridge enumeration is not implemented here',
+        );
+        return [];
+      case XERC20Type.Aevo:
+        this.logger.debug('Aevo XERC20 bridge enumeration is not modelled');
+        return [];
+      default: {
+        const exhaustiveCheck: never = type;
+        throw new Error(`Unknown xERC20 type: ${exhaustiveCheck}`);
+      }
     }
 
     const logsReader = EvmEventLogsReader.fromConfig(
@@ -189,5 +210,9 @@ export class EvmXERC20Reader extends HyperlaneReader {
 
   protected toVeloLimits(rateLimits: RateLimitMidPoint): VeloXERC20Limits {
     return toVeloLimits(rateLimits);
+  }
+
+  protected toAevoLimits(authority: AevoMintAuthority): AevoXERC20Limits {
+    return toAevoLimits(authority);
   }
 }

@@ -36,6 +36,7 @@ import {
   isNullish,
   isZeroishAddress,
   objMap,
+  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -74,6 +75,7 @@ import {
   HypTokenRouterConfigSchema,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
+  XERC20VSLimitConfig,
   isAtomicLocalRebalancingBridgeTokenConfig,
   isDepositAddressTokenConfig,
 } from './types.js';
@@ -297,9 +299,10 @@ describe('TokenDeployer', async () => {
       warpCoreConfig,
       warpDeployConfig: atomicConfig,
     });
-    expect(checkResult.isValid, JSON.stringify(checkResult, null, 2)).to.equal(
-      true,
-    );
+    expect(
+      checkResult.isValid,
+      stringifyObject(checkResult, 'json', 2),
+    ).to.equal(true);
     expect(checkResult.violations).to.deep.equal([]);
   });
 
@@ -888,7 +891,7 @@ describe('TokenDeployer', async () => {
     // The values the CLI e2e uses, which XERC20VSTest accepts for addBridge.
     const BUFFER_CAP = '1000000000000000000000';
     const RATE_LIMIT_PER_SECOND = '1000000000000000000';
-    const VELO_LIMITS = {
+    const VELO_LIMITS: XERC20VSLimitConfig = {
       type: XERC20Type.Velo,
       bufferCap: BUFFER_CAP,
       rateLimitPerSecond: RATE_LIMIT_PER_SECOND,

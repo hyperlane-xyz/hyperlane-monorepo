@@ -13,10 +13,16 @@ import { EvmEventLogsReader } from '../rpc/evm/EvmEventLogsReader.js';
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 
 import { EvmXERC20Reader } from './EvmXERC20Reader.js';
-import { EvmXERC20VSAdapter } from './adapters/EvmTokenAdapter.js';
-import { RateLimitMidPoint } from './adapters/ITokenAdapter.js';
-import { VeloXERC20Limits } from './xerc20-limits.js';
-import { XERC20Type } from './types.js';
+import {
+  EvmXERC20AevoAdapter,
+  EvmXERC20VSAdapter,
+} from './adapters/EvmTokenAdapter.js';
+import {
+  AevoMintAuthority,
+  RateLimitMidPoint,
+} from './adapters/ITokenAdapter.js';
+import { AevoXERC20Limits, VeloXERC20Limits } from './xerc20-limits.js';
+import { XERC20AevoCapType, XERC20Type } from './types.js';
 import { CONFIGURATION_CHANGED_EVENT_SELECTOR } from './xerc20-abi.js';
 
 const CHAIN_NAME = 'paginatedchain';
@@ -197,7 +203,10 @@ const LIMIT_BRIDGES: Address[] = Array.from(
     `0x${(index + 1).toString(16).padStart(2, '0').repeat(20)}`,
 );
 
-function createLimitsReader(concurrency?: number): EvmXERC20Reader {
+function createLimitsReader(
+  concurrency?: number,
+  ReaderClass: typeof EvmXERC20Reader = EvmXERC20Reader,
+): EvmXERC20Reader {
   const rpcUrl: RpcUrl = { http: RPC_URL, concurrency };
   const metadata: ChainMetadata = {
     chainId: CHAIN_ID,
@@ -214,7 +223,7 @@ function createLimitsReader(concurrency?: number): EvmXERC20Reader {
       name: CHAIN_NAME,
     }),
   );
-  return new EvmXERC20Reader(multiProvider, CHAIN_NAME);
+  return new ReaderClass(multiProvider, CHAIN_NAME);
 }
 
 function rateLimits(bufferCap: bigint): RateLimitMidPoint {
@@ -350,8 +359,88 @@ describe('EvmXERC20Reader', () => {
       expect(bridges).to.deep.equal([]);
       expect(fromConfig.notCalled).to.be.true;
     });
+
+    it('reads no logs for an Aevo XERC20', async () => {
+      const fromConfig = sinon.spy(EvmEventLogsReader, 'fromConfig');
+      const reader = createReader({ maxBlockRange: MAX_BLOCK_RANGE });
+
+      const bridges = await reader.readOnChainBridges(
+        XERC20_ADDRESS,
+        XERC20Type.Aevo,
+      );
+
+      expect(bridges).to.deep.equal([]);
+      expect(fromConfig.notCalled).to.be.true;
+    });
   });
   describe('readLimits', () => {
+    // What the token keeps is mapped to limits by toAevoLimits, which its own
+    // table covers; this is the read through the reader.
+    it('reads the authority and cap of each bridge of an Aevo XERC20', async () => {
+      const [otherBridge] = LIMIT_BRIDGES;
+      const getMintAuthority = sinon.stub(
+        EvmXERC20AevoAdapter.prototype,
+        'getMintAuthority',
+      );
+      getMintAuthority
+        .withArgs(OVERRIDE_BRIDGE)
+        .resolves({ authorized: true, cap: 5_000_000n });
+      getMintAuthority
+        .withArgs(otherBridge)
+        .resolves({ authorized: false, cap: 1000n });
+
+      const limits = await createLimitsReader().readLimits(
+        XERC20_ADDRESS,
+        [OVERRIDE_BRIDGE, otherBridge],
+        XERC20Type.Aevo,
+      );
+
+      expect(limits).to.deep.equal({
+        [OVERRIDE_BRIDGE]: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw, value: '5000000' },
+        },
+        [otherBridge]: { type: XERC20Type.Aevo, authorized: false },
+      });
+    });
+
+    it('reports what a subclass override returns for an Aevo XERC20', async () => {
+      class OverridingReader extends EvmXERC20Reader {
+        protected override toAevoLimits(
+          authority: AevoMintAuthority,
+        ): AevoXERC20Limits {
+          return authority.authorized
+            ? {
+                type: XERC20Type.Aevo,
+                authorized: true,
+                cap: {
+                  type: XERC20AevoCapType.Raw,
+                  value: `overridden-${authority.cap}`,
+                },
+              }
+            : { type: XERC20Type.Aevo, authorized: false };
+        }
+      }
+
+      sinon
+        .stub(EvmXERC20AevoAdapter.prototype, 'getMintAuthority')
+        .resolves({ authorized: true, cap: 7n });
+
+      const limits = await createLimitsReader(
+        undefined,
+        OverridingReader,
+      ).readLimits(XERC20_ADDRESS, [OVERRIDE_BRIDGE], XERC20Type.Aevo);
+
+      expect(limits).to.deep.equal({
+        [OVERRIDE_BRIDGE]: {
+          type: XERC20Type.Aevo,
+          authorized: true,
+          cap: { type: XERC20AevoCapType.Raw, value: 'overridden-7' },
+        },
+      });
+    });
+
     // The conversions are protected on a root-exported class, so an override is
     // part of what the class promises. Reading through the module functions
     // directly would leave one silently uncalled.

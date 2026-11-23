@@ -69,8 +69,10 @@ import {
   throwIfNotMissingSelector,
 } from '../../utils/contract.js';
 import { TokenMetadata } from '../types.js';
+import { XERC20_AEVO_ABI } from '../xerc20-abi.js';
 
 import {
+  AevoMintAuthority,
   IHypCollateralFiatAdapter,
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
@@ -1543,5 +1545,88 @@ export class EvmXERC20VSAdapter
       rateLimitPerSecond: rateLimitPerSecond.toString(),
       bridge: toEvmAddress(bridge),
     });
+  }
+}
+
+// Reads and writes through ethers' Interface rather than viem's decoder: it is
+// what turns revert data into a CALL_EXCEPTION, which a viem decoder would take
+// for a uint256 whenever the revert data happens to be word sized.
+const AEVO_INTERFACE = new utils.Interface(XERC20_AEVO_ABI);
+
+// Interacts with Aevo tokens, which hold a mint authority and a cap for each
+// minter in place of the Standard or Velodrome xERC20 limits
+export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProviderAdapter,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  async getMintAuthority(minter: Address): Promise<AevoMintAuthority> {
+    const [authorized, cap] = await Promise.all([
+      this.readAuthority(toEvmAddress(minter)),
+      this.readCap(toEvmAddress(minter)),
+    ]);
+
+    return { authorized, cap };
+  }
+
+  async populateUpdateAuthorityTx(
+    minter: Address,
+    authorized: boolean,
+  ): Promise<PopulatedTransaction> {
+    return {
+      to: this.addresses.token,
+      data: AEVO_INTERFACE.encodeFunctionData('updateAuthority', [
+        toEvmAddress(minter),
+        authorized,
+      ]),
+    };
+  }
+
+  async populateSetCapTx(
+    minter: Address,
+    cap: bigint,
+  ): Promise<PopulatedTransaction> {
+    return {
+      to: this.addresses.token,
+      data: AEVO_INTERFACE.encodeFunctionData('setCap', [
+        toEvmAddress(minter),
+        cap,
+      ]),
+    };
+  }
+
+  private async readAuthority(minter: Address): Promise<boolean> {
+    const [authorized]: readonly unknown[] =
+      AEVO_INTERFACE.decodeFunctionResult(
+        'authorities',
+        await this.call(
+          AEVO_INTERFACE.encodeFunctionData('authorities', [minter]),
+        ),
+      );
+    assert(
+      typeof authorized === 'boolean',
+      `Expected a bool authority of ${minter} from ${this.addresses.token} on chain ${this.chainName}`,
+    );
+    return authorized;
+  }
+
+  private async readCap(minter: Address): Promise<bigint> {
+    const [cap]: readonly unknown[] = AEVO_INTERFACE.decodeFunctionResult(
+      'caps',
+      await this.call(AEVO_INTERFACE.encodeFunctionData('caps', [minter])),
+    );
+    assert(
+      BigNumber.isBigNumber(cap),
+      `Expected a uint256 cap of ${minter} from ${this.addresses.token} on chain ${this.chainName}`,
+    );
+    return cap.toBigInt();
+  }
+
+  private call(data: string): Promise<string> {
+    return this.getProvider().call({ to: this.addresses.token, data });
   }
 }
