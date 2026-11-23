@@ -1324,10 +1324,18 @@ async fn run_cycles_retries_a_log_ahead_of_http_then_stops_at_indexed_height() -
         chain.observations.load(Ordering::SeqCst) > initial
     })
     .await?;
-    chain.head.store(2, Ordering::SeqCst);
-    wait_for(&worker, |state| state.indexed == 2).await?;
+    let first = chain.observations.load(Ordering::SeqCst);
     IndexWakeup {
-        height: 2,
+        height: 3,
+        reconcile: false,
+    }
+    .send(&worker.wakeup);
+    sleep(Duration::from_millis(100)).await;
+    assert_eq!(chain.observations.load(Ordering::SeqCst), first);
+    chain.head.store(3, Ordering::SeqCst);
+    wait_for(&worker, |state| state.indexed == 3).await?;
+    IndexWakeup {
+        height: 3,
         reconcile: false,
     }
     .send(&worker.wakeup);

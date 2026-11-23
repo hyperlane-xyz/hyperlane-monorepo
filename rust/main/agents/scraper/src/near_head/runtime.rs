@@ -174,8 +174,16 @@ impl Worker {
             let wake = IndexWakeup::take(&self.wakeup);
             index |= wake.reconcile;
             if wake.height > indexed.max(wanted) {
+                let pending = wanted != 0;
                 wanted = wake.height;
-                index = true;
+                // The first block fetches immediately. Once HTTP is known to lag,
+                // newer blocks only extend the target; the retry deadline paces RPCs.
+                if !pending {
+                    index = true;
+                } else if Instant::now() >= next_retry {
+                    retry = retry.saturating_add(1);
+                    index = true;
+                }
             }
             for _ in 0..heads.max_capacity() {
                 let Ok(header) = heads.try_recv() else { break };
