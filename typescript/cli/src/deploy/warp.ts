@@ -2094,8 +2094,9 @@ async function submitChainTransactions(
         }
       }
 
-      // Submit ownership txs last — after fee txs — so onlyOwner calls (e.g.
-      // setFeeRecipient) execute before ownership is transferred to a new address.
+      // Submit ownership txs last so the main batch (including router-owner calls
+      // such as setFeeRecipient) and the fee-contract txs execute before
+      // ownership changes.
       if (ownershipTxs.length > 0) {
         const { safePayloads: ownershipSafePayloads, rest: ownershipReceipts } =
           splitSafeTxBuilderPayloads(
