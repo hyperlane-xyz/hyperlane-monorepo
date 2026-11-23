@@ -152,7 +152,7 @@ mod tests {
         IsmBuildMetricsParams, MessageMetadataBuildParams, MessageMetadataBuilder,
         MetadataBuildError, MetadataBuilder,
     };
-    use crate::msg::pending_message::build_until_signature_miss;
+    use crate::msg::pending_message::{build_until_parked, ParkedBuild};
     use crate::test_utils::mock_base_builder::build_mock_base_builder;
 
     #[derive(Debug, Default)]
@@ -443,7 +443,7 @@ mod tests {
                     .await
             };
             if one_shot_miss {
-                let result = build_until_signature_miss(build).await;
+                let result = build_until_parked(build).await;
                 assert!(matches!(
                     result,
                     Ok(Err(MetadataBuildError::AwaitingValidatorSignatures))
@@ -459,7 +459,7 @@ mod tests {
                 continue;
             }
             if warm {
-                let result = build_until_signature_miss(build).await;
+                let result = build_until_parked(build).await;
                 let Ok(Ok(metadata)) = result else {
                     panic!("first-pass quorum should finish without parking");
                 };
@@ -471,9 +471,11 @@ mod tests {
                 continue;
             }
             let build = if retry {
-                match build_until_signature_miss(build).await {
-                    Err(waiting) => waiting,
-                    Ok(_) => panic!("first confirmed miss should yield a suspended build"),
+                match build_until_parked(build).await {
+                    Err((waiting, ParkedBuild::SignatureMiss)) => waiting,
+                    Err((_, ParkedBuild::SlotBudget)) | Ok(_) => {
+                        panic!("first confirmed miss should yield a suspended build")
+                    }
                 }
             } else {
                 Box::pin(build)

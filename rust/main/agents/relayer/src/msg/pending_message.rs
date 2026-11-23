@@ -182,17 +182,36 @@ impl Drop for LoadedMessageGuard {
     }
 }
 
-/// Prefer a result already available from the first pass over yielding the slot.
-pub(crate) async fn build_until_signature_miss<T>(
+/// How long a metadata build may hold its destination's prepare slot before it
+/// is parked. A parked build keeps running, e.g. through an offchain lookup's
+/// fallback URLs, and its result is used on the operation's next prepare.
+const METADATA_PREPARE_SLOT_BUDGET: Duration = Duration::from_secs(20);
+
+/// Why a metadata build left its prepare slot before finishing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ParkedBuild {
+    /// A validator signature it needs is missing.
+    SignatureMiss,
+    /// It outlasted `METADATA_PREPARE_SLOT_BUDGET`.
+    SlotBudget,
+}
+
+/// Prefer a result already available from the first pass over yielding the
+/// slot. The build is parked, still running, on a signature miss or once it
+/// outlasts the slot budget.
+pub(crate) async fn build_until_parked<T>(
     build: impl Future<Output = T> + Send + 'static,
-) -> Result<T, BoxFuture<'static, T>> {
+) -> Result<T, (BoxFuture<'static, T>, ParkedBuild)> {
     let missing = Arc::new(Notify::new());
     let mut build: BoxFuture<'static, T> =
         Box::pin(with_checkpoint_signature_miss(Arc::clone(&missing), build));
     tokio::select! {
         biased;
         result = &mut build => Ok(result),
-        () = missing.notified() => Err(build),
+        () = missing.notified() => Err((build, ParkedBuild::SignatureMiss)),
+        () = tokio::time::sleep(METADATA_PREPARE_SLOT_BUDGET) => {
+            Err((build, ParkedBuild::SlotBudget))
+        }
     }
 }
 
@@ -1821,26 +1840,38 @@ impl PendingMessage {
                 )
                 .await
             };
-            match build_until_signature_miss(build).await {
+            match build_until_parked(build).await {
                 Ok(result) => result,
-                Err(build) => {
+                Err((build, parked)) => {
                     let (sender, result) = oneshot::channel();
                     self.parked_metadata = Some(ParkedMetadataBuild {
                         ism: ism_address,
                         started_at,
                         result,
                     });
-                    let observation = self
-                        .ctx
-                        .metrics
-                        .record_metadata_wait(self.message.id(), self.app_context.as_deref());
-                    if observation.first_observation {
-                        warn!("Waiting for validator signatures");
-                    }
+                    let reason = match parked {
+                        ParkedBuild::SignatureMiss => {
+                            let observation = self.ctx.metrics.record_metadata_wait(
+                                self.message.id(),
+                                self.app_context.as_deref(),
+                            );
+                            if observation.first_observation {
+                                warn!("Waiting for validator signatures");
+                            }
+                            ReprepareReason::AwaitingValidatorSignatures
+                        }
+                        ParkedBuild::SlotBudget => {
+                            info!(
+                                budget_secs = METADATA_PREPARE_SLOT_BUDGET.as_secs(),
+                                "Metadata build outlasted its prepare slot; continuing it parked"
+                            );
+                            ReprepareReason::AwaitingSlowMetadataBuild
+                        }
+                    };
                     self.ctx.metadata_builder.report_activity(
                         &self.message,
                         Activity::Retry {
-                            reason: Some(ReprepareReason::AwaitingValidatorSignatures),
+                            reason: Some(reason),
                             retry_count: self.num_retries,
                             next_attempt_at_millis: None,
                         },
@@ -2530,6 +2561,149 @@ mod test {
             .expect__domain()
             .return_const(HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum));
         mailbox
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_build_that_outlasts_the_slot_budget_is_parked_and_keeps_running() {
+        let start = tokio::time::Instant::now();
+        let fast = super::build_until_parked(async {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            7
+        })
+        .await;
+        assert!(matches!(fast, Ok(7)));
+        assert_eq!(start.elapsed(), Duration::from_secs(5));
+
+        let start = tokio::time::Instant::now();
+        let (parked, reason) = super::build_until_parked(async {
+            tokio::time::sleep(Duration::from_secs(70)).await;
+            7
+        })
+        .await
+        .err()
+        .expect("a build outlasting the budget is parked");
+        assert_eq!(reason, super::ParkedBuild::SlotBudget);
+        assert_eq!(start.elapsed(), super::METADATA_PREPARE_SLOT_BUDGET);
+        // Parking hands back the running build: it is not cancelled.
+        assert_eq!(parked.await, 7);
+        assert_eq!(start.elapsed(), Duration::from_secs(70));
+    }
+
+    /// A CCIP-read ISM whose `getOffchainVerifyInfo` answers only after 70s.
+    #[derive(Debug)]
+    struct SlowCcipReadIsm(Arc<std::sync::atomic::AtomicUsize>);
+
+    impl hyperlane_core::HyperlaneChain for SlowCcipReadIsm {
+        fn domain(&self) -> &HyperlaneDomain {
+            &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum)
+        }
+
+        fn provider(&self) -> Box<dyn hyperlane_core::HyperlaneProvider> {
+            unimplemented!()
+        }
+    }
+
+    impl hyperlane_core::HyperlaneContract for SlowCcipReadIsm {
+        fn address(&self) -> H256 {
+            H256::zero()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl hyperlane_core::CcipReadIsm for SlowCcipReadIsm {
+        async fn get_offchain_verify_info(
+            &self,
+            _message: Vec<u8>,
+        ) -> hyperlane_core::ChainResult<()> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            tokio::time::sleep(Duration::from_secs(70)).await;
+            // Not reverting with `OffchainLookup` ends the build as could-not-fetch.
+            Ok(())
+        }
+    }
+
+    async fn pending_with_slow_ccip_read_ism(
+        reads: Arc<std::sync::atomic::AtomicUsize>,
+    ) -> (tempfile::TempDir, PendingMessage) {
+        use crate::test_utils::{
+            mock_base_builder::build_mock_base_builder, mock_ism::MockInterchainSecurityModule,
+        };
+        let mut mailbox = contract_test_mailbox();
+        mailbox.expect__provider().times(0);
+        mailbox.expect__delivered().returning(|_| Ok(false));
+        mailbox
+            .expect__recipient_ism()
+            .returning(|_| Ok(H256::zero()));
+        mailbox.expect_process_estimate_costs().times(0);
+        let (dir, mut pending) = pending_with_mailbox(mailbox, None);
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum);
+        let base = build_mock_base_builder(domain.clone(), domain.clone());
+        base.responses.push_build_ism_response(
+            H256::zero(),
+            Ok(Box::new(MockInterchainSecurityModule::new(
+                H256::zero(),
+                domain,
+                ModuleType::CcipRead,
+            ))),
+        );
+        base.responses
+            .build_ccip_read_ism
+            .lock()
+            .expect("lock")
+            .push_back(Ok(Box::new(SlowCcipReadIsm(reads))));
+        Arc::get_mut(&mut pending.ctx)
+            .expect("unshared context")
+            .metadata_builder = Arc::new(base);
+        pending
+            .store_to_cache("arbitrum", "is_contract", &pending.message.recipient, &true)
+            .await;
+        (dir, pending)
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_slow_metadata_build_leaves_the_slot_and_its_result_is_used_next() {
+        let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (_dir, mut pending) = pending_with_slow_ccip_read_ism(Arc::clone(&reads)).await;
+        let start = tokio::time::Instant::now();
+
+        let QueuePrepareResult::WaitingForSignatures(ready) = pending.prepare_for_queue(true).await
+        else {
+            unreachable!("a build outlasting the slot budget is parked");
+        };
+        assert_eq!(start.elapsed(), super::METADATA_PREPARE_SLOT_BUDGET);
+
+        // The parked build runs to its end, off the slot.
+        ready.await;
+        assert_eq!(start.elapsed(), Duration::from_secs(70));
+
+        // The next prepare takes the parked result instead of rebuilding.
+        let result = pending.prepare_for_queue(true).await;
+        assert!(matches!(
+            result,
+            QueuePrepareResult::Complete(PendingOperationResult::Reprepare(
+                ReprepareReason::CouldNotFetchMetadata
+            ))
+        ));
+        assert_eq!(start.elapsed(), Duration::from_secs(70));
+        assert_eq!(reads.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_slow_metadata_build_that_cannot_park_stays_in_the_slot() {
+        let reads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (_dir, mut pending) = pending_with_slow_ccip_read_ism(Arc::clone(&reads)).await;
+        let start = tokio::time::Instant::now();
+
+        let result = pending.prepare_for_queue(false).await;
+
+        assert!(matches!(
+            result,
+            QueuePrepareResult::Complete(PendingOperationResult::Reprepare(
+                ReprepareReason::CouldNotFetchMetadata
+            ))
+        ));
+        assert_eq!(start.elapsed(), Duration::from_secs(70));
+        assert_eq!(reads.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

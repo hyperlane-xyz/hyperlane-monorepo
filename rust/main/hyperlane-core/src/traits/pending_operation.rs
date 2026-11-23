@@ -368,6 +368,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Error fetching origin transaction sender")]
     /// Could not look up the origin transaction sender for the runtime denylist
     ErrorFetchingOriginTxSender,
+    #[strum(to_string = "Awaiting a slow metadata build")]
+    /// The metadata build outlasted its prepare slot and continues parked
+    AwaitingSlowMetadataBuild,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
