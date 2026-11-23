@@ -1,7 +1,7 @@
-import { providers } from 'ethers';
+import { constants, providers } from 'ethers';
 
 import { Mailbox__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { proxyAdmin } from '../deploy/proxy.js';
@@ -98,7 +98,9 @@ export class EvmCoreReader implements CoreReader {
           ? this.evmIcaRouterReader.deriveConfig(interchainAccountRouter)
           : undefined,
       ),
-      readConfig(this.getProxyAdminConfig(mailboxProxyAdmin)),
+      eqAddress(mailboxProxyAdmin, constants.AddressZero)
+        ? undefined
+        : this.getProxyAdminConfig(mailboxProxyAdmin),
       fetchPackageVersion(this.provider, mailbox, this.logger),
     ]);
 

@@ -7,6 +7,7 @@ import {
   CrossCollateralRoutingFee__factory,
   ERC20Test,
   ERC20Test__factory,
+  RoutingFee__factory,
 } from '@hyperlane-xyz/core';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -326,6 +327,198 @@ describe('EvmTokenFeeModule', () => {
       expect(
         normalizeConfig(onchainConfig.feeContracts[test4Chain]).owner,
       ).to.equal(newOwner);
+    });
+
+    describe('shared routing sub-fees', () => {
+      const destinations = [
+        TestChainName.test1,
+        TestChainName.test2,
+        TestChainName.test3,
+      ];
+
+      async function deploySharedRoutingFee(subConfig: TokenFeeConfig) {
+        const sharedSubFeeModule = await EvmTokenFeeModule.create({
+          multiProvider,
+          chain: test4Chain,
+          config: subConfig,
+        });
+        const sharedSubFee = sharedSubFeeModule.serialize().deployedFee;
+        const routingFee = await new RoutingFee__factory(signer).deploy(
+          token.address,
+          signer.address,
+        );
+        for (const destination of destinations) {
+          await routingFee.setFeeContract(
+            multiProvider.getDomainId(destination),
+            sharedSubFee,
+          );
+        }
+        const routingFeeConfig: RoutingFeeConfig = {
+          type: TokenFeeType.RoutingFee,
+          owner: signer.address,
+          token: token.address,
+          feeContracts: Object.fromEntries(
+            destinations.map((destination) => [destination, subConfig]),
+          ),
+        };
+        const module = new EvmTokenFeeModule(multiProvider, {
+          chain: test4Chain,
+          config: routingFeeConfig,
+          addresses: { deployedFee: routingFee.address },
+        });
+        return {
+          module,
+          sharedSubFeeModule,
+          sharedSubFee,
+          routingFee,
+          routingFeeConfig,
+        };
+      }
+
+      for (const omitted of [
+        undefined,
+        TestChainName.test1,
+        TestChainName.test3,
+      ]) {
+        it(`should update a shared routing sub-fee only once with omitted destination ${omitted}`, async () => {
+          const {
+            module,
+            sharedSubFeeModule,
+            sharedSubFee,
+            routingFee,
+            routingFeeConfig,
+          } = await deploySharedRoutingFee(config);
+          const newOwner = randomAddress();
+          const updatedConfig: RoutingFeeConfig = {
+            ...routingFeeConfig,
+            owner: newOwner,
+            feeContracts: Object.fromEntries(
+              destinations
+                .filter((destination) => destination !== omitted)
+                .map((destination) => [
+                  destination,
+                  { ...config, owner: newOwner },
+                ]),
+            ),
+          };
+          // Explicit reader scope includes the omitted destination, in first/last position.
+          const params = {
+            routingDestinations: destinations.map((destination) =>
+              multiProvider.getDomainId(destination),
+            ),
+          };
+          const txs = await module.update(updatedConfig, params);
+          expect(txs).to.have.lengthOf(2);
+          expect(txs[0].to).to.equal(sharedSubFee);
+          expect(txs[1].to).to.equal(routingFee.address);
+          for (const tx of txs)
+            await multiProvider.sendTransaction(test4Chain, tx);
+          expect(normalizeConfig(await routingFee.owner())).to.equal(newOwner);
+          expect(
+            normalizeConfig((await sharedSubFeeModule.read()).owner),
+          ).to.equal(newOwner);
+          for (const destination of destinations) {
+            expect(
+              await routingFee.feeContracts(
+                multiProvider.getDomainId(destination),
+              ),
+            ).to.equal(sharedSubFee);
+          }
+          expect(await module.update(updatedConfig, params)).to.deep.equal([]);
+        });
+      }
+
+      it('should reuse a split deployment for destinations with the same divergent config', async () => {
+        const { module, sharedSubFee, routingFee, routingFeeConfig } =
+          await deploySharedRoutingFee(config);
+        const splitConfig = { ...config, bps: BPS + 5 };
+        const target: RoutingFeeConfig = {
+          ...routingFeeConfig,
+          feeContracts: {
+            [destinations[0]]: config,
+            [destinations[1]]: splitConfig,
+            [destinations[2]]: splitConfig,
+          },
+        };
+        await expectTxsAndUpdate(module, target, 2);
+        const [original, splitA, splitB] = await Promise.all(
+          destinations.map((destination) =>
+            routingFee.feeContracts(multiProvider.getDomainId(destination)),
+          ),
+        );
+        expect(original).to.equal(sharedSubFee);
+        expect(splitA).not.to.equal(sharedSubFee);
+        expect(splitB).to.equal(splitA);
+        expect(await module.update(target)).to.deep.equal([]);
+      });
+
+      it('should remove a quote signer once from a shared contract', async () => {
+        const [, otherSigner] = await hre.ethers.getSigners();
+        const quotedConfig: OffchainQuotedLinearFeeConfig = {
+          ...config,
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          quoteSigners: [signer.address, otherSigner.address],
+        };
+        const { module, sharedSubFeeModule, routingFeeConfig } =
+          await deploySharedRoutingFee(quotedConfig);
+        const target: RoutingFeeConfig = {
+          ...routingFeeConfig,
+          feeContracts: Object.fromEntries(
+            destinations.map((destination) => [
+              destination,
+              { ...quotedConfig, quoteSigners: [signer.address] },
+            ]),
+          ),
+        };
+        await expectTxsAndUpdate(module, target, 1);
+        const actual = await sharedSubFeeModule.read();
+        assert(
+          actual.type === TokenFeeType.OffchainQuotedLinearFee,
+          'Expected quoted fee',
+        );
+        expect(actual.quoteSigners).to.deep.equal([signer.address]);
+        expect(await module.update(target)).to.deep.equal([]);
+      });
+
+      it('should preserve shared quoted fees for reordered, mixed-case and duplicate signers', async () => {
+        const [, otherSigner] = await hre.ethers.getSigners();
+        const quotedConfig: OffchainQuotedLinearFeeConfig = {
+          ...config,
+          type: TokenFeeType.OffchainQuotedLinearFee,
+          quoteSigners: [signer.address, otherSigner.address],
+        };
+        const { module, sharedSubFee, routingFee, routingFeeConfig } =
+          await deploySharedRoutingFee(quotedConfig);
+        const target: RoutingFeeConfig = {
+          ...routingFeeConfig,
+          feeContracts: {
+            [destinations[0]]: quotedConfig,
+            [destinations[1]]: {
+              ...quotedConfig,
+              quoteSigners: [
+                otherSigner.address.toLowerCase(),
+                signer.address.toLowerCase(),
+              ],
+            },
+            [destinations[2]]: {
+              ...quotedConfig,
+              quoteSigners: [
+                otherSigner.address,
+                signer.address,
+                signer.address.toLowerCase(),
+              ],
+            },
+          },
+        };
+        expect(await module.update(target)).to.deep.equal([]);
+        for (const destination of destinations) {
+          expect(
+            await routingFee.feeContracts(
+              multiProvider.getDomainId(destination),
+            ),
+          ).to.equal(sharedSubFee);
+        }
+      });
     });
 
     it('should derive routingDestinations from target config when not provided', async () => {
