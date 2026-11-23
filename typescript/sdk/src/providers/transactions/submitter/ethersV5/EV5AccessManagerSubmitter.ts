@@ -151,8 +151,10 @@ export class EV5AccessManagerSubmitter implements TxSubmitterInterface<ProtocolT
     }
 
     if (scheduledCalls.length > 0) {
-      this.hasScheduledCalls = true;
       await this.logExecutionWindows(scheduledCalls);
+      // Set before the proposer submit: a partially broadcast batch must still
+      // defer later immediate calls
+      this.hasScheduledCalls = true;
     }
 
     const proposerResult =

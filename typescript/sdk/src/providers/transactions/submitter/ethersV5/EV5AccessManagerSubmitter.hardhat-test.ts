@@ -4,6 +4,7 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { BigNumber, providers } from 'ethers';
 import hre from 'hardhat';
+import sinon from 'sinon';
 
 import {
   IAccessManager,
@@ -243,6 +244,10 @@ describe(TxSubmitterType.ACCESS_MANAGER, () => {
         EXECUTION_DELAY,
       )
     ).wait();
+  });
+
+  afterEach(() => {
+    sinon.restore();
   });
 
   describe('with caller', () => {
@@ -531,6 +536,36 @@ describe(TxSubmitterType.ACCESS_MANAGER, () => {
         }),
       ).to.deep.equal([['execute', immediateTx.data]]);
       expect(freshDeferred).to.have.lengthOf(0);
+    });
+
+    it('should not defer later immediate calls when logging the execution window fails', async () => {
+      const proposer = new CapturingSubmitter();
+      const submitter = await getCapturingAccessManagerSubmitter(
+        proposer,
+        admin.address,
+      );
+      const immediateTx = handleTx(immediateRecipient, '0x13');
+      // hre.ethers.provider is a read-only proxy, so stub the prototype
+      const getBlock = sinon
+        .stub(providers.JsonRpcProvider.prototype, 'getBlock')
+        .rejects(new Error('latest block unavailable'));
+
+      await expect(
+        submitter.submit(fooBarTx(delayedRecipient, 'delayed')),
+      ).to.be.rejectedWith('latest block unavailable');
+      expect(getBlock.calledOnce).to.be.true;
+      expect(proposer.submitCalls).to.equal(0);
+      getBlock.restore();
+
+      const { deferred } = splitOutput(await submitter.submit(immediateTx));
+
+      expect(
+        proposer.submitted.map((tx) => {
+          const { name, args } = decode(tx);
+          return [name, args[1]];
+        }),
+      ).to.deep.equal([['execute', immediateTx.data]]);
+      expect(deferred).to.have.lengthOf(0);
     });
   });
 
