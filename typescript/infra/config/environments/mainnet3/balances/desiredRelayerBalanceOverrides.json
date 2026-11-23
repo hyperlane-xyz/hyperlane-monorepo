@@ -1,7 +1,7 @@
 {
   "adichain": 2.35,
   "aleo": 600,
-  "arc": 0.25,
+  "arc": 187.8,
   "carrchain": 5000,
   "coti": 1,
   "eclipsemainnet": 0.5,
@@ -15,6 +15,7 @@
   "nexus": 1,
   "paradex": 2,
   "radix": 3000,
+  "robinhood": 0.0924,
   "starknet": 200,
   "subtensor": 0.2,
   "solaxy": 0.05,
