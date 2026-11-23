@@ -60,6 +60,7 @@ function createMockActionTracker(): TestActionTracker {
     getInProgressTransfers: Sinon.stub().resolves([]),
     getActiveRebalanceIntents: Sinon.stub().resolves([]),
     getTransfersByDestination: Sinon.stub().resolves([]),
+    getRecentTransfers: Sinon.stub().resolves([]),
     getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
     getTransfer: Sinon.stub().resolves(undefined),
     getRebalanceIntent: Sinon.stub().resolves(undefined),
