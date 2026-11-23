@@ -1692,6 +1692,115 @@ describe('CCS authenticated reveal recovery integration', () => {
     });
   }
 
+  interface EarlyMatchCase {
+    name: string;
+    /** The aggregation's modules; `customLeaf` is the lookup sender. */
+    modules: string[];
+    isms: Record<string, FakeIsm>;
+    statusCode: number;
+    error?: string;
+    /** ISMs the walk must not read. */
+    unread: string[];
+  }
+
+  const unavailableIsm: FakeIsm = { kind: FakeIsmKind.Unavailable };
+  const earlyMatchCases: EarlyMatchCase[] = [
+    {
+      name: 'serves the lookup sender without reading a later branch whose read is unavailable',
+      modules: [customLeaf, routingIsm],
+      isms: { [customLeaf]: ccipReadIsm, [routingIsm]: unavailableIsm },
+      statusCode: 200,
+      unread: [routingIsm],
+    },
+    {
+      name: 'serves the lookup sender without walking a later branch',
+      modules: [customLeaf, routingIsm],
+      isms: {
+        [customLeaf]: ccipReadIsm,
+        [routingIsm]: { kind: FakeIsmKind.Routing, route: nestedLeaf },
+        [nestedLeaf]: ccipReadIsm,
+      },
+      statusCode: 200,
+      unread: [routingIsm, nestedLeaf],
+    },
+    {
+      name: 'serves the lookup sender found after a branch whose read is unavailable',
+      modules: [routingIsm, customLeaf],
+      isms: { [customLeaf]: ccipReadIsm, [routingIsm]: unavailableIsm },
+      statusCode: 200,
+      unread: [],
+    },
+    {
+      name: 'answers pending when the lookup sender is not found and a branch read is unavailable',
+      modules: [routingIsm, otherLeaf],
+      isms: { [otherLeaf]: ccipReadIsm, [routingIsm]: unavailableIsm },
+      statusCode: 500,
+      error: 'Chain read is pending',
+      unread: [],
+    },
+  ];
+
+  for (const c of earlyMatchCases) {
+    it(c.name, async () => {
+      const isms: Record<string, FakeIsm> = {
+        [aggregationIsm]: { kind: FakeIsmKind.Aggregation, modules: c.modules },
+      };
+      for (const [address, ism] of Object.entries(c.isms)) isms[address] = ism;
+      const f = await fixture({
+        revealIsm: aggregationIsm,
+        lookupSender: customLeaf,
+        isms,
+      });
+      try {
+        const response = await f.app.inject({
+          method: 'POST',
+          url: postPath,
+          payload: f.payload,
+        });
+        expect(response.statusCode).to.equal(c.statusCode);
+        if (c.error === undefined) {
+          expect(response.json().data).to.equal(
+            f.dispatchedIca +
+              encodeIcaCalls(normalizeCalls(f.calls), f.salt).slice(2),
+          );
+        } else {
+          expect(response.json()).to.deep.equal({ error: c.error });
+        }
+        for (const ism of c.unread) {
+          expect(f.ismReads.get(ism) ?? 0, ism).to.equal(0);
+        }
+        sinon.assert.notCalled(f.updateMany);
+      } finally {
+        await f.app.close();
+      }
+    });
+  }
+
+  it('answers pending when the walk limit is reached after a branch read was unavailable', async () => {
+    const isms = wideAggregation(98);
+    isms[ismAt(0)] = unavailableIsm;
+    const f = await fixture({
+      revealIsm: aggregationIsm,
+      lookupSender: customLeaf,
+      isms,
+    });
+    try {
+      const response = await f.app.inject({
+        method: 'POST',
+        url: postPath,
+        payload: f.payload,
+      });
+      expect(response.statusCode).to.equal(500);
+      expect(response.json()).to.deep.equal({
+        error: 'Chain read is pending',
+      });
+      expect(f.ismReads.get(customLeaf) ?? 0).to.equal(0);
+      sinon.assert.notCalled(f.updateMany);
+    } finally {
+      await f.app.close();
+    }
+  });
+
   it('reads a routing ISM that routes to itself once', async () => {
     const f = await fixture({
       revealIsm: aggregationIsm,

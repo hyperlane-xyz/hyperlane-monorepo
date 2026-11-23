@@ -71,8 +71,9 @@ destination router must be a registry ICA router. The walk starts at the destina
 mailbox's `recipientIsm` for that router and follows `route` of routing ISMs and every
 module of aggregation ISMs for the reveal message. Its limits match the relayer's (the
 recipient ISM at depth 0; ISMs at depth 13 or after the first 100 read are not walked),
-so a CCIP-read ISM beyond them is not accepted. An ISM whose read the chain reverts is
-not a CCIP-read ISM, and a failed RPC read returns HTTP 500 with the pending error
+so a CCIP-read ISM beyond them is not accepted. The walk stops once it finds `sender`. An
+ISM whose read the chain reverts is not a CCIP-read ISM. An ISM whose read fails over RPC
+is skipped; if `sender` is not found, the request gets HTTP 500 with the pending error
 `Chain read is pending` so the relayer retries. The same check runs for Sealevel-origin
 reveals but does not bind them: their ISM field is chosen by the request.
 

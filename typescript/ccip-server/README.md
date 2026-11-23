@@ -120,7 +120,9 @@ redesigned; set `CCS_CALLDATA_LOOKUP_ENABLED=true` to register it.
   reveal's ISM tree on its destination, walked from the mailbox's recipient ISM
   for a registry ICA router; otherwise the reveal gets HTTP 403. The walk's
   limits match the relayer's: ISMs beyond its depth and count limits are not
-  walked. The same check runs for Sealevel-origin reveals but does not bind
+  walked. The walk stops once it finds `sender`, so a failed RPC read elsewhere
+  in the tree only matters (as `Chain read is pending`) when `sender` is not
+  found. The same check runs for Sealevel-origin reveals but does not bind
   them: their ISM field is chosen by the request.
 
   An EVM-origin reveal is served only once its paired commitment message is

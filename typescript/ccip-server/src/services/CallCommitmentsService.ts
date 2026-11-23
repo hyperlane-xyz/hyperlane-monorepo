@@ -68,7 +68,7 @@ import {
   REGISTRY_URI_SCHEMA,
   ServiceConfigWithBaseUrl,
 } from './BaseService.js';
-import { collectCcipReadIsms } from './ccipReadIsmTree.js';
+import { treeContainsCcipReadIsm } from './ccipReadIsmTree.js';
 
 export const CalldataLookupEnabledSchema = z
   .enum(['true', 'false'])
@@ -757,19 +757,16 @@ export class CallCommitmentsService extends BaseService {
     );
     const mailbox = this.originMailboxes.get(reveal.destination);
     assert(mailbox, `Missing mailbox address for domain ${reveal.destination}`);
-    const ccipReadIsms = await collectCcipReadIsms({
+    const verifies = await treeContainsCcipReadIsm({
       provider: this.multiProvider.getProvider(reveal.destination),
       mailbox,
       message,
+      ism: lookupSender,
       log,
     });
-    if (!ccipReadIsms.some((ism) => eqAddress(ism, lookupSender))) {
+    if (!verifies) {
       log.warn(
-        {
-          lookupSender,
-          destination: reveal.destination,
-          ccipReadIsms,
-        },
+        { lookupSender, destination: reveal.destination },
         'Lookup sender is not a CCIP-read ISM of the reveal',
       );
       throw new CommitmentAccessDeniedError(
