@@ -3,7 +3,7 @@ anvil3:
     type: accessManager
     chain: anvil3
     # Address of the OpenZeppelin AccessManager that owns the target contracts
-    accessManagerAddress: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+    accessManagerAddress: '0x5FbDB2315678afecb367f032d93F642f64180aa3'
     # Optional, the account that sends the proposer transactions. When set, calls
     # it can make immediately are wrapped in `execute`, delayed calls in `schedule`
     # and calls it is not permitted to make are rejected. When omitted, every call
