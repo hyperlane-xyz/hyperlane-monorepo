@@ -73,7 +73,7 @@ contract PredicateCrossCollateralRouterWrapper is
         string memory _policyID
     ) AbstractPredicateWrapper(_crossCollateralRouter, _registry, _policyID) {
         // CrossCollateralRouter always has a non-zero token (native not supported)
-        if (address(token) == address(0))
+        if (token == address(0))
             revert IPredicateWrapper
                 .PredicateRouterWrapper__NativeTokenUnsupported();
     }
