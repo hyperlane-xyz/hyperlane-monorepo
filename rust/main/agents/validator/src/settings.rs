@@ -20,6 +20,7 @@ use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod,
 };
 use itertools::Itertools;
+use redact::Secret;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -33,7 +34,7 @@ const MAX_SIGN_CONCURRENCY: usize = 1_000;
 /// Settings for RPCs
 #[derive(Debug, Clone)]
 pub struct RpcConfig {
-    pub url: String,
+    pub url: Secret<String>,
     pub public: bool,
 }
 
@@ -56,17 +57,15 @@ pub struct ValidatorSettings {
     pub checkpoint_syncer: CheckpointSyncerConf,
     /// The reorg configuration
     pub reorg_period: ReorgPeriod,
-    /// How frequently to check for new checkpoints. Defaults to 2s, overridable
+    /// RPC-only DB polling and failed-verification retry interval, in fractional seconds.
+    /// WebSocket insertions wake verification immediately. Defaults to 2s, overridable
     /// via `interval`, or via `chains.<originChainName>.index.interval` if
     /// `interval` is unset.
     pub interval: Duration,
-    /// Merkle tree insertion source for replay and live events. Leaves are verified
+    /// Live Merkle tree insertion source. Leaves are verified
     /// against on-chain checkpoints before signing, without per-leaf RPC log reads.
-    /// Outside lightweight mode, RPC indexing is used on stream failure or checkpoint mismatch.
-    pub websocket_url: Option<url::Url>,
-    /// Websocket indexing; two thirds of state-read endpoints must authenticate the signed history.
-    /// Disables all RPC log indexing and batch recovery. `leightweigt` is an alias.
-    pub lightweight: bool,
+    /// RPC indexes history and resumes on stream failure or checkpoint mismatch.
+    pub websocket_url: Option<Secret<url::Url>>,
     /// Root verification policy; single/fallback retain the classic signing path.
     pub(crate) checkpoint_consensus: Option<CheckpointConsensus>,
     /// A list of RPCs that the validator uses
@@ -81,18 +80,19 @@ pub struct ValidatorSettings {
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-struct RawValidatorSettings(Value);
+struct RawValidatorSettings(Secret<Value>);
 
 impl_loadable_from_settings!(Validator, RawValidatorSettings -> ValidatorSettings);
 
 impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
+    /// Parse validator settings, preserving explicit interval, chain interval, then default precedence.
     fn from_config_filtered(
-        mut raw: RawValidatorSettings,
+        raw: RawValidatorSettings,
         cwp: &ConfigPath,
         _filter: (),
         agent_name: &str,
     ) -> ConfigResult<Self> {
-        let lightweight = parse_lightweight_flag(&mut raw.0, cwp)?;
+        let raw = raw.0.expose_secret().clone();
         let curr_dir = std::env::current_dir().map_err(|err| {
             let mut config_err = ConfigParsingError::default();
             config_err.push(cwp.clone(), eyre::eyre!(err.to_string()));
@@ -101,7 +101,14 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
 
         let mut err = ConfigParsingError::default();
 
-        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let p = ValueParser::new(cwp.clone(), &raw);
+        for removed in ["lightweight", "leightweigt"] {
+            if raw.get(removed).is_some() {
+                err.push(cwp.add(removed), eyre!(
+                    "{removed} was removed; validators now require RPC indexing for startup and WebSocket recovery. Remove the setting."
+                ));
+            }
+        }
 
         let origin_chain_name = p
             .chain(&mut err)
@@ -113,8 +120,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .chain(&mut err)
             .get_opt_key("allowPublicRpcs")
             .parse_bool()
-            .unwrap_or(false)
-            || lightweight;
+            .unwrap_or(false);
 
         let skip_announce = p
             .chain(&mut err)
@@ -146,15 +152,11 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                 None
             }
         };
-        let checkpoint_consensus = if lightweight {
-            Some(CheckpointConsensus::Majority)
-        } else {
-            configured_consensus
-        };
+        let checkpoint_consensus = configured_consensus;
         // Quorum/majority vote on checkpoint history in the validator, not on raw
         // JSON responses. Indexing and auxiliary reads use ordinary fallback.
         // Normalize only the base parser's copy, preserving the configured endpoint metadata.
-        let mut base_raw = raw.0.clone();
+        let mut base_raw = raw.clone();
         if configured_consensus.is_some() {
             if let Some(name) = origin_chain_name {
                 if let Some(chain) = base_raw
@@ -224,32 +226,21 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         // avoid widening checkpoint-availability latency for validators that don't configure
         // either.
         const DEFAULT_INTERVAL: Duration = Duration::from_secs(2);
-        let explicit_interval_secs = p.chain(&mut err).get_opt_key("interval").parse_u64().end();
-        if explicit_interval_secs == Some(0) {
-            err.push(
-                cwp.clone(),
-                eyre::eyre!("`interval` must be greater than zero, or omitted for the 2s default"),
-            );
-        }
-        let chain_interval_secs = p
+        let explicit_interval = p
+            .chain(&mut err)
+            .get_opt_key("interval")
+            .parse_poll_interval_seconds()
+            .end();
+        let chain_interval = p
             .chain(&mut err)
             .get_key("chains")
             .get_key(origin_chain_name)
             .get_opt_key("index")
             .get_opt_key("interval")
-            .parse_u64()
+            .parse_poll_interval_seconds()
             .end();
-        if chain_interval_secs == Some(0) {
-            err.push(
-                cwp.clone(),
-                eyre::eyre!(
-                    "`chains.{origin_chain_name}.index.interval` must be greater than zero, or omitted for the 2s default"
-                ),
-            );
-        }
-        let interval = explicit_interval_secs
-            .map(Duration::from_secs)
-            .or(chain_interval_secs.map(Duration::from_secs))
+        let interval = explicit_interval
+            .or(chain_interval)
             .unwrap_or(DEFAULT_INTERVAL);
 
         let chain = p
@@ -283,12 +274,12 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
                     eyre::eyre!("`websocketUrl` must use ws:// or wss://"),
                 );
             }
-        }
-        if lightweight && websocket_url.is_none() {
-            err.push(
-                cwp.add("websocketurl"),
-                eyre!("websocketUrl is required in lightweight mode"),
-            );
+            if url.path() != "/validators" || url.query().is_some() {
+                err.push(
+                    cwp.clone(),
+                    eyre::eyre!("`websocketUrl` must use /validators without query parameters"),
+                );
+            }
         }
 
         let mut rpcs = get_rpc_urls(&chain, "rpcUrls", "customRpcUrls", &mut err);
@@ -311,7 +302,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
         for removed in ["additionalQuorumRpcUrls", "customAdditionalQuorumRpcUrls"] {
             if chain.chain(&mut err).get_opt_key(removed).end().is_some() {
                 err.push(cwp.add("chains").add(origin_chain_name).add(&removed.to_ascii_lowercase()), eyre!(
-                    "{removed} was removed; move its endpoints into rpcUrls/customRpcUrls and remove the obsolete setting. Normal mode uses rpcConsensusType; lightweight mode requires two-thirds checkpoint agreement"
+                    "{removed} was removed; move its endpoints into rpcUrls/customRpcUrls and remove the obsolete setting. Validators use rpcConsensusType"
                 ));
             }
         }
@@ -338,8 +329,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             checkpoint_syncer,
             reorg_period,
             interval,
-            websocket_url,
-            lightweight,
+            websocket_url: websocket_url.map(Secret::new),
             checkpoint_consensus,
             rpcs,
             allow_public_rpcs,
@@ -347,37 +337,6 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             max_sign_concurrency,
         })
     }
-}
-
-/// Accept both spellings and bare CLI flags without changing RPC selection.
-fn parse_lightweight_flag(raw: &mut Value, cwp: &ConfigPath) -> ConfigResult<bool> {
-    for key in ["lightweight", "leightweigt"] {
-        if raw.get(key).and_then(Value::as_str) == Some("") {
-            // The shared argument loader represents a bare --flag as an empty string.
-            raw[key] = Value::Bool(true);
-        }
-    }
-    let mut err = ConfigParsingError::default();
-    let parser = ValueParser::new(cwp.clone(), raw);
-    let lightweight = parser
-        .chain(&mut err)
-        .get_opt_key("lightweight")
-        .parse_bool()
-        .end();
-    let alias = parser
-        .chain(&mut err)
-        .get_opt_key("leightweigt")
-        .parse_bool()
-        .end();
-    if let (Some(lightweight), Some(alias)) = (lightweight, alias) {
-        if lightweight != alias {
-            err.push(
-                cwp.clone(),
-                eyre!("lightweight and leightweigt must agree when both are set"),
-            );
-        }
-    }
-    err.into_result(lightweight.or(alias).unwrap_or(false))
 }
 
 fn parse_max_sign_concurrency(
@@ -432,7 +391,7 @@ fn get_rpc_urls(
                     .unwrap_or(false);
                 let url: Option<&str> = v.chain(err).get_key("http").parse_string().end();
                 url.map(|url| RpcConfig {
-                    url: url.to_owned(),
+                    url: Secret::new(url.to_owned()),
                     public,
                 })
             })
@@ -449,7 +408,7 @@ fn get_rpc_urls(
                 .map(str::trim)
                 .filter(|url| !url.is_empty())
                 .map(|url| RpcConfig {
-                    url: url.to_owned(),
+                    url: Secret::new(url.to_owned()),
                     public: false,
                 })
                 .collect_vec()
@@ -584,11 +543,11 @@ mod test {
     fn test_get_rpc_urls_explicit() {
         let expected = [
             RpcConfig {
-                url: "http://my-rpc-url.com".to_string(),
+                url: "http://my-rpc-url.com".to_string().into(),
                 public: true,
             },
             RpcConfig {
-                url: "http://my-rpc-url-2.com".to_string(),
+                url: "http://my-rpc-url-2.com".to_string().into(),
                 public: false,
             },
         ];
@@ -597,7 +556,7 @@ mod test {
             .iter()
             .map(|rpc| {
                 serde_json::json!({
-                    "http": rpc.url,
+                    "http": rpc.url.expose_secret(),
                     "public": rpc.public
                 })
             })
@@ -612,7 +571,7 @@ mod test {
 
         assert_eq!(parsed.len(), expected.len());
         for (i, rpc) in expected.iter().enumerate() {
-            assert_eq!(parsed[i].url, rpc.url);
+            assert_eq!(parsed[i].url.expose_secret(), rpc.url.expose_secret());
             assert_eq!(parsed[i].public, rpc.public);
         }
     }
@@ -638,9 +597,9 @@ mod test {
         let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err);
 
         assert_eq!(parsed.len(), 2);
-        assert_eq!(parsed[0].url, "http://my-rpc-url.com");
+        assert_eq!(parsed[0].url.expose_secret(), "http://my-rpc-url.com");
         assert!(!parsed[0].public);
-        assert_eq!(parsed[1].url, "http://my-rpc-url-2.com");
+        assert_eq!(parsed[1].url.expose_secret(), "http://my-rpc-url-2.com");
         assert!(!parsed[1].public);
     }
 
@@ -666,19 +625,18 @@ mod test {
         let parsed = get_rpc_urls(&value_parser, "rpcUrls", "customRpcUrls", &mut err);
 
         assert_eq!(parsed.len(), 2);
-        assert_eq!(parsed[0].url, "http://my-rpc-url-3.com");
+        assert_eq!(parsed[0].url.expose_secret(), "http://my-rpc-url-3.com");
         assert!(!parsed[0].public);
-        assert_eq!(parsed[1].url, "http://my-rpc-url-4.com");
+        assert_eq!(parsed[1].url.expose_secret(), "http://my-rpc-url-4.com");
         assert!(!parsed[1].public);
     }
 
-    fn lightweight_settings_fixture() -> Value {
+    fn validator_settings_fixture() -> Value {
         serde_json::json!({
-            "lightweight": true,
             "originchainname": "test",
-            "websocketurl": "wss://scraper.example/events",
+            "websocketurl": "wss://scraper.example/validators",
             "validator": {"type": "hexKey", "key": format!("0x{}", "11".repeat(32))},
-            "checkpointsyncer": {"type": "localStorage", "path": "/tmp/lightweight-checkpoints"},
+            "checkpointsyncer": {"type": "localStorage", "path": "/tmp/validator-checkpoints"},
             "chains": {"test": {
                 "name": "test", "domainid": 1337, "chainid": 1337, "protocol": "ethereum",
                 "rpcurls": [
@@ -695,7 +653,25 @@ mod test {
     }
 
     #[test]
-    fn checkpoint_consensus_is_protocol_independent_and_lightweight_stays_majority() {
+    fn rejects_invalid_validator_websocket_paths_at_startup() {
+        for url in [
+            "wss://scraper.example/agents",
+            "wss://scraper.example/validators?domain=1",
+        ] {
+            let mut raw = validator_settings_fixture();
+            raw["websocketurl"] = url.into();
+            let result = ValidatorSettings::from_config_filtered(
+                RawValidatorSettings(raw.into()),
+                &ConfigPath::default(),
+                (),
+                "validator",
+            );
+            assert!(result.is_err());
+        }
+    }
+
+    #[test]
+    fn checkpoint_consensus_is_protocol_independent() {
         for protocol in [
             "ethereum",
             "sealevel",
@@ -713,63 +689,54 @@ mod test {
                 ("single", None),
                 ("fallback", None),
             ] {
-                for lightweight in [false, true] {
-                    let mut raw = lightweight_settings_fixture();
-                    raw["lightweight"] = lightweight.into();
-                    let chain = &mut raw["chains"]["test"];
-                    chain["protocol"] = protocol.into();
-                    chain["rpcconsensustype"] = mode.into();
-                    chain["chainid"] = if protocol.starts_with("cosmos") {
-                        "test-1"
-                    } else {
-                        "1337"
-                    }
-                    .into();
-                    chain["grpcurls"] = serde_json::json!([{"http":"https://grpc-a.example"},{"http":"https://grpc-b.example"}]);
-                    chain["walleturls"] = serde_json::json!([{"http":"https://wallet.example"}]);
-                    chain["walletsolidityurls"] = serde_json::json!([{"http":"https://solid-a.example"},{"http":"https://solid-b.example"}]);
-                    chain["gatewayurls"] = serde_json::json!([{"http":"https://gateway.example"}]);
-                    chain["bech32prefix"] = "test".into();
-                    chain["gasprice"] = serde_json::json!({"denom":"utest","amount":"0.1"});
-                    chain["contractaddressbytes"] = 32.into();
-                    chain["networkname"] = "mainnet".into();
-                    chain["nativetoken"] = serde_json::json!({"denom":"0x0000000000000000000000000000000000000005","decimals":18,"symbol":"TEST"});
-                    chain["mailboxprogram"] = "mailbox.aleo".into();
-                    chain["hookmanagerprogram"] = "hooks.aleo".into();
-                    chain["ismmanagerprogram"] = "isms.aleo".into();
-                    chain["validatorannounceprogram"] = "announce.aleo".into();
-                    let settings = ValidatorSettings::from_config_filtered(
-                        RawValidatorSettings(raw),
-                        &ConfigPath::default(),
-                        (),
-                        "validator",
-                    )
-                    .unwrap_or_else(|err| panic!("{protocol}/{mode}/{lightweight}: {err}"));
-                    assert_eq!(
-                        settings.checkpoint_consensus,
-                        if lightweight {
-                            Some(CheckpointConsensus::Majority)
-                        } else {
-                            expected
-                        }
-                    );
-                    if expected.is_some() {
-                        if let hyperlane_base::settings::ChainConnectionConf::Ethereum(conn) =
-                            &settings.chains[&settings.origin_chain].connection
-                        {
-                            assert!(matches!(
-                                conn.rpc_connection,
-                                hyperlane_ethereum::RpcConnectionConf::HttpFallback { .. }
-                            ));
-                        }
+                let mut raw = validator_settings_fixture();
+
+                let chain = &mut raw["chains"]["test"];
+                chain["protocol"] = protocol.into();
+                chain["rpcconsensustype"] = mode.into();
+                chain["chainid"] = if protocol.starts_with("cosmos") {
+                    "test-1"
+                } else {
+                    "1337"
+                }
+                .into();
+                chain["grpcurls"] = serde_json::json!([{"http":"https://grpc-a.example"},{"http":"https://grpc-b.example"}]);
+                chain["walleturls"] = serde_json::json!([{"http":"https://wallet.example"}]);
+                chain["walletsolidityurls"] = serde_json::json!([{"http":"https://solid-a.example"},{"http":"https://solid-b.example"}]);
+                chain["gatewayurls"] = serde_json::json!([{"http":"https://gateway.example"}]);
+                chain["bech32prefix"] = "test".into();
+                chain["gasprice"] = serde_json::json!({"denom":"utest","amount":"0.1"});
+                chain["contractaddressbytes"] = 32.into();
+                chain["networkname"] = "mainnet".into();
+                chain["nativetoken"] = serde_json::json!({"denom":"0x0000000000000000000000000000000000000005","decimals":18,"symbol":"TEST"});
+                chain["mailboxprogram"] = "mailbox.aleo".into();
+                chain["hookmanagerprogram"] = "hooks.aleo".into();
+                chain["ismmanagerprogram"] = "isms.aleo".into();
+                chain["validatorannounceprogram"] = "announce.aleo".into();
+                let settings = ValidatorSettings::from_config_filtered(
+                    RawValidatorSettings(raw.into()),
+                    &ConfigPath::default(),
+                    (),
+                    "validator",
+                )
+                .unwrap_or_else(|err| panic!("{protocol}/{mode}: {err}"));
+                assert_eq!(settings.checkpoint_consensus, expected);
+                if expected.is_some() {
+                    if let hyperlane_base::settings::ChainConnectionConf::Ethereum(conn) =
+                        &settings.chains[&settings.origin_chain].connection
+                    {
+                        assert!(matches!(
+                            conn.rpc_connection,
+                            hyperlane_ethereum::RpcConnectionConf::HttpFallback { .. }
+                        ));
                     }
                 }
             }
         }
-        let mut raw = lightweight_settings_fixture();
-        raw["lightweight"] = false.into();
+        let raw = validator_settings_fixture();
+
         let settings = ValidatorSettings::from_config_filtered(
-            RawValidatorSettings(raw),
+            RawValidatorSettings(raw.into()),
             &ConfigPath::default(),
             (),
             "validator",
@@ -782,82 +749,44 @@ mod test {
     }
 
     #[test]
-    fn removed_quorum_settings_require_migration_in_both_modes() {
-        for lightweight in [false, true] {
-            for (key, value) in [
-                (
-                    "additionalquorumrpcurls",
-                    serde_json::json!([{"http": "https://quorum.example"}]),
-                ),
-                ("additionalquorumrpcurls", serde_json::json!([])),
-                (
-                    "customadditionalquorumrpcurls",
-                    serde_json::json!("https://quorum.example"),
-                ),
-                ("customadditionalquorumrpcurls", serde_json::json!("")),
-            ] {
-                let mut raw = lightweight_settings_fixture();
-                raw["lightweight"] = Value::Bool(lightweight);
-                raw["chains"]["test"][key] = value;
-                let error = ValidatorSettings::from_config_filtered(
-                    RawValidatorSettings(raw),
-                    &ConfigPath::default(),
-                    (),
-                    "validator",
-                )
-                .expect_err("obsolete quorum configuration must not be silently ignored");
-                assert!(error.to_string().contains("was removed"));
-            }
-        }
-    }
+    fn removed_quorum_settings_require_migration() {
+        for (key, value) in [
+            (
+                "additionalquorumrpcurls",
+                serde_json::json!([{"http": "https://quorum.example"}]),
+            ),
+            ("additionalquorumrpcurls", serde_json::json!([])),
+            (
+                "customadditionalquorumrpcurls",
+                serde_json::json!("https://quorum.example"),
+            ),
+            ("customadditionalquorumrpcurls", serde_json::json!("")),
+        ] {
+            let mut raw = validator_settings_fixture();
 
-    #[test]
-    fn lightweight_accepts_bare_flags_and_preserves_rpc_overrides() {
-        for flag in ["lightweight", "leightweigt"] {
-            let mut raw = lightweight_settings_fixture();
-            raw.as_object_mut()
-                .expect("config object")
-                .remove("lightweight");
-            raw[flag] = Value::String(String::new());
-            let chains = raw["chains"].clone();
-            assert!(parse_lightweight_flag(&mut raw, &ConfigPath::default()).expect("bare flag"));
-            assert_eq!(raw["chains"], chains);
-            let settings = ValidatorSettings::from_config_filtered(
-                RawValidatorSettings(raw),
+            raw["chains"]["test"][key] = value;
+            let error = ValidatorSettings::from_config_filtered(
+                RawValidatorSettings(raw.into()),
                 &ConfigPath::default(),
                 (),
                 "validator",
             )
-            .expect("valid lightweight configuration");
-            assert!(settings.lightweight);
-            assert!(settings.allow_public_rpcs);
-            assert_eq!(settings.rpcs.len(), 1);
-            assert_eq!(settings.rpcs[0].url, "https://private-override.example");
-            assert!(!settings.rpcs[0].public);
-            let hyperlane_base::settings::ChainConnectionConf::Ethereum(connection) =
-                &settings.base.chains[&settings.origin_chain].connection
-            else {
-                panic!("expected EVM connection");
-            };
-            assert_eq!(
-                connection.rpc_urls(),
-                vec![url::Url::parse("https://private-override.example").expect("RPC URL")]
-            );
+            .expect_err("obsolete quorum configuration must not be silently ignored");
+            assert!(error.to_string().contains("was removed"));
         }
     }
 
     #[test]
-    fn lightweight_accepts_non_evm_validator_configuration() {
-        let mut raw = lightweight_settings_fixture();
+    fn accepts_non_evm_validator_configuration() {
+        let mut raw = validator_settings_fixture();
         raw["chains"]["test"]["protocol"] = Value::String("sealevel".into());
         let settings = ValidatorSettings::from_config_filtered(
-            RawValidatorSettings(raw),
+            RawValidatorSettings(raw.into()),
             &ConfigPath::default(),
             (),
             "validator",
         )
-        .expect("non-EVM lightweight validator");
-        assert!(settings.lightweight);
+        .expect("non-EVM validator");
         assert_eq!(
             settings.origin_chain.domain_protocol(),
             HyperlaneDomainProtocol::Sealevel
@@ -865,21 +794,21 @@ mod test {
     }
 
     #[test]
-    fn lightweight_keeps_all_rpc_urls_even_with_single_consensus() {
+    fn keeps_all_rpc_urls_even_with_single_consensus() {
         for consensus in ["single", "fallback", "quorum", "majority"] {
-            let mut raw = lightweight_settings_fixture();
+            let mut raw = validator_settings_fixture();
             raw["chains"]["test"]
                 .as_object_mut()
                 .expect("chain object")
                 .remove("customrpcurls");
             raw["chains"]["test"]["rpcconsensustype"] = consensus.into();
             let settings = ValidatorSettings::from_config_filtered(
-                RawValidatorSettings(raw),
+                RawValidatorSettings(raw.into()),
                 &ConfigPath::default(),
                 (),
                 "validator",
             )
-            .expect("lightweight configuration");
+            .expect("validator configuration");
             assert_eq!(settings.rpcs.len(), 2);
             assert!(settings.rpcs[0].public);
             assert!(!settings.rpcs[1].public);
@@ -892,102 +821,162 @@ mod test {
         use hyperlane_base::MetadataFromSettings;
 
         for protocol in ["cosmos", "cosmosnative", "tron"] {
-            for lightweight in [false, true] {
-                let mut raw = lightweight_settings_fixture();
-                raw["lightweight"] = lightweight.into();
-                let chain = &mut raw["chains"]["test"];
-                chain["protocol"] = protocol.into();
-                chain["chainid"] = if protocol.starts_with("cosmos") {
-                    "test-1"
-                } else {
-                    "1337"
-                }
-                .into();
-                chain["bech32prefix"] = "test".into();
-                chain["gasprice"] = serde_json::json!({"denom": "utest", "amount": "0.1"});
-                chain["contractaddressbytes"] = 32.into();
-                chain["grpcurls"] = serde_json::json!([{"http": "https://grpc-registry.example"}]);
-                chain["customgrpcurls"] = "https://grpc-private.example".into();
-                chain["walleturls"] = serde_json::json!([{"http": "https://wallet.example"}]);
-                chain["walletsolidityurls"] =
-                    serde_json::json!([{"http": "https://solid-registry.example"}]);
-                chain["customwalletsolidityurls"] = "https://solid-private.example".into();
-                let settings = ValidatorSettings::from_config_filtered(
-                    RawValidatorSettings(raw),
-                    &ConfigPath::default(),
-                    (),
-                    "validator",
-                )
-                .expect("valid transport configuration");
-                let metadata = serde_json::to_value(ValidatorMetadata::build_metadata(&settings))
-                    .expect("serialized metadata");
-                let hashes: Vec<_> = metadata["rpcs"]
-                    .as_array()
-                    .expect("RPC metadata")
-                    .iter()
-                    .map(|entry| entry["url_hash"].clone())
-                    .collect();
-                for url in [
-                    "https://private-override.example",
-                    "https://grpc-private.example",
-                    "https://wallet.example",
-                    "https://solid-private.example",
-                ] {
-                    let expected = serde_json::to_value(hyperlane_core::H256::from(
-                        ethers::utils::keccak256(url),
-                    ))
-                    .expect("hash");
-                    assert!(
-                        hashes.contains(&expected),
-                        "{protocol}, lightweight={lightweight}: missing transport"
-                    );
-                }
-                assert_eq!(hashes.len(), 4);
+            let mut raw = validator_settings_fixture();
+
+            let chain = &mut raw["chains"]["test"];
+            chain["protocol"] = protocol.into();
+            chain["chainid"] = if protocol.starts_with("cosmos") {
+                "test-1"
+            } else {
+                "1337"
+            }
+            .into();
+            chain["bech32prefix"] = "test".into();
+            chain["gasprice"] = serde_json::json!({"denom": "utest", "amount": "0.1"});
+            chain["contractaddressbytes"] = 32.into();
+            chain["grpcurls"] = serde_json::json!([{"http": "https://grpc-registry.example"}]);
+            chain["customgrpcurls"] = "https://grpc-private.example".into();
+            chain["walleturls"] = serde_json::json!([{"http": "https://wallet.example"}]);
+            chain["walletsolidityurls"] =
+                serde_json::json!([{"http": "https://solid-registry.example"}]);
+            chain["customwalletsolidityurls"] = "https://solid-private.example".into();
+            let settings = ValidatorSettings::from_config_filtered(
+                RawValidatorSettings(raw.into()),
+                &ConfigPath::default(),
+                (),
+                "validator",
+            )
+            .expect("valid transport configuration");
+            let metadata = serde_json::to_value(ValidatorMetadata::build_metadata(&settings))
+                .expect("serialized metadata");
+            let hashes: Vec<_> = metadata["rpcs"]
+                .as_array()
+                .expect("RPC metadata")
+                .iter()
+                .map(|entry| entry["url_hash"].clone())
+                .collect();
+            for url in [
+                "https://private-override.example",
+                "https://grpc-private.example",
+                "https://wallet.example",
+                "https://solid-private.example",
+            ] {
+                let expected =
+                    serde_json::to_value(hyperlane_core::H256::from(ethers::utils::keccak256(url)))
+                        .expect("hash");
+                assert!(hashes.contains(&expected), "{protocol}: missing transport");
+            }
+            assert_eq!(hashes.len(), 4);
+        }
+    }
+
+    /// Parse real validator settings so interval cases exercise startup validation and precedence.
+    fn parse_with_intervals(
+        top_level: Option<Value>,
+        chain_index: Option<Value>,
+    ) -> ConfigResult<ValidatorSettings> {
+        let mut raw = validator_settings_fixture();
+
+        if let Some(interval) = top_level {
+            raw["interval"] = interval;
+        }
+        if let Some(interval) = chain_index {
+            raw["chains"]["test"]["index"] = serde_json::json!({ "interval": interval });
+        }
+        ValidatorSettings::from_config_filtered(
+            RawValidatorSettings(raw.into()),
+            &ConfigPath::default(),
+            (),
+            "validator",
+        )
+    }
+
+    /// Top-level `interval` wins over the origin chain's `index.interval`, which wins over the 2s
+    /// default; both are seconds and accept fractions as numbers or strings.
+    #[test]
+    fn interval_precedence_accepts_fractional_seconds() {
+        use serde_json::json;
+        let ms = Duration::from_millis;
+        for (top_level, chain_index, expected) in [
+            (None, None, Duration::from_secs(2)),
+            (Some(json!(0.1)), None, ms(100)),
+            (Some(json!("0.1")), None, ms(100)),
+            (None, Some(json!(0.1)), ms(100)),
+            (None, Some(json!("0.1")), ms(100)),
+            (Some(json!(0.25)), Some(json!(3)), ms(250)),
+            (Some(json!(3)), Some(json!(0.25)), Duration::from_secs(3)),
+            (Some(json!("1.5")), Some(json!("0.1")), ms(1500)),
+            (None, Some(json!(7)), Duration::from_secs(7)),
+            (Some(json!(0.01)), None, ms(10)),
+            (None, Some(json!("0.01")), ms(10)),
+        ] {
+            let case = format!("top={top_level:?} chain={chain_index:?}");
+            let settings = parse_with_intervals(top_level, chain_index)
+                .unwrap_or_else(|err| panic!("{case}: {err}"));
+            assert_eq!(settings.interval, expected, "{case}");
+        }
+    }
+
+    /// Invalid values are rejected wherever they appear, even when the other key is valid, so a
+    /// typo never silently falls back to another interval or becomes a near-zero wait.
+    #[test]
+    fn interval_rejects_nonpositive_malformed_and_unrepresentable_values() {
+        use serde_json::json;
+        for invalid in [
+            json!(0),
+            json!("0"),
+            json!(0.0),
+            json!(-1),
+            json!(-0.1),
+            json!("-0.1"),
+            json!(1e-10),
+            json!("1e-10"),
+            json!(0.009),
+            json!("0.009"),
+            json!(1e20),
+            json!("1e400"),
+            json!("NaN"),
+            json!("inf"),
+            json!(""),
+            json!("abc"),
+            json!(true),
+        ] {
+            let top = "config_path: `interval`";
+            let chain = "config_path: `chains.test.index.interval`";
+            for (top_level, chain_index, path) in [
+                (Some(invalid.clone()), None, top),
+                (Some(invalid.clone()), Some(json!(0.1)), top),
+                (None, Some(invalid.clone()), chain),
+                (Some(json!(0.1)), Some(invalid.clone()), chain),
+            ] {
+                let case = format!("top={top_level:?} chain={chain_index:?}");
+                let error = parse_with_intervals(top_level, chain_index)
+                    .expect_err(&format!("{case} must be rejected"))
+                    .to_string();
+                assert!(error.contains(path), "{case}: {error}");
             }
         }
     }
 
     #[test]
-    fn lightweight_requires_websocket_and_defaults_off() {
-        let mut raw = lightweight_settings_fixture();
-        raw.as_object_mut()
-            .expect("config object")
-            .remove("websocketurl");
-        let error = ValidatorSettings::from_config_filtered(
-            RawValidatorSettings(raw.clone()),
-            &ConfigPath::default(),
-            (),
-            "validator",
-        )
-        .expect_err("websocket required");
-        assert!(error.to_string().contains("websocketUrl is required"));
-        raw.as_object_mut()
-            .expect("config object")
-            .remove("lightweight");
-        let settings = ValidatorSettings::from_config_filtered(
-            RawValidatorSettings(raw),
-            &ConfigPath::default(),
-            (),
-            "validator",
-        )
-        .expect("classic configuration");
-        assert!(!settings.lightweight);
-        assert!(!settings.allow_public_rpcs);
-    }
-
-    #[test]
-    fn lightweight_rejects_invalid_or_conflicting_flags() {
-        for mut raw in [
-            serde_json::json!({"lightweight": "invalid"}),
-            serde_json::json!({"lightweight": true, "leightweigt": false}),
-        ] {
-            assert!(parse_lightweight_flag(&mut raw, &ConfigPath::default()).is_err());
-        }
-        for mut raw in [
-            serde_json::json!({}),
-            serde_json::json!({"lightweight": false}),
-        ] {
-            assert!(!parse_lightweight_flag(&mut raw, &ConfigPath::default()).expect("disabled"));
+    fn removed_lightweight_settings_require_rpc_indexing() {
+        for flag in ["lightweight", "leightweigt"] {
+            for value in [
+                Value::Bool(true),
+                Value::Bool(false),
+                Value::String(String::new()),
+            ] {
+                let mut raw = validator_settings_fixture();
+                raw[flag] = value;
+                let error = ValidatorSettings::from_config_filtered(
+                    RawValidatorSettings(raw.into()),
+                    &ConfigPath::default(),
+                    (),
+                    "validator",
+                )
+                .expect_err("removed setting");
+                assert!(error.to_string().contains("require RPC indexing"));
+            }
         }
     }
 }

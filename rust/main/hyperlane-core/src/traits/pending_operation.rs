@@ -2,8 +2,10 @@ use std::{
     cmp::Ordering,
     env,
     fmt::{Debug, Display},
+    future::Future,
     io::Write,
     ops::Mul,
+    pin::Pin,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -25,6 +27,38 @@ use crate::{
 
 /// Boxed operation that can be stored in an operation queue
 pub type QueueOperation = Box<dyn PendingOperation>;
+
+/// A prepare attempt that finished or yielded its slot while collecting signatures.
+pub enum QueuePrepareResult {
+    /// Preparation finished with the usual operation result.
+    Complete(PendingOperationResult),
+    /// Drive the outstanding metadata work, then queue the operation for preparation again.
+    WaitingForSignatures(Pin<Box<dyn Future<Output = ()> + Send + 'static>>),
+}
+
+impl From<PendingOperationResult> for QueuePrepareResult {
+    fn from(result: PendingOperationResult) -> Self {
+        Self::Complete(result)
+    }
+}
+
+/// Protocol-neutral progress through transaction submission.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SubmissionStage {
+    /// The operation is building or sending its transaction payload.
+    Submitting,
+    /// The payload was accepted by the transaction submitter.
+    Submitted,
+    /// The transaction is waiting to be created or accepted by a node.
+    PendingInclusion,
+    /// The transaction is in a node's mempool.
+    Mempool,
+    /// The transaction was included in a block.
+    Included,
+    /// The transaction reached the chain's configured finality threshold.
+    Finalized,
+}
 
 /// A pending operation that will be processed by the MessageProcessor.
 ///
@@ -126,6 +160,11 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// submit call.
     async fn prepare(&mut self) -> PendingOperationResult;
 
+    /// Prepare in a queue that may have room to park an operation awaiting signatures.
+    async fn prepare_for_queue(&mut self, _can_park: bool) -> QueuePrepareResult {
+        QueuePrepareResult::Complete(self.prepare().await)
+    }
+
     /// Submit this operation to the blockchain
     async fn submit(&mut self) -> PendingOperationResult;
 
@@ -181,6 +220,13 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Called immediately after the process tx for this operation is successfully submitted.
     /// Default no-op; override for latency-sensitive follow-up work (e.g. UR reveal).
     fn on_submitted_success(&self) {}
+
+    /// Called when the submission pipeline advances to a new observable stage.
+    fn on_submission_stage(&self, _stage: SubmissionStage) {}
+
+    /// Called before a runtime denylist drop, so the operation can arrange
+    /// to be reconsidered once it is released if its rule was removed meanwhile.
+    fn on_runtime_denylist_drop(&mut self) {}
 
     /// Creates payload for the operation
     async fn payload(&self) -> ChainResult<Vec<u8>>;
@@ -319,6 +365,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Awaiting ICA reveal commit confirmation")]
     /// ICA reveal commit not yet confirmed on-chain; polling until visible
     AwaitingIcaReveal,
+    #[strum(to_string = "Error fetching origin transaction sender")]
+    /// Could not look up the origin transaction sender for the runtime denylist
+    ErrorFetchingOriginTxSender,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -34,7 +34,6 @@ export const TRON_CONNECTED_CHAINS = [
   'unichain',
   'polygon',
   'soneium',
-  'lisk',
   'plasma',
   'citrea',
   'eclipsemainnet',
@@ -43,6 +42,7 @@ export const TRON_CONNECTED_CHAINS = [
   'hyperevm',
   'mantle',
   'eni',
+  'tempo',
 ];
 
 export function getTronIgpConfig(

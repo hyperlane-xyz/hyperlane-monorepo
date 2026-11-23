@@ -4,12 +4,11 @@ use async_trait::async_trait;
 use axum::Router;
 use derive_more::AsRef;
 use ethers::utils::keccak256;
-use eyre::{eyre, Context, Result};
+use eyre::{eyre, Result};
 use futures_util::future::try_join_all;
 use rand::Rng;
 use serde::Serialize;
 use tokio::{
-    sync::Notify,
     task::JoinHandle,
     time::{sleep, Instant},
 };
@@ -20,7 +19,7 @@ use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB, DB},
     git_sha,
     metrics::AgentMetrics,
-    settings::ChainConf,
+    settings::{ChainConf, IndexSettings},
     BaseAgent, ChainMetrics, ChainSpecificMetricsUpdater, CheckpointSyncer, ContractSyncMetrics,
     ContractSyncer, CoreMetrics, HyperlaneAgentCore, MetadataFromSettings, RuntimeMetrics,
     SequencedDataContractSync,
@@ -28,9 +27,9 @@ use hyperlane_base::{
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, rpc_clients::RPC_RETRY_SLEEP_DURATION,
     Announcement, ChainResult, CheckpointAtBlock, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, IncrementalMerkleAtBlock, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, ValidatorAnnounceSubmission,
-    H256, U256,
+    HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, IncrementalMerkleAtBlock, IndexMode,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce,
+    ValidatorAnnounceSubmission, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
 use hyperlane_metric::{
@@ -40,12 +39,9 @@ use hyperlane_metric::{
 
 use crate::checkpoint_consensus::CheckpointReader;
 use crate::merkle_tree_hook_sync::{
-    merkle_tree_cursor_state, CheckpointingMerkleTreeStore, MerkleTreeHookWebSocketSync,
-    MerkleTreeRpcRecovery,
+    MerkleTreeHookWebSocketSync, MerkleTreeRpcRecovery, MerkleTreeStore,
 };
-use crate::reorg_reporter::{
-    LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
-};
+use crate::reorg_reporter::{LatestCheckpointReorgReporter, ReorgReporter};
 use crate::rpc::{build_validator_per_url_hooks, dedupe_rpc_urls, state_read_urls};
 use crate::server::{self as validator_server, merkle_tree_insertions, ValidatorReadiness};
 use crate::{
@@ -54,15 +50,6 @@ use crate::{
 };
 
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
-
-#[derive(Debug)]
-enum MerkleTreeHookSync {
-    Rpc(Arc<SequencedDataContractSync<MerkleTreeInsertion>>),
-    WebSocket {
-        fallback: Option<Arc<SequencedDataContractSync<MerkleTreeInsertion>>>,
-        websocket: Box<MerkleTreeHookWebSocketSync>,
-    },
-}
 
 const ANNOUNCEMENT_RETRY_MIN_DELAY: Duration = Duration::from_secs(30);
 const ANNOUNCEMENT_RETRY_MAX_DELAY: Duration = Duration::from_secs(900);
@@ -321,6 +308,34 @@ async fn wait_for_first_message(
     }
 }
 
+async fn wait_for_consensus_first_message(
+    reader: &CheckpointReader,
+    reorg_period: &ReorgPeriod,
+    interval: Duration,
+    readiness: &ValidatorReadiness,
+) {
+    loop {
+        match reader.has_messages(reorg_period).await {
+            Ok(has_messages) => {
+                readiness.mark_operation_ready("checkpoint_consensus_startup");
+                if has_messages {
+                    return;
+                }
+                readiness.mark_waiting_for_first_message();
+                info!("Waiting for first message across checkpoint endpoints");
+            }
+            Err(err) => {
+                readiness.mark_operation_blocked("checkpoint_consensus_startup");
+                warn!(
+                    ?err,
+                    "Checkpoint startup count agreement unavailable; retrying"
+                );
+            }
+        }
+        sleep(interval).await;
+    }
+}
+
 /// A validator agent
 #[derive(Debug, AsRef)]
 pub struct Validator {
@@ -329,8 +344,8 @@ pub struct Validator {
     #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
-    merkle_tree_hook_sync: MerkleTreeHookSync,
-    checkpoint_wake: Option<Arc<Notify>>,
+    rpc_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
+    websocket_sync: Option<MerkleTreeHookWebSocketSync>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     readiness: Arc<ValidatorReadiness>,
     signer: SingletonSignerHandle,
@@ -346,7 +361,7 @@ pub struct Validator {
     runtime_metrics: RuntimeMetrics,
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
-    reorg_reporter: Option<Arc<dyn ReorgReporter>>,
+    reorg_reporter: Arc<dyn ReorgReporter>,
     skip_announce: bool,
     checkpoint_reader: Option<Arc<CheckpointReader>>,
 }
@@ -367,9 +382,9 @@ pub struct ValidatorMetadataRpcEntry {
 impl ValidatorMetadataRpcEntry {
     fn hash_rpc(rpc: &crate::settings::RpcConfig) -> Self {
         Self {
-            url_hash: H256::from_slice(&keccak256(&rpc.url)),
+            url_hash: H256::from_slice(&keccak256(rpc.url.expose_secret())),
             host_hash: H256::from_slice(&keccak256(
-                Url::parse(&rpc.url)
+                Url::parse(rpc.url.expose_secret())
                     .ok()
                     .and_then(|url| url.host_str().map(str::to_string))
                     .unwrap_or("".to_string()),
@@ -417,7 +432,13 @@ impl BaseAgent for Validator {
         let public_rpc_urls: Vec<String> = settings
             .rpcs
             .iter()
-            .filter_map(|x| if x.public { Some(x.url.clone()) } else { None })
+            .filter_map(|x| {
+                if x.public {
+                    Some(x.url.expose_secret().clone())
+                } else {
+                    None
+                }
+            })
             .collect();
         if !public_rpc_urls.is_empty() && !settings.allow_public_rpcs {
             return Err(
@@ -447,67 +468,42 @@ impl BaseAgent for Validator {
             .expect("Failed to build checkpoint syncer")
             .into();
 
-        let reorg_reporter = if settings.lightweight {
-            None
-        } else {
-            Some(LatestCheckpointReorgReporter::from_settings(&settings, &metrics).await?)
-        };
-
-        // If checkpoint syncer initialization was successful, use a reorg-reporter which
-        // writes to the storage location in addition to the logs.
-        let reorg_reporter = reorg_reporter.map(|reporter| {
-            Arc::new(LatestCheckpointReorgReporterWithStorageWriter::new(
-                reporter,
-                checkpoint_syncer.clone(),
-            )) as Arc<dyn ReorgReporter>
-        });
-
         let origin_chain_conf = core.settings.chain_setup(&settings.origin_chain)?.clone();
-        let (raw_merkle_tree_hook, checkpoint_reader): (
-            Arc<dyn MerkleTreeHook>,
-            Option<Arc<CheckpointReader>>,
-        ) = if let Some(consensus) = settings.checkpoint_consensus {
-            let rpc_urls = settings
-                .rpcs
-                .iter()
-                .enumerate()
-                .map(|(i, rpc)| Url::parse(&rpc.url).map_err(|_| eyre!("Invalid rpcUrls[{i}] URL")))
-                .collect::<Result<Vec<_>>>()?;
-            let (source, urls) = state_read_urls(&origin_chain_conf, rpc_urls);
-            let urls = dedupe_rpc_urls(urls, source);
-            let hooks = build_validator_per_url_hooks(
-                &origin_chain_conf,
-                source,
-                RpcRole::Primary,
-                &urls,
-                &metrics,
-            )
-            .await?;
-            let hooks: Vec<Arc<dyn MerkleTreeHook>> =
-                hooks.into_iter().map(|(_, hook)| hook).collect();
-            let first = hooks.first().cloned().ok_or_else(|| {
-                eyre!("Checkpoint consensus requires at least one state-read endpoint")
-            })?;
-            let reader = Arc::new(CheckpointReader::new(consensus, hooks)?);
-            let hook = if settings.lightweight {
-                first
-            } else {
-                Arc::from(
-                    settings
-                        .build_merkle_tree_hook(&settings.origin_chain, &metrics)
-                        .await?,
-                )
-            };
-            (hook, Some(reader))
-        } else {
-            (
-                settings
-                    .build_merkle_tree_hook(&settings.origin_chain, &metrics)
-                    .await?
-                    .into(),
-                None,
-            )
-        };
+        let rpc_urls = settings
+            .rpcs
+            .iter()
+            .enumerate()
+            .map(|(i, rpc)| {
+                Url::parse(rpc.url.expose_secret()).map_err(|_| eyre!("Invalid rpcUrls[{i}] URL"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let (source, urls) = state_read_urls(&origin_chain_conf, rpc_urls);
+        let urls = dedupe_rpc_urls(urls, source);
+        // Signing and reorg diagnostics use the same isolated per-endpoint clients.
+        let hooks = build_validator_per_url_hooks(
+            &origin_chain_conf,
+            source,
+            RpcRole::Primary,
+            &urls,
+            &metrics,
+        )
+        .await?;
+        let reorg_reporter: Arc<dyn ReorgReporter> = Arc::new(LatestCheckpointReorgReporter::new(
+            urls.into_iter()
+                .zip(hooks.iter().map(|(_, hook)| hook.clone())),
+            checkpoint_syncer.clone(),
+        ));
+        let checkpoint_reader = settings
+            .checkpoint_consensus
+            .map(|consensus| {
+                CheckpointReader::new(consensus, hooks.into_iter().map(|(_, hook)| hook).collect())
+                    .map(Arc::new)
+            })
+            .transpose()?;
+        let raw_merkle_tree_hook = settings
+            .build_merkle_tree_hook(&settings.origin_chain, &metrics)
+            .await?
+            .into();
         let readiness = Arc::new(ValidatorReadiness::default());
         let merkle_tree_hook: Arc<dyn MerkleTreeHook> = Arc::new(ReadinessMerkleTreeHook::new(
             raw_merkle_tree_hook,
@@ -515,41 +511,6 @@ impl BaseAgent for Validator {
             "merkle_tree_hook",
         ));
 
-        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
-        let cursor_state = settings
-            .websocket_url
-            .as_ref()
-            .map(|_| merkle_tree_cursor_state());
-        let rpc_sync = if settings.lightweight {
-            None
-        } else {
-            Some(if let Some(cursor_state) = cursor_state.clone() {
-                settings
-                    .sequenced_contract_sync::<MerkleTreeInsertion, _>(
-                        &settings.origin_chain,
-                        &metrics,
-                        &contract_sync_metrics,
-                        Arc::new(CheckpointingMerkleTreeStore::new(
-                            msg_db.clone(),
-                            cursor_state,
-                        )),
-                        false,
-                        false,
-                    )
-                    .await?
-            } else {
-                settings
-                    .sequenced_contract_sync::<MerkleTreeInsertion, _>(
-                        &settings.origin_chain,
-                        &metrics,
-                        &contract_sync_metrics,
-                        msg_db.clone().into(),
-                        false,
-                        false,
-                    )
-                    .await?
-            })
-        };
         let sync_source = metrics.new_int_gauge(
             "merkle_tree_hook_sync_source_active",
             "Whether a Merkle tree hook indexing source is active",
@@ -558,33 +519,32 @@ impl BaseAgent for Validator {
         let websocket_active =
             sync_source.with_label_values(&[settings.origin_chain.name(), "websocket"]);
         let rpc_active = sync_source.with_label_values(&[settings.origin_chain.name(), "rpc"]);
-        let (merkle_tree_hook_sync, checkpoint_wake) =
-            if let Some(url) = settings.websocket_url.clone() {
-                let checkpoint_wake = Arc::new(Notify::new());
-                (
-                    MerkleTreeHookSync::WebSocket {
-                        fallback: rpc_sync,
-                        websocket: Box::new(MerkleTreeHookWebSocketSync::new_with_cursor_state(
-                            msg_db.clone(),
-                            settings.origin_chain.id(),
-                            origin_chain_conf.addresses.merkle_tree_hook,
-                            url,
-                            websocket_active,
-                            rpc_active,
-                            cursor_state.expect("WebSocket configuration initializes cursor state"),
-                            checkpoint_wake.clone(),
-                        )),
-                    },
-                    Some(checkpoint_wake),
-                )
-            } else {
-                websocket_active.set(0);
-                rpc_active.set(1);
-                (
-                    MerkleTreeHookSync::Rpc(rpc_sync.expect("RPC mode builds an indexer")),
-                    None,
-                )
-            };
+        let websocket_sync = settings.websocket_url.as_ref().map(|url| {
+            MerkleTreeHookWebSocketSync::new(
+                msg_db.clone(),
+                settings.origin_chain.id(),
+                origin_chain_conf.addresses.merkle_tree_hook,
+                url.expose_secret().clone(),
+                websocket_active.clone(),
+                rpc_active.clone(),
+            )
+        });
+        if websocket_sync.is_none() {
+            rpc_active.set(1);
+        }
+
+        let checkpoint_wake = websocket_sync.as_ref().map(|sync| sync.checkpoint_wake());
+        let contract_sync_metrics = Arc::new(ContractSyncMetrics::new(&metrics));
+        let rpc_sync = settings
+            .sequenced_contract_sync::<MerkleTreeInsertion, _>(
+                &settings.origin_chain,
+                &metrics,
+                &contract_sync_metrics,
+                Arc::new(MerkleTreeStore::new(msg_db.clone(), checkpoint_wake)),
+                false,
+                false,
+            )
+            .await?;
 
         Ok(Self {
             origin_chain: settings.origin_chain,
@@ -593,8 +553,8 @@ impl BaseAgent for Validator {
             db: msg_db,
             merkle_tree_hook,
             readiness,
-            merkle_tree_hook_sync,
-            checkpoint_wake,
+            rpc_sync,
+            websocket_sync,
             signer,
             raw_signer,
             signer_instance: Some(Box::new(signer_instance)),
@@ -683,11 +643,24 @@ impl BaseAgent for Validator {
         self.announce().await.expect("Failed to announce validator");
 
         let submitter = self.checkpoint_submitter();
-        // Authenticate the snapshot before choosing the websocket replay cursor.
-        let tip_tree = if self.checkpoint_reader.is_some() {
+        // Authenticate the snapshot before choosing the contiguous indexing floor.
+        let tip_tree = if let Some(reader) = &self.checkpoint_reader {
             self.readiness.mark_waiting_for_first_message();
+            let tree = submitter.restore_consensus_tree().await;
+            // latestCheckpoint() underflows on a new, empty MerkleTreeHook.
+            // Use the full endpoint pool so a stalled first endpoint cannot
+            // block startup when the configured agreement is available.
+            if tree.count() == 0 {
+                wait_for_consensus_first_message(
+                    reader,
+                    &self.reorg_period,
+                    self.interval,
+                    &self.readiness,
+                )
+                .await;
+            }
             IncrementalMerkleAtBlock {
-                tree: submitter.restore_consensus_tree().await,
+                tree,
                 block_height: None,
             }
         } else {
@@ -708,17 +681,11 @@ impl BaseAgent for Validator {
                 .await
                 .unwrap_or_default()
         };
-        let replay_from = u32::try_from(backfill_tree.count()).expect("snapshot count fits in u32");
+        let verified_count =
+            u32::try_from(backfill_tree.count()).expect("snapshot count fits in u32");
 
         let merkle_tree_hook_sync = match self
-            .try_n_times_to_run_merkle_tree_hook_sync(
-                CURSOR_INSTANTIATION_ATTEMPTS,
-                tip_tree
-                    .count()
-                    .try_into()
-                    .expect("Merkle tree leaf count must fit in u32"),
-                replay_from,
-            )
+            .try_n_times_to_run_merkle_tree_hook_sync(CURSOR_INSTANTIATION_ATTEMPTS, verified_count)
             .await
         {
             Ok(s) => s,
@@ -749,14 +716,10 @@ impl Validator {
     async fn try_n_times_to_run_merkle_tree_hook_sync(
         &self,
         attempts: usize,
-        next_sequence_hint: u32,
-        replay_from: u32,
+        verified_count: u32,
     ) -> eyre::Result<JoinHandle<()>> {
         for i in 0..attempts {
-            let task = match self
-                .run_merkle_tree_hook_sync(next_sequence_hint, replay_from)
-                .await
-            {
+            let task = match self.run_merkle_tree_hook_sync(verified_count).await {
                 Ok(s) => s,
                 Err(err) => {
                     error!(
@@ -781,70 +744,53 @@ impl Validator {
         ))
     }
 
-    async fn run_merkle_tree_hook_sync(
-        &self,
-        next_sequence_hint: u32,
-        replay_from: u32,
-    ) -> eyre::Result<JoinHandle<()>> {
-        let origin = self.origin_chain.name().to_string();
-        match &self.merkle_tree_hook_sync {
-            MerkleTreeHookSync::Rpc(contract_sync) => {
-                let index_settings = self
-                    .as_ref()
-                    .settings
-                    .chains
-                    .get(&self.origin_chain)
-                    .map(|chain| chain.index_settings())
-                    .ok_or_else(|| eyre::eyre!("No index setting found"))?;
-                let contract_sync = contract_sync.clone();
-                let cursor = contract_sync.cursor(index_settings).await?;
-                Ok(tokio::spawn(
-                    async move {
-                        let label = "merkle_tree_hook";
-                        contract_sync.clone().sync(label, cursor.into()).await;
-                        info!(chain = origin, label, "contract sync task exit");
-                    }
-                    .instrument(info_span!("MerkleTreeHookSyncer")),
-                ))
-            }
-            MerkleTreeHookSync::WebSocket {
-                fallback,
-                websocket,
-            } => {
-                let index_settings = self
-                    .as_ref()
-                    .settings
-                    .chains
-                    .get(&self.origin_chain)
-                    .map(|chain| chain.index_settings())
-                    .ok_or_else(|| eyre::eyre!("No index setting found"))?;
-                let websocket = websocket.clone();
-                let cursor_sync = websocket.clone();
-                let next_sequence = tokio::task::spawn_blocking(move || {
-                    cursor_sync.next_sequence_after_snapshot(replay_from)
-                })
-                .await
-                .context("Finding the next Merkle tree insertion sequence")??;
-                let fallback = fallback.clone();
-                let merkle_tree_hook = self.merkle_tree_hook.clone();
-                let reorg_period = self.reorg_period.clone();
-                Ok(tokio::spawn(
-                    async move {
-                        websocket
-                            .run(
-                                next_sequence,
-                                next_sequence_hint,
-                                fallback,
-                                index_settings,
-                                merkle_tree_hook,
-                                reorg_period,
-                            )
-                            .await
-                    }
-                    .instrument(info_span!("MerkleTreeHookWebSocketSyncer")),
-                ))
-            }
+    async fn run_merkle_tree_hook_sync(&self, verified_count: u32) -> eyre::Result<JoinHandle<()>> {
+        let index_settings = Self::index_settings_for_snapshot(
+            self.origin_chain_conf.index_settings(),
+            verified_count,
+        );
+        let rpc_sync = self.rpc_sync.clone();
+        if let Some(websocket) = &self.websocket_sync {
+            let websocket = websocket.clone();
+            let provider = self.merkle_tree_hook.provider().into();
+            let reorg_period = self.reorg_period.clone();
+            return Ok(tokio::spawn(
+                async move {
+                    websocket
+                        .run(
+                            verified_count,
+                            rpc_sync,
+                            index_settings,
+                            provider,
+                            reorg_period,
+                        )
+                        .await;
+                }
+                .instrument(info_span!("MerkleTreeHookWebSocketSyncer")),
+            ));
         }
+        let cursor = rpc_sync.cursor(index_settings).await?;
+        let origin = self.origin_chain.name().to_string();
+        Ok(tokio::spawn(
+            async move {
+                let label = "merkle_tree_hook";
+                rpc_sync.sync(label, cursor.into()).await;
+                info!(chain = origin, label, "contract sync task exit");
+            }
+            .instrument(info_span!("MerkleTreeHookSyncer")),
+        ))
+    }
+
+    fn index_settings_for_snapshot(
+        mut settings: IndexSettings,
+        verified_count: u32,
+    ) -> IndexSettings {
+        // The authenticated snapshot covers exactly the prefix below this count.
+        // A configured floor must not skip any of the remaining leaves.
+        if matches!(settings.mode, IndexMode::Sequence) {
+            settings.from = i64::from(verified_count);
+        }
+        settings
     }
 
     fn checkpoint_submitter(&self) -> ValidatorSubmitter {
@@ -858,14 +804,14 @@ impl Validator {
             Arc::new(self.db.clone()) as Arc<dyn HyperlaneDb>,
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
             self.max_sign_concurrency,
-            self.reorg_reporter.clone(),
+            Some(self.reorg_reporter.clone()),
             Arc::clone(&self.readiness),
         )
-        .with_checkpoint_wake(self.checkpoint_wake.clone())
-        .with_websocket_health(match &self.merkle_tree_hook_sync {
-            MerkleTreeHookSync::WebSocket { websocket, .. } => Some(websocket.health()),
-            MerkleTreeHookSync::Rpc(_) => None,
-        })
+        .with_checkpoint_wake(
+            self.websocket_sync
+                .as_ref()
+                .map(|sync| sync.checkpoint_wake()),
+        )
     }
 
     async fn run_checkpoint_submitters(
@@ -874,20 +820,15 @@ impl Validator {
         tip_tree: IncrementalMerkleAtBlock,
         backfill_tree: IncrementalMerkle,
     ) -> Vec<JoinHandle<()>> {
+        // Root votes authenticate indices, not endpoint-supplied block metadata.
+        let mut recovery = MerkleTreeRpcRecovery {
+            sync: self.rpc_sync.clone(),
+            db: self.db.clone(),
+            index_settings: self.origin_chain_conf.index_settings(),
+            from_block: None,
+        };
         if let Some(reader) = &self.checkpoint_reader {
-            let sync = match &self.merkle_tree_hook_sync {
-                MerkleTreeHookSync::Rpc(sync) => Some(sync.clone()),
-                MerkleTreeHookSync::WebSocket { fallback, .. } => fallback.clone(),
-            };
-            if let Some(sync) = sync {
-                submitter = submitter.with_rpc_recovery(MerkleTreeRpcRecovery {
-                    sync,
-                    db: self.db.clone(),
-                    index_settings: self.origin_chain_conf.index_settings(),
-                    // Endpoint block metadata is not authenticated by a root vote.
-                    from_block: None,
-                });
-            }
+            submitter = submitter.with_rpc_recovery(recovery);
             let reader = reader.clone();
             return vec![tokio::spawn(
                 async move {
@@ -907,17 +848,7 @@ impl Validator {
 
         let mut backfill_submitter = submitter.clone();
 
-        if let MerkleTreeHookSync::WebSocket {
-            fallback: Some(fallback),
-            ..
-        } = &self.merkle_tree_hook_sync
-        {
-            let mut recovery = MerkleTreeRpcRecovery {
-                sync: fallback.clone(),
-                db: self.db.clone(),
-                index_settings: self.core.settings.chains[&self.origin_chain].index_settings(),
-                from_block: None,
-            };
+        if self.websocket_sync.is_some() {
             backfill_submitter = backfill_submitter.with_rpc_recovery(recovery.clone());
             recovery.from_block = tip_tree.block_height;
             submitter = submitter.with_rpc_recovery(recovery);
@@ -1218,6 +1149,28 @@ mod tests {
     use super::*;
     use crate::test_utils::mock_merkle_tree_hook::MockMerkleTreeHook;
 
+    #[test]
+    fn sequence_indexing_starts_after_the_verified_snapshot_prefix() {
+        for (mode, from, verified_count, expected_from) in [
+            (IndexMode::Sequence, 1, 0, 0),
+            (IndexMode::Sequence, -1, 0, 0),
+            (IndexMode::Sequence, 1, 10, 10),
+            (IndexMode::Sequence, 20, 10, 10),
+            (IndexMode::Sequence, -1, 10, 10),
+            (IndexMode::Block, 39, 0, 39),
+        ] {
+            let settings = Validator::index_settings_for_snapshot(
+                IndexSettings {
+                    mode,
+                    from,
+                    ..Default::default()
+                },
+                verified_count,
+            );
+            assert_eq!(settings.from, expected_from);
+        }
+    }
+
     #[tokio::test(start_paused = true)]
     async fn announcement_retry_backoff_grows_and_caps() {
         let mut backoff = AnnouncementRetryBackoff::default();
@@ -1415,7 +1368,9 @@ mod tests {
             reorg_period: Default::default(),
             addresses: Default::default(),
             connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
-                rpc_connection: RpcConnectionConf::HttpFallback { urls: rpc_urls },
+                rpc_connection: RpcConnectionConf::HttpFallback {
+                    urls: rpc_urls.into(),
+                },
                 transaction_overrides: Default::default(),
                 op_submission_config: Default::default(),
                 consider_null_transaction_receipt: false,
@@ -1432,7 +1387,7 @@ mod tests {
     }
 
     #[test]
-    fn lightweight_rpc_deduplication_preserves_order() {
+    fn rpc_deduplication_preserves_order() {
         let a = Url::parse("https://rpc.example/a").expect("URL");
         let b = Url::parse("https://rpc.example/b").expect("URL");
         assert_eq!(
@@ -1453,7 +1408,7 @@ mod tests {
 
         match per_url_conf.connection {
             ChainConnectionConf::Ethereum(conn) => match conn.rpc_connection {
-                RpcConnectionConf::Http { url: got } => assert_eq!(got, url),
+                RpcConnectionConf::Http { url: got } => assert_eq!(got.expose_secret(), &url),
                 other => panic!("expected a single Http connection, got {other:?}"),
             },
             _ => panic!("expected an ethereum connection"),
@@ -1471,7 +1426,7 @@ mod tests {
 
         match per_url_conf.connection {
             ChainConnectionConf::Ethereum(conn) => match conn.rpc_connection {
-                RpcConnectionConf::Ws { url: got } => assert_eq!(got, url),
+                RpcConnectionConf::Ws { url: got } => assert_eq!(got.expose_secret(), &url),
                 other => panic!("expected a Ws connection, got {other:?}"),
             },
             _ => panic!("expected an ethereum connection"),
@@ -1480,7 +1435,7 @@ mod tests {
     }
 
     #[test]
-    fn lightweight_isolates_the_state_read_transport_for_every_protocol() {
+    fn isolates_the_state_read_transport_for_every_protocol() {
         use hyperlane_base::settings::{parser::RawAgentConf, Settings};
         use hyperlane_core::config::{ConfigPath, FromRawConf};
 
@@ -1496,10 +1451,10 @@ mod tests {
             ("aleo", "rpcUrls"),
         ] {
             let raw = serde_json::json!({
-                "lightweight": true, "originchainname": "test",
-                "websocketurl": "wss://scraper.example/events",
+                "originchainname": "test",
+                "websocketurl": "wss://scraper.example/validators",
                 "validator": {"type": "hexKey", "key": format!("0x{}", "11".repeat(32))},
-                "checkpointsyncer": {"type": "localStorage", "path": "/tmp/lightweight-checkpoints"},
+                "checkpointsyncer": {"type": "localStorage", "path": "/tmp/validator-checkpoints"},
                 "chains": {"test": {
                     "name": "test", "domainid": 1337,
                     "chainid": if protocol.starts_with("cosmos") { "test-1" } else { "1337" },
@@ -1539,15 +1494,17 @@ mod tests {
                 let per_url = chain_conf_for_read_url(chain, url.clone(), RpcRole::Primary);
                 let actual = match per_url.connection {
                     ChainConnectionConf::Ethereum(conn) => conn.rpc_urls(),
-                    ChainConnectionConf::Sealevel(conn) => conn.urls,
-                    ChainConnectionConf::Starknet(conn) => conn.urls,
+                    ChainConnectionConf::Sealevel(conn) => conn.urls.expose_secret().clone(),
+                    ChainConnectionConf::Starknet(conn) => conn.urls.expose_secret().clone(),
                     ChainConnectionConf::Cosmos(conn) | ChainConnectionConf::CosmosNative(conn) => {
-                        conn.grpc_urls
+                        conn.grpc_urls.expose_secret().clone()
                     }
-                    ChainConnectionConf::Tron(conn) => conn.wallet_solidity_urls,
-                    ChainConnectionConf::Radix(conn) => conn.core,
+                    ChainConnectionConf::Tron(conn) => {
+                        conn.wallet_solidity_urls.expose_secret().clone()
+                    }
+                    ChainConnectionConf::Radix(conn) => conn.core.expose_secret().clone(),
                     #[cfg(feature = "aleo")]
-                    ChainConnectionConf::Aleo(conn) => conn.rpcs,
+                    ChainConnectionConf::Aleo(conn) => conn.rpcs.expose_secret().clone(),
                 };
                 assert_eq!(
                     actual,
@@ -1681,7 +1638,9 @@ mod tests {
             assert_eq!(reader.endpoint_count(), 3);
             assert_eq!(reader.consensus.required(reader.endpoint_count()), 2);
             let period = ReorgPeriod::None;
-            let mut stream = reader.checkpoint_stream(&period);
+            let reads = prometheus::IntCounter::new("test_checkpoint_reads", "Test read attempts")
+                .expect("test counter");
+            let mut stream = reader.checkpoint_stream(&period, &reads);
             for _ in 0..2 {
                 let (slot, checkpoint) =
                     tokio::time::timeout(Duration::from_secs(1), stream.next())
@@ -1769,6 +1728,60 @@ mod tests {
             readiness.snapshot().state,
             validator_server::ValidatorReadinessState::Ready
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn consensus_startup_recovers_after_empty_tree_and_unavailable_counts() {
+        let hooks = (0..2)
+            .map(|_| {
+                let mut hook = MockMerkleTreeHook::new();
+                let calls = AtomicUsize::new(0);
+                hook.expect_count().times(3).returning(move |_| {
+                    match calls.fetch_add(1, Ordering::SeqCst) {
+                        0 => Ok(0),
+                        1 => Err(hyperlane_core::ChainCommunicationError::from_other_str(
+                            "unavailable",
+                        )),
+                        _ => Ok(1),
+                    }
+                });
+                Arc::new(hook) as Arc<dyn MerkleTreeHook>
+            })
+            .collect();
+        let reader = CheckpointReader::new(
+            crate::checkpoint_consensus::CheckpointConsensus::Majority,
+            hooks,
+        )
+        .expect("endpoints");
+        let readiness = Arc::new(ValidatorReadiness::default());
+        let task = tokio::spawn({
+            let readiness = Arc::clone(&readiness);
+            async move {
+                wait_for_consensus_first_message(
+                    &reader,
+                    &ReorgPeriod::None,
+                    Duration::from_secs(5),
+                    &readiness,
+                )
+                .await;
+            }
+        });
+        tokio::task::yield_now().await;
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::WaitingForFirstMessage
+        );
+        tokio::time::advance(Duration::from_secs(5)).await;
+        tokio::task::yield_now().await;
+        assert!(readiness.snapshot().signing_blocked);
+        assert!(!task.is_finished());
+        tokio::time::advance(Duration::from_secs(5)).await;
+        task.await.expect("startup should resume");
+        assert_eq!(
+            readiness.snapshot().state,
+            validator_server::ValidatorReadinessState::Ready
+        );
+        assert!(readiness.snapshot().blocked_operations.is_empty());
     }
 
     #[test]

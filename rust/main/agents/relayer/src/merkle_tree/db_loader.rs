@@ -71,12 +71,14 @@ impl DbLoaderExt for MerkleTreeDbLoader {
         }
 
         let begin = {
+            let message_ids: Vec<_> = insertions
+                .iter()
+                .map(MerkleTreeInsertion::message_id)
+                .collect();
             let mut guard = self.prover_sync.write().await;
             let begin = Instant::now();
-            for insertion in &insertions {
-                guard.ingest_message_id(insertion.message_id())?;
-                self.leaf_index += 1;
-            }
+            guard.ingest_message_ids(&message_ids)?;
+            self.leaf_index += insertions.len() as u32;
             begin
         };
 

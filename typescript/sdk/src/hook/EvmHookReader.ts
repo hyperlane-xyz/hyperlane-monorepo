@@ -41,6 +41,7 @@ import { deriveDelayedFlowRemoteIsms } from '../ism/delayedFlow.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { EvmWormholeHookIsmReader } from '../wormhole/EvmWormholeHookIsmReader.js';
 import {
   fetchPackageVersion,
   isMissingSelectorCallException,
@@ -61,6 +62,7 @@ import {
   IgpVersion,
   IgpHookConfig,
   MailboxDefaultHookConfig,
+  LayerZeroV2HookConfig,
   MerkleTreeHookConfig,
   NetFlowRateLimitedHookConfig,
   OFFCHAIN_QUOTED_IGP_VERSION,
@@ -70,7 +72,9 @@ import {
   ProtocolFeeHookConfig,
   RateLimitedHookConfig,
   RoutingHookConfig,
+  WormholeHookConfig,
 } from './types.js';
+import { isCombinedHookIsmHookNode } from './utils.js';
 
 function isUnsupportedIgpDomainError(
   error: unknown,
@@ -125,6 +129,10 @@ export interface HookReader {
   ): void;
 }
 
+export interface EvmHookReaderOptions {
+  expandNonDeployableHookIsms?: boolean;
+}
+
 export class EvmHookReader extends HyperlaneReader implements HookReader {
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
   /**
@@ -133,6 +141,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
    * the specific hook methods.
    */
   private _cache: Map<Address, any> = new Map();
+  protected readonly expandNonDeployableHookIsms: boolean;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -141,8 +150,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
     protected readonly messageContext?: DispatchedMessage,
+    options: EvmHookReaderOptions = {},
   ) {
     super(multiProvider, chain);
+    this.expandNonDeployableHookIsms =
+      options.expandNonDeployableHookIsms ?? false;
   }
 
   async deriveHookConfigFromAddress(
@@ -226,6 +238,14 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           derivedHookConfig = { type: HookType.CCTP, address };
           this._cache.set(address, derivedHookConfig);
           break;
+        case OnchainHookType.WORMHOLE:
+          derivedHookConfig = await this.deriveWormholeHookConfig(address);
+          this._cache.set(address, derivedHookConfig);
+          break;
+        case OnchainHookType.LAYER_ZERO:
+          derivedHookConfig = this.deriveLayerZeroV2HookConfig(address);
+          this._cache.set(address, derivedHookConfig);
+          break;
         case OnchainHookType.RATE_LIMITED: {
           // NetFlowRateLimitedHookIsm (a hook/ISM hybrid) also reports
           // hookType() == RATE_LIMITED and exposes maxCapacity()/DURATION()/
@@ -258,6 +278,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  deriveLayerZeroV2HookConfig(
+    address: Address,
+  ): WithAddress<LayerZeroV2HookConfig> {
+    return { address, type: HookType.LAYER_ZERO_V2 };
   }
 
   /**
@@ -325,22 +351,51 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     return config as DerivedHookConfig;
   }
 
-  // Returns original HookConfig for non-redeployable standalone types (CCTP,
-  // PREDICATE) so that normalizeConfig — which strips 'address' from all
-  // objects — does not discard the address. Hybrid hook/ISMs deliberately keep
-  // their derived config: warp read/apply needs the typed node on both the hook
-  // and ISM surfaces to identify the shared instance. EvmWarpModule resolves
-  // that node back to its address before handing the tree to EvmHookModule.
+  // Returns original HookConfig for non-redeployable types so that
+  // normalizeConfig — which strips 'address' from all objects — does not
+  // discard the address. Warp reads opt into expanding external-protocol
+  // hook/ISMs for diagnostics. Flow-control hook/ISMs deliberately remain
+  // expanded: warp apply needs the typed node on both surfaces to identify the
+  // shared instance.
   private preserveUnredeployable(
     original: HookConfig,
     derived: DerivedHookConfig,
   ): HookConfig {
-    const nonRedeployable: HookType[] = [HookType.CCTP, HookType.PREDICATE];
+    if (
+      this.expandNonDeployableHookIsms &&
+      isCombinedHookIsmHookNode(derived)
+    ) {
+      return derived;
+    }
+    const nonRedeployable: HookType[] = [
+      HookType.CCTP,
+      HookType.PREDICATE,
+      HookType.WORMHOLE,
+      HookType.LAYER_ZERO_V2,
+    ];
     if (!nonRedeployable.includes(derived.type)) {
       return derived;
     }
     if (typeof original === 'string') return original;
-    return derived.address;
+    return 'address' in derived && typeof derived.address === 'string'
+      ? derived.address
+      : original;
+  }
+
+  private async deriveWormholeHookConfig(
+    address: Address,
+  ): Promise<WithAddress<WormholeHookConfig>> {
+    const derived = await new EvmWormholeHookIsmReader(
+      this.multiProvider,
+      this.chain,
+    ).deriveWormholeConfig(address);
+
+    const diagnosticConfig = {
+      address,
+      type: HookType.WORMHOLE,
+      remoteRouters: derived.remoteRouters,
+    };
+    return diagnosticConfig;
   }
 
   async deriveMailboxDefaultHookConfig(

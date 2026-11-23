@@ -6,11 +6,13 @@ import { assert, fromHexString } from '@hyperlane-xyz/utils';
 import { ApiError } from '../errors/ApiError.js';
 import { isCanonicalBase64 } from './encoding.js';
 
+const HEX_TOKEN_REGEX = /^(?:[0-9a-fA-F]{2})+$/;
+
 export function validateSignerToken(token: string | undefined): string {
   assert(token, 'HYP_HTTP_SIGNER_TOKEN is required in signer mode');
 
   let decoded: Buffer;
-  if (/^(?:[0-9a-fA-F]{2})+$/.test(token)) {
+  if (HEX_TOKEN_REGEX.test(token)) {
     decoded = fromHexString(token);
   } else {
     assert(

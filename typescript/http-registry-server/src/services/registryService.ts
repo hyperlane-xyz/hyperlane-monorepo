@@ -9,6 +9,8 @@ import { LazyAsync, assert } from '@hyperlane-xyz/utils';
 
 import { IWatcher } from './watcherService.js';
 
+const FILE_URI_PREFIX_REGEX = /^file:\/\//;
+
 export class RegistryService {
   private registry: IRegistry | null = null;
   private lastRefresh: number = Date.now();
@@ -63,7 +65,7 @@ export class RegistryService {
     const fsUri = this.getFileSystemRegistryUri();
     if (!fsUri) return;
 
-    const watchPath = fsUri.replace(/^file:\/\//, '');
+    const watchPath = fsUri.replace(FILE_URI_PREFIX_REGEX, '');
 
     try {
       this.isWatcherActive = true;

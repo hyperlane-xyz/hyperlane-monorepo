@@ -29,6 +29,10 @@ mod m20260924_000015_near_head_checkpoints;
 mod m20260924_000016_frontier_publication;
 mod m20261003_000017_gas_payment_transaction_log;
 mod m20261003_000018_gas_payment_cursor_order;
+mod m20261103_000019_scalar_notification_fields;
+
+mod m20261111_000020_transaction_enrichment;
+mod m20261111_000021_transaction_enrichment_cleanup;
 
 pub struct Migrator;
 
@@ -59,6 +63,9 @@ impl MigratorTrait for Migrator {
             Box::new(m20260924_000016_frontier_publication::Migration),
             Box::new(m20261003_000017_gas_payment_transaction_log::Migration),
             Box::new(m20261003_000018_gas_payment_cursor_order::Migration),
+            Box::new(m20261103_000019_scalar_notification_fields::Migration),
+            Box::new(m20261111_000020_transaction_enrichment::Migration),
+            Box::new(m20261111_000021_transaction_enrichment_cleanup::Migration),
         ]
     }
 }

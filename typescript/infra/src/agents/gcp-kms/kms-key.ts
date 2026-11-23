@@ -19,6 +19,11 @@ import {
 import { getEthereumAddress } from '../../utils/utils.js';
 import { CloudAgentKey } from '../keys.js';
 
+const PUBLIC_KEY_HEADER_REGEX = /-----BEGIN PUBLIC KEY-----/;
+const PUBLIC_KEY_FOOTER_REGEX = /-----END PUBLIC KEY-----/;
+const WHITESPACE_REGEX = /\s+/g;
+const PERMISSION_DENIED_REGEX = /permission[_ ]denied/i;
+
 interface UnfetchedKey {
   fetched: false;
 }
@@ -38,9 +43,9 @@ const createIfNotExistsPromises = new Map<string, Promise<void>>();
 
 function pemToDer(pem: string): Buffer {
   const base64 = pem
-    .replace(/-----BEGIN PUBLIC KEY-----/, '')
-    .replace(/-----END PUBLIC KEY-----/, '')
-    .replace(/\s+/g, '');
+    .replace(PUBLIC_KEY_HEADER_REGEX, '')
+    .replace(PUBLIC_KEY_FOOTER_REGEX, '')
+    .replace(WHITESPACE_REGEX, '');
   return Buffer.from(base64, 'base64');
 }
 
@@ -153,7 +158,7 @@ export class AgentGcpKmsKey extends CloudAgentKey {
       // access to it. Treat it as existing so we never prompt to (re)create a
       // key that is already provisioned.
       const message = error instanceof Error ? error.message : String(error);
-      if (/permission[_ ]denied/i.test(message)) {
+      if (PERMISSION_DENIED_REGEX.test(message)) {
         this.logger.debug(
           'Permission denied reading KMS key; treating as existing',
         );

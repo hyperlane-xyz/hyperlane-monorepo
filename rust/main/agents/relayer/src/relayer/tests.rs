@@ -35,6 +35,67 @@ use super::{
     PROD_CHAIN_BUILD_RETRY,
 };
 
+struct UnavailableCursorSync {
+    domain: HyperlaneDomain,
+    attempts: std::sync::atomic::AtomicUsize,
+}
+
+#[async_trait::async_trait]
+impl super::ContractSyncer<super::HyperlaneMessage> for UnavailableCursorSync {
+    async fn cursor(
+        &self,
+        _: IndexSettings,
+    ) -> eyre::Result<Box<dyn super::ContractSyncCursor<super::HyperlaneMessage>>> {
+        self.attempts.fetch_add(1, Ordering::Relaxed);
+        Err(eyre!("gas indexer unavailable"))
+    }
+
+    async fn sync(&self, _: &'static str, _: super::SyncOptions<super::HyperlaneMessage>) {
+        panic!("sync cannot start without a cursor");
+    }
+
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn get_broadcaster(&self) -> Option<super::BroadcastMpscSender<super::IndexingNotification>> {
+        None
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn cursor_failure_retries_without_exiting_and_remains_cancellable() {
+    let sync = Arc::new(UnavailableCursorSync {
+        domain: HyperlaneDomain::Known(KnownHyperlaneDomain::Base),
+        attempts: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let worker_sync = sync.clone();
+    let errors = generate_test_critical_error_tracker(&generate_test_chain_metrics());
+    let task = tokio::spawn(async move {
+        Relayer::rpc_sync_task(
+            &worker_sync.domain,
+            IndexSettings::default(),
+            worker_sync.clone(),
+            errors,
+            crate::scraper_websocket::Kind::Gas,
+            None,
+            None,
+        )
+        .await;
+    });
+    tokio::time::sleep(Duration::from_secs(6)).await;
+    assert!(sync.attempts.load(Ordering::Relaxed) > super::CURSOR_INSTANTIATION_ATTEMPTS);
+    assert!(
+        !task.is_finished(),
+        "cursor failures must not restart healthy sibling indexers"
+    );
+    task.abort();
+    assert!(task
+        .await
+        .expect_err("cutover can cancel retries")
+        .is_cancelled());
+}
+
 #[tokio::test]
 async fn cancelled_blocking_task_is_signalled_to_stop() {
     let (started_tx, started_rx) = tokio::sync::oneshot::channel();
@@ -101,7 +162,7 @@ fn generate_test_chain_conf(
         addresses: generate_test_core_contract_addresses(),
         connection: ChainConnectionConf::Ethereum(h_eth::ConnectionConf {
             rpc_connection: h_eth::RpcConnectionConf::Http {
-                url: Url::parse(rpc).unwrap(),
+                url: Url::parse(rpc).unwrap().into(),
             },
             transaction_overrides: h_eth::TransactionOverrides {
                 gas_price: None,
@@ -146,80 +207,22 @@ fn generate_test_critical_error_tracker(chain_metrics: &ChainMetrics) -> Critica
     CriticalErrorTracker::new(chain_metrics.clone())
 }
 
-#[test]
-fn direct_rpc_recovery_preserves_other_critical_errors() {
-    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-    let chain_metrics = generate_test_chain_metrics();
-    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
-    let metric = chain_metrics
-        .critical_error
-        .with_label_values(&[domain.name()]);
-
-    critical_errors.record(
-        &domain,
-        CriticalErrorSource::MessageSync,
-        &eyre!("message cursor failed"),
-        "message cursor failed",
-    );
-    critical_errors.record(
-        &domain,
-        CriticalErrorSource::GasPaymentSync,
-        &eyre!("gas cursor failed"),
-        "gas cursor failed",
-    );
-    critical_errors.clear_direct_rpc_sync_errors(&domain);
-    assert_eq!(metric.get(), 1);
-
-    critical_errors.clear(&domain, CriticalErrorSource::GasPaymentSync);
-    assert_eq!(metric.get(), 0);
-}
-
-#[test]
-fn scraper_handoff_retires_direct_rpc_critical_errors() {
-    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
-    let chain_metrics = generate_test_chain_metrics();
-    let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
-    let metric = chain_metrics
-        .critical_error
-        .with_label_values(&[domain.name()]);
-
-    critical_errors.record(
-        &domain,
-        CriticalErrorSource::MessageSync,
-        &eyre!("message cursor failed"),
-        "message cursor failed",
-    );
-    critical_errors.record(
-        &domain,
-        CriticalErrorSource::MerkleTreeHookSync,
-        &eyre!("merkle cursor failed"),
-        "merkle cursor failed",
-    );
-    critical_errors.clear_direct_rpc_sync_errors(&domain);
-
-    assert_eq!(metric.get(), 0);
-}
-
 #[tokio::test]
-async fn scraper_authority_during_rpc_retry_clears_direct_errors() {
+async fn scraper_handoff_during_rpc_retry_clears_only_indexing_errors() {
     let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
     let chain_metrics = generate_test_chain_metrics();
     let critical_errors = generate_test_critical_error_tracker(&chain_metrics);
     let metric = chain_metrics
         .critical_error
         .with_label_values(&[domain.name()]);
-    critical_errors.record(
-        &domain,
+    for source in [
         CriticalErrorSource::MessageSync,
-        &eyre!("message cursor failed"),
-        "message cursor failed",
-    );
-    critical_errors.record(
-        &domain,
+        CriticalErrorSource::MerkleTreeHookSync,
         CriticalErrorSource::GasPaymentSync,
-        &eyre!("gas cursor failed"),
-        "gas cursor failed",
-    );
+        CriticalErrorSource::Destination,
+    ] {
+        critical_errors.record(&domain, source, &eyre!("failed"), "failed");
+    }
 
     let (sender, mut authority) = ScraperAuthorityReceiver::test_channel(domain.id());
     let grant_authority = tokio::spawn(async move {
@@ -243,9 +246,9 @@ async fn scraper_authority_during_rpc_retry_clears_direct_errors() {
     grant_authority.await.expect("authority grant task");
 
     assert!(authority_channel_open);
-    assert_eq!(metric.get(), 1, "gas payment error remains active");
-    critical_errors.clear(&domain, CriticalErrorSource::GasPaymentSync);
-    assert_eq!(metric.get(), 0);
+    assert_eq!(metric.get(), 1, "destination error must remain active");
+    critical_errors.clear(&domain, CriticalErrorSource::Destination);
+    assert_eq!(metric.get(), 0, "all RPC indexing errors were cleared");
 }
 
 /// Builds a test RelayerSetting
@@ -267,6 +270,7 @@ fn generate_test_relayer_settings(
         .collect();
 
     RelayerSettings {
+        message_activity_database_url: None,
         base: Settings {
             domains,
             chains,
@@ -279,7 +283,9 @@ fn generate_test_relayer_settings(
         gas_payment_enforcement: Vec::new(),
         whitelist: MatchingList::default(),
         blacklist: MatchingList::default(),
+        ccip_read_allowed_domains: Default::default(),
         address_blacklist: Vec::new(),
+        runtime_denylist: None,
         transaction_gas_limit: None,
         skip_transaction_gas_limit_for: HashSet::new(),
         allow_local_checkpoint_syncers: true,
@@ -289,14 +295,61 @@ fn generate_test_relayer_settings(
         max_retries: 1,
         tx_id_indexing_enabled: true,
         igp_indexing_enabled: true,
-        websocket_authority_enabled: false,
         websocket_url: None,
+        reorg_period_overrides: Default::default(),
         relay_api_enabled: false,
         relay_api_port: None,
         relay_api_rate_limit_max_requests: None,
         relay_api_rate_limit_window_secs: None,
         relay_api_cors_origins: Vec::new(),
     }
+}
+
+#[test]
+fn scraper_websocket_uses_effective_rpc_depth_for_selected_domains() {
+    let dir = tempfile::tempdir().expect("test database");
+    let mut chain = generate_test_chain_conf(
+        HyperlaneDomain::Known(KnownHyperlaneDomain::Base),
+        None,
+        "http://localhost:8545",
+    );
+    let mut settings = generate_test_relayer_settings(dir.path(), vec![], &[], &[], 0);
+    settings.websocket_url = Some(Url::parse("ws://localhost/agents").expect("URL").into());
+    settings
+        .reorg_period_overrides
+        .insert("base".into(), ReorgPeriod::from_blocks(3));
+    for depth in [0, 2] {
+        chain.reorg_period = ReorgPeriod::from_blocks(depth);
+        assert_eq!(
+            settings
+                .scraper_confirmations(&chain)
+                .expect("effective depth"),
+            Some(depth)
+        );
+    }
+    chain.reorg_period = ReorgPeriod::Tag("finalized".into());
+    let error = settings
+        .scraper_confirmations(&chain)
+        .expect_err("tag cannot become canonical");
+    assert!(error.to_string().contains("numeric reorg period for base"));
+
+    settings.reorg_period_overrides.clear();
+    assert_eq!(
+        settings
+            .scraper_confirmations(&chain)
+            .expect("canonical domain"),
+        None
+    );
+    settings
+        .reorg_period_overrides
+        .insert("base".into(), ReorgPeriod::from_blocks(3));
+    settings.websocket_url = None;
+    assert_eq!(
+        settings
+            .scraper_confirmations(&chain)
+            .expect("RPC-only tag"),
+        None
+    );
 }
 
 #[tokio::test]
@@ -401,7 +454,7 @@ async fn invalid_destination_identity_fails_without_retries_or_rpc() {
         &format!("http://{}", rpc.local_addr().unwrap()),
     );
     chain.identity = Some(SignerConf::HexKey {
-        key: H256::from_low_u64_be(1),
+        key: H256::from_low_u64_be(1).into(),
     });
     let settings = generate_test_relayer_settings(
         temp_dir.path(),
@@ -581,6 +634,22 @@ async fn test_relayer_started_successfully(
 ) -> Result<(), Elapsed> {
     let future = check_relayer_metrics(agent, metrics_port, failed_chain_count);
     tokio::time::timeout(Duration::from_secs(50), future).await
+}
+
+#[tokio::test]
+async fn test_from_settings_rejects_unavailable_runtime_denylist_without_cache() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let mut settings = generate_test_relayer_settings(temp_dir.path(), vec![], &[], &[], 0);
+    settings.runtime_denylist = Some(crate::msg::runtime_denylist::RuntimeDenylistConf {
+        url: Url::from_file_path(temp_dir.path().join("missing-feed.json")).expect("file URL"),
+        poll_interval: Duration::from_secs(60),
+        cache_path: temp_dir.path().join("runtime_denylist_cache.json"),
+    });
+
+    let error = build_relayer(settings)
+        .await
+        .expect_err("relayer startup must propagate the failed policy load");
+    assert!(format!("{error:#}").contains("refusing to start without a policy"));
 }
 
 #[tracing_test::traced_test]
@@ -765,7 +834,9 @@ async fn test_from_settings_and_run_bad_signer() {
         "arbitrum".to_string(),
         generate_test_chain_conf(
             HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
-            Some(SignerConf::HexKey { key: H256::zero() }),
+            Some(SignerConf::HexKey {
+                key: H256::zero().into(),
+            }),
             // these urls are not expected to be live
             "http://localhost:8545",
         ),
@@ -791,79 +862,6 @@ async fn test_from_settings_and_run_bad_signer() {
             .await
             .is_ok()
     );
-}
-
-#[tokio::test]
-async fn gas_payment_rpc_fallback_stops_restarts_and_survives_monitor_exit() {
-    struct Running(Arc<AtomicBool>);
-    impl Drop for Running {
-        fn drop(&mut self) {
-            self.0.store(false, Ordering::SeqCst);
-        }
-    }
-    let (sender, receiver) = tokio::sync::watch::channel(false);
-    let running = Arc::new(AtomicBool::new(false));
-    let authority_observed = Arc::new(AtomicBool::new(false));
-    let (started, mut starts) = tokio::sync::mpsc::unbounded_channel();
-    let observed = running.clone();
-    let observed_authority = authority_observed.clone();
-    let task = tokio::spawn(super::run_gas_payment_fallback(
-        Some(receiver),
-        move || observed_authority.store(true, Ordering::SeqCst),
-        move || {
-            let running = observed.clone();
-            let started = started.clone();
-            async move {
-                assert!(
-                    !running.swap(true, Ordering::SeqCst),
-                    "RPC tasks must not overlap"
-                );
-                let _guard = Running(running);
-                started.send(()).expect("start notification");
-                std::future::pending::<()>().await;
-            }
-        },
-    ));
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("startup RPC")
-        .expect("started");
-    sender.send(true).expect("connected");
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while running.load(Ordering::SeqCst) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("RPC cancelled on connection");
-    assert!(authority_observed.load(Ordering::SeqCst));
-    assert!(
-        tokio::time::timeout(Duration::from_millis(20), starts.recv())
-            .await
-            .is_err(),
-        "no parallel RPC while connected"
-    );
-    sender.send(false).expect("disconnected");
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("outage RPC")
-        .expect("started");
-    sender.send(true).expect("reconnected");
-    tokio::time::timeout(Duration::from_secs(1), async {
-        while running.load(Ordering::SeqCst) {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("RPC paused again");
-    drop(sender);
-    tokio::time::timeout(Duration::from_secs(1), starts.recv())
-        .await
-        .expect("closed monitor RPC")
-        .expect("started");
-    task.abort();
-    let _ = task.await;
-    assert!(!running.load(Ordering::SeqCst));
 }
 
 #[tokio::test(start_paused = true)]

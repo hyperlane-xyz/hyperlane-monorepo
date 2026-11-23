@@ -30,6 +30,7 @@ async fn test_filter_operations_for_preparation_empty_batch() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -79,6 +80,7 @@ async fn test_filter_operations_for_preparation_all_manual_retry() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -133,6 +135,7 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure() 
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -210,6 +213,7 @@ async fn test_filter_operations_for_preparation_manual_retry_db_store_failure_mi
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -290,6 +294,7 @@ async fn test_filter_operations_for_preparation_all_submitted() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -337,6 +342,7 @@ async fn test_filter_operations_for_preparation_none_submitted() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -421,6 +427,7 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -464,6 +471,7 @@ async fn test_filter_operations_for_preparation_mixed_batch() {
 async fn test_filter_operations_for_preparation_db_error() {
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
+    let prepare_queue = create_test_queue();
     let submit_queue = create_test_queue();
     let confirm_queue = create_test_queue();
 
@@ -487,6 +495,7 @@ async fn test_filter_operations_for_preparation_db_error() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &prepare_queue,
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -496,12 +505,12 @@ async fn test_filter_operations_for_preparation_db_error() {
 
     assert_eq!(
         result.len(),
-        1,
-        "Operation with DB error should be returned for pre-submit"
+        0,
+        "Operation with DB error should stay tracked for another status read"
     );
-    assert_eq!(result[0].id(), message_id);
 
-    // Verify queues are empty when DB error occurs
+    // The operation stays in the prepare queue instead of being disposed
+    assert_eq!(prepare_queue.len().await, 1);
     assert_eq!(submit_queue.len().await, 0);
     assert_eq!(confirm_queue.len().await, 0);
 }
@@ -539,6 +548,7 @@ async fn test_filter_operations_for_preparation_payload_dropped() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -595,6 +605,7 @@ async fn test_filter_operations_for_preparation_transaction_dropped() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -640,6 +651,7 @@ async fn test_filter_operations_for_preparation_entrypoint_error() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -692,6 +704,7 @@ async fn test_filter_operations_for_preparation_non_manual_retry() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -736,6 +749,7 @@ async fn test_filter_operations_for_preparation_empty_payload_uuids() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -782,6 +796,7 @@ async fn test_filter_operations_for_preparation_ready_to_submit_status() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -831,6 +846,7 @@ async fn test_filter_operations_for_preparation_mempool_status() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -880,6 +896,7 @@ async fn test_filter_operations_for_preparation_included_status() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -955,6 +972,7 @@ async fn test_filter_operations_for_preparation_all_to_submit_queue() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,
@@ -1041,6 +1059,7 @@ async fn test_filter_operations_for_preparation_mix_of_submit_variants() {
 
     let result = filter_operations_for_preparation(
         Arc::new(mock_entrypoint) as Arc<dyn Entrypoint + Send + Sync>,
+        &create_test_queue(),
         &submit_queue,
         &confirm_queue,
         Arc::new(mock_db) as Arc<dyn HyperlaneDb>,

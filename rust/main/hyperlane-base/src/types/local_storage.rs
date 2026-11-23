@@ -160,6 +160,10 @@ impl CheckpointSyncer for LocalStorage {
         format!("file://{}", self.path.as_os_str().to_string_lossy())
     }
 
+    fn checkpoint_location(&self, _index: u32) -> Option<String> {
+        Some("local".to_owned())
+    }
+
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
         let serialized_reorg = serde_json::to_string_pretty(reorged_event)?;
         let path = self.reorg_flag_path();
@@ -239,6 +243,14 @@ mod tests {
             .await
             .unwrap();
         assert!(storage.fetch_checkpoint(7).await.is_err());
+    }
+
+    #[test]
+    fn checkpoint_location_is_local() {
+        let directory = tempfile::tempdir().expect("temporary checkpoint directory");
+        let storage =
+            LocalStorage::new(directory.path().to_owned(), None).expect("local checkpoint storage");
+        assert_eq!(storage.checkpoint_location(7).as_deref(), Some("local"));
     }
 
     #[tokio::test]

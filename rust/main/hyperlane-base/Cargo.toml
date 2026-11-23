@@ -8,6 +8,7 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
+redact.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 aws-config.workspace = true
@@ -33,6 +34,7 @@ mockall.workspace = true
 parking_lot.workspace = true
 paste.workspace = true
 prometheus.workspace = true
+rand.workspace = true
 rocksdb.workspace = true
 rustls.workspace = true
 serde.workspace = true
@@ -87,6 +89,7 @@ reqwest.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tracing-test.workspace = true
+tracing-log = "0.2"
 walkdir.workspace = true
 
 [build-dependencies]

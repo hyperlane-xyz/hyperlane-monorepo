@@ -16,11 +16,27 @@ void it('serves current usage and limits from /metrics', async () => {
     pools: {
       live: { idle: 1, limit: 10, total: 2, waiting: 0 },
       main: { idle: 3, limit: 10, total: 5, waiting: 2 },
+      validator: { idle: 0, limit: 5, total: 5, waiting: 7 },
     },
   }));
+  const validatorSubscriptions = [{ domain: 1, canonical: 1, custom: 1 }];
   setWebSocketMetricsProvider(() => ({
-    catchUps: 2,
-    connections: { agent: 3, messages: 4 },
+    connections: { agent: 3, messages: 4, validators: 2 },
+    explorerPendingSetups: 2,
+    messageSource: { ranges: 1, changes: 3, factBytes: 512 },
+    eventSource: { ranges: 2, rows: 4, bytes: 1024 },
+    validatorSource: { ranges: 1, rows: 2, bytes: 512 },
+    queues: {
+      agent: { bytes: 1024, messages: 2 },
+      validators: { bytes: 2048, messages: 3 },
+      messages: { bytes: 1024, messages: 9 },
+    },
+    validatorPendingSetups: 1,
+    validatorReservedConnections: 2,
+    validatorSharedReaders: 1,
+    validatorSubscriptions,
+    validatorClientIps: 1,
+    validatorMaxConnectionsPerIp: 2,
     explorerPendingBytes: 1_024,
     explorerPendingMessages: 9,
     maxExplorerPendingBytes: 512,
@@ -29,31 +45,30 @@ void it('serves current usage and limits from /metrics', async () => {
     messageMaxConnectionsPerIp: 3,
     limits: {
       agentConnections: 100,
-      catchUpMs: 60_000,
       clientMessagesPerMinute: 30,
-      concurrentCatchUps: 5,
       explorerPendingBytes: 16_777_216,
       explorerPendingMessages: 2_000,
       messageConnections: 400,
       messageConnectionsPerIp: 5,
+      messageSetups: 32,
+      messageSetupsPerIp: 2,
+      validatorConnections: 500,
+      validatorSetups: 32,
+      validatorConnectionsPerIp: 5,
+      validatorMessageBytes: 1024,
       notificationEvents: 10_000,
-      pendingEvents: 5_000,
       socketBufferedBytes: 1_024,
       totalPendingBytes: 4_096,
     },
     listenerReady: true,
-    maxCatchUpDurationMs: 3_000,
-    maxCatchUpRows: 500,
     maxClientBufferedBytes: 128,
-    maxPendingCatchUpEvents: 5,
-    notificationQueue: { agent: 6, messages: 7 },
+    notificationQueue: { agent: 6, messages: 7, validators: 8 },
     outboundPendingBytes: 256,
-    pendingCatchUpEvents: 8,
     subscriptions: {
-      delivery: { catchingUp: 0, live: 1 },
-      dispatch: { catchingUp: 1, live: 2 },
-      gas_payment: { catchingUp: 0, live: 0 },
-      merkle_tree_insertion: { catchingUp: 1, live: 0 },
+      delivery: 1,
+      dispatch: 2,
+      gas_payment: 0,
+      merkle_tree_insertion: 0,
     },
   }));
 
@@ -64,11 +79,61 @@ void it('serves current usage and limits from /metrics', async () => {
   );
   assert.match(
     output,
+    /hyperlane_scraper_proxy_websocket_connections\{route="validators"\} 2/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_connection_limit\{route="validators"\} 500/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_pending_setups 1/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_subscriptions\{domain="1",policy="canonical"\} 1/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_subscriptions\{domain="1",policy="custom"\} 1/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_setup_limit 32/,
+  );
+  assert.match(output, /websocket_validator_reserved_connections 2/);
+  assert.match(output, /websocket_validator_shared_readers 1/);
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_client_ips 1/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_max_connections_per_ip 2/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_validator_client_message_limit_bytes 1024/,
+  );
+  assert.match(
+    output,
     /hyperlane_scraper_proxy_websocket_connection_limit\{route="messages"\} 400/,
   );
   assert.match(
     output,
-    /hyperlane_scraper_proxy_websocket_subscriptions\{event_type="dispatch",state="catching_up"\} 1/,
+    /hyperlane_scraper_proxy_websocket_message_pending_setups 2/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_message_setup_limit 32/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_message_setup_limit_per_ip 2/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_websocket_subscriptions\{event_type="dispatch"\} 2/,
   );
   assert.match(
     output,
@@ -98,17 +163,6 @@ void it('serves current usage and limits from /metrics', async () => {
     assert.match(
       output,
       new RegExp(`websocket_send_failures_total\\{reason="${reason}"\\} 0`),
-    );
-  }
-  for (const outcome of [
-    'aborted',
-    'capacity_rejected',
-    'failure',
-    'success',
-  ]) {
-    assert.match(
-      output,
-      new RegExp(`websocket_catch_ups_total\\{outcome="${outcome}"\\} 0`),
     );
   }
   for (const route of ['agent', 'messages']) {
@@ -143,7 +197,22 @@ void it('serves current usage and limits from /metrics', async () => {
     output,
     /hyperlane_scraper_proxy_database_pool_waiting_requests\{pool="main"\} 2/,
   );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_database_pool_waiting_requests\{pool="validator"\} 7/,
+  );
+  assert.match(
+    output,
+    /hyperlane_scraper_proxy_database_pool_connection_limit\{pool="validator"\} 5/,
+  );
   assert.match(output, /hyperlane_scraper_proxy_process_cpu/);
+  assert.match(output, /websocket_notification_queue\{route="validators"\} 8/);
+
+  validatorSubscriptions.length = 0;
+  assert.doesNotMatch(
+    await metricsRegistry.metrics(),
+    /websocket_validator_subscriptions\{domain=/,
+  );
 
   const { registerMetricsRoute } = await import('./module.js');
   const app = Fastify({ logger: false });

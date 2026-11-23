@@ -1,7 +1,10 @@
 import { type ChainMap, type ChainName } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import { ExternalBridgeType } from '../config/types.js';
+import {
+  ExternalBridgeType,
+  type TokenBridgeStatusAdapterConfig,
+} from '../config/types.js';
 import { ExecutionMethod } from '../tracking/types.js';
 
 export type RawBalances = ChainMap<bigint>;
@@ -27,6 +30,7 @@ export interface RouteWithContext extends Route {
 export interface MovableCollateralRoute extends Route {
   executionType: 'movableCollateral';
   bridge: Address;
+  statusAdapter?: TokenBridgeStatusAdapterConfig;
 }
 
 /**

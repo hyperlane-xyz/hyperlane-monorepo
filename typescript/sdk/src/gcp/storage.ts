@@ -53,8 +53,8 @@ export class GcpStorageWrapper {
   }
 
   private async fetchMetadata(key: string): Promise<any> {
-    const url = new URL(`${this.baseUrl}/${encodeURIComponent(key)}`);
-    const response = await fetch(url.toString());
+    const url = `${this.baseUrl}/${encodeURIComponent(key)}`;
+    const response = await fetch(url);
 
     if (response.status === 404) return undefined;
 

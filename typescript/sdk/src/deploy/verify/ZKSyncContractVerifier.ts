@@ -116,13 +116,12 @@ export class ZKSyncContractVerifier extends BaseContractVerifier {
   ): Promise<any> {
     const { apiUrl, family } = this.multiProvider.getExplorerApi(chain);
 
-    const url = new URL(apiUrl);
     verificationLogger.trace(
       { apiUrl, chain },
       'Sending request to explorer...',
     );
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),

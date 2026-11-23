@@ -7,7 +7,9 @@ describe('module registry', () => {
     expect(Object.keys(moduleRegistry)).to.deep.equal([
       'callCommitments',
       'cctp',
+      'layerzero',
       'opstack',
+      'wormhole',
     ]);
     expect(moduleRegistry.unknown).to.equal(undefined);
   });
@@ -15,10 +17,13 @@ describe('module registry', () => {
   for (const [name, requiredSetting] of [
     ['callCommitments', 'SERVER_BASE_URL'],
     ['cctp', 'HYPERLANE_EXPLORER_URL'],
+    ['layerzero', 'HYPERLANE_EXPLORER_URL'],
     ['opstack', 'HYPERLANE_EXPLORER_API'],
+    ['wormhole', 'HYPERLANE_EXPLORER_URL'],
   ] as const) {
     it(`loads ${name} and preserves required configuration validation`, async function () {
-      if (name === 'callCommitments') this.timeout(10_000);
+      // Cold imports can exceed Mocha's default timeout on busy CI workers.
+      this.timeout(10_000);
       const previous = process.env[requiredSetting];
       delete process.env[requiredSetting];
       let rejected: unknown;

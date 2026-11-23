@@ -18,7 +18,7 @@ pub fn create_keypair(conf: &ChainConf) -> eyre::Result<SealevelKeypair> {
         SignerConf::HexKey { key } => key,
         _ => bail!("Sealevel supports only hex key"),
     };
-    let keypair = create_raw_keypair(key)?;
+    let keypair = create_raw_keypair(key.expose_secret())?;
     Ok(SealevelKeypair(keypair))
 }
 
@@ -40,7 +40,7 @@ pub fn create_identity_keypair(
         SignerConf::HexKey { key } => key,
         _ => bail!("Sealevel supports only hex key for identity"),
     };
-    let keypair = SealevelKeypair(create_raw_keypair(key)?);
+    let keypair = SealevelKeypair(create_raw_keypair(key.expose_secret())?);
     if keypair.pubkey() == payer.pubkey() {
         return Ok(None);
     }
@@ -77,7 +77,7 @@ mod tests {
             addresses: Default::default(),
             connection: ChainConnectionConf::Sealevel(hyperlane_sealevel::ConnectionConf {
                 max_supported_transaction_version: 0,
-                urls: vec![],
+                urls: vec![].into(),
                 op_submission_config: OpSubmissionConfig::default(),
                 native_token: Default::default(),
                 priority_fee_oracle: Default::default(),
@@ -115,7 +115,7 @@ mod tests {
     fn identity_same_as_payer_returns_none() {
         let payer = make_payer(1);
         let key = H256::from([1u8; 32]);
-        let conf = sealevel_conf(Some(SignerConf::HexKey { key }));
+        let conf = sealevel_conf(Some(SignerConf::HexKey { key: key.into() }));
         // payer seed=1 means key[0]=1; identity key is all-1s — they are different raw bytes
         // so build a payer that IS all-1s to trigger the dedup path
         let payer_all_ones = SealevelKeypair(create_raw_keypair(&key).unwrap());
@@ -128,7 +128,9 @@ mod tests {
     fn identity_distinct_returns_keypair() {
         let payer = make_payer(1);
         let identity_key = H256::from([2u8; 32]);
-        let conf = sealevel_conf(Some(SignerConf::HexKey { key: identity_key }));
+        let conf = sealevel_conf(Some(SignerConf::HexKey {
+            key: identity_key.into(),
+        }));
         let result = create_identity_keypair(&conf, &payer).unwrap().unwrap();
         let expected_pubkey = SealevelKeypair(create_raw_keypair(&identity_key).unwrap()).pubkey();
         assert_eq!(result.pubkey(), expected_pubkey);

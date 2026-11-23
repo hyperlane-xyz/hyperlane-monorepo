@@ -15,6 +15,8 @@ import {
 } from './options.js';
 import { type ChainType, ChainTypes } from './types.js';
 
+const TRAILING_COMMA_REGEX = /, $/;
+
 /**
  * Parent command
  */
@@ -190,7 +192,7 @@ const createAgentConfigCommand: CommandModuleWithContext<{
         errorRed(
           `❌ Invalid chain names: ${invalidChainNames
             .join(', ')
-            .replace(/, $/, '')}`,
+            .replace(TRAILING_COMMA_REGEX, '')}`,
         );
         process.exit(1);
       }

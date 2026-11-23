@@ -18,6 +18,8 @@ describe('ScraperProxyHelmManager', () => {
       [Role.Scraper]: [],
     },
     scraperProxy: {
+      diagnosticsDatabaseSecret:
+        'hyperlane-mainnet-relayer-postgres-reader-url',
       docker: {
         repo: 'ghcr.io/hyperlane-xyz/hyperlane-node-services',
         tag: 'test',
@@ -42,6 +44,8 @@ describe('ScraperProxyHelmManager', () => {
     expect(values.hyperlane.chains).to.deep.equal([]);
     expect(values.hyperlane.scraper).to.equal(undefined);
     expect(values.hyperlane.scraperProxy).to.deep.equal({
+      diagnosticsDatabaseSecret:
+        'hyperlane-mainnet-relayer-postgres-reader-url',
       enabled: true,
       maxAgentClients: 200,
       port: 8383,

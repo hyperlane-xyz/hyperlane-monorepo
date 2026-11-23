@@ -1,3 +1,41 @@
+## [4.0.0] - 2026-11-17
+
+* fix(katana): use network fee estimates for relayers (#9939)
+* fix(lander): preserve inclusion during finality RPC failures (#9994)
+* fix(lander): remove p100 fee fallback and cap Ethereum priority fees (#9935)
+* fix: enforce priority fee caps across EVM chains (#9938)
+* perf: narrow reads and overlap independent RPC calls (#9959)
+* perf: remove hot-path serialization with bounded concurrency (#9958)
+
+## [3.0.0] - 2026-10-23
+
+* chore: remove unused Fuel integration (#9723)
+* feat(ccs): standardize EVM authentication across read APIs (#9873)
+* feat(lander): route ICA reveals through MEV-protected RPCs (#9865)
+* feat(metrics): attribute RPC requests by operation (#9453)
+* feat(metrics): measure Lander status-read batching (#9544)
+* fix(agents): contain Lander recovery side effects (#9451)
+* fix(lander): bound Aleo transaction status polling (#9412)
+* fix(lander): clear completed loader liveness (#9441)
+* fix(lander): defer gas-capped transactions for retry (#8680)
+* fix(lander): drop stale recovered transactions and repair nonce gaps (#9732)
+* fix(lander): escalate inclusion-stage confirmation backoff for aged txs (#9308)
+* fix(lander): preserve prepared gas budgets (#9874)
+* fix(lander): rebroadcast pending EVM transactions at the gas cap (#9771)
+* fix(lander): recover transactions past finalized history (#9683)
+* fix(rust): centralize secret redaction and preserve RPC diagnostics (#9897)
+* fix(rust): persist Lander finalized nonce regressions (#9219)
+* perf(core): reduce encoding and typed storage allocations (#9489)
+* perf(lander): avoid copies at VM submission boundaries (#9523)
+* perf(lander): batch Sealevel transaction statuses (#9429)
+* perf(lander): bound EVM receipt sweeps and share finality reads (#9687)
+* perf(lander): collapse Sealevel status reads (#9428)
+* perf(lander): index pending payloads (#9426)
+* perf(lander): parallelize transaction status reads (#9398)
+* perf(lander): reduce record and transaction lifecycle copies (#9496)
+* perf(lander): share dispatcher state (#9425)
+* perf(rust): back off idle Lander reorg polling (#9223)
+
 ## [2.3.0] - 2026-07-20
 
 * feat(tron): migrate Tron agents from gRPC to HTTP API (#8370)

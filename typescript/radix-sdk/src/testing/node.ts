@@ -16,6 +16,8 @@ import {
   deployHyperlaneRadixPackage,
 } from './setup.js';
 
+const HEALTHY_AND_SYNCED_REGEX = /HealthyAndSynced=1/;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -56,7 +58,7 @@ export async function runRadixNode(
         .withWaitStrategy('fullnode-1', Wait.forHealthCheck())
         .withWaitStrategy(
           'gateway_api_image-1',
-          Wait.forLogMessage(/HealthyAndSynced=1/),
+          Wait.forLogMessage(HEALTHY_AND_SYNCED_REGEX),
         )
         .up(),
     3, // maxRetries

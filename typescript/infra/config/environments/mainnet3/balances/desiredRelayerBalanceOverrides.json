@@ -1,20 +1,19 @@
 {
   "aleo": 600,
-  "arc": 0.25,
+  "arc": 100,
+  "celestia": 12,
   "coti": 1,
   "eclipsemainnet": 0.5,
   "eden": 0.05,
   "electroneum": 10,
-  "forma": 5,
   "kyve": 500,
   "mocachain": 727,
-  "nesa": 0.25,
   "nesachain": 0.25,
-  "nexus": 1,
   "paradex": 2,
   "radix": 3000,
+  "robinhood": 0.1,
   "starknet": 200,
   "subtensor": 0.2,
   "solaxy": 0.05,
-  "tea": 0.2
+  "tempo": 25
 }

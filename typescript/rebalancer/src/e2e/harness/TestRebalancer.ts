@@ -14,7 +14,9 @@ import { RebalancerConfig } from '../../config/RebalancerConfig.js';
 import {
   DEFAULT_INTENT_TTL_MS,
   ExternalBridgeType,
+  type PendingTransferMiddlewareConfig,
   type StrategyConfig,
+  type InventoryRoutesConfig,
   getStrategyChainNames,
 } from '../../config/types.js';
 import {
@@ -108,10 +110,13 @@ export class TestRebalancerBuilder {
   private balanceConfig: BalanceConfig = 'BALANCED';
   private pendingTransfers: PendingTransferParams[] = [];
   private mockTransfers: ExplorerMessage[] = [];
+  private mockRebalanceActions: ExplorerMessage[] = [];
+  private pendingTransferMiddlewares: PendingTransferMiddlewareConfig[] = [];
   private executionMode: ExecutionMode = 'propose';
   private inventoryConfig: TestInventoryConfig | undefined;
   private erc20InventoryConfig: TestErc20InventoryConfig | undefined;
-  private mockExternalBridge: MockExternalBridge | undefined;
+  private readonly mockExternalBridges: Partial<ExternalBridgeRegistry> = {};
+  private inventoryRoutes: InventoryRoutesConfig | undefined;
   private readonly logger: Logger;
   private inventorySignerBalanceConfig:
     | InventorySignerBalanceConfig
@@ -146,6 +151,18 @@ export class TestRebalancerBuilder {
     return this;
   }
 
+  withMockRebalanceAction(message: ExplorerMessage): this {
+    this.mockRebalanceActions.push(message);
+    return this;
+  }
+
+  withPendingTransferMiddlewares(
+    configs: PendingTransferMiddlewareConfig[],
+  ): this {
+    this.pendingTransferMiddlewares = configs;
+    return this;
+  }
+
   withExecutionMode(mode: ExecutionMode): this {
     this.executionMode = mode;
     return this;
@@ -164,8 +181,16 @@ export class TestRebalancerBuilder {
     return this;
   }
 
-  withMockExternalBridge(bridge: MockExternalBridge): this {
-    this.mockExternalBridge = bridge;
+  withMockExternalBridge(
+    bridge: MockExternalBridge,
+    provider: ExternalBridgeType = ExternalBridgeType.LiFi,
+  ): this {
+    this.mockExternalBridges[provider] = bridge;
+    return this;
+  }
+
+  withInventoryRoutes(routes: InventoryRoutesConfig): this {
+    this.inventoryRoutes = routes;
     return this;
   }
 
@@ -225,7 +250,10 @@ export class TestRebalancerBuilder {
       'Cannot set both inventoryConfig and erc20InventoryConfig — use one or the other',
     );
 
-    if (this.inventoryConfig && !this.mockExternalBridge) {
+    if (
+      this.inventoryConfig &&
+      Object.keys(this.mockExternalBridges).length === 0
+    ) {
       throw new Error(
         'Inventory mode requires .withMockExternalBridge() to prevent hitting real external bridges in tests',
       );
@@ -306,6 +334,8 @@ export class TestRebalancerBuilder {
           },
         },
         { lifi: { integrator: 'test' } },
+        this.pendingTransferMiddlewares,
+        this.inventoryRoutes,
       );
       warpCoreConfig = buildErc20InventoryWarpRouteConfig(
         erc20InventoryModeConfig.erc20DeployedAddresses,
@@ -326,6 +356,8 @@ export class TestRebalancerBuilder {
           },
         },
         { lifi: { integrator: 'test' } },
+        this.pendingTransferMiddlewares,
+        this.inventoryRoutes,
       );
       warpCoreConfig = buildNativeWarpRouteConfig(
         inventoryModeConfig.nativeDeployedAddresses,
@@ -338,6 +370,9 @@ export class TestRebalancerBuilder {
         MONITORED_ROUTE_ID,
         this.strategyConfig,
         DEFAULT_INTENT_TTL_MS,
+        undefined,
+        undefined,
+        this.pendingTransferMiddlewares,
       );
       warpCoreConfig = buildWarpRouteConfig(deployedAddresses);
     }
@@ -361,10 +396,8 @@ export class TestRebalancerBuilder {
 
     const isAnyInventoryMode = isInventoryMode || isErc20InventoryMode;
     const externalBridgeRegistryOverride =
-      isAnyInventoryMode && this.mockExternalBridge
-        ? ({
-            [ExternalBridgeType.LiFi]: this.mockExternalBridge,
-          } as Partial<ExternalBridgeRegistry>)
+      isAnyInventoryMode && Object.keys(this.mockExternalBridges).length > 0
+        ? this.mockExternalBridges
         : undefined;
     const rebalancerComponents =
       this.executionMode === 'execute' || isAnyInventoryMode
@@ -697,7 +730,7 @@ export class TestRebalancerBuilder {
 
     return {
       userTransfers,
-      rebalanceActions: [],
+      rebalanceActions: [...this.mockRebalanceActions],
     };
   }
 

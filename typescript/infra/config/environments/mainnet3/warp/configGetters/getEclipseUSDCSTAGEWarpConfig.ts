@@ -25,7 +25,14 @@ const STAGING_TOKEN_METADATA = {
   name: 'USD Coin STAGE',
 };
 
-const stagingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+const stagingProxyAdmins: ChainMap<{
+  address: string | undefined;
+  owner: string;
+}> = {
+  elysium: {
+    address: undefined,
+    owner: DEPLOYER,
+  },
   ethereum: {
     address: '0x7aeB2331dF8f3cA711E693213C8C07923F587F23',
     owner: DEPLOYER,
@@ -78,6 +85,7 @@ const stagingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
 
 const stagingOwnersByChain: Record<DeploymentChain, string> = {
   arc: DEPLOYER,
+  elysium: DEPLOYER,
   ethereum: DEPLOYER,
   arbitrum: DEPLOYER,
   base: DEPLOYER,

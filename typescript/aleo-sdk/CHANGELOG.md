@@ -1,5 +1,25 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 45.2.0
+
+### Patch Changes
+
+- c520224: Invariant regular expressions were reused across calls, redundant URL parsing was removed from RPC-header and explorer helpers, and independent token reads were overlapped with bounded concurrency and failure draining. URL normalization, validation, and dependent read ordering were preserved.
+- Updated dependencies [aa84958]
+- Updated dependencies [c520224]
+  - @hyperlane-xyz/utils@45.2.0
+  - @hyperlane-xyz/provider-sdk@11.0.3
+
+## 45.1.0
+
+### Patch Changes
+
+- 78a31fa: Resolved token discovery with transitive ARC imports, added Aleo v3 warp route support for ARC-22 token metadata and supply queries and documented deployment with compiled program overrides.
+
+  Fixed empty Aleo view inputs and preserved decimal scaling for newly deployed warp route legs.
+  - @hyperlane-xyz/utils@45.1.0
+  - @hyperlane-xyz/provider-sdk@11.0.2
+
 ## 45.0.1
 
 ### Patch Changes

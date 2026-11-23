@@ -1,6 +1,7 @@
 import '../src/styles.css';
 
 const preview = {
+  tags: ['autodocs'],
   parameters: {
     actions: { argTypesRegex: '^on[A-Z].*' },
     controls: {

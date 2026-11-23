@@ -250,10 +250,16 @@ async fn run_and_expect_successful_inclusion(
             .unwrap()
             .unwrap();
 
+        // The observed Finalized status is forwarded, while the DB stays Included
+        // until finality-stage payload verification succeeds.
+        let expected_persisted_status = match &expected_state.status {
+            TransactionStatus::Finalized => TransactionStatus::Included,
+            status => status.clone(),
+        };
         assert_eq!(
-            current_tx.status, expected_state.status,
+            current_tx.status, expected_persisted_status,
             "Step {}: Expected status {:?}, got {:?}",
-            step, expected_state.status, current_tx.status
+            step, expected_persisted_status, current_tx.status
         );
         assert_eq!(
             current_tx.submission_attempts, expected_state.retries,
@@ -281,9 +287,11 @@ async fn run_and_expect_successful_inclusion(
     // The last expected state should be Finalized if we expect the tx to reach finality
     let final_state = expected_states.last().unwrap();
     if final_state.status == TransactionStatus::Finalized {
-        assert!(
-            maybe_tx.is_some(),
-            "Transaction should be sent to finality stage"
+        assert_eq!(
+            maybe_tx
+                .expect("Transaction should be sent to finality stage")
+                .status,
+            TransactionStatus::Finalized
         );
     }
 }

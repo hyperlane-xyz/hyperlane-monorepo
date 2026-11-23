@@ -7,12 +7,39 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 
 import {
   AgentChainMetadataSchema,
-  AgentSignerKeyType,
   RelayerAgentConfigSchema,
   RpcConsensusType,
+  ScraperAgentConfigSchema,
   ValidatorAgentConfigSchema,
   buildAgentConfig,
 } from './agentConfig.js';
+
+describe('RelayerAgentConfigSchema runtimeDenylistUrl', () => {
+  const schema = RelayerAgentConfigSchema.shape.runtimeDenylistUrl;
+
+  it('accepts HTTP endpoints and local file URLs', () => {
+    for (const url of [
+      'https://example.com/denylist.json',
+      'http://localhost:8080/denylist.json',
+      'file:///tmp/denylist.json',
+      'file://localhost/tmp/denylist.json',
+    ]) {
+      expect(schema.safeParse(url).success, url).to.equal(true);
+    }
+  });
+
+  it('rejects remote file hosts and unsupported or malformed URLs', () => {
+    for (const url of [
+      'file://denylist.json',
+      'file://remote/denylist.json',
+      'gs://bucket/denylist.json',
+      'file://[',
+      'invalid',
+    ]) {
+      expect(schema.safeParse(url).success, url).to.equal(false);
+    }
+  });
+});
 
 describe('ValidatorAgentConfigSchema maxSignConcurrency', () => {
   const schema = ValidatorAgentConfigSchema.shape.maxSignConcurrency;
@@ -84,6 +111,22 @@ describe('AgentChainMetadataSchema mevSubmission', () => {
       expect(schema.safeParse(config).success).to.be.false;
     }
   });
+
+  it('preserves additional router versions and rejects malformed router lists', () => {
+    const config = {
+      rpcUrls: ['https://protected.example'],
+      icaRouter: `0x${'01'.repeat(32)}`,
+    };
+    const additionalIcaRouters = [`0x${'02'.repeat(32)}`];
+    expect(
+      schema.parse({ ...config, additionalIcaRouters })?.additionalIcaRouters,
+    ).to.deep.equal(additionalIcaRouters);
+    for (const invalid of ['invalid', ['invalid'], [7], null]) {
+      expect(
+        schema.safeParse({ ...config, additionalIcaRouters: invalid }).success,
+      ).to.be.false;
+    }
+  });
 });
 
 describe('AgentChainMetadataSchema index.from', () => {
@@ -104,6 +147,79 @@ describe('AgentChainMetadataSchema index.from', () => {
     expect(result.success).to.be.true;
     if (result.success) {
       expect(result.data.index?.from).to.equal(-10_000);
+    }
+  });
+});
+
+describe('fractional interval seconds', () => {
+  const chain = {
+    name: 'legacy',
+    domainId: 1000,
+    chainId: 1000,
+    protocol: ProtocolType.Ethereum,
+    rpcUrls: [{ http: 'http://localhost:8545' }],
+    mailbox: '0x0000000000000000000000000000000000000001',
+    interchainGasPaymaster: '0x0000000000000000000000000000000000000002',
+    validatorAnnounce: '0x0000000000000000000000000000000000000003',
+    merkleTreeHook: '0x0000000000000000000000000000000000000004',
+  };
+  const validatorInterval = ValidatorAgentConfigSchema.shape.interval;
+  // Rust rejects intervals below 10 ms and overflows at 2^64 seconds;
+  // 2^64 - 2048 is the largest representable double below that upper bound.
+  const valid = [0.01, 0.1, 0.25, 1, 1.5, 7, 2 ** 64 - 2048];
+  const invalid: unknown[] = [
+    0,
+    -0.1,
+    -1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    'abc',
+    true,
+    null,
+    1e-12,
+    5e-10,
+    1e-9,
+    0.009,
+    0.01 * (1 - Number.EPSILON),
+    2 ** 64,
+    Number.MAX_VALUE,
+  ];
+
+  it('accepts seconds from 10 ms up, including fractions, at both fields', () => {
+    for (const interval of valid) {
+      const result = AgentChainMetadataSchema.safeParse({
+        ...chain,
+        index: { interval },
+      });
+      expect(result.success, `index.interval ${interval}`).to.be.true;
+      if (result.success) {
+        expect(result.data.index?.interval).to.equal(interval);
+      }
+      const top = validatorInterval.safeParse(interval);
+      expect(top.success, `interval ${interval}`).to.be.true;
+      if (top.success) expect(top.data).to.equal(interval);
+    }
+  });
+
+  it('allows both fields to be absent', () => {
+    expect(AgentChainMetadataSchema.safeParse(chain).success).to.be.true;
+    expect(AgentChainMetadataSchema.safeParse({ ...chain, index: {} }).success)
+      .to.be.true;
+    expect(validatorInterval.safeParse(undefined).success).to.be.true;
+  });
+
+  it('rejects values below 10 ms, non-finite and non-numeric values at both fields', () => {
+    for (const interval of invalid) {
+      expect(
+        AgentChainMetadataSchema.safeParse({ ...chain, index: { interval } })
+          .success,
+        `index.interval ${String(interval)}`,
+      ).to.be.false;
+      expect(
+        validatorInterval.safeParse(interval).success,
+        `interval ${String(interval)}`,
+      ).to.be.false;
     }
   });
 });
@@ -131,6 +247,31 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
       { type: 'minimum', payment: '1', feeToken: FEE_TOKEN },
     ],
     ...overrides,
+  });
+
+  it('enables message activity with only a PostgreSQL URL', () => {
+    for (const messageActivityDatabaseUrl of [
+      undefined,
+      'postgres://user:password@localhost/diagnostics',
+      'postgresql://localhost/diagnostics?sslmode=verify-full',
+    ]) {
+      expect(
+        RelayerAgentConfigSchema.safeParse(
+          config({ gasPaymentEnforcement: [], messageActivityDatabaseUrl }),
+        ).success,
+      ).to.be.true;
+    }
+    for (const messageActivityDatabaseUrl of [
+      'https://localhost/diagnostics',
+      'postgresql:///diagnostics',
+      'not-a-url',
+    ]) {
+      expect(
+        RelayerAgentConfigSchema.safeParse(
+          config({ gasPaymentEnforcement: [], messageActivityDatabaseUrl }),
+        ).success,
+      ).to.be.false;
+    }
   });
 
   it('rejects non-zero feeToken policy', () => {
@@ -210,34 +351,6 @@ describe('RelayerAgentConfigSchema feeToken gate', () => {
         }),
       ).success,
     ).to.be.false;
-  });
-
-  it('requires a WebSocket URL when scraper authority is enabled', () => {
-    expect(
-      RelayerAgentConfigSchema.safeParse(
-        config({
-          gasPaymentEnforcement: [{ type: 'onChainFeeQuoting' }],
-          websocketAuthorityEnabled: true,
-        }),
-      ).success,
-    ).to.be.false;
-    expect(
-      RelayerAgentConfigSchema.safeParse(
-        config({
-          gasPaymentEnforcement: [{ type: 'onChainFeeQuoting' }],
-          websocketAuthorityEnabled: true,
-          websocketUrl: 'wss://scraper.example/ws/events',
-        }),
-      ).success,
-    ).to.be.true;
-    expect(
-      RelayerAgentConfigSchema.safeParse(
-        config({
-          gasPaymentEnforcement: [{ type: 'onChainFeeQuoting' }],
-          websocketAuthorityEnabled: false,
-        }),
-      ).success,
-    ).to.be.true;
   });
 });
 
@@ -428,7 +541,7 @@ describe('Agent config', () => {
   });
 });
 
-describe('ValidatorAgentConfigSchema lightweight mode', () => {
+describe('ValidatorAgentConfigSchema live indexing', () => {
   const config = {
     originChainName: 'test',
     validator: { key: `0x${'11'.repeat(32)}` },
@@ -452,7 +565,8 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
     },
   };
 
-  it('accepts normal quorum and majority for every supported protocol', () => {
+  it('accepts RPC-only and live WebSocket validators', () => {
+    expect(ValidatorAgentConfigSchema.safeParse(config).success).to.be.true;
     for (const protocol of Object.values(ProtocolType)) {
       for (const rpcConsensusType of [
         RpcConsensusType.Quorum,
@@ -460,13 +574,9 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
       ]) {
         const result = ValidatorAgentConfigSchema.safeParse({
           ...config,
-          lightweight: false,
+          websocketUrl: 'wss://scraper.example/validators',
           chains: {
-            test: {
-              ...config.chains.test,
-              protocol,
-              rpcConsensusType,
-            },
+            test: { ...config.chains.test, protocol, rpcConsensusType },
           },
         });
         expect(
@@ -477,91 +587,79 @@ describe('ValidatorAgentConfigSchema lightweight mode', () => {
     }
   });
 
-  it('requires a websocket URL with either spelling', () => {
-    for (const flag of ['lightweight', 'leightweigt']) {
-      expect(
-        ValidatorAgentConfigSchema.safeParse({ ...config, [flag]: true })
-          .success,
-      ).to.be.false;
-      expect(
-        ValidatorAgentConfigSchema.safeParse({
-          ...config,
-          [flag]: true,
-          websocketUrl: 'wss://scraper.example/events',
-        }).success,
-      ).to.be.true;
+  it('accepts optional, query-free validator WebSocket endpoints', () => {
+    const schema = ValidatorAgentConfigSchema.shape.websocketUrl;
+    for (const url of [
+      undefined,
+      'ws://localhost:8383/validators',
+      'wss://explorer-api.hyperlane.xyz/validators',
+      'wss://scraper.example/validators#fragment?not-a-query',
+    ]) {
+      expect(schema.safeParse(url).success, String(url)).to.be.true;
     }
   });
 
-  it('rejects removed quorum settings in both modes', () => {
-    for (const lightweight of [false, true]) {
-      for (const removed of [
-        { additionalQuorumRpcUrls: [{ http: 'https://quorum.example' }] },
-        { additionalQuorumRpcUrls: [] },
-        { customAdditionalQuorumRpcUrls: 'https://quorum.example' },
-        { customAdditionalQuorumRpcUrls: '' },
-      ]) {
+  it('rejects invalid validator WebSocket schemes, paths, and queries', () => {
+    const schema = ValidatorAgentConfigSchema.shape.websocketUrl;
+    for (const url of [
+      'invalid',
+      'https://scraper.example/validators',
+      'http://scraper.example/validators',
+      'wss://scraper.example',
+      'wss://scraper.example/agents',
+      'wss://scraper.example/messages',
+      'wss://scraper.example/validators/',
+      'wss://scraper.example/validators?domain=1',
+      'wss://scraper.example/validators?confirmations=2',
+      'wss://scraper.example/validators?',
+      'wss://scraper.example/validators?#fragment',
+    ]) {
+      expect(schema.safeParse(url).success, url).to.be.false;
+    }
+  });
+
+  it('rejects removed lightweight settings, including false', () => {
+    for (const flag of ['lightweight', 'leightweigt']) {
+      for (const value of [true, false]) {
         expect(
           ValidatorAgentConfigSchema.safeParse({
             ...config,
-            lightweight,
-            websocketUrl: 'wss://scraper.example',
-            chains: { test: { ...config.chains.test, ...removed } },
+            [flag]: value,
+            websocketUrl: 'wss://scraper.example/validators',
           }).success,
         ).to.be.false;
       }
     }
   });
 
-  it('accepts lightweight indexing for every supported protocol', () => {
-    for (const protocol of [
-      ProtocolType.Ethereum,
-      ProtocolType.Sealevel,
-      ProtocolType.Cosmos,
-      ProtocolType.CosmosNative,
-      ProtocolType.Starknet,
-      ProtocolType.Radix,
-      ProtocolType.Aleo,
-      ProtocolType.Tron,
+  it('rejects removed quorum endpoint settings', () => {
+    for (const removed of [
+      { additionalQuorumRpcUrls: [{ http: 'https://quorum.example' }] },
+      { additionalQuorumRpcUrls: [] },
+      { customAdditionalQuorumRpcUrls: 'https://quorum.example' },
+      { customAdditionalQuorumRpcUrls: '' },
     ]) {
-      const result = ValidatorAgentConfigSchema.safeParse({
-        ...config,
-        lightweight: true,
-        websocketUrl: 'wss://scraper.example/events',
-        chains: {
-          test: {
-            ...config.chains.test,
-            protocol,
-            ...(protocol === ProtocolType.Cosmos ||
-            protocol === ProtocolType.CosmosNative
-              ? {
-                  signer: {
-                    type: AgentSignerKeyType.Cosmos,
-                    prefix: 'test',
-                    key: `0x${'11'.repeat(32)}`,
-                  },
-                  canonicalAsset: 'utest',
-                  gasPrice: { denom: 'utest', amount: '0.025' },
-                  contractAddressBytes: 32,
-                }
-              : {}),
-          },
-        },
-      });
-      expect(result.success, `${protocol}: ${result.error?.message}`).to.be
-        .true;
+      expect(
+        ValidatorAgentConfigSchema.safeParse({
+          ...config,
+          chains: { test: { ...config.chains.test, ...removed } },
+        }).success,
+      ).to.be.false;
     }
   });
+});
 
-  it('rejects conflicting aliases and defaults to classic behavior', () => {
-    expect(ValidatorAgentConfigSchema.safeParse(config).success).to.be.true;
-    expect(
-      ValidatorAgentConfigSchema.safeParse({
-        ...config,
-        lightweight: true,
-        leightweigt: false,
-        websocketUrl: 'wss://scraper.example/events',
-      }).success,
-    ).to.be.false;
+describe('ScraperAgentConfigSchema websocketUrls', () => {
+  it('accepts optional WS endpoints and rejects non-WS URLs', () => {
+    const schema = ScraperAgentConfigSchema.shape.websocketUrls;
+    for (const value of [
+      undefined,
+      {},
+      { base: 'wss://base.example' },
+      { base: 'ws://localhost:8546' },
+    ])
+      expect(schema.safeParse(value).success).to.equal(true);
+    for (const base of ['https://base.example', 'invalid'])
+      expect(schema.safeParse({ base }).success).to.equal(false);
   });
 });

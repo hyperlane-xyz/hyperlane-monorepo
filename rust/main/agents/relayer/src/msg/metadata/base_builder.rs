@@ -1,14 +1,15 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
 #![allow(clippy::unnecessary_get_then_check)] // TODO: `rustc` 1.80.1 clippy issue
 
-use std::{collections::HashMap, fmt::Debug, str::FromStr, sync::Arc};
+use std::{collections::BTreeSet, fmt::Debug, str::FromStr, sync::Arc};
 
+use crate::message_activity::{Activity, Outcome, Stage, ValidatorStorageState};
 use derive_new::new;
 use futures::{stream, StreamExt};
 use hyperlane_ethereum::Signers;
 use maplit::hashmap;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use hyperlane_base::{
     cache::{LocalCache, MeteredCache, OptionalCache},
@@ -58,8 +59,21 @@ pub struct BaseMetadataBuilder {
     db: HyperlaneRocksDB,
     app_context_classifier: IsmAwareAppContextClassifier,
     ism_cache_policy_classifier: IsmCachePolicyClassifier,
+    ccip_read_allowed_domains: Arc<[String]>,
     signer: Option<Signers>,
     ignore_reorg_reports: bool,
+    #[new(default)]
+    activity_reporter: Option<crate::message_activity::MessageActivityReporter>,
+}
+
+impl BaseMetadataBuilder {
+    pub fn with_activity_reporter(
+        mut self,
+        reporter: Option<crate::message_activity::MessageActivityReporter>,
+    ) -> Self {
+        self.activity_reporter = reporter;
+        self
+    }
 }
 
 impl Debug for BaseMetadataBuilder {
@@ -74,14 +88,48 @@ impl Debug for BaseMetadataBuilder {
 
 #[async_trait::async_trait]
 pub trait BuildsBaseMetadata: Send + Sync + Debug {
+    fn activity_reporter(&self) -> Option<&crate::message_activity::MessageActivityReporter> {
+        None
+    }
+    fn report_node_activity(
+        &self,
+        message: &HyperlaneMessage,
+        node_id: &str,
+        activity: crate::message_activity::Activity,
+    ) {
+        if let Some(reporter) = self.activity_reporter() {
+            reporter.report_node(message, node_id, activity);
+        } else {
+            self.report_activity(message, activity);
+        }
+    }
+
+    fn report_activity(
+        &self,
+        message: &HyperlaneMessage,
+        activity: crate::message_activity::Activity,
+    ) {
+        if let Some(reporter) = self.activity_reporter() {
+            reporter.report(message, activity);
+        }
+    }
+
     fn origin_domain(&self) -> &HyperlaneDomain;
     fn destination_domain(&self) -> &HyperlaneDomain;
     fn app_context_classifier(&self) -> &IsmAwareAppContextClassifier;
     fn ism_cache_policy_classifier(&self) -> &IsmCachePolicyClassifier;
     fn cache(&self) -> &OptionalCache<MeteredCache<LocalCache>>;
+    fn ccip_read_allowed_domains(&self) -> &[String];
     fn get_signer(&self) -> Option<&Signers>;
+    fn ignore_reorg_reports(&self) -> bool {
+        false
+    }
 
     fn update_ism_metric(&self, params: IsmBuildMetricsParams);
+
+    /// Counts validator latest-index telemetry refreshes that were skipped or
+    /// did not complete, so a stale `observed_validator_latest_index` is visible.
+    fn report_latest_index_refresh_skipped(&self, _reason: &str) {}
 
     async fn get_proof(
         &self,
@@ -114,6 +162,10 @@ pub trait BuildsBaseMetadata: Send + Sync + Debug {
 
 #[async_trait::async_trait]
 impl BuildsBaseMetadata for BaseMetadataBuilder {
+    fn activity_reporter(&self) -> Option<&crate::message_activity::MessageActivityReporter> {
+        self.activity_reporter.as_ref()
+    }
+
     fn origin_domain(&self) -> &HyperlaneDomain {
         &self.origin_domain
     }
@@ -142,6 +194,13 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             "status" => if params.success { "success" } else { "failure" },
         };
         self.metrics.ism_build_count().with(&labels).inc();
+    }
+
+    fn report_latest_index_refresh_skipped(&self, reason: &str) {
+        self.metrics
+            .validator_latest_index_refresh_skipped()
+            .with_label_values(&[self.origin_domain.name(), reason])
+            .inc();
     }
 
     async fn get_proof(
@@ -243,7 +302,19 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer, CheckpointSyncerBuildError> {
-        let storage_locations = self.fetch_storage_locations(validators).await?;
+        let report = |outcome| {
+            self.report_activity(
+                message,
+                Activity::Progress {
+                    stage: Stage::ValidatorAnnouncements,
+                    outcome,
+                },
+            );
+        };
+        let storage_locations = self
+            .fetch_storage_locations(validators)
+            .await
+            .inspect_err(|_| report(Outcome::Failed))?;
 
         debug!(
             hyp_message=?message,
@@ -253,25 +324,26 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
             storage_locations_len = ?storage_locations.len(),
             "List of validators and their storage locations for message");
 
-        // Only use the most recently announced location for now.
-        let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
-
         let result = validators
             .iter()
             .zip(storage_locations)
+            .filter(|(validator, _)| H256::from(H160::from(**validator)) == **validator)
             .filter_map(|(validator, validator_storage_locations)| {
                 debug!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
                 if validator_storage_locations.is_empty() {
+                    self.report_activity(message, Activity::ValidatorStorage { validator: *validator, states: vec![ValidatorStorageState::NotAnnounced], usable: false });
                     // If the validator has not announced any storage locations, we skip it
                     // and log a warning.
-                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operators/validators/announcing-your-validator");
+                    warn!(?validator, "Validator has not announced any storage locations; see https://docs.hyperlane.xyz/docs/operate/validators/run-validators#announcing-your-validator");
                     return None;
                 }
 
                 let future = async move {
+                    let mut states = BTreeSet::new();
                     // Reverse the order of storage locations to prefer the most recently announced
                     for storage_location in validator_storage_locations.iter().rev() {
                         let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
+                            states.insert(ValidatorStorageState::InvalidLocation);
                             debug!(
                                 ?validator,
                                 ?storage_location,
@@ -279,12 +351,12 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             );
                             continue;
                         };
-
                         // If this is a LocalStorage based checkpoint syncer and it's not
                         // allowed, ignore it
                         if !self.allow_local_checkpoint_syncers
                             && matches!(config, CheckpointSyncerConf::LocalStorage { .. })
                         {
+                            states.insert(ValidatorStorageState::LocalStorageDisabled);
                             debug!(
                                 ?config,
                                 "Ignoring disallowed LocalStorage based checkpoint syncer"
@@ -292,38 +364,49 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
                             continue;
                         }
 
-                        if let Some(syncer) = self
-                            .build_and_validate(&config, validator, storage_location)
-                            .await?
-                        {
-                            // found the syncer for this validator
-                            return Ok(Some((*validator, syncer)));
-                        }
+                        let syncer = match self.checkpoint_syncer_pool.get_or_build(
+                            &config,
+                            self.cache.clone(),
+                            self.origin_domain.name().to_string(),
+                            *validator,
+                            storage_location.clone(),
+                        ).await {
+                            Ok(syncer) => syncer,
+                            Err(error) => {
+                                states.insert(ValidatorStorageState::LoadFailed);
+                                debug!(%error, ?config, ?validator, "Error loading checkpoint syncer; trying the next location");
+                                continue;
+                            }
+                        };
+                        self.report_activity(message, Activity::ValidatorStorage {
+                            validator: *validator,
+                            states: states.into_iter().collect(),
+                            usable: true,
+                        });
+                        let syncer: Arc<dyn CheckpointSyncer> = syncer;
+                        return Some(((*validator).into(), syncer));
                     }
                     warn!(
                         ?validator,
                         ?validator_storage_locations,
                         "No valid checkpoint syncer configs for validator"
                     );
-                    Ok(None)
+                    self.report_activity(message, Activity::ValidatorStorage {
+                        validator: *validator,
+                        states: states.into_iter().collect(),
+                        usable: false,
+                    });
+                    None
                 };
                 Some(future)
             })
             .collect::<Vec<_>>();
 
-        let checkpoint_syncers_results = stream::iter(result)
-            .buffer_unordered(10) // Limit the number of concurrent tasks
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, CheckpointSyncerBuildError>>()? // Collect results into a single vector and return if any of them returns an error
-            .into_iter()
-            .flatten() // Flatten Option<_>
-            .collect::<Vec<_>>();
-
-        for (validator, checkpoint_syncer) in checkpoint_syncers_results {
-            checkpoint_syncers.insert(validator.into(), checkpoint_syncer);
-        }
+        let checkpoint_syncers = stream::iter(result)
+            .buffer_unordered(10)
+            .filter_map(std::future::ready)
+            .collect()
+            .await;
 
         Ok(MultisigCheckpointSyncer::new(
             checkpoint_syncers,
@@ -331,8 +414,16 @@ impl BuildsBaseMetadata for BaseMetadataBuilder {
         ))
     }
 
+    fn ccip_read_allowed_domains(&self) -> &[String] {
+        &self.ccip_read_allowed_domains
+    }
+
     fn get_signer(&self) -> Option<&Signers> {
         self.signer.as_ref()
+    }
+
+    fn ignore_reorg_reports(&self) -> bool {
+        self.ignore_reorg_reports
     }
 }
 
@@ -344,123 +435,5 @@ impl BaseMetadataBuilder {
     ) -> eyre::Result<Vec<Vec<String>>> {
         fetch_storage_locations_helper(validators, &self.cache, &*self.origin_validator_announce)
             .await
-    }
-
-    async fn build_and_validate(
-        &self,
-        config: &CheckpointSyncerConf,
-        validator: &H256,
-        storage_location: &str,
-    ) -> Result<Option<Arc<dyn CheckpointSyncer>>, CheckpointSyncerBuildError> {
-        let checkpoint_syncer = match self
-            .checkpoint_syncer_pool
-            .get_or_build(
-                config,
-                self.cache.clone(),
-                self.origin_domain.name().to_string(),
-                *validator,
-                storage_location.to_string(),
-            )
-            .await
-        {
-            Ok(checkpoint_syncer) => checkpoint_syncer,
-            Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event)) => {
-                if self.ignore_reorg_reports {
-                    warn!(
-                        ?reorg_event,
-                        ?config,
-                        ?validator,
-                        "Ignoring reorg event for checkpoint syncer build"
-                    );
-                    return Ok(None);
-                }
-                // If a reorg event has been posted to a checkpoint syncer,
-                // we refuse to build
-                // This will result in a short circuit and return an error for the entire build process of all syncers
-                return Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event));
-            }
-            Err(err) => {
-                debug!(
-                    error=%err,
-                    ?config,
-                    ?validator,
-                    "Error when loading checkpoint syncer; will attempt to use the next config"
-                );
-                return Ok(None);
-            }
-        };
-
-        // The backend is pooled, but reorg status is safety-critical and must be
-        // checked on every checkout rather than only when the client is built.
-        match checkpoint_syncer.reorg_status().await {
-            Ok(reorg_event) if reorg_event.exists => {
-                if self.ignore_reorg_reports {
-                    warn!(
-                        ?reorg_event,
-                        ?config,
-                        ?validator,
-                        "Ignoring reorg event for checkpoint syncer build"
-                    );
-                    Ok(None)
-                } else {
-                    Err(CheckpointSyncerBuildError::ReorgFlag(reorg_event))
-                }
-            }
-            Ok(_) => Ok(Some(checkpoint_syncer)),
-            Err(err) => {
-                error!(
-                    ?err,
-                    ?config,
-                    ?validator,
-                    "Failed to read reorg status. Assuming no reorg occurred."
-                );
-                Ok(Some(checkpoint_syncer))
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use hyperlane_base::db::DB;
-    use hyperlane_core::{ReorgEvent, ReorgPeriod};
-
-    use crate::test_utils::dummy_data::dummy_metadata_builder;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn revalidates_reorg_status_on_every_pool_checkout() {
-        let origin = HyperlaneDomain::new_test_domain("origin");
-        let destination = HyperlaneDomain::new_test_domain("destination");
-        let db_dir = tempfile::tempdir().unwrap();
-        let db = HyperlaneRocksDB::new(&origin, DB::from_path(db_dir.path()).unwrap());
-        let builder = dummy_metadata_builder(&origin, &destination, &db, OptionalCache::new(None));
-        let checkpoint_dir = tempfile::tempdir().unwrap();
-        let storage_location = format!("file://{}", checkpoint_dir.path().display());
-        let config = CheckpointSyncerConf::from_str(&storage_location).unwrap();
-        let validator = H256::from_low_u64_be(1);
-
-        let syncer = builder
-            .build_and_validate(&config, &validator, &storage_location)
-            .await
-            .unwrap()
-            .unwrap();
-        let reorg_event = ReorgEvent {
-            local_merkle_root: H256::from_low_u64_be(2),
-            canonical_merkle_root: H256::from_low_u64_be(3),
-            checkpoint_index: 4,
-            unix_timestamp: 5,
-            reorg_period: ReorgPeriod::from_blocks(6),
-        };
-        syncer.write_reorg_status(&reorg_event).await.unwrap();
-
-        let result = builder
-            .build_and_validate(&config, &validator, &storage_location)
-            .await;
-        assert!(matches!(
-            result,
-            Err(CheckpointSyncerBuildError::ReorgFlag(response)) if response.exists
-        ));
     }
 }

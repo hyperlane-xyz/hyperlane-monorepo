@@ -41,7 +41,7 @@ pub struct Origin {
     /// relay API can eagerly store gas payments from a tx receipt before enqueuing the message,
     /// closing the race window where the relayer checks for gas payment before the background
     /// `tx_id_indexer_task` has stored it.
-    pub igp_indexer: Option<Arc<dyn Indexer<InterchainGasPayment>>>,
+    pub igp_indexer: Option<SequenceIndexer<InterchainGasPayment>>,
     pub merkle_tree_hook_sync: MerkleTreeHookSync,
     pub merkle_sequence_indexer: SequenceIndexer<MerkleTreeInsertion>,
     /// Shared contract sync metrics, so scraper-indexed progress updates the same cursor gauges.
@@ -293,7 +293,7 @@ impl OriginFactory {
     ) -> Result<
         (
             InterchainGasPaymentSync,
-            Arc<dyn Indexer<InterchainGasPayment>>,
+            SequenceIndexer<InterchainGasPayment>,
         ),
         FactoryError,
     > {
@@ -308,12 +308,7 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|(r, i)| {
-                (
-                    r as Arc<dyn ContractSyncer<_>>,
-                    Arc::new(i) as Arc<dyn Indexer<_>>,
-                )
-            })
+            .map(|(r, i)| (r as Arc<dyn ContractSyncer<_>>, i))
             .map_err(|err| {
                 FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),
@@ -327,12 +322,7 @@ impl OriginFactory {
                 false,
             )
             .await
-            .map(|(r, i)| {
-                (
-                    r as Arc<dyn ContractSyncer<_>>,
-                    Arc::new(i) as Arc<dyn Indexer<_>>,
-                )
-            })
+            .map(|(r, i)| (r as Arc<dyn ContractSyncer<_>>, i))
             .map_err(|err| {
                 FactoryError::InterchainGasPaymentSync(domain.to_string(), err.to_string())
             }),

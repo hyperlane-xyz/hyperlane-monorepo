@@ -1,16 +1,22 @@
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
+import {
+  defaultMultisigConfigs,
+  multisigIsmVerificationCost,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getTokenGasOracleConfigs } from '../config/environments/mainnet3/tokenGasOracles.js';
 import { getIgp } from '../config/environments/mainnet3/igp.js';
+import { getIgp as getTestnet4Igp } from '../config/environments/testnet4/igp.js';
 import gasPrices from '../config/environments/mainnet3/gasPrices.json' with { type: 'json' };
 import { supportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import tokenPrices from '../config/environments/mainnet3/tokenPrices.json' with { type: 'json' };
 import { tokens } from '../src/config/warp.js';
 import {
   getLocalStorageGasOracleConfigOverride,
+  getOverhead,
   getOverheadWithOverrides,
   getTypicalRemoteGasAmount,
 } from '../src/config/gas-oracle.js';
@@ -22,12 +28,37 @@ const feeTokens = {
   ethereum: [tokens.ethereum.USDC, tokens.ethereum.USDT],
   ink: [tokens.ink.USDC, tokens.ink.USDT0],
   optimism: [tokens.optimism.USDC, tokens.optimism.USDT],
+  tempo: ['0x20c0000000000000000000000000000000000000'],
 };
 
 const exchangeRateScale = BigNumber.from(10).pow(10);
 
 describe('mainnet3 stablecoin IGP gas oracles', () => {
-  it('configures the selected tokens on six origins for every remote', () => {
+  it('covers Tempo destination charges for different origins with a bounded margin', () => {
+    // Base->Tempo used 614,493 protocol gas against a 166,887 standard allowance.
+    const measuredAdditionalGas = 614_493 - 166_887;
+    for (const origin of ['base', 'ethereum', 'arbitrum']) {
+      const additionalGas =
+        getOverheadWithOverrides(origin, 'tempo') -
+        getOverhead(origin, 'tempo');
+      expect(additionalGas).to.be.at.least(measuredAdditionalGas);
+      expect(additionalGas).to.be.lessThan(600_000);
+    }
+    expect(getOverheadWithOverrides('ethereum', 'base')).to.equal(
+      getOverhead('ethereum', 'base'),
+    );
+  });
+
+  it('expresses Tempo attodollar gas prices in six-decimal pathUSD units', () => {
+    const snapshot = gasPrices.tempo;
+    // 600,000,000 attodollars / 10^12 = 0.0006 pathUSD base units per gas.
+    expect(
+      new BigNumberJs(snapshot.amount)
+        .times(new BigNumberJs(10).pow(snapshot.decimals))
+        .toString(),
+    ).to.equal('0.0006');
+  });
+  it('configures the selected tokens for every remote', () => {
     const configs = getTokenGasOracleConfigs();
     expect(Object.keys(configs).sort()).to.deep.equal(
       Object.keys(feeTokens).sort(),
@@ -214,5 +245,23 @@ describe('mainnet3 stablecoin IGP gas oracles', () => {
     // Base's native IGP floor also applies when paying in USDC/USDT.
     expect(quote.gte(100_000)).to.equal(true);
     expect(quote.lte(100_100)).to.equal(true);
+  });
+});
+
+describe('testnet4 IGP overheads', () => {
+  it('adds the Glamsterdam storage overhead to every lane into Sepolia', () => {
+    const baseline = (origin: string) =>
+      multisigIsmVerificationCost(
+        defaultMultisigConfigs[origin].threshold,
+        defaultMultisigConfigs[origin].validators.length,
+      );
+    const igp = getTestnet4Igp();
+    for (const [origin, config] of Object.entries(igp)) {
+      if (origin === 'sepolia') continue;
+      expect(config.overhead.sepolia).to.equal(baseline(origin) + 200_000);
+    }
+    expect(igp.basesepolia.overhead.optimismsepolia).to.equal(
+      baseline('basesepolia'),
+    );
   });
 });

@@ -58,6 +58,8 @@ import {
 } from './types.js';
 import { convertToBps } from './utils.js';
 
+const BYTES32_REGEX = /^0x[0-9a-fA-F]{64}$/;
+
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
@@ -678,7 +680,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         routerConfigs,
       )) {
         assert(
-          /^0x[0-9a-fA-F]{64}$/.test(routerBytes32),
+          BYTES32_REGEX.test(routerBytes32),
           `routerBytes32 key "${routerBytes32}" for chain ${chainName} is not a valid 32-byte hex string`,
         );
         const address = subFeeConfig.address;

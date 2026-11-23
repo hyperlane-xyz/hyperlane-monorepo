@@ -1,3 +1,9 @@
+#[cfg(feature = "async")]
+mod concurrent;
+
+#[cfg(feature = "async")]
+pub use concurrent::read_concurrently;
+
 use eyre::Result;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::str::FromStr;

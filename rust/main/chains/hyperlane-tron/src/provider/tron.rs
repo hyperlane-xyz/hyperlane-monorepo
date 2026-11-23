@@ -65,14 +65,19 @@ impl TronProvider {
         metrics: PrometheusClientMetrics,
         chain: Option<prometheus_metric::ChainInfo>,
     ) -> ChainResult<Self> {
-        let wallet =
-            TronHttpProvider::new(conf.wallet_urls.clone(), metrics.clone(), chain.clone())?;
-        let wallet_solidity = TronHttpProvider::new(
-            conf.wallet_solidity_urls.clone(),
+        let wallet = TronHttpProvider::new(
+            conf.wallet_urls.expose_secret().clone(),
+            "walletUrls",
             metrics.clone(),
             chain.clone(),
         )?;
-        let jsonrpc = build_fallback_provider(&conf.rpc_urls, metrics, chain)?;
+        let wallet_solidity = TronHttpProvider::new(
+            conf.wallet_solidity_urls.expose_secret().clone(),
+            "walletSolidityUrls",
+            metrics.clone(),
+            chain.clone(),
+        )?;
+        let jsonrpc = build_fallback_provider(conf.rpc_urls.expose_secret(), metrics, chain)?;
 
         Ok(Self {
             wallet,
@@ -280,11 +285,14 @@ impl TronProvider {
 
     /// Send transaction
     pub async fn submit_tx(&self, tx: &TypedTransaction) -> ChainResult<H256> {
-        let energy_price = self.jsonrpc.get_gas_price().await?;
-        let energy_estimate = match tx.gas() {
-            Some(gas) => gas,
-            None => &self.estimate_gas(tx, None).await?,
+        let estimate = async {
+            match tx.gas() {
+                Some(gas) => Ok(*gas),
+                None => self.estimate_gas(tx, None).await,
+            }
         };
+        let (energy_price, energy_estimate) =
+            tokio::try_join!(self.jsonrpc.get_gas_price(), estimate)?;
         let fee_limit = energy_estimate.saturating_mul(energy_price).as_u64();
         let fee_limit = (fee_limit as f64 * self.energy_multiplier)
             .to_u64()
@@ -469,6 +477,11 @@ impl HyperlaneProvider for TronProvider {
             .map_err(HyperlaneTronError::from)?
             .map(|r| -> Result<_, HyperlaneProviderError> {
                 Ok(TxnReceiptInfo {
+                    block_hash: Some(
+                        r.block_hash
+                            .ok_or(HyperlaneProviderError::NoReceiptBlockHash)?
+                            .into(),
+                    ),
                     gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?.into(),
                     cumulative_gas_used: r.cumulative_gas_used.into(),
                     effective_gas_price: r.effective_gas_price.map(Into::into),
@@ -525,3 +538,6 @@ impl HyperlaneProvider for TronProvider {
         Ok(Some(chain_metrics))
     }
 }
+
+#[cfg(test)]
+mod concurrency_tests;

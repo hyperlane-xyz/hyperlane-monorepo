@@ -13,7 +13,7 @@ use maplit::hashmap;
 use num_traits::Zero;
 use prometheus::{IntCounterVec, IntGaugeVec};
 use tokio::sync::MutexGuard;
-use tokio::sync::{broadcast::Sender, mpsc, Mutex};
+use tokio::sync::{broadcast::Sender, mpsc, Mutex, OwnedSemaphorePermit, Semaphore};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_metrics::TaskMonitor;
@@ -24,7 +24,7 @@ use hyperlane_base::CoreMetrics;
 use hyperlane_core::PendingOperationStatus::ReadyToSubmit;
 use hyperlane_core::{
     ConfirmReason, HyperlaneDomain, HyperlaneDomainProtocol, PendingOperationResult,
-    PendingOperationStatus, QueueOperation, ReprepareReason,
+    PendingOperationStatus, QueueOperation, QueuePrepareResult, ReprepareReason, SubmissionStage,
 };
 use lander::{
     DispatcherEntrypoint, Entrypoint, FullPayload, LanderError, PayloadStatus, PayloadUuid,
@@ -34,13 +34,13 @@ use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
 use super::op_batch::OperationBatch;
-use super::{op_queue::OpQueue, QueueOperationBatch};
+use super::{op_queue::OpQueue, runtime_denylist::RuntimeDenylist, QueueOperationBatch};
 
 use stage::prepare;
-use stage::submit::filter_operations_for_submit;
+use stage::submit::{self, filter_operations_for_submit};
 
 mod disposition;
-mod stage;
+pub(crate) mod stage;
 
 /// This is needed for logic where we need to allocate
 /// based on how many queues exist in each MessageProcessor.
@@ -118,6 +118,8 @@ pub struct MessageProcessor {
     confirm_queue: OpQueue,
     payload_dispatcher_entrypoint: Option<DispatcherEntrypoint>,
     db: Arc<dyn HyperlaneDb>,
+    /// Checked before lander payloads are created; see `with_runtime_denylist`.
+    lander_denylist: Arc<RuntimeDenylist>,
 }
 
 impl MessageProcessor {
@@ -162,7 +164,24 @@ impl MessageProcessor {
             confirm_queue,
             payload_dispatcher_entrypoint,
             db: Arc::new(db),
+            lander_denylist: Default::default(),
         }
+    }
+
+    /// Drop operations matching `denylist` from the prepare and submit
+    /// queues. Confirm-queue operations, and lander payloads already handed to
+    /// the dispatcher, have been submitted and are not recalled.
+    pub fn with_runtime_denylist(mut self, denylist: Arc<RuntimeDenylist>) -> Self {
+        if self.payload_dispatcher_entrypoint.is_some() {
+            // Lander requeues ops whose payload is already with the
+            // dispatcher, and evicting those would lose their confirmation.
+            // Enforce the denylist only before a new payload is created.
+            self.lander_denylist = denylist;
+        } else {
+            self.prepare_queue = self.prepare_queue.with_runtime_denylist(denylist.clone());
+            self.submit_queue = self.submit_queue.with_runtime_denylist(denylist);
+        }
+        self
     }
 
     pub async fn prepare_queue(&self) -> OpQueue {
@@ -334,6 +353,7 @@ impl MessageProcessor {
                     self.max_batch_size,
                     self.metrics.clone(),
                     self.db.clone(),
+                    self.lander_denylist.clone(),
                 ),
             ))
             .expect("spawning tokio task from Builder is infallible")
@@ -391,32 +411,24 @@ async fn receive_task(
 #[instrument(skip_all, fields(%domain))]
 async fn prepare_classic_task(
     domain: HyperlaneDomain,
-    mut prepare_queue: OpQueue,
+    prepare_queue: OpQueue,
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
     max_batch_size: u32,
     max_submit_queue_len: Option<u32>,
     metrics: MessageProcessorMetrics,
 ) {
-    loop {
-        if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
-            // The submit queue is too long, so give some time before checking again
-            sleep(Duration::from_millis(150)).await;
-            continue;
-        }
-
-        let batch = get_batch_or_wait(&mut prepare_queue, max_batch_size).await;
-
-        process_batch(
-            domain.clone(),
-            batch,
-            &mut prepare_queue,
-            &submit_queue,
-            &confirm_queue,
-            &metrics,
-        )
-        .await;
-    }
+    prepare_batches(
+        domain,
+        prepare_queue,
+        submit_queue,
+        confirm_queue,
+        max_batch_size,
+        max_submit_queue_len,
+        metrics,
+        None,
+    )
+    .await;
 }
 
 #[instrument(skip_all, fields(%domain))]
@@ -424,7 +436,7 @@ async fn prepare_classic_task(
 async fn prepare_lander_task(
     entrypoint: Arc<DispatcherEntrypoint>,
     domain: HyperlaneDomain,
-    mut prepare_queue: OpQueue,
+    prepare_queue: OpQueue,
     submit_queue: OpQueue,
     confirm_queue: OpQueue,
     max_batch_size: u32,
@@ -432,33 +444,115 @@ async fn prepare_lander_task(
     metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
 ) {
+    prepare_batches(
+        domain,
+        prepare_queue,
+        submit_queue,
+        confirm_queue,
+        max_batch_size,
+        max_submit_queue_len,
+        metrics,
+        Some((entrypoint, db)),
+    )
+    .await;
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn prepare_batches(
+    domain: HyperlaneDomain,
+    mut prepare_queue: OpQueue,
+    submit_queue: OpQueue,
+    confirm_queue: OpQueue,
+    max_batch_size: u32,
+    max_submit_queue_len: Option<u32>,
+    metrics: MessageProcessorMetrics,
+    lander: Option<(Arc<DispatcherEntrypoint>, Arc<dyn HyperlaneDb>)>,
+) {
+    let max_batch_size = max_batch_size as usize;
+    let capacity = Arc::new(Semaphore::new(max_batch_size));
+    let parking_capacity = Arc::new(Semaphore::new(max_batch_size));
+    let requeue = prepare_queue.clone();
+    let mut batches = FuturesUnordered::new();
+
     loop {
-        if apply_backpressure(&submit_queue, &max_submit_queue_len).await {
-            // The submit queue is too long, so give some time before checking again
-            sleep(Duration::from_millis(150)).await;
+        let (batch, permits) = {
+            let admission = admit_prepare_batch(
+                &mut prepare_queue,
+                &submit_queue,
+                &max_submit_queue_len,
+                &capacity,
+            );
+            tokio::pin!(admission);
+            // Keep admission alive across batch completions. Queue pops and
+            // retry handling can have side effects before their futures return.
+            loop {
+                tokio::select! {
+                    admitted = &mut admission => break admitted,
+                    Some(()) = batches.next(), if !batches.is_empty() => {}
+                }
+            }
+        };
+
+        batches.push(async {
+            let batch = if let Some((entrypoint, db)) = &lander {
+                prepare::filter_operations_for_preparation(
+                    entrypoint.clone(),
+                    &requeue,
+                    &submit_queue,
+                    &confirm_queue,
+                    db.clone(),
+                    batch,
+                )
+                .await
+            } else {
+                batch
+            };
+            process_batch(
+                &domain,
+                batch,
+                &requeue,
+                &submit_queue,
+                &confirm_queue,
+                &metrics,
+                permits,
+                &parking_capacity,
+            )
+            .await;
+        });
+    }
+}
+
+async fn admit_prepare_batch(
+    prepare_queue: &mut OpQueue,
+    submit_queue: &OpQueue,
+    max_submit_queue_len: &Option<u32>,
+    capacity: &Arc<Semaphore>,
+) -> (Vec<QueueOperation>, OwnedSemaphorePermit) {
+    loop {
+        let Some(permit) = prepare_queue.wait_or_retry(capacity.acquire()).await else {
+            continue;
+        };
+        drop(permit.expect("prepare capacity is never closed"));
+        if apply_backpressure(submit_queue, max_submit_queue_len).await {
+            prepare_queue
+                .wait_or_retry(sleep(Duration::from_millis(150)))
+                .await;
             continue;
         }
 
-        let batch = get_batch_or_wait(&mut prepare_queue, max_batch_size).await;
-
-        let batch_to_process = prepare::filter_operations_for_preparation(
-            entrypoint.clone() as Arc<dyn Entrypoint + Send + Sync>,
-            &submit_queue,
-            &confirm_queue,
-            db.clone(),
-            batch,
-        )
-        .await;
-
-        process_batch(
-            domain.clone(),
-            batch_to_process,
-            &mut prepare_queue,
-            &submit_queue,
-            &confirm_queue,
-            &metrics,
-        )
-        .await;
+        // Admission is the only semaphore acquirer, so available capacity can
+        // only increase between this snapshot and the acquisition.
+        let (batch, next_deadline) = prepare_queue
+            .pop_many_ready(capacity.available_permits())
+            .await;
+        if !batch.is_empty() {
+            let admitted = capacity
+                .clone()
+                .try_acquire_many_owned(batch.len() as u32)
+                .expect("one permit per popped operation");
+            return (batch, admitted);
+        }
+        prepare_queue.wait_for_ready(next_deadline).await;
     }
 }
 
@@ -479,6 +573,7 @@ async fn apply_backpressure(submit_queue: &OpQueue, max_len: &Option<u32>) -> bo
 }
 
 /// Helper method to get a batch from the queue or wait if the queue is empty.
+#[cfg(test)]
 async fn get_batch_or_wait(queue: &mut OpQueue, batch_size: u32) -> Vec<QueueOperation> {
     loop {
         let (batch, next_deadline) = queue.pop_many_ready(batch_size as usize).await;
@@ -489,77 +584,92 @@ async fn get_batch_or_wait(queue: &mut OpQueue, batch_size: u32) -> Vec<QueueOpe
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn process_batch(
-    domain: HyperlaneDomain,
+    domain: &HyperlaneDomain,
     batch: Vec<QueueOperation>,
-    prepare_queue: &mut OpQueue,
+    prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &MessageProcessorMetrics,
+    mut permits: OwnedSemaphorePermit,
+    parking_capacity: &Arc<Semaphore>,
 ) {
     let mut next_sequence_by_origin = HashMap::<u32, usize>::new();
     let mut prepare_futures = FuturesUnordered::new();
 
     for mut op in batch {
         trace!(?op, "Preparing operation");
-        debug_assert_eq!(*op.destination_domain(), domain);
+        debug_assert_eq!(op.destination_domain(), domain);
 
         let origin = op.origin_domain_id();
         let next_sequence = next_sequence_by_origin.entry(origin).or_default();
         let sequence = *next_sequence;
         *next_sequence = (*next_sequence).saturating_add(1);
+        let permit = permits.split(1).expect("one permit per operation");
         prepare_futures.push(async move {
-            let result = op.prepare().await;
-            (origin, sequence, op, result)
+            let reservation = parking_capacity.clone().try_acquire_owned().ok();
+            let result = op.prepare_for_queue(reservation.is_some()).await;
+            drop(permit);
+            (origin, sequence, op, result, reservation)
         });
     }
-    let mut next_disposition_by_origin = HashMap::<u32, usize>::new();
-    let mut completed_by_origin =
-        HashMap::<u32, HashMap<usize, (QueueOperation, PendingOperationResult)>>::new();
+    // The lander filter may already have disposed some operations.
+    drop(permits);
+    let mut dispositions = HashMap::<u32, (usize, HashMap<usize, _>)>::new();
 
-    while let Some((origin, sequence, op, result)) = prepare_futures.next().await {
+    let mut parked = FuturesUnordered::new();
+    while !prepare_futures.is_empty() || !parked.is_empty() {
+        let (origin, sequence, op, result, reservation) = tokio::select! {
+            Some(prepared) = prepare_futures.next(), if !prepare_futures.is_empty() => prepared,
+            Some(()) = parked.next(), if !parked.is_empty() => continue,
+        };
+        let completed = match result {
+            QueuePrepareResult::Complete(result) => {
+                drop(reservation);
+                Some((op, result))
+            }
+            QueuePrepareResult::WaitingForSignatures(ready) => {
+                let reservation = reservation.expect("waiting requires a parking reservation");
+                parked.push(prepare_queue.park(op, ready, reservation));
+                None
+            }
+        };
         // Route completed work immediately unless an earlier operation from the
         // same origin is still preparing. Operations from other origins remain
-        // independent and can make progress in the meantime.
-        completed_by_origin
-            .entry(origin)
-            .or_default()
-            .insert(sequence, (op, result));
-
-        loop {
-            let next_sequence = *next_disposition_by_origin.entry(origin).or_default();
-            let Some((op, result)) = completed_by_origin
-                .get_mut(&origin)
-                .and_then(|completed| completed.remove(&next_sequence))
-            else {
-                break;
-            };
-
-            dispose_prepared_operation(
-                op,
-                result,
-                prepare_queue,
-                submit_queue,
-                confirm_queue,
-                metrics,
-            )
-            .await;
-            next_disposition_by_origin.insert(origin, next_sequence.saturating_add(1));
+        // independent and can make progress in the meantime. A parked
+        // operation leaves a placeholder so later operations can pass it.
+        let (next_sequence, buffered) = dispositions.entry(origin).or_default();
+        buffered.insert(sequence, completed);
+        while let Some(completed) = buffered.remove(next_sequence) {
+            if let Some((op, result)) = completed {
+                dispose_prepared_operation(
+                    op,
+                    result,
+                    prepare_queue,
+                    submit_queue,
+                    confirm_queue,
+                    metrics,
+                )
+                .await;
+            }
+            *next_sequence = next_sequence.saturating_add(1);
         }
     }
 
-    debug_assert!(completed_by_origin.values().all(HashMap::is_empty));
+    debug_assert!(dispositions
+        .values()
+        .all(|(_, buffered)| buffered.is_empty()));
 }
 
-/// Routes a prepared operation and returns whether it remains unready.
 async fn dispose_prepared_operation(
     op: QueueOperation,
     prepare_result: PendingOperationResult,
-    prepare_queue: &mut OpQueue,
+    prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
     metrics: &MessageProcessorMetrics,
-) -> bool {
+) {
     let app_context = op.app_context();
     match prepare_result {
         PendingOperationResult::Success => {
@@ -570,30 +680,25 @@ async fn dispose_prepared_operation(
             submit_queue
                 .push(op, Some(PendingOperationStatus::ReadyToSubmit))
                 .await;
-            false
         }
         PendingOperationResult::NotReady => {
             prepare_queue.push(op, None).await;
-            true
         }
         PendingOperationResult::Reprepare(reason) => {
             metrics.inc_failed(app_context);
             prepare_queue
                 .push(op, Some(PendingOperationStatus::Retry(reason)))
                 .await;
-            true
         }
         PendingOperationResult::Drop => {
             metrics.inc_dropped(app_context);
             op.decrement_metric_if_exists();
-            false
         }
         PendingOperationResult::Confirm(reason) => {
             debug!(?op, "Pushing operation to confirm queue");
             confirm_queue
                 .push(op, Some(PendingOperationStatus::Confirm(reason)))
                 .await;
-            false
         }
     }
 }
@@ -632,8 +737,8 @@ async fn submit_classic_task(
 
 #[allow(clippy::too_many_arguments)]
 #[instrument(skip_all, fields(domain=%_domain))]
-async fn submit_lander_task(
-    entrypoint: Arc<DispatcherEntrypoint>,
+async fn submit_lander_task<E: Entrypoint + Send + Sync + 'static>(
+    entrypoint: Arc<E>,
     _domain: HyperlaneDomain, // used for instrumentation only
     prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
@@ -641,6 +746,7 @@ async fn submit_lander_task(
     max_batch_size: u32,
     metrics: MessageProcessorMetrics,
     db: Arc<dyn HyperlaneDb>,
+    denylist: Arc<RuntimeDenylist>,
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
@@ -667,7 +773,15 @@ async fn submit_lander_task(
         // Process remaining operations in submit queue
         for op in operations_to_process {
             // Operation needs a new payload created and sent
-            submit_via_lander(op, &entrypoint, &prepare_queue, &submit_queue, db.clone()).await;
+            submit_via_lander(
+                op,
+                &entrypoint,
+                &prepare_queue,
+                &submit_queue,
+                db.clone(),
+                &denylist,
+            )
+            .await;
         }
     }
 }
@@ -678,7 +792,13 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
     prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
+    denylist: &RuntimeDenylist,
 ) {
+    // Avoid payload RPCs for a rule that landed while an earlier op awaited.
+    let Some(op) = submit::drop_denied_before_submission(denylist, op).await else {
+        return;
+    };
+    op.on_submission_stage(SubmissionStage::Submitting);
     let operation_payload = match op.payload().await {
         Ok(p) => p,
         Err(e) => {
@@ -722,6 +842,12 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         mailbox,
     );
 
+    // Payload construction can await RPCs, as can earlier operations in the
+    // same batch. Apply the latest rules at the handoff to lander.
+    let Some(op) = submit::drop_denied_before_submission(denylist, op).await else {
+        return;
+    };
+
     if let Err(e) = entrypoint.send_payload(&payload).await {
         let reason = ReprepareReason::ErrorSubmitting;
         let msg = "Error sending payload";
@@ -734,6 +860,7 @@ async fn submit_via_lander<E: Entrypoint + Send + Sync>(
         prepare_op(op, prepare_queue, e, msg, reason).await;
         return;
     }
+    op.on_submission_stage(SubmissionStage::Submitted);
 
     // Push to submit queue - the filtering logic will move it to confirm queue
     // once the transaction is actually included on-chain

@@ -7,6 +7,8 @@ import {
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import { pollAsync, retryAsync } from '@hyperlane-xyz/utils';
 
+const COMET_BLOCK_READY_REGEX = /received complete proposal block/;
+
 type CometStatusResponse = {
   result?: {
     sync_info?: {
@@ -64,9 +66,7 @@ export async function runCosmosNode({
             host: restPort,
           },
         )
-        .withWaitStrategy(
-          Wait.forLogMessage(/received complete proposal block/),
-        )
+        .withWaitStrategy(Wait.forLogMessage(COMET_BLOCK_READY_REGEX))
         .start(),
     3,
     5000,

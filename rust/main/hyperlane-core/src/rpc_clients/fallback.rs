@@ -11,9 +11,10 @@ use async_rwlock::RwLock;
 use async_trait::async_trait;
 use derive_new::new;
 use futures::lock::Mutex;
+#[cfg(test)]
 use itertools::Itertools;
 use tokio;
-use tracing::{info, warn, warn_span};
+use tracing::{error_span, info, warn, warn_span, Span};
 
 use crate::ChainResult;
 
@@ -70,6 +71,15 @@ pub struct PrioritizedProviders<T> {
     pub priorities: RwLock<Vec<PrioritizedProviderInner>>,
 }
 
+// Diagnostic metadata follows the immutable provider order, not fallback priority.
+// Hosts must exclude URL userinfo, paths, queries and fragments.
+#[derive(Debug)]
+struct RpcContext {
+    chain: String,
+    pool: &'static str,
+    hosts: Vec<Option<String>>,
+}
+
 /// A provider that bundles multiple providers and attempts to call the first,
 /// then the second, and so on until a response is received.
 ///
@@ -80,6 +90,7 @@ pub struct PrioritizedProviders<T> {
 pub struct FallbackProvider<T, B> {
     /// The sub-providers called by this provider
     pub inner: Arc<PrioritizedProviders<T>>,
+    rpc_context: Option<Arc<RpcContext>>,
     max_block_time: Duration,
     call_timeout: Duration,
     /// Serializes block-height probes for each provider.
@@ -88,6 +99,39 @@ pub struct FallbackProvider<T, B> {
 }
 
 impl<T, B> FallbackProvider<T, B> {
+    /// Attach safe endpoint labels in the original order of this pool.
+    /// `hosts` must contain host/port labels only, never complete URLs.
+    pub fn with_rpc_context(
+        mut self,
+        chain: String,
+        pool: &'static str,
+        hosts: Vec<Option<String>>,
+    ) -> Self {
+        assert_eq!(
+            hosts.len(),
+            self.len(),
+            "RPC labels must match the provider pool"
+        );
+        self.rpc_context = Some(Arc::new(RpcContext { chain, pool, hosts }));
+        self
+    }
+
+    /// Log context for the immutable, zero-based index within this constructed pool.
+    /// This is not necessarily an index into the original configuration: validators
+    /// build single-endpoint pools, and submitters may filter invalid URLs.
+    pub fn rpc_span(&self, index: usize) -> Span {
+        let context = self.rpc_context.as_deref();
+        error_span!(
+            "rpc",
+            rpc_index = index,
+            rpc_host = context
+                .and_then(|c| c.hosts.get(index))
+                .and_then(Option::as_deref),
+            chain = context.map(|c| c.chain.as_str()),
+            rpc_pool = context.map(|c| c.pool),
+        )
+    }
+
     /// Get how many providers this fallback provider has
     pub fn len(&self) -> usize {
         self.inner.providers.len()
@@ -103,6 +147,7 @@ impl<T, B> Clone for FallbackProvider<T, B> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
+            rpc_context: self.rpc_context.clone(),
             max_block_time: self.max_block_time,
             call_timeout: self.call_timeout,
             block_height_probe_locks: self.block_height_probe_locks.clone(),
@@ -116,18 +161,13 @@ where
     T: Debug,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // iterate the inner providers and write them to the formatter
         f.debug_struct("FallbackProvider")
-            .field(
-                "providers",
-                &self
-                    .inner
-                    .providers
-                    .iter()
-                    .map(|v| format!("{v:?}"))
-                    .join(", "),
-            )
-            .finish()
+            .field("provider_count", &self.len())
+            .field("rpc_context", &self.rpc_context)
+            .field("max_block_time", &self.max_block_time)
+            .field("call_timeout", &self.call_timeout)
+            .field("priorities", &self.inner.priorities.try_read().as_deref())
+            .finish_non_exhaustive()
     }
 }
 
@@ -266,9 +306,13 @@ where
 
             // The `max_block_time` elapsed but the block number returned by the provider has not increased
             self.deprioritize_provider(new_priority).await;
+            let rpc_span = self.rpc_span(priority.index);
+            let _rpc = rpc_span.enter();
             info!(
                 provider_index=%current_priority.index,
-                provider=?self.inner.providers[current_priority.index],
+                previous_block_height=current_priority.last_block_height.0,
+                current_block_height,
+                max_block_time=?self.max_block_time,
                 reason="Block height low",
                 "Deprioritizing an inner provider in FallbackProvider",
             );
@@ -286,9 +330,12 @@ where
         if priority.last_failed_count.saturating_add(1) >= FAILED_REQUEST_THRESHOLD {
             let new_priority = priority.reset_failed_count();
             self.deprioritize_provider(new_priority).await;
+            let rpc_span = self.rpc_span(priority.index);
+            let _rpc = rpc_span.enter();
             info!(
                 provider_index=%new_priority.index,
-                provider=?self.inner.providers[new_priority.index],
+                failed_request_count=priority.last_failed_count.saturating_add(1),
+                failure_threshold=FAILED_REQUEST_THRESHOLD,
                 reason="Too many errors",
                 "Deprioritizing an inner provider in FallbackProvider",
             );
@@ -337,8 +384,10 @@ where
                 }
                 let provider = &self.inner.providers[priority.index];
                 let resp = self.call_provider(priority, f(provider.clone())).await;
+                let rpc_span = self.rpc_span(priority.index);
+                let _rpc = rpc_span.enter();
                 let _span =
-                    warn_span!("FallbackProvider::call", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+                    warn_span!("FallbackProvider::call", fallback_count=%idx, provider_index=%priority.index).entered();
                 match resp {
                     Ok(v) => return Ok(v),
                     Err(e) => {
@@ -371,11 +420,12 @@ where
         for (idx, priority) in priorities_snapshot.iter().enumerate() {
             let provider = &self.inner.providers[priority.index];
             let response = self.call_provider(priority, f(provider.clone())).await;
+            let rpc_span = self.rpc_span(priority.index);
+            let _rpc = rpc_span.enter();
             let _span = warn_span!(
                 "FallbackProvider::call_until",
                 fallback_count = %idx,
                 provider_index = %priority.index,
-                ?provider,
             )
             .entered();
             if let Err(error) = &response {
@@ -407,7 +457,9 @@ where
         for (idx, priority) in priorities_snapshot.iter().enumerate() {
             let provider = &self.inner.providers[priority.index];
             let resp = self.call_provider(priority, f(provider.clone())).await;
-            let _span = warn_span!("FallbackProvider::call_optional", fallback_count=%idx, provider_index=%priority.index, ?provider).entered();
+            let rpc_span = self.rpc_span(priority.index);
+            let _rpc = rpc_span.enter();
+            let _span = warn_span!("FallbackProvider::call_optional", fallback_count=%idx, provider_index=%priority.index).entered();
             match resp {
                 Ok(Some(value)) => return Ok(Some(value)),
                 Ok(None) => {}
@@ -491,6 +543,7 @@ impl<T, B> FallbackProviderBuilder<T, B> {
         };
         FallbackProvider {
             inner: Arc::new(prioritized_providers),
+            rpc_context: None,
             max_block_time: self.max_block_time,
             call_timeout: self.call_timeout,
             block_height_probe_locks: Arc::new(
@@ -512,6 +565,104 @@ pub mod test {
     };
 
     use super::*;
+
+    #[cfg(test)]
+    #[tokio::test]
+    #[tracing_test::traced_test]
+    async fn provider_credentials_are_omitted_from_diagnostics() {
+        #[derive(Clone, Debug)]
+        struct SecretProvider {
+            _credential: &'static str,
+        }
+
+        #[async_trait]
+        impl BlockNumberGetter for SecretProvider {
+            async fn get_block_number(&self) -> ChainResult<u64> {
+                Ok(0)
+            }
+        }
+
+        let inner = SecretProvider {
+            _credential: "private-provider-credential",
+        };
+        assert!(format!("{inner:?}").contains("private-provider-credential"));
+        let provider: FallbackProvider<SecretProvider, SecretProvider> =
+            FallbackProvider::builder()
+                .add_providers([inner.clone(), inner])
+                .with_max_block_time(Duration::ZERO)
+                .build()
+                .with_rpc_context(
+                    "test-chain".to_owned(),
+                    "rpcUrls",
+                    vec![Some("rpc.example:443".to_owned()); 2],
+                );
+        let debug = format!("{provider:?}");
+        assert!(!debug.contains("private-provider-credential"));
+        assert!(debug.contains("provider_count: 2"));
+        assert!(debug.contains("max_block_time: 0ns"));
+        assert!(debug.contains("call_timeout: 30s"));
+        assert!(debug.contains("last_failed_count: 0"));
+        let priority_guard = provider.inner.priorities.write().await;
+        assert!(format!("{provider:?}").contains("priorities: None"));
+        drop(priority_guard);
+
+        // Changing priority must not change the endpoint's configured index.
+        let first = provider.take_priorities_snapshot().await[0];
+        provider.deprioritize_provider(first).await;
+        assert_eq!(provider.take_priorities_snapshot().await[0].index, 1);
+
+        let result: ChainResult<()> = provider
+            .call_with_retry_predicate(
+                |_| Box::pin(async { Err(crate::ChainCommunicationError::BatchingFailed) }),
+                |_| false,
+            )
+            .await;
+        assert!(result.is_err());
+        let results: Vec<ChainResult<()>> = provider
+            .call_until(
+                |_| Box::pin(async { Err(crate::ChainCommunicationError::BatchingFailed) }),
+                |_| false,
+            )
+            .await;
+        assert!(results.iter().all(Result::is_err));
+        let result: ChainResult<Option<()>> = provider
+            .call_optional(|_| {
+                Box::pin(async { Err(crate::ChainCommunicationError::BatchingFailed) })
+            })
+            .await;
+        assert!(result.is_err());
+
+        let mut priority = provider.take_priorities_snapshot().await[0];
+        priority.last_failed_count = FAILED_REQUEST_THRESHOLD;
+        provider.handle_failed_provider(&priority).await;
+        provider
+            .handle_stalled_provider(&priority, &provider.inner.providers[priority.index])
+            .await
+            .unwrap();
+
+        assert!(logs_contain("Got error from inner fallback provider"));
+        assert!(logs_contain("Deprioritizing an inner provider"));
+        assert!(logs_contain("failed_request_count="));
+        assert!(logs_contain("previous_block_height="));
+        assert!(!logs_contain("private-provider-credential"));
+        logs_assert(|lines| {
+            let failures: Vec<_> = lines
+                .iter()
+                .filter(|line| line.contains("Got error from inner fallback provider"))
+                .collect();
+            assert!(!failures.is_empty());
+            for line in &failures {
+                assert!(line.contains(r#"rpc_host="rpc.example:443""#));
+                assert!(line.contains(r#"chain="test-chain""#));
+                assert!(line.contains(r#"rpc_pool="rpcUrls""#));
+            }
+            assert!(failures[0].contains("rpc_index=1"));
+            assert!(failures[0].contains("fallback_count=0"));
+            assert!(failures[1].contains("rpc_index=0"));
+            assert!(failures[1].contains("fallback_count=1"));
+            Ok(())
+        });
+    }
 
     /// Provider that stores requests and optionally sleeps before returning a dummy value
     #[derive(Debug, Clone)]

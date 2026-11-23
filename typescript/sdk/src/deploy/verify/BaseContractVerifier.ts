@@ -13,6 +13,11 @@ import {
 } from './types.js';
 import { FamilyVerificationDelay } from './utils.js';
 
+const CONTRACT_DECLARATION_REGEX = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
+const IMPORT_PATH_REGEX = /["']([^"']+)["']/;
+const IMPORT_STATEMENT_REGEX =
+  /import\s+(?:(?:(?:"[^"]+"|'[^']+')\s*;)|(?:{[^}]+}\s+from\s+(?:"[^"]+"|'[^']+')\s*;)|(?:\s*(?:"[^"]+"|'[^']+')\s*;))/g;
+
 export abstract class BaseContractVerifier {
   protected logger = rootLogger.child({ module: this.constructor.name });
   protected contractSourceMap: { [contractName: string]: string } = {};
@@ -27,10 +32,9 @@ export abstract class BaseContractVerifier {
   }
 
   protected createContractSourceMapFromBuildArtifacts(): void {
-    const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
     Object.entries(this.standardInputJson.sources).forEach(
       ([sourceName, { content }]) => {
-        const matches = content.matchAll(contractRegex);
+        const matches = content.matchAll(CONTRACT_DECLARATION_REGEX);
         for (const match of matches) {
           const contractName = match[1];
           if (contractName) {
@@ -172,7 +176,7 @@ export abstract class BaseContractVerifier {
       const importStatements = this.getAllImportStatements(content);
 
       importStatements.forEach((importStatement) => {
-        const importPath = importStatement.match(/["']([^"']+)["']/)?.[1];
+        const importPath = importStatement.match(IMPORT_PATH_REGEX)?.[1];
         if (importPath) {
           const resolvedPath = this.resolveImportPath(file, importPath);
           if (sourceFiles.includes(resolvedPath)) queue.push(resolvedPath);
@@ -187,9 +191,7 @@ export abstract class BaseContractVerifier {
   }
 
   protected getAllImportStatements(content: string): string[] {
-    const importRegex =
-      /import\s+(?:(?:(?:"[^"]+"|'[^']+')\s*;)|(?:{[^}]+}\s+from\s+(?:"[^"]+"|'[^']+')\s*;)|(?:\s*(?:"[^"]+"|'[^']+')\s*;))/g;
-    return content.match(importRegex) || [];
+    return content.match(IMPORT_STATEMENT_REGEX) || [];
   }
 
   protected resolveImportPath(currentFile: string, importPath: string): string {

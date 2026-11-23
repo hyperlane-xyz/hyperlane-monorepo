@@ -1,11 +1,12 @@
 use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, H256};
+use redact::Secret;
 use url::Url;
 
 /// Starknet connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
-    pub urls: Vec<Url>,
+    pub urls: Secret<Vec<Url>>,
 
     /// Native token address that is used to pay for transaction fees.
     pub native_token_address: H256,
@@ -21,8 +22,8 @@ pub enum ConnectionConfError {
     #[error("Missing `url` for connection configuration")]
     MissingConnectionUrl,
     /// Invalid `url` for connection configuration
-    #[error("Invalid `url` for connection configuration: `{0}` ({1})")]
-    InvalidConnectionUrl(String, url::ParseError),
+    #[error("Invalid `url` for connection configuration ({1})")]
+    InvalidConnectionUrl(Secret<String>, url::ParseError),
 }
 
 #[derive(thiserror::Error, Debug)]

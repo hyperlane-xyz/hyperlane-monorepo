@@ -1,3 +1,4 @@
+use crate::message_activity::{Activity, Outcome};
 use async_trait::async_trait;
 use derive_more::Deref;
 use futures_util::stream::{FuturesOrdered, FuturesUnordered, StreamExt};
@@ -7,11 +8,12 @@ use tracing::{debug, info, instrument};
 use {hyperlane_base::cache::FunctionCallCache, tracing::warn};
 
 use hyperlane_core::{
-    AggregationIsm, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType, H256, U256,
+    AggregationIsm, ChainResult, HyperlaneMessage, InterchainSecurityModule, Metadata, ModuleType,
+    H256, U256,
 };
 
 use crate::msg::metadata::{
-    base::{MetadataBuildError, MetadataBuildRefused},
+    base::{IsmWithMetadataAndType, MetadataBuildError, MetadataBuildRefused},
     message_builder,
 };
 
@@ -40,6 +42,8 @@ enum ModuleBuildOutcome {
     Refused(MetadataBuildRefused),
     /// Build failed because validator signatures aren't collected yet.
     AwaitingSignatures,
+    CcipReadNotAllowed,
+    RetryLimitReached(u32),
     /// Build failed for another reason, or dry_run_verify returned None/Err.
     Failed,
     /// Built successfully and passed dry_run_verify with the given gas estimate.
@@ -213,6 +217,31 @@ impl AggregationIsmMetadataBuilder {
         None
     }
 
+    async fn verify_submodule(
+        &self,
+        message: &HyperlaneMessage,
+        ism_address: H256,
+        sub: &IsmWithMetadataAndType,
+        index: usize,
+    ) -> ChainResult<Option<U256>> {
+        let report = |outcome| {
+            self.base.child(index, ism_address).report_activity(
+                message,
+                Activity::IsmVerification {
+                    ism: ism_address,
+                    outcome,
+                },
+            );
+        };
+        let result = sub.ism.dry_run_verify(message, &sub.metadata).await;
+        report(match &result {
+            Ok(Some(_)) => Outcome::Succeeded,
+            Ok(None) => Outcome::NoEstimate,
+            Err(_) => Outcome::Failed,
+        });
+        result
+    }
+
     async fn build_message_id_aggregation_metadata(
         &self,
         message: &HyperlaneMessage,
@@ -222,21 +251,22 @@ impl AggregationIsmMetadataBuilder {
         ism_address: H256,
         ism_count: usize,
     ) -> Result<Metadata, MetadataBuildError> {
+        let mut child = self.base.child(ism_index, ism_address);
+        if ism_count > 1 {
+            child.signature_poll_retry = None;
+        }
         let sub_module_and_meta = message_builder::build_message_metadata(
-            self.base.clone(),
+            child,
             ism_address,
             message,
-            params.clone(),
+            params,
             Some((ism, ModuleType::MessageIdMultisig)),
         )
         .await?;
 
-        let metadata = sub_module_and_meta.metadata;
-
-        // return an error if delivering with this metadata fails
-        if sub_module_and_meta
-            .ism
-            .dry_run_verify(message, &metadata)
+        // Return an error if delivering with this metadata fails.
+        if self
+            .verify_submodule(message, ism_address, &sub_module_and_meta, ism_index)
             .await
             .map_err(|err| MetadataBuildError::FastPathError(err.to_string()))?
             .is_none()
@@ -245,7 +275,13 @@ impl AggregationIsmMetadataBuilder {
                 "Fast path metadata failed dry run (returned None)".to_string(),
             ));
         }
-        let sub_module_metadata = SubModuleMetadata::new(ism_index, metadata);
+        self.report_activity(
+            message,
+            Activity::AggregationSelection {
+                indices: vec![ism_index],
+            },
+        );
+        let sub_module_metadata = SubModuleMetadata::new(ism_index, sub_module_and_meta.metadata);
         let metadata = Metadata::new(Self::format_metadata(&mut [sub_module_metadata], ism_count));
         Ok(metadata)
     }
@@ -269,6 +305,14 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
 
         let (ism_addresses, threshold) = self.call_modules_and_threshold(ism, message).await?;
 
+        self.report_activity(
+            message,
+            Activity::Aggregation {
+                ism: ism_address,
+                modules: ism_addresses.clone(),
+                threshold,
+            },
+        );
         let threshold = threshold as usize;
 
         match self
@@ -276,11 +320,22 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .await
         {
             Ok(Some(metadata)) => {
+                self.report_activity(
+                    message,
+                    Activity::AggregationProgress {
+                        ism: ism_address,
+                        verified: 1,
+                        threshold,
+                    },
+                );
                 info!("Built metadata using fast path");
                 return Ok(metadata);
             }
             Err(MetadataBuildError::Refused(reason)) => {
                 return Err(MetadataBuildError::Refused(reason));
+            }
+            Err(err @ MetadataBuildError::RetryLimitReached(_)) if ism_addresses.len() == 1 => {
+                return Err(err);
             }
             Err(err @ MetadataBuildError::AwaitingValidatorSignatures) => {
                 debug!(
@@ -307,7 +362,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .iter()
             .enumerate()
             .map(|(index, sub_ism_address)| {
-                let base = self.base.clone();
+                let base = self.base.child(index, *sub_ism_address);
                 let params = params.clone();
                 let addr = *sub_ism_address;
                 async move {
@@ -321,9 +376,15 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                         Err(MetadataBuildError::AwaitingValidatorSignatures) => {
                             ModuleBuildOutcome::AwaitingSignatures
                         }
+                        Err(MetadataBuildError::CcipReadNotAllowed) => {
+                            ModuleBuildOutcome::CcipReadNotAllowed
+                        }
+                        Err(MetadataBuildError::RetryLimitReached(count)) => {
+                            ModuleBuildOutcome::RetryLimitReached(count)
+                        }
                         Err(_) => ModuleBuildOutcome::Failed,
                         Ok(sub) => {
-                            match sub.ism.dry_run_verify(message, &sub.metadata).await {
+                            match self.verify_submodule(message, addr, &sub, index).await {
                                 Ok(Some(gas)) => ModuleBuildOutcome::Verified(
                                     SubModuleMetadata::new(index, sub.metadata),
                                     gas,
@@ -342,6 +403,8 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let mut err_sub_modules: Vec<(H256, Option<ModuleType>)> = Vec::new();
         let mut has_any_error = false;
         let mut all_errors_awaiting = true;
+        let mut exhausted_retries = None;
+        let mut eligible_modules = ism_addresses.len();
 
         while let Some((ism_address, outcome)) = pending.next().await {
             match outcome {
@@ -355,6 +418,13 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                     has_any_error = true;
                     err_sub_modules.push((ism_address, None));
                     // all_errors_awaiting stays true
+                }
+                ModuleBuildOutcome::CcipReadNotAllowed => {
+                    eligible_modules = eligible_modules.saturating_sub(1);
+                    err_sub_modules.push((ism_address, None));
+                }
+                ModuleBuildOutcome::RetryLimitReached(count) => {
+                    exhausted_retries = exhausted_retries.max(Some(count));
                 }
                 ModuleBuildOutcome::Failed => {
                     has_any_error = true;
@@ -375,10 +445,25 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             }
         }
 
+        self.report_activity(
+            message,
+            Activity::AggregationProgress {
+                ism: ism_address,
+                verified: metas_and_gas.len(),
+                threshold,
+            },
+        );
+
         // When every sub-module failure is purely "signatures not yet collected" and we
         // can't reach threshold without them, propagate AwaitingValidatorSignatures so
         // the relayer uses the 1 s fast-path backoff instead of the normal 5 s→… ramp.
         if metas_and_gas.len() < threshold {
+            if eligible_modules < threshold && threshold <= ism_addresses.len() {
+                return Err(MetadataBuildError::CcipReadNotAllowed);
+            }
+            if let Some(count) = exhausted_retries {
+                return Err(MetadataBuildError::RetryLimitReached(count));
+            }
             if has_any_error && all_errors_awaiting {
                 return Err(MetadataBuildError::AwaitingValidatorSignatures);
             }
@@ -391,6 +476,12 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         metas_and_gas.sort_by(|(m1, _), (m2, _)| m1.index.cmp(&m2.index));
         let mut valid_metas: Vec<SubModuleMetadata> =
             metas_and_gas.into_iter().map(|(m, _)| m).collect();
+        self.report_activity(
+            message,
+            Activity::AggregationSelection {
+                indices: valid_metas.iter().map(|meta| meta.index).collect(),
+            },
+        );
         let metadata = Metadata::new(Self::format_metadata(&mut valid_metas, ism_addresses.len()));
         Ok(metadata)
     }
@@ -726,6 +817,85 @@ mod test {
 
     // ── build tests ──────────────────────────────────────────────────────────
 
+    #[tokio::test]
+    async fn ccip_allowlist_drops_only_when_it_prevents_reaching_threshold() {
+        use ethers::abi::AbiEncode;
+        use hyperlane_core::ChainCommunicationError;
+        use hyperlane_ethereum::OffchainLookup;
+
+        let denied = "https://denied.example/proof";
+        let invalid = "http://denied.example/proof";
+        let allowed = "https://localhost/proof"; // Allowed by name, but the request fails.
+        let retry = MetadataBuildError::AggregationThresholdNotMet(2);
+        for (urls, extra_branch, expected) in [
+            (
+                vec![denied],
+                None,
+                Err(MetadataBuildError::CcipReadNotAllowed),
+            ),
+            (
+                vec![denied, invalid],
+                None,
+                Err(MetadataBuildError::CcipReadNotAllowed),
+            ),
+            (vec![denied, allowed], None, Err(retry.clone())),
+            (vec![allowed, denied], None, Err(retry.clone())),
+            (vec![invalid], None, Err(retry.clone())),
+            (vec![], None, Err(retry.clone())),
+            (vec![denied], Some(false), Err(retry)),
+            (vec![denied], Some(true), Ok(())),
+        ] {
+            let mut base = build_mock_base_builder(TEST_DOMAIN.clone(), TEST_DOMAIN.clone());
+            base.responses
+                .ccip_read_allowed_domains
+                .push("localhost".into());
+            let root = H256::from_low_u64_be(1);
+            let ccip = H256::from_low_u64_be(2);
+            let other = H256::from_low_u64_be(3);
+            let mut children = vec![ccip, other];
+            let mock = Arc::new(MockInterchainSecurityModule::new(
+                ccip,
+                TEST_DOMAIN.clone(),
+                ModuleType::CcipRead,
+            ));
+            let lookup = OffchainLookup {
+                urls: urls.iter().map(|url| (*url).to_owned()).collect(),
+                ..Default::default()
+            };
+            mock.responses
+                .offchain_verify_info
+                .lock()
+                .expect("lookup response lock")
+                .push_back(Err(ChainCommunicationError::from_other_str(&format!(
+                    "execution reverted: 0x{}",
+                    hex::encode(lookup.encode())
+                ))));
+            base.responses
+                .build_ccip_read_ism
+                .lock()
+                .expect("CCIP ISM lock")
+                .push_back(Ok(Box::new(mock.clone())));
+            base.responses
+                .push_build_ism_response(ccip, Ok(Box::new(mock)));
+            insert_null_submodule(&base, other, Ok(Some(U256::one())));
+            if let Some(verified) = extra_branch {
+                let extra = H256::from_low_u64_be(4);
+                children.push(extra);
+                insert_null_submodule(&base, extra, Ok(verified.then(U256::one)));
+            }
+            insert_aggregation_ism(&base, root, children, 2);
+            let result = make_builder(base)
+                .await
+                .build(root, &HyperlaneMessage::default(), Default::default())
+                .await;
+            assert_eq!(
+                result.map(|_| ()),
+                expected,
+                "{urls:?}, extra branch {extra_branch:?}"
+            );
+        }
+    }
+
     /// 2-of-2: both submodules build and pass dry_run → Ok.
     #[tokio::test]
     async fn test_all_modules_verify_returns_ok() {
@@ -738,6 +908,7 @@ mod test {
         insert_null_submodule(&base, sub0, Ok(Some(U256::from(100u64))));
         insert_null_submodule(&base, sub1, Ok(Some(U256::from(200u64))));
 
+        let activities = base.requests.activities.clone();
         let builder = make_builder(base).await;
         let result = builder
             .build(
@@ -747,6 +918,19 @@ mod test {
             )
             .await;
         assert!(result.is_ok(), "expected Ok, got {:?}", result);
+        let activities = activities.lock().expect("activity lock");
+        let progress: Vec<_> = activities
+            .iter()
+            .filter_map(|(_, activity)| match activity {
+                Activity::AggregationProgress {
+                    ism,
+                    verified,
+                    threshold,
+                } => Some((*ism, *verified, *threshold)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(progress, vec![(agg_addr, 2, 2)]);
     }
 
     /// 2-of-3: one submodule fails to build; the other two verify → Ok.

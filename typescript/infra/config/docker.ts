@@ -43,34 +43,34 @@ interface MainnetDockerTags extends BaseDockerTags {
 
 export const mainnetDockerTags: MainnetDockerTags = {
   // rust agents
-  relayer: 'b933601-20261021-134126',
-  relayerRC: 'b933601-20261021-134126',
-  relayerFastPath: 'b933601-20261021-134126',
-  validator: '524aac0-20260925-195006',
-  validatorRC: '524aac0-20260925-195006',
-  validatorFastPath: '524aac0-20260925-195006',
-  scraper: 'c776083-20261009-082029',
+  relayer: 'cdeacee-20261120-123426',
+  relayerRC: 'cdeacee-20261120-123426',
+  relayerFastPath: 'cdeacee-20261120-123426',
+  validator: 'cdeacee-20261120-123426',
+  validatorRC: 'cdeacee-20261120-123426',
+  validatorFastPath: 'cdeacee-20261120-123426',
+  scraper: '0b9032e-20261123-154044',
   // monorepo services
   checkWarpDeploy: 'main',
-  validatorMonitor: '17dd7ac-20260928-093912',
+  validatorMonitor: '957cb09-20261021-152517',
   // standalone services
-  keyFunder: '112541b-20261001-141255',
-  warpMonitor: 'fc544bf-20260908-174702',
-  rebalancer: 'fc544bf-20260908-174702',
-  scraperProxy: 'e3eee02-20261015-125158',
+  keyFunder: 'fa8c137-20261120-114705',
+  warpMonitor: '957cb09-20261021-152528',
+  rebalancer: '957cb09-20261021-152528',
+  scraperProxy: '9808703-20261120-095742',
   feeQuoting: '12d899d-20260325-184337',
 };
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: 'b933601-20261021-134126',
-  relayerRC: 'b933601-20261021-134126',
-  relayerFastPath: 'b933601-20261021-134126',
-  validator: '524aac0-20260925-195006',
-  validatorRC: '524aac0-20260925-195006',
-  validatorFastPath: '524aac0-20260925-195006',
-  scraper: 'c776083-20261009-082029',
+  relayer: '9808703-20261120-095713',
+  relayerRC: 'e492f45-20261110-131529',
+  relayerFastPath: '9808703-20261120-095713',
+  validator: '4ce76cb-20261117-083347',
+  validatorRC: '63fa540-20261110-120849',
+  validatorFastPath: '4ce76cb-20261117-083347',
+  scraper: '0b9032e-20261123-154044',
   // standalone services
-  keyFunder: '112541b-20261001-141255',
-  scraperProxy: 'e3eee02-20261015-125158',
+  keyFunder: '957cb09-20261021-152528',
+  scraperProxy: '9808703-20261120-095742',
 };

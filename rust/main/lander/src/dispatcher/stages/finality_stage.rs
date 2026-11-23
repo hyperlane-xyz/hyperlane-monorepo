@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     future::Future,
     sync::Arc,
     time::{Duration, Instant},
@@ -18,7 +18,7 @@ use tracing::{error, info, info_span, instrument, warn, Instrument};
 use crate::{
     dispatcher::stages::utils::update_tx_status,
     error::LanderError,
-    payload::{DropReason as PayloadDropReason, FullPayload, PayloadStatus},
+    payload::{DropReason as PayloadDropReason, FullPayload, PayloadDetails, PayloadStatus},
     transaction::{DropReason as TxDropReason, Transaction, TransactionStatus, TransactionUuid},
 };
 
@@ -311,14 +311,7 @@ impl FinalityStage {
                 Self::record_reverted_payloads(&mut tx, state).await?;
             }
             TransactionStatus::Finalized => {
-                // update tx status in db
-                update_tx_status(state, &mut tx, tx_status).await?;
-                Self::record_reverted_payloads(&mut tx, state).await?;
-                with_rpc_operation(
-                    RpcOperation::TransactionLifecycle,
-                    state.adapter.post_finalized(),
-                )
-                .await?;
+                Self::finalize_transaction(&mut tx, state).await?;
                 state.notify_reprocess_txs_activity();
                 let tx_uuid = tx.uuid.clone();
                 info!(?tx_uuid, "Transaction is finalized");
@@ -341,14 +334,69 @@ impl FinalityStage {
         Ok(())
     }
 
+    async fn finalize_transaction(
+        tx: &mut Transaction,
+        state: &DispatcherState,
+    ) -> Result<(), LanderError> {
+        // Aleo and SVM only verify finalized transactions. Keep this transition
+        // local until every payload result is durable: Included is the loader's
+        // existing recovery marker if any RPC/write fails or the process stops.
+        tx.status = TransactionStatus::Finalized;
+        let reverted = Self::read_reverted_payloads(tx, state).await?;
+        let reverted_ids: HashSet<_> = reverted.iter().map(|payload| &payload.uuid).collect();
+        for payload in &tx.payload_details {
+            let status = if reverted_ids.contains(&payload.uuid) {
+                PayloadStatus::Dropped(PayloadDropReason::Reverted)
+            } else {
+                PayloadStatus::InTransaction(TransactionStatus::Finalized)
+            };
+            state
+                .payload_db
+                .store_new_payload_status(&payload.uuid, status)
+                .await?;
+        }
+        with_rpc_operation(
+            RpcOperation::TransactionLifecycle,
+            state.adapter.post_finalized(),
+        )
+        .await?;
+        // Commit last and propagate write failures. store_tx/update_tx_status
+        // persist the transaction first and overwrite reverted payload statuses.
+        state.tx_db.store_transaction_by_uuid(tx).await?;
+        // A failed write or post-finalization hook leaves this transaction for
+        // retry. Count reverted payloads only after the terminal commit succeeds.
+        for payload in &tx.payload_details {
+            if reverted_ids.contains(&payload.uuid) {
+                state.update_payload_metric_if_dropped(&PayloadStatus::Dropped(
+                    PayloadDropReason::Reverted,
+                ));
+            }
+        }
+        state
+            .metrics
+            .update_finalized_transactions_metric(&state.domain);
+        Ok(())
+    }
+
     async fn record_reverted_payloads(
         tx: &mut Transaction,
         state: &DispatcherState,
     ) -> Result<(), LanderError> {
-        use PayloadDropReason::Reverted;
-        use PayloadStatus::Dropped;
+        let reverted_payloads = Self::read_reverted_payloads(tx, state).await?;
+        state
+            .update_status_for_payloads(
+                &reverted_payloads,
+                PayloadStatus::Dropped(PayloadDropReason::Reverted),
+            )
+            .await;
+        Ok(())
+    }
 
-        let reverted_payloads = call_until_success_or_nonretryable_error(
+    async fn read_reverted_payloads(
+        tx: &Transaction,
+        state: &DispatcherState,
+    ) -> Result<Vec<PayloadDetails>, LanderError> {
+        call_until_success_or_nonretryable_error(
             || {
                 with_rpc_operation(
                     RpcOperation::TransactionLifecycle,
@@ -358,11 +406,7 @@ impl FinalityStage {
             "Checking reverted payloads",
             state,
         )
-        .await?;
-        state
-            .update_status_for_payloads(&reverted_payloads, Dropped(Reverted))
-            .await;
-        Ok(())
+        .await
     }
 
     async fn handle_dropped_transaction(

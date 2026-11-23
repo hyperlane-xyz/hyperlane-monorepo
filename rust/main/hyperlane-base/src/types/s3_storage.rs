@@ -17,6 +17,7 @@ use eyre::{bail, Result};
 use prometheus::IntGauge;
 use tokio::sync::OnceCell;
 use tracing::error;
+use url::Url;
 
 use hyperlane_core::{
     accumulator::incremental::MerkleTreeSnapshot, ReorgEvent, ReorgEventResponse,
@@ -342,6 +343,41 @@ impl CheckpointSyncer for S3Storage {
         }
     }
 
+    fn checkpoint_location(&self, index: u32) -> Option<String> {
+        let location = Url::parse(&format!("s3://{}", self.bucket)).ok()?;
+        if !location.username().is_empty()
+            || location.password().is_some()
+            || location.query().is_some()
+            || location.fragment().is_some()
+            || !location.path().is_empty()
+        {
+            return None;
+        }
+        let bucket = location.host_str()?;
+        if bucket != self.bucket {
+            return None;
+        }
+        let region = self.region.as_ref();
+        if !region
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        {
+            return None;
+        }
+        let key = self.get_composite_key(Self::checkpoint_key(index));
+        if key.contains('?') || key.contains('#') {
+            return None;
+        }
+        let aws_domain = if region.starts_with("cn-") {
+            "amazonaws.com.cn"
+        } else {
+            "amazonaws.com"
+        };
+        let mut public = Url::parse(&format!("https://s3.{region}.{aws_domain}")).ok()?;
+        public.set_path(&format!("{bucket}/{}", key.replace('%', "%25")));
+        Some(public.into())
+    }
+
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
         let serialized_reorg = serde_json::to_vec(reorged_event)?;
         self.write_to_bucket(S3Storage::reorg_flag_key(), serialized_reorg)
@@ -413,6 +449,62 @@ mod tests {
         );
         let location = s3_storage.announcement_location();
         assert_eq!(location, "s3://test-bucket/us-east-1");
+    }
+
+    #[test]
+    fn checkpoint_location_is_public_https() {
+        let storage = S3Storage::new(
+            "test-bucket".to_owned(),
+            Some("test-folder".to_owned()),
+            Region::new("us-east-1"),
+            None,
+        );
+        assert_eq!(
+            storage.checkpoint_location(7).as_deref(),
+            Some(
+                "https://s3.us-east-1.amazonaws.com/test-bucket/test-folder/checkpoint_7_with_id.json"
+            )
+        );
+
+        let storage = S3Storage::new(
+            "user:secret@test-bucket".to_owned(),
+            None,
+            Region::new("us-east-1"),
+            None,
+        );
+        assert_eq!(storage.checkpoint_location(7), None);
+
+        let storage = S3Storage::new(
+            "test-bucket".to_owned(),
+            Some("test-folder?token=secret#fragment".to_owned()),
+            Region::new("us-east-1"),
+            None,
+        );
+        assert_eq!(storage.checkpoint_location(7), None);
+
+        let storage = S3Storage::new(
+            "test.bucket".to_owned(),
+            None,
+            Region::new("cn-north-1"),
+            None,
+        );
+        assert_eq!(
+            storage.checkpoint_location(7).as_deref(),
+            Some("https://s3.cn-north-1.amazonaws.com.cn/test.bucket/checkpoint_7_with_id.json")
+        );
+
+        let storage = S3Storage::new(
+            "test-bucket".to_owned(),
+            Some("foo%20bar//nested".to_owned()),
+            Region::new("us-east-1"),
+            None,
+        );
+        assert_eq!(
+            storage.checkpoint_location(7).as_deref(),
+            Some(
+                "https://s3.us-east-1.amazonaws.com/test-bucket/foo%2520bar//nested/checkpoint_7_with_id.json"
+            )
+        );
     }
 
     #[tokio::test]

@@ -59,6 +59,9 @@ import type {
 
 import { SvmProvider } from './provider.js';
 
+const SEED_HEX_REGEX = /^[0-9a-fA-F]{64}$/;
+const SECRET_KEY_HEX_REGEX = /^[0-9a-fA-F]{128}$/;
+
 /**
  * Signing strategy injected into the shared submission pipeline. A live signer
  * passes kit's fully-signing variant; an impersonating signer passes the
@@ -139,10 +142,10 @@ const base58Encoder = getBase58Encoder();
 function parseKeyBytes(privateKey: string): ReadonlyUint8Array {
   // Try hex (32 bytes = 64 hex chars, 64 bytes = 128 hex chars)
   const stripped = strip0x(privateKey);
-  if (/^[0-9a-fA-F]{64}$/.test(stripped)) {
+  if (SEED_HEX_REGEX.test(stripped)) {
     return new Uint8Array(Buffer.from(stripped, 'hex'));
   }
-  if (/^[0-9a-fA-F]{128}$/.test(stripped)) {
+  if (SECRET_KEY_HEX_REGEX.test(stripped)) {
     return new Uint8Array(Buffer.from(stripped, 'hex'));
   }
 

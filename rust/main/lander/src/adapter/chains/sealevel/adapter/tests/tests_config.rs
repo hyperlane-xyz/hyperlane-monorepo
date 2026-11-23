@@ -30,7 +30,7 @@ fn test_configuration_fields() {
         addresses: Default::default(),
         connection: ChainConnectionConf::Sealevel(hyperlane_sealevel::ConnectionConf {
             max_supported_transaction_version: 0,
-            urls: vec![],
+            urls: vec![].into(),
             op_submission_config: OpSubmissionConfig {
                 batch_contract_address: None,
                 max_batch_size: expected_max_batch_size,

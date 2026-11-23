@@ -1,7 +1,23 @@
 import type { Logger } from 'pino';
 
 import type { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  type TransactionSubmissionOptions,
+} from '@hyperlane-xyz/utils';
+
+export interface PendingApproval {
+  txHash?: string;
+  token?: string;
+  spender?: string;
+}
+
+export interface BridgeExecutionOptions extends TransactionSubmissionOptions {
+  /** Approval identity is separate from the bridge's source transaction. */
+  onApproval?: (approval: PendingApproval | undefined) => void | Promise<void>;
+  /** Provider identity is recorded before source submission whenever available. */
+  onTransferId?: (transferId: string) => void | Promise<void>;
+}
 
 import type { ExternalBridgeType } from '../config/types.js';
 
@@ -41,16 +57,24 @@ export interface BridgeQuote<R = unknown> {
   tool: string; // Bridge/DEX tool used (e.g., 'stargate', 'across')
   fromAmount: bigint; // Amount being sent (input required)
   toAmount: bigint; // Expected amount to receive
-  toAmountMin: bigint; // Minimum amount to receive (after slippage)
+  toAmountMin: bigint; // Conservative execution minimum, including the adapter's loss/slippage budget
   executionDuration: number; // Estimated execution time in seconds
   gasCosts: bigint; // Sum of gas costs for the bridge operation
   feeCosts: bigint; // Sum of non-included fee costs (protocol fees, etc.)
   route: R; // Bridge-specific route data for execution
   requestParams: BridgeQuoteParams; // Original request parameters
+  /** Fixed bounds for refreshed execution. Reserve maxInputAmount before sending. */
+  executionBudget?: {
+    maxInputAmount: bigint;
+    minOutputAmount: bigint;
+  };
 }
 
 /**
  * Result of executing a bridge transfer.
+ * This includes a source transaction identity. Adapters may return immediately
+ * after broadcast or after additional bridge monitoring; callers must still
+ * use getStatus() to determine destination-chain settlement.
  */
 export interface BridgeTransferResult {
   txHash: string; // Origin chain transaction hash
@@ -87,12 +111,15 @@ export interface IExternalBridge {
 
   /**
    * Execute a bridge transfer using a previously obtained quote.
+   * Callers must record the returned identity and poll getStatus() before
+   * treating the cross-chain transfer as settled.
    * @param quote - Quote obtained from quote()
    * @param privateKeys - Private keys keyed by ProtocolType (e.g., { [ProtocolType.Ethereum]: '0x...' })
    */
   execute(
     quote: BridgeQuote,
     privateKeys: Partial<Record<ProtocolType, string>>,
+    options?: BridgeExecutionOptions,
   ): Promise<BridgeTransferResult>;
 
   /**
@@ -100,11 +127,13 @@ export interface IExternalBridge {
    * @param txHash - Origin chain transaction hash
    * @param fromChain - Source chain ID
    * @param toChain - Destination chain ID
+   * @param transferId - Optional bridge-specific transfer identifier
    */
   getStatus(
     txHash: string,
     fromChain: number,
     toChain: number,
+    transferId?: string,
   ): Promise<BridgeTransferStatus>;
 }
 

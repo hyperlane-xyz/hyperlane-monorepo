@@ -24,7 +24,7 @@ void it('serves GraphQL through Mercurius with compatibility validation', async 
       method: 'POST',
       payload: {
         query:
-          'query Domains($unused: String) { domain(limit: 1) { id name } }',
+          'query Domains($unused: String!, $missing: Int!) { domain(limit: 1) { id name } }',
         variables: { unused: 'legacy-client-variable' },
       },
       url: '/graphql',
@@ -38,7 +38,8 @@ void it('serves GraphQL through Mercurius with compatibility validation', async 
     assert.equal(queries, 1);
 
     const getQuery = new URLSearchParams({
-      query: 'query Domains($unused: String) { domain(limit: 1) { id name } }',
+      query:
+        'query Domains($unused: String!, $missing: Int!) { domain(limit: 1) { id name } }',
       variables: JSON.stringify({ unused: 'legacy-client-variable' }),
     });
     const getResponse = await app.inject({
@@ -187,7 +188,9 @@ void it('rejects malformed variables when the response cache is warm', async () 
 
 void it('serializes the production query surface consistently', async () => {
   const db = {
-    async query(): Promise<Record<string, unknown>[]> {
+    async query(sql: string): Promise<Record<string, unknown>[]> {
+      if (sql.startsWith('EXPLAIN'))
+        return [{ 'QUERY PLAN': [{ Plan: { 'Total Cost': 1 } }] }];
       return [
         {
           count: 1,
@@ -232,7 +235,7 @@ void it('serializes the production query surface consistently', async () => {
         },
       },
       query:
-        '{ result: message_view_aggregate(limit: 1) { aggregate { count } nodes { id msg_id nonce delivery_latency delivery_occurred_at destination_tx_gas_used } } }',
+        '{ result: message_view_aggregate(where: {origin_tx_hash: {_eq: "0x11"}}, limit: 1) { aggregate { count } nodes { id msg_id nonce delivery_latency delivery_occurred_at destination_tx_gas_used } } }',
     },
     {
       expected: { raw_message_dispatch: [{ id: 1 }] },
@@ -285,6 +288,7 @@ void it('bounds concurrent pathological GraphQL requests', async () => {
     const rejected = await app.inject(operation);
     assert.equal(rejected.statusCode, 503);
     assert.equal(rejected.headers['retry-after'], '1');
+    assert.equal((await app.inject({ url: '/metrics' })).statusCode, 200);
 
     assert(release);
     release();
@@ -426,6 +430,8 @@ void it('preserves the CSRF request contract', async () => {
 });
 
 void it('returns useful GraphQL parse, validation, and execution errors', async () => {
+  const { graphqlErrors } = await import('./metrics.js');
+  const before = (await graphqlErrors.get()).values[0].value;
   const { createScraperProxyApp } = await import('./module.js');
   const app = await createScraperProxyApp({
     async query<T extends Record<string, unknown>>(): Promise<T[]> {
@@ -446,6 +452,7 @@ void it('returns useful GraphQL parse, validation, and execution errors', async 
     const executed = await request('{ domain(limit: 1) { id } }');
     assert.equal(executed.statusCode, 200);
     assert.equal(executed.json().errors[0].message, 'database unavailable');
+    assert.equal((await graphqlErrors.get()).values[0].value - before, 3);
   } finally {
     await app.close();
   }
@@ -600,3 +607,144 @@ void it(
     }
   },
 );
+
+void it('rejects unsupported history reads before accessing PostgreSQL', async () => {
+  let calls = 0;
+  const { createScraperProxyApp } = await import('./module.js');
+  const app = await createScraperProxyApp(
+    {
+      async query() {
+        calls++;
+        return [];
+      },
+    },
+    { jit: 1 },
+  );
+  try {
+    for (const operation of [
+      '{ message_view(where: {is_delivered: {_eq: true}}, limit: 1) { id } }',
+      '{ message_view(confirmations: 0, where: {_or: [{is_provisional: {_eq: true}}, {is_delivered: {_eq: false}}]}) { id } }',
+      '{ message_view_aggregate(where: {_or: [{id: {_eq: "1"}}, {}]}) { nodes { id } aggregate { count } } }',
+      '{ message_view_aggregate(where: {msg_id: {_eq: null}}) { nodes { id } } }',
+      '{ message_view(where: {total_payment: {_gt: "0"}}) { id } }',
+      '{ message_view(order_by: {nonce: desc}) { id } }',
+      '{ message_view(order_by: {send_occurred_at: desc}) { id } }',
+      '{ message_view(distinct_on: [sender]) { id } }',
+      '{ raw_message_dispatch(where: {msg_body: {_eq: "hello"}}) { id } }',
+      '{ raw_message_dispatch(offset: 1) { id } }',
+    ]) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/graphql',
+        payload: { query: operation },
+      });
+      assert(response.json().errors?.length, operation);
+      assert.equal(calls, 0);
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+void it('preserves Explorer 500-row pending pages, transaction pages and the domain catalog', async () => {
+  const { createScraperProxyApp } = await import('./module.js');
+  const limits: unknown[] = [];
+  const domains = Array.from({ length: 207 }, (_, id) => ({ id }));
+  const app = await createScraperProxyApp({
+    async query(sql, values = []) {
+      if (sql.startsWith('EXPLAIN'))
+        return [{ 'QUERY PLAN': [{ Plan: { 'Total Cost': 1 } }] }];
+      limits.push(values.at(-1));
+      return sql.includes('FROM "domain"') ? domains : [];
+    },
+  });
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/graphql',
+      payload: {
+        query: `query {
+          pendingCandidates: message_view(order_by: {id: desc}, limit: 500) { id is_delivered }
+          transactionMessages: message_view(where: {origin_tx_hash: {_eq: "\\\\x${'ab'.repeat(32)}"}}, order_by: {nonce: asc}, limit: 500) { id }
+          domain { id }
+        }`,
+      },
+    });
+    assert.equal(response.json().errors, undefined);
+    assert.deepEqual(response.json().data.domain, domains);
+    assert.deepEqual(limits, [500, 500, 500]);
+  } finally {
+    await app.close();
+  }
+});
+
+void it('checks bound variable values and fails closed on over-budget or missing plans', async () => {
+  const { createScraperProxyApp } = await import('./module.js');
+  const plans = [100_001, undefined, 1];
+  const calls: string[] = [];
+  const app = await createScraperProxyApp(
+    {
+      async query(sql, values) {
+        calls.push(sql);
+        assert.deepEqual(values, ['123', 1]);
+        if (sql.startsWith('EXPLAIN (FORMAT JSON)')) {
+          const cost = plans.shift();
+          return cost === undefined
+            ? []
+            : [{ 'QUERY PLAN': [{ Plan: { 'Total Cost': cost } }] }];
+        }
+        return [{ id: '123', is_delivered: true }];
+      },
+    },
+    { jit: 1 },
+  );
+  try {
+    const query =
+      'query($id: bigint!){ message_view(where: {id: {_eq: $id}}, limit: 1) { id is_delivered } }';
+    for (let i = 0; i < 3; i++) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/graphql',
+        payload: { query, variables: { id: '123' } },
+      });
+      if (i < 2) assert.match(res.json().errors[0].message, /planning budget/);
+      else
+        assert.deepEqual(res.json().data.message_view, [
+          { id: '123', is_delivered: true },
+        ]);
+    }
+    assert.equal(calls.length, 4);
+    assert.equal(calls[2], 'EXPLAIN (FORMAT JSON) ' + calls[3]);
+  } finally {
+    await app.close();
+  }
+});
+
+void it('shares the history budget across aliases and resets it on the next request', async () => {
+  const { createScraperProxyApp } = await import('./module.js');
+  let reads = 0;
+  const app = await createScraperProxyApp({
+    async query(sql) {
+      if (sql.startsWith('EXPLAIN'))
+        return [{ 'QUERY PLAN': [{ Plan: { 'Total Cost': 100_000 } }] }];
+      reads++;
+      return [];
+    },
+  });
+  try {
+    for (let i = 1; i <= 2; i++) {
+      const result = await app.inject({
+        method: 'POST',
+        url: '/graphql',
+        payload: {
+          query:
+            '{ a: message_view { id } b: message_view { id } c: message_view { id } }',
+        },
+      });
+      assert.match(result.json().errors[0].message, /operation exceeds/);
+      assert.equal(reads, i * 2);
+    }
+  } finally {
+    await app.close();
+  }
+});

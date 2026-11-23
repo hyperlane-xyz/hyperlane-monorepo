@@ -1,15 +1,11 @@
-#![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
-
 use std::collections::HashSet;
 
 use eyre::{ensure, Result};
 use itertools::Itertools;
-use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect, QueryTrait, TransactionTrait};
+use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect, TransactionTrait};
 use tracing::{debug, instrument, trace};
 
-use hyperlane_core::{
-    address_to_bytes, bytes_to_address, h256_to_bytes, Delivery, HyperlaneMessage, LogMeta, H256,
-};
+use hyperlane_core::{address_to_bytes, h256_to_bytes, HyperlaneMessage, H256};
 use migration::{Alias, Expr, Func, OnConflict};
 
 use crate::date_time;
@@ -21,19 +17,17 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub struct StorableDelivery<'a> {
+pub struct StorableDelivery {
     pub message_id: H256,
     pub sequence: Option<i64>,
-    pub meta: &'a LogMeta,
     /// The database id of the transaction the delivery event occurred in, or
     /// `None` if the transaction could not be resolved on-chain (e.g. Sealevel
     /// basic log meta fallback).
     pub txn_id: Option<i64>,
 }
 
-pub struct StorableMessage<'a> {
+pub struct StorableMessage {
     pub msg: HyperlaneMessage,
-    pub meta: &'a LogMeta,
     /// The database id of the transaction the message was sent in, or `None`
     /// if the transaction could not be resolved on-chain (e.g. Sealevel basic
     /// log meta fallback).
@@ -55,68 +49,6 @@ impl ScraperDb {
 
     // Six bound columns per delivery; conflict expressions add no parameters.
     const STORE_DELIVERY_CHUNK_SIZE: usize = 10_000;
-
-    /// Get the delivered message associated with a sequence.
-    #[instrument(skip(self))]
-    pub async fn retrieve_delivery_by_sequence(
-        &self,
-        destination_domain: u32,
-        destination_mailbox: &H256,
-        sequence: u32,
-    ) -> Result<Option<Delivery>> {
-        if let Some(msg_id) = delivered_message::Entity::find()
-            .filter(confirmed_event(
-                "delivered_message",
-                "domain",
-                "block_number",
-            ))
-            .select_only()
-            .column(delivered_message::Column::MsgId)
-            .filter(delivered_message::Column::Domain.eq(destination_domain))
-            .filter(
-                delivered_message::Column::DestinationMailbox
-                    .eq(address_to_bytes(destination_mailbox)),
-            )
-            .filter(delivered_message::Column::Sequence.eq(sequence))
-            .into_tuple::<Vec<u8>>()
-            .one(&self.0)
-            .await?
-        {
-            let delivery = H256::from_slice(&msg_id);
-            Ok(Some(delivery))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Get the block height of a delivered message associated with a sequence.
-    /// Also returns `None` for deliveries stored with a NULL transaction id
-    /// (unresolvable log meta fallback).
-    #[instrument(skip(self))]
-    pub async fn retrieve_delivered_message_block_number(
-        &self,
-        destination_domain: u32,
-        destination_mailbox: &H256,
-        sequence: u32,
-    ) -> Result<Option<u64>> {
-        let tx_id_query = delivered_message::Entity::find()
-            .filter(confirmed_event(
-                "delivered_message",
-                "domain",
-                "block_number",
-            ))
-            .filter(delivered_message::Column::Domain.eq(destination_domain))
-            .filter(
-                delivered_message::Column::DestinationMailbox
-                    .eq(address_to_bytes(destination_mailbox)),
-            )
-            .filter(delivered_message::Column::Sequence.eq(sequence))
-            .select_only()
-            .column(delivered_message::Column::DestinationTxId)
-            .limit(1)
-            .into_query();
-        self.retrieve_block_number_by_tx_query(tx_id_query).await
-    }
 
     async fn latest_deliveries_id(&self, domain: u32, destination_mailbox: Vec<u8>) -> Result<i64> {
         let result = delivered_message::Entity::find()
@@ -167,7 +99,7 @@ impl ScraperDb {
         &self,
         domain: u32,
         destination_mailbox: H256,
-        deliveries: impl Iterator<Item = StorableDelivery<'_>>,
+        deliveries: impl Iterator<Item = StorableDelivery>,
     ) -> Result<u64> {
         let destination_mailbox = address_to_bytes(&destination_mailbox);
         // we have a race condition where a message may not have been scraped yet even
@@ -237,67 +169,6 @@ impl ScraperDb {
         Ok(new_deliveries_count)
     }
 
-    /// Get the dispatched message associated with a nonce.
-    #[instrument(skip(self))]
-    pub async fn retrieve_dispatched_message_by_nonce(
-        &self,
-        origin_domain: u32,
-        origin_mailbox: &H256,
-        nonce: u32,
-    ) -> Result<Option<HyperlaneMessage>> {
-        if let Some((origin, destination, nonce, sender, recipient, body)) = message::Entity::find()
-            .select_only()
-            .columns([
-                message::Column::Origin,
-                message::Column::Destination,
-                message::Column::Nonce,
-                message::Column::Sender,
-                message::Column::Recipient,
-                message::Column::MsgBody,
-            ])
-            .filter(message::Column::Origin.eq(origin_domain))
-            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
-            .filter(message::Column::Nonce.eq(nonce))
-            .into_tuple::<(i32, i32, i32, Vec<u8>, Vec<u8>, Option<Vec<u8>>)>()
-            .one(&self.0)
-            .await?
-        {
-            Ok(Some(HyperlaneMessage {
-                // We do not write version to the DB.
-                version: 3,
-                origin: origin as u32,
-                destination: destination as u32,
-                nonce: nonce as u32,
-                sender: bytes_to_address(sender)?,
-                recipient: bytes_to_address(recipient)?,
-                body: body.unwrap_or(Vec::new()),
-            }))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Get the block height associated with a dispatched message.
-    /// Also returns `None` for messages stored with a NULL transaction id
-    /// (unresolvable log meta fallback).
-    #[instrument(skip(self))]
-    pub async fn retrieve_dispatched_block_number(
-        &self,
-        origin_domain: u32,
-        origin_mailbox: &H256,
-        nonce: u32,
-    ) -> Result<Option<u64>> {
-        let tx_id_query = message::Entity::find()
-            .filter(message::Column::Origin.eq(origin_domain))
-            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
-            .filter(message::Column::Nonce.eq(nonce))
-            .select_only()
-            .column_as(message::Column::OriginTxId.max(), "tx_id")
-            .group_by(message::Column::Origin)
-            .into_query();
-        self.retrieve_block_number_by_tx_query(tx_id_query).await
-    }
-
     /// Store messages from a mailbox into the database (or update an existing
     /// one). Return only this operation's inserted row count, excluding updates.
     #[instrument(skip_all)]
@@ -305,7 +176,7 @@ impl ScraperDb {
         &self,
         _domain: u32,
         origin_mailbox: &H256,
-        messages: impl Iterator<Item = StorableMessage<'_>>,
+        messages: impl Iterator<Item = StorableMessage>,
     ) -> Result<u64> {
         let origin_mailbox = address_to_bytes(origin_mailbox);
 
@@ -444,11 +315,13 @@ fn delivery_insert_query(
 }
 
 #[cfg(test)]
+mod concurrency;
+#[cfg(test)]
 mod delivery_replays;
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
+    use hyperlane_core::{HyperlaneMessage, H256};
     use sea_orm::{Database, DatabaseBackend, DbErr, MockDatabase, MockExecResult, RuntimeErr};
 
     use crate::db::{ScraperDb, StorableMessage};
@@ -459,7 +332,7 @@ mod tests {
         let scraper_db = ScraperDb::with_connection(mock_db);
 
         let stored = scraper_db
-            .store_dispatched_messages(0, &H256::zero(), std::iter::empty::<StorableMessage<'_>>())
+            .store_dispatched_messages(0, &H256::zero(), std::iter::empty::<StorableMessage>())
             .await
             .expect("empty stores should be a no-op");
 
@@ -481,13 +354,12 @@ mod tests {
             .append_exec_results(results)
             .into_connection();
         let scraper_db = ScraperDb::with_connection(db);
-        let meta = LogMeta::default();
+
         let messages = (0..MESSAGE_AMOUNT).map(|nonce| StorableMessage {
             msg: HyperlaneMessage {
                 nonce: nonce as u32,
                 ..Default::default()
             },
-            meta: &meta,
             txn_id: None,
             id_override: None,
         });
@@ -512,13 +384,12 @@ mod tests {
             ))])
             .into_connection();
         let scraper_db = ScraperDb::with_connection(db);
-        let meta = LogMeta::default();
+
         let messages = (0..5000).map(|nonce| StorableMessage {
             msg: HyperlaneMessage {
                 nonce,
                 ..Default::default()
             },
-            meta: &meta,
             txn_id: None,
             id_override: None,
         });
@@ -540,7 +411,6 @@ mod tests {
         let db = Database::connect(POSTGRES_URL).await.unwrap();
         let scraper_db = ScraperDb::with_connection(db);
 
-        let logs_meta: Vec<_> = (0..MESSAGE_AMOUNT).map(|_| LogMeta::default()).collect();
         let messages: Vec<_> = (0..MESSAGE_AMOUNT)
             .map(|i| {
                 let mut msg = HyperlaneMessage::default();
@@ -549,7 +419,6 @@ mod tests {
                 msg.destination = 1;
                 StorableMessage {
                     msg,
-                    meta: &logs_meta[i],
                     txn_id: Some(0_i64),
                     id_override: None,
                 }

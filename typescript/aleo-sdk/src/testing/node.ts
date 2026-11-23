@@ -13,6 +13,8 @@ import {
   TEST_ALEO_ENV,
 } from './constants.js';
 
+const CONNECTION_READY_REGEX = /connection is ready/;
+
 // Timeout for container startup (includes image pull + container start + wait strategy)
 const CONTAINER_STARTUP_TIMEOUT_MS = 120_000;
 
@@ -46,7 +48,7 @@ export async function runAleoNode(
           '--socket-addr',
           '0.0.0.0:3030',
         ])
-        .withWaitStrategy(Wait.forLogMessage(/connection is ready/))
+        .withWaitStrategy(Wait.forLogMessage(CONNECTION_READY_REGEX))
         .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
         .start(),
     3,

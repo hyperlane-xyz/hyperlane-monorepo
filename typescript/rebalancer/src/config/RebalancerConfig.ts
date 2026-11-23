@@ -6,6 +6,8 @@ import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 import type { InventorySignerConfig } from '../core/InventoryRebalancer.js';
 import {
   type ExternalBridgesConfigSchema,
+  type PendingTransferMiddlewareConfig,
+  type InventoryRoutesConfig,
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
   type StrategyConfig,
@@ -23,6 +25,8 @@ export class RebalancerConfig {
       Record<ProtocolType, InventorySignerConfig>
     >,
     public readonly externalBridges?: ExternalBridgesConfig,
+    public readonly pendingTransferMiddlewares?: PendingTransferMiddlewareConfig[],
+    public readonly inventoryRoutes?: InventoryRoutesConfig,
   ) {}
 
   /**
@@ -44,6 +48,8 @@ export class RebalancerConfig {
       intentTTL,
       inventorySigners,
       externalBridges,
+      pendingTransferMiddlewares,
+      inventoryRoutes,
     } = validationResult.data;
 
     const chainNames = getStrategyChainNames(strategy);
@@ -57,6 +63,8 @@ export class RebalancerConfig {
       intentTTL,
       inventorySigners,
       externalBridges,
+      pendingTransferMiddlewares,
+      inventoryRoutes,
     );
   }
 }

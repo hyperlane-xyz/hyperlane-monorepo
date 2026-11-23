@@ -71,6 +71,22 @@ pub const GAS_PAYMENT_FRONTIER_HEIGHT: ScraperIndex = ScraperIndex {
     unique: false,
 };
 
+// PostgreSQL checks these child references for every transaction removed on rollback.
+pub const MESSAGE_ORIGIN_TRANSACTION: ScraperIndex = ScraperIndex {
+    name: "message_origin_tx_id_idx",
+    table: "message",
+    keys: &["origin_tx_id"],
+    predicate: None,
+    unique: false,
+};
+pub const GAS_PAYMENT_TRANSACTION: ScraperIndex = ScraperIndex {
+    name: "gas_payment_tx_id_idx",
+    table: "gas_payment",
+    keys: &["tx_id"],
+    predicate: None,
+    unique: false,
+};
+
 /// Run after transactional migrations have committed. Concurrent index creation
 /// cannot run inside the SeaORM migration transaction.
 pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
@@ -88,6 +104,8 @@ pub async fn create_indexes(db: &DatabaseConnection) -> eyre::Result<()> {
             DELIVERY_FRONTIER_UNENRICHED,
             GAS_PAYMENT_FRONTIER_UNENRICHED,
             GAS_PAYMENT_FRONTIER_HEIGHT,
+            MESSAGE_ORIGIN_TRANSACTION,
+            GAS_PAYMENT_TRANSACTION,
         ] {
             create_index(db, index).await?;
         }
@@ -184,6 +202,8 @@ pub async fn verify_frontier_indexes(db: &DatabaseConnection) -> eyre::Result<()
         DELIVERY_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_UNENRICHED,
         GAS_PAYMENT_FRONTIER_HEIGHT,
+        MESSAGE_ORIGIN_TRANSACTION,
+        GAS_PAYMENT_TRANSACTION,
     ] {
         verify_index(db, index).await?;
     }
@@ -211,6 +231,9 @@ async fn verify_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Res
         predicate,
         unique,
     } = index;
+    // FK checks use equality only; preserve existing production hash indexes.
+    let allow_hash =
+        name == MESSAGE_ORIGIN_TRANSACTION.name || name == GAS_PAYMENT_TRANSACTION.name;
     // IF NOT EXISTS also skips invalid or differently defined indexes. Never
     // report those as successfully installed, and never drop them automatically.
     let row = db
@@ -222,7 +245,8 @@ async fn verify_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Res
                 AND i.indnkeyatts = $5 AND i.indnatts = $5
                 AND pg_get_expr(i.indpred, i.indrelid) IS NOT DISTINCT FROM $4::text
                 AND i.indexprs IS NULL
-                AND i.indrelid = $2::regclass AND am.amname = 'btree'
+                AND i.indrelid = $2::regclass
+                AND (am.amname = 'btree' OR ($7 AND am.amname = 'hash'))
                 AND (SELECT string_agg(pg_get_indexdef(i.indexrelid, n, true), ',' ORDER BY n)
                      FROM generate_series(1, i.indnkeyatts) n) = $3
                 AS expected_index
@@ -238,6 +262,7 @@ async fn verify_index(db: &DatabaseConnection, index: ScraperIndex) -> eyre::Res
                 predicate.map(str::to_owned).into(),
                 i16::try_from(keys.len())?.into(),
                 unique.into(),
+                allow_hash.into(),
             ],
         ))
         .await?;
@@ -287,6 +312,34 @@ mod tests {
         assert!(verify_frontier_indexes(&db).await.is_err());
         create_indexes(&db).await?;
         verify_frontier_indexes(&db).await?;
+        for index in [MESSAGE_ORIGIN_TRANSACTION, GAS_PAYMENT_TRANSACTION] {
+            db.execute_unprepared(&format!("DROP INDEX {}", index.name))
+                .await?;
+            assert!(verify_frontier_indexes(&db).await.is_err());
+            // Production already has a hash index on message.origin_tx_id.
+            db.execute_unprepared(&format!(
+                "CREATE INDEX {} ON {} USING hash ({})",
+                index.name,
+                index.table,
+                index.keys.join(", ")
+            ))
+            .await?;
+            let oid_query = Statement::from_sql_and_values(
+                DbBackend::Postgres,
+                "SELECT to_regclass($1)::oid::text AS oid",
+                [index.name.into()],
+            );
+            let before: String = db
+                .query_one(oid_query.clone())
+                .await?
+                .unwrap()
+                .try_get("", "oid")?;
+            create_index(&db, index).await?;
+            verify_frontier_indexes(&db).await?;
+            let after: String = db.query_one(oid_query).await?.unwrap().try_get("", "oid")?;
+            assert_eq!(before, after, "Existing hash index must not be rebuilt");
+        }
+        create_indexes(&db).await?;
         db.execute_unprepared("DROP INDEX gas_payment_frontier_height")
             .await?;
         assert!(verify_frontier_indexes(&db)

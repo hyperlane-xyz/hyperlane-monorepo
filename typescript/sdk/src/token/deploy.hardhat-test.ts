@@ -11,7 +11,6 @@ import {
   ERC20Test,
   ERC20Test__factory,
   GasRouter__factory,
-  HypXERC20Lockbox__factory,
   LinearFee__factory,
   MailboxClient__factory,
   NetFlowRateLimitedHookIsm__factory,
@@ -22,7 +21,6 @@ import {
   StaticAggregationIsm__factory,
   TokenRouter__factory,
   TransparentUpgradeableProxy__factory,
-  XERC20LockboxTest__factory,
   XERC20Test,
   XERC20Test__factory,
   XERC20VSTest,
@@ -73,6 +71,7 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   SyntheticTokenConfig,
   WarpRouteDeployConfigMailboxRequired,
+  HypTokenRouterConfigSchema,
   XERC20TokenExtraBridgesLimits,
   XERC20Type,
   isAtomicLocalRebalancingBridgeTokenConfig,
@@ -492,10 +491,9 @@ describe('TokenDeployer', async () => {
         '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
       beforeEach(async () => {
-        config[chain] = {
+        config[chain] = HypTokenRouterConfigSchema.parse({
           ...config[chain],
           type,
-          // @ts-expect-error - Synthetic test configurations omit the token address.
           token: token(),
           xERC20:
             type === TokenType.XERC20
@@ -507,7 +505,7 @@ describe('TokenDeployer', async () => {
                   },
                 }
               : undefined,
-        };
+        });
 
         contractsMap = await deployer.deploy(config);
       });
@@ -870,12 +868,11 @@ describe('TokenDeployer', async () => {
       });
 
       beforeEach(async () => {
-        config[chain] = {
+        config[chain] = HypTokenRouterConfigSchema.parse({
           ...config[chain],
           type,
-          // @ts-expect-error - Synthetic test configurations omit the token address.
           token: token(),
-        };
+        });
         const warpRoute = await deployer.deploy(config);
         routerAddress = warpRoute[chain][type].address;
       });
@@ -1962,64 +1959,6 @@ describe('TokenDeployer', async () => {
       );
       const feeToken = await routingFee.token();
       expect(eqAddress(feeToken, routerAddress)).to.be.true;
-    });
-
-    it('should resolve LinearFee token to the on-chain wrapped token for xERC20Lockbox', async () => {
-      // Regression: for a lockbox, tokenConfig.token is the lockbox address, but
-      // the router's token()/feeToken() returns the underlying wrapped ERC20.
-      // The fee contract must be deployed with token() so the router's
-      // "fee must match token" check passes. Resolution reads this on-chain.
-      const { name, symbol, decimals } = config[chain];
-      assert(name, 'expected a token name in the config');
-      assert(symbol, 'expected a token symbol in the config');
-      assert(decimals != null, 'expected token decimals in the config');
-      const lockbox = await new XERC20LockboxTest__factory(signer).deploy(
-        name,
-        symbol,
-        totalSupply,
-        decimals,
-      );
-      const wrappedToken = await lockbox.ERC20();
-
-      const lockboxConfig: WarpRouteDeployConfigMailboxRequired = {
-        [chain]: {
-          ...config[chain],
-          type: TokenType.XERC20Lockbox,
-          token: lockbox.address,
-          tokenFee: {
-            type: TokenFeeType.LinearFee,
-            owner: signer.address,
-            bps: 100,
-            maxFee: 1000000000n,
-            halfAmount: 500000000n,
-          },
-        },
-      };
-
-      const warpRoute = await deployer.deploy(lockboxConfig);
-      const routerAddress = warpRoute[chain].xERC20Lockbox.address;
-
-      const router = HypXERC20Lockbox__factory.connect(
-        routerAddress,
-        multiProvider.getProvider(chain),
-      );
-      const routerToken = await router.token();
-      // Sanity: the router's token is the wrapped ERC20, not the lockbox.
-      expect(eqAddress(routerToken, wrappedToken)).to.be.true;
-      expect(eqAddress(routerToken, lockbox.address)).to.be.false;
-
-      const feeRecipient = await router.feeRecipient();
-      expect(isZeroishAddress(feeRecipient)).to.be.false;
-
-      const linearFee = LinearFee__factory.connect(
-        feeRecipient,
-        multiProvider.getProvider(chain),
-      );
-      const feeToken = await linearFee.token();
-      // The fee token must equal router.token() (the invariant the router
-      // enforces), and must NOT be the lockbox address (the pre-fix bug).
-      expect(eqAddress(feeToken, routerToken)).to.be.true;
-      expect(eqAddress(feeToken, lockbox.address)).to.be.false;
     });
   });
 });

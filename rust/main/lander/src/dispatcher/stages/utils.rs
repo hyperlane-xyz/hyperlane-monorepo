@@ -38,6 +38,8 @@ pub(super) fn sort_transactions_for_mutation(transactions: &mut [Transaction]) {
 #[derive(Clone, Copy)]
 pub(super) enum FinalizedStatusRead {
     Query,
+    /// Trust finality already observed in the snapshot; payload verification
+    /// may still be pending before the terminal transaction status is persisted.
     TrustPersisted,
 }
 

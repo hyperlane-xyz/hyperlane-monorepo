@@ -161,6 +161,7 @@ async fn ccr_presence_repairs_partial_and_orphan_pairs_in_postgres() -> eyre::Re
                     sender: H256::zero(),
                     recipient: None,
                     receipt: Some(TxnReceiptInfo {
+                        block_hash: None,
                         gas_used: U256::one(),
                         cumulative_gas_used: U256::one(),
                         effective_gas_price: None,
@@ -203,7 +204,6 @@ async fn ccr_presence_repairs_partial_and_orphan_pairs_in_postgres() -> eyre::Re
         [StorableDelivery {
             message_id: H256::from_low_u64_be(999),
             sequence: None,
-            meta: &meta,
             txn_id: Some(txn_id),
         }]
         .into_iter(),

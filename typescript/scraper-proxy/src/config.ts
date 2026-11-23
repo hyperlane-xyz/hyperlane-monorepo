@@ -5,6 +5,11 @@ dotenvFlow.config();
 
 const ConfigSchema = z.object({
   DATABASE_QUERY_TIMEOUT_MS: z.coerce.number().int().min(1_000).default(20_000),
+  DATABASE_MAX_PENDING_GRAPHQL_QUERIES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .default(25),
   DATABASE_READ_REPLICA_URL: z.string().min(1).optional(),
   DATABASE_SLOW_QUERY_MS: z.coerce.number().int().min(1).default(1_000),
   DATABASE_STATEMENT_TIMEOUT_MS: z.coerce
@@ -13,23 +18,13 @@ const ConfigSchema = z.object({
     .min(1_000)
     .default(15_000),
   DATABASE_URL: z.string().min(1),
+  DIAGNOSTICS_DATABASE_URL: z.string().min(1).optional(),
   EVENT_STREAM_BATCH_SIZE: z.coerce
     .number()
     .int()
     .min(1)
     .max(5_000)
     .default(500),
-  EVENT_STREAM_HISTORY_MAX_CONCURRENT: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(10)
-    .default(2),
-  EVENT_STREAM_HISTORY_MAX_MS: z.coerce
-    .number()
-    .int()
-    .min(1_000)
-    .default(1_800_000),
   EVENT_STREAM_MAX_AGENT_CLIENTS: z.coerce
     .number()
     .int()

@@ -207,6 +207,7 @@ pub struct ServerState {
     message_whitelist: Option<Arc<crate::settings::matching_list::MatchingList>>,
     message_blacklist: Option<Arc<crate::settings::matching_list::MatchingList>>,
     address_blacklist: Option<Arc<crate::msg::blacklist::AddressBlacklist>>,
+    runtime_denylist: Option<Arc<crate::msg::runtime_denylist::RuntimeDenylist>>,
 }
 
 impl ServerState {
@@ -231,6 +232,7 @@ impl ServerState {
             message_whitelist: None,
             message_blacklist: None,
             address_blacklist: None,
+            runtime_denylist: None,
         }
     }
 
@@ -270,6 +272,14 @@ impl ServerState {
         blacklist: Arc<crate::settings::matching_list::MatchingList>,
     ) -> Self {
         self.message_blacklist = Some(blacklist);
+        self
+    }
+
+    pub fn with_runtime_denylist(
+        mut self,
+        denylist: Arc<crate::msg::runtime_denylist::RuntimeDenylist>,
+    ) -> Self {
+        self.runtime_denylist = Some(denylist);
         self
     }
 
@@ -705,6 +715,18 @@ async fn relay_work(
                     "Rejecting message involving blacklisted address"
                 );
                 state.record_failure("message_blacklisted_address");
+                return Err(ServerError::InvalidRequest("Message rejected".to_string()));
+            }
+        }
+
+        if let Some(denylist) = &state.runtime_denylist {
+            if let Some(reason) = denylist.deny_reason_for_message(&extracted.message) {
+                warn!(
+                    message_id = ?extracted.message_id,
+                    %reason,
+                    "Rejecting message matching runtime denylist"
+                );
+                state.record_failure("message_runtime_denylisted");
                 return Err(ServerError::InvalidRequest("Message rejected".to_string()));
             }
         }

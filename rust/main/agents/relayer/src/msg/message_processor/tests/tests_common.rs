@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use mockall::mock;
 use prometheus::{IntGauge, IntGaugeVec};
 use serde::Serialize;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Notify};
 
 // Re-export for use in other test modules
 pub use hyperlane_base::tests::mock_hyperlane_db::MockHyperlaneDb;
@@ -23,6 +23,17 @@ use crate::msg::message_processor::MessageProcessorMetrics;
 use crate::msg::op_queue::OpQueue;
 use crate::server::operations::message_retry::MessageRetryRequest;
 
+static ZERO_ADDRESS: H256 = H256::zero();
+
+#[derive(Debug)]
+pub struct NotifyOnDrop(pub Arc<Notify>);
+
+impl Drop for NotifyOnDrop {
+    fn drop(&mut self) {
+        self.0.notify_one();
+    }
+}
+
 // Mock QueueOperation for testing
 #[derive(Debug, Serialize, Clone)]
 pub struct MockQueueOperation {
@@ -35,8 +46,14 @@ pub struct MockQueueOperation {
     pub delivered: Option<bool>,
     #[serde(skip)]
     pub confirmations: Arc<AtomicUsize>,
+    #[serde(skip)]
+    pub submission_callbacks: Arc<AtomicUsize>,
     pub gas_limit: Option<U256>,
     pub payload_data: Vec<u8>,
+    #[serde(skip)]
+    pub payload_gate: Option<Arc<(Notify, Notify)>>,
+    #[serde(skip)]
+    pub released: Option<Arc<NotifyOnDrop>>,
     #[serde(skip)]
     pub mailbox: Option<Arc<dyn Mailbox>>,
 }
@@ -51,8 +68,11 @@ impl MockQueueOperation {
             retries: 0,
             delivered: None,
             confirmations: Arc::new(AtomicUsize::new(0)),
+            submission_callbacks: Arc::new(AtomicUsize::new(0)),
             gas_limit: None,
             payload_data: Vec::new(),
+            payload_gate: None,
+            released: None,
             mailbox: None,
         }
     }
@@ -97,10 +117,10 @@ impl PendingOperation for MockQueueOperation {
         &self.destination
     }
     fn sender_address(&self) -> &H256 {
-        unimplemented!()
+        &ZERO_ADDRESS
     }
     fn recipient_address(&self) -> &H256 {
-        unimplemented!()
+        &ZERO_ADDRESS
     }
     fn body(&self) -> &[u8] {
         &[]
@@ -164,7 +184,14 @@ impl PendingOperation for MockQueueOperation {
     fn get_retries(&self) -> u32 {
         self.retries
     }
+    fn on_submitted_success(&self) {
+        self.submission_callbacks.fetch_add(1, Ordering::SeqCst);
+    }
     async fn payload(&self) -> ChainResult<Vec<u8>> {
+        if let Some(gate) = &self.payload_gate {
+            gate.0.notify_one();
+            gate.1.notified().await;
+        }
         Ok(self.payload_data.clone())
     }
     fn success_criteria(&self) -> ChainResult<Option<Vec<u8>>> {

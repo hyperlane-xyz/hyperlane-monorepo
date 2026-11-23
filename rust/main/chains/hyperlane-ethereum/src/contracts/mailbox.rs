@@ -333,6 +333,12 @@ where
         let sequence = self.contract.nonce().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
     }
+
+    async fn sequence_count_at_block(&self, block: u32) -> ChainResult<Option<u32>> {
+        Ok(Some(
+            self.contract.nonce().block(u64::from(block)).call().await?,
+        ))
+    }
 }
 
 #[async_trait]
@@ -937,7 +943,7 @@ mod test {
         let provider = Arc::new(Provider::new(mock_provider.clone()));
         let connection_conf = ConnectionConf {
             rpc_connection: RpcConnectionConf::Http {
-                url: "http://127.0.0.1:8545".parse().unwrap(),
+                url: "http://127.0.0.1:8545".parse::<url::Url>().unwrap().into(),
             },
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
@@ -973,9 +979,10 @@ mod test {
 
     #[tokio::test]
     async fn matching_reveal_estimates_never_use_ordinary_rpc() {
-        for domain in [
-            KnownHyperlaneDomain::Ethereum,
-            KnownHyperlaneDomain::Arbitrum,
+        for (domain, recipient) in [
+            (KnownHyperlaneDomain::Ethereum, H256::zero()),
+            (KnownHyperlaneDomain::Arbitrum, H256::zero()),
+            (KnownHyperlaneDomain::Arbitrum, H256::from_low_u64_be(3)),
         ] {
             let domain = HyperlaneDomain::Known(domain);
             let (mut ordinary, ordinary_rpc) = get_test_mailbox(domain.clone());
@@ -983,16 +990,21 @@ mod test {
             ordinary.conn.transaction_overrides.gas_price = Some(1.into());
             protected.conn.transaction_overrides.gas_price = Some(1.into());
             protected.conn.rpc_connection = RpcConnectionConf::Http {
-                url: "https://protected.example/private-key".parse().unwrap(),
+                url: "https://protected.example/private-key"
+                    .parse::<url::Url>()
+                    .unwrap()
+                    .into(),
             };
             ordinary.conn.mev_submission = Some(MevSubmissionConfig {
-                rpc_urls: vec!["https://protected.example/private-key".parse().unwrap()],
+                rpc_urls: vec!["https://protected.example/private-key".parse().unwrap()].into(),
                 ica_router: H256::zero(),
+                additional_ica_routers: vec![H256::from_low_u64_be(3)],
             });
             let arbitrum = protected.arbitrum_node_interface.is_some();
             ordinary.protected_estimator = Some(Arc::new(protected));
             assert!(!format!("{ordinary:?}").contains("private-key"));
             let message = HyperlaneMessage {
+                recipient,
                 body: vec![2; 65],
                 ..Default::default()
             };

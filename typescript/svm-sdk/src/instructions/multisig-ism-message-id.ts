@@ -34,6 +34,8 @@ import {
   deriveMultisigIsmDomainDataPda,
 } from '../pda.js';
 
+const H160_HEX_REGEX = /^[0-9a-fA-F]{40}$/;
+
 export enum MultisigIsmMessageIdProgramInstructionKind {
   Initialize = 0,
   SetValidatorsAndThreshold = 1,
@@ -331,7 +333,7 @@ export async function getTransferOwnershipInstruction(
 function hexToBytes20(value: string): Uint8Array {
   const hex = strip0x(value);
   assert(
-    /^[0-9a-fA-F]{40}$/.test(hex),
+    H160_HEX_REGEX.test(hex),
     `Expected 20-byte hex validator, got ${value}`,
   );
   const out = new Uint8Array(20);

@@ -99,6 +99,8 @@ hyperlane:
       #   type: # "hexKey"
 
   relayer:
+    # Optional Secret Manager name for diagnostics PostgreSQL; never put the URL here.
+    messageActivityDatabaseUrlSecret: ''
     enabled: false
     aws: # true | false
     # relayApi controls only the containerPort declaration so Kubernetes knows
@@ -143,6 +145,8 @@ hyperlane:
 
   scraper:
     enabled: false
+    # Optional Secret Manager secret containing {"websocketUrls": {"chain": "wss://..."}}.
+    websocketConfigSecret: ''
     podAnnotations:
       prometheus.io/port: '9090'
       prometheus.io/scrape: 'true'
@@ -160,6 +164,7 @@ hyperlane:
       chainsToScrape: ''
 
   scraperProxy:
+    diagnosticsDatabaseSecret: ''
     enabled: false
     maxAgentClients: 100
     port: 8383

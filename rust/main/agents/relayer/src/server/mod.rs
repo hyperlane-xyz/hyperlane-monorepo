@@ -15,6 +15,7 @@ use crate::merkle_tree::builder::MerkleTreeBuilder;
 use crate::msg::gas_payment::GasPaymentEnforcer;
 use crate::msg::op_queue::OpQueue;
 use crate::msg::pending_message::MessageContext;
+use crate::msg::runtime_denylist::RuntimeDenylist;
 
 use crate::server::environment_variable::EnvironmentVariableApi;
 
@@ -27,6 +28,7 @@ pub mod merkle_tree_insertions;
 pub mod messages;
 pub mod operations;
 pub mod proofs;
+pub mod runtime_denylist;
 
 #[derive(new)]
 pub struct Server {
@@ -46,6 +48,10 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     dispatcher_command_entrypoints: Option<HashMap<u32, Arc<dyn CommandEntrypoint>>>,
+    #[new(default)]
+    runtime_denylist: Option<Arc<RuntimeDenylist>>,
+    #[new(default)]
+    message_filters: operations::reprocess_message::MessageFilters,
 }
 
 impl Server {
@@ -96,6 +102,19 @@ impl Server {
         self
     }
 
+    pub fn with_message_filters(
+        mut self,
+        filters: operations::reprocess_message::MessageFilters,
+    ) -> Self {
+        self.message_filters = filters;
+        self
+    }
+
+    pub fn with_runtime_denylist(mut self, denylist: Arc<RuntimeDenylist>) -> Self {
+        self.runtime_denylist = Some(denylist);
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -119,6 +138,7 @@ impl Server {
                         op_queues.clone(),
                         self.msg_ctxs.clone(),
                     )
+                    .with_filters(self.message_filters.clone())
                     .router(),
                 );
             }
@@ -133,6 +153,9 @@ impl Server {
         }
         if let Some(prover_syncs) = self.prover_syncs {
             router = router.merge(proofs::ServerState::new(prover_syncs).router());
+        }
+        if let Some(denylist) = self.runtime_denylist {
+            router = router.merge(runtime_denylist::ServerState::new(denylist).router());
         }
         if let Some(chains) = self.dispatcher_command_entrypoints {
             router = router.merge(evm::nonce::ServerState::new(chains).router());

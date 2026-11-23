@@ -6,6 +6,9 @@ import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import type { SvmProgramTarget } from '../types.js';
 
+const INVALID_CHAIN_NAME_CHARACTERS_REGEX = /[^A-Z0-9_]/g;
+const H160_HEX_REGEX = /^[0-9a-fA-F]{40}$/;
+
 /** Fee account deployed data — references the program and derived PDA. */
 export interface SvmDeployedFee extends DeployedFeeAddress {
   programId: Address;
@@ -35,7 +38,9 @@ export function deriveFeeSalt(context: string): Uint8Array {
  * Falls back to DEFAULT_FEE_SALT (all zeros).
  */
 export function resolveFeeSalt(chainName: string): Uint8Array {
-  const sanitized = chainName.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+  const sanitized = chainName
+    .toUpperCase()
+    .replace(INVALID_CHAIN_NAME_CHARACTERS_REGEX, '_');
   const envKey = `SVM_FEE_${sanitized}_SALT`;
   const envValue = process.env[envKey];
   if (envValue) {
@@ -76,7 +81,7 @@ export type FeeDataKind = (typeof FeeDataKind)[keyof typeof FeeDataKind];
 /** Converts a 0x-prefixed hex address to a 20-byte H160 Uint8Array. */
 export function signerToH160(hexAddress: string): Uint8Array {
   const hex = strip0x(hexAddress);
-  if (!/^[0-9a-fA-F]{40}$/.test(hex)) {
+  if (!H160_HEX_REGEX.test(hex)) {
     throw new Error(`Expected 40 hex chars for H160, got: ${hexAddress}`);
   }
   const bytes = new Uint8Array(20);

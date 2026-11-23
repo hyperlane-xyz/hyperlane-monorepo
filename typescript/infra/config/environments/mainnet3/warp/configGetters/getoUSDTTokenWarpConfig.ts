@@ -18,6 +18,7 @@ import {
 import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getChainAddresses } from '../../../../registry.js';
 import { warpFeesIcas } from '../../governance/ica/warpFees.js';
 import { warpFeesSafes } from '../../governance/safe/warpFees.js';
 import { awTimelocks } from '../../governance/timelock/aw.js';
@@ -136,7 +137,7 @@ const productionFeeOwnerByChain: ChainMap<Address> = {
   tron: warpFeesIcas.tron,
   bsc: warpFeesIcas.bsc,
   arbitrum: warpFeesIcas.arbitrum,
-  tea: warpFeesIcas.tea,
+  tea: '0x37a5630cF1C8DCf2F8E1F601a2Ea9700ADaAff60',
 };
 
 // Environment-specific configuration
@@ -187,13 +188,20 @@ const productionRateLimitByChain: TypedoUSDTTokenChainMap<string> = {
   tea: lowerRateLimitPerSecond,
 };
 
+// These oUSDT legs still use their existing timelocks during offboarding.
+const offboardingTimelocks: ChainMap<Address> = {
+  bob: '0x790306c30eFeeAF3943ee3700C71D7B7812c85a1',
+  lisk: '0xfA96BCb61C7CbD7839689E807CD6d7FC27754Af3',
+  tea: '0x33AA12b4e8E79cA551Ca9D1F2eC7d2cE02129dd4',
+};
+
 const DPL_OWNED_CHAINS: oUSDTTokenChainName[] = [];
 const productionOwnerByChain: TypedoUSDTTokenChainMap<string> =
   deploymentChains.reduce((acc, chain) => {
     if (DPL_OWNED_CHAINS.includes(chain as oUSDTTokenChainName)) {
       acc[chain] = DEPLOYER;
     } else {
-      const timelock = awTimelocks[chain];
+      const timelock = awTimelocks[chain] ?? offboardingTimelocks[chain];
       assert(timelock, `Timelock for ${chain} not found`);
       acc[chain] = timelock;
     }
@@ -549,8 +557,12 @@ function generateoUSDTTokenConfig(
 
   const config = Object.fromEntries(
     deploymentChains.map((chain) => {
+      const mailbox =
+        routerConfig[chain]?.mailbox ?? getChainAddresses()[chain]?.mailbox;
+      assert(mailbox, `Mailbox for ${chain} not found`);
       const commonConfig = {
         ...routerConfig[chain],
+        mailbox,
         owner: ownerByChain[chain],
         contractVersion,
         // 5 bps OffchainQuotedLinearFee withdrawal fee on collateral + new legs;

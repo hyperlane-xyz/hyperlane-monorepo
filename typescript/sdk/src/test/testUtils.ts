@@ -143,6 +143,8 @@ export const hookTypesToFilter: HookType[] = [
   // TokenRouter, so they cannot be randomly generated
   HookType.NET_FLOW_RATE_LIMITED,
   HookType.DELAYED_FLOW_ROUTER,
+  HookType.WORMHOLE,
+  HookType.LAYER_ZERO_V2,
 ];
 export const DEFAULT_TOKEN_DECIMALS = 18;
 

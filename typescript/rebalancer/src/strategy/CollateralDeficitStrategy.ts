@@ -22,6 +22,7 @@ import {
 import { normalizeConfiguredAmount } from '../utils/balanceUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
+import { allocateRoutes } from './allocateRoutes.js';
 
 /**
  * Strategy that detects collateral deficits (negative effective balances)
@@ -241,36 +242,19 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     // Sort deficits by amount (largest first)
     deficits.sort((a, b) => (a.amount > b.amount ? -1 : 1));
 
-    const routes: StrategyRoute[] = [];
-
-    // Match surpluses to deficits
-    while (deficits.length > 0 && surpluses.length > 0) {
-      const surplus = surpluses[0];
-      const deficit = deficits[0];
-      const transferAmount =
-        surplus.amount > deficit.amount ? deficit.amount : surplus.amount;
-
-      if (transferAmount > 0n) {
-        const bridgeConfig = this.getBridgeConfigForRoute(
-          surplus.chain,
-          deficit.chain,
-        );
-        routes.push(
-          createStrategyRoute(
-            bridgeConfig,
-            surplus.chain,
-            deficit.chain,
-            transferAmount,
-          ),
-        );
-      }
-
-      deficit.amount -= transferAmount;
-      surplus.amount -= transferAmount;
-
-      if (deficit.amount <= 0n) deficits.shift();
-      if (surplus.amount <= 0n) surpluses.shift();
-    }
+    const routes = allocateRoutes(
+      surpluses,
+      deficits,
+      (origin, destination) =>
+        this.getBridgeConfigForRoute(origin, destination).enabled !== false,
+    ).map(({ origin, destination, amount }) =>
+      createStrategyRoute(
+        this.getBridgeConfigForRoute(origin, destination),
+        origin,
+        destination,
+        amount,
+      ),
+    );
 
     this.logger.debug(
       { context: this.constructor.name, routes },

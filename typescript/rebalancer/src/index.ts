@@ -22,8 +22,14 @@ export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
   DEFAULT_INTENT_TTL_MS,
   DEFAULT_INTENT_TTL_S,
+  ExecutionType,
+  ExternalBridgeType,
+  getInventoryRouteChainNames,
   getStrategyChainConfig,
   getStrategyChainNames,
+  PendingTransferMiddlewareType,
+  InventoryRouteConfigSchema,
+  InventoryRoutesConfigSchema,
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
   RebalancerMinAmountConfigSchema,
@@ -32,14 +38,19 @@ export {
   RebalancerStrategySchema,
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
+  TokenBridgeStatusAdapterConfigSchema,
+  TokenBridgeStatusAdapterType,
 } from './config/types.js';
 export type {
+  InventoryRoutesConfig,
   MinAmountStrategyConfig,
+  PendingTransferMiddlewareConfig,
   RebalancerConfig as RebalancerConfigType,
   RebalancerConfigFileInput,
   RebalancerMinAmountChainConfig,
   RebalancerWeightedChainConfig,
   StrategyConfig,
+  TokenBridgeStatusAdapterConfig,
   WeightedStrategyConfig,
 } from './config/types.js';
 
@@ -89,6 +100,19 @@ export {
   MonitorStartError,
 } from './interfaces/IMonitor.js';
 export type { IMetrics } from './interfaces/IMetrics.js';
+export type {
+  ITokenBridgeStatusAdapter,
+  MCRExecutionContext,
+  MCRSettlementStatus,
+  MCRStatusPollContext,
+  MCRStatusRef,
+  StatusAdaptersByKind,
+} from './interfaces/ITokenBridgeStatusAdapter.js';
+
+export {
+  HyperlaneMessageStatusAdapter,
+  LzScanStatusAdapter,
+} from './bridges/status/index.js';
 
 // Utils
 export {
@@ -112,6 +136,7 @@ export type {
   IActionTracker,
   CreateRebalanceIntentParams,
   CreateRebalanceActionParams,
+  UpdateRebalanceActionExecutionParams,
 } from './tracking/IActionTracker.js';
 export type {
   Transfer,

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use tracing::warn;
 
@@ -15,6 +15,7 @@ use super::super::disposition::{operation_disposition_by_payload_status, Operati
 /// Filters operations from a batch to determine which should proceed to preparation.
 ///
 /// This function determines the disposition of each operation and routes them accordingly:
+/// - `Unknown`: Operations retained in the prepare queue for another status read
 /// - `PreSubmit`: Operations returned for preparation (new messages or messages needing retry)
 /// - `Submit`: Operations pushed to submit queue (ready for submission or in submission pipeline)
 /// - `PostSubmitSuccess`: Operations pushed to confirm queue (successfully submitted, awaiting confirmation)
@@ -22,6 +23,7 @@ use super::super::disposition::{operation_disposition_by_payload_status, Operati
 ///
 /// # Arguments
 /// * `entrypoint` - The lander entrypoint for checking payload status
+/// * `prepare_queue` - Queue retaining operations whose payload status could not be read
 /// * `submit_queue` - Queue for operations ready to be submitted
 /// * `confirm_queue` - Queue for operations awaiting confirmation
 /// * `db` - Database for managing message-payload linkages
@@ -31,6 +33,7 @@ use super::super::disposition::{operation_disposition_by_payload_status, Operati
 /// A vector of operations that should proceed to the preparation phase.
 pub(crate) async fn filter_operations_for_preparation(
     entrypoint: Arc<dyn Entrypoint + Send + Sync>,
+    prepare_queue: &OpQueue,
     submit_queue: &OpQueue,
     confirm_queue: &OpQueue,
     db: Arc<dyn HyperlaneDb>,
@@ -50,6 +53,13 @@ pub(crate) async fn filter_operations_for_preparation(
     let mut ops_to_prepare = Vec::new();
     for (op, disposition) in operations_with_disposition {
         match disposition {
+            OperationDisposition::Unknown => {
+                let mut op = op;
+                // The prepare queue observes readiness deadlines. Retain the
+                // status and retry count, and avoid a tight loop on read errors.
+                op.set_next_attempt_after(Duration::from_secs(1));
+                prepare_queue.push(op, None).await;
+            }
             PreSubmit => {
                 ops_to_prepare.push(op);
             }
@@ -91,6 +101,7 @@ pub(crate) async fn filter_operations_for_preparation(
 ///
 /// # Returns
 /// The determined `OperationDisposition` indicating how the operation should be routed:
+/// - `Unknown`: Payload status could not be read; retain tracking and retry
 /// - `PreSubmit`: Operation needs preparation (new message or failed/dropped transaction)
 /// - `Submit`: Operation ready for submission or in submission pipeline
 /// - `PostSubmitSuccess`: Operation successfully submitted, awaiting confirmation

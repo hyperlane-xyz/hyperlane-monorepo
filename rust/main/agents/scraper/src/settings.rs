@@ -21,9 +21,11 @@ use hyperlane_base::{
         Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, H160};
+use redact::Secret;
 use serde::Deserialize;
 use serde_json::Value;
+use url::Url;
 
 /// Settings for `Scraper`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
@@ -34,7 +36,9 @@ pub struct ScraperSettings {
     #[deref_mut]
     pub base: Settings,
 
-    pub db: String,
+    /// Optional EVM and Sealevel event subscription endpoints, keyed by chain name.
+    pub websocket_urls: Secret<HashMap<String, Url>>,
+    pub db: Secret<String>,
     pub db_max_connections: u32,
     pub db_acquire_timeout: Duration,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
@@ -46,7 +50,7 @@ pub struct ScraperSettings {
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-struct RawScraperSettings(Value);
+struct RawScraperSettings(Secret<Value>);
 
 impl_loadable_from_settings!(Scraper, RawScraperSettings -> ScraperSettings);
 
@@ -59,7 +63,7 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let p = ValueParser::new(cwp.clone(), raw.0.expose_secret());
 
         let chains_names_to_scrape: Option<HashSet<&str>> = p
             .chain(&mut err)
@@ -111,6 +115,33 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             Default::default()
         };
 
+        let websocket_urls = p
+            .chain(&mut err)
+            .get_opt_key("websocketUrls")
+            .parse_value::<HashMap<String, Url>>("parsing websocketUrls")
+            .end()
+            .unwrap_or_default();
+        for (chain, url) in &websocket_urls {
+            if !matches!(url.scheme(), "ws" | "wss") {
+                err.push(
+                    cwp.add("websocket_urls"),
+                    eyre::eyre!("WebSocket URL for {chain} must use ws:// or wss://"),
+                );
+            }
+            if !chains_to_scrape.iter().any(|domain| {
+                domain.name() == chain
+                    && matches!(
+                        domain.domain_protocol(),
+                        HyperlaneDomainProtocol::Ethereum | HyperlaneDomainProtocol::Sealevel
+                    )
+            }) {
+                err.push(
+                    cwp.add("websocket_urls"),
+                    eyre::eyre!("WebSocket chain {chain} must be an EVM or Sealevel chain in chainsToScrape"),
+                );
+            }
+        }
+
         // Parse optional ccrRouters: { "domainId": { "routerAddr": "tokenAddr" } }
         let raw_ccr_routers = p
             .chain(&mut err)
@@ -158,11 +189,12 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
 
         err.into_result(Self {
             base,
-            db,
+            db: Secret::new(db),
             db_max_connections,
             db_acquire_timeout,
             chains_to_scrape,
             ccr_routers,
+            websocket_urls: Secret::new(websocket_urls),
         })
     }
 }

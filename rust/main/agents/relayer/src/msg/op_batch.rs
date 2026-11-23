@@ -346,7 +346,8 @@ mod tests {
                         "https://endpoints.omniatech.io/v1/arbitrum/one/public"
                             .parse()
                             .unwrap(),
-                    ],
+                    ]
+                    .into(),
                 },
                 transaction_overrides: Default::default(),
                 op_submission_config: OpSubmissionConfig {
@@ -405,6 +406,7 @@ mod tests {
             base_db.clone(),
             IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
             IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+            Default::default(),
             None,
             false,
         );
@@ -423,6 +425,7 @@ mod tests {
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
             application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+            origin_sender_check: None,
         });
 
         let attempts = 2;

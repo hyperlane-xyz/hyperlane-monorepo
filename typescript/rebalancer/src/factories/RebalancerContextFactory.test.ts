@@ -1,9 +1,16 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+import { ethers, type providers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
+import { BlacklistIsm__factory, Mailbox__factory } from '@hyperlane-xyz/core';
 import { type IRegistry, RegistryType } from '@hyperlane-xyz/registry';
 import {
+  EvmIsmReader,
+  IsmType,
+  MultiProtocolCore,
+  ChainStatus,
   MultiProtocolProvider,
   MultiProvider,
   TokenStandard,
@@ -11,15 +18,28 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import type { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
+  ExternalBridgeType,
   DEFAULT_INTENT_TTL_MS,
+  type PendingTransferMiddlewareConfig,
+  PendingTransferMiddlewareType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
-import { TEST_ADDRESSES } from '../test/helpers.js';
+import {
+  TEST_ADDRESSES,
+  createMockSettlementProvider,
+} from '../test/helpers.js';
+import { BlacklistIsmMiddleware } from '../tracking/pendingTransferMiddlewares/BlacklistIsmMiddleware.js';
+import type { IExplorerClient } from '../utils/ExplorerClient.js';
+
+import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
+import { ActionTracker } from '../tracking/ActionTracker.js';
 
 import { RebalancerContextFactory } from './RebalancerContextFactory.js';
+
+chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -84,6 +104,12 @@ function createMockConfig(): RebalancerConfig {
 function createMockMpp() {
   const mpp = Sinon.createStubInstance(MultiProtocolProvider);
   mpp.extendChainMetadata.returnsThis();
+  const domain = (chain: string | number) =>
+    chain === 'ethereum' ? 1 : chain === 'arbitrum' ? 42161 : 2;
+  mpp.getDomainId.callsFake(domain);
+  mpp.getEthersV5Provider.callsFake((chain) =>
+    createMockSettlementProvider(domain(chain)),
+  );
   return mpp;
 }
 
@@ -112,7 +138,7 @@ function createMockMultiProvider(chains: ChainDef[]) {
     chains.map((c) => [c.name, c.protocol]),
   );
 
-  const multiProvider = Sinon.createStubInstance(MultiProvider);
+  const multiProvider = Sinon.stub(new MultiProvider({}));
   multiProvider.getProtocol.callsFake((chain) => {
     const protocol = protocolMap[String(chain)];
     assert(protocol, `No protocol in mock for chain ${chain}`);
@@ -126,6 +152,7 @@ async function createFactory(
   config: RebalancerConfig,
   multiProvider: MultiProvider,
   warpCoreConfig: WarpCoreConfig,
+  externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
 ) {
   return RebalancerContextFactory.create(
     config,
@@ -135,6 +162,7 @@ async function createFactory(
     testLogger,
     undefined,
     warpCoreConfig,
+    externalBridgeApiKeys,
   );
 }
 
@@ -142,7 +170,11 @@ async function callCreate(
   multiProvider: MultiProvider,
   warpCoreConfig: WarpCoreConfig,
 ) {
-  await createFactory(createMockConfig(), multiProvider, warpCoreConfig);
+  const config = createMockConfig();
+  for (const strategy of config.strategyConfig) {
+    for (const chain of Object.values(strategy.chains)) chain.enabled = false;
+  }
+  await createFactory(config, multiProvider, warpCoreConfig);
 }
 
 describe('RebalancerContextFactory', () => {
@@ -156,9 +188,134 @@ describe('RebalancerContextFactory', () => {
     sandbox.restore();
   });
 
+  it('preserves the seventh positional warp config override', async () => {
+    const { multiProvider } = createMockMultiProvider([
+      { name: 'ethereum', protocol: ProtocolType.Ethereum },
+      { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+    ]);
+    const getWarpRoute = Sinon.stub().rejects(
+      new Error('The supplied warp config must bypass registry lookup'),
+    );
+    const factory = await RebalancerContextFactory.create(
+      createMockConfig(),
+      multiProvider,
+      createMockMpp(),
+      { ...createMockRegistry(), getWarpRoute },
+      testLogger,
+      undefined,
+      {
+        tokens: [
+          createToken(
+            'ethereum',
+            TEST_ADDRESSES.ethereum,
+            TokenStandard.EvmHypCollateral,
+          ),
+          createToken(
+            'arbitrum',
+            TEST_ADDRESSES.arbitrum,
+            TokenStandard.EvmHypCollateral,
+          ),
+        ],
+      },
+    );
+
+    expect(getWarpRoute.called).to.equal(false);
+    expect(
+      factory.getWarpCore().tokens.map((token) => token.chainName),
+    ).to.deep.equal(['ethereum', 'arbitrum']);
+  });
+
+  describe('physical inventory route endpoints', () => {
+    async function factoryForPolicy(
+      includeNeutralToken: boolean,
+      standard = TokenStandard.EvmHypCollateral,
+    ) {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+        { name: 'optimism', protocol: ProtocolType.Ethereum },
+      ]);
+      const config: RebalancerConfig = {
+        ...createMockConfig(),
+        inventorySigners: {
+          [ProtocolType.Ethereum]: {
+            address: TEST_ADDRESSES.ethereum,
+            key: 'test-key',
+          },
+        },
+        inventoryRoutes: { optimism: { arbitrum: { priority: 1 } } },
+      };
+      config.strategyConfig[0].chains.arbitrum.executionType =
+        ExecutionType.Inventory;
+      const mpp = createMockMpp();
+      mpp.getChainMetadata.callsFake((chain) => ({
+        name: String(chain),
+        chainId: 1,
+        domainId: 1,
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [],
+      }));
+      const factory = await RebalancerContextFactory.create(
+        config,
+        multiProvider,
+        mpp,
+        createMockRegistry(),
+        testLogger,
+        undefined,
+        {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            createToken(
+              'arbitrum',
+              TEST_ADDRESSES.arbitrum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            ...(includeNeutralToken
+              ? [createToken('optimism', TEST_ADDRESSES.polygon, standard)]
+              : []),
+          ],
+        },
+      );
+      return factory['createInventoryRebalancerAndConfig'](
+        Sinon.createStubInstance(ActionTracker),
+        {},
+      );
+    }
+
+    it('monitors a configured neutral inventory source outside the strategy', async () => {
+      const result = await factoryForPolicy(true);
+      assert(result, 'Expected inventory components');
+      expect(result.inventoryConfig.chains).to.include('optimism');
+      assert(
+        result.inventoryRebalancer instanceof InventoryRebalancer,
+        'Expected inventory rebalancer',
+      );
+      expect(
+        result.inventoryRebalancer['config'].inventoryRoutes,
+      ).to.deep.equal({ optimism: { arbitrum: { priority: 1 } } });
+    });
+
+    it('rejects a physical endpoint missing from the warp route', async () => {
+      await expect(factoryForPolicy(false)).to.be.rejectedWith(
+        'No token found for inventory-relevant chain optimism',
+      );
+    });
+
+    it('rejects synthetic tokens on inventory-only endpoints', async () => {
+      await expect(
+        factoryForPolicy(true, TokenStandard.EvmHypSynthetic),
+      ).to.be.rejectedWith('synthetic token on chain "optimism"');
+    });
+  });
+
   describe('external bridge initialization', () => {
     async function factoryWithBridges(
       externalBridges?: RebalancerConfig['externalBridges'],
+      externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>,
     ) {
       const { multiProvider } = createMockMultiProvider([
         { name: 'ethereum', protocol: ProtocolType.Ethereum },
@@ -181,13 +338,107 @@ describe('RebalancerContextFactory', () => {
             ),
           ],
         },
+        externalBridgeApiKeys,
       );
     }
+
+    it('passes independent Solana fee and spending controls to swaps.xyz', async () => {
+      const factory = await factoryWithBridges(
+        {
+          swapsxyz: {
+            maxQuoteLossBps: 50,
+            maxSolanaTransactionFeeLamports: 7_000_000,
+            solanaTransactionFeeWarningLamports: 700_000,
+            maxSolanaNativeSpendLamports: 3_000_000,
+          },
+        },
+        { [ExternalBridgeType.SwapsXyz]: 'test-api-key' },
+      );
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.swapsxyz).to.have.property(
+        'maxSolanaTransactionFeeLamports',
+        7_000_000,
+      );
+      expect(registry.swapsxyz).to.have.property(
+        'solanaTransactionFeeWarningLamports',
+        700_000,
+      );
+      expect(registry.swapsxyz).to.have.property(
+        'maxSolanaNativeSpendLamports',
+        3_000_000,
+      );
+    }).timeout(10_000);
+
+    it('initializes Relay without requiring an API key', async () => {
+      const factory = await factoryWithBridges({
+        relay: { defaultSlippage: 0.001, maxQuoteLossBps: 100 },
+      });
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.relay?.externalBridgeId).to.equal(
+        ExternalBridgeType.Relay,
+      );
+      expect(registry.relay).to.have.property('maxQuoteLossBps', 100);
+      expect(registry.relay).to.have.property('defaultSlippage', 0.001);
+    });
+
+    it('initializes the Elysium native adapter with its configured HYPE budget', async () => {
+      const factory = await factoryWithBridges({
+        elysiumNative: { maxNativeValueWei: 123n },
+      });
+      for (const { name, chainId } of [
+        { name: 'hyperevm', chainId: 999 },
+        { name: 'elysium', chainId: 99901 },
+      ]) {
+        factory['multiProvider'].metadata[name] = {
+          name,
+          chainId,
+          domainId: chainId,
+          protocol: ProtocolType.Ethereum,
+          rpcUrls: [{ http: 'https://rpc.example.invalid' }],
+        };
+      }
+      const registry = await factory['buildExternalBridgeRegistry']();
+      expect(registry.elysiumNative?.externalBridgeId).to.equal(
+        ExternalBridgeType.ElysiumNative,
+      );
+      expect(registry.elysiumNative).to.have.property(
+        'maxNativeValueWei',
+        123n,
+      );
+    }).timeout(10_000);
 
     it('returns no bridges when no external bridge is configured', async () => {
       const factory = await factoryWithBridges();
       expect(await factory['buildExternalBridgeRegistry']()).to.deep.equal({});
     });
+
+    it('excludes disabled metadata with a duplicate bridge chain ID', async () => {
+      const factory = await factoryWithBridges({
+        lifi: { integrator: 'test-rebalancer' },
+      });
+      const ethereum = {
+        name: 'ethereum',
+        protocol: ProtocolType.Ethereum,
+        chainId: 1,
+        domainId: 1,
+        rpcUrls: [{ http: 'https://rpc.example.invalid' }],
+      };
+      Object.assign(factory['multiProvider'].metadata, {
+        ethereum,
+        deprecatedethereum: {
+          ...ethereum,
+          name: 'deprecatedethereum',
+          domainId: 2,
+          availability: { status: ChainStatus.Disabled },
+        },
+      });
+
+      const registry = await factory['buildExternalBridgeRegistry']();
+
+      expect(registry.lifi)
+        .to.have.nested.property('config.chainMetadata')
+        .that.deep.equals({ ethereum });
+    }).timeout(10_000);
 
     it('awaits the configured LiFi bridge before returning the registry', async () => {
       const factory = await factoryWithBridges({
@@ -200,6 +451,176 @@ describe('RebalancerContextFactory', () => {
         '0x0000000000000000000000000000000000000000',
       );
     }).timeout(10_000);
+  });
+
+  describe('createActionTracker() — pending transfer middlewares', () => {
+    const BLACKLIST_ISM = '0x5555555555555555555555555555555555555555';
+    const mailboxInterface = Mailbox__factory.createInterface();
+    const blacklistInterface = BlacklistIsm__factory.createInterface();
+
+    const DEFAULT_ISM = '0x6666666666666666666666666666666666666666';
+
+    /**
+     * Every router has the BlacklistIsm as its own ISM, which has no
+     * blacklisted ids.
+     */
+    function createIsmProvider(): providers.Provider {
+      const provider = new ethers.providers.StaticJsonRpcProvider(
+        'http://127.0.0.1:1',
+        { chainId: 1, name: 'fake' },
+      );
+      Sinon.stub(provider, 'call').callsFake(async (tx) => {
+        const { data } = await ethers.utils.resolveProperties(tx);
+        if (typeof data !== 'string') throw new Error('Unexpected call');
+
+        if (data.startsWith(mailboxInterface.getSighash('recipientIsm'))) {
+          return mailboxInterface.encodeFunctionResult('recipientIsm', [
+            BLACKLIST_ISM,
+          ]);
+        }
+        if (data.startsWith(mailboxInterface.getSighash('defaultIsm'))) {
+          return mailboxInterface.encodeFunctionResult('defaultIsm', [
+            DEFAULT_ISM,
+          ]);
+        }
+        if (data.startsWith(blacklistInterface.getSighash('values'))) {
+          return blacklistInterface.encodeFunctionResult('values', [[]]);
+        }
+        throw new Error(`Unexpected call ${data}`);
+      });
+
+      return provider;
+    }
+
+    const DOMAINS: Record<string, number> = { ethereum: 1, arbitrum: 42161 };
+    const explorer: IExplorerClient = {
+      getInflightUserTransfers: async () => [],
+      getInflightRebalanceActions: async () => [],
+    };
+
+    let deriveIsmConfig: Sinon.SinonStub;
+
+    async function createTracker(
+      pendingTransferMiddlewares?: PendingTransferMiddlewareConfig[],
+    ): Promise<ActionTracker> {
+      const { multiProvider } = createMockMultiProvider([
+        { name: 'ethereum', protocol: ProtocolType.Ethereum },
+        { name: 'arbitrum', protocol: ProtocolType.Ethereum },
+      ]);
+      multiProvider.getDomainId.callsFake((chain) => {
+        const domain = DOMAINS[String(chain)];
+        assert(domain, `No domain in mock for chain ${chain}`);
+
+        return domain;
+      });
+      multiProvider.getSigner.returns(
+        new ethers.VoidSigner(TEST_ADDRESSES.signer),
+      );
+      multiProvider.getProtocol.returns(ProtocolType.Ethereum);
+      multiProvider.getProvider.returns(createIsmProvider());
+      multiProvider.getChainName.callsFake((domain) => {
+        const chain = Object.keys(DOMAINS).find(
+          (name) => DOMAINS[name] === domain,
+        );
+        assert(chain, `No chain in mock for domain ${domain}`);
+
+        return chain;
+      });
+      multiProvider.getChainMetadata.callsFake((chain) => ({
+        name: String(chain),
+        chainId: DOMAINS[String(chain)],
+        domainId: DOMAINS[String(chain)],
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [{ http: 'http://127.0.0.1:1' }],
+      }));
+      multiProvider.tryGetEvmExplorerMetadataList.returns([]);
+      deriveIsmConfig = sandbox
+        .stub(EvmIsmReader.prototype, 'deriveIsmConfigFromAddress')
+        .resolves({
+          type: IsmType.BLACKLIST,
+          address: BLACKLIST_ISM,
+          owner: TEST_ADDRESSES.signer,
+          blacklistedIds: [],
+        });
+
+      sandbox
+        .stub(MultiProtocolCore, 'fromAddressesMap')
+        .returns(Sinon.createStubInstance(MultiProtocolCore));
+
+      const base = createMockConfig();
+      const factory = await createFactory(
+        new RebalancerConfig(
+          base.warpRouteId,
+          base.strategyConfig,
+          base.intentTTL,
+          undefined,
+          undefined,
+          pendingTransferMiddlewares,
+        ),
+        multiProvider,
+        {
+          tokens: [
+            createToken(
+              'ethereum',
+              TEST_ADDRESSES.ethereum,
+              TokenStandard.EvmHypCollateral,
+            ),
+            createToken(
+              'arbitrum',
+              TEST_ADDRESSES.arbitrum,
+              TokenStandard.EvmHypCollateral,
+            ),
+          ],
+        },
+      );
+
+      const { tracker } = await factory.createActionTracker(explorer);
+      assert(tracker instanceof ActionTracker, 'Expected an ActionTracker');
+
+      return tracker;
+    }
+
+    it('uses the Explorer client unchanged when no middlewares are configured', async () => {
+      const tracker = await createTracker();
+
+      expect(tracker['explorerClient']).to.equal(explorer);
+      expect(tracker['config'].isIgnoredTransfer).to.equal(undefined);
+      expect(tracker['config'].isIgnoredRebalanceAction).to.equal(undefined);
+    });
+
+    it('wraps the Explorer client and passes the predicate when middlewares are configured', async () => {
+      const tracker = await createTracker([
+        {
+          type: PendingTransferMiddlewareType.BlacklistIsm,
+          refreshIntervalSecs: 600,
+        },
+      ]);
+
+      const client = tracker['explorerClient'];
+      assert(
+        client instanceof BlacklistIsmMiddleware,
+        'Expected a BlacklistIsmMiddleware',
+      );
+
+      expect(client['inner']).to.equal(explorer);
+      expect(tracker['config'].isIgnoredTransfer).to.be.a('function');
+      expect(tracker['config'].isIgnoredRebalanceAction).to.be.a('function');
+      expect(client['options'].mailboxByDomain).to.deep.equal({
+        1: TEST_ADDRESSES.ethereum,
+        42161: TEST_ADDRESSES.ethereum,
+      });
+      expect(client['options'].routersByDomain).to.deep.equal({
+        1: TEST_ADDRESSES.ethereum,
+        42161: TEST_ADDRESSES.arbitrum,
+      });
+      expect(client['options'].refreshIntervalMs).to.equal(600_000);
+      expect(
+        deriveIsmConfig.getCalls().map((call) => call.args[0]),
+      ).to.deep.equal([
+        ethers.utils.getAddress(BLACKLIST_ISM),
+        ethers.utils.getAddress(BLACKLIST_ISM),
+      ]);
+    });
   });
 
   describe('create() — non-EVM chain handling', () => {
@@ -349,7 +770,7 @@ describe('RebalancerContextFactory', () => {
       }
 
       expect(error?.message).to.equal(
-        'No token found for configured strategy chain arbitrum in warp route USDC/paradex',
+        'Missing origin token for arbitrum -> ethereum',
       );
     });
 

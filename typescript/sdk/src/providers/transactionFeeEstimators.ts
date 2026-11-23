@@ -92,20 +92,20 @@ export async function estimateTransactionFeeEthersV5({
   provider: EV5Providers.Provider;
   sender: Address;
 } & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
-  const gasUnits = ignoreSenderBalance
-    ? await estimateGasEthersV5WithBalanceOverride({
-        transaction,
-        provider,
-        sender,
-      })
-    : await provider.estimateGas({
-        ...transaction,
-        from: sender,
-      });
-  return estimateTransactionFeeEthersV5ForGasUnits({
-    provider,
-    gasUnits: BigInt(gasUnits.toString()),
-  });
+  const [gasUnits, feeData] = await Promise.all([
+    ignoreSenderBalance
+      ? estimateGasEthersV5WithBalanceOverride({
+          transaction,
+          provider,
+          sender,
+        })
+      : provider.estimateGas({
+          ...transaction,
+          from: sender,
+        }),
+    provider.getFeeData(),
+  ]);
+  return computeEthersV5TxFee(BigInt(gasUnits.toString()), feeData);
 }
 
 async function estimateGasEthersV5WithBalanceOverride({
@@ -155,7 +155,13 @@ export async function estimateTransactionFeeEthersV5ForGasUnits({
   provider: EthersV5Provider['provider'];
   gasUnits: bigint;
 }): Promise<TransactionFeeEstimate> {
-  const feeData = await provider.getFeeData();
+  return computeEthersV5TxFee(gasUnits, await provider.getFeeData());
+}
+
+function computeEthersV5TxFee(
+  gasUnits: bigint,
+  feeData: EV5Providers.FeeData,
+): TransactionFeeEstimate {
   return computeEvmTxFee(
     gasUnits,
     !isNullish(feeData.gasPrice)
@@ -177,7 +183,7 @@ export async function estimateTransactionFeeViem({
   provider: ViemProvider;
   sender: Address;
 } & TransactionFeeEstimateOptions): Promise<TransactionFeeEstimate> {
-  const gasUnits = await provider.provider.estimateGas({
+  const estimateGas = provider.provider.estimateGas({
     ...transaction.transaction,
     blockNumber: undefined,
     account: sender as `0x${string}`,
@@ -187,7 +193,10 @@ export async function estimateTransactionFeeViem({
       ],
     }),
   } as any); // Cast to silence overly-protective type enforcement from viem here
-  const feeData = await provider.provider.estimateFeesPerGas();
+  const [gasUnits, feeData] = await Promise.all([
+    estimateGas,
+    provider.provider.estimateFeesPerGas(),
+  ]);
   return computeEvmTxFee(gasUnits, feeData.gasPrice, feeData.maxFeePerGas);
 }
 

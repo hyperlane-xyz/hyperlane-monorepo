@@ -14,6 +14,10 @@ inputs:
     description: 'If true, checks if ONLY the specified path changed. If false, checks if ANY files in the path changed.'
     required: false
     default: 'false'
+  exclude_pattern:
+    description: 'Optional regex of changed files to ignore before checking (e.g., "\.md$").'
+    required: false
+    default: ''
 outputs:
   has_changes:
     description: 'Whether the specified path has any changes'
@@ -32,14 +36,22 @@ runs:
         HEAD_SHA: ${{ inputs.head_sha }}
         PATH_PATTERN: ${{ inputs.path_pattern }}
         PATH_PATTERN_ONLY: ${{ inputs.path_pattern_only }}
+        EXCLUDE_PATTERN: ${{ inputs.exclude_pattern }}
       run: |
+        CHANGED_FILES=$(git diff "$BASE_SHA"..."$HEAD_SHA" --name-only)
+        if [[ -n "$EXCLUDE_PATTERN" ]]; then
+          RELEVANT_FILES=$(grep -vE "$EXCLUDE_PATTERN" <<< "$CHANGED_FILES" || true)
+        else
+          RELEVANT_FILES="$CHANGED_FILES"
+        fi
+
         # Check if the specified path has any changes
-        if git diff "$BASE_SHA"..."$HEAD_SHA" --name-only | grep -qE "^${PATH_PATTERN}"; then
+        if grep -qE "^${PATH_PATTERN}" <<< "$RELEVANT_FILES"; then
           echo "has_changes=true" >> $GITHUB_OUTPUT
 
           # If path_pattern_only is requested, also check if ONLY this path changed
           if [[ "$PATH_PATTERN_ONLY" == "true" ]]; then
-            if ! git diff "$BASE_SHA"..."$HEAD_SHA" --name-only | grep -qvE "^${PATH_PATTERN}"; then
+            if ! grep -qvE "^${PATH_PATTERN}" <<< "$RELEVANT_FILES"; then
               echo "only_changes=true" >> $GITHUB_OUTPUT
               echo "Only ${PATH_PATTERN} changes detected."
             else

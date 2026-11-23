@@ -1,5 +1,7 @@
 import { FSWatcher, watch as fsWatch } from 'fs';
 
+const REGISTRY_FILE_EXTENSION_REGEX = /\.(ya?ml|json)$/i;
+
 export interface IWatcher {
   watch(
     path: string,
@@ -16,7 +18,7 @@ export class FileSystemRegistryWatcher implements IWatcher {
     if (!this.watcher) {
       this.watcher = fsWatch(path, { recursive: true }, (event, filename) => {
         // For now we just watch for yaml, yml and json files
-        if (filename?.match(/\.(ya?ml|json)$/i)) {
+        if (filename?.match(REGISTRY_FILE_EXTENSION_REGEX)) {
           callback();
         }
       });

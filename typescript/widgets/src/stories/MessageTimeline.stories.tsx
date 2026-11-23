@@ -1,15 +1,24 @@
-import { ComponentMeta, ComponentStory } from '@storybook/react';
+import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 
 import { MessageTimeline } from '../messages/MessageTimeline.js';
 import { MessageStage, MessageStatus } from '../messages/types.js';
 
-export default {
+const meta = {
   title: 'MessageTimeline',
+  // react-docgen doesn't resolve imported enums, so list their values here.
+  argTypes: {
+    status: { control: 'radio', options: Object.values(MessageStatus) },
+    stage: {
+      control: 'radio',
+      options: Object.values(MessageStage).filter((v) => typeof v === 'number'),
+    },
+  },
   component: MessageTimeline,
-} as ComponentMeta<typeof MessageTimeline>;
+} satisfies Meta<typeof MessageTimeline>;
+export default meta;
 
-const Template: ComponentStory<typeof MessageTimeline> = (args) => (
+const Template: StoryFn<typeof MessageTimeline> = (args) => (
   <MessageTimeline {...args} />
 );
 

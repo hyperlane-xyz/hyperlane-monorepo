@@ -10,7 +10,8 @@ use testcontainers_modules::postgres::Postgres;
 
 use super::*;
 use hyperlane_core::{
-    ChainInfo, ChainResult, HyperlaneChain, KnownHyperlaneDomain, TxnInfo, TxnReceiptInfo, U256,
+    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, KnownHyperlaneDomain, TxnInfo,
+    TxnReceiptInfo, U256,
 };
 
 #[derive(Clone, Debug)]
@@ -34,6 +35,7 @@ fn txn_info(hash: H512) -> TxnInfo {
         sender: H256::zero(),
         recipient: None,
         receipt: Some(TxnReceiptInfo {
+            block_hash: None,
             gas_used: U256::one(),
             cumulative_gas_used: U256::one(),
             effective_gas_price: None,
@@ -41,7 +43,7 @@ fn txn_info(hash: H512) -> TxnInfo {
         raw_input_data: None,
     }
 }
-#[async_trait]
+#[async_trait::async_trait]
 impl HyperlaneProvider for Provider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         Ok(BlockInfo {
@@ -65,15 +67,12 @@ impl HyperlaneProvider for Provider {
 }
 async fn store(db: ScraperDb) -> eyre::Result<HyperlaneDbStore> {
     let domain: HyperlaneDomain = KnownHyperlaneDomain::Ethereum.into();
-    HyperlaneDbStore::new(
+    Ok(HyperlaneDbStore::new(
         db,
         domain.clone(),
         CoreContractAddresses::default(),
         Arc::new(Provider(domain)),
-        &IndexSettings::default(),
-        None,
-    )
-    .await
+    ))
 }
 fn row(id: i64, hash: Vec<u8>) -> BTreeMap<String, Value> {
     BTreeMap::from([("id".into(), id.into()), ("hash".into(), hash.into())])
@@ -85,10 +84,7 @@ async fn ensure(
 ) -> eyre::Result<HashMap<H512, i64>> {
     if txn {
         Ok(store
-            .ensure_txns((1..=count).map(|n| TxnWithBlockId {
-                txn_hash: H512::from_low_u64_be(n),
-                block_id: 1,
-            }))
+            .ensure_txns((1..=count).map(|n| (H512::from_low_u64_be(n), 1)))
             .await?
             .collect())
     } else {
@@ -112,7 +108,6 @@ async fn enrichment_returning_only_queries_missing_hashes() -> eyre::Result<()> 
             };
             let mut results = vec![
                 vec![],
-                vec![],
                 (1..=returned).map(|n| row(n as i64, hash(n))).collect(),
             ];
             if returned < 2 {
@@ -133,9 +128,8 @@ async fn enrichment_returning_only_queries_missing_hashes() -> eyre::Result<()> 
                 HashMap::from([(H512::from_low_u64_be(1), 1), (H512::from_low_u64_be(2), 2)])
             );
             let log = store.db.clone_connection().into_transaction_log();
-            // Exclude the cursor initialization SELECT.
-            assert_eq!(log.len() - 1, if returned == 2 { 2 } else { 3 });
-            let insert = &log[2].statements()[0];
+            assert_eq!(log.len(), if returned == 2 { 2 } else { 3 });
+            let insert = &log[1].statements()[0];
             assert!(
                 insert.sql.ends_with("RETURNING \"id\", \"hash\""),
                 "{}",
@@ -143,7 +137,7 @@ async fn enrichment_returning_only_queries_missing_hashes() -> eyre::Result<()> 
             );
             assert!(insert.sql.contains("DO NOTHING"));
             if returned < 2 {
-                let lookup = &log[3].statements()[0];
+                let lookup = &log[2].statements()[0];
                 assert_eq!(
                     lookup.values.as_ref().unwrap().0.len(),
                     (2 - returned) as usize
@@ -166,9 +160,9 @@ async fn enrichment_returning_errors_and_empty_inputs_preserve_boundaries() -> e
                     >::new(
                     );
                     if insertion_fails {
-                        2
+                        1
                     } else {
-                        3
+                        2
                     }
                 ]);
             db = db.append_query_errors([DbErr::Custom("enrichment read/write failed".into())]);
@@ -184,10 +178,40 @@ async fn enrichment_returning_errors_and_empty_inputs_preserve_boundaries() -> e
             assert!(format!("{error:#}").contains("enrichment read/write failed"));
             assert_eq!(
                 store.db.clone_connection().into_transaction_log().len(),
-                if insertion_fails { 3 } else { 4 }
+                if insertion_fails { 2 } else { 3 }
             );
         }
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn transaction_enrichment_returns_all_rows_across_chunks() -> eyre::Result<()> {
+    let postgres = Postgres::default().start().await?;
+    let port = postgres.get_host_port_ipv4(5432).await?;
+    let connection = Database::connect(format!(
+        "postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+    ))
+    .await?;
+    migration::Migrator::up(&connection, None).await?;
+    let store = store(ScraperDb::with_connection(connection)).await?;
+    let block = store
+        .ensure_blocks(std::iter::once(BlockId::new(H256::from_low_u64_be(1), 1)))
+        .await?
+        .next()
+        .expect("stored block");
+    let count = u64::try_from(CHUNK_SIZE + 1)?;
+    let requested = (1..=count).map(|id| (H512::from_low_u64_be(id), block.id));
+    let found: HashMap<_, _> = store.ensure_txns(requested).await?.collect();
+    assert_eq!(found.len(), CHUNK_SIZE + 1);
+    for id in 1..=count {
+        assert!(found[&H512::from_low_u64_be(id)] > 0);
+    }
+    let replay = (1..=count).map(|id| (H512::from_low_u64_be(id), block.id));
+    assert_eq!(
+        store.ensure_txns(replay).await?.collect::<HashMap<_, _>>(),
+        found
+    );
     Ok(())
 }
 

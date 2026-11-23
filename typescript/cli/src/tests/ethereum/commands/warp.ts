@@ -401,6 +401,7 @@ export function hyperlaneWarpSendRelay({
   sourceToken,
   destinationToken,
   skipValidation,
+  quick,
 }: {
   origin?: string;
   destination?: string;
@@ -415,6 +416,7 @@ export function hyperlaneWarpSendRelay({
   sourceToken?: string;
   destinationToken?: string;
   skipValidation?: boolean;
+  quick?: boolean;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
         ${relay ? '--relay' : []} \
@@ -433,7 +435,8 @@ export function hyperlaneWarpSendRelay({
         ${attestation ? ['--attestation', attestation] : []} \
         ${sourceToken ? ['--source-token', sourceToken] : []} \
         ${destinationToken ? ['--destination-token', destinationToken] : []} \
-        ${skipValidation ? ['--skip-validation'] : []} `;
+        ${skipValidation ? ['--skip-validation'] : []} \
+        ${quick ? ['--quick'] : []}`;
 }
 
 export function hyperlaneWarpCombine({

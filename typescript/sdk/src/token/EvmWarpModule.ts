@@ -137,6 +137,8 @@ import {
   PredicateWrapperConfig,
   PredicateWrapperConfigSchema,
   VERSION_ERROR_MESSAGE,
+  assertFeeHookSupported,
+  assertTokenFeeUpdateSupported,
   contractVersionMatchesDependency,
   derivedHookAddress,
   derivedIsmAddress,
@@ -496,6 +498,13 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<WarpUpdatePhases> {
     HypTokenRouterConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
+    // Validate before planning can deploy fee or implementation contracts.
+    assertFeeHookSupported(
+      expectedConfig,
+      this.chainName,
+      actualConfig.feeHook,
+    );
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
     const hybridPlan = this.planHybridUpdate(actualConfig, expectedConfig);
     const actualHasDelayedFlowRouter =
       (typeof actualConfig.hook === 'object' &&
@@ -2168,7 +2177,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async createIsmUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-    opaqueHybridAddress?: Address,
+    opaqueCombinedHookIsmAddress?: Address,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.interchainSecurityModule) {
@@ -2184,7 +2193,7 @@ export class EvmWarpModule extends HyperlaneModule<
     } = await this.deployOrUpdateIsm(
       actualConfig,
       expectedConfig,
-      opaqueHybridAddress,
+      opaqueCombinedHookIsmAddress,
     );
 
     // If an ISM is updated in-place, push the update txs
@@ -2225,7 +2234,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async createHookAndPredicateUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-    opaqueHybridAddress?: Address,
+    opaqueCombinedHookIsmAddress?: Address,
   ): Promise<AnnotatedEV5Transaction[]> {
     let hookTransactions: AnnotatedEV5Transaction[] = [];
     let newHookAddress: Address | undefined;
@@ -2315,8 +2324,8 @@ export class EvmWarpModule extends HyperlaneModule<
           multiProvider: this.multiProvider,
           proxyAdminAddress,
           rateLimitedSender: this.args.addresses.deployedTokenRoute,
-          opaqueHybridAddresses: opaqueHybridAddress
-            ? [opaqueHybridAddress]
+          opaqueCombinedHookIsmAddresses: opaqueCombinedHookIsmAddress
+            ? [opaqueCombinedHookIsmAddress]
             : undefined,
         },
       );
@@ -2654,6 +2663,12 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    // Keep the public helper safe when called outside updatePhases.
+    assertFeeHookSupported(
+      expectedConfig,
+      this.chainName,
+      actualConfig.feeHook,
+    );
     if (isOftTokenConfig(expectedConfig)) return [];
 
     const expectedFeeHook = expectedConfig.feeHook;
@@ -2719,6 +2734,9 @@ export class EvmWarpModule extends HyperlaneModule<
       }
       return [];
     }
+
+    // Keep the public helper safe when called outside updatePhases.
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
 
     const routerAddress = this.args.addresses.deployedTokenRoute;
     const resolvedTokenFee = await resolveTokenFeeAddress(
@@ -2865,7 +2883,7 @@ export class EvmWarpModule extends HyperlaneModule<
   async deployOrUpdateIsm(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
-    opaqueHybridAddress?: Address,
+    opaqueCombinedHookIsmAddress?: Address,
   ): Promise<{
     deployedIsm: Address;
     updateTransactions: AnnotatedEV5Transaction[];
@@ -2948,7 +2966,7 @@ export class EvmWarpModule extends HyperlaneModule<
     );
     const updateTransactions = await ismModule.update(
       expectedIsm,
-      opaqueHybridAddress ? [opaqueHybridAddress] : [],
+      opaqueCombinedHookIsmAddress ? [opaqueCombinedHookIsmAddress] : [],
     );
     const { deployedIsm } = ismModule.serialize();
 
@@ -2979,6 +2997,9 @@ export class EvmWarpModule extends HyperlaneModule<
       actualConfig.contractVersion,
       'Actual contract version is undefined',
     );
+
+    // Keep the public upgrade helper safe when called outside updatePhases.
+    assertTokenFeeUpdateSupported(expectedConfig, actualConfig, this.chainName);
 
     // Only upgrade if the user specifies a version
     if (!expectedConfig.contractVersion) {

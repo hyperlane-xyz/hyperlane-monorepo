@@ -1,7 +1,14 @@
 import { BigNumber, ethers } from 'ethers';
+import type { PopulatedTransaction } from 'ethers';
 import type { Logger } from 'pino';
 
-import { HyperlaneIgp, MultiProvider } from '@hyperlane-xyz/sdk';
+import { ERC20__factory } from '@hyperlane-xyz/core';
+import {
+  ChainTechnicalStack,
+  HyperlaneIgp,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import { addBufferToGasLimit, assert } from '@hyperlane-xyz/utils';
 
 import type {
   ChainConfig,
@@ -23,6 +30,8 @@ export interface KeyFunderOptions {
 }
 
 export class KeyFunder {
+  private readonly validatedGasTokens = new Set<string>();
+
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly config: KeyFunderConfig,
@@ -99,6 +108,8 @@ export class KeyFunder {
     const startTime = Date.now();
     const logger = this.options.logger.child({ chain });
 
+    await this.validateGasTokenDecimals(chain);
+
     if (!this.options.skipIgpClaim && chainConfig.igp) {
       await this.claimFromIgp(chain, chainConfig);
     }
@@ -130,16 +141,78 @@ export class KeyFunder {
     logger.info({ durationSeconds }, 'Chain funding completed');
   }
 
+  private async validateGasTokenDecimals(chain: string): Promise<void> {
+    const token = this.config.chains[chain].erc20GasToken;
+    if (!token || this.validatedGasTokens.has(chain)) return;
+
+    const decimals = await ERC20__factory.connect(
+      token.address,
+      this.multiProvider.getProvider(chain),
+    ).decimals();
+    assert(
+      decimals === token.decimals,
+      `ERC20 gas token decimals mismatch on ${chain}: configured ${token.decimals}, on-chain ${decimals} (${token.address})`,
+    );
+    this.validatedGasTokens.add(chain);
+  }
+
   private getNativeDecimals(chain: string): number {
     return (
-      this.multiProvider.getChainMetadata(chain).nativeToken?.decimals ?? 18
+      this.config.chains[chain].erc20GasToken?.decimals ??
+      this.multiProvider.getChainMetadata(chain).nativeToken?.decimals ??
+      18
     );
+  }
+
+  private async getBalance(chain: string, address: string): Promise<BigNumber> {
+    const token = this.config.chains[chain].erc20GasToken;
+    const provider = this.multiProvider.getProvider(chain);
+    return token
+      ? ERC20__factory.connect(token.address, provider).balanceOf(address)
+      : provider.getBalance(address);
+  }
+
+  private async getFunderBalance(chain: string): Promise<BigNumber> {
+    const signer = this.multiProvider.getSigner(chain);
+    return this.config.chains[chain].erc20GasToken
+      ? this.getBalance(chain, await signer.getAddress())
+      : signer.getBalance();
+  }
+
+  /** Builds a transfer with headroom for Nitro parent-chain fee changes. */
+  private async prepareTransfer(
+    chain: string,
+    to: string,
+    amount: BigNumber,
+  ): Promise<PopulatedTransaction> {
+    const token = this.config.chains[chain].erc20GasToken;
+    const transaction = token
+      ? await ERC20__factory.connect(
+          token.address,
+          this.multiProvider.getProvider(chain),
+        ).populateTransaction.transfer(to, amount)
+      : { to, value: amount };
+    if (
+      this.multiProvider.getChainMetadata(chain).technicalStack ===
+      ChainTechnicalStack.ArbitrumNitro
+    ) {
+      // Nitro's parent-chain data fee can change after estimation.
+      const estimatedGas = await this.multiProvider.estimateGas(
+        chain,
+        transaction,
+      );
+      return {
+        ...transaction,
+        gasLimit: addBufferToGasLimit(estimatedGas),
+      };
+    }
+    return transaction;
   }
 
   private async recordFunderBalance(chain: string): Promise<void> {
     const signer = this.multiProvider.getSigner(chain);
     const funderAddress = await signer.getAddress();
-    const funderBalance = await signer.getBalance();
+    const funderBalance = await this.getFunderBalance(chain);
     const balance = parseFloat(
       ethers.utils.formatUnits(funderBalance, this.getNativeDecimals(chain)),
     );
@@ -192,11 +265,10 @@ export class KeyFunder {
     }
 
     const logger = this.options.logger.child({ chain, operation: 'igp-claim' });
-    const provider = this.multiProvider.getProvider(chain);
     const igpContract =
       this.options.igp.getContracts(chain).interchainGasPaymaster;
     const decimals = this.getNativeDecimals(chain);
-    const igpBalance = await provider.getBalance(igpContract.address);
+    const igpBalance = await this.getBalance(chain, igpContract.address);
     const claimThreshold = ethers.utils.parseUnits(
       igpConfig.claimThreshold,
       decimals,
@@ -219,7 +291,11 @@ export class KeyFunder {
       logger.info('IGP balance exceeds threshold, claiming');
       await this.multiProvider.sendTransaction(
         chain,
-        await igpContract.populateTransaction.claim(),
+        chainConfig.erc20GasToken
+          ? await igpContract.populateTransaction.claimToken(
+              chainConfig.erc20GasToken.address,
+            )
+          : await igpContract.populateTransaction.claim(),
       );
       logger.info('IGP claim completed');
     }
@@ -246,9 +322,7 @@ export class KeyFunder {
       key.desiredBalance,
       decimals,
     );
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(key.address);
+    const currentBalance = await this.getBalance(chain, key.address);
     const fundingAmount = this.calculateFundingAmount(
       currentBalance,
       desiredBalance,
@@ -270,9 +344,7 @@ export class KeyFunder {
     }
 
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
+    const funderBalance = await this.getFunderBalance(chain);
 
     if (funderBalance.lt(fundingAmount)) {
       logger.error(
@@ -298,10 +370,10 @@ export class KeyFunder {
       'Funding key',
     );
 
-    const tx = await this.multiProvider.sendTransaction(chain, {
-      to: key.address,
-      value: fundingAmount,
-    });
+    const tx = await this.multiProvider.sendTransaction(
+      chain,
+      await this.prepareTransfer(chain, key.address, fundingAmount),
+    );
 
     this.options.metrics?.recordFundingAmount(
       chain,
@@ -363,9 +435,7 @@ export class KeyFunder {
       sweepConfig.triggerMultiplier,
     );
 
-    const funderBalance = await this.multiProvider
-      .getSigner(chain)
-      .getBalance();
+    const funderBalance = await this.getFunderBalance(chain);
 
     logger.info(
       {
@@ -377,7 +447,52 @@ export class KeyFunder {
     );
 
     if (funderBalance.gt(triggerThreshold)) {
-      const sweepAmount = funderBalance.sub(targetBalance);
+      let sweepAmount = funderBalance.sub(targetBalance);
+      const transfer = await this.prepareTransfer(
+        chain,
+        sweepConfig.address,
+        sweepAmount,
+      );
+      let transaction = transfer;
+      if (
+        !chainConfig.erc20GasToken &&
+        this.multiProvider.getChainMetadata(chain).technicalStack ===
+          ChainTechnicalStack.ArbitrumNitro
+      ) {
+        // Reserve the same buffered limit and fee cap that will be submitted.
+        const populated = await this.multiProvider
+          .getSigner(chain)
+          .populateTransaction(
+            await this.multiProvider.prepareTx(chain, transfer),
+          );
+        const gasPrice = populated.maxFeePerGas ?? populated.gasPrice;
+        assert(populated.gasLimit && gasPrice, 'Missing sweep gas parameters');
+        const gasLimit = BigNumber.from(populated.gasLimit);
+        const gasCost = gasLimit.mul(gasPrice);
+        if (sweepAmount.lte(gasCost)) {
+          logger.info('Sweep surplus cannot cover buffered gas cost, skipping');
+          return;
+        }
+        sweepAmount = sweepAmount.sub(gasCost);
+        transaction = {
+          ...transfer,
+          value: sweepAmount,
+          gasLimit,
+          type: populated.type,
+          gasPrice:
+            populated.gasPrice == null
+              ? undefined
+              : BigNumber.from(populated.gasPrice),
+          maxFeePerGas:
+            populated.maxFeePerGas == null
+              ? undefined
+              : BigNumber.from(populated.maxFeePerGas),
+          maxPriorityFeePerGas:
+            populated.maxPriorityFeePerGas == null
+              ? undefined
+              : BigNumber.from(populated.maxPriorityFeePerGas),
+        };
+      }
 
       logger.info(
         {
@@ -387,10 +502,7 @@ export class KeyFunder {
         'Sweeping excess funds',
       );
 
-      const tx = await this.multiProvider.sendTransaction(chain, {
-        to: sweepConfig.address,
-        value: sweepAmount,
-      });
+      const tx = await this.multiProvider.sendTransaction(chain, transaction);
 
       this.options.metrics?.recordSweepAmount(
         chain,

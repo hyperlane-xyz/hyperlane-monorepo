@@ -9,7 +9,6 @@ import {
   Domain,
   addressToBytes32,
   assert,
-  fromWei,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -116,7 +115,9 @@ export class RadixTokenAdapter
       signer: transferParams.fromAccountOwner,
       recipient: transferParams.recipient,
       denom,
-      amount: fromWei(transferParams.weiAmountOrId.toString(), decimals),
+      amount: new BigNumber(transferParams.weiAmountOrId.toString())
+        .shiftedBy(-decimals)
+        .toFixed(),
     });
   }
 

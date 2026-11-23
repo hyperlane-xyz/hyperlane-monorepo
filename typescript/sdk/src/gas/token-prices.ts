@@ -266,7 +266,6 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   }
 
   private async get(endpoint: string): Promise<any> {
-    const url = new URL(endpoint);
     // Send the key as a header, not a query param: the query-param form returns
     // 401, and the header also keeps the secret out of the URL (which is logged
     // on error below).
@@ -274,7 +273,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       ? { [COINGECKO_PRO_API_KEY_HEADER]: this.apiKey }
       : {};
 
-    const resp = await fetch(url, { headers });
+    const resp = await fetch(endpoint, { headers });
     let idPrices: any = {};
     let jsonError: unknown;
     try {
@@ -289,7 +288,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
         {
           status: resp.status,
           statusText: resp.statusText,
-          url,
+          url: endpoint,
         },
         `Failed to fetch token prices: ${idPrices?.error}`,
       );

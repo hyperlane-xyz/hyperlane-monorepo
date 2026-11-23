@@ -12,6 +12,14 @@ import {
 } from './strings.js';
 
 describe('String Utilities', () => {
+  it('reuses the title regex across repeated and interleaved inputs', () => {
+    for (let i = 0; i < 3; i++) {
+      expect(toTitleCase('alpha BETA')).to.equal('Alpha Beta');
+      expect(toTitleCase('')).to.equal('');
+      expect(toTitleCase('gamma DELTA')).to.equal('Gamma Delta');
+    }
+  });
+
   it('should convert string to title case', () => {
     expect(toTitleCase('hello world')).to.equal('Hello World');
     expect(toTitleCase('HELLO WORLD')).to.equal('Hello World');

@@ -2,6 +2,8 @@ import http from 'http';
 import type { Logger } from 'pino';
 import type { Registry } from 'prom-client';
 
+const PORT_NUMBER_REGEX = /^\d+$/;
+
 /**
  * Start a simple HTTP server to host metrics. This takes the registry and dumps the text
  * string to people who request `GET /metrics`.
@@ -19,7 +21,7 @@ export function startMetricsServer(
   const configuredPort = process.env['PROMETHEUS_PORT'];
   const portString = configuredPort ?? '9090';
 
-  if (!/^\d+$/.test(portString)) {
+  if (!PORT_NUMBER_REGEX.test(portString)) {
     const message =
       'PROMETHEUS_PORT must contain only digits and be between 1 and 65535';
     logger?.error({ port: configuredPort }, message);

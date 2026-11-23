@@ -29,14 +29,18 @@ import {
 const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
 // The original CCTP V2 production legs were deployed at core 11.2.0. Legs added
-// afterwards, and every staging leg (staging is redeployed freely), track the
-// current core version. Pinning the wrong version makes `warp check`/`warp
-// apply` fail: the getter must report the version actually on-chain.
+// afterwards record the core version they were deployed at, and every staging
+// leg (staging is redeployed freely) tracks the current core version. Pinning
+// the wrong version makes `warp check`/`warp apply` fail: the getter must
+// report the version actually on-chain.
 const CONTRACT_VERSION_LEGACY = '11.2.0';
 const CONTRACT_VERSION_LATEST = '12.1.0';
 
-// Production legs deployed at the latest core version rather than 11.2.0.
-const LATEST_VERSION_PRODUCTION_CHAINS = new Set<ChainName>(['arc']);
+// Production legs deployed at a core version other than 11.2.0.
+const PRODUCTION_CONTRACT_VERSIONS: Partial<Record<ChainName, string>> = {
+  arc: '12.1.0',
+  monad: '12.2.0',
+};
 
 const getContractVersion = (
   chain: ChainName,
@@ -45,9 +49,7 @@ const getContractVersion = (
   if (environment === 'staging') {
     return CONTRACT_VERSION_LATEST;
   }
-  return LATEST_VERSION_PRODUCTION_CHAINS.has(chain)
-    ? CONTRACT_VERSION_LATEST
-    : CONTRACT_VERSION_LEGACY;
+  return PRODUCTION_CONTRACT_VERSIONS[chain] ?? CONTRACT_VERSION_LEGACY;
 };
 
 type CctpVersion = 'V1' | 'V2';
@@ -76,6 +78,12 @@ const CCTP_V2_CHAINS = [
   'ink',
   'arc',
 ] as const satisfies ReadonlyArray<keyof typeof tokenMessengerV2Addresses>;
+
+// The production standard V2 route adds monad and drops sei (deprecated in
+// #9765). The fast and staging routes keep CCTP_V2_CHAINS.
+const CCTP_V2_STANDARD_PRODUCTION_CHAINS: ReadonlyArray<
+  keyof typeof tokenMessengerV2Addresses
+> = [...CCTP_V2_CHAINS.filter((chain) => chain !== 'sei'), 'monad'];
 
 export const CCTP_CHAINS = CCTP_V1_CHAINS;
 
@@ -109,6 +117,7 @@ const v2Owners: Record<ChainName, string> = {
   hyperevm: awIcas['hyperevm'],
   ink: awIcas['ink'],
   arc: awIcas['arc'],
+  monad: awIcas['monad'],
 };
 
 const getOwner = (
@@ -127,6 +136,7 @@ const getCCTPWarpConfig = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   version: CctpVersion,
   environment: CctpEnvironment,
+  routeChains: string[],
 ): ChainMap<HypTokenRouterConfig> => {
   const messengerAddresses =
     version === 'V1' ? tokenMessengerV1Addresses : tokenMessengerV2Addresses;
@@ -134,8 +144,6 @@ const getCCTPWarpConfig = (
     version === 'V1'
       ? messageTransmitterV1Addresses
       : messageTransmitterV2Addresses;
-  const routeChains: string[] =
-    version === 'V1' ? [...CCTP_V1_CHAINS] : [...CCTP_V2_CHAINS];
 
   const chains = (
     Object.keys(messengerAddresses) as Array<keyof typeof messengerAddresses>
@@ -165,7 +173,9 @@ export const getCCTPV1WarpConfig = async (
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   _warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  return getCCTPWarpConfig(routerConfig, 'V1', 'production');
+  return getCCTPWarpConfig(routerConfig, 'V1', 'production', [
+    ...CCTP_V1_CHAINS,
+  ]);
 };
 
 const getCCTPV2WarpConfig = (
@@ -173,7 +183,16 @@ const getCCTPV2WarpConfig = (
   mode: 'fast' | 'standard',
   environment: CctpEnvironment,
 ): ChainMap<HypTokenRouterConfig> => {
-  const baseConfig = getCCTPWarpConfig(routerConfig, 'V2', environment);
+  const routeChains: string[] =
+    mode === 'standard' && environment === 'production'
+      ? [...CCTP_V2_STANDARD_PRODUCTION_CHAINS]
+      : [...CCTP_V2_CHAINS];
+  const baseConfig = getCCTPWarpConfig(
+    routerConfig,
+    'V2',
+    environment,
+    routeChains,
+  );
   return objMap(baseConfig, (chain, config) => {
     const maxFeeBps =
       mode === 'fast'
@@ -244,7 +263,14 @@ const getCCTPStrategyConfig = (
   version: CctpVersion = 'V1',
 ): ChainSubmissionStrategy => {
   const chains: string[] =
-    version === 'V1' ? [...CCTP_V1_CHAINS] : [...CCTP_V2_CHAINS];
+    version === 'V1'
+      ? [...CCTP_V1_CHAINS]
+      : [
+          ...new Set([
+            ...CCTP_V2_CHAINS,
+            ...CCTP_V2_STANDARD_PRODUCTION_CHAINS,
+          ]),
+        ];
 
   // For V1, use legacy ICAs; for V2, use new ICAs
   const icaChains = version === 'V1' ? icaChainsLegacy : icaChainsV2;

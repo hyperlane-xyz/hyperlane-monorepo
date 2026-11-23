@@ -57,6 +57,13 @@ impl Prover {
         Ok(self.tree.root())
     }
 
+    /// Append a complete batch, rejecting insufficient capacity before mutation.
+    /// Historical proofs remain available for every intermediate leaf index.
+    pub fn ingest_batch(&mut self, elements: &[H256]) -> Result<H256, ProverError> {
+        self.tree.push_batch(elements)?;
+        Ok(self.tree.root())
+    }
+
     /// Return the current root hash of the tree
     pub fn root(&self) -> H256 {
         self.tree.root()

@@ -21,6 +21,16 @@ three frontier indexes and gas payment log index, which their down
 migrations drop. Scraper startup refuses to run until the collision-safe gas
 payment log index is valid and `gas_payment_transaction_log` is gone.
 
+Transaction enrichment requires migrations 20–21 (writer DELETE grants and cleanup
+of an earlier notification trigger) and the concurrent `message_origin_tx_id_idx` and `gas_payment_tx_id_idx` indexes. Startup verifies both FK indexes; run `init-db`
+before deploying the new scraper.
+These equality-only FK lookups accept valid B-tree or hash indexes. `init-db`
+retains the existing production hash index on `message(origin_tx_id)`; no rebuild
+or manual index replacement is required. Missing indexes are created as B-trees.
+
+Before dropping a column during rollback, stop or roll back every scraper binary
+that references it. Scraper startup does not apply migrations.
+
 Schema rollback does not recreate indexes managed concurrently by `init-db`.
 Before starting an older scraper image, run that image's `init-db`; it restores
 and verifies the index definitions expected by that version.
@@ -31,20 +41,17 @@ gas payment writes while it builds. It fails once a chain that numbers logs per
 transaction (e.g. ENI) has stored two payments at the same log index in one
 block; such rows are valid and must not be deleted to force a downgrade.
 
-For migration development and rollback operations, the SeaORM CLI remains
-available from this directory:
+From `rust/main`, the operational binaries are:
 
 ```sh
-cargo run -- migrate generate MIGRATION_NAME
-cargo run -- up
-cargo run -- up -n 10
-cargo run -- down
-cargo run -- down -n 10
-cargo run -- fresh
-cargo run -- refresh
-cargo run -- reset
-cargo run -- status
+cargo run -p migration --bin down -- 1   # Roll back one migration
+cargo run -p migration --bin fresh       # Drop tables and rebuild schema
+cargo run -p migration --bin recreate-db # Run down, then up
+cargo run -p migration --bin init-db     # Apply schema and managed indexes
 ```
+
+`fresh` and `recreate-db` only rebuild the schema. Follow them with `init-db`
+to install separately managed indexes before starting the scraper.
 
 ## Merkle block-height index
 
@@ -88,8 +95,9 @@ cargo run --release -p migration --bin create-gas-payment-scope-index
 
 `init-db` runs these automatically after SeaORM migrations commit: PostgreSQL
 forbids `CREATE INDEX CONCURRENTLY` inside a transaction. The binary retains
-existing indexes and verifies that each index is a valid, ready, nonpartial
-B-tree with the expected table and keys. Reruns accept a matching valid index. If
+existing indexes and verifies the expected table, keys, predicate and access method.
+Range indexes require B-trees; the two enrichment FK indexes also accept hash indexes.
+Reruns accept a matching valid index. If
 an interrupted concurrent build leaves an invalid index, or its name belongs to
 another definition, the command fails instead of treating `IF NOT EXISTS` as
 success. Inspect `pg_index` and `pg_get_indexdef` and repair the named index

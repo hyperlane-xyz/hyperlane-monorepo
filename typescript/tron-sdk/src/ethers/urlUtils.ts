@@ -4,18 +4,25 @@
  * returns { "TRON-PRO-API-KEY": "abc" }
  */
 export function parseCustomHeaders(url: string): Record<string, string> {
-  const headers: Record<string, string> = {};
+  if (!url.includes('?')) return {};
   try {
-    const parsed = new URL(url);
-    for (const [key, value] of parsed.searchParams) {
-      if (key !== 'custom_rpc_header') continue;
-      const colonIdx = value.indexOf(':');
-      if (colonIdx > 0) {
-        headers[value.slice(0, colonIdx)] = value.slice(colonIdx + 1);
-      }
-    }
+    return headersFromSearchParams(new URL(url).searchParams);
   } catch {
     // Not a valid URL, return empty headers
+    return {};
+  }
+}
+
+function headersFromSearchParams(
+  params: URLSearchParams,
+): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const [key, value] of params) {
+    if (key !== 'custom_rpc_header') continue;
+    const colonIdx = value.indexOf(':');
+    if (colonIdx > 0) {
+      headers[value.slice(0, colonIdx)] = value.slice(colonIdx + 1);
+    }
   }
   return headers;
 }
@@ -33,13 +40,14 @@ export function stripCustomRpcHeaders(url: string): {
   url: string;
   headers: Record<string, string>;
 } {
-  const headers = parseCustomHeaders(url);
+  if (!url.includes('?')) return { url, headers: {} };
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return { url, headers };
+    return { url, headers: {} };
   }
+  const headers = headersFromSearchParams(parsed.searchParams);
   if (!parsed.searchParams.has('custom_rpc_header')) {
     return { url, headers };
   }
@@ -59,8 +67,11 @@ export function stripCustomRpcHeaders(url: string): {
  * returns "https://node.example.com/"
  */
 export function toHttpApiUrl(url: string): string {
-  const { url: clean } = stripCustomRpcHeaders(url);
-  const parsed = new URL(clean);
+  const parsed = new URL(url);
+  // Avoid reserializing unrelated query parameters when there are no headers.
+  if (parsed.searchParams.has('custom_rpc_header')) {
+    parsed.searchParams.delete('custom_rpc_header');
+  }
   if (parsed.pathname.endsWith('/jsonrpc')) {
     parsed.pathname = parsed.pathname.slice(0, -'/jsonrpc'.length);
   }

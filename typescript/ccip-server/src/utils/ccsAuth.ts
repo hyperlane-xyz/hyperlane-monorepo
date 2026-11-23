@@ -7,6 +7,8 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import type { CcipRequest } from '../http.js';
 
+const TRAILING_SLASH_REGEX = /\/$/;
+
 const SIGNATURE_HEADER_REGEX = /^Hyperlane-Signature (.+)$/i;
 
 export const CcsSignerSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
@@ -28,7 +30,7 @@ export class CcsAuth {
     private readonly baseUrl: string,
     authorizedSigners: string[],
   ) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.baseUrl = baseUrl.replace(TRAILING_SLASH_REGEX, '');
     this.signers = new Set(
       authorizedSigners.map((address) =>
         CcsSignerSchema.parse(address).toLowerCase(),

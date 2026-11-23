@@ -7,6 +7,7 @@ import type {
   RebalanceAction,
   RebalanceIntent,
   Transfer,
+  UpdateRebalanceActionExecutionParams,
 } from '@hyperlane-xyz/rebalancer';
 import type { Domain } from '@hyperlane-xyz/utils';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -33,16 +34,18 @@ export class MockActionTracker implements IActionTracker {
 
   // === Sync Operations (no-ops in simulation) ===
 
-  async syncTransfers(): Promise<void> {
+  async syncTransfers(): Promise<boolean> {
     // No-op: simulation manages state directly via callbacks
+    return false;
   }
 
   async syncRebalanceIntents(): Promise<void> {
     // No-op: simulation manages state directly
   }
 
-  async syncRebalanceActions(): Promise<void> {
+  async syncRebalanceActions(): Promise<boolean> {
     // No-op: simulation manages state directly
+    return false;
   }
 
   async syncInventoryMovementActions(): Promise<{
@@ -259,6 +262,17 @@ export class MockActionTracker implements IActionTracker {
     return Array.from(this.actions.values()).filter(
       (a) => a.status === 'in_progress',
     );
+  }
+
+  async updateRebalanceActionExecution(
+    id: string,
+    params: UpdateRebalanceActionExecutionParams,
+  ): Promise<void> {
+    const action = this.actions.get(id);
+    if (!action) {
+      throw new Error(`RebalanceAction ${id} not found`);
+    }
+    Object.assign(action, params, { updatedAt: Date.now() });
   }
 
   async completeRebalanceAction(id: string): Promise<void> {

@@ -1,6 +1,13 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 
-import { ZERO_ADDRESS_HEX_32, addressToBytes32 } from '@hyperlane-xyz/utils';
+import {
+  ZERO_ADDRESS_HEX_32,
+  addressToBytes32,
+  assert,
+} from '@hyperlane-xyz/utils';
+
+import { getIcaRouterAddresses, getRegistry } from '../config/registry.js';
 
 import {
   IcaMessageType,
@@ -70,6 +77,54 @@ describe('multiAddressChainMapMatchingList', () => {
 describe('icaMatchingList', () => {
   // Velodrome Universal Router owner used in mainnet config
   const velodromeOwner = '0x01D40099fCD87C018969B0e8D4aB1633Fb34763C';
+
+  it('matches the Base to Arbitrum V3 reveal while preserving both V2 routers', () => {
+    const matchingList = icaMatchingList({
+      base: { messageType: IcaMessageType.REVEAL },
+      arbitrum: { messageType: IcaMessageType.REVEAL },
+    });
+    const entry = matchingList.find(
+      (item) => item.originDomain === 8453 && item.destinationDomain === 42161,
+    );
+    assert(entry, 'Missing Base to Arbitrum matching rule');
+    expect([entry.senderAddress].flat()).to.include(
+      addressToBytes32('0x0ca10c09cad7afe01619a4a9acdf6481938258c4'),
+    );
+    expect([entry.recipientAddress].flat()).to.include(
+      addressToBytes32('0xa0f62e4a4597471aa6fac829aca3c468ea751c3c'),
+    );
+    expect([entry.senderAddress].flat()).to.have.lengthOf(2);
+    expect([entry.recipientAddress].flat()).to.have.lengthOf(2);
+    assert(entry.bodyRegex, 'Missing reveal regex');
+    expect(
+      new RegExp(entry.bodyRegex).test(
+        '02' + '00'.repeat(32) + 'ab'.repeat(32),
+      ),
+    ).to.be.true;
+  });
+
+  it('deduplicates registry router versions ignoring address case', () => {
+    const registry = getRegistry();
+    const addresses = registry.getAddresses();
+    const router = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
+    const stub = sinon.stub(registry, 'getAddresses').returns({
+      ...addresses,
+      base: {
+        ...addresses.base,
+        interchainAccountRouter: router,
+        interchainAccountRouterV3: '0x' + router.slice(2).toUpperCase(),
+      },
+    });
+    try {
+      expect(getIcaRouterAddresses('base')).to.deep.equal([router]);
+      const matchingList = icaMatchingList({ base: {}, optimism: {} });
+      const entry = matchingList.find((item) => item.originDomain === 8453);
+      assert(entry, 'Missing Base matching rule');
+      expect(entry.senderAddress).to.equal(addressToBytes32(router));
+    } finally {
+      stub.restore();
+    }
+  });
 
   describe('regex pattern generation', () => {
     it('should generate correct pattern for owner-only matching', () => {
@@ -272,8 +327,12 @@ describe('icaMatchingList', () => {
         expect(entry.senderAddress).to.exist;
         expect(entry.recipientAddress).to.exist;
         // Addresses should be bytes32 format (66 chars with 0x prefix)
-        expect(entry.senderAddress).to.match(/^0x[a-f0-9]{64}$/i);
-        expect(entry.recipientAddress).to.match(/^0x[a-f0-9]{64}$/i);
+        for (const address of [
+          entry.senderAddress,
+          entry.recipientAddress,
+        ].flat()) {
+          expect(address).to.match(/^0x[a-f0-9]{64}$/i);
+        }
       });
     });
 

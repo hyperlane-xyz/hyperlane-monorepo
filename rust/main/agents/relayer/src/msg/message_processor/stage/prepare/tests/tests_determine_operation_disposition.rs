@@ -527,8 +527,8 @@ async fn test_determine_disposition_with_multiple_payload_uuids() {
 }
 
 #[tokio::test]
-async fn test_determine_disposition_returns_presubmit_for_entrypoint_error_network() {
-    // Test that NetworkError returns PreSubmit
+async fn test_determine_disposition_returns_unknown_for_entrypoint_error_network() {
+    // Test that NetworkError returns Unknown
     let mut mock_db = MockHyperlaneDb::new();
     let mut mock_entrypoint = MockDispatcherEntrypoint::new();
 
@@ -556,7 +556,7 @@ async fn test_determine_disposition_returns_presubmit_for_entrypoint_error_netwo
     .await;
 
     assert!(
-        matches!(result, OperationDisposition::PreSubmit),
-        "NetworkError should return PreSubmit disposition"
+        matches!(result, OperationDisposition::Unknown),
+        "NetworkError should retain tracking with Unknown disposition"
     );
 }

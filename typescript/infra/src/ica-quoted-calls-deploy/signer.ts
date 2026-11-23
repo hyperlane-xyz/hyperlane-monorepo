@@ -1,9 +1,14 @@
 import { BigNumber, Wallet, constants, utils } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, assert, objMerge } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  objMerge,
+  redactErrorMessage,
+} from '@hyperlane-xyz/utils';
 
-import { describeError } from '../aggregation-hook-upgrade/redact.js';
+const GAS_AMOUNT_REGEX = /^\d+(\.\d{1,9})?$/;
 
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const PRIVATE_KEY_PATTERN = /^(0x)?[0-9a-fA-F]{64}$/;
@@ -41,7 +46,7 @@ export function describeIcaError(
   error: unknown,
   redact: (text: string) => string,
 ): string {
-  return redact(describeError(error));
+  return redact(redactErrorMessage(error));
 }
 
 export interface PriorityFeeProvider {
@@ -96,7 +101,7 @@ export async function withPriorityFee(
 
 export function parsePriorityFeeGwei(value: string): BigNumber {
   assert(
-    /^\d+(\.\d{1,9})?$/.test(value),
+    GAS_AMOUNT_REGEX.test(value),
     '--priority-fee-gwei must be a non-negative decimal number of gwei',
   );
   return utils.parseUnits(value, 9);

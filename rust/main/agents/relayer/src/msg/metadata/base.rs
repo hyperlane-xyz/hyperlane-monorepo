@@ -33,9 +33,13 @@ pub enum MetadataBuildError {
     /// Unable to fetch metadata, but no error occurred
     #[error("Could not fetch metadata")]
     CouldNotFetch,
+    #[error("No CCIP-read endpoint permitted by ccipReadAllowedDomains can satisfy this ISM")]
+    CcipReadNotAllowed,
     /// Validator quorum not yet reached — signatures are still being collected
     #[error("Awaiting validator signatures")]
     AwaitingValidatorSignatures,
+    #[error("Validator signature retry limit reached ({0})")]
+    RetryLimitReached(u32),
     #[error("Unknown or invalid module type ({0})")]
     UnsupportedModuleType(ModuleType),
     #[error("Exceeded max depth when building metadata ({0})")]

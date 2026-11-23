@@ -186,4 +186,51 @@ describe('delegated shared balance collection', () => {
       'price-1',
     ]);
   });
+
+  it('logs an unsupported Explorer filter once, withdraws pending metrics and continues balances', async () => {
+    const { ctx, route, supplyReads, inventoryReads } = fixture();
+    await runRouteCycle(ctx, route);
+    expect(await monitorOnlyMetrics()).to.have.length(9);
+
+    const logger = getLogger();
+    const logError = sinon.spy(logger, 'error');
+    const fetch = sinon.stub(globalThis, 'fetch').resolves(
+      Response.json({
+        data: { message_view: null },
+        errors: [
+          {
+            message: 'Delivery status filters require a provisional-only feed',
+          },
+        ],
+      }),
+    );
+    const url = 'https://unsupported.example/graphql';
+    route.pendingTransfersClient = new ExplorerPendingTransfersClient(
+      url,
+      route.routerNodes,
+      logger,
+    );
+    await runRouteCycle(ctx, route);
+    route.pendingTransfersClient = new ExplorerPendingTransfersClient(
+      url,
+      route.routerNodes,
+      logger,
+    );
+    await runRouteCycle(ctx, route);
+
+    expect(fetch.callCount).to.equal(1);
+    expect(logError.callCount).to.equal(1);
+    expect(logError.firstCall.args[0]).to.include(
+      'The Explorer GraphQL API does not support filtering finalized messages by delivery status',
+    );
+    const remaining = await monitorOnlyMetrics();
+    expect(remaining).to.have.length(2);
+    expect(
+      remaining.every((line) =>
+        line.startsWith('hyperlane_warp_route_inventory_balance{'),
+      ),
+    ).to.equal(true);
+    expect(supplyReads.map((read) => read.callCount)).to.deep.equal([3, 3]);
+    expect(inventoryReads.map((read) => read.callCount)).to.deep.equal([3, 3]);
+  });
 });

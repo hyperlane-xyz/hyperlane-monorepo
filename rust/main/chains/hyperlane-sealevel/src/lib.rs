@@ -8,6 +8,7 @@
 
 pub use crate::composite_ism::{MetadataSpec as CompositeIsmMetadataSpec, SealevelCompositeIsm};
 pub use crate::multisig_ism::*;
+pub use account::finalized_event_filters;
 pub use alt::{NonEmptyAltAddresses, SealevelTransactionFormat};
 pub use interchain_gas::*;
 pub use interchain_security_module::*;

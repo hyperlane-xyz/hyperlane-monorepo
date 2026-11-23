@@ -7,11 +7,13 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_new::new;
+use ethers::middleware::signer::SignerMiddlewareError;
 use ethers::prelude::Middleware;
+use ethers::providers::{HttpClientError, Provider, ProviderError};
 use ethers::types::{
     Block, Bytes, Transaction, TransactionReceipt, H160, H256 as EthersH256, U64 as EthersU64,
 };
-use ethers_contract::{builders::ContractCall, Multicall, MulticallResult};
+use ethers_contract::{builders::ContractCall, ContractError, Multicall, MulticallResult};
 use ethers_core::abi::{Address, Function};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{BlockId, BlockNumber, FeeHistory, U256 as EthersU256};
@@ -28,7 +30,7 @@ use hyperlane_core::{
 use crate::contracts::multicall::BatchCache;
 use crate::{
     get_finalized_block_number, multicall, BuildableWithProvider, ConnectionConf,
-    EthereumReorgPeriod,
+    EthereumReorgPeriod, Signers,
 };
 
 // From
@@ -151,6 +153,46 @@ fn caused_by_missing_signature_v(error: &(dyn StdError + 'static)) -> bool {
         source = error.source();
     }
     false
+}
+
+/// Revert reason from Mailbox.process when the message has already been delivered.
+pub const MAILBOX_ALREADY_DELIVERED: &str = "Mailbox: already delivered";
+
+fn classify_gas_estimate_error<M: Middleware + 'static>(
+    error: ContractError<M>,
+) -> ChainCommunicationError {
+    let provider_error = match &error {
+        ContractError::ProviderError(error) => Some(error),
+        ContractError::MiddlewareError(error) => {
+            let source: &(dyn StdError + 'static) = error;
+            source.downcast_ref::<ProviderError>().or_else(|| {
+                match source.downcast_ref::<SignerMiddlewareError<Provider<M::Provider>, Signers>>()
+                {
+                    Some(SignerMiddlewareError::MiddlewareError(error)) => Some(error),
+                    _ => None,
+                }
+            })
+        }
+        _ => None,
+    };
+    if let Some(ProviderError::JsonRpcClientError(source)) = provider_error {
+        if let Some(HttpClientError::JsonRpcError(rpc)) = source.downcast_ref() {
+            let reason = rpc
+                .data
+                .as_ref()
+                .and_then(|data| serde_json::from_value::<Bytes>(data.clone()).ok())
+                .and_then(|data| crate::decode_revert_reason(&data));
+            if matches!(rpc.code, 3 | -32000)
+                && (reason.as_deref() == Some(MAILBOX_ALREADY_DELIVERED)
+                    || (reason.is_none()
+                        && rpc.message.strip_prefix("execution reverted: ")
+                            == Some(MAILBOX_ALREADY_DELIVERED)))
+            {
+                return ChainCommunicationError::SimulationFailed(MAILBOX_ALREADY_DELIVERED.into());
+            }
+        }
+    }
+    error.into()
 }
 
 /// Connection to an ethereum provider. Useful for querying information about
@@ -303,7 +345,17 @@ where
         function: &Function,
     ) -> ChainResult<U256> {
         let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
-        let gas_limit = contract_call.estimate_gas().await?.into();
+        let gas_limit = contract_call
+            .estimate_gas()
+            .await
+            .map_err(|error| {
+                if function.name == "process" {
+                    classify_gas_estimate_error(error)
+                } else {
+                    error.into()
+                }
+            })?
+            .into();
         Ok(gas_limit)
     }
 
@@ -574,6 +626,11 @@ where
             .map_err(ChainCommunicationError::from_other)?
             .map(|r| -> Result<_, HyperlaneProviderError> {
                 Ok(TxnReceiptInfo {
+                    block_hash: Some(
+                        r.block_hash
+                            .ok_or(HyperlaneProviderError::NoReceiptBlockHash)?
+                            .into(),
+                    ),
                     gas_used: r.gas_used.ok_or(HyperlaneProviderError::NoGasUsed)?.into(),
                     cumulative_gas_used: r.cumulative_gas_used.into(),
                     effective_gas_price: r.effective_gas_price.map(Into::into),
@@ -850,7 +907,9 @@ mod tests {
             &hex::decode("189f97ad488ed5ea0c5c7eaff458b01c06bd3bb40f4a0132a0405744317f44d0")
                 .expect("fixture hash should be valid hex"),
         ));
+        let block_hash = EthersH256::repeat_byte(0x11);
         let receipt = TransactionReceipt {
+            block_hash: Some(block_hash),
             gas_used: Some(EthersU256::from(0x23b8d_u64)),
             cumulative_gas_used: EthersU256::zero(),
             effective_gas_price: Some(EthersU256::from(0x2b275d0_u64)),
@@ -874,9 +933,34 @@ mod tests {
 
         assert_eq!(info.hash, requested_hash);
         assert_eq!(
+            info.receipt.as_ref().expect("receipt").block_hash,
+            Some(block_hash.into())
+        );
+        assert_eq!(
             info.receipt.expect("receipt should be present").gas_used,
             U256::from(0x23b8d_u64)
         );
+    }
+
+    #[tokio::test]
+    async fn rejects_mined_receipt_without_block_hash() {
+        let mock = Arc::new(MockProvider::new());
+        let provider = EthereumProvider::new(
+            Arc::new(Provider::new(mock.clone())),
+            HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum),
+        );
+        mock.push(TransactionReceipt {
+            gas_used: Some(EthersU256::one()),
+            ..Default::default()
+        })
+        .expect("receipt response");
+        mock.push(Transaction::default())
+            .expect("transaction response");
+        let error = provider
+            .get_txn_by_hash(&H512::zero())
+            .await
+            .expect_err("missing receipt identity");
+        assert!(error.to_string().contains("receipt block hash"), "{error}");
     }
 
     #[tokio::test]

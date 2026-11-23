@@ -1,3 +1,4 @@
+use hyperlane_metric::utils::url_to_host_info;
 use std::{
     collections::HashMap,
     future::Future,
@@ -27,7 +28,6 @@ use cosmrs::{
     tx::{self, Fee, MessageExt, SignDoc, SignerInfo},
     Any, Coin,
 };
-use protobuf::Message as _;
 use tokio::sync::Mutex;
 use tonic::async_trait;
 use url::Url;
@@ -142,16 +142,16 @@ impl CosmosHttpClient {
         compat_mode: CompatMode,
     ) -> ChainResult<Self> {
         let tendermint_url = cometbft_rpc::Url::try_from(url.to_owned())
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
         let url = cometbft_rpc::HttpClientUrl::try_from(tendermint_url)
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
 
         let client = HttpClient::builder(url)
             .compat_mode(compat_mode)
             .build()
-            .map_err(Box::new)
+            .map_err(HyperlaneCosmosError::from)
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(Self::new(client, metrics, metrics_config))
@@ -198,7 +198,11 @@ impl RpcProvider {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let provider = FallbackProvider::new(clients);
+        let provider = FallbackProvider::new(clients).with_rpc_context(
+            PrometheusConfig::chain_name(&chain).to_owned(),
+            "rpcUrls",
+            rpc_urls.iter().map(url_to_host_info).collect(),
+        );
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
 
         let block_cache = shared_block_cache(BlockCacheKey {
@@ -421,36 +425,6 @@ impl RpcProvider {
             .ok_or(ChainCommunicationError::SignerUnavailable)
     }
 
-    /// Injective uses custom proto type for account info.
-    /// Decode the BaseAccount with the injective proto - which is different to the default one
-    async fn get_injective_account(
-        &self,
-        response: QueryAccountResponse,
-    ) -> ChainResult<BaseAccount> {
-        // Injective uses custom proto type for account info. The account must exist in auth module
-        let mut eth_account = injective_protobuf::proto::account::EthAccount::parse_from_bytes(
-            response
-                .account
-                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
-                .value
-                .as_slice(),
-        )
-        .map_err(Into::<HyperlaneCosmosError>::into)?;
-
-        let base_account = eth_account.take_base_account();
-        let pub_key = base_account.pub_key.into_option();
-
-        Ok(BaseAccount {
-            address: base_account.address,
-            pub_key: pub_key.map(|pub_key| Any {
-                type_url: pub_key.type_url,
-                value: pub_key.value,
-            }),
-            account_number: base_account.account_number,
-            sequence: base_account.sequence,
-        })
-    }
-
     async fn get_account(&self, address: String) -> ChainResult<BaseAccount> {
         let response: QueryAccountResponse = self
             .abci_query(
@@ -458,24 +432,7 @@ impl RpcProvider {
                 QueryAccountRequest { address },
             )
             .await?;
-
-        // Try to decode as a standard base account, and if that fails, try Injective-specific format
-        let account = BaseAccount::decode(
-            response
-                .clone()
-                .account
-                .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?
-                .value
-                .as_slice(),
-        )
-        .map_err(HyperlaneCosmosError::from);
-
-        // If standard decoding fails, try Injective format
-        if account.is_err() {
-            return self.get_injective_account(response).await;
-        }
-
-        Ok(account?)
+        account_from_response(response)
     }
 
     /// Get the gas price
@@ -603,9 +560,216 @@ impl RpcProvider {
     }
 }
 
+/// Injective's `injective.types.v1beta1.EthAccount`, which wraps the Cosmos SDK `BaseAccount`.
+#[derive(Clone, PartialEq, prost::Message)]
+struct InjectiveEthAccount {
+    #[prost(message, optional, tag = "1")]
+    base_account: Option<BaseAccount>,
+    #[prost(bytes = "vec", tag = "2")]
+    code_hash: Vec<u8>,
+}
+
+/// Decodes the `BaseAccount` wrapped by Injective's `injective.types.v1beta1.EthAccount`.
+fn decode_injective_base_account(bytes: &[u8]) -> ChainResult<BaseAccount> {
+    let eth_account = InjectiveEthAccount::decode(bytes).map_err(HyperlaneCosmosError::from)?;
+    Ok(eth_account.base_account.unwrap_or_default())
+}
+
+/// Decodes the account in an auth `Query/Account` response, falling back to Injective's
+/// `EthAccount` when it is not a standard `BaseAccount`.
+fn account_from_response(response: QueryAccountResponse) -> ChainResult<BaseAccount> {
+    let account = response
+        .account
+        .ok_or_else(|| ChainCommunicationError::from_other_str("account not present"))?;
+    BaseAccount::decode(account.value.as_slice())
+        .or_else(|_| decode_injective_base_account(account.value.as_slice()))
+}
+
+#[cfg(test)]
+mod injective_account_tests {
+    use super::*;
+
+    fn sample_base_account() -> BaseAccount {
+        let mut pub_key = vec![0x0a, 0x21, 0x02];
+        pub_key.extend_from_slice(&[0x5c; 32]);
+        BaseAccount {
+            address: "inj1qqqsyqcyq5rqwzqfpg9scrgwpugpzysn8u4wfk".to_owned(),
+            pub_key: Some(Any {
+                type_url: "/injective.crypto.v1beta1.ethsecp256k1.PubKey".to_owned(),
+                value: pub_key,
+            }),
+            account_number: 42,
+            sequence: 7,
+        }
+    }
+
+    /// Wire encoding of `injective.types.v1beta1.EthAccount`
+    /// (`base_account = 1`, `code_hash = 2`), built by hand so the expected
+    /// bytes do not come from the decoder's own message definition.
+    fn eth_account_bytes(base_account: Option<&BaseAccount>, code_hash: &[u8]) -> Vec<u8> {
+        fn push_length_delimited(bytes: &mut Vec<u8>, tag: u8, value: &[u8]) {
+            bytes.push(tag);
+            let mut len = value.len();
+            while len >= 0x80 {
+                bytes.push((len & 0x7f) as u8 | 0x80);
+                len >>= 7;
+            }
+            bytes.push(len as u8);
+            bytes.extend_from_slice(value);
+        }
+
+        let mut bytes = Vec::new();
+        if let Some(base_account) = base_account {
+            push_length_delimited(&mut bytes, 0x0a, &base_account.encode_to_vec());
+        }
+        push_length_delimited(&mut bytes, 0x12, code_hash);
+        bytes
+    }
+
+    #[test]
+    fn decodes_base_account_wrapped_in_eth_account() {
+        let base_account = sample_base_account();
+        let bytes = eth_account_bytes(Some(&base_account), &[0xc5; 32]);
+
+        let decoded = decode_injective_base_account(&bytes).expect("valid EthAccount");
+
+        assert_eq!(decoded, base_account);
+    }
+
+    #[test]
+    fn eth_account_without_base_account_decodes_to_default() {
+        let bytes = eth_account_bytes(None, &[0xc5; 32]);
+
+        let decoded = decode_injective_base_account(&bytes).expect("valid EthAccount");
+
+        assert_eq!(decoded, BaseAccount::default());
+    }
+
+    #[test]
+    fn account_response_falls_back_to_injective_eth_account() {
+        // keccak256 of empty code, the code hash of accounts without contract code.
+        let empty_code_hash =
+            hex::decode("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+                .expect("valid hex");
+        let base_account = sample_base_account();
+        let eth_account = eth_account_bytes(Some(&base_account), &empty_code_hash);
+        // Not a valid standard `BaseAccount`, so this takes the Injective fallback.
+        assert!(BaseAccount::decode(eth_account.as_slice()).is_err());
+        let response = QueryAccountResponse {
+            account: Some(Any {
+                type_url: "/injective.types.v1beta1.EthAccount".to_owned(),
+                value: eth_account,
+            }),
+        }
+        .encode_to_vec();
+
+        // `abci_query` decodes the response before `get_account` reads the account from it.
+        let response = QueryAccountResponse::decode(response.as_slice()).expect("valid response");
+        let account = account_from_response(response).expect("Injective account");
+
+        assert_eq!(account.account_number, 42);
+        assert_eq!(account.sequence, 7);
+        assert_eq!(account, base_account);
+    }
+
+    #[test]
+    fn account_response_decodes_standard_base_account() {
+        let base_account = sample_base_account();
+        let response = QueryAccountResponse {
+            account: Some(Any {
+                type_url: "/cosmos.auth.v1beta1.BaseAccount".to_owned(),
+                value: base_account.encode_to_vec(),
+            }),
+        };
+
+        let account = account_from_response(response).expect("base account");
+
+        assert_eq!(account, base_account);
+    }
+
+    #[test]
+    fn missing_account_is_an_error() {
+        let error =
+            account_from_response(QueryAccountResponse { account: None }).expect_err("no account");
+
+        assert!(error.to_string().contains("account not present"));
+    }
+
+    #[test]
+    fn undecodable_account_is_an_error() {
+        // Field 1 declares 16 bytes that are missing, so both decoders reject it.
+        let value = vec![0x0a, 0x10];
+        assert!(BaseAccount::decode(value.as_slice()).is_err());
+        assert!(decode_injective_base_account(&value).is_err());
+        let response = QueryAccountResponse {
+            account: Some(Any {
+                type_url: "/injective.types.v1beta1.EthAccount".to_owned(),
+                value,
+            }),
+        };
+
+        assert!(account_from_response(response).is_err());
+    }
+
+    #[test]
+    fn truncated_eth_account_is_rejected() {
+        let base_account = sample_base_account();
+        let bytes = eth_account_bytes(Some(&base_account), &[]);
+        // The encoding ends with `base_account.sequence` (field 4) and the empty
+        // `code_hash` (field 2). Cutting both leaves `base_account` shorter than
+        // its declared length; it must not decode as an account with sequence 0.
+        assert_eq!(bytes[bytes.len() - 4..], [0x20, 0x07, 0x12, 0x00]);
+        let truncated = &bytes[..bytes.len() - 4];
+
+        assert!(decode_injective_base_account(truncated).is_err());
+    }
+}
+
 #[cfg(test)]
 mod cache_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn rpc_transport_errors_omit_endpoint_credentials() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind test listener");
+        let address = listener.local_addr().expect("test address");
+        drop(listener);
+        let url = Url::parse(&format!("http://{address}/private-path?key=private-query"))
+            .expect("test URL");
+        let client = CosmosHttpClient::from_url(
+            &url,
+            Default::default(),
+            Default::default(),
+            CompatMode::V0_38,
+        )
+        .expect("test client");
+        let raw_error = client
+            .client
+            .latest_block()
+            .await
+            .expect_err("connection failure");
+        assert!(format!("{raw_error:?}").contains("private-"));
+        let error = HyperlaneCosmosError::from(Box::new(raw_error));
+        assert!(matches!(error, HyperlaneCosmosError::RpcTransportError(_)));
+        assert!(error.to_string().contains("Connection refused"));
+        assert!(!format!("{error:?} {error}").contains("private-"));
+        let error = client
+            .get_block_number()
+            .await
+            .expect_err("connection failure");
+        assert!(error.to_string().contains("Connection refused"));
+        assert!(!format!("{error:?} {error}").contains("private-"));
+
+        let url = Url::parse("ws://localhost/private-path?key=private-query").expect("test URL");
+        let error = CosmosHttpClient::from_url(
+            &url,
+            Default::default(),
+            Default::default(),
+            CompatMode::V0_38,
+        )
+        .expect_err("HTTP client rejects WebSocket URL");
+        assert!(!format!("{error:?} {error}").contains("private-"));
+    }
 
     #[test]
     fn block_caches_are_scoped_to_rpc_endpoints() {

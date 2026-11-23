@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+redact.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 base64.workspace = true
@@ -71,5 +72,6 @@ multisig-ism = { path = "../../../sealevel/libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../sealevel/libraries/serializable-account-meta" }
 
 [dev-dependencies]
+futures-util.workspace = true
 hex.workspace = true
 rstest.workspace = true

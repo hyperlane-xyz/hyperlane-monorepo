@@ -92,8 +92,6 @@ export function getCore(): ChainMap<CoreConfig> {
       supportedChainNames
         // no reflexivity
         .filter((chain) => chain !== local)
-        // exclude forma as it's not a core chain
-        .filter((chain) => chain !== 'forma')
         // exclude eden as it's only connected to celestia
         .filter((chain) => chain !== 'eden')
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
@@ -142,7 +140,7 @@ export function getCore(): ChainMap<CoreConfig> {
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
       paused: false,
-      owner: PAUSER, // dedicated Turnkey pauser (pause solo, unpause gated)
+      owner: PAUSER,
     };
 
     // No static aggregation ISM support on zkSync
@@ -163,7 +161,7 @@ export function getCore(): ChainMap<CoreConfig> {
     const pausableHook: PausableHookConfig = {
       type: HookType.PAUSABLE,
       paused: false,
-      owner: PAUSER, // dedicated Turnkey pauser (pause solo, unpause gated)
+      owner: PAUSER,
     };
 
     // No static aggregation hook support on zkSync
@@ -205,9 +203,7 @@ export function getCore(): ChainMap<CoreConfig> {
             ...owner,
           };
 
-    // Forma keeps the legacy IGP, but its externally managed core deployment
-    // has no pausable ISM to recover.
-    if (legacyIgpChains.includes(local) && local !== 'forma') {
+    if (legacyIgpChains.includes(local)) {
       const addresses = getChainAddresses()[local];
       const requiredHookAddress = isZksyncChain
         ? addresses?.merkleTreeHook

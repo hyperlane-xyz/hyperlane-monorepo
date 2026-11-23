@@ -97,6 +97,8 @@ const PostCallsIcaSchema = PostCallsBaseSchema.extend({
   destinationDomain: z.number(),
   owner: ZHash,
   userSalt: ZHash.optional(),
+  localRouter: ZHash.optional(),
+  routerOverride: ZHash.optional(),
 });
 
 export const PostCallsSchema = z.union([

@@ -34,7 +34,7 @@ function getOracleConfigWithOverrides(origin: ChainName) {
   // Applying changes on-chain requires a separate owner-authorized update.
   if (origin === 'solaxy') {
     oracleConfig.ethereum = {
-      gasPrice: '2000000000',
+      gasPrice: '500000000',
       tokenExchangeRate: '691771710368053885013231',
       tokenDecimals: 18,
     };

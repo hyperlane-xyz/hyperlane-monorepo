@@ -1,3 +1,5 @@
+import { assert } from '@hyperlane-xyz/utils';
+
 import { ValidatorBaseChainConfigMap } from '../../../src/config/agent/validator.js';
 import { Contexts } from '../../contexts.js';
 import { getReorgPeriod } from '../../registry.js';
@@ -10,10 +12,28 @@ const AW_RC_VALIDATOR = '0x3588e77a3a9bcaa92b2d9c6cd525697c6fdb2c76';
 const AW_FASTPAH_VALIDATOR = '0x4b54641256233487c17ba76fba57a78b013dc5db';
 const FASTPATH_VALIDATOR_REORG_PERIOD = 1;
 
-export const fastPathReorgPeriodOverrides: Record<string, number> = {
+// A number of blocks, or a block tag (e.g. 'safe' / 'finalized') for EVM chains
+// whose RPC fork-choice head tracks the tip closely enough to stay on the fast path.
+export const fastPathReorgPeriodOverrides: Record<string, number | string> = {
   arbitrumsepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
   basesepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
   sepolia: FASTPATH_VALIDATOR_REORG_PERIOD,
+};
+
+const validatorReorgPeriod = (
+  context: Contexts,
+  chain: Parameters<typeof getReorgPeriod>[0],
+) => {
+  if (context !== Contexts.FastPath) {
+    return getReorgPeriod(chain);
+  }
+
+  const reorgPeriod = fastPathReorgPeriodOverrides[chain];
+  assert(
+    reorgPeriod !== undefined,
+    `Missing fastpath reorgPeriod override for chain ${chain}`,
+  );
+  return reorgPeriod;
 };
 
 export const validatorChainConfig = (
@@ -23,7 +43,7 @@ export const validatorChainConfig = (
   return {
     arbitrumsepolia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('arbitrumsepolia'),
+      reorgPeriod: validatorReorgPeriod(context, 'arbitrumsepolia'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
@@ -35,7 +55,7 @@ export const validatorChainConfig = (
     },
     basesepolia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('basesepolia'),
+      reorgPeriod: validatorReorgPeriod(context, 'basesepolia'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],
@@ -58,7 +78,7 @@ export const validatorChainConfig = (
     },
     sepolia: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('sepolia'),
+      reorgPeriod: validatorReorgPeriod(context, 'sepolia'),
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: [AW_VALIDATOR],

@@ -356,11 +356,16 @@ where
                     if response.is_err() && !self.cooldowns[attempt.priority.index].active() {
                         self.handle_failed_provider(&attempt.priority).await;
                     }
-                    categorize_client_response(&attempt.provider_host, method, response)
+                    self.rpc_span(attempt.priority.index).in_scope(|| {
+                        categorize_client_response(&attempt.provider_host, method, response)
+                    })
                 }
                 AttemptResponse::TimedOut => {
                     self.handle_failed_provider(&attempt.priority).await;
                     self.increment_hedge_event(method, "timeout");
+                    self.rpc_span(attempt.priority.index).in_scope(|| {
+                        warn!(method, "RPC request timed out");
+                    });
                     errors.push(ProviderError::CustomError(format!(
                         "Fallback provider request to {} timed out",
                         attempt.provider_host
@@ -536,7 +541,9 @@ where
             // future which visits all providers as they fulfill their requests
             let mut unordered = self.populate_unordered_future(method, &params);
 
-            while let Some((provider_host, resp)) = unordered.next().await {
+            while let Some((index, provider_host, resp)) = unordered.next().await {
+                let rpc_span = self.rpc_span(index);
+                let _rpc = rpc_span.enter();
                 let value = match categorize_client_response(provider_host.as_str(), method, resp) {
                     IsOk(v) => serde_json::from_value(v)?,
                     RetryableErr(e) | RateLimitErr(e) => {
@@ -609,6 +616,8 @@ where
                 if resp.is_err() && !self.cooldowns[priority.index].active() {
                     self.handle_failed_provider(priority).await;
                 }
+                let rpc_span = self.rpc_span(priority.index);
+                let _rpc = rpc_span.enter();
                 tracing::trace!(
                     fallback_count = idx,
                     provider_index = priority.index,
@@ -673,6 +682,8 @@ where
                 if resp.is_err() && !self.cooldowns[priority.index].active() {
                     self.handle_failed_provider(&priority).await;
                 }
+                let rpc_span = self.rpc_span(priority.index);
+                let _rpc = rpc_span.enter();
                 tracing::debug!(
                     fallback_count = idx,
                     provider_index = priority.index,
@@ -741,14 +752,20 @@ where
         &'a self,
         method: &'a str,
         params: &'a Value,
-    ) -> FuturesUnordered<impl Future<Output = (String, Result<Value, HttpClientError>)> + Sized + 'a>
-    {
+    ) -> FuturesUnordered<
+        impl Future<Output = (usize, String, Result<Value, HttpClientError>)> + Sized + 'a,
+    > {
         let unordered = FuturesUnordered::new();
         self.inner
             .providers
             .iter()
             .enumerate()
-            .for_each(|(index, _)| unordered.push(self.provider_request(index, method, params)));
+            .for_each(|(index, _)| {
+                unordered.push(async move {
+                    let (host, response) = self.provider_request(index, method, params).await;
+                    (index, host, response)
+                });
+            });
         unordered
     }
 }

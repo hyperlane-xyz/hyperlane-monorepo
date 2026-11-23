@@ -2,9 +2,35 @@ import type { Logger } from 'pino';
 
 import {
   addressToByteHexString,
+  assert,
   isEVMLike,
   ProtocolType,
 } from '@hyperlane-xyz/utils';
+
+const HEX_PREFIX_REGEX = /^0x/i;
+
+// GraphQL reports query errors with HTTP 200. Treating them as an empty result
+// would hide inflight transfers and undelivered rebalances.
+function messageViewRows(json: unknown): unknown[] {
+  assert(
+    typeof json === 'object' && json !== null,
+    'Explorer query returned a non-object response',
+  );
+  if ('errors' in json && json.errors) {
+    throw new Error(`Explorer query failed: ${JSON.stringify(json.errors)}`);
+  }
+  const rows =
+    'data' in json &&
+    typeof json.data === 'object' &&
+    json.data !== null &&
+    'message_view' in json.data
+      ? json.data.message_view
+      : undefined;
+  assert(Array.isArray(rows), 'Explorer query returned no message_view rows');
+  return rows;
+}
+
+export const DEFAULT_INFLIGHT_USER_TRANSFER_LIMIT = 100;
 
 export type InflightRebalanceQueryParams = {
   bridges: string[];
@@ -71,9 +97,9 @@ export class ExplorerClient implements IExplorerClient {
       domain !== undefined ? this.getProtocol(domain) : undefined;
     if (protocol && !isEVMLike(protocol)) {
       const hex = addressToByteHexString(addr, protocol);
-      return hex.replace(/^0x/i, '\\x').toLowerCase();
+      return hex.replace(HEX_PREFIX_REGEX, '\\x').toLowerCase();
     }
-    return addr.replace(/^0x/i, '\\x').toLowerCase();
+    return addr.replace(HEX_PREFIX_REGEX, '\\x').toLowerCase();
   }
 
   /**
@@ -190,7 +216,7 @@ export class ExplorerClient implements IExplorerClient {
     }
 
     const json = await res.json();
-    const rows = json?.data?.message_view ?? [];
+    const rows = messageViewRows(json);
 
     logger.debug({ rows }, 'Explorer query rows');
 
@@ -230,7 +256,11 @@ export class ExplorerClient implements IExplorerClient {
     params: UserTransferQueryParams,
     logger: Logger,
   ): Promise<ExplorerMessage[]> {
-    const { routersByDomain, excludeTxSenders, limit = 100 } = params;
+    const {
+      routersByDomain,
+      excludeTxSenders,
+      limit = DEFAULT_INFLIGHT_USER_TRANSFER_LIMIT,
+    } = params;
 
     // Derive routers and domains from routersByDomain
     const routerEntries = Object.entries(routersByDomain);
@@ -316,7 +346,7 @@ export class ExplorerClient implements IExplorerClient {
     }
 
     const json = await res.json();
-    const messages = json?.data?.message_view ?? [];
+    const messages = messageViewRows(json);
     return messages.map((msg: any) => this.normalizeExplorerMessage(msg));
   }
 
@@ -436,7 +466,7 @@ export class ExplorerClient implements IExplorerClient {
     }
 
     const json = await res.json();
-    const messages = json?.data?.message_view ?? [];
+    const messages = messageViewRows(json);
     return messages.map((msg: any) => this.normalizeExplorerMessage(msg));
   }
 }

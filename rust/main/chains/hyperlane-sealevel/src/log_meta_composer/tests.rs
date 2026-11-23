@@ -332,7 +332,7 @@ async fn test_log_meta_not_in_previous_slot_keeps_fallback() {
 }
 
 #[tokio::test]
-async fn test_log_meta_previous_slot_unavailable_keeps_fallback() {
+async fn test_log_meta_previous_slot_unavailable_remains_distinct() {
     // given
     let (composer, payment_pda_account, block) = solaxy_payment_composer();
     let pda_slot = block.block_height.unwrap() + 1;
@@ -347,12 +347,11 @@ async fn test_log_meta_previous_slot_unavailable_keeps_fallback() {
             |_| async { ChainResult::<UiConfirmedBlock>::Err(slot_skipped()) },
         )
         .await
-        .unwrap();
+        .expect_err("unavailable block is not a completed search");
 
     // then
-    assert!(matches!(
-        result,
-        Err(HyperlaneSealevelError::NoTransactions(_))
+    assert!(crate::error::is_get_block_unresolvable_after_retries(
+        &result
     ));
 }
 

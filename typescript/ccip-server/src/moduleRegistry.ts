@@ -15,10 +15,24 @@ export const moduleRegistry: Record<string, ServiceFactory> = {
       return CCTPService.create(name);
     },
   },
+  layerzero: {
+    async create(name) {
+      const { LayerZeroPacketService } =
+        await import('./services/LayerZeroPacketService.js');
+      return LayerZeroPacketService.create(name);
+    },
+  },
   opstack: {
     async create(name) {
       const { OPStackService } = await import('./services/OPStackService.js');
       return OPStackService.create(name);
+    },
+  },
+  wormhole: {
+    async create(name) {
+      const { WormholeVaaService } =
+        await import('./services/WormholeVaaService.js');
+      return WormholeVaaService.create(name);
     },
   },
 };

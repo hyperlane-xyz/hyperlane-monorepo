@@ -5,6 +5,11 @@ import type {
 } from '../types.js';
 import { toVisualizationData } from '../types.js';
 
+const AMPERSAND_REGEX = /&/g;
+const LESS_THAN_REGEX = /</g;
+const GREATER_THAN_REGEX = />/g;
+const DOUBLE_QUOTE_REGEX = /"/g;
+
 const DEFAULT_OPTIONS: Required<HtmlGeneratorOptions> = {
   width: 1200,
   rowHeight: 150,
@@ -69,10 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function escapeHtml(str: string): string {
   return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(AMPERSAND_REGEX, '&amp;')
+    .replace(LESS_THAN_REGEX, '&lt;')
+    .replace(GREATER_THAN_REGEX, '&gt;')
+    .replace(DOUBLE_QUOTE_REGEX, '&quot;');
 }
 
 function getStyles(opts: Required<HtmlGeneratorOptions>): string {

@@ -5,6 +5,17 @@ import { Tooltip } from '../components/Tooltip.js';
 const meta = {
   title: 'Tooltip',
   component: Tooltip,
+  // react-docgen doesn't resolve react-tooltip's PlacesType.
+  argTypes: {
+    placement: {
+      control: 'select',
+      options: ['top', 'right', 'bottom', 'left'].flatMap((side) => [
+        side,
+        `${side}-start`,
+        `${side}-end`,
+      ]),
+    },
+  },
 } satisfies Meta<typeof Tooltip>;
 export default meta;
 type Story = StoryObj<typeof meta>;

@@ -9,9 +9,7 @@ For validators, `chains.<origin>.rpcConsensusType` selects the signing policy:
 | `majority` (default) | `ceil(2N/3)` | Same history verification, higher threshold |
 
 `majority` is a validator setting, not a raw-response consensus option for relayers
-or scrapers. Normal `quorum` and `majority` use the same protocol-independent
-checkpoint verifier as lightweight mode. Lightmode always uses `majority`, even if
-another `rpcConsensusType` is configured. Quorum retains its previous threshold:
+or scrapers. `quorum` and `majority` use the protocol-independent checkpoint verifier. Quorum retains its previous threshold:
 with four endpoints a 2–2 split can authorize the locally matching history; majority
 requires three matching endpoints. With two endpoints, quorum needs one and
 majority needs both. Exact duplicate URLs are counted once.
@@ -19,8 +17,9 @@ majority needs both. Exact duplicate URLs are counted once.
 For normal quorum/majority, indexing and auxiliary RPC calls use fallback transport;
 only the explicit history vote authorizes signatures. Startup reconstructs the tree
 from indexed leaves or a snapshot authenticated by this validator's signed
-checkpoint, never an unverified RPC frontier. RPC indexing, WebSocket freshness
-checks, and idle checkpoint polling remain enabled. If a local batch disagrees,
+checkpoint, never an unverified RPC frontier. RPC indexing fallback and WebSocket
+freshness checks remain enabled. Healthy, caught-up validators wait for insertions, with a
+60-second root audit to detect same-count reorgs. If a local batch disagrees,
 RPC recovery may fetch replacement insertions, but it repairs storage and permits
 signing only through the prefix authenticated by the configured checkpoint vote.
 Recovery ignores endpoint-supplied block metadata, uses the configured indexing
@@ -35,43 +34,43 @@ Mainnet/testnet configs explicitly select `majority` and pin validator images
 containing its parser. The binary and local development validators also default
 to `majority`.
 
-## Lightweight indexing
+## Live WebSocket indexing
 
-Enable `--lightweight` (alias: `--leightweigt`) with `--websocketUrl wss://...`.
-Explicit boolean values and configuration-file fields are also supported.
+`websocketUrl` is optional. Omit it to retain ordinary RPC-only indexing. When
+provided, it subscribes only to live `merkle_tree_insertion` events. Numeric
+reorg periods request the same scraper confirmation depth; block tags use the
+scraper's canonical stream. Configure a query-free `ws://` or `wss://` URL ending
+in `/validators`; other paths fail startup validation. No validator subscription
+sends replay cursors or waits for `caught_up` markers.
 
-Lightweight mode supports Ethereum, Sealevel, Cosmos Wasm, Cosmos Native,
-Starknet, Radix, Aleo (with the `aleo` build feature), and Tron. Configure at least
-one public or private state-read endpoint using the chain's existing fields:
+HTTP upgrade rejections, policy mismatches and WebSocket 1008 closes use a
+five-minute retry base while RPC indexing continues. Transient 1013 closes and
+transport failures retain the ordinary short retry interval.
+Retries include random per-process jitter.
 
-| Protocol | Independently checked endpoints |
-| --- | --- |
-| Ethereum, Sealevel, Starknet, Aleo | `rpcUrls` |
-| Cosmos Wasm / Native | `grpcUrls` |
-| Radix | `rpcUrls` (Core API) |
-| Tron | `walletSolidityUrls` |
+RPC indexing starts immediately and fills historical gaps, including after every
+WebSocket disconnect. The validator buffers up to 4,096 consecutive live insertions
+while RPC catches up. The first buffered leaf is a fixed overlap target. Once the
+local contiguous RPC prefix covers that leaf and the startup checkpoint count,
+the validator compares the insertion, cancels and awaits RPC indexing, then drains
+the buffered tail, deduplicating any additional RPC overlap. It does not chase a
+moving chain head. A quiet stream stays on RPC until an overlap arrives.
 
-The corresponding `custom...Urls` overrides retain their replacement semantics.
-Every distinct state-read endpoint participates, regardless of `rpcConsensusType`.
-Lightweight mode requires a fixed `ceil(2N/3)` matching endpoints out of the
-configured pool (2 of 3, 3 of 4, 4 of 5). Failed endpoints never reduce this threshold.
-Other protocol endpoints remain available for announcements and metrics; they do
-not cast additional root-check votes. Public RPCs are allowed automatically.
+Sequence gaps, conflicting insertions, buffer overflow, rollbacks, and disconnects
+retain or restore RPC indexing. Each connection needs a new overlap. On-chain count
+probes still detect stale or persistently ahead streams after handoff. No indexing
+handoff authorizes signatures: the configured checkpoint verification remains the
+signing gate, including historical checkpoint publication and reorg protection.
 
-The validator trusts the websocket for ordered insertion history and uses replay
-and live events exclusively for indexing. No RPC indexer or log recovery is built.
-Startup restores a structurally validated snapshot authenticated by the validator's
-own signed checkpoint before starting the websocket, then replays the remaining
-local/websocket insertions. A fresh local DB skips historical replay only when a
-valid authenticated snapshot is restored. Without one, reconstruction starts at
-insertion zero, including when switching
-back to normal mode with a previously skipped prefix. Replay and backfill use the
-same authenticated startup snapshot in both modes. Historical checkpoint uploads
-from every consensus-verified batch run in one background worker, coalescing newer targets
-while uploads retry; snapshots advance only after all covered checkpoints are
-published. Startup does not seed the tree from an RPC frontier or
-call `tree()` / `tree_at_block()`. Some protocols derive checkpoint reads from account
-data that also contains the tree frontier; that data does not initialize our tree.
+Validators require RPC log-indexing access in addition to state reads. Optional
+WebSocket indexing supplies live updates after RPC recovery. `lightweight` and
+`leightweigt` are unsupported settings, including when set to `false`.
+`allowPublicRpcs` is an explicit opt-in; it is not enabled automatically.
+
+Startup restores a structurally validated snapshot authenticated by this validator's
+own signed checkpoint, then reconstructs missing history through RPC. A fresh local
+DB without a valid snapshot starts from insertion zero. A snapshot is persisted
+only after its covered historical checkpoints have been published.
 
 Each verification batch requests the latest checkpoint from every endpoint using
 that protocol's existing confirmation/finality policy. Endpoints may return
@@ -79,8 +78,9 @@ different message indices. The validator compares each checkpoint's root, hook
 address, and domain against its local insertion history at that index.
 
 A matching later root authenticates the entire earlier prefix. The validator signs
-through the highest index supported by at least two thirds of the configured
-endpoints: the required-th highest matching index. For example, matching checkpoints
+through the highest index supported by its configured checkpoint threshold:
+`ceil(2N/3)` for majority, or `ceil(N/2)` for quorum. It uses the required-th
+highest matching index. For example, matching checkpoints
 at indices 100, 102, 103, and 104 authorize signing through 102 (three of four votes).
 Missing a polling window does not lose historical checkpoints: replay reconstructs
 the intermediate roots, which can be signed after a later root authenticates them.
@@ -136,28 +136,39 @@ frontiers only at sampled indices, bounded by endpoint count. If a later sample
 requests an uncached intermediate index, replay resumes from the committed tree
 using stored insertions. Roots are calculated only at sampled indices.
 
-In lightweight mode, no idle count/root polling or websocket RPC freshness probes
-run once caught up.
-Pending insertions are retried at the configured interval. Websocket notifications
-cannot bypass this RPC interval, including on errors. Each endpoint receives one
-checkpoint-method read per attempt, shared by a batch of insertions, with a 20-second
-timeout per endpoint, including deferred WebSocket connection setup. Responses
+Validators run the 60-second root audit once the local tree is non-empty.
+The next unsigned insertion in the local DB drives independent RPC verification.
+Both WebSocket and fallback RPC indexing notify the same verifier after persisting
+new insertions. It does not track which indexer is active, and no separate insertion
+counter or polling deadline gates new work. Once caught up, the verifier waits for a
+notification or the 60-second safety audit. A valid RPC quorum that has not advanced
+retries pending insertions after 500 ms, without needing another notification.
+Consecutive stale rounds double that delay up to the configured interval; checkpoint
+progress resets it. The first retry is also capped at the configured interval.
+Failed consensus reads or root verification retain the configured retry interval;
+notifications cannot bypass that delay. RPC indexing fallback keeps its configured
+polling interval. Without a WebSocket configured, the verifier checks the local DB
+at that interval. Single/fallback RPC failures retain the provider retry policy.
+On idle chains, including RPC-only validators and unhealthy WebSocket connections,
+`validator_observed` checkpoint metrics and same-count reorg detection update on the
+60-second audit rather than every configured interval.
+Each endpoint receives one checkpoint-method read per attempt, shared by a batch
+of insertions, with a 20-second timeout per endpoint, including deferred WebSocket connection setup. Responses
 are verified progressively: signing advances as soon as enough roots match local
 history, without waiting for a stalled minority. Unavailable WebSocket endpoints
 retain their voting slots and retry initialization on subsequent reads. Without
 a matching threshold, reads remain bounded by the deadline.
 Wire call counts depend on the protocol adapter. Announcements and metrics retain
 their own RPC calls.
+`hyperlane_validator_checkpoint_reads_total{chain="..."}` counts checkpoint verification
+read attempts, including each consensus endpoint and failed or timed-out reads.
+It counts adapter method calls, not underlying wire requests or RPC indexing calls.
 
-Websocket failures trigger reconnection without indexing fallback. Insufficient
-responses or matching roots block signing until a later successful verification.
-Normal `single`/`fallback` retain classic checkpoint verification and recovery.
-Normal `quorum`/`majority` use the shared verifier and recovery policy described
-above, while preserving RPC indexing fallback and idle polling.
+WebSocket failures restore RPC indexing before reconnection. Insufficient
+checkpoint responses or matching roots block signing until verification succeeds.
+The `single`/`fallback` policies retain classic checkpoint verification and recovery;
+`quorum`/`majority` retain the endpoint vote, RPC recovery, and 60-second root audit.
 
-The separate additional RPC pool remains removed. Both modes reject obsolete
-`additionalQuorumRpcUrls` / `customAdditionalQuorumRpcUrls` settings, including empty
-values, instead of silently ignoring them. Move their endpoints into `rpcUrls` or
-`customRpcUrls` and remove the obsolete settings. Custom URL overrides replace the
-registry list, so include every intended endpoint. Normal mode uses its configured
-`rpcConsensusType`; lightweight mode uses the fixed two-thirds checkpoint vote described above.
+The obsolete `additionalQuorumRpcUrls` / `customAdditionalQuorumRpcUrls` settings
+remain rejected. Move those endpoints into the chain's existing state-read fields;
+custom URL overrides replace the registry list.

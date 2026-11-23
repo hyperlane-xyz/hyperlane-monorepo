@@ -1,5 +1,7 @@
 import type { WarpWidgetConfig } from './types.js';
 
+const HASH_PREFIX_REGEX = /^#/;
+
 export const EMBED_BASE_URL = 'https://nexus.hyperlane.xyz/embed';
 const HEX_RE =
   /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -17,7 +19,7 @@ const THEME_COLOR_KEYS = new Set([
 
 /** Strip leading # from hex color values */
 function normalizeHex(value: string): string {
-  return value.replace(/^#/, '');
+  return value.replace(HASH_PREFIX_REGEX, '');
 }
 
 /** Build the full embed URL from a widget config. */

@@ -55,6 +55,8 @@ jobs:
               src/e2e/weighted.e2e-test.ts
           - name: inventory-weighted
             specs: src/e2e/inventory-weighted.e2e-test.ts
+          - name: relayer-denylist
+            specs: src/e2e/relayer-denylist.e2e-test.ts
     steps:
       - uses: actions/checkout@v7
         with:

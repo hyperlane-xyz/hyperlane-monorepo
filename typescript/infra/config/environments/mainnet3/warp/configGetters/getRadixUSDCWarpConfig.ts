@@ -69,7 +69,7 @@ export const getRadixUSDCWarpConfig = async (
         {
           type: IsmType.PAUSABLE,
           owner: '0x60Cc386C85717CB51C2827A75e14826883dF5da4',
-          paused: true,
+          paused: false,
         },
       ],
     },

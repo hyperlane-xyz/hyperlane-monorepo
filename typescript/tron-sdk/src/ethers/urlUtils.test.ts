@@ -84,6 +84,25 @@ describe('stripCustomRpcHeaders', () => {
     expect(result.url).to.equal('https://host/jsonrpc');
     expect(result.headers).to.deep.equal({});
   });
+
+  it('decodes encoded parameter names and keeps the last duplicate header', () => {
+    const result = stripCustomRpcHeaders(
+      'https://host/jsonrpc?%63ustom_rpc_header=Authorization:first&custom_rpc_header=Authorization:Bearer%20last%3Atoken&other=a%20b#fragment',
+    );
+    expect(result).to.deep.equal({
+      url: 'https://host/jsonrpc?other=a+b#fragment',
+      headers: { Authorization: 'Bearer last:token' },
+    });
+  });
+
+  it('preserves original serialization without custom headers', () => {
+    const url = 'https://HOST:443/jsonrpc?other=a%20b#fragment';
+    expect(stripCustomRpcHeaders(url)).to.deep.equal({ url, headers: {} });
+    expect(stripCustomRpcHeaders('not-a-url')).to.deep.equal({
+      url: 'not-a-url',
+      headers: {},
+    });
+  });
 });
 
 describe('toHttpApiUrl', () => {
@@ -150,5 +169,19 @@ describe('toHttpApiUrl', () => {
     expect(
       toHttpApiUrl('https://tron-rpc.example.com/v2/API_KEY/jsonrpc'),
     ).to.equal('https://tron-rpc.example.com/v2/API_KEY');
+  });
+
+  it('normalizes the host and preserves encoded queries without headers', () => {
+    expect(
+      toHttpApiUrl('https://HOST:443/prefix/jsonrpc?other=a%20b#fragment'),
+    ).to.equal('https://host/prefix?other=a%20b#fragment');
+  });
+
+  it('removes encoded and malformed header parameters while preserving fragments', () => {
+    expect(
+      toHttpApiUrl(
+        'https://host/jsonrpc?%63ustom_rpc_header=bad&custom_rpc_header=x-key:secret&other=a%20b#fragment',
+      ),
+    ).to.equal('https://host/?other=a+b#fragment');
   });
 });

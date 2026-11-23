@@ -10,6 +10,7 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
+  type ExternalBridgeType,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
@@ -49,6 +50,9 @@ export interface RebalancerServiceConfig {
 
   /** CoinGecko API key for token price fetching (required for metrics) */
   coingeckoApiKey?: string;
+
+  /** API keys for configured external bridge providers */
+  externalBridgeApiKeys?: Partial<Record<ExternalBridgeType, string>>;
 
   /** Logger instance */
   logger: Logger;
@@ -156,6 +160,8 @@ export class RebalancerService {
       this.registry,
       this.logger,
       this.inventorySignerKeysByProtocol,
+      undefined,
+      this.config.externalBridgeApiKeys,
     );
 
     // Create metrics if enabled
@@ -188,6 +194,11 @@ export class RebalancerService {
       await this.actionTracker.initialize();
       this.logger.info('ActionTracker initialized');
     }
+
+    const actionTracker = this.actionTracker;
+    this.metrics?.observeInFlightActions(() =>
+      actionTracker.getInProgressActions(false),
+    );
 
     // Create rebalancers (both movableCollateral and inventory if configured)
     let rebalancers: IRebalancer[] = [];
@@ -292,6 +303,9 @@ export class RebalancerService {
     // Use destination-specific bridge override if configured, otherwise use default
     const bridge =
       originConfig.override?.[destination]?.bridge ?? originConfig.bridge;
+    const statusAdapter =
+      originConfig.override?.[destination]?.statusAdapter ??
+      originConfig.statusAdapter;
 
     try {
       const manualRoute: MovableCollateralRoute & { intentId: string } = {
@@ -300,6 +314,7 @@ export class RebalancerService {
         amount: normalizeConfiguredAmount(amount, originToken),
         executionType: 'movableCollateral',
         bridge,
+        statusAdapter,
         intentId: `manual-${Date.now()}`,
       };
       await this.rebalancer.rebalance([manualRoute]);

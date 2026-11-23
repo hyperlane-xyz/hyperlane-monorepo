@@ -11,10 +11,10 @@ use hyperlane_core::Metadata;
 use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::call_and_retry_indefinitely, ChainResult, ContractLocator, Decode, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer,
-    LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate,
-    TxOutcome, H256, H512, U256,
+    rpc_clients::call_and_retry_indefinitely, ChainCommunicationError, ChainResult,
+    ContractLocator, Decode, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod,
+    SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::interfaces::i_mailbox::IMailbox as TronMailboxInternal;
@@ -243,12 +243,12 @@ impl Mailbox for TronMailbox {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
-        let gas_limit = self
-            .contract_call(message, metadata, None)?
-            .estimate_gas()
-            .await?;
-
-        let gas_price: U256 = self.provider.get_gas_price().await?.into();
+        let call = self.contract_call(message, metadata, None)?;
+        let (gas_limit, gas_price) = tokio::try_join!(
+            async { Ok::<_, ChainCommunicationError>(call.estimate_gas().await?) },
+            async { Ok::<_, ChainCommunicationError>(self.provider.get_gas_price().await?) },
+        )?;
+        let gas_price: U256 = gas_price.into();
 
         Ok(TxCostEstimate {
             gas_limit: gas_limit.into(),

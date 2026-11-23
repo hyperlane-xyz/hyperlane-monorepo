@@ -46,6 +46,10 @@ extend-ignore-identifiers-re = [
 ]
 
 [default.extend-words]
+# PostgreSQL Block Range Index
+BRIN = "BRIN"
+brin = "brin"
+
 # Chain / token names
 superseed = "superseed"
 Superseed = "Superseed"
@@ -84,6 +88,8 @@ writeable = "writeable"
 # External API field names that cannot be changed
 # Etherscan API uses "constructorArguements" (their typo)
 Arguements = "Arguements"
+# Tron protobuf Transaction.Result.code wire value (the protocol spelling)
+SUCESS = "SUCESS"
 # Tron API error code
 BANDWITH = "BANDWITH"
 # tron_rs library type "BlockExtention"

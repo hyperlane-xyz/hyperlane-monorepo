@@ -1,19 +1,19 @@
-//! Receipt enrichment is independent of indexing and of the other event stream.
+//! One receipt worker schedules independent pages for all indexed event types.
 use std::time::Duration;
 
+use futures::future::join_all;
 use prometheus::GaugeVec;
-use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use tokio::{
-    sync::Semaphore,
-    time::{sleep, timeout},
+    sync::{watch, Semaphore},
+    time::{sleep, timeout, Instant},
 };
 use tracing::warn;
 
-use crate::store::HyperlaneDbStore;
+use crate::{
+    db::{ReceiptStream, RECEIPT_PAGE_SIZE},
+    store::HyperlaneDbStore,
+};
 
-use super::store::Store;
-
-const PAGE_SIZE: usize = 100;
 const RECEIPT_TIMEOUT: Duration = Duration::from_secs(30);
 const RECEIPT_RPC_CONCURRENCY: usize = 16;
 const RECEIPT_RPC_DOMAIN_CONCURRENCY: usize = 4;
@@ -21,142 +21,149 @@ const RECEIPT_DB_CONCURRENCY: usize = 5;
 static RECEIPT_RPC_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_RPC_CONCURRENCY);
 static RECEIPT_DB_PERMITS: Semaphore = Semaphore::const_new(RECEIPT_DB_CONCURRENCY);
 
-/// Drain healthy full pages immediately; back off on failures and between sweeps.
-/// Independent stream loops keep a slow delivery receipt from delaying gas work.
+#[derive(Debug, PartialEq, Eq)]
+enum PageOutcome {
+    More,
+    Idle,
+    Retry,
+}
+
+impl PageOutcome {
+    async fn wait(self, delay: Duration, wakeup: &mut watch::Receiver<()>) {
+        match self {
+            Self::More => tokio::task::yield_now().await,
+            Self::Idle => tokio::select! {
+                _ = sleep(delay) => {}
+                changed = wakeup.changed() => { changed.expect("Receipt wake-up sender dropped"); }
+            },
+            // New indexed work must not bypass RPC/DB failure backoff.
+            Self::Retry => sleep(delay).await,
+        }
+    }
+}
+
+/// Scan on startup and ingestion, with a periodic fallback and failure cooldowns.
+/// Completed pages are rescheduled independently, so one slow receipt cannot block other types.
 pub(super) async fn run(
-    legacy: &HyperlaneDbStore,
+    store: &HyperlaneDbStore,
     poll_interval: Duration,
     oldest_pending_seconds: &GaugeVec,
+    wakeup: watch::Receiver<()>,
 ) {
     let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
-    tokio::join!(
+    join_all(ReceiptStream::ALL.into_iter().map(|stream| {
         run_stream(
-            legacy,
-            "delivered_message",
+            store,
+            stream,
             poll_interval,
-            &domain_rpc_permits
-        ),
-        run_stream(legacy, "gas_payment", poll_interval, &domain_rpc_permits),
-        monitor_backlog(legacy, poll_interval, oldest_pending_seconds),
-    );
-}
-
-async fn monitor_backlog(
-    legacy: &HyperlaneDbStore,
-    poll_interval: Duration,
-    oldest_pending_seconds: &GaugeVec,
-) {
-    loop {
-        if let result @ (Err(_) | Ok(Err(_))) = timeout(
-            RECEIPT_TIMEOUT,
-            update_pending_age(legacy, oldest_pending_seconds),
+            wakeup.clone(),
+            &domain_rpc_permits,
+            oldest_pending_seconds,
         )
-        .await
-        {
-            warn!(
-                domain = legacy.domain.id(),
-                ?result,
-                "Receipt backlog measurement failed; retrying"
-            );
-        }
-        sleep(poll_interval).await;
-    }
-}
-
-/// Read the first pending row through each stream's partial (domain,id) index.
-/// This runs on the polling cadence, independently of receipt fetches and pages.
-async fn update_pending_age(
-    legacy: &HyperlaneDbStore,
-    oldest_pending_seconds: &GaugeVec,
-) -> eyre::Result<()> {
-    for (table, column, event_type) in [
-        ("delivered_message", "destination_tx_id", "delivery"),
-        ("gas_payment", "tx_id", "gas_payment"),
-    ] {
-        let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
-        let row = legacy
-            .db
-            .clone_connection()
-            .query_one(Statement::from_sql_and_values(
-                DbBackend::Postgres,
-                format!(
-                    "SELECT coalesce((SELECT greatest(0, extract(epoch FROM \
-                    ((clock_timestamp() AT TIME ZONE 'UTC') - time_created))::double precision) \
-                    FROM confirmed_{table} WHERE domain=$1 AND {column} IS NULL \
-                    AND block_hash IS NOT NULL AND transaction_hash IS NOT NULL
-                    ORDER BY id LIMIT 1),0::double precision) AS age"
-                ),
-                [i32::from_ne_bytes(legacy.domain.id().to_ne_bytes()).into()],
-            ))
-            .await?
-            .ok_or_else(|| eyre::eyre!("Missing receipt backlog age"))?;
-        oldest_pending_seconds
-            .with_label_values(&[legacy.domain.name(), event_type])
-            .set(row.try_get("", "age")?);
-    }
-    Ok(())
+    }))
+    .await;
 }
 
 async fn run_stream(
-    legacy: &HyperlaneDbStore,
-    table: &str,
+    store: &HyperlaneDbStore,
+    stream: ReceiptStream,
     poll_interval: Duration,
+    mut wakeup: watch::Receiver<()>,
     domain_rpc_permits: &Semaphore,
+    oldest_pending_seconds: &GaugeVec,
 ) {
-    let mut after = 0;
-    let salt = if table == "gas_payment" { 1 } else { 0 };
-    let stagger_period = u64::try_from(poll_interval.as_millis())
+    let period_ms = u64::try_from(poll_interval.as_millis())
         .unwrap_or(u64::MAX)
         .max(1);
-    let stagger = if cfg!(test) {
-        0
-    } else {
-        u64::from(legacy.domain.id())
-            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-            .wrapping_mul(2)
-            .wrapping_add(salt)
-            .checked_rem(stagger_period)
-            .unwrap_or_default()
+    let salt = match stream {
+        ReceiptStream::Dispatch => 0,
+        ReceiptStream::Delivery => 1,
+        ReceiptStream::GasPayment => 2,
     };
-    sleep(Duration::from_millis(stagger)).await;
+    let stagger = u64::from(store.domain.id())
+        .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+        .wrapping_mul(3)
+        .wrapping_add(salt)
+        .checked_rem(period_ms)
+        .expect("Positive poll interval");
+    PageOutcome::Idle
+        .wait(
+            Duration::from_millis(if cfg!(test) { 0 } else { stagger }),
+            &mut wakeup,
+        )
+        .await;
+    let mut last_age_sample: Option<Instant> = None;
+    let mut after = 0;
+    let mut outcome = PageOutcome::More;
     loop {
-        let more = enrich_page(
-            legacy,
-            table,
+        outcome.wait(poll_interval, &mut wakeup).await;
+        // Remember hints arriving during a read/fetch, so the next idle page runs immediately.
+        wakeup.borrow_and_update();
+        outcome = enrich_page(
+            store,
+            stream,
             &mut after,
             RECEIPT_TIMEOUT,
             domain_rpc_permits,
         )
         .await;
-        if more {
-            // Each turn is bounded to one page. Let other worker tasks run even
-            // when a large cache-only backlog never needs to wait for an RPC.
-            tokio::task::yield_now().await;
-        } else {
-            sleep(poll_interval).await;
+        if !matches!(stream, ReceiptStream::Dispatch)
+            && last_age_sample.is_none_or(|last| last.elapsed() >= poll_interval)
+        {
+            last_age_sample = Some(Instant::now());
+            if let result @ (Err(_) | Ok(Err(_))) = timeout(
+                RECEIPT_TIMEOUT,
+                update_pending_age(store, stream, oldest_pending_seconds),
+            )
+            .await
+            {
+                warn!(
+                    domain = store.domain.id(),
+                    ?result,
+                    "Receipt backlog measurement failed"
+                );
+            }
         }
     }
 }
 
-/// Return true only when a healthy full page warrants immediate catch-up.
+/// Sample backlog only while processing a stream, never on an idle timer.
+async fn update_pending_age(
+    store: &HyperlaneDbStore,
+    stream: ReceiptStream,
+    oldest_pending_seconds: &GaugeVec,
+) -> eyre::Result<()> {
+    let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
+    let age = store
+        .db
+        .pending_receipt_age(store.domain.id(), stream)
+        .await?;
+    oldest_pending_seconds
+        .with_label_values(&[store.domain.name(), stream.metric_label()])
+        .set(age);
+    Ok(())
+}
+
+/// Drain healthy full pages; distinguish idle waits from failure cooldowns.
 async fn enrich_page(
-    legacy: &HyperlaneDbStore,
-    table: &str,
+    store: &HyperlaneDbStore,
+    stream: ReceiptStream,
     after: &mut i64,
     deadline: Duration,
     domain_rpc_permits: &Semaphore,
-) -> bool {
-    let store = Store {
-        db: legacy.db.clone_connection(),
-        domain: legacy.domain.id(),
-    };
+) -> PageOutcome {
     let start = *after;
+    let mut ids = Vec::new();
     let result = timeout(deadline, async {
         let db_permit = RECEIPT_DB_PERMITS.acquire().await?;
-        let rows = store.unenriched(table, start).await?;
+        let rows = store
+            .db
+            .pending_receipts(store.domain.id(), stream, start)
+            .await?;
         drop(db_permit);
         *after = rows.last().map(|(id, _)| *id).unwrap_or(0);
-        let complete = legacy
+        ids = rows.iter().map(|(id, _)| *id).collect();
+        let complete = store
             .ensure_transactions_for_known_blocks(
                 rows.iter().map(|(_, meta)| meta),
                 &RECEIPT_RPC_PERMITS,
@@ -164,22 +171,25 @@ async fn enrich_page(
                 &RECEIPT_DB_PERMITS,
             )
             .await?;
-        Ok::<_, eyre::Report>(complete && rows.len() == PAGE_SIZE)
+        Ok::<_, eyre::Report>((complete, rows.len() == RECEIPT_PAGE_SIZE))
     })
     .await;
 
     // Persisted successes are linked even when another receipt timed out. Keep
     // this separate from fetch cancellation, but bound its own database wait.
-    let linked = if *after > start {
+    let linked = if !ids.is_empty() {
         let result = timeout(deadline, async {
             let _db_permit = RECEIPT_DB_PERMITS.acquire().await?;
-            store.enrich(table, start, *after).await
+            store
+                .db
+                .link_receipts(store.domain.id(), stream, &ids)
+                .await
         })
         .await;
         if !matches!(result, Ok(Ok(()))) {
             warn!(
-                domain = store.domain,
-                table,
+                domain = store.domain.id(),
+                table = stream.table(),
                 ?result,
                 "Receipt linking failed; retrying"
             );
@@ -189,31 +199,37 @@ async fn enrich_page(
         true
     };
     match result {
-        Ok(Ok(more)) => more && linked,
+        Ok(Ok((true, more))) if linked => {
+            if more {
+                PageOutcome::More
+            } else {
+                // A completed sweep restarts before wake-ups can keep appending newer rows.
+                *after = 0;
+                PageOutcome::Idle
+            }
+        }
+        Ok(Ok(_)) => PageOutcome::Retry,
         result => {
             warn!(
-                domain = store.domain,
-                table,
+                domain = store.domain.id(),
+                table = stream.table(),
                 ?result,
-                "Confirmed event enrichment failed; retrying"
+                "Event transaction enrichment failed; retrying"
             );
-            false
+            PageOutcome::Retry
         }
     }
 }
 
 #[cfg(test)]
 pub(super) async fn enrich_with_timeout(
-    legacy: &HyperlaneDbStore,
-    cursors: &mut [i64; 2],
+    store: &HyperlaneDbStore,
+    cursors: &mut [i64; 3],
     deadline: Duration,
 ) {
     let domain_rpc_permits = Semaphore::new(RECEIPT_RPC_DOMAIN_CONCURRENCY);
-    for (table, after) in ["delivered_message", "gas_payment"]
-        .into_iter()
-        .zip(cursors)
-    {
-        enrich_page(legacy, table, after, deadline, &domain_rpc_permits).await;
+    for (stream, after) in ReceiptStream::ALL.into_iter().zip(cursors) {
+        enrich_page(store, stream, after, deadline, &domain_rpc_permits).await;
     }
 }
 

@@ -15,6 +15,9 @@ import {
 import { type CommandModuleWithContext } from '../context/types.js';
 import { log, logGreen } from '../logger.js';
 
+const WARP_BODY_REGEX = /^0x[0-9a-fA-F]{128}$/;
+const DOMAIN_ID_REGEX = /^\d+$/;
+
 function bytes32WithAddress(
   bytes32: string,
   protocol?: ProtocolType,
@@ -87,7 +90,7 @@ const decodeMessageCommand: CommandModuleWithContext<DecodeMessageArgs> = {
       `Recipient:   ${bytes32WithAddress(parsed.recipient, destMetadata?.protocol, destMetadata?.bech32Prefix)}`,
     );
     // Best-effort: 64-byte bodies may be warp transfers (bytes32 + uint256) but not all are
-    const isWarpBody = /^0x[0-9a-fA-F]{128}$/.test(parsed.body);
+    const isWarpBody = WARP_BODY_REGEX.test(parsed.body);
     if (isWarpBody) {
       const warp = parseWarpRouteMessage(parsed.body);
       log(`Body (possible warp transfer):`);
@@ -195,10 +198,10 @@ const encodeMessageCommand: CommandModuleWithContext<EncodeMessageArgs> = {
 
     const originTrimmed = origin.trim();
     const destTrimmed = destination.trim();
-    const originId = /^\d+$/.test(originTrimmed)
+    const originId = DOMAIN_ID_REGEX.test(originTrimmed)
       ? Number(originTrimmed)
       : context.multiProvider.getDomainId(originTrimmed);
-    const destId = /^\d+$/.test(destTrimmed)
+    const destId = DOMAIN_ID_REGEX.test(destTrimmed)
       ? Number(destTrimmed)
       : context.multiProvider.getDomainId(destTrimmed);
     const originChain = context.multiProvider.tryGetChainName(originId);

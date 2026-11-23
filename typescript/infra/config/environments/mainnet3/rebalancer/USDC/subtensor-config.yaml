@@ -9,7 +9,7 @@ strategy:
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
-      bridge: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975'
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     ethereum:
       minAmount:
@@ -18,7 +18,7 @@ strategy:
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
-      bridge: '0xedCBAa585FD0F80f20073F9958246476466205b8'
+      bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
 
     polygon:
       minAmount:
@@ -27,7 +27,7 @@ strategy:
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
-      bridge: '0xa62F45662809f5F6535b58bae9A572a2EC4A1f84'
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
 
     arbitrum:
       minAmount:
@@ -36,7 +36,7 @@ strategy:
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
-      bridge: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2'
+      bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
 
     unichain:
       minAmount:
@@ -45,4 +45,4 @@ strategy:
         type: 'absolute'
       bridgeLockTime: 1800 # 30 mins in seconds
       bridgeMinAcceptedAmount: 3000
-      bridge: '0x296aF86bff91b23cF980f6a443bc15A3A5d30682'
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'

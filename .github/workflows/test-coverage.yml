@@ -30,6 +30,8 @@ jobs:
           base_sha: ${{ steps.determine-sha.outputs.base_sha }}
           head_sha: ${{ steps.determine-sha.outputs.current_sha }}
           path_pattern: 'solidity/'
+          # Docs don't affect coverage.
+          exclude_pattern: '\.md$'
 
   coverage-run:
     runs-on: depot-ubuntu-24.04-8
@@ -48,12 +50,14 @@ jobs:
         uses: ./.github/actions/pnpm-build-with-cache
 
       - name: Run tests with coverage
-        run: pnpm run coverage
+        run: pnpm exec turbo run coverage --filter=@hyperlane-xyz/core
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./solidity/lcov.info
+          disable_search: true
           flags: solidity
           fail_ci_if_error: true
 

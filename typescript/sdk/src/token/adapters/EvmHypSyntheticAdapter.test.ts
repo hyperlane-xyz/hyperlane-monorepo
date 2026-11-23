@@ -7,7 +7,7 @@ import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js'
 
 import { EvmHypSyntheticAdapter } from './EvmTokenAdapter.js';
 
-describe('EvmHypSyntheticAdapter.quoteTransferRemoteGas', () => {
+describe('EvmHypSyntheticAdapter', () => {
   const TOKEN_ADDRESS = '0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b';
   const RECIPIENT = '0x1111111111111111111111111111111111111111';
   const DESTINATION_DOMAIN = test2.domainId!;
@@ -43,6 +43,28 @@ describe('EvmHypSyntheticAdapter.quoteTransferRemoteGas', () => {
   });
 
   afterEach(() => sandbox.restore());
+
+  for (const allowance of [0n, 7n]) {
+    it(`preserves external-spender reset checks with allowance ${allowance}`, async () => {
+      const spender = '0x2222222222222222222222222222222222222222';
+      sandbox.stub(adapter.getProvider(), 'call').callsFake(async (tx) => {
+        if (typeof tx.data !== 'string')
+          throw new Error('Missing contract calldata');
+        const { name, args } = adapter.contract.interface.parseTransaction({
+          data: tx.data,
+        });
+        expect(name).to.equal('allowance');
+        expect(args[0]).to.equal(RECIPIENT);
+        expect(args[1]).to.equal(spender);
+        return adapter.contract.interface.encodeFunctionResult('allowance', [
+          allowance.toString(),
+        ]);
+      });
+      expect(
+        await adapter.isRevokeApprovalRequired(RECIPIENT, spender),
+      ).to.equal(allowance > 0n);
+    });
+  }
 
   it('does not count the bridged amount as a native fee for native routes', async () => {
     // Native route: token() == address(0), so every quote is denominated in address(0).

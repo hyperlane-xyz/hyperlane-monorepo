@@ -113,6 +113,25 @@ export function getChainAddresses(): ChainMap<ChainAddresses> {
   return getRegistry().getAddresses();
 }
 
+export function getIcaRouterAddresses(chain: ChainName): string[] {
+  const addresses = getChainAddresses()[chain];
+  const routers: string[] = [];
+  for (const router of [
+    addresses?.interchainAccountRouter,
+    addresses?.interchainAccountRouterV3,
+  ]) {
+    if (
+      router &&
+      !routers.some(
+        (existing) => existing.toLowerCase() === router.toLowerCase(),
+      )
+    ) {
+      routers.push(router);
+    }
+  }
+  return routers;
+}
+
 export function warpRouteExistsInRegistry(warpRouteId: string): boolean {
   return !!getRegistry().getWarpRoute(warpRouteId);
 }

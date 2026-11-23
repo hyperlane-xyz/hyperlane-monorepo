@@ -7,6 +7,7 @@ import {
   type Token,
 } from '@hyperlane-xyz/sdk';
 import {
+  assert,
   bytes32ToAddress,
   isValidAddressEvm,
   isZeroishAddress,
@@ -14,6 +15,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_EXPLORER_QUERY_LIMIT } from './constants.js';
+
+const MESSAGE_ID_REGEX = /^0x[0-9a-f]{64}$/;
+const HEX_PREFIX_REGEX = /^0x/i;
+// The proxy's history filter policy applies to every route on the endpoint.
+const unsupportedPendingEndpoints = new Set<string>();
 
 type ExplorerMessageRow = {
   msg_id: string;
@@ -65,7 +71,7 @@ export function normalizeExplorerAddress(address: string): string {
 
 function isValidEvmWarpRecipient(recipientBytes32: string): boolean {
   const normalized = normalizeExplorerHex(recipientBytes32).toLowerCase();
-  if (!/^0x[0-9a-f]{64}$/.test(normalized)) return false;
+  if (!MESSAGE_ID_REGEX.test(normalized)) return false;
   // EVM warp recipients should be left-padded 20-byte addresses.
   if (!normalized.startsWith('0x000000000000000000000000')) return false;
 
@@ -111,8 +117,10 @@ export class ExplorerPendingTransfersClient {
 
   async getPendingDestinationTransfers(
     limit = DEFAULT_EXPLORER_QUERY_LIMIT,
-  ): Promise<PendingDestinationTransfer[]> {
+  ): Promise<PendingDestinationTransfer[] | null> {
+    if (unsupportedPendingEndpoints.has(this.apiUrl)) return null;
     const rows = await this.queryInflightTransfers(limit);
+    if (rows === null) return null;
     const transfers: PendingDestinationTransfer[] = [];
 
     for (const row of rows) {
@@ -186,12 +194,12 @@ export class ExplorerPendingTransfersClient {
   }
 
   private toBytea(address: string): string {
-    return address.replace(/^0x/i, '\\x').toLowerCase();
+    return address.replace(HEX_PREFIX_REGEX, '\\x').toLowerCase();
   }
 
   private async queryInflightTransfers(
     limit: number,
-  ): Promise<ExplorerMessageRow[]> {
+  ): Promise<ExplorerMessageRow[] | null> {
     if (this.routers.length === 0 || this.domains.length === 0) return [];
 
     const variables = {
@@ -263,16 +271,33 @@ export class ExplorerPendingTransfersClient {
 
       const payload: {
         data?: { message_view?: ExplorerMessageRow[] };
-        errors?: unknown;
+        errors?: { message: string }[];
       } = await response.json();
 
-      if (payload.errors) {
+      if (
+        payload.errors?.some(
+          ({ message }) =>
+            message ===
+            'Delivery status filters require a provisional-only feed',
+        )
+      ) {
+        if (!unsupportedPendingEndpoints.has(this.apiUrl)) {
+          unsupportedPendingEndpoints.add(this.apiUrl);
+          this.logger.error(
+            'The Explorer GraphQL API does not support filtering finalized messages by delivery status. Pending transfer and projected deficit metrics are unavailable. Restart the monitor after the API supports this query.',
+          );
+        }
+        return null;
+      }
+      if (payload.errors?.length) {
         throw new Error(
           `Explorer query returned GraphQL errors: ${JSON.stringify(payload.errors)}`,
         );
       }
 
-      return payload.data?.message_view ?? [];
+      const rows = payload.data?.message_view;
+      assert(Array.isArray(rows), 'Explorer query returned no message_view');
+      return rows;
     } finally {
       clearTimeout(timeout);
     }

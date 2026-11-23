@@ -4,7 +4,13 @@
 //! and validations it defines are not applied here, we should mirror them.
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
-use std::{collections::HashSet, ops::Add, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Add,
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
 use derive_more::{AsMut, AsRef, Deref, DerefMut};
 use ethers::utils::hex;
@@ -13,20 +19,26 @@ use hyperlane_base::{
     impl_loadable_from_settings,
     settings::{
         parser::{parse_json_array, parse_matching_list, RawAgentConf, ValueParser},
-        Settings,
+        ChainConf, Settings,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, H160, U256};
+use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, ReorgPeriod, H160, U256};
 use itertools::Itertools;
+use redact::Secret;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    msg::{metadata::IsmCacheConfig, pending_message::DEFAULT_MAX_MESSAGE_RETRIES},
+    msg::{
+        metadata::IsmCacheConfig, pending_message::DEFAULT_MAX_MESSAGE_RETRIES,
+        runtime_denylist::RuntimeDenylistConf,
+    },
     settings::matching_list::MatchingList,
 };
 
 pub mod matching_list;
+
+const DEFAULT_RUNTIME_DENYLIST_POLL_INTERVAL_SECS: u64 = 60;
 
 /// Settings for `Relayer`
 #[derive(Debug, AsRef, AsMut, Deref, DerefMut)]
@@ -37,6 +49,8 @@ pub struct RelayerSettings {
     #[deref_mut]
     pub base: Settings,
 
+    /// Optional separate PostgreSQL database for sanitized message activity.
+    pub message_activity_database_url: Option<Secret<String>>,
     /// Database path
     pub db: PathBuf,
     /// The chain to relay messages from
@@ -49,10 +63,16 @@ pub struct RelayerSettings {
     pub whitelist: MatchingList,
     /// Filter for what messages to block.
     pub blacklist: MatchingList,
+    /// Exact DNS names permitted for CCIP-read requests. Empty disables lookups.
+    pub ccip_read_allowed_domains: Arc<[String]>,
     /// Filter for what addresses to block interactions with.
     /// This is intentionally not an H256 to allow for addresses of any length without
     /// adding any padding.
     pub address_blacklist: Vec<Vec<u8>>,
+    /// Denylist fetched from a URL and re-polled, so rules change without a
+    /// redeploy. If a fetch fails the previous rules stay active; if the first
+    /// fetch at startup fails, the relayer starts with no runtime rules.
+    pub runtime_denylist: Option<RuntimeDenylistConf>,
     /// This is optional. If not specified, any amount of gas will be valid, otherwise this
     /// is the max allowed gas in wei to relay a transaction.
     pub transaction_gas_limit: Option<U256>,
@@ -73,10 +93,10 @@ pub struct RelayerSettings {
     pub tx_id_indexing_enabled: bool,
     /// Whether to enable IGP indexing.
     pub igp_indexing_enabled: bool,
-    /// Optional scraper-proxy WebSocket used for shared indexing.
-    pub websocket_url: Option<url::Url>,
-    /// Whether a healthy scraper-proxy stream may replace direct RPC indexing.
-    pub websocket_authority_enabled: bool,
+    /// Preferred live indexing source; RPC fills history and handles fallback.
+    pub websocket_url: Option<Secret<url::Url>>,
+    /// Existing chain overrides; also select custom websocket confirmation policies.
+    pub reorg_period_overrides: HashMap<String, ReorgPeriod>,
     /// Whether to enable the relay API endpoint (default: false)
     ///
     /// # Deployment requirement
@@ -99,6 +119,25 @@ pub struct RelayerSettings {
     pub relay_api_rate_limit_window_secs: Option<u64>,
     /// Relay API allowed CORS origins (comma-separated). Defaults to https://nexus.hyperlane.xyz.
     pub relay_api_cors_origins: Vec<String>,
+}
+
+impl RelayerSettings {
+    /// Use the effective RPC depth for explicitly selected websocket domains.
+    pub(crate) fn scraper_confirmations(&self, chain: &ChainConf) -> eyre::Result<Option<u32>> {
+        if self.websocket_url.is_none()
+            || !self
+                .reorg_period_overrides
+                .contains_key(chain.domain.name())
+        {
+            return Ok(None);
+        }
+        chain.reorg_period.as_blocks().map(Some).with_context(|| {
+            format!(
+                "Custom websocket confirmations require a numeric reorg period for {}",
+                chain.domain.name()
+            )
+        })
+    }
 }
 
 /// Config for gas payment enforcement
@@ -136,7 +175,7 @@ pub enum GasPaymentEnforcementPolicy {
 
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
-struct RawRelayerSettings(Value);
+struct RawRelayerSettings(Secret<Value>);
 
 impl_loadable_from_settings!(Relayer, RawRelayerSettings -> RelayerSettings);
 
@@ -149,7 +188,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
     ) -> ConfigResult<Self> {
         let mut err = ConfigParsingError::default();
 
-        let p = ValueParser::new(cwp.clone(), &raw.0);
+        let p = ValueParser::new(cwp.clone(), raw.0.expose_secret());
 
         let relay_chain_names: Option<HashSet<&str>> = p
             .chain(&mut err)
@@ -209,7 +248,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
 
         if is_gas_payment_enforcement_set
             && gas_payment_enforcement_parser
-                .val
+                .value()
                 .as_array()
                 .map(|v| v.is_empty())
                 .unwrap_or(true)
@@ -300,6 +339,28 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .and_then(parse_matching_list)
             .unwrap_or_default();
 
+        let mut ccip_read_allowed_domains = Vec::new();
+        if let Some(domains) = p
+            .chain(&mut err)
+            .get_opt_key("ccipReadAllowedDomains")
+            .parse_string()
+            .end()
+        {
+            for (position, domain) in (1usize..).zip(domains.split(',').map(str::trim)) {
+                if domain.is_empty() {
+                    continue;
+                }
+                if is_ccip_hostname(domain) {
+                    ccip_read_allowed_domains.push(domain.to_owned());
+                } else {
+                    err.push(
+                        (&p.cwp).add("ccip_read_allowed_domains"),
+                        eyre!("Entry {position} must be a bare DNS hostname"),
+                    );
+                }
+            }
+        }
+
         let address_blacklist = p
             .chain(&mut err)
             .get_opt_key("addressBlacklist")
@@ -307,6 +368,42 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .end()
             .map(|str| parse_address_list(str, &mut err, || (&p.cwp).add("address_blacklist")))
             .unwrap_or_default();
+
+        let runtime_denylist_url: Option<url::Url> = p
+            .chain(&mut err)
+            .get_opt_key("runtimeDenylistUrl")
+            .parse_from_str("Expected a valid runtime denylist URL")
+            .end();
+        if let Some(url) = &runtime_denylist_url {
+            if !matches!(url.scheme(), "https" | "http" | "file") {
+                err.push(
+                    (&p.cwp).add("runtime_denylist_url"),
+                    eyre::eyre!("`runtimeDenylistUrl` must use https://, http:// or file://"),
+                );
+            }
+            if url.scheme() == "file" && url.to_file_path().is_err() {
+                err.push(
+                    (&p.cwp).add("runtime_denylist_url"),
+                    eyre::eyre!("`runtimeDenylistUrl` must use a local file:// URL"),
+                );
+            }
+        }
+        let runtime_denylist_poll_interval_secs = p
+            .chain(&mut err)
+            .get_opt_key("runtimeDenylistPollIntervalSecs")
+            .parse_u64()
+            .unwrap_or(DEFAULT_RUNTIME_DENYLIST_POLL_INTERVAL_SECS);
+        if runtime_denylist_poll_interval_secs == 0 {
+            err.push(
+                (&p.cwp).add("runtime_denylist_poll_interval_secs"),
+                eyre::eyre!("`runtimeDenylistPollIntervalSecs` must be greater than 0"),
+            );
+        }
+        let runtime_denylist = runtime_denylist_url.map(|url| RuntimeDenylistConf {
+            url,
+            poll_interval: Duration::from_secs(runtime_denylist_poll_interval_secs),
+            cache_path: db.join("runtime_denylist_cache.json"),
+        });
 
         let transaction_gas_limit = p
             .chain(&mut err)
@@ -380,7 +477,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
 
         let allow_contract_call_caching = p
             .chain(&mut err)
-            .get_opt_key("allowLocalCheckpointSyncers")
+            .get_opt_key("allowContractCallCaching")
             .parse_bool()
             .unwrap_or(true);
 
@@ -408,6 +505,20 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_bool()
             .unwrap_or(true);
 
+        let message_activity_database_url = p
+            .chain(&mut err)
+            .get_opt_key("messageActivityDatabaseUrl")
+            .parse_string()
+            .end()
+            .map(|value| Secret::new(value.to_owned()));
+        if let Some(value) = &message_activity_database_url {
+            if !url::Url::parse(value.expose_secret()).is_ok_and(|url| {
+                matches!(url.scheme(), "postgres" | "postgresql") && url.host_str().is_some()
+            }) {
+                err.push(cwp.clone(), eyre!("messageActivityDatabaseUrl must be a postgres:// or postgresql:// URL with a host"));
+            }
+        }
+
         let websocket_url: Option<url::Url> = p
             .chain(&mut err)
             .get_opt_key("websocketUrl")
@@ -421,18 +532,11 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 );
             }
         }
-        let websocket_authority_enabled = p
+        let reorg_period_overrides = p
             .chain(&mut err)
-            .get_opt_key("websocketAuthorityEnabled")
-            .parse_bool()
-            .unwrap_or(false);
-        if websocket_authority_enabled && websocket_url.is_none() {
-            err.push(
-                cwp.clone(),
-                eyre::eyre!("`websocketAuthorityEnabled` requires `websocketUrl`"),
-            );
-        }
-
+            .get_opt_key("reorgPeriodOverrides")
+            .parse_value("Expected chain reorg period overrides")
+            .unwrap_or_default();
         let relay_api_enabled = p
             .chain(&mut err)
             .get_opt_key("relayApiEnabled")
@@ -492,6 +596,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .unwrap_or_else(|| vec!["https://nexus.hyperlane.xyz".to_string()]);
 
         err.into_result(RelayerSettings {
+            message_activity_database_url,
             base,
             db,
             origin_chains: relay_chains.clone(),
@@ -499,7 +604,9 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             gas_payment_enforcement,
             whitelist,
             blacklist,
+            ccip_read_allowed_domains: ccip_read_allowed_domains.into(),
             address_blacklist,
+            runtime_denylist,
             transaction_gas_limit,
             skip_transaction_gas_limit_for,
             allow_local_checkpoint_syncers,
@@ -509,8 +616,8 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             max_retries: max_message_retries,
             tx_id_indexing_enabled,
             igp_indexing_enabled,
-            websocket_url,
-            websocket_authority_enabled,
+            websocket_url: websocket_url.map(Secret::new),
+            reorg_period_overrides,
             relay_api_enabled,
             relay_api_port,
             relay_api_rate_limit_max_requests,
@@ -536,6 +643,20 @@ fn parse_ism_cache_configs(p: ValueParser) -> ConfigResult<Vec<IsmCacheConfig>> 
     err.into_result(ml)
 }
 
+fn is_ccip_hostname(domain: &str) -> bool {
+    let name = domain.strip_suffix('.').unwrap_or(domain);
+    name.len() <= 253
+        && name.split('.').all(|label| {
+            (1..=63).contains(&label.len())
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        })
+        && matches!(url::Host::parse(domain), Ok(url::Host::Domain(_)))
+}
+
 fn parse_address_list(
     str: &str,
     err: &mut ConfigParsingError,
@@ -546,6 +667,11 @@ fn parse_address_list(
             let mut s = s.trim().to_owned();
             if let Some(stripped) = s.strip_prefix("0x") {
                 s = stripped.to_owned();
+            }
+            // An empty entry would match every message, e.g. from a trailing
+            // comma or an empty list.
+            if s.is_empty() {
+                return None;
             }
             hex::decode(s).take_err(err, &err_path)
         })
@@ -574,7 +700,7 @@ mod test {
 
     fn parse_settings(raw: Value) -> ConfigResult<RelayerSettings> {
         RelayerSettings::from_config_filtered(
-            RawRelayerSettings(raw),
+            RawRelayerSettings(raw.into()),
             &ConfigPath::default(),
             (),
             "relayer",
@@ -587,6 +713,26 @@ mod test {
             error.contains("`feeToken` gas payment enforcement is not supported"),
             "unexpected error: {error}",
         );
+    }
+
+    #[test]
+    fn ccip_allowlist_requires_bare_hostnames() {
+        let mut raw = json!({
+            "relaychains": "legacy",
+            "chains": { "legacy": chain_config("legacy", 1000) },
+            "ccipreadalloweddomains": " Lookup.Example, ,host-2,",
+        });
+        let settings = parse_settings(raw.clone()).expect("valid CCIP allowlist");
+        assert_eq!(
+            &*settings.ccip_read_allowed_domains,
+            &["Lookup.Example", "host-2"]
+        );
+        raw["ccipreadalloweddomains"] =
+            json!("lookup.example,,https://host,host:443,host/,*.host,8.8.8.8,bad..host");
+        let error = parse_settings(raw).unwrap_err().to_string();
+        for position in 3..=8 {
+            assert!(error.contains(&format!("Entry {position} must be a bare DNS hostname")));
+        }
     }
 
     #[test]
@@ -615,6 +761,29 @@ mod test {
         let res = parse_address_list(&input, &mut err, ConfigPath::default);
         assert_eq!(res, vec![valid_address1, valid_address2]);
         assert!(!err.is_ok());
+    }
+
+    #[test]
+    fn test_parse_address_blacklist_skips_empty_entries() {
+        let address = H160::random().as_bytes().to_vec();
+        for (input, expected) in [
+            (String::new(), vec![]),
+            (",".to_owned(), vec![]),
+            (" 0x ".to_owned(), vec![]),
+            (
+                format!("0x{},,", hex::encode(&address)),
+                vec![address.clone()],
+            ),
+            (
+                format!(", 0x{} ,", hex::encode(&address)),
+                vec![address.clone()],
+            ),
+        ] {
+            let mut err = ConfigParsingError::default();
+            let res = parse_address_list(&input, &mut err, ConfigPath::default);
+            assert_eq!(res, expected, "{input:?}");
+            assert!(err.is_ok(), "{input:?}");
+        }
     }
 
     #[test]
@@ -694,10 +863,64 @@ mod test {
     }
 
     #[test]
+    fn message_activity_database_config_is_optional_and_redacted() {
+        let base =
+            json!({"relaychains": "legacy", "chains": {"legacy": chain_config("legacy", 1000)}});
+        assert!(parse_settings(base.clone())
+            .expect("valid config")
+            .message_activity_database_url
+            .is_none());
+        let mut configured = base;
+        let url =
+            "postgresql://activity-user:secret-password@localhost/diagnostics?sslmode=verify-full";
+        configured["messageactivitydatabaseurl"] = json!(url);
+
+        let settings = parse_settings(configured.clone()).expect("Postgres URL");
+        assert!(!format!("{settings:?}").contains("secret-password"));
+        assert_eq!(
+            settings
+                .message_activity_database_url
+                .expect("enabled")
+                .expose_secret(),
+            url
+        );
+        for invalid in [
+            "https://activity-user:secret-password@localhost/diagnostics",
+            "postgresql:///diagnostics",
+            "secret-password",
+        ] {
+            configured["messageactivitydatabaseurl"] = json!(invalid);
+            let error = parse_settings(configured.clone()).expect_err("invalid URL");
+            assert!(!format!("{error:?} {error}").contains("secret-password"));
+        }
+    }
+
+    #[test]
+    fn parses_contract_call_caching() {
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "allowcontractcallcaching": false,
+            "chains": { "legacy": chain_config("legacy", 1000) },
+        }))
+        .expect("valid settings");
+        assert!(!settings.allow_contract_call_caching);
+
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "allowlocalcheckpointsyncers": false,
+            "chains": { "legacy": chain_config("legacy", 1000) },
+        }))
+        .expect("valid settings");
+        assert!(settings.allow_contract_call_caching);
+        assert!(!settings.allow_local_checkpoint_syncers);
+    }
+
+    #[test]
     fn parses_scraper_websocket_url() {
         let settings = parse_settings(json!({
             "relaychains": "legacy",
             "websocketurl": "wss://scraper.example/ws/events",
+            "reorgperiodoverrides": {"legacy": "0", "ethereum": 3, "polygon": "finalized"},
             "chains": {
                 "legacy": chain_config("legacy", 1000),
             },
@@ -705,7 +928,27 @@ mod test {
         .expect("valid WebSocket URL should parse");
 
         assert_eq!(
-            settings.websocket_url.expect("configured URL").as_str(),
+            settings.reorg_period_overrides["legacy"]
+                .as_blocks()
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            settings.reorg_period_overrides["ethereum"]
+                .as_blocks()
+                .unwrap(),
+            3
+        );
+        assert!(settings.reorg_period_overrides["polygon"]
+            .as_blocks()
+            .is_err());
+
+        assert_eq!(
+            settings
+                .websocket_url
+                .expect("configured URL")
+                .expose_secret()
+                .as_str(),
             "wss://scraper.example/ws/events"
         );
     }
@@ -726,17 +969,73 @@ mod test {
     }
 
     #[test]
-    fn scraper_authority_requires_websocket_url() {
-        let error = parse_settings(json!({
+    fn parses_runtime_denylist() {
+        let settings = parse_settings(json!({
             "relaychains": "legacy",
-            "websocketauthorityenabled": true,
+            "runtimedenylisturl": "https://raw.githubusercontent.com/org/repo/main/denylist.json",
+            "runtimedenylistpollintervalsecs": 15,
             "chains": {
                 "legacy": chain_config("legacy", 1000),
             },
         }))
-        .expect_err("authority without a WebSocket URL must reject")
-        .to_string();
+        .expect("valid runtime denylist should parse");
+        let conf = settings.runtime_denylist.expect("configured");
+        assert_eq!(conf.url.scheme(), "https");
+        assert_eq!(conf.poll_interval, Duration::from_secs(15));
 
-        assert!(error.contains("requires `websocketUrl`"));
+        let settings = parse_settings(json!({
+            "relaychains": "legacy",
+            "chains": {
+                "legacy": chain_config("legacy", 1000),
+            },
+        }))
+        .expect("unset runtime denylist should parse");
+        assert!(settings.runtime_denylist.is_none());
+    }
+
+    #[test]
+    fn rejects_invalid_runtime_denylist() {
+        for (url, interval, expected) in [
+            ("gs://bucket/denylist.json", 60, "must use https://"),
+            ("file://denylist.json", 60, "must use a local file://"),
+            (
+                "file://remote/denylist.json",
+                60,
+                "must use a local file://",
+            ),
+            (
+                "https://example.com/denylist.json",
+                0,
+                "must be greater than 0",
+            ),
+        ] {
+            let error = parse_settings(json!({
+                "relaychains": "legacy",
+                "runtimedenylisturl": url,
+                "runtimedenylistpollintervalsecs": interval,
+                "chains": {
+                    "legacy": chain_config("legacy", 1000),
+                },
+            }))
+            .expect_err("invalid runtime denylist must reject")
+            .to_string();
+            assert!(error.contains(expected), "{error}");
+        }
+    }
+
+    #[test]
+    fn accepts_local_runtime_denylist_files() {
+        for url in [
+            "file:///tmp/denylist.json",
+            "file://localhost/tmp/denylist.json",
+        ] {
+            let settings = parse_settings(json!({
+                "relaychains": "legacy",
+                "runtimedenylisturl": url,
+                "chains": { "legacy": chain_config("legacy", 1000) },
+            }))
+            .expect("local file URL should parse");
+            assert!(settings.runtime_denylist.is_some());
+        }
     }
 }

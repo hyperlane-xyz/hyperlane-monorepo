@@ -1,0 +1,91 @@
+# A Warp route secured by the combined LayerZero V2 hook/ISM (LayerZeroV2HookIsm).
+# `hyperlane warp deploy` deploys one router per chain, enrolls every other
+# chain, and installs it as both the Warp router's ISM and the LayerZero child
+# of its aggregation hook. Contract behavior and trust assumptions are described
+# in solidity/contracts/hooks/layerzero/README.md.
+#
+# endpoint: LayerZero Endpoint V2 on the chain.
+# layerZeroDomainId: optional; must match the Endpoint's eid() when set.
+# urls: CCIP-read endpoints of a ccip-server running the `layerzero` module.
+# pathways: one entry per remote chain, enrolled as that chain's route:
+#   layerZeroDomainId: the remote chain's Endpoint ID (EID), which must match
+#     the remote Endpoint's eid(). It is neither its chain ID nor its domain.
+#   sendLibrary / receiveLibrary: message libraries selected for this route.
+#   sendConfig: Executor and send ULN (DVN) config for messages to the remote.
+#   receiveConfig: receive ULN (DVN) config for messages from the remote.
+#
+# Each Executor and ULN config is either `type: default`, which inherits the
+# library's default for this route, or `type: override`, whose fields replace
+# the default individually; an omitted field keeps inheriting it. The library
+# owner can change its defaults, so `warp read` reports both the configured
+# values (sendConfig, receiveConfig) and the effective values after defaults
+# are applied (effectiveSendConfig, effectiveReceiveConfig). `warp check`
+# compares only the configured values.
+#
+# A ULN override sets the block confirmations and DVNs it replaces. Setting
+# `confirmations: 0` requires zero confirmations; omitting `confirmations`, or
+# using `type: default`, inherits the library default. For example:
+#   uln:
+#     type: override
+#     confirmations: 15
+#     requiredDVNs: ['0x...']
+#     optionalDVNs: []
+---
+ethereum:
+  type: native
+  owner: '0x1111111111111111111111111111111111111111'
+  mailbox: '0xc005dc82818d67AF737725bD4bf75435d065D239'
+  hook:
+    type: aggregationHook
+    hooks:
+      - type: defaultHook
+      - type: layerZeroV2Hook
+  interchainSecurityModule:
+    type: layerZeroV2Ism
+    owner: '0x1111111111111111111111111111111111111111'
+    endpoint: '0x1a44076050125825900e736c501f859c50fE728c'
+    layerZeroDomainId: 30101
+    urls:
+      - https://ccip-server.example.com/layerzero/getLayerZeroPacket
+    pathways:
+      arbitrum:
+        layerZeroDomainId: 30110
+        sendLibrary: '0xbB2Ea70C9E858123480642Cf96acbcCE1372dCe1'
+        receiveLibrary: '0xc02Ab410f0734EFa3F14628780e6e695156024C2'
+        sendConfig:
+          executor:
+            type: default
+          uln:
+            type: default
+        receiveConfig:
+          uln:
+            type: default
+arbitrum:
+  type: synthetic
+  owner: '0x1111111111111111111111111111111111111111'
+  mailbox: '0x979Ca5202784112f4738403dBec5D0F3B9daabB9'
+  hook:
+    type: aggregationHook
+    hooks:
+      - type: defaultHook
+      - type: layerZeroV2Hook
+  interchainSecurityModule:
+    type: layerZeroV2Ism
+    owner: '0x1111111111111111111111111111111111111111'
+    endpoint: '0x1a44076050125825900e736c501f859c50fE728c'
+    layerZeroDomainId: 30110
+    urls:
+      - https://ccip-server.example.com/layerzero/getLayerZeroPacket
+    pathways:
+      ethereum:
+        layerZeroDomainId: 30101
+        sendLibrary: '0x975bcD720be66659e3EB3C0e4F1866a3020E493A'
+        receiveLibrary: '0x7B9E184e07a6EE1aC23eAe0fe8D6Be2f663f05e6'
+        sendConfig:
+          executor:
+            type: default
+          uln:
+            type: default
+        receiveConfig:
+          uln:
+            type: default

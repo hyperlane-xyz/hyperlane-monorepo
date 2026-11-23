@@ -36,11 +36,18 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { WormholeConsistencyLevelFields } from '../wormhole/consistency.js';
+
 import {
   ZBigNumberish,
   ZBytes32String,
+  ZChainName,
   ZHash,
 } from '../metadata/customZodTypes.js';
+import {
+  LayerZeroV2AddressSchema,
+  LayerZeroV2PathwaySchema,
+} from '../layerzero/types.js';
 import {
   ChainMap,
   OwnableConfig,
@@ -49,6 +56,8 @@ import {
   RATE_LIMIT_DEFAULT_DURATION_SECONDS,
 } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
+
+const DECIMAL_INTEGER_REGEX = /^\d+$/;
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // (COMPOSITE has no Solidity counterpart; it's Sealevel-only, matching
@@ -108,6 +117,17 @@ export const IsmType = {
   // ISM config surface; the hook side is referenced by address.
   NET_FLOW_RATE_LIMITED: 'netFlowRateLimitedHookIsm',
   DELAYED_FLOW_ROUTER: 'delayedFlowRouterHookIsm',
+  /**
+   * Combined Wormhole hook/ISM router, CCIP-read VAA delivery. Excluded from
+   * `DeployableIsmType`: one contract serves as both hook and ISM, so it is
+   * deployed by `EvmWormholeHookIsmModule`, never by `HyperlaneIsmFactory`.
+   */
+  WORMHOLE: 'wormholeIsm',
+  /**
+   * Combined LayerZero V2 hook/ISM router, CCIP-read packet delivery.
+   * Deployed by `EvmLayerZeroV2HookIsmModule`, never by `HyperlaneIsmFactory`.
+   */
+  LAYER_ZERO_V2: 'layerZeroV2Ism',
   UNKNOWN: 'unknownIsm',
 } as const;
 
@@ -115,7 +135,10 @@ export type IsmType = (typeof IsmType)[keyof typeof IsmType];
 
 export type DeployableIsmType = Exclude<
   IsmType,
-  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
+  | typeof IsmType.CUSTOM
+  | typeof IsmType.UNKNOWN
+  | typeof IsmType.WORMHOLE
+  | typeof IsmType.LAYER_ZERO_V2
 >;
 
 // ISM types that can be updated in-place on EVM chains (consumed by
@@ -199,6 +222,10 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
+    // Combined hook/ISM routers receive their proof through the generic
+    // CCIP-read path.
+    case IsmType.WORMHOLE:
+    case IsmType.LAYER_ZERO_V2:
       return ModuleType.CCIP_READ;
     case IsmType.COMPOSITE:
       return ModuleType.COMPOSITE;
@@ -246,6 +273,7 @@ export type NetFlowRateLimitedHookIsmConfig = z.infer<
 export type DelayedFlowRouterHookIsmConfig = z.infer<
   typeof DelayedFlowRouterHookIsmConfigSchema
 >;
+export type LayerZeroV2IsmConfig = z.infer<typeof LayerZeroV2IsmConfigSchema>;
 
 export type NullIsmConfig =
   | TestIsmConfig
@@ -332,6 +360,8 @@ export type IsmConfig =
   | ArbL2ToL1IsmConfig
   | OffchainLookupIsmConfig
   | InterchainAccountRouterIsm
+  | WormholeIsmConfig
+  | LayerZeroV2IsmConfig
   | UnknownIsmConfig;
 
 export type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
@@ -363,6 +393,10 @@ export type DeployedIsmType = {
   [IsmType.MAILBOX_DEFAULT]: DefaultIsm;
   [IsmType.NET_FLOW_RATE_LIMITED]: NetFlowRateLimitedHookIsm;
   [IsmType.DELAYED_FLOW_ROUTER]: DelayedFlowRouterHookIsm;
+  // Deployed by their own hook/ISM modules, never by HyperlaneIsmFactory, so
+  // the generic interface is all this map needs to express.
+  [IsmType.WORMHOLE]: IInterchainSecurityModule;
+  [IsmType.LAYER_ZERO_V2]: IInterchainSecurityModule;
   [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
@@ -399,6 +433,17 @@ export const TrustedRelayerIsmConfigSchema = z.object({
   type: z.literal(IsmType.TRUSTED_RELAYER),
   relayer: z.string(),
 });
+
+export const WormholeIsmConfigSchema = OwnableSchema.extend({
+  ...WormholeConsistencyLevelFields,
+  type: z.literal(IsmType.WORMHOLE),
+  /** Official Wormhole Core proxy on this chain. */
+  core: ZHash,
+  /** Expected value returned by the configured Core proxy. */
+  wormholeChainId: z.number().int().positive().max(65_535),
+  urls: z.array(z.string().url()).min(1),
+});
+export type WormholeIsmConfig = z.infer<typeof WormholeIsmConfigSchema>;
 
 export const BlacklistIsmConfigSchema = OwnableSchema.extend({
   type: z.literal(IsmType.BLACKLIST),
@@ -530,6 +575,15 @@ export const OffchainLookupIsmConfigSchema = OwnableSchema.extend({
   urls: z.array(z.url()),
 });
 
+export const LayerZeroV2IsmConfigSchema = OwnableSchema.extend({
+  type: z.literal(IsmType.LAYER_ZERO_V2),
+  endpoint: LayerZeroV2AddressSchema,
+  /** Optional deployment-time assertion against Endpoint.eid(). */
+  layerZeroDomainId: z.number().int().positive().max(0xffffffff).optional(),
+  pathways: z.record(ZChainName, LayerZeroV2PathwaySchema),
+  urls: z.array(z.string().url()).min(1),
+});
+
 export const isOffchainLookupIsmConfig = isCompliant(
   OffchainLookupIsmConfigSchema,
 );
@@ -653,14 +707,14 @@ const ZU8Threshold = z.number().int().min(0).max(255);
 function decimalStringBoundedBy(max: bigint, label: string) {
   return z
     .string()
-    .regex(/^\d+$/, `${label} must be a base-10 integer string`)
+    .regex(DECIMAL_INTEGER_REGEX, `${label} must be a base-10 integer string`)
     .refine(
       // Zod runs every check in the chain regardless of earlier failures
       // (no short-circuiting), so BigInt(value) must stay guarded here even
       // though the regex above already rejects non-digit strings —
       // otherwise a value like "abc" throws inside refine and crashes
       // safeParse() instead of returning { success: false }.
-      (value) => /^\d+$/.test(value) && BigInt(value) <= max,
+      (value) => DECIMAL_INTEGER_REGEX.test(value) && BigInt(value) <= max,
       { message: `${label} exceeds the maximum value representable on-chain` },
     );
 }
@@ -890,7 +944,10 @@ function validateCompositeIsmTree(
       // field-level schema (decimalStringBoundedBy) already rejected it —
       // BigInt() on a malformed string would otherwise throw here too and
       // crash safeParse() instead of returning { success: false }.
-      if (/^\d+$/.test(node.maxCapacity) && BigInt(node.maxCapacity) === 0n) {
+      if (
+        DECIMAL_INTEGER_REGEX.test(node.maxCapacity) &&
+        BigInt(node.maxCapacity) === 0n
+      ) {
         addIssue('maxCapacity must be non-zero', [...path, 'maxCapacity']);
       }
       if (isEmptyAddress(node.mailbox)) {
@@ -1102,6 +1159,8 @@ export const BaseIsmConfigSchema: z.ZodType<IsmConfig, unknown> = z.union([
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
   InterchainAccountRouterIsmSchema,
+  WormholeIsmConfigSchema,
+  LayerZeroV2IsmConfigSchema,
   UnknownIsmConfigSchema,
 ]);
 

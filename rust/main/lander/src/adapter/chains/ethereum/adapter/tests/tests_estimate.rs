@@ -29,7 +29,7 @@ async fn paid_payload(gas: u64, domain: HyperlaneDomain) -> FullPayload {
     let (provider, _) = Provider::mocked();
     let connection = ConnectionConf {
         rpc_connection: RpcConnectionConf::Http {
-            url: "http://127.0.0.1:8545".parse().unwrap(),
+            url: "http://127.0.0.1:8545".parse::<url::Url>().unwrap().into(),
         },
         transaction_overrides: Default::default(),
         op_submission_config: Default::default(),

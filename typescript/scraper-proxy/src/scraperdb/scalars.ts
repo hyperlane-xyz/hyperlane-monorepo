@@ -24,6 +24,7 @@ const passThroughScalar = (name: string) =>
   });
 
 export const scalarResolvers = {
+  DiagnosticsJSON: passThroughScalar('DiagnosticsJSON'),
   bigint: passThroughScalar('bigint'),
   bytea: passThroughScalar('bytea'),
   interval: passThroughScalar('interval'),

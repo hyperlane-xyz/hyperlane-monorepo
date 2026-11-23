@@ -201,8 +201,23 @@ export class EvmWarpRouteReader extends EvmRouterReader {
     contractVerifier?: ContractVerifier,
   ) {
     super(multiProvider, chain);
-    this.evmHookReader = new EvmHookReader(multiProvider, chain, concurrency);
-    this.evmIsmReader = new EvmIsmReader(multiProvider, chain, concurrency);
+    // Warp reads expose combined external-protocol hook/ISM diagnostics instead
+    // of reducing nested hooks and ISMs to opaque addresses. Generic deployment
+    // readers retain the address-preserving default.
+    this.evmHookReader = new EvmHookReader(
+      multiProvider,
+      chain,
+      concurrency,
+      undefined,
+      { expandNonDeployableHookIsms: true },
+    );
+    this.evmIsmReader = new EvmIsmReader(
+      multiProvider,
+      chain,
+      concurrency,
+      undefined,
+      { expandNonDeployableHookIsms: true },
+    );
     this.evmTokenFeeReader = new EvmTokenFeeReader(multiProvider, chain);
 
     this.deriveTokenConfigMap = {

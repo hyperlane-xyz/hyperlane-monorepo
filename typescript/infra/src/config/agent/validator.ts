@@ -6,10 +6,15 @@ import {
   ChainName,
   S3Config,
 } from '@hyperlane-xyz/sdk';
-import { isEVMLike } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../../config/registry.js';
 import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
+import { CloudAgentKey } from '../../agents/keys.js';
+import {
+  getValidatorKeysForChain,
+  persistProvisionedValidatorAddresses,
+} from '../../agents/key-utils.js';
 import { AgentGcpKmsKey } from '../../agents/gcp-kms/kms-key.js';
 import { ValidatorAgentGcpUser } from '../../agents/gcp-kms/validator-user.js';
 import { Role } from '../../roles.js';
@@ -66,6 +71,7 @@ export interface HelmValidatorValues extends HelmStatefulSetValues {
     Omit<AgentValidatorConfig, keyof AgentConfig | 'validator'> & {
       websocketUrl?: string;
       validator: KeyConfig;
+      chainSigner?: KeyConfig;
     }
   >;
 }
@@ -141,6 +147,53 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     return Role.Validator;
   }
 
+  get keys(): CloudAgentKey[] {
+    const keys = this.validators.flatMap((_, index) =>
+      Object.values(getValidatorKeysForChain(this, this.chainName, index)),
+    );
+    return [...new Map(keys.map((key) => [key.identifier, key])).values()];
+  }
+
+  /** Saves key addresses before provisioning IAM or updating the Helm release. */
+  async provisionGcpResources(
+    namespace: string,
+    ksaName: string,
+  ): Promise<void> {
+    assert(this.gcp, 'Validator is not configured for GCP');
+    const keys = this.keys;
+    for (const key of keys) {
+      await key.createIfNotExists();
+    }
+    await persistProvisionedValidatorAddresses(
+      this.rawConfig,
+      this.chainName,
+      keys,
+    );
+
+    const user = new ValidatorAgentGcpUser(
+      this.runEnv,
+      this.context,
+      this.chainName,
+      this.gcp.project,
+    );
+    await user.createServiceAccountIfNotExists();
+
+    for (let idx = 0; idx < this.validators.length; idx++) {
+      const bucketName = `${this.context}-${this.runEnv}-validator-${idx}`;
+      await createGcsBucketIfNotExists(
+        this.gcp.project,
+        this.gcp.location,
+        bucketName,
+      );
+      await grantPublicReadOnBucketIfNotExists(bucketName);
+
+      const key = new AgentGcpKmsKey(this, this.role, idx);
+      await user.grantAccessForIndex(key, bucketName);
+    }
+
+    await user.bindWorkloadIdentity(namespace, ksaName);
+  }
+
   async #configForValidator(
     cfg: ValidatorBaseConfig,
     idx: number,
@@ -157,25 +210,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
       // prefix (see AgentGcpKmsKey); the GSA granted access to them is scoped
       // per release/chain instead (see ValidatorAgentGcpUser).
       const bucketName = `${this.context}-${this.runEnv}-validator-${idx}`;
-      await createGcsBucketIfNotExists(
-        this.gcp.project,
-        this.gcp.location,
-        bucketName,
-      );
-      await grantPublicReadOnBucketIfNotExists(bucketName);
-
       const gcpKey = new AgentGcpKmsKey(this, this.role, idx);
-      await gcpKey.createIfNotExists();
-
-      const gcpUser = new ValidatorAgentGcpUser(
-        this.runEnv,
-        this.context,
-        this.chainName,
-        this.gcp.project,
-      );
-      await gcpUser.createServiceAccountIfNotExists();
-      await gcpUser.grantAccessForIndex(gcpKey, bucketName);
-
       validator = gcpKey.keyConfig;
       checkpointSyncer = {
         type: CheckpointSyncerType.Gcs,

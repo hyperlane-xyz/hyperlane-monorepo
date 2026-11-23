@@ -3,6 +3,7 @@ use tracing::{error, info, trace, warn};
 
 pub use self::{dynamic_tag_quorum::*, fallback::*, provider::*, retrying::*, trait_builder::*};
 pub use error::decode_revert_reason;
+pub use http::StatusAwareHttp;
 
 mod dynamic_tag_quorum;
 mod error;

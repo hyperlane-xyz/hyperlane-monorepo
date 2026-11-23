@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   ExplorerPendingTransfersClient,
@@ -139,6 +139,7 @@ describe('Explorer Pending Transfers', () => {
 
     const transfers = await client.getPendingDestinationTransfers();
 
+    assert(transfers !== null, 'Expected pending transfer data');
     expect(transfers).to.have.length(1);
     expect(transfers[0].destinationNodeId).to.equal('USDC|base|0xrouter');
     expect(transfers[0].destinationDomainId).to.equal(8453);

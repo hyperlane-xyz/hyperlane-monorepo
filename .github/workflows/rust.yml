@@ -112,10 +112,16 @@ jobs:
           fi
         working-directory: ./rust/main
 
+      # Codecov can't parse llvm-cov's raw JSON export; reuse the run for an lcov report.
+      - name: Generate lcov report
+        run: cargo llvm-cov report --package lander --lcov --output-path lcov.info
+        working-directory: ./rust/main
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
-          files: coverage.json
+          files: ./rust/main/lcov.info
+          disable_search: true
           flags: ./rust/main/lander
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}

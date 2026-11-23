@@ -42,6 +42,7 @@ import {
 } from '@hyperlane-xyz/sealevel-sdk';
 import {
   assert,
+  concurrentMap,
   eqAddress,
   isValidAddressSealevel,
 } from '@hyperlane-xyz/utils';
@@ -146,17 +147,16 @@ export class SvmQuoteService implements IProtocolQuoteService {
     ensureSealevelProtocolRegistered();
     const provider = getProtocolProvider(ProtocolType.Sealevel);
 
-    const routesByKey = new Map<string, SvmRouteState>();
-    for (const r of opts.routes) {
+    const routeEntries = await concurrentMap(4, [...opts.routes], async (r) => {
       const state = await readSvmRouteState(provider, r, opts.logger);
-      routesByKey.set(routeKey(r.origin, r.warpProgramId), state);
-    }
+      return [routeKey(r.origin, r.warpProgramId), state] as const;
+    });
 
     return new SvmQuoteService({
       privateKey: opts.signerKey,
       signerH160: ethAddressHexFromPrivateKey(opts.signerKey),
       logger: opts.logger,
-      routesByKey,
+      routesByKey: new Map(routeEntries),
     });
   }
 

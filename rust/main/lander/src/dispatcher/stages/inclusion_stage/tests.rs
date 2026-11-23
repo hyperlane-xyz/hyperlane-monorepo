@@ -249,6 +249,8 @@ async fn test_processing_included_txs() {
     mock_adapter
         .expect_tx_status()
         .returning(|_| Ok(TransactionStatus::Included));
+    mock_adapter.expect_tx_ready_for_resubmission().never();
+    mock_adapter.expect_submit().never();
 
     let (txs_created, txs_received, tx_db, payload_db, pool) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS).await;
@@ -608,6 +610,46 @@ async fn test_failed_estimation() {
 }
 
 #[tokio::test]
+async fn failed_finalized_handoff_keeps_database_and_pool_recoverable() {
+    let mut adapter = MockAdapter::new();
+    adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_secs(1));
+    adapter
+        .expect_tx_status()
+        .once()
+        .returning(|_| Ok(TransactionStatus::Finalized));
+    let (state, pool) = reprocess_test_state(adapter);
+    let tx = create_random_txs_and_store_them(
+        1,
+        &state.payload_db,
+        &state.tx_db,
+        TransactionStatus::PendingInclusion,
+    )
+    .await
+    .pop()
+    .unwrap();
+    pool.lock().await.insert(tx.uuid.clone(), tx.clone());
+    let (sender, receiver) = mpsc::channel(1);
+    drop(receiver);
+
+    InclusionStage::process_txs_step(&pool, &sender, &state, "test")
+        .await
+        .unwrap();
+    assert_eq!(
+        pool.lock().await.get(&tx.uuid).unwrap().status,
+        TransactionStatus::Included
+    );
+    assert_tx_status(
+        vec![tx],
+        &state.tx_db,
+        &state.payload_db,
+        TransactionStatus::Included,
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn test_channel_closed_before_any_tx() {
     let (payload_db, tx_db, _) = tmp_dbs();
     let (building_stage_sender, building_stage_receiver) = mpsc::channel(1);
@@ -922,9 +964,8 @@ async fn assert_tx_status(
 }
 
 #[tokio::test]
-async fn test_drop_reason_other_stored_in_db() {
-    // Test that when a non-specific error occurs, the transaction is dropped with
-    // DropReason::Other containing the error message, and this is properly stored in the DB
+async fn test_already_delivered_drop_reason_stored_in_db() {
+    // A terminal Mailbox revert must exit submit after one call and persist both drop statuses.
     const TXS_TO_PROCESS: usize = 1;
 
     let mut mock_adapter = MockAdapter::new();
@@ -943,10 +984,10 @@ async fn test_drop_reason_other_stored_in_db() {
     mock_adapter.expect_simulate_tx().returning(|_| Ok(vec![]));
     mock_adapter.expect_estimate_tx().returning(|_| Ok(()));
 
-    // Return a generic error that should be caught and converted to Other variant
-    mock_adapter.expect_submit().returning(|_| {
-        Err(LanderError::NetworkError(
-            "Custom network failure".to_string(),
+    // The EVM preflight classifies the Mailbox revert before it reaches inclusion.
+    mock_adapter.expect_submit().once().returning(|_| {
+        Err(LanderError::NonRetryableError(
+            "execution reverted: Mailbox: already delivered".to_string(),
         ))
     });
 
@@ -968,8 +1009,8 @@ async fn test_drop_reason_other_stored_in_db() {
         match tx_from_db.status {
             TransactionStatus::Dropped(TxDropReason::Other(ref msg)) => {
                 assert!(
-                    msg.contains("Custom network failure"),
-                    "Expected error message to contain 'Custom network failure', but got: {}",
+                    msg.contains("execution reverted: Mailbox: already delivered"),
+                    "Expected error message to contain 'execution reverted: Mailbox: already delivered', but got: {}",
                     msg
                 );
             }
@@ -990,8 +1031,8 @@ async fn test_drop_reason_other_stored_in_db() {
             match payload.status {
                 PayloadStatus::InTransaction(TransactionStatus::Dropped(TxDropReason::Other(ref msg))) => {
                     assert!(
-                        msg.contains("Custom network failure"),
-                        "Expected payload error message to contain 'Custom network failure', but got: {}",
+                        msg.contains("execution reverted: Mailbox: already delivered"),
+                        "Expected payload error message to contain 'execution reverted: Mailbox: already delivered', but got: {}",
                         msg
                     );
                 }

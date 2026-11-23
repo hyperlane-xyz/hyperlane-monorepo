@@ -11,6 +11,11 @@ import {
   fetchGrafanaServiceAccountToken,
 } from '../infrastructure/monitoring/grafana.js';
 
+const KEY_FUNDER_BALANCE_REGEX =
+  /wallet_name="key-funder", chain="([^"]+)"[^-]+ - ([0-9.]+)/g;
+const RELAYER_BALANCE_REGEX =
+  /wallet_name="relayer", chain="([^"]+)", hyperlane_context="hyperlane"[^-]+ - ([0-9.]+)/g;
+
 // Chains we should not generate Grafana balance alerts for, in addition to
 // any chain marked as disabled in the registry. Mirrors the alert-relevant
 // subset of `chainsToSkip` in src/config/chain.ts.
@@ -54,9 +59,9 @@ export function parseBalancesPromQLQuery(
 function getBalanceAlertRegex(walletName: WalletName): RegExp {
   switch (walletName) {
     case WalletName.KeyFunder:
-      return /wallet_name="key-funder", chain="([^"]+)"[^-]+ - ([0-9.]+)/g;
+      return KEY_FUNDER_BALANCE_REGEX;
     case WalletName.Relayer:
-      return /wallet_name="relayer", chain="([^"]+)", hyperlane_context="hyperlane"[^-]+ - ([0-9.]+)/g;
+      return RELAYER_BALANCE_REGEX;
     default:
       throw new Error(`Unknown wallet name: ${walletName}`);
   }

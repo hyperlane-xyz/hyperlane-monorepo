@@ -51,14 +51,13 @@ import {
   objFilter,
   objMap,
   parseWarpRouteMessage,
-  sleep,
   timeout,
 } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
 import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
-import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
+import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { logDeliveryTime, runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
@@ -77,13 +76,6 @@ const SUPPORTED_PROTOCOLS = new Set<ProtocolType>([
   ProtocolType.Radix,
   ProtocolType.Aleo,
 ]);
-
-const EXPLORER_GRAPHQL_URL =
-  process.env.HYPERLANE_EXPLORER_GRAPHQL_URL ??
-  process.env.EXPLORER_GRAPHQL_URL ??
-  'https://explorer4.hasura.app/v1/graphql';
-const EXPLORER_POLL_INTERVAL_MS = 5000;
-const EXPLORER_NO_RESULT_FALLBACK_COUNT = 3;
 
 function isAnnotatedTx(value: unknown): value is AnnotatedTx {
   return typeof value === 'object' && value !== null;
@@ -804,147 +796,26 @@ async function executeDelivery({
   if (skipWaitForDelivery) return;
 
   const timeoutMs = timeoutSec * 1000;
-  if (isEVMLike(destinationProtocol)) {
-    const delayMs = 10000;
-    const maxAttempts = Math.ceil(timeoutMs / delayMs);
-    await core.waitForMessagesProcessed(
+  const delayMs = 10_000;
+  // pollAsync uses zero for an unlimited wait, matching the outer timeout.
+  const maxAttempts =
+    timeoutMs === 0 ? 0 : Math.max(1, Math.ceil(timeoutMs / delayMs));
+  await Promise.all(
+    extracted.map(({ messageId, destination }) =>
+      core
+        .adapter(destination)
+        .waitForMessageProcessed(messageId, destination, delayMs, maxAttempts),
+    ),
+  );
+  if (evmTransferReceipt) {
+    await logDeliveryTime(
       origin,
       destination,
-      transferReceipt,
-      delayMs,
-      maxAttempts,
+      evmTransferReceipt.blockNumber,
+      messageId,
+      chainAddresses,
+      multiProvider,
     );
-    if (evmTransferReceipt) {
-      await logDeliveryTime(
-        origin,
-        destination,
-        evmTransferReceipt.blockNumber,
-        messageId,
-        chainAddresses,
-        multiProvider,
-      );
-    }
-  } else {
-    try {
-      await waitForExplorerDelivery(messageId, timeoutMs);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (
-        message.startsWith('Explorer has no record') ||
-        message.startsWith('Explorer query failed') ||
-        message.startsWith('Explorer query error') ||
-        message.startsWith('Explorer query returned invalid JSON') ||
-        message.startsWith('Timed out waiting for message delivery') ||
-        message.toLowerCase().includes('fetch failed')
-      ) {
-        try {
-          log(
-            `Explorer delivery check failed (${message}). Falling back to on-chain wait.`,
-          );
-          const delayMs = 10000;
-          const maxAttempts = Math.ceil(timeoutMs / delayMs);
-          await core.waitForMessagesProcessed(
-            origin,
-            destination,
-            transferReceipt,
-            delayMs,
-            maxAttempts,
-          );
-        } catch (fallbackError) {
-          const fallbackMsg =
-            fallbackError instanceof Error
-              ? fallbackError.message
-              : String(fallbackError);
-          if (fallbackMsg.includes('not implemented')) {
-            warnYellow(
-              `On-chain delivery polling not supported for '${destination}' (${destinationProtocol}). ` +
-                `Track at ${EXPLORER_URL}/message/${messageId}`,
-            );
-            return;
-          } else {
-            throw fallbackError;
-          }
-        }
-      } else {
-        throw error;
-      }
-    }
   }
   logGreen(`Transfer sent to ${destination} chain!`);
-}
-
-async function waitForExplorerDelivery(
-  messageId: string,
-  timeoutMs: number,
-): Promise<void> {
-  let noResultCount = 0;
-  const maxAttempts = Math.max(
-    1,
-    Math.ceil(timeoutMs / EXPLORER_POLL_INTERVAL_MS),
-  );
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const result = await queryExplorerDelivered(messageId);
-    if (result === 'not-found') {
-      noResultCount += 1;
-      if (noResultCount >= EXPLORER_NO_RESULT_FALLBACK_COUNT) {
-        throw new Error('Explorer has no record of message');
-      }
-    } else if (result === true) {
-      return;
-    } else {
-      // result === false: message found but not yet delivered — reset counter
-      noResultCount = 0;
-    }
-
-    await sleep(EXPLORER_POLL_INTERVAL_MS);
-  }
-  throw new Error('Timed out waiting for message delivery via Explorer');
-}
-
-async function queryExplorerDelivered(
-  messageId: string,
-): Promise<true | false | 'not-found'> {
-  const body = JSON.stringify({
-    query: `query MessageDelivered($id: bytea!) {
-      message_view(where: { msg_id: { _eq: $id } }, limit: 1) {
-        is_delivered
-      }
-    }`,
-    variables: {
-      id: messageId.replace(/^0x/i, '\\x').toLowerCase(),
-    },
-  });
-
-  const response = await fetch(EXPLORER_GRAPHQL_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Explorer query failed: ${response.status} ${errorText || response.statusText}`,
-    );
-  }
-
-  const payloadText = await response.text();
-  let payload: {
-    errors?: unknown[];
-    data?: { message_view?: Array<{ is_delivered?: boolean }> };
-  };
-  try {
-    payload = payloadText ? JSON.parse(payloadText) : {};
-  } catch {
-    throw new Error(
-      `Explorer query returned invalid JSON: ${payloadText || '<empty response>'}`,
-    );
-  }
-  if (payload?.errors?.length) {
-    throw new Error(`Explorer query error: ${JSON.stringify(payload.errors)}`);
-  }
-
-  const rows = payload?.data?.message_view ?? [];
-  if (!rows.length) return 'not-found';
-  return !!rows[0]?.is_delivered;
 }

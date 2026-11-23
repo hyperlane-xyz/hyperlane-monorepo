@@ -7,6 +7,13 @@ import { assert } from '@hyperlane-xyz/utils';
 import { programRegistry } from '../artifacts.js';
 import { type AleoProgram } from '../programs.js';
 
+const PROGRAM_DECLARATION_REGEX = /^program ([a-z0-9_]+\.aleo);/m;
+const CORE_PROGRAM_REGEX =
+  /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g;
+const WARP_PROGRAM_REGEX = /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g;
+const UPGRADE_AUTHORITY_ADDRESS_REGEX = /^(aleo1[a-z0-9]{58})$/;
+const UPGRADE_AUTHORITY_PROGRAM_REGEX = /^[a-z0-9_]+\.aleo$/;
+
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
@@ -33,7 +40,7 @@ function readFileOverride(
   const filePath = process.env[envVar];
   if (!filePath) return undefined;
   const content = readFileSync(filePath, 'utf8');
-  const match = content.match(/^program ([a-z0-9_]+\.aleo);/m);
+  const match = content.match(PROGRAM_DECLARATION_REGEX);
   assert(
     match,
     `Could not find program declaration in override file ${filePath}`,
@@ -117,21 +124,17 @@ export function loadProgramsInDeployOrder(
       Program.fromString(
         p
           .toString()
-          .replaceAll(
-            /(mailbox|hook_manager|dispatch_proxy|validator_announce).aleo/g,
-            (_, p1) => (coreSuffix ? `${p1}_${coreSuffix}.aleo` : `${p1}.aleo`),
+          .replaceAll(CORE_PROGRAM_REGEX, (_, p1) =>
+            coreSuffix ? `${p1}_${coreSuffix}.aleo` : `${p1}.aleo`,
           )
-          .replaceAll(
-            /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
-            (_, p1) => {
-              if (p1 === 'hyp_native') {
-                return `hyp_warp_token_credits.aleo`;
-              }
-              const effectiveSuffix =
-                getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix;
-              return `hyp_warp_token_${effectiveSuffix}.aleo`;
-            },
-          ),
+          .replaceAll(WARP_PROGRAM_REGEX, (_, p1) => {
+            if (p1 === 'hyp_native') {
+              return `hyp_warp_token_credits.aleo`;
+            }
+            const effectiveSuffix =
+              getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix;
+            return `hyp_warp_token_${effectiveSuffix}.aleo`;
+          }),
       ),
     );
 
@@ -150,7 +153,7 @@ export function loadProgramsInDeployOrder(
   }
 
   if (upgradeAuthority) {
-    if (new RegExp(/^(aleo1[a-z0-9]{58})$/).test(upgradeAuthority)) {
+    if (UPGRADE_AUTHORITY_ADDRESS_REGEX.test(upgradeAuthority)) {
       programs = programs.map((p) =>
         Program.fromString(
           p.toString().replaceAll(
@@ -161,7 +164,7 @@ export function loadProgramsInDeployOrder(
           ),
         ),
       );
-    } else if (new RegExp(/^[a-z0-9_]+\.aleo$/).test(upgradeAuthority)) {
+    } else if (UPGRADE_AUTHORITY_PROGRAM_REGEX.test(upgradeAuthority)) {
       programs = programs.map((p) =>
         Program.fromString(
           `import ${upgradeAuthority};\n` +

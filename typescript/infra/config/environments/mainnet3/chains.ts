@@ -17,6 +17,11 @@ export const ethereumChainNames = supportedChainNames.filter(
 export const agentSpecificChainMetadataOverrides: ChainMap<
   Partial<ChainMetadata>
 > = {
+  coti: {
+    transactionOverrides: {
+      priorityFeeCap: 50 * 10 ** 9, // 50 gwei
+    },
+  },
   ink: {
     transactionOverrides: {
       minGasPrice: 1, // 1 wei
@@ -46,13 +51,25 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
       minPriorityFeePerGas: 1 * 10 ** 6, // 0.001 gwei
     },
   },
+  polygon: {
+    transactionOverrides: {
+      minPriorityFeePerGas: 25 * 10 ** 9, // 25 gwei
+      priorityFeeCap: 250 * 10 ** 9, // 250 gwei
+    },
+  },
+  zerogravity: {
+    transactionOverrides: {
+      minFeePerGas: 2 * 10 ** 9, // Preserve the existing agent minimum.
+      minPriorityFeePerGas: 2 * 10 ** 9, // 2 gwei
+      priorityFeeCap: 30 * 10 ** 9, // 30 gwei
+    },
+  },
 };
 
 // Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
 export const tokenPriceOverrides: ChainMap<string> = {
+  tempo: '1', // pathUSD peg
   krown: '0.0015',
-  tea: '10',
-  nexus: '10',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
@@ -75,11 +92,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 101 * 10 ** 9, // 101 gwei
     },
   },
-  // nexus: {
-  //   transactionOverrides: {
-  //     gasPrice: 2 * 10 ** 9, // 2 gwei
-  //   },
-  // },
   // Deploy-only overrides, set when deploying contracts
   // xlayer: {
   //   blocks: {

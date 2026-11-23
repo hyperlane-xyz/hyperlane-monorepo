@@ -1,5 +1,12 @@
 import { expect } from 'chai';
-import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers';
+import {
+  BigNumber,
+  Contract,
+  ContractFactory,
+  Wallet,
+  providers,
+} from 'ethers';
+import { TransactionSubmissionError } from '@hyperlane-xyz/utils';
 import type { ContractTransaction } from 'ethers';
 import {
   Provider as ZKSyncProvider,
@@ -7,12 +14,14 @@ import {
 } from 'zksync-ethers';
 
 import {
+  LayerZeroV2HookIsm__factory,
   Mailbox__factory,
   ProxyAdmin__factory,
   TestRecipient__factory,
 } from '@hyperlane-xyz/core';
 import type { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
+  LayerZeroV2HookIsm__factory as TronLayerZeroV2HookIsm__factory,
   Mailbox__factory as TronMailbox__factory,
   ProxyAdmin__factory as TronProxyAdmin__factory,
   TronContractFactory,
@@ -26,7 +35,66 @@ import {
 } from '../metadata/chainMetadataTypes.js';
 import sinon from 'sinon';
 
+import { TronWallet } from '@hyperlane-xyz/tron-sdk/runtime';
+import { submitEvmLikeTransaction } from '../signers/evm/transaction.js';
+
 import { MultiProvider } from './MultiProvider.js';
+
+describe('MultiProvider submission boundaries', () => {
+  afterEach(() => sinon.restore());
+
+  for (const failPreparation of [true, false]) {
+    it(
+      failPreparation
+        ? 'proves preparation failed before broadcasting'
+        : 'records the signed hash before a lost broadcast response',
+      async () => {
+        const mp = new MultiProvider({ test1 });
+        const provider = new providers.StaticJsonRpcProvider(
+          'https://rpc.example.invalid',
+          test1.chainId,
+        );
+        const wallet = Wallet.createRandom().connect(provider);
+        mp.setProvider('test1', provider);
+        mp.setSigner('test1', wallet);
+        const populated = {
+          to: wallet.address,
+          value: BigNumber.from(1),
+          gasLimit: BigNumber.from(21000),
+          gasPrice: BigNumber.from(1),
+          nonce: 0,
+          chainId: Number(test1.chainId),
+        };
+        sinon.stub(mp, 'prepareTx').resolves(populated);
+        const populate = sinon.stub(wallet, 'populateTransaction');
+        if (failPreparation) populate.rejects(new Error('preparation failed'));
+        else populate.resolves(populated);
+        const send = sinon
+          .stub(provider, 'sendTransaction')
+          .rejects(new Error('broadcast response lost'));
+        let recordedHash: string | undefined;
+        try {
+          await mp.sendTransaction('test1', populated, {
+            onSubmissionAttempt: (hash) => {
+              recordedHash = hash;
+            },
+          });
+          expect.fail('Expected a submission error');
+        } catch (error) {
+          expect(error).to.be.instanceOf(TransactionSubmissionError);
+          if (!(error instanceof TransactionSubmissionError)) throw error;
+          expect(error.submissionState).to.equal(
+            failPreparation ? 'not_submitted' : 'unknown',
+          );
+          expect(error.txHash).to.equal(recordedHash);
+          if (!failPreparation)
+            expect(recordedHash).to.match(/^0x[0-9a-f]{64}$/);
+        }
+        expect(send.callCount).to.equal(failPreparation ? 0 : 1);
+      },
+    );
+  }
+});
 
 describe('MultiProvider Tron factory resolution', () => {
   const mp = new MultiProvider({});
@@ -49,6 +117,15 @@ describe('MultiProvider Tron factory resolution', () => {
     expect(resolved.constructor.name).to.equal(TronContractFactory.name);
     expect(resolved.bytecode).to.equal(
       new TronTestRecipient__factory().bytecode,
+    );
+  });
+
+  it('resolves the LayerZero hook/ISM to its tron factory', async () => {
+    const resolved = await mp.resolveTronFactory(
+      new LayerZeroV2HookIsm__factory(),
+    );
+    expect(resolved.bytecode).to.equal(
+      new TronLayerZeroV2HookIsm__factory().bytecode,
     );
   });
 
@@ -449,6 +526,53 @@ describe('MultiProvider', () => {
       const result2 = mp.tryGetSigner(TestChainName.test1);
       expect(connectArg).to.equal(newProvider);
       expect(result2!.provider).to.equal(newProvider);
+    });
+  });
+});
+
+describe('submitEvmLikeTransaction', () => {
+  afterEach(() => sinon.restore());
+
+  it('retains an ambiguous Tron broadcast identity even without caller observers', async () => {
+    const wallet = new TronWallet(
+      Wallet.createRandom().privateKey,
+      'https://node.example.com',
+    );
+    const txID = '42'.repeat(32);
+    const tx = { txID };
+    sinon
+      .stub(wallet, 'populateTransaction')
+      .resolves({ gasLimit: BigNumber.from(1), gasPrice: BigNumber.from(1) });
+    // Replace preparation/network dependencies while exercising the real helper and Tron send method.
+    const internals = wallet as unknown as {
+      txBuilder: { buildTransaction: () => Promise<typeof tx> };
+      makeUnique: (value: typeof tx) => Promise<typeof tx>;
+      tronWeb: {
+        trx: {
+          sign: () => Promise<typeof tx>;
+          sendRawTransaction: () => Promise<never>;
+        };
+      };
+    };
+    internals.txBuilder = { buildTransaction: async () => tx };
+    internals.makeUnique = async (value) => value;
+    const broadcast = sinon
+      .stub()
+      .rejects(new Error('broadcast response lost'));
+    internals.tronWeb = {
+      trx: { sign: async () => tx, sendRawTransaction: broadcast },
+    };
+    let caught: unknown;
+    try {
+      await submitEvmLikeTransaction(wallet, {});
+    } catch (error) {
+      caught = error;
+    }
+    expect(broadcast.calledOnce).to.equal(true);
+    expect(caught).to.be.instanceOf(TransactionSubmissionError);
+    expect(caught).to.include({
+      submissionState: 'unknown',
+      txHash: `0x${txID}`,
     });
   });
 });

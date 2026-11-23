@@ -1,3 +1,4 @@
+const HTTP_URL_PREFIX_REGEX = /^https?:\/\//i;
 export const SignerSourceType = {
   PRIVATE_KEY: 'privateKey',
   HTTP: 'http',
@@ -20,7 +21,7 @@ export type SignerSource =
 const LOOPBACK_HOSTNAMES = new Set(['127.0.0.1', '[::1]']);
 
 export function parseSignerSource(value: string): SignerSource {
-  if (!/^https?:\/\//i.test(value)) {
+  if (!HTTP_URL_PREFIX_REGEX.test(value)) {
     return { type: SignerSourceType.PRIVATE_KEY, privateKey: value };
   }
 

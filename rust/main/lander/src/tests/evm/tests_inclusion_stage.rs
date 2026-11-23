@@ -235,7 +235,8 @@ async fn test_inclusion_gas_underpriced() {
     mock_get_next_nonce_on_finalized_block(&mut mock_evm_provider);
 
     // after the tx is sent and gets a tx hash, immediately report it in a finalized block
-    // to check that we correctly skip past the `Included` status, straight to `Finalized`
+    // The chain can report Finalized directly; persistence must remain Included
+    // until the finality stage verifies the payloads.
     mock_evm_provider
         .expect_get_transaction_receipt()
         .returning(move |_| Ok(Some(mock_tx_receipt(Some(42), hash))));
@@ -1070,8 +1071,8 @@ async fn test_tx_finalized_but_failed() {
         .unwrap()
         .unwrap();
     assert!(
-        matches!(retrieved_tx.status, TransactionStatus::Finalized),
-        "Transaction should be finalized"
+        matches!(retrieved_tx.status, TransactionStatus::Included),
+        "Transaction must remain recoverable until payload verification"
     );
     // The pool should be empty
     assert!(inclusion_stage_pool.lock().await.is_empty());
@@ -1086,9 +1087,9 @@ async fn test_tx_finalized_but_failed() {
         assert!(
             matches!(
                 payload.status,
-                PayloadStatus::InTransaction(TransactionStatus::Finalized)
+                PayloadStatus::InTransaction(TransactionStatus::Included)
             ),
-            "Payload should be finalized"
+            "Payload must await finality-stage verification"
         );
     }
 
@@ -1096,9 +1097,12 @@ async fn test_tx_finalized_but_failed() {
         .await
         .ok()
         .flatten();
-    assert!(
-        maybe_tx.is_some(),
-        "Transaction should be sent to finality stage"
+    assert_eq!(
+        maybe_tx
+            .expect("Transaction should be sent to finality stage")
+            .status,
+        TransactionStatus::Finalized,
+        "Forward the observed status without persisting terminal state"
     );
 }
 
@@ -1276,6 +1280,7 @@ async fn run_and_expect_successful_inclusion(
         tx_received = finality_stage_receiver.recv() => {
             let tx_received = tx_received.unwrap();
             assert_eq!(tx_received.payload_details[0].uuid, created_tx.payload_details[0].uuid);
+            assert_eq!(tx_received.status, expected_tx_states.last().unwrap().status);
             success = true;
         },
         _ = tokio::time::sleep(Duration::from_millis(5000)) => {}
@@ -1496,9 +1501,14 @@ async fn assert_tx_db_state(
         .unwrap();
     let evm_tx = &retrieved_tx.precursor().tx;
 
+    // Finalized is the observed chain status; verification is still pending.
+    let expected_persisted_status = match &expected.status {
+        TransactionStatus::Finalized => TransactionStatus::Included,
+        status => status.clone(),
+    };
     assert_eq!(
-        retrieved_tx.status, expected.status,
-        "Transaction status mismatch"
+        retrieved_tx.status, expected_persisted_status,
+        "Persisted transaction status mismatch"
     );
     assert_eq!(
         retrieved_tx.payload_details, created_tx.payload_details,

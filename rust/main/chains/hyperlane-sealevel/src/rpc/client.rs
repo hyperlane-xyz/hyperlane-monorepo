@@ -470,7 +470,19 @@ impl SealevelRpcClient {
 
 impl std::fmt::Debug for SealevelRpcClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RpcClient {{ url: {} }}", self.client.url())
+        f.debug_struct("SealevelRpcClient")
+            .field(
+                "rpc_host",
+                &url::Url::parse(&self.client.url())
+                    .ok()
+                    .and_then(|url| hyperlane_metric::utils::url_to_host_info(&url)),
+            )
+            .field("commitment", &self.client.commitment())
+            .field(
+                "max_supported_transaction_version",
+                &self.max_supported_transaction_version,
+            )
+            .finish_non_exhaustive()
     }
 }
 

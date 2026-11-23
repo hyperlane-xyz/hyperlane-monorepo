@@ -2,17 +2,12 @@ import {
   ChainMap,
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
-  IsmConfig,
-  IsmType,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import {
-  DEFAULT_FASTPATH_THRESHOLD,
-  DEFAULT_FASTPATH_VALIDATORS,
-} from '../../fastpath/validators.js';
+import { getDomainId } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { WARP_FEES_TURNKEY_OWNER } from '../../governance/utils.js';
@@ -25,12 +20,14 @@ import {
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
+  buildFastpathIsm,
   getCollateralTokenConfigForChain,
   getEclipseWarpStrategyConfig,
   getFileSubmitterStrategyConfig,
   getFixedRoutingFeeConfig,
   getRebalancingUSDCConfigForChain,
   getUSDCRebalancingBridgesConfigFor,
+  type RebalancingConfig,
   scaleDownConfig,
 } from './utils.js';
 
@@ -40,6 +37,7 @@ type DeploymentChains<T> = {
   arbitrum: T;
   base: T;
   bsc: T;
+  elysium: T;
   optimism: T;
   polygon: T;
   unichain: T;
@@ -61,13 +59,14 @@ export type DeploymentChain = keyof DeploymentChains<unknown>;
  * A multi-chain USDC warp route connecting Eclipse with major EVM chains and Solana.
  *
  * Chains:
- * - EVM (collateral): Arc, Ethereum, Arbitrum, Base, Optimism, Polygon, Unichain, ink, worldchain, avalanche, hyperevm, linea, monad
+ * - EVM (collateral): Arc, Ethereum, Arbitrum, Base, BSC, Elysium, Optimism, Polygon, Unichain, ink, worldchain, avalanche, hyperevm, linea, monad
  * - SVM (synthetic): Eclipse
  * - SVM (collateral): Solana
  *
  * Features:
- * - CCTP V2 rebalancing bridges (Standard + Fast) on all EVM chains
- * - Routing fee: 1.5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
+ * - CCTP V2 rebalancing bridges (Standard + Fast) on CCTP EVM chains (monad: Standard only)
+ * - Routing fee: 1.5 bps from EVM chains to EVM chains or Solana, 0 bps to Eclipse
+ * - Fast Path validation for Ethereum, Base, and Arbitrum origins to EVM destinations
  */
 export const evmDeploymentChains = [
   'arc',
@@ -75,6 +74,7 @@ export const evmDeploymentChains = [
   'avalanche',
   'base',
   'bsc',
+  'elysium',
   'ethereum',
   'hyperevm',
   'ink',
@@ -112,7 +112,7 @@ export const cctpRebalanceableChains = [
   'avalanche',
   'hyperevm',
   'linea',
-  // No monad yet
+  'monad',
 ] as const satisfies DeploymentChain[];
 const cctpRebalanceableSet = new Set<EvmChain>(cctpRebalanceableChains);
 
@@ -132,7 +132,8 @@ export const rebalancingChains = [
 ] as const satisfies DeploymentChain[];
 
 const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
-  arc: undefined,
+  arc: '0xab1901caB3C7c93E12dFef8c6CFA4210dd58993D',
+  elysium: undefined,
   arbitrum: '0x33465314CbD880976B7A9f86062d615DE5E4Fa8A',
   base: '0x4e60dB3117AB7322949dC0A8E952D0cD413B1132',
   ethereum: '0x692e50577fAaBF10F824Dc8Ce581e3Af93785175',
@@ -150,6 +151,7 @@ const awProxyAdminAddresses: Record<EvmChain, string | undefined> = {
 
 const awProxyAdminOwners: Record<EvmChain, string> = {
   arc: awIcas.arc,
+  elysium: awIcas.elysium,
   arbitrum: awSafes.arbitrum,
   base: awSafes.base,
   ethereum: awSafes.ethereum,
@@ -171,6 +173,7 @@ const awProxyAdminOwners: Record<EvmChain, string> = {
 
 const productionOwnersByChain: DeploymentChains<string> = {
   arc: awIcas.arc,
+  elysium: awIcas.elysium,
   ethereum: awSafes.ethereum,
   // Explicitly set from typescript/infra/config/environments/mainnet3/governance/ica/aw.ts
   arbitrum: '0xD2757Bbc28C80789Ed679f22Ac65597Cacf51A45',
@@ -196,6 +199,7 @@ const chainDecimals: DeploymentChains<number> = {
   avalanche: 6,
   base: 6,
   bsc: 18,
+  elysium: 6,
   eclipsemainnet: 6,
   ethereum: 6,
   hyperevm: 6,
@@ -215,6 +219,7 @@ const contractVersionByChain: DeploymentChains<string | null> = {
   avalanche: '10.1.5',
   base: '10.1.3',
   bsc: '11.1.0',
+  elysium: '12.2.0',
   eclipsemainnet: null,
   ethereum: '10.1.3',
   hyperevm: '10.1.5',
@@ -251,37 +256,36 @@ export interface EclipseUSDCWarpConfigOptions {
   proxyAdmins: ChainMap<{ address: string | undefined; owner: string }>;
   /** When set, fee contracts use OffchainQuotedLinearFee with these signers */
   quoteSigners?: string[];
+  /** Origins allowed to use Fast Path validation; defaults to Ethereum. */
+  fastpathOrigins?: readonly EvmChain[];
 }
 
-const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
+// Pairs on both CCTP V2 routes get the Standard and Fast bridges. monad is only
+// on the Standard route, so pairs that include monad get the Standard bridge.
+const standardAndFastConfigByChain = getUSDCRebalancingBridgesConfigFor(
   cctpRebalanceableChains,
   [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
 );
+const rebalancingConfigByChain: ChainMap<RebalancingConfig> = objMap(
+  getUSDCRebalancingBridgesConfigFor(cctpRebalanceableChains, [
+    WarpRouteIds.MainnetCCTPV2Standard,
+  ]),
+  (chain, standardConfig) => ({
+    allowedRebalancers: standardConfig.allowedRebalancers,
+    allowedRebalancingBridges: Object.fromEntries(
+      Object.entries(standardConfig.allowedRebalancingBridges).map(
+        ([remote, standardBridges]) => [
+          getDomainId(remote),
+          standardAndFastConfigByChain[chain]?.allowedRebalancingBridges[
+            remote
+          ] ?? standardBridges,
+        ],
+      ),
+    ),
+  }),
+);
 
 const DEFAULT_FEE_BPS = 1.5;
-
-const buildEthereumFastpathIsm = (owner: string): IsmConfig => ({
-  type: IsmType.AGGREGATION,
-  threshold: 1,
-  modules: [
-    {
-      type: IsmType.ROUTING,
-      owner,
-      domains: {
-        ethereum: {
-          type: IsmType.MESSAGE_ID_MULTISIG,
-          threshold: DEFAULT_FASTPATH_THRESHOLD,
-          validators: DEFAULT_FASTPATH_VALIDATORS,
-        },
-      },
-    },
-    {
-      type: IsmType.FALLBACK_ROUTING,
-      owner,
-      domains: {},
-    },
-  ],
-});
 
 export const buildEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -293,6 +297,7 @@ export const buildEclipseUSDCWarpConfig = async (
     tokenMetadata,
     proxyAdmins,
     quoteSigners,
+    fastpathOrigins = ['ethereum'],
   } = options;
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
@@ -335,8 +340,9 @@ export const buildEclipseUSDCWarpConfig = async (
       );
 
       // Fees
-      const feeDestinations = evmDeploymentChains.filter(
-        (otherChain) => otherChain !== currentChain,
+      const feeDestinations = deploymentChains.filter(
+        (otherChain) =>
+          otherChain !== currentChain && otherChain !== 'eclipsemainnet',
       );
       const feeConfig = getFixedRoutingFeeConfig(
         WARP_FEES_TURNKEY_OWNER,
@@ -362,6 +368,10 @@ export const buildEclipseUSDCWarpConfig = async (
             feeConfig,
           );
 
+      const remoteFastpathOrigins = fastpathOrigins.filter(
+        (origin) => origin !== currentChain,
+      );
+
       chainConfig = {
         ...baseConfig,
         ...tokenMetadata,
@@ -369,9 +379,10 @@ export const buildEclipseUSDCWarpConfig = async (
         tokenFee: feeConfig,
         scale: scaleConfig,
         contractVersion,
-        ...(currentChain !== 'ethereum' && {
-          interchainSecurityModule: buildEthereumFastpathIsm(
+        ...(remoteFastpathOrigins.length > 0 && {
+          interchainSecurityModule: buildFastpathIsm(
             ownersByChain[currentChain],
+            remoteFastpathOrigins,
           ),
         }),
       };
@@ -412,6 +423,7 @@ export const getEclipseUSDCWarpConfig = async (
       symbol: 'USDC',
     },
     quoteSigners: [QUOTE_SIGNER],
+    fastpathOrigins: ['arbitrum', 'base', 'ethereum'],
   });
 
 // Strategies

@@ -1,26 +1,32 @@
-//! Store chain events once, at the head; expose them to legacy readers after confirmation.
+//! Core event-indexing pipeline for every configured chain: ingest near head, publish after confirmation.
 mod enrichment;
+mod pipeline;
 mod runtime;
 mod source;
 mod store;
+mod websocket;
 
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use eyre::{ensure, Result};
-use futures::{stream, StreamExt, TryStreamExt};
 use hyperlane_base::{
     settings::{ChainConf, ChainConnectionConf},
     ChainMetrics, ContractSyncMetrics, CoreMetrics,
 };
 use hyperlane_core::{ContractLocator, HyperlaneDomainProtocol, ReorgPeriod};
-use tokio::task::JoinHandle;
-use tracing::warn;
+use redact::Secret;
+use tokio::{
+    sync::{mpsc, watch, Notify},
+    task::JoinHandle,
+};
+use url::Url;
 
 use crate::store::HyperlaneDbStore;
+use pipeline::tag_selector;
 use source::{
     BlockSelector, Contracts, EvmContracts, GenericSource, Header, Source, SourceBuilder,
 };
-use store::{State, Store};
+use store::Store;
 
 const CRITICAL_FAILURE_GRACE: Duration = Duration::from_secs(60);
 
@@ -44,20 +50,34 @@ pub async fn confirmed_height(db: &crate::db::ScraperDb, domain: u32) -> Result<
     Ok(u32::try_from(state.confirmed)?)
 }
 
-/// Replace the four log indexers with one range ingestion worker.
+/// Start indexing and receipt enrichment; return a wake-up for committed dispatch confirmations.
 pub async fn spawn(
     conf: &ChainConf,
-    legacy: HyperlaneDbStore,
+    websocket_url: Option<Secret<Url>>,
+    enrichment_store: HyperlaneDbStore,
     metrics: Arc<CoreMetrics>,
     chain_metrics: ChainMetrics,
     sync_metrics: Arc<ContractSyncMetrics>,
     receipt_age: prometheus::GaugeVec,
-) -> Result<JoinHandle<()>> {
+) -> Result<(JoinHandle<()>, Arc<Notify>)> {
     let contracts = Contracts {
         mailbox: conf.addresses.mailbox,
         hook: conf.addresses.merkle_tree_hook,
         paymaster: conf.addresses.interchain_gas_paymaster,
     };
+    let evm_contracts = EvmContracts {
+        mailbox: conf.addresses.mailbox.into(),
+        hook: conf.addresses.merkle_tree_hook.into(),
+        paymaster: conf.addresses.interchain_gas_paymaster.into(),
+    };
+    let websocket = websocket_url.map(|url| {
+        let subscriptions = if conf.connection.protocol() == HyperlaneDomainProtocol::Sealevel {
+            websocket::Subscriptions::Sealevel(Box::new(conf.clone()), metrics.clone())
+        } else {
+            websocket::Subscriptions::Ethereum(evm_contracts.clone())
+        };
+        (url, subscriptions)
+    });
     let source: Box<dyn Source> =
         if let ChainConnectionConf::Ethereum(connection) = &conf.connection {
             conf.build_ethereum(
@@ -68,11 +88,7 @@ pub async fn spawn(
                 },
                 &metrics,
                 SourceBuilder {
-                    contracts: EvmContracts {
-                        mailbox: conf.addresses.mailbox.into(),
-                        hook: conf.addresses.merkle_tree_hook.into(),
-                        paymaster: conf.addresses.interchain_gas_paymaster.into(),
-                    },
+                    contracts: evm_contracts,
                     domain: conf.domain.id(),
                 },
             )
@@ -81,7 +97,7 @@ pub async fn spawn(
             GenericSource::build(conf, &metrics, contracts.clone()).await?
         };
     let store = Store {
-        db: legacy.db.clone_connection(),
+        db: enrichment_store.db.clone_connection(),
         domain: conf.domain.id(),
     };
     let initialized = store.state().await?.is_some();
@@ -112,14 +128,7 @@ pub async fn spawn(
     let period = conf.reorg_period.clone();
     ensure!(conf.index.chunk_size > 0, "index.chunk must be positive");
     let chunk_size = u64::from(conf.index.chunk_size);
-    // Match the legacy range cursor's near-tip refresh cadence.
-    let poll_interval = conf.index.configured_interval.unwrap_or_else(|| {
-        if source.indexes_by_sequence() {
-            conf.index.idle_sleep_duration
-        } else {
-            Duration::from_secs(30)
-        }
-    });
+    let poll_interval = conf.index.idle_sleep_duration;
     prepare(
         source.as_ref(),
         &store,
@@ -128,23 +137,38 @@ pub async fn spawn(
         &period,
     )
     .await?;
+    let (head_tx, head_rx) = mpsc::channel(256);
+    let (polled_head_tx, polled_head_rx) = watch::channel(0);
+    let dispatch_wakeup = Arc::new(Notify::new());
     let worker = runtime::Worker {
         source,
         store,
-        domain: legacy.domain.clone(),
+        domain: enrichment_store.domain.clone(),
         period,
         chunk_size,
         poll_interval,
+        wakeup: watch::channel(runtime::IndexWakeup::default()).0,
+        dispatch_wakeup: dispatch_wakeup.clone(),
+        receipt_wakeup: watch::channel(()).0,
+        polled_head: polled_head_tx,
+        polled_event_slots: watch::channel(None).0,
         critical_failure_grace: CRITICAL_FAILURE_GRACE,
         chain_metrics,
         sync_metrics,
     };
-    Ok(tokio::spawn(async move {
+    let task = tokio::spawn(async move {
         tokio::join!(
-            worker.run(),
-            enrichment::run(&legacy, poll_interval, &receipt_age)
+            worker.run(head_rx),
+            websocket::run(websocket, &worker, &head_tx, polled_head_rx),
+            enrichment::run(
+                &enrichment_store,
+                poll_interval,
+                &receipt_age,
+                worker.receipt_wakeup.subscribe()
+            )
         );
-    }))
+    });
+    Ok((task, dispatch_wakeup))
 }
 
 async fn prepare<'a>(
@@ -183,413 +207,6 @@ async fn prepare<'a>(
     Ok(())
 }
 
-async fn observe(source: &dyn Source, store: &Store) -> Result<State> {
-    let state = store
-        .state()
-        .await?
-        .ok_or_else(|| eyre::eyre!("Missing head state"))?;
-    ensure!(
-        !state.halted,
-        "Reorg crossed published history; operator repair required"
-    );
-    let head = source.header(BlockSelector::Latest).await?;
-    if head.height < state.indexed {
-        // A lagging RPC can report an older head without disproving our stored
-        // chain. Pause until it catches up; only a hash mismatch proves a reorg.
-        store.pause(false).await?;
-        eyre::bail!("RPC head is behind indexed history; waiting for a current observation");
-    }
-    let mut height = store.checkpoint(state.indexed.min(head.height)).await?;
-    let ancestor = loop {
-        let header = if height == head.height {
-            head.clone()
-        } else {
-            source.header(BlockSelector::Height(height)).await?
-        };
-        if store.hash(height).await? == Some(header.hash) {
-            break header;
-        }
-        store.pause(height == state.confirmed).await?;
-        ensure!(
-            height > state.confirmed,
-            "Reorg crossed published history; operator repair required"
-        );
-        height = store
-            .checkpoint(
-                height
-                    .checked_sub(1)
-                    .ok_or_else(|| eyre::eyre!("Missing common ancestor"))?,
-            )
-            .await?;
-    };
-    if ancestor.hash != head.hash {
-        verify(source, &head).await?;
-    }
-    store.observe(&state, &ancestor, &head).await?;
-    store
-        .state()
-        .await?
-        .ok_or_else(|| eyre::eyre!("Missing observed state"))
-}
-
-#[cfg(test)]
-async fn ingest(
-    source: &dyn Source,
-    store: &Store,
-    state: &State,
-    chunk_size: u64,
-) -> Result<bool> {
-    ingest_cached(source, store, state, chunk_size, &mut CountCache::default()).await
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct CountCache {
-    boundary: Option<(ethers::types::H256, [u32; 4])>,
-    /// Highest indexed height through which stored dispatches and insertions
-    /// matched hash-pinned contract counts in this process. Counts are
-    /// cumulative, so a match proves every earlier range complete, including
-    /// ranges appended while counts were unavailable.
-    proven_through: Option<u64>,
-}
-
-async fn ingest_cached(
-    source: &dyn Source,
-    store: &Store,
-    state: &State,
-    chunk_size: u64,
-    count_cache: &mut CountCache,
-) -> Result<bool> {
-    ensure!(chunk_size > 0, "Empty indexing range");
-    if state.indexed == state.head {
-        return Ok(false);
-    }
-    let available_head = source
-        .indexing_tip()
-        .await?
-        .unwrap_or(state.head)
-        .min(state.head);
-    if available_head <= state.indexed {
-        return Ok(false);
-    }
-    let start_counts = match count_cache
-        .boundary
-        .as_ref()
-        .filter(|(hash, _)| *hash == state.hash)
-    {
-        Some((_, counts)) => *counts,
-        None => {
-            let counts = store.sequence_counts().await?;
-            count_cache.boundary = Some((state.hash, counts));
-            counts
-        }
-    };
-    let requested_end = if source.indexes_by_sequence() {
-        // Sequence paging is already bounded by its configured page size. Use
-        // the observed head as the block boundary so sparse-slot chains do not
-        // turn a sequence page into thousands of one-slot ingestion cycles.
-        available_head
-    } else {
-        available_head.min(state.indexed.saturating_add(chunk_size))
-    };
-    if source.has_events_after(start_counts).await? == Some(false) {
-        let boundary = source
-            .range_end(state.indexed, requested_end, available_head)
-            .await?;
-        ensure!(
-            source
-                .fresh_header(BlockSelector::Height(state.indexed))
-                .await?
-                .hash
-                == state.hash,
-            "Indexed boundary changed during range fetch"
-        );
-        verify(source, &boundary).await?;
-        store.append(state, &[(boundary.clone(), vec![])]).await?;
-        count_cache.boundary = Some((boundary.hash, start_counts));
-        return Ok(boundary.height < state.head);
-    }
-    let mut boundary = source
-        .range_end(state.indexed, requested_end, available_head)
-        .await?;
-    let mut end = boundary.height;
-    let mut by_block = BTreeMap::<u64, Vec<source::Event>>::new();
-    // Retain exact range validation where historical state is available, but do
-    // not let a pruned-state RPC prevent catch-up from durable sequence counts.
-    let end_counts = async {
-        match source.counts(boundary.hash).await {
-            Ok(counts) => Ok::<_, eyre::Report>(counts),
-            Err(error) => {
-                warn!(
-                    domain = store.domain,
-                    height = boundary.height,
-                    ?error,
-                    "Historical sequence counts unavailable; using durable continuity"
-                );
-                Ok(None)
-            }
-        }
-    };
-    let (events, end_counts) = tokio::try_join!(
-        source.events_after(state.indexed.saturating_add(1), end, start_counts),
-        end_counts,
-    )?;
-    let batch = events;
-    if end_counts.is_none()
-        && batch
-            .events
-            .iter()
-            .any(|event| event.block_number <= state.confirmed)
-    {
-        eyre::bail!("Event range crossed confirmed history");
-    }
-    ensure!(
-        batch.through > state.indexed,
-        "Event batch made no block progress"
-    );
-    if batch.through < end {
-        boundary = source
-            .range_end(state.indexed, batch.through, available_head)
-            .await?;
-        end = boundary.height;
-    }
-    let events = batch.events;
-    let validated_counts = match advance_sequences(&events, start_counts) {
-        Ok(counts) => counts,
-        Err(error) => {
-            if state.indexed > state.confirmed {
-                store.rewind_to_confirmed(state).await?;
-            }
-            count_cache.boundary = None;
-            return Err(error);
-        }
-    };
-    if let Some(end_counts) = end_counts {
-        if validated_counts[0] != end_counts[0] || validated_counts[3] != end_counts[1] {
-            // With an unproven provisional suffix the missing events may be in an
-            // earlier range; replay it instead of failing the same way forever.
-            // Otherwise everything before this range is proven and a retry suffices.
-            let unproven = count_cache.proven_through.unwrap_or(state.confirmed) < state.indexed;
-            if unproven && state.indexed > state.confirmed {
-                store.rewind_to_confirmed(state).await?;
-                count_cache.boundary = None;
-            }
-            eyre::bail!("Incomplete event range");
-        }
-    }
-    for event in events {
-        ensure!(
-            event.block_number > state.indexed && event.block_number <= end,
-            "Event outside requested range"
-        );
-        by_block.entry(event.block_number).or_default().push(event);
-    }
-    // Empty ranges still advance, using only their end header as a checkpoint.
-    by_block.entry(end).or_default();
-    let blocks: Vec<_> = stream::iter(by_block)
-        .map(|(height, mut events)| {
-            let boundary = &boundary;
-            async move {
-                let header = if height == end {
-                    boundary.clone()
-                } else {
-                    source.header(BlockSelector::Height(height)).await?
-                };
-                ensure!(
-                    events
-                        .iter()
-                        .all(|event| event.block_hash.is_zero() || event.block_hash == header.hash),
-                    "Range contains logs from another fork"
-                );
-                for event in &mut events {
-                    event.block_hash = header.hash;
-                }
-                Ok::<_, eyre::Report>((header, events))
-            }
-        })
-        .buffered(8)
-        .try_collect()
-        .await?;
-    ensure!(
-        source
-            .fresh_header(BlockSelector::Height(state.indexed))
-            .await?
-            .hash
-            == state.hash,
-        "Indexed boundary changed during range fetch"
-    );
-    verify(source, &boundary).await?;
-    store.append(state, &blocks).await?;
-    count_cache.boundary = Some((boundary.hash, validated_counts));
-    if end_counts.is_some() {
-        count_cache.proven_through = Some(end);
-    }
-    Ok(end < state.head)
-}
-
-#[cfg(test)]
-fn validate_sequences(events: &[source::Event], next: [u32; 2], end: [u32; 2]) -> Result<()> {
-    let next = advance_sequences(events, [next[0], 0, 0, next[1]])?;
-    ensure!([next[0], next[3]] == end, "Incomplete event range");
-    Ok(())
-}
-
-fn advance_sequences(events: &[source::Event], mut next: [u32; 4]) -> Result<[u32; 4]> {
-    const STREAMS: [&str; 4] = ["dispatch", "delivery", "gas payment", "insertion"];
-    for event in events {
-        let (stream, index) = match &event.data {
-            source::EventData::Dispatch(message) => (0, Some(message.nonce)),
-            source::EventData::Delivery(_) => (1, event.sequence),
-            source::EventData::Gas { .. } => (2, event.sequence),
-            source::EventData::Insertion { index, .. } => (3, Some(*index)),
-        };
-        let Some(index) = index else { continue };
-        ensure!(
-            index == next[stream],
-            "Missing or unordered {} sequence: expected {}, received {}",
-            STREAMS[stream],
-            next[stream],
-            index
-        );
-        next[stream] = index
-            .checked_add(1)
-            .ok_or_else(|| eyre::eyre!("Event sequence overflow"))?;
-    }
-    Ok(next)
-}
-
-async fn verify(source: &dyn Source, header: &Header) -> Result<()> {
-    ensure!(
-        source
-            .fresh_header(BlockSelector::Height(header.height))
-            .await?
-            .hash
-            == header.hash,
-        "Chain changed during RPC reads"
-    );
-    Ok(())
-}
-
-/// Shortest lease on a head observation that confirmation will accept.
-const MIN_CONFIRMATION_LEASE: Duration = Duration::from_secs(60);
-
-/// Confirmation needs a recent healthy observation: pauses clear `healthy`, so a
-/// lagging or reorging RPC stops publication. It does not need
-/// a fresh one: confirmation rechecks ancestry against the RPC before
-/// committing, and an older head only lowers the depth/tag boundary. The lease
-/// therefore spans one poll plus database latency rather than equalling it.
-fn confirmation_lease(poll_interval: Duration) -> Duration {
-    poll_interval.saturating_mul(2).max(MIN_CONFIRMATION_LEASE)
-}
-
-#[cfg(test)]
-async fn confirm(source: &dyn Source, store: &Store, period: &ReorgPeriod) -> Result<[u64; 4]> {
-    Ok(
-        confirm_leased(source, store, period, MIN_CONFIRMATION_LEASE)
-            .await?
-            .counts,
-    )
-}
-
-struct Confirmation {
-    counts: [u64; 4],
-    page_limited: bool,
-}
-
-#[cfg(test)]
-async fn confirm_leased(
-    source: &dyn Source,
-    store: &Store,
-    period: &ReorgPeriod,
-    lease: Duration,
-) -> Result<Confirmation> {
-    confirm_leased_through(source, store, period, lease, u64::MAX).await
-}
-
-async fn confirm_leased_through(
-    source: &dyn Source,
-    store: &Store,
-    period: &ReorgPeriod,
-    lease: Duration,
-    publishable: u64,
-) -> Result<Confirmation> {
-    let state = store
-        .state()
-        .await?
-        .ok_or_else(|| eyre::eyre!("Missing head state"))?;
-    ensure!(!state.halted, "Confirmed history requires operator repair");
-    if state.indexed == state.confirmed || publishable <= state.confirmed {
-        return Ok(Confirmation {
-            counts: [0; 4],
-            page_limited: false,
-        });
-    }
-    let tagged = match period {
-        ReorgPeriod::Tag(tag) if tag != "latest" => Some(source.header(tag_selector(tag)?).await?),
-        _ => None,
-    };
-    let through = match period {
-        ReorgPeriod::Blocks(depth) => state.head.saturating_sub(u64::from(depth.get())),
-        _ => tagged
-            .as_ref()
-            .map(|header| header.height)
-            .unwrap_or(state.head),
-    };
-    // A tag read after the head observation can be newer than it. Everything up
-    // to the observed head is then final; confirm only that observed history.
-    let through = through.min(state.head);
-    if through <= state.confirmed {
-        return Ok(Confirmation {
-            counts: [0; 4],
-            page_limited: false,
-        });
-    }
-    let target = through.min(state.indexed).min(publishable);
-    let through = store.confirmation_boundary(state.confirmed, target).await?;
-    if through <= state.confirmed {
-        return Ok(Confirmation {
-            counts: [0; 4],
-            page_limited: false,
-        });
-    }
-    let checkpoint = store.checkpoint_between(state.confirmed, through).await?;
-    let boundary = match tagged {
-        Some(header) if header.height == through => header,
-        _ => {
-            let after = checkpoint.map_or(state.confirmed, |height| height.saturating_sub(1));
-            source.fresh_range_end(after, through, through).await?
-        }
-    };
-    let through = boundary.height;
-    if let Some(hash) = store.hash(through).await? {
-        ensure!(
-            hash == boundary.hash,
-            "Confirmation boundary is on another fork"
-        );
-    }
-    // A sparse boundary must be checked against the indexed range's canonical tip.
-    let indexed_hash = source
-        .fresh_header(BlockSelector::Height(state.indexed))
-        .await?
-        .hash;
-    ensure!(
-        indexed_hash == state.hash,
-        "Indexed fork changed before confirmation"
-    );
-    Ok(Confirmation {
-        counts: store.confirm(&state, &boundary, lease).await?,
-        page_limited: through < target,
-    })
-}
-
-fn tag_selector(tag: &str) -> Result<BlockSelector> {
-    match tag {
-        "latest" => Ok(BlockSelector::Latest),
-        "safe" => Ok(BlockSelector::Safe),
-        "finalized" => Ok(BlockSelector::Finalized),
-        _ => eyre::bail!("Unsupported reorgPeriod tag"),
-    }
-}
-
 fn resolve_index_from(index_from: i64, tip: u64) -> Result<u64> {
     Ok(u64::try_from(
         i128::from(tip)
@@ -597,9 +214,6 @@ fn resolve_index_from(index_from: i64, tip: u64) -> Result<u64> {
             .max(0),
     )?)
 }
-
-#[cfg(test)]
-use enrichment::enrich_with_timeout;
 
 #[cfg(test)]
 mod tests;

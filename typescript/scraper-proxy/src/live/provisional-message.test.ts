@@ -1,10 +1,25 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
+import { WebSocket } from 'ws';
+import type { EventDatabase } from './event-websocket.js';
+import { rawData } from './websocket-data.js';
 
 import pg from 'pg';
 
-import { PROVISIONAL_MESSAGE_QUERY } from './provisional-message.js';
+import {
+  LIVE_MESSAGE_FACTS_QUERY,
+  MAX_PAYMENT_HEIGHTS,
+  PROVISIONAL_MESSAGE_QUERY,
+} from './provisional-message.js';
+import {
+  collectMessageFacts,
+  projectMessage,
+  type FactRow,
+} from './message-facts.js';
 import { ScraperDbService } from '../scraperdb/scraperdb.service.js';
 import { buildSelect } from '../scraperdb/sql.js';
 
@@ -65,6 +80,17 @@ void it(
       INSERT INTO gas_payment VALUES (1,decode('01','hex'),2,100,200,null),
         (2,decode('02','hex'),1,300,400,10);
     `);
+      await t.test(
+        'keeps WebSocket SQL flat across 100 subscribers and matches the confirmation SQL',
+        async () => {
+          await db.query('BEGIN');
+          try {
+            await checkMessageFanout(db);
+          } finally {
+            await db.query('ROLLBACK');
+          }
+        },
+      );
       const project = async (height?: string) =>
         (
           await db.query<{
@@ -140,6 +166,10 @@ void it(
           'utf8',
         ),
       );
+      // PostgreSQL does not auto-analyze temporary tables. Give the admission
+      // check real fixture cardinalities before planning the history reads.
+      await db.query(`ANALYZE domain, scraper_head, block, "transaction", raw_message_dispatch,
+        message, delivered_message, gas_payment`);
       let lastQuery: { sql: string; values?: unknown[] } = { sql: '' };
       let lastRows: Record<string, unknown>[] = [];
       const service = new ScraperDbService({
@@ -398,6 +428,76 @@ void it(
       );
 
       await t.test(
+        'bounds permissionless payment buckets without failing any frontier',
+        async () => {
+          await db.query('BEGIN');
+          try {
+            await db.query(`
+            INSERT INTO gas_payment SELECT 100+h, decode('01','hex'), 1, 1, 2, h FROM generate_series(11,310) h;
+            INSERT INTO gas_payment SELECT 1000+h, decode('01','hex'), 3, 1, 2, h FROM generate_series(1,20) h;
+            INSERT INTO gas_payment VALUES (5000,decode('01','hex'),1,7,7,11), (5001,decode('01','hex'),1,1,1,null);
+          `);
+            const types = {
+              getTypeParser(oid: number) {
+                if (oid === 17) return (value: string) => value;
+                return pg.types.getTypeParser(oid);
+              },
+            };
+            const { rows } = await db.query<FactRow>({
+              text: LIVE_MESSAGE_FACTS_QUERY,
+              values: [['\\x01']],
+              types,
+            });
+            const facts = collectMessageFacts(rows).get('\\x01');
+            assert(facts && !(facts instanceof Error));
+            // Domain 1: oldest/newest heights + one fold. Domain 3 (20 heights)
+            // likewise. Domains 1 and 2 also have a NULL-height bucket.
+            assert.equal(
+              facts.payments.length,
+              2 * (2 * MAX_PAYMENT_HEIGHTS + 1) + 2,
+            );
+            const fold = 310 - MAX_PAYMENT_HEIGHTS;
+            for (const [h1, exact] of [
+              [10, true],
+              [15, true],
+              [10 + MAX_PAYMENT_HEIGHTS, true],
+              [200, false],
+              [fold - 1, false],
+              [fold, true],
+              [309, true],
+              [310, true],
+            ] as const) {
+              const row = projectMessage(facts, (d) =>
+                d === 1 ? BigInt(h1) : d === 3 ? 20n : undefined,
+              );
+              assert(row);
+              const live = row.data;
+              const [sql] = (
+                await db.query(PROVISIONAL_MESSAGE_QUERY, [
+                  ['\\x01'],
+                  [1, 3],
+                  [String(h1), '20'],
+                ])
+              ).rows;
+              for (const key of [
+                'num_payments',
+                'total_payment',
+                'total_gas_amount',
+              ]) {
+                if (exact) assert.equal(live[key], sql[key], `${key} at ${h1}`);
+                else assert.notEqual(live[key], sql[key], `${key} at ${h1}`);
+              }
+              assert(
+                BigInt(String(live.num_payments)) <= BigInt(sql.num_payments),
+              );
+            }
+          } finally {
+            await db.query('ROLLBACK');
+          }
+        },
+      );
+
+      await t.test(
         'bounds backlog candidates before projection while keeping exact lookups available',
         async () => {
           await db.query('BEGIN');
@@ -436,3 +536,174 @@ void it(
     }
   },
 );
+
+type Frame = { type: string; data?: Record<string, unknown>; height?: string };
+
+async function checkMessageFanout(db: pg.Client) {
+  process.env.DATABASE_URL ??= 'postgresql://localhost/scraper_test';
+  const { EventWebSocketServer } = await import('./event-websocket.js');
+  const id = '\\x' + '02'.repeat(32);
+  const hash = 'ab'.repeat(32);
+  await db.query(`ALTER TABLE scraper_head ADD COLUMN indexed_hash bytea;
+    UPDATE scraper_head SET head_height=1010, indexed_height=1010, indexed_hash=decode(repeat('ab',32),'hex');
+    UPDATE message SET msg_id=decode(repeat('02',32),'hex');
+    UPDATE delivered_message SET msg_id=decode(repeat('02',32),'hex') WHERE id=2;
+    UPDATE gas_payment SET msg_id=decode(repeat('02',32),'hex') WHERE id=2;
+    INSERT INTO gas_payment SELECT h,decode(repeat('02',32),'hex'),1,h,999999999999999999999,h FROM unnest(ARRAY[11,991,1011]) h;
+    INSERT INTO delivered_message VALUES (3,decode(repeat('02',32),'hex'),1,now(),null,null,1011,null,null);
+    DELETE FROM delivered_message WHERE id=2;
+    INSERT INTO scraper_head VALUES (3,5,1010,1010,decode(repeat('ab',32),'hex'));
+    INSERT INTO gas_payment VALUES (3000,decode(repeat('02',32),'hex'),3,400,500,8)`);
+
+  // Match the live pool's scalar parsers without mutating other fixture clients.
+  const types = {
+    getTypeParser(oid: number) {
+      if ([17, 1114, 1186].includes(oid)) return (value: string) => value;
+      return pg.types.getTypeParser(oid);
+    },
+  };
+  const expected = new Map<string, Record<string, unknown>>();
+  for (const n of [0, 20, 1000]) {
+    for (const third of [true, false]) {
+      const { rows } = await db.query({
+        text: PROVISIONAL_MESSAGE_QUERY,
+        values: [
+          [id],
+          third ? [1, 3] : [1],
+          third ? [String(1011 - n), String(1010 - n)] : [String(1011 - n)],
+        ],
+        types,
+      });
+      const { payment_domain_ids: _, ...row } = rows[0];
+      expected.set(`${n}:${third}`, row);
+    }
+  }
+  assert.equal(expected.get('0:false')?.is_delivered, true);
+  assert.equal(expected.get('20:false')?.is_delivered, false);
+  assert.equal(expected.get('1000:false')?.num_payments, '2');
+  assert.equal(expected.get('1000:true')?.num_payments, '3');
+
+  async function replay(count: number) {
+    await db.query('UPDATE "transaction" SET gas_price=NULL WHERE id=2');
+    const queries = { snapshot: 0, range: 0, facts: 0 };
+    let notify: Parameters<EventDatabase['listen']>[1] = () =>
+      assert.fail('No listener');
+    const server = new EventWebSocketServer({
+      listen: async (_, handler) => {
+        notify = handler;
+        return async () => {};
+      },
+      async queryLive<T extends pg.QueryResultRow>(
+        text: string,
+        values?: unknown[],
+      ) {
+        if (text.includes('live_message_facts')) queries.facts++;
+        else if (text.includes('confirmation_messages')) queries.range++;
+        else if (text.includes('FROM scraper_head')) queries.snapshot++;
+        else assert.fail('Unexpected live query: ' + text);
+        return (await db.query<T>({ text, values, types })).rows;
+      },
+      queryValidator: async () => assert.fail('Unexpected validator read'),
+    });
+    const http = createServer();
+    http.listen(0, '127.0.0.1');
+    await once(http, 'listening');
+    const address = http.address();
+    assert(address && typeof address !== 'string');
+    await server.start(http);
+    const clients: { socket: WebSocket; policy: string; frames: Frame[] }[] =
+      [];
+    const received = async (type: string, minimum = 1) => {
+      const deadline = Date.now() + 5000;
+      while (
+        !clients.every(
+          (c) => c.frames.filter((f) => f.type === type).length >= minimum,
+        )
+      ) {
+        assert(Date.now() < deadline, 'Missing ' + type);
+        await delay(5);
+      }
+    };
+    const join = async (i: number) => {
+      const n = [0, 20, 1000][i % 3];
+      const ids =
+        i % 2
+          ? '&messageIds=0x' +
+            id.slice(2) +
+            ',0x' +
+            i.toString(16).padStart(64, '0')
+          : '';
+      const socket = new WebSocket(
+        `ws://127.0.0.1:${address.port}/messages?blocks=true&confirmations=${n}&domains=${i % 2 ? '3,2,1' : '1'}${ids}`,
+        { headers: { 'cf-connecting-ip': `203.0.113.${i + 1}` } },
+      );
+      const frames: Frame[] = [];
+      socket.on('message', (raw) => frames.push(JSON.parse(rawData(raw))));
+      clients.push({ socket, policy: `${n}:${i % 2 === 1}`, frames });
+      await received('ready');
+    };
+    const advance = (height: number, previous: number) =>
+      notify(
+        'scraper_head',
+        JSON.stringify({
+          domain: 1,
+          headHeight: String(height),
+          indexedHeight: String(height),
+          previousIndexedHeight: String(previous),
+          indexedHash: hash,
+          confirmedHeight: '5',
+          previousConfirmedHeight: '5',
+        }),
+      );
+    try {
+      for (let i = 0; i < count; i++) await join(i);
+      assert.deepEqual(queries, { snapshot: 1, range: 0, facts: 0 });
+      advance(1011, 1010);
+      await received('message_upsert');
+      for (const { policy, frames } of clients) {
+        assert.equal(frames[0].type, 'ready');
+        assert.deepEqual(
+          frames.find((f) => f.type === 'message_upsert')?.data,
+          expected.get(policy),
+        );
+      }
+      // Late receipt enrichment stays a single ID read, including detail-page subscriptions.
+      const waitUntil = async (predicate: () => boolean) => {
+        const deadline = Date.now() + 5000;
+        while (!predicate()) {
+          assert(Date.now() < deadline, 'Expected all clients to update');
+          await delay(5);
+        }
+      };
+      await db.query('UPDATE "transaction" SET gas_price=1234 WHERE id=2');
+      notify(
+        'scraper_explorer_event',
+        JSON.stringify({ messageId: id.slice(2) }),
+      );
+      await waitUntil(() =>
+        clients.every((c) =>
+          c.frames.some((f) => f.data?.origin_tx_gas_price === '1234'),
+        ),
+      );
+
+      advance(1010, 1011);
+      await received('rollback');
+      await waitUntil(() =>
+        clients.every(
+          (c) =>
+            c.frames.at(-1)?.type === 'message_upsert' &&
+            c.frames.at(-1)?.data?.total_payment !==
+              expected.get(c.policy)?.total_payment,
+        ),
+      );
+      return queries;
+    } finally {
+      for (const { socket } of clients) socket.terminate();
+      await server.stop();
+      await new Promise<void>((resolve) => http.close(() => resolve()));
+    }
+  }
+  const single = await replay(1);
+  assert.deepEqual(single, { snapshot: 1, range: 1, facts: 3 });
+  assert.deepEqual(await replay(100), single);
+}

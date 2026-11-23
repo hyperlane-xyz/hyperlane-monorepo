@@ -6,17 +6,21 @@ import {
   EthJsonRpcBlockParameterTag,
   type MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
-import { isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
+import { assert, isEVMLike, ProtocolType } from '@hyperlane-xyz/utils';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk/runtime';
 import type { ConfirmedBlockTag } from '../interfaces/IMonitor.js';
 
+const HEX_BLOCK_NUMBER_REGEX = /^0x[0-9a-fA-F]+$/;
+
 /**
- * Get the confirmed block tag for a chain, accounting for reorg period.
- * Returns a block number that is safe from reorgs, or a named tag like 'finalized'.
+ * Get the confirmed-state query mode for a chain. EVM named finality resolves
+ * once to an exact height; Tron uses its native moving solidified state.
  *
  * @param multiProvider - Provider registry with chain metadata and ethers access
  * @param chainName - Name of the chain
  * @param logger - Optional logger for warnings
- * @returns Confirmed block tag (number, named tag, or undefined on error)
+ * @returns An exact EVM height, the explicit Tron finalized tag, or undefined
+ * for another protocol without historical queries.
  */
 export async function getConfirmedBlockTag(
   multiProvider: Pick<
@@ -29,51 +33,58 @@ export async function getConfirmedBlockTag(
   try {
     const metadata = multiProvider.getChainMetadata(chainName);
 
-    // Only EVM-like chains support block tag queries (e.g., Ethereum, Tron).
-    // Tron uses TronJsonRpcProvider which supports eth_blockNumber
-    if (!isEVMLike(metadata.protocol)) {
-      return undefined;
-    }
+    // Undefined identifies protocols without EVM snapshot support. Tron has an
+    // explicit finalized-state mode; neither mode falls back to latest EVM state.
+    if (!isEVMLike(metadata.protocol)) return undefined;
 
     const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
+    const provider = multiProvider.getEthersV5Provider(chainName);
+    if (metadata.protocol === ProtocolType.Tron) {
+      assert(
+        provider instanceof TronJsonRpcProvider,
+        `Missing Tron provider for ${chainName}`,
+      );
+      // Tron cannot query historical contract state. The native Solidity API
+      // provides irreversible state; settlement changes require a fresh balance cycle.
+      return EthJsonRpcBlockParameterTag.Finalized;
+    }
     if (typeof reorgPeriod === 'string') {
-      if (metadata.protocol === ProtocolType.Tron) {
-        logger?.warn(
-          { chain: chainName, reorgPeriod },
-          'Tron does not support named block tags — ignoring string reorgPeriod, using latest block',
-        );
-        return undefined;
-      }
-      return reorgPeriod as EthJsonRpcBlockParameterTag;
+      const block = await provider.getBlock(reorgPeriod);
+      assert(
+        block && Number.isSafeInteger(block.number) && block.number >= 0,
+        `Invalid ${reorgPeriod} block for ${chainName}`,
+      );
+      return block.number;
     }
 
-    const provider = multiProvider.getEthersV5Provider(chainName);
     let latestBlock: number;
-    if (provider instanceof providers.JsonRpcProvider) {
+    if (
+      provider instanceof providers.JsonRpcProvider ||
+      provider instanceof TronJsonRpcProvider
+    ) {
       const latestBlockHex = await provider.send('eth_blockNumber', []);
       if (
         typeof latestBlockHex !== 'string' ||
-        !/^0x[0-9a-fA-F]+$/.test(latestBlockHex)
+        !HEX_BLOCK_NUMBER_REGEX.test(latestBlockHex)
       ) {
         throw new Error(
           `Invalid eth_blockNumber response for ${chainName}: ${latestBlockHex}`,
         );
       }
       latestBlock = parseInt(latestBlockHex, 16);
-      if (!Number.isFinite(latestBlock)) {
-        throw new Error(
-          `Parsed block number is not finite for ${chainName}: ${latestBlockHex}`,
-        );
-      }
     } else {
       latestBlock = await provider.getBlockNumber();
     }
-    return Math.max(0, latestBlock - reorgPeriod);
+    if (!Number.isSafeInteger(latestBlock) || latestBlock < 0) {
+      throw new Error(`Invalid block number for ${chainName}: ${latestBlock}`);
+    }
+    const confirmedBlock = Math.max(0, latestBlock - reorgPeriod);
+    return confirmedBlock;
   } catch (error) {
     logger?.warn(
-      { chain: chainName, error: (error as Error).message },
-      'Failed to get confirmed block, using latest',
+      { chain: chainName, error },
+      'Failed to resolve confirmed balance snapshot',
     );
-    return undefined;
+    throw error;
   }
 }

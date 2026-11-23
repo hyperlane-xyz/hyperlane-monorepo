@@ -6,14 +6,12 @@ export const regularIcasLegacy: ChainMap<Address> = {
   // ----------------------------------------------------------
   apechain: '0x9422838f6fA763354756a3Aba18f34015cB4bF74',
   avalanche: '0x3a1014df0202477a1222999c72bD36395904e8AB',
-  bob: '0x4FB145Da6407F4F485A209332a38A5327B61f83e',
   celo: '0x20D701Ac137BB131e735B403e0471b101423dDeC',
   // corn: '0x4BAe702C0D1cC7d6d343594735812b5723041528',
   coti: '0x54b625734673868027c70F656B807588910f3a6f',
   // glue: '0x0Fb0635eAbB9332eDc2544A57e7C15fBc5204C0B',
   gnosis: '0x2984A89A1A0331ae200FE2Cb46cCa190e795672E',
   ink: '0xf36dC13eE34034709390b6dF3de7305eA298BFec',
-  lisk: '0xF01B503E5cC884f0EB6eF062F704A610FD69842D',
   lukso: '0xBd887119d776f0c990e9a03B1A157A107CD45033',
   mantle: '0x9652721a385AF5B410AA0865Df959255a798F761',
   metal: '0x9E359Bd54B59D28218a47E4C9a1e84568f09aFb4',
@@ -29,7 +27,6 @@ export const regularIcasLegacy: ChainMap<Address> = {
 
   // May 18, 2025 batch
   // ----------------------------------------------------------
-  blast: '0xeA45A1031cA2Eb20Ffa729d3AD6f2F92789DCF3F',
 
   // Jun 4, 2025 batch
   // ----------------------------------------------------------

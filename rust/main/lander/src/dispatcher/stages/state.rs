@@ -180,7 +180,7 @@ impl DispatcherState {
         }
     }
 
-    fn update_payload_metric_if_dropped(&self, status: &PayloadStatus) {
+    pub(super) fn update_payload_metric_if_dropped(&self, status: &PayloadStatus) {
         match status {
             PayloadStatus::InTransaction(TransactionStatus::Dropped(ref reason)) => {
                 self.metrics.update_dropped_payloads_metric(

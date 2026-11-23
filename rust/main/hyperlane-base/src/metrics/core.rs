@@ -73,6 +73,7 @@ pub struct CoreMetrics {
 
     // ism building metrics
     ism_build_count: IntCounterVec,
+    validator_latest_index_refresh_skipped: IntCounterVec,
 
     /// Chain initialization metrics
     chain_init_latency: IntGaugeVec,
@@ -380,6 +381,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let validator_latest_index_refresh_skipped = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("validator_latest_index_refresh_skipped"),
+                "Validator latest-index telemetry refreshes that did not complete",
+                const_labels_ref
+            ),
+            &["origin", "reason"],
+            registry
+        )?;
+
         let chain_init_latency = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("chain_init_latency"),
@@ -429,6 +440,7 @@ impl CoreMetrics {
             metadata_wait_oldest_timestamp_seconds,
 
             ism_build_count,
+            validator_latest_index_refresh_skipped,
 
             chain_init_latency,
 
@@ -813,6 +825,16 @@ impl CoreMetrics {
     /// - `status`: success or failure
     pub fn ism_build_count(&self) -> IntCounterVec {
         self.ism_build_count.clone()
+    }
+
+    /// Validator latest-index telemetry refreshes that were skipped or did not
+    /// complete, so `observed_validator_latest_index` may be stale.
+    ///
+    /// Labels:
+    /// - `origin`: Chain whose validators were being refreshed.
+    /// - `reason`: `capacity`, `timeout` or `error`.
+    pub fn validator_latest_index_refresh_skipped(&self) -> IntCounterVec {
+        self.validator_latest_index_refresh_skipped.clone()
     }
 
     /// The latency of chain initialization in milliseconds.

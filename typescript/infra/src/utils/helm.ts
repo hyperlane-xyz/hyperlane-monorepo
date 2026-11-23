@@ -12,6 +12,9 @@ import {
 
 import { execCmd, execCmdAndParseJson } from './utils.js';
 
+const TRAILING_DASHES_REGEX = /-+$/;
+const REGISTRY_TREE_PATH_REGEX = /\/tree\/(.+)$/;
+
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',
   UpgradeDiff = 'template --debug',
@@ -176,15 +179,17 @@ export interface PreflightDiff {
   chainDiff: { hasChanges: boolean; added: string[]; removed: string[] };
   imageDiff: { hasChanges: boolean; currentTag?: string; newTag?: string };
   isNewDeployment: boolean;
+  resourceChanges?: string[];
 }
 
 export interface HelmCommandOptions {
   dryRun?: boolean;
   updateRepoCache?: boolean;
   skipDependencyBuild?: boolean;
+  allowResourceProvisioning?: boolean;
 }
 
-export abstract class HelmManager<T = HelmValues> {
+export abstract class HelmManager<T extends HelmValues = HelmValues> {
   abstract readonly helmReleaseName: string;
   abstract readonly helmChartPath: string;
   abstract readonly namespace: string;
@@ -198,6 +203,7 @@ export abstract class HelmManager<T = HelmValues> {
   async runHelmCommand(
     action: HelmCommand,
     options?: HelmCommandOptions,
+    proposedValues?: T,
   ): Promise<void> {
     const dryRun = options?.dryRun ?? false;
     const updateRepoCache = options?.updateRepoCache ?? false;
@@ -223,7 +229,7 @@ export abstract class HelmManager<T = HelmValues> {
       return;
     }
 
-    const values = await this.helmValues();
+    const values = proposedValues ?? (await this.helmValues());
 
     if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
       // Delete secrets to avoid them being stale
@@ -291,10 +297,22 @@ export abstract class HelmManager<T = HelmValues> {
     releaseName: string,
     namespace: string,
   ): Promise<boolean> {
-    const releases = await execCmdAndParseJson(
-      `helm list --namespace ${namespace} --deployed --failed --pending --uninstalling --filter '^${releaseName}$' --output json`,
-    );
-    return releases.length > 0;
+    try {
+      // `helm list --filter` downloads every release in the namespace before
+      // filtering. Status queries only this release's history on the server.
+      const release = await execCmdAndParseJson(
+        `helm status ${releaseName} --namespace ${namespace} --output json`,
+      );
+      return (
+        release.info.status === 'deployed' ||
+        release.info.status === 'failed' ||
+        release.info.status === 'uninstalling' ||
+        release.info.status.startsWith('pending-')
+      );
+    } catch (error) {
+      if (isHelmReleaseNotFoundError(error)) return false;
+      throw error;
+    }
   }
 
   async getExistingK8sSecrets(): Promise<string[]> {
@@ -335,7 +353,9 @@ export abstract class HelmManager<T = HelmValues> {
    * Gets the currently deployed helm values for this release.
    * Returns null if the release doesn't exist.
    */
-  async getDeployedHelmValues(): Promise<HelmValues | null> {
+  async getDeployedHelmValues({
+    throwOnError = false,
+  }: { throwOnError?: boolean } = {}): Promise<HelmValues | null> {
     const exists = await HelmManager.doesHelmReleaseExist(
       this.helmReleaseName,
       this.namespace,
@@ -350,6 +370,7 @@ export abstract class HelmManager<T = HelmValues> {
       );
       return values;
     } catch (error) {
+      if (throwOnError) throw error;
       rootLogger.warn(
         `Failed to get deployed helm values for ${this.helmReleaseName}: ${error}`,
       );
@@ -362,11 +383,17 @@ export abstract class HelmManager<T = HelmValues> {
    * Used for batch processing multiple agents.
    */
   async getPreflightDiff(): Promise<PreflightDiff> {
-    const deployedValues = await this.getDeployedHelmValues();
+    const deployedValues = await this.getDeployedHelmValues({
+      throwOnError: true,
+    });
+    const proposedValues = await this.helmValues();
+    const resourceChanges = this.compareResourceConfigurations(
+      deployedValues,
+      proposedValues,
+    );
 
     if (!deployedValues) {
       // For new deployments, still show what will be deployed
-      const proposedValues = (await this.helmValues()) as HelmValues;
       const proposedChains = this.extractChainNames(proposedValues);
       const proposedTag = proposedValues?.image?.tag;
 
@@ -382,10 +409,10 @@ export abstract class HelmManager<T = HelmValues> {
           newTag: proposedTag,
         },
         isNewDeployment: true,
+        resourceChanges,
       };
     }
 
-    const proposedValues = (await this.helmValues()) as HelmValues;
     const chainDiff = this.compareChainConfigurations(
       deployedValues,
       proposedValues,
@@ -397,7 +424,15 @@ export abstract class HelmManager<T = HelmValues> {
       chainDiff,
       imageDiff,
       isNewDeployment: false,
+      resourceChanges,
     };
+  }
+
+  protected compareResourceConfigurations(
+    _deployed: HelmValues | null,
+    _proposed: T,
+  ): string[] {
+    return [];
   }
 
   /**
@@ -470,7 +505,7 @@ export function getHelmReleaseName(id: string, prefix: string): string {
   // Max out length, and it can't end with a dash.
   if (name.length > maxChars) {
     name = name.slice(0, maxChars);
-    name = name.replace(/-+$/, '');
+    name = name.replace(TRAILING_DASHES_REGEX, '');
   }
   return name;
 }
@@ -486,7 +521,7 @@ export function extractRegistryCommitFromHelmValues(
 
   const registryUri = values?.hyperlane?.registryUri;
   if (registryUri) {
-    const match = registryUri.match(/\/tree\/(.+)$/);
+    const match = registryUri.match(REGISTRY_TREE_PATH_REGEX);
     if (match?.[1]) return match[1];
   }
 

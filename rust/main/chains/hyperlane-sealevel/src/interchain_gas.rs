@@ -338,13 +338,13 @@ impl SealevelInterchainGasPaymasterIndexer {
                 payment_pda_slot,
                 |previous_slot| rpc_client.get_block(previous_slot),
             )
-            .await?
+            .await
         {
-            Ok(log_meta) => Ok(Some(log_meta)),
+            Ok(Ok(log_meta)) => Ok(Some(log_meta)),
             // The block will never contain the expected transaction after filtering, so falling
             // back to basic log meta lets the sequence-aware cursor advance instead of rewinding
             // on the same sequence forever.
-            Err(err) if err.is_log_meta_unresolvable() => {
+            Ok(Err(err)) if err.is_log_meta_unresolvable() => {
                 warn!(
                     ?err,
                     ?payment_pda_pubkey,
@@ -354,7 +354,12 @@ impl SealevelInterchainGasPaymasterIndexer {
                 );
                 Ok(None)
             }
-            Err(err) => Err(err.into()),
+            Ok(Err(err)) => Err(err.into()),
+            Err(err) if is_get_block_unresolvable_after_retries(&err) => {
+                warn!(?err, "Previous-slot block unavailable after provider retries; falling back to basic log meta");
+                Ok(None)
+            }
+            Err(err) => Err(err),
         }
     }
 }

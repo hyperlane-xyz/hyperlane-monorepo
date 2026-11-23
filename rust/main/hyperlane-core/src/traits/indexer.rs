@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::Deserialize;
 
-use crate::{ChainResult, Indexed, LogMeta, H512};
+use crate::{ChainResult, Indexed, LogMeta, H256, H512};
 
 /// Indexing mode.
 #[derive(Copy, Debug, Default, Deserialize, Clone)]
@@ -58,6 +58,19 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
         Ok(vec![])
     }
 
+    /// Signers of the transaction that emitted the log with this sequence, for
+    /// indexers that can't store transaction ids (the Sealevel mailbox).
+    /// `tx_hash` skips the lookup when the transaction is already known.
+    /// `Ok(None)` means unsupported; `Ok(Some(vec![]))` means the transaction
+    /// can't be found.
+    async fn fetch_tx_signers_by_sequence(
+        &self,
+        _sequence: u32,
+        _tx_hash: Option<H512>,
+    ) -> ChainResult<Option<Vec<H256>>> {
+        Ok(None)
+    }
+
     /// Fetch logs and check CCTP V2 status from a single transaction.
     ///
     /// Non-EVM chains use the default, which returns `false` for the CCTP flag
@@ -81,6 +94,11 @@ pub trait Indexer<T: Sized>: Send + Sync + Debug {
 pub trait SequenceAwareIndexer<T>: Indexer<T> {
     /// Return the latest finalized sequence (if any) and block number
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)>;
+
+    /// Return the sequence count at a specific block, or None when unsupported.
+    async fn sequence_count_at_block(&self, _block: u32) -> ChainResult<Option<u32>> {
+        Ok(None)
+    }
 }
 
 /// Parse an EVM hex-encoded transaction hash string into an [`H512`].

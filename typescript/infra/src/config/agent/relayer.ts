@@ -28,8 +28,8 @@ import {
 
 import {
   getChain,
-  getChainAddresses,
   getDomainId,
+  getIcaRouterAddresses,
   getWarpAddresses,
 } from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
@@ -42,6 +42,8 @@ import {
   RootAgentConfig,
   defaultChainSignerKeyConfig,
 } from './agent.js';
+
+const HEX_PREFIX_REGEX = /^0x/;
 
 export interface MetricAppContext {
   name: string;
@@ -114,14 +116,21 @@ export function buildWarpRouteProcessAltOverrides(
 
 // Incomplete basic relayer agent config
 export interface BaseRelayerConfig {
+  // Secret Manager name only; the database URL is injected by External Secrets.
+  messageActivityDatabaseUrlSecret?: string;
   // URLs are injected from per-chain Secret Manager secrets by Helm.
   mevSubmission?: ChainMap<
-    Pick<NonNullable<AgentChainMetadata['mevSubmission']>, 'icaRouter'>
+    Pick<
+      NonNullable<AgentChainMetadata['mevSubmission']>,
+      'icaRouter' | 'additionalIcaRouters'
+    >
   >;
   gasPaymentEnforcement: GasPaymentEnforcement[];
   whitelist?: MatchingList;
   blacklist?: MatchingList;
+  ccipReadAllowedDomains?: string[];
   addressBlacklist?: string;
+  runtimeDenylist?: RuntimeDenylistConfig;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
   metricAppContextsGetter?: () => MetricAppContext[];
@@ -135,10 +144,27 @@ export interface BaseRelayerConfig {
   txIdIndexingEnabled?: boolean;
   igpIndexingEnabled?: boolean;
   websocketUrl?: string;
-  websocketAuthorityEnabled?: boolean;
-  reorgPeriodOverrides?: ChainMap<number>;
+  // A number of blocks, or a block tag (e.g. 'safe' / 'finalized') for EVM chains.
+  reorgPeriodOverrides?: ChainMap<number | string>;
   interval?: number;
   relayApi?: RelayApiConfig;
+}
+
+function isValidRuntimeDenylistUrl(url: string): boolean {
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (protocol === 'file:') return hostname.length === 0;
+    return (
+      (protocol === 'https:' || protocol === 'http:') && hostname.length > 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+export interface RuntimeDenylistConfig {
+  url: string;
+  pollIntervalSecs?: number;
 }
 
 export interface RelayApiConfig {
@@ -150,12 +176,14 @@ export interface RelayApiConfig {
 }
 
 // Full relayer-specific agent config for a single chain
-export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
+export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig> &
+  Pick<BaseRelayerConfig, 'reorgPeriodOverrides'>;
 // Config intended to be set as configMap values, these are usually really long
-// and are intended to derisk hitting max env var length limits.
+// and are intended to derisk hitting max env var length limits. The message
+// blacklist alone is ~43 KB and grows with every denylist PR.
 export type RelayerConfigMapConfig = Pick<
   RelayerConfig,
-  'addressBlacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
+  'addressBlacklist' | 'blacklist' | 'gasPaymentEnforcement' | 'ismCacheConfigs'
 >;
 // Config that will be embedded into relayer docker image because
 // of its large size.
@@ -169,6 +197,7 @@ export type RelayerEnvConfig = Omit<
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
+  messageActivityDatabaseUrlSecret?: string;
   aws: boolean;
   // Config intended to be set as env vars
   envConfig?: RelayerEnvConfig;
@@ -200,6 +229,10 @@ export interface HelmRelayerChainValues {
   ccsSigner?: KeyConfig;
 }
 
+// Pinned so the same monorepo commit always builds the same list and an
+// upstream push can't change or break a deploy. Bump it to pick up new entries.
+const OFAC_LISTS_COMMIT = 'abad1e7bc0956b89211f8eaa28a4fc795188738d';
+
 export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   readonly relayerConfig: BaseRelayerConfig;
   readonly logger: Logger<never>;
@@ -218,9 +251,20 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
 
     const relayerConfig: RelayerConfig = {
       relayChains: this.relayChains.join(','),
+      reorgPeriodOverrides:
+        baseConfig.reorgPeriodOverrides &&
+        Object.fromEntries(
+          Object.entries(baseConfig.reorgPeriodOverrides).filter(
+            ([chain, period]) => period !== getChain(chain).blocks?.reorgPeriod,
+          ),
+        ),
       gasPaymentEnforcement: JSON.stringify(baseConfig.gasPaymentEnforcement),
     };
 
+    if (baseConfig.ccipReadAllowedDomains) {
+      relayerConfig.ccipReadAllowedDomains =
+        baseConfig.ccipReadAllowedDomains.join(',');
+    }
     if (baseConfig.whitelist) {
       relayerConfig.whitelist = JSON.stringify(baseConfig.whitelist);
     }
@@ -231,6 +275,26 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.addressBlacklist = (await this.getSanctionedAddresses()).join(
       ',',
     );
+
+    if (baseConfig.runtimeDenylist) {
+      const { url, pollIntervalSecs } = baseConfig.runtimeDenylist;
+      // Same checks as the agent schema and the relayer, so a bad value fails
+      // the deploy rather than the relayer's startup. Don't echo the URL,
+      // which can carry a token.
+      assert(
+        isValidRuntimeDenylistUrl(url),
+        'runtimeDenylist.url must be a valid https://, http:// or file:// URL',
+      );
+      assert(
+        pollIntervalSecs === undefined ||
+          (Number.isInteger(pollIntervalSecs) && pollIntervalSecs > 0),
+        'runtimeDenylist.pollIntervalSecs must be a positive integer',
+      );
+      relayerConfig.runtimeDenylistUrl = url;
+      if (pollIntervalSecs !== undefined) {
+        relayerConfig.runtimeDenylistPollIntervalSecs = pollIntervalSecs;
+      }
+    }
 
     if (baseConfig.transactionGasLimit) {
       relayerConfig.transactionGasLimit =
@@ -251,10 +315,6 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
     relayerConfig.igpIndexingEnabled = baseConfig.igpIndexingEnabled ?? true;
     if (baseConfig.websocketUrl !== undefined) {
       relayerConfig.websocketUrl = baseConfig.websocketUrl;
-    }
-    if (baseConfig.websocketAuthorityEnabled !== undefined) {
-      relayerConfig.websocketAuthorityEnabled =
-        baseConfig.websocketAuthorityEnabled;
     }
     if (baseConfig.relayApi !== undefined) {
       relayerConfig.relayApiEnabled = baseConfig.relayApi.enabled;
@@ -311,14 +371,27 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 
   async getSanctionedAddresses() {
-    // All Ethereum-style addresses from https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
+    // Exploit rules live in the environment's runtime registry feed.
+    // Only mainnet relays real value and needs the static OFAC list.
+    const sanctionedEthereumAddresses =
+      this.runEnv === 'mainnet3' ? await this.fetchOfacEvmAddresses() : [];
+    const uniqueAddresses = new Set(
+      sanctionedEthereumAddresses.map((address) => address.toLowerCase()),
+    );
+
+    return Array.from(uniqueAddresses);
+  }
+
+  // All Ethereum-style addresses from
+  // https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses/tree/lists
+  private async fetchOfacEvmAddresses(): Promise<string[]> {
     const currencies = ['ARB', 'BSC', 'ETC', 'ETH', 'USDC', 'USDT'];
 
     const schema = z.array(z.string());
 
     const allSanctionedAddresses = await Promise.all(
       currencies.map(async (currency) => {
-        const rawUrl = `https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_${currency}.json`;
+        const rawUrl = `https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/${OFAC_LISTS_COMMIT}/sanctioned_addresses_${currency}.json`;
         this.logger.debug(
           {
             currency,
@@ -338,40 +411,16 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       }),
     );
 
-    const sanctionedEthereumAddresses = allSanctionedAddresses
-      .flat()
-      .filter((address) => {
-        if (!isValidAddressEvm(address)) {
-          this.logger.debug(
-            { address },
-            'Invalid sanctioned address, throwing out',
-          );
-          return false;
-        }
-        return true;
-      });
-
-    const radiantExploiter = [
-      '0xA0e768A68ba1BFffb9F4366dfC8D9195EE7217d1',
-      '0x0629b1048298AE9deff0F4100A31967Fb3f98962',
-      '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
-    ];
-
-    const flowAddresses = [
-      '0x9D9247F5C3F3B78F7EE2C480B9CDaB91393Bf4D6',
-      '0x2e7C4b71397f10c93dC0C2ba6f8f179A47F994e1',
-      '0x00000000000000000000000235aE95896583818d',
-    ];
-
-    const uniqueAddresses = new Set(
-      [
-        ...sanctionedEthereumAddresses,
-        ...radiantExploiter,
-        ...flowAddresses,
-      ].map((address) => address.toLowerCase()),
-    );
-
-    return Array.from(uniqueAddresses);
+    return allSanctionedAddresses.flat().filter((address) => {
+      if (!isValidAddressEvm(address)) {
+        this.logger.debug(
+          { address },
+          'Invalid sanctioned address, throwing out',
+        );
+        return false;
+      }
+      return true;
+    });
   }
 
   // Returns whether the relayer requires AWS credentials
@@ -610,7 +659,6 @@ export interface IcaBodyMatchOptions {
 export function icaMatchingList(
   icaMatchers: ChainMap<IcaBodyMatchOptions>,
 ): MatchingList {
-  const chainAddresses = getChainAddresses();
   const matchingList: MatchingList = [];
 
   // Get all chains that have matchers defined
@@ -618,8 +666,10 @@ export function icaMatchingList(
 
   for (const source of chains) {
     // Get the ICA router address from the registry
-    const sourceRouter = chainAddresses[source]?.interchainAccountRouter;
-    if (!sourceRouter) {
+    const sourceRouters = getIcaRouterAddresses(source).map((router) =>
+      addressToBytes32(router),
+    );
+    if (sourceRouters.length === 0) {
       throw new Error(
         `No ICA router found for chain ${source} in registry. Cannot create ICA matching list.`,
       );
@@ -659,7 +709,7 @@ export function icaMatchingList(
       // Bytes 1-33: ICA ISM (64 hex chars for bytes32)
       if (matcher.ism !== undefined) {
         const ismBytes32 = addressToBytes32(matcher.ism).toLowerCase();
-        const ismHex = ismBytes32.replace(/^0x/, '');
+        const ismHex = ismBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ismHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -670,7 +720,7 @@ export function icaMatchingList(
       // Bytes 1-33: ICA owner (64 hex chars for bytes32)
       if (matcher.owner !== undefined) {
         const ownerBytes32 = addressToBytes32(matcher.owner).toLowerCase();
-        const ownerHex = ownerBytes32.replace(/^0x/, '');
+        const ownerHex = ownerBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ownerHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -679,7 +729,7 @@ export function icaMatchingList(
       // Bytes 33-65: ICA ISM (64 hex chars for bytes32)
       if (matcher.ism !== undefined) {
         const ismBytes32 = addressToBytes32(matcher.ism).toLowerCase();
-        const ismHex = ismBytes32.replace(/^0x/, '');
+        const ismHex = ismBytes32.replace(HEX_PREFIX_REGEX, '');
         bodyRegex += ismHex;
       } else {
         bodyRegex += '.{64}'; // Any 64 hex chars
@@ -687,7 +737,9 @@ export function icaMatchingList(
 
       // Bytes 65-97: User Salt (64 hex chars for bytes32)
       if (matcher.salt !== undefined) {
-        const saltHex = matcher.salt.toLowerCase().replace(/^0x/, '');
+        const saltHex = matcher.salt
+          .toLowerCase()
+          .replace(HEX_PREFIX_REGEX, '');
         bodyRegex += saltHex;
       }
       // Note: We don't add .{64} if salt is not provided, as we may want to match
@@ -700,9 +752,10 @@ export function icaMatchingList(
       }
 
       // Get the ICA router address from the registry
-      const destinationRouter =
-        chainAddresses[destination]?.interchainAccountRouter;
-      if (!destinationRouter) {
+      const destinationRouters = getIcaRouterAddresses(destination).map(
+        (router) => addressToBytes32(router),
+      );
+      if (destinationRouters.length === 0) {
         throw new Error(
           `No ICA router found for chain ${destination} in registry. Cannot create ICA matching list.`,
         );
@@ -710,9 +763,13 @@ export function icaMatchingList(
 
       matchingList.push({
         originDomain: getDomainId(source),
-        senderAddress: addressToBytes32(sourceRouter),
+        senderAddress:
+          sourceRouters.length === 1 ? sourceRouters[0] : sourceRouters,
         destinationDomain: getDomainId(destination),
-        recipientAddress: addressToBytes32(destinationRouter),
+        recipientAddress:
+          destinationRouters.length === 1
+            ? destinationRouters[0]
+            : destinationRouters,
         bodyRegex,
       });
     }

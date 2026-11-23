@@ -76,6 +76,32 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         hook.postDispatch{value: quote}(igpMetadata, encodedMessage);
     }
 
+    function test_postDispatch_revertWhen_valueMessageReplayedWithoutValue()
+        public
+    {
+        bytes memory metadata = StandardHookMetadata.overrideMsgValue(
+            MSG_VALUE
+        );
+        originMailbox.updateLatestDispatchedId(messageId);
+        vm.expectCall(
+            L2_ARBSYS_ADDRESS,
+            MSG_VALUE,
+            abi.encodeCall(
+                MockArbSys.sendTxToL1,
+                (address(ism), _encodeHookData(messageId, MSG_VALUE))
+            )
+        );
+
+        uint256 quote = hook.quoteDispatch(metadata, encodedMessage);
+        vm.deal(address(this), quote);
+        hook.postDispatch{value: quote}(metadata, encodedMessage);
+
+        uint256 replayQuote = hook.quoteDispatch("", encodedMessage);
+        vm.deal(address(this), replayQuote);
+        vm.expectRevert("AbstractMessageIdAuthHook: message already processed");
+        hook.postDispatch{value: replayQuote}("", encodedMessage);
+    }
+
     /* ============ helper functions ============ */
 
     function _expectOriginExternalBridgeCall(

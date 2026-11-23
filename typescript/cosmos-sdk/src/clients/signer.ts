@@ -23,6 +23,8 @@ import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
 import { CosmosNativeProvider } from './provider.js';
 
+const PRIVATE_KEY_REGEX = /(^|\b)(0x)?[0-9a-fA-F]{64}(\b|$)/;
+
 type TxOptions = {
   fee: StdFee | 'auto' | number;
   memo?: string;
@@ -58,9 +60,7 @@ export class CosmosNativeSigner
         `bech32Prefix not defined in chain metadata`,
       );
 
-      const isPrivateKey = new RegExp(/(^|\b)(0x)?[0-9a-fA-F]{64}(\b|$)/).test(
-        privateKey,
-      );
+      const isPrivateKey = PRIVATE_KEY_REGEX.test(privateKey);
 
       if (isPrivateKey) {
         wallet = await DirectSecp256k1Wallet.fromKey(

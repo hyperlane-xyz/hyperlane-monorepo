@@ -1,5 +1,60 @@
 # @hyperlane-xyz/metrics
 
+## 1.0.6
+
+### Patch Changes
+
+- c520224: Invariant regular expressions were reused across calls, redundant URL parsing was removed from RPC-header and explorer helpers, and independent token reads were overlapped with bounded concurrency and failure draining. URL normalization, validation, and dependent read ordering were preserved.
+- Updated dependencies [d2ea605]
+- Updated dependencies [bdeb314]
+- Updated dependencies [048d1f3]
+- Updated dependencies [f265d2f]
+- Updated dependencies [fe5dfda]
+- Updated dependencies [8b65668]
+- Updated dependencies [aa84958]
+- Updated dependencies [e48ffe7]
+- Updated dependencies [4623acb]
+- Updated dependencies [d0ec60c]
+- Updated dependencies [63fa540]
+- Updated dependencies [c520224]
+- Updated dependencies [d770c3b]
+- Updated dependencies [1baa78e]
+- Updated dependencies [6e5db5f]
+- Updated dependencies [7be44b5]
+- Updated dependencies [9ef15ff]
+- Updated dependencies [8868234]
+- Updated dependencies [02c6ef4]
+- Updated dependencies [2bc0b3e]
+- Updated dependencies [48cd574]
+  - @hyperlane-xyz/sdk@45.2.0
+  - @hyperlane-xyz/core@12.3.0
+  - @hyperlane-xyz/utils@45.2.0
+
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [b6fdd2d]
+- Updated dependencies [a7b65cb]
+- Updated dependencies [1467e4c]
+- Updated dependencies [a27ce72]
+- Updated dependencies [4b0f32c]
+- Updated dependencies [447569f]
+- Updated dependencies [b43bc9f]
+- Updated dependencies [0ceb556]
+- Updated dependencies [7203aec]
+- Updated dependencies [341418a]
+- Updated dependencies [5c6593b]
+- Updated dependencies [62225a3]
+- Updated dependencies [0063de6]
+- Updated dependencies [77dbf5d]
+- Updated dependencies [5a8eed5]
+- Updated dependencies [670000c]
+- Updated dependencies [bfbb755]
+  - @hyperlane-xyz/sdk@45.1.0
+  - @hyperlane-xyz/utils@45.1.0
+  - @hyperlane-xyz/core@12.2.0
+
 ## 1.0.4
 
 ### Patch Changes

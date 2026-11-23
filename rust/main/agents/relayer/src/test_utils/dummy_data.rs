@@ -39,7 +39,7 @@ pub fn dummy_chain_conf(domain: &HyperlaneDomain) -> ChainConf {
         addresses: Default::default(),
         connection: ChainConnectionConf::Ethereum(hyperlane_ethereum::ConnectionConf {
             rpc_connection: hyperlane_ethereum::RpcConnectionConf::Http {
-                url: "http://example.com".parse().unwrap(),
+                url: "http://example.com".parse::<url::Url>().unwrap().into(),
             },
             transaction_overrides: Default::default(),
             op_submission_config: Default::default(),
@@ -95,6 +95,7 @@ pub fn dummy_metadata_builder(
         db.clone(),
         IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
         IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
+        Default::default(),
         None,
         false,
     )
@@ -123,5 +124,6 @@ pub fn dummy_message_context(
         transaction_gas_limit: Default::default(),
         metrics: dummy_submission_metrics(),
         application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+        origin_sender_check: None,
     }
 }

@@ -1,5 +1,7 @@
 import { rootLogger } from './logging.js';
 
+const DASH_REGEX = /-/g;
+
 export interface ChainMetadataWithRpcUrls {
   rpcUrls?: { http: string }[];
 }
@@ -25,7 +27,7 @@ export function applyRpcUrlOverridesFromEnv(
     const metadata = chainMetadata[chain];
     if (!metadata) continue;
 
-    const envVarName = `RPC_URL_${chain.toUpperCase().replace(/-/g, '_')}`;
+    const envVarName = `RPC_URL_${chain.toUpperCase().replace(DASH_REGEX, '_')}`;
     const rpcUrl = env[envVarName];
     if (!rpcUrl) continue;
 

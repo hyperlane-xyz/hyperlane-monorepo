@@ -1,5 +1,15 @@
 # @hyperlane-xyz/scraper-proxy
 
+## 0.1.3
+
+### Patch Changes
+
+- ff7a363: Added typed relayer diagnostics and paginated activity history to GraphQL and opt-in WebSocket updates. Added message-ID filters so clients can subscribe only to the messages they track.
+- 9ef15ff: Added scraper WebSocket wake-ups configured through a single Secret Manager JSON map, retaining five-second HTTP polling for recovery, batching proxy head updates, and keeping endpoint credentials out of Helm values.
+- Updated dependencies [aa84958]
+- Updated dependencies [c520224]
+  - @hyperlane-xyz/utils@45.2.0
+
 ## 0.1.2
 
 ### Patch Changes

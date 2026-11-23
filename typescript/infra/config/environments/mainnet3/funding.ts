@@ -80,7 +80,13 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer],
     [Contexts.FastPath]: [Role.Relayer],
   },
-  chainsToSkip: ['forma', 'mocachain', 'nesa'],
+  chainsToSkip: ['mocachain'],
+  erc20GasTokens: {
+    tempo: {
+      address: '0x20c0000000000000000000000000000000000000',
+      decimals: 6,
+    },
+  },
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
@@ -96,15 +102,12 @@ export const keyFunderConfig: KeyFunderConfig<
     arbitrum: '0.1',
     avalanche: '2',
     base: '0.1',
-    blast: '0.1',
-    bob: '0.1',
     bsc: '0.3',
     celo: '5',
     ethereum: '0.2',
     fraxtal: '0.1',
     gnosis: '5',
     linea: '0.1',
-    lisk: '0.025',
     lukso: '10',
     mantle: '10',
     metis: '1',
