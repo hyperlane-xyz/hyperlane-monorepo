@@ -1355,6 +1355,57 @@ async fn run_cycles_retries_a_log_ahead_of_http_then_stops_at_indexed_height() -
     Ok(())
 }
 
+#[tokio::test]
+async fn durable_progress_resets_retries_while_newer_hints_remain_paced() -> Result<()> {
+    let chain = Arc::new(Chain::new(1, false));
+    let (_postgres, worker) = header_worker(chain.clone(), 2).await?;
+    let worker = Arc::new(Worker {
+        poll_interval: Duration::from_secs(60),
+        ..worker
+    });
+    let task = tokio::spawn({
+        let worker = worker.clone();
+        async move { worker.run_cycles(mpsc::channel(1).1).await }
+    });
+    wait_for(&worker, |state| state.indexed == 1).await?;
+    let initial = chain.observations.load(Ordering::SeqCst);
+    IndexWakeup {
+        height: 2,
+        reconcile: false,
+    }
+    .send(&worker.wakeup);
+    wait_for(&worker, |_| {
+        chain.observations.load(Ordering::SeqCst) > initial
+    })
+    .await?;
+
+    // HTTP advances on every retry but stays one block behind the latest hint.
+    // Run past the three fast retries to catch a tier that never resets.
+    for height in 2..=7 {
+        let before = chain.observations.load(Ordering::SeqCst);
+        chain.head.store(height, Ordering::SeqCst);
+        IndexWakeup {
+            height: height + 1,
+            reconcile: false,
+        }
+        .send(&worker.wakeup);
+        sleep(Duration::from_millis(100)).await;
+        assert_eq!(
+            chain.observations.load(Ordering::SeqCst),
+            before,
+            "newer hint bypassed the retry deadline"
+        );
+        tokio::time::timeout(
+            Duration::from_millis(600),
+            wait_for(&worker, |state| state.indexed == height),
+        )
+        .await??;
+    }
+    task.abort();
+    assert!(task.await.expect_err("aborted worker").is_cancelled());
+    Ok(())
+}
+
 #[test]
 fn wakeups_keep_the_highest_block_and_reconciliation() {
     let (tx, _rx) = watch::channel(IndexWakeup::default());

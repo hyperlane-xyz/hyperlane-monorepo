@@ -194,6 +194,10 @@ impl Worker {
                 if std::mem::take(&mut index) {
                     let started = Instant::now();
                     let outcome = self.cycle(&mut count_cache).await?;
+                    // Progress restarts fast retries even if newer hints stay ahead.
+                    if outcome.indexed > indexed {
+                        retry = 0;
+                    }
                     indexed = outcome.indexed;
                     if wanted <= indexed {
                         wanted = 0;
