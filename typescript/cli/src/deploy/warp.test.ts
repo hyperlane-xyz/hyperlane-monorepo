@@ -44,6 +44,7 @@ import {
   extractSafeAddressFromSubmitter,
   fullyConnectTokens,
   generateTokenConfigs,
+  retryChainSubmission,
   runWarpRouteApply,
   runWarpRouteCombine,
   runWarpUpdatePlanning,
@@ -1030,6 +1031,56 @@ describe('runWarpUpdatePlanning', () => {
       'planned',
     );
     expect(runner.callCount).to.equal(2);
+  });
+});
+
+describe('retryChainSubmission', () => {
+  const payload = (description: string) => ({
+    version: '1.0',
+    chainId: '1',
+    meta: { description },
+    transactions: [],
+  });
+
+  it('returns only the payloads and fee error of the successful attempt', async () => {
+    let calls = 0;
+
+    const result = await retryChainSubmission(
+      async (attempt) => {
+        calls += 1;
+        if (calls === 1) {
+          attempt.safePayloads.push(payload('main-1'));
+          attempt.feeError = 'transient fee failure';
+          throw new Error('transient ownership batch failure');
+        }
+        attempt.safePayloads.push(payload('main-2'));
+      },
+      2,
+      1,
+    );
+
+    expect(calls).to.equal(2);
+    expect(result).to.deep.equal({ safePayloads: [payload('main-2')] });
+  });
+
+  it('rethrows once attempts are exhausted', async () => {
+    let calls = 0;
+    let message = '';
+    try {
+      await retryChainSubmission(
+        async () => {
+          calls += 1;
+          throw new Error(`attempt ${calls} failed`);
+        },
+        2,
+        1,
+      );
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).to.equal('attempt 2 failed');
+    expect(calls).to.equal(2);
   });
 });
 

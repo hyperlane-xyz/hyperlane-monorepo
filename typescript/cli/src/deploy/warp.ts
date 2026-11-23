@@ -1932,6 +1932,27 @@ function submitChainBatch(
 }
 
 /**
+ * Retries a chain submission with fresh payload/fee-error state per attempt, so
+ * a failed attempt's payloads (e.g. an already-built schedule tx) are not
+ * duplicated into the result of the attempt that succeeds.
+ */
+export async function retryChainSubmission(
+  runAttempt: (attempt: ChainTxPayloads) => Promise<void>,
+  attempts: number,
+  baseRetryMs: number,
+): Promise<ChainTxPayloads> {
+  return retryAsync(
+    async () => {
+      const attempt: ChainTxPayloads = { safePayloads: [] };
+      await runAttempt(attempt);
+      return attempt;
+    },
+    attempts,
+    baseRetryMs,
+  );
+}
+
+/**
  * Submits transactions for a single chain and handles receipts/self-relay.
  * Returns Safe TX Builder payloads for main and fee when dedicated submitters produced them,
  * so callers can merge payloads across chains into combined files per chain ID.
@@ -1945,8 +1966,6 @@ async function submitChainTransactions(
   isExtendedChain: boolean,
 ): Promise<ChainTxPayloads> {
   const protocol = params.context.multiProvider.getProtocol(chain);
-  const safePayloads: SafeTxBuilderPayload[] = [];
-  let returnedFeeError: string | undefined;
 
   // Read safe addresses once; used to key combined bundles by (chainId, safeAddress)
   // so payloads for two different Safes on the same origin chain stay separate.
@@ -1977,8 +1996,8 @@ async function submitChainTransactions(
     ? [...transactions, ...feeTxs]
     : transactions;
 
-  await retryAsync(
-    async () => {
+  return retryChainSubmission(
+    async (attempt) => {
       const { submitter, config } = await getSubmitterByStrategy({
         chain,
         context: params.context,
@@ -1993,7 +2012,7 @@ async function submitChainTransactions(
 
       const { safePayloads: mainSafePayloads, rest: mainReceipts } =
         splitSafeTxBuilderPayloads(transactionReceipts, mainSafeAddress);
-      safePayloads.push(...mainSafePayloads);
+      attempt.safePayloads.push(...mainSafePayloads);
 
       if (!isSafeTxBuilderPayload(transactionReceipts)) {
         if (!isEVMLike(protocol)) {
@@ -2038,7 +2057,7 @@ async function submitChainTransactions(
       // here). Intentionally wrapped in try/catch so a fee failure does NOT bubble
       // up to retryAsync and re-run the main submit block (which would rebroadcast
       // already-submitted main txs); the failure is surfaced as a soft warning via
-      // returnedFeeError instead.
+      // attempt.feeError instead.
       if (!mergeFeeIntoMain && feeTxs.length > 0) {
         try {
           const dedicatedFeeSubmitter = await getFeeSubmitterByStrategy({
@@ -2057,7 +2076,7 @@ async function submitChainTransactions(
               await submitChainBatch(feeSubmitter, feeTxs),
               feeSafeAddressForBundle,
             );
-          safePayloads.push(...feeSafePayloads);
+          attempt.safePayloads.push(...feeSafePayloads);
           if (feeReceipts && isEVMLike(protocol)) {
             const feeReceiptPath = `${params.receiptsDir}/${chain}-fee-${Date.now()}-receipts.json`;
             writeYamlOrJson(feeReceiptPath, feeReceipts);
@@ -2066,7 +2085,7 @@ async function submitChainTransactions(
             );
           }
         } catch (error) {
-          returnedFeeError =
+          attempt.feeError =
             error instanceof Error ? error.message : String(error);
           warnYellow(
             `Error when submitting fee transactions for ${chain}`,
@@ -2083,7 +2102,7 @@ async function submitChainTransactions(
             await submitChainBatch(submitter, ownershipTxs),
             mainSafeAddress,
           );
-        safePayloads.push(...ownershipSafePayloads);
+        attempt.safePayloads.push(...ownershipSafePayloads);
         if (ownershipReceipts && isEVMLike(protocol)) {
           const ownershipReceiptPath = `${params.receiptsDir}/${chain}-ownership-${Date.now()}-receipts.json`;
           writeYamlOrJson(ownershipReceiptPath, ownershipReceipts);
@@ -2096,8 +2115,6 @@ async function submitChainTransactions(
     5, // attempts
     100, // baseRetryMs
   );
-
-  return { safePayloads, feeError: returnedFeeError };
 }
 
 /**
