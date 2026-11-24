@@ -104,6 +104,7 @@ async fn subscribe(
     let mut lagging = false;
     let stalled = sleep(HEAD_STALL_TIMEOUT);
     tokio::pin!(stalled);
+    let mut removed_blocks = std::collections::VecDeque::new();
     loop {
         tokio::select! {
             _ = &mut subscribing, if logs.is_none() || heads.is_none() => {
@@ -148,6 +149,15 @@ async fn subscribe(
                     let height = log.block_number.map(|height| height.as_u64()).unwrap_or_default();
                     let block = (height, log.block_hash);
                     let removed = log.removed.unwrap_or_default();
+                    if !removed {
+                        removed_blocks.retain(|hash| Some(*hash) != block.1);
+                    } else if let Some(hash) = block.1.filter(|_| log.block_number.is_some()) {
+                        if removed_blocks.contains(&hash) { continue; }
+                        if removed_blocks.len() == 256 {
+                            removed_blocks.pop_front();
+                        }
+                        removed_blocks.push_back(hash);
+                    }
                     let replacement = height == last_log.0 && block.1 != last_log.1;
                     if removed || height >= last_log.0 {
                         last_log = block;
