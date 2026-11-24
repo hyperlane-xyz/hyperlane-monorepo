@@ -165,7 +165,7 @@ function expectedIsm(
         maxCapacity,
         duration: RATE_LIMIT_DURATION_SECONDS,
       },
-      { type: IsmType.FALLBACK_ROUTING, owner: routeOwner, domains: {} },
+      { type: 'defaultIsm' },
     ],
   };
 }
@@ -461,7 +461,7 @@ describe('Aevo warp config getters', () => {
   }
 
   for (const l of USDC_LIMIT_CASES) {
-    it(`getAevoSecurityConfig: owns the ${l.chain} hook and ISM modules with that chain's owner and the pausable ones with the pauser`, () => {
+    it(`getAevoSecurityConfig: owns the ${l.chain} rate limited modules with that chain's owner and the pausable ones with the pauser`, () => {
       const security = getAevoSecurityConfig(
         l.chain,
         DISTINCT_OWNERS,
@@ -483,6 +483,21 @@ describe('Aevo warp config getters', () => {
       );
     });
   }
+
+  it('getAevoSecurityConfig: ends the 3-of-3 ISM with the ownerless default ISM', () => {
+    const { interchainSecurityModule: ism } = getAevoSecurityConfig(
+      'aevo',
+      DISTINCT_OWNERS,
+      AEVO_USDC_LIMITS,
+    );
+    assert(
+      typeof ism === 'object' && ism.type === IsmType.AGGREGATION,
+      'Missing aggregation ISM',
+    );
+    expect(ism.threshold).to.equal(3);
+    expect(ism.modules).to.have.length(3);
+    expect(ism.modules[2]).to.deep.equal({ type: 'defaultIsm' });
+  });
 
   it('getAevoSecurityConfig: rejects a chain without an owner', () => {
     const owners: AevoOwners = {

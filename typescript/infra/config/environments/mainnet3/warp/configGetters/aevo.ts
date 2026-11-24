@@ -15,8 +15,8 @@ export const AEVO_ORIGIN_CHAINS = ['optimism', 'arbitrum', 'base'] as const;
 export type AevoOriginChain = (typeof AEVO_ORIGIN_CHAINS)[number];
 export type AevoChain = 'aevo' | AevoOriginChain;
 
-// Per-chain owners of the routers and of their rate limited and fallback
-// routing modules, shared by the Aevo USDC and WETH warp route getters.
+// Per-chain owners of the routers and of their rate limited modules, shared by
+// the Aevo USDC and WETH warp route getters.
 export type AevoOwners = Record<AevoChain, Address>;
 
 export const AEVO_STAGING_OWNERS: AevoOwners = {
@@ -104,12 +104,12 @@ export interface AevoSecurityConfig {
 
 /**
  * The hook limits what the chain lets out per day. The ISM limits what it lets
- * in per day, and falls back to the mailbox default ISM for verification. The
- * ISM threshold equals its module count, so every module must pass.
+ * in per day, and defers verification to the mailbox default ISM. The ISM
+ * threshold equals its module count, so every module must pass.
  *
  * The pausable modules belong to PAUSER, the dedicated Turnkey key Hyperlane
  * keeps on pausable modules: pause() is signed solo, unpause() needs rootUser
- * approval. The other modules belong to the chain's route owner.
+ * approval. The rate limited modules belong to the chain's route owner.
  */
 export function getAevoSecurityConfig(
   chain: AevoChain,
@@ -146,7 +146,7 @@ export function getAevoSecurityConfig(
           maxCapacity: getAevoMaxCapacity(ismAmount, limits.decimals),
           duration: AEVO_RATE_LIMIT_DURATION_SECONDS,
         },
-        { type: IsmType.FALLBACK_ROUTING, owner, domains: {} },
+        { type: IsmType.MAILBOX_DEFAULT },
       ],
     },
   };
