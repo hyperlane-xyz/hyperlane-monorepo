@@ -182,6 +182,8 @@ describe('Aevo xERC20 token', async () => {
         'function burn(address from, uint256 amount)',
         'function totalSupply() view returns (uint256)',
         'function balanceOf(address account) view returns (uint256)',
+        'function allowance(address owner, address spender) view returns (uint256)',
+        'function approve(address spender, uint256 amount) returns (bool)',
       ],
       signer,
     );
@@ -1354,6 +1356,39 @@ describe('Aevo xERC20 token', async () => {
         );
         expect(await adapter.getMintLimit()).to.equal(0n);
       });
+
+      // The router burns from the holder with no allowance of the holder, so it
+      // needs none, and any other spender is checked as an allowance of the token.
+      for (const allowance of [0n, 5n]) {
+        it(`needs no approval of the token to burn through the router, for an amount of 30 with an allowance of ${allowance}`, async () => {
+          await arrange({ authorized: true, cap: 105n, outstanding: 30n });
+          const router = await impersonate(routerAddress);
+          await fund(holder, 30n);
+          await (
+            await (await impersonate(holder)).approve(routerAddress, allowance)
+          ).wait();
+          const spender = randomAddress();
+
+          expect(
+            await adapter.isApproveRequired(holder, routerAddress, 30n),
+          ).to.equal(false);
+          expect(
+            await adapter.isRevokeApprovalRequired(holder, routerAddress),
+          ).to.equal(false);
+          await (await router.burn(holder, 30)).wait();
+
+          expect(
+            (await aevoToken.allowance(holder, routerAddress)).toBigInt(),
+          ).to.equal(allowance);
+          await (await (await impersonate(holder)).approve(spender, 1)).wait();
+          expect(
+            await adapter.isApproveRequired(holder, spender, 30n),
+          ).to.equal(true);
+          expect(
+            await adapter.isRevokeApprovalRequired(holder, spender),
+          ).to.equal(true);
+        });
+      }
 
       it('makes room to mint again when the router burns', async () => {
         await arrange({ authorized: true, cap: 105n, outstanding: 100n });

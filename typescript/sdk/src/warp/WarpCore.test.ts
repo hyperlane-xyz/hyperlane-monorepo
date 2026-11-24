@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { ethers } from 'ethers';
 import fs from 'fs';
 import sinon from 'sinon';
 import { parse as yamlParse } from 'yaml';
@@ -14,7 +15,7 @@ import {
   testXERC20,
   testXERC20Lockbox,
 } from '../consts/testChains.js';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { UIN256_MAX_VALUE } from '../consts/numbers.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -1998,6 +1999,113 @@ describe('WarpCore', () => {
 
     coreStub.restore();
     adapterStubs.forEach((s) => s.restore());
+  });
+
+  // The adapters are the real ones, which answer only what an approval reads of
+  // the chain: the hook of the router, the token it wraps, and the allowance
+  // the sender gave it.
+  it('Asks for no approval to transfer an Aevo token, and for one to transfer any other xERC20', async () => {
+    const abi = new ethers.utils.Interface([
+      'function hook() view returns (address)',
+      'function wrappedToken() view returns (address)',
+      'function allowance(address owner, address spender) view returns (uint256)',
+    ]);
+    const provider = new ethers.providers.StaticJsonRpcProvider(undefined, {
+      chainId: 1,
+      name: 'test',
+    });
+    sinon.stub(provider, 'call').callsFake(async (transaction) => {
+      const data = await transaction.data;
+      assert(data, 'Expected calldata');
+      const decoded = abi.parseTransaction({
+        data: ethers.utils.hexlify(data),
+      });
+      const result = {
+        hook: zeroAddress,
+        wrappedToken: MOCK_ADDRESS_2,
+        allowance: 0,
+      }[decoded.name];
+      return abi.encodeFunctionResult(decoded.name, [result]);
+    });
+    sinon.stub(multiProvider, 'getEthersV5Provider').returns(provider);
+
+    interface Case {
+      name: string;
+      standard: TokenStandard;
+      // The predicate wrapper the hook of the router holds, which takes the
+      // tokens of the sender before the router does.
+      predicateWrapper?: Address;
+      expected: WarpTxCategory[];
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'an Aevo router',
+        standard: TokenStandard.EvmHypAevoXERC20,
+        expected: [WarpTxCategory.Transfer],
+      },
+      {
+        name: 'an Aevo router behind a predicate wrapper',
+        standard: TokenStandard.EvmHypAevoXERC20,
+        predicateWrapper: MOCK_ADDRESS_2,
+        expected: [WarpTxCategory.Approval, WarpTxCategory.Transfer],
+      },
+      {
+        name: 'a Standard xERC20 router',
+        standard: TokenStandard.EvmHypXERC20,
+        expected: [WarpTxCategory.Approval, WarpTxCategory.Transfer],
+      },
+    ];
+
+    for (const c of cases) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard: c.standard,
+        addressOrDenom: MOCK_ADDRESS,
+        collateralAddressOrDenom: MOCK_ADDRESS_2,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      const destinationToken = new Token({
+        chainName: test2.name,
+        standard: TokenStandard.EvmHypSynthetic,
+        addressOrDenom: MOCK_ADDRESS_2,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      originToken.addConnection({ token: destinationToken });
+      const adapter = originToken.getHypAdapter(multiProvider);
+      sinon
+        .stub(adapter, 'quoteTransferRemoteGas')
+        .resolves({ igpQuote: MOCK_INTERCHAIN_QUOTE });
+      sinon.stub(adapter, 'populateTransferRemoteTx').resolves({});
+      if (c.predicateWrapper && 'getPredicateWrapperAddress' in adapter) {
+        sinon
+          .stub(adapter, 'getPredicateWrapperAddress')
+          .resolves(c.predicateWrapper);
+      }
+      sinon.stub(originToken, 'getHypAdapter').returns(adapter);
+      const testWarpCore = new TestWarpCore(multiProvider, [
+        originToken,
+        destinationToken,
+      ]);
+
+      const txs = await testWarpCore.getTransferRemoteTxs({
+        originTokenAmount: originToken.amount(TRANSFER_AMOUNT),
+        destination: test2.name,
+        sender: MOCK_ADDRESS,
+        recipient: MOCK_ADDRESS,
+      });
+
+      expect(
+        txs.map(({ category }) => category),
+        c.name,
+      ).to.deep.equal(c.expected);
+    }
   });
 
   // ============ QuotedCalls tests ============

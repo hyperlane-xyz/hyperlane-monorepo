@@ -1377,6 +1377,29 @@ export class EvmHypAevoXERC20Adapter
     super(chainName, multiProvider, addresses);
   }
 
+  // The burn of the token takes no allowance, which is how the router takes
+  // what it bridges, so the router needs none from the sender, unless a
+  // predicate wrapper takes the tokens first. Any other spender is checked as
+  // an allowance of the token, as a collateral router does.
+  override async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    if (await this.takesNoAllowance(spender)) return false;
+
+    return super.isApproveRequired(owner, spender, weiAmountOrId);
+  }
+
+  override async isRevokeApprovalRequired(
+    owner: Address,
+    spender: Address,
+  ): Promise<boolean> {
+    if (await this.takesNoAllowance(spender)) return false;
+
+    return super.isRevokeApprovalRequired(owner, spender);
+  }
+
   async getMintLimit(): Promise<bigint> {
     return (await this.getLimits()).mint;
   }
@@ -1399,6 +1422,13 @@ export class EvmHypAevoXERC20Adapter
     const token = await this.getAevoToken();
 
     return token.getOutstanding(this.addresses.token, options?.blockTag);
+  }
+
+  private async takesNoAllowance(spender: Address): Promise<boolean> {
+    return (
+      eqAddress(spender, this.addresses.token) &&
+      !(await this.getPredicateWrapperAddress())
+    );
   }
 
   private async getAevoToken(): Promise<EvmXERC20AevoAdapter> {
