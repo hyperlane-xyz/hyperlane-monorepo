@@ -1,19 +1,11 @@
 //! One state writer per chain. RPC work remains asynchronous, but observation,
 //! publication and ingestion never contend for the same `scraper_head` row.
-use std::{
-    collections::VecDeque,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
+use std::{collections::VecDeque, sync::Arc, time::Duration};
 
-use futures::FutureExt;
 use hyperlane_base::{ChainMetrics, ContractSyncMetrics};
 use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod};
 use tokio::{
-    sync::{mpsc, watch, Mutex, Notify},
+    sync::{mpsc, watch, Notify},
     time::{interval, sleep, sleep_until, Instant, MissedTickBehavior},
 };
 use tracing::{debug, warn};
@@ -30,6 +22,34 @@ pub(super) struct PolledEventSlots {
     pub indexed: [u64; 3],
 }
 
+/// The latest block to fetch, plus an unconditional wake for reconnects and reorgs.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct IndexWakeup {
+    pub height: u64,
+    pub reconcile: bool,
+}
+
+impl IndexWakeup {
+    pub(super) fn send(self, tx: &watch::Sender<Self>) {
+        tx.send_if_modified(|pending| {
+            let next = Self {
+                height: pending.height.max(self.height),
+                reconcile: pending.reconcile || self.reconcile,
+            };
+            std::mem::replace(pending, next) != next
+        });
+    }
+
+    fn take(tx: &watch::Sender<Self>) -> Self {
+        let mut wake = Self::default();
+        tx.send_if_modified(|pending| {
+            wake = std::mem::take(pending);
+            false // Clearing the pending work does not wake the worker.
+        });
+        wake
+    }
+}
+
 pub(super) struct Worker {
     pub source: Box<dyn Source>,
     pub store: Store,
@@ -37,11 +57,9 @@ pub(super) struct Worker {
     pub period: ReorgPeriod,
     pub chunk_size: u64,
     pub poll_interval: Duration,
-    pub wakeup: Notify,
+    pub wakeup: watch::Sender<IndexWakeup>,
     pub dispatch_wakeup: Arc<Notify>,
     pub receipt_wakeup: watch::Sender<()>,
-    pub wanted: AtomicU64,
-    pub heads: Mutex<mpsc::Receiver<Header>>,
     pub polled_head: watch::Sender<u64>,
     pub polled_event_slots: watch::Sender<Option<PolledEventSlots>>,
     pub critical_failure_grace: Duration,
@@ -82,12 +100,19 @@ impl FailureStreak {
 /// while existing work still published.
 #[derive(Debug)]
 pub(super) struct CycleOutcome {
+    indexed: u64,
     pub more: bool,
     pub ingestion_failed: bool,
 }
 
-const MIN_WAKE_INTERVAL: Duration = Duration::from_millis(200);
-const MIN_INDEX_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+const INDEX_RETRY_DELAYS: [Duration; 6] = [
+    Duration::from_millis(200),
+    Duration::from_millis(200),
+    Duration::from_millis(200),
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+    Duration::from_secs(4),
+];
 const RECENT_HEADERS: usize = 256;
 // At 250ms/block this allows 16s of HTTP/WS skew without trusting an unbounded lead.
 const MAX_HEADER_LEAD: u64 = 64;
@@ -119,7 +144,7 @@ fn linked_tip<'a>(recent: &'a VecDeque<Header>, state: &State) -> Option<&'a Hea
 }
 
 impl Worker {
-    pub async fn run(&self) {
+    pub async fn run(&self, heads: mpsc::Receiver<Header>) {
         let stagger_period = u64::try_from(self.poll_interval.as_millis())
             .unwrap_or(u64::MAX)
             .max(1);
@@ -128,27 +153,38 @@ impl Worker {
             .checked_rem(stagger_period)
             .unwrap_or_default();
         sleep(Duration::from_millis(stagger)).await;
-        self.run_cycles().await
+        self.run_cycles(heads).await
     }
 
-    async fn run_cycles(&self) {
+    async fn run_cycles(&self, mut heads: mpsc::Receiver<Header>) {
         let mut count_cache = CountCache::default();
         let mut failures = FailureStreak::default();
         let mut polling = interval(self.poll_interval);
         polling.reset(); // The first cycle runs immediately.
         polling.set_missed_tick_behavior(MissedTickBehavior::Skip);
-        let mut heads = self.heads.lock().await;
+        let mut wakeups = self.wakeup.subscribe();
         let mut recent = VecDeque::with_capacity(RECENT_HEADERS);
         let mut index = true;
         let mut confirm = false;
         let mut next_retry = Instant::now();
+        let mut retry = 0usize;
+        let (mut indexed, mut wanted) = (0, 0);
         loop {
-            let started = Instant::now();
-            let next_wake = started
-                .checked_add(MIN_WAKE_INTERVAL)
-                .expect("Wake deadline");
             // Collect both sources before running RPCs, including when a poll won the wake.
-            index |= self.wakeup.notified().now_or_never().is_some();
+            let wake = IndexWakeup::take(&self.wakeup);
+            index |= wake.reconcile;
+            if wake.height > indexed.max(wanted) {
+                let pending = wanted != 0;
+                wanted = wake.height;
+                // The first block fetches immediately. Once HTTP is known to lag,
+                // newer blocks only extend the target; the retry deadline paces RPCs.
+                if !pending {
+                    index = true;
+                } else if Instant::now() >= next_retry {
+                    retry = retry.saturating_add(1);
+                    index = true;
+                }
+            }
             for _ in 0..heads.max_capacity() {
                 let Ok(header) = heads.try_recv() else { break };
                 remember_header(&mut recent, header);
@@ -156,10 +192,25 @@ impl Worker {
             }
             let result = async {
                 if std::mem::take(&mut index) {
-                    next_retry = started
-                        .checked_add(MIN_INDEX_RETRY_INTERVAL)
-                        .expect("Index retry deadline");
+                    let started = Instant::now();
                     let outcome = self.cycle(&mut count_cache).await?;
+                    // Progress restarts fast retries even if newer hints stay ahead.
+                    if outcome.indexed > indexed {
+                        retry = 0;
+                    }
+                    indexed = outcome.indexed;
+                    if wanted <= indexed {
+                        wanted = 0;
+                        retry = 0;
+                    } else {
+                        let delay = INDEX_RETRY_DELAYS
+                            .get(retry)
+                            .copied()
+                            .unwrap_or(self.poll_interval);
+                        next_retry = started
+                            .checked_add(delay.min(self.poll_interval))
+                            .expect("Index retry deadline");
+                    }
                     index = outcome.more;
                     if outcome.ingestion_failed {
                         return Ok(true);
@@ -170,7 +221,7 @@ impl Worker {
                         .is_some_and(|header| header.height > *self.polled_head.borrow());
                 }
                 if std::mem::take(&mut confirm) {
-                    confirm = self.header_cycle(&recent, &count_cache).await?.more;
+                    confirm = self.header_cycle(&recent, &count_cache).await?;
                 }
                 Ok::<_, eyre::Report>(false)
             }
@@ -198,20 +249,14 @@ impl Worker {
                 biased;
                 _ = polling.tick() => index = true,
                 // Pace retries when HTTP is still behind the last notification.
-                _ = sleep_until(next_retry), if self.wanted.load(Ordering::Relaxed) != 0 => index = true,
-                header = async {
-                    sleep_until(next_wake).await;
-                    tokio::select! {
-                        _ = self.wakeup.notified() => None,
-                        Some(header) = heads.recv() => Some(header),
-                    }
-                } => {
-                    if let Some(header) = header {
-                        remember_header(&mut recent, header);
-                        confirm = true;
-                    } else {
-                        index = true;
-                    }
+                _ = sleep_until(next_retry), if wanted != 0 => {
+                    retry = retry.saturating_add(1);
+                    index = true;
+                },
+                _ = wakeups.wait_for(|wake| wake.reconcile || wake.height > indexed.max(wanted)) => {},
+                Some(header) = heads.recv() => {
+                    remember_header(&mut recent, header);
+                    confirm = true;
                 }
             }
         }
@@ -425,6 +470,7 @@ impl Worker {
         // above and stays visible through the critical-error metric.
         if confirmation.page_limited {
             return Ok(CycleOutcome {
+                indexed: state.indexed,
                 more: true,
                 ingestion_failed: ingestion.is_err(),
             });
@@ -443,6 +489,7 @@ impl Worker {
                 "Provisional suffix is unproven at head; waiting for historical counts"
             );
             return Ok(CycleOutcome {
+                indexed: state.indexed,
                 more: false,
                 ingestion_failed: true,
             });
@@ -457,6 +504,7 @@ impl Worker {
             );
         }
         Ok(CycleOutcome {
+            indexed: state.indexed,
             more: more_ingestion,
             ingestion_failed: false,
         })
@@ -466,22 +514,18 @@ impl Worker {
         &self,
         recent: &VecDeque<Header>,
         cache: &CountCache,
-    ) -> eyre::Result<CycleOutcome> {
-        let idle = CycleOutcome {
-            more: false,
-            ingestion_failed: false,
-        };
+    ) -> eyre::Result<bool> {
         let mut state = self
             .store
             .state()
             .await?
             .ok_or_else(|| eyre::eyre!("Missing head state"))?;
         let Some(header) = linked_tip(recent, &state) else {
-            return Ok(idle);
+            return Ok(false);
         };
         if state.halted || header.height > self.polled_head.borrow().saturating_add(MAX_HEADER_LEAD)
         {
-            return Ok(idle);
+            return Ok(false);
         }
         let lease = confirmation_lease(self.poll_interval);
         self.store
@@ -506,16 +550,13 @@ impl Worker {
                     .await?
                     .ok_or_else(|| eyre::eyre!("Missing head state"))?;
                 self.record_progress(&state, confirmation.counts)?;
-                return Ok(CycleOutcome {
-                    more: confirmation.page_limited,
-                    ingestion_failed: false,
-                });
+                return Ok(confirmation.page_limited);
             }
         }
         .min(state.indexed)
         .min(cache.proven_through.unwrap_or(state.confirmed));
         if through <= state.confirmed {
-            return Ok(idle);
+            return Ok(false);
         }
         let bounded = self
             .store
@@ -528,15 +569,12 @@ impl Worker {
             .confirmation_checkpoint(state.confirmed, bounded)
             .await?
         else {
-            return Ok(idle);
+            return Ok(false);
         };
         let counts = self.store.confirm(&state, &boundary, lease).await?;
         state.confirmed = boundary.height;
         self.record_progress(&state, counts)?;
-        Ok(CycleOutcome {
-            more: bounded < through,
-            ingestion_failed: false,
-        })
+        Ok(bounded < through)
     }
 
     fn record_progress(&self, state: &State, counts: [u64; 4]) -> eyre::Result<()> {
@@ -559,12 +597,6 @@ impl Worker {
                 .inc_by(count);
         }
 
-        // Clear only hints whose blocks are durably indexed; preserve newer logs.
-        let _ = self
-            .wanted
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |wanted| {
-                (wanted <= state.indexed).then_some(0)
-            });
         self.sync_metrics
             .indexed_height
             .with_label_values(&["near_head", self.domain.name()])
