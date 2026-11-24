@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, toWei } from '@hyperlane-xyz/utils';
 
-import { PAUSER } from '../../owners.js';
+import { DEPLOYER, PAUSER } from '../../owners.js';
 
 export const AEVO_ORIGIN_CHAINS = ['optimism', 'arbitrum', 'base'] as const;
 export type AevoOriginChain = (typeof AEVO_ORIGIN_CHAINS)[number];
@@ -19,15 +19,11 @@ export type AevoChain = 'aevo' | AevoOriginChain;
 // routing modules, shared by the Aevo USDC and WETH warp route getters.
 export type AevoOwners = Record<AevoChain, Address>;
 
-// Temporary owner of the deployed staging routes. Not the infra DEPLOYER.
-export const AEVO_STAGING_OWNER: Address =
-  '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913';
-
 export const AEVO_STAGING_OWNERS: AevoOwners = {
-  aevo: AEVO_STAGING_OWNER,
-  optimism: AEVO_STAGING_OWNER,
-  arbitrum: AEVO_STAGING_OWNER,
-  base: AEVO_STAGING_OWNER,
+  aevo: DEPLOYER,
+  optimism: DEPLOYER,
+  arbitrum: DEPLOYER,
+  base: DEPLOYER,
 };
 
 // In prod each chain is owned by the ICA of Aevo's Ethereum Safe

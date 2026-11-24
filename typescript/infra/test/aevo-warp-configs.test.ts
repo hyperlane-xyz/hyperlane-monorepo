@@ -18,10 +18,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, assert } from '@hyperlane-xyz/utils';
 
-import { DEPLOYER } from '../config/environments/mainnet3/owners.js';
 import {
   AEVO_PROD_OWNERS,
-  AEVO_STAGING_OWNER,
   AEVO_STAGING_OWNERS,
   AEVO_USDC_LIMITS,
   AevoOwners,
@@ -49,14 +47,15 @@ type AllowedBridges = NonNullable<
   MovableTokenConfig['allowedRebalancingBridges']
 >;
 
-const STAGING_OWNER: Address = '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913';
+// The infra DEPLOYER, as a literal so that a change in the code under test is caught.
+const EXPECTED_DEPLOYER: Address = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 // The Turnkey pauser, as a literal so that a change in the code under test is caught.
 const EXPECTED_PAUSER: Address = '0x60Cc386C85717CB51C2827A75e14826883dF5da4';
 const EXPECTED_STAGING_OWNERS: AevoOwners = {
-  aevo: STAGING_OWNER,
-  optimism: STAGING_OWNER,
-  arbitrum: STAGING_OWNER,
-  base: STAGING_OWNER,
+  aevo: EXPECTED_DEPLOYER,
+  optimism: EXPECTED_DEPLOYER,
+  arbitrum: EXPECTED_DEPLOYER,
+  base: EXPECTED_DEPLOYER,
 };
 // The ICAs of Aevo's Ethereum Safe 0xA34006aBDabD7388B903a50B349936aF5B47189A, one per chain.
 const EXPECTED_PROD_OWNERS: AevoOwners = {
@@ -434,18 +433,16 @@ describe('Aevo warp config getters', () => {
 
   afterEach(() => sinon.restore());
 
-  it('keeps staging owned by the temporary staging owner and prod owned by the ICAs of the Aevo Safe', () => {
-    expect(AEVO_STAGING_OWNER).to.equal(STAGING_OWNER);
-    expect(AEVO_STAGING_OWNER).to.not.equal(DEPLOYER);
-    expect(AEVO_STAGING_OWNER).to.not.equal(EXPECTED_PAUSER);
+  it('keeps staging owned by the infra deployer and prod owned by the ICAs of the Aevo Safe', () => {
     expect(AEVO_STAGING_OWNERS).to.deep.equal(EXPECTED_STAGING_OWNERS);
+    expect(Object.values(AEVO_STAGING_OWNERS)).to.not.include(EXPECTED_PAUSER);
     expect(AEVO_PROD_OWNERS).to.deep.equal(EXPECTED_PROD_OWNERS);
     const prodOwners = Object.values(AEVO_PROD_OWNERS);
     expect(new Set(prodOwners).size).to.equal(AEVO_CHAINS.length);
     for (const owner of prodOwners) {
-      expect(owner).to.not.equal(DEPLOYER);
+      expect(owner).to.not.equal(EXPECTED_DEPLOYER);
       expect(owner).to.not.equal(EXPECTED_PAUSER);
-      expect(owner).to.not.equal(STAGING_OWNER);
+      expect(Object.values(AEVO_STAGING_OWNERS)).to.not.include(owner);
     }
   });
 
@@ -490,9 +487,9 @@ describe('Aevo warp config getters', () => {
   it('getAevoSecurityConfig: rejects a chain without an owner', () => {
     const owners: AevoOwners = {
       aevo: '',
-      optimism: STAGING_OWNER,
-      arbitrum: STAGING_OWNER,
-      base: STAGING_OWNER,
+      optimism: EXPECTED_DEPLOYER,
+      arbitrum: EXPECTED_DEPLOYER,
+      base: EXPECTED_DEPLOYER,
     };
     expect(() =>
       getAevoSecurityConfig('aevo', owners, AEVO_USDC_LIMITS),
