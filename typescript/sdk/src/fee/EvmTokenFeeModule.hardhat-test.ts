@@ -373,6 +373,83 @@ describe('EvmTokenFeeModule', () => {
       );
     });
 
+    it('should clear routing fee destinations removed from the target config', async () => {
+      const test3Chain = TestChainName.test3;
+      const twoDestConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test3Chain]: config,
+          [test4Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: twoDestConfig,
+      });
+
+      const test3Domain = multiProvider.getDomainId(test3Chain);
+      const test4Domain = multiProvider.getDomainId(test4Chain);
+      const routingDestinations = [test3Domain, test4Domain];
+
+      // Sanity check: both destinations wired on-chain after deploy.
+      const before = await module.read({ routingDestinations });
+      assert(
+        before.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      expect(Object.keys(before.feeContracts).sort()).to.deep.equal(
+        [test3Chain, test4Chain].sort(),
+      );
+
+      // Drop test3 from the target config.
+      const targetConfig: TokenFeeConfig = {
+        ...twoDestConfig,
+        feeContracts: {
+          [test4Chain]: config,
+        },
+      };
+
+      // 1 tx: setFeeContract(test3Domain, 0) to clear the removed destination.
+      await expectTxsAndUpdate(module, targetConfig, 1, {
+        routingDestinations,
+      });
+
+      const after = await module.read({ routingDestinations });
+      assert(
+        after.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      // test3 pointer cleared on-chain (reader skips zero-address pointers),
+      // test4 remains wired.
+      expect(Object.keys(after.feeContracts)).to.deep.equal([test4Chain]);
+    });
+
+    it('should not emit removal txs when no routing destinations are removed', async () => {
+      const routingFeeConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [test4Chain]: config,
+        },
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingFeeConfig,
+      });
+      const routingDestinations = [multiProvider.getDomainId(test4Chain)];
+
+      // Same config, same destinations -> no txs (no spurious removals).
+      const txs = await module.update(routingFeeConfig, {
+        routingDestinations,
+      });
+      expect(txs).to.have.lengthOf(0);
+    });
+
     it('should forward token reader params when updating routing fees', async () => {
       const routingConfig: RoutingFeeConfig = {
         type: TokenFeeType.RoutingFee,
