@@ -13,6 +13,12 @@ export const AEVO_USDC_IMPLEMENTATION =
 export const AEVO_WETH_IMPLEMENTATION =
   '0xEb78E0b72AcBF744DA0c11404A56069D0a3c3126';
 
+// The contract the token deposits to when it mints, at the address it has on the
+// aevo chain. Its code and state are not held: a node gets a stand-in, which
+// answers the word 1 to any call, accepts the deposit and credits nothing.
+export const AEVO_ACCOUNTS = '0x05c1674269389be6760047c307c26a7beb8ba382';
+export const AEVO_ACCOUNTS_STAND_IN_CODE = '0x600160005260206000f3';
+
 const RECORDED_CODE = [
   {
     address: AEVO_USDC_PROXY,

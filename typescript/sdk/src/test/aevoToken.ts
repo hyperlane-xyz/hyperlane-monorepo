@@ -10,6 +10,8 @@ import {
 import { EIP1967_IMPLEMENTATION_SLOT } from '../deploy/proxy.js';
 
 import {
+  AEVO_ACCOUNTS,
+  AEVO_ACCOUNTS_STAND_IN_CODE,
   AEVO_USDC_IMPLEMENTATION,
   AEVO_USDC_PROXY,
   aevoTokenCode,
@@ -33,11 +35,19 @@ export interface DeployedAevoXERC20Token {
  * chain, the proxy is pointed at the implementation, and the proxy is
  * initialized with `deployer` as its owner.
  *
+ * The contract the token deposits to when it mints, at the address it has on
+ * the aevo chain, is not the real one: the node gets a stand-in there, which
+ * accepts the deposit of a mint and credits nothing, so what the real contract
+ * credits is not modelled. It is installed only where that address holds no
+ * code, so a fork of the real chain, or a node that holds something there,
+ * keeps what it has.
+ *
  * It does so with the `hardhat_*` cheat RPCs, which Hardhat and Anvil answer,
  * so it works on those nodes and never on a real chain. It can run again on a
- * node that keeps its state: the code is etched again, an initialized token is
- * not initialized twice, and a token another account owns is taken back for
- * `deployer`, by impersonating that account.
+ * node that keeps its state: the code of the token is etched again, the
+ * stand-in is not, an initialized token is not initialized twice, and a token
+ * another account owns is taken back for `deployer`, by impersonating that
+ * account.
  */
 export async function deployAevoXERC20Token({
   provider,
@@ -58,6 +68,12 @@ export async function deployAevoXERC20Token({
     EIP1967_IMPLEMENTATION_SLOT,
     utils.hexZeroPad(AEVO_USDC_IMPLEMENTATION, 32),
   ]);
+  if ((await provider.getCode(AEVO_ACCOUNTS)) === '0x') {
+    await provider.send('hardhat_setCode', [
+      AEVO_ACCOUNTS,
+      AEVO_ACCOUNTS_STAND_IN_CODE,
+    ]);
+  }
 
   const deployerAddress = await deployer.getAddress();
   const token = new Contract(AEVO_USDC_PROXY, AEVO_TOKEN_ABI, deployer);

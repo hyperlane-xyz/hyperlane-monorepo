@@ -14,6 +14,6 @@ The owner of an Aevo token was read through its `owner()` and, when `xerc20 appl
 
 `EvmXERC20AevoAdapter`, `AevoXERC20Limits`, `AevoMintAuthority`, `XERC20AevoCapType`, `XERC20AevoCapConfig` and `XERC20_AEVO_ABI` were exported.
 
-`deployAevoXERC20Token` and its result type `DeployedAevoXERC20Token` were exported. They put the recorded Aevo token, its code etched at the addresses it has on the aevo chain, on a Hardhat or Anvil node, so that tests of other packages ran against the real token code. A node that kept its state could run them again.
+`deployAevoXERC20Token` and its result type `DeployedAevoXERC20Token` were exported. They put the recorded Aevo token, its code etched at the addresses it has on the aevo chain, on a Hardhat or Anvil node, so that tests of other packages ran against the real token code. They also put a stand-in for the contract the token deposits to when it mints, which accepts the deposit and credits nothing, on the node where its address held no code. A node that kept its state could run them again.
 
 `XERC20Type`, `XERC20Limits` and the `xERC20.warpRouteLimits` union gained a member, `aevo`, which broke consumers that assumed two. A config literal that declares `type: XERC20Type.Standard` or `type: XERC20Type.Velo` outside a position that fixes its type was widened to the enum and needed a type annotation, such as `XERC20VSLimitConfig`. An exhaustive `switch` over `XERC20Type` or `XERC20Limits` needed an `Aevo` case, and an `else` branch that assumed Velodrome also received Aevo.

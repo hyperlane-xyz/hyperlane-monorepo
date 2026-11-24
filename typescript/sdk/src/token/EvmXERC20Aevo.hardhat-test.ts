@@ -28,6 +28,8 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import {
+  AEVO_ACCOUNTS,
+  AEVO_ACCOUNTS_STAND_IN_CODE,
   AEVO_L2_BRIDGE,
   AEVO_OWNER_SELECTORS,
   AEVO_SELECTORS,
@@ -68,10 +70,6 @@ const NOT_AUTHORITY_SELECTOR = '0x31212686';
 const CAP_EXCEEDED_SELECTOR = '0x09113c3a';
 // What it reverts setOwner of the zero address with.
 const TOKEN_ZERO_ADDRESS_ERROR_SELECTOR = '0xd92e233d';
-// The contract the token calls when it mints, which this suite answers with
-// one word: what it does is beside what is read here.
-const AEVO_ACCOUNTS = '0x05c1674269389be6760047c307c26a7beb8ba382';
-const ACCOUNTS_ANSWERING_ONE_WORD = '0x600160005260206000f3';
 
 // The real Aevo USDC token, its bytecode recorded from the aevo chain and
 // etched at the addresses it has there. Nothing of it is mocked: deployed
@@ -141,10 +139,6 @@ describe('Aevo xERC20 token', async () => {
       provider: hre.ethers.provider,
       deployer: signer,
     });
-    await hre.network.provider.send('hardhat_setCode', [
-      AEVO_ACCOUNTS,
-      ACCOUNTS_ANSWERING_ONE_WORD,
-    ]);
     aevoToken = new Contract(
       deployedToken.address,
       [
@@ -162,6 +156,49 @@ describe('Aevo xERC20 token', async () => {
       (await aevoToken.owner()) === signer.address,
       'Expected the signer to own the etched Aevo token',
     );
+  });
+
+  describe('deployAevoXERC20Token', () => {
+    const setAccountsCode = (code: string) =>
+      hre.network.provider.send('hardhat_setCode', [AEVO_ACCOUNTS, code]);
+
+    // A mint deposits to the Accounts contract, which reverts it where there is
+    // no code at its address.
+    it('lets an authorized minter mint on a node that had no code at the Accounts address', async () => {
+      await setAccountsCode('0x');
+      await deployAevoXERC20Token({
+        provider: hre.ethers.provider,
+        deployer: signer,
+      });
+      const address = randomAddress();
+      await authorize(address);
+
+      await (
+        await (await impersonate(address)).mint(randomAddress(), 1)
+      ).wait();
+
+      expect(await hre.ethers.provider.getCode(AEVO_ACCOUNTS)).to.equal(
+        AEVO_ACCOUNTS_STAND_IN_CODE,
+      );
+    });
+
+    it('leaves the code it finds at the Accounts address alone, however often it runs', async () => {
+      const found = '0x600060005260206000f3';
+      await setAccountsCode(found);
+
+      for (let run = 0; run < 2; run++) {
+        await deployAevoXERC20Token({
+          provider: hre.ethers.provider,
+          deployer: signer,
+        });
+
+        expect(await hre.ethers.provider.getCode(AEVO_ACCOUNTS)).to.equal(
+          found,
+        );
+      }
+
+      await setAccountsCode(AEVO_ACCOUNTS_STAND_IN_CODE);
+    });
   });
 
   it('is identified as an Aevo token through its proxy', async () => {

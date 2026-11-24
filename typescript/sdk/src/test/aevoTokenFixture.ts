@@ -8,6 +8,8 @@ import { AevoXERC20Limits } from '../token/xerc20-limits.js';
 import { AEVO_USDC_IMPLEMENTATION } from './aevoTokenCode.js';
 
 export {
+  AEVO_ACCOUNTS,
+  AEVO_ACCOUNTS_STAND_IN_CODE,
   AEVO_USDC_IMPLEMENTATION,
   AEVO_USDC_PROXY,
   AEVO_WETH_IMPLEMENTATION,
