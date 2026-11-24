@@ -1026,7 +1026,7 @@ describe('hyperlane warp apply with submitters', async function () {
       );
     });
 
-    it('proposes a signed transaction to the hosted Safe Queue Service', async () => {
+    it('proposes a delegate-signed transaction to the hosted Safe Queue Service', async () => {
       const { CHAIN_NAME_2: chain2, CHAIN_NAME_3: chain3 } =
         TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum;
       const warpDeployConfig = fixture.getDeployConfig();
@@ -1045,15 +1045,19 @@ describe('hyperlane warp apply with submitters', async function () {
       };
       writeYamlOrJson(SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH, strategy);
 
-      const key = { [ProtocolType.Ethereum]: HYP_KEY_BY_PROTOCOL.ethereum };
+      const delegateWallet = Wallet.createRandom();
+      const key = { [ProtocolType.Ethereum]: delegateWallet.privateKey };
       const context = await getContext({
         registryUris: [REGISTRY_PATH],
         key,
         skipConfirmation: true,
       });
+      const delegate = delegateWallet.connect(
+        context.multiProvider.getProvider(chain3),
+      );
       context.multiProvider.setSigners({
         [chain2]: chain2Signer,
-        [chain3]: chain3Signer,
+        [chain3]: delegate,
       });
       const metadata = context.multiProvider.getChainMetadata(chain3);
       const gateway = 'https://api.safe.global';
@@ -1112,6 +1116,22 @@ describe('hyperlane warp apply with submitters', async function () {
             'Bearer safe-queue-test',
           );
 
+          if (url.pathname === '/queue/api/v1/delegates') {
+            expect(request.method).to.equal('GET');
+            expect(url.searchParams.get('delegate')).to.equal(delegate.address);
+            return Response.json({
+              next: null,
+              results: [
+                {
+                  delegate: delegate.address.toLowerCase(),
+                  delegator: initialOwnerAddress.toLowerCase(),
+                  safe: null,
+                  chainId: null,
+                },
+              ],
+            });
+          }
+
           if (request.method === 'GET') {
             expect(url.pathname).to.equal(`${queuePath}/queue`);
             expect(url.searchParams.get('safes')?.toLowerCase()).to.equal(
@@ -1165,7 +1185,7 @@ describe('hyperlane warp apply with submitters', async function () {
               transaction,
               signatures[0],
             ),
-          ).to.equal(initialOwnerAddress);
+          ).to.equal(delegate.address);
           proposalCount += 1;
           return Response.json(
             {
@@ -1180,7 +1200,7 @@ describe('hyperlane warp apply with submitters', async function () {
         });
 
         await runWarpRouteApply({
-          context: { ...context, key, signer: chain3Signer },
+          context: { ...context, key, signer: delegate },
           warpDeployConfig:
             WarpRouteDeployConfigMailboxRequiredSchema.parse(warpDeployConfig),
           warpCoreConfig: readYamlOrJson(WARP_CORE_CONFIG_PATH),

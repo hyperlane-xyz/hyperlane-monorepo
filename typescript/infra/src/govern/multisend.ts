@@ -119,7 +119,12 @@ export class SafeMultiSend extends MultiSend {
       return override;
     }
     const nextNonce = await retrySafeApi(() =>
-      getNextSafeNonce(this.safeService, this.queueService, this.safeAddress),
+      getNextSafeNonce(
+        this.safeService,
+        this.queueService,
+        this.safeAddress,
+        () => this.safeSdk.getNonce(),
+      ),
     );
     return parseInt(nextNonce, 10);
   }

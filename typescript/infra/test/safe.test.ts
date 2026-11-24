@@ -10,7 +10,9 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   deleteSafeTx,
+  getNextSafeNonce,
   getOwnerChanges,
+  getPendingSafeTransactions,
   parseSafeTx,
   retrySafeApi,
   toProtocolKitTransaction,
@@ -112,6 +114,66 @@ async function expectRejection(promise: Promise<unknown>, message: string) {
 }
 
 describe('Safe Utils', () => {
+  describe('getNextSafeNonce', () => {
+    it('uses the on-chain nonce fallback for Queue and the service nonce for custom deployments', async () => {
+      const getNextNonce = sinon.stub().resolves('6');
+      const getCurrentNonce = sinon.stub().resolves(9);
+      const queue = {
+        async getNextNonce(
+          address: string,
+          currentNonce: () => Promise<number>,
+        ) {
+          expect(address).to.equal(safeAddress);
+          return String(await currentNonce());
+        },
+      };
+
+      expect(
+        await getNextSafeNonce(
+          { getNextNonce },
+          queue,
+          safeAddress,
+          getCurrentNonce,
+        ),
+      ).to.equal('9');
+      expect(getNextNonce.called).to.equal(false);
+      expect(getCurrentNonce.calledOnce).to.equal(true);
+      expect(
+        await getNextSafeNonce(
+          { getNextNonce },
+          undefined,
+          safeAddress,
+          getCurrentNonce,
+        ),
+      ).to.equal('6');
+      expect(getNextNonce.calledOnceWithExactly(safeAddress)).to.equal(true);
+      expect(getCurrentNonce.calledOnce).to.equal(true);
+    });
+  });
+
+  describe('getPendingSafeTransactions', () => {
+    it('uses only Queue to list pending proposals for hosted Safes', async () => {
+      const legacy = {
+        getPendingTransactions: sinon.stub(),
+        getMultisigTransactions: sinon.stub(),
+      };
+      const queue = { getPendingTransactions: sinon.stub().resolves([]) };
+
+      expect(
+        await getPendingSafeTransactions(legacy, queue, safeAddress, true),
+      ).to.deep.equal([]);
+      expect(
+        queue.getPendingTransactions.calledOnceWithExactly(safeAddress, {
+          includeStale: true,
+        }),
+      ).to.equal(true);
+      expect(
+        legacy.getPendingTransactions.called ||
+          legacy.getMultisigTransactions.called,
+      ).to.equal(false);
+    });
+  });
+
   describe('wasSafeTxProposedBy', () => {
     it('should accept the attributed owner', () => {
       expect(

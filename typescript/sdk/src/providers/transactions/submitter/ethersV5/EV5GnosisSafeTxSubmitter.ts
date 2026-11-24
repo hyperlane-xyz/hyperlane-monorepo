@@ -30,16 +30,16 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     module: 'gnosis-safe-submitter',
   });
 
-  private readonly safeQueueService?: SafeQueueService;
-
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5GnosisSafeTxSubmitterProps,
     protected safe: Safe.default,
     protected safeService: SafeApiKit.default,
-  ) {
-    this.safeQueueService = getSafeQueueService(props.chain, multiProvider);
-  }
+    private readonly safeQueueService?: Pick<
+      SafeQueueService,
+      'getNextNonce' | 'proposeTransaction'
+    >,
+  ) {}
 
   protected static async initSafeAndService(
     chain: string,
@@ -90,6 +90,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       props,
       safe,
       safeService,
+      getSafeQueueService(chain, multiProvider),
     );
   }
 
@@ -172,6 +173,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       safeAddress: this.props.safeAddress,
       safeTransactionData: safeTransaction.data,
       safeTxHash,
+      senderAddress: await signer.getAddress(),
       senderSignature,
     };
     const queue = this.safeQueueService;
@@ -183,9 +185,8 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       );
     }
 
-    const senderAddress = await signer.getAddress();
     return retryAsync(
-      () => this.safeService.proposeTransaction({ ...proposal, senderAddress }),
+      () => this.safeService.proposeTransaction(proposal),
       SAFE_API_RETRIES,
       SAFE_API_BASE_RETRY_MS,
     );

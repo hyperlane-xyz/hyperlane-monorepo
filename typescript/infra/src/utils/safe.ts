@@ -173,15 +173,13 @@ export async function getSafeAndService(
 }
 
 export function getNextSafeNonce(
-  safeService: Pick<SafeService, 'getNextNonce' | 'getSafeInfo'>,
+  safeService: Pick<SafeService, 'getNextNonce'>,
   queueService: Pick<SafeQueueService, 'getNextNonce'> | undefined,
   safeAddress: Address,
+  getCurrentNonce: () => Promise<number>,
 ): Promise<string> {
   return queueService
-    ? queueService.getNextNonce(safeAddress, async () => {
-        const { nonce } = await safeService.getSafeInfo(safeAddress);
-        return nonce;
-      })
+    ? queueService.getNextNonce(safeAddress, getCurrentNonce)
     : safeService.getNextNonce(safeAddress);
 }
 

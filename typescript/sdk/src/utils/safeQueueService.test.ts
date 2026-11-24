@@ -147,6 +147,7 @@ describe('SafeQueueService', () => {
       safeAddress: safe,
       safeTransactionData: transactionData,
       safeTxHash,
+      senderAddress: owner,
       senderSignature: signature,
     });
 
@@ -168,13 +169,26 @@ describe('SafeQueueService', () => {
 
   it('treats a conflict as a successful retry only when the matching proposal exists', async () => {
     request.onFirstCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
-    request.onSecondCall().resolves(jsonResponse(queuedTransaction));
+    request.onSecondCall().resolves(
+      jsonResponse({
+        ...queuedTransaction,
+        confirmations: [
+          {
+            owner,
+            signature,
+            signatureType: 'EOA',
+            created: queuedTransaction.created,
+          },
+        ],
+      }),
+    );
     request.onThirdCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
     request.onCall(3).resolves(jsonResponse({ detail: 'not found' }, 404));
     const proposal = {
       safeAddress: safe,
       safeTransactionData: transactionData,
       safeTxHash,
+      senderAddress: owner,
       senderSignature: signature,
     };
 
@@ -190,6 +204,50 @@ describe('SafeQueueService', () => {
       expect(error).to.be.instanceOf(SafeQueueServiceError);
       expect(error).to.include({ status: 409, isRecoverable: false });
     }
+  });
+
+  it('submits the new owner signature separately when another owner already proposed the transaction', async () => {
+    request.onFirstCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
+    request.onSecondCall().resolves(jsonResponse(queuedTransaction));
+    request.onThirdCall().resolves(jsonResponse([], 201));
+
+    await service.proposeTransaction({
+      safeAddress: safe,
+      safeTransactionData: transactionData,
+      safeTxHash,
+      senderAddress: '0x0000000000000000000000000000000000000003',
+      senderSignature: signature,
+    });
+
+    const [url, options] = request.thirdCall.args;
+    expect(String(url)).to.equal(
+      `${gateway}/queue/api/v1/multisig-transactions/${safeTxHash}/signatures`,
+    );
+    expect(options?.method).to.equal('POST');
+    expect(JSON.parse(String(options?.body))).to.deep.equal({
+      signatures: [signature],
+    });
+  });
+
+  it('accepts a delegate retry without trying to record a confirmation', async () => {
+    request.onFirstCall().resolves(jsonResponse({ detail: 'duplicate' }, 409));
+    request.onSecondCall().resolves(
+      jsonResponse({
+        ...queuedTransaction,
+        proposedVia: 'DELEGATE',
+        proposedBy: delegate,
+      }),
+    );
+
+    await service.proposeTransaction({
+      safeAddress: safe,
+      safeTransactionData: transactionData,
+      safeTxHash,
+      senderAddress: delegate,
+      senderSignature: signature,
+    });
+
+    expect(request.callCount).to.equal(2);
   });
 
   it('checks chain and Safe scope against current owners for delegate proposals', async () => {

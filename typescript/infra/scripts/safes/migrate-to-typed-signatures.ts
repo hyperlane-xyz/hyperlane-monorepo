@@ -88,6 +88,7 @@ async function main() {
 
   rootLogger.info(chalk.blueBright('Reproposing transactions...'));
 
+  let failed = false;
   for (const tx of pendingTxs) {
     const confirmReproposeTx = await confirm({
       message: `Repropose transaction ${tx.shortTxHash} on chain ${tx.chain}?`,
@@ -161,13 +162,17 @@ async function main() {
           ),
         );
       } catch (error) {
-        rootLogger.error(chalk.red(`Error reproposing transaction: ${error}`));
-        return;
+        rootLogger.error(
+          chalk.red(
+            `Failed to repropose ${tx.fullTxHash} on ${tx.chain}: ${error}`,
+          ),
+        );
+        failed = true;
       }
     }
   }
 
-  process.exit(0);
+  process.exitCode = failed ? 1 : 0;
 }
 
 main()

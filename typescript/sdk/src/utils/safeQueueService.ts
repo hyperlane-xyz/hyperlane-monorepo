@@ -64,6 +64,7 @@ type QueueProposal = {
   safeAddress: Address;
   safeTransactionData: SafeTransactionData;
   safeTxHash: string;
+  senderAddress: Address;
   senderSignature: string;
 };
 
@@ -158,6 +159,7 @@ export class SafeQueueService {
     safeAddress,
     safeTransactionData,
     safeTxHash,
+    senderAddress,
     senderSignature,
   }: QueueProposal): Promise<void> {
     try {
@@ -182,6 +184,30 @@ export class SafeQueueService {
       const existing = await this.getTransaction(safeTxHash);
       if (!existing) throw error;
       this.assertScope(existing, safeAddress);
+      const alreadySigned = existing.confirmations.some(({ owner }) =>
+        eqAddressEvm(owner, senderAddress),
+      );
+      // Delegate and nested-owner proposals record the submitter without a confirmation.
+      const alreadyProposed =
+        existing.proposedBy !== null &&
+        eqAddressEvm(existing.proposedBy, senderAddress);
+      if (alreadySigned || alreadyProposed) return;
+
+      // The legacy proposal endpoint stored new owner signatures on repeat POSTs.
+      // Queue rejects repeat proposals and collects confirmations separately.
+      try {
+        await this.request(`${this.transactionPath(safeTxHash)}/signatures`, {
+          method: 'POST',
+          body: { signatures: [senderSignature] },
+        });
+      } catch (signatureError) {
+        if (
+          !(signatureError instanceof SafeQueueServiceError) ||
+          signatureError.status !== 409
+        ) {
+          throw signatureError;
+        }
+      }
     }
   }
 

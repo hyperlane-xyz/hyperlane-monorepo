@@ -146,7 +146,9 @@ async function proposeFile({
     safeAddress,
     safeService: {
       getNextNonce: (address) =>
-        getNextSafeNonce(safeService, queueService, address),
+        getNextSafeNonce(safeService, queueService, address, () =>
+          safeSdk.getNonce(),
+        ),
     },
   });
   const safeTransaction = await createSafeTransaction(
