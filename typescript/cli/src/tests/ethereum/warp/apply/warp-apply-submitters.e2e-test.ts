@@ -8,6 +8,7 @@ import { urlToHttpOptions } from 'url';
 import { z } from 'zod';
 
 import {
+  GasRouter__factory,
   InterchainAccountRouter__factory,
   MockSafe__factory,
   type TimelockController,
@@ -1176,6 +1177,12 @@ describe('hyperlane warp apply with submitters', async function () {
           expect(String(transaction.nonce)).to.equal('7');
           expect(transaction.to.toLowerCase()).to.equal(
             getChain3WarpTokenAddress().toLowerCase(),
+          );
+          expect(transaction.data).to.equal(
+            GasRouter__factory.createInterface().encodeFunctionData(
+              'setDestinationGas((uint32,uint256)[])',
+              [[{ domain: chain2DomainId, gas: '100000' }]],
+            ),
           );
           const domain = { chainId, verifyingContract: safe };
           expect(

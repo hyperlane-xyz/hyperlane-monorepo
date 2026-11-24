@@ -1,4 +1,5 @@
 import type { TypedDataSigner } from '@ethersproject/abstract-signer';
+import { HttpError } from '@safe-global/api-kit';
 import Safe, {
   EthSafeSignature,
   EthSafeTransaction,
@@ -528,9 +529,15 @@ export async function deleteSafeTx(
 
   let txDetails: SafeServiceTransaction | undefined;
   try {
-    txDetails = await retrySafeApi(async () =>
-      service.getTransaction(safeTxHash),
-    );
+    txDetails = await retrySafeApi(async () => {
+      try {
+        return await service.getTransaction(safeTxHash);
+      } catch (error) {
+        if (error instanceof HttpError && error.statusCode === 404)
+          return undefined;
+        throw error;
+      }
+    });
   } catch (error) {
     rootLogger.error(
       chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),

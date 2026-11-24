@@ -1,5 +1,5 @@
 import type { SafeTransactionData } from '@safe-global/types-kit';
-import { constants } from 'ethers';
+import { constants, utils } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -15,8 +15,10 @@ const QUEUE = `${MULTISIG_TRANSACTIONS}/queue`;
 const DecimalString = z.string().regex(/^\d+$/);
 const TransactionHash = z.string().regex(/^0x[\da-f]{64}$/i);
 const SafeAddress = z.string().refine(isAddressEvm);
-const AddressOrZero = SafeAddress.nullable().transform(
-  (address) => address ?? constants.AddressZero,
+// The Queue responds with lowercase addresses. Transaction Service gas
+// estimation requires an EIP-55 destination address.
+const AddressOrZero = SafeAddress.nullable().transform((address) =>
+  utils.getAddress(address ?? constants.AddressZero),
 );
 
 const ProposalSchema = z.object({ safeTxHash: TransactionHash });
@@ -40,7 +42,7 @@ const TransactionSchema = ProposalSchema.extend({
   created: z.string(),
   proposer: SafeAddress.nullable(),
   proposedBy: SafeAddress.nullable(),
-  proposedVia: z.enum(['OWNER', 'DELEGATE', 'NESTED_OWNER', 'UNKNOWN']),
+  proposedVia: z.string(),
   confirmations: z.array(
     z.object({
       owner: SafeAddress,

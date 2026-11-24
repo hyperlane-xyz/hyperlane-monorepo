@@ -104,6 +104,13 @@ describe('gnosisSafe utils', () => {
       expect(config.chainId).to.equal(8453n);
       expect(config.apiKey).to.equal('safe-api-key');
       expect(config.txServiceUrl).to.equal(undefined);
+      expect(
+        getSafeApiKitConfig(
+          8453,
+          'http://api.safe.global/tx-service/base',
+          'safe-api-key',
+        ),
+      ).to.deep.equal(config);
     });
 
     it('keeps txServiceUrl for custom services', () => {

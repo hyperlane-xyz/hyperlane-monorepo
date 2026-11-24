@@ -8,6 +8,7 @@ import {
   ChainStatus,
   HyperlaneSmartProvider,
   ProviderRetryOptions,
+  normalizeSafeTxServiceUrl,
   safeApiKeyRequired,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -233,7 +234,10 @@ async function fetchSecretMetadataOverrides(
     for (const chain of chains) {
       const chainMetadata = getChain(chain);
       const txServiceUrl = chainMetadata.gnosisSafeTransactionServiceUrl;
-      if (txServiceUrl && safeApiKeyRequired(txServiceUrl)) {
+      if (
+        txServiceUrl &&
+        safeApiKeyRequired(normalizeSafeTxServiceUrl(txServiceUrl))
+      ) {
         chainMetadataOverrides[chain] ??= {};
         chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
       }

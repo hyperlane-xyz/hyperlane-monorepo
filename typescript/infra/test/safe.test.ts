@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import Safe from '@safe-global/protocol-kit';
 import { OperationType, SignatureTypes } from '@safe-global/types-kit';
 import { BigNumber, ethers } from 'ethers';
+import { createServer } from 'node:http';
 import sinon from 'sinon';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
@@ -210,6 +211,44 @@ describe('Safe Utils', () => {
   });
 
   describe('deleteSafeTx', () => {
+    it('treats a custom service lookup returning 404 as already deleted', async () => {
+      let requests = 0;
+      const server = createServer((_request, response) => {
+        requests += 1;
+        response.writeHead(404, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ detail: 'Not found.' }));
+      });
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+      );
+
+      try {
+        const address = server.address();
+        if (!address || typeof address === 'string')
+          throw new Error('Expected an HTTP port');
+        const chain = 'testchain';
+        const multiProvider = new MultiProvider({
+          [chain]: {
+            name: chain,
+            protocol: ProtocolType.Ethereum,
+            chainId: 1,
+            domainId: 1,
+            rpcUrls: [{ http: 'http://localhost:8545' }],
+            gnosisSafeTransactionServiceUrl: `http://127.0.0.1:${address.port}`,
+          },
+        });
+        multiProvider.setSigner(chain, ethers.Wallet.createRandom());
+
+        const hash = `0x${'99'.repeat(32)}`;
+        expect(
+          await deleteSafeTx(chain, multiProvider, safeAddress, hash),
+        ).to.equal(true);
+        expect(requests).to.equal(1);
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    });
+
     it('uses the Queue signing domain and sends only the signature in the deletion body', async () => {
       const chain = 'testchain';
       const chainId = 1;

@@ -54,20 +54,32 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
 
 export function normalizeSafeTxServiceUrl(txServiceUrl: string): string {
   const trimmedUrl = txServiceUrl.replace(TRAILING_SLASHES_REGEX, '');
-  if (trimmedUrl.endsWith('/api')) return trimmedUrl;
-  return `${trimmedUrl}/api`;
+  const normalizedUrl = trimmedUrl.endsWith('/api')
+    ? trimmedUrl
+    : `${trimmedUrl}/api`;
+  const gateway = getSafeGatewayUrl(normalizedUrl);
+  return gateway
+    ? `https://${gateway.hostname}${gateway.pathname}`
+    : normalizedUrl;
+}
+
+function getSafeGatewayUrl(txServiceUrl: string): URL | undefined {
+  try {
+    const url = new URL(txServiceUrl);
+    return (url.protocol === 'https:' || url.protocol === 'http:') &&
+      SAFE_GATEWAY_HOSTS.includes(url.hostname) &&
+      GATEWAY_TX_SERVICE_PATH_REGEX.test(url.pathname)
+      ? url
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function isSafeGlobalTxServiceUrl(txServiceUrl: string): boolean {
-  try {
-    const url = new URL(normalizeSafeTxServiceUrl(txServiceUrl));
-    return (
-      SAFE_GATEWAY_HOSTS.includes(url.hostname) &&
-      GATEWAY_TX_SERVICE_PATH_REGEX.test(url.pathname)
-    );
-  } catch {
-    return false;
-  }
+  return (
+    getSafeGatewayUrl(normalizeSafeTxServiceUrl(txServiceUrl)) !== undefined
+  );
 }
 
 export function getSafeApiKitConfig(

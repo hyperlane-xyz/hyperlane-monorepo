@@ -69,9 +69,9 @@ META=$(grep -rlE "^chainId:[[:space:]]*${CHAIN_ID}[[:space:]]*$" "$REGISTRY_PATH
 BASE=$(grep -m1 "^gnosisSafeTransactionServiceUrl:" "$META" | sed 's/^[^:]*:[[:space:]]*//; s/[[:space:]]*$//; s#/*$##')
 [ -n "$BASE" ] || { echo "ERROR: chainId ${CHAIN_ID} has no gnosisSafeTransactionServiceUrl in the registry." >&2; exit 1; }
 RAW="$WORK/decoded/${CHAIN_ID}-${SAFE_TX_HASH}.json"
-if [[ "$BASE" =~ ^(https://api\.(safe\.global|5afe\.dev))/tx-service/[^/]+(/api)?$ ]]; then
+if [[ "$BASE" =~ ^https?://(api\.(safe\.global|5afe\.dev))(:[0-9]+)?/tx-service/[^/]+(/api)?$ ]]; then
   SERVICE=queue
-  URL="${BASH_REMATCH[1]}/queue/api/v1/multisig-transactions/${SAFE_TX_HASH}"
+  URL="https://${BASH_REMATCH[1]}/queue/api/v1/multisig-transactions/${SAFE_TX_HASH}"
   if [[ -n "${SAFE_API_KEY:-}" ]]; then
     printf 'Authorization: Bearer %s\n' "$SAFE_API_KEY" | curl -fsS -H @- "$URL" -o "$RAW" || exit 1
   else

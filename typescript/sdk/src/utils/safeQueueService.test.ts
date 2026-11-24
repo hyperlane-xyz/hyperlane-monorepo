@@ -61,6 +61,7 @@ describe('SafeQueueService', () => {
   afterEach(() => request.restore());
 
   it('paginates pending results using the requested Safe and chain', async () => {
+    const destination = '0xcd2E72aEBe2A203b84f46DEEC948E6465dB51c75';
     request
       .onFirstCall()
       .resolves(
@@ -72,9 +73,10 @@ describe('SafeQueueService', () => {
           {
             ...queuedTransaction,
             nonce: '4',
+            to: destination.toLowerCase(),
             operation: 2,
             proposer: null,
-            proposedVia: 'UNKNOWN',
+            proposedVia: 'FUTURE_ROUTE',
           },
         ],
         next: null,
@@ -97,9 +99,10 @@ describe('SafeQueueService', () => {
       '4',
     ]);
     expect(transactions[1]).to.include({
+      to: destination,
       operation: 2,
       proposer: null,
-      proposedVia: 'UNKNOWN',
+      proposedVia: 'FUTURE_ROUTE',
     });
     expect(transactions[0]).to.include({
       to: constants.AddressZero,
