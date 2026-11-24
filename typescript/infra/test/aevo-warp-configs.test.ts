@@ -52,6 +52,20 @@ type AllowedBridges = NonNullable<
 const STAGING_OWNER: Address = '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913';
 // The Turnkey pauser, as a literal so that a change in the code under test is caught.
 const EXPECTED_PAUSER: Address = '0x60Cc386C85717CB51C2827A75e14826883dF5da4';
+const EXPECTED_STAGING_OWNERS: AevoOwners = {
+  aevo: STAGING_OWNER,
+  optimism: STAGING_OWNER,
+  arbitrum: STAGING_OWNER,
+  base: STAGING_OWNER,
+};
+// The ICAs of Aevo's Ethereum Safe 0xA34006aBDabD7388B903a50B349936aF5B47189A, one per chain.
+const EXPECTED_PROD_OWNERS: AevoOwners = {
+  aevo: '0x0f1B55D0de6CFE5A54496f583722D174ecE2EA61',
+  optimism: '0x7C92F6dA945FA4Be9E86Da7d03542b2fA9c99e49',
+  arbitrum: '0x7e994bdc9E75faA8F52f2D1259dbEA7046887B16',
+  base: '0x4798e55ef729c2a645B14b3AC4fAda6d1FCA27fA',
+};
+const EXPECTED_AEVO_GAS = 300_000;
 
 // Four different owners, so that taking one chain's owner for another is caught.
 // None is the pauser.
@@ -301,14 +315,14 @@ const usdcCases: RouteCase[] = [
   {
     name: 'USDC staging',
     getConfig: getAevoUSDCStagingWarpConfig,
-    owners: AEVO_STAGING_OWNERS,
+    owners: EXPECTED_STAGING_OWNERS,
     tokens: USDC_TOKENS,
     limits: USDC_LIMIT_CASES,
   },
   {
     name: 'USDC prod',
     getConfig: getAevoUSDCWarpConfig,
-    owners: AEVO_PROD_OWNERS,
+    owners: EXPECTED_PROD_OWNERS,
     tokens: USDC_TOKENS,
     limits: USDC_LIMIT_CASES,
   },
@@ -318,14 +332,14 @@ const wethCases: RouteCase[] = [
   {
     name: 'WETH staging',
     getConfig: getAevoWETHStagingWarpConfig,
-    owners: AEVO_STAGING_OWNERS,
+    owners: EXPECTED_STAGING_OWNERS,
     tokens: WETH_TOKENS,
     limits: WETH_LIMIT_CASES,
   },
   {
     name: 'WETH prod',
     getConfig: getAevoWETHWarpConfig,
-    owners: AEVO_PROD_OWNERS,
+    owners: EXPECTED_PROD_OWNERS,
     tokens: WETH_TOKENS,
     limits: WETH_LIMIT_CASES,
   },
@@ -420,21 +434,18 @@ describe('Aevo warp config getters', () => {
 
   afterEach(() => sinon.restore());
 
-  it('keeps staging owned by the temporary staging owner and prod owned by a non-deployer', () => {
+  it('keeps staging owned by the temporary staging owner and prod owned by the ICAs of the Aevo Safe', () => {
     expect(AEVO_STAGING_OWNER).to.equal(STAGING_OWNER);
     expect(AEVO_STAGING_OWNER).to.not.equal(DEPLOYER);
     expect(AEVO_STAGING_OWNER).to.not.equal(EXPECTED_PAUSER);
-    expect(AEVO_STAGING_OWNERS).to.deep.equal({
-      aevo: STAGING_OWNER,
-      optimism: STAGING_OWNER,
-      arbitrum: STAGING_OWNER,
-      base: STAGING_OWNER,
-    });
-    expect(Object.keys(AEVO_PROD_OWNERS)).to.have.members(AEVO_CHAINS);
-    for (const owner of Object.values(AEVO_PROD_OWNERS)) {
-      expect(owner).to.match(/^0x[0-9a-fA-F]{40}$/);
+    expect(AEVO_STAGING_OWNERS).to.deep.equal(EXPECTED_STAGING_OWNERS);
+    expect(AEVO_PROD_OWNERS).to.deep.equal(EXPECTED_PROD_OWNERS);
+    const prodOwners = Object.values(AEVO_PROD_OWNERS);
+    expect(new Set(prodOwners).size).to.equal(AEVO_CHAINS.length);
+    for (const owner of prodOwners) {
       expect(owner).to.not.equal(DEPLOYER);
       expect(owner).to.not.equal(EXPECTED_PAUSER);
+      expect(owner).to.not.equal(STAGING_OWNER);
     }
   });
 
@@ -504,6 +515,7 @@ describe('Aevo warp config getters', () => {
           token: c.tokens.aevo,
           mailbox: ROUTER_CONFIG.aevo.mailbox,
           owner: c.owners.aevo,
+          gas: EXPECTED_AEVO_GAS,
           hook: expectedHook(
             EXPECTED_PAUSER,
             c.owners.aevo,
@@ -530,8 +542,17 @@ describe('Aevo warp config getters', () => {
             owner: c.owners[chain],
           });
           expect(leg).to.not.have.property('xERC20');
+          expect(leg).to.not.have.property('gas');
         });
       }
+
+      it('pays the Aevo handler gas for messages to aevo and sets no gas on the origin legs', async () => {
+        const config = await c.getConfig(ROUTER_CONFIG);
+        expect(getLeg(config, 'aevo').gas).to.equal(EXPECTED_AEVO_GAS);
+        for (const chain of ORIGIN_CHAINS) {
+          expect(getLeg(config, chain)).to.not.have.property('gas');
+        }
+      });
 
       for (const l of c.limits) {
         it(`configures the ${l.chain} leg hook and ISM with the daily rate limits`, async () => {

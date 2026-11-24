@@ -30,18 +30,14 @@ export const AEVO_STAGING_OWNERS: AevoOwners = {
   base: AEVO_STAGING_OWNER,
 };
 
-// TODO(aevo-prod-owner): placeholder, NOT a real owner. In prod each chain is
-// owned by the ICA derived for Aevo's Ethereum Safe (Safe address pending),
-// never an EOA. Replace the placeholder with those ICAs before any prod export
-// or deploy.
-const AEVO_PROD_OWNER_PLACEHOLDER =
-  '0x000000000000000000000000000000000000dEaD';
-
+// In prod each chain is owned by the ICA of Aevo's Ethereum Safe
+// 0xA34006aBDabD7388B903a50B349936aF5B47189A, derived with
+// scripts/keys/get-owner-ica.ts and deployed on all four chains.
 export const AEVO_PROD_OWNERS: AevoOwners = {
-  aevo: AEVO_PROD_OWNER_PLACEHOLDER,
-  optimism: AEVO_PROD_OWNER_PLACEHOLDER,
-  arbitrum: AEVO_PROD_OWNER_PLACEHOLDER,
-  base: AEVO_PROD_OWNER_PLACEHOLDER,
+  aevo: '0x0f1B55D0de6CFE5A54496f583722D174ecE2EA61',
+  optimism: '0x7C92F6dA945FA4Be9E86Da7d03542b2fA9c99e49',
+  arbitrum: '0x7e994bdc9E75faA8F52f2D1259dbEA7046887B16',
+  base: '0x4798e55ef729c2a645B14b3AC4fAda6d1FCA27fA',
 };
 
 // TODO(aevo-prod-authority): once Aevo has authorized the router on its token,

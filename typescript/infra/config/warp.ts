@@ -157,7 +157,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.CROSSMoonpayLocalBridgeUSDT]:
     getCrossMoonpayLocalBridgeWarpConfig,
   // Aevo prod routes (getAevoUSDCWarpConfig / getAevoWETHWarpConfig) are intentionally not
-  // registered until the real prod owners replace AEVO_PROD_OWNERS' placeholder.
+  // registered until they are deployed and in the registry.
   [WarpRouteIds.USDCAevoSTAGING]: getAevoUSDCStagingWarpConfig,
   [WarpRouteIds.WETHAevoSTAGING]: getAevoWETHStagingWarpConfig,
 };

@@ -4,6 +4,7 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { AEVO_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 import {
   AEVO_ORIGIN_CHAINS,
@@ -44,6 +45,7 @@ function buildAevoUSDCWarpConfig(
       token: tokens.aevo.USDC,
       mailbox: routerConfig.aevo.mailbox,
       owner: ownersByChain.aevo,
+      gas: AEVO_WARP_ROUTE_HANDLER_GAS_AMOUNT,
       xERC20: { warpRouteLimits: AEVO_ROUTER_XERC20_LIMITS },
     }),
     optimism: withSecurity(
