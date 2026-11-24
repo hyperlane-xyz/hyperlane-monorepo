@@ -44,9 +44,9 @@ export interface VeloXERC20Limits {
  * that it is authorized with a cap, raw or unlimited. Unlimited is the cap of
  * zero on which the token mints without bound.
  *
- * A cap bounds what the minter may mint in total. The token counts what has
- * been minted against it and offers no reading of what is left, so a cap is an
- * upper bound, and an amount within it is not known to be deliverable.
+ * A cap bounds what the minter has outstanding, what it has minted and not
+ * burned: the token keeps that count for each minter, refuses a mint that takes
+ * it beyond the cap, and lowers it with a burn.
  */
 export type AevoXERC20Limits = XERC20AevoLimitConfig;
 
