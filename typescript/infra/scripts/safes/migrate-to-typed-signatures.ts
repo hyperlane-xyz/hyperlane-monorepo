@@ -98,6 +98,7 @@ async function main() {
       rootLogger.info(
         `Reproposing transaction ${tx.shortTxHash} on chain ${tx.chain}`,
       );
+      let originalCleared = false;
       try {
         const { safeSdk, safeService, queueService } = await getSafeAndService(
           tx.chain,
@@ -118,17 +119,6 @@ async function main() {
           `Transaction ${tx.fullTxHash} belongs to a different Safe`,
         );
 
-        // Log the transaction details
-        rootLogger.info(
-          chalk.gray(
-            `Transaction details:\n${stringifyObject({
-              to: safeTx.to,
-              data: safeTx.data,
-              value: safeTx.value,
-            })}`,
-          ),
-        );
-
         // Build and sign the exact replacement before deleting the old proposal.
         const safeTransaction = toProtocolKitTransaction(safeTx);
         const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
@@ -138,13 +128,27 @@ async function main() {
         );
         const senderSignature = await safeSdk.signTypedData(safeTransaction);
         const senderAddress = await multiProvider.getSignerAddress(tx.chain);
-        const deleted = await deleteSafeTx(
+
+        rootLogger.info(
+          chalk.gray(
+            `Reproposal data for ${safeTxHash} on ${tx.chain}:\n${stringifyObject(
+              {
+                safeAddress: safes[tx.chain],
+                ...safeTransaction.data,
+              },
+            )}`,
+          ),
+        );
+        originalCleared = await deleteSafeTx(
           tx.chain,
           multiProvider,
           safes[tx.chain],
           tx.fullTxHash,
         );
-        assert(deleted, `Could not delete transaction ${tx.fullTxHash}`);
+        assert(
+          originalCleared,
+          `Could not delete transaction ${tx.fullTxHash}`,
+        );
 
         await retrySafeApi(() =>
           service.proposeTransaction({
@@ -162,10 +166,11 @@ async function main() {
           ),
         );
       } catch (error) {
+        const reason = originalCleared
+          ? 'Original proposal cleared, replacement failed'
+          : 'Failed to repropose';
         rootLogger.error(
-          chalk.red(
-            `Failed to repropose ${tx.fullTxHash} on ${tx.chain}: ${error}`,
-          ),
+          chalk.red(`${reason} for ${tx.fullTxHash} on ${tx.chain}: ${error}`),
         );
         failed = true;
       }
