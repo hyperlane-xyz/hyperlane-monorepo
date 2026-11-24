@@ -2832,25 +2832,11 @@ export class EvmWarpModule extends HyperlaneModule<
           onchainRoutersByDomain,
         ),
       };
-    } else if (currentTokenFee.type === TokenFeeType.RoutingFee) {
-      // For plain RoutingFee updates, forward the on-chain enrolled destinations as
-      // routingDestinations hints so the reader observes orphan feeContracts entries
-      // not present in the target config. Without these hints, the removal loop in
-      // EvmTokenFeeModule.update() never sees stale destinations and the on-chain
-      // pointer stays wired.
-      const onchainDestinations = Object.keys(
-        currentTokenFee.feeContracts ?? {},
-      ).map((chainName) => this.multiProvider.getDomainId(chainName));
-      effectiveTokenReaderParams = {
-        ...tokenReaderParams,
-        routingDestinations: Array.from(
-          new Set([
-            ...(tokenReaderParams?.routingDestinations ?? []),
-            ...onchainDestinations,
-          ]),
-        ),
-      };
     }
+    // Plain RoutingFee updates need no destination hints: EvmTokenFeeReader enumerates
+    // the RoutingFee contract's own domains(), so orphan feeContracts entries (including
+    // destinations whose routers are unenrolled) are discovered and reconciled without
+    // depending on the token router's partial enrollment view.
 
     const updateTransactions = await tokenFeeModule.update(
       resolvedTokenFee,

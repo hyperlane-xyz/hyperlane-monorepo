@@ -264,7 +264,7 @@ describe('EvmTokenFeeReader', () => {
       );
     });
 
-    it('should derive routing fee config without routingDestinations', async () => {
+    it('discovers configured destinations from domains() without routingDestinations', async () => {
       const routingFeeConfig = TokenFeeConfigSchema.parse({
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
@@ -299,10 +299,16 @@ describe('EvmTokenFeeReader', () => {
         routingFee.type === TokenFeeType.RoutingFee,
         `Must be ${TokenFeeType.RoutingFee}`,
       );
-      expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
       expect(routingFee.owner).to.equal(signer.address);
       expect(routingFee.token).to.equal(token.address);
-      expect(Object.keys((routingFee as any).feeContracts)).to.have.length(0);
+      // The reader enumerates the contract's own domains(), so the configured destination
+      // is discovered even though no routingDestinations hints were supplied.
+      expect(Object.keys(routingFee.feeContracts)).to.deep.equal([
+        TestChainName.test2,
+      ]);
+      expect(normalizeConfig(routingFee)).to.deep.equal(
+        normalizeConfig(routingFeeConfig),
+      );
     });
 
     it('should derive cross collateral routing fee config from DEFAULT_ROUTER entries', async () => {

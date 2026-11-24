@@ -129,9 +129,9 @@ describe('hyperlane warp apply RoutingFee destination removal', async function (
   }
 
   function readChain3RoutingFeeDestinations(): string[] {
-    const deployConfig = readYamlOrJson(
+    const deployConfig = readYamlOrJson<WarpRouteDeployConfig>(
       DEFAULT_EVM_WARP_READ_OUTPUT_PATH,
-    ) as WarpRouteDeployConfig;
+    );
     const tokenFee = deployConfig[CHAIN_3].tokenFee;
     assert(
       tokenFee?.type === TokenFeeType.RoutingFee,

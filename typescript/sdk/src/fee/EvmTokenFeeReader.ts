@@ -187,25 +187,36 @@ export class EvmTokenFeeReader extends HyperlaneReader {
   ): Promise<DerivedTokenFeeConfig> {
     const { address, routingDestinations } = params;
     const routingFee = RoutingFee__factory.connect(address, this.provider);
-    const [token, owner] = await Promise.all([
+    const [token, owner, onchainDomains] = await Promise.all([
       routingFee.token(),
       routingFee.owner(),
+      routingFee.domains(),
     ]);
 
     const feeContracts: Record<ChainName, DerivedTokenFeeConfig> = {};
 
-    if (routingDestinations)
-      await Promise.all(
-        routingDestinations.map(async (destination) => {
-          const subFeeAddress = await routingFee.feeContracts(destination);
-          if (subFeeAddress === constants.AddressZero) return;
-          const chainName = this.multiProvider.tryGetChainName(destination);
-          if (!chainName) return;
-          feeContracts[chainName] = await this.deriveTokenFeeConfig({
-            address: subFeeAddress,
-          });
-        }),
-      );
+    // Enumerate the contract's own domain set so every configured destination is
+    // discovered, not only those supplied via routingDestinations hints. Hints can be
+    // derived from router enrollment and omit orphan pointers (routers unenrolled while
+    // their fee pointer is still set); union them in for any extra caller-requested reads.
+    const destinations = Array.from(
+      new Set<number>([
+        ...onchainDomains.map(Number),
+        ...(routingDestinations ?? []),
+      ]),
+    );
+
+    await Promise.all(
+      destinations.map(async (destination) => {
+        const subFeeAddress = await routingFee.feeContracts(destination);
+        if (subFeeAddress === constants.AddressZero) return;
+        const chainName = this.multiProvider.tryGetChainName(destination);
+        if (!chainName) return;
+        feeContracts[chainName] = await this.deriveTokenFeeConfig({
+          address: subFeeAddress,
+        });
+      }),
+    );
     return {
       type: TokenFeeType.RoutingFee,
       address,

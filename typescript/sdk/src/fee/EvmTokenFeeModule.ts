@@ -193,7 +193,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   ) {
     super(params);
     this.chainName = multiProvider.getChainName(params.chain);
-    this.chainId = multiProvider.getDomainId(this.chainName);
+    // Transactions carry the EVM chain ID for EIP-155 / submitter validation, not
+    // the Hyperlane domain ID (these differ on chains where domain !== chainId).
+    this.chainId = multiProvider.getEvmChainId(this.chainName);
 
     this.deployer = new EvmTokenFeeDeployer(multiProvider, this.chainName, {
       logger: this.logger,
@@ -644,6 +646,9 @@ export class EvmTokenFeeModule extends HyperlaneModule<
       }
 
       // Emit setFeeContract(domain, 0) for on-chain destinations absent from target.
+      // actualConfig is authoritative here: the reader enumerates the RoutingFee
+      // contract's own domains(), so orphan pointers (whose router was unenrolled before
+      // the fee key was removed from target) are present and get reconciled to zero.
       const removalTxs: AnnotatedEV5Transaction[] = [];
       for (const chainName of Object.keys(actualConfig.feeContracts ?? {})) {
         if (!(chainName in targetFeeContracts)) {
