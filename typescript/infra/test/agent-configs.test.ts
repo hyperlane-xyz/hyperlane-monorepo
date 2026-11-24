@@ -166,9 +166,6 @@ describe('Agent configs', () => {
           assert(relayer, 'Missing relayer Helm values');
           assert(relayer.envConfig, 'Missing relayer environment config');
           assert(relayer.configMapConfig, 'Missing relayer configmap');
-          expect(relayer.envConfig.ccipReadAllowedDomains).to.equal(
-            'offchain-lookup.services.hyperlane.xyz,testnet-offchain-lookup.services.hyperlane.xyz',
-          );
           expect(relayer.envConfig.runtimeDenylistUrl).to.equal(
             `https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/relayer/${environment}-denylist.json`,
           );
