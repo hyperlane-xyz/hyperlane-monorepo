@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import sinon from 'sinon';
 
 import {
+  AEVO_OUTSTANDING_SELECTOR,
   MultiProtocolProvider,
   Token,
   TokenStandard,
@@ -20,6 +21,8 @@ const abi = new ethers.utils.Interface([
   'function mintingMaxLimitOf(address) view returns (uint256)',
   'function burningCurrentLimitOf(address) view returns (uint256)',
   'function burningMaxLimitOf(address) view returns (uint256)',
+  'function authorities(address) view returns (bool)',
+  'function caps(address) view returns (uint256)',
 ]);
 const router = `0x${'12'.repeat(20)}`;
 const underlying = `0x${'34'.repeat(20)}`;
@@ -55,18 +58,24 @@ function fixture(standard: TokenStandard) {
     mintingMaxLimitOf: 200,
     burningCurrentLimitOf: 300,
     burningMaxLimitOf: 400,
+    authorities: 1,
+    caps: 500,
   };
   let address = underlying;
+  const outstanding = 120;
   const calls: Array<{
     method: string;
     to: string | undefined;
     bridge?: string;
   }> = [];
   const call = sinon.stub(provider, 'call').callsFake(async (transaction) => {
-    const decoded = abi.parseTransaction({
-      data: ethers.utils.hexlify((await transaction.data)!),
-    });
+    const data = ethers.utils.hexlify((await transaction.data)!);
     const to = await transaction.to;
+    if (data.startsWith(AEVO_OUTSTANDING_SELECTOR)) {
+      calls.push({ method: 'outstanding', to, bridge: `0x${data.slice(-40)}` });
+      return ethers.utils.hexZeroPad(ethers.utils.hexlify(outstanding), 32);
+    }
+    const decoded = abi.parseTransaction({ data });
     calls.push({ method: decoded.name, to, bridge: decoded.args[0] });
     const value =
       decoded.name === 'wrappedToken' || decoded.name === 'xERC20'
@@ -125,6 +134,27 @@ describe('xERC20 metric acquisition', () => {
       ).to.equal(true);
     });
   }
+
+  // An Aevo token has no limit getters: its limits are what its adapter maps
+  // what the token holds to. The router is authorized with a cap of 500, and has
+  // minted 120 of it, in the 2 decimals of the token.
+  it('observes the limits of an Aevo token as its adapter states them', async () => {
+    const { warpCore, token, calls } = fixture(TokenStandard.EvmHypAevoXERC20);
+
+    expect(await getXERC20Info(warpCore, token)).to.deep.equal({
+      xERC20Address: underlying,
+      limits: { mint: 3.8, mintMax: 5, burn: 1.2, burnMax: 5 },
+    });
+    expect(
+      calls
+        .filter(({ method }) => method !== 'wrappedToken')
+        .every(
+          ({ to, bridge }) =>
+            to?.toLowerCase() === underlying &&
+            bridge?.toLowerCase() === router,
+        ),
+    ).to.equal(true);
+  });
 
   it('refreshes the address and every limit on each observation', async () => {
     const { warpCore, token, calls, amounts, setAddress } = fixture(

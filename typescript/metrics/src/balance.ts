@@ -3,6 +3,7 @@ import type { Logger } from 'pino';
 
 import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import {
+  EvmHypAevoXERC20Adapter,
   type EvmHypXERC20Adapter,
   type EvmHypXERC20LockboxAdapter,
   EvmTokenAdapter,
@@ -158,6 +159,20 @@ export async function getXERC20Info(
     token.protocol !== ProtocolType.Tron
   ) {
     throw new Error(`Unsupported XERC20 protocol type ${token.protocol}`);
+  }
+
+  // An Aevo token has no limit getters to read: its limits are what its adapter
+  // maps what the token holds to.
+  if (token.standard === TokenStandard.EvmHypAevoXERC20) {
+    const adapter = new EvmHypAevoXERC20Adapter(
+      token.chainName,
+      warpCore.multiProvider,
+      { token: token.addressOrDenom },
+    );
+    return {
+      limits: await getXERC20Limit(token, adapter),
+      xERC20Address: await adapter.getWrappedTokenAddress(),
+    };
   }
 
   if (
