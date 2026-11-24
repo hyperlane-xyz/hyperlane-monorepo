@@ -104,6 +104,9 @@
   "mantle": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
+  "mantra": {
+    "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
+  },
   "metal": {
     "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"]
   },
