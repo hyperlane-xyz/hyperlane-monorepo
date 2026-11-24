@@ -1,6 +1,11 @@
 import { expect } from 'chai';
 import { type Signer, Wallet, ethers } from 'ethers';
 import { existsSync, rmSync } from 'fs';
+import http from 'http';
+import https from 'https';
+import { createSandbox } from 'sinon';
+import { urlToHttpOptions } from 'url';
+import { z } from 'zod';
 
 import {
   InterchainAccountRouter__factory,
@@ -20,6 +25,7 @@ import {
   TxSubmitterType,
   type WarpCoreConfig,
   type WarpRouteDeployConfig,
+  WarpRouteDeployConfigMailboxRequiredSchema,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -30,6 +36,8 @@ import {
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
+import { getContext } from '../../../../context/context.js';
+import { runWarpRouteApply } from '../../../../deploy/warp.js';
 import {
   CustomTxSubmitterType,
   type ExtendedChainSubmissionStrategy,
@@ -57,6 +65,37 @@ import {
 } from '../../../constants.js';
 import { createMockSafeApi } from '../../commands/helpers.js';
 import { WarpTestFixture } from '../../fixtures/warp-test-fixture.js';
+
+const SAFE_TX_TYPES = {
+  SafeTx: [
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'data', type: 'bytes' },
+    { name: 'operation', type: 'uint8' },
+    { name: 'safeTxGas', type: 'uint256' },
+    { name: 'baseGas', type: 'uint256' },
+    { name: 'gasPrice', type: 'uint256' },
+    { name: 'gasToken', type: 'address' },
+    { name: 'refundReceiver', type: 'address' },
+    { name: 'nonce', type: 'uint256' },
+  ],
+};
+
+const QueueProposalSchema = z.strictObject({
+  safe: z.string(),
+  chainId: z.union([z.number(), z.string()]),
+  signatures: z.tuple([z.string()]),
+  to: z.string(),
+  value: z.string(),
+  data: z.string(),
+  operation: z.number(),
+  safeTxGas: z.string(),
+  baseGas: z.string(),
+  gasPrice: z.string(),
+  gasToken: z.string(),
+  refundReceiver: z.string(),
+  nonce: z.union([z.number(), z.string()]),
+});
 
 describe('hyperlane warp apply with submitters', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -985,6 +1024,174 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(output.text()).not.to.include(
         'Error in submitWarpApplyTransactions Error:',
       );
+    });
+
+    it('proposes a signed transaction to the hosted Safe Queue Service', async () => {
+      const { CHAIN_NAME_2: chain2, CHAIN_NAME_3: chain3 } =
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum;
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[chain3].owner = safeAddress;
+      await deployAndExportWarpRoute();
+      warpDeployConfig[chain3].destinationGas = { [chain2DomainId]: '100000' };
+
+      const strategy: ChainSubmissionStrategy = {
+        [chain3]: {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_SAFE,
+            chain: chain3,
+            safeAddress,
+          },
+        },
+      };
+      writeYamlOrJson(SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH, strategy);
+
+      const key = { [ProtocolType.Ethereum]: HYP_KEY_BY_PROTOCOL.ethereum };
+      const context = await getContext({
+        registryUris: [REGISTRY_PATH],
+        key,
+        skipConfirmation: true,
+      });
+      context.multiProvider.setSigners({
+        [chain2]: chain2Signer,
+        [chain3]: chain3Signer,
+      });
+      const metadata = context.multiProvider.getChainMetadata(chain3);
+      const gateway = 'https://api.safe.global';
+      const txServicePrefix = `/tx-service/${chain3}`;
+      const queuePath = '/queue/api/v1/multisig-transactions';
+      metadata.gnosisSafeTransactionServiceUrl = `${gateway}${txServicePrefix}`;
+      metadata.gnosisSafeApiKey = 'safe-queue-test';
+
+      const sandbox = createSandbox();
+      const httpsRequest = https.request;
+      const originalFetch = globalThis.fetch;
+      let proposalCount = 0;
+
+      try {
+        // API Kit uses node-fetch for Safe metadata. Route only that request
+        // to the legacy fixture so all queue operations must use the new API.
+        sandbox
+          .stub(https, 'request')
+          .callsFake(
+            (
+              input: string | URL | https.RequestOptions,
+              options?:
+                | https.RequestOptions
+                | ((res: http.IncomingMessage) => void),
+              callback?: (res: http.IncomingMessage) => void,
+            ) => {
+              const request =
+                typeof input === 'string' || input instanceof URL
+                  ? {
+                      ...urlToHttpOptions(new URL(input)),
+                      ...(typeof options === 'object' ? options : undefined),
+                    }
+                  : input;
+              const onResponse =
+                typeof options === 'function' ? options : callback;
+              if (request.hostname !== new URL(gateway).hostname) {
+                return httpsRequest(request, onResponse);
+              }
+              const { path, method, headers } = request;
+              assert(path, 'Expected the Safe API request path');
+              expect(path.toLowerCase()).to.equal(
+                `${txServicePrefix}/api/v1/safes/${safeAddress.toLowerCase()}/`,
+              );
+              return http.request(
+                mockSafeApiServer.url,
+                { method, headers, path: path.slice(txServicePrefix.length) },
+                onResponse,
+              );
+            },
+          );
+        sandbox.stub(globalThis, 'fetch').callsFake(async (input, init) => {
+          const request = new Request(input, init);
+          const url = new URL(request.url);
+          if (url.origin !== gateway) return originalFetch(request);
+          expect(request.headers.get('authorization')).to.equal(
+            'Bearer safe-queue-test',
+          );
+
+          if (request.method === 'GET') {
+            expect(url.pathname).to.equal(`${queuePath}/queue`);
+            expect(url.searchParams.get('safes')?.toLowerCase()).to.equal(
+              `${safeAddress.toLowerCase()}:${metadata.chainId}`,
+            );
+            expect(url.searchParams.get('nonceOrder')).to.equal('desc');
+            expect(url.searchParams.get('limit')).to.equal('1');
+            return Response.json({
+              next: null,
+              results: [
+                {
+                  safe: safeAddress.toLowerCase(),
+                  safeTxHash: ethers.constants.HashZero,
+                  chainId: String(metadata.chainId),
+                  nonce: '6',
+                  to: safeAddress.toLowerCase(),
+                  value: '0',
+                  data: '0x',
+                  operation: 0,
+                  safeTxGas: '0',
+                  baseGas: '0',
+                  gasPrice: '0',
+                  gasToken: null,
+                  refundReceiver: null,
+                  txHash: null,
+                  proposer: initialOwnerAddress.toLowerCase(),
+                  proposedVia: 'OWNER',
+                  proposedBy: null,
+                  created: '2026-11-24T00:00:00Z',
+                  confirmations: [],
+                },
+              ],
+            });
+          }
+
+          expect(request.method).to.equal('POST');
+          expect(url.pathname).to.equal(queuePath);
+          const { safe, chainId, signatures, ...transaction } =
+            QueueProposalSchema.parse(await request.json());
+          expect(safe.toLowerCase()).to.equal(safeAddress.toLowerCase());
+          expect(String(chainId)).to.equal(String(metadata.chainId));
+          expect(String(transaction.nonce)).to.equal('7');
+          expect(transaction.to.toLowerCase()).to.equal(
+            getChain3WarpTokenAddress().toLowerCase(),
+          );
+          const domain = { chainId, verifyingContract: safe };
+          expect(
+            ethers.utils.verifyTypedData(
+              domain,
+              SAFE_TX_TYPES,
+              transaction,
+              signatures[0],
+            ),
+          ).to.equal(initialOwnerAddress);
+          proposalCount += 1;
+          return Response.json(
+            {
+              safeTxHash: ethers.utils._TypedDataEncoder.hash(
+                domain,
+                SAFE_TX_TYPES,
+                transaction,
+              ),
+            },
+            { status: 201 },
+          );
+        });
+
+        await runWarpRouteApply({
+          context: { ...context, key, signer: chain3Signer },
+          warpDeployConfig:
+            WarpRouteDeployConfigMailboxRequiredSchema.parse(warpDeployConfig),
+          warpCoreConfig: readYamlOrJson(WARP_CORE_CONFIG_PATH),
+          strategyUrl: SAFE_TX_BUILDER_SUBMITTER_STRATEGY_PATH,
+          receiptsDir: './generated/transactions',
+          warpRouteId: WARP_ROUTE_ID,
+        });
+        expect(proposalCount).to.equal(1);
+      } finally {
+        sandbox.restore();
+      }
     });
 
     it('should generate the JSON transaction file to be submitted to the Safe Transaction Builder', async () => {

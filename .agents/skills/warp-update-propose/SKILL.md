@@ -2,7 +2,7 @@
 name: warp-update-propose
 description:
   'Orchestrator skill that takes a warp-apply receipts directory and proposes
-  each batch to its corresponding multisig signer — Safe Transaction Service via `safes/propose-warp-batch.ts`
+  each batch to its corresponding multisig signer — Safe via `safes/propose-warp-batch.ts`
   for EVM batches (auto-detects governance context: AW / Foundation / Regular / etc.
   per filename), Squads via `squads/propose-warp-batch.ts` for SVM batches. Persists
   a per-ticket proposal summary at `~/.hyperlane/proposals/ticket-id.yaml` so the
@@ -15,7 +15,7 @@ Run AFTER `/warp-update` (Wave 5; pending) — or any other flow — has execute
 
 The heavy lifting lives in two infra scripts:
 
-- `typescript/infra/scripts/safes/propose-warp-batch.ts` — reads `combined-chainId<id>-safe<addr8>-<ts>-receipts.json`, auto-detects which governance Safe owns each batch (AW / Foundation / Regular / Irregular / oUSDT), and posts via Safe Transaction Service using the Turnkey EvmLegacyDeployer signer.
+- `typescript/infra/scripts/safes/propose-warp-batch.ts` reads `combined-chainId<id>-safe<addr8>-<ts>-receipts.json`, detects the governance Safe for each batch (AW / Foundation / Regular / Irregular / oUSDT), and signs with the Turnkey EvmLegacyDeployer. Safe-hosted chains use the Safe Queue Service. Custom deployments use their configured Safe Transaction Service.
 - `typescript/infra/scripts/squads/propose-warp-batch.ts` — reads `<chain>-file-<ts>-receipts.json`, rehydrates each tx's `transaction_base58` back into Solana `TransactionInstruction[]`, and proposes via `submitProposalToSquads` using the Turnkey SealevelDeployer signer.
 
 This skill orchestrates running both, surfaces a CONFIRM gate before any propose call lands on chain, and writes a summary the human can use to find proposals in Heimdall / Squads UI.
@@ -226,7 +226,7 @@ summary:
   totalSkipped: <n>
 ```
 
-The artifact is consumed by humans who need to track proposal signing progress. Heimdall's UI also surfaces the EVM proposals once Safe Transaction Service has them indexed; Squads UI surfaces the SVM ones.
+Use the artifact to track proposal signing progress. Heimdall surfaces EVM proposals after syncing them, and Squads surfaces SVM proposals.
 
 ---
 
@@ -238,16 +238,16 @@ Tell the user:
 >
 > Where to track signing:
 >
-> - **AW Safe + Foundation Safe proposals**: visible in Heimdall (https://hyperlane.usehaggis.com) where executioners — including Haggis — can sign + execute. Heimdall polls Safe Transaction Service periodically; allow a minute for new proposals to appear.
+> - **AW Safe + Foundation Safe proposals** appear in Heimdall (https://hyperlane.usehaggis.com), where executioners can sign and execute. Allow time for new proposals to sync.
 > - **Squads proposals**: surface in the Squads UI at https://app.squads.so/ (or chain-specific equivalent). Solana signers review + sign there.
-> - **Customer / Regular Safe proposals**: pushed to Safe Transaction Service directly. The customer signs in their own Safe app at `https://app.safe.global/transactions/queue?safe=<chain-shortname>:<safe-address>`. They'll need to import the safe in their app first if it's not already there.
+> - **Customer / Regular Safe proposals** appear in the customer's Safe app at `https://app.safe.global/transactions/queue?safe=<chain-shortname>:<safe-address>`. The customer may need to import the Safe first.
 > - **Other file batches (Cosmos / Starknet / Radix / Aleo, or an EVM `file`-routed owner like Turnkey / timelock / custom multisig)**: no auto-propose path — these were emitted as tx-file batches for manual submission. List each one (chain, owner, file path) and hand it to the owner to execute through their own signing tool; they are NOT proposed on-chain by this skill.
 
 ---
 
 ## Notes
 
-- **Side effects**: this skill POSTs proposals to Safe Transaction Service / creates Squads on-chain proposals. The actions are reversible — Safe TX Service has a delete-tx API, Squads has a cancel-proposal instruction — but human signers can move quickly. Use `--dry-run` first if anything in the inventory looks off.
-- **Idempotency**: re-running with the same receipts dir produces DUPLICATE proposals. Either delete the prior proposals (via the safes script's `safes/delete-tx.ts` or squads' `cancel-proposal.ts`) or don't re-run the same dir.
+- **Side effects** include off-chain Safe proposals and on-chain Squads proposals. Safe pending proposals can be deleted, and Squads has a cancel-proposal instruction. Use `--dry-run` if the inventory looks off.
+- **Reruns** reuse matching pending Safe proposals. Check which Squads batches were already proposed before rerunning them.
 - **No GCP secrets in this skill**: secret access happens inside the propose scripts, not at the orchestrator level. The skill just shells out.
 - **What "auto-detects governance" means**: the safes script walks every `GovernanceType` enum value, calls `getGovernanceSafes(type)[chain]`, and matches the filename's 8-hex prefix against the resolved safe. A single receipts dir can mix multiple governance contexts (router via AW, fee contracts via Foundation, etc.) — the script handles them all in one run.

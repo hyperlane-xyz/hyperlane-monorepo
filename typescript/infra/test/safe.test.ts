@@ -1,12 +1,19 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import Safe from '@safe-global/protocol-kit';
+import { OperationType, SignatureTypes } from '@safe-global/types-kit';
+import { BigNumber, ethers } from 'ethers';
+import sinon from 'sinon';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
+import { MultiProvider, SafeQueueServiceError } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
+  deleteSafeTx,
   getOwnerChanges,
   parseSafeTx,
+  retrySafeApi,
+  toProtocolKitTransaction,
   updateSafeOwner,
   wasSafeTxProposedBy,
 } from '../src/utils/safe.js';
@@ -131,6 +138,150 @@ describe('Safe Utils', () => {
           ownerC,
         ),
       ).to.be.false;
+    });
+
+    it('accepts the Queue Service submitting account', () => {
+      expect(
+        wasSafeTxProposedBy({ proposer: ownerA, proposedBy: ownerB }, ownerB),
+      ).to.equal(true);
+    });
+  });
+
+  describe('deleteSafeTx', () => {
+    it('uses the Queue signing domain and sends only the signature in the deletion body', async () => {
+      const chain = 'testchain';
+      const chainId = 1;
+      const txHash = `0x${'99'.repeat(32)}`;
+      const multiProvider = new MultiProvider({
+        [chain]: {
+          name: chain,
+          protocol: ProtocolType.Ethereum,
+          chainId,
+          domainId: chainId,
+          rpcUrls: [{ http: 'http://localhost:8545' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://api.safe.global/tx-service/eth',
+        },
+      });
+      const signature = '0x1234';
+      const signer = ethers.Wallet.createRandom();
+      const sandbox = sinon.createSandbox();
+      try {
+        sandbox.stub(multiProvider, 'getSigner').returns(signer);
+        const sign = sandbox.stub(signer, '_signTypedData').resolves(signature);
+        const request = sandbox.stub(globalThis, 'fetch');
+        request.onFirstCall().resolves(
+          new Response(
+            JSON.stringify({
+              safeTxHash: txHash,
+              safe: safeAddress,
+              chainId: String(chainId),
+              nonce: '42',
+              to: ownerA,
+              value: '0',
+              data: '0x',
+              operation: OperationType.Call,
+              safeTxGas: '0',
+              baseGas: '0',
+              gasPrice: '0',
+              gasToken: null,
+              refundReceiver: null,
+              txHash: null,
+              created: '2025-01-01T00:00:00Z',
+              proposer: signer.address,
+              proposedBy: null,
+              proposedVia: 'OWNER',
+              confirmations: [],
+            }),
+          ),
+        );
+        request.onSecondCall().resolves(new Response(null, { status: 204 }));
+
+        expect(
+          await deleteSafeTx(chain, multiProvider, safeAddress, txHash),
+        ).to.equal(true);
+        expect(sign.firstCall.args[0]).to.deep.equal({
+          name: 'Safe Queue Service',
+          version: '1.0',
+          chainId,
+          verifyingContract: safeAddress,
+        });
+        const [url, options] = request.secondCall.args;
+        expect(String(url)).to.equal(
+          `https://api.safe.global/queue/api/v1/multisig-transactions/${txHash}`,
+        );
+        expect(options?.method).to.equal('DELETE');
+        expect(JSON.parse(String(options?.body))).to.deep.equal({ signature });
+      } finally {
+        sandbox.restore();
+      }
+    });
+  });
+
+  describe('toProtocolKitTransaction', () => {
+    const tx = {
+      to: safeAddress,
+      value: '1000000000000000001',
+      data: '0x1234',
+      operation: OperationType.DelegateCall,
+      safeTxGas: '7',
+      baseGas: '8',
+      gasPrice: '9',
+      gasToken: ownerC,
+      refundReceiver: ownerD,
+      nonce: '42',
+    };
+
+    it('preserves the signed transaction fields', () => {
+      expect(toProtocolKitTransaction(tx).data).to.deep.equal({
+        ...tx,
+        nonce: 42,
+      });
+    });
+
+    it('rebases a standalone contract signature among all confirmations', () => {
+      const { hexConcat, hexDataSlice, hexZeroPad } = ethers.utils;
+      const contractSignature = hexConcat([
+        hexZeroPad(ownerA, 32),
+        hexZeroPad('0x41', 32),
+        '0x00',
+        hexZeroPad('0x02', 32),
+        '0xabcd',
+      ]);
+      const eoaSignature = `0x${'11'.repeat(65)}`;
+      const created = '2025-01-01T00:00:00Z';
+      const transaction = toProtocolKitTransaction(tx, [
+        {
+          owner: ownerB,
+          signature: eoaSignature,
+          signatureType: SignatureTypes.EOA,
+          created,
+        },
+        {
+          owner: ownerA,
+          signature: contractSignature,
+          signatureType: SignatureTypes.CONTRACT_SIGNATURE,
+          created,
+        },
+      ]);
+      const encoded = transaction.encodedSignatures();
+      expect(hexDataSlice(encoded, 32, 64)).to.equal(hexZeroPad('0x82', 32));
+      expect(hexDataSlice(encoded, 65, 130)).to.equal(eoaSignature);
+      expect(hexDataSlice(encoded, 162)).to.equal('0xabcd');
+    });
+  });
+
+  describe('retrySafeApi', () => {
+    it('returns terminal Queue Service errors without retrying', async () => {
+      let attempts = 0;
+      await expectRejection(
+        retrySafeApi(async () => {
+          attempts += 1;
+          throw new SafeQueueServiceError(422, 'Invalid proposal');
+        }),
+        'Invalid proposal',
+      );
+      expect(attempts).to.equal(1);
     });
   });
 

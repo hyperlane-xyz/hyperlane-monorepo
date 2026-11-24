@@ -9,6 +9,7 @@ import {
   MultiProvider,
   TurnkeyEvmSigner,
   getSafe,
+  getSafeQueueService,
   getSafeService,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -18,6 +19,8 @@ import { GovernanceType } from '../../src/governanceTypes.js';
 import { TurnkeyRole } from '../../src/roles.js';
 import {
   createSafeTransaction,
+  getNextSafeNonce,
+  getPendingSafeTransactions,
   isLegacySafeApi,
   proposeSafeTransaction,
   retrySafeApi,
@@ -76,6 +79,7 @@ async function proposeFile({
   const { chain, safeAddress, governanceType, receipt } = parsed;
 
   const safeService = getSafeService(chain, multiProvider);
+  const queueService = getSafeQueueService(chain, multiProvider);
   const { version } = await retrySafeApi(() => safeService.getServiceInfo());
   const legacy = await isLegacySafeApi(version);
   assert(
@@ -119,10 +123,12 @@ async function proposeFile({
   // different nonce from a prior run — record it and post nothing. This must
   // run BEFORE allocating a nonce; allocating first advances past the pending
   // proposal, yielding a fresh hash that would re-post a duplicate.
-  const pending = await retrySafeApi(() =>
-    safeService.getPendingTransactions(safeAddress),
+  const pending = await getPendingSafeTransactions(
+    safeService,
+    queueService,
+    safeAddress,
   );
-  const match = findMatchingPendingProposal(desiredPayload, pending.results);
+  const match = findMatchingPendingProposal(desiredPayload, pending);
   if (match) {
     rootLogger.info(
       chalk.gray(
@@ -135,7 +141,14 @@ async function proposeFile({
     };
   }
 
-  const nonce = await allocateNonce({ chain, safeAddress, safeService });
+  const nonce = await allocateNonce({
+    chain,
+    safeAddress,
+    safeService: {
+      getNextNonce: (address) =>
+        getNextSafeNonce(safeService, queueService, address),
+    },
+  });
   const safeTransaction = await createSafeTransaction(
     safeSdk,
     txData,
@@ -156,7 +169,7 @@ async function proposeFile({
   await proposeSafeTransaction(
     chain,
     safeSdk,
-    safeService,
+    queueService ?? safeService,
     safeTransaction,
     safeAddress,
     turnkeySigner,
