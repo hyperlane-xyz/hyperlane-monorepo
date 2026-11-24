@@ -5,7 +5,15 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { AEVO_PROD_OWNERS, AEVO_STAGING_OWNERS, AevoOwners } from './aevo.js';
+import {
+  AEVO_PROD_OWNERS,
+  AEVO_ROUTER_XERC20_LIMITS,
+  AEVO_STAGING_OWNERS,
+  AEVO_WETH_LIMITS,
+  AevoChain,
+  AevoOwners,
+  applyAevoSecurity,
+} from './aevo.js';
 import { getCollateralTokenConfigForChain } from './utils.js';
 
 const WETH_COLLATERAL_BY_CHAIN: ChainMap<Address> = {
@@ -23,30 +31,46 @@ function buildAevoWETHWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   ownersByChain: AevoOwners,
 ): ChainMap<HypTokenRouterConfig> {
+  const withSecurity = (
+    chain: AevoChain,
+    leg: HypTokenRouterConfig,
+  ): HypTokenRouterConfig =>
+    applyAevoSecurity(leg, chain, ownersByChain, AEVO_WETH_LIMITS);
+
   return {
-    aevo: {
+    aevo: withSecurity('aevo', {
       type: TokenType.XERC20,
       token: tokens.aevo.WETH,
       mailbox: routerConfig.aevo.mailbox,
       owner: ownersByChain.aevo,
-    },
-    optimism: getCollateralTokenConfigForChain(
+      xERC20: { warpRouteLimits: AEVO_ROUTER_XERC20_LIMITS },
+    }),
+    optimism: withSecurity(
       'optimism',
-      routerConfig,
-      ownersByChain,
-      WETH_COLLATERAL_BY_CHAIN,
+      getCollateralTokenConfigForChain(
+        'optimism',
+        routerConfig,
+        ownersByChain,
+        WETH_COLLATERAL_BY_CHAIN,
+      ),
     ),
-    arbitrum: getCollateralTokenConfigForChain(
+    arbitrum: withSecurity(
       'arbitrum',
-      routerConfig,
-      ownersByChain,
-      WETH_COLLATERAL_BY_CHAIN,
+      getCollateralTokenConfigForChain(
+        'arbitrum',
+        routerConfig,
+        ownersByChain,
+        WETH_COLLATERAL_BY_CHAIN,
+      ),
     ),
-    base: getCollateralTokenConfigForChain(
+    base: withSecurity(
       'base',
-      routerConfig,
-      ownersByChain,
-      WETH_COLLATERAL_BY_CHAIN,
+      getCollateralTokenConfigForChain(
+        'base',
+        routerConfig,
+        ownersByChain,
+        WETH_COLLATERAL_BY_CHAIN,
+      ),
     ),
   };
 }
