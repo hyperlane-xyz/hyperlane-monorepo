@@ -3,7 +3,12 @@ import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
 import type { PredicateAttestation } from '../../predicate/PredicateApiClient.js';
-import { TokenMetadata } from '../types.js';
+import {
+  TokenMetadata,
+  XERC20AevoCapType,
+  XERC20AevoLimitConfig,
+  XERC20Type,
+} from '../types.js';
 
 export interface TransferParams {
   weiAmountOrId: Numberish;
@@ -76,6 +81,29 @@ export interface xERC20Limits {
 export interface AevoMintAuthority {
   authorized: boolean;
   cap: bigint;
+}
+
+/**
+ * The only place where what an Aevo token holds is mapped to the limits this
+ * SDK reports: a minter that is not authorized is reported without a cap,
+ * whatever cap the token keeps for it, and an authorized one whose cap is zero
+ * is not bound.
+ */
+export function toAevoLimits(
+  authority: AevoMintAuthority,
+): XERC20AevoLimitConfig {
+  if (!authority.authorized) {
+    return { type: XERC20Type.Aevo, authorized: false };
+  }
+
+  return {
+    type: XERC20Type.Aevo,
+    authorized: true,
+    cap:
+      authority.cap === 0n
+        ? { type: XERC20AevoCapType.Unlimited }
+        : { type: XERC20AevoCapType.Raw, value: authority.cap.toString() },
+  };
 }
 
 export interface ITokenAdapter<Tx> {

@@ -8,6 +8,7 @@ import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js'
 import { blockAt, stubAevoChainThatMoves } from '../../test/aevoChainStubs.js';
 import { AEVO_SELECTORS, abiWord } from '../../test/aevoTokenFixture.js';
 import { isMissingSelectorRevert } from '../../utils/contract.js';
+import { AEVO_OUTSTANDING_SELECTOR } from '../xerc20-abi.js';
 
 import { EvmXERC20AevoAdapter } from './EvmTokenAdapter.js';
 import { AevoMintAuthority } from './ITokenAdapter.js';
@@ -22,6 +23,7 @@ const AUTHORITIES = AEVO_SELECTORS.authorities;
 const CAPS = AEVO_SELECTORS.caps;
 const UPDATE_AUTHORITY = AEVO_SELECTORS.updateAuthority;
 const SET_CAP = AEVO_SELECTORS.setCap;
+const OUTSTANDING = AEVO_OUTSTANDING_SELECTOR;
 
 describe('EvmXERC20AevoAdapter', () => {
   let sandbox: sinon.SinonSandbox;
@@ -334,6 +336,59 @@ describe('EvmXERC20AevoAdapter', () => {
         `Missing the latest block of ${test1.name}`,
       );
       expect(call.notCalled).to.equal(true);
+    });
+  });
+
+  describe('getOutstanding', () => {
+    it('reads what a minter has minted and not burned, at the block asked for', async () => {
+      const call = sandbox
+        .stub(adapter.getProvider(), 'call')
+        .resolves(ensure0x(word(105n)));
+
+      expect(await adapter.getOutstanding(MINTER, 1234)).to.equal(105n);
+
+      sinon.assert.calledOnceWithExactly(
+        call,
+        { to: TOKEN, data: `${OUTSTANDING}${word(MINTER)}` },
+        1234,
+      );
+    });
+
+    it('reads a count beyond 2^64', async () => {
+      sandbox
+        .stub(adapter.getProvider(), 'call')
+        .resolves(ensure0x(word(2n ** 100n)));
+
+      expect(await adapter.getOutstanding(MINTER)).to.equal(2n ** 100n);
+    });
+
+    for (const c of revertCases) {
+      it(`does not read ${c.name} as a count`, async () => {
+        sandbox.stub(adapter.getProvider(), 'call').resolves(c.data);
+
+        let thrown: unknown;
+        try {
+          await adapter.getOutstanding(MINTER);
+        } catch (error) {
+          thrown = error;
+        }
+
+        expect(thrown).to.have.property('code', 'CALL_EXCEPTION');
+        expect(thrown).to.have.property('data', c.data);
+      });
+    }
+
+    it('reads empty return data as a missing getter, not as a count of zero', async () => {
+      sandbox.stub(adapter.getProvider(), 'call').resolves('0x');
+
+      let thrown: unknown;
+      try {
+        await adapter.getOutstanding(MINTER);
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(isMissingSelectorRevert(thrown)).to.equal(true);
     });
   });
 

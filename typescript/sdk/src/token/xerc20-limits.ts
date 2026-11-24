@@ -18,6 +18,7 @@ import {
 import {
   AevoMintAuthority,
   RateLimitMidPoint,
+  toAevoLimits,
   xERC20Limits,
 } from './adapters/ITokenAdapter.js';
 import {
@@ -77,27 +78,6 @@ export function toVeloLimits(rateLimits: RateLimitMidPoint): VeloXERC20Limits {
     type: XERC20Type.Velo,
     bufferCap: rateLimits.bufferCap.toString(),
     rateLimitPerSecond: rateLimits.rateLimitPerSecond.toString(),
-  };
-}
-
-/**
- * The only place where what an Aevo token holds is mapped to the limits this
- * SDK reports: a minter that is not authorized is reported without a cap,
- * whatever cap the token keeps for it, and an authorized one whose cap is zero
- * is not bound.
- */
-export function toAevoLimits(authority: AevoMintAuthority): AevoXERC20Limits {
-  if (!authority.authorized) {
-    return { type: XERC20Type.Aevo, authorized: false };
-  }
-
-  return {
-    type: XERC20Type.Aevo,
-    authorized: true,
-    cap:
-      authority.cap === 0n
-        ? { type: XERC20AevoCapType.Unlimited }
-        : { type: XERC20AevoCapType.Raw, value: authority.cap.toString() },
   };
 }
 

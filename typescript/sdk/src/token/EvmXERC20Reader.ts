@@ -20,6 +20,7 @@ import { throwIfNotMissingSelector } from '../utils/contract.js';
 import {
   AevoMintAuthority,
   RateLimitMidPoint,
+  toAevoLimits,
   xERC20Limits,
 } from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
@@ -30,7 +31,6 @@ import {
   VeloXERC20Limits,
   XERC20LimitsMap,
   readXERC20Limits,
-  toAevoLimits,
   toStandardLimits,
   toVeloLimits,
 } from './xerc20-limits.js';

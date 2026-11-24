@@ -23,5 +23,6 @@ export function createEvmHypAdapter(
       TokenStandard.EvmHypXERC20Lockbox,
       TokenStandard.EvmHypVSXERC20Lockbox,
     ],
+    hypAevoXerc20: TokenStandard.EvmHypAevoXERC20,
   });
 }

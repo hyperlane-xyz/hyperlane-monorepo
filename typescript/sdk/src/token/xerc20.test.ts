@@ -22,6 +22,7 @@ import {
   aevoUsdcImplementationSlotValue,
 } from '../test/aevoTokenFixture.js';
 
+import { TokenStandard } from './TokenStandard.js';
 import { XERC20TokenExtraBridgesLimits, XERC20Type } from './types.js';
 import {
   AEVO_XERC20_SELECTORS,
@@ -31,6 +32,7 @@ import {
 } from './xerc20-abi.js';
 import {
   UnknownXERC20TypeError,
+  deriveEvmXERC20Standard,
   deriveXERC20TokenType,
   getExtraLockBoxConfigs,
   latestConfigurationPerBridge,
@@ -233,6 +235,34 @@ const cases: Case[] = [
   },
 ];
 
+// Answers the code and storage reads of the case, and throws for any other.
+function stubChain(
+  sandbox: sinon.SinonSandbox,
+  multiProvider: MultiProvider,
+  c: Case,
+): void {
+  const provider = multiProvider.getProvider(TestChainName.test1);
+
+  sandbox.stub(provider, 'getCode').callsFake(async (addressOrName) => {
+    const target = await addressOrName;
+    const code = c.code[target];
+    if (code === undefined) {
+      throw new Error(`Unexpected getCode call for ${target}`);
+    }
+    return code;
+  });
+  sandbox
+    .stub(provider, 'getStorageAt')
+    .callsFake(async (_addressOrName, position) => {
+      const slot = await position;
+      const value = typeof slot === 'string' ? c.storage[slot] : undefined;
+      if (value === undefined) {
+        throw new Error(`Unexpected getStorageAt call for slot ${slot}`);
+      }
+      return value;
+    });
+}
+
 describe('deriveXERC20TokenType', () => {
   let sandbox: sinon.SinonSandbox;
   let multiProvider: MultiProvider;
@@ -248,26 +278,7 @@ describe('deriveXERC20TokenType', () => {
 
   for (const c of cases) {
     it(c.name, async () => {
-      const provider = multiProvider.getProvider(TestChainName.test1);
-
-      sandbox.stub(provider, 'getCode').callsFake(async (addressOrName) => {
-        const target = await addressOrName;
-        const code = c.code[target];
-        if (code === undefined) {
-          throw new Error(`Unexpected getCode call for ${target}`);
-        }
-        return code;
-      });
-      sandbox
-        .stub(provider, 'getStorageAt')
-        .callsFake(async (_addressOrName, position) => {
-          const slot = await position;
-          const value = typeof slot === 'string' ? c.storage[slot] : undefined;
-          if (value === undefined) {
-            throw new Error(`Unexpected getStorageAt call for slot ${slot}`);
-          }
-          return value;
-        });
+      stubChain(sandbox, multiProvider, c);
 
       if ('type' in c.expected) {
         const type = await deriveXERC20TokenType(
@@ -291,6 +302,55 @@ describe('deriveXERC20TokenType', () => {
         }
         expect(error).to.be.instanceOf(Error);
         expect(error?.message).to.include(c.expected.errorIncludes);
+      }
+    });
+  }
+});
+
+describe('deriveEvmXERC20Standard', () => {
+  let sandbox: sinon.SinonSandbox;
+  let multiProvider: MultiProvider;
+
+  beforeEach(() => {
+    sandbox = sinon.createSandbox();
+    multiProvider = MultiProvider.createTestMultiProvider();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  const standardOf: Record<XERC20Type, TokenStandard> = {
+    [XERC20Type.Standard]: TokenStandard.EvmHypXERC20,
+    [XERC20Type.Velo]: TokenStandard.EvmHypVSXERC20,
+    [XERC20Type.Aevo]: TokenStandard.EvmHypAevoXERC20,
+  };
+
+  // The standard follows the type of the token, and a token of no known type
+  // keeps the standard of an xERC20 router instead of failing the export. A
+  // token that cannot be read at all is no answer, and is rejected.
+  function expectedStandard(c: Case): TokenStandard | undefined {
+    if ('type' in c.expected) return standardOf[c.expected.type];
+    return c.expected.errorIncludes.includes('no bytecode')
+      ? undefined
+      : TokenStandard.EvmHypXERC20;
+  }
+
+  for (const c of cases) {
+    const expected = expectedStandard(c);
+
+    it(`${c.name}: ${expected ?? 'is rejected'}`, async () => {
+      stubChain(sandbox, multiProvider, c);
+      const derive = deriveEvmXERC20Standard(
+        multiProvider,
+        TestChainName.test1,
+        c.address ?? PROXY_ADDRESS,
+      );
+
+      if (expected === undefined) {
+        await expect(derive).to.be.rejectedWith('Contract has no bytecode');
+      } else {
+        expect(await derive).to.equal(expected);
       }
     });
   }

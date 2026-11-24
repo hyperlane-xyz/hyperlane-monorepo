@@ -814,6 +814,7 @@ export {
   CwTokenAdapter,
 } from './token/adapters/CosmWasmTokenAdapter.js';
 export {
+  EvmHypAevoXERC20Adapter,
   EvmHypCollateralAdapter,
   EvmMovableCollateralAdapter,
   EvmHypNativeAdapter,
@@ -1033,11 +1034,13 @@ export {
 export {
   UnknownXERC20TypeError,
   deriveBridgesConfig,
+  deriveEvmXERC20Standard,
   deriveStandardBridgesConfig,
   deriveXERC20TokenType,
   getExtraLockBoxConfigs,
 } from './token/xerc20.js';
 export {
+  AEVO_OUTSTANDING_SELECTOR,
   CONFIGURATION_CHANGED_EVENT_SELECTOR,
   XERC20_AEVO_ABI,
   XERC20_VS_ABI,

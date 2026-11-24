@@ -55,6 +55,7 @@ import {
   isZeroishAddress,
   normalizeAddress,
   strip0x,
+  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
@@ -68,8 +69,12 @@ import {
   isValidContractVersion,
   throwIfNotMissingSelector,
 } from '../../utils/contract.js';
-import { TokenMetadata } from '../types.js';
-import { XERC20_AEVO_ABI } from '../xerc20-abi.js';
+import {
+  TokenMetadata,
+  XERC20AevoCapType,
+  XERC20AevoLimitConfig,
+} from '../types.js';
+import { AEVO_OUTSTANDING_SELECTOR, XERC20_AEVO_ABI } from '../xerc20-abi.js';
 
 import {
   AevoMintAuthority,
@@ -88,6 +93,7 @@ import {
   RateLimitMidPoint,
   TransferParams,
   TransferRemoteParams,
+  toAevoLimits,
   xERC20Limits,
 } from './ITokenAdapter.js';
 import { buildBlockTagOverrides } from './utils.js';
@@ -1345,6 +1351,119 @@ export class EvmHypVSXERC20Adapter
   }
 }
 
+/**
+ * Adapter for a HypXERC20 router over an Aevo token, which keeps for each minter
+ * an authority, a cap and a count of what the minter has minted and not burned.
+ * A mint raises the count and is refused beyond the cap, unless the cap is zero,
+ * a burn lowers it and is refused beyond it, and both are refused for a minter
+ * without authority. The limits of the router are what that comes to:
+ * - Not authorized: 0 for the four.
+ * - Authorized without a cap: the largest uint256 for the mint limit and for
+ *   both maximums, and the count for the burn limit.
+ * - Authorized with a cap: the cap for both maximums, what is left of it, 0 once
+ *   the count is beyond it, for the mint limit, and the count for the burn limit.
+ *
+ * What the router has bridged is its count, not the supply of the token: the
+ * minters other than the router have minted the rest of it. The count is read
+ * through the getter whose selector the token carries, which answers its
+ * mapping at storage slot 11. It is no documented interface, so a token that
+ * changes it breaks this.
+ */
+export class EvmHypAevoXERC20Adapter
+  extends EvmHypCollateralAdapter
+  implements IHypXERC20Adapter<PopulatedTransaction>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProviderAdapter,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  /**
+   * What the token holds for this router, as AevoXERC20Limits states it.
+   */
+  async getAevoLimits(): Promise<XERC20AevoLimitConfig> {
+    const token = await this.getAevoToken();
+
+    return toAevoLimits(await token.getMintAuthority(this.addresses.token));
+  }
+
+  async getMintLimit(): Promise<bigint> {
+    return (await this.getLimits()).mint;
+  }
+
+  async getMintMaxLimit(): Promise<bigint> {
+    return (await this.getLimits()).mintMax;
+  }
+
+  async getBurnLimit(): Promise<bigint> {
+    return (await this.getLimits()).burn;
+  }
+
+  async getBurnMaxLimit(): Promise<bigint> {
+    return (await this.getLimits()).burnMax;
+  }
+
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
+    const token = await this.getAevoToken();
+
+    return token.getOutstanding(this.addresses.token, options?.blockTag);
+  }
+
+  private async getAevoToken(): Promise<EvmXERC20AevoAdapter> {
+    return new EvmXERC20AevoAdapter(this.chainName, this.multiProvider, {
+      token: await this.getWrappedTokenAddress(),
+    });
+  }
+
+  private async getLimits(): Promise<{
+    mint: bigint;
+    mintMax: bigint;
+    burn: bigint;
+    burnMax: bigint;
+  }> {
+    const token = await this.getAevoToken();
+    const [authority, outstanding] = await Promise.all([
+      token.getMintAuthority(this.addresses.token),
+      token.getOutstanding(this.addresses.token),
+    ]);
+    const limits = toAevoLimits(authority);
+
+    if (!limits.authorized) {
+      return { mint: 0n, mintMax: 0n, burn: 0n, burnMax: 0n };
+    }
+
+    switch (limits.cap.type) {
+      case XERC20AevoCapType.Unlimited:
+        return {
+          mint: UIN256_MAX_VALUE,
+          mintMax: UIN256_MAX_VALUE,
+          burn: outstanding,
+          burnMax: UIN256_MAX_VALUE,
+        };
+      case XERC20AevoCapType.Raw: {
+        const cap = BigInt(limits.cap.value);
+        return {
+          mint: cap > outstanding ? cap - outstanding : 0n,
+          mintMax: cap,
+          burn: outstanding,
+          burnMax: cap,
+        };
+      }
+      default: {
+        const exhaustiveCheck: never = limits.cap;
+        throw new Error(
+          `Unknown Aevo cap: ${stringifyObject(exhaustiveCheck, 'json')}`,
+        );
+      }
+    }
+  }
+}
+
 // Interacts HypNative contracts
 export class EvmHypNativeAdapter
   extends EvmMovableCollateralAdapter
@@ -1553,6 +1672,13 @@ export class EvmXERC20VSAdapter
 // for a uint256 whenever the revert data happens to be word sized.
 const AEVO_INTERFACE = new utils.Interface(XERC20_AEVO_ABI);
 
+// Only decodes the answer of the getter of what a minter has outstanding, for
+// the same reason. The name is not the token's, which is not known: its call
+// data is built from its selector.
+const AEVO_OUTSTANDING_INTERFACE = new utils.Interface([
+  'function outstanding(address minter) view returns (uint256)',
+]);
+
 // Interacts with Aevo tokens, which hold a mint authority and a cap for each
 // minter in place of the Standard or Velodrome xERC20 limits
 export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
@@ -1608,6 +1734,31 @@ export class EvmXERC20AevoAdapter extends EvmTokenAdapter {
         cap,
       ]),
     };
+  }
+
+  /**
+   * What the minter has minted and not burned: a mint is refused beyond the cap
+   * by it, and a burn beyond it.
+   */
+  async getOutstanding(
+    minter: Address,
+    blockTag?: number | EthJsonRpcBlockParameterTag,
+  ): Promise<bigint> {
+    const [outstanding]: readonly unknown[] =
+      AEVO_OUTSTANDING_INTERFACE.decodeFunctionResult(
+        'outstanding',
+        await this.call(
+          `${AEVO_OUTSTANDING_SELECTOR}${strip0x(
+            utils.defaultAbiCoder.encode(['address'], [toEvmAddress(minter)]),
+          )}`,
+          blockTag,
+        ),
+      );
+    assert(
+      BigNumber.isBigNumber(outstanding),
+      `Expected a uint256 outstanding of ${minter} from ${this.addresses.token} on chain ${this.chainName}`,
+    );
+    return outstanding.toBigInt();
   }
 
   // Not getBlockNumber, which a provider never reports below the highest block

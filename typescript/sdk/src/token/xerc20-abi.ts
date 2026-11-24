@@ -108,6 +108,15 @@ export const XERC20_AEVO_ABI = parseAbi([
 ]);
 
 /**
+ * The selector of the getter that answers what a minter has minted and not
+ * burned, which is what the token compares a mint to the cap with and a burn to.
+ * The source of the token is not published, so it is known by its selector
+ * alone, and it is not among the selectors that identify an Aevo token. It
+ * answers the mapping the token keeps at storage slot 11, a single uint256 word.
+ */
+export const AEVO_OUTSTANDING_SELECTOR = '0x963aee20';
+
+/**
  * The selectors that identify an Aevo token: every one of them is part of the
  * limit surface the SDK reads and writes, so a token carrying all four can be
  * managed and one missing any cannot. The owner functions are not among them.

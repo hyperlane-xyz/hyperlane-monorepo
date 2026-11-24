@@ -20,7 +20,11 @@ import type { ChainMap } from '../types.js';
 import { TokenArgs } from './IToken.js';
 import { Token } from './Token.js';
 import { TokenConnectionType } from './TokenConnection.js';
-import { TokenStandard } from './TokenStandard.js';
+import {
+  LOCKBOX_STANDARDS,
+  MINT_LIMITED_STANDARDS,
+  TokenStandard,
+} from './TokenStandard.js';
 import { SealevelHypNativeAdapter } from './adapters/SealevelTokenAdapter.js';
 
 // null values represent TODOs here, ideally all standards should be tested
@@ -123,6 +127,14 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.EvmHypVSXERC20Lockbox]: {
     chainName: TestChainName.test2,
     standard: TokenStandard.EvmHypVSXERC20Lockbox,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.EvmHypAevoXERC20]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHypAevoXERC20,
     addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
     decimals: 6,
     symbol: 'USDC',
@@ -300,6 +312,17 @@ const STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
   [TokenStandard.CwHypNative]: 'inj1fl48vsnmsdzcv85q5d2q4z5ajdha8yu3lj7tt0',
 };
 
+function xerc20Router(standard: TokenStandard): Token {
+  return new Token({
+    chainName: TestChainName.test2,
+    standard,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  });
+}
+
 describe('Token', () => {
   function createMailboxTestMetadata(): ChainMap<
     ChainMetadata<{ mailbox?: string }>
@@ -347,6 +370,17 @@ describe('Token', () => {
       sandbox.restore();
     });
   }
+
+  it('treats the router of an Aevo token as a mint limited xERC20 hyp router, neither collateralized nor a lockbox', () => {
+    const token = xerc20Router(TokenStandard.EvmHypAevoXERC20);
+
+    expect(token.isXerc20()).to.equal(true);
+    expect(token.isHypToken()).to.equal(true);
+    expect(token.isMultiChainToken()).to.equal(true);
+    expect(token.isCollateralized()).to.equal(false);
+    expect(LOCKBOX_STANDARDS.includes(token.standard)).to.equal(false);
+    expect(MINT_LIMITED_STANDARDS.includes(token.standard)).to.equal(true);
+  });
 
   it('rejects user adapters for atomic local rebalancing bridges', () => {
     const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider(
@@ -457,6 +491,45 @@ describe('Token', () => {
       const adapter = tronNativeToken.getHypAdapter(multiProvider);
       expect(adapter.constructor.name).to.eql('EvmHypNativeAdapter');
     });
+
+    interface XERC20AdapterCase {
+      standard: TokenStandard;
+      adapterName: string;
+    }
+
+    const xerc20AdapterCases: XERC20AdapterCase[] = [
+      {
+        standard: TokenStandard.EvmHypXERC20,
+        adapterName: 'EvmHypXERC20Adapter',
+      },
+      // The Velodrome standard has no adapter of its own.
+      {
+        standard: TokenStandard.EvmHypVSXERC20,
+        adapterName: 'EvmHypXERC20Adapter',
+      },
+      {
+        standard: TokenStandard.EvmHypXERC20Lockbox,
+        adapterName: 'EvmHypXERC20LockboxAdapter',
+      },
+      {
+        standard: TokenStandard.EvmHypAevoXERC20,
+        adapterName: 'EvmHypAevoXERC20Adapter',
+      },
+    ];
+
+    for (const c of xerc20AdapterCases) {
+      it(`returns ${c.adapterName} for ${c.standard}`, () => {
+        const multiProvider =
+          MultiProtocolProvider.createTestMultiProtocolProvider(
+            createMailboxTestMetadata(),
+          );
+        const token = xerc20Router(c.standard);
+
+        expect(token.getHypAdapter(multiProvider).constructor.name).to.eql(
+          c.adapterName,
+        );
+      });
+    }
 
     it('throws for EvmNative without connections', () => {
       const multiProvider =

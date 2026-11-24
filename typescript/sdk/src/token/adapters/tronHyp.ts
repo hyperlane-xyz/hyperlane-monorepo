@@ -23,5 +23,6 @@ export function createTronHypAdapter(
       TokenStandard.TronHypXERC20Lockbox,
       TokenStandard.TronHypVSXERC20Lockbox,
     ],
+    hypAevoXerc20: undefined,
   });
 }

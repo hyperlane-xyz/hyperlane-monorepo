@@ -8,6 +8,7 @@ import {
   assert,
   bytes32ToAddress,
   eqAddress,
+  isNullish,
   normalizeAddress,
   rootLogger,
   strip0x,
@@ -21,6 +22,7 @@ import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
+import { EVM_TOKEN_TYPE_TO_STANDARD, TokenStandard } from './TokenStandard.js';
 import { TokenType } from './config.js';
 import {
   WarpRouteDeployConfig,
@@ -555,11 +557,18 @@ export class UnknownXERC20TypeError extends Error {
   }
 }
 
-export async function deriveXERC20TokenType(
+/**
+ * The type whose limit interface the bytecode of the token, or of the EIP-1967
+ * implementation behind it, carries, or undefined when it carries none of them.
+ *
+ * Only that answer is undefined: an address without bytecode and a failure to
+ * read it throw, as neither says anything of the contract.
+ */
+async function detectXERC20Type(
   multiProvider: MultiProvider,
   chain: ChainNameOrId,
   address: Address,
-): Promise<XERC20Type> {
+): Promise<XERC20Type | undefined> {
   const provider = multiProvider.getProvider(chain);
   let normalizedCode = (await provider.getCode(address)).toLowerCase();
   if (normalizedCode === '0x') {
@@ -615,8 +624,46 @@ export async function deriveXERC20TokenType(
     return XERC20Type.Aevo;
   }
 
-  // No type detected
-  throw new UnknownXERC20TypeError(
-    `Unable to detect XERC20 type for ${address}. Contract does not implement Standard, Velodrome or Aevo XERC20 interface.`,
-  );
+  return undefined;
+}
+
+export async function deriveXERC20TokenType(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  address: Address,
+): Promise<XERC20Type> {
+  const type = await detectXERC20Type(multiProvider, chain, address);
+  if (isNullish(type)) {
+    throw new UnknownXERC20TypeError(
+      `Unable to detect XERC20 type for ${address}. Contract does not implement Standard, Velodrome or Aevo XERC20 interface.`,
+    );
+  }
+
+  return type;
+}
+
+// A Standard token, like a token of no known type, keeps the standard that
+// tokenTypeToStandard gives an xERC20 router. The other types have a standard of
+// their own.
+const EVM_XERC20_TYPE_TO_STANDARD: Record<XERC20Type, TokenStandard> = {
+  [XERC20Type.Standard]: EVM_TOKEN_TYPE_TO_STANDARD[TokenType.XERC20],
+  [XERC20Type.Velo]: TokenStandard.EvmHypVSXERC20,
+  [XERC20Type.Aevo]: TokenStandard.EvmHypAevoXERC20,
+};
+
+/**
+ * The standard of an EVM router over the xERC20 token at the address: the one
+ * `tokenTypeToStandard` gives an xERC20 router for a Standard token or one of
+ * no known type, and the standard of its own for a Velodrome or Aevo token.
+ */
+export async function deriveEvmXERC20Standard(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
+  xERC20Address: Address,
+): Promise<TokenStandard> {
+  const type = await detectXERC20Type(multiProvider, chain, xERC20Address);
+
+  return isNullish(type)
+    ? EVM_TOKEN_TYPE_TO_STANDARD[TokenType.XERC20]
+    : EVM_XERC20_TYPE_TO_STANDARD[type];
 }

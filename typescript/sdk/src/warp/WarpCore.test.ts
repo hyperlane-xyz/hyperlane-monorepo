@@ -16,6 +16,7 @@ import {
 } from '../consts/testChains.js';
 import { Address } from '@hyperlane-xyz/utils';
 
+import { UIN256_MAX_VALUE } from '../consts/numbers.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ProviderType } from '../providers/ProviderType.js';
 import { IToken } from '../token/IToken.js';
@@ -1097,6 +1098,63 @@ describe('WarpCore', () => {
         amount: 400n,
         expectSufficient: false,
       },
+      // A bare Velodrome router, the standard of the ones `warp deploy` writes,
+      // is clamped to half of its maximum, 80, below its mint limit of 200.
+      {
+        name: 'VS xERC20 allows an amount up to half of its maximum',
+        originStandard: TokenStandard.EvmHypVSXERC20,
+        destStandard: TokenStandard.EvmHypVSXERC20,
+        originScale: 1,
+        destScale: 1,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 80n,
+        expectSufficient: true,
+      },
+      {
+        name: 'VS xERC20 rejects an amount between half of its maximum and its mint limit',
+        originStandard: TokenStandard.EvmHypVSXERC20,
+        destStandard: TokenStandard.EvmHypVSXERC20,
+        originScale: 1,
+        destScale: 1,
+        mintLimit: 200n,
+        bufferCap: 160n,
+        amount: 81n,
+        expectSufficient: false,
+      },
+      // An Aevo router is limited by its mint limit alone, as a Standard one:
+      // its maximum does not clamp it as it clamps a Velodrome one.
+      {
+        name: 'Aevo router that is not authorized rejects any amount',
+        originStandard: TokenStandard.EvmHypAevoXERC20,
+        destStandard: TokenStandard.EvmHypAevoXERC20,
+        originScale: 1,
+        destScale: 1,
+        mintLimit: 0n,
+        amount: 1n,
+        expectSufficient: false,
+      },
+      {
+        name: 'Aevo router without a cap accepts the largest amount',
+        originStandard: TokenStandard.EvmHypAevoXERC20,
+        destStandard: TokenStandard.EvmHypAevoXERC20,
+        originScale: 1,
+        destScale: 1,
+        mintLimit: UIN256_MAX_VALUE,
+        amount: 10n ** 30n,
+        expectSufficient: true,
+      },
+      {
+        name: 'Aevo router is not clamped to half of its maximum',
+        originStandard: TokenStandard.EvmHypAevoXERC20,
+        destStandard: TokenStandard.EvmHypAevoXERC20,
+        originScale: 1,
+        destScale: 1,
+        mintLimit: 200n,
+        bufferCap: 100n,
+        amount: 150n,
+        expectSufficient: true,
+      },
     ];
 
     for (const c of cases) {
@@ -1148,6 +1206,72 @@ describe('WarpCore', () => {
           amount: 'Rate limit exceeded on destination',
         });
       }
+    }
+  });
+
+  it('Validates Aevo origin burn limits through the xERC20 adapter', async () => {
+    interface Case {
+      name: string;
+      burnLimit: bigint;
+      amount: bigint;
+      expected: Record<string, string> | null;
+    }
+
+    const cases: Case[] = [
+      {
+        name: 'a router that has minted nothing has nothing to burn',
+        burnLimit: 0n,
+        amount: 1n,
+        expected: { amount: 'Insufficient burn limit on origin' },
+      },
+      {
+        name: 'a router can burn what it has minted',
+        burnLimit: 40n,
+        amount: 40n,
+        expected: null,
+      },
+      {
+        name: 'a router cannot burn more than it has minted',
+        burnLimit: 40n,
+        amount: 41n,
+        expected: { amount: 'Insufficient burn limit on origin' },
+      },
+    ];
+
+    for (const c of cases) {
+      const originToken = new Token({
+        chainName: test1.name,
+        standard: TokenStandard.EvmHypAevoXERC20,
+        addressOrDenom: MOCK_ADDRESS,
+        collateralAddressOrDenom: MOCK_ADDRESS,
+        decimals: 18,
+        symbol: 'TEST',
+        name: 'Test Token',
+        connections: [],
+      });
+      sinon.stub(originToken, 'getAdapter').returns(
+        asTokenAdapter({
+          getBurnLimit: sinon.stub().resolves(c.burnLimit),
+        }),
+      );
+      sinon.stub(originToken, 'getHypAdapter').returns(
+        asHypAdapter({
+          quoteTransferRemoteGas: sinon
+            .stub()
+            .resolves({ igpQuote: { amount: 0n } }),
+        }),
+      );
+
+      const warpCore = new TestWarpCore(multiProvider, [originToken]);
+
+      expect(
+        await warpCore.runValidateOriginCollateral(
+          originToken.amount(c.amount),
+          test2.name,
+          MOCK_ADDRESS,
+        ),
+        c.name,
+      ).to.deep.equal(c.expected);
     }
   });
 
