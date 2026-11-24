@@ -1953,6 +1953,43 @@ export async function retryChainSubmission(
 }
 
 /**
+ * Self-relays the message dispatched by the submitted receipts when `--relay`
+ * is set and the strategy allows it. Relay errors are logged, not thrown, so a
+ * failed relay does not re-run the already broadcast submission.
+ *
+ * @returns true when a self-relay was attempted and failed
+ */
+async function selfRelayReceipts({
+  params,
+  config,
+  receipts,
+}: {
+  params: WarpApplyParams;
+  config: ExtendedSubmissionStrategy;
+  receipts: Awaited<ReturnType<TxSubmitterBuilder<ProtocolType>['submit']>>;
+}): Promise<boolean> {
+  const canRelay = canSelfRelay(params.selfRelay ?? false, config, receipts);
+  if (!canRelay.relay) {
+    return false;
+  }
+
+  try {
+    await retryAsync(() =>
+      runSelfRelay({
+        txReceipt: canRelay.txReceipt,
+        multiProvider: params.context.multiProvider,
+        registry: params.context.registry,
+        successMessage: WarpSendLogs.SUCCESS,
+      }),
+    );
+    return false;
+  } catch (error) {
+    warnYellow(`Error when self-relaying Warp transaction`, error);
+    return true;
+  }
+}
+
+/**
  * Submits transactions for a single chain and handles receipts/self-relay.
  * Returns Safe TX Builder payloads for main and fee when dedicated submitters produced them,
  * so callers can merge payloads across chains into combined files per chain ID.
@@ -2014,6 +2051,7 @@ async function submitChainTransactions(
         splitSafeTxBuilderPayloads(transactionReceipts, mainSafeAddress);
       attempt.safePayloads.push(...mainSafePayloads);
 
+      let mainRelayFailed = false;
       if (!isSafeTxBuilderPayload(transactionReceipts)) {
         if (!isEVMLike(protocol)) {
           return;
@@ -2029,26 +2067,11 @@ async function submitChainTransactions(
           );
         }
 
-        const canRelay = canSelfRelay(
-          params.selfRelay ?? false,
+        mainRelayFailed = await selfRelayReceipts({
+          params,
           config,
-          mainReceipts,
-        );
-
-        if (canRelay.relay) {
-          try {
-            await retryAsync(() =>
-              runSelfRelay({
-                txReceipt: canRelay.txReceipt,
-                multiProvider: params.context.multiProvider,
-                registry: params.context.registry,
-                successMessage: WarpSendLogs.SUCCESS,
-              }),
-            );
-          } catch (error) {
-            warnYellow(`Error when self-relaying Warp transaction`, error);
-          }
-        }
+          receipts: mainReceipts,
+        });
       }
 
       // Runs whenever fee txs were NOT merged into the main submission: either a
@@ -2068,6 +2091,14 @@ async function submitChainTransactions(
           // Fall back to the main submitter when no dedicated feeSubmitter is
           // configured (live-broadcast strategies that opted out of merging).
           const feeSubmitter = dedicatedFeeSubmitter ?? submitter;
+          let feeConfig: ExtendedSubmissionStrategy = config;
+          if (dedicatedFeeSubmitter) {
+            assert(
+              chainStrategyEntry?.feeSubmitter,
+              `Missing feeSubmitter strategy for ${chain}`,
+            );
+            feeConfig = { submitter: chainStrategyEntry.feeSubmitter };
+          }
           const feeSafeAddressForBundle = dedicatedFeeSubmitter
             ? feeSafeAddress
             : mainSafeAddress;
@@ -2083,6 +2114,11 @@ async function submitChainTransactions(
             logGreen(
               `Fee transaction receipts for ${protocol} chain ${chain} successfully written to ${feeReceiptPath}`,
             );
+            await selfRelayReceipts({
+              params,
+              config: feeConfig,
+              receipts: feeReceipts,
+            });
           }
         } catch (error) {
           attempt.feeError =
@@ -2110,6 +2146,19 @@ async function submitChainTransactions(
           logGreen(
             `Ownership transaction receipts for ${protocol} chain ${chain} successfully written to ${ownershipReceiptPath}`,
           );
+          // Relaying the ownership transfer before the main messages are
+          // delivered would leave those messages without the owner's authority.
+          if (mainRelayFailed) {
+            warnYellow(
+              `Skipping self-relay of ownership transactions for ${chain} because the self-relay of its main transactions failed`,
+            );
+          } else {
+            await selfRelayReceipts({
+              params,
+              config,
+              receipts: ownershipReceipts,
+            });
+          }
         }
       }
     },
@@ -2339,7 +2388,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories,
     }),
-    config: submissionStrategy,
+    config: strategyToUse,
   };
 }
 

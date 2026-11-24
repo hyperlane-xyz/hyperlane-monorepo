@@ -1341,6 +1341,33 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(await readChain3DestinationGas()).to.equal(expectedGas);
     });
 
+    it('should relay the ownership transfer callRemote executed immediately by an AccessManager owned interchain account', async () => {
+      const { warpDeployConfig } =
+        await deployAccessManagerOwnedIcaWarpRoute(0);
+      const icaAddress = warpDeployConfig[CHAIN_3].owner;
+      const newOwner = Wallet.createRandom().address;
+      warpDeployConfig[CHAIN_3].owner = newOwner;
+      // Keep the ProxyAdmin owner so the token transfer is the only ownership tx
+      warpDeployConfig[CHAIN_3].proxyAdmin = { owner: icaAddress };
+      const expectedGas = '47600';
+      stageDestinationGasUpdate(warpDeployConfig, expectedGas);
+
+      const res = await applyWithAccessManagerStrategy(true);
+
+      expect(res.exitCode).to.equal(0);
+      expect(
+        readDeferredExecuteTxs(res.text(), TxSubmitterType.INTERCHAIN_ACCOUNT),
+      ).to.have.lengthOf(0);
+      const config = await evmWarpCommands.readConfig(
+        CHAIN_3,
+        WARP_CORE_CONFIG_PATH,
+      );
+      expect(config[CHAIN_3].destinationGas?.[chain2DomainId]).to.equal(
+        expectedGas,
+      );
+      expect(eqAddress(config[CHAIN_3].owner, newOwner)).to.be.true;
+    });
+
     it('should schedule through an interchain account proposer and execute through it after the delay', async () => {
       const { accessManager, warpDeployConfig } =
         await deployAccessManagerOwnedWarpRoute();
@@ -1553,6 +1580,38 @@ describe('hyperlane warp apply with submitters', async function () {
         ),
         'expected a router op targeting the warp token in the merged callRemote',
       ).to.be.true;
+    });
+
+    it('relays the separate fee callRemote of a live-broadcast ICA strategy', async () => {
+      await deployFeeRouteAndStageChange();
+
+      const res = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
+        relay: true,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(res.exitCode).to.equal(0);
+      const { tokenFee } = (
+        await evmWarpCommands.readConfig(
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+          WARP_CORE_CONFIG_PATH,
+        )
+      )[TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3];
+      assert(
+        tokenFee?.type === TokenFeeType.RoutingFee,
+        'expected a RoutingFee token fee',
+      );
+      const subFee =
+        tokenFee.feeContracts?.[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+        ];
+      assert(
+        subFee?.type === TokenFeeType.LinearFee,
+        'expected a LinearFee sub-fee',
+      );
+      expect(subFee.bps).to.equal(25);
     });
 
     it(`merges fee txs into the main ${TxSubmitterType.ACCESS_MANAGER} submission when no feeSubmitter is configured`, async () => {

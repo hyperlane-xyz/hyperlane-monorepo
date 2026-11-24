@@ -1,4 +1,8 @@
 import { expect } from 'chai';
+import { Wallet } from 'ethers';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import sinon from 'sinon';
 
 import {
@@ -7,6 +11,7 @@ import {
   type Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
+import { PartialRegistry } from '@hyperlane-xyz/registry';
 import {
   ProtocolType,
   addressToBytes32,
@@ -25,6 +30,7 @@ import {
   type IsmConfig,
   IsmType,
   LayerZeroV2ConfigMode,
+  MultiProtocolProvider,
   MultiProvider,
   OnchainHookType,
   TestChainName,
@@ -38,12 +44,18 @@ import {
   testChainMetadata,
 } from '@hyperlane-xyz/sdk';
 
-import { ExtendedSubmissionStrategySchema } from '../submitters/types.js';
+import { type WriteCommandContext } from '../context/types.js';
+import {
+  type ExtendedChainSubmissionStrategy,
+  ExtendedSubmissionStrategySchema,
+} from '../submitters/types.js';
+import { writeYamlOrJson } from '../utils/files.js';
 
 import {
   extractSafeAddressFromSubmitter,
   fullyConnectTokens,
   generateTokenConfigs,
+  getSubmitterByStrategy,
   retryChainSubmission,
   runWarpRouteApply,
   runWarpRouteCombine,
@@ -1484,5 +1496,56 @@ describe('extractSafeAddressFromSubmitter', () => {
 
   it('returns an empty string for a missing submitter', () => {
     expect(extractSafeAddressFromSubmitter(undefined)).to.equal('');
+  });
+});
+
+describe('getSubmitterByStrategy', () => {
+  let directory: string;
+
+  beforeEach(() => {
+    directory = fs.mkdtempSync(path.join(os.tmpdir(), 'warp-submitter-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(directory, { recursive: true, force: true });
+  });
+
+  it('returns the default jsonRpc config when the strategy file has no entry for the chain', async () => {
+    const strategyUrl = path.join(directory, 'strategy.yaml');
+    const strategy: ExtendedChainSubmissionStrategy = {
+      [TestChainName.test2]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: TestChainName.test2,
+        },
+      },
+    };
+    writeYamlOrJson(strategyUrl, strategy);
+
+    const context: WriteCommandContext = {
+      altVmSigners: {},
+      altVmProviders: {},
+      chainMetadata: testChainMetadata,
+      key: {},
+      multiProtocolProvider: new MultiProtocolProvider(testChainMetadata),
+      multiProvider: new MultiProvider(testChainMetadata),
+      registry: new PartialRegistry({ chainMetadata: testChainMetadata }),
+      signer: Wallet.createRandom(),
+      skipConfirmation: true,
+      supportedProtocols: [ProtocolType.Ethereum],
+    };
+
+    const { config } = await getSubmitterByStrategy({
+      chain: TestChainName.test1,
+      context,
+      strategyUrl,
+    });
+
+    expect(config).to.deep.equal({
+      submitter: {
+        chain: TestChainName.test1,
+        type: TxSubmitterType.JSON_RPC,
+      },
+    });
   });
 });

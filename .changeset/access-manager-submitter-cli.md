@@ -2,6 +2,9 @@
 '@hyperlane-xyz/cli': minor
 ---
 
-Added support for the `accessManager` submitter in submission strategies, including CLI-only submitters such as `file` as its `proposerSubmitter`, along with example strategies.
-Added `--relay` support for interchain account submitters whose `internalSubmitter` is an `accessManager` with a `jsonRpc` proposer. Self-relay is skipped when the submitted receipt dispatches no message, as when the AccessManager schedules the call.
-Added collection of Safe Transaction Builder payloads from composite `timelockController` and `accessManager` submitter results, so `warp apply` adds them to the combined Safe bundle and writes the deferred `execute` transactions to the receipts file.
+Added the `accessManager` submitter to submission strategies:
+- Any submitter, including CLI-only ones such as `file`, can be its `proposerSubmitter`.
+- `--relay` supports interchain account submitters whose `internalSubmitter` is an `accessManager` with a `jsonRpc` proposer. Receipts that dispatch no message are not relayed.
+- `warp apply --relay` also relays messages dispatched by fee and ownership transactions.
+- `warp apply` adds Safe Transaction Builder payloads from `timelockController` and `accessManager` results to the combined Safe bundle and writes the deferred `execute` transactions to the receipts file.
+- Added example strategies.
