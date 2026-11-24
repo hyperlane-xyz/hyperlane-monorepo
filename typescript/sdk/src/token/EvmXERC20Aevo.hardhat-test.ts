@@ -1315,46 +1315,6 @@ describe('Aevo xERC20 token', async () => {
         });
       }
 
-      interface AuthorityCase {
-        name: string;
-        authorized: boolean;
-        // What the token keeps for the router.
-        cap: number;
-        expected: AevoXERC20Limits;
-      }
-
-      const authorityCases: AuthorityCase[] = [
-        {
-          name: 'reads a router that is not authorized without the cap the token keeps for it',
-          authorized: false,
-          cap: 105,
-          expected: aevoUnauthorized(),
-        },
-        {
-          name: 'reads an authorized router with a cap',
-          authorized: true,
-          cap: 5000000,
-          expected: aevoRaw('5000000'),
-        },
-        {
-          name: 'reads an authorized router whose cap is zero as one without a cap',
-          authorized: true,
-          cap: 0,
-          expected: aevoUnlimited(),
-        },
-      ];
-
-      for (const c of authorityCases) {
-        it(c.name, async () => {
-          await (await aevoToken.setCap(routerAddress, c.cap)).wait();
-          await (
-            await aevoToken.updateAuthority(routerAddress, c.authorized)
-          ).wait();
-
-          expect(await adapter.getAevoLimits()).to.deep.equal(c.expected);
-        });
-      }
-
       // What the token enforces is what the limits state: what the router may
       // mint and burn is accepted and one more is refused.
       it('states what the token accepts of a mint and of a burn', async () => {

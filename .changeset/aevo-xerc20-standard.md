@@ -8,4 +8,4 @@ Routers over Aevo xERC20 tokens were given a `TokenStandard` of their own, `EvmH
 
 `warp deploy` and a `warp apply` that adds a chain wrote the standard of each EVM xERC20 router from its token, as the exported `deriveEvmXERC20Standard` gave it: `EvmHypAevoXERC20` for an Aevo token, and `EvmHypVSXERC20` for a Velodrome token, which was written as `EvmHypXERC20` before. For a re-exported Velodrome route, `WarpCore` and the rebalancer then limited a transfer to half of the buffer cap of its router, and its balance and limits metrics were labelled `EvmHypVSXERC20` where they were labelled `xERC20` and `EvmHypXERC20`, with the router as the `wallet_address` of its balance metric in place of the xERC20 token.
 
-`warp read` logged the authority and cap of each Aevo router, and `getXERC20Info` of `@hyperlane-xyz/metrics` read an Aevo token through its adapter.
+`warp read` logged the limits of an Aevo router in the same table as the other xERC20 routers, and `getXERC20Info` of `@hyperlane-xyz/metrics` read an Aevo token through its adapter.

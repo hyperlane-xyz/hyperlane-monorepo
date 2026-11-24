@@ -69,11 +69,7 @@ import {
   isValidContractVersion,
   throwIfNotMissingSelector,
 } from '../../utils/contract.js';
-import {
-  TokenMetadata,
-  XERC20AevoCapType,
-  XERC20AevoLimitConfig,
-} from '../types.js';
+import { TokenMetadata, XERC20AevoCapType } from '../types.js';
 import { AEVO_OUTSTANDING_SELECTOR, XERC20_AEVO_ABI } from '../xerc20-abi.js';
 
 import {
@@ -1379,15 +1375,6 @@ export class EvmHypAevoXERC20Adapter
     public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
-  }
-
-  /**
-   * What the token holds for this router, as AevoXERC20Limits states it.
-   */
-  async getAevoLimits(): Promise<XERC20AevoLimitConfig> {
-    const token = await this.getAevoToken();
-
-    return toAevoLimits(await token.getMintAuthority(this.addresses.token));
   }
 
   async getMintLimit(): Promise<bigint> {

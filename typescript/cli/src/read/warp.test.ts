@@ -1,66 +1,45 @@
-import { expect } from 'chai';
+import sinon from 'sinon';
 
 import {
-  type AevoXERC20Limits,
-  XERC20AevoCapType,
-  XERC20Type,
+  EvmHypAevoXERC20Adapter,
+  MultiProvider,
+  TokenStandard,
+  type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { formatAevoLimits } from './warp.js';
+import { logXERC20Limits } from './warp.js';
 
-describe('formatAevoLimits', () => {
-  interface Case {
-    name: string;
-    limits: AevoXERC20Limits;
-    decimals: number;
-    expected: { authorized: string; cap: string };
-  }
+describe('logXERC20Limits', () => {
+  afterEach(() => sinon.restore());
 
-  const cases: Case[] = [
-    {
-      name: 'a router that is not authorized has no cap to report',
-      limits: { type: XERC20Type.Aevo, authorized: false },
-      decimals: 6,
-      expected: { authorized: 'no', cap: '-' },
-    },
-    {
-      name: 'a router without a cap is reported as unlimited',
-      limits: {
-        type: XERC20Type.Aevo,
-        authorized: true,
-        cap: { type: XERC20AevoCapType.Unlimited },
-      },
-      decimals: 6,
-      expected: { authorized: 'yes', cap: 'unlimited' },
-    },
-    {
-      name: 'a cap is reported in the units of the token',
-      limits: {
-        type: XERC20Type.Aevo,
-        authorized: true,
-        cap: { type: XERC20AevoCapType.Raw, value: '5000000' },
-      },
-      decimals: 6,
-      expected: { authorized: 'yes', cap: '5.0' },
-    },
-    {
-      name: 'a cap above 2^53 keeps every digit',
-      limits: {
-        type: XERC20Type.Aevo,
-        authorized: true,
-        cap: { type: XERC20AevoCapType.Raw, value: '123456789012345678901' },
-      },
-      decimals: 6,
-      expected: {
-        authorized: 'yes',
-        cap: '123456789012345.678901',
-      },
-    },
-  ];
+  it('logs an Aevo router with the limits its adapter states, formatted in the units of its token', async () => {
+    sinon
+      .stub(EvmHypAevoXERC20Adapter.prototype, 'getMintLimit')
+      .resolves(75_000_000n);
+    sinon
+      .stub(EvmHypAevoXERC20Adapter.prototype, 'getBurnLimit')
+      .resolves(30_000_000n);
+    const table = sinon.stub(console, 'table');
+    const warpCoreConfig: WarpCoreConfig = {
+      tokens: [
+        {
+          chainName: 'test1',
+          standard: TokenStandard.EvmHypAevoXERC20,
+          addressOrDenom: '0x1111111111111111111111111111111111111111',
+          decimals: 6,
+          symbol: 'USDC',
+          name: 'USDC',
+        },
+      ],
+    };
 
-  for (const c of cases) {
-    it(c.name, () => {
-      expect(formatAevoLimits(c.limits, c.decimals)).to.deep.equal(c.expected);
+    await logXERC20Limits(
+      warpCoreConfig,
+      MultiProvider.createTestMultiProvider(),
+    );
+
+    sinon.assert.calledOnceWithExactly(table, {
+      test1: { mint: '75.0', burn: '30.0' },
     });
-  }
+  });
 });

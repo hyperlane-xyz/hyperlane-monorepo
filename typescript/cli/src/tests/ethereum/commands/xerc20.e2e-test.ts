@@ -844,7 +844,8 @@ describe('xerc20 Aevo e2e tests', function () {
       driftBeforeApply: boolean;
       calls: (router: Address) => AevoCall[];
       onChain: { authorized: boolean; cap: string };
-      // The cells `warp read` logs for the router, as console.table draws them.
+      // The mint and burn cells `warp read` logs for the router, which has
+      // minted nothing, as console.table draws them.
       logged: string[];
     }
 
@@ -859,7 +860,7 @@ describe('xerc20 Aevo e2e tests', function () {
           ['updateAuthority', router, 'true'],
         ],
         onChain: { authorized: true, cap: CAP_ABOVE_2_POW_53 },
-        logged: ["'yes'", "'123456789012345.678901'"],
+        logged: ["'123456789012345.678901'", "'0.0'"],
       },
       {
         name: 'an unlimited cap',
@@ -871,7 +872,10 @@ describe('xerc20 Aevo e2e tests', function () {
           ['updateAuthority', router, 'true'],
         ],
         onChain: { authorized: true, cap: '0' },
-        logged: ["'yes'", "'unlimited'"],
+        logged: [
+          "'115792089237316195423570985008687907853269984665640564039457584007913129.639935'",
+          "'0.0'",
+        ],
       },
       {
         name: 'a router that is not authorized',
@@ -880,7 +884,7 @@ describe('xerc20 Aevo e2e tests', function () {
         driftBeforeApply: false,
         calls: () => [],
         onChain: { authorized: false, cap: '0' },
-        logged: ["'no'", "'-'"],
+        logged: ["'0.0'", "'0.0'"],
       },
     ];
 

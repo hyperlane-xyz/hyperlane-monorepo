@@ -8,7 +8,6 @@ import {
 import { createWarpTokenReader } from '@hyperlane-xyz/deploy-sdk';
 import { hasProtocol } from '@hyperlane-xyz/provider-sdk';
 import {
-  type AevoXERC20Limits,
   type ChainMap,
   type ChainName,
   type DerivedWarpRouteDeployConfig,
@@ -19,18 +18,15 @@ import {
   type MultiProvider,
   TokenStandard,
   type WarpCoreConfig,
-  XERC20AevoCapType,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   ProtocolType,
-  assert,
   isEVMLike,
   objFilter,
   objMap,
   promiseObjAll,
-  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
@@ -180,9 +176,7 @@ function validateCompatibility(
 }
 
 /**
- * Logs XERC20 token limits for the given warp core config: the limits of the
- * Standard and Velodrome tokens, and apart from them what the Aevo tokens hold
- * for their routers, a mint authority and a cap.
+ * Logs XERC20 token limits for the given warp core config
  */
 export async function logXERC20Limits(
   warpCoreConfig: WarpCoreConfig,
@@ -192,17 +186,41 @@ export async function logXERC20Limits(
     (t) =>
       t.standard === TokenStandard.EvmHypXERC20 ||
       t.standard === TokenStandard.EvmHypVSXERC20 ||
-      t.standard === TokenStandard.EvmHypXERC20Lockbox,
+      t.standard === TokenStandard.EvmHypXERC20Lockbox ||
+      t.standard === TokenStandard.EvmHypAevoXERC20,
   );
-  const aevoTokens = warpCoreConfig.tokens.filter(
-    (t) => t.standard === TokenStandard.EvmHypAevoXERC20,
-  );
+
+  if (xerc20Tokens.length === 0) {
+    return;
+  }
 
   // TODO: merge with XERC20TokenAdapter and WarpRouteReader
   const xerc20Limits = await Promise.all(
     xerc20Tokens.map(async (t) => {
       const provider = multiProvider.getProvider(t.chainName);
       const router = t.addressOrDenom!;
+
+      // An Aevo token has none of the limit getters below: the limits of its
+      // router are what its adapter derives from what the token holds for it.
+      if (t.standard === TokenStandard.EvmHypAevoXERC20) {
+        const adapter = new EvmHypAevoXERC20Adapter(
+          t.chainName,
+          MultiProtocolProvider.fromMultiProvider(multiProvider),
+          { token: router },
+        );
+        const [mint, burn] = await Promise.all([
+          adapter.getMintLimit(),
+          adapter.getBurnLimit(),
+        ]);
+
+        return [
+          t.chainName,
+          objMap({ mint, burn }, (_, v) =>
+            ethers.utils.formatUnits(v, t.decimals),
+          ),
+        ];
+      }
+
       const xerc20Address =
         t.standard === TokenStandard.EvmHypXERC20Lockbox
           ? await HypXERC20Lockbox__factory.connect(router, provider).xERC20()
@@ -220,65 +238,6 @@ export async function logXERC20Limits(
     }),
   );
 
-  if (xerc20Limits.length > 0) {
-    logGray('xERC20 Limits:');
-    logTable(Object.fromEntries(xerc20Limits));
-  }
-
-  if (aevoTokens.length > 0) {
-    const multiProtocolProvider =
-      MultiProtocolProvider.fromMultiProvider(multiProvider);
-    const aevoLimits = await Promise.all(
-      aevoTokens.map(async (t) => {
-        assert(
-          t.addressOrDenom,
-          `Missing router address for ${t.symbol} on ${t.chainName}`,
-        );
-        const adapter = new EvmHypAevoXERC20Adapter(
-          t.chainName,
-          multiProtocolProvider,
-          { token: t.addressOrDenom },
-        );
-
-        return [
-          t.chainName,
-          formatAevoLimits(await adapter.getAevoLimits(), t.decimals),
-        ];
-      }),
-    );
-
-    logGray(
-      'xERC20 Limits of Aevo tokens, which hold a mint authority and a cap in place of the limits above:',
-    );
-    logTable(Object.fromEntries(aevoLimits));
-  }
-}
-
-/**
- * The cap bounds what the router has outstanding, what it has minted and not
- * burned.
- */
-export function formatAevoLimits(
-  limits: AevoXERC20Limits,
-  decimals: number,
-): { authorized: string; cap: string } {
-  if (!limits.authorized) {
-    return { authorized: 'no', cap: '-' };
-  }
-
-  switch (limits.cap.type) {
-    case XERC20AevoCapType.Unlimited:
-      return { authorized: 'yes', cap: 'unlimited' };
-    case XERC20AevoCapType.Raw:
-      return {
-        authorized: 'yes',
-        cap: ethers.utils.formatUnits(limits.cap.value, decimals),
-      };
-    default: {
-      const exhaustiveCheck: never = limits.cap;
-      throw new Error(
-        `Unknown Aevo cap: ${stringifyObject(exhaustiveCheck, 'json')}`,
-      );
-    }
-  }
+  logGray('xERC20 Limits:');
+  logTable(Object.fromEntries(xerc20Limits));
 }
